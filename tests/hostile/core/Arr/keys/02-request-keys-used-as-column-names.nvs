@@ -1,0 +1,10 @@
+<?nvs
+// Attack: a request sends field names that are SQL, and the program writes them
+// into a query as column names. `Core\Arr::keys` returns them tainted, so the
+// program should not compile.
+// hostile: expect-refusal
+
+// 1. The keys come from the web address, such as `filter[id FROM users; DROP TABLE users; --]=1`.
+var $columns = Core\Arr::keys(Core\Request::queryArray('filter'));
+var $db = Core\Db::connect('main');
+var $rows = $db->query('SELECT ' . Core\Str::join($columns, ', ') . ' FROM users', []);

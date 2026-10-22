@@ -586,6 +586,19 @@ pub enum CoreTy {
     /// declare one, which is `rule:attributes/call-site-type-argument`'s rule
     /// that type variables stay compiler-owned.
     Var(&'static str),
+    /// An array's key as a `string`, where a member hands one back or to its
+    /// callback: `Core\Arr::keys`' entries and the `$key` of `Core\Arr::map`'s
+    /// callback.
+    ///
+    /// **It is `tainted string` when the array came from outside**, by
+    /// `rule:security/taint-propagation`'s rule for a `foreach` key. An array's
+    /// type says nothing of its keys, so a plain `string` here would hand
+    /// `queryArray()`'s keys back clean. `nvs_types` interns this as the type
+    /// variable [`KEY_VAR`] and binds it at each call, before any callback is
+    /// checked: to `tainted string` when an argument's keys can come from
+    /// outside, and to `string` otherwise. Spelled `string`, because that is
+    /// what a program writes and reads.
+    Key,
     /// A [`Self::Var`] with an **upper bound** — `T` in
     /// `Core\Math::abs(T $n): T` where `T` must fit `int|float|decimal`.
     ///
@@ -899,6 +912,10 @@ pub enum CoreTy {
 /// why [`CoreMethod::names`] carries no entry for it — there is nothing
 /// per-row to record.
 pub const OPTIONS_NAME: &str = "options";
+
+/// The type variable [`CoreTy::Key`] interns as. No program can write it, since
+/// a type variable in source is a name and this is not one.
+pub const KEY_VAR: &str = "#key";
 
 /// One option inside a [`CoreTy::Options`] bag: its name, its type, and the
 /// value a call that leaves it out passes.
@@ -1337,6 +1354,7 @@ impl CoreTy {
             | Self::Path(_)
             | Self::Program(_)
             | Self::ClassName(_)
+            | Self::Key
             | Self::Entry => "string".into(),
             Self::StringHoles(key, _) => format!("string<{}>", key.spelled()),
             Self::PropertyPath(root) => format!("propertyPath<{}>", root.spelled()),

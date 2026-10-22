@@ -1335,6 +1335,7 @@ mod tests {
             | CoreTy::Float
             | CoreTy::Decimal
             | CoreTy::Str
+            | CoreTy::Key
             | CoreTy::Bytes
             | CoreTy::Text(_)
             | CoreTy::Path(_)

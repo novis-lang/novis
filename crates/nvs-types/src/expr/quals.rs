@@ -1111,6 +1111,10 @@ pub(crate) fn reject_secret_encoded_argument(
 /// when the argument that filled the value parameter carries outside text
 /// anywhere, and plain when it provably does not.
 ///
+/// `Core\Str::format` and `Core\Bytes::pack` are encoders too: each writes
+/// its variadic arguments into the result, under a template that is a sink.
+/// So a `%s` filled from a request taints the formatted string.
+///
 /// A call-site rule for [`reject_secret_encoded_argument`]'s reason: the
 /// member declares `mixed`, which a tainted value satisfies, so the argument's
 /// own type is visible here and nowhere below. An array literal written at the
@@ -1126,10 +1130,14 @@ pub(crate) fn encodes_outside_text(
     scope: &LocalScope,
     env: &mut Env<'_>,
 ) -> bool {
-    let owner = qname.to_string();
-    if member != "encode" || (owner != r"Core\Json" && owner != r"Core\Serialize") {
-        return false;
-    }
+    // The parameters whose values the member writes into its result: the first
+    // of an encoder, and every argument after the template of a formatter,
+    // which a positional call places at its own index.
+    let walked: fn(usize) -> bool = match (qname.to_string().as_str(), member) {
+        (r"Core\Json" | r"Core\Serialize", "encode") => |at| at == 0,
+        (r"Core\Str", "format") | (r"Core\Bytes", "pack") => |at| at >= 1,
+        _ => return false,
+    };
     let mut seen = FxHashSet::default();
     let CallArgs::List(list) = args else {
         return arg_types
@@ -1140,7 +1148,8 @@ pub(crate) fn encodes_outside_text(
         .zip(slots)
         .zip(arg_types)
         .any(|((arg, &slot), &ty)| {
-            slot == ArgSlot::Param(0) && written_outside_text(&arg.value, ty, scope, &mut seen, env)
+            matches!(slot, ArgSlot::Param(at) | ArgSlot::Spread(at) if walked(at))
+                && written_outside_text(&arg.value, ty, scope, &mut seen, env)
         })
 }
 

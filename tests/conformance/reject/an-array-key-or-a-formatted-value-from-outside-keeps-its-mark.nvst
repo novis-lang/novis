@@ -1,0 +1,46 @@
+--TEST--
+A key read from an array filled from outside, and a value `Core\Str::format` or `Core\Bytes::pack` writes into its result, keep `tainted`, so a plain binding refuses each, while a program's own keys and values stay plain — `rule:security/taint-propagation`
+--FILE--
+<?nvs
+// covers: lang:types/qualifiers-tainted-and-secret
+// Each line below the array reads its keys or formats a tainted value, so each
+// result is tainted. The count of errors is the assertion.
+array<tainted string> $form = Core\Request::queryArray("filter");
+tainted string $raw = "x";
+
+array<string> $keys = Core\Arr::keys($form);
+?string $first = Core\Arr::firstKey($form);
+?string $last = Core\Arr::lastKey($form);
+?string $at = Core\Arr::keyOf($form, $raw);
+?string $found = Core\Arr::findKey($form, fn($v) => $v == "a");
+array<string> $mapped = Core\Arr::map($form, fn($v, $k) => $k);
+string $formatted = Core\Str::format("%s", $raw);
+bytes $packed = Core\Bytes::pack("A5", $raw);
+
+// The program's own keys and values stay plain `string`.
+array<int> $counts = ["a" => 1];
+array<string> $own = Core\Arr::keys($counts);
+?string $ownFirst = Core\Arr::firstKey($counts);
+array<string> $ownMapped = Core\Arr::map($counts, fn($v, $k) => $k);
+string $ownFormatted = Core\Str::format("%s", "a");
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `array<string>`, found `array<tainted string>`
+%A
+error[E0401]: expected `string|null`, found `null|tainted string`
+%A
+error[E0401]: expected `string|null`, found `null|tainted string`
+%A
+error[E0401]: expected `string|null`, found `null|tainted string`
+%A
+error[E0401]: expected `string|null`, found `null|tainted string`
+%A
+error[E0401]: expected `array<string>`, found `array<tainted string>`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `bytes`, found `tainted bytes`
+%A
+error: aborting due to 8 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

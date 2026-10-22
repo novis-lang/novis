@@ -1,0 +1,10 @@
+<?nvs
+// Attack: a request value is written into the text of a database query with
+// `Core\Str::format`. The formatted string is tainted, so the program should not compile.
+// hostile: expect-refusal
+
+// 1. The name comes from the web address, such as `x' OR '1' = '1`.
+tainted string $name = Core\Request::query('name') ?? '';
+var $sql = Core\Str::format("SELECT * FROM users WHERE name = '%s'", $name);
+var $db = Core\Db::connect('main');
+var $rows = $db->query($sql, []);

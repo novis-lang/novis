@@ -3890,6 +3890,7 @@ mod tests {
             | CoreTy::Float
             | CoreTy::Decimal
             | CoreTy::Str
+            | CoreTy::Key
             | CoreTy::Bytes
             | CoreTy::Text(_)
             | CoreTy::Path(_)
@@ -3924,6 +3925,7 @@ mod tests {
     fn every_text_position_is_tainted(ty: &CoreTy) -> bool {
         match ty {
             CoreTy::Str
+            | CoreTy::Key
             | CoreTy::Bytes
             | CoreTy::Text(_)
             | CoreTy::Path(_)

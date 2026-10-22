@@ -56,7 +56,8 @@ an `int`. The split keeps `sign`'s `array<string>` claims typed, and it makes st
 shared key a type mismatch the compiler reports rather than a runtime `LogicError`. Both members write
 their header canonically, sorted with no whitespace, so an RS256 or EdDSA token is reproducible byte for
 byte and the frozen vector set can hold it. `embedKey` writes the pair's public half as RFC 7638's JWK
-under `jwk`, which is what a DPoP proof carries.
+under `jwk`, which is what a DPoP proof carries. A token is base64url segments and dots, so it carries
+no claim's `tainted` into any sink: both members answer a plain `string` from tainted claims.
 
 - **Memory:** a `Jwt\KeySet` holds at most 16 public keys for as long as the program holds it, and a
   verification costs at most one signature check. Nothing is held between calls.
