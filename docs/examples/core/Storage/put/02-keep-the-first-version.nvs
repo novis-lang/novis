@@ -11,7 +11,7 @@ try {
 }
 
 // The file still has the first version. This prints `first version`.
-bytes $saved = Core\Storage::get("files", "draft.txt") ?? "" as bytes;
+tainted bytes $saved = Core\Storage::get("files", "draft.txt") ?? "" as bytes;
 echo $saved as string;
 
 Core\Storage::delete("files", "draft.txt");
