@@ -1164,7 +1164,9 @@ mod tests {
         let padding = "x".repeat(PART_HEADERS - 64);
         let mut wire = Vec::new();
         for _ in 0..PARTS {
-            wire.extend_from_slice(b"--bnd\r\nContent-Disposition: form-data; name=\"f\"\r\nX-Pad: ");
+            wire.extend_from_slice(
+                b"--bnd\r\nContent-Disposition: form-data; name=\"f\"\r\nX-Pad: ",
+            );
             wire.extend_from_slice(padding.as_bytes());
             wire.extend_from_slice(b"\r\n\r\nv\r\n");
         }
@@ -1187,7 +1189,9 @@ mod tests {
         let wire = body(&rows);
         let mut supplier = Wire::new(&wire, 5);
         let mut parse = Multipart::new(b"bnd", REQUEST_BODY, 2);
-        let first = parse.drain(&mut supplier).expect_err("a third part is over the cap");
+        let first = parse
+            .drain(&mut supplier)
+            .expect_err("a third part is over the cap");
         assert_eq!(parse.drain(&mut supplier), Err(first.clone()));
         assert_eq!(parse.next_part(&mut supplier), Err(first.clone()));
         assert_eq!(parse.next_chunk(&mut supplier), Err(first));

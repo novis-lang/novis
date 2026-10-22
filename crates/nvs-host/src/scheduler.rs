@@ -1762,7 +1762,10 @@ mod tests {
         let seen = seen.borrow();
         assert_eq!(seen.len(), 2, "both tasks ran to the end: {seen:?}");
         for &(limit, before, after) in seen.iter() {
-            assert_ne!(before, 0, "the task with limit {limit} ran with no ceiling armed");
+            assert_ne!(
+                before, 0,
+                "the task with limit {limit} ran with no ceiling armed"
+            );
             assert_eq!(
                 before, after,
                 "the task with limit {limit} came back under another task's ceiling"

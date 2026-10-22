@@ -7293,11 +7293,7 @@ mod tests {
         unsafe_code,
         reason = "the release path hands this a live generator in argument 0"
     )]
-    unsafe extern "C" fn fake_unwind(
-        _ctx: *mut Ctx,
-        args: *const Value,
-        _out: *mut Value,
-    ) -> i32 {
+    unsafe extern "C" fn fake_unwind(_ctx: *mut Ctx, args: *const Value, _out: *mut Value) -> i32 {
         #[expect(
             unsafe_code,
             reason = "argument 0 is the dying generator, resurrected for this call"
@@ -7349,13 +7345,21 @@ mod tests {
         let kept = KEPT.replace(std::ptr::null_mut());
         assert!(!kept.is_null(), "the unwind kept the generator");
         assert_eq!(refcount(kept), 1, "the resurrection's reference is gone");
-        assert_eq!(ctx.live_objects(), 1, "the kept object is still on its list");
+        assert_eq!(
+            ctx.live_objects(),
+            1,
+            "the kept object is still on its list"
+        );
         #[expect(unsafe_code, reason = "the unwind kept a live reference")]
         let kept = unsafe { NvsObj::from_raw(kept) };
         assert_eq!(kept.field(0).as_int(), Some(FINISHED), "it is finished");
         // The keeper's reference was the last one: no `finally` runs again.
         drop(kept);
-        assert_eq!(FINALLY_RUNS.get(), 1, "a finished generator runs no `finally`");
+        assert_eq!(
+            FINALLY_RUNS.get(),
+            1,
+            "a finished generator runs no `finally`"
+        );
         assert_eq!(ctx.live_objects(), 0, "and the second release freed it");
         drop(current);
     }
@@ -7368,8 +7372,12 @@ mod tests {
         let current = crate::ctx::CurrentCtx::install(&mut ctx);
         {
             #[expect(unsafe_code, reason = "the table outlives both objects")]
-            let (suspended, boxed) =
-                unsafe { (NvsObj::new(table.desc(generator)), NvsObj::new(table.desc(holder))) };
+            let (suspended, boxed) = unsafe {
+                (
+                    NvsObj::new(table.desc(generator)),
+                    NvsObj::new(table.desc(holder)),
+                )
+            };
             suspended.set_field(0, Value::int(SUSPENDED));
             // The parked local holds the holder, and the holder holds the
             // generator: a cycle no release reaches.

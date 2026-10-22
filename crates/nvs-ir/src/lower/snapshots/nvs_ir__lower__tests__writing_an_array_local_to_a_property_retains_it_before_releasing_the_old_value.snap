@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> void {
@@ -16,8 +16,8 @@ fn m(object) -> void {
     ; stmt s2 @12:5-12:25
     retain v5
     v6 = field.get v3, Foo::data  ; array
-    release v6
     field.set v3, Foo::data, v5
+    release v6
     release v3
     release v5
     release v0
