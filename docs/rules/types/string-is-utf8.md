@@ -15,7 +15,11 @@ for a payload whose tag held. A member whose input is already a `string`, and wh
 only ASCII bytes, has nothing to check: `Core\Csv::parse` is one. A plaintext that a seal opens is
 checked too, because a tag proves who sealed the bytes and not that they are text: `Core\SignedCookie::open`
 refuses it as it refuses a forgery, and `Core\Session::getSecret` and `Core\Cache::getSecret` read it
-as a miss. In the runtime, a `string` value is made from bytes only through `Value::str`, which checks
+as a miss. Captured output becomes a `string` too, and only `Core\Response::bytes` and `::sendFile`
+can write bytes that are not UTF-8 into it. So `Core\Out::capture`, a `spawn script`'s `output`,
+`Core\Html::later` and `Core\Test`'s response body throw `RuntimeError` naming the member when the
+output is not UTF-8. They check at the capture's end, since refusing the write would also refuse
+valid bytes. A MySQL column label is checked as a text value is. In the runtime, a `string` value is made from bytes only through `Value::str`, which checks
 nothing. `clippy.toml` refuses it outside an audited site, which says why its bytes are UTF-8, and
 `Value::text` makes one from a Rust `&str`.
 

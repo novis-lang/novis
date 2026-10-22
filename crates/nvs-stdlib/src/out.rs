@@ -33,7 +33,7 @@
 //! one not-taken branch per `echo`, which `nvs_runtime::Ctx`'s own
 //! `captures` field states.
 
-use nvs_runtime::{Fault, NvsObj, NvsStr, Tag, Value};
+use nvs_runtime::{Fault, NvsObj, Tag, Value};
 
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
@@ -154,7 +154,7 @@ nvs_runtime::nvs_helper! {
             }
             Err(fault) => return Err(fault),
         }
-        let text = carried(ctx, &captured);
+        let text = carried(ctx, &captured, "Core\\Out::capture")?;
         // `rule:security/capture-answers-the-carrier`'s `{through:}` — the transform takes and answers the
         // same carrier, so the reference in `text` is transferred into the
         // call and whatever comes back is what this member answers.
@@ -202,18 +202,32 @@ nvs_runtime::nvs_helper! {
 /// one this builds is the one `echo` writes unchanged. Like
 /// [`crate::cli::built`] this transfers bytes and neutralizes nothing, which is
 /// sound only because the sink neutralized them on their way in.
-pub(crate) fn carried(ctx: &nvs_runtime::Ctx, captured: &[u8]) -> Value {
-    #[allow(
-        clippy::disallowed_methods,
-        reason = "unchecked: a capture can hold raw bytes from `Core\\Response::bytes`, \
-                  and security-hardening's stage 3 checks it"
-    )]
-    let text = Value::str(NvsStr::new(captured));
-    if ctx.carrier() == crate::html::MARKUP_NAME {
+///
+/// # Errors
+///
+/// [`not_text`]'s `RuntimeError`, naming `member`, when the capture is not
+/// UTF-8 (`rule:types/string-is-utf8`).
+pub(crate) fn carried(
+    ctx: &nvs_runtime::Ctx,
+    captured: &[u8],
+    member: &str,
+) -> Result<Value, Fault> {
+    let text = Value::text(std::str::from_utf8(captured).map_err(|_| not_text(member))?);
+    Ok(if ctx.carrier() == crate::html::MARKUP_NAME {
         crate::instance::build(&crate::html::MARKUP, [text])
     } else {
         crate::cli::built(text)
-    }
+    })
+}
+
+/// The `RuntimeError` for captured output that is not UTF-8. Only
+/// `Core\Response::bytes` and `::sendFile` write such bytes, since every
+/// other write is a `string`, so the message names them.
+pub(crate) fn not_text(member: &str) -> Fault {
+    Fault::thrown(format!(
+        "`{member}`: the captured output is not valid UTF-8, so it cannot be a string. \
+         `Core\\Response::bytes` or `Core\\Response::sendFile` wrote it."
+    ))
 }
 
 /// How to name what a `through` callable answered, or `None` where it answered

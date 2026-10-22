@@ -618,13 +618,16 @@ fn render(ctx: &mut Ctx, callable: Value) -> Value {
     }
     release(answer);
     assemble(ctx, &mut bytes);
-    #[allow(
-        clippy::disallowed_methods,
-        reason = "unchecked: a slot's buffered output can hold raw bytes from `Core\\Response::bytes`, \
-                  and security-hardening's stage 3 checks it"
-    )]
-    let text = Value::str(NvsStr::new(&bytes));
-    text
+    // The slot becomes a `string`, so output that is not UTF-8 fails the slot
+    // as a throw in its callable does (`rule:types/string-is-utf8`).
+    let Ok(text) = std::str::from_utf8(&bytes) else {
+        ctx.set_pending(
+            "`Core\\Html::later`: the captured output is not valid UTF-8, so it cannot be a \
+             string. `Core\\Response::bytes` or `Core\\Response::sendFile` wrote it.",
+        );
+        return Value::null();
+    };
+    Value::text(text)
 }
 
 fn occurrences(haystack: &[u8], needle: &[u8]) -> usize {

@@ -702,13 +702,9 @@ nvs_runtime::nvs_helper! {
         unsafe {
             answer.release();
         }
-        #[allow(
-            clippy::disallowed_methods,
-            reason = "unchecked: the callable's output can hold raw bytes from `Core\\Response::bytes`, \
-                      and security-hardening's stage 3 checks it"
-        )]
-        let text = Value::str(NvsStr::new(&bytes));
-        Ok(crate::instance::build(&MARKUP, [text]))
+        let text = std::str::from_utf8(&bytes)
+            .map_err(|_| crate::out::not_text("Core\\Html::later"))?;
+        Ok(crate::instance::build(&MARKUP, [Value::text(text)]))
     }
 }
 
