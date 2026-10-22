@@ -231,7 +231,8 @@ use std::cell::Cell;
 mod gauge;
 
 pub use gauge::{
-    CoreGauge, STEP as GAUGE_STEP, held_by_cores, process_limit, publish_held, set_process_limit,
+    CoreGauge, STEP as GAUGE_STEP, held_by_cores, held_by_this_core, process_limit, publish_held,
+    set_process_limit,
 };
 
 /// What [`Accounting`] forwards to: Novis's own pooled allocator wherever it is
@@ -587,8 +588,10 @@ impl ArmedStack {
     pub fn take() -> Self {
         let turn = TURN.with(Cell::take);
         if let Some(tree) = &turn {
+            let balance = live_bytes();
             tree.balance
-                .store(live_bytes(), std::sync::atomic::Ordering::Relaxed);
+                .store(balance, std::sync::atomic::Ordering::Relaxed);
+            settle_idle(tree, balance);
         }
         let live = LIVE.with(Cell::get);
         let taken = Self {
@@ -689,6 +692,93 @@ pub(crate) fn reroot_turn(
         };
         cell.set(next);
     });
+}
+
+/// Starts counting `tree` as a request's from the balance as it stands:
+/// [`Ctx::reroot`](crate::Ctx::reroot), in front of each request a connection
+/// serves. What the tree holds above this is what [`begin_idle`] later sets
+/// aside.
+pub(crate) fn count_from_here(tree: &crate::TreeState) {
+    use std::sync::atomic::Ordering::Relaxed;
+    tree.base.store(live_bytes(), Relaxed);
+    tree.idling.store(COUNTED, Relaxed);
+}
+
+/// [`TreeState::idling`](crate::TreeState) of a tree whose base nothing has
+/// set: a fresh tree, whose balance starts where the stack that made it stood.
+const UNBASED: u8 = 0;
+/// [`TreeState::idling`](crate::TreeState) of a tree that counts as a
+/// request's and has a base.
+const COUNTED: u8 = 1;
+/// [`TreeState::idling`](crate::TreeState) of a connection's tree between
+/// requests.
+const IDLE: u8 = 2;
+
+/// Marks `tree` as a connection's between requests, so what it holds above its
+/// base leaves this core's published balance from its next park on
+/// (`gauge`'s *a connection between requests is not a request*).
+///
+/// Answers whether the tree is idle now. It is not where the running stack is
+/// not `tree`'s turn, because only a turn keeps the tree's balance current.
+pub(crate) fn begin_idle(tree: &std::sync::Arc<crate::TreeState>) -> bool {
+    let running = TURN.with(|cell| {
+        let turn = cell.take();
+        let running = turn
+            .as_ref()
+            .is_some_and(|turn| std::sync::Arc::ptr_eq(turn, tree));
+        cell.set(turn);
+        running
+    });
+    if !running {
+        return false;
+    }
+    let balance = live_bytes();
+    // A connection waiting for its first request measures from here.
+    if tree.idling.swap(IDLE, std::sync::atomic::Ordering::Relaxed) == UNBASED {
+        tree.base
+            .store(balance, std::sync::atomic::Ordering::Relaxed);
+    }
+    settle_idle(tree, balance);
+    true
+}
+
+/// Counts `tree` as a request's again: the next request on its connection has
+/// started, or the connection's context is ending. What it had set aside goes
+/// back onto the published balance.
+pub(crate) fn end_idle(tree: &crate::TreeState) {
+    if tree
+        .idling
+        .compare_exchange(
+            IDLE,
+            COUNTED,
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+        )
+        .is_ok()
+    {
+        let held = tree
+            .idle_held
+            .swap(0, std::sync::atomic::Ordering::Relaxed);
+        gauge::move_idle(held.wrapping_neg());
+    }
+}
+
+/// Sets aside what an idle `tree` holds at `balance`, in its own units, above
+/// its base. Nothing while a child of the tree is still running, and never
+/// less than zero: a tree that freed more than it allocated since its base
+/// gave back bytes another turn charged, and sets none of its own aside.
+fn settle_idle(tree: &crate::TreeState, balance: isize) {
+    use std::sync::atomic::Ordering::Relaxed;
+    if tree.idling.load(Relaxed) != IDLE {
+        return;
+    }
+    let held = if tree.tasks.load(Relaxed) > 0 {
+        0
+    } else {
+        balance.wrapping_sub(tree.base.load(Relaxed)).max(0)
+    };
+    let before = tree.idle_held.swap(held, Relaxed);
+    gauge::move_idle(held.wrapping_sub(before));
 }
 
 /// Raises [`SafepointFlags::MEMORY_LIMIT`](crate::SafepointFlags) and

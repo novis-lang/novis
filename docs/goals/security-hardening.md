@@ -406,13 +406,13 @@ carry the mark.
 capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 are closed.
 
 - [x] HTTP-1: set hyper's buffer size, and keep a buffered response's in-flight place until its body is written. `crates/nvs-server/src/serve.rs:2373`
-- [ ] HTTP-1: admission reads memory charged to requests, not the thread's total (`rule:http-server/admission-is-arithmetic-not-a-number`). `crates/nvs-server/src/admit.rs:1`
+- [x] HTTP-1: admission reads memory charged to requests, not the thread's total (`rule:http-server/admission-is-arithmetic-not-a-number`). `crates/nvs-server/src/admit.rs:1`
 - [ ] LC-3, LC-9: no span queued without an exporter, the client's flag read only with one, and `request_id` always the server's (`rule:observability/sampling-is-head-based`). `crates/nvs-server/src/trace.rs:278`
 - [ ] LC-6, LC-7: the `method` label is closed, and a 501 logs at `info`. `crates/nvs-server/src/serve.rs:1706`
 - [ ] LC-5: blocking-pool CPU is charged to its request (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/blocking.rs:349`
 - [x] ~~LC-8: try the native stack overflow shapes in the lifecycle report; if the process ends, the deep helper checks the stack it has left and throws.~~ Ruled out on a2b4854a4: every native walk over a runtime value is iterative or depth-bounded, JSON decode's 1024-deep recursion runs on the 8 MiB spare stack, and each shape answered a clean `500` with the worker still serving (LC-8 in the lifecycle report). `.agent-tmp/sec-audit/reports/wb-lifecycle.md:1`
 - [ ] LC-12: a configured `[log]` escalation handler runs on a task of its own behind a bounded queue, never joined on the serving worker; a full queue drops the event and counts it in a metric, so forced uncaught throws cannot each hold a worker for `handler_reserve_time`. The queue's length is a constant with its reason in the code (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/ladder.rs:122`
-- [ ] HTTP-1's fix keeps a Rust test beside `admit.rs`: a core thread holding connection buffers past the room still admits a request, because admission reads request memory only. No idle-connection or slow-reader attack, since a proxy stops those first. `crates/nvs-server/src/admit.rs:1`
+- [x] HTTP-1's fix keeps a Rust test beside `admit.rs`: a core thread holding connection buffers past the room still admits a request, because admission reads request memory only. No idle-connection or slow-reader attack, since a proxy stops those first. `crates/nvs-server/src/admit.rs:1`
 - [ ] The overload attack, a Rust test that starts the real `nvs serve` with `max_in_flight = 50` and a small `[limits] memory`. A flood several times the ceiling runs beside requests that reach the memory limit, reach the CPU limit, and lose their client, while a probe sends ordinary requests. Every refusal is a `503` with `Retry-After`, every probe gets `200` or that `503` and never hangs, and the process lives. Once the flood ends, 50 requests held open together are all admitted, `nvs_memory_bytes` is back within a stated bound of its reading before the flood, and the next request answers `200`. `crates/nvs-cli/tests/serve_isolation.rs:1`
 - [ ] A `flood` row in `bench-compare --scenarios` puts load past capacity on each stack behind nginx and reports refusals, probe latency and recovery; the nightly deep lane runs its smoke form. `benches/compare/README.md:80`
 - [ ] `[limits] max_tasks`'s comment says what `claim_task` enforces, not "bounds nothing today". `crates/nvs-config/src/default.toml:86`
@@ -529,44 +529,34 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 7 is under way. Its first item, HTTP-1's buffer size and the buffered response's place,
-landed in 8c8a86f6d.
+Stage 7 is under way. Its first two items and the HTTP-1 test have landed: the buffered response's
+place (8c8a86f6d) and, this session, admission reading request memory only.
 
-- **hyper's buffer size was already named** by eef6c73a9: `MAX_HEAD_BYTES` (`serve.rs:238`) is
-  `max_buf_size`, beside `MAX_HEADER_LINES`. Nothing changed there.
-- **A whole answer keeps its place until it is written.** The service puts a buffered response's
-  `InFlight` into the connection cell `sending` (`serve.rs`, beside `writing`) instead of dropping it
-  when the service returns. The drive loop drops it at the first poll that returns `Pending` with
-  `ConnectionIo::write_parked` false (`crates/nvs-server/src/io.rs`, set by every `poll_write`). A
-  whole or file body always has its next chunk ready, so that poll has nothing left to write. The
-  phase is not the signal: after the last write `hyper` does not read again until the next request's
-  bytes arrive, so the phase stays `Write`. `Streamed::_place` is now an `Option`, always `Some`.
-- Test `a_whole_answer_holds_its_place_until_it_is_written` (`serve.rs`, after the streaming case)
-  ran once, green. It sends a 32 MiB body to a client that reads only the head, then a second request
-  on the same connection, whose handler reads `in_flight() == 1`. The slow-reader assert runs on Unix
-  only: the Windows loopback takes all 32 MiB into the kernel in one write, so the server never
-  waits. No `socket2` in the graph, so the test cannot shrink the send buffer.
-- `rule:http-server/max-in-flight-refuses-before-allocating` says when a place goes back, and
-  `guardedBy` names `serve.rs`. `cargo build`, `cargo clippy --all-targets -- -D warnings` and
-  `bun nv rules --check` are green.
-- The sweep's `env-secret-proofs` log reads exit 0. Nightly run 39746060276 was cancelled whole and
-  is not a failure of this tree.
-
-**What item 2 needs, found while reading (not started):**
-
-- The gauge each core publishes is `LIVE + DETACHED` (`crates/nvs-runtime/src/budget/gauge.rs`,
-  `report`), the whole thread balance, so hyper's connection buffers are in it.
-- A request tree's own balance is `TreeState::balance` (`crates/nvs-runtime/src/ctx/safepoint.rs:632`),
-  stored at each switch (`budget.rs`, `begin_turn`, `enter`, `ArmedStack`'s drop). But
-  `budget::reroot_turn` (`budget.rs`, after `begin_turn`) makes a connection's own turns charge the
-  request tree it is serving, so bytes hyper allocates while a request runs land on that request.
-  The head of the next request is read before the reroot, under the last tree.
-- One shape that costs nothing on the allocation path: a thread-local sum of what turns of trees that
-  are not requests moved `LIVE` by, updated at each switch, and subtracted in `report`. It needs a
-  flag on `TreeState` for "this tree is a request", and it misattributes a block allocated under one
-  kind of turn and freed under the other. Weigh that against walking the core's in-flight trees in
-  `report`. The test is `admit.rs`'s, as the item says, and `Admission::reading` already takes a
-  `held` function a test can state.
+- **A connection between requests is not counted.** Each core's gauge is now `LIVE + DETACHED −
+  IDLE` (`crates/nvs-runtime/src/budget/gauge.rs`, `report`, `move_idle`). `IDLE` is a thread-local
+  sum of what idle connection trees hold above their base. `TreeState` has three new words
+  (`safepoint.rs`, after `balance`): `base`, `idling` (`UNBASED`/`COUNTED`/`IDLE` in `budget.rs`)
+  and `idle_held`. `budget::begin_idle`, `end_idle`, `count_from_here` and `settle_idle` sit before
+  `publish` in `budget.rs`. `ArmedStack::take` settles an idle tree at each park.
+- **Who calls it.** `Ctx::between_requests` (`safepoint.rs`, before `join_tree`) marks the tree idle
+  where the running stack is its turn, and sets the new `Ctx::idles_tree` field. `Ctx::reroot` ends
+  the idle at its start and calls `count_from_here` after the swap. `Ctx`'s drop ends it too.
+  `serve.rs` calls `between_requests` before the drive loop, when `sending` gives a place back, and
+  at the end of `joined_when_ended`.
+- **Why a base and not a running sum.** A block allocated on one kind of turn and freed on the other
+  would make a running sum drift with requests served. The excess over the base is dropped at the
+  next reroot, so nothing outlives one request. A fresh tree's balance starts where its spawner's
+  stack stood (`leave_this_stack`), so its base is taken at its first idle (`UNBASED`). A tree with a
+  running child (`TreeState::tasks > 0`, after-response work) sets nothing aside.
+- Test `connection_buffers_between_requests_do_not_refuse_a_request` (`admit.rs`) ran once, green.
+  It claims a gauge on its own thread, holds 64 MiB on an idle connection tree under a 32 MiB room,
+  and is admitted; after `reroot` the same bytes refuse. It reads `budget::held_by_this_core` (new),
+  so other tests' cores stay out. Before the base fix its first assert failed with 64 MiB published.
+- `rule:http-server/admission-is-arithmetic-not-a-number` has the paragraph, the memory line and a
+  Declined entry, and `guardedBy` names `gauge.rs`. `cargo build`, `cargo clippy --all-targets -- -D
+  warnings` and `bun nv rules --check` are green.
+- The sweep's `env-secret-proofs` reads exit 0 when rerun here. Nightly run 39746060276 was cancelled
+  whole and is not a failure of this tree.
 
 RT-4, for the record:
 
@@ -697,18 +687,18 @@ limit by its arena's doubling and expected to finish (none known), and the Html 
 `ends-early 3 FATAL` passes only on a binary built after 65c1adb0a. 8c8a86f6d adds: an `nvs-server`
 test that reads `in_flight()` right after a buffered response's head arrives and expects `0`
 (none found), and on Linux, any test that counts places while a client has not read a large body.
+This session adds: any test that reads `held_by_cores` or `nvs_memory_bytes` from a served core
+between requests and expects the connection's buffers in it (`crates/nvs-cli/src/serve.rs:4271`
+reads `held_by_cores`; not run), and a lowering or layout snapshot of `Ctx` (one new `bool`).
 
 ### Next
 
 Stage 7, in one session per two or three items, all in `nvs-server`, `nvs-host` and `nvs-runtime`:
 
-1. HTTP-1: admission reads memory charged to requests (`crates/nvs-server/src/admit.rs:1`,
-   `crates/nvs-runtime/src/budget/gauge.rs:1`), with its Rust test beside `admit.rs`. *State* has
-   what the gauge holds now and one shape for the fix.
-2. LC-3, LC-9 (`crates/nvs-server/src/trace.rs:278`), then LC-6, LC-7
+1. LC-3, LC-9 (`crates/nvs-server/src/trace.rs:278`), then LC-6, LC-7
    (`crates/nvs-server/src/serve.rs:1706`).
-3. LC-5 (`crates/nvs-host/src/blocking.rs:349`) and LC-12 (`crates/nvs-host/src/ladder.rs:122`).
-4. The overload attack (`crates/nvs-cli/tests/serve_isolation.rs:1`), the `flood` row
+2. LC-5 (`crates/nvs-host/src/blocking.rs:349`) and LC-12 (`crates/nvs-host/src/ladder.rs:122`).
+3. The overload attack (`crates/nvs-cli/tests/serve_isolation.rs:1`), the `flood` row
    (`benches/compare/README.md:80`), and `max_tasks`'s comment (`crates/nvs-config/src/default.toml:86`).
 
 ### Backlog

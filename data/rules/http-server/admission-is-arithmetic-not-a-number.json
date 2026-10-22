@@ -11,6 +11,7 @@
   ],
   "guardedBy": [
     "crates/nvs-server/src/admit.rs",
+    "crates/nvs-runtime/src/budget/gauge.rs",
     "crates/nvs-runtime/tests/server_memory.rs",
     "crates/nvs-config/src/server.rs"
   ]

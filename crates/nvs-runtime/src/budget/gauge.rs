@@ -7,7 +7,20 @@
 //! private to their threads; a sum of per-*request* readings is not, because one core runs several
 //! requests interleaved and each reading includes the others' bytes. So each core owns one
 //! [`Gauge`] and publishes its thread's [`LIVE`](super::LIVE) plus
-//! [`DETACHED`](super::DETACHED) into it, and [`held_by_cores`] is the sum of every gauge.
+//! [`DETACHED`](super::DETACHED), less what its connections hold between requests ([`IDLE`]), into
+//! it, and [`held_by_cores`] is the sum of every gauge.
+//!
+//! **A connection between requests is not a request.** `hyper`'s buffers and the head of the next
+//! request are allocated on the connection's turns, and an idle keep-alive connection keeps them.
+//! Counted, enough idle connections would refuse every request while no request held anything. So
+//! a connection whose place has gone back marks its tree idle
+//! ([`Ctx::between_requests`](crate::Ctx::between_requests)), and what that tree holds above the
+//! balance its last request started at is moved into [`IDLE`] at each of its parks. The next
+//! request's start ([`Ctx::reroot`](crate::Ctx::reroot)) takes it out again, so those bytes count
+//! while a request is in flight on the connection. A tree with a child still running, such as
+//! after-response work, moves nothing, because that child is a request's work. What an idle tree
+//! holds is bounded by `hyper`'s buffer size, and how many connections are open is the proxy's to
+//! bound (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`).
 //!
 //! **A core publishes when its balance has moved by [`STEP`] since its last publish**, and at a
 //! request's start and end ([`publish_held`]). The allocation path compares the balance against the
@@ -32,7 +45,8 @@
 //! never freed and are reused as cores come and go, and three thread-local cells per thread. That
 //! is O(cores) and nothing per request. On the allocation path it is one thread-local load and one
 //! compare per balance change; a publish is one relaxed store, plus one relaxed load per core when
-//! a request is armed and the balance grew.
+//! a request is armed and the balance grew. [`IDLE`] is two more thread-local cells, and an idle
+//! tree's park pays two relaxed loads, a swap and a compare. Each tree carries three words for it.
 
 use std::cell::Cell;
 use std::sync::OnceLock;
@@ -103,6 +117,23 @@ thread_local! {
     pub(super) static LIVE_MARK: Cell<isize> = const { Cell::new(0) };
     /// [`DETACHED`] at this thread's last publish.
     pub(super) static DETACHED_MARK: Cell<isize> = const { Cell::new(0) };
+    /// What the trees of this thread's connections between requests hold, as each last parked:
+    /// the module doc's *a connection between requests is not a request*. A publish subtracts it.
+    static IDLE: Cell<isize> = const { Cell::new(0) };
+    /// [`IDLE`] at this thread's last publish.
+    static IDLE_MARK: Cell<isize> = const { Cell::new(0) };
+}
+
+/// Moves [`IDLE`] by `by`, and publishes once it has moved a whole [`STEP`] since the last
+/// publish. Called at a switch, never on the allocation path.
+pub(super) fn move_idle(by: isize) {
+    if by == 0 {
+        return;
+    }
+    IDLE.with(|idle| idle.set(idle.get().wrapping_add(by)));
+    if far_from(IDLE.with(Cell::get), &IDLE_MARK) {
+        report(false);
+    }
 }
 
 /// Whether `now` has moved a whole [`STEP`] away from the value `mark` holds. The allocation
@@ -123,14 +154,17 @@ pub(super) fn far_from(now: isize, mark: &'static LocalKey<Cell<isize>>) -> bool
 pub(super) fn report(grew: bool) {
     let live = LIVE.with(Cell::get);
     let detached = DETACHED.with(Cell::get);
+    let idle = IDLE.with(Cell::get);
     LIVE_MARK.with(|mark| mark.set(live));
     DETACHED_MARK.with(|mark| mark.set(detached));
+    IDLE_MARK.with(|mark| mark.set(idle));
     let Some(gauge) = GAUGE.with(Cell::get) else {
         return;
     };
-    gauge
-        .held
-        .store(live.wrapping_add(detached), Ordering::Relaxed);
+    gauge.held.store(
+        live.wrapping_add(detached).wrapping_sub(idle),
+        Ordering::Relaxed,
+    );
     if grew {
         stop_if_full(super::live_bytes());
     }
@@ -180,6 +214,15 @@ pub fn held_by_cores() -> isize {
             _ => return sum,
         }
     }
+}
+
+/// What this thread last published into its gauge, in bytes, or `None` on a thread that is not a
+/// core. One term of [`held_by_cores`], which a test reads to leave other cores out.
+#[must_use]
+pub fn held_by_this_core() -> Option<isize> {
+    GAUGE
+        .with(Cell::get)
+        .map(|gauge| gauge.held.load(Ordering::Relaxed))
 }
 
 /// Sets the sum past which a growing request is stopped, or removes it with `None`.

@@ -168,6 +168,11 @@ impl Ctx {
             "a context publishing a share into a tree rooted on another core has \
              a share to give back, which re-rooting it would drop on the floor"
         );
+        // The connection is serving a request again, so what its tree set
+        // aside while it waited counts from here (`Self::between_requests`).
+        if std::mem::take(&mut self.idles_tree) {
+            crate::budget::end_idle(&self.tree);
+        }
         // Reset in place where this context is the tree's only holder, which is
         // the request path's ordinary case, and replaced where it is not —
         // which is exactly the case a reset would be wrong in.
@@ -190,6 +195,7 @@ impl Ctx {
             // a word this context holds no share of.
             self.safepoint = std::ptr::from_ref(&self.tree.word);
         }
+        crate::budget::count_from_here(&self.tree);
         if let Some(deadline) = std::sync::Arc::get_mut(&mut self.deadline) {
             *deadline.get_mut() = 0;
         } else {
@@ -200,6 +206,21 @@ impl Ctx {
         // The `wall_time` beside it for the same reason.
         self.publish_cpu_limit();
         self.publish_wall_time();
+    }
+
+    /// Marks this connection's context as between requests: the place its last
+    /// request held has gone back, and the next request has not started.
+    ///
+    /// What the tree holds above the balance its last request started at, which
+    /// is `hyper`'s buffers and the head of the next request, is left out of
+    /// what this core publishes for admission from the tree's next park on, and
+    /// [`Self::reroot`] counts it again. `crate::budget`'s gauge module owns
+    /// why. A context whose stack is not its tree's turn is left counted.
+    ///
+    /// **What it spends:** nothing per request beyond the tree's three words,
+    /// and a thread-local add at each park of an idle tree.
+    pub fn between_requests(&mut self) {
+        self.idles_tree = crate::budget::begin_idle(&self.tree) || self.idles_tree;
     }
 
     /// Joins `tree` as a member running on a core **other** than the one that
@@ -630,6 +651,21 @@ pub struct TreeState {
     /// **What it spends:** one word per tree, and a relaxed store and load per
     /// switch.
     pub(crate) balance: std::sync::atomic::AtomicIsize,
+    /// [`Self::balance`] as the request this tree answers started, or as the
+    /// connection first waited for one, which is what a connection's bytes
+    /// between requests are measured from ([`crate::budget::count_from_here`]).
+    pub(crate) base: std::sync::atomic::AtomicIsize,
+    /// Whether [`Self::base`] is set, and whether this tree is a connection's
+    /// between requests ([`Ctx::between_requests`]), so its core's published
+    /// balance leaves out [`Self::idle_held`]: one of `crate::budget`'s
+    /// `UNBASED`, `COUNTED` and `IDLE`.
+    pub(crate) idling: std::sync::atomic::AtomicU8,
+    /// What this tree held above [`Self::base`] at its last park while it was
+    /// idle, which its core's published balance leaves out.
+    ///
+    /// **What the three spend:** three words per tree, and on an idle tree's
+    /// park two relaxed loads and a swap.
+    pub(crate) idle_held: std::sync::atomic::AtomicIsize,
     /// `[limits] wall_time` of the request this tree answers in nanoseconds,
     /// or `0` for one with none — written by [`Ctx::publish_wall_time`] each
     /// time that number moves.
@@ -667,7 +703,7 @@ pub struct TreeState {
     /// (`rule:security/isolate-budget-is-the-trees`). Shared rather than
     /// counted on the root because a child placed on another core spawns from
     /// there.
-    pub(super) tasks: std::sync::atomic::AtomicU64,
+    pub(crate) tasks: std::sync::atomic::AtomicU64,
 }
 
 /// One running child isolate, counted in its tree's [`TreeState::tasks`] for as
