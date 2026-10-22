@@ -369,7 +369,7 @@ carry the mark.
 - [ ] TAINT-4: `Core\Ldap\Connection::add` refuses attribute names from a tainted array's keys. `crates/nvs-stdlib/src/ldap/registry.rs:464`
 - [ ] HTML-1: a spawned child's captured output is lifted to the parent's sink carrier only when the child wrote it with `echo` through the same sink; output a child wrote through `Core\Response::text`, `::json`, `::bytes` or `::stream` reaches the parent as a plain `string`, which the parent's `echo` escapes. Carrying every child's output as a plain `string` is not the fix: a child's `echo` already escaped it, so the parent would escape it twice (`rule:security/capture-answers-the-carrier`, `rule:security/isolate-output-is-captured`). `crates/nvs-stdlib/src/out.rs:193`, `crates/nvs-stdlib/src/script.rs:1278`
 - [ ] HTML-1's attack: a child writes `<script>` with `Core\Response::text`, the parent prints `$result->output` into an HTML page, and the page shows it escaped; beside it, a child that `echo`es the same text is escaped once, not twice. `tests/hostile/lang/concurrency/isolates-spawn-script-and-await/02-a-child-writes-markup-the-parent-prints.nvs:1`
-- [ ] The attacks: stored injection, a sealed visitor value, a stream echo and a `mixed` secret, each a reject case. `tests/conformance/core/signed-cookie-open-launders-where-jwt-verify-does-not.nvst:1`
+- [ ] The attacks: stored injection, a sealed visitor value, a stream echo and a `mixed` secret, each a reject case. The stored injection and the sealed visitor value are written (`tests/conformance/reject/a-text-column-fills-only-a-tainted-property.nvst`, `tests/conformance/reject/a-sealed-visitor-value-opens-tainted.nvst`). `tests/conformance/reject/a-sealed-visitor-value-opens-tainted.nvst:1`
 
 ### 6. an array a Rust parser builds stops at the request's memory ceiling
 
@@ -507,55 +507,60 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 5 is under way. REQ-2/DB-2 landed (ad9a16a91); the other six items are not started.
+Stage 5 is under way. REQ-2/DB-2 (ad9a16a91) and CRYPTO-1/TAINT-3 landed. TAINT-2, EXT-4, TAINT-4,
+HTML-1 and its attack are not started.
 
-- `written_class_of` (`crates/nvs-types/src/expr/args.rs`) now ORs `hydrates_a_row` into
-  `outside`, so `queryAs<T>`/`streamAs<T>` on `Core\Db\Connection`/`Transaction` record a
-  `DecodeSite` for a class and run `check_shape_decode_site` for an inline shape. `DecodeSite`
-  carries a `Format`, and `check_decode_sites` (`crates/nvs-types/src/derive.rs`) walks the fields of
-  that format only. A `Format::Db` field that `db_reachable` refuses is skipped: E0756/E0806 already
-  report it.
-- Both repros (`.agent-tmp/sec-audit/wb-stdlib-request/dbtaint/a.nvs`, `b.nvs`) are refused.
-  `tests/conformance/reject/a-text-column-fills-only-a-tainted-property.nvst` ran once by name, green.
-  Every `.nvs` calling `queryAs<`/`streamAs<` checks clean on the debug binary (the corpus already
-  wrote `tainted string`), and every such `.nvst` passes; one
-  (`tests/conformance/core/a-derived-decoder-fills-an-enum-default-as-a-case.nvst`) needed `tainted`.
-- The E0810 card, `rule:security/derived-codec-qualifiers` and the four `queryAs`/`streamAs`
-  `about.md` pages name the row case.
-- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --check` and
-  `bun nv proofs --comments` on the four pages are green.
+- `Core\SignedCookie::open` answers `CoreTy::TaintedStr`, and its `$cookie` is `Qual::Neutral`
+  (`crates/nvs-stdlib/src/signed_cookie.rs`). The module doc section is now "`open` answers
+  `tainted string`". The card, `jwt.rs`'s doc, `signature.rs`'s and `core_lib.rs`'s roster tests and
+  `html.rs`'s launderer roster agree. `rule:security/verification-does-not-launder` has no exception
+  and declines one.
+- **A side change to admission:** `admits_tainted_argument` (`crates/nvs-types/src/expr/quals.rs`)
+  now admits a `tainted` argument at a contagious parameter whose return is all `mixed` (`mixed` or
+  `array<mixed>`, `all_unchecked`). Text out of `mixed` is already tainted. Without it,
+  `Core\Json::decode` of an opened cookie did not compile, and the cart example
+  `docs/examples/core/SignedCookie/seal/03-a-shopping-cart-cookie.nvs` broke.
+  `rule:security/taint-propagation` says so, and
+  `tests/conformance/reject/a-tainted-argument-is-refused-where-the-answer-cannot-carry-it.nvst`
+  now expects the `mixed` and `array<mixed>` calls to compile. `Core\Json::decodeAs<T>` over
+  `tainted` text still does not compile. That is a usability gap (see Backlog), not a leak.
+- The two old agreement cases were renamed to `…-both-answer-tainted.nvst` and rewritten, and the
+  `guardedBy` paths in `data/rules/` follow them. The new reject case and the seven `SignedCookie`
+  cases ran once by name, all green. Every `.nvs` calling `open` checks clean.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --check` and the three
+  edited Rust tests are green. A full `nvs test tests/conformance` run showed 10 other reds, all from
+  earlier stages (listed below).
 
-The sweep's `env-secret-proofs` red was stale a third time: its log (written 00:07) shows exit 0, and
-`looper check` does not exist in the installed looper. Nightly run 39746060276 was cancelled whole
-and is not a failure of this tree.
+The sweep's `env-secret-proofs` red was stale a fourth time: its log (00:07) shows exit 0. Nightly run
+39746060276 was cancelled whole and is not a failure of this tree.
 
-Tests that may go red: a snapshot of the E0810 card (`nvs agent show E0810`, its text changed); a
-Rust test that hydrates a row into a plain `string` (none found by `git grep` in
-`crates/*/tests`); a `.nvs` in `apps/` or `website/` that does (none found). From stage 4: a help or
-reference-card snapshot of `Core\Arr::shapeAs` (its `a` parameter
-text changed); any test or page matching E0810's old text "answers a peer's octets"; a `.nvs` in
-`apps/` or `website/` that reads a `mixed` or request array through `shapeAs` into a plain
-`string` (none found by `git grep`). From stage 4's first half: any `.nvs` that passes a request
-array to `Core\Arr::keys`/`firstKey`/… into a plain `string`, or to a callback written
-`string $k`, and anything binding `Core\Str::format` or `Core\Bytes::pack` over a tainted or
-`mixed` argument to a plain type. From stage 3: a test that captures `Core\Response::bytes` output
-that is not UTF-8, a `Core\Test` route test answering such bytes, a session or cache test sealing
-them, and a page listing the errors of `Core\Csv::rows`, `Core\Jwe::decrypt` or
-`Core\Out::capture`. From stage 2: an `nvs-ir` lowering snapshot of a class with an observer, a
-guard, `LateInit` or a hook, and a page listing every diagnostic code (`E0885`).
+Tests that go red now (seen in the conformance run, left for stage 14):
+`core/a-response-bytes-body-sends-octets-no-text-member-carries.nvst` and
+`core/a-response-stream-carries-octets-and-agrees-with-a-whole-body.nvst` (stage 3: `Core\Out::capture`
+throws on output that is not UTF-8); `core/arr-fill-keys-takes-any-keys-and-fill-always-starts-at-zero.nvst`,
+`core/arr-overlay-deep-at-a-key-is-itself-one-level-down-and-keeps-the-bases-order.nvst`,
+`core/arr-sort-by-key-compares-numeral-keys-bytewise-and-a-comparator-sorts-them-as-numbers.nvst`,
+`core/bytes-pack-names-the-bound-each-field-stops-at.nvst` and
+`core/signature-a-round-trip-hands-back-the-payload-in-canonical-order.nvst` (stage 4: keys and
+packed values keep the mark); `novis/spreadsheet-an-export-writes-the-same-file-to-each-target.nvst`,
+`novis/spreadsheet-from-rows-styles-its-header.nvst` and
+`novis/spreadsheet-writes-with-no-configuration.nvst` (not looked at; likely stage 3 or 4).
+Tests that may go red: the website's generated `core.json` and `llms-full.txt` (`open`'s card and
+`$cookie` qualifier changed; `bun nv site --check` would name them), a help snapshot of
+`Core\SignedCookie::open`, and the earlier stages' list: the E0810 card, `Core\Arr::shapeAs`'s card,
+an `nvs-ir` lowering snapshot of a class with an observer, a guard, `LateInit` or a hook, and a page
+listing every diagnostic code (`E0885`).
 
 ### Next
 
-1. CRYPTO-1, TAINT-3 (stage 5): `SignedCookie::open` returns `tainted string`
-   (`crates/nvs-stdlib/src/signed_cookie.rs:149`). Its module doc's section "`open` launders, and
-   it is the only cookie in the language that does" is rewritten whole, and
-   `rule:security/verification-does-not-launder` loses its exception. Repro
-   `.agent-tmp/sec-audit/…/crypto/poc5.nvs`. The stage's attack file
-   `tests/conformance/core/signed-cookie-open-launders-where-jwt-verify-does-not.nvst` is the
-   reject case's name in the stage; check whether it exists and asserts the old laundering first.
-   Then every `.nvs` that binds `SignedCookie::open` to a plain `string` (`git grep -n "SignedCookie::open"`).
-2. TAINT-2: `Core\Response\Stream::write` is a sink (`crates/nvs-stdlib/src/response.rs:603`).
-3. TAINT-4 (`ldap/registry.rs:464`), then EXT-4 (`ext_lib.rs:304`) and HTML-1.
+1. TAINT-2 (stage 5): `Core\Response\Stream::write` is a sink and refuses `tainted`
+   (`crates/nvs-stdlib/src/response.rs:603`). Its reject case is the stage's "stream echo" attack.
+   Then every `.nvs` that writes a request value to a stream (`git grep -n "->write("` under
+   `docs/examples/core/Response*` and `tests/`).
+2. TAINT-4: `Core\Ldap\Connection::add` refuses attribute names from a tainted array's keys
+   (`crates/nvs-stdlib/src/ldap/registry.rs:464`).
+3. EXT-4 (`crates/nvs-types/src/ext_lib.rs:304`): a `secret` does not cross an extension's `mixed`
+   parameter, with its reject case. Then HTML-1 and its hostile case.
 
 ### Backlog
 
@@ -566,3 +571,10 @@ guard, `LateInit` or a hook, and a page listing every diagnostic code (`E0885`).
   but `grep -r` over `src/` matches them. Whoever runs coverage there should write it under `target/`.
 - The conformance case `tests/conformance/reject/an-array-key-or-a-formatted-value-from-outside-keeps-its-mark.nvst`
   has not been run by its runner; stage 14's verify runs it.
+- `Core\Json::decodeAs<T>` (and the other `decodeAs`/`shapeAs` doors) refuse a `tainted string`
+  argument outright, though `written_class_of` already takes a `subject_outside` flag that would
+  check each field for `tainted`. A program can decode a request body only through
+  `Core\Request::jsonAs`. Admitting it where the decode site's field check runs is a separate
+  change, and no item owns it yet.
+- `bun nv suite <tree> --case <path>` names cases that must pass and still judges the whole tree, so
+  it ran all 3096. Run a few cases by name with `target/debug/nvs test <path>...`.
