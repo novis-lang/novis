@@ -347,9 +347,22 @@ wrote it. The second stopped at `test`, and its failures had five causes:
 
 The third run was green, 22 of 22. It re-ran the 11 binaries the store selected, `live_edit` and
 `examples` among them, with less load beside them. The two load-bound cases are not fixed at their
-cause, and the backlog names them. `bun nv verify --doc` is green. The acceptance sweep's reds were
-stale again: the `env-secret-proofs` log shows exit 0, and nightly run 39567373487 ran at
-`afbb1edc2`.
+cause, and the backlog names them. `bun nv verify --doc` is green.
+
+The driver refused the first DONE because `floor-debt` was red on one atom:
+`tests/hostile/core/Task/map/01-bad-limits-huge-arrays-and-errors-from-every-task.nvs`. It failed
+alone too. Its step 4 ran 20,000 `Core\Task::map` children with no limit. Each child charges its
+1 MiB stack, so 256 MB holds about 250
+(`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`). The step passed only while the parent
+ran under the last child's arming, which stage 2 fixed. Step 4 now runs with `limit: 100`, and the
+unbounded call is step 7, `ends-early 7 FATAL`. `bun nv proofs --run --id 'Core\Task::map'` is
+green and recorded that atom green.
+
+Nightly run 39567373487 ran at `afbb1edc2`, before stage 2. Its `proofs` jobs failed only on site
+checks, and the later commits fixed those. A new one was red at HEAD: the `/reference/config/limits/`
+questions were stale after the `max_multipart_parts` row. They now name it and are stamped, and
+`bun nv site --check snippets stale questions` is green. The `env-secret-proofs` log shows exit 0,
+so that red is stale.
 
 ### Next
 
