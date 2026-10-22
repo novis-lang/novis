@@ -9,6 +9,7 @@
   ],
   "guardedBy": [
     "crates/nvs-config/tests/trust.rs",
+    "crates/nvs-config/src/trust.rs",
     "crates/nvs-config/tests/resolve.rs",
     "crates/nvs-config/src/data.rs"
   ]

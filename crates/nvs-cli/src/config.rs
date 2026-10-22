@@ -1,5 +1,6 @@
 //! `nvs config` — `rule:config/check-and-dump-audit-the-tree-offline`'s offline audit of the configuration tree, and
-//! the reader every caller in this binary resolves that tree through.
+//! the two readers this binary resolves that tree through: [`ServedFiles`] for `nvs serve` and
+//! each reload it runs, and [`LocalFiles`] for every other command.
 //!
 //! `rule:config/check-and-dump-audit-the-tree-offline` puts `check` beside `dump` for one stated reason: `rule:config/later-wins-and-every-override-is-recorded`'s
 //! later-wins precedence "is only safe while it is auditable", so the reporting
@@ -106,8 +107,10 @@ impl Args {
     }
 }
 
-/// The reader this binary resolves the configuration tree through: the real
-/// filesystem, with `rule:config/ownership-is-the-trust-boundary`'s **ownership check not applied**.
+/// The reader every command but `nvs serve` resolves the configuration tree
+/// through: `nvs run`, `nvs check`, `nvs config check` and `dump`, the project
+/// commands and the language server. It is the real filesystem, with
+/// `rule:config/ownership-is-the-trust-boundary`'s **ownership check not applied**.
 ///
 /// `nvs_config::resolve::Files` exists for exactly this split — its own doc
 /// says `rule:config/the-ownership-check-runs-where-it-can-be-answered`'s check belongs on the reader so that "a caller that has one and a
@@ -141,6 +144,16 @@ impl Args {
 /// The language server reads a document's tree through the same type, for the
 /// same reason: the editor is the developer's own.
 pub(crate) use nvs_config::resolve::Unowned as LocalFiles;
+
+/// The reader `nvs serve` resolves every configuration file through, at boot,
+/// at each reload and at each `[[app]]` fold a request or a worker asks for: the
+/// real filesystem, with `rule:config/ownership-is-the-trust-boundary`'s check
+/// on every file and its directory.
+///
+/// Development mode reads through it too. The mode is written in the same file,
+/// so a check the mode could skip is a check whoever writes the file can skip
+/// (`rule:config/the-ownership-check-runs-where-it-can-be-answered`).
+pub(crate) use nvs_config::resolve::Disk as ServedFiles;
 
 /// The working directory, as the diagnostic a caller reports when it cannot be
 /// read.
@@ -527,7 +540,7 @@ pub(crate) fn boot_in(
     ),
     Diagnostic,
 > {
-    let (resolved, _) = resolved_in(cwd, data, config, sources, init)?;
+    let (resolved, _) = resolved_in(cwd, data, config, sources, init, &LocalFiles)?;
     let snapshot = match entry {
         Some(entry) => nvs_config::Snapshot::build(&resolved, entry, &LocalFiles)?,
         None => nvs_config::Snapshot::host(&resolved, &LocalFiles)?,
@@ -546,6 +559,8 @@ pub(crate) type BootSet = (
 /// roster each served entry's own snapshot is folded from
 /// (`rule:http-server/the-served-file-is-optional`). Beside them is the [`Root`] the tree was read
 /// from, which `nvs serve` announces and each reload it runs reads again through [`stored_set`].
+/// Every file is read through [`ServedFiles`], so a file another account can write stops the boot
+/// with `E0607`.
 ///
 /// # Errors
 ///
@@ -562,12 +577,15 @@ pub(crate) fn boot_set(
         config,
         sources,
         init,
+        &ServedFiles,
     )?;
     Ok((set_of(resolved)?, root))
 }
 
 /// [`boot_set`] for roots a boot already chose and stored ([`Root::stored`]), which is how a
 /// reload resolves: the same files, and never the working directory or the data folder again.
+/// It reads through [`ServedFiles`] as the boot does, so a file another account can write refuses
+/// the reload and the running tree keeps serving.
 ///
 /// # Errors
 ///
@@ -576,14 +594,14 @@ pub(crate) fn stored_set(
     roots: &nvs_config::Roots,
     sources: &mut SourceMap,
 ) -> Result<BootSet, Diagnostic> {
-    let mut resolved = nvs_config::resolve::resolve(roots, sources, &LocalFiles)?;
+    let mut resolved = nvs_config::resolve::resolve(roots, sources, &ServedFiles)?;
     crate::bundle::carry_extensions(&mut resolved);
     set_of(resolved)
 }
 
-/// The host's snapshot, the roster and the origins of a resolved tree.
+/// The host's snapshot, the roster and the origins of a resolved tree, for `nvs serve`.
 fn set_of(resolved: nvs_config::resolve::Resolved) -> Result<BootSet, Diagnostic> {
-    let snapshot = nvs_config::Snapshot::host(&resolved, &LocalFiles)?;
+    let snapshot = nvs_config::Snapshot::host(&resolved, &ServedFiles)?;
     Ok((
         snapshot,
         nvs_config::AppBlocks::of(&resolved),
@@ -662,22 +680,22 @@ pub(crate) fn trees_read() -> usize {
 }
 
 /// The tree [`boot_in`] and [`boot_set`] build their snapshots from, in `cwd`, with `data` as the
-/// data folder's `nvs.toml`, and the [`Root`] it was read from.
+/// data folder's `nvs.toml`, read through `files`, and the [`Root`] it was read from.
 fn resolved_in(
     cwd: &Path,
     data: Option<&Path>,
     config: &[PathBuf],
     sources: &mut SourceMap,
     init: Init,
+    files: &dyn nvs_config::resolve::Files,
 ) -> Result<(nvs_config::resolve::Resolved, Root), Diagnostic> {
     #[cfg(debug_assertions)]
     TREES_READ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let files = LocalFiles;
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: every `--config` in
     // the order given, else `./nvs.toml`, else the data folder's `nvs.toml`, else the shipped
     // defaults. `roots` owns all four steps, so this call is the whole of the CLI's part in
     // choosing what is read.
-    let mut roots = nvs_config::resolve::roots(config, cwd, data, &files);
+    let mut roots = nvs_config::resolve::roots(config, cwd, data, files);
     // Step 4, reached by a project command: write step 3's file into the data folder and then
     // resolve the file just written, so what the run reads is what the folder now holds and what
     // the next run will find at step 3. Nothing is ever written into `cwd`. A file that already
@@ -692,7 +710,7 @@ fn resolved_in(
     {
         match write_default_at(data, &nvs_config::data::config_template()) {
             Ok(_) | Err(Declined::Exists) => {
-                roots = nvs_config::resolve::roots(config, cwd, Some(data), &files);
+                roots = nvs_config::resolve::roots(config, cwd, Some(data), files);
             }
             Err(why) => declined = Some(why.note_about(data)),
         }
@@ -707,10 +725,7 @@ fn resolved_in(
                     *path = canonical;
                 }
             }
-            let local = nvs_config::resolve::Files::exists(
-                &files,
-                &cwd.join(nvs_config::resolve::LOCAL_FILE),
-            );
+            let local = files.exists(&cwd.join(nvs_config::resolve::LOCAL_FILE));
             paths
                 .iter()
                 .enumerate()
@@ -725,7 +740,7 @@ fn resolved_in(
                 .collect()
         }
     };
-    let mut resolved = nvs_config::resolve::resolve(&roots, sources, &files)?;
+    let mut resolved = nvs_config::resolve::resolve(&roots, sources, files)?;
     crate::bundle::carry_extensions(&mut resolved);
     let root = Root {
         named,

@@ -367,7 +367,7 @@ impl Process {
             Arc::clone(&next),
             blocks.clone(),
             &entries,
-            &crate::config::LocalFiles,
+            &crate::config::ServedFiles,
         )
         .map_err(|refusal| rendered(&refusal, &sources))?;
         capacity_of(&incoming, &origins).map_err(|refusal| rendered(&refusal, &sources))?;
@@ -411,7 +411,7 @@ impl Process {
             next,
             blocks,
             &entries,
-            &crate::config::LocalFiles,
+            &crate::config::ServedFiles,
             self.compiler.held(),
             &keep,
         )

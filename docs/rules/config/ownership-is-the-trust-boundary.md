@@ -18,6 +18,20 @@ counts and an inherited grant is seen. Windows grants `Authenticated Users` modi
 root, so a configuration kept under such a path refuses until that inheritance is broken — that default
 *is* the hole this rule closes.
 
+**On Unix, a file or directory on a read-only mount passes the owner test**: `statvfs` reports
+`ST_RDONLY` for its file system. No account on this host can change it through that mount, and that
+is the whole of what the owner test guards. A container's `-v ./app:/app:ro` is exactly this case:
+the files belong to the host's account, which is not the container's, and refusing them would refuse
+the deployment the Docker guide teaches. The mode test still runs there, so a group- or
+world-writable mode on a read-only mount is refused: the mode says the tree is meant to be shared,
+and the same tree mounted read-write later would be served. A path whose mount cannot be asked keeps
+the owner test. Windows has no read-only mount to waive.
+
+Docker Desktop on Windows can report a bind mount's files as `0777`, whatever the NTFS ACL says, and
+then the mode test refuses them even under `:ro`. The guide tells a Windows user to copy the
+configuration into the image instead. The mode test is not waived for it: a mode is the only answer
+the container can read, and a check that trusted `0777` would trust every mount.
+
 **One directory is checked without its parent: the default data folder**, `.nvsdata` beside the
 running binary. Its parent is the binary's own directory, and an account that can write there can
 already replace the binary, so examining it guards nothing the binary does not — while on a stock
@@ -29,5 +43,9 @@ private to its account and never re-permissions one that exists: it checks it.
 **Declined:**
 - **The full check on the default data folder.** It is correct in principle and unusable on a stock
   Windows drive, and it protects only against an account that could replace the binary anyway.
+- **Waiving the mode test on a read-only mount too.** A writable mode under `:ro` is either a
+  mistake or Docker Desktop's `0777`, and the container cannot tell the two apart.
+- **A configuration key that turns the check off.** It would be written in the file the check
+  guards, so whoever can write the file could turn it off.
 
 Where the check runs is `rule:config/the-ownership-check-runs-where-it-can-be-answered`.

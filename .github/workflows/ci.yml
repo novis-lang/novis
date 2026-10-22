@@ -205,6 +205,11 @@ jobs:
           bun-version-file: package.json
       - name: Install tool dependencies
         run: bun install --frozen-lockfile
+      # A Windows checkout inherits the drive's write grant for `Authenticated Users`, which
+      # `nvs serve`'s ownership check refuses (`rule:config/the-ownership-check-runs-where-it-can-be-answered`).
+      - name: Remove the inherited write grant on the checkout (Windows)
+        if: runner.os == 'Windows'
+        run: bun nv checkout-acl
 
       # The servers the server-backed tests and conformance cases dial: `tests/db/compose.yaml`'s
       # `redis` for `Core\Session` and `Core\Cache::shared()`, and its `samba-ad` for `Core\Ldap`. On
@@ -349,6 +354,11 @@ jobs:
           bun-version-file: package.json
       - name: Install tool dependencies
         run: bun install --frozen-lockfile
+      # A Windows checkout inherits the drive's write grant for `Authenticated Users`, which
+      # `nvs serve`'s ownership check refuses (`rule:config/the-ownership-check-runs-where-it-can-be-answered`).
+      - name: Remove the inherited write grant on the checkout (Windows)
+        if: runner.os == 'Windows'
+        run: bun nv checkout-acl
 
       # The same placeholder the `test` job writes, so a guard that resolves the repository's
       # `nvs.toml` finds the CA file it names.
@@ -441,6 +451,11 @@ jobs:
           bun-version-file: package.json
       - name: Install tool dependencies
         run: bun install --frozen-lockfile
+      # A Windows checkout inherits the drive's write grant for `Authenticated Users`, which
+      # `nvs serve`'s ownership check refuses (`rule:config/the-ownership-check-runs-where-it-can-be-answered`).
+      - name: Remove the inherited write grant on the checkout (Windows)
+        if: runner.os == 'Windows'
+        run: bun nv checkout-acl
 
       # The same placeholder the `test` job writes, for the same reason: a program run from the
       # repository root resolves its `nvs.toml`, which names this file. No server is started here.
@@ -640,6 +655,11 @@ jobs:
           bun-version-file: package.json
       - name: Install tool dependencies
         run: bun install --frozen-lockfile
+      # A Windows checkout inherits the drive's write grant for `Authenticated Users`, which
+      # `nvs serve`'s ownership check refuses (`rule:config/the-ownership-check-runs-where-it-can-be-answered`).
+      - name: Remove the inherited write grant on the checkout (Windows)
+        if: runner.os == 'Windows'
+        run: bun nv checkout-acl
 
       # The C template's two tools, as its README tells an author to install them. tar runs inside
       # the folder because GNU tar reads `D:` in a Windows path as a remote host.
