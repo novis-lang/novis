@@ -1,0 +1,67 @@
+--TEST--
+A constructor runs only through `new` and one `parent::constructor(...)` on each path, so a `readonly` property and a type a test of it narrowed cannot be rewritten (`rule:classes/constructor-is-a-method-named-constructor`)
+--FILE--
+<?nvs
+class Animal {
+    public function constructor(public string $name) {}
+}
+class Dog extends Animal {
+    public function constructor(string $name, public int $age) {
+        parent::constructor($name);
+    }
+}
+class Cat extends Animal {}
+
+class Box {
+    public readonly Animal $pet;
+    public function constructor(Animal $pet) {
+        $this->pet = $pet;
+    }
+}
+
+// Compiles: each path calls the parent's constructor once, and the class is
+// named for `Core\Attributes` by its constructor reference.
+class Crate extends Box {
+    public function constructor(bool $cat) {
+        if ($cat) {
+            parent::constructor(new Cat("Tom"));
+        } else {
+            parent::constructor(new Dog("Rex", 3));
+        }
+    }
+}
+?{} $none = Core\Attributes::get<{}>(Box::constructor(...));
+
+var $box = new Box(new Dog("Rex", 3));
+mixed $m = $box;
+
+// Refused: a call on an object that exists, through its class and through `mixed`.
+$box->constructor(new Cat("Tom"));
+$m->constructor(new Cat("Tom"));
+
+// Refused: a constructor reference that a later call would run.
+var $again = Box::constructor(...);
+
+// Refused: a second call on one path, and a call from another method.
+class Twice extends Box {
+    public function constructor() {
+        parent::constructor(new Dog("Rex", 3));
+        parent::constructor(new Cat("Tom"));
+    }
+    public function reset(): void {
+        parent::constructor(new Cat("Tom"));
+    }
+}
+--EXPECTF-ERROR--
+error[E0885]: a constructor runs only through `new` and `parent::constructor(...)`
+%A
+error[E0885]: a constructor runs only through `new` and `parent::constructor(...)`
+%A
+error[E0885]: a constructor runs only through `new` and `parent::constructor(...)`
+%A
+error[E0885]: `parent::constructor(...)` runs once on each path through the constructor
+%A
+error[E0885]: a constructor runs only through `new` and `parent::constructor(...)`
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

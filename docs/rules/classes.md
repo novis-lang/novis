@@ -158,7 +158,7 @@ name gets the same "must be camelCase" error as any other mis-cased name of its 
 
 <a id="classes-constructor-is-a-method-named-constructor"></a>
 
-## A constructor is an ordinary method named `constructor`, and `__construct` does not compile
+## A constructor is an ordinary method named `constructor` that runs only through `new` and `parent::constructor(...)`, and `__construct` does not compile
 
 `rule:classes/constructor-is-a-method-named-constructor`
 
@@ -168,6 +168,17 @@ where [`classes/definite-property-initialization`](classes.md#classes-definite-p
 discharges its inherited properties by calling `parent::constructor(...)`. It is never `static`
 (`E0106`): `new` runs it on the object just made, and a static method has no `$this` to assign a
 property through.
+
+Those are the only two ways it runs. `new` runs it once, on an object nobody else has seen, and a
+subclass's constructor calls `parent::constructor(...)` once on each path, never in a loop and never
+from another method or an anonymous function. Every other call is `E0885`: `$x->constructor(...)`
+on an object that exists, `self::`, `static::` or `Foo::constructor(...)`, and a reference to it
+that a later call would run. A second run would write each `readonly` property again, under every
+type a test of one had already narrowed, and compiled code reads those properties without testing
+them. The one reference that compiles is the first argument of `Core\Attributes::get` and `all`,
+which names the class and runs nothing. A name the checker cannot see, through `mixed` or
+`Core\Reflect\ClassInfo::call`, throws a `LogicError` at run time instead; `ClassInfo::construct`
+makes a new object, so it runs the constructor as `new` does.
 
 `__construct` is not recognized as a constructor and cannot compile as an ordinary method either,
 because two leading underscores fail the identifier pattern
@@ -188,7 +199,7 @@ mechanical rename for every converted class, which is the cheapest kind of break
   for the same reason `__construct` does, and `init` or `new` could collide with an ordinary method
   that has its own meaning.
 
-<sub>See also [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods).</sub>
+<sub>See also [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/readonly-is-written-once`](classes.md#classes-readonly-is-written-once), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods).</sub>
 
 <a id="classes-promotion-is-constructor-only"></a>
 
@@ -262,6 +273,26 @@ A constructor also reads a property through `$this->` only where every path has 
 inherited one only after `parent::constructor(...)`; an earlier read is refused at the read, since it
 would see the zeroed slot.
 
+Construction is two-phase, as Swift has it. Until a path has assigned every property the class itself
+must assign, and has called an owed `parent::constructor(...)`, `$this` does not leave the constructor:
+no method call on it, no passing or storing it, no `throw` that carries it, no anonymous function that
+captures it, and no instance method called through `parent::`, `self::` or `static::`. The parent's
+constructor is itself called only once the class's own properties are assigned, because it may call
+a method the class overrides. Each refusal names the first property still unassigned. This is what
+lets compiled code read a slot without testing it: no method the constructor calls can run while a
+slot is still zero, so the check never has to follow a call. What it costs is one order a
+constructor must keep, and a cycle built in a constructor (`new Pong($this)`) needs a `lateinit`
+property.
+
+The steps of [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline) are the one place the order cannot hold: a
+write in the constructor runs a hook, a guard or an observer with `$this` while later properties are
+unassigned, and refusing that would refuse every observer that assigns two properties. So a class that
+implements `PropertyObserver`, `PropertyGuard` or `LateInit`, or whose chain declares a hook, starts
+each non-nullable property with no default unset, a promoted parameter's included, and a compiled read
+of one tests it first, through that class and every class it extends. A read before the write throws
+the `LogicError` of [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). That costs one tag compare and
+branch per such read, and one store per such slot at `new`. Every other class pays nothing.
+
 A hooked property carries the obligation when its backing slot is read: by a plain read, because it
 has no `get` hook, or by a hook that names `$this->prop` other than as the target of `=`. Each `set`
 hook of such a property stores the property on every path that does not throw, or is refused at the
@@ -280,6 +311,9 @@ not just a recompile.
 **Declined:**
 - **A runtime-only throw with no compile-time check.** It finds the mistake at a read far from its
   cause, and gives up the one analysis that already serves locals.
+- **Following each call the constructor makes into the method it reaches.** A method can be
+  overridden, called through `mixed` or handed to a library, so the analysis would be whole-program
+  and still unsound at the first call it cannot see.
 - **A silent per-type default.** A plausible zero hides the missing assignment
   ([`classes/no-undefined-value`](classes.md#classes-no-undefined-value)).
 - **An `undefined` value for the unassigned state.** It widens every declared type
@@ -324,9 +358,9 @@ inspect or compare against. Writing first makes every later read ordinary. A cla
 `LateInit` calls `initProperty` before it throws, and throws only if that leaves the property
 uninitialized ([`classes/late-init-initializes-on-the-first-read`](classes.md#classes-late-init-initializes-on-the-first-read)).
 
-A `lateinit` property is the one declaration that can reach the state. Every other non-nullable
-property is discharged at its constructor ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)), and
-reflection builds no object without running its constructor
+A `lateinit` property reaches the state after construction. Every other non-nullable property is
+discharged at its constructor ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)), and reaches it only
+while that constructor runs, in a class whose writes run an observer, a guard or a hook. Reflection builds no object without running its constructor
 ([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)). The message names the object's own class, so a
 compiled read, a read through `mixed` and `Core\Reflect\ClassInfo::get` throw the same error.
 
@@ -334,7 +368,8 @@ Internally the slot carries the tag `Unset`, distinct from every legal value inc
 not an entry in the type system and no expression produces one. The compiled read of a `lateinit`
 property loads that tag byte and compares it before it uses the value. The payload cannot answer,
 because `lateinit` takes every type ([`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions)) and a written `0`, `false`
-or `null` has the same zero payload as the unset state. A read of any other property carries no test.
+or `null` has the same zero payload as the unset state. A read of a property such a constructor may
+leave unset carries the same test, and a read of any other property carries none.
 
 - **Memory:** zero additional bytes per property. The marker is a spare discriminant of the tagged
   value every property already has.

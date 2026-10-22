@@ -76,6 +76,11 @@ pub(crate) fn infer_method_call(
     if let MemberName::Variable(e) | MemberName::Expr(e) = method {
         report_computed_member_name(e.span, COMPUTED_METHOD_HELP, env);
     }
+    if let MemberName::Ident(name_span) = method
+        && span_text(env.src, *name_span) == "constructor"
+    {
+        report_constructor_called_directly(expr.span, false, env);
+    }
     if let Some(ty) = infer_callable_rebind(expr, receiver_ty, method, args, live, scope, ctx, env)
     {
         return nullsafe_result(nullsafe, object_ty, ty, env);
@@ -538,6 +543,26 @@ pub(crate) fn infer_static_call(
                             (owner, name.clone(), sig)
                         },
                     );
+                    // `rule:classes/constructor-is-a-method-named-constructor`:
+                    // `parent::constructor(...)` written in a constructor's own
+                    // body is the one call by name, and `crate::ctor_init`
+                    // refuses a second one on a path. `Foo::constructor(...)`
+                    // names the class for `Core\Attributes` and calls nothing.
+                    // A constructor that does not resolve is `E0309` already.
+                    // Anywhere else the reference is a callable that runs
+                    // the constructor again when it is called.
+                    let named_for_attributes = matches!(args, CallArgs::MethodRef)
+                        && env.method_ref_args.contains(&expr.span);
+                    let in_own_constructor = matches!(class.kind, ExprKind::ParentExpr)
+                        && ctx.in_constructor
+                        && !matches!(args, CallArgs::MethodRef);
+                    if name == "constructor"
+                        && found.is_some()
+                        && !named_for_attributes
+                        && !in_own_constructor
+                    {
+                        report_constructor_called_directly(expr.span, true, env);
+                    }
                     // The same narrowing of `Core`'s blanket trust
                     // [`super::members::infer_class_const`] explains: `nvs_hir` waves
                     // every `Core\…::anything` through because nothing declares it, but
@@ -629,6 +654,7 @@ pub(crate) fn infer_static_call(
     // give that argument — and no other — a meaning at all. See
     // [`note_method_ref_args`].
     note_method_ref_args(resolved.as_ref(), args, env);
+    note_retrieval_target(resolved.as_ref(), args, env);
     // `rule:core-classes/html-later`'s closed head, armed over a `later`
     // call's own arguments — see [`crate::response::is_later`] — and
     // `rule:concurrency/deferred-work-cannot-write-the-response`'s, armed over
@@ -1344,6 +1370,34 @@ fn reject_unforwardable_method_ref(
         ),
     );
     true
+}
+
+/// Marks a `Core\Attributes` retrieval's target, `Foo::constructor(...)`, as
+/// the one place a constructor reference is written
+/// (`rule:attributes/structural-retrieval`). The retrieval folds it at check
+/// time and nothing calls it, so [`infer_static_call`] does not refuse it.
+fn note_retrieval_target(
+    resolved: Option<&(QName, String, MethodSig)>,
+    args: &CallArgs,
+    env: &mut Env<'_>,
+) {
+    let (Some((owner, member, _)), CallArgs::List(list)) = (resolved, args) else {
+        return;
+    };
+    if !crate::retrieval::is_retrieval(owner, member) {
+        return;
+    }
+    if let Some(arg) = list.first()
+        && matches!(
+            arg.value.kind,
+            ExprKind::StaticCall {
+                args: CallArgs::MethodRef,
+                ..
+            }
+        )
+    {
+        env.method_ref_args.insert(arg.value.span);
+    }
 }
 
 /// Marks the argument a registry row's
@@ -2303,6 +2357,28 @@ fn enum_backing(qname: &QName, env: &Env<'_>) -> Option<crate::enums::EnumBackin
 
 /// `E0870`: `new E()` or `E::constructor(...)` names an enum, which has no
 /// constructor (`rule:enums/no-class-machinery`).
+/// `constructor` called by name anywhere but `parent::constructor(...)` in a
+/// constructor's own body: on an object that exists (`$x->constructor(...)`),
+/// through a class side (`static_side`), or from an anonymous function. A
+/// second run would write its `readonly` properties again, under every type a
+/// test of one already narrowed (`rule:classes/constructor-is-a-method-named-constructor`).
+fn report_constructor_called_directly(span: Span, static_side: bool, env: &mut Env<'_>) {
+    let help = if static_side {
+        "call `parent::constructor(...)` only in a constructor's own body, or create a new \
+         object with `new`"
+    } else {
+        "create a new object with `new` instead"
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CONSTRUCTOR_CALLED_DIRECTLY,
+            "a constructor runs only through `new` and `parent::constructor(...)`",
+        )
+        .with_primary(span, "this calls a constructor directly")
+        .with_help(help),
+    );
+}
+
 fn report_enum_has_no_constructor(qname: &QName, span: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(

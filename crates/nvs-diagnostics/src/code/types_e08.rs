@@ -1093,4 +1093,15 @@ codes! {
          the argument throws an error. Use a type that includes the default, or change the \
          default in the parent class.",
     );
+
+    /// `constructor` called other than by `new` and by one
+    /// `parent::constructor(...)` on each path through a subclass's
+    /// constructor (`rule:classes/constructor-is-a-method-named-constructor`).
+    /// A second run would rewrite `readonly` properties and every type a test
+    /// of one narrowed.
+    pub const E_CONSTRUCTOR_CALLED_DIRECTLY: Code = Code::new("E0885").card(
+        "A `constructor` runs when `new` creates an object. A subclass's constructor also calls \
+         `parent::constructor(...)` once. No other code can call a constructor. Create a new \
+         object with `new` instead.",
+    );
 }

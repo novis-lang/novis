@@ -624,6 +624,10 @@ pub(crate) struct Env<'a> {
     /// span before the argument list is checked and
     /// [`crate::expr::members::infer_class_const`] reads it at the argument
     /// itself; nothing clears it, since a span identifies its own call site.
+    ///
+    /// A `Core\Attributes` retrieval's `Foo::constructor(...)` target is
+    /// marked here too, as the one constructor reference that is not
+    /// `E0885` (`rule:classes/constructor-is-a-method-named-constructor`).
     pub method_ref_args: FxHashSet<Span>,
 }
 

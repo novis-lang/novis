@@ -1,13 +1,17 @@
 {
-  "title": "A constructor is an ordinary method named `constructor`, and `__construct` does not compile",
+  "title": "A constructor is an ordinary method named `constructor` that runs only through `new` and `parent::constructor(...)`, and `__construct` does not compile",
   "status": "shipped",
   "seeAlso": [
     "classes/no-leading-underscore-identifiers",
     "classes/definite-property-initialization",
+    "classes/readonly-is-written-once",
     "classes/no-magic-methods"
   ],
   "guardedBy": [
     "tests/conformance/reject/the-constructor-is-not-spelled-underscore-construct.nvst",
-    "tests/conformance/class/constructor-and-instance-method.nvst"
+    "tests/conformance/class/constructor-and-instance-method.nvst",
+    "tests/conformance/reject/a-constructor-runs-only-through-new-and-parent.nvst",
+    "tests/hostile/lang/classes/declaring-a-class/02-a-constructor-called-again-by-name.nvs",
+    "crates/nvs-types/src/ctor_init.rs"
   ]
 }
