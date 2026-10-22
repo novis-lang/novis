@@ -1,0 +1,34 @@
+--TEST--
+A `Core\Task::all` deadline stops a child that never waits, because the child gives its core back after every time slice and the deadline's timer fires there; the request's `cpu_time` is far away and is not what stops it — `rule:concurrency/limit-and-deadline-are-the-only-bounds`
+--FILE nvs.toml--
+# Far longer than the deadline, so only the deadline can end the call in time.
+[limits]
+cpu_time = "10s"
+--FILE--
+<?nvs
+// covers: lang:concurrency/limit-and-deadline
+class Spins {
+    public static int $count = 0;
+}
+
+try {
+    Core\Task::all({
+        spin: fn(): int => {
+            while (true) {
+                Spins::$count += 1;
+            }
+            return Spins::$count;
+        },
+    }, {deadline: 50ms});
+    echo "the call returned", "\n";
+} catch (TimeoutError $e) {
+    echo "the deadline stopped the child", "\n";
+}
+
+// The child was torn down before the call returned, so nothing still counts.
+int $before = Spins::$count;
+Core\Time::sleep(20ms);
+echo Spins::$count == $before ? "the child is gone" : "the child still runs", "\n";
+--EXPECT--
+the deadline stopped the child
+the child is gone
