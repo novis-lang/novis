@@ -11,6 +11,11 @@ This constrains what may live outside `Core`. A signer built as an extension wou
 every call site, turning a deliberately conspicuous escape hatch into boilerplate, which is one of the
 two reasons the protocol roster stays in `Core` (`rule:security/protocol-roster`).
 
+**A `mixed` parameter refuses it too.** A `string` or `bytes` parameter refuses a `secret` by its
+type. A `mixed` one would admit it by assignability, so the call itself refuses an argument whose type
+contains `secret`, and a variable that does inside an array literal or an anonymous object written
+there, at any depth.
+
 **On disk.** A `secret` argument is refused at every extension parameter
 (`tests/conformance/reject/a-secret-argument-to-an-extension-does-not-compile.nvst`), and a manifest
 declaring a `secret` return does not load (`crates/nvs-ext/tests/load.rs`).
