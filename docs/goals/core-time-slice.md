@@ -245,7 +245,7 @@ rules describe a core that is shared by slices.
 - [x] `rule:http-server/time-is-bounded-inside-a-helper` says the poll also yields. `docs/rules/http-server/time-is-bounded-inside-a-helper.md:1`
 - [x] The attack: one request loops on a one-worker server while another is answered, named in the rule's `guardedBy` (`rule:testing/hostile-case-contract`). `crates/nvs-cli/src/serve.rs:5466`
 - [x] `bench-compare --expect <peer>=<result>` and its test. `tools/nv/cmd/bench-compare.ts:1494`, `tools/nv/test/bench-compare.test.ts:1`
-- [ ] The session row, gated on `defaults-that-work` stage 7 (`rule:http-server/a-session-is-loaded-once-and-written-whole` shipped): a probe that starts a session, sends `/slow` (writes, then works 2 s) and 200 ms later `/fast` with the same cookie, and times `/fast`. Under 1 s is `built-in`; PHP held by its session lock is `your-code` naming `session_start(['read_and_close' => true])` or `session_write_close()`; Bun and Go are a fixed `your-code`, because neither has sessions without a library. The page gets a "One visitor, two requests" chart of the fast request's wait for Novis and PHP, and a section that explains PHP's lock, its two ways out, and the cost of no lock: two requests of one visitor that change the same value keep the last write. The programs exist. `benches/compare/scenarios/session/main.nvs:1`, `benches/compare/scenarios/session/index.php:1`, `tools/nv/cmd/bench-compare.ts:1`, `website/src/content/docs/in-depth/compare.mdx:1`
+- [x] The session row, gated on `defaults-that-work` stage 7 (`rule:http-server/a-session-is-loaded-once-and-written-whole` shipped): a probe that starts a session, sends `/slow` (writes, then works 2 s) and 200 ms later `/fast` with the same cookie, and times `/fast`. Under 1 s is `built-in`; PHP held by its session lock is `your-code` naming `session_start(['read_and_close' => true])` or `session_write_close()`; Bun and Go are a fixed `your-code`, because neither has sessions without a library. The page gets a "One visitor, two requests" chart of the fast request's wait for Novis and PHP, and a section that explains PHP's lock, its two ways out, and the cost of no lock: two requests of one visitor that change the same value keep the last write. The programs exist. `benches/compare/scenarios/session/main.nvs:1`, `benches/compare/scenarios/session/index.php:1`, `tools/nv/cmd/bench-compare.ts:1`, `website/src/content/docs/in-depth/compare.mdx:1`
 - [ ] The comparison re-recorded from a detached worktree, the cases first and then the rows. Novis's `hello` stays within 3% of 28,207, or the slice becomes 20 ms. `benches/compare.json:1`
 - [ ] The page's loop paragraph says what the new run measured. `website/src/content/docs/in-depth/compare.mdx:166`
 
@@ -319,20 +319,36 @@ over 90 s. Alone, in the foreground, it ended in 265 s (the playbook has the tra
 
 Expected to go red: none new. Stage 3's note stands for stage 6.
 
+Stage 5's session row is done. `sessionProbe` (`tools/nv/cmd/bench-compare.ts:778`) starts a
+session, carries every `set-cookie` as one `Cookie` header (`cookieOf`), sends `/slow`, and times
+`/fast` 200 ms later. `sessionResult` (`tools/nv/cmd/bench-compare.ts:771`) is `built-in` under
+1 s, else `your-code` with the PHP calls in its evidence's `code`. Bun and Go are fixed
+`your-code`. The README's row list says so, the site has the row's label, a `SessionChart`
+(`website/src/components/compare/SessionChart.astro`) and the "One visitor, two requests" section
+(`website/src/content/docs/in-depth/compare.mdx:252`). Its two tests and the row-order test ran once
+by name and are green, and `bun nv site --check prose` is clean. The smoke run found
+`benches/compare/scenarios/session/main.nvs` did not compile (a `tainted string` path and `$count`
+declared twice); fixed, the run gives Novis `built-in` (3 ms), PHP `your-code` (1,801 ms), Bun and
+Go `your-code`. The site was not built: the record has no session row yet, so the chart shows its
+empty text until the re-record.
+
+A `bench-compare` run in the background is killed as a `HANG:` by looper's shell watcher while
+Docker compiles the image (the playbook has the trap). In the foreground it ran.
+
 The sweep's red items were stale again: `env-secret-proofs`'s own log exits 0, and nightly run
-39567373487 ran at `afbb1edc2`, before the site fix `b3ed92165`.
+39567373487 ran at `afbb1edc2`, before the site fix `b3ed92165` of the snippet it failed on.
 
 ### Next
 
-**Stage 5**, the session row. Its gate is open: `rule:http-server/a-session-is-loaded-once-and-written-whole`
-is shipped and `defaults-that-work` is reached.
+**Stage 5**, the re-record and the loop paragraph. Docker is needed. Run each step in the
+foreground with a 600 s timeout, or it is killed as a hang.
 
-- [ ] The row in `SCENARIOS` beside `csrf` (`tools/nv/cmd/bench-compare.ts:1268`), with a `sessionResult` beside `csrfResult` (`tools/nv/cmd/bench-compare.ts:735`) and its test. The probe needs a cookie carried between requests: `Probe::send` takes headers (`tools/nv/cmd/bench-compare.ts:339`), and a `Reply` has the `set-cookie` header. Bun and Go are `fixed` `your-code`.
-- [ ] The row's label in `website/src/lib/compare.ts:71`, and the "One visitor, two requests" chart and section in `website/src/content/docs/in-depth/compare.mdx:214`.
-- [ ] Run the row once with `bun nv bench-compare --scenarios --smoke --row session` to check the probe, if Docker is up. `benches/compare/scenarios/session/main.nvs:1`
+- [ ] A detached worktree at `HEAD` (`git worktree add --detach .agent-tmp/rec HEAD`), then `bun nv bench-compare --record benches/compare.json` in it, the cases first. Novis's `hello` must stay within 3% of 28,207, or the slice constant becomes 20 ms with the trade-off in `docs/rules/http-server/a-request-that-computes-shares-its-core.md:1`. If one run does not fit 600 s, add a `--case` filter beside `--row` (`tools/nv/cmd/bench-compare.ts:1825`) and record one case at a time.
+- [ ] Then `bun nv bench-compare --scenarios --record benches/compare.json` for the rows; `loop` must be `on-by-default` for Novis with no failed request (the `loop-row` check, `benches/compare.json:1`). Copy `benches/compare.json` back, and remove the worktree without a forced form.
+- [ ] The page's loop paragraph says what the new run measured (`website/src/content/docs/in-depth/compare.mdx:205`), and the session section's numbers if it names any. Then `bun nv site --build` once, because `SessionChart` renders for the first time.
 
 ### Backlog
 
-- Stage 5's re-record needs Docker and a detached worktree, the cases first and then the rows; `hello` within 3% of 28,207, or the slice becomes 20 ms. Then the page's loop paragraph (`website/src/content/docs/in-depth/compare.mdx:177`).
 - Stage 6 verifies the goal.
+- Outside this goal: looper's shell watcher (`tools/looper/src/jobs/hang.ts`) could take `tools/nv/lib/hang.ts`'s `OUTSIDE` rule in looper's kit, so a Docker build is not taken for a hang.
 - Outside this goal: `--record-perf` could print a line as each WSL leg starts and ends, so a long callgrind leg is not taken for a hang (`tools/nv/lib/hang.ts:21`).

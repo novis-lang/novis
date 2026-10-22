@@ -33,6 +33,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   watch counts only output for a tree with `wsl.exe` in it. Alone, in the foreground, it ends in about
   265 s. Record that feature alone with `--only`, then the others.
   `until: gone benches/members/lang/concurrency/no-colouring-i-o-just-waits.nvs`
+- **`bun nv bench-compare` run with `run_in_background` is killed as a `HANG:` while Docker builds
+  the `nvs` image, and the report is `-looper-sh.txt`.** That is looper's shell watcher
+  (`tools/looper/src/jobs/hang.ts`), which has no `OUTSIDE` rule like `tools/nv/lib/hang.ts`'s, so
+  the release compile in Docker's VM reads as a tree with no CPU. Run a bench row in the foreground
+  with a 600 s timeout; a full record goes to a detached worktree the same way, or the rule goes into
+  looper's kit. `until: gone tools/looper/src/jobs/hang.ts:WAIT_LINES`
 - **The `looper` on `PATH` may be an older build with no `verify` subcommand, and run in the
   background it exits 0 with only a usage error.** Run `bun tools/looper/main.ts verify`, the
   project's own copy, and read the log for `✓ 1:` before you trust the exit status. See
