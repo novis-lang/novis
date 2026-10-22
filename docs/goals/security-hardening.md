@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-server/src/serve.rs, crates/nvs-server/src/admit.rs, crates/nvs-server/src/trace.rs, crates/nvs-server/src/otlp.rs, crates/nvs-host/src/blocking.rs, crates/nvs-host/src/ladder.rs, docs/rules/http-server/admission-is-arithmetic-not-a-number.md, docs/rules/observability/sampling-is-head-based.md]
   - id: 8
     title: an extension instance ends with its request
-    status: open
+    status: done
     context: [crates/nvs-cli/src/extensions.rs, crates/nvs-ext/src/call.rs, docs/rules/packaging/a-fresh-instance-per-request.md, docs/rules/security/extension-grants-are-an-intersection.md]
   - id: 9
     title: "sessions, the CSRF door and signed cookies read and bind one way"
@@ -447,11 +447,11 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
   - [x] the attack: a granted host redirects the guest to `127.0.0.2`, which only the caller may reach (red on main)
   - [x] `Outgoing::connect` carries the set and `extension_send` refuses the hop, and the attack is green
   - [x] the rule says so
-- [ ] EXT-7 to EXT-10: each Low item in the sinks report, fixed or declined into its rule. `.agent-tmp/sec-audit/reports/wb-sinks.md:212`
+- [x] EXT-7 to EXT-10: each Low item in the sinks report, fixed or declined into its rule. `.agent-tmp/sec-audit/reports/wb-sinks.md:212`
   - [x] EXT-7: a manifest that requests any I/O makes every method a source (`rule:security/extension-declares-sink-or-source`). `crates/nvs-ext/src/manifest.rs:439`
   - [x] EXT-8: a set where two extensions declare one `[ext.<name>]` block is refused (`rule:packaging/a-guest-has-no-ambient-authority`). `crates/nvs-ext/src/load.rs:194`
   - [x] EXT-9: random bytes and `as-bytes` ask what the request has left first (`rule:packaging/a-guest-runs-under-the-requests-budget`). `crates/nvs-ext/src/call.rs:1403`
-  - [ ] EXT-10: the WASI open, create and rename go through the beneath walk (`rule:security/writes-open-beneath-a-handle`); the device names move to stage 11. `crates/nvs-ext/src/wasi/files.rs:212`
+  - [x] EXT-10: the WASI open, create and rename go through the beneath walk (`rule:security/writes-open-beneath-a-handle`); the device names move to stage 11. `crates/nvs-ext/src/wasi/files.rs:212`
 - [x] The attack: 200 requests that each call `Novis\Intl`, every answer correct, memory flat; a Rust test in `nvs-cli`. `crates/nvs-cli/tests/serve_isolation.rs:1`
 
 ### 9. sessions, the CSRF door and signed cookies read and bind one way
@@ -486,7 +486,7 @@ operations open beneath a handle.
 - [ ] SINK-1, SINK-3: the textual refusal runs before `canonicalize` (`rule:security/path-scope-canonicalise-then-prefix`). `crates/nvs-runtime/src/capability.rs:1159`
 - [ ] SINK-3: `Core\IO::within` returns no alias. `crates/nvs-stdlib/src/io.rs:3688`
 - [ ] EXT-10's names: the WASI filesystem's `refused_name` refuses the same Windows text, DOS device names (`CON`, `NUL`, `COM1`, `LPT1`, with or without an extension) among it. `crates/nvs-ext/src/wasi/files.rs:253`
-- [ ] CVE-2: `remove_file`, `remove_dir`, `read_dir`, `metadata` and `exists` open beneath a handle (`rule:security/writes-open-beneath-a-handle`). `crates/nvs-runtime/src/capability.rs:950`
+- [ ] CVE-2: `remove_file`, `remove_dir`, `read_dir`, `metadata` and `exists` open beneath a handle (`rule:security/writes-open-beneath-a-handle`), and so do the WASI layer's `unlink-file-at`, `remove-directory-at`, `stat-at` and `read-directory`, through a `Budget` method each beside `open_file`. `crates/nvs-runtime/src/capability.rs:950`
 - [ ] The attacks: a UNC, `\\?\`, `\\.\` and 8.3 path through `within`, refused with no network attempt; a Rust test that times the refusal. `tests/hostile/core/IO/within/01-names-built-to-escape.nvs:1`
 
 ### 12. development serving answers only loopback and serves no project file, and the HTTP front's small gaps are closed
@@ -556,10 +556,35 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 8 has everything but EXT-10 done. EXT-1, EXT-2, EXT-5 and EXT-6 landed earlier
-(EXT-5 f86196453, EXT-6 ddb8dd9d7).
+Stage 8 is done. EXT-1, EXT-2, EXT-5 and EXT-6 landed earlier (EXT-5 f86196453, EXT-6
+ddb8dd9d7), and EXT-7 to EXT-9 in the session before this one.
 
-This session (0153):
+This session:
+
+- **EXT-10 (f8b660100).** `nvs_ext::call::Budget` has `open_file(path, FileOpen)`, `create_dir`
+  and `rename`, each defaulting to the by-name call. `files.rs`'s `open` (every file open, read
+  included), `create_directory_at` and `rename_at` call them. `Spent` in
+  `crates/nvs-cli/src/extensions.rs` fills them from `nvs_runtime::guest_files`, which re-exports
+  the beneath walk's new `Open` flag set, `open_with`, an exclusive `create_dir`, and `rename`.
+  `beneath.rs`'s `Mode` maps to `Open`, so the `Core\IO` doors open exactly as before; `make_at`
+  on Unix no longer swallows `EEXIST` itself (`child` does). The attack
+  `a_guest_opens_every_file_through_the_hosts_walk` (`crates/nvs-ext/tests/files.rs`, a host that
+  refuses every open) did not compile on main, since main had no seam. The link proof is
+  `beneath.rs`'s `a_planted_link_is_never_followed`, extended to `open_with` and `create_dir`, plus
+  `a_guest_open_takes_each_flag_and_a_folder_is_made_once`. All pass on Windows (a junction). No
+  `nvs-cli` test builds a `Spent`, since it needs a live `Ctx`: its three methods are one call each.
+  Removal, `stat-at` and `read-directory` moved into stage 11's CVE-2 item. The module doc and
+  `rule:security/writes-open-beneath-a-handle` say so.
+- The sweep: `env-secret-proofs`'s log is the 00:07 one again (exit 0, `nothing owed`). It is the
+  driver's state, not the tree's.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+
+Tests that may go red from EXT-10: an `nvs-ext` test whose budget overrides nothing and expects a
+WASI open to follow a folder link (the default still opens by name, so none should); on Windows, a
+served extension test that opens a file under a granted root reached through a junction the root
+itself does not resolve through (none found).
+
+The session before (0153):
 
 - **EXT-7 (deaadec0c).** `nvs_ext::manifest::Manifest::is_source(method)` is `method.source`
   or any `requests.read`/`write`/`connect` entry. `nvs_types::ext_lib::method_sig` and
@@ -581,11 +606,8 @@ This session (0153):
   `a_whole_lent_source_larger_than_the_memory_left_is_refused_before_it_is_read`
   (`crates/nvs-ext/tests/convert.rs`, a new `WHOLE` component). Both were red on main as a
   `realloc return: beyond end of memory` trap after the host allocated 64 MiB, and are green.
-- The sweep: `env-secret-proofs` is red again with its 00:07 log (exit 0, `nothing owed`), and
-  `looper check --name env-secret-proofs` answers `no check matches`. It is the driver's state,
-  not the tree's. The nightly run 39746060276 was a `workflow_dispatch` cancelled after 8 minutes,
-  so every job reads `cancelled`. No job failed.
-- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+- The nightly run 39746060276 was a `workflow_dispatch` cancelled after 8 minutes, so every job
+  reads `cancelled`. No job failed.
 
 Tests that may go red from EXT-7 to EXT-9: a `.nvst`, example or test whose extension manifest
 requests I/O and assigns a method's text result to a plain `string` (grep found only `Geo\Atlas`,
@@ -670,34 +692,26 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 8's last item, EXT-10 (`.agent-tmp/sec-audit/reports/wb-sinks.md:224`): the WASI
-filesystem checks a path, then opens it by name (`crates/nvs-ext/src/wasi/files.rs:212`, `:599`,
-`:672`). Its module doc (`files.rs:30`) declines this as "closed for all of them or none". The
-`Core\IO` doors are closed now, so that reason no longer holds and the doc is stale. Then set
-stage 8 done. The device names moved to stage 11's new item (`files.rs:253`).
+Stage 9, one group: sessions, the CSRF door and signed cookies. Its files are
+`crates/nvs-server/src/route.rs`, `crates/nvs-stdlib/src/session.rs`,
+`crates/nvs-stdlib/src/signed_cookie.rs` and `crates/nvs-stdlib/src/request.rs:2184` (the cookie
+reader `Core\Session` uses). Take them in this order, attack first each time:
 
-The walk is `crates/nvs-runtime/src/beneath.rs` (`open_file`, `create_file`, `create_dirs`,
-`rename`, all `pub(crate)`). `nvs-ext` does not link `nvs-runtime` (a dev-dependency only), and
-`nvs-ext` is not an unsafe crate. The shape that fits is how outbound HTTP already crosses: a
-`Budget` method the host fills. `Budget::send` → `nvs_stdlib::extension_send` is the precedent.
+1. CSRF-1/RS-3 and BBK-1's pin (`route.rs:315`, `:245`): the door reads every `Cookie` line, value
+   by value, with the session's reader. Pin BBK-1 before changing the reader, because it must stay
+   refused after.
+2. CSRF-2 (`route.rs:124`): a program with no `#[Route]` table gets the same Origin check on unsafe
+   methods.
+3. SESS-1 (`session.rs:912`): `Session::start` with no cookie writes no row and sends no cookie
+   until the first write. The attack is 20,000 cookieless starts that leave no rows
+   (`tests/hostile/core/Session/start/01-identifiers-nobody-issued.nvs`).
+4. CRYPTO-2 (`signed_cookie.rs:261`): the cookie's name and a purpose string go into the
+   associated data. Expiry inside the seal stays declined (the standing decision).
+5. CRYPTO-3 (`crates/nvs-stdlib/src/config.rs:192`) and CRYPTO-6
+   (`crates/nvs-stdlib/src/random.rs:395`) are separate files and can be a second group.
 
-1. Write the attack first: a Rust test in `crates/nvs-ext/tests/files.rs` cannot race the
-   check against the open. Instead, give the WASI layer a seam (a `Budget` method that opens a
-   resolved path, with a default that opens by name). Prove in `nvs-cli` (or `nvs-stdlib`'s tests)
-   that the host's implementation refuses a level that is a link, as `beneath.rs`'s own tests do.
-   Read `beneath.rs`'s tests for how they plant a link after resolution.
-2. Expose the walk from `nvs-runtime` for this one caller, with no grant check, since the WASI
-   layer has already checked the path against its preopens. Name it so nothing else takes it as a
-   door. `Spent` in `crates/nvs-cli/src/extensions.rs` implements the new `Budget` method(s) over it.
-3. `files.rs`'s `open` (create, truncate, write and read), `create_directory_at` and `rename_at` call
-   the seam. Removal, `stat` and `readdir` follow stage 11's CVE-2 item, which does the same for
-   `Core\IO`.
-4. Rewrite `files.rs`'s module doc, and record the WASI layer in
-   `rule:security/writes-open-beneath-a-handle`'s list of doors.
-
-If the seam turns out too wide for one session, the safe default is to decline into the rule:
-the check-then-open window needs a local account that can write under a granted root while a
-request runs. Name that, and keep the item for stage 11 alongside CVE-2.
+Each fix changes no syntax and adds no `Core` member. CRYPTO-3 changes the return type of
+`Core\Config::get`/`::all` for a secret directive, so its card and help change.
 
 ### Backlog
 
