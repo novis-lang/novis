@@ -573,18 +573,32 @@ pub enum Host<'a> {
     Refused,
 }
 
-/// [`Host`] for one request: the `Host` line, or for a target in absolute
-/// form with no `Host` line, the target's own authority, which is also where
-/// HTTP/2's `:authority` arrives.
+/// [`Host`] for one request: a target's own authority where it has one, which
+/// is a target in absolute form and HTTP/2's `:authority`, and the `Host` line
+/// otherwise.
+///
+/// RFC 9112 § 3.2.2 has an origin server take the target's authority over
+/// `Host`. A `Host` line beside it that names another host is
+/// [`Host::Refused`]: a proxy that routed by one and this table by the other
+/// would disagree on the tenant, which is `rule:errors/ambiguous-input-refused`'s
+/// case. Both are compared as [`folded`] reads them, so a port or a case
+/// difference is the same host.
 ///
 /// Costs nothing per request but an allocation where the host has an
 /// upper-case letter in it.
 pub fn host<B>(request: &Request<B>) -> Host<'_> {
     let mut lines = request.headers().get_all(HOST).iter();
-    match (lines.next(), lines.next()) {
-        (Some(_), Some(_)) => Host::Refused,
-        (Some(line), None) => line.to_str().map_or(Host::Refused, folded),
-        (None, _) => request.uri().host().map_or(Host::Absent, folded),
+    let line = match (lines.next(), lines.next()) {
+        (Some(_), Some(_)) => return Host::Refused,
+        (Some(line), None) => Some(line.to_str().map_or(Host::Refused, folded)),
+        (None, _) => None,
+    };
+    let Some(target) = request.uri().host().map(folded) else {
+        return line.unwrap_or(Host::Absent);
+    };
+    match line {
+        Some(line) if line != target => Host::Refused,
+        _ => target,
     }
 }
 
@@ -2128,6 +2142,24 @@ mod tests {
             host(&request_to("/", &[b"[::1]:8080"])),
             Host::Named("[::1]".into())
         );
+    }
+
+    /// HTTP-2's attack: a target in absolute form names one tenant and `Host`
+    /// another. On main `Host` chose the tenant, so a proxy that routed by the
+    /// target and this table disagreed. The target's host wins, and a `Host`
+    /// that names another is refused at the door.
+    #[test]
+    fn a_target_naming_one_host_and_a_host_line_naming_another_is_refused() {
+        let disagreeing = request_to("http://a.example.com/", &[b"b.example.com"]);
+        assert_eq!(host(&disagreeing), Host::Refused);
+        assert!(host_is_refused(&disagreeing));
+
+        // The same host written with a port or in capitals is not another host.
+        for line in [&b"a.example.com"[..], b"A.Example.Com:80", b"a.example.com."] {
+            let agreeing = request_to("http://a.example.com/", &[line]);
+            assert_eq!(host(&agreeing), Host::Named("a.example.com".into()));
+            assert!(!host_is_refused(&agreeing));
+        }
     }
 
     /// A non-ASCII host is refused rather than read as no host, which would
