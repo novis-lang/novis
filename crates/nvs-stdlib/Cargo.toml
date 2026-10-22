@@ -79,6 +79,10 @@ nvs-ldap.workspace = true
 # than the crate's own type, so nothing outside that module names either.
 num-bigint.workspace = true
 num-integer.workspace = true
+# `crate::instance` finds a `Core` class's descriptor in a hash map keyed by its
+# name, and every `Core` instance built makes one such lookup. The keys are the
+# binary's own class names, so a hash that is fast and not keyed is enough.
+rustc-hash.workspace = true
 unicode-segmentation.workspace = true
 caseless.workspace = true
 unicode-normalization.workspace = true

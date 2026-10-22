@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "A request pays for its own program, and every security check stays where it is"
-summary: "Every security check on the request path stays in force and runs no later than before, while a request stops paying for work the server repeats: a Core class's descriptor is read without its name, Json::decodeAs fills its class in one pass, escaping scans text once, a request's limits come from a table resolved once per unit, a read the reactor has not reported ready and a wake on a core's own task make no system call, pooled stacks give their pages back when a core goes idle, every touched area's attacks and the comparison's fault rows are green, and the checks below pass."
+summary: "Every security check on the request path stays in force and runs no later than before, while a request stops paying for work the server repeats: a Core class's descriptor is found with one hash lookup, Json::decodeAs fills its class in one pass, escaping scans text once, a request's limits come from a table resolved once per unit, a read the reactor has not reported ready and a wake on a core's own task make no system call, pooled stacks give their pages back when a core goes idle, every touched area's attacks and the comparison's fault rows are green, and the checks below pass."
 context: [docs/rules/programs/memory-priority.md, docs/rules/testing/perf-two-mechanisms.md, docs/rules/testing/member-perf-ledger.md, benches/compare/README.md]
 stages:
   - id: 1
@@ -12,7 +12,7 @@ stages:
       context:
         rules: [testing/hostile-case-contract, testing/perf-two-mechanisms]
   - id: 2
-    title: "a Core class's descriptor is read without its name"
+    title: "a Core class's descriptor is found with one hash lookup"
     status: open
     context: [crates/nvs-stdlib/src/instance.rs, crates/nvs-stdlib/src/html.rs, crates/nvs-stdlib/src/json.rs]
     extra:
@@ -67,9 +67,9 @@ stages:
 checks:
   - id: stdlib-tests
     stage: 3
-    name: "a Core class's descriptor and a decodeAs object are built without a name lookup or a second pass"
+    name: "a Core class's descriptor and a decodeAs object are built with one hash lookup and in one pass"
     run: [bun, nv, verify, --fast, -p, nvs-stdlib]
-    tests: [every_core_class_reads_its_descriptor_without_its_name, a_decode_as_builds_no_array_for_the_object_it_fills, a_decode_as_refuses_a_repeated_key_the_class_does_not_declare]
+    tests: [every_core_class_finds_its_descriptor_in_one_hash_lookup, a_decode_as_builds_no_array_for_the_object_it_fills, a_decode_as_refuses_a_repeated_key_the_class_does_not_declare]
   - id: render-tests
     stage: 4
     name: escaping scans text once and still replaces an open direction control
@@ -211,15 +211,27 @@ For the `wait` case it also prints the cgroup's peak minus idle, per request in 
 is in this goal's first handoff. Safe default if `perf` cannot run in a container on the machine:
 the flag prints the recipe and exits 1, and `benches/compare/README.md` documents the steps by hand.
 
-**Stage 2: the descriptor is cached in the class's static.** Each `CoreClass` static holds its
-descriptor once `descriptors()` has built the table, so `descriptor()` is one load.
+**Stage 2: a descriptor is found with one hash lookup of its name.** Each `Core` class is a
+`pub const CLASS: CoreClass`, which is `Copy`, so there is no static to hold a descriptor in. A
+const cannot hold a reference to a static with interior mutability either. So `Descriptors` keeps
+an `FxHashMap` from each name to the first id defined under it, and `id_of` reads it. Every caller
+of `find` gets the lookup, `core_class_desc` included.
 
+- An index by the address of the name literal was built and declined. A debug build copies each
+  literal per codegen unit, so the index missed even for `registry::CLASSES`' own entries, and its
+  test could pass only in release.
 - A compile-time `ClassId` gives the same win but changes the IR, so it is declined.
-- The `by_name` index stays for `core_class_desc(name)` and for reflection.
+- A field on `CoreClass` would edit every class literal in the crate for one pointer, so it is declined.
+- Turning the class consts into statics would make the address an identity, but it changes the type
+  of `CLASSES` and every class literal, so it is declined.
+- The map is filled once from the binary's own names and only read after. A name a program looks up
+  cannot grow a bucket, so an unkeyed hash is safe.
+- The `by_name` index stays for `ids_named`, which marks every id under a name.
 - `every_core_sees_one_descriptor_address`, `instance.rs:1182`, stays green.
 - So does the host-handle bit, `instance.rs:541`, with its test at `instance.rs:1127`.
 
-Memory: one pointer per `Core` class, which is O(classes).
+Memory: one map entry, a name and an id, per `Core` class name, for the process, which is
+O(classes).
 
 **Stage 3: `decodeAs` reads with a `DeserializeSeed` driven by the class's `Contract`.** It keeps
 every check of the two-pass path:
@@ -361,16 +373,21 @@ the command.
 - [x] Run the `hostile-groups` check's command once. A red case is `security-hardening`'s or `core-time-slice`'s, not this goal's: the session stops with `BLOCKED` naming it, because this goal must not start on a red floor. `tools/nv/cmd/proofs.ts:1`
 - [x] The count test: a keep-alive connection serves 20 `hello` requests, and the test counts the reads that returned `WouldBlock` and the eventfd wakes per request. It asserts today's numbers as upper bounds, and stage 6 lowers them. `crates/nvs-server/src/serve.rs:10102`
 
-### 2. a Core class's descriptor is read without its name
+### 2. a Core class's descriptor is found with one hash lookup
 
-**Does:** building a `Core` object, and the encoder's `is_instance` test, read the descriptor with
-one load.
+**Does:** building a `Core` object, and the encoder's `is_instance` test, find the descriptor with
+one hash lookup of the name.
 
-- [ ] Each `CoreClass` static holds its descriptor once the table is built, and `descriptor()` reads it (`rule:core-api/core-classes-are-sealed`). `crates/nvs-stdlib/src/instance.rs:593`, `crates/nvs-stdlib/src/instance.rs:463`
-- [ ] `is_instance` and `build` use it. `crates/nvs-stdlib/src/instance.rs:663`, `crates/nvs-stdlib/src/instance.rs:688`
-- [ ] Rust test `every_core_class_reads_its_descriptor_without_its_name`: for every class, the cached descriptor is the address `find(name)` returns. `crates/nvs-stdlib/src/instance.rs:1182`
-- [ ] The guards stay green and unchanged: `instance.rs:1127`, `:1182`, `:1355` and `:1423`, and the `lang:classes` hostile group. `crates/nvs-stdlib/src/instance.rs:1127`
-- [ ] Review: an `Explore` subagent reads the stage's diff against this stage's guards, and every finding is fixed. `crates/nvs-stdlib/src/instance.rs:417`
+- [x] `Descriptors::id_of` reads a map from each name to its first id, as § *Standing decisions* says (`rule:core-api/core-classes-are-sealed`). `crates/nvs-stdlib/src/instance.rs:417`
+  - [x] `Descriptors` fills the map in definition order, so each name keeps its first id
+  - [x] `id_of` reads it, so `find`, `descriptor` and `core_class_desc` all do
+  - [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green for this crate
+- [x] `is_instance` and `build` use it, through `descriptor()`. `crates/nvs-stdlib/src/instance.rs:663`, `crates/nvs-stdlib/src/instance.rs:688`
+- [x] Rust test `every_core_class_finds_its_descriptor_in_one_hash_lookup`: for every name, the map's id is the sorted index's first. `crates/nvs-stdlib/src/instance.rs:1208`
+- [ ] The guards stay green and unchanged: `instance.rs:1127`, `:1182`, `:1355` and `:1423` pass, and the `lang:classes` hostile group runs in stage 8's `hostile-groups`. `crates/nvs-stdlib/src/instance.rs:1127`
+  - [x] `cargo test --lib instance::tests`: 12 passed
+  - [ ] the `lang:classes` hostile group, in stage 8
+- [x] Review: an `Explore` subagent read the stage's diff against this stage's guards. It found no check moved or removed, and one comment that said request names never reach the map. The comment is fixed. `crates/nvs-stdlib/src/instance.rs:417`
 
 ### 3. `Json::decodeAs` fills its class in one pass
 
