@@ -303,6 +303,30 @@ impl Ctx {
         }
     }
 
+    /// Drops this context as one more turn of its own tree: what `nvs_host`'s
+    /// scheduler does with a child's context after the child's last turn.
+    ///
+    /// The context holds the request's arena and carrier, and the scheduler's
+    /// own stack runs no tree's turn. Dropped there, those bytes would leave
+    /// the thread's balance and no tree's, so the tree's next turn would read
+    /// them as still held ([`crate::budget`]'s *per request tree across
+    /// switches*). Off the tree's root core the thread's balance is the
+    /// reading already, so the context is simply dropped.
+    ///
+    /// **Cost:** one [`crate::budget::ArmedStack`] take and restore per child
+    /// that ends, nothing per turn.
+    pub fn end_in_its_turn(self) {
+        if !self.on_root_core {
+            drop(self);
+            return;
+        }
+        let outside = crate::budget::ArmedStack::take();
+        crate::budget::begin_turn(&self.tree);
+        drop(self);
+        drop(crate::budget::ArmedStack::take());
+        outside.restore();
+    }
+
     /// Swaps the thread's armed pair and refusal with the ones this context
     /// saved. The two calls above are its only callers, and each is the other's
     /// inverse.
