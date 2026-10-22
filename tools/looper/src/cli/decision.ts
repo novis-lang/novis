@@ -137,7 +137,7 @@ async function discussVerb(dir: string, args: string[]): Promise<Decision> {
   if (record.kind === "side" && record.inRoot === true && record.goal !== null) process.env[SIDE_GOAL_VAR] = record.goal;
   const advise: Advisor = async (d) => {
     const sections = await packExtra(tree, cfg, undefined, false);
-    const prompt = `${ADVISOR_PROMPT}\n\n${adviceRequest(d)}\n${pack(tree, cfg, false, undefined, sections)}`;
+    const prompt = `${ADVISOR_PROMPT}\n\n${adviceRequest(d, readDecisions(dir).decisions)}\n${pack(tree, cfg, false, undefined, sections)}`;
     const program = script === undefined ? ["claude"] : [process.execPath, script];
     return adviceText(await runAdvisor(adviseLine(program, cfg.agent.model, tree), prompt));
   };
