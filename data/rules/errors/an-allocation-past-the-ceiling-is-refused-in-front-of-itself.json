@@ -12,6 +12,8 @@
     "crates/nvs-runtime/tests/refusal.rs",
     "crates/nvs-runtime/tests/allocator_ceiling.rs",
     "crates/nvs-stdlib/src/csv.rs",
-    "tests/hostile/core/Csv/parse/01-documents-an-upload-form-could-send.nvs"
+    "tests/hostile/core/Csv/parse/01-documents-an-upload-form-could-send.nvs",
+    "crates/nvs-stdlib/src/json.rs",
+    "tests/hostile/core/Json/decode/03-documents-larger-than-the-memory-limit.nvs"
   ]
 }
