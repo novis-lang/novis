@@ -1153,6 +1153,43 @@ pub(crate) fn encodes_outside_text(
         })
 }
 
+/// Whether a written-class member that converts the array it is handed was
+/// handed one that carries outside text — the question
+/// [`crate::derive::reads_a_peers_octets`] answers by the owner alone for the
+/// members that read the request themselves.
+///
+/// `Core\Arr::shapeAs` is the one such member. Its subject is read the way an
+/// encoder reads its argument: a decoded `array<mixed>`, `postArray`'s
+/// `array<tainted string>` or a literal holding a tainted variable is outside
+/// text, and an `array<string>` or a literal of the program's own values is
+/// not. A literal is read element by element because its type is the
+/// parameter's `array<mixed>` whatever it holds.
+pub(crate) fn converts_outside_text(
+    qname: &QName,
+    args: &CallArgs,
+    slots: &[ArgSlot],
+    arg_types: &[TypeId],
+    scope: &LocalScope,
+    env: &mut Env<'_>,
+) -> bool {
+    if qname.to_string() != r"Core\Arr" {
+        return false;
+    }
+    let mut seen = FxHashSet::default();
+    let CallArgs::List(list) = args else {
+        return arg_types
+            .iter()
+            .any(|&ty| walks_outside_text(ty, &mut seen, env));
+    };
+    list.iter()
+        .zip(slots)
+        .zip(arg_types)
+        .any(|((arg, &slot), &ty)| {
+            matches!(slot, ArgSlot::Param(0) | ArgSlot::Spread(0))
+                && written_outside_text(&arg.value, ty, scope, &mut seen, env)
+        })
+}
+
 /// [`walks_outside_text`] for an argument as it is written: an array literal
 /// or an anonymous object written inline is read one key and one value at a
 /// time, and anything else by its type `ty`.

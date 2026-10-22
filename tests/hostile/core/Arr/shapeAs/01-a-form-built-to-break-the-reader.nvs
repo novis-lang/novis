@@ -6,7 +6,8 @@
 // hostile: timeout-ms 30000
 // hostile: ends-early 4 FATAL
 
-type Small = {a: int, b: string};
+// Each array below has the type `array<mixed>`, so its text is tainted.
+type Small = {a: int, b: tainted string};
 
 // 1. A form with 200,000 keys the shape does not name. They are all left out,
 // so this prints `1`.
@@ -36,7 +37,7 @@ while ($d < 10000) {
     $d = $d + 1;
 }
 try {
-    Core\Arr::shapeAs<{text: string}>(['text' => $deep]);
+    Core\Arr::shapeAs<{text: tainted string}>(['text' => $deep]);
     echo "deep value accepted\n";
 } catch (Throwable $refused) {
     echo "deep value refused\n";

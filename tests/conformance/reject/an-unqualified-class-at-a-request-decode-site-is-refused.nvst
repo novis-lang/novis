@@ -54,11 +54,11 @@ echo $body->note, $query->q, $form->email, $ok->term, "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0810]: `Body::$note` is declared `string`, and `Core\Request::jsonAs` answers a peer's octets
+error[E0810]: `Body::$note` is declared `string`, and `Core\Request::jsonAs` fills it with text from outside the program
 %A
-error[E0810]: `Query::$q` is declared `string`, and `Core\Request::queryAs` answers a peer's octets
+error[E0810]: `Query::$q` is declared `string`, and `Core\Request::queryAs` fills it with text from outside the program
 %A
-error[E0810]: `Form::$email` is declared `string`, and `Core\Request::postAs` answers a peer's octets
+error[E0810]: `Form::$email` is declared `string`, and `Core\Request::postAs` fills it with text from outside the program
 %A
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

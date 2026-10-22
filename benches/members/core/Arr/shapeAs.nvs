@@ -5,7 +5,8 @@
 // bench: calls 1
 // bench: complexity constant
 
-type Signup = {name: string, age: int};
+// A posted form is outside text, so its text field is `tainted`.
+type Signup = {name: tainted string, age: int};
 
 class Bench {
     public static function run(uint $rounds): int {
