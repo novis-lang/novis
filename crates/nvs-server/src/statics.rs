@@ -65,8 +65,8 @@ use std::time::SystemTime;
 
 use hyper::body::Bytes;
 use hyper::header::{
-    ACCEPT_RANGES, CACHE_CONTROL, CONTENT_RANGE, CONTENT_TYPE, ETAG, HeaderMap, HeaderValue,
-    IF_NONE_MATCH, IF_RANGE, RANGE,
+    ACCEPT_RANGES, CACHE_CONTROL, CONTENT_RANGE, CONTENT_SECURITY_POLICY, CONTENT_TYPE, ETAG,
+    HeaderMap, HeaderValue, IF_NONE_MATCH, IF_RANGE, RANGE,
 };
 use hyper::{Response, StatusCode};
 
@@ -186,10 +186,14 @@ impl Source for OnDisk {
 #[must_use]
 pub fn asked(headers: &HeaderMap) -> HeaderMap {
     let mut kept = HeaderMap::new();
-    for name in [IF_NONE_MATCH, IF_RANGE, RANGE] {
+    for name in [IF_NONE_MATCH, IF_RANGE] {
         if let Some(value) = headers.get(&name) {
             kept.insert(name, value.clone());
         }
+    }
+    // Every `Range` line, because a second one changes the answer.
+    for value in headers.get_all(RANGE) {
+        kept.append(RANGE, value.clone());
     }
     kept
 }
@@ -235,6 +239,7 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
         if_none_match: headers.get(IF_NONE_MATCH).map(HeaderValue::as_bytes),
         if_range: headers.get(IF_RANGE).map(HeaderValue::as_bytes),
         range: headers.get(RANGE).map(HeaderValue::as_bytes),
+        range_repeated: headers.get_all(RANGE).iter().nth(1).is_some(),
     };
     let wanted = match decide(asked, Some(&tag), stat.len) {
         Decision::NotModified => {
@@ -253,6 +258,11 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
     response
         .headers_mut()
         .insert(CONTENT_TYPE, HeaderValue::from_static(mime(file)));
+    if runs_script(file) {
+        response
+            .headers_mut()
+            .insert(CONTENT_SECURITY_POLICY, HeaderValue::from_static(SANDBOXED));
+    }
     let Some(body) = body(opened.contents, wanted) else {
         return Reply::status(StatusCode::INTERNAL_SERVER_ERROR);
     };
@@ -326,6 +336,23 @@ fn mime(path: &Path) -> &'static str {
         "webm" => "video/webm",
         _ => "application/octet-stream",
     }
+}
+
+/// The policy a static file a browser runs script from is sent with. `sandbox`
+/// gives the document a unique origin and runs none of its script, so an SVG or
+/// HTML file somebody uploaded under a static root cannot act as this site.
+/// `frame-ancestors 'none'` is the response policy's own default, written
+/// again because a policy set here replaces the default one
+/// ([`crate::secure`] fills only what a response has not set).
+const SANDBOXED: &str = "sandbox; frame-ancestors 'none'";
+
+/// Whether `path` is a type a browser runs script from when it is opened as a
+/// page: HTML, SVG and XML (which may hold XHTML), by [`mime`]'s table.
+fn runs_script(path: &Path) -> bool {
+    matches!(
+        mime(path),
+        "text/html; charset=utf-8" | "image/svg+xml" | "application/xml"
+    )
 }
 
 /// A header value this module wrote itself, which is hex digits, digits and
@@ -744,5 +771,64 @@ mod tests {
         // rather than a fall-back to some other file.
         let gone = answered(send(&p("/www/public/gone.css"), &asking(&[]), &fs));
         assert_eq!(gone.0, StatusCode::NOT_FOUND);
+    }
+
+    /// An SVG, HTML or XML file a browser could run script from is sent
+    /// sandboxed, so a file uploaded under a static root cannot act as the
+    /// site. Every other type keeps the response policy's default.
+    #[test]
+    fn a_file_a_browser_runs_script_from_is_sandboxed() {
+        let fs = Fake::with(&[
+            ("/www/public/logo.svg", b"<svg/>", 1),
+            ("/www/public/page.html", b"<p>", 1),
+            ("/www/public/PAGE.HTM", b"<p>", 1),
+            ("/www/public/feed.xml", b"<x/>", 1),
+            ("/www/public/style.css", b"a{}", 1),
+            ("/www/public/photo.png", b"png", 1),
+        ]);
+        let policy = |file: &str, headers: &[(&str, &str)]| {
+            let answer = answered(send(&p(file), &asking(headers), &fs));
+            header(&answer, "content-security-policy")
+        };
+        for file in [
+            "/www/public/logo.svg",
+            "/www/public/page.html",
+            "/www/public/PAGE.HTM",
+            "/www/public/feed.xml",
+        ] {
+            assert_eq!(policy(file, &[]), SANDBOXED, "{file}");
+            assert_eq!(
+                policy(file, &[("Range", "bytes=0-1")]),
+                SANDBOXED,
+                "{file} in part"
+            );
+        }
+        for file in ["/www/public/style.css", "/www/public/photo.png"] {
+            assert_eq!(policy(file, &[]), "", "{file}");
+        }
+    }
+
+    /// A `Range` the server reads one way and a cache could read another is a
+    /// `416`: a sign or a space in a bound, and a second `Range` line. The copy
+    /// [`asked`] keeps for a program's file holds both lines.
+    #[test]
+    fn a_range_written_two_ways_is_unsatisfiable() {
+        let fs = Fake::with(&[("/www/public/data.bin", b"0123456789", 1)]);
+        let file = p("/www/public/data.bin");
+        for range in ["bytes=+1-2", "bytes= 0-1", "bytes=0 -1"] {
+            let answer = answered(send(&file, &asking(&[("Range", range)]), &fs));
+            assert_eq!(answer.0, StatusCode::RANGE_NOT_SATISFIABLE, "{range}");
+        }
+        let mut twice = HeaderMap::new();
+        twice.append(RANGE, HeaderValue::from_static("bytes=0-1"));
+        twice.append(RANGE, HeaderValue::from_static("bytes=5-6"));
+        for headers in [twice.clone(), asked(&twice)] {
+            let answer = answered(send(&file, &headers, &fs));
+            assert_eq!(answer.0, StatusCode::RANGE_NOT_SATISFIABLE);
+            assert_eq!(header(&answer, "content-range"), "bytes */10");
+        }
+        let once = answered(send(&file, &asking(&[("Range", "bytes=0-1")]), &fs));
+        assert_eq!(once.0, StatusCode::PARTIAL_CONTENT);
+        assert_eq!(once.2, b"01");
     }
 }

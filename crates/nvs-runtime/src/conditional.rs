@@ -22,7 +22,10 @@
 //! - **One `Range`**, `bytes=` and a single spec. Anything else, including a
 //!   range the length cannot satisfy, is a `416`, never a silent whole body:
 //!   `rule:errors/ambiguous-input-refused`'s direction, since a client resuming
-//!   a download would write the wrong bytes on the strength of it.
+//!   a download would write the wrong bytes on the strength of it. A bound is
+//!   ASCII digits and nothing else, so `+1` and a space are a `416` too, and so
+//!   is a second `Range` line: a cache that read the last line would answer
+//!   another window for the same request.
 //!
 //! A representation with no tag matches neither validator, so a resumed
 //! download gets the whole body while a bare `Range` still seeks.
@@ -43,6 +46,9 @@ pub struct Asked<'a> {
     pub if_range: Option<&'a [u8]>,
     /// The first `Range` field.
     pub range: Option<&'a [u8]>,
+    /// Whether a second `Range` field arrived. The decision answers it as it
+    /// answers a list of ranges.
+    pub range_repeated: bool,
 }
 
 impl<'a> Asked<'a> {
@@ -57,6 +63,7 @@ impl<'a> Asked<'a> {
             } else if name.eq_ignore_ascii_case("if-range") {
                 &mut asked.if_range
             } else if name.eq_ignore_ascii_case("range") {
+                asked.range_repeated |= asked.range.is_some();
                 &mut asked.range
             } else {
                 continue;
@@ -169,6 +176,9 @@ pub fn decide(asked: Asked<'_>, tag: Option<&str>, total: u64) -> Decision {
         return Decision::NotModified;
     }
     let range = asked.range.filter(|_| still_the_same(asked.if_range, tag));
+    if range.is_some() && asked.range_repeated {
+        return Decision::Unsatisfiable;
+    }
     asked_for(range, total).map_or(Decision::Unsatisfiable, Decision::Send)
 }
 
@@ -205,10 +215,10 @@ fn still_the_same(asked: Option<&[u8]>, tag: Option<&str>) -> bool {
 /// spec, and anything else is `None`.
 ///
 /// The refusals are one arm each on purpose — a comma, a unit that is not
-/// `bytes`, a bound that does not parse, an inverted pair, a suffix of zero and
-/// a start past the end all answer `None`. An `end` past the last byte is the
-/// one repair the RFC requires, and it is a clamp of a range that was
-/// satisfiable, not a different answer.
+/// `bytes`, a bound that is not ASCII digits alone (a sign or a space included),
+/// an inverted pair, a suffix of zero and a start past the end all answer
+/// `None`. An `end` past the last byte is the one repair the RFC requires, and
+/// it is a clamp of a range that was satisfiable, not a different answer.
 fn asked_for(range: Option<&[u8]>, total: u64) -> Option<Window> {
     let Some(range) = range else {
         return Some(Window {
@@ -222,22 +232,21 @@ fn asked_for(range: Option<&[u8]>, total: u64) -> Option<Window> {
         return None;
     }
     let (first, last) = spec.split_once('-')?;
-    let (first, last) = (first.trim(), last.trim());
     let (at, end) = match (first.is_empty(), last.is_empty()) {
         (true, true) => return None,
         // `bytes=-N`: the last N bytes, and never more than there are.
         (true, false) => {
-            let suffix: u64 = last.parse().ok()?;
+            let suffix = position(last)?;
             if suffix == 0 {
                 return None;
             }
             (total.saturating_sub(suffix), total.checked_sub(1)?)
         }
         // `bytes=N-`: from N to the end.
-        (false, true) => (first.parse().ok()?, total.checked_sub(1)?),
+        (false, true) => (position(first)?, total.checked_sub(1)?),
         (false, false) => {
-            let at: u64 = first.parse().ok()?;
-            let end: u64 = last.parse().ok()?;
+            let at = position(first)?;
+            let end = position(last)?;
             if end < at {
                 return None;
             }
@@ -252,6 +261,15 @@ fn asked_for(range: Option<&[u8]>, total: u64) -> Option<Window> {
         len: end - at + 1,
         partial: true,
     })
+}
+
+/// One bound of a range spec: ASCII digits and nothing else. `u64::from_str`
+/// also takes a leading `+`, which RFC 9110's `DIGIT` does not.
+fn position(text: &str) -> Option<u64> {
+    if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    text.parse().ok()
 }
 
 #[cfg(test)]
@@ -290,6 +308,7 @@ mod tests {
         assert_eq!(read.range, Some("bytes=0-1".as_bytes()));
         assert_eq!(read.if_range, Some(TAG.as_bytes()));
         assert_eq!(read.if_none_match, None);
+        assert!(read.range_repeated);
     }
 
     /// No header is the whole body, one range is that range clamped to the
@@ -320,6 +339,12 @@ mod tests {
             "bytes=-0",
             "bytes=10-",
             "bytes=x-",
+            "bytes=+1-2",
+            "bytes=1-+2",
+            "bytes=-+3",
+            "bytes= 0-1",
+            "bytes=0 -1",
+            "bytes=0- 1",
         ] {
             assert_eq!(
                 decide(asked(&[("Range", refused)]), Some(TAG), 10),
@@ -331,6 +356,24 @@ mod tests {
             decide(asked(&[("Range", "bytes=0-")]), Some(TAG), 0),
             Decision::Unsatisfiable
         );
+    }
+
+    /// Two `Range` lines are a `416`, as a list of ranges is, and an `If-Range`
+    /// that misses still answers the whole body.
+    #[test]
+    fn two_range_lines_are_unsatisfiable() {
+        let twice = [("Range", "bytes=0-1"), ("Range", "bytes=5-6")];
+        assert_eq!(
+            decide(asked(&twice), Some(TAG), 10),
+            Decision::Unsatisfiable
+        );
+        let stale = [
+            ("Range", "bytes=0-1"),
+            ("Range", "bytes=5-6"),
+            ("If-Range", "\"old\""),
+        ];
+        assert_eq!(decide(asked(&stale), Some(TAG), 10), WHOLE);
+        assert!(!asked(&[("Range", "bytes=0-1")]).range_repeated);
     }
 
     /// `If-None-Match` compares weakly and wins over a range; `If-Range`
