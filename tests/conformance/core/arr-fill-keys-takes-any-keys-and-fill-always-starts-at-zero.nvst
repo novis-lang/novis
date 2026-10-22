@@ -3,7 +3,7 @@ Core\Arr::fillKeys puts one value under any keys the caller names, consecutive o
 --FILE--
 <?nvs
 final class Render {
-    public static function keys(array<mixed> $a): string {
+    public static function keys(array<mixed> $a): tainted string {
         return Core\Str::join(Core\Arr::keys($a), ",");
     }
 }

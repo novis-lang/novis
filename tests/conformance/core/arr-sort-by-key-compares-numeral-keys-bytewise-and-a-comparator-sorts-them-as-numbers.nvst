@@ -3,7 +3,7 @@ Core\Arr::sortByKey compares numeral keys byte by byte, so "10" comes before "9"
 --FILE--
 <?nvs
 final class Render {
-    public static function keys(array<mixed> $a): string {
+    public static function keys(array<mixed> $a): tainted string {
         return Core\Str::join(Core\Arr::keys($a), ",");
     }
 }

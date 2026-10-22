@@ -19,7 +19,7 @@ echo Core\Arr::count($back), "\n";
 // Insertion order is not signed and does not come back: the payload is in the
 // canonical order the document was written in, which is the sorted one. A
 // program that needs an order of its own puts it in a claim.
-array<string> $keys = Core\Arr::keys($back);
+array<tainted string> $keys = Core\Arr::keys($back);
 echo $keys[0], " ", $keys[1], " ", $keys[2], "\n";
 
 // The lifetime rides *inside* the signed region, so a token minted with one

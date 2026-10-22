@@ -13,7 +13,7 @@
 // alone. `crates/nvs-stdlib/src/bytes.rs` owns the three sites.
 
 final class Field {
-    public static function hex(string $format, mixed $a): string {
+    public static function hex(string $format, mixed $a): tainted string {
         try {
             return Core\Encoding::toHex(Core\Bytes::pack($format, $a));
         } catch (Throwable $e) {
