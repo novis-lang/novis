@@ -177,6 +177,11 @@ or a byte literal moves to it mechanically. Every other site either checks with 
 and throws, or keeps `Value::str` under an `expect` that says why its bytes are UTF-8.
 `dispatch.rs:850`'s `Ctx::str(&str)` already has the safe shape.
 
+**Captured output is checked where the capture ends (the user's call on d1, 2026-10-22).** Output
+captured by `Core\Out::capture`, `Core\Html::later`, a later slot or `Core\Test`'s request helpers can
+hold raw bytes from `Core\Response::bytes` or `::sendFile`. Each capture, and each `Core\Test`
+request helper, throws `RuntimeError` naming the member when the output it ends with is not UTF-8.
+
 **Stage 4: a keystone test reads every `Core` signature.** It fails naming each member whose return
 contains `string`, or an array or shape of it, while a parameter is a qualified container
 (`Text(Contagious)`, `Array` or `Mixed`) and the return does not carry the contagion. The allow list is
@@ -384,7 +389,7 @@ carry the mark.
 
 **Does:** an 8 MB body stops at the 128 MiB ceiling inside the parse, in each of the four parsers.
 
-- [ ] PARSE-1: `Core\Csv::parse` and `::rows` grow arrays through the fallible form. `crates/nvs-stdlib/src/csv.rs:715`
+- [x] PARSE-1: `Core\Csv::parse` and `::rows` grow arrays through the fallible form. `crates/nvs-stdlib/src/csv.rs:715`
 - [ ] PARSE-2: `Core\Json::decode` and `Core\Request::json()`. `crates/nvs-stdlib/src/json.rs:1807`
 - [ ] PARSE-3: `Core\Xml::parse` charges attribute and name growth. `crates/nvs-stdlib/src/xml.rs:1619`
 - [ ] RT-4: `Core\Html::parse` refuses at the ceiling, not after it. `crates/nvs-runtime/src/budget.rs:1153`
@@ -516,8 +521,35 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 5 is done. HTML-1 and its attack landed (ddbb2efa8), after REQ-2/DB-2, CRYPTO-1/TAINT-3,
-TAINT-2 (40063273f), TAINT-4 (1118be657) and EXT-4 (8c1ef0342). Stage 6 is next, and not started.
+Stage 6 is under way. PARSE-1 and its attack landed (66fc862ac). PARSE-2, PARSE-3 and RT-4 are next.
+
+- **PARSE-1, the shape the other three parsers follow.** A helper that returns `Err` while the
+  request is over its limit is reported as the memory `FATAL` (`crates/nvs-runtime/src/abi.rs:496`),
+  so a parser only has to stop. `csv.rs` asks `nvs_runtime::budget::affords(<the step's size>)` in
+  front of each step: `affords_field` for a field's place in the record (the doubling when it is full),
+  `row` for each entry and its string plus `out.affords_write()`, `parse` for each row's entry plus
+  `rows.affords_write()`, and `RowReader::step` for each `CELL` chunk of a field that has not ended
+  (`Step::OverMemory`). `over_memory(member)` is the fallback `Fault`.
+- **Never ask zero, and never use `over_ceiling()` alone.** The budget's `CEILING` sits below
+  `[limits] memory` by the 1 MiB limit-handler reserve. In that band `over_ceiling()` is true but
+  `Ctx::memory_breach` is `None` unless a refusal was recorded, so the program saw the fallback
+  wording. `affords(0)` records a refusal that reads "an allocation of 0 bytes was refused".
+  `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself` now has a parser
+  paragraph that says so, and names `csv.rs` and the attack in `guardedBy`. PARSE-2/3 and RT-4 extend
+  that paragraph with their members. `db/execute.rs:477`'s `rows_fit` has the same band gap (not
+  touched: no item owns it; see Backlog).
+- The attack's step 5 parses 8 MB of `a\n` and ends `// hostile: ends-early 5 FATAL`. Under
+  `nvs run` (256 MiB) it stops at 267 MB with "an allocation of 16 bytes was refused". The Rust test
+  `records_past_the_memory_limit_stop_the_parse_at_the_limit` (short lines and one wide record, 1 MiB
+  limit, peak under 2 MiB) fails without the fix, because the `Ok` arm reports no breach. Both ran
+  once, green, and so did `Core\Csv`'s examples. The three `Core\Csv` figures were re-recorded.
+- Decision d1 (captured output that is not UTF-8) is answered, recorded under *Standing decisions*
+  and closed. Stage 3 already does it: `out.rs:224` and `test.rs:3034` throw `RuntimeError`.
+- The sweep's `env-secret-proofs` red was the figure 65eb128a8 already re-recorded; the gate is green.
+  Nightly run 39746060276 was cancelled whole and is not a failure of this tree.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+
+Stage 5, for the record:
 
 - **HTML-1:** `Ctx::write_body` (`crates/nvs-runtime/src/ctx/output.rs:324`) is how
   `Core\Response::text`, `::json`, `::bytes` and `::stream` (off a connection) write. At
@@ -528,17 +560,8 @@ TAINT-2 (40063273f), TAINT-4 (1118be657) and EXT-4 (8c1ef0342). Stage 6 is next,
   item's first wording (a plain `string` result): it keeps `output`'s type and also covers
   `output: 'inherit'`, whose bytes `nvs_host::isolate::hand_over` appends raw. The rule
   `rule:security/capture-answers-the-carrier` says so and names the attack in `guardedBy`.
-- The two Rust tests (`a_body_that_becomes_markup_is_escaped_and_a_response_is_verbatim`,
-  `a_childs_body_on_the_terminal_sink_has_no_control_byte`) and the attack ran once, green. The attack
-  fails at step 1 on `target/release/nvs` from before the fix. The 16 conformance cases that call a body
-  member ran once: 14 green, and the 2 stage-3 reds below are unchanged.
-- **The sweep's `env-secret-proofs` red was real this time:** `perf: stale`, because stage 3 changed
-  `crates/nvs-stdlib/src/env.rs`. Its figure was re-recorded (65eb128a8) and the gate is green. The
-  same staleness is likely for every feature whose source file stage 3 or this stage changed (see
-  *Tests that may go red*).
-- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
-
-Earlier in stage 5:
+- `perf: stale` is likely for every feature whose source file stage 3 or 5 changed (see *Tests that
+  may go red*). `bun nv proofs --record-perf --group '<group>'` re-records one group.
 
 - **TAINT-2:** `Core\Response\Stream::write`'s chunk is `Union[Text(Sink), Blob(Sink)]`
   (`crates/nvs-stdlib/src/response.rs`). The card and `rule:security/response-body-is-one-typed-member`
@@ -603,17 +626,24 @@ HTML-1 adds: the `perf: stale` proofs of every `Core\Response` body member and `
 `.nvst`, example or hostile case that captures or spawns a child that writes a body with a control
 byte other than `LF`/`TAB` or with `<`, `>`, `&`, `"` or `'` under the HTML sink (grep found none
 beyond the two above), and an `nvs-server` test that spawns a child writing a text body inside a request.
+PARSE-1 adds: any `.nvs` or `.nvst` that parses a CSV document whose rows outgrow the memory limit and
+expected it to finish (none known). Its own attack's `ends-early 5 FATAL` passes only on a binary
+built after 66fc862ac.
 
 ### Next
 
-1. Stage 6, PARSE-1: `Core\Csv::parse` and `::rows` grow arrays through the fallible form and throw
-   the memory-limit error inside the parse. `NvsArray::try_new` is at
-   `crates/nvs-runtime/src/array.rs:1057`; its user from `failure-paths-hold` is `uri.rs`. Start at
-   `crates/nvs-stdlib/src/csv.rs:715`. Write the attack first:
-   `tests/hostile/core/Csv/parse/01-documents-an-upload-form-could-send.nvs`.
-2. PARSE-2 (`crates/nvs-stdlib/src/json.rs:1807`), PARSE-3 (`crates/nvs-stdlib/src/xml.rs:1619`) and
-   RT-4 (`crates/nvs-runtime/src/budget.rs:1153`) share the same fallible-growth helper, so one session
-   can take all four once PARSE-1 has landed the shape.
+1. PARSE-2: `Core\Json::decode` and `Core\Request::json()` (`crates/nvs-stdlib/src/json.rs:1807`,
+   `visit_seq`/`visit_map`, and the `Lists` set near `:1887`). Ask `affords(<entry size>)` and the
+   array's `affords_write()` in front of each element and each key, and return the memory fault as a
+   serde error (`serde::de::Error::custom`), then map it to `Err` at the member so `abi.rs:496` reports
+   the breach. Attack: `[` + `[],` x 2,700,000 + `]`, under `tests/hostile/core/Json/decode/`.
+2. PARSE-3: `Core\Xml::parse` charges attribute and name growth (`crates/nvs-stdlib/src/xml.rs:1619`).
+   It already asks once per node and attribute (module doc § *What this spends*); find the unasked growth.
+3. RT-4: `Core\Html::parse` refuses at the ceiling, not after it (`crates/nvs-runtime/src/budget.rs:1153`,
+   and the test `a_tree_past_the_memory_limit_stops_the_parse_at_the_limit` at `html.rs:3156`).
+4. Each extends the parser paragraph of
+   `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself` and its `guardedBy`, and
+   re-records its group's figures (`bun nv proofs --record-perf --group 'Core\Json'`).
 
 ### Backlog
 
@@ -631,3 +661,7 @@ beyond the two above), and an `nvs-server` test that spawns a child writing a te
   change, and no item owns it yet.
 - `bun nv suite <tree> --case <path>` names cases that must pass and still judges the whole tree, so
   it ran all 3096. Run a few cases by name with `target/debug/nvs test <path>...`.
+- `crates/nvs-stdlib/src/db/execute.rs:477`'s `rows_fit` stops a buffered read with `over_ceiling()`
+  alone. Inside the limit-handler reserve band, `memory_breach` is `None`, so the program sees
+  `rows_fit`'s own wording and not the memory error. Asking `affords(<row size>)` there fixes it, as
+  in `csv.rs`. No item owns it; stage 6 may take it beside RT-4.
