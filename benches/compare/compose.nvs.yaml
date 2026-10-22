@@ -20,14 +20,14 @@ services:
     # container's CPU limit. The quota is the bound, as it is for every peer.
     cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
 
-    # The `loop` and `memory` rows' cap, so a program that allocates without end stops here and not at the
-    # host's memory. The swap limit is the same number, so the container gets no swap beyond it. Every
-    # other run sets `0`, which is no cap.
+    # The `loop`, `memory` and `flood` rows' cap, so a program that allocates without end stops here and
+    # not at the host's memory. The swap limit is the same number, so the container gets no swap beyond
+    # it. Every other run sets `0`, which is no cap.
     mem_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
     memswap_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
 
     # A backend that exits is started again, as a deployment's supervisor does for every peer. The
-    # `crash`, `loop` and `memory` rows read the restart count, so a crash still shows, and the load
+    # `crash`, `loop`, `memory` and `flood` rows read the restart count, so a crash still shows, and the load
     # after it measures the restart and not a server left down for the rest of the row.
     restart: unless-stopped
 

@@ -4,6 +4,7 @@
 //     bun nv bench-compare --scenarios --smoke                   # every feature row against every peer
 //     bun nv bench-compare --scenarios --smoke --row config      # one row
 //     bun nv bench-compare --scenarios --row loop --expect nvs=on-by-default   # exits 1 on another result
+//     bun nv bench-compare --scenarios --smoke --row flood       # the nightly deep lane's run
 //     bun nv bench-compare --record benches/compare.json         # the fair arm, recorded
 //     bun nv bench-compare --scenarios --record benches/compare.json   # the feature rows, into that record
 //     bun nv bench-compare --arm deployed --record PATH          # four cpus to each backend
@@ -353,8 +354,11 @@ export interface Probe {
   step(run: string[] | "restart"): Promise<{ code: number; output: string }>;
   /** The backend's last log lines. */
   logs(): string;
-  /** `oha` against `path` from inside the stack for `seconds`, at the row's connections, while the row sends its own requests. */
-  steady(path: string, seconds: number): Promise<Steady>;
+  /**
+   * `oha` against `path` from inside the stack for `seconds`, while the row sends its own requests, at
+   * `connections` or else the row's connections.
+   */
+  steady(path: string, seconds: number, connections?: number): Promise<Steady>;
   /** The peer's `id` in `PEERS`. */
   peer: string;
   /** The peer's program is compiled into its image, so `dir` is not what it serves. */
@@ -507,7 +511,7 @@ export const RUNAWAY_START_MS = 3_000;
 /** How long a runaway request may take to be stopped: under nginx's 60-second read timeout, so a reply is the backend's. */
 export const RUNAWAY_WAIT_MS = 55_000;
 
-/** The backend container's memory cap in the loop and memory rows, so an allocation without end stops there and not at the host. */
+/** The backend container's memory cap in the loop, memory and flood rows, so an allocation without end stops there and not at the host. */
 export const RUNAWAY_MEMORY = "512m";
 
 /** The statuses nginx gives when the backend did not answer: a reply with one of them is not the backend stopping the request. */
@@ -622,6 +626,57 @@ export const MEMORY_DEFAULT: Record<string, Setting> = {
  */
 export const LOOP_IN_CODE: Record<string, string> = { bun: "each request in a Worker, and terminate() after a time limit" };
 
+/** How long the flood row's load runs. */
+export const FLOOD_SECONDS = 10;
+/**
+ * The flood row's connections, each sending `/hold` without pause. Every hold keeps 8 MiB for 300 ms, so
+ * 200 of them want 1.6 GB, three times the backend's `RUNAWAY_MEMORY`.
+ */
+export const FLOOD_CONNECTIONS = 200;
+/** How often the flood row sends `/` while the load runs. */
+export const FLOOD_PROBE_EVERY_MS = 250;
+/** How long one of those probes may take before it counts as a probe that hung. */
+export const FLOOD_PROBE_WAIT_MS = 10_000;
+/** The holds sent together once `/` answers again: every one must answer `200`. 64 MiB, far under the backend's cap. */
+export const FLOOD_AFTER = 8;
+
+/** One probe the flood row sent: its status and whether it carried `Retry-After`, or `null` when it hung. */
+export interface FloodProbe {
+  status: number | null;
+  ms: number;
+  retryAfter: boolean;
+}
+
+/** A probe that tells the client what happened: `200`, or the backend's `503` with `Retry-After`. */
+export const probeHeld = (p: FloodProbe) => p.status === 200 || (p.status === 503 && p.retryAfter);
+
+/**
+ * Passes when every probe sent during the flood was answered in time with `200` or a `503` that carries
+ * `Retry-After`, `/` answered `200` again after the load, every hold sent after it was answered, and the
+ * backend ran throughout. A peer that bounds its load through a setting names it. Anything else is `no`.
+ */
+export function floodResult(flood: Steady, probes: FloodProbe[], recovery: number | null, after: number, backend: Backend, setting: Setting | undefined): RowResult {
+  const ms = probes.filter((p) => p.status !== null).map((p) => p.ms).sort((a, b) => a - b);
+  const evidence = {
+    flood_requests: flood.requests,
+    refused: failureCounts(flood.failures).get("503") ?? 0,
+    flood_failures: flood.failures,
+    probes: probes.length,
+    probes_failed: probes.filter((p) => !probeHeld(p)).length,
+    probe_median_ms: ms.length === 0 ? null : Math.round(ms[medianIndex(ms)]!),
+    probe_max_ms: ms.length === 0 ? null : Math.round(ms[ms.length - 1]!),
+    recovery_seconds: recovery,
+    after_ok: after,
+    backend_running: backend.running,
+    backend_restarts: backend.restarts,
+  };
+  if (evidence.probes_failed > 0 || recovery === null || after < FLOOD_AFTER || !survived(backend)) return { result: "no", evidence };
+  return passed(setting, evidence);
+}
+
+/** The setting that bounds the flood on a peer whose bound is one. Novis's admission has none. */
+export const FLOOD_SETTING: Record<string, Setting> = { php: { name: "pm.max_children", default: false } };
+
 /**
  * Keys a row sets in one table of the Novis data folder's `nvs.toml`. The shipped file has each key
  * commented out inside its table, and the same key may be commented out in another table too, so the
@@ -676,6 +731,44 @@ async function runawayProbe(p: Probe, path: string, defaults: Record<string, Set
   const runaway = stoppedAt(p, path);
   const steady = await load;
   return runawayResult(baseline, steady, await runaway, p.backend(), defaults[p.peer], inCode[p.peer]);
+}
+
+/** One `GET /` of the flood row, timed, given up after `FLOOD_PROBE_WAIT_MS`. */
+async function floodProbeOnce(p: Probe): Promise<FloodProbe> {
+  const start = performance.now();
+  try {
+    const reply = await p.get("/", FLOOD_PROBE_WAIT_MS);
+    return { status: reply.status, ms: performance.now() - start, retryAfter: reply.headers["retry-after"] !== undefined };
+  } catch {
+    return { status: null, ms: performance.now() - start, retryAfter: false };
+  }
+}
+
+/**
+ * Sends `/hold` from `FLOOD_CONNECTIONS` connections for `FLOOD_SECONDS`, and `/` every
+ * `FLOOD_PROBE_EVERY_MS` beside it. Once the load ends, waits up to `CHANGE_WAIT_MS` for `/` to answer `200`, then sends
+ * `FLOOD_AFTER` holds together, and judges all of it.
+ */
+async function floodProbe(p: Probe): Promise<RowResult> {
+  ok(await p.get("/"), "the first request");
+  ok(await p.get("/hold"), "the first hold");
+  let flooding = true;
+  const load = p.steady("/hold", FLOOD_SECONDS, FLOOD_CONNECTIONS).finally(() => {
+    flooding = false;
+  });
+  const probes: FloodProbe[] = [];
+  while (flooding) {
+    probes.push(await floodProbeOnce(p));
+    await Bun.sleep(FLOOD_PROBE_EVERY_MS);
+  }
+  const flood = await load;
+  const recovery = await secondsUntil(p, (r) => r.status === 200);
+  let after = 0;
+  if (recovery !== null) {
+    const replies = await Promise.all(Array.from({ length: FLOOD_AFTER }, () => p.get("/hold").catch(() => null)));
+    after = replies.filter((r) => r?.status === 200).length;
+  }
+  return floodResult(flood, probes, recovery, after, p.backend(), FLOOD_SETTING[p.peer]);
 }
 
 /** Polls the backend's log until it carries `line`: the seconds it took, or `null` after `CHANGE_WAIT_MS`. */
@@ -1310,6 +1403,13 @@ export const SCENARIOS: Scenario[] = [
     probe: (p) => runawayProbe(p, "/alloc", MEMORY_DEFAULT),
   },
   {
+    id: "flood",
+    tree: "scenarios",
+    case: "flood",
+    memory: RUNAWAY_MEMORY,
+    probe: floodProbe,
+  },
+  {
     id: "csrf",
     tree: "scenarios",
     case: "csrf",
@@ -1665,8 +1765,8 @@ async function replyOf(peer: Peer, path: string, method = "GET", extra: Record<s
  * One `oha` run for `seconds` from inside the stack's network, started without waiting for it, so the row
  * sends its own requests while it runs. A request unanswered after five seconds counts as failed.
  */
-async function steadyOf(stack: string, env: Record<string, string>, path: string, seconds: number): Promise<Steady> {
-  const args = ["run", "--rm", "--no-deps", "oha", "-z", `${seconds}s`, "-c", String(SCENARIO_CONCURRENCY), "-t", "5s"];
+async function steadyOf(stack: string, env: Record<string, string>, path: string, seconds: number, connections = SCENARIO_CONCURRENCY): Promise<Steady> {
+  const args = ["run", "--rm", "--no-deps", "oha", "-z", `${seconds}s`, "-c", String(connections), "-t", "5s"];
   const proc = Bun.spawn(["docker", "compose", "-f", stack, ...args, "--no-tui", "--output-format", "json", "--insecure", `https://nginx${path}`], {
     env: { ...process.env, ...env },
     stdout: "pipe",
@@ -1750,7 +1850,7 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
       step: (run) => composeAsync(stack, run === "restart" ? ["restart", "app"] : ["exec", "-T", "app", ...run], env),
       get: (path, timeoutMs) => replyOf(peer, path, "GET", {}, timeoutMs),
       logs: () => logsOf(stack, "app", env),
-      steady: (path, seconds) => steadyOf(stack, env, path, seconds),
+      steady: (path, seconds, connections) => steadyOf(stack, env, path, seconds, connections),
       send: (method, path, headers) => replyOf(peer, path, method, headers),
       backend: () => backendOf(stack, env),
       check: (file) => {
