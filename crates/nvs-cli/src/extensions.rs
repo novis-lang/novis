@@ -34,7 +34,8 @@
 //!
 //! **In `nvs serve` a request's calls live in its request tree.** Every worker installs
 //! [`Served`], which at a request's first call puts a [`Calls`] over the live set into
-//! `nvs_runtime::TreeState::extensions`. Every task of the request reaches the same one. It is
+//! `nvs_runtime::TreeState::extensions`. Every task of the request reaches the same one, and
+//! a child script with a narrower `grants:` calls through instances of its own in it. It is
 //! dropped, and its instance with it, when the connection waits for its next request and nothing
 //! else holds the tree, or else with the tree: when the request and its after-response work
 //! have finished, even where a connection gave up on the request first. Its budget holds the
@@ -390,13 +391,24 @@ impl nvs_runtime::extension::Extensions for Served {
     }
 }
 
-/// The extensions a run loaded, and the request their calls run in. Dropping it ends the
-/// request: every resource a guest returned is dropped in its guest. A failure of a destructor
+/// The extensions a run loaded, and the requests their calls run in. Dropping it ends the
+/// requests: every resource a guest returned is dropped in its guest. A failure of a destructor
 /// is the extension's, and the request has already finished, so it is not reported.
+///
+/// **One request per `grants:` narrowing in the tree**
+/// (`rule:security/extension-grants-are-an-intersection`). An instance's preopens are fixed
+/// when it is made, from its caller's grants. A child script whose `grants:` is narrower than its
+/// parent's therefore calls through a request of its own, made at its first call, and never
+/// reaches an instance the parent made. Children with the same narrowing share one. So a tree
+/// holds an instance of a class per distinct narrowing that called it, each taking its own place
+/// in the host's pool.
 pub(crate) struct Calls {
     set: Arc<Set>,
-    request: OnceLock<(Request, Arc<Spent>)>,
+    requests: Mutex<Vec<Arc<Held>>>,
 }
+
+/// One request of a [`Calls`] and the budget its instances are charged to.
+type Held = (Request, Arc<Spent>);
 
 impl Calls {
     /// The host of calls into `set`.
@@ -408,28 +420,43 @@ impl Calls {
     fn serving(set: Arc<Set>) -> Self {
         Self {
             set,
-            request: OnceLock::new(),
+            requests: Mutex::new(Vec::new()),
         }
     }
 
-    /// The request and its budget, made at the first call from `ctx`'s request tree and
+    /// The request and its budget for `ctx`'s `grants:` narrowing, made at the first call from
+    /// a context of `ctx`'s request tree that has that narrowing, with that context's
     /// configuration.
-    fn request(&self, ctx: &Ctx) -> Result<&(Request, Arc<Spent>), Fault> {
-        if let Some(request) = self.request.get() {
-            return Ok(request);
+    fn request(&self, ctx: &Ctx) -> Result<Arc<Held>, Fault> {
+        let mut requests = self.requests.lock().unwrap_or_else(PoisonError::into_inner);
+        let narrowed = ctx.grant_filter();
+        if let Some(request) = requests
+            .iter()
+            .find(|request| request.1.narrowed.as_deref() == narrowed)
+        {
+            return Ok(Arc::clone(request));
         }
         let host = host().map_err(|reason| Fault::thrown_as(ThrownClass::Extension, reason))?;
-        Ok(self.request.get_or_init(|| {
-            let spent = Arc::new(Spent::of(ctx));
-            (host.request(spent.clone()), spent)
-        }))
+        let spent = Arc::new(Spent::of(ctx));
+        let request = Arc::new((host.request(spent.clone()), spent));
+        requests.push(Arc::clone(&request));
+        Ok(request)
     }
 }
 
 impl Drop for Calls {
+    /// A request a running call still holds ends when that call drops it, without
+    /// [`Request::end`]; no call runs once the tree that keeps this has ended.
     fn drop(&mut self) {
-        if let Some((request, _)) = self.request.take() {
-            drop(drive(request.end(), || false));
+        let requests = std::mem::take(
+            self.requests
+                .get_mut()
+                .unwrap_or_else(PoisonError::into_inner),
+        );
+        for request in requests {
+            if let Ok((request, _)) = Arc::try_unwrap(request) {
+                drop(drive(request.end(), || false));
+            }
         }
     }
 }
@@ -737,7 +764,8 @@ impl nvs_runtime::extension::Extensions for Calls {
         let (bytes, ratio) = nvs_stdlib::decompression_ceiling(ctx);
         let bound = nvs_ext::builtin::Decompression { bytes, ratio };
         nvs_ext::builtin::cap_decompression(class, method, &mut args, bound);
-        let (request, spent) = self.request(ctx)?;
+        let held = self.request(ctx)?;
+        let (request, spent) = &*held;
         spent.enter(ctx);
         let called = drive(request.call_values(extension, method, args), || {
             let sent = spent.sends(ctx);

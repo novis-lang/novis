@@ -2924,6 +2924,50 @@ fn a_reload_that_narrows_an_extension_grant_reaches_the_next_request() {
     );
 }
 
+/// A request that calls `Geo\Atlas`, then starts scripts whose `grants:` keep
+/// no `fs.read`, and prints what each read gave.
+const ATLAS_THEN_NARROWED: &str = "<?nvs\nuse Geo\\Atlas;\n\necho Atlas::read(\"note.txt\"), \"\\n\";\narray<Core\\Script\\Handle> $children = [];\nint $i = 0;\nwhile ($i < 3) {\n    $children[] = spawn script \"child.nvs\" with(grants: [\"script.spawn\"], output: \"capture\");\n    $i = $i + 1;\n}\nforeach ($children as Core\\Script\\Handle $child) {\n    echo (await $child)->output, \"\\n\";\n}\necho Atlas::read(\"note.txt\");\n";
+
+/// Attack: a request calls an extension, which makes the extension's
+/// instance with the request's own grants. It then starts scripts that may
+/// not read files, and each asks the same extension for the same file. Each
+/// child's call gets an instance under its own `grants:`, so each read throws,
+/// and the request's own read after them still answers
+/// (`rule:security/extension-grants-are-an-intersection`).
+#[test]
+fn a_narrowed_child_script_does_not_reach_the_instance_its_request_made() {
+    let shelf = Shelf::new("narrowed-child");
+    let config = format!(
+        "{}\n[capabilities.script]\nspawn = true\n",
+        atlas(&shelf, "data/")
+    );
+    let server = Server::start(
+        "narrowed-child",
+        &config,
+        &[
+            ("app.nvs", ATLAS_THEN_NARROWED),
+            ("child.nvs", ATLAS_READS),
+            ("data/note.txt", "hello"),
+        ],
+    );
+    let answer = server.get("/");
+    let lines: Vec<&str> = answer.body.lines().collect();
+    assert_eq!(
+        lines.len(),
+        5,
+        "the request did not finish: {answer:?}; the server wrote: {}",
+        server.said()
+    );
+    assert_eq!(lines[0], "hello", "{answer:?}");
+    for child in &lines[1..4] {
+        assert!(
+            child.starts_with("refused: "),
+            "a child without `fs.read` read through its request's instance: {answer:?}"
+        );
+    }
+    assert_eq!(lines[4], "hello", "{answer:?}");
+}
+
 /// An `[http.headers]` block that sets `referrer_policy` to `policy`.
 fn referrer(policy: &str) -> String {
     format!("[http.headers]\nreferrer_policy = \"{policy}\"\n")
