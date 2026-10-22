@@ -321,7 +321,7 @@
   },
   "/guides/production/reverse-proxy/": {
     "feature": "guides/production/reverse-proxy.mdx",
-    "hash": "114a6af5d52af9b5",
+    "hash": "ae47f1970daf19d1",
     "questions": [
       "How do I run Novis behind nginx with HTTPS?",
       "Example Caddy configuration for a Novis server",

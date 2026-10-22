@@ -57,24 +57,16 @@ usermod -aG shop www-data   # for nginx
 usermod -aG shop caddy      # for Caddy
 ```
 
-The folder `/run/shop` must exist before the server starts. Linux empties `/run` at every boot. If
-you run the server with [`nvs service`](/guides/production/run-as-a-service/), systemd can create
-the folder at every start. Open the settings of the service:
+Restart the proxy after this change, so it runs with the new group.
 
-```sh
-systemctl edit shop
-```
+The folder `/run/shop` must exist before the server starts. Linux empties `/run` at every boot.
+[`nvs service`](/guides/production/run-as-a-service/) takes care of this. systemd then creates the
+folder at every start of the service, and deletes it when the service stops. The folder belongs to
+the account of the service. Members of its group can open it, so the proxy can reach the socket.
 
-Add these lines and save the file:
-
-```ini
-[Service]
-RuntimeDirectory=shop
-RuntimeDirectoryMode=0750
-```
-
-systemd now creates `/run/shop` for the account of the service, and deletes it when the service
-stops. Restart the service and the proxy after these changes.
+`nvs service` reads `listen` when you install the service. If you change `listen` later, uninstall
+the service and install it again. Put the socket in a folder of its own, such as `/run/shop`, and
+not directly in `/run`.
 
 ## Tell Novis which proxy to trust
 

@@ -511,6 +511,12 @@ pub(crate) struct Host {
     /// Whether `[server] listen` includes a privileged port, which is the only
     /// condition under which `rule:packaging/the-generated-unit-is-hardened` emits `AmbientCapabilities` at all.
     pub(crate) privileged_port: bool,
+    /// The Unix-socket entries of `[server] listen`, as written: the sockets
+    /// whose folders `rule:packaging/the-generated-unit-is-hardened` creates or opens.
+    pub(crate) sockets: Vec<String>,
+    /// `[server] socket_mode`, which the mode of a folder the unit creates for
+    /// a socket follows.
+    pub(crate) socket_mode: u32,
     /// The file a `[log] target` of `file:<path>` names, whose **directory** is
     /// one of `rule:packaging/a-service-runs-as-a-virtual-account`'s grants.
     pub(crate) log_file: Option<PathBuf>,
@@ -545,6 +551,10 @@ pub(crate) struct Plan {
     account: Option<String>,
     memory_max: Option<String>,
     privileged_port: bool,
+    /// [`Host::sockets`].
+    sockets: Vec<String>,
+    /// [`Host::socket_mode`].
+    socket_mode: u32,
     /// The service's data folder, which an install creates and `rule:packaging/a-service-runs-as-a-virtual-account` grants
     /// on. `None` once an install found it unusable, so nothing is granted.
     data: Option<nvs_config::data::Folder>,
@@ -717,6 +727,8 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
         account: request.account.map(str::to_owned),
         memory_max: host.memory_max.clone(),
         privileged_port: host.privileged_port,
+        sockets: host.sockets.clone(),
+        socket_mode: host.socket_mode,
         data: host.data_folder.clone(),
         reads_data_config,
         log_file: host.log_file.clone(),
@@ -893,9 +905,11 @@ pub(crate) fn image_path(plan: &Plan) -> String {
 /// grants nothing at all, and `MemoryMax` is derived from `[limits]` rather
 /// than invented.
 ///
-/// `ReadWritePaths=` is the write half of [`registration::grants`], and
-/// `ProtectHome=` is `read-only` only for a service that needs a home
-/// directory; the module doc says why each is what it is.
+/// `ReadWritePaths=` is the write half of [`registration::grants`] and the
+/// folder of each socket outside `/run`, `RuntimeDirectory=` the folder of
+/// each socket under `/run` ([`socket_folders`]), and `ProtectHome=` is
+/// `read-only` only for a service that needs a home directory; the module doc
+/// says why each is what it is.
 ///
 /// No value the plan carries is written raw: each `ExecStart` word is an
 /// [`exec_word`], each `ReadWritePaths=` entry a [`unit_path`], and the `%`
@@ -940,13 +954,26 @@ pub(crate) fn unit(plan: &Plan) -> String {
     } else {
         out.push_str("ProtectHome=true\n");
     }
+    let (runtime, elsewhere) = socket_folders(&plan.sockets);
     let writable: Vec<String> = grants
         .iter()
         .filter(|(_, write)| *write)
         .map(|(path, _)| unit_path(path))
+        .chain(elsewhere.iter().map(|folder| unit_path(Path::new(folder))))
         .collect();
     if !writable.is_empty() {
         out.push_str(&format!("ReadWritePaths={}\n", writable.join(" ")));
+    }
+    if !runtime.is_empty() {
+        let names: Vec<String> = runtime
+            .iter()
+            .map(|name| unit_word(&name.replace('%', "%%")))
+            .collect();
+        out.push_str(&format!("RuntimeDirectory={}\n", names.join(" ")));
+        out.push_str(&format!(
+            "RuntimeDirectoryMode={:04o}\n",
+            runtime_directory_mode(plan.socket_mode)
+        ));
     }
     out.push_str("PrivateTmp=true\n");
     out.push_str("CapabilityBoundingSet=\n");
@@ -959,6 +986,58 @@ pub(crate) fn unit(plan: &Plan) -> String {
     out.push_str("[Install]\n");
     out.push_str("WantedBy=multi-user.target\n");
     out
+}
+
+/// The folders the sockets `sockets` are created in, split the way
+/// `rule:packaging/the-generated-unit-is-hardened` treats them: the ones under
+/// `/run`, relative to it, which systemd creates at every start and removes at
+/// stop, and the others as written, which the operator owns and the unit only
+/// opens.
+///
+/// `/var/run` is the same folder as `/run`. `/run` itself is in neither list,
+/// because opening it would let the service write every other service's
+/// runtime files. A folder under `/run` that `RuntimeDirectory=` cannot name —
+/// an empty, `.` or `..` segment, or a `:`, which that setting reads as a
+/// symlink — is opened as written instead. Read as text rather than as a
+/// [`Path`], because a listen socket is a Unix path on every host this runs
+/// on, its tests included.
+fn socket_folders(sockets: &[String]) -> (Vec<String>, Vec<String>) {
+    let (mut runtime, mut elsewhere) = (Vec::new(), Vec::new());
+    for socket in sockets {
+        let Some((folder, _)) = socket.rsplit_once('/') else {
+            continue;
+        };
+        let folder = folder
+            .strip_prefix("/var")
+            .filter(|rest| *rest == "/run" || rest.starts_with("/run/"))
+            .unwrap_or(folder);
+        if folder == "/run" {
+            continue;
+        }
+        let nameable = folder.strip_prefix("/run/").filter(|relative| {
+            relative
+                .split('/')
+                .all(|segment| !matches!(segment, "" | "." | "..") && !segment.contains(':'))
+        });
+        let (list, entry) = match nameable {
+            Some(relative) => (&mut runtime, relative.to_owned()),
+            None => (&mut elsewhere, folder.to_owned()),
+        };
+        if !list.contains(&entry) {
+            list.push(entry);
+        }
+    }
+    (runtime, elsewhere)
+}
+
+/// `RuntimeDirectoryMode=` for sockets created at `socket_mode`: the owner's
+/// `rwx`, and search for the group and for others exactly where the socket
+/// lets them connect. A proxy in the account's group then reaches a `0660`
+/// socket through a `0750` folder, and nobody else can list the folder.
+fn runtime_directory_mode(socket_mode: u32) -> u32 {
+    let group = if socket_mode & 0o070 == 0 { 0 } else { 0o050 };
+    let others = if socket_mode & 0o007 == 0 { 0 } else { 0o005 };
+    0o700 | group | others
 }
 
 /// The directories `ProtectHome=true` hides from a service.
@@ -4359,10 +4438,13 @@ fn describe_host(
         .and_then(|limits| limits.get("memory"))
         .and_then(toml::Value::as_str)
         .map(str::to_owned);
-    let listen = table
-        .get("server")
-        .and_then(toml::Value::as_table)
-        .and_then(|server| server.get("listen"));
+    let server = table.get("server").and_then(toml::Value::as_table);
+    let listen = server.and_then(|server| server.get("listen"));
+    let socket_mode = server
+        .and_then(|server| server.get("socket_mode"))
+        .and_then(toml::Value::as_str)
+        .and_then(|mode| u32::from_str_radix(mode, 8).ok())
+        .unwrap_or(DEFAULT_SOCKET_MODE);
     let cache_directory = table
         .get("opcache")
         .and_then(toml::Value::as_table)
@@ -4382,6 +4464,8 @@ fn describe_host(
         from_a_bundle: crate::bundle::embedded().is_some(),
         memory_max,
         privileged_port: listen.is_some_and(privileged),
+        sockets: listen.map(sockets).unwrap_or_default(),
+        socket_mode,
         log_file: target
             .and_then(|target| target.strip_prefix("file:"))
             .map(PathBuf::from),
@@ -4417,6 +4501,20 @@ fn privileged(listen: &toml::Value) -> bool {
             .is_some_and(|port| port < 1024),
         toml::Value::Array(addresses) => addresses.iter().any(privileged),
         _ => false,
+    }
+}
+
+/// `[server] socket_mode` when the configuration writes none.
+const DEFAULT_SOCKET_MODE: u32 = 0o660;
+
+/// The Unix-socket entries of a `[server] listen` value — one address or a
+/// list of them. An entry is a socket when it begins with `/`, which no
+/// `host:port` can.
+fn sockets(listen: &toml::Value) -> Vec<String> {
+    match listen {
+        toml::Value::String(entry) if entry.starts_with('/') => vec![entry.clone()],
+        toml::Value::Array(entries) => entries.iter().flat_map(sockets).collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -4494,6 +4592,8 @@ mod tests {
             from_a_bundle: false,
             memory_max: Some("512M".to_owned()),
             privileged_port: false,
+            sockets: Vec::new(),
+            socket_mode: DEFAULT_SOCKET_MODE,
             // Both named, so `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list is exercised whole rather than
             // in its empty case.
             log_file: Some(PathBuf::from(absolute("log/web.log"))),
@@ -5016,6 +5116,8 @@ mod tests {
                 account: None,
                 memory_max: None,
                 privileged_port: false,
+                sockets: Vec::new(),
+                socket_mode: DEFAULT_SOCKET_MODE,
                 data: None,
                 reads_data_config: false,
                 log_file: None,
@@ -5048,6 +5150,8 @@ mod tests {
             account: Some("nvs-web".to_owned()),
             memory_max: Some("512M".to_owned()),
             privileged_port: false,
+            sockets: Vec::new(),
+            socket_mode: DEFAULT_SOCKET_MODE,
             data: None,
             reads_data_config: false,
             log_file: None,
@@ -5078,6 +5182,8 @@ mod tests {
         // No data folder and no configured path: nothing is granted write, so
         // nothing is opened.
         assert!(!text.contains("ReadWritePaths="), "{text}");
+        // No socket, so no folder is created for one.
+        assert!(!text.contains("RuntimeDirectory"), "{text}");
 
         // `rule:packaging/the-generated-unit-is-hardened`'s capability condition: nothing is granted unless a privileged
         // port is configured, asserted on both sides so a generator that
@@ -5273,6 +5379,8 @@ mod tests {
             account: None,
             memory_max: None,
             privileged_port: false,
+            sockets: Vec::new(),
+            socket_mode: DEFAULT_SOCKET_MODE,
             data: None,
             reads_data_config: false,
             log_file: None,
@@ -5280,6 +5388,54 @@ mod tests {
             temp_root: None,
             owner: None,
         }
+    }
+
+    /// `rule:packaging/the-generated-unit-is-hardened`'s socket folders: one
+    /// under `/run` is created by systemd at every start, in a mode that lets
+    /// in exactly who the socket lets in, and one elsewhere is opened for
+    /// write. `/run` itself is never opened.
+    #[test]
+    fn a_socket_folder_under_run_is_created_by_systemd() {
+        let mut plan = plan_running(&absolute("bin/nvs"), argv());
+        plan.sockets = vec![
+            "/run/shop/nvs.sock".to_owned(),
+            "/var/run/shop/admin.sock".to_owned(),
+            "/run/blog/web/nvs.sock".to_owned(),
+            "/srv/framework/nvs.sock".to_owned(),
+            "/run/top.sock".to_owned(),
+            "/run/odd:name/nvs.sock".to_owned(),
+        ];
+        let text = unit(&plan);
+        let line = |key: &str| {
+            text.lines()
+                .find(|line| line.starts_with(key))
+                .unwrap_or_else(|| panic!("no `{key}` in\n{text}"))
+                .to_owned()
+        };
+        assert_eq!(line("RuntimeDirectory="), "RuntimeDirectory=shop blog/web");
+        assert_eq!(line("RuntimeDirectoryMode="), "RuntimeDirectoryMode=0750");
+        assert_eq!(
+            line("ReadWritePaths="),
+            "ReadWritePaths=-/srv/framework -/run/odd:name"
+        );
+
+        plan.socket_mode = 0o600;
+        assert!(unit(&plan).contains("RuntimeDirectoryMode=0700\n"));
+        plan.socket_mode = 0o666;
+        assert!(unit(&plan).contains("RuntimeDirectoryMode=0755\n"));
+
+        plan.sockets = vec!["/run/top.sock".to_owned()];
+        let top = unit(&plan);
+        assert!(!top.contains("RuntimeDirectory"), "{top}");
+        assert!(!top.contains("ReadWritePaths="), "{top}");
+
+        // Only the entries of `[server] listen` that begin with `/` are sockets.
+        let server: toml::Table =
+            toml::from_str(r#"listen = ["127.0.0.1:8000", "/run/shop/nvs.sock", "[::1]:80"]"#)
+                .expect("a listen list");
+        assert_eq!(sockets(&server["listen"]), vec!["/run/shop/nvs.sock"]);
+        let one: toml::Table = toml::from_str(r#"listen = "/run/shop/nvs.sock""#).expect("one");
+        assert_eq!(sockets(&one["listen"]), vec!["/run/shop/nvs.sock"]);
     }
 
     /// The one `ExecStart` line of a unit, without its key.
