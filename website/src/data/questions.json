@@ -222,9 +222,9 @@
   },
   "/guides/how-to-use/configuration/": {
     "feature": "guides/how-to-use/configuration.mdx",
-    "hash": "5f325d67fdcb9a42",
+    "hash": "938dbc75b34c0f1e",
     "questions": [
-      "How should I set up the configuration of a new project?",
+      "Override a few settings without editing nvs.toml",
       "How do I create a new configuration file with every setting?",
       "Use different settings for one folder or script",
       "Why does my program have no permission to read files?",
@@ -297,12 +297,12 @@
   },
   "/guides/production/docker/": {
     "feature": "guides/production/docker.mdx",
-    "hash": "667148ccfb568ce9",
+    "hash": "86e29b107e7b0477",
     "questions": [
       "How do I run a Novis app in a Docker container?",
       "Which tag of the official Novis image should I deploy?",
       "Why do connections to my container fail?",
-      "Keep the compile cache when the container is removed",
+      "Change settings for one cluster with a Kubernetes ConfigMap",
       "Stop a container without cutting off running requests",
       "Check that a Novis image was built from the official repository"
     ]
@@ -763,12 +763,12 @@
   },
   "/in-depth/compare/": {
     "feature": "in-depth/compare.mdx",
-    "hash": "644c251c8f895756",
+    "hash": "280bbd4f245b2b15",
     "questions": [
       "How do Novis, PHP, Bun and Go compare in requests per second and memory?",
       "Can one request split its work over several CPU cores?",
       "Which web server features are built in and which need extra code?",
-      "Run the language comparison benchmark myself",
+      "Does a slow request make other requests of the same session wait?",
       "Does a deploy cause failed requests or pages that mix old and new files?",
       "What happens to other requests when one request uses too much memory or never ends?"
     ]
