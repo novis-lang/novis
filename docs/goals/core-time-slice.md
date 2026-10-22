@@ -13,7 +13,7 @@ stages:
         rules: [http-server/a-requests-blast-radius-is-bounded-at-four-tiers, http-server/a-wedged-core-is-detected-by-its-deadline, concurrency/one-scheduler]
   - id: 2
     title: "the yield: the request gives its core back behind readiness, and neighbours run"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/host.rs, crates/nvs-runtime/src/abi.rs, crates/nvs-host/src/group.rs, crates/nvs-host/src/block_on.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-cli/src/serve.rs]
     extra:
       context:
@@ -200,10 +200,10 @@ again at the safepoint, so nothing yields yet and every existing test stays gree
 **Does:** a request that computes gives its core back every 10 ms, and the reactor polls before it runs
 again.
 
-- [ ] `Host::yield_slice`, and the `YIELD` branch of `nvs_safepoint` that lowers the bit and calls it inside a `HelperFrame` (`rule:http-server/time-is-bounded-inside-a-helper`). `crates/nvs-runtime/src/host.rs:630`, `crates/nvs-runtime/src/ctx/safepoint.rs:744`, `crates/nvs-runtime/src/abi.rs:421`
-- [ ] The host's `yield_slice`: a wake and a park on a reactor core, `Waiting::Yielded` on a core with no reactor (`rule:concurrency/the-park-route-is-chosen-once`). `crates/nvs-host/src/group.rs:150`, `crates/nvs-host/src/block_on.rs:256`, `crates/nvs-host/src/scheduler.rs:189`
-- [ ] Rust test: an I/O-parked task runs between the slices of a task that never waits. `crates/nvs-host/src/scheduler.rs:1904`
-- [ ] Rust test on one worker: two connections, one request in `while (true)` under a 5 s `cpu_time`, and the other answered while the first is still running. `crates/nvs-cli/src/serve.rs:5311`
+- [x] `Host::yield_slice`, and the `YIELD` branch of `nvs_safepoint` that lowers the bit and calls it inside a `HelperFrame` (`rule:http-server/time-is-bounded-inside-a-helper`). `crates/nvs-runtime/src/host.rs:630`, `crates/nvs-runtime/src/ctx/safepoint.rs:744`, `crates/nvs-runtime/src/abi.rs:421`
+- [x] The host's `yield_slice`: a wake and a park on a reactor core, `Waiting::Yielded` on a core with no reactor (`rule:concurrency/the-park-route-is-chosen-once`). `crates/nvs-host/src/group.rs:150`, `crates/nvs-host/src/block_on.rs:256`, `crates/nvs-host/src/scheduler.rs:189`
+- [x] Rust test: an I/O-parked task runs between the slices of a task that never waits. `crates/nvs-host/src/scheduler.rs:1904`
+- [x] Rust test on one worker: two connections, one request in `while (true)` under a 5 s `cpu_time`, and the other answered while the first is still running. `crates/nvs-cli/src/serve.rs:5311`
 
 ### 3. a request's memory stays its own when its core switches between requests
 
@@ -257,29 +257,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `SafepointFlags::YIELD` is bit 8. `nvs_host::SliceClock` (`crates/nvs-host/src/slice.rs`)
-ticks every 5 ms while a seat is in a turn and parks with every slot clear. `Watchdog::slice_with`
-gives every registration with a meter a seat, and its raise is `Shared::ask_to_yield`, which raises
-`YIELD` on the publication whose charge is running. `Scheduler::run` stores the epoch before each
-resume and puts back the outer turn at its end. `nvs serve` and `nvs run` start the clock. The safepoint
-lowers `YIELD` with the housekeeping bits, so nothing yields yet. The six `slice::tests` pass. The
-resume path's slot store and parked load are `SeqCst`, not relaxed, and the standing decision now says
-why. No test is expected to go red.
+Stages 1 and 2 are done: a task that never waits now gives its core back every slice. The safepoint's
+`YIELD` branch sits below the limit branches and above the cancel branch
+(`crates/nvs-runtime/src/ctx/safepoint.rs:873`). It lowers the bit, enters a `HelperFrame` and calls
+`Host::yield_slice`, and a `Woken::Cancelled` sets `ctx.cancelled` so the branch below stops the
+request. `SchedulerHost::yield_slice` (`crates/nvs-host/src/group.rs:205`) fires
+`reactor::wake_this_task()` and parks, or suspends `Waiting::Yielded` with no reactor. The three test
+hosts answer `Woken::Elapsed`. The runaway cases in `crates/nvs-cli/src/serve.rs` share
+`serve_a_runaway_and_an_answer`, which starts a `SliceClock` beside the watchdog.
 
-The sweep's red items were stale: `env-secret-proofs`'s last log exits 0, and the nightly `proofs`
-jobs failed on the covariant and union-types pages, which `b3ed92165` fixed (`bun nv site --check
-snippets stale questions prose` is green at HEAD).
+Ran once by name, green: `scheduler::tests::a_parked_task_runs_between_the_slices_of_a_task_that_never_waits`,
+`serve::tests::a_served_while_true_does_not_stall_a_second_connection_on_its_core` and its sibling
+`a_served_while_true_is_ended_as_a_fatal_and_the_core_answers_the_next_request`. The full
+`serve-tests` check runs at the gate. Expected to go red: `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs`,
+whose deadline can now fire at a slice. Stage 4 rewrites its expectation.
+
+The sweep's red items were stale again: `bun nv proofs --gate --only 'Core\Env::secret'` exits 0 at
+HEAD, and nightly run 39567373487 ran at `afbb1edc2`, before the site fix `b3ed92165`.
 
 ### Next
 
-**Stage 2, one group**, on `crates/nvs-runtime/src/ctx/safepoint.rs`, `crates/nvs-runtime/src/host.rs`,
-`crates/nvs-host/src/group.rs` and `crates/nvs-host/src/scheduler.rs`. No gate.
+**Stage 3, one group**, on `crates/nvs-runtime/src/budget.rs`, `crates/nvs-runtime/src/ctx/limits.rs`,
+`crates/nvs-host/src/scheduler.rs` and `crates/nvs-host/src/watchdog.rs`. Its gate is met:
+`failure-paths-hold` is reached and `budget::ArmedStack` exists.
 
-- [ ] `Host::yield_slice`, and a `YIELD` branch in `safepoint_slow_path` that lowers the bit and calls it inside a `HelperFrame`. `crates/nvs-runtime/src/host.rs:630`, `crates/nvs-runtime/src/ctx/safepoint.rs:912`, `crates/nvs-runtime/src/abi.rs:408`
-- [ ] `SchedulerHost::yield_slice`: a wake and a park on a reactor core, `Waiting::Yielded` with no reactor. `crates/nvs-host/src/group.rs:150`, `crates/nvs-host/src/block_on.rs:256`, `crates/nvs-host/src/scheduler.rs:188`
-- [ ] Rust test: an I/O-parked task runs between the slices of a task that never waits. `crates/nvs-host/src/scheduler.rs:1904`
-- [ ] Rust test on one worker beside `a_runaway_then_an_answer`. `crates/nvs-cli/src/serve.rs:5389`
+- [ ] Charge the balance's change per turn to the running request, and read that count at the ceiling. `crates/nvs-runtime/src/budget.rs:216`, `crates/nvs-runtime/src/budget.rs:450`, `crates/nvs-runtime/src/ctx/limits.rs:244`, `crates/nvs-host/src/scheduler.rs:1631`
+- [ ] The budget module's header says the count is per request across switches. `crates/nvs-runtime/src/budget.rs:27`
+- [ ] Rust tests: two interleaved requests that allocate are each charged their own bytes, and only the one over its limit stops. `crates/nvs-runtime/src/budget.rs:1`
+- [ ] Rust test: CPU time is still charged per switch with slices on. `crates/nvs-host/src/watchdog.rs:2026`
 
 ### Backlog
 
-- Stages 2 to 5 follow in order.
+- Stages 3 to 5 follow in order.
