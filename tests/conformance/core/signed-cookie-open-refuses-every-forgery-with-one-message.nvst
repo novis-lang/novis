@@ -16,7 +16,7 @@ string $cookie = Core\SignedCookie::seal("user=ada", $ring);
 // legal length, so it decodes cleanly and reaches the tag check. This is the
 // forgery an unauthenticated cookie hands back a plaintext for.
 try {
-    string $forged = Core\SignedCookie::open($cookie . "AAAA", $ring);
+    tainted string $forged = Core\SignedCookie::open($cookie . "AAAA", $ring);
     echo "tamper accepted", "\n";
 } catch (RuntimeError $altered) {
     echo $altered->message, "\n";
@@ -25,7 +25,7 @@ try {
 // One character outside the alphabet, so it never decodes at all — and is
 // refused with the same sentence rather than one about its spelling.
 try {
-    string $garbled = Core\SignedCookie::open($cookie . "?", $ring);
+    tainted string $garbled = Core\SignedCookie::open($cookie . "?", $ring);
     echo "a non-base64 cookie accepted", "\n";
 } catch (RuntimeError $notBase64) {
     echo $notBase64->message, "\n";
@@ -35,7 +35,7 @@ try {
 // what a browser sends when the cookie was cleared and the code path a naive
 // signer treats as "no signature to check".
 try {
-    string $nothing = Core\SignedCookie::open("", $ring);
+    tainted string $nothing = Core\SignedCookie::open("", $ring);
     echo "an empty cookie accepted", "\n";
 } catch (RuntimeError $tooShort) {
     echo $tooShort->message, "\n";
@@ -45,7 +45,7 @@ try {
 // state an operator reaches by rotating one key too many.
 array<secret bytes> $strangers = [$retired];
 try {
-    string $wrong = Core\SignedCookie::open($cookie, $strangers);
+    tainted string $wrong = Core\SignedCookie::open($cookie, $strangers);
     echo "opened under a ring that never sealed it", "\n";
 } catch (RuntimeError $notThisRing) {
     echo $notThisRing->message, "\n";
@@ -72,7 +72,7 @@ try {
 }
 
 try {
-    string $unopenable = Core\SignedCookie::open($cookie, $stuntedRing);
+    tainted string $unopenable = Core\SignedCookie::open($cookie, $stuntedRing);
     echo "opened under an 8-octet key", "\n";
 } catch (LogicError $stillNotAKey) {
     echo $stillNotAKey->message, "\n";

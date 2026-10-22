@@ -1761,18 +1761,16 @@ mod tests {
              does not carry the qualifier reaches a sink with nothing to stop it"
         );
 
-        // The other half of the same rule, which is what makes the qualifier
-        // worth carrying: a payload this application sealed itself comes back
-        // unqualified, so the two roster entries are asserted against each
-        // other rather than each against a comment.
+        // The same rule over a cookie: a program may seal a visitor's text, so
+        // a payload this application sealed itself comes back qualified too.
         let opened = crate::signed_cookie::CLASS
             .members()
             .find(|method| method.name == "open")
             .expect("`Core\\SignedCookie` registers `open`");
         assert!(
-            matches!(opened.return_ty, CoreTy::Str),
-            "`Core\\SignedCookie::open` no longer answers a plain `string`, and the asymmetry \
-             this rule is made of has gone with it"
+            matches!(opened.return_ty, CoreTy::TaintedStr),
+            "`Core\\SignedCookie::open` answers a payload without the qualifier, so a visitor's \
+             text a program sealed reaches a sink unmarked"
         );
 
         let mut positions = Vec::new();

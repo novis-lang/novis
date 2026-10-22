@@ -12,7 +12,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            string $value = Core\SignedCookie::open($cookie, $keys);
+            tainted string $value = Core\SignedCookie::open($cookie, $keys);
             $total = $total + Core\Str::length($value) % 7 + 1;
             $i = $i + 1;
         }

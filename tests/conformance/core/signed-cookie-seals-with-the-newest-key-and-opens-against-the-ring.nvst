@@ -41,7 +41,7 @@ if (Core\SignedCookie::open($old, $ring) == "user=grace") {
 }
 
 try {
-    string $opened = Core\SignedCookie::open($old, $newestOnly);
+    tainted string $opened = Core\SignedCookie::open($old, $newestOnly);
     echo "a dropped key still opened, as ", $opened, "\n";
 } catch (RuntimeError $dropped) {
     echo "a dropped key is refused", "\n";
@@ -53,7 +53,7 @@ try {
 // cookie fails — it would hand back whatever the extra octets decrypted to.
 string $tampered = $cookie . "AAAA";
 try {
-    string $forged = Core\SignedCookie::open($tampered, $ring);
+    tainted string $forged = Core\SignedCookie::open($tampered, $ring);
     echo "a tampered cookie opened, as ", $forged, "\n";
 } catch (RuntimeError $altered) {
     echo "a tampered cookie is refused", "\n";

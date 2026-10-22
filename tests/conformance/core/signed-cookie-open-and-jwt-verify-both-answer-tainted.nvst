@@ -1,0 +1,46 @@
+--TEST--
+Core\SignedCookie::open answers a tainted payload for a cookie this program sealed one line earlier, as Core\Jwt::verify answers tainted claims for a token signed under the same key — a verified seal or signature does not launder — `rule:security/verification-does-not-launder`, `rule:security/launderers-are-sink-named`
+--FILE--
+<?nvs
+// The agreement shape: two members of the same closed roster answer the same
+// qualifier. A tag proves who sealed or signed the bytes, and says nothing
+// about where the text came from, so both payloads come back `tainted`.
+// `crates/nvs-stdlib/src/signed_cookie.rs`'s section on `open` is the home of
+// the reasoning for the cookie.
+//
+// Both halves are asserted by the declarations below: neither can be written
+// with a plain `string` and still compile, so this file compiling is the
+// assertion and the output is the evidence that the values are the ones meant.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+// A cookie is read back out of a request header, so its text is tainted
+// before anything has looked at it. `open`'s `$cookie` takes it.
+string $sealed = Core\SignedCookie::seal("id=42; role=admin", $ring);
+tainted string $fromHeader = $sealed;
+
+// The payload is tainted too, though this program sealed it: `seal` takes a
+// visitor's text as readily as its own.
+tainted string $payload = Core\SignedCookie::open($fromHeader, $ring);
+echo $payload, "\n";
+
+// The other half, under the same key and over the same text: a token this
+// program signed a moment ago hands its claims back qualified.
+string $token = Core\Jwt::sign(["sub" => "ada", "role" => "admin"], 15m, $key);
+array<tainted string> $claims = Core\Jwt::verify($token, $key);
+tainted string $role = $claims["role"];
+
+// The pattern sink refuses a tainted argument, so each value needs
+// `Core\Regex::quote` in front of it, and laundering is a written act for both.
+Core\Regex\Pattern $cookie = Core\Regex::compile(Core\Regex::quote($payload));
+echo Core\Regex::matches("id=42; role=admin", $cookie) ? "y" : "n", "\n";
+
+string $quoted = Core\Regex::quote($role);
+Core\Regex\Pattern $claim = Core\Regex::compile($quoted);
+echo Core\Regex::matches("admin", $claim) ? "y" : "n", "\n";
+echo $quoted, "\n";
+--EXPECT--
+id=42; role=admin
+y
+y
+admin

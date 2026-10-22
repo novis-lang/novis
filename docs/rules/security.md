@@ -1404,7 +1404,15 @@ time, the declared class and each concrete class extending or implementing it. A
 carries none — an `array<int>`, a shape or an object whose fields are all clean, an array literal of
 the program's own values — encodes to the plain type. `Core\Uri::buildQuery` and
 `Core\Uri::withQueryParameter` percent-encode every byte that is not safe in a URL, as `encodeFormValue`
-does, and answer the plain type for that launderer's reason.
+does, and answer the plain type for that launderer's reason. `Core\Str::format` and `Core\Bytes::pack`
+are encoders of their variadic arguments by the same rule: the template is a sink, and a `%s` filled
+from outside text makes the result `tainted`.
+
+**No `Core` signature loses a mark.** `crates/nvs-stdlib/tests/taint_signatures.rs` reads every row,
+and fails naming each member that answers a plain `string` or `bytes`, or hands its callback one,
+while a parameter could carry outside text the row does not classify: an array, `mixed`, `object` or a
+type variable. Its allow list is the encoders above and the launderers
+([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), each with the rule that makes it one.
 
 **Text out of `mixed` is `tainted`.** `mixed` is where request input lands and the qualifier cannot be
 written on it ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), so every way text leaves it adds the bit: `as string`
@@ -1413,10 +1421,16 @@ and `as ?string` answer `tainted string` and `?tainted string`, `as bytes` answe
 and a `.` or an interpolation with a `mixed` operand is tainted. `$m is string` narrows `$m` to
 `tainted string` on the true edge, and over a `mixed` subject `is tainted {…}` and `is tainted string`
 are admitted. The same holds for an `array<mixed>` operand and for a union with a `mixed` member.
+So a member that answers `mixed` or `array<mixed>` accepts `tainted` text where its parameter is
+contagious: `Core\Json::decode` of a `tainted string` answers `mixed`, and the mark is on each
+string read out of it.
 **The keys of such a value are outside text too**: a `foreach` key over a `mixed` or `iterable`
 subject, or over an array whose element type carries `tainted` or `mixed` anywhere — `queryArray`,
 `postArray`, `headers()`, a decoded `array<mixed>` — is `tainted string`, because an array's type says
-nothing of its keys and its elements are the evidence of where it was filled. Every member that fills
+nothing of its keys and its elements are the evidence of where it was filled. A `Core\Arr` member that
+returns a key, or hands one to its callback, follows the same test: `keys`, `firstKey`, `lastKey`,
+`keyOf` and `findKey` over such an array answer `tainted string`, and so does the `$key` of a `map`,
+`filter` or `reduce` callback. Every member that fills
 an array from outside answers one with such elements, so the element type covers members not yet
 written too. An array the program fills with tainted values under its own literal keys over-taints,
 which is the safe direction: write `tainted string $k`, and bind or escape the key where it reaches a
@@ -1880,6 +1894,19 @@ codec. Only `string` and `bytes` carry a qualifier, so an integer, a decimal, an
 field needs nothing. Declaring `tainted` on a decoded field is friction at the moment somebody is
 trying to be quick, and it is the same declaration hand-written hydration already needed; the derive
 is only where a newcomer meets it first.
+
+A member that reads its own payload decides by its owner: every `Core\Request` decoder,
+`Core\Http\Response::jsonAs`, `Core\Jwt::verifyIssued`, and `queryAs` and `streamAs` on a
+`Core\Db\Connection` or `Core\Db\Transaction` carry `tainted` always. A row's text is input because
+an earlier request may have stored it ([`security/tainted-sources`](security.md#security-tainted-sources)), so a `#[Db\Derive]` class or
+an inline shape fills a text column only into a `tainted` field. A field no column maps is refused
+by its type instead, and gets no second report. `Core\Arr::shapeAs`
+converts the array it is handed, so its argument decides: by the test an encoder applies
+([`security/taint-propagation`](security.md#security-taint-propagation)), an array whose type carries `tainted` or `mixed` anywhere, or a
+literal holding such a value, requires every text field it fills to be `tainted` (`E0810`). An
+`array<string>` or a literal of the program's own values fills a plain `string`. A literal element that
+is a call is read as outside text, because its type is not kept there; binding it to a typed variable
+first is the fix.
 
 A `secret` property on a class carrying a derive attribute is a **compile error at the declaration**,
 with skipping the field as the stated fix. This adds no sink — encoding was already one
@@ -2878,10 +2905,16 @@ any sink: the payload may be authored by a third-party issuer, and even a self-i
 carries user-supplied data. Treating verification as laundering would be exactly the false confidence
 refused everywhere else ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)).
 
-Cookie payloads the application itself sealed are the one case where the value round-trips through our
-own authenticated encryption unchanged, and they come back **unqualified** — sealing is an
-authenticated operation over a value that was already plain when it went in. The asymmetry between the
-two is the rule, not an inconsistency: one is a value we had, the other is a value we were handed.
+A cookie the application itself sealed is no exception: `Core\SignedCookie::open` answers `tainted
+string` too. `seal` accepts a `tainted` value, so the payload may be a visitor's text that a later
+request reads back, which is stored injection if it comes back unmarked. A program that knows one
+stored value is safe for one sink says so at that sink, with its launderer.
+
+**Declined:**
+- **An unqualified cookie payload, on the ground that the program sealed it.** The tag says which
+  program sealed the bytes and not where they came from. `seal` would have to refuse every `tainted`
+  value for the round trip to be safe, and a cookie that remembers a visitor's choice is the common
+  case.
 
 <sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/protocol-roster`](security.md#security-protocol-roster).</sub>
 
@@ -3002,7 +3035,8 @@ an `int`. The split keeps `sign`'s `array<string>` claims typed, and it makes st
 shared key a type mismatch the compiler reports rather than a runtime `LogicError`. Both members write
 their header canonically, sorted with no whitespace, so an RS256 or EdDSA token is reproducible byte for
 byte and the frozen vector set can hold it. `embedKey` writes the pair's public half as RFC 7638's JWK
-under `jwk`, which is what a DPoP proof carries.
+under `jwk`, which is what a DPoP proof carries. A token is base64url segments and dots, so it carries
+no claim's `tainted` into any sink: both members answer a plain `string` from tainted claims.
 
 - **Memory:** a `Jwt\KeySet` holds at most 16 public keys for as long as the program holds it, and a
   verification costs at most one signature check. Nothing is held between calls.

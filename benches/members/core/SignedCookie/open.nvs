@@ -15,7 +15,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Each round opens the cookie that the last result chose, so no round can be left out.
-            string $value = Core\SignedCookie::open($cookies[$total % 3], $keys);
+            tainted string $value = Core\SignedCookie::open($cookies[$total % 3], $keys);
             $total = $total + Core\Str::length($value) as int;
             $i = $i + 1;
         }
