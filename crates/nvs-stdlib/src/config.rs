@@ -158,7 +158,8 @@ const ALL_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "An `array<string, string>` sorted by name, with one entry per value. A name that has a \
           group of settings gives one entry for each setting in it. A name that has a list gives \
-          no entry.",
+          no entry. A secret setting, such as `db.main.password` or `http.csrf_key`, has the \
+          value `<secret>`. `get` returns the real value.",
     errors: &[],
 };
 

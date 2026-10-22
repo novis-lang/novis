@@ -762,7 +762,10 @@ content must be valid UTF-8, and an empty file, a whitespace-only file, or one o
 
 Only the `password_file` that won the merge is opened. The value never enters the merged table, is
 never logged, and `nvs config dump` renders it `<secret>` beside the file it came from —
-`password_file` stays set so the dump can name it.
+`password_file` stays set so the dump can name it. `Core\Config::all` renders every secret directive
+`<secret>` too, whether a file or the tree set it, because a page or a log line that prints every
+setting is the usual way a credential leaks. `Core\Config::get` returns the value: it is the one
+reader a program that connects with the credential needs.
 
 **Declined:**
 - **Decrypting SOPS, `age` or a KMS envelope inside the binary**, so that a directive could name an
