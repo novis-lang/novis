@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a client sends a form that is larger than the body limit. The first read throws
+// an error. The program then reads the form and the body again many times. Every read
+// should throw the same error, and no read should return a part of the form.
+
+// 1. Lowers the body limit to `512` bytes. The form is about 900 bytes.
+echo 'limit lowered: ', Core\Config::set('limits.request_body', '512') ? 'yes' : 'no', "\n";
+
+// 2. Reads the first field. The body is over the limit, so this throws.
+string $first = '';
+try {
+    ?tainted string $name = Core\Request::post('name');
+    echo 'not reached: ', $name ?? 'null', "\n";
+} catch (Throwable $error) {
+    $first = $error::class;
+    echo 'first read: ', $first, "\n";
+}
+
+// 3. Reads every field 500 times. A read that returns a value, or throws another
+//    error, is counted.
+array<string> $fields = ['name', 'email', 'role', 'a', 'l', 'tail', 'missing'];
+uint $returned = 0;
+uint $other = 0;
+uint $i = 0;
+while ($i < 500) {
+    foreach ($fields as string $field) {
+        try {
+            ?tainted string $value = Core\Request::post($field);
+            $returned = $returned + 1;
+        } catch (Throwable $error) {
+            if ($error::class != $first) {
+                $other = $other + 1;
+            }
+        }
+    }
+    $i = $i + 1;
+}
+echo 'reads that returned: ', $returned, "\n";
+echo 'reads with another error: ', $other, "\n";
+
+// 4. Reads the field as an array, and the whole body as text and as bytes.
+//    Each read should throw.
+try {
+    array<tainted string> $list = Core\Request::postArray('name');
+    echo 'postArray returned ', Core\Arr::count($list), " values\n";
+} catch (Throwable $error) {
+    echo 'postArray: ', $error::class, "\n";
+}
+try {
+    tainted string $body = Core\Request::body();
+    echo 'body returned ', Core\Str::length($body), " characters\n";
+} catch (Throwable $error) {
+    echo 'body: ', $error::class, "\n";
+}
+try {
+    tainted bytes $raw = Core\Request::bytes();
+    echo 'bytes returned ', Core\Bytes::length($raw), " bytes\n";
+} catch (Throwable $error) {
+    echo 'bytes: ', $error::class, "\n";
+}
+
+// 5. Raises the body limit again and reads the first field once more.
+//    The first read already failed, so this read should fail too.
+Core\Config::restore('limits.request_body');
+try {
+    ?tainted string $again = Core\Request::post('name');
+    echo 'after restore: ', $again ?? 'null', "\n";
+} catch (Throwable $error) {
+    echo 'after restore: ', $error::class, "\n";
+}
