@@ -6,7 +6,7 @@ context: [docs/rules/programs/memory-priority.md, docs/rules/testing/perf-two-me
 stages:
   - id: 1
     title: "the profile is one command, it runs again on main, and every touched area's attacks are green"
-    status: open
+    status: done
     context: [tools/nv/cmd/bench-compare.ts, benches/compare/README.md, tools/nv/cmd/proofs.ts, tests/hostile/README.md]
     extra:
       context:
@@ -119,15 +119,20 @@ checks:
 
 ## Why
 
-A profile of the comparison bench's release binary (commit e96f0adec, 2026-10-21, one core, no nginx
-or TLS) found that Novis's compiled code is 0–4% of a request. The rest is runtime work that the
-server repeats on every request:
+`bun nv bench-compare --profile <case>` on main (commit bd86f7a9d, release binary, one core under
+`-c 64`, no nginx or TLS) finds that Novis's compiled code is a few percent of a request. The rest is
+runtime work that the server repeats on every request. Bun's column is from the first profile, taken
+by hand at e96f0adec.
 
-| Case | Novis per request | Bun per request | Where the gap is |
-|---|---|---|---|
-| hello | 21 µs | 10 µs | kernel 43%, configuration lookups 10%, scheduler and isolate 12% |
-| json-api | 55 µs | 18 µs | JSON decode 31% inclusive, of which the hash table is 9% |
-| html-page | 104 µs | 34 µs | class lookup by name 13%, allocator 15%, escape and bidi scan 13% |
+| Case | Novis per request | Bun per request | Top self cost | System calls per request (`-c 8`) |
+|---|---|---|---|---|
+| hello | 27.1 µs | 10 µs | `defaults::in_force` 3.4% and `defaults::spells` 2.9%, then the kernel | `recvfrom` 3.0 (2.0 `EAGAIN`), `write` 1.0, `clock_gettime` 1.0 |
+| json-api | 60.9 µs | 18 µs | `json::decode_object` 5.1%, the budget allocator 3.9%, serde 2.1%, `Descriptors::find` 1.1% | `recvfrom` 6.0 (5.0 `EAGAIN`), `write` 2.0, `clock_gettime` 5.0 |
+| html-page | 88.4 µs | 34 µs | `format` 4.2%, `bidi::scan` 3.8%, the budget allocator 6.8%, `html::escape` 3.3%, `Descriptors::find` 3.2%, `memory_breach` 2.1% | `recvfrom` 3.0 (2.0 `EAGAIN`), `write` 1.0, `clock_gettime` 1.0 |
+| wait | 801.5 µs (it sleeps) | — | `defaults::in_force` 1.9%, the scheduler 1.7% | `recvfrom` 4.1 (3.1 `EAGAIN`), `clock_gettime` 4.3, `epoll_wait` 1.3, `futex` 1.1 |
+
+The `wait` case held 1000 requests in flight twice. The server's cgroup peaked at 86.8 KB per request
+over idle in the first pass and at 100.7 KB in the second, so the pools still grow between loads.
 
 - Every `Core` object build looks its class up by name, with a binary search of string compares
   (`crates/nvs-stdlib/src/instance.rs:593`).
@@ -139,7 +144,7 @@ server repeats on every request:
   `EAGAIN` each time (`crates/nvs-host/src/net.rs:1525`). A core wakes itself through the eventfd
   twice per request (`crates/nvs-host/src/block_on.rs:328`).
 - Each read zeroes an 8 KiB scratch array on the connection's stack (`crates/nvs-server/src/io.rs:445`).
-- A waiting request costs about 100 KiB. Two task stacks per request account for 57 KiB of it, and
+- A waiting request costs 87–101 KB. Two task stacks per request account for 57 KiB of it, and
   that figure still grows with each round of load. The stack pool keeps every page a stack ever
   touched, and it mixes connection stacks with program stacks (`crates/nvs-host/src/stack.rs:236`).
 
@@ -352,7 +357,7 @@ floor is known to be green before anything changes.
 the command.
 
 - [x] `bun nv bench-compare --profile <case>` and its test, as the standing decision says. `tools/nv/cmd/bench-compare.ts:1`, `tools/nv/test/bench-compare.test.ts:1`, `benches/compare/README.md:1`
-- [ ] Profile `hello`, `json-api`, `html-page` and `wait` on main, and rewrite § *Why*'s table. Strike every item below whose hot spot is gone. `docs/goals/request-overhead.md:1`
+- [x] Profile `hello`, `json-api`, `html-page` and `wait` on main, and rewrite § *Why*'s table. Strike every item below whose hot spot is gone. `docs/goals/request-overhead.md:1`
 - [x] Run the `hostile-groups` check's command once. A red case is `security-hardening`'s or `core-time-slice`'s, not this goal's: the session stops with `BLOCKED` naming it, because this goal must not start on a red floor. `tools/nv/cmd/proofs.ts:1`
 - [x] The count test: a keep-alive connection serves 20 `hello` requests, and the test counts the reads that returned `WouldBlock` and the eventfd wakes per request. It asserts today's numbers as upper bounds, and stage 6 lowers them. `crates/nvs-server/src/serve.rs:10102`
 
