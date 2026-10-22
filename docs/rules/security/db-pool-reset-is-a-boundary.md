@@ -18,9 +18,13 @@ The pool is **per core and never shared between cores**: a task never migrates, 
 takes no lock, which is the reason to prefer it over one process-wide pool. Per backend, PostgreSQL
 rolls back, then runs `SET SESSION AUTHORIZATION DEFAULT`, `RESET ROLE`, `RESET ALL`, `CLOSE ALL`,
 `UNLISTEN *` and `pg_advisory_unlock_all()` and drops the session's temporary schema. `RESET ALL`
-skips the role and the session authorization, so each has its own command; MySQL, MariaDB and SQL Server use their atomic reset command, which
-also drops prepared statements, so the statement cache goes with it; a SQLite connection has no
-session state, and rolling back an open transaction is the whole reset. The pool exists to keep a
+skips the role and the session authorization, so each has its own command. MySQL, MariaDB and SQL
+Server use their atomic reset command, which also drops prepared statements, so the statement cache
+goes with it. SQLite rolls back, applies the pragmas its open set again, and drops every table, view
+and trigger in the `temp` schema. A SQLite connection refuses `ATTACH` and `DETACH` when a statement
+is prepared, `VACUUM INTO` with them, because an attached database is a file no `fs` grant was
+asked about; the unnamed temporary database a plain `VACUUM` attaches is the one exception, and a
+reset that finds a database still attached closes the connection. The pool exists to keep a
 connection's handshake and statement cache across requests; Novis code cannot observe whether a
 handshake happened.
 

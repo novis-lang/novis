@@ -692,6 +692,8 @@ fn lost_walk() -> io::Error {
 /// - **[`SqliteTarget::read_only`] opens with `SQLITE_OPEN_READ_ONLY`**, beside the
 ///   URI and no-mutex flags `rusqlite`'s default carries, and never creates the
 ///   file.
+/// - **[`authorize`] is the connection's authorizer**, so no statement attaches
+///   a file.
 ///
 /// # Errors
 ///
@@ -720,7 +722,8 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
             rusqlite::Connection::open(path)?
         };
         connection.set_prepared_statement_cache_capacity(capacity);
-        connection.execute_batch("PRAGMA foreign_keys = ON;")?;
+        connection.execute_batch(SESSION_PRAGMAS)?;
+        connection.authorizer(Some(authorize))?;
         connection.update_hook(Some(
             move |action, _database: &str, _table: &str, rowid: i64| {
                 if action == rusqlite::hooks::Action::SQLITE_INSERT {
@@ -742,6 +745,58 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
         time_zone: target.time_zone,
         reading: None,
     })
+}
+
+/// The pragmas [`open`] sets and [`SqliteConn::reset`] sets again.
+///
+/// `foreign_keys` is the one the open needs for its own sake (see [`open`]).
+/// The rest are SQLite's defaults, written out because a request may change
+/// each of them with a `PRAGMA` statement, and each changes what the next
+/// request's statements mean: a write refused, a check skipped, a trigger
+/// recursing, or a core waiting on a lock. A `PRAGMA` that only reads is not
+/// session state, and a file-level one such as `journal_mode` belongs to the
+/// file and every connection to it, so neither is here.
+const SESSION_PRAGMAS: &str = "PRAGMA foreign_keys = ON; \
+     PRAGMA query_only = OFF; \
+     PRAGMA recursive_triggers = OFF; \
+     PRAGMA ignore_check_constraints = OFF; \
+     PRAGMA defer_foreign_keys = OFF; \
+     PRAGMA reverse_unordered_selects = OFF; \
+     PRAGMA writable_schema = OFF; \
+     PRAGMA busy_timeout = 0;";
+
+/// The connection's authorizer: every `ATTACH` but an unnamed one, and every
+/// `DETACH`, is denied when the statement is prepared.
+///
+/// **An attached database is a file the `fs` grant never saw.** A block's
+/// `path` is the operator's, and a program's is checked against `fs.read` and
+/// `fs.write` by `nvs-stdlib` before it reaches [`open`]. `ATTACH` would name a
+/// second file from inside statement text, and a bound parameter (`ATTACH ?`)
+/// is not a sink, so a request's own value could choose it. `VACUUM INTO`
+/// writes its copy through the same internal `ATTACH`, so it is denied with it.
+///
+/// **The unnamed one is a private temporary database**, the one a plain
+/// `VACUUM` attaches for its rebuild. It names no file. A program that attaches
+/// one itself leaves a schema [`SqliteConn::reset`] cannot prove clean, so that
+/// connection is closed rather than pooled. A bound name arrives with no
+/// filename at all, as an action `rusqlite` does not name, and is denied by its
+/// code.
+///
+/// **What this spends:** one call per action SQLite checks while preparing a
+/// statement. The statement cache prepares a text once, so a cached statement
+/// pays nothing.
+fn authorize(context: rusqlite::hooks::AuthContext<'_>) -> rusqlite::hooks::Authorization {
+    use rusqlite::hooks::{AuthAction, Authorization};
+    match context.action {
+        AuthAction::Attach { filename: "" } => Authorization::Allow,
+        AuthAction::Attach { .. } | AuthAction::Detach { .. } => Authorization::Deny,
+        AuthAction::Unknown { code, .. }
+            if code == rusqlite::ffi::SQLITE_ATTACH || code == rusqlite::ffi::SQLITE_DETACH =>
+        {
+            Authorization::Deny
+        }
+        _ => Authorization::Allow,
+    }
 }
 
 /// The key of the last row a statement inserted, as `sqlite3_update_hook`
@@ -1317,15 +1372,23 @@ impl SqliteConn {
     /// `rule:security/db-pool-reset-is-a-boundary`'s reset, and the
     /// connection back only if it worked.
     ///
-    /// **Rolling back an open transaction is the whole reset**, which is § 13's
-    /// own sentence for this backend and not a shortcut taken here: a
-    /// `rusqlite::Connection` is a file handle, and every other item on § 13's
-    /// property list — a session variable, a `SET ROLE`, an advisory lock, a
-    /// listener, a temporary table outside the transaction — is something SQLite
-    /// has no session to hold. § 1's statement cache is `rusqlite`'s own and
-    /// survives, which is what pooling exists to preserve. Nothing this driver
-    /// sets per transaction is session-scoped, and
-    /// [`SqliteConn::begin`]'s refusal of `read_only` is what keeps that true.
+    /// **Three things a request can leave are undone, in one batch off the
+    /// core.** An open transaction is rolled back. Every table, view and trigger
+    /// in the `temp` schema is dropped: a temporary table lives as long as the
+    /// connection, so without this the next request reads and writes it. And
+    /// [`SESSION_PRAGMAS`] is applied again, since a `PRAGMA` statement in one
+    /// request otherwise holds for every request after it. A role, a listener
+    /// and an advisory lock are things SQLite has no session to hold. An
+    /// attached database is the one item left, and [`authorize`] allows only an
+    /// unnamed one: a reset that finds one attached fails, so the connection is
+    /// closed. § 1's statement cache is `rusqlite`'s own and survives, which is
+    /// what pooling exists to preserve. Nothing this driver sets per
+    /// transaction is session-scoped, and [`SqliteConn::begin`]'s refusal of
+    /// `read_only` is what keeps that true.
+    ///
+    /// **What it spends:** one read of `temp.sqlite_master` and one of
+    /// `PRAGMA database_list` per reset, in process and on the pool thread the
+    /// rollback already takes, plus a `DROP` per object a request left.
     ///
     /// **Whether a transaction is open is asked of the engine, not of the
     /// count.** `sqlite3_get_autocommit` is the connection's own answer, so a
@@ -1364,18 +1427,57 @@ impl SqliteConn {
         self.end_stream();
 
         let handle = Arc::clone(&self.handle);
-        nvs_host::blocking::run(move || {
-            let guard = lock(&handle);
-            if guard.is_autocommit() {
-                return Ok(());
-            }
-            guard.execute_batch("ROLLBACK;")
-        })
-        .map_err(server_error)?;
+        nvs_host::blocking::run(move || clean(&lock(&handle))).map_err(server_error)?;
 
         self.depth.set(0);
         Ok(self)
     }
+}
+
+/// [`SqliteConn::reset`]'s work on the connection itself, on a pool thread.
+///
+/// # Errors
+///
+/// A refused statement, or `SQLITE_MISUSE` for a connection that still has a
+/// database attached.
+fn clean(connection: &rusqlite::Connection) -> rusqlite::Result<()> {
+    if !connection.is_autocommit() {
+        connection.execute_batch("ROLLBACK;")?;
+    }
+
+    let attached: i64 = connection.query_row(
+        "SELECT count(*) FROM pragma_database_list WHERE name NOT IN ('main', 'temp')",
+        [],
+        |row| row.get(0),
+    )?;
+    if attached != 0 {
+        return Err(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
+            Some(String::from(
+                "the connection still has a database attached, so it is closed and not reused",
+            )),
+        ));
+    }
+
+    // The pragmas first, because `query_only` would refuse the drops. Then
+    // triggers: a `temp` trigger can watch a `main` table, so dropping the
+    // `temp` tables does not remove it. An index goes with its table.
+    let mut drops = String::from(SESSION_PRAGMAS);
+    {
+        let mut objects = connection.prepare(
+            "SELECT type, name FROM temp.sqlite_master \
+             WHERE type IN ('trigger', 'view', 'table') AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' \
+             ORDER BY CASE type WHEN 'trigger' THEN 0 WHEN 'view' THEN 1 ELSE 2 END",
+        )?;
+        let mut rows = objects.query([])?;
+        while let Some(row) = rows.next()? {
+            let kind: String = row.get(0)?;
+            let name: String = row.get(1)?;
+            let quoted = name.replace('"', "\"\"");
+            drops.push_str(&format!(" DROP {kind} IF EXISTS temp.\"{quoted}\";"));
+        }
+    }
+    connection.execute_batch(&drops)
 }
 
 /// § 7's commands and § 13's rollback, run off the core as one batch.
@@ -2763,6 +2865,101 @@ mod tests {
         assert!(!autocommit(&conn));
         let conn = conn.reset().expect("the reset works anyway");
         assert!(autocommit(&conn));
+    }
+
+    /// One whole number a statement answers, read past the driver.
+    fn number(conn: &SqliteConn, sql: &str) -> i64 {
+        super::lock(&conn.handle)
+            .query_row(sql, [], |row| row.get(0))
+            .expect("the statement answers a number")
+    }
+
+    /// § 13's attack on this backend: a request leaves a `temp` table, a `temp`
+    /// view and a `temp` trigger, and turns off the pragmas the open set. The
+    /// next request on the connection finds none of it.
+    #[test]
+    fn a_reset_drops_the_temp_schema_and_applies_the_opening_pragmas_again() {
+        let conn = connect();
+        for sql in [
+            "create table t (v integer)",
+            "create temp table left_behind (v integer)",
+            "create temp view seen as select v from t",
+            "create temp trigger watching after insert on t begin select 1; end",
+            "pragma foreign_keys = off",
+            "pragma query_only = on",
+            "pragma recursive_triggers = on",
+            "pragma ignore_check_constraints = on",
+            "pragma busy_timeout = 60000",
+        ] {
+            conn.query(sql, Vec::new())
+                .expect("the request's own statement runs");
+        }
+        assert_eq!(number(&conn, "select count(*) from temp.sqlite_master"), 3);
+
+        let conn = conn.reset().expect("the reset works");
+
+        assert_eq!(
+            number(&conn, "select count(*) from temp.sqlite_master"),
+            0,
+            "a temp object survived the reset"
+        );
+        assert_eq!(number(&conn, "pragma foreign_keys"), 1);
+        assert_eq!(number(&conn, "pragma query_only"), 0);
+        assert_eq!(number(&conn, "pragma recursive_triggers"), 0);
+        assert_eq!(number(&conn, "pragma ignore_check_constraints"), 0);
+        assert_eq!(number(&conn, "pragma busy_timeout"), 0);
+        conn.query("insert into t (v) values (1)", Vec::new())
+            .expect("the connection writes again");
+    }
+
+    /// An attached database is a file no `fs` grant was asked about, so every
+    /// way to name one is refused when the statement is prepared: a literal, a
+    /// bound parameter, and `VACUUM INTO`. A plain `VACUUM` still runs, since
+    /// SQLite attaches an unnamed temporary database for it.
+    #[test]
+    fn an_attach_detach_or_vacuum_into_is_refused_and_a_plain_vacuum_runs() {
+        let conn = connect();
+        let target = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target")
+            .join("nvs-db-attach-refused.db");
+        let named = target.to_string_lossy().replace('\'', "''");
+
+        for sql in [
+            format!("attach database '{named}' as outside"),
+            format!("vacuum into '{named}'"),
+            String::from("attach database ':memory:' as outside"),
+            String::from("detach database temp"),
+        ] {
+            let refused = conn.query(&sql, Vec::new());
+            assert!(refused.is_err(), "`{sql}` was allowed");
+        }
+        let refused = conn
+            .query(
+                "attach database ? as outside",
+                vec![SqliteValue::Text(target.to_string_lossy().into_owned())],
+            )
+            .is_err();
+        assert!(refused, "a bound file name was attached");
+        assert!(!target.exists(), "a refused statement wrote the file");
+
+        conn.query("vacuum", Vec::new())
+            .expect("a plain vacuum runs");
+        let _reset = conn.reset().expect("the reset works after a vacuum");
+    }
+
+    /// The one attach the authorizer allows is a private, unnamed database.
+    /// A reset that finds one still attached cannot prove the connection
+    /// clean, so it closes the connection.
+    #[test]
+    fn a_reset_closes_a_connection_with_a_database_still_attached() {
+        let conn = connect();
+        conn.query("attach database '' as scratch", Vec::new())
+            .expect("an unnamed private database is allowed");
+
+        assert!(
+            conn.reset().is_err(),
+            "a connection with an attached database was pooled"
+        );
     }
 
     /// § 13's reset is only meaningful between statements, and a connection
