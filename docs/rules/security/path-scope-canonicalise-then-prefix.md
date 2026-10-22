@@ -1,5 +1,7 @@
 A path-bearing capability resolves by one comparison: **canonicalise both sides, then compare whole
-components.** A traversal through `..` does not reach a root it was not already under, a symlink
+components.** Before either, the argument is judged by its text: a Windows alias
+(`rule:errors/path-component-refusals`) is refused without a system call, because canonicalizing a
+network path opens a connection to its host. A traversal through `..` does not reach a root it was not already under, a symlink
 planted under a granted root does not carry the root's grant to its target, and a sibling directory
 whose name merely starts with the root's is not inside it. There is one implementation of this rule in
 the tree, and adding a second is how one of the callers ends up accepting a symlink.
