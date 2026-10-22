@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-stdlib/src/signed_cookie.rs, crates/nvs-stdlib/src/response.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/ext_lib.rs, crates/nvs-stdlib/src/out.rs, crates/nvs-stdlib/src/script.rs, docs/rules/security/tainted-sources.md, docs/rules/security/secret-does-not-cross-an-extension.md, docs/rules/core-classes/db-column-types.md, docs/rules/security/capture-answers-the-carrier.md, docs/rules/security/isolate-output-is-captured.md]
   - id: 6
     title: "an array a Rust parser builds stops at the request's memory ceiling"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/budget.rs, crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/xml.rs]
   - id: 7
     title: "connections, spans, metrics and blocking work grow with requests in flight, never with requests served"
@@ -397,8 +397,8 @@ carry the mark.
 - [x] PARSE-1: `Core\Csv::parse` and `::rows` grow arrays through the fallible form. `crates/nvs-stdlib/src/csv.rs:715`
 - [x] PARSE-2: `Core\Json::decode` and `Core\Request::json()`. `crates/nvs-stdlib/src/json.rs:1807`
 - [x] PARSE-3: `Core\Xml::parse` charges attribute and name growth. `crates/nvs-stdlib/src/xml.rs:1619`
-- [ ] RT-4: `Core\Html::parse` refuses at the ceiling, not after it. `crates/nvs-runtime/src/budget.rs:1153`
-- [ ] The attacks: one 8 MB body per parser, the peak stays under the ceiling, and the next request answers. `tests/hostile/core/Csv/parse/01-documents-an-upload-form-could-send.nvs:1`
+- [x] RT-4: `Core\Html::parse` refuses at the ceiling, not after it. `crates/nvs-runtime/src/budget.rs:1153`
+- [x] The attacks: one 8 MB body per parser, the peak stays under the ceiling, and the next request answers. `tests/hostile/core/Csv/parse/01-documents-an-upload-form-could-send.nvs:1`
 
 ### 7. connections, spans, metrics and blocking work grow with requests in flight, never with requests served
 
@@ -529,34 +529,26 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 6 is under way. PARSE-1 (66fc862ac), PARSE-2 (8267a6e5d) and PARSE-3 (1ea3cb0ad) landed, each
-with its attack. RT-4 is next, and then the stage's last item, the attacks, is done.
+Stage 6 is done. PARSE-1 (66fc862ac), PARSE-2 (8267a6e5d), PARSE-3 (1ea3cb0ad) and RT-4 (65c1adb0a)
+landed, each with its attack. Stage 7 is next.
 
-- **PARSE-2:** `json.rs`'s `Decode` visitor makes each array with `NvsArray::try_new` (an 8 MB
-  `[[],[],…]` is mostly array headers), asks `affords_entry(&array, key_len)` (the entry, then
-  `affords_write()`) in front of each element and each key, and asks in `visit_str` for each string.
-  A refusal is `over_memory()`, a serde custom error; every member that maps the parse's `Err` to
-  `Err` is reported as the memory `FATAL` by `abi.rs:496`, which covers `decode`, `decodeAs` and
-  `Core\Request::json`/`jsonAs` (`request.rs:3307`). `Core\Json::isValid` answered `false` on any
-  error, so it now returns `Err` when `ctx.memory_breach()` is set. `crate::queue::payload` still
-  answers `None` on a refusal; it runs in a worker, not a request (not changed).
-  Rust test `documents_past_the_memory_limit_stop_the_parse_at_the_limit`; attack
-  `tests/hostile/core/Json/decode/03-documents-larger-than-the-memory-limit.nvs` (`ends-early 3
-  FATAL`, stops at 267 MB with a 16-byte refusal). No `Core\Request::json` attack of its own: it is
-  the same visitor.
-- **PARSE-3:** `xml.rs` asked a node's size once per node and attribute, but never for the doubling
-  of an element's `attributes` or `children` vector, its largest step. `Reader::afford_push(&vec,
-  extra)` now asks for the doubling plus an attribute's bytes before each push (`start_tag`, `tree`,
-  `document`). Rust test `a_wide_element_stops_at_the_memory_limit_before_its_room_doubles`; attack
-  `tests/hostile/core/Xml/parse/02-documents-larger-than-the-memory-limit.nvs`, which stops at
-  176 MB with a 218 MB doubling refused (before, the peak was near 394 MB).
-- Both extended the parser paragraph of
-  `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself` and its `guardedBy`, and
-  re-recorded `Core\Json` and `Core\Xml`'s figures. `bun nv proofs --run --id` for `Core\Json::decode`
-  and `Core\Xml::parse` is green, the two Rust tests ran once, green, and `cargo build`, `cargo clippy
+- **RT-4:** `html.rs`'s `Sink::push` asked one node's size (144 bytes), but the arena's doubling is
+  the largest step: 8 MB of `<br>` held 393 MB against the 268 MB ceiling. The sink now asks, through
+  `afford`, `room` and `grown`, for the doubling of the arena, of an element's `children` and of its
+  `attributes`, for each attribute's bytes before `create_element` copies them, for each copied text
+  (`copied`), and for a merged text's growth. A refusal still unwinds with `OverLimit` to `bounded`.
+  Attack `tests/hostile/core/Html/parse/04-documents-larger-than-the-memory-limit.nvs` (`ends-early 3
+  FATAL`) now stops at 158 MB with the 151 MB doubling refused. Rust test
+  `many_siblings_stop_at_the_memory_limit_before_the_arena_doubles` fails without the fix (peak
+  16.7 MB under an 8 MiB limit) and passes with it. `html5ever`'s tokenizer builds a tag's attribute
+  vector before the sink sees it, so an attribute flood is charged only once it reaches the sink; that
+  vector is bounded by the document's size.
+- The rule's parser paragraph names `Core\Html::parse` and `::sanitize`, and `guardedBy` names
+  `html.rs` and the attack. `Core\Html`'s figures were re-recorded. `bun nv proofs --run --id
+  'Core\Html::parse'` (3 examples, 4 attacks), the two Html memory tests, `cargo build`, `cargo clippy
   --all-targets -- -D warnings` and `bun nv rules --check` are green.
-- The sweep's `env-secret-proofs` red reran green on this tree (`bun nv proofs --gate --only
-  'Core\Env::secret'`). Nightly run 39746060276 was cancelled whole and is not a failure of this tree.
+- The sweep's `env-secret-proofs` log reads exit 0 on rerun. Nightly run 39746060276 was cancelled
+  whole and is not a failure of this tree.
 
 PARSE-1, for the record:
 
@@ -665,20 +657,23 @@ expected it to finish (none known). Its own attack's `ends-early 5 FATAL` passes
 built after 66fc862ac. PARSE-2 and PARSE-3 add: any `.nvs` or `.nvst` that decodes a JSON or XML
 document that outgrows the memory limit and expected it to finish, or that expected
 `Core\Json::isValid` to answer `false` past the limit (none known). Both attacks' `ends-early 3 FATAL`
-pass only on a binary built after 1ea3cb0ad.
+pass only on a binary built after 1ea3cb0ad. RT-4 adds: an HTML document whose tree outgrows the
+limit by its arena's doubling and expected to finish (none known), and the Html attack 04's
+`ends-early 3 FATAL` passes only on a binary built after 65c1adb0a.
 
 ### Next
 
-1. RT-4: `Core\Html::parse` refuses at the ceiling, not after it (`crates/nvs-runtime/src/budget.rs:1153`,
-   and the test `a_tree_past_the_memory_limit_stops_the_parse_at_the_limit` at `html.rs:3156`). Find
-   the step it does not ask in front of, as PARSE-3 found the vector doubling. Write its attack first,
-   beside `tests/hostile/core/Html/parse/`, on the shape of the Xml one.
-2. Extend the parser paragraph of
-   `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself` and its `guardedBy`, and
-   re-record `Core\Html`'s figures (`bun nv proofs --record-perf --group 'Core\Html'`).
-3. Tick the stage's last item (the attacks: Csv, Json and Xml are in), set stage 6 to done, and
-   optionally take `db/execute.rs:477`'s `rows_fit` (Backlog) beside it.
-4. Then stage 7, from its items.
+Stage 7, in one session per two or three items, all in `nvs-server` and `nvs-host`:
+
+1. HTTP-1: hyper's buffer size from the head limit (`crates/nvs-server/src/serve.rs:2373`), and a
+   buffered response keeps its in-flight place until its body is written.
+2. HTTP-1: admission reads memory charged to requests (`crates/nvs-server/src/admit.rs:1`), with its
+   Rust test beside `admit.rs`.
+3. LC-3, LC-9 (`crates/nvs-server/src/trace.rs:278`), then LC-6, LC-7
+   (`crates/nvs-server/src/serve.rs:1706`).
+4. LC-5 (`crates/nvs-host/src/blocking.rs:349`) and LC-12 (`crates/nvs-host/src/ladder.rs:122`).
+5. The overload attack (`crates/nvs-cli/tests/serve_isolation.rs:1`), the `flood` row
+   (`benches/compare/README.md:80`), and `max_tasks`'s comment (`crates/nvs-config/src/default.toml:86`).
 
 ### Backlog
 
@@ -696,7 +691,9 @@ pass only on a binary built after 1ea3cb0ad.
   change, and no item owns it yet.
 - `bun nv suite <tree> --case <path>` names cases that must pass and still judges the whole tree, so
   it ran all 3096. Run a few cases by name with `target/debug/nvs test <path>...`.
-- `crates/nvs-stdlib/src/db/execute.rs:477`'s `rows_fit` stops a buffered read with `over_ceiling()`
-  alone. Inside the limit-handler reserve band, `memory_breach` is `None`, so the program sees
-  `rows_fit`'s own wording and not the memory error. Asking `affords(<row size>)` there fixes it, as
-  in `csv.rs`. No item owns it; stage 6 may take it beside RT-4.
+- `crates/nvs-stdlib/src/db/execute.rs:477`'s `rows_fit` checks `over_ceiling()` after each row is
+  appended, not before. The "reserve band" gap named here earlier did not reproduce: under
+  `Ctx::set_memory_limit` the armed ceiling is the limit itself, so `over_ceiling()` and
+  `memory_breach()` agree, and `set_config`'s reserve lowers `memory_limit` and the ceiling together.
+  Asking `affords` in front of the append is still the rule's shape, but no test fails without it, so
+  it was not landed. No item owns it.
