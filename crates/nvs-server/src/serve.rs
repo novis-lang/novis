@@ -2764,6 +2764,15 @@ fn streamed(head: stream::Opened, cut: DrainCut) -> Response<Answer> {
     response
 }
 
+/// The headers that frame a message or describe its connection, which
+/// [`overrides`] never takes from a program.
+const FRAMING: [HeaderName; 4] = [
+    header::CONTENT_LENGTH,
+    header::TRANSFER_ENCODING,
+    header::CONNECTION,
+    header::UPGRADE,
+];
+
 /// Writes what the program declared onto the response this server built.
 ///
 /// Last, and that ordering is the whole of what `setHeader` means: it
@@ -2779,6 +2788,12 @@ fn streamed(head: stream::Opened, cut: DrainCut) -> Response<Answer> {
 /// arrives here — this is [`UNSPELLABLE`]'s arrangement again, kept as a layer
 /// below rather than reduced to a comment about one.
 ///
+/// A framing header ([`FRAMING`]) is dropped the same way. `hyper` frames a
+/// body by a `Content-Length` it is handed, so one that disagrees with the
+/// body desynchronises the connection (and trips a debug assertion), and a
+/// `Transfer-Encoding`, `Connection` or `Upgrade` is a statement about the
+/// connection that only this server makes. The member refuses all four.
+///
 /// `insert` and `append` are the two halves of the row's own
 /// `DeclaredHeader::append`, and this is the layer that would otherwise
 /// collapse a repeated name: `insert` replaces every value already under it,
@@ -2792,6 +2807,9 @@ fn overrides(response: &mut Response<Answer>, headers: Vec<nvs_runtime::Declared
         let (Ok(name), Ok(value)) = (name, value) else {
             continue;
         };
+        if FRAMING.contains(&name) {
+            continue;
+        }
         if declared.append {
             response.headers_mut().append(name, value);
         } else {
@@ -3784,6 +3802,31 @@ pub(crate) mod tests {
             "no-store",
             "a replacing row beside two appending ones did not reach the response"
         );
+    }
+
+    /// A declared framing header never reaches `hyper`. A `Content-Length`
+    /// that disagrees with the body is how a response desynchronises the
+    /// connection it is written on, so each of the four is dropped and the
+    /// body's own framing stands. The declaration beside them still arrives.
+    #[test]
+    fn a_declared_framing_header_is_dropped_and_the_body_frames_itself() {
+        let mut declared = completed("ok", Some("text/plain"));
+        declared.headers = vec![
+            nvs_runtime::DeclaredHeader::set("Content-Length", "0"),
+            nvs_runtime::DeclaredHeader::set("transfer-encoding", "chunked"),
+            nvs_runtime::DeclaredHeader::add("Connection", "upgrade"),
+            nvs_runtime::DeclaredHeader::set("Upgrade", "websocket"),
+            nvs_runtime::DeclaredHeader::set("X-Request-Id", "9f2"),
+        ];
+        let answered = answer(declared);
+        for name in FRAMING {
+            assert_eq!(
+                answered.headers().get(&name),
+                None,
+                "a declared `{name}` reached the response"
+            );
+        }
+        assert_eq!(answered.headers().get("x-request-id").unwrap(), "9f2");
     }
 
     /// The header injection suite — `rule:http-server/secure-headers-with-nothing-written`, one row per published

@@ -7,8 +7,9 @@ lower case, so `cache-control` and `Cache-Control` are the same header.
 
 The name contains letters, digits and a few marks such as `-`. The value contains only printable
 ASCII characters, so it cannot contain a newline. A newline would let a value start a second header.
-You cannot set `Content-Type`: the body method you use sets it. For any of these, `setHeader` throws
-a `LogicError`. Text from a visitor is not allowed in the name or the value, and does not compile.
+You cannot set `Content-Type`: the body method you use sets it. You also cannot set `Content-Length`,
+`Transfer-Encoding`, `Connection` or `Upgrade`. The server sets these from the body it sends. For any
+of these, `setHeader` throws a `LogicError`. Text from a visitor is not allowed in the name or the value, and does not compile.
 
 The examples show a page that is not cached, a header that is not allowed, and the headers of an API
 answer.

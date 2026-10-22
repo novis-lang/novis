@@ -1,7 +1,7 @@
 <?nvs
-// Attack: a program tries to add a second header through a newline, to set `Content-Type`,
-// and to set very many headers. Each bad header should throw an error, and the program
-// should stop at its memory limit without crashing.
+// Attack: a program tries to add a second header through a newline, to set the headers the
+// server writes, and to set very many headers. Each bad header should throw an error, and
+// the program should stop at its memory limit without crashing.
 // hostile: ends-early 4 FATAL
 // hostile: timeout-ms 60000
 
@@ -16,9 +16,12 @@ foreach ($values as string $value) {
     }
 }
 
-// 2. Names that are empty, have a space or a colon, are not ASCII, or are `Content-Type`
-// in any case. Each call should throw a `LogicError`.
-array<string> $names = ['', 'X Note', 'X-Note:', 'Überschrift', 'Content-Type', 'CONTENT-type'];
+// 2. Bad names, and the headers the server writes, such as `Content-Length`, in any case.
+// Each call should throw a `LogicError`.
+array<string> $names = [
+    '', 'X Note', 'X-Note:', 'Überschrift', 'Content-Type', 'CONTENT-type',
+    'Content-Length', 'transfer-encoding', 'Connection', 'UPGRADE',
+];
 foreach ($names as string $name) {
     try {
         Core\Response::setHeader($name, 'text/html');
