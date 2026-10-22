@@ -81,7 +81,8 @@
 //! request and freed with it, so O(in-flight). The pooling allocator reserves address space for
 //! [`Host::new`]'s `slots` instances, not committed memory, and one ticker thread per process.
 
-use std::fs::{self, File, OpenOptions};
+use std::ffi::OsString;
+use std::fs::{self, File, Metadata, OpenOptions};
 use std::io;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicUsize, Ordering};
@@ -208,6 +209,93 @@ pub trait Budget: Send + Sync {
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
         fs::rename(from, to)
     }
+
+    /// Removes the file `path` names for the guest, as [`Budget::open_file`] opens a file. A link
+    /// at the name is the entry removed. The default removes it by its whole path.
+    ///
+    /// # Errors
+    ///
+    /// The operating system's error, or the host's when a folder above the name is a link.
+    fn remove_file(&self, path: &Path) -> io::Result<()> {
+        fs::remove_file(path)
+    }
+
+    /// Removes the empty folder `path` names for the guest, as [`Budget::remove_file`] removes a
+    /// file. The default removes it by its whole path.
+    ///
+    /// # Errors
+    ///
+    /// The operating system's error, or the host's when a folder above the name is a link.
+    fn remove_dir(&self, path: &Path) -> io::Result<()> {
+        fs::remove_dir(path)
+    }
+
+    /// Reads the metadata at `path` for the guest, as [`Budget::open_file`] opens a file. With
+    /// `follow` unset, a link at the last name is read as the link; with it set, the host does not
+    /// follow a link there and fails with `NotFound`. The default reads by the whole path,
+    /// following a link only when `follow` is set.
+    ///
+    /// # Errors
+    ///
+    /// The operating system's error, or the host's when a folder of `path` is a link.
+    fn metadata(&self, path: &Path, follow: bool) -> io::Result<Metadata> {
+        if follow {
+            fs::metadata(path)
+        } else {
+            fs::symlink_metadata(path)
+        }
+    }
+
+    /// Lists the folder at `path` for the guest, as [`Budget::open_file`] opens a file. Each
+    /// entry's kind is read without following a link. The default lists it by its whole path.
+    ///
+    /// # Errors
+    ///
+    /// The operating system's error, or the host's when a level of `path` is a link.
+    fn read_dir(&self, path: &Path) -> io::Result<Vec<Listed>> {
+        fs::read_dir(path)?
+            .map(|entry| {
+                let entry = entry?;
+                let kind = entry.file_type().map_or(ListedKind::Other, |kind| {
+                    if kind.is_symlink() {
+                        ListedKind::Link
+                    } else if kind.is_dir() {
+                        ListedKind::Dir
+                    } else if kind.is_file() {
+                        ListedKind::File
+                    } else {
+                        ListedKind::Other
+                    }
+                });
+                Ok(Listed {
+                    name: entry.file_name(),
+                    kind,
+                })
+            })
+            .collect()
+    }
+}
+
+/// One name in a folder [`Budget::read_dir`] listed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Listed {
+    /// The name, without the folder's path.
+    pub name: OsString,
+    /// What the name is, read without following a link.
+    pub kind: ListedKind,
+}
+
+/// What a [`Listed`] name is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ListedKind {
+    /// A folder.
+    Dir,
+    /// A regular file.
+    File,
+    /// A symbolic link, or on Windows a junction.
+    Link,
+    /// Anything else.
+    Other,
 }
 
 /// How [`Budget::open_file`] opens a file, flag by flag, as `std::fs::OpenOptions` names them.

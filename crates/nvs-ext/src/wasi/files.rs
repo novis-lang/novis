@@ -27,12 +27,11 @@
 //! - **Links are never made or read.** `symlink-at`, `link-at` and `readlink-at` answer
 //!   `not-permitted`: a guest that could make a link could aim it outside its root, and the check
 //!   above would refuse it on every use anyway. `set-times` and `set-times-at` answer the same.
-//! - **A file is opened beneath a handle, as a `Core\IO` write door opens one**
-//!   (`rule:security/writes-open-beneath-a-handle`). Opening a file, `create-directory-at` and
-//!   `rename-at` hand the checked path to [`Budget::open_file`], [`Budget::create_dir`] and
-//!   [`Budget::rename`], and the server opens it one level at a time, so a folder replaced by a
-//!   link after the check fails the call. Removing, `stat-at` and listing still act on the whole
-//!   path, as `Core\IO`'s removal, metadata and listing doors do.
+//! - **A file is opened beneath a handle, as a `Core\IO` door opens one**
+//!   (`rule:security/writes-open-beneath-a-handle`). Opening a file, `create-directory-at`,
+//!   `rename-at`, `unlink-file-at`, `remove-directory-at`, `stat-at`, `stat` of a directory and
+//!   `read-directory` hand the checked path to a [`Budget`] method each, and the server walks it
+//!   one level at a time, so a folder replaced by a link after the check fails the call.
 //! - **Every call runs to its end on the request's core**, as a `Core\IO` call does, and a read
 //!   returns at most [`PERMIT`] bytes at once.
 //!
@@ -60,7 +59,7 @@ use wasmtime_wasi_io::streams::{
 use super::bindings::wasi::clocks::wall_clock::Datetime;
 use super::bindings::wasi::filesystem::{preopens, types};
 use super::{Context, PERMIT};
-use crate::call::{Budget, FileOpen};
+use crate::call::{Budget, FileOpen, ListedKind};
 use crate::grants::Effective;
 
 use types::{
@@ -156,10 +155,11 @@ impl Descriptor {
         }
     }
 
-    fn metadata(&self) -> io::Result<Metadata> {
+    /// The open file's metadata, or the directory's read by `budget` beneath a handle.
+    fn metadata(&self, budget: &dyn Budget) -> io::Result<Metadata> {
         match &self.file {
             Some(file) => file.metadata(),
-            None => fs::metadata(&self.path),
+            None => budget.metadata(&self.path, true),
         }
     }
 
@@ -555,7 +555,7 @@ impl types::HostDescriptor for Context {
     fn get_type(&mut self, fd: Resource<Descriptor>) -> Answer<DescriptorType> {
         let descriptor = self.descriptor(&fd)?;
         Ok(descriptor
-            .metadata()
+            .metadata(&*self.budget)
             .map(|meta| kind(meta.file_type()))
             .map_err(|err| code(&err)))
     }
@@ -591,14 +591,22 @@ impl types::HostDescriptor for Context {
         if descriptor.file.is_some() {
             return Ok(Err(ErrorCode::NotDirectory));
         }
-        let listing = check!(fs::read_dir(&descriptor.path).map_err(|err| code(&err)));
+        let listing = check!(
+            self.budget
+                .read_dir(&descriptor.path)
+                .map_err(|err| code(&err))
+        );
         let mut entries = Vec::new();
         for entry in listing {
-            let entry = check!(entry.map_err(|err| code(&err)));
-            let Ok(name) = entry.file_name().into_string() else {
+            let Ok(name) = entry.name.into_string() else {
                 continue;
             };
-            let type_ = entry.file_type().map_or(DescriptorType::Unknown, kind);
+            let type_ = match entry.kind {
+                ListedKind::Dir => DescriptorType::Directory,
+                ListedKind::File => DescriptorType::RegularFile,
+                ListedKind::Link => DescriptorType::SymbolicLink,
+                ListedKind::Other => DescriptorType::Unknown,
+            };
             entries.push(DirectoryEntry { type_, name });
         }
         entries.sort_by(|a, b| a.name.cmp(&b.name));
@@ -621,7 +629,7 @@ impl types::HostDescriptor for Context {
     fn stat(&mut self, fd: Resource<Descriptor>) -> Answer<DescriptorStat> {
         let descriptor = self.descriptor(&fd)?;
         Ok(descriptor
-            .metadata()
+            .metadata(&*self.budget)
             .map(|meta| stat(&meta))
             .map_err(|err| code(&err)))
     }
@@ -633,14 +641,13 @@ impl types::HostDescriptor for Context {
         path: String,
     ) -> Answer<DescriptorStat> {
         let descriptor = self.descriptor(&fd)?;
-        let (last, read): (Last, fn(&Path) -> io::Result<Metadata>) =
-            if flags.contains(PathFlags::SYMLINK_FOLLOW) {
-                (Last::Follow, |at| fs::metadata(at))
-            } else {
-                (Last::Keep, |at| fs::symlink_metadata(at))
-            };
-        let at = check!(descriptor.reach(&path, last));
-        Ok(read(&at).map(|meta| stat(&meta)).map_err(|err| code(&err)))
+        let follow = flags.contains(PathFlags::SYMLINK_FOLLOW);
+        let at = check!(descriptor.reach(&path, if follow { Last::Follow } else { Last::Keep }));
+        Ok(self
+            .budget
+            .metadata(&at, follow)
+            .map(|meta| stat(&meta))
+            .map_err(|err| code(&err)))
     }
 
     fn set_times_at(
@@ -683,7 +690,7 @@ impl types::HostDescriptor for Context {
 
     fn remove_directory_at(&mut self, fd: Resource<Descriptor>, path: String) -> Answer<()> {
         let at = check!(self.descriptor(&fd)?.reach_entry(&path));
-        Ok(fs::remove_dir(at).map_err(|err| code(&err)))
+        Ok(self.budget.remove_dir(&at).map_err(|err| code(&err)))
     }
 
     fn rename_at(
@@ -704,7 +711,7 @@ impl types::HostDescriptor for Context {
 
     fn unlink_file_at(&mut self, fd: Resource<Descriptor>, path: String) -> Answer<()> {
         let at = check!(self.descriptor(&fd)?.reach_entry(&path));
-        Ok(fs::remove_file(at).map_err(|err| code(&err)))
+        Ok(self.budget.remove_file(&at).map_err(|err| code(&err)))
     }
 
     fn is_same_object(
@@ -718,7 +725,7 @@ impl types::HostDescriptor for Context {
     fn metadata_hash(&mut self, fd: Resource<Descriptor>) -> Answer<MetadataHashValue> {
         let descriptor = self.descriptor(&fd)?;
         Ok(descriptor
-            .metadata()
+            .metadata(&*self.budget)
             .map(|meta| hash(&descriptor.path, &meta))
             .map_err(|err| code(&err)))
     }
@@ -732,12 +739,11 @@ impl types::HostDescriptor for Context {
         let descriptor = self.descriptor(&fd)?;
         let follow = flags.contains(PathFlags::SYMLINK_FOLLOW);
         let at = check!(descriptor.reach(&path, if follow { Last::Follow } else { Last::Keep }));
-        let meta = if follow {
-            fs::metadata(&at)
-        } else {
-            fs::symlink_metadata(&at)
-        };
-        Ok(meta.map(|meta| hash(&at, &meta)).map_err(|err| code(&err)))
+        Ok(self
+            .budget
+            .metadata(&at, follow)
+            .map(|meta| hash(&at, &meta))
+            .map_err(|err| code(&err)))
     }
 
     fn drop(&mut self, fd: Resource<Descriptor>) -> wasmtime::Result<()> {

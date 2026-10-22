@@ -21,7 +21,7 @@ use nvs_config::capability::{Authority, Cap, Run};
 use nvs_config::extension::Granted;
 use nvs_config::resolve::Disk;
 use nvs_config::tree::{CapFs, Capabilities};
-use nvs_ext::call::{Budget, FileOpen, Host, Level, Request};
+use nvs_ext::call::{Budget, FileOpen, Host, Level, Listed, ListedKind, Request};
 use nvs_ext::grants::Caller;
 use nvs_ext::load::{Extension, pin as pin_of};
 use nvs_ext::manifest::Manifest;
@@ -36,6 +36,10 @@ interface api {
     read: func(path: string) -> s64;
     write: func(path: string) -> s64;
     directories: func() -> u32;
+    unlink: func(path: string) -> s64;
+    rmdir: func(path: string) -> s64;
+    stat: func(path: string) -> s64;
+    listing: func(path: string) -> s64;
 }
 
 world guest {
@@ -49,7 +53,9 @@ world guest {
 /// returns how many bytes a read of up to 256 gives. `write` creates or truncates `path` and
 /// writes `hello` to it, returning the count written. Both return `-1000` when there is no
 /// preopen, and `-1 - code` for a failure, `code` being the `error-code` case's index.
-/// `directories` returns how many preopens there are.
+/// `directories` returns how many preopens there are. `unlink`, `rmdir` and `stat` call
+/// `unlink-file-at`, `remove-directory-at` and `stat-at` on `path`, and `listing` opens `path` as a
+/// directory and calls `read-directory` on it. Each returns `0` on success.
 const CORE: &str = r#"(module
   (import "wasi:filesystem/preopens@0.2.12" "get-directories" (func $dirs (param i32)))
   (import "wasi:filesystem/types@0.2.12" "[method]descriptor.open-at"
@@ -59,6 +65,14 @@ const CORE: &str = r#"(module
   (import "wasi:filesystem/types@0.2.12" "[method]descriptor.write"
     (func $write (param i32 i32 i32 i64 i32)))
   (import "wasi:filesystem/types@0.2.12" "[resource-drop]descriptor" (func $drop (param i32)))
+  (import "wasi:filesystem/types@0.2.12" "[method]descriptor.unlink-file-at"
+    (func $unlink (param i32 i32 i32 i32)))
+  (import "wasi:filesystem/types@0.2.12" "[method]descriptor.remove-directory-at"
+    (func $rmdir (param i32 i32 i32 i32)))
+  (import "wasi:filesystem/types@0.2.12" "[method]descriptor.stat-at"
+    (func $stat (param i32 i32 i32 i32 i32)))
+  (import "wasi:filesystem/types@0.2.12" "[method]descriptor.read-directory"
+    (func $readdir (param i32 i32)))
   (memory (export "memory") 1)
   (global $heap (mut i32) (i32.const 4096))
   (data (i32.const 64) "hello")
@@ -110,7 +124,43 @@ const CORE: &str = r#"(module
       (else (i64.load (i32.const 56)))))
   (func (export "shop:files/api#directories") (result i32)
     (call $dirs (i32.const 16))
-    (i32.load (i32.const 20))))"#;
+    (i32.load (i32.const 20)))
+  (func $status (param $at i32) (param $code i32) (result i64)
+    (if (result i64) (i32.load8_u (local.get $at))
+      (then (i64.sub (i64.const -1) (i64.extend_i32_u (i32.load8_u (local.get $code)))))
+      (else (i64.const 0))))
+  (func (export "shop:files/api#unlink") (param $ptr i32) (param $len i32) (result i64)
+    (local $dir i32)
+    (local.set $dir (call $root))
+    (if (i32.eq (local.get $dir) (i32.const -1)) (then (return (i64.const -1000))))
+    (call $unlink (local.get $dir) (local.get $ptr) (local.get $len) (i32.const 48))
+    (call $drop (local.get $dir))
+    (call $status (i32.const 48) (i32.const 49)))
+  (func (export "shop:files/api#rmdir") (param $ptr i32) (param $len i32) (result i64)
+    (local $dir i32)
+    (local.set $dir (call $root))
+    (if (i32.eq (local.get $dir) (i32.const -1)) (then (return (i64.const -1000))))
+    (call $rmdir (local.get $dir) (local.get $ptr) (local.get $len) (i32.const 48))
+    (call $drop (local.get $dir))
+    (call $status (i32.const 48) (i32.const 49)))
+  (func (export "shop:files/api#stat") (param $ptr i32) (param $len i32) (result i64)
+    (local $dir i32)
+    (local.set $dir (call $root))
+    (if (i32.eq (local.get $dir) (i32.const -1)) (then (return (i64.const -1000))))
+    (call $stat (local.get $dir) (i32.const 0) (local.get $ptr) (local.get $len) (i32.const 128))
+    (call $drop (local.get $dir))
+    (call $status (i32.const 128) (i32.const 136)))
+  (func (export "shop:files/api#listing") (param $ptr i32) (param $len i32) (result i64)
+    (local $dir i32) (local $fd i64)
+    (local.set $dir (call $root))
+    (if (i32.eq (local.get $dir) (i32.const -1)) (then (return (i64.const -1000))))
+    (local.set $fd (call $open_path (local.get $dir) (local.get $ptr) (local.get $len)
+      (i32.const 2) (i32.const 1)))
+    (call $drop (local.get $dir))
+    (if (i64.lt_s (local.get $fd) (i64.const 0)) (then (return (local.get $fd))))
+    (call $readdir (i32.wrap_i64 (local.get $fd)) (i32.const 48))
+    (call $drop (i32.wrap_i64 (local.get $fd)))
+    (call $status (i32.const 48) (i32.const 52))))"#;
 
 /// What `read` and `write` return with no preopen.
 const NO_ROOT: i64 = -1000;
@@ -154,7 +204,11 @@ fn extension(host: &Host, entry: Granted, requests: &str) -> Extension {
         "methods": [
           {{"name": "read", "params": [{{"name": "path", "type": "string"}}], "returns": "int"}},
           {{"name": "write", "params": [{{"name": "path", "type": "string"}}], "returns": "int"}},
-          {{"name": "directories", "params": [], "returns": "int"}}
+          {{"name": "directories", "params": [], "returns": "int"}},
+          {{"name": "unlink", "params": [{{"name": "path", "type": "string"}}], "returns": "int"}},
+          {{"name": "rmdir", "params": [{{"name": "path", "type": "string"}}], "returns": "int"}},
+          {{"name": "stat", "params": [{{"name": "path", "type": "string"}}], "returns": "int"}},
+          {{"name": "listing", "params": [{{"name": "path", "type": "string"}}], "returns": "int"}}
         ]}}"#
     );
     Extension {
@@ -219,9 +273,7 @@ impl Budget for Held {
     }
 
     fn open_file(&self, path: &Path, how: FileOpen) -> std::io::Result<fs::File> {
-        if self.walled {
-            return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
-        }
+        self.wall()?;
         fs::OpenOptions::new()
             .read(how.read)
             .write(how.write)
@@ -229,6 +281,45 @@ impl Budget for Held {
             .create_new(how.exclusive)
             .truncate(how.truncate)
             .open(path)
+    }
+
+    fn remove_file(&self, path: &Path) -> std::io::Result<()> {
+        self.wall()?;
+        fs::remove_file(path)
+    }
+
+    fn remove_dir(&self, path: &Path) -> std::io::Result<()> {
+        self.wall()?;
+        fs::remove_dir(path)
+    }
+
+    fn metadata(&self, path: &Path, follow: bool) -> std::io::Result<fs::Metadata> {
+        self.wall()?;
+        if follow {
+            fs::metadata(path)
+        } else {
+            fs::symlink_metadata(path)
+        }
+    }
+
+    fn read_dir(&self, path: &Path) -> std::io::Result<Vec<Listed>> {
+        self.wall()?;
+        Ok(fs::read_dir(path)?
+            .map(|entry| Listed {
+                name: entry.expect("an entry").file_name(),
+                kind: ListedKind::Other,
+            })
+            .collect())
+    }
+}
+
+impl Held {
+    /// `PermissionDenied` when this host is walled.
+    fn wall(&self) -> std::io::Result<()> {
+        if self.walled {
+            return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+        }
+        Ok(())
     }
 }
 
@@ -442,6 +533,33 @@ fn a_guest_opens_every_file_through_the_hosts_walk() {
     assert_eq!(ask(&walled, &extension, "write", "new.txt"), ACCESS);
     assert_eq!(ask(&walled, &extension, "read", "there.txt"), ACCESS);
     assert!(!out.join("new.txt").exists());
+    // CVE-2: a removal, a stat and a listing go through the host's walk too.
+    fs::create_dir(out.join("d")).expect("the folder is made");
+    for (method, path) in [
+        ("unlink", "there.txt"),
+        ("rmdir", "d"),
+        ("stat", "there.txt"),
+        ("listing", "d"),
+    ] {
+        assert_eq!(
+            ask(&walled, &extension, method, path),
+            ACCESS,
+            "`{method}` asked the host"
+        );
+    }
+    assert!(out.join("there.txt").exists());
+    assert!(out.join("d").exists());
+    let open = request(&host, holding(&[&out], &[&out]));
+    for (method, path) in [
+        ("stat", "there.txt"),
+        ("listing", "d"),
+        ("rmdir", "d"),
+        ("unlink", "there.txt"),
+    ] {
+        assert_eq!(ask(&open, &extension, method, path), 0, "`{method}` ran");
+    }
+    assert!(!out.join("there.txt").exists());
+    assert!(!out.join("d").exists());
 }
 
 #[test]

@@ -6,4 +6,7 @@
 //! time, and a level that became a link after that check fails the call. Every `Core\IO` door
 //! goes through [`crate::capability`] instead, which checks the grant first.
 
-pub use crate::beneath::{Open, create_dir, open_with, rename};
+pub use crate::beneath::{
+    Entry, Kind, Open, create_dir, entry_metadata, list, metadata, open_with, remove_dir,
+    remove_file, rename,
+};

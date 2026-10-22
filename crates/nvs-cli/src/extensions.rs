@@ -723,6 +723,43 @@ impl Budget for Spent {
         nvs_runtime::guest_files::rename(from, to)
     }
 
+    /// Removed from its folder's handle, as [`Budget::open_file`] opens a file.
+    fn remove_file(&self, path: &Path) -> io::Result<()> {
+        nvs_runtime::guest_files::remove_file(path)
+    }
+
+    /// Removed from its folder's handle, as [`Budget::open_file`] opens a file.
+    fn remove_dir(&self, path: &Path) -> io::Result<()> {
+        nvs_runtime::guest_files::remove_dir(path)
+    }
+
+    /// Read from a handle opened beneath its folder, as [`Budget::open_file`] opens a file.
+    fn metadata(&self, path: &Path, follow: bool) -> io::Result<std::fs::Metadata> {
+        if follow {
+            nvs_runtime::guest_files::metadata(path)
+        } else {
+            nvs_runtime::guest_files::entry_metadata(path)
+        }
+    }
+
+    /// Listed from the walked folder's handle, as [`Budget::open_file`] opens a file.
+    fn read_dir(&self, path: &Path) -> io::Result<Vec<nvs_ext::call::Listed>> {
+        use nvs_ext::call::ListedKind;
+        use nvs_runtime::guest_files::Kind;
+        Ok(nvs_runtime::guest_files::list(path)?
+            .into_iter()
+            .map(|entry| nvs_ext::call::Listed {
+                name: entry.name,
+                kind: match entry.kind {
+                    Kind::Dir => ListedKind::Dir,
+                    Kind::File => ListedKind::File,
+                    Kind::Link => ListedKind::Link,
+                    Kind::Other => ListedKind::Other,
+                },
+            })
+            .collect())
+    }
+
     /// The value at `ext.<block>.<key>` in the request's snapshot, as JSON.
     fn setting(&self, block: &str, key: &str) -> Option<serde_json::Value> {
         let value = self
