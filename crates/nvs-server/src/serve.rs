@@ -1396,6 +1396,10 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
         // the `unsafe` that a release takes.
         done.discard_value();
     }
+    // The place goes back with `streamed`, and the connection waits for its
+    // next request from here.
+    drop(streamed);
+    ctx.between_requests();
 }
 
 /// Drives one accepted connection to completion on the calling coroutine.
@@ -2392,6 +2396,8 @@ where
         .max_buf_size(MAX_HEAD_BYTES)
         .serve_connection(io, service);
     let mut asked_to_close = false;
+    // No request is in flight on this connection until its first head arrives.
+    ctx.borrow_mut().between_requests();
     let driven = block_on(std::future::poll_fn(|cx| {
         // `rule:concurrency/a-drain-closes-a-connection-cleanly`: a connection
         // idle between requests closes the moment it sees the drain, and only
@@ -2427,9 +2433,11 @@ where
         joined_when_ended(writing, &mut ctx.borrow_mut());
         // A whole answer is written once a poll ends with no write waiting for
         // room (`crate::io::ConnectionIo::write_parked`), and its place goes
-        // back then. An idle keep-alive connection holds none.
-        if polled.is_pending() && !write_parked.get() {
-            drop(sending.borrow_mut().take());
+        // back then. An idle keep-alive connection holds none, and what it holds
+        // between requests is not counted as a request's
+        // (`nvs_runtime::Ctx::between_requests`).
+        if polled.is_pending() && !write_parked.get() && sending.borrow_mut().take().is_some() {
+            ctx.borrow_mut().between_requests();
         }
         // Last, and after the whole pass rather than inside it: an event stream
         // that is about to park has to be woken in time to write its keep-alive,

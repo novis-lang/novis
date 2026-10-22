@@ -503,6 +503,10 @@ pub struct Ctx {
     /// there. [`Self::join_tree`] is the only writer and
     /// [`Self::share_safepoint_with`] carries the answer down.
     on_root_core: bool,
+    /// Whether this context marked its tree as a connection's between requests
+    /// ([`Self::between_requests`]), so [`Self::reroot`] and its drop count the
+    /// tree as a request's again. Only a connection's context sets it.
+    idles_tree: bool,
     /// Whether this context states its request tree's CPU ceiling, which is
     /// every context until it joins another's tree, and the served request's
     /// own isolate after it does.
@@ -1601,6 +1605,11 @@ pub struct Ctx {
 /// there is no second owner to coordinate with and no table to clear.
 impl Drop for Ctx {
     fn drop(&mut self) {
+        // A connection that ends between requests stops setting its tree's
+        // bytes aside, so nothing it left stays off this core's balance.
+        if self.idles_tree {
+            crate::budget::end_idle(&self.tree);
+        }
         // Before the teardown below, so what that allocates on this core is no
         // longer being charged to a tree whose root is on another one —
         // `Ctx::end_off_core_share` owns why the memory share is given back

@@ -10,7 +10,9 @@
 //! a small part of it. So [`Admission::admit`] admits when `used + cap` fits
 //! under `budget − ENGINE_RESERVE`, where `used` is what every core holds as
 //! `nvs_runtime::budget::held_by_cores` reads it and `cap` is the per-request
-//! cap. A newly admitted request always has room to reach its own ceiling. A
+//! cap. What a connection holds between requests is not in `used`
+//! (`nvs_runtime::Ctx::between_requests`), so idle connections do not refuse
+//! a request. A newly admitted request always has room to reach its own ceiling. A
 //! tree with no per-request cap (`memory = false`) is admitted while `used`
 //! is under the room, and a host that answers no budget has no memory
 //! condition. `max_in_flight` stays a count, because it is the operator's own
@@ -469,6 +471,59 @@ mod tests {
             .admit()
             .expect("a host with no budget refused on memory");
         drop((first, second, third));
+    }
+
+    /// What this test's thread last published as a core, which leaves out the
+    /// cores every other test runs.
+    fn this_core() -> isize {
+        nvs_runtime::budget::held_by_this_core().unwrap_or(0)
+    }
+
+    /// A core whose connections hold more than the room between requests still
+    /// admits a request, because admission reads what requests hold. Once a
+    /// request starts on that connection, its bytes count again.
+    #[test]
+    fn connection_buffers_between_requests_do_not_refuse_a_request() {
+        std::thread::spawn(|| {
+            let _core = nvs_runtime::budget::CoreGauge::claim();
+            let admission = Admission::reading(
+                &Ceiling::of(&capacity(
+                    10_000,
+                    Some(16 * MIB),
+                    Some(ENGINE_RESERVE + 32 * MIB),
+                )),
+                this_core,
+            );
+            // Another request is in flight, so the memory condition is asked.
+            let first = admission.admit().expect("the first request was refused");
+
+            // Handed to a task and armed on its stack, as a spawn does.
+            let mut connection = Ctx::new(OutputSink::Sink);
+            connection.leave_this_stack();
+            connection.arm_on_this_stack();
+            connection.between_requests();
+            // The buffers an idle connection keeps, and a park, which is where
+            // its tree's bytes are set aside.
+            let buffers = vec![1_u8; 64 * 1024 * 1024];
+            nvs_runtime::budget::ArmedStack::take().resume();
+            assert!(
+                admission.admit().is_some(),
+                "a connection's buffers between requests refused a request ({} bytes published)",
+                this_core()
+            );
+
+            // A request on that connection counts what the connection holds.
+            connection.reroot();
+            nvs_runtime::budget::publish_held();
+            assert!(
+                admission.admit().is_none(),
+                "a request in flight was admitted past the room ({} bytes published)",
+                this_core()
+            );
+            drop((buffers, first));
+        })
+        .join()
+        .expect("the core thread panicked");
     }
 
     /// The count: places are handed out up to `max_in_flight`, refused past
