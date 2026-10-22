@@ -756,6 +756,12 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
 /// recursing, or a core waiting on a lock. A `PRAGMA` that only reads is not
 /// session state, and a file-level one such as `journal_mode` belongs to the
 /// file and every connection to it, so neither is here.
+///
+/// `busy_timeout` is the one that is not SQLite's default: it is the 5000 ms
+/// `rusqlite` sets when it opens a connection, so a reused connection waits on
+/// another's write lock as long as a fresh one does. A queue worker and every
+/// statement with no deadline of its own lean on that wait. `0` would answer
+/// `SQLITE_BUSY` at once, and a worker sharing the file with a request stops.
 const SESSION_PRAGMAS: &str = "PRAGMA foreign_keys = ON; \
      PRAGMA query_only = OFF; \
      PRAGMA recursive_triggers = OFF; \
@@ -763,7 +769,7 @@ const SESSION_PRAGMAS: &str = "PRAGMA foreign_keys = ON; \
      PRAGMA defer_foreign_keys = OFF; \
      PRAGMA reverse_unordered_selects = OFF; \
      PRAGMA writable_schema = OFF; \
-     PRAGMA busy_timeout = 0;";
+     PRAGMA busy_timeout = 5000;";
 
 /// The connection's authorizer: every `ATTACH` but an unnamed one, and every
 /// `DETACH`, is denied when the statement is prepared.
@@ -2907,7 +2913,15 @@ mod tests {
         assert_eq!(number(&conn, "pragma query_only"), 0);
         assert_eq!(number(&conn, "pragma recursive_triggers"), 0);
         assert_eq!(number(&conn, "pragma ignore_check_constraints"), 0);
-        assert_eq!(number(&conn, "pragma busy_timeout"), 0);
+        assert_eq!(
+            number(&conn, "pragma busy_timeout"),
+            rusqlite::Connection::open_in_memory()
+                .and_then(
+                    |fresh| fresh.query_row("pragma busy_timeout", [], |row| row.get::<_, i64>(0))
+                )
+                .expect("a fresh connection answers"),
+            "a reused connection waits on a lock as long as a fresh `rusqlite` one"
+        );
         conn.query("insert into t (v) values (1)", Vec::new())
             .expect("the connection writes again");
     }
@@ -2919,9 +2933,8 @@ mod tests {
     #[test]
     fn an_attach_detach_or_vacuum_into_is_refused_and_a_plain_vacuum_runs() {
         let conn = connect();
-        let target = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target")
-            .join("nvs-db-attach-refused.db");
+        let scratch = nvs_repo::scratch("nvs-db-attach-refused");
+        let target = scratch.join("outside.db");
         let named = target.to_string_lossy().replace('\'', "''");
 
         for sql in [
