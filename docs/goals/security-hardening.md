@@ -586,6 +586,17 @@ the code change before it runs any of them.
 
 The gate stage 14 is done, and the goal's end gates are green. The status line says `DONE`.
 
+- **The floor debt (a085583af).** The driver refused the last `DONE` because `floor-debt`
+  (`bun nv debt`) left six proof programs red. Each one was this goal's change, not a bug.
+  `Core\Env::all`'s names, `Ldap\Entry::toArray`'s keys and `Geo\Atlas::read`'s result are
+  `tainted`, so the env attack checks each name with `Core\Taint::assertTrusted`, and the
+  others declare `tainted string`. The LDAP add attack's rows are `array<string>`. An
+  `array<mixed>`'s keys read as from outside, so `add` refused them. The sanitize attack's
+  limit went from 64M to 128M: since RT-4 the parser's tree is charged to the request, so
+  step 2 (100,000 links) stopped at 64M. At 128M step 2 prints `800000`, and step 3 still
+  stops at the limit. All six pass `bun nv proofs --run --id ...` on the debug binary, and
+  `floor-debt` was run again after the commit.
+
 - **Verify.** `bun tools/looper/main.ts verify` is green (22 of 22) and `bun nv affected --run`
   says nothing the change reaches is due. `bun nv verify --doc` is green, `bun nv owners --closes
   security-hardening` finds nothing, and `bun nv owners --check` is green.
