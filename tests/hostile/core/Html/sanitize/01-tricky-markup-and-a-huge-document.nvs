@@ -6,7 +6,7 @@
 // hostile: ends-early 3 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
-Core\Config::set('memory', '64M');
+Core\Config::set('memory', '128M');
 
 class Check
 {

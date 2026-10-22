@@ -8,7 +8,7 @@ use Geo\Atlas;
 array<string> $paths = ['../cities.txt', '..', '../../private/secret.txt', 'cities.txt'];
 foreach ($paths as string $path) {
     try {
-        string $text = Atlas::read($path);
+        tainted string $text = Atlas::read($path);
         echo $path, ': ', Core\Str::length($text), " characters\n";
     } catch (RuntimeError $denied) {
         echo $path, ': ', $denied->message, "\n";
