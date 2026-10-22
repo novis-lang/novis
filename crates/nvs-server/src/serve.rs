@@ -10216,7 +10216,8 @@ pub(crate) mod tests {
 
         assert!(
             spent.would_block_reads <= WOULD_BLOCK_READS_PER_REQUEST * REQUESTS
-                && spent.wake_pokes <= WAKE_POKES_PER_REQUEST * REQUESTS + WAKE_POKES_PER_CONNECTION,
+                && spent.wake_pokes
+                    <= WAKE_POKES_PER_REQUEST * REQUESTS + WAKE_POKES_PER_CONNECTION,
             "{REQUESTS} keep-alive requests spent {spent:?}, over {WOULD_BLOCK_READS_PER_REQUEST} \
              reads that answered WouldBlock and {WAKE_POKES_PER_REQUEST} wake pokes each"
         );
