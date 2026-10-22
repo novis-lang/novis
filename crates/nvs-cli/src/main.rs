@@ -2597,25 +2597,28 @@ fn run_program_tests(
         Ok(checked) => checked,
         Err(code) => return code,
     };
-    let calls = match extensions::loaded(config, &tree.origins, &tree.sources) {
-        Ok(set) => std::rc::Rc::new(extensions::Calls::new(set)),
+    let set = match extensions::loaded(config, &tree.origins, &tree.sources) {
+        Ok(set) => std::sync::Arc::new(set),
         Err(diagnostic) => return refuse(diagnostic),
     };
-    let calling = nvs_runtime::extension::install(
-        calls.clone() as std::rc::Rc<dyn nvs_runtime::extension::Extensions>
-    );
-    // The extension host is this thread's, so a program that loads one runs
-    // every test on this thread, one at a time (`runner::Flags::jobs`).
-    let flags = match config.extension.is_empty() {
-        true => flags,
-        false => runner::Flags { jobs: 1, ..flags },
-    };
+    // Each test's calls run in its own request tree, so its budget and its
+    // instances are its own and end with it. The host is this thread's, so
+    // each core the run starts installs one of its own over the same set.
+    let calling = nvs_runtime::extension::install(std::rc::Rc::new(extensions::Tested(
+        std::sync::Arc::clone(&set),
+    )));
     // `--filter` reaches both suites, and means the same thing in each:
     // `runner::selected` owns the rule and why it is the `.nvst` tree's.
-    let code = runner::run(checked, &tree.snapshot, format, filter, flags, coverage);
+    let code = runner::run(
+        checked,
+        &tree.snapshot,
+        Some(set),
+        format,
+        filter,
+        flags,
+        coverage,
+    );
     drop(calling);
-    // The last reference, so this ends the suite's request and drops its resources.
-    drop(calls);
     code
 }
 

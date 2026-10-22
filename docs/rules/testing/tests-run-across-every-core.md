@@ -6,8 +6,10 @@ program uses (`rule:concurrency/on-worker-runs-the-child-on-another-core`), on c
 itself: a test parks while its isolate runs, so the program under test and the script compiler are
 installed once per core rather than once per test, where another test on that core would read them.
 `--jobs 1` runs every test
-on the runner's own core, one at a time, and so does a program that loads an extension: the extension
-host belongs to the thread that loaded it.
+on the runner's own core, one at a time. An extension host belongs to its thread, so each core installs
+one of its own over the set the run loaded, and a program that calls an extension runs its tests in
+parallel too. A test's calls run in its own request tree, under its own budget, and its instances end
+with it, as a served request's do (`rule:packaging/a-guest-runs-under-the-requests-budget`).
 
 The runner guarantees order and nothing about data. The order it guarantees is the one
 `rule:testing/class-hooks` gives: `#[BeforeClass]` returns before the class's first test starts,

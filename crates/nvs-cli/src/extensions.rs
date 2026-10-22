@@ -378,20 +378,44 @@ pub(crate) struct Served;
 
 impl nvs_runtime::extension::Extensions for Served {
     fn call(&self, ctx: &mut Ctx, class: &str, method: &str, args: &[Value]) -> HelperResult {
-        let host = ctx.tree_handle().extensions(|| {
-            let set = live().ok_or_else(|| {
-                Fault::thrown_as(
-                    ThrownClass::Extension,
-                    format!("`{class}::{method}`: the extension is not loaded"),
-                )
-            })?;
-            Ok::<_, Fault>(Arc::new(Calls::serving(set)) as Arc<dyn std::any::Any + Send + Sync>)
-        })?;
-        let calls = host
-            .downcast_ref::<Calls>()
-            .expect("only this host sets a tree's extensions, and it set them above");
-        nvs_runtime::extension::Extensions::call(calls, ctx, class, method, args)
+        in_tree(ctx, class, method, args, live)
     }
+}
+
+/// The host `nvs test` installs on the suite's thread and on each core it starts: as
+/// [`Served`], but over the one set the suite loaded. Each test runs under a parent context of
+/// its own, so its calls run in a [`Calls`] of its own, under its own budget, and its instances
+/// end with it.
+pub(crate) struct Tested(pub(crate) Arc<Set>);
+
+impl nvs_runtime::extension::Extensions for Tested {
+    fn call(&self, ctx: &mut Ctx, class: &str, method: &str, args: &[Value]) -> HelperResult {
+        in_tree(ctx, class, method, args, || Some(Arc::clone(&self.0)))
+    }
+}
+
+/// Calls `class::method` through the [`Calls`] kept in `ctx`'s request tree, made over the set
+/// `set` gives at the tree's first call.
+fn in_tree(
+    ctx: &mut Ctx,
+    class: &str,
+    method: &str,
+    args: &[Value],
+    set: impl FnOnce() -> Option<Arc<Set>>,
+) -> HelperResult {
+    let host = ctx.tree_handle().extensions(|| {
+        let set = set().ok_or_else(|| {
+            Fault::thrown_as(
+                ThrownClass::Extension,
+                format!("`{class}::{method}`: the extension is not loaded"),
+            )
+        })?;
+        Ok::<_, Fault>(Arc::new(Calls::serving(set)) as Arc<dyn std::any::Any + Send + Sync>)
+    })?;
+    let calls = host
+        .downcast_ref::<Calls>()
+        .expect("only these hosts set a tree's extensions, and one set them above");
+    nvs_runtime::extension::Extensions::call(calls, ctx, class, method, args)
 }
 
 /// The extensions a run loaded, and the requests their calls run in. Dropping it ends the
