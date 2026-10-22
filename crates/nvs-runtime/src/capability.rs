@@ -32,7 +32,7 @@
 //! grant, and § 3's table over every address the name answered — stays on the core.
 //!
 
-use std::fs::{File, ReadDir};
+use std::fs::File;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
@@ -46,6 +46,9 @@ use std::process::{Child, Command, Stdio};
 /// Re-exporting the type grants nothing: every way of *obtaining* one still goes through a door
 /// above that has already asked.
 pub use std::fs::Metadata;
+
+/// What [`read_dir`] lists, re-exported for the same reason as [`Metadata`].
+pub use crate::beneath::{Entry, Kind};
 
 use nvs_config::capability::{Cap, Scope};
 
@@ -739,6 +742,7 @@ fn resolve_write(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault>
 fn resolve(ctx: &Ctx, path: &Path, caps: &[Cap], member: &str) -> Result<PathBuf, Fault> {
     relative_refusal(path, member)?;
     device_refusal(path, member)?;
+    alias_refusal(path, member)?;
     let at = nvs_config::capability::resolved(path, &nvs_config::resolve::Disk);
     allow(ctx, path, at, caps, member)
 }
@@ -768,9 +772,9 @@ fn resolve_file(ctx: &Ctx, path: &Path, caps: &[Cap], member: &str) -> Result<Pa
 /// [`resolve_write`] for a door that changes the name itself rather than the file it names: the
 /// parent of `path` resolved, and its last name kept as written.
 ///
-/// [`rename`] moves the entry, so a link at either end is the entry to move or replace. Resolving
-/// it would put the link's target in its place, and a rename onto a link would then replace the
-/// file the link points at.
+/// [`rename`] moves the entry, and [`remove_file`] and [`remove_dir`] remove it, so a link at the
+/// name is the entry to move, replace or remove. Resolving it would put the link's target in its
+/// place, and a rename onto a link would then replace the file the link points at.
 ///
 /// # Errors
 ///
@@ -778,6 +782,7 @@ fn resolve_file(ctx: &Ctx, path: &Path, caps: &[Cap], member: &str) -> Result<Pa
 fn resolve_name(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> {
     relative_refusal(path, member)?;
     device_refusal(path, member)?;
+    alias_refusal(path, member)?;
     let at = match (path.parent(), path.file_name()) {
         (Some(parent), Some(name)) => {
             nvs_config::capability::resolved(parent, &nvs_config::resolve::Disk)
@@ -974,10 +979,14 @@ fn pair(from: &Path, to: &Path) -> PathBuf {
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
 /// `path`, or [`io_failure`]'s `IOError` when the `stat` itself fails — a path that is not there is
 /// a failure here, because a member asking for a size has no answer for one.
+///
+/// The path is resolved once by [`resolve`] and read by [`crate::beneath::metadata`]
+/// (`rule:security/writes-open-beneath-a-handle`), so a folder replaced by a link after the check
+/// fails the read, and a link at the last name is not followed.
 pub fn metadata(ctx: &Ctx, path: &Path, member: &str) -> Result<Metadata, Fault> {
-    require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    let at = resolve(ctx, path, &[Cap::FsRead], member)?;
     nvs_footprint::exists(path);
-    std::fs::metadata(path).map_err(|err| io_failure(member, path, &err))
+    crate::beneath::metadata(&at).map_err(|err| io_failure(member, path, &err))
 }
 
 /// § 2's kind door: the [`Metadata`] at `path` if there is anything there, once [`Cap::FsRead`] has
@@ -999,15 +1008,16 @@ pub fn metadata(ctx: &Ctx, path: &Path, member: &str) -> Result<Metadata, Fault>
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
 /// `path`, or [`io_failure`]'s `IOError` when the `stat` failed for any reason other than the path
-/// not being there.
+/// not being there. The read is [`metadata`]'s, so a link at the last name that leads nowhere is
+/// `None`.
 pub fn metadata_if_present(
     ctx: &Ctx,
     path: &Path,
     member: &str,
 ) -> Result<Option<Metadata>, Fault> {
-    require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    let at = resolve(ctx, path, &[Cap::FsRead], member)?;
     nvs_footprint::exists(path);
-    match std::fs::metadata(path) {
+    match crate::beneath::metadata(&at) {
         Ok(found) => Ok(Some(found)),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(err) => Err(io_failure(member, path, &err)),
@@ -1066,11 +1076,10 @@ pub fn resolve_existing(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf,
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
 /// `path`, or [`io_failure`]'s `IOError` when the operating system could answer neither yes nor no —
 /// a parent directory it will not traverse, for instance, which is not the same as "no".
+///
+/// It is [`metadata_if_present`] with the metadata dropped, so the read is [`metadata`]'s.
 pub fn exists(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
-    require(ctx, Cap::FsRead, Scope::Path(path), member)?;
-    nvs_footprint::exists(path);
-    path.try_exists()
-        .map_err(|err| io_failure(member, path, &err))
+    metadata_if_present(ctx, path, member).map(|found| found.is_some())
 }
 
 /// § 2's access door for reading: whether the operating system would let **this process** read what
@@ -1211,20 +1220,22 @@ pub fn canonicalize(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fau
 /// about paths it could not name yet. Which is why the check is over the directory and never over
 /// an ancestor of it — a program granted one disk's root cannot list the one beside it.
 ///
-/// The [`ReadDir`] is handed back lazily, as [`open_read`] hands back a [`File`]: one check, at the
-/// door, over the one path the whole walk stays inside.
+/// The directory is resolved once by [`resolve`] and listed by [`crate::beneath::list`]
+/// (`rule:security/writes-open-beneath-a-handle`), so a folder replaced by a link after the check
+/// fails the listing. Each entry's kind is read without following a link.
+///
+/// **Memory:** the whole listing, read at once, one name and one kind per entry, until the caller
+/// drops it. Every caller collects the names anyway.
 ///
 /// # Errors
 ///
-/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
-/// `path`, or [`io_failure`]'s `IOError` when the directory could not be opened at all — it is not
-/// there, or it is not a directory. A failure on one *entry* during the walk arrives later and is
-/// the caller's, since only the caller knows whether an entry it cannot read is fatal to what it
-/// was asking.
-pub fn read_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<ReadDir, Fault> {
-    require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+/// [`resolve`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
+/// `path`, or [`io_failure`]'s `IOError` when the directory could not be listed — it is not there,
+/// it is not a directory, or the listing failed partway.
+pub fn read_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<Vec<Entry>, Fault> {
+    let at = resolve(ctx, path, &[Cap::FsRead], member)?;
     nvs_footprint::dir(path);
-    std::fs::read_dir(path).map_err(|err| io_failure(member, path, &err))
+    crate::beneath::list(&at).map_err(|err| io_failure(member, path, &err))
 }
 
 /// § 2's unlink door: `path` stops existing, once [`Cap::FsWrite`] has been shown to cover it.
@@ -1238,9 +1249,13 @@ pub fn read_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<ReadDir, Fault> 
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
 /// `path`, or [`io_failure`]'s `IOError` when the unlink itself fails — the path is not there, or is
 /// a directory, which [`remove_dir`] is the door for.
+///
+/// The name is checked by [`resolve_name`] and removed by [`crate::beneath::remove_file`]
+/// (`rule:security/writes-open-beneath-a-handle`): a link at the name is the entry removed, and a
+/// link planted above it after the check fails the removal.
 pub fn remove_file(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
-    require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
-    std::fs::remove_file(path).map_err(|err| io_failure(member, path, &err))
+    let at = resolve_name(ctx, path, member)?;
+    crate::beneath::remove_file(&at).map_err(|err| io_failure(member, path, &err))
 }
 
 /// § 2's rmdir door: the **empty** directory at `path` stops existing, once [`Cap::FsWrite`] has
@@ -1256,9 +1271,12 @@ pub fn remove_file(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
 /// `path`, or [`io_failure`]'s `IOError` when the removal itself fails — the directory is not there,
 /// is not a directory, or still has entries in it.
+///
+/// The name is checked and removed as [`remove_file`] checks and removes one, by
+/// [`crate::beneath::remove_dir`].
 pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
-    require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
-    std::fs::remove_dir(path).map_err(|err| io_failure(member, path, &err))
+    let at = resolve_name(ctx, path, member)?;
+    crate::beneath::remove_dir(&at).map_err(|err| io_failure(member, path, &err))
 }
 
 /// § 2's temporary-directory door: a new, empty, private directory under the root Novis owns, once

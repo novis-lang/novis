@@ -3492,15 +3492,10 @@ nvs_runtime::nvs_helper! {
         let entries = nvs_runtime::capability::read_dir(ctx, path, MEMBER)?;
         let mut names = NvsArray::new();
         for entry in entries {
-            // A failure partway through the walk is this member's and not the
-            // caller's, unlike the door's own reading: `list` promised the
-            // whole directory, so half of it is not an answer.
-            let entry =
-                entry.map_err(|err| nvs_runtime::capability::io_failure(MEMBER, path, &err))?;
             // Lossy only where a name is not UTF-8, which a Novis `string`
             // cannot hold at all (`rule:types/bytes`) — the same reading as
             // [`nvs_core_io_temporary_dir`]'s.
-            names.append(Value::text(&entry.file_name().to_string_lossy()));
+            names.append(Value::text(&entry.name.to_string_lossy()));
         }
         Ok(Value::array(names))
     }
@@ -3535,20 +3530,14 @@ nvs_runtime::nvs_helper! {
         while let Some((directory, prefix)) = frontier.pop_front() {
             let entries = nvs_runtime::capability::read_dir(ctx, &directory, MEMBER)?;
             for entry in entries {
-                // A failure partway through is this member's and not the
-                // caller's, on `list`'s own reading: `walk` promised the tree,
-                // so part of it is not an answer.
-                let entry = entry
-                    .map_err(|err| nvs_runtime::capability::io_failure(MEMBER, &directory, &err))?;
-                let descend = entry
-                    .file_type()
-                    .map_err(|err| nvs_runtime::capability::io_failure(MEMBER, &directory, &err))?
-                    .is_dir();
-                let relative = prefix.join(entry.file_name());
+                // A link is an entry and not a descent: its kind is read
+                // without following it.
+                let descend = entry.kind == nvs_runtime::capability::Kind::Dir;
+                let relative = prefix.join(&entry.name);
                 // Lossy only where a name is not UTF-8, exactly as `list` is.
                 found.append(Value::text(&relative.to_string_lossy()));
                 if descend {
-                    frontier.push_back((entry.path(), relative));
+                    frontier.push_back((directory.join(&entry.name), relative));
                 }
             }
         }

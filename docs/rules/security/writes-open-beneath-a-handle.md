@@ -11,12 +11,20 @@ modes of `capability::open`, the destination of `capability::copy` and both ends
 filesystem through them. The read doors are `capability::open_read`, the reading mode of
 `capability::open` and the source of `capability::copy`, and `Core\IO`'s reads, `Core\Storage::get`,
 `Core\Response::sendFile` and a multipart file part sent by `Core\Http` reach the filesystem through
-them. An extension's `wasi:filesystem` checks a path against its instance's preopens
-(`rule:security/extension-grants-are-an-intersection`) and then opens a file, creates a folder or
-renames through the same walk, which `nvs_runtime::guest_files` exposes to it with no grant check of
-its own. A read creates nothing, and a read-write handle checks `fs.read` and `fs.write` on the one resolution. A rename resolves the folder above each end and keeps the last name as
+them. The removal doors are `capability::remove_file` and `capability::remove_dir`, and the doors
+that read what a path is are `capability::metadata`, `capability::metadata_if_present`,
+`capability::exists` and `capability::read_dir`. `Core\IO`'s removals, sizes, kinds, `exists`,
+`list` and `walk`, `Core\Storage`'s `get`, `delete` and `list`, and `Core\Response::sendFile`'s
+size reach the filesystem through them. An extension's `wasi:filesystem` checks a path against its
+instance's preopens (`rule:security/extension-grants-are-an-intersection`) and then opens a file,
+creates a folder, renames, removes, reads metadata or lists through the same walk, which
+`nvs_runtime::guest_files` exposes to it with no grant check of its own. A read creates nothing, and a read-write handle checks `fs.read` and `fs.write` on the one resolution. A rename resolves the folder above each end and keeps the last name as
 written, because it moves or replaces that name: a link there is the entry renamed, never its target,
-and the grant is checked on the entry. A missing folder is created by the same walk, one level at a time. On Unix a level is `openat` or
+and the grant is checked on the entry. A removal does the same with its one end, so a link there is
+the entry removed. A stat and a listing open the entry itself, or the folder, beneath the folder above,
+and read it from that handle. A link at a stat's last name led nowhere when the path was resolved, or
+was planted after, so it is not followed and the stat finds nothing there. A listing reads each
+entry's kind without following a link. A missing folder is created by the same walk, one level at a time. On Unix a level is `openat` or
 `mkdirat` with `O_NOFOLLOW`; on Windows it is `NtCreateFile` with the folder above as its root, and a
 level whose reparse tag is a name surrogate — a symbolic link or a junction — is refused. A reparse
 point that is not a name surrogate, such as a cloud placeholder, is a real folder and is walked.
@@ -34,10 +42,14 @@ inside a granted tree on Windows has a name-surrogate tag, so the walk refuses i
 path is spelled through its volume.
 
 The walk costs one open per level of the path, the count the operating system's own lookup makes, plus
-one attribute read per level on Windows.
+one attribute read per level on Windows. A stat costs one more open than `stat(2)` would, for the
+entry's own handle, and a listing one more for reopening the folder to read it. On Windows a listed
+reparse point is opened once more to read its tag.
 
-- **Memory:** nothing past the call: every handle but the deepest is closed as soon as the next one is
-  open.
+- **Memory:** nothing past the call for an open, a removal or a stat: every handle but the deepest is
+  closed as soon as the next one is open. A listing is read whole, one name and one kind per entry,
+  and is kept until the caller drops it, where `std::fs::read_dir` read it lazily. Every caller
+  collected the names already.
 
 **Declined:**
 

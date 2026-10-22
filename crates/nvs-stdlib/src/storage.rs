@@ -566,21 +566,19 @@ nvs_runtime::nvs_helper! {
 
         let mut keys: Vec<String> = Vec::new();
         for entry in nvs_runtime::capability::read_dir(ctx, &root, LIST)? {
-            // An entry that cannot be read or typed is not an object this call
-            // can promise anything about, so it joins the names the module doc
-            // omits rather than failing the whole listing. A name that is not
-            // UTF-8 is not a key by the same reading: the grammar is ASCII.
-            let Ok(entry) = entry else { continue };
-            let name = entry.file_name();
-            let Some(name) = name.to_str() else { continue };
+            // A name that is not UTF-8 is not a key: the grammar is ASCII.
+            let Some(name) = entry.name.to_str() else {
+                continue;
+            };
             if !name.starts_with(prefix) || !is_key(name) {
                 continue;
             }
-            // A regular file and nothing else. `file_type` does not follow a
-            // symlink, which is the answer this member wants: what a link names
-            // is not on this disk, and following one would make a listing
-            // depend on a path the operator's grant was not written about.
-            if entry.file_type().is_ok_and(|kind| kind.is_file()) {
+            // A regular file and nothing else. The kind is read without
+            // following a symlink, which is the answer this member wants: what
+            // a link names is not on this disk, and following one would make a
+            // listing depend on a path the operator's grant was not written
+            // about.
+            if entry.kind == nvs_runtime::capability::Kind::File {
                 keys.push(name.to_owned());
             }
         }

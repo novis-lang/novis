@@ -8,14 +8,19 @@
 //!
 //! **Unix** opens each folder with `openat` and `O_NOFOLLOW | O_DIRECTORY`, creates one with
 //! `mkdirat`, opens the file with `openat` and `O_NOFOLLOW`, and renames with `renameat` between
-//! two walked folders. On Linux a folder is opened `O_PATH`, so a folder the process may search but
-//! not list is still walked.
+//! two walked folders. A removal is `unlinkat`, a listing is `fdopendir` on the walked folder, and
+//! metadata is read from the entry opened without following it: `O_PATH` on Linux, `O_EVTONLY |
+//! O_SYMLINK` on macOS. On Linux a folder is opened `O_PATH`, so a folder the process may search
+//! but not list is still walked.
 //!
 //! **Windows** opens each level with `NtCreateFile`, its `RootDirectory` set to the folder above and
 //! `FILE_OPEN_REPARSE_POINT` set, then reads the level's reparse tag. A name surrogate — a symbolic
 //! link or a junction — is refused. Any other reparse point, such as a cloud placeholder, is a real
 //! folder and is walked. A rename opens the source the same way and renames its handle with
-//! `NtSetInformationFile`, the destination folder's handle as the new name's root.
+//! `NtSetInformationFile`, the destination folder's handle as the new name's root. A removal opens
+//! the name the same way and sets its delete disposition, metadata is read from the entry's handle,
+//! and a listing reopens the walked folder for listing and reads it with
+//! `GetFileInformationByHandleEx`.
 //!
 //! **Cost:** one open per level of the path, the same count the operating system's own lookup
 //! makes, plus one attribute read per level on Windows. Every handle but the deepest is closed as
@@ -189,6 +194,108 @@ pub fn rename(from: &Path, to: &Path) -> io::Result<()> {
     sys::rename_at(&from_dir, from_name, &to_dir, to_name)
 }
 
+/// The file `path` names removed. Its folder is walked as [`open_file`] walks one, and the name is
+/// removed from that folder's handle: `unlinkat` on Unix, and on Windows the name opened beneath
+/// the handle and marked for deletion. A link there is the entry removed, never its target.
+///
+/// # Errors
+///
+/// [`link_refused`] when a folder above the name is a link. Otherwise the operating system's
+/// error, such as nothing at `path` or a folder there.
+pub fn remove_file(path: &Path) -> io::Result<()> {
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+        return Err(io::Error::from(io::ErrorKind::InvalidInput));
+    };
+    let dir = walk(parent, false)?;
+    sys::remove_at(&dir, name, false)
+}
+
+/// The empty folder `path` names removed, as [`remove_file`] removes a file.
+///
+/// # Errors
+///
+/// [`link_refused`] when a folder above the name is a link. Otherwise the operating system's
+/// error, such as nothing at `path`, a file there, or a folder that is not empty.
+pub fn remove_dir(path: &Path) -> io::Result<()> {
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+        return Err(io::Error::from(io::ErrorKind::InvalidInput));
+    };
+    let dir = walk(parent, false)?;
+    sys::remove_at(&dir, name, true)
+}
+
+/// What the file system knows about the file or folder at `path`, read from a handle opened
+/// beneath its folder.
+///
+/// `path` is resolved, so it names no link. A link at its last name was planted after the check,
+/// or led nowhere when the path was resolved, and either way it is not followed: the call fails
+/// with `NotFound`, the answer a link that leads nowhere gives.
+///
+/// # Errors
+///
+/// [`link_refused`] when a folder above the name is a link, `NotFound` for a link at the name, and
+/// otherwise the operating system's error.
+pub fn metadata(path: &Path) -> io::Result<std::fs::Metadata> {
+    let found = entry_metadata(path)?;
+    if found.file_type().is_symlink() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "the last name of this path is a link, and a link is not followed after the path \
+             was checked",
+        ));
+    }
+    Ok(found)
+}
+
+/// [`metadata`] of the entry itself: a link at the last name is read as the link it is.
+///
+/// # Errors
+///
+/// [`link_refused`] when a folder above the name is a link, and otherwise the operating system's
+/// error.
+pub fn entry_metadata(path: &Path) -> io::Result<std::fs::Metadata> {
+    match (path.parent(), path.file_name()) {
+        (Some(parent), Some(name)) => sys::stat_at(&walk(parent, false)?, name),
+        // A root: the walk opens it, and its own handle is what is read.
+        _ => File::from(walk(path, false)?).metadata(),
+    }
+}
+
+/// What one name in a listed folder is, read without following a link.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    /// A folder.
+    Dir,
+    /// A regular file.
+    File,
+    /// A symbolic link, or on Windows a junction.
+    Link,
+    /// Anything else: a device, a socket, a pipe.
+    Other,
+}
+
+/// One name in a folder [`list`] read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Entry {
+    /// The name, without the folder's path.
+    pub name: std::ffi::OsString,
+    /// What the name is.
+    pub kind: Kind,
+}
+
+/// Every name in the folder at `path` but `.` and `..`, in the order the file system gives them.
+/// The folder is walked as [`open_file`] walks one, and listed from its own handle.
+///
+/// **Memory:** the whole listing, one name and one kind per entry, until the caller drops it.
+///
+/// # Errors
+///
+/// [`link_refused`] when a level of `path` is a link. Otherwise the operating system's error, such
+/// as nothing at `path` or a file there.
+pub fn list(path: &Path) -> io::Result<Vec<Entry>> {
+    sys::list(&walk(path, false)?)
+}
+
 /// Whether two open files are one file: the same device and file number, so a second spelling and
 /// a hard link both count.
 ///
@@ -333,6 +440,147 @@ mod sys {
         Ok((meta.dev(), meta.ino()))
     }
 
+    /// The flags that open an entry itself, a link included, for its metadata alone. Elsewhere a
+    /// link fails the open with `ELOOP`, which [`explain`] reports as a link.
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    const ENTRY_FLAGS: libc::c_int = libc::O_PATH | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+    #[cfg(target_vendor = "apple")]
+    const ENTRY_FLAGS: libc::c_int =
+        libc::O_EVTONLY | libc::O_SYMLINK | libc::O_NONBLOCK | libc::O_CLOEXEC;
+    #[cfg(not(any(target_os = "linux", target_os = "android", target_vendor = "apple")))]
+    const ENTRY_FLAGS: libc::c_int =
+        libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC;
+
+    pub(super) fn stat_at(dir: &Dir, name: &OsStr) -> io::Result<std::fs::Metadata> {
+        let name = c_name(name)?;
+        let entry = open_at(dir.as_raw_fd(), &name, ENTRY_FLAGS, 0)
+            .map_err(|err| explain(dir, &name, err))?;
+        File::from(entry).metadata()
+    }
+
+    pub(super) fn remove_at(dir: &Dir, name: &OsStr, folder: bool) -> io::Result<()> {
+        let name = c_name(name)?;
+        let flags = if folder { libc::AT_REMOVEDIR } else { 0 };
+        #[expect(
+            unsafe_code,
+            reason = "`unlinkat` is the only way to remove a name under a folder handle. The \
+                      descriptor is one this module opened and still owns, and the name is a \
+                      NUL-terminated `CString` that outlives the call."
+        )]
+        let status = unsafe { libc::unlinkat(dir.as_raw_fd(), name.as_ptr(), flags) };
+        if status == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    }
+
+    pub(super) fn list(dir: &Dir) -> io::Result<Vec<super::Entry>> {
+        use std::os::fd::IntoRawFd;
+        // The walked folder may be an `O_PATH` handle, which cannot be read, so `.` beneath it is
+        // opened for reading. `.` is the folder itself and never a link.
+        let here = c_name(OsStr::new("."))?;
+        let readable = open_at(
+            dir.as_raw_fd(),
+            &here,
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC,
+            0,
+        )?;
+        #[expect(
+            unsafe_code,
+            reason = "`fdopendir`, `readdir` and `closedir` are the only way to list a folder from \
+                      a handle; `std::fs::read_dir` takes a path. The stream takes the descriptor \
+                      only when `fdopendir` succeeds, and is closed exactly once below. Each entry \
+                      `readdir` returns is read before the next call, its name as the \
+                      NUL-terminated string `d_name` is."
+        )]
+        unsafe {
+            let stream = libc::fdopendir(readable.as_raw_fd());
+            if stream.is_null() {
+                return Err(io::Error::last_os_error());
+            }
+            let _owned_by_stream = readable.into_raw_fd();
+            let mut entries = Vec::new();
+            let result = loop {
+                clear_errno();
+                let entry = libc::readdir(stream);
+                if entry.is_null() {
+                    let err = io::Error::last_os_error();
+                    break match err.raw_os_error() {
+                        Some(0) | None => Ok(()),
+                        Some(_) => Err(err),
+                    };
+                }
+                let name = std::ffi::CStr::from_ptr((*entry).d_name.as_ptr());
+                if matches!(name.to_bytes(), b"." | b"..") {
+                    continue;
+                }
+                let kind = match (*entry).d_type {
+                    libc::DT_DIR => super::Kind::Dir,
+                    libc::DT_REG => super::Kind::File,
+                    libc::DT_LNK => super::Kind::Link,
+                    libc::DT_UNKNOWN => kind_at(libc::dirfd(stream), name),
+                    _ => super::Kind::Other,
+                };
+                entries.push(super::Entry {
+                    name: OsStr::from_bytes(name.to_bytes()).to_owned(),
+                    kind,
+                });
+            };
+            libc::closedir(stream);
+            result.map(|()| entries)
+        }
+    }
+
+    /// What `name` under `dir` is, for a file system whose listing does not say. A name that
+    /// cannot be read is [`super::Kind::Other`].
+    fn kind_at(dir: libc::c_int, name: &std::ffi::CStr) -> super::Kind {
+        #[expect(
+            unsafe_code,
+            reason = "`fstatat` without following the last name reads what a listed name is. The \
+                      descriptor is the open listing's own, the name outlives the call, and the \
+                      out-parameter is a zeroed stack `stat` this call owns exclusively."
+        )]
+        let (status, stat) = unsafe {
+            let mut stat: libc::stat = std::mem::zeroed();
+            let status =
+                libc::fstatat(dir, name.as_ptr(), &raw mut stat, libc::AT_SYMLINK_NOFOLLOW);
+            (status, stat)
+        };
+        if status != 0 {
+            return super::Kind::Other;
+        }
+        match stat.st_mode & libc::S_IFMT {
+            libc::S_IFDIR => super::Kind::Dir,
+            libc::S_IFREG => super::Kind::File,
+            libc::S_IFLNK => super::Kind::Link,
+            _ => super::Kind::Other,
+        }
+    }
+
+    /// `errno` set to zero, so a `readdir` that returns nothing tells the end from an error.
+    fn clear_errno() {
+        #[expect(
+            unsafe_code,
+            reason = "the thread's `errno` is a thread-local `int` the C library hands out a \
+                      pointer to, valid for the thread's whole life"
+        )]
+        unsafe {
+            #[cfg(target_os = "linux")]
+            {
+                *libc::__errno_location() = 0;
+            }
+            #[cfg(target_os = "android")]
+            {
+                *libc::__errno() = 0;
+            }
+            #[cfg(target_vendor = "apple")]
+            {
+                *libc::__error() = 0;
+            }
+        }
+    }
+
     fn c_name(name: &OsStr) -> io::Result<CString> {
         CString::new(name.as_bytes()).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
     }
@@ -409,7 +657,7 @@ mod sys {
     use std::ffi::OsStr;
     use std::fs::File;
     use std::io;
-    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
     use std::os::windows::fs::OpenOptionsExt;
     use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
     use std::path::Path;
@@ -422,15 +670,19 @@ mod sys {
         FileRenameInformation, FileRenameInformationEx, NtCreateFile, NtSetInformationFile,
     };
     use windows_sys::Win32::Foundation::{
-        ERROR_INVALID_FUNCTION, ERROR_INVALID_PARAMETER, ERROR_NOT_SUPPORTED, HANDLE,
-        OBJ_CASE_INSENSITIVE, RtlNtStatusToDosError, UNICODE_STRING,
+        ERROR_INVALID_FUNCTION, ERROR_INVALID_PARAMETER, ERROR_NO_MORE_FILES, ERROR_NOT_SUPPORTED,
+        HANDLE, OBJ_CASE_INSENSITIVE, RtlNtStatusToDosError, UNICODE_STRING,
     };
     use windows_sys::Win32::Storage::FileSystem::{
-        BY_HANDLE_FILE_INFORMATION, DELETE, FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_REPARSE_POINT,
-        FILE_ATTRIBUTE_TAG_INFO, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
-        FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE,
-        FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_TRAVERSE, FILE_WRITE_DATA, FileAttributeTagInfo,
-        GetFileInformationByHandle, GetFileInformationByHandleEx, SYNCHRONIZE,
+        BY_HANDLE_FILE_INFORMATION, DELETE, FILE_ATTRIBUTE_DEVICE, FILE_ATTRIBUTE_DIRECTORY,
+        FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_REPARSE_POINT, FILE_ATTRIBUTE_TAG_INFO,
+        FILE_DISPOSITION_FLAG_DELETE, FILE_DISPOSITION_FLAG_POSIX_SEMANTICS, FILE_DISPOSITION_INFO,
+        FILE_DISPOSITION_INFO_EX, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
+        FILE_FULL_DIR_INFO, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_LIST_DIRECTORY,
+        FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_TRAVERSE,
+        FILE_WRITE_DATA, FileAttributeTagInfo, FileDispositionInfo, FileDispositionInfoEx,
+        FileFullDirectoryInfo, FileFullDirectoryRestartInfo, GetFileInformationByHandle,
+        GetFileInformationByHandleEx, SYNCHRONIZE, SetFileInformationByHandle,
     };
     use windows_sys::Win32::System::IO::IO_STATUS_BLOCK;
 
@@ -669,6 +921,168 @@ mod sys {
         }
     }
 
+    pub(super) fn stat_at(dir: &Dir, name: &OsStr) -> io::Result<std::fs::Metadata> {
+        let entry = open_at(
+            dir,
+            name,
+            FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+            FILE_OPEN,
+            FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+        )?;
+        File::from(entry).metadata()
+    }
+
+    pub(super) fn remove_at(dir: &Dir, name: &OsStr, folder: bool) -> io::Result<()> {
+        let kind = if folder {
+            FILE_DIRECTORY_FILE
+        } else {
+            FILE_NON_DIRECTORY_FILE
+        };
+        let entry = open_at(
+            dir,
+            name,
+            DELETE | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+            FILE_OPEN,
+            kind | FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+        )?;
+        let handle = entry.as_raw_handle() as HANDLE;
+        let posix = FILE_DISPOSITION_INFO_EX {
+            Flags: FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS,
+        };
+        #[expect(
+            unsafe_code,
+            reason = "`SetFileInformationByHandle` with a disposition class is how a name opened \
+                      beneath a handle is deleted. The handle is one this module owns, and each \
+                      struct is a stack local whose size is passed beside it."
+        )]
+        unsafe {
+            let mut ok = SetFileInformationByHandle(
+                handle,
+                FileDispositionInfoEx,
+                (&raw const posix).cast(),
+                u32::try_from(size_of::<FILE_DISPOSITION_INFO_EX>()).unwrap_or(u32::MAX),
+            );
+            // A file system with no POSIX delete, such as FAT, refuses the extended class, and the
+            // plain one deletes the name once the handle closes.
+            if ok == 0
+                && matches!(
+                    u32::try_from(io::Error::last_os_error().raw_os_error().unwrap_or(0)),
+                    Ok(ERROR_INVALID_PARAMETER | ERROR_NOT_SUPPORTED | ERROR_INVALID_FUNCTION)
+                )
+            {
+                let plain = FILE_DISPOSITION_INFO { DeleteFile: true };
+                ok = SetFileInformationByHandle(
+                    handle,
+                    FileDispositionInfo,
+                    (&raw const plain).cast(),
+                    u32::try_from(size_of::<FILE_DISPOSITION_INFO>()).unwrap_or(u32::MAX),
+                );
+            }
+            if ok == 0 {
+                return Err(io::Error::last_os_error());
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn list(dir: &Dir) -> io::Result<Vec<super::Entry>> {
+        // An empty name beneath a handle opens the handle's own folder again, here for listing.
+        let listing = open_at(
+            dir,
+            OsStr::new(""),
+            FILE_LIST_DIRECTORY | SYNCHRONIZE,
+            FILE_OPEN,
+            FILE_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+        )?;
+        let handle = listing.as_raw_handle() as HANDLE;
+        // `u64` cells, so every record is aligned for its 8-byte fields. 64 KiB per batch.
+        let mut buffer = vec![0_u64; 8 * 1024];
+        let bytes = u32::try_from(buffer.len() * 8).unwrap_or(u32::MAX);
+        let mut class = FileFullDirectoryRestartInfo;
+        let mut entries = Vec::new();
+        loop {
+            #[expect(
+                unsafe_code,
+                reason = "`GetFileInformationByHandleEx` with a directory class is how a folder is \
+                          listed from a handle. The handle is one this module owns, and the buffer \
+                          is a live allocation of exactly the size passed."
+            )]
+            let ok = unsafe {
+                GetFileInformationByHandleEx(handle, class, buffer.as_mut_ptr().cast(), bytes)
+            };
+            if ok == 0 {
+                let err = io::Error::last_os_error();
+                if err.raw_os_error() == i32::try_from(ERROR_NO_MORE_FILES).ok() {
+                    return Ok(entries);
+                }
+                return Err(err);
+            }
+            class = FileFullDirectoryInfo;
+            let base: *const u8 = buffer.as_ptr().cast();
+            let mut at = 0_usize;
+            loop {
+                #[expect(
+                    unsafe_code,
+                    reason = "each record starts inside the buffer the call filled, 8-byte \
+                              aligned, at the offset the record before it names, and its name is \
+                              `FileNameLength` bytes inside the same buffer. Every field is read \
+                              unaligned all the same."
+                )]
+                let (next, attributes, name) = unsafe {
+                    let record = base.add(at);
+                    let field =
+                        |offset: usize| std::ptr::read_unaligned(record.add(offset).cast::<u32>());
+                    let next = field(std::mem::offset_of!(FILE_FULL_DIR_INFO, NextEntryOffset));
+                    let attributes =
+                        field(std::mem::offset_of!(FILE_FULL_DIR_INFO, FileAttributes));
+                    let length = field(std::mem::offset_of!(FILE_FULL_DIR_INFO, FileNameLength));
+                    let start = record
+                        .add(std::mem::offset_of!(FILE_FULL_DIR_INFO, FileName))
+                        .cast::<u16>();
+                    let name: Vec<u16> = (0..length as usize / 2)
+                        .map(|unit| std::ptr::read_unaligned(start.add(unit)))
+                        .collect();
+                    (next, attributes, name)
+                };
+                let name = std::ffi::OsString::from_wide(&name);
+                if name != "." && name != ".." {
+                    let kind = kind_of(dir, &name, attributes);
+                    entries.push(super::Entry { name, kind });
+                }
+                if next == 0 {
+                    break;
+                }
+                at += next as usize;
+            }
+        }
+    }
+
+    /// What a listed name is. A reparse point is opened beneath the folder to read its tag, the
+    /// way the walk reads one, and an entry that cannot be opened is a link only by its tag.
+    fn kind_of(dir: &Dir, name: &OsStr, attributes: u32) -> super::Kind {
+        let folder = attributes & FILE_ATTRIBUTE_DIRECTORY != 0;
+        if attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+            let surrogate = open_at(
+                dir,
+                name,
+                FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                FILE_OPEN,
+                FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+            )
+            .and_then(|entry| refuse_surrogate(&entry));
+            if surrogate.is_err() {
+                return super::Kind::Link;
+            }
+        }
+        if folder {
+            super::Kind::Dir
+        } else if attributes & FILE_ATTRIBUTE_DEVICE != 0 {
+            super::Kind::Other
+        } else {
+            super::Kind::File
+        }
+    }
+
     /// [`super::link_refused`] when `handle` is a symbolic link or a junction.
     fn refuse_surrogate(handle: &OwnedHandle) -> io::Result<()> {
         let mut info = FILE_ATTRIBUTE_TAG_INFO {
@@ -863,6 +1277,109 @@ mod tests {
         assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
         let err = create_dir(&root.join("h").join("i")).expect_err("no parent");
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn removes_reads_and_lists_what_is_there() {
+        let (_dir, root) = scratch("entries");
+        std::fs::create_dir(root.join("d")).expect("folder");
+        std::fs::write(root.join("d").join("f.txt"), b"four").expect("file");
+        let mut listed = list(&root.join("d")).expect("a listing");
+        listed.push(list(&root).expect("the root's listing").remove(0));
+        assert_eq!(
+            listed,
+            [
+                Entry {
+                    name: "f.txt".into(),
+                    kind: Kind::File
+                },
+                Entry {
+                    name: "d".into(),
+                    kind: Kind::Dir
+                },
+            ]
+        );
+        assert_eq!(
+            metadata(&root.join("d").join("f.txt")).expect("stat").len(),
+            4
+        );
+        assert!(metadata(&root.join("d")).expect("stat").is_dir());
+        let err = metadata(&root.join("none")).expect_err("missing");
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        assert!(
+            remove_dir(&root.join("d")).is_err(),
+            "a folder that is not empty"
+        );
+        assert!(
+            remove_file(&root.join("d")).is_err(),
+            "a folder is not a file"
+        );
+        remove_file(&root.join("d").join("f.txt")).expect("removed");
+        assert!(list(&root.join("d")).expect("a listing").is_empty());
+        remove_dir(&root.join("d")).expect("removed");
+        assert!(!root.join("d").exists());
+        let err = remove_file(&root.join("d")).expect_err("gone");
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+    }
+
+    /// CVE-2: a removal, a stat and a listing each resolve their path once and act beneath a
+    /// handle, so a folder swapped for a link between the check and the act is not followed.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_removal_a_stat_and_a_listing_never_follow_a_planted_link() {
+        let (_dir, root) = scratch("swap");
+        let (_outside_dir, outside) = scratch("swap-outside");
+        std::fs::create_dir(outside.join("e")).expect("outside folder");
+        std::fs::write(outside.join("secret.txt"), b"secret").expect("outside file");
+        // The check saw a real folder at `d`, and then `d` became a link.
+        std::fs::create_dir(root.join("d")).expect("checked folder");
+        std::fs::remove_dir(root.join("d")).expect("swapped out");
+        let planted = plant_dir_link(&outside, &root.join("d"));
+        assert!(planted, "a symbolic link on Unix, or a junction on Windows");
+        if planted {
+            let through = root.join("d").join("secret.txt");
+            let err = remove_file(&through).expect_err("a removal through a link");
+            assert_eq!(err.to_string(), link_refused().to_string());
+            let err = remove_dir(&root.join("d").join("e")).expect_err("a removal through a link");
+            assert_eq!(err.to_string(), link_refused().to_string());
+            let err = metadata(&through).expect_err("a stat through a link");
+            assert_eq!(err.to_string(), link_refused().to_string());
+            let err = entry_metadata(&through).expect_err("a stat through a link");
+            assert_eq!(err.to_string(), link_refused().to_string());
+            let err = list(&root.join("d")).expect_err("a listing of a link");
+            assert_eq!(err.to_string(), link_refused().to_string());
+            assert!(outside.join("secret.txt").exists());
+            assert!(outside.join("e").exists());
+            // The link at the last name: a stat does not follow it, a stat of the entry reads it,
+            // a listing names it, and a removal takes the link and leaves its target.
+            let err = metadata(&root.join("d")).expect_err("a link at the last name");
+            assert_eq!(err.kind(), io::ErrorKind::NotFound);
+            assert!(
+                entry_metadata(&root.join("d"))
+                    .expect("the link")
+                    .is_symlink()
+            );
+            assert_eq!(
+                list(&root).expect("the root's listing"),
+                [Entry {
+                    name: "d".into(),
+                    kind: Kind::Link
+                }]
+            );
+            #[cfg(unix)]
+            remove_file(&root.join("d")).expect("the link removed");
+            #[cfg(windows)]
+            remove_dir(&root.join("d")).expect("the junction removed");
+            assert!(!root.join("d").exists());
+            assert!(outside.join("secret.txt").exists());
+        }
     }
 
     /// A link to `target` at `at`. On Windows a symbolic link needs a right most accounts lack, and
