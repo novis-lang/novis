@@ -17,11 +17,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use crate::resolve::{Origin, Override, Resolved};
-use crate::secret::Secret;
-
-/// What `rule:config/check-and-dump-audit-the-tree-offline` renders a secret's value as. Never the
-/// content, and never a fixed-width mask that would say how long it is.
-const REDACTED: &str = "<secret>";
+use crate::secret::{REDACTED, Secret};
 
 /// The directive that says who resolves an outbound destination, as [`leaves`] spells a dotted key.
 /// The value that gives the address question away is `crate::http`'s own word, so the tree and this

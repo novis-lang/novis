@@ -364,7 +364,12 @@ impl Request {
     /// One entry per scalar leaf, on [`get`](Self::get)'s rule: a table is not a value and a list
     /// has no rendering `set` would take back. § 7's secrets and the defaults are folded in for the
     /// same reason — a key this answers `None` for and `get` answers a value for would be two
-    /// readers disagreeing about what is in force — so `all` and `get` are one answer set.
+    /// readers disagreeing about what is in force — so `all` and `get` are one key set.
+    ///
+    /// **A secret directive's value is rendered [`REDACTED`](crate::secret::REDACTED)**, as the
+    /// dump renders it, whether a file or the tree itself put it in force
+    /// ([`is_secret_key`](crate::secret::is_secret_key)). A page or a log line that prints every
+    /// setting is the usual way a credential leaks, and `get` is the reader for the value.
     ///
     /// Cost: one `String` pair per key in force, about a hundred with nothing written, built per
     /// call and dropped by the caller.
@@ -379,6 +384,11 @@ impl Request {
         }
         for (key, value) in &self.overlay {
             out.insert(key.clone(), value.clone());
+        }
+        for (key, value) in &mut out {
+            if crate::secret::is_secret_key(key) {
+                crate::secret::REDACTED.clone_into(value);
+            }
         }
         out
     }

@@ -54,8 +54,9 @@
 //! [`Snapshot::retype`](crate::Snapshot) rebuilds the typed tree out of, so a content put into it
 //! would have to be redacted again by every reader that walks it — and the one that forgets writes a
 //! credential into a file an operator diffs. Carried beside it instead, a secret reaches exactly the
-//! readers that ask for it by name: [`apply`] puts it back onto a typed tree, `Core\Config`
-//! answers `db.main.password` with it, and the dump renders it `<secret>`. That is also why
+//! readers that ask for it by name: [`apply`] puts it back onto a typed tree, `Core\Config::get`
+//! answers `db.main.password` with it, and the dump and `Core\Config::all` render it `<secret>`
+//! ([`is_secret_key`]). That is also why
 //! [`apply`] is a second function rather than the tail of [`materialize`] — a snapshot deserializes
 //! the table more than once (a reload carries `Boot` values across and retypes), and each of those
 //! rounds has to put the secrets back without re-reading a file.
@@ -313,6 +314,37 @@ pub const SECRETS: &[SecretPair] = &[
         },
     },
 ];
+
+/// What `Core\Config::all` and the dump render a secret's value as. Never the content, and never
+/// a fixed-width mask that would say how long it is.
+pub const REDACTED: &str = "<secret>";
+
+/// Whether the dotted `key` is the value half of a row of [`SECRETS`] — `db.main.password`,
+/// `http.csrf_key` — whichever of the two spellings put it in force.
+///
+/// A `*` in a row's block matches exactly one segment, so `db.main.password` is one and
+/// `db.password` and `db.a.b.password` are not.
+#[must_use]
+pub fn is_secret_key(key: &str) -> bool {
+    SECRETS.iter().any(|pair| {
+        let Some(block) = key
+            .strip_suffix(pair.value)
+            .and_then(|head| head.strip_suffix('.'))
+        else {
+            return false;
+        };
+        let mut want = pair.block.split('.');
+        let mut have = block.split('.');
+        loop {
+            match (want.next(), have.next()) {
+                (None, None) => return true,
+                (Some("*"), Some(segment)) if !segment.is_empty() => {}
+                (Some(wanted), Some(segment)) if wanted == segment => {}
+                _ => return false,
+            }
+        }
+    })
+}
 
 /// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s cap on a secret file, in bytes.
 ///
@@ -573,7 +605,34 @@ fn exposed(path: &Path, key: &str, how: &str) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
-    use super::strip_one_newline;
+    use super::{is_secret_key, strip_one_newline};
+
+    /// Every row's value key is a secret key, its `_file` sibling and its neighbours are not, and
+    /// a `*` matches one segment only.
+    #[test]
+    fn a_secret_key_is_a_rows_value_half_with_one_segment_for_its_star() {
+        for key in [
+            "db.main.password",
+            "ldap.corp.password",
+            "mail.relay.password",
+            "http.client.proxy.password",
+            "http.csrf_key",
+            "cache.shared.password",
+        ] {
+            assert!(is_secret_key(key), "{key} is a secret directive");
+        }
+        for key in [
+            "db.main.password_file",
+            "db.main.driver",
+            "db.password",
+            "db..password",
+            "db.a.b.password",
+            "http.csrf_key_file",
+            "xhttp.csrf_key",
+        ] {
+            assert!(!is_secret_key(key), "{key} is not a secret directive");
+        }
+    }
 
     /// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s trimming, on both sides of the one rule it has: one newline goes, a second stays, and
     /// nothing else is touched — the space a password may legitimately end with least of all.
