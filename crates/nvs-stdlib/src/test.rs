@@ -1027,7 +1027,11 @@ const RESPONSE_CARD: ClassDoc = ClassDoc {
 
 /// [`RESPONSE`]'s first slot: the status the program declared, or `200`.
 const STATUS_SLOT: usize = 0;
-/// [`RESPONSE`]'s second slot: the bytes the program wrote.
+/// [`RESPONSE`]'s second slot: the bytes the program wrote, as a `bytes`.
+///
+/// Not a `string`, because a route may answer with `Core\Response::bytes` or
+/// `::sendFile`, and a test of such a route still reads its status and
+/// headers. The readers that return text ([`body_text`]) check the bytes.
 const BODY_SLOT: usize = 1;
 /// [`RESPONSE`]'s third slot: the answer's header lines, keyed by the
 /// lower-cased name, each a list of lines in the order the answer carries them
@@ -1228,7 +1232,8 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
           it set none. `body()` returns the text the program wrote, and `json()` and `jsonAs()` \
           decode it. `header()`, `headers()` and `cookies()` return the headers and cookies the \
           program set. A path that no route matches still gets an answer, because your program \
-          decides what to do with it.",
+          decides what to do with it. A body that is not text, such as a PDF file, also gets \
+          an answer. Then `body()`, `json()` and `jsonAs()` throw an error.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
@@ -1261,7 +1266,12 @@ const RESPONSE_BODY_DOC: MethodDoc = MethodDoc {
     ret: "Everything the program wrote with `echo`, in order. If the program wrote nothing, the \
           result is an empty string. If the program threw an error it did not catch, the result \
           is also an empty string, because the server sends no body for a failed request.",
-    errors: &[],
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The body is not valid UTF-8, so it is not a string. `Core\\Response::bytes` and \
+               `Core\\Response::sendFile` can write such a body. Test it with `status()` and \
+               `header()`.",
+    }],
 };
 
 /// `Core\Test\Response::header`'s reference card — `rule:core-api/reference-card`.
@@ -1331,6 +1341,10 @@ const RESPONSE_JSON_DOC: MethodDoc = MethodDoc {
                    An empty body throws this error too. The `Content-Type` header is not \
                    checked.",
         },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The body is not valid UTF-8, so it is not text.",
+        },
     ],
 };
 
@@ -1359,6 +1373,10 @@ const RESPONSE_JSON_AS_DOC: MethodDoc = MethodDoc {
                    empty body throws this error too. It is also thrown when a field is missing \
                    or has the wrong type. The `issues` list has one entry for each wrong field. \
                    The `Content-Type` header is not checked.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The body is not valid UTF-8, so it is not text.",
         },
         ErrorDoc {
             error: "RecursionError",
@@ -3020,7 +3038,7 @@ nvs_runtime::nvs_helper! {
                 &RESPONSE,
                 [
                     Value::int(500),
-                    Value::text(""),
+                    Value::bytes(nvs_runtime::NvsStr::new(b"")),
                     Value::array(nvs_runtime::NvsArray::new()),
                 ],
             ));
@@ -3030,15 +3048,10 @@ nvs_runtime::nvs_helper! {
         // making every test say so.
         let status = i64::from(completion.status.unwrap_or(200));
         let headers = answered_headers(&completion);
-        // The body is a `string`, so a route that answered with bytes that are
-        // not UTF-8 throws here and the test fails naming why.
-        let body = Value::text(std::str::from_utf8(&completion.output).map_err(|_| {
-            Fault::thrown(
-                "`Core\\Test`: the response body is not valid UTF-8, so it cannot be a string. \
-                 `Core\\Response::bytes` or `Core\\Response::sendFile` wrote it."
-                    .to_owned(),
-            )
-        })?);
+        // The body is kept as `bytes`, so a route that answered with bytes
+        // that are not UTF-8 still returns a response. `body`, `json` and
+        // `jsonAs` throw for them (`body_text`).
+        let body = Value::bytes(nvs_runtime::NvsStr::new(&completion.output));
         Ok(crate::instance::build(
             &RESPONSE,
             [
@@ -3104,9 +3117,16 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test\Response::body(): string` — the bytes the program wrote.
+    /// `Core\Test\Response::body(): string` — the bytes the program wrote, as
+    /// text.
+    ///
+    /// # Errors
+    ///
+    /// [`body_text`]'s `RuntimeError` for bytes that are not UTF-8.
     fn nvs_core_test_response_body(_ctx, args: [1]) {
-        response_slot(args, BODY_SLOT, "body")
+        let object = crate::instance::receiver(args[0], &RESPONSE, "body")?;
+        let body = crate::instance::slot(object, BODY_SLOT);
+        Ok(Value::text(body_text(&body, "body")?))
     }
 }
 
@@ -3218,6 +3238,27 @@ pub(crate) fn cookie_pair(line: &[u8]) -> Option<(&[u8], &[u8])> {
     (!name.is_empty()).then(|| (name, trim(&pair[equals + 1..])))
 }
 
+/// `body`, a [`BODY_SLOT`] value, as text, or the one `RuntimeError` every
+/// reader of `member` throws for bytes that are not UTF-8.
+///
+/// `body`, `json` and `jsonAs` share it, so a test that reads a PDF route's
+/// body through any of them sees the same message, naming the member it
+/// called.
+fn body_text<'a>(body: &'a Value, member: &str) -> Result<&'a str, Fault> {
+    // Unreachable from source: `nvs_core_test_request` fills the slot with a
+    // `bytes` and nothing else writes it.
+    let octets = body.as_bytes().ok_or_else(|| {
+        Fault::fatal(format!("{RESPONSE_NAME}::{member} found a non-`bytes` body slot"))
+    })?;
+    std::str::from_utf8(octets).map_err(|err| {
+        Fault::thrown(format!(
+            "{RESPONSE_NAME}::{member}(): the response body is not valid UTF-8 at byte {}, so it \
+             is not a string. Use `status()` and `header()` to test this response.",
+            err.valid_up_to()
+        ))
+    })
+}
+
 /// `body`, a [`BODY_SLOT`] value, as the text of the one JSON document
 /// `member` reads, or the `ParseError` `Core\Request`'s `json` and `jsonAs`
 /// throw for an empty body.
@@ -3225,14 +3266,9 @@ pub(crate) fn cookie_pair(line: &[u8]) -> Option<(&[u8], &[u8])> {
 /// The empty body is refused by name rather than left to the parser for
 /// `Core\Request`'s reason: `mixed` cannot tell "the program wrote nothing"
 /// from a body holding the document `null`, and the two must not read alike.
-/// The slot is a `string`, so its tag is the UTF-8 check and nothing walks
-/// the bytes a second time.
+/// Bytes that are not UTF-8 are [`body_text`]'s `RuntimeError` first.
 fn response_text<'a>(body: &'a Value, member: &str) -> Result<&'a str, Fault> {
-    // Unreachable from source: `nvs_core_test_request` fills the slot with a
-    // `string` and nothing else writes it.
-    let text = body.as_text().ok_or_else(|| {
-        Fault::fatal(format!("{RESPONSE_NAME}::{member} found a non-string body"))
-    })?;
+    let text = body_text(body, member)?;
     if text.is_empty() {
         let message = format!(
             "{RESPONSE_NAME}::{member}(): the program wrote no body, and no bytes are not the \
@@ -6396,9 +6432,9 @@ mod tests {
             let status = crate::instance::slot(object, STATUS_SLOT)
                 .as_int()
                 .expect("the status is an integer");
-            let body = crate::instance::slot(object, BODY_SLOT)
-                .as_text()
-                .expect("the body is a string")
+            let body = crate::instance::slot(object, BODY_SLOT);
+            let body = std::str::from_utf8(body.as_bytes().expect("the body is a `bytes`"))
+                .expect("the echo is UTF-8")
                 .to_owned();
             dropped(answered);
             (status, body)
@@ -6570,6 +6606,85 @@ mod tests {
             "a receiver that is not a response throws"
         );
         let _ = ctx.take_pending();
+    }
+
+    /// A route that answers with octets that are not UTF-8 — a PDF, an image —
+    /// still returns a response: its status reads, and only `body`, `json` and
+    /// `jsonAs` throw, each with one `RuntimeError` text.
+    // covers: Core\Test::request, Core\Test\Response::body, Core\Test\Response::json
+    #[test]
+    fn a_body_that_is_not_utf8_reads_its_status_and_only_its_text_readers_throw() {
+        /// A unit that answers `201` with a body that starts like a PDF and is
+        /// not UTF-8.
+        #[derive(Debug)]
+        struct Octets;
+
+        impl nvs_runtime::inproc::Answering for Octets {
+            fn answer(
+                &self,
+                _ctx: &mut Ctx,
+                _inbound: Box<nvs_runtime::Inbound>,
+            ) -> Result<nvs_runtime::host::Completion, String> {
+                Ok(nvs_runtime::host::Completion {
+                    ok: true,
+                    value: Value::null(),
+                    output: b"%PDF-1.7\n\xff\xfe".to_vec(),
+                    content_type: Some("application/pdf".into()),
+                    file_body: None,
+                    style_nonce: None,
+                    status: Some(201),
+                    headers: Vec::new(),
+                    error: None,
+                    wall: None,
+                    trace: Vec::new(),
+                })
+            }
+        }
+
+        let mut ctx = Ctx::buffered();
+        let args = [
+            Value::int(crate::router::method_case("GET").expect("a verb the roster names")),
+            Value::text("/document.pdf"),
+            Value::array(nvs_runtime::NvsArray::new()),
+            Value::null(),
+            Value::text(""),
+            Value::array(nvs_runtime::NvsArray::new()),
+        ];
+        let answered = nvs_runtime::inproc::scoped(&Octets, || {
+            nvs_runtime::call(nvs_core_test_request, &mut ctx, &args)
+        })
+        .expect("a body that is not UTF-8 is still a response");
+        for arg in args {
+            dropped(arg);
+        }
+
+        let status = nvs_runtime::call(nvs_core_test_response_status, &mut ctx, &[answered])
+            .expect("reading the status cannot fail");
+        assert_eq!(status.as_int(), Some(201), "the status the unit declared");
+        dropped(status);
+
+        assert!(
+            nvs_runtime::call(nvs_core_test_response_body, &mut ctx, &[answered]).is_err(),
+            "`body` throws for octets that are not UTF-8"
+        );
+        let from_body = ctx.take_pending().unwrap_or_default();
+        assert!(
+            from_body.contains("not valid UTF-8"),
+            "the error says why: {from_body}"
+        );
+        let no_depth = Value::uint(512);
+        assert!(
+            nvs_runtime::call(nvs_core_test_response_json, &mut ctx, &[answered, no_depth])
+                .is_err(),
+            "`json` throws for octets that are not UTF-8"
+        );
+        let from_json = ctx.take_pending().unwrap_or_default();
+        assert_eq!(
+            from_json.replace("::json", "::body"),
+            from_body,
+            "both readers throw the same error, each naming itself"
+        );
+        dropped(answered);
     }
 
     /// A unit that answers `body` under `content_type` with `rows` declared, or
