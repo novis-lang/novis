@@ -20,7 +20,10 @@ foreach ($strange as string $name) {
 
 // 3. Every name the environment has is read one thousand times, and each value is freed.
 // Memory use must stay flat.
-var $names = Core\Arr::keys(Core\Env::all());
+array<string> $names = [];
+foreach (Core\Arr::keys(Core\Env::all()) as tainted string $variable) {
+    $names[] = Core\Taint::assertTrusted($variable, 'the name is one this environment has');
+}
 uint $read = 0;
 uint $round = 0;
 while ($round < 1000) {

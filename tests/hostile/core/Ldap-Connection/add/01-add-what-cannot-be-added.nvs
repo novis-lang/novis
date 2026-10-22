@@ -57,7 +57,7 @@ foreach ($dns as string $dn) {
 echo '1 threw: ', $threw, "\n";
 
 // 2. No attributes, attribute names that are not names, and values the server owns.
-array<array<mixed>> $bad = [
+array<array<string>> $bad = [
     [],
     ['' => 'x', 'objectClass' => 'organizationalUnit'],
     ['bad name' => 'x', 'objectClass' => 'organizationalUnit'],
@@ -66,7 +66,7 @@ array<array<mixed>> $bad = [
     ['objectClass' => 'noSuchClass'],
 ];
 uint $refused = 0;
-foreach ($bad as array<mixed> $attributes) {
+foreach ($bad as array<string> $attributes) {
     try {
         $corp->add('OU=Bad,' . $unit, $attributes);
     } catch (Throwable $error) {
