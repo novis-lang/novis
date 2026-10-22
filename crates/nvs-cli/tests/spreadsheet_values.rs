@@ -22,6 +22,11 @@ fn scratch(case: &str) -> PathBuf {
 /// Runs `body` after the `use` lines in the case's directory, with `extra` arguments before the
 /// program, and returns its stdout, failing the test on a non-zero exit.
 fn run_in(dir: &Path, extra: &[&str], body: &str) -> String {
+    String::from_utf8(bytes_in(dir, extra, body)).expect("the output is UTF-8")
+}
+
+/// As [`run_in`], and returns stdout as bytes, for a program that writes a binary body.
+fn bytes_in(dir: &Path, extra: &[&str], body: &str) -> Vec<u8> {
     let program = format!(
         "<?nvs\nuse Novis\\Spreadsheet\\Cell;\nuse Novis\\Spreadsheet\\Export;\nuse Novis\\Spreadsheet\\Formula;\nuse Novis\\Spreadsheet\\Reader;\nuse Novis\\Spreadsheet\\Style;\nuse Novis\\Spreadsheet\\Template;\nuse Novis\\Spreadsheet\\Workbook;\n{body}"
     );
@@ -41,7 +46,7 @@ fn run_in(dir: &Path, extra: &[&str], body: &str) -> String {
         "the program runs: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    String::from_utf8(out.stdout).expect("the output is UTF-8")
+    out.stdout
 }
 
 /// Runs `body` with no `nvs.toml` and no request.
@@ -148,17 +153,26 @@ fn a_download_sends_the_export_as_the_body() {
         &["--request", "request.nvsr"],
         r#"
 Workbook::fromRows([["order" => 1042, "note" => "=1+2"]])->download("orders.csv");
+"#,
+    );
+    assert_eq!(out, "order,note\n1042,'=1+2\n");
+
+    // A workbook is not UTF-8, so `Core\Out::capture` cannot read it back. The program writes
+    // the expected bytes and then the download, and the two halves of its output must match.
+    let out = bytes_in(
+        &dir,
+        &["--request", "request.nvsr"],
+        r#"
 var $design = Workbook::createInMemory();
 $design->sheet("Invoice")->add(["{{shop}}"]);
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
-bytes $expected = Template::open($template)->fill(["shop" => "Shop"])->bytes();
-var $sent = Core\Out::capture(fn (): void => {
-    Template::open($template)->fill(["shop" => "Shop"])->download("Rechnung März \"1\".xlsx");
-});
-echo ($sent as string as bytes) == $expected ? "same" : "different", "\n";
+Core\Response::bytes(Template::open($template)->fill(["shop" => "Shop"])->bytes(), "application/octet-stream");
+Template::open($template)->fill(["shop" => "Shop"])->download("Rechnung März \"1\".xlsx");
 "#,
     );
-    assert_eq!(out, "order,note\n1042,'=1+2\nsame\n");
+    let (expected, sent) = out.split_at(out.len() / 2);
+    assert!(!expected.is_empty(), "the program wrote the workbook");
+    assert_eq!(expected, sent, "the download sends the filled workbook");
 }
 
 /// A style's fields land in `xl/styles.xml` as one cell format, equal fields give equal keys, a

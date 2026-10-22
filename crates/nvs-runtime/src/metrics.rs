@@ -1248,8 +1248,9 @@ fn empty(kind: Kind, buckets: &'static [f64]) -> Value {
 /// methods are case-sensitive and `get` is not `GET`.
 fn method_label(method: &str) -> &str {
     match method {
-        "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "CONNECT" | "OPTIONS" | "TRACE"
-        | "PATCH" => method,
+        "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "CONNECT" | "OPTIONS" | "TRACE" | "PATCH" => {
+            method
+        }
         _ => "other",
     }
 }
@@ -1355,9 +1356,9 @@ mod tests {
     /// keeps answering** — which is the half that separates this from eviction.
     #[test]
     fn a_new_series_past_max_series_is_refused_and_the_old_ones_survive() {
-        // Three seeded members, so a bound of four leaves room for exactly one.
-        let mut registry = Registry::new(4);
-        assert_eq!(registry.len(), 3);
+        // Four seeded members, so a bound of five leaves room for exactly one.
+        let mut registry = Registry::new(5);
+        assert_eq!(registry.len(), 4);
 
         registry
             .increment(
@@ -1366,7 +1367,7 @@ mod tests {
                 &[("method", "GET"), ("status", "200"), ("route", "home")],
             )
             .expect("the first request series fits under the bound");
-        assert_eq!(registry.len(), 4);
+        assert_eq!(registry.len(), 5);
 
         let refused = registry
             .increment(
@@ -1379,7 +1380,7 @@ mod tests {
             refused,
             Refused::Cardinality {
                 name: "nvs_requests_total".to_owned(),
-                max_series: 4,
+                max_series: 5,
             }
         );
         assert_eq!(refused.metric(), "nvs_requests_total");
@@ -1387,7 +1388,7 @@ mod tests {
 
         // Refused, not evicted: the accepted series is untouched and still
         // accepts writes, and the refused one was never created.
-        assert_eq!(registry.len(), 4);
+        assert_eq!(registry.len(), 5);
         registry
             .increment(
                 "nvs_requests_total",
@@ -1417,8 +1418,8 @@ mod tests {
     /// arrive: the rest are counted, not keyed.
     #[test]
     fn refusals_past_refused_names_are_counted_in_one_bucket() {
-        // Three seeded members fill a bound of three, so every new name is refused.
-        let mut registry = Registry::new(3);
+        // Four seeded members fill a bound of four, so every new name is refused.
+        let mut registry = Registry::new(4);
         let sent = REFUSED_NAMES + 40;
         for n in 0..sent {
             registry
@@ -1432,7 +1433,7 @@ mod tests {
         assert_eq!(registry.refusals().len(), REFUSED_NAMES);
         assert_eq!(registry.refusals().get("app_hits_0"), Some(&2));
         assert_eq!(registry.refused_unnamed(), 40);
-        assert_eq!(registry.len(), 3);
+        assert_eq!(registry.len(), 4);
     }
 
     /// § 3: a name is fixed to one kind on first use, and this module fixes its
@@ -1537,7 +1538,7 @@ mod tests {
             registry.read("nvs_requests_total", &unmatched),
             Some(&Value::Counter(1))
         );
-        assert_eq!(registry.len(), 3 + 4);
+        assert_eq!(registry.len(), 4 + 4);
     }
 
     /// `rule:observability/default-series`: a verb outside the nine standard

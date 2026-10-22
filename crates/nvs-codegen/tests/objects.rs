@@ -30,8 +30,8 @@ class Animal {
 class Dog extends Animal {
     public string $sound;
     public function constructor(string $animalName) {
-        parent::constructor($animalName, 4);
         $this->sound = \"woof\";
+        parent::constructor($animalName, 4);
     }
     public function speak(): string {
         return $this->sound;

@@ -1359,9 +1359,11 @@ fn sessions(store: &Store, backend: &str) -> String {
     )
 }
 
-/// An entry file that starts a session, and prints `started`, or `refused`
-/// when `Core\Session::start` throws.
-const SESSIONED: &str = "<?nvs\ntry {\n    Core\\Session::start();\n    echo \"started\";\n} \
+/// An entry file that starts a session and writes one value to it, and prints
+/// `started`, or `refused` when `Core\Session::start` throws. The write is what
+/// makes a record: a session nobody writes leaves none.
+const SESSIONED: &str = "<?nvs\ntry {\n    Core\\Session::start();\n    \
+                         Core\\Session::set(\"seen\", true);\n    echo \"started\";\n} \
                          catch (RuntimeError $refused) {\n    echo \"refused\";\n}\n";
 
 /// `Core\Session::start` reads `[session]` from the snapshot its request

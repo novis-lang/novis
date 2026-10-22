@@ -19,8 +19,16 @@ foreach ($values as string $value) {
 // 2. Bad names, and the headers the server writes, such as `Content-Length`, in any case.
 // Each call should throw a `LogicError`.
 array<string> $names = [
-    '', 'X Note', 'X-Note:', 'Überschrift', 'Content-Type', 'CONTENT-type',
-    'Content-Length', 'transfer-encoding', 'Connection', 'UPGRADE',
+    '',
+    'X Note',
+    'X-Note:',
+    'Überschrift',
+    'Content-Type',
+    'CONTENT-type',
+    'Content-Length',
+    'transfer-encoding',
+    'Connection',
+    'UPGRADE',
 ];
 foreach ($names as string $name) {
     try {

@@ -1616,6 +1616,10 @@ mod tests {
     /// inside it may be `tainted`. `Core\Ldap\Dn`'s `toString` and `rdnValue`
     /// are on it for the same reason: `of` and `child` launder a value into a
     /// `Dn`, and the text it gives back must not leave the DN sink unmarked.
+    /// `Core\Storage::get` is on it because a stored value is whatever any
+    /// earlier request wrote. `Core\Random\Seeded`'s `bytes` and `token` are on
+    /// it because their output is predictable, and the mark is what keeps it
+    /// out of a parameter that takes a key or a token.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1735,6 +1739,9 @@ mod tests {
                     "tainted bytes".to_owned(),
                 ),
                 (r"Core\Net\Stream", "read", "tainted bytes".to_owned()),
+                // Seeded output is predictable, so a key or a token refuses it.
+                (r"Core\Random\Seeded", "bytes", "tainted bytes".to_owned()),
+                (r"Core\Random\Seeded", "token", "tainted string".to_owned()),
                 (r"Core\Request", "body", "tainted string".to_owned()),
                 (r"Core\Request", "bytes", "tainted bytes".to_owned()),
                 (
@@ -1807,6 +1814,8 @@ mod tests {
                     "text",
                     "null|tainted string".to_owned(),
                 ),
+                // A stored value is whatever the program put there, from any source.
+                (r"Core\Storage", "get", "null|tainted bytes".to_owned()),
                 (
                     r"Core\Xml\Node",
                     "attributes",
@@ -1836,7 +1845,8 @@ mod tests {
              whole, the two readers of the captures the matched route filled, the captures \
              of the mount serving the request, the two payloads a connection's peer \
              sent, what a socket the program opened itself read back, what one \
-             datagram carried, the names and octets read out of an archive, and \
+             datagram carried, the names and octets read out of an archive, a stored \
+             value read back, the two draws of a seeded generator, and \
              the strings a node of a parsed document answers with, its \
              namespace among them. \
              `content()` is not one of them and is not a gap: \
@@ -2595,7 +2605,8 @@ mod tests {
     /// `Core\Task::map`'s callback is a written signature like every other
     /// one, so what the member hands it — the value and the key — reads back
     /// off the seeded row rather than out of a variable name beside an opaque
-    /// `callable`.
+    /// `callable`. The key is the type variable `CoreTy::Key` lowers to, so a
+    /// call whose array came from outside hands the callback a `tainted string`.
     #[test]
     fn a_callback_parameter_lowers_to_the_signature_the_row_writes() {
         let mut interner = TypeInterner::new();
@@ -2613,9 +2624,10 @@ mod tests {
         assert_eq!(interner.describe(sig.params[0]), "array<T>");
         assert_eq!(
             interner.describe(sig.params[1]),
-            "callable(T, string): U",
+            "callable(T, #key): U",
             "`rule:types/callable-signature`: the row says what the callback \
-             receives, so the checker can place a literal against it"
+             receives, so the checker can place a literal against it. The key \
+             is the key variable, which each call binds to `string` or `tainted string`"
         );
         assert_eq!(interner.describe(sig.return_ty), "array<U>");
         // Distinct from a bare `callable` all the same: that one is the top of
@@ -2662,6 +2674,9 @@ mod tests {
     /// had — the one property the whole `?T` half of `rule:expressions/nullable-conversion` rests on, since
     /// a registry row's `?string` and a source-written `?string` have to be
     /// one interned id for `??` and assignability to meet a single shape.
+    /// `Core\Arr::firstKey` returns `?` of the key variable, which each call
+    /// binds to `string` or `tainted string`. The `null|T` union is the same
+    /// one either way.
     #[test]
     fn a_nullable_return_is_the_same_union_a_source_written_one_interns_to() {
         let mut interner = TypeInterner::new();
@@ -2676,10 +2691,10 @@ mod tests {
         )
         .expect("Core\\Arr::firstKey is registered");
         let null = interner.null();
-        let string = interner.string();
-        let expected = interner.make_union([null, string]);
+        let key = interner.type_var(nvs_stdlib::registry::KEY_VAR);
+        let expected = interner.make_union([null, key]);
         assert_eq!(sig.return_ty, expected);
-        assert_eq!(interner.describe(sig.return_ty), "string|null");
+        assert_eq!(interner.describe(sig.return_ty), "null|#key");
     }
 
     /// `CoreTy::SingleValueInt` inside an option's union interns to exactly the
