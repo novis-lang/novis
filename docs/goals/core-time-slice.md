@@ -6,7 +6,7 @@ context: [docs/rules/http-server/a-requests-blast-radius-is-bounded-at-four-tier
 stages:
   - id: 1
     title: "the slice clock: a core publishes its turn, and a long turn's request is asked to yield"
-    status: open
+    status: done
     context: [crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/watchdog.rs, crates/nvs-runtime/src/ctx/mod.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-cli/src/serve.rs, crates/nvs-ext/src/call.rs]
     extra:
       context:
@@ -100,21 +100,25 @@ lengthen the constant to 20 ms and write the measured trade-off in the new rule.
 **One slice thread per process, which sleeps while no core is in a turn.** It keeps an epoch counter
 that ticks every 5 ms while any core is busy. A core stores the current epoch in its own slot when it
 resumes a task (`crates/nvs-host/src/scheduler.rs:1024`) and clears the slot when the turn ends
-(`crates/nvs-host/src/scheduler.rs:1112`): one relaxed load and one relaxed store, no allocation and no
-reference-count change on the resume path. A slot two epochs old has run 10 ms or more, and the thread
+(`crates/nvs-host/src/scheduler.rs:1112`): a relaxed load of the epoch, a sequentially consistent store
+into the slot and a sequentially consistent load of the parked flag, no allocation and no
+reference-count change on the resume path. The store and load are not relaxed, because with relaxed
+ordering the core and the parking thread can each miss the other and the thread sleeps through a turn
+that never ends. A slot two epochs old has run 10 ms or more, and the thread
 raises the yield bit on the request running there. With every slot clear the thread parks, and the
 core that starts the next turn unparks it, so an idle server wakes no thread. This is the wasm guest's
 epoch pattern (`crates/nvs-ext/src/call.rs:753`), not the watchdog's 500 ms sweep, which reads every
 core's thread clock and is twenty times too coarse (`crates/nvs-host/src/watchdog.rs:215`). The thread
-lives in a new `crates/nvs-host/src/slice.rs` and is started where the watchdog is
-(`crates/nvs-cli/src/serve.rs:751`, and for `nvs run` at `crates/nvs-cli/src/main.rs:2239`).
+lives in `crates/nvs-host/src/slice.rs` and is started where the watchdog is, then handed to it with
+`Watchdog::slice_with`, so every thread that registers takes a seat: each core, the `nvs run` thread
+and a worker core that adopts the watchdog.
 
-**The thread finds the running request through the record the watchdog already keeps.**
-`watchdog::switch_to` is called before every resume with the task's tree
-(`crates/nvs-host/src/watchdog.rs:510`), and each published tree has a `SafepointView`
-(`crates/nvs-host/src/watchdog.rs:245`). If that record is thread-local only, the core's slot carries
-the running tree's index in the same store as the epoch. Safe default if neither fits in one word: two
-relaxed stores, and the cost written in the module doc.
+**The thread finds the running request through the record the watchdog already keeps.** A slot holds
+the epoch alone. Its raise locks the watchdog's state, finds the registration's publications, and
+raises `YIELD` on the one whose `Charge` has its running bit set, which is the tree
+`watchdog::switch_to` named last (`Shared::ask_to_yield` in `crates/nvs-host/src/watchdog.rs`). The
+lock is taken only for an old slot, at most once per tick per busy core. A thread with no per-thread
+clock publishes nothing, so it gets no seat.
 
 **The yield is a new safepoint bit, `YIELD`, the next free high bit.** Bit 1 stays unused, as the flag
 set's doc explains (`crates/nvs-runtime/src/ctx/mod.rs:233`). The bit is the request tree's like every
@@ -184,12 +188,12 @@ The scheduler gains one waiting reason it already documents.
 **Does:** a request that has run 10 ms has `YIELD` raised on its tree's word. Stage 1 only lowers it
 again at the safepoint, so nothing yields yet and every existing test stays green.
 
-- [ ] `SafepointFlags::YIELD`, with a doc that says who raises it and why bit 1 stays unused. `crates/nvs-runtime/src/ctx/mod.rs:237`
-- [ ] `crates/nvs-host/src/slice.rs`: the epoch thread, one slot per core, park while every slot is clear, raise `YIELD` through the running tree's `SafepointView` on a slot two epochs old. `crates/nvs-host/src/slice.rs:1`, `crates/nvs-host/src/watchdog.rs:245`, `crates/nvs-host/src/watchdog.rs:510`
-- [ ] The scheduler stores the epoch at each resume and clears it at the end of the turn. `crates/nvs-host/src/scheduler.rs:1024`, `crates/nvs-host/src/scheduler.rs:1112`
-- [ ] `nvs serve` and `nvs run` start the slice thread beside the watchdog. `crates/nvs-cli/src/serve.rs:751`, `crates/nvs-cli/src/main.rs:2239`
-- [ ] `nvs_safepoint` lowers `YIELD` with the housekeeping bits for now. `crates/nvs-runtime/src/ctx/safepoint.rs:869`
-- [ ] Rust tests: a slot two epochs old is raised, a short turn is not, the thread parks with every core idle and wakes on the next turn. `crates/nvs-host/src/slice.rs:1`
+- [x] `SafepointFlags::YIELD`, with a doc that says who raises it and why bit 1 stays unused. `crates/nvs-runtime/src/ctx/mod.rs:237`
+- [x] `crates/nvs-host/src/slice.rs`: the epoch thread, one slot per core, park while every slot is clear, raise `YIELD` through the running tree's `SafepointView` on a slot two epochs old. `crates/nvs-host/src/slice.rs:1`, `crates/nvs-host/src/watchdog.rs:245`, `crates/nvs-host/src/watchdog.rs:510`
+- [x] The scheduler stores the epoch at each resume and clears it at the end of the turn. `crates/nvs-host/src/scheduler.rs:1024`, `crates/nvs-host/src/scheduler.rs:1112`
+- [x] `nvs serve` and `nvs run` start the slice thread beside the watchdog. `crates/nvs-cli/src/serve.rs:751`, `crates/nvs-cli/src/main.rs:2239`
+- [x] `nvs_safepoint` lowers `YIELD` with the housekeeping bits for now. `crates/nvs-runtime/src/ctx/safepoint.rs:869`
+- [x] Rust tests: a slot two epochs old is raised, a short turn is not, the thread parks with every core idle and wakes on the next turn. `crates/nvs-host/src/slice.rs:1`
 
 ### 2. the yield: the request gives its core back behind readiness, and neighbours run
 
@@ -253,20 +257,28 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new. Nothing is built. The comparison bench's `loop` row records the stall as `no` for
-Novis (`benches/compare.json`, 2026-10-21).
+Stage 1 is done. `SafepointFlags::YIELD` is bit 8. `nvs_host::SliceClock` (`crates/nvs-host/src/slice.rs`)
+ticks every 5 ms while a seat is in a turn and parks with every slot clear. `Watchdog::slice_with`
+gives every registration with a meter a seat, and its raise is `Shared::ask_to_yield`, which raises
+`YIELD` on the publication whose charge is running. `Scheduler::run` stores the epoch before each
+resume and puts back the outer turn at its end. `nvs serve` and `nvs run` start the clock. The safepoint
+lowers `YIELD` with the housekeeping bits, so nothing yields yet. The six `slice::tests` pass. The
+resume path's slot store and parked load are `SeqCst`, not relaxed, and the standing decision now says
+why. No test is expected to go red.
+
+The sweep's red items were stale: `env-secret-proofs`'s last log exits 0, and the nightly `proofs`
+jobs failed on the covariant and union-types pages, which `b3ed92165` fixed (`bun nv site --check
+snippets stale questions prose` is green at HEAD).
 
 ### Next
 
-**Stage 1, one group**, on `crates/nvs-host/src/scheduler.rs`, the new `crates/nvs-host/src/slice.rs`
-and `crates/nvs-runtime/src/ctx/mod.rs`. No gate.
+**Stage 2, one group**, on `crates/nvs-runtime/src/ctx/safepoint.rs`, `crates/nvs-runtime/src/host.rs`,
+`crates/nvs-host/src/group.rs` and `crates/nvs-host/src/scheduler.rs`. No gate.
 
-- [ ] `SafepointFlags::YIELD`. `crates/nvs-runtime/src/ctx/mod.rs:237`
-- [ ] The slice thread and its slots. `crates/nvs-host/src/slice.rs:1`, `crates/nvs-host/src/watchdog.rs:510`
-- [ ] Store and clear the epoch around each turn. `crates/nvs-host/src/scheduler.rs:1024`, `crates/nvs-host/src/scheduler.rs:1112`
-- [ ] Start the thread in `nvs serve` and `nvs run`. `crates/nvs-cli/src/serve.rs:751`, `crates/nvs-cli/src/main.rs:2239`
-- [ ] Lower `YIELD` at the safepoint for now. `crates/nvs-runtime/src/ctx/safepoint.rs:869`
-- [ ] The slice thread's Rust tests. `crates/nvs-host/src/slice.rs:1`
+- [ ] `Host::yield_slice`, and a `YIELD` branch in `safepoint_slow_path` that lowers the bit and calls it inside a `HelperFrame`. `crates/nvs-runtime/src/host.rs:630`, `crates/nvs-runtime/src/ctx/safepoint.rs:912`, `crates/nvs-runtime/src/abi.rs:408`
+- [ ] `SchedulerHost::yield_slice`: a wake and a park on a reactor core, `Waiting::Yielded` with no reactor. `crates/nvs-host/src/group.rs:150`, `crates/nvs-host/src/block_on.rs:256`, `crates/nvs-host/src/scheduler.rs:188`
+- [ ] Rust test: an I/O-parked task runs between the slices of a task that never waits. `crates/nvs-host/src/scheduler.rs:1904`
+- [ ] Rust test on one worker beside `a_runaway_then_an_answer`. `crates/nvs-cli/src/serve.rs:5389`
 
 ### Backlog
 
