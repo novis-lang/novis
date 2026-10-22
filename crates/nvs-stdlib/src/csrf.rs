@@ -96,7 +96,7 @@
 //! "no API exposes the raw value" for this entry.
 
 use nvs_runtime::csrf::{Key, NONCE_LEN};
-use nvs_runtime::{Fault, NvsStr, Value};
+use nvs_runtime::{Fault, Value};
 
 use crate::registry::{
     ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -315,7 +315,7 @@ nvs_runtime::nvs_helper! {
             rng.fill_bytes(&mut nonce);
         });
         let token = key.issue(&nonce, session, "Core\\Csrf::issue")?;
-        Ok(Value::str(NvsStr::new(token.as_bytes())))
+        Ok(Value::text(&token))
     }
 }
 
@@ -343,6 +343,7 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
+    use nvs_runtime::NvsStr;
     use nvs_runtime::csrf::KEY_LEN;
 
     use super::*;
@@ -406,8 +407,8 @@ mod tests {
     fn the_member_issues_a_token_its_own_verify_accepts_and_never_repeats() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let key = Value::bytes(NvsStr::new(&[7_u8; KEY_LEN]));
-        let session = Value::str(NvsStr::new(b"sid-ada"));
-        let other = Value::str(NvsStr::new(b"sid-grace"));
+        let session = Value::text("sid-ada");
+        let other = Value::text("sid-grace");
 
         let first = nvs_runtime::call(nvs_core_csrf_issue, &mut ctx, &[session, key])
             .expect("a short identifier seals");
@@ -470,8 +471,8 @@ mod tests {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let key = Value::bytes(NvsStr::new(&[7_u8; KEY_LEN]));
         let retired = Value::bytes(NvsStr::new(&[3_u8; KEY_LEN]));
-        let session = Value::str(NvsStr::new(b"sid-ada"));
-        let elsewhere = Value::str(NvsStr::new(b"sid-grace"));
+        let session = Value::text("sid-ada");
+        let elsewhere = Value::text("sid-grace");
 
         let issued = |ctx: &mut nvs_runtime::Ctx, session: Value, key: Value| {
             nvs_runtime::call(nvs_core_csrf_issue, ctx, &[session, key])
@@ -481,10 +482,10 @@ mod tests {
         let text = mine.as_text().expect("a token is a `string`").to_owned();
 
         let forgeries = [
-            Value::str(NvsStr::new(b"")),
-            Value::str(NvsStr::new(b"not a token at all !!")),
-            Value::str(NvsStr::new(&text.as_bytes()[..text.len() - 1])),
-            Value::str(NvsStr::new(format!("{text}A").as_bytes())),
+            Value::text(""),
+            Value::text("not a token at all !!"),
+            Value::text(&text[..text.len() - 1]),
+            Value::text(&format!("{text}A")),
             issued(&mut ctx, elsewhere, key),
             issued(&mut ctx, session, retired),
         ];

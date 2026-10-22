@@ -716,8 +716,8 @@ pub(crate) fn deliver_from_other_cores(ctx: &Ctx) {
 #[must_use]
 pub fn publish_text(topic: &str, text: &str) -> u64 {
     let mut publisher = Ctx::buffered();
-    let name = Value::str(nvs_runtime::NvsStr::new(topic.as_bytes()));
-    let payload = Value::str(nvs_runtime::NvsStr::new(text.as_bytes()));
+    let name = Value::text(topic);
+    let payload = Value::text(text);
     let reached = nvs_runtime::call(nvs_core_topic_publish, &mut publisher, &[name, payload]);
     #[expect(
         unsafe_code,
@@ -823,8 +823,8 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use nvs_runtime::{
-        Closing, Ctx, EventStreamDoor, INBOX_CAP, NvsFn, NvsStr, PeerError, PeerFrame, PeerSocket,
-        Value, budget,
+        Closing, Ctx, EventStreamDoor, INBOX_CAP, NvsFn, PeerError, PeerFrame, PeerSocket, Value,
+        budget,
     };
 
     use super::{
@@ -889,7 +889,7 @@ mod tests {
 
     /// One `subscribe`/`unsubscribe` call, with the name as an argument.
     fn call(member: NvsFn, ctx: &mut Ctx, topic: &str) -> Result<Value, i32> {
-        let name = Value::str(NvsStr::new(topic.as_bytes()));
+        let name = Value::text(topic);
         let answered = nvs_runtime::call(member, ctx, &[name]);
         #[expect(
             unsafe_code,
@@ -1031,8 +1031,8 @@ mod tests {
     /// One `publish` call, with the name and a text payload as arguments, and
     /// the count it answered.
     fn publish(ctx: &mut Ctx, topic: &str, text: &str) -> Result<u64, i32> {
-        let name = Value::str(NvsStr::new(topic.as_bytes()));
-        let payload = Value::str(NvsStr::new(text.as_bytes()));
+        let name = Value::text(topic);
+        let payload = Value::text(text);
         let answered = nvs_runtime::call(nvs_core_topic_publish, ctx, &[name, payload]);
         #[expect(
             unsafe_code,

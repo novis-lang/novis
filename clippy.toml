@@ -6,4 +6,5 @@ disallowed-methods = [
     { path = "std::str::from_utf8_unchecked", reason = "bytes become text only after a UTF-8 check (rule:types/string-is-utf8)" },
     { path = "std::str::from_utf8_unchecked_mut", reason = "bytes become text only after a UTF-8 check (rule:types/string-is-utf8)" },
     { path = "std::string::String::from_utf8_unchecked", reason = "bytes become text only after a UTF-8 check (rule:types/string-is-utf8)" },
+    { path = "nvs_runtime::value::Value::str", reason = "a string value is made from bytes only after a UTF-8 check: use Value::text for a &str (rule:types/string-is-utf8)" },
 ]

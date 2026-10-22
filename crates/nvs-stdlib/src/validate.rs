@@ -831,7 +831,7 @@ mod tests {
     // covers: Core\Validate::isAscii
     #[test]
     fn is_ascii_is_true_exactly_when_every_character_is_one_byte() {
-        use nvs_runtime::{Ctx, NvsStr, OutputSink, call};
+        use nvs_runtime::{Ctx, OutputSink, call};
 
         let ask = |subject: Value| {
             let mut ctx = Ctx::new(OutputSink::Sink);
@@ -851,7 +851,7 @@ mod tests {
             "a日b",
             "🙂",
         ] {
-            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let subject = Value::text(text);
             let answer = ask(subject).expect("`isAscii` answers a `string` without throwing");
             assert_eq!(
                 answer.as_bool(),
@@ -881,10 +881,10 @@ mod tests {
     // covers: Core\Validate::isIp
     #[test]
     fn is_ip_takes_the_family_its_version_names_and_nothing_malformed() {
-        use nvs_runtime::{Ctx, NvsStr, OutputSink, call};
+        use nvs_runtime::{Ctx, OutputSink, call};
 
         let ask = |text: &str, version: Value| {
-            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let subject = Value::text(text);
             let mut ctx = Ctx::new(OutputSink::Sink);
             let answer = call(nvs_core_validate_is_ip, &mut ctx, &[subject, version]);
             #[expect(
@@ -942,7 +942,7 @@ mod tests {
     // covers: Core\Validate::isPrintable
     #[test]
     fn is_printable_is_false_exactly_where_a_control_character_sits() {
-        use nvs_runtime::{Ctx, NvsStr, OutputSink, call};
+        use nvs_runtime::{Ctx, OutputSink, call};
 
         let ask = |subject: Value| {
             let mut ctx = Ctx::new(OutputSink::Sink);
@@ -970,7 +970,7 @@ mod tests {
             ("abc\t", false),
             ("\x1bcafé", false),
         ] {
-            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let subject = Value::text(text);
             let answer = ask(subject).expect("`isPrintable` answers a `string` without throwing");
             assert_eq!(answer.as_bool(), Some(want), "`isPrintable({text:?})`");
             #[expect(

@@ -2017,7 +2017,7 @@ impl nvs_server::Fires for Scheduled {
         // `Core\Script::args()` — there is no scheduler-specific accessor.
         // Ownership: `NvsStr::new` makes the one reference `Isolate::new`
         // consumes, so nothing here releases anything.
-        let args = Value::str(nvs_runtime::NvsStr::new(entry.name().as_bytes()));
+        let args = Value::text(entry.name());
         // `Output::Capture` because a scheduled run's `echo` is its own captured
         // output rather than this process's stdout (`rule:tooling/echo-always-has-a-sink`'s table), and
         // that capture is what the line below reports.

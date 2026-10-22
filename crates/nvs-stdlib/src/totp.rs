@@ -349,7 +349,9 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_totp_code(ctx, args: [1]) {
         let secret = secret_at(args, 0, "code")?;
         let step = step_now(ctx, "code")?;
-        Ok(Value::str(NvsStr::new(&code_at(secret, step))))
+        #[expect(clippy::disallowed_methods, reason = "the code is ASCII digits")]
+        let code = Value::str(NvsStr::new(&code_at(secret, step)));
+        Ok(code)
     }
 }
 

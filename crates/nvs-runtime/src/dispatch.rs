@@ -848,7 +848,7 @@ impl RowValues {
     /// `nvs_types::ConstArg::Str`, already cooked by the checker. Each call
     /// makes one fresh allocation.
     pub fn str(&mut self, text: &str) -> Value {
-        self.keep(Value::str(crate::string::NvsStr::new(text.as_bytes())))
+        self.keep(Value::text(text))
     }
 
     /// Records the one reference `value` carries and hands back a borrow of

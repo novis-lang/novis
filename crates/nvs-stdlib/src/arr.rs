@@ -2375,6 +2375,7 @@ nvs_runtime::nvs_helper! {
                 // One reference for the duration of the call, released right
                 // after: `call_callable` takes its own, and `key` itself is
                 // still owed to either `kept` or its own drop below.
+                #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
                 let key_arg = Value::str(key.to_str());
                 let verdict = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
                 #[expect(
@@ -2475,6 +2476,7 @@ nvs_runtime::nvs_helper! {
                 // One reference for the duration of the call, released right
                 // after — `call_callable` takes its own. `key` itself is still
                 // owed to [`store_at`] below.
+                #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
                 let key_arg = Value::str(key.to_str());
                 let mapped = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
                 #[expect(
@@ -2543,6 +2545,7 @@ nvs_runtime::nvs_helper! {
             // One reference for the duration of the call, released right
             // after — `call_callable` takes its own, and the old key is not
             // owed to anything else here.
+            #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
             let key_arg = Value::str(key);
             let named = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
             #[expect(
@@ -2633,6 +2636,7 @@ nvs_runtime::nvs_helper! {
             // One reference for the duration of the call, released right
             // after: `call_callable` takes its own, and `key` itself is still
             // owed to the bucket below.
+            #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
             let key_arg = Value::str(key.clone());
             let named = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
             #[expect(
@@ -3157,6 +3161,7 @@ nvs_runtime::nvs_helper! {
                 .key_at(slot)
                 .expect("next_slot only names live entries");
             // `key_at` hands back a fresh reference, which `append` takes over.
+            #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
             out.append(Value::str(key));
             from = slot + 1;
         }
@@ -3742,6 +3747,7 @@ nvs_runtime::nvs_helper! {
                 .expect("next_slot only names live entries");
             // The old key becomes the new *value*, and `key_at`'s fresh
             // reference is exactly the one `set` takes over.
+            #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
             out.set(NvsStr::new(&key_bytes(&value, "flip")?), Value::str(key));
             from = slot + 1;
         }
@@ -4353,6 +4359,7 @@ nvs_runtime::nvs_helper! {
                 // One reference for the duration of the call, released right
                 // after — `call_callable` takes its own. Nothing else in a fold
                 // wants the key, so this is the only place it is built.
+                #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
                 let key_arg = Value::str(
                     base.slot_key(slot)
                         .expect("next_slot only names live entries")
@@ -4556,6 +4563,7 @@ nvs_runtime::nvs_helper! {
         if let Some(by) = by {
             for (index, value) in values.iter().enumerate() {
                 let extracted = if by_wants_key {
+                    #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
                     let key_arg = Value::str(keys[index].to_str());
                     let extracted = nvs_runtime::call_callable(ctx, by, &[*value, key_arg]);
                     #[expect(
@@ -4716,7 +4724,9 @@ nvs_runtime::nvs_helper! {
                     // One reference each for the duration of the call: the
                     // keys belong to `keys`, and a comparator called
                     // `n log n` times would otherwise leak that many.
+                    #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
                     let left_arg = Value::str(keys[left].clone());
+                    #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
                     let right_arg = Value::str(keys[right].clone());
                     let verdict =
                         nvs_runtime::call_callable(ctx, comparator, &[left_arg, right_arg]);
@@ -4927,6 +4937,7 @@ fn owned_value_at(subject: &NvsArray, slot: usize) -> Value {
 
 /// The key at `slot` as a `?string` answer — already a fresh reference, since
 /// [`NvsArray::key_at`] clones.
+#[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
 fn owned_key_at(subject: &NvsArray, slot: usize) -> Value {
     Value::str(
         subject
@@ -4953,6 +4964,10 @@ fn call_with_key(
     }
     // One reference for the duration of the call, released right after:
     // `call_callable` takes its own.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "every caller's `key` builds an array key, which is a `string`"
+    )]
     let key_arg = Value::str(key());
     let answer = nvs_runtime::call_callable(ctx, callback, &[value, key_arg]);
     #[expect(
@@ -5260,6 +5275,7 @@ nvs_runtime::nvs_helper! {
                 Some(by) => {
                     // One reference for the duration of the call, released
                     // right after: `call_callable` takes its own.
+                    #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
                     let key_arg = Value::str(key.clone());
                     let named = nvs_runtime::call_callable(ctx, by, &[value, key_arg]);
                     #[expect(
@@ -5664,6 +5680,7 @@ fn comparison_subject(
         if on != On::Keys {
             return Ok(value);
         }
+        #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
         let held = Value::str(key.clone());
         extracted.0.push(held);
         return Ok(held);
@@ -5671,6 +5688,7 @@ fn comparison_subject(
 
     // One reference for the duration of the call, released right after:
     // `call_callable` takes its own.
+    #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
     let key_arg = Value::str(key.clone());
     let answer = nvs_runtime::call_callable(ctx, by, &[value, key_arg]);
     #[expect(
@@ -6513,10 +6531,10 @@ mod tests {
                 .expect("hasKey returns a bool")
         };
         assert!(asked(Value::int(5)));
-        assert!(asked(Value::str(NvsStr::new(b"5"))));
-        assert!(asked(Value::str(NvsStr::new(b"name"))));
+        assert!(asked(Value::text("5")));
+        assert!(asked(Value::text("name")));
         assert!(!asked(Value::int(6)));
-        assert!(!asked(Value::str(NvsStr::new(b"nope"))));
+        assert!(!asked(Value::text("nope")));
 
         #[expect(
             unsafe_code,
@@ -6534,7 +6552,7 @@ mod tests {
     fn key_bytes_renders_the_longest_integers_whole() {
         let lowest = Value::int(i64::MIN);
         let highest = Value::uint(u64::MAX);
-        let text = Value::str(NvsStr::new(b"name"));
+        let text = Value::text("name");
         assert_eq!(
             &*super::key_bytes(&lowest, "test").unwrap(),
             b"-9223372036854775808"
@@ -6570,7 +6588,7 @@ mod tests {
         call(
             super::nvs_core_arr_has_key,
             &mut ctx,
-            &[subject, Value::str(NvsStr::new(b"a"))],
+            &[subject, Value::text("a")],
         )
         .expect("asking never fails");
 
@@ -6651,8 +6669,8 @@ mod tests {
     #[test]
     fn values_renumbers_from_zero_and_retains_what_it_copies() {
         let mut array = NvsArray::new();
-        array.set(NvsStr::new(b"x"), Value::str(NvsStr::new(b"a")));
-        array.set(NvsStr::new(b"y"), Value::str(NvsStr::new(b"b")));
+        array.set(NvsStr::new(b"x"), Value::text("a"));
+        array.set(NvsStr::new(b"y"), Value::text("b"));
         let subject = Value::array(array);
 
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -6790,9 +6808,9 @@ mod tests {
     /// the three members share.
     fn mixed_keys() -> Value {
         let mut array = NvsArray::new();
-        array.set(NvsStr::new(b"x"), Value::str(NvsStr::new(b"a")));
-        array.set(NvsStr::new(b"10"), Value::str(NvsStr::new(b"b")));
-        array.set(NvsStr::new(b"y"), Value::str(NvsStr::new(b"c")));
+        array.set(NvsStr::new(b"x"), Value::text("a"));
+        array.set(NvsStr::new(b"10"), Value::text("b"));
+        array.set(NvsStr::new(b"y"), Value::text("c"));
         Value::array(array)
     }
 
@@ -6871,9 +6889,9 @@ mod tests {
     #[test]
     fn flip_collapses_a_duplicate_value_in_its_first_position() {
         let mut array = NvsArray::new();
-        array.set(NvsStr::new(b"a"), Value::str(NvsStr::new(b"p")));
+        array.set(NvsStr::new(b"a"), Value::text("p"));
         array.set(NvsStr::new(b"b"), Value::int(7));
-        array.set(NvsStr::new(b"c"), Value::str(NvsStr::new(b"p")));
+        array.set(NvsStr::new(b"c"), Value::text("p"));
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let result = call(super::nvs_core_arr_flip, &mut ctx, &[Value::array(array)])
@@ -6908,10 +6926,10 @@ mod tests {
     #[test]
     fn flatten_takes_one_level_and_numbers_what_it_pulled_up() {
         let mut first = NvsArray::new();
-        first.set(NvsStr::new(b"x"), Value::str(NvsStr::new(b"a")));
-        first.set(NvsStr::new(b"y"), Value::str(NvsStr::new(b"b")));
+        first.set(NvsStr::new(b"x"), Value::text("a"));
+        first.set(NvsStr::new(b"y"), Value::text("b"));
         let mut second = NvsArray::new();
-        second.set(NvsStr::new(b"10"), Value::str(NvsStr::new(b"c")));
+        second.set(NvsStr::new(b"10"), Value::text("c"));
 
         let mut outer = NvsArray::new();
         outer.set(NvsStr::new(b"left"), Value::array(first));
@@ -6941,16 +6959,16 @@ mod tests {
     #[test]
     fn flatten_deep_reaches_every_level_in_the_order_it_met_them() {
         let mut deepest = NvsArray::new();
-        deepest.set(NvsStr::new(b"0"), Value::str(NvsStr::new(b"c")));
+        deepest.set(NvsStr::new(b"0"), Value::text("c"));
 
         let mut middle = NvsArray::new();
-        middle.set(NvsStr::new(b"0"), Value::str(NvsStr::new(b"b")));
+        middle.set(NvsStr::new(b"0"), Value::text("b"));
         middle.set(NvsStr::new(b"1"), Value::array(deepest));
 
         let mut outer = NvsArray::new();
-        outer.set(NvsStr::new(b"0"), Value::str(NvsStr::new(b"a")));
+        outer.set(NvsStr::new(b"0"), Value::text("a"));
         outer.set(NvsStr::new(b"1"), Value::array(middle));
-        outer.set(NvsStr::new(b"2"), Value::str(NvsStr::new(b"d")));
+        outer.set(NvsStr::new(b"2"), Value::text("d"));
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let result = call(
@@ -6980,18 +6998,18 @@ mod tests {
         for (position, id, name) in [
             (
                 &b"0"[..],
-                &b"r1"[..],
-                &b"a text long enough to be its own allocation: a"[..],
+                "r1",
+                "a text long enough to be its own allocation: a",
             ),
             (
                 &b"1"[..],
-                &b"r2"[..],
-                &b"a text long enough to be its own allocation: b"[..],
+                "r2",
+                "a text long enough to be its own allocation: b",
             ),
         ] {
             let mut row = NvsArray::new();
-            row.set(NvsStr::new(b"id"), Value::str(NvsStr::new(id)));
-            row.set(NvsStr::new(b"name"), Value::str(NvsStr::new(name)));
+            row.set(NvsStr::new(b"id"), Value::text(id));
+            row.set(NvsStr::new(b"name"), Value::text(name));
             rows.set(NvsStr::new(position), Value::array(row));
         }
         Value::array(rows)
@@ -7040,8 +7058,8 @@ mod tests {
     fn column_stores_the_subject_cell_with_a_reference_of_its_own() {
         let mut ctx = Ctx::new(OutputSink::Sink);
         let subject = rows_holding_long_cells();
-        let cell = Value::str(NvsStr::new(b"name"));
-        let by_id = Value::str(NvsStr::new(b"id"));
+        let cell = Value::text("name");
+        let by_id = Value::text("id");
 
         let appended = call(
             super::nvs_core_arr_column,
@@ -7089,6 +7107,10 @@ mod tests {
                 &b"a text long enough to be its own allocation: c"[..],
             ),
         ] {
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "the test's byte literals are UTF-8"
+            )]
             array.set(NvsStr::new(key), Value::str(NvsStr::new(value)));
         }
         Value::array(array)
@@ -7321,7 +7343,7 @@ mod tests {
     #[test]
     fn a_replaced_range_renumbers_both_sides_and_copies_what_it_carries() {
         let mut replacement = NvsArray::new();
-        replacement.set(NvsStr::new(b"k"), Value::str(NvsStr::new(b"n")));
+        replacement.set(NvsStr::new(b"k"), Value::text("n"));
         let handed = Value::array(replacement);
         let subject = mixed_keys();
 
@@ -7477,10 +7499,7 @@ mod tests {
     // covers: Core\Arr::sort
     #[test]
     fn two_strings_compare_bytewise_rather_than_numerically() {
-        let entries: [(&[u8], Value); 2] = [
-            (b"0", Value::str(NvsStr::new(b"9"))),
-            (b"1", Value::str(NvsStr::new(b"10"))),
-        ];
+        let entries: [(&[u8], Value); 2] = [(b"0", Value::text("9")), (b"1", Value::text("10"))];
         assert_eq!(
             sorted(&entries, false, false),
             vec![b"0=10".to_vec(), b"1=9".to_vec()]
@@ -7636,8 +7655,8 @@ mod tests {
     #[test]
     fn from_materialises_an_array_as_a_list() {
         let mut entries = NvsArray::new();
-        entries.set(NvsStr::new(b"named"), Value::str(NvsStr::new(b"a")));
-        entries.append(Value::str(NvsStr::new(b"b")));
+        entries.set(NvsStr::new(b"named"), Value::text("a"));
+        entries.append(Value::text("b"));
         let subject = Value::array(entries);
 
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -7682,13 +7701,13 @@ mod tests {
     #[test]
     fn overlay_replaces_in_place_and_appends_what_is_new() {
         let mut entries = NvsArray::new();
-        entries.set(NvsStr::new(b"host"), Value::str(NvsStr::new(b"localhost")));
-        entries.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"5432")));
+        entries.set(NvsStr::new(b"host"), Value::text("localhost"));
+        entries.set(NvsStr::new(b"port"), Value::text("5432"));
         let base = Value::array(entries);
 
         let mut layer = NvsArray::new();
-        layer.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"6543")));
-        layer.set(NvsStr::new(b"user"), Value::str(NvsStr::new(b"ada")));
+        layer.set(NvsStr::new(b"port"), Value::text("6543"));
+        layer.set(NvsStr::new(b"user"), Value::text("ada"));
         let mut tail = NvsArray::new();
         tail.append(Value::array(layer));
         let layers = Value::array(tail);
@@ -7737,19 +7756,19 @@ mod tests {
     #[test]
     fn overlay_deep_combines_two_maps_where_overlay_replaces_one() {
         let mut db = NvsArray::new();
-        db.set(NvsStr::new(b"host"), Value::str(NvsStr::new(b"localhost")));
-        db.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"5432")));
+        db.set(NvsStr::new(b"host"), Value::text("localhost"));
+        db.set(NvsStr::new(b"port"), Value::text("5432"));
         let mut log = NvsArray::new();
-        log.set(NvsStr::new(b"level"), Value::str(NvsStr::new(b"info")));
+        log.set(NvsStr::new(b"level"), Value::text("info"));
         let mut entries = NvsArray::new();
         entries.set(NvsStr::new(b"db"), Value::array(db));
         entries.set(NvsStr::new(b"log"), Value::array(log));
         let base = Value::array(entries);
 
         let mut over = NvsArray::new();
-        over.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"6543")));
+        over.set(NvsStr::new(b"port"), Value::text("6543"));
         let mut cache = NvsArray::new();
-        cache.set(NvsStr::new(b"ttl"), Value::str(NvsStr::new(b"60")));
+        cache.set(NvsStr::new(b"ttl"), Value::text("60"));
         let mut layer = NvsArray::new();
         layer.set(NvsStr::new(b"db"), Value::array(over));
         layer.set(NvsStr::new(b"cache"), Value::array(cache));
@@ -7807,16 +7826,16 @@ mod tests {
     #[test]
     fn underlay_keeps_the_base_value_and_appends_what_is_new() {
         let mut entries = NvsArray::new();
-        entries.set(NvsStr::new(b"host"), Value::str(NvsStr::new(b"localhost")));
-        entries.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"5432")));
+        entries.set(NvsStr::new(b"host"), Value::text("localhost"));
+        entries.set(NvsStr::new(b"port"), Value::text("5432"));
         let base = Value::array(entries);
 
         let mut first = NvsArray::new();
-        first.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"6543")));
-        first.set(NvsStr::new(b"user"), Value::str(NvsStr::new(b"ada")));
+        first.set(NvsStr::new(b"port"), Value::text("6543"));
+        first.set(NvsStr::new(b"user"), Value::text("ada"));
         let mut second = NvsArray::new();
-        second.set(NvsStr::new(b"user"), Value::str(NvsStr::new(b"grace")));
-        second.set(NvsStr::new(b"sslmode"), Value::str(NvsStr::new(b"require")));
+        second.set(NvsStr::new(b"user"), Value::text("grace"));
+        second.set(NvsStr::new(b"sslmode"), Value::text("require"));
         let mut tail = NvsArray::new();
         tail.append(Value::array(first));
         tail.append(Value::array(second));
@@ -7866,15 +7885,15 @@ mod tests {
     #[test]
     fn append_all_renumbers_from_zero_and_drops_nothing() {
         let mut entries = NvsArray::new();
-        entries.set(NvsStr::new(b"host"), Value::str(NvsStr::new(b"localhost")));
-        entries.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"5432")));
+        entries.set(NvsStr::new(b"host"), Value::text("localhost"));
+        entries.set(NvsStr::new(b"port"), Value::text("5432"));
         let base = Value::array(entries);
 
         let mut first = NvsArray::new();
-        first.append(Value::str(NvsStr::new(b"5432")));
+        first.append(Value::text("5432"));
         let empty = NvsArray::new();
         let mut second = NvsArray::new();
-        second.set(NvsStr::new(b"user"), Value::str(NvsStr::new(b"ada")));
+        second.set(NvsStr::new(b"user"), Value::text("ada"));
         let mut tail = NvsArray::new();
         tail.append(Value::array(first));
         tail.append(Value::array(empty));
@@ -7914,13 +7933,13 @@ mod tests {
     #[test]
     fn diff_keeps_its_own_keys_and_compares_under_identity() {
         let mut entries = NvsArray::new();
-        entries.set(NvsStr::new(b"one"), Value::str(NvsStr::new(b"1")));
-        entries.set(NvsStr::new(b"two"), Value::str(NvsStr::new(b"2")));
-        entries.set(NvsStr::new(b"three"), Value::str(NvsStr::new(b"3")));
+        entries.set(NvsStr::new(b"one"), Value::text("1"));
+        entries.set(NvsStr::new(b"two"), Value::text("2"));
+        entries.set(NvsStr::new(b"three"), Value::text("3"));
         let a = Value::array(entries);
 
         let mut other = NvsArray::new();
-        other.append(Value::str(NvsStr::new(b"2")));
+        other.append(Value::text("2"));
         other.append(Value::int(3));
         let b = Value::array(other);
 
@@ -7959,13 +7978,13 @@ mod tests {
     #[test]
     fn intersect_keeps_what_diff_drops_under_the_same_identity() {
         let mut entries = NvsArray::new();
-        entries.set(NvsStr::new(b"one"), Value::str(NvsStr::new(b"1")));
-        entries.set(NvsStr::new(b"two"), Value::str(NvsStr::new(b"2")));
-        entries.set(NvsStr::new(b"three"), Value::str(NvsStr::new(b"3")));
+        entries.set(NvsStr::new(b"one"), Value::text("1"));
+        entries.set(NvsStr::new(b"two"), Value::text("2"));
+        entries.set(NvsStr::new(b"three"), Value::text("3"));
         let a = Value::array(entries);
 
         let mut other = NvsArray::new();
-        other.append(Value::str(NvsStr::new(b"2")));
+        other.append(Value::text("2"));
         other.append(Value::int(3));
         let b = Value::array(other);
 
@@ -7997,9 +8016,9 @@ mod tests {
     #[test]
     fn unique_keeps_the_first_occurrence_and_compares_under_identity() {
         let mut entries = NvsArray::new();
-        entries.set(NvsStr::new(b"one"), Value::str(NvsStr::new(b"a")));
-        entries.set(NvsStr::new(b"two"), Value::str(NvsStr::new(b"b")));
-        entries.set(NvsStr::new(b"three"), Value::str(NvsStr::new(b"a")));
+        entries.set(NvsStr::new(b"one"), Value::text("a"));
+        entries.set(NvsStr::new(b"two"), Value::text("b"));
+        entries.set(NvsStr::new(b"three"), Value::text("a"));
         let a = Value::array(entries);
 
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -8015,7 +8034,7 @@ mod tests {
 
         let mut spellings = NvsArray::new();
         spellings.append(Value::int(1));
-        spellings.append(Value::str(NvsStr::new(b"1")));
+        spellings.append(Value::text("1"));
         let b = Value::array(spellings);
 
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -8092,7 +8111,7 @@ mod tests {
     fn dropping_from_an_empty_or_single_entry_array_yields_an_empty_one() {
         let mut ctx = Ctx::new(OutputSink::Sink);
         let mut single = NvsArray::new();
-        single.set(NvsStr::new(b"only"), Value::str(NvsStr::new(b"a")));
+        single.set(NvsStr::new(b"only"), Value::text("a"));
 
         for member in [
             super::nvs_core_arr_without_first,
@@ -8120,14 +8139,11 @@ mod tests {
     #[test]
     fn from_keys_and_values_pairs_by_position_and_normalizes_each_key() {
         let mut keys = NvsArray::new();
-        keys.set(NvsStr::new(b"ignored"), Value::str(NvsStr::new(b"a")));
+        keys.set(NvsStr::new(b"ignored"), Value::text("a"));
         keys.append(Value::int(10));
         let mut values = NvsArray::new();
-        values.append(Value::str(NvsStr::new(b"first")));
-        values.set(
-            NvsStr::new(b"also ignored"),
-            Value::str(NvsStr::new(b"second")),
-        );
+        values.append(Value::text("first"));
+        values.set(NvsStr::new(b"also ignored"), Value::text("second"));
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let result = call(
@@ -8151,7 +8167,7 @@ mod tests {
     #[test]
     fn two_arrays_of_different_lengths_do_not_combine() {
         let mut keys = NvsArray::new();
-        keys.append(Value::str(NvsStr::new(b"a")));
+        keys.append(Value::text("a"));
         let mut values = NvsArray::new();
         values.append(Value::int(1));
         values.append(Value::int(2));
@@ -8198,11 +8214,11 @@ mod tests {
     #[test]
     fn count_by_counts_each_bucket_in_first_occurrence_order() {
         let mut array = NvsArray::new();
-        array.append(Value::str(NvsStr::new(b"red")));
+        array.append(Value::text("red"));
         array.append(Value::int(1));
-        array.append(Value::str(NvsStr::new(b"red")));
-        array.append(Value::str(NvsStr::new(b"1")));
-        array.append(Value::str(NvsStr::new(b"blue")));
+        array.append(Value::text("red"));
+        array.append(Value::text("1"));
+        array.append(Value::text("blue"));
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let result = call(
@@ -8292,7 +8308,7 @@ mod tests {
     fn min_has_no_order_across_tags_and_compares_numeral_strings_bytewise() {
         let mut mixed = NvsArray::new();
         mixed.append(Value::int(0));
-        mixed.append(Value::str(NvsStr::new(b"a")));
+        mixed.append(Value::text("a"));
         let loose = Value::array(mixed);
 
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -8301,8 +8317,8 @@ mod tests {
         assert_eq!(status, nvs_runtime::THROWN);
 
         let mut numerals = NvsArray::new();
-        numerals.append(Value::str(NvsStr::new(b"1e2")));
-        numerals.append(Value::str(NvsStr::new(b"50")));
+        numerals.append(Value::text("1e2"));
+        numerals.append(Value::text("50"));
         let texts = Value::array(numerals);
 
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -8489,7 +8505,7 @@ mod tests {
     #[test]
     fn padding_renumbers_every_key_rather_than_only_the_integer_ones() {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let pad = || Value::str(NvsStr::new(b"z"));
+        let pad = || Value::text("z");
 
         let started = call(
             super::nvs_core_arr_pad_start,
@@ -8535,11 +8551,7 @@ mod tests {
                 let result = call(
                     member,
                     &mut ctx,
-                    &[
-                        mixed_keys(),
-                        Value::uint(size),
-                        Value::str(NvsStr::new(b"z")),
-                    ],
+                    &[mixed_keys(), Value::uint(size), Value::text("z")],
                 )
                 .expect("padding to a size already reached never fails");
                 assert_eq!(
@@ -8564,7 +8576,7 @@ mod tests {
         let result = call(
             super::nvs_core_arr_fill,
             &mut ctx,
-            &[Value::uint(3), Value::str(NvsStr::new(b"v"))],
+            &[Value::uint(3), Value::text("v")],
         )
         .expect("filling never fails");
         assert_eq!(
@@ -8579,7 +8591,7 @@ mod tests {
         let none = call(
             super::nvs_core_arr_fill,
             &mut ctx,
-            &[Value::uint(0), Value::str(NvsStr::new(b"v"))],
+            &[Value::uint(0), Value::text("v")],
         )
         .expect("a count of zero is an empty array, not a throw");
         assert_eq!(entries_of(none), vec![]);
@@ -8592,16 +8604,16 @@ mod tests {
     #[test]
     fn fill_keys_stores_one_value_under_each_distinct_key() {
         let mut keys = NvsArray::new();
-        keys.set(NvsStr::new(b"ignored"), Value::str(NvsStr::new(b"a")));
+        keys.set(NvsStr::new(b"ignored"), Value::text("a"));
         keys.append(Value::int(10));
-        keys.append(Value::str(NvsStr::new(b"a")));
-        keys.append(Value::str(NvsStr::new(b"10")));
+        keys.append(Value::text("a"));
+        keys.append(Value::text("10"));
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let result = call(
             super::nvs_core_arr_fill_keys,
             &mut ctx,
-            &[Value::array(keys), Value::str(NvsStr::new(b"v"))],
+            &[Value::array(keys), Value::text("v")],
         )
         .expect("filling keys never fails");
         assert_eq!(
@@ -8626,7 +8638,7 @@ mod tests {
         let status = call(
             super::nvs_core_arr_fill_keys,
             &mut ctx,
-            &[Value::array(keys), Value::str(NvsStr::new(b"v"))],
+            &[Value::array(keys), Value::text("v")],
         )
         .expect_err("a float is not a key");
         assert_eq!(status, nvs_runtime::FATAL);
@@ -8673,6 +8685,10 @@ mod tests {
         let mut array = NvsArray::new();
         let held = NvsStr::new(b"only");
         let before = held.refcount();
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the test's byte literal is UTF-8"
+        )]
         array.append(Value::str(held));
         let subject = Value::array(array);
 
@@ -8727,7 +8743,7 @@ mod tests {
         ]);
         let subject = array_of([
             ("n", Value::int(7)),
-            ("name", Value::str(NvsStr::new(b"ada"))),
+            ("name", Value::text("ada")),
             ("flag", Value::bool(true)),
         ]);
 
@@ -8753,31 +8769,30 @@ mod tests {
         let unsigned = shape_of(&[("n", CodecTy::Uint, true, false)]);
         let mut ctx = Ctx::new(OutputSink::Sink);
 
-        let asked =
-            |ctx: &mut Ctx, contract: (*const ClassDesc, *const ShapeCodec), text: &[u8]| {
-                let subject = array_of([("n", Value::str(NvsStr::new(text)))]);
-                let answer = shape_as(ctx, contract, subject).map(|built| {
-                    let field = field_at(built, 0);
-                    let number = field.as_int().or_else(|| {
-                        field
-                            .as_uint()
-                            .map(|value| i64::try_from(value).expect("a test's literals are small"))
-                    });
-                    dropped(built);
-                    number
+        let asked = |ctx: &mut Ctx, contract: (*const ClassDesc, *const ShapeCodec), text: &str| {
+            let subject = array_of([("n", Value::text(text))]);
+            let answer = shape_as(ctx, contract, subject).map(|built| {
+                let field = field_at(built, 0);
+                let number = field.as_int().or_else(|| {
+                    field
+                        .as_uint()
+                        .map(|value| i64::try_from(value).expect("a test's literals are small"))
                 });
-                dropped(subject);
-                answer
-            };
+                dropped(built);
+                number
+            });
+            dropped(subject);
+            answer
+        };
 
-        assert_eq!(asked(&mut ctx, signed, b"42"), Ok(Some(42)));
-        assert_eq!(asked(&mut ctx, signed, b"-7"), Ok(Some(-7)));
-        assert_eq!(asked(&mut ctx, unsigned, b"42"), Ok(Some(42)));
+        assert_eq!(asked(&mut ctx, signed, "42"), Ok(Some(42)));
+        assert_eq!(asked(&mut ctx, signed, "-7"), Ok(Some(-7)));
+        assert_eq!(asked(&mut ctx, unsigned, "42"), Ok(Some(42)));
         // The *whole* string, so there is no prefix parse and no empty one.
-        assert!(asked(&mut ctx, signed, b"42abc").is_err());
-        assert!(asked(&mut ctx, signed, b"").is_err());
+        assert!(asked(&mut ctx, signed, "42abc").is_err());
+        assert!(asked(&mut ctx, signed, "").is_err());
         // `string` → `uint` is exact, so the sign is where that row stops.
-        assert!(asked(&mut ctx, unsigned, b"-7").is_err());
+        assert!(asked(&mut ctx, unsigned, "-7").is_err());
     }
 
     /// A value no row converts is one failed field, and the issue names the
@@ -8787,7 +8802,7 @@ mod tests {
     #[test]
     fn a_value_as_refuses_is_a_failure_naming_its_field() {
         let contract = shape_of(&[("flag", CodecTy::Bool, true, false)]);
-        let subject = array_of([("flag", Value::str(NvsStr::new(b"1")))]);
+        let subject = array_of([("flag", Value::text("1"))]);
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let failure = hydrated_failure(&mut ctx, contract, subject, crate::json::Reading::Values);
@@ -8844,7 +8859,7 @@ mod tests {
         let contract = shape_of(&[("n", CodecTy::Int, true, false)]);
         let subject = array_of([
             ("n", Value::int(1)),
-            ("extra", Value::str(NvsStr::new(b"kept"))),
+            ("extra", Value::text("kept")),
             ("csrf", Value::int(9)),
         ]);
 
@@ -8880,10 +8895,7 @@ mod tests {
         ]);
         // `a` does not convert, `b` is absent and `c` is the empty string:
         // three different ways to fail, one report.
-        let subject = array_of([
-            ("a", Value::str(NvsStr::new(b"x"))),
-            ("c", Value::str(NvsStr::new(b""))),
-        ]);
+        let subject = array_of([("a", Value::text("x")), ("c", Value::text(""))]);
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let failure = hydrated_failure(&mut ctx, contract, subject, crate::json::Reading::Values);
@@ -8905,7 +8917,7 @@ mod tests {
         let mut ctx = Ctx::new(OutputSink::Sink);
 
         let decoded =
-            decode_as(&mut ctx, contract, b"{\"n\": 5}").expect("the document matches the shape");
+            decode_as(&mut ctx, contract, "{\"n\": 5}").expect("the document matches the shape");
         let subject = array_of([("n", Value::int(5))]);
         let hydrated = shape_as(&mut ctx, contract, subject).expect("the array matches the shape");
         assert_eq!(
@@ -8937,7 +8949,7 @@ mod tests {
 
         // The `Wire` half end to end, so the agreement above is over the walk
         // `Core\Json::decodeAs` actually reaches rather than one beside it.
-        assert!(decode_as(&mut ctx, contract, b"{\"n\": true}").is_err());
+        assert!(decode_as(&mut ctx, contract, "{\"n\": true}").is_err());
     }
 
     /// `Core\Json::decodeAs<T>($json)` at the ABI [`shape_as`] describes, one
@@ -8945,7 +8957,7 @@ mod tests {
     fn decode_as(
         ctx: &mut Ctx,
         contract: (*const ClassDesc, *const ShapeCodec),
-        json: &[u8],
+        json: &str,
     ) -> Result<Value, i32> {
         call(
             crate::json::nvs_core_json_decode_as,
@@ -8954,7 +8966,7 @@ mod tests {
                 Value::class_desc(contract.0),
                 Value::bool(false),
                 Value::shape_codec(contract.1),
-                Value::str(NvsStr::new(json)),
+                Value::text(json),
                 Value::uint(crate::json::DEFAULT_MAX_DEPTH),
             ],
         )
@@ -9375,8 +9387,8 @@ mod tests {
     #[test]
     fn has_key_reads_one_entry_under_an_int_key_and_its_text() {
         let subject = mixed_keys();
-        let ten = Value::str(NvsStr::new(b"10"));
-        let absent = Value::str(NvsStr::new(b"z"));
+        let ten = Value::text("10");
+        let absent = Value::text("z");
         assert_eq!(
             asked(super::nvs_core_arr_has_key, &[subject, Value::int(10)]),
             Some(true)
@@ -9396,7 +9408,7 @@ mod tests {
         let mut holding_null = NvsArray::new();
         holding_null.set(NvsStr::new(b"note"), Value::null());
         let holding_null = Value::array(holding_null);
-        let note = Value::str(NvsStr::new(b"note"));
+        let note = Value::text("note");
         assert_eq!(
             asked(super::nvs_core_arr_has_key, &[holding_null, note]),
             Some(true),
@@ -9419,7 +9431,7 @@ mod tests {
     #[test]
     fn contains_is_true_at_the_first_identical_entry_across_the_numeric_domain() {
         let list = list_of(&[40, 50, 3]);
-        let three = Value::str(NvsStr::new(b"3"));
+        let three = Value::text("3");
         assert_eq!(
             asked(super::nvs_core_arr_contains, &[list, Value::int(3)]),
             Some(true)
@@ -9482,7 +9494,7 @@ mod tests {
         dropped(list);
 
         let subject = mixed_keys();
-        let needle = Value::str(NvsStr::new(b"b"));
+        let needle = Value::text("b");
         let answer = call(super::nvs_core_arr_key_of, &mut ctx, &[subject, needle])
             .expect("the member answered");
         assert_eq!(
@@ -9501,7 +9513,7 @@ mod tests {
     fn trailing(values: &[&str]) -> Value {
         let mut tail = NvsArray::new();
         for value in values {
-            tail.append(Value::str(NvsStr::new(value.as_bytes())));
+            tail.append(Value::text(value));
         }
         Value::array(tail)
     }
@@ -9563,7 +9575,7 @@ mod tests {
     #[test]
     fn append_refuses_where_the_next_integer_key_is_taken() {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let subject = array_of([("9223372036854775807", Value::str(NvsStr::new(b"a")))]);
+        let subject = array_of([("9223372036854775807", Value::text("a"))]);
         let tail = trailing(&["b"]);
 
         let status = call(super::nvs_core_arr_append, &mut ctx, &[subject, tail])
@@ -9615,7 +9627,7 @@ mod tests {
 
         // The key `Core\Arr::append` has no successor for is renumbered like
         // any other, so this side has nothing to refuse.
-        let full = array_of([("9223372036854775807", Value::str(NvsStr::new(b"a")))]);
+        let full = array_of([("9223372036854775807", Value::text("a"))]);
         let one = trailing(&["b"]);
         let renumbered = call(super::nvs_core_arr_prepend, &mut ctx, &[full, one])
             .expect("prepending never fails");
@@ -9722,7 +9734,7 @@ mod tests {
     fn pad_start_writes_its_copies_in_front_and_renumbers_the_whole_result() {
         let mut ctx = Ctx::new(OutputSink::Sink);
         let subject = mixed_keys();
-        let filler = Value::str(NvsStr::new(b"-"));
+        let filler = Value::text("-");
 
         let result = call(
             super::nvs_core_arr_pad_start,
@@ -9773,7 +9785,7 @@ mod tests {
     fn pad_end_writes_its_copies_after_the_last_value_and_renumbers_the_whole_result() {
         let mut ctx = Ctx::new(OutputSink::Sink);
         let subject = mixed_keys();
-        let filler = Value::str(NvsStr::new(b"-"));
+        let filler = Value::text("-");
 
         let result = call(
             super::nvs_core_arr_pad_end,
@@ -9862,7 +9874,7 @@ mod tests {
             dropped(unsafe { *args.add(index) });
         }
         unsafe {
-            *out = Value::str(NvsStr::new(b"a label long enough to be its own text"));
+            *out = Value::text("a label long enough to be its own text");
         }
         nvs_runtime::OK
     }
@@ -9939,6 +9951,10 @@ mod tests {
                 &b"a text long enough to be its own allocation: c"[..],
             ),
         ] {
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "the test's byte literals are UTF-8"
+            )]
             array.set(NvsStr::new(key), Value::str(NvsStr::new(value)));
         }
         Value::array(array)
@@ -9973,8 +9989,13 @@ mod tests {
         for index in 0..3 {
             dropped(unsafe { *args.add(index) });
         }
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "an ASCII prefix before a key that is already a string"
+        )]
+        let renamed = Value::str(NvsStr::new(&named));
         unsafe {
-            *out = Value::str(NvsStr::new(&named));
+            *out = renamed;
         }
         nvs_runtime::OK
     }
@@ -10065,8 +10086,13 @@ mod tests {
         for index in 0..2 {
             dropped(unsafe { *args.add(index) });
         }
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the last byte of this test's ASCII entries"
+        )]
+        let group = Value::str(NvsStr::new(&name));
         unsafe {
-            *out = Value::str(NvsStr::new(&name));
+            *out = group;
         }
         nvs_runtime::OK
     }
@@ -10096,6 +10122,10 @@ mod tests {
             (&b"10"[..], &b"two: b"[..]),
             (&b"y"[..], &b"three: a"[..]),
         ] {
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "the test's byte literals are UTF-8"
+            )]
             array.set(NvsStr::new(key), Value::str(NvsStr::new(value)));
         }
         let subject = Value::array(array);
@@ -10183,7 +10213,7 @@ mod tests {
             dropped(unsafe { *args.add(index) });
         }
         unsafe {
-            *out = Value::str(NvsStr::new(b"a carry long enough to be its own text"));
+            *out = Value::text("a carry long enough to be its own text");
         }
         nvs_runtime::OK
     }
@@ -10204,7 +10234,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let subject = mixed_keys();
         let folder = callable_of(2, drops_the_carry_for_a_text_of_its_own);
-        let seed = Value::str(NvsStr::new(b"a seed long enough to be its own text"));
+        let seed = Value::text("a seed long enough to be its own text");
 
         let answer = call(
             super::nvs_core_arr_reduce,

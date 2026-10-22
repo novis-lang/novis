@@ -142,7 +142,9 @@ nvs_runtime::nvs_helper! {
     /// which a unit test below holds it to.
     fn nvs_core_server_trace_id(ctx, _args: [0]) {
         crate::request::served(ctx, r"Core\Server::traceId")?;
-        Ok(Value::str(NvsStr::new(&hex_id(ctx.trace_context().trace_id()))))
+        #[expect(clippy::disallowed_methods, reason = "hex digits are ASCII")]
+        let id = Value::str(NvsStr::new(&hex_id(ctx.trace_context().trace_id())));
+        Ok(id)
     }
 }
 

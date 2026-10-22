@@ -1060,7 +1060,8 @@ fn sealed_into(
 ///
 /// A record entry in the sealed space that is not bytes is that same miss. A program can reach the
 /// space — a session key is arbitrary text, and `set` will write whatever it is handed under one —
-/// and what it finds there is a value no ring opens.
+/// and what it finds there is a value no ring opens. A plaintext that opens but is not UTF-8 is the
+/// same miss too, because a `string` must be UTF-8.
 ///
 /// # Errors
 ///
@@ -1083,8 +1084,10 @@ fn opened_from(
     let aad = bound(SEAL_DOMAIN, application(ctx), key.as_bytes());
     for (slot, entry) in crate::keyring::entries(ring) {
         let cipher = crate::keyring::cipher_at(&entry, slot, who)?;
-        if let Some(plain) = crate::crypto::open_under(&cipher, &aad, sealed, who)? {
-            return Ok(Some(Value::str(NvsStr::new(&plain))));
+        if let Some(plain) = crate::crypto::open_under(&cipher, &aad, sealed, who)?
+            && let Ok(text) = std::str::from_utf8(&plain)
+        {
+            return Ok(Some(Value::text(text)));
         }
     }
     Ok(None)
@@ -2195,7 +2198,7 @@ mod tests {
         let mut fresh = Ctx::buffered();
         fresh.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
         fresh.set_config(config);
-        let forged = [Value::str(NvsStr::new(FORGED.as_bytes()))];
+        let forged = [Value::text(FORGED)];
         let answer = nvs_runtime::call(super::nvs_core_session_start, &mut fresh, &forged);
         forged.into_iter().for_each(dropped);
         answer.expect("an identifier the store does not hold opens a fresh session");
@@ -2236,7 +2239,7 @@ mod tests {
     #[test]
     fn get_answers_a_held_key_and_null_for_the_rest_and_earns_no_write() {
         fn got(ctx: &mut Ctx, key: &[u8]) -> Result<Value, i32> {
-            let key = Value::str(NvsStr::new(key));
+            let key = Value::text(std::str::from_utf8(key).expect("the test writes UTF-8"));
             let answer = nvs_runtime::call(super::nvs_core_session_get, ctx, &[key]);
             dropped(key);
             answer
@@ -2296,7 +2299,7 @@ mod tests {
     #[test]
     fn remove_takes_a_held_key_out_and_earns_no_write_for_an_absent_one() {
         fn removed(ctx: &mut Ctx, key: &[u8]) -> Result<Value, i32> {
-            let key = Value::str(NvsStr::new(key));
+            let key = Value::text(std::str::from_utf8(key).expect("the test writes UTF-8"));
             let answer = nvs_runtime::call(super::nvs_core_session_remove, ctx, &[key]);
             dropped(key);
             answer
@@ -2350,8 +2353,8 @@ mod tests {
     #[test]
     fn set_saves_a_value_replaces_it_and_earns_a_write() {
         fn saved(ctx: &mut Ctx, key: &[u8], value: &[u8]) -> Result<Value, i32> {
-            let key = Value::str(NvsStr::new(key));
-            let value = Value::str(NvsStr::new(value));
+            let key = Value::text(std::str::from_utf8(key).expect("the test writes UTF-8"));
+            let value = Value::text(std::str::from_utf8(value).expect("the test writes UTF-8"));
             let answer = nvs_runtime::call(super::nvs_core_session_set, ctx, &[key, value]);
             dropped(key);
             dropped(value);
@@ -2406,8 +2409,8 @@ mod tests {
     /// Calls `setSecret(key, value, ring)` the way a program does, releasing what it built.
     fn secret_set(ctx: &mut Ctx, key: &[u8], value: &[u8], ring: &[&[u8]]) -> Result<Value, i32> {
         let args = [
-            Value::str(NvsStr::new(key)),
-            Value::str(NvsStr::new(value)),
+            Value::text(std::str::from_utf8(key).expect("the test writes UTF-8")),
+            Value::text(std::str::from_utf8(value).expect("the test writes UTF-8")),
             crate::keyring::tests::ring_of(ring),
         ];
         let answer = nvs_runtime::call(super::nvs_core_session_set_secret, ctx, &args);
@@ -2418,7 +2421,7 @@ mod tests {
     /// Calls `getSecret(key, ring)` and reads the answer as text, `None` for `null`.
     fn secret_got(ctx: &mut Ctx, key: &[u8], ring: &[&[u8]]) -> Result<Option<String>, i32> {
         let args = [
-            Value::str(NvsStr::new(key)),
+            Value::text(std::str::from_utf8(key).expect("the test writes UTF-8")),
             crate::keyring::tests::ring_of(ring),
         ];
         let answer = nvs_runtime::call(super::nvs_core_session_get_secret, ctx, &args);

@@ -159,7 +159,7 @@ fn value_of(node: &nvs_db::schema::Node) -> Value {
     use nvs_db::schema::Node;
 
     match node {
-        Node::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
+        Node::Text(text) => Value::text(text),
         Node::Int(number) => Value::int(*number),
         Node::Uint(number) => Value::uint(*number),
         Node::Float(number) => Value::float(*number),
@@ -755,10 +755,7 @@ mod tests {
     /// member reads is two slots that [`nvs_core_db_connect`] writes and nothing
     /// else does.
     fn connection(block: &str) -> Value {
-        crate::instance::build(
-            &CONNECTION,
-            [Value::uint(0), Value::str(NvsStr::new(block.as_bytes()))],
-        )
+        crate::instance::build(&CONNECTION, [Value::uint(0), Value::text(block)])
     }
 
     /// A `Core\Db\Schema` over the empty schema — a value that constructs and
@@ -933,12 +930,12 @@ mod tests {
     /// optional key left out.
     fn smallest() -> Value {
         let mut column = NvsArray::new();
-        column.set(NvsStr::new(b"name"), Value::str(NvsStr::new(b"id")));
-        column.set(NvsStr::new(b"type"), Value::str(NvsStr::new(b"int64")));
+        column.set(NvsStr::new(b"name"), Value::text("id"));
+        column.set(NvsStr::new(b"type"), Value::text("int64"));
         let mut columns = NvsArray::new();
         columns.append(Value::array(column));
         let mut table = NvsArray::new();
-        table.set(NvsStr::new(b"name"), Value::str(NvsStr::new(b"notes")));
+        table.set(NvsStr::new(b"name"), Value::text("notes"));
         table.set(NvsStr::new(b"columns"), Value::array(columns));
         let mut tables = NvsArray::new();
         tables.append(Value::array(table));

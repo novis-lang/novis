@@ -2018,7 +2018,9 @@ nvs_runtime::nvs_helper! {
             digits.push(b'-');
         }
         digits.reverse();
-        Ok(Value::str(NvsStr::new(&digits)))
+        #[expect(clippy::disallowed_methods, reason = "ASCII digits, letters and a sign")]
+        let written = Value::str(NvsStr::new(&digits));
+        Ok(written)
     }
 }
 
@@ -2109,7 +2111,12 @@ nvs_runtime::nvs_helper! {
             out.extend_from_slice(decimal_separator);
             out.extend_from_slice(fraction.as_bytes());
         }
-        Ok(Value::str(NvsStr::new(&out)))
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "ASCII digits and sign joined by the `string` separators"
+        )]
+        let written = Value::str(NvsStr::new(&out));
+        Ok(written)
     }
 }
 
@@ -2598,8 +2605,8 @@ mod tests {
     /// The grouping walk, at every length a three-digit group can end on.
     #[test]
     fn a_group_separator_lands_every_three_digits_from_the_right() {
-        let comma = Value::str(NvsStr::new(b","));
-        let point = Value::str(NvsStr::new(b"."));
+        let comma = Value::text(",");
+        let point = Value::text(".");
         for (value, want) in [
             (1.0, "1"),
             (12.0, "12"),
@@ -2634,7 +2641,7 @@ mod tests {
                     nvs_core_math_to_base,
                     &[Value::int(value), Value::uint(base)],
                 );
-                let text = Value::str(NvsStr::new(written.as_bytes()));
+                let text = Value::text(&written);
                 let mut ctx = Ctx::buffered();
                 let read = call(
                     nvs_core_math_from_base,
@@ -3792,7 +3799,7 @@ mod tests {
     fn from_base_reads_both_ends_of_int_and_throws_for_every_character_php_skips() {
         let from_base = |text: &str, base: u64| {
             let mut ctx = Ctx::buffered();
-            let arg = Value::str(NvsStr::new(text.as_bytes()));
+            let arg = Value::text(text);
             let result = call(nvs_core_math_from_base, &mut ctx, &[arg, Value::uint(base)]);
             #[expect(
                 unsafe_code,
@@ -3856,8 +3863,8 @@ mod tests {
             let args = [
                 n,
                 Value::uint(decimals),
-                Value::str(NvsStr::new(point.as_bytes())),
-                Value::str(NvsStr::new(group.as_bytes())),
+                Value::text(point),
+                Value::text(group),
             ];
             let mut ctx = Ctx::buffered();
             let result = match call(nvs_core_math_format, &mut ctx, &args) {

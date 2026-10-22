@@ -3075,7 +3075,7 @@ impl MySqlScalar<'_> {
             MySqlScalar::UInt(value) => Value::uint(value),
             MySqlScalar::Float(value) => Value::float(value),
             MySqlScalar::Decimal(value) => Value::decimal(value),
-            MySqlScalar::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
+            MySqlScalar::Text(text) => Value::text(text),
             MySqlScalar::Bytes(octets) => Value::bytes(NvsStr::new(octets)),
             MySqlScalar::Date(_) | MySqlScalar::Time(_) | MySqlScalar::DateTime { .. } => {
                 return None;
@@ -6336,10 +6336,7 @@ mod tests {
                 Value::bytes(NvsStr::new(&[0x00, 0x61, 0xFF])),
                 vec![0x00, 0x61, 0xFF],
             ),
-            (
-                Value::str(NvsStr::new("é".as_bytes())),
-                "é".as_bytes().to_vec(),
-            ),
+            (Value::text("é"), "é".as_bytes().to_vec()),
         ];
         for (value, octets) in sent {
             assert_eq!(

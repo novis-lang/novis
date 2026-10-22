@@ -141,7 +141,7 @@
 //! default goes on working when the same code is reached from a handler.
 
 use nvs_runtime::terminal::{Answer, ColorDepth, Echo, Stream};
-use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
+use nvs_runtime::{Fault, NvsArray, Tag, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy,
@@ -1178,7 +1178,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_cli_arguments(ctx, _args: [0]) {
         let mut out = NvsArray::new();
         for word in ctx.command_line() {
-            out.append(Value::str(NvsStr::new(word.as_bytes())));
+            out.append(Value::text(word));
         }
         Ok(Value::array(out))
     }
@@ -1335,9 +1335,7 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?;
-        Ok(Value::str(NvsStr::new(
-            nvs_render::text::substitute(text).as_bytes(),
-        )))
+        Ok(Value::text(&nvs_render::text::substitute(text)))
     }
 }
 
@@ -1610,7 +1608,7 @@ nvs_runtime::nvs_helper! {
             if answer.is_empty() && given(fallback) {
                 return Ok(handed_back(fallback));
             }
-            let value = Value::str(NvsStr::new(answer.as_bytes()));
+            let value = Value::text(&answer);
             if !given(validate) {
                 return Ok(value);
             }
@@ -1887,7 +1885,7 @@ nvs_runtime::nvs_helper! {
             // a shortcut: a password nobody typed is not a password.
             ref quiet => return unanswered(quiet, "secret", Value::null()),
         };
-        Ok(Value::str(NvsStr::new(answer.as_bytes())))
+        Ok(Value::text(&answer))
     }
 }
 
@@ -2138,7 +2136,7 @@ fn of_runs(runs: NvsArray) -> Result<Value, Fault> {
     match rendered_at(runs, depth_of(Stream::Out)) {
         Ok(rendered) => Ok(crate::instance::build(
             &TEXT,
-            [Value::str(NvsStr::new(rendered.as_bytes())), runs],
+            [Value::text(&rendered), runs],
         )),
         Err(fault) => {
             #[expect(
@@ -2274,9 +2272,7 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?;
-        Ok(built(Value::str(NvsStr::new(
-            nvs_render::text::substitute(text).as_bytes(),
-        ))))
+        Ok(built(Value::text(&nvs_render::text::substitute(text))))
     }
 }
 
@@ -2310,7 +2306,7 @@ nvs_runtime::nvs_helper! {
             crate::instance::slot(receiver, TEXT_RUNS),
             ColorDepth::None,
         )?;
-        Ok(Value::str(NvsStr::new(plain.as_bytes())))
+        Ok(Value::text(&plain))
     }
 }
 
@@ -3139,9 +3135,7 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         let mut runs = NvsArray::new();
-        runs.append(Value::str(NvsStr::new(
-            nvs_render::text::substitute(text).as_bytes(),
-        )));
+        runs.append(Value::text(&nvs_render::text::substitute(text)));
         #[expect(
             unsafe_code,
             reason = "the run keeps a reference of its own to the style this \
@@ -3387,7 +3381,7 @@ nvs_runtime::nvs_helper! {
                 Value::int(i64::try_from(open.depth).unwrap_or(i64::MAX)),
                 Value::uint(total),
                 Value::uint(0),
-                Value::str(NvsStr::new(b"")),
+                Value::text(""),
             ],
         );
         // The empty bar is drawn before the body runs, so a program that takes
@@ -3443,7 +3437,7 @@ nvs_runtime::nvs_helper! {
                 crate::instance::set_slot(
                     receiver,
                     PROGRESS_LABEL,
-                    Value::str(NvsStr::new(written.as_bytes())),
+                    Value::text(&written),
                 );
                 written
             }
@@ -3577,7 +3571,7 @@ mod tests {
     // covers: Core\Cli::ask
     #[test]
     fn a_prompt_with_nobody_to_ask_answers_its_default_or_throws() {
-        let fallback = Value::str(NvsStr::new(b"ada"));
+        let fallback = Value::text("ada");
         let answered = unanswered(&Answer::Ended, "ask", fallback).expect("a default is an answer");
         assert_eq!(
             answered.as_text(),
@@ -3638,7 +3632,7 @@ mod tests {
     // covers: Core\Cli::confirm
     #[test]
     fn confirm_reads_only_yes_and_no_and_asks_again_for_anything_else() {
-        let question = Value::str(NvsStr::new(b"delete it?"));
+        let question = Value::text("delete it?");
         let mut ctx = nvs_runtime::Ctx::buffered();
 
         ctx.script_answers(["maybe".to_owned(), "  YES  ".to_owned()]);
@@ -3712,13 +3706,13 @@ mod tests {
     // covers: Core\Cli::select
     #[test]
     fn select_answers_the_chosen_value_and_asks_again_for_a_number_off_the_menu() {
-        let question = Value::str(NvsStr::new(b"which region?"));
+        let question = Value::text("which region?");
         let mut choices = NvsArray::new();
         for region in ["eu-west", "us-east", "ap-south"] {
-            choices.append(Value::str(NvsStr::new(region.as_bytes())));
+            choices.append(Value::text(region));
         }
         let choices = Value::array(choices);
-        let fallback = Value::str(NvsStr::new(b"ap-south"));
+        let fallback = Value::text("ap-south");
         let empty = Value::array(NvsArray::new());
         let mut ctx = nvs_runtime::Ctx::buffered();
 
@@ -3810,10 +3804,10 @@ mod tests {
             );
         }
 
-        let question = Value::str(NvsStr::new(b"which regions?"));
+        let question = Value::text("which regions?");
         let mut choices = NvsArray::new();
         for region in ["eu-west", "us-east", "ap-south"] {
-            choices.append(Value::str(NvsStr::new(region.as_bytes())));
+            choices.append(Value::text(region));
         }
         let choices = Value::array(choices);
         let mut ctx = nvs_runtime::Ctx::buffered();
@@ -3875,7 +3869,7 @@ mod tests {
              password nobody typed is not a password"
         );
 
-        let question = Value::str(NvsStr::new(b"password?"));
+        let question = Value::text("password?");
         let mut ctx = nvs_runtime::Ctx::buffered();
         let mut answers = Vec::new();
 
@@ -3971,7 +3965,7 @@ mod tests {
                 Value::int(i64::try_from(open.depth).unwrap_or(i64::MAX)),
                 Value::uint(4),
                 Value::uint(0),
-                Value::str(NvsStr::new(b"fetching")),
+                Value::text("fetching"),
             ],
         );
         let receiver =
@@ -4003,7 +3997,7 @@ mod tests {
             "a step that named no caption cleared the one already beside the bar"
         );
 
-        let given = Value::str(NvsStr::new(b"building"));
+        let given = Value::text("building");
         nvs_runtime::call(
             nvs_core_cli_progress_advance,
             &mut ctx,
@@ -4065,7 +4059,7 @@ mod tests {
                 Value::int(i64::try_from(open.depth).unwrap_or(i64::MAX)),
                 Value::uint(4),
                 Value::uint(0),
-                Value::str(NvsStr::new(b"")),
+                Value::text(""),
             ],
         );
         let mut ctx = nvs_runtime::Ctx::buffered();
@@ -4082,7 +4076,7 @@ mod tests {
 
         // Three units past the total, with a caption that would clear the
         // screen if it arrived as a command.
-        let caption = Value::str(NvsStr::new("\u{1B}[2Jimported".as_bytes()));
+        let caption = Value::text("\u{1B}[2Jimported");
         nvs_runtime::call(
             nvs_core_cli_progress_advance,
             &mut ctx,
@@ -4133,7 +4127,7 @@ mod tests {
     fn display_width_counts_columns_and_names_itself_on_a_value_no_source_can_pass() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         for (text, columns) in [("order", 5_u64), ("注文", 4), ("e\u{301}", 1), ("a\tb", 9)] {
-            let value = Value::str(NvsStr::new(text.as_bytes()));
+            let value = Value::text(text);
             let width = nvs_runtime::call(nvs_core_cli_display_width, &mut ctx, &[value])
                 .expect("displayWidth answered");
             assert_eq!(
@@ -4165,7 +4159,7 @@ mod tests {
 
     /// `Core\Cli::escape` through the member, for one text.
     fn escaped(ctx: &mut nvs_runtime::Ctx, text: &str) -> String {
-        let value = Value::str(NvsStr::new(text.as_bytes()));
+        let value = Value::text(text);
         let answer =
             nvs_runtime::call(nvs_core_cli_escape, ctx, &[value]).expect("escape answered");
         let owned = answer
@@ -4256,8 +4250,8 @@ mod tests {
         let mut ctx = nvs_runtime::Ctx::buffered();
         ctx.set_diagnostic_sink(nvs_runtime::OutputSink::Buffer(Vec::new()));
 
-        let result = Value::str(NvsStr::new(b"the result"));
-        let note = Value::str(NvsStr::new(b"the progress note"));
+        let result = Value::text("the result");
+        let note = Value::text("the progress note");
         nvs_runtime::call(
             nvs_core_cli_write,
             &mut ctx,
@@ -4414,10 +4408,10 @@ mod tests {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let style = warning(&mut ctx);
 
-        let head = Value::str(NvsStr::new("deleting ".as_bytes()));
+        let head = Value::text("deleting ");
         let warn = nvs_runtime::call(nvs_core_cli_text_styled, &mut ctx, &[head, style])
             .expect("Text::styled answered");
-        let tail = Value::str(NvsStr::new("notes.txt".as_bytes()));
+        let tail = Value::text("notes.txt");
         let plain = nvs_runtime::call(nvs_core_cli_text_plain, &mut ctx, &[tail])
             .expect("Text::plain answered");
         let whole = nvs_runtime::call(nvs_core_cli_text_concat, &mut ctx, &[warn, plain])
@@ -4479,7 +4473,7 @@ mod tests {
     fn one_text_is_styled_on_a_terminal_stream_and_plain_on_a_redirected_one() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let style = warning(&mut ctx);
-        let body = Value::str(NvsStr::new("danger".as_bytes()));
+        let body = Value::text("danger");
         let warn = nvs_runtime::call(nvs_core_cli_text_styled, &mut ctx, &[body, style])
             .expect("Text::styled answered");
         let runs = crate::instance::slot(warn.obj_ptr().expect("a `Text` is an object"), TEXT_RUNS);
@@ -4819,7 +4813,7 @@ mod tests {
     #[test]
     fn the_carrier_renders_from_its_first_slot() {
         let mut ctx = nvs_runtime::Ctx::buffered();
-        let body = Value::str(NvsStr::new("plain".as_bytes()));
+        let body = Value::text("plain");
         let text = nvs_runtime::call(nvs_core_cli_text_plain, &mut ctx, &[body])
             .expect("Text::plain answered");
         let carrier = text.obj_ptr().expect("a `Text` is an object");
@@ -4854,7 +4848,7 @@ mod tests {
     #[test]
     fn plain_substitutes_into_both_slots_and_makes_a_run_no_terminal_colours() {
         let mut ctx = nvs_runtime::Ctx::buffered();
-        let body = Value::str(NvsStr::new("cost \u{1B}[31m9\u{7}".as_bytes()));
+        let body = Value::text("cost \u{1B}[31m9\u{7}");
         let text = nvs_runtime::call(nvs_core_cli_text_plain, &mut ctx, &[body])
             .expect("Text::plain answered");
         let carrier = text.obj_ptr().expect("a `Text` is an object");
@@ -4904,7 +4898,7 @@ mod tests {
     fn styled_renders_its_style_at_every_depth_and_never_its_bodys_own_escape() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let style = warning(&mut ctx);
-        let body = Value::str(NvsStr::new("cost \u{1B}[31m9".as_bytes()));
+        let body = Value::text("cost \u{1B}[31m9");
         let text = nvs_runtime::call(nvs_core_cli_text_styled, &mut ctx, &[body, style])
             .expect("Text::styled answered");
         let runs = crate::instance::slot(text.obj_ptr().expect("a `Text` is an object"), TEXT_RUNS);
@@ -4952,7 +4946,7 @@ mod tests {
         ];
         let blue = nvs_runtime::call(nvs_core_cli_style_of, &mut ctx, &options)
             .expect("Style::of answered");
-        let label = Value::str(NvsStr::new("done".as_bytes()));
+        let label = Value::text("done");
         let shown = nvs_runtime::call(nvs_core_cli_text_styled, &mut ctx, &[label, blue])
             .expect("Text::styled answered");
         let blue_runs =
@@ -4997,7 +4991,7 @@ mod tests {
     fn text_answers_the_runs_and_not_the_carriers_rendering_for_a_terminal() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let style = warning(&mut ctx);
-        let body = Value::str(NvsStr::new("careful".as_bytes()));
+        let body = Value::text("careful");
         let styled = nvs_runtime::call(nvs_core_cli_text_styled, &mut ctx, &[body, style])
             .expect("Text::styled answered");
         let runs =
@@ -5017,8 +5011,7 @@ mod tests {
         unsafe {
             runs.retain();
         }
-        let on_a_terminal =
-            crate::instance::build(&TEXT, [Value::str(NvsStr::new(lit.as_bytes())), runs]);
+        let on_a_terminal = crate::instance::build(&TEXT, [Value::text(&lit), runs]);
         let read = nvs_runtime::call(nvs_core_cli_text_text, &mut ctx, &[on_a_terminal])
             .expect("Text::text answered");
         assert_eq!(
@@ -5058,7 +5051,7 @@ mod tests {
         let visible = "\u{241B}]0;rm -rf /\u{2407}ok\u{240D}";
 
         let mut ctx = nvs_runtime::Ctx::buffered();
-        let written = Value::str(NvsStr::new(attack.as_bytes()));
+        let written = Value::text(attack);
         nvs_runtime::call(nvs_runtime::helpers::nvs_echo_str, &mut ctx, &[written])
             .expect("echo succeeded");
         assert_eq!(
@@ -5067,7 +5060,7 @@ mod tests {
             "the terminal sink let a control sequence through"
         );
 
-        let argument = Value::str(NvsStr::new(attack.as_bytes()));
+        let argument = Value::text(attack);
         let laundered = nvs_runtime::call(nvs_core_cli_escape, &mut ctx, &[argument])
             .expect("escape succeeded");
         assert_eq!(
@@ -5112,7 +5105,7 @@ mod tests {
         let visible = "\u{241B}[31mred";
         let mut ctx = nvs_runtime::Ctx::buffered();
 
-        let loose = Value::str(NvsStr::new(raw.as_bytes()));
+        let loose = Value::text(raw);
         nvs_runtime::call(nvs_runtime::helpers::nvs_echo_value, &mut ctx, &[loose])
             .expect("echo succeeded");
         assert_eq!(
@@ -5121,7 +5114,7 @@ mod tests {
             "a loose `string` reached the terminal unsubstituted"
         );
 
-        let carried = built(Value::str(NvsStr::new(raw.as_bytes())));
+        let carried = built(Value::text(raw));
         nvs_runtime::call(nvs_runtime::helpers::nvs_echo_value, &mut ctx, &[carried])
             .expect("echo succeeded");
         assert_eq!(
@@ -5130,7 +5123,7 @@ mod tests {
             "the sink substituted over its own carrier"
         );
 
-        let argument = Value::str(NvsStr::new(raw.as_bytes()));
+        let argument = Value::text(raw);
         let made = nvs_runtime::call(nvs_core_cli_text_plain, &mut ctx, &[argument])
             .expect("plain succeeded");
         nvs_runtime::call(nvs_runtime::helpers::nvs_echo_value, &mut ctx, &[made])
@@ -5353,7 +5346,7 @@ mod tests {
         let style =
             nvs_runtime::call(nvs_core_cli_style_of, &mut ctx, &bold).expect("Style::of succeeded");
 
-        let payload = Value::str(NvsStr::new("<red>\u{1B}[31m</red>".as_bytes()));
+        let payload = Value::text("<red>\u{1B}[31m</red>");
         let text = nvs_runtime::call(nvs_core_cli_text_styled, &mut ctx, &[payload, style])
             .expect("Text::styled succeeded");
         let carried = crate::instance::slot(
@@ -5806,12 +5799,8 @@ mod tests {
 
         let mut ctx = nvs_runtime::Ctx::buffered();
         let row = |ctx: &mut nvs_runtime::Ctx, text: &str| {
-            nvs_runtime::call(
-                nvs_core_cli_text_plain,
-                ctx,
-                &[Value::str(NvsStr::new(text.as_bytes()))],
-            )
-            .expect("a row of plain text")
+            nvs_runtime::call(nvs_core_cli_text_plain, ctx, &[Value::text(text)])
+                .expect("a row of plain text")
         };
         let frame = |ctx: &mut nvs_runtime::Ctx, texts: &[&str]| {
             let mut rows = NvsArray::new();

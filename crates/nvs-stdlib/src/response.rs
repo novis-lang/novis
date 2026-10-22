@@ -2417,16 +2417,14 @@ mod tests {
         let mut untouched = Ctx::new(OutputSink::Sink);
         assert_eq!(untouched.take_content_type(), None);
 
-        let body = Value::str(NvsStr::new(b"a paragraph"));
+        let body = Value::text("a paragraph");
         let blob = Value::bytes(NvsStr::new(b"\x89PNG"));
-        let told = Value::str(NvsStr::new(b"application/octet-stream"));
+        let told = Value::text("application/octet-stream");
         // The carrier itself, built the way `crate::html` builds one: `html`'s
         // parameter is the class and never a `string`, so a test handing it
         // text would assert something no call site can write.
-        let markup = crate::instance::build(
-            &crate::html::MARKUP,
-            [Value::str(NvsStr::new(b"<p>a paragraph</p>"))],
-        );
+        let markup =
+            crate::instance::build(&crate::html::MARKUP, [Value::text("<p>a paragraph</p>")]);
 
         let table = [
             (
@@ -2473,7 +2471,7 @@ mod tests {
         // `bytes` is the row that is *told*, so its declaration is asserted on
         // a second value: a member that declared a constant matching the first
         // one would pass every line above.
-        let other = Value::str(NvsStr::new(b"image/png"));
+        let other = Value::text("image/png");
         assert_eq!(
             declared(super::nvs_core_response_bytes, &[blob, other]).as_deref(),
             Some("image/png"),
@@ -2506,8 +2504,8 @@ mod tests {
             "the defaults are the ones a tree with no `[http.cookies]` resolves to"
         );
 
-        let name = Value::str(NvsStr::new(b"session"));
-        let value = Value::str(NvsStr::new(b"abc123"));
+        let name = Value::text("session");
+        let value = Value::text("abc123");
         // Six nulls: `secure`, `httpOnly`, `sameSite`, `path`, `domain` and `maxAge`, every one of
         // them left out, which is the call site this case is about.
         let args = [
@@ -2556,10 +2554,10 @@ mod tests {
         let duration =
             |nanos: i64| crate::instance::build(&crate::time::DURATION, [Value::int(nanos)]);
 
-        let theme = Value::str(NvsStr::new(b"theme"));
-        let dark = Value::str(NvsStr::new(b"dark"));
-        let path = Value::str(NvsStr::new(b"/account"));
-        let domain = Value::str(NvsStr::new(b"example.com"));
+        let theme = Value::text("theme");
+        let dark = Value::text("dark");
+        let path = Value::text("/account");
+        let domain = Value::text("example.com");
         let lifetime = duration(90_500_000_000);
         // `secure: true`, `httpOnly: false`, `sameSite: Strict` (case 1), then
         // the path, the domain and the lifetime.
@@ -2576,8 +2574,8 @@ mod tests {
         call(super::nvs_core_response_add_cookie, &mut ctx, &written)
             .expect("a cookie with every option well formed is written");
 
-        let sid = Value::str(NvsStr::new(b"sid"));
-        let token = Value::str(NvsStr::new(b"r4nd0m"));
+        let sid = Value::text("sid");
+        let token = Value::text("r4nd0m");
         let bare = [
             sid,
             token,
@@ -2674,8 +2672,8 @@ mod tests {
         inbound.push_header("Range", b"bytes=2-5");
         ctx.set_inbound(inbound);
 
-        let media_type = Value::str(NvsStr::new(b"video/mp4"));
-        let etag = Value::str(NvsStr::new(b"v1"));
+        let media_type = Value::text("video/mp4");
+        let etag = Value::text("v1");
         let handle = call(
             super::nvs_core_response_stream,
             &mut ctx,
@@ -2706,14 +2704,14 @@ mod tests {
             ]
         );
 
-        let window = Value::str(NvsStr::new(b"2345"));
+        let window = Value::text("2345");
         call(
             super::nvs_core_response_stream_write,
             &mut ctx,
             &[handle, window],
         )
         .expect("the window fits");
-        let past = Value::str(NvsStr::new(b"6"));
+        let past = Value::text("6");
         call(
             super::nvs_core_response_stream_write,
             &mut ctx,
@@ -2738,7 +2736,7 @@ mod tests {
         assert_eq!(length.as_int(), Some(3));
 
         let mut refused = Ctx::buffered();
-        let bad_tag = Value::str(NvsStr::new(b"v\"1"));
+        let bad_tag = Value::text("v\"1");
         for args in [
             [media_type, Value::int(-1), Value::null(), Value::null()],
             [media_type, Value::int(1), bad_tag, Value::null()],
@@ -2781,14 +2779,14 @@ mod tests {
         let slot = offered_cell();
         let mut ctx = framing(&slot);
 
-        let media_type = Value::str(NvsStr::new(b"text/csv"));
+        let media_type = Value::text("text/csv");
         let handle = call(
             super::nvs_core_response_stream,
             &mut ctx,
             &unsized_stream(media_type),
         )
         .expect("an offered cell takes the stream");
-        let chunk = Value::str(NvsStr::new(b"id,name\n"));
+        let chunk = Value::text("id,name\n");
         call(
             super::nvs_core_response_stream_write,
             &mut ctx,
@@ -2827,15 +2825,15 @@ mod tests {
     // covers: Core\Response\Stream::write
     #[test]
     fn a_stream_that_must_end_is_cut_off_unless_the_program_ends_it() {
-        let media_type = Value::str(NvsStr::new(b"text/csv"));
-        let label = Value::str(NvsStr::new(b"orders.csv"));
+        let media_type = Value::text("text/csv");
+        let label = Value::text("orders.csv");
         let marked = [media_type, Value::null(), Value::null(), label];
 
         let slot = offered_cell();
         let mut ended = framing(&slot);
         let handle = call(super::nvs_core_response_stream, &mut ended, &marked)
             .expect("an offered cell takes the stream");
-        let chunk = Value::str(NvsStr::new(b"id\n"));
+        let chunk = Value::text("id\n");
         call(
             super::nvs_core_response_stream_write,
             &mut ended,
@@ -2916,14 +2914,14 @@ mod tests {
         let slot = offered_cell();
         let mut ctx = framing(&slot);
 
-        let first = Value::str(NvsStr::new(b"text/csv"));
+        let first = Value::text("text/csv");
         let handle = call(
             super::nvs_core_response_stream,
             &mut ctx,
             &unsized_stream(first),
         )
         .expect("an offered cell takes the first stream");
-        let second = Value::str(NvsStr::new(b"application/json"));
+        let second = Value::text("application/json");
         call(
             super::nvs_core_response_stream,
             &mut ctx,
@@ -2957,7 +2955,7 @@ mod tests {
         let slot = offered_cell();
         let mut ctx = framing(&slot);
 
-        let media_type = Value::str(NvsStr::new(b"text/csv"));
+        let media_type = Value::text("text/csv");
         let handle = call(
             super::nvs_core_response_stream,
             &mut ctx,
@@ -2969,7 +2967,7 @@ mod tests {
                 .expect("the member filled the cell"),
         );
 
-        let chunk = Value::str(NvsStr::new(b"too late"));
+        let chunk = Value::text("too late");
         for _ in 0..2 {
             let wrote = call(
                 super::nvs_core_response_stream_write,
@@ -2995,7 +2993,7 @@ mod tests {
         let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::ZERO, 1 << 20);
         let mut ctx = framing(&slot);
 
-        let media_type = Value::str(NvsStr::new(b"text/csv"));
+        let media_type = Value::text("text/csv");
         let handle = call(
             super::nvs_core_response_stream,
             &mut ctx,
@@ -3008,7 +3006,7 @@ mod tests {
             .take(std::task::Waker::noop())
             .expect("the member filled the cell");
 
-        let chunk = Value::str(NvsStr::new(b"id,name\n"));
+        let chunk = Value::text("id,name\n");
         for _ in 0..3 {
             let wrote = call(
                 super::nvs_core_response_stream_write,
@@ -3043,7 +3041,7 @@ mod tests {
         let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30), 4);
         let mut ctx = framing(&slot);
 
-        let media_type = Value::str(NvsStr::new(b"text/csv"));
+        let media_type = Value::text("text/csv");
         let handle = call(
             super::nvs_core_response_stream,
             &mut ctx,
@@ -3051,7 +3049,7 @@ mod tests {
         )
         .expect("an offered cell takes the stream");
 
-        let oversized = Value::str(NvsStr::new(b"id,name\n"));
+        let oversized = Value::text("id,name\n");
         call(
             super::nvs_core_response_stream_write,
             &mut ctx,
@@ -3059,7 +3057,7 @@ mod tests {
         )
         .expect_err("a chunk twice the message bound");
 
-        let small = Value::str(NvsStr::new(b"id\n"));
+        let small = Value::text("id\n");
         call(
             super::nvs_core_response_stream_write,
             &mut ctx,
@@ -3124,8 +3122,7 @@ mod tests {
         std::fs::write(&page, &body).expect("the fixture is written");
         let outside = base.join("outside.txt");
         std::fs::write(&outside, b"not granted").expect("the fixture is written");
-        let spelled =
-            |path: &std::path::Path| Value::str(NvsStr::new(path.to_string_lossy().as_bytes()));
+        let spelled = |path: &std::path::Path| Value::text(&path.to_string_lossy());
 
         let mut served = reading_under(&root);
         served.set_inbound(nvs_runtime::Inbound::new("GET", "/page", ""));
@@ -3196,27 +3193,24 @@ mod tests {
     #[test]
     fn set_header_replaces_in_place_and_refuses_what_would_split_the_line() {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let set = |ctx: &mut Ctx, name: &[u8], value: &[u8]| {
-            let args = [
-                Value::str(NvsStr::new(name)),
-                Value::str(NvsStr::new(value)),
-            ];
+        let set = |ctx: &mut Ctx, name: &str, value: &str| {
+            let args = [Value::text(name), Value::text(value)];
             let answer = call(super::nvs_core_response_set_header, ctx, &args);
             args.into_iter().for_each(dropped);
             answer.is_ok()
         };
-        assert!(set(&mut ctx, b"Cache-Control", b"no-store"));
-        assert!(set(&mut ctx, b"X-Request-Id", b"42"));
-        assert!(set(&mut ctx, b"cache-control", b"max-age=60"));
-        assert!(set(&mut ctx, b"X-Empty", b""));
+        assert!(set(&mut ctx, "Cache-Control", "no-store"));
+        assert!(set(&mut ctx, "X-Request-Id", "42"));
+        assert!(set(&mut ctx, "cache-control", "max-age=60"));
+        assert!(set(&mut ctx, "X-Empty", ""));
         for (name, value) in [
-            (&b""[..], &b"x"[..]),
-            (b"Bad Name", b"x"),
-            (b"Bad:Name", b"x"),
-            (b"content-TYPE", b"text/plain"),
-            (b"X-Split", b"a\r\nSet-Cookie: admin=1"),
-            (b"X-Split", b"a\nb"),
-            (b"X-Split", b"a\0b"),
+            ("", "x"),
+            ("Bad Name", "x"),
+            ("Bad:Name", "x"),
+            ("content-TYPE", "text/plain"),
+            ("X-Split", "a\r\nSet-Cookie: admin=1"),
+            ("X-Split", "a\nb"),
+            ("X-Split", "a\0b"),
         ] {
             assert!(
                 !set(&mut ctx, name, value),
@@ -3246,7 +3240,7 @@ mod tests {
     fn redirect_declares_status_and_location_together_or_neither() {
         for status in [303, 307, 308] {
             let mut ctx = Ctx::new(OutputSink::Sink);
-            let url = Value::str(NvsStr::new(b"/orders/42"));
+            let url = Value::text("/orders/42");
             call(
                 super::nvs_core_response_redirect,
                 &mut ctx,
@@ -3262,9 +3256,9 @@ mod tests {
                 ("Location", "/orders/42")
             );
         }
-        for bad in [&b""[..], b"/a\r\nSet-Cookie: admin=1", b"/a\tb"] {
+        for bad in ["", "/a\r\nSet-Cookie: admin=1", "/a\tb"] {
             let mut ctx = Ctx::new(OutputSink::Sink);
-            let url = Value::str(NvsStr::new(bad));
+            let url = Value::text(bad);
             call(
                 super::nvs_core_response_redirect,
                 &mut ctx,

@@ -26,7 +26,7 @@ pub(super) fn described_columns(columns: &[nvs_db::PgColumn]) -> NvsArray {
         described.append(crate::instance::build(
             &COLUMN,
             [
-                Value::str(NvsStr::new(column.name.as_bytes())),
+                Value::text(&column.name),
                 column_type_value(column.column_type()),
                 // `rule:core-classes/db-column-types`'s own answer, stated at the one place that can
                 // state it: [`COLUMN_NULLABLE_DOC`] is where a program's author
@@ -55,6 +55,11 @@ pub(super) fn described_columns(columns: &[nvs_db::PgColumn]) -> NvsArray {
 /// The label is taken as octets for [`described_columns`]'s reason: a column
 /// name is a key in the row array, and a lossy decode would rename a column
 /// rather than refuse it.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "unchecked: a MySQL column label is the server's raw octets, \
+              and security-hardening's stage 3 checks it"
+)]
 pub(super) fn mysql_described_columns(rows: &nvs_db::MySqlRows<'_>) -> NvsArray {
     let mut described = NvsArray::new();
     for (index, column) in rows.columns().iter().enumerate() {
@@ -91,7 +96,7 @@ pub(super) fn tds_described_columns(rows: &nvs_db::tds::TdsRows<'_>) -> NvsArray
         described.append(crate::instance::build(
             &COLUMN,
             [
-                Value::str(NvsStr::new(column.name.as_bytes())),
+                Value::text(&column.name),
                 column_type_value(column_type),
                 // As [`described_columns`]: § 9's own answer, and
                 // [`COLUMN_NULLABLE_DOC`] is where it is written down. The

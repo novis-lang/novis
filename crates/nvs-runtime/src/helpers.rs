@@ -82,7 +82,9 @@ crate::nvs_helper! {
     /// `nvs_ir::Helper::IntToString`.
     fn nvs_int_to_string(_ctx, args: [1]) {
         let value = expect_tag!("nvs_int_to_string", args[0], as_int, Tag::Int);
-        Ok(Value::str(decimal_digits(value < 0, value.unsigned_abs())))
+        #[expect(clippy::disallowed_methods, reason = "decimal digits and a sign are ASCII")]
+        let digits = Value::str(decimal_digits(value < 0, value.unsigned_abs()));
+        Ok(digits)
     }
 }
 
@@ -90,7 +92,9 @@ crate::nvs_helper! {
     /// `nvs_ir::Helper::UintToString`.
     fn nvs_uint_to_string(_ctx, args: [1]) {
         let value = expect_tag!("nvs_uint_to_string", args[0], as_uint, Tag::Uint);
-        Ok(Value::str(decimal_digits(false, value)))
+        #[expect(clippy::disallowed_methods, reason = "decimal digits are ASCII")]
+        let digits = Value::str(decimal_digits(false, value));
+        Ok(digits)
     }
 }
 
@@ -98,7 +102,7 @@ crate::nvs_helper! {
     /// `nvs_ir::Helper::FloatToString`.
     fn nvs_float_to_string(_ctx, args: [1]) {
         let value = expect_tag!("nvs_float_to_string", args[0], as_float, Tag::Float);
-        Ok(Value::str(NvsStr::new(php_float_to_string(value).as_bytes())))
+        Ok(Value::text(&php_float_to_string(value)))
     }
 }
 
@@ -106,7 +110,7 @@ crate::nvs_helper! {
     /// `nvs_ir::Helper::BoolToString`.
     fn nvs_bool_to_string(_ctx, args: [1]) {
         let value = expect_tag!("nvs_bool_to_string", args[0], as_bool, Tag::Bool);
-        Ok(Value::str(NvsStr::new(if value { b"1".as_slice() } else { b"".as_slice() })))
+        Ok(Value::text(if value { "1" } else { "" }))
     }
 }
 
@@ -125,7 +129,7 @@ crate::nvs_helper! {
                       `ClassTable` that owns it outlives the unit"
         )]
         let name = unsafe { (*desc).name() };
-        Ok(Value::str(NvsStr::new(name.as_bytes())))
+        Ok(Value::text(name))
     }
 }
 
@@ -155,7 +159,7 @@ crate::nvs_helper! {
         let (class, found) = unsafe { ((*desc).name(), (*desc).constant(&name)) };
         match found.map(|constant| &constant.value) {
             Some(crate::object::ConstantValue::Str(text)) => {
-                Ok(Value::str(NvsStr::new(text.as_bytes())))
+                Ok(Value::text(text))
             }
             Some(crate::object::ConstantValue::Int(value)) => Ok(Value::int(*value)),
             Some(crate::object::ConstantValue::Bool(value)) => Ok(Value::bool(*value)),
@@ -398,6 +402,10 @@ crate::nvs_helper! {
                         .into_bytes()
                 };
                 row = row.and_then(|r| r.as_array().and_then(|a| a.get(&text)));
+                #[expect(
+                    clippy::disallowed_methods,
+                    reason = "the key is copied from a Novis `string` or written as ASCII digits"
+                )]
                 path.append(Value::str(NvsStr::new(&text)));
                 slot = raw.next_slot(at + 1);
             }
@@ -610,13 +618,18 @@ fn value_index(base: Value, key: Value, absent_is_null: bool) -> Result<Value, F
 fn value_to_array_key(key: Value) -> Result<Value, Fault> {
     if let Some(text) = key.str_ptr() {
         let bytes = unsafe { NvsStr::bytes_of(text) };
-        return Ok(Value::str(NvsStr::new(bytes)));
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the bytes are copied from a Novis `string`"
+        )]
+        let copied = Value::str(NvsStr::new(bytes));
+        return Ok(copied);
     }
     if let Some(index) = key.as_int() {
-        return Ok(Value::str(NvsStr::new(index.to_string().as_bytes())));
+        return Ok(Value::text(&index.to_string()));
     }
     if let Some(index) = key.as_uint() {
-        return Ok(Value::str(NvsStr::new(index.to_string().as_bytes())));
+        return Ok(Value::text(&index.to_string()));
     }
     Err(Fault::thrown(format!(
         "`{}` is not an array key — array keys are `int`, `uint`, or `string`",
@@ -1932,26 +1945,22 @@ crate::nvs_helper! {
 pub fn value_to_string(value: Value) -> Result<Value, Fault> {
     let refused = |what: &str| Fault::thrown(format!("cannot convert {what} to `string`"));
     match value.tag() {
-        Some(Tag::Null) | None => Ok(Value::str(NvsStr::new(b""))),
+        Some(Tag::Null) | None => Ok(Value::text("")),
         Some(Tag::Bool) => {
             let set = value.as_bool() == Some(true);
-            Ok(Value::str(NvsStr::new(if set {
-                b"1".as_slice()
-            } else {
-                b"".as_slice()
-            })))
+            Ok(Value::text(if set { "1" } else { "" }))
         }
         Some(Tag::Int | Tag::EnumInt) => {
             let n = value.as_int().ok_or_else(|| refused("this value"))?;
-            Ok(Value::str(NvsStr::new(n.to_string().as_bytes())))
+            Ok(Value::text(&n.to_string()))
         }
         Some(Tag::Uint | Tag::EnumUint) => {
             let n = value.as_uint().ok_or_else(|| refused("this value"))?;
-            Ok(Value::str(NvsStr::new(n.to_string().as_bytes())))
+            Ok(Value::text(&n.to_string()))
         }
         Some(Tag::Float) => {
             let n = value.as_float().ok_or_else(|| refused("this value"))?;
-            Ok(Value::str(NvsStr::new(php_float_to_string(n).as_bytes())))
+            Ok(Value::text(&php_float_to_string(n)))
         }
         Some(Tag::Str) => {
             let ptr = value.str_ptr().ok_or_else(|| refused("this value"))?;
@@ -1971,7 +1980,7 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
         // the one implementation of it.
         Some(Tag::Decimal) => {
             let value = value.as_decimal().ok_or_else(|| refused("this value"))?;
-            Ok(Value::str(NvsStr::new(value.to_string().as_bytes())))
+            Ok(Value::text(&value.to_string()))
         }
         Some(Tag::Array) => Err(refused("an array")),
         // Refused on purpose, and it is the only tag here that is refused for
@@ -2218,7 +2227,12 @@ pub fn bytes_to_string(value: Value) -> Result<Value, Fault> {
         crate::string::nvs_str_retain(ptr);
         NvsStr::from_raw(ptr)
     };
-    Ok(Value::str(retagged))
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "`str::from_utf8` checked these bytes above"
+    )]
+    let text = Value::str(retagged);
+    Ok(text)
 }
 
 crate::nvs_helper! {
@@ -2762,7 +2776,7 @@ crate::nvs_helper! {
     /// `nvs_ir::Helper::DecimalToString` — total, and scale-preserving.
     fn nvs_decimal_to_string(_ctx, args: [1]) {
         let value = decimal_operand("nvs_decimal_to_string", args[0])?;
-        Ok(Value::str(NvsStr::new(value.to_string().as_bytes())))
+        Ok(Value::text(&value.to_string()))
     }
 }
 
@@ -3907,8 +3921,8 @@ mod tests {
         );
 
         let mut ctx = Ctx::buffered();
-        let operand = Value::str(NvsStr::new(long.as_bytes()));
-        let accepted = Value::str(NvsStr::new(b"`Account`'s public declared properties"));
+        let operand = Value::text(&long);
+        let accepted = Value::text("`Account`'s public declared properties");
         assert_eq!(
             call(nvs_single_value_mismatch, &mut ctx, &[operand, accepted]).unwrap_err(),
             crate::abi::THROWN,
@@ -4006,16 +4020,16 @@ mod tests {
 
     #[test]
     fn string_truthiness_treats_only_empty_and_zero_as_falsy() {
-        for (bytes, expected) in [
-            (&b""[..], false),
-            (&b"0"[..], false),
-            (&b"0.0"[..], true),
-            (&b"false"[..], true),
-            (&b"00"[..], true),
-            (&b" "[..], true),
+        for (text, expected) in [
+            ("", false),
+            ("0", false),
+            ("0.0", true),
+            ("false", true),
+            ("00", true),
+            (" ", true),
         ] {
-            let value = Value::str(NvsStr::new(bytes));
-            assert_eq!(truthy(nvs_str_truthy, value), expected, "for {bytes:?}");
+            let value = Value::text(text);
+            assert_eq!(truthy(nvs_str_truthy, value), expected, "for {text:?}");
             #[expect(unsafe_code, reason = "the value owns the reference it releases")]
             unsafe {
                 value.release();
@@ -4037,7 +4051,7 @@ mod tests {
 
     /// One instance of `class` holding `text` in [`crate::CARRIER_TEXT_SLOT`],
     /// which is where both carriers keep their bytes.
-    fn carried(classes: &crate::ClassTable, class: &str, text: &[u8]) -> Value {
+    fn carried(classes: &crate::ClassTable, class: &str, text: &str) -> Value {
         let id = classes
             .id_of(class)
             .expect("the table defines both carriers");
@@ -4046,7 +4060,7 @@ mod tests {
             reason = "the table outlives every object this builds from it"
         )]
         let object = unsafe { crate::NvsObj::new(classes.desc(id)) };
-        object.set_field(crate::CARRIER_TEXT_SLOT, Value::str(NvsStr::new(text)));
+        object.set_field(crate::CARRIER_TEXT_SLOT, Value::text(text));
         Value::object(object)
     }
 
@@ -4074,7 +4088,7 @@ mod tests {
         let classes = carriers();
         let mut ctx = Ctx::new(crate::OutputSink::Body(Vec::new()));
 
-        let text = Value::str(NvsStr::new(b"<b>ada & co</b>"));
+        let text = Value::text("<b>ada & co</b>");
         call(nvs_echo_str, &mut ctx, &[text]).expect("the helper succeeded");
         assert_eq!(
             ctx.take_buffered_output().as_deref(),
@@ -4082,7 +4096,7 @@ mod tests {
             "a string interpolated into a page is data, so the sink escapes it"
         );
 
-        let markup = carried(&classes, crate::CARRIER_HTML_MARKUP, b"<b>ada & co</b>");
+        let markup = carried(&classes, crate::CARRIER_HTML_MARKUP, "<b>ada & co</b>");
         call(nvs_echo_value, &mut ctx, &[markup]).expect("the helper succeeded");
         assert_eq!(
             ctx.take_buffered_output().as_deref(),
@@ -4090,7 +4104,7 @@ mod tests {
             "the carrier already passed whichever rule made it markup"
         );
 
-        let styled = carried(&classes, crate::CARRIER_CLI_TEXT, b"<b>ada & co</b>");
+        let styled = carried(&classes, crate::CARRIER_CLI_TEXT, "<b>ada & co</b>");
         call(nvs_echo_value, &mut ctx, &[styled]).expect("the helper succeeded");
         assert_eq!(
             ctx.take_buffered_output().as_deref(),
@@ -4118,7 +4132,7 @@ mod tests {
         let classes = carriers();
         let mut ctx = Ctx::buffered();
 
-        let text = Value::str(NvsStr::new(b"<b>&\x1b"));
+        let text = Value::text("<b>&\x1b");
         call(nvs_echo_str, &mut ctx, &[text]).expect("the helper succeeded");
         assert_eq!(
             ctx.take_buffered_output().as_deref(),
@@ -4126,7 +4140,7 @@ mod tests {
             "a terminal sink neutralizes the control byte and escapes nothing"
         );
 
-        let styled = carried(&classes, crate::CARRIER_CLI_TEXT, b"<b>&\x1b");
+        let styled = carried(&classes, crate::CARRIER_CLI_TEXT, "<b>&\x1b");
         call(nvs_echo_value, &mut ctx, &[styled]).expect("the helper succeeded");
         assert_eq!(
             ctx.take_buffered_output().as_deref(),
@@ -4134,7 +4148,7 @@ mod tests {
             "`Cli\\Text` is this sink's carrier, so its escapes are what it is for"
         );
 
-        let markup = carried(&classes, crate::CARRIER_HTML_MARKUP, b"<b>&\x1b");
+        let markup = carried(&classes, crate::CARRIER_HTML_MARKUP, "<b>&\x1b");
         call(nvs_echo_value, &mut ctx, &[markup]).expect("the helper succeeded");
         assert_eq!(
             ctx.take_buffered_output().as_deref(),
@@ -4150,7 +4164,7 @@ mod tests {
     #[test]
     fn echo_writes_raw_bytes_and_returns_nothing() {
         let mut ctx = Ctx::buffered();
-        let value = Value::str(NvsStr::new(b"Hello, World!"));
+        let value = Value::text("Hello, World!");
         let result = call(nvs_echo_str, &mut ctx, &[value]).expect("the helper succeeded");
         assert_eq!(result.tag(), Some(Tag::Null));
         assert_eq!(
@@ -4170,7 +4184,7 @@ mod tests {
     #[test]
     fn echo_neutralizes_control_bytes_and_nothing_else() {
         let mut ctx = Ctx::buffered();
-        let value = Value::str(NvsStr::new(b"<b>&\"\x00"));
+        let value = Value::text("<b>&\"\x00");
         call(nvs_echo_str, &mut ctx, &[value]).expect("the helper succeeded");
         assert_eq!(
             ctx.take_buffered_output().as_deref(),
@@ -4188,6 +4202,10 @@ mod tests {
     #[test]
     fn echo_replaces_ill_formed_utf8_rather_than_writing_it() {
         let mut ctx = Ctx::buffered();
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the test builds a string that is not UTF-8 on purpose"
+        )]
         let value = Value::str(NvsStr::new(b"a\xffb"));
         call(nvs_echo_str, &mut ctx, &[value]).expect("the helper succeeded");
         assert_eq!(
@@ -4205,7 +4223,7 @@ mod tests {
     #[test]
     fn a_second_pass_over_neutralized_output_changes_nothing() {
         let mut ctx = Ctx::buffered();
-        let value = Value::str(NvsStr::new("a\u{241B}b".as_bytes()));
+        let value = Value::text("a\u{241B}b");
         call(nvs_echo_str, &mut ctx, &[value]).expect("the helper succeeded");
         assert_eq!(
             ctx.take_buffered_output().as_deref(),
@@ -4315,7 +4333,7 @@ mod tests {
         /// the release itself, see `nvs_ir::lower::Lowering::convert`), so a
         /// test that dropped the value here would leak it.
         fn with(text: &str, check: impl FnOnce(Value)) {
-            let value = Value::str(NvsStr::new(text.as_bytes()));
+            let value = Value::text(text);
             check(value);
             #[expect(
                 unsafe_code,
@@ -4372,7 +4390,7 @@ mod tests {
     /// releases a converted one.
     #[test]
     fn a_string_payload_comes_back_with_a_reference_of_its_own() {
-        let value = Value::str(NvsStr::new(b"text"));
+        let value = Value::text("text");
         let ptr = value.str_ptr().expect("a Tag::Str value carries a pointer");
         #[expect(
             unsafe_code,
@@ -4447,8 +4465,8 @@ mod tests {
                 .as_bool()
                 .expect("a comparison produces a bool")
         };
-        let token = Value::str(NvsStr::new(b"s3cr3t"));
-        let same = Value::str(NvsStr::new(b"s3cr3t"));
+        let token = Value::text("s3cr3t");
+        let same = Value::text("s3cr3t");
         let octets = Value::bytes(NvsStr::new(b"s3cr3t"));
         let same_octets = Value::bytes(NvsStr::new(b"s3cr3t"));
         assert!(equal(token, same));

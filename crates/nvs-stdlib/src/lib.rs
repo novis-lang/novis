@@ -627,7 +627,7 @@ mod tests {
     /// below take except `Core\Regex::compile`'s four option slots and
     /// `Core\Time::parse`'s zone.
     fn text(held: &str) -> nvs_runtime::Value {
-        nvs_runtime::Value::str(nvs_runtime::NvsStr::new(held.as_bytes()))
+        nvs_runtime::Value::text(held)
     }
 
     /// Runs `member` at the `rule:errors/propagation` boundary compiled code

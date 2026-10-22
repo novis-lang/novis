@@ -807,6 +807,10 @@ fn reader_for(dialect: Dialect) -> csv_core::Reader {
 fn row(record: &[Vec<u8>], names: &[Vec<u8>]) -> NvsArray {
     let mut out = NvsArray::new();
     for (column, field) in record.iter().enumerate() {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "`parse` cuts each field from a `string` at ASCII bytes, and `rows` checks it"
+        )]
         let value = Value::str(NvsStr::new(field));
         match names.get(column) {
             Some(name) => out.set(NvsStr::new(name), value),
@@ -856,7 +860,12 @@ nvs_runtime::nvs_helper! {
         // Every byte written is either one of the argument's — which are UTF-8
         // by `rule:types/bytes` — or the separator, the quote or an `LF`, each of which
         // `dialect_byte` has already held to ASCII.
-        Ok(Value::str(NvsStr::new(&out)))
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the arguments' strings joined by ASCII bytes"
+        )]
+        let document = Value::str(NvsStr::new(&out));
+        Ok(document)
     }
 }
 
@@ -1354,7 +1363,7 @@ mod tests {
 
     /// A `string` argument.
     fn s(text: &str) -> Value {
-        Value::str(NvsStr::new(text.as_bytes()))
+        Value::text(text)
     }
 
     /// `parse` over the default dialect, as the key/value pairs of each row.
@@ -1621,7 +1630,7 @@ mod tests {
     #[test]
     fn a_multi_byte_or_empty_separator_throws() {
         for spelling in ["", ";;", "€", "\n"] {
-            let value = Value::str(NvsStr::new(spelling.as_bytes()));
+            let value = Value::text(spelling);
             assert!(dialect_byte(&value, "parse", "separator").is_err());
         }
     }

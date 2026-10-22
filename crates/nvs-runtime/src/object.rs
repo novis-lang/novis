@@ -897,7 +897,7 @@ impl FieldDefault {
             Self::EnumUint(v) => Value::enum_uint(*v),
             Self::Float(v) => Value::float(*v),
             Self::Decimal(v) => Value::decimal(*v),
-            Self::Str(s) => Value::str(crate::NvsStr::new(s.as_bytes())),
+            Self::Str(s) => Value::text(s),
             Self::EmptyArray => Value::array(crate::NvsArray::new()),
             Self::Null => Value::null(),
             Self::Unset => Value::unset(),
@@ -5416,7 +5416,7 @@ fn initialize_late(
             }
         }
     };
-    let told = Value::str(crate::NvsStr::new(name.as_bytes()));
+    let told = Value::text(name);
     let answered = crate::dispatch::call_erased_method(ctx, receiver, "initProperty", &[told]);
     let settled = if answered.is_ok() {
         crate::Settled::Returned
@@ -5722,7 +5722,7 @@ fn tell_erased_write(
     name: &str,
     value: Value,
 ) -> Result<Value, Fault> {
-    let told = Value::str(crate::NvsStr::new(name.as_bytes()));
+    let told = Value::text(name);
     let answered =
         crate::dispatch::call_erased_method(ctx, receiver, "onPropertySet", &[told, value]);
     #[expect(
@@ -5760,7 +5760,7 @@ fn guard_erased_write(
     if !desc.conforms_to_name("PropertyGuard") {
         return Ok(());
     }
-    let told = Value::str(crate::NvsStr::new(name.as_bytes()));
+    let told = Value::text(name);
     let keys = Value::array(crate::array::NvsArray::new());
     let answered = crate::dispatch::call_erased_method(
         ctx,
@@ -6562,6 +6562,10 @@ mod tests {
         #[expect(unsafe_code, reason = "the table outlives the object")]
         let object = unsafe { NvsObj::new(table.desc(animal)) };
 
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the handle is built from an ASCII literal, and the test counts its references"
+        )]
         object.set_field(0, Value::str(name.clone()));
         assert_eq!(name.refcount(), 2);
         assert_eq!(object.field(0).as_str_bytes(), Some(&b"rex"[..]));
@@ -6577,6 +6581,10 @@ mod tests {
         let name = NvsStr::new(b"cat");
         #[expect(unsafe_code, reason = "the table outlives the object")]
         let object = unsafe { NvsObj::new(table.desc(animal)) };
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the handle is built from an ASCII literal, and the test counts its references"
+        )]
         object.set_field(0, Value::str(name.clone()));
         assert_eq!(name.refcount(), 2);
         drop(object);
@@ -6632,7 +6640,7 @@ mod tests {
             let shared = NvsObj::new(table.desc(animal));
             let original = NvsObj::new(table.desc(dog));
             original.set_field(0, Value::object(shared.clone()));
-            original.set_field(1, Value::str(NvsStr::new(b"name")));
+            original.set_field(1, Value::text("name"));
             assert_eq!(shared.refcount(), 2);
 
             // Through raw pointers rather than `NvsObj::clone`, which would
@@ -6655,7 +6663,7 @@ mod tests {
 
             // Overwriting a slot on the copy leaves the original's alone —
             // "single-level" is the other half of the rule.
-            copy.set_field(1, Value::str(NvsStr::new(b"copy")));
+            copy.set_field(1, Value::text("copy"));
             assert_eq!(original.field(1).as_str_bytes(), Some(b"name".as_slice()));
         }
     }
@@ -6671,10 +6679,10 @@ mod tests {
             #[expect(unsafe_code, reason = "the table outlives every object below")]
             unsafe {
                 let shared = NvsObj::new(table.desc(animal));
-                shared.set_field(0, Value::str(NvsStr::new(b"shared")));
+                shared.set_field(0, Value::text("shared"));
                 let original = NvsObj::new(table.desc(dog));
                 original.set_field(0, Value::object(shared.clone()));
-                original.set_field(1, Value::str(NvsStr::new(b"name")));
+                original.set_field(1, Value::text("name"));
                 drop(shared);
 
                 let raw = original.into_raw();
@@ -6706,18 +6714,15 @@ mod tests {
                 // A chain 512 deep, each node also owning a string, plus one
                 // node referenced twice so a shared subgraph is covered too.
                 let shared = NvsObj::new(table.desc(animal));
-                shared.set_field(0, Value::str(NvsStr::new(b"shared")));
+                shared.set_field(0, Value::text("shared"));
 
                 let mut head = NvsObj::new(table.desc(dog));
                 head.set_field(0, Value::object(shared.clone()));
-                head.set_field(1, Value::str(NvsStr::new(b"node 0")));
+                head.set_field(1, Value::text("node 0"));
                 for depth in 1..512 {
                     let next = NvsObj::new(table.desc(dog));
                     next.set_field(0, Value::object(head));
-                    next.set_field(
-                        1,
-                        Value::str(NvsStr::new(format!("node {depth}").as_bytes())),
-                    );
+                    next.set_field(1, Value::text(&format!("node {depth}")));
                     head = next;
                 }
                 drop(shared);
@@ -7019,6 +7024,10 @@ mod tests {
             let right = NvsObj::new(table.desc(dog));
             left.set_field(0, Value::object(right.clone()));
             right.set_field(0, Value::object(left.clone()));
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "the handle is built from an ASCII literal, and the test counts its references"
+            )]
             right.set_field(1, Value::str(held.clone()));
         }
         assert_eq!(held.refcount(), 2);
@@ -7107,6 +7116,10 @@ mod tests {
             let current = crate::ctx::CurrentCtx::install(&mut ctx);
             let holder = NvsObj::new(table.desc(animal));
             let kept = NvsObj::new(table.desc(dog));
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "the handle is built from an ASCII literal, and the test counts its references"
+            )]
             kept.set_field(1, Value::str(named.clone()));
             let mut element = NvsArray::new();
             // Moved, not cloned: the array takes the handle's one reference,
@@ -7151,6 +7164,10 @@ mod tests {
             let right = NvsObj::new(table.desc(dog));
             left.set_field(0, Value::object(right.clone()));
             right.set_field(0, Value::object(left.clone()));
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "the handle is built from an ASCII literal, and the test counts its references"
+            )]
             right.set_field(1, Value::str(held.clone()));
         }
         drop(current);

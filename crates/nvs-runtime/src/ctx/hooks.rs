@@ -618,10 +618,7 @@ impl Ctx {
         // is what the *runtime's* allocations are lent; the handler's own body
         // runs after it is closed and is measured like any other program.
         let mut report = crate::NvsArray::new();
-        report.set(
-            crate::NvsStr::new(b"limit"),
-            Value::str(crate::NvsStr::new(limit.name().as_bytes())),
-        );
+        report.set(crate::NvsStr::new(b"limit"), Value::text(limit.name()));
         let report = Value::array(report);
         // User code never runs inside the reserve (`rule:errors/on-limit`): the
         // handler's body is measured against the widened ceiling armed above,

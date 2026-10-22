@@ -1177,7 +1177,7 @@ pub(super) fn sqlite_described_columns(columns: &[nvs_db::SqliteColumn]) -> NvsA
         described.append(crate::instance::build(
             &COLUMN,
             [
-                Value::str(NvsStr::new(column.name.as_bytes())),
+                Value::text(&column.name),
                 column_type_value(column.column_type()),
                 // As [`described_columns`]: § 9's own answer, and
                 // [`COLUMN_NULLABLE_DOC`] is where it is written down. SQLite
@@ -1297,7 +1297,7 @@ pub(super) fn sqlite_stored_value(cell: nvs_db::SqliteValue) -> Value {
         nvs_db::SqliteValue::Null => Value::null(),
         nvs_db::SqliteValue::Int(int) => Value::int(int),
         nvs_db::SqliteValue::Real(real) => Value::float(real),
-        nvs_db::SqliteValue::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
+        nvs_db::SqliteValue::Text(text) => Value::text(&text),
         nvs_db::SqliteValue::Blob(bytes) => Value::bytes(NvsStr::new(&bytes)),
     }
 }
@@ -2121,7 +2121,7 @@ mod tests {
         let mut set = NvsArray::new();
         set.append(crate::instance::build(&IN_LIST, [Value::array(list)]));
         let set = Value::array(set);
-        let sql = Value::str(NvsStr::new(b"select id from notes where id in (?)"));
+        let sql = Value::text("select id from notes where id in (?)");
         let statement = statement_in(
             dialect,
             encode,

@@ -567,7 +567,8 @@ nvs_runtime::nvs_helper! {
                 };
                 // One reference for the duration of the call; `call_callable`
                 // takes its own.
-                let key_arg = Value::str(nvs_runtime::NvsStr::new(text.as_bytes()));
+                #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
+                let key_arg = Value::str(text);
                 let answer = call_child(ctx, callback, &[value, key_arg]);
                 #[expect(
                     unsafe_code,
@@ -1082,8 +1083,13 @@ mod tests {
         for index in 0..3 {
             unsafe { (*args.add(index)).release() };
         }
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "a key that is already a string, then `=` and ASCII digits"
+        )]
+        let answer = Value::str(NvsStr::new(&named));
         unsafe {
-            *out = Value::str(NvsStr::new(&named));
+            *out = answer;
         }
         nvs_runtime::OK
     }

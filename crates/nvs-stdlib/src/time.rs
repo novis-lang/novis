@@ -148,7 +148,7 @@ use jiff::fmt::temporal::Pieces;
 use jiff::tz::{Offset, TimeZone};
 use jiff::{SignedDuration, Timestamp, Zoned};
 use nvs_runtime::host::Woken;
-use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, ThrownClass, Value};
 use nvs_syntax::duration;
 
 use crate::ext_record::Part;
@@ -980,7 +980,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_time_duration_to_string(_ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "toString")?;
         Ok(duration::render_with(nanos, |text| {
-            Value::str(NvsStr::new(text.as_bytes()))
+            Value::text(text)
         }))
     }
 }
@@ -3468,7 +3468,7 @@ fn nanos_between(later: Timestamp, earlier: Timestamp, member: &str) -> Result<i
 /// A fresh `Zone` with the id `id` — an IANA identifier, or a `±HH:MM[:SS]`
 /// offset spelling for a fixed zone. See [`ZONE`].
 fn zone_built(id: &str) -> Value {
-    crate::instance::build(&ZONE, [Value::str(NvsStr::new(id.as_bytes()))])
+    crate::instance::build(&ZONE, [Value::text(id)])
 }
 
 /// The [`TimeZone`] the `Zone` in argument slot `at` names.
@@ -3933,7 +3933,7 @@ nvs_runtime::nvs_helper! {
     /// replacement and the one rendering that needs no zone argument.
     fn nvs_core_time_instant_to_iso(_ctx, args: [1]) {
         let at = instant_of(args, 0, "toIso")?;
-        Ok(Value::str(NvsStr::new(at.to_string().as_bytes())))
+        Ok(Value::text(&at.to_string()))
     }
 }
 
@@ -4040,7 +4040,7 @@ fn datetime_built(at: &Zoned) -> Value {
         [
             Value::int(at.timestamp().as_second()),
             Value::int(i64::from(at.timestamp().subsec_nanosecond())),
-            Value::str(NvsStr::new(id.as_bytes())),
+            Value::text(&id),
         ],
     )
 }
@@ -4277,9 +4277,7 @@ nvs_runtime::nvs_helper! {
                     format!("Core\\Time\\DateTime::format(): {why}"),
                 )
             })?;
-        Ok(Value::str(NvsStr::new(
-            crate::cldr::render(&pieces, &at).as_bytes(),
-        )))
+        Ok(Value::text(&crate::cldr::render(&pieces, &at)))
     }
 }
 
@@ -4868,9 +4866,7 @@ nvs_runtime::nvs_helper! {
         // timeline, because that placement is not total at either end of the
         // year range `Date::at` accepts — [`crate::cldr::render_utc`] owns the
         // reasoning and the two dates that used to abort the request here.
-        Ok(Value::str(NvsStr::new(
-            crate::cldr::render_utc(&pieces, at.to_datetime(civil::Time::midnight())).as_bytes(),
-        )))
+        Ok(Value::text(&crate::cldr::render_utc(&pieces, at.to_datetime(civil::Time::midnight()))))
     }
 }
 
@@ -5105,10 +5101,8 @@ nvs_runtime::nvs_helper! {
         // rather than placed on the timeline for [`crate::cldr::render_utc`]'s
         // reason, which is the sibling `Core\Time\Date::format`'s and applies
         // here for symmetry.
-        Ok(Value::str(NvsStr::new(
-            crate::cldr::render_utc(&pieces, civil::Date::constant(1970, 1, 1).to_datetime(at))
-                .as_bytes(),
-        )))
+        Ok(Value::text(&crate::cldr::render_utc(&pieces, civil::Date::constant(1970, 1, 1).to_datetime(at))
+                ))
     }
 }
 
@@ -5504,7 +5498,7 @@ mod tests {
     /// threw.
     fn built_from_iso(text: &str) -> Result<(i64, i64), String> {
         let mut ctx = Ctx::buffered();
-        let args = [Value::str(NvsStr::new(text.as_bytes()))];
+        let args = [Value::text(text)];
         let answer = match nvs_runtime::call(nvs_core_time_from_iso, &mut ctx, &args) {
             Ok(built) => {
                 let held = crate::instance::receiver(built, &INSTANT, "test")
@@ -5582,8 +5576,8 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let args = [
             Value::null(),
-            Value::str(NvsStr::new(text.as_bytes())),
-            Value::str(NvsStr::new(format.as_bytes())),
+            Value::text(text),
+            Value::text(format),
             zone_built(zone),
         ];
         let answer = match nvs_runtime::call(nvs_core_time_parse, &mut ctx, &args) {
@@ -6670,7 +6664,7 @@ mod tests {
     fn duration_parse_reads_the_duration_syntax_up_to_the_last_nanosecond() {
         let parsed = |text: &str| {
             let mut ctx = Ctx::buffered();
-            let args = [Value::str(NvsStr::new(text.as_bytes()))];
+            let args = [Value::text(text)];
             let answer = nvs_runtime::call(nvs_core_time_duration_parse, &mut ctx, &args)
                 .map(read_and_release)
                 .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned());
@@ -6859,7 +6853,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let args = [
             date_built(civil::date(from.0, from.1, from.2)),
-            Value::str(NvsStr::new(pattern.as_bytes())),
+            Value::text(pattern),
         ];
         let answer = match nvs_runtime::call(nvs_core_time_date_format, &mut ctx, &args) {
             Ok(text) => {
@@ -7424,11 +7418,7 @@ mod tests {
     /// sentence it threw.
     fn datetime_formatted(at: &Zoned, word: i64, pattern: &str) -> Result<String, String> {
         let mut ctx = Ctx::buffered();
-        let args = [
-            Value::int(word),
-            datetime_built(at),
-            Value::str(NvsStr::new(pattern.as_bytes())),
-        ];
+        let args = [Value::int(word), datetime_built(at), Value::text(pattern)];
         let answer = match nvs_runtime::call(nvs_core_time_datetime_format, &mut ctx, &args) {
             Ok(text) => {
                 let read = text
@@ -7983,7 +7973,7 @@ mod tests {
         let formatted = |at: civil::Time, pattern: &str| {
             clock_called(
                 nvs_core_time_of_day_format,
-                vec![clock_built(at), Value::str(NvsStr::new(pattern.as_bytes()))],
+                vec![clock_built(at), Value::text(pattern)],
                 |text| {
                     text.as_text()
                         .expect("`format` answers a `string`")
@@ -8218,7 +8208,7 @@ mod tests {
     fn zone_of_keeps_the_identifier_as_the_id_and_refuses_a_name_it_does_not_have() {
         let of = |id: &str| {
             let mut ctx = Ctx::buffered();
-            let args = [Value::str(NvsStr::new(id.as_bytes()))];
+            let args = [Value::text(id)];
             let read = match nvs_runtime::call(nvs_core_time_zone_of, &mut ctx, &args) {
                 Ok(zone) => {
                     let id = crate::instance::receiver(zone, &ZONE, "of")

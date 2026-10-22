@@ -448,7 +448,7 @@ fn labels_of(value: Value) -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
     use nvs_runtime::metrics::{self, Refused, Written};
-    use nvs_runtime::{Ctx, Fault, NvsFn, NvsStr, ThrownClass, Value};
+    use nvs_runtime::{Ctx, Fault, NvsFn, ThrownClass, Value};
 
     use super::{
         CLASS, NAME, mismatch, nvs_core_metrics_gauge, nvs_core_metrics_increment,
@@ -459,7 +459,7 @@ mod tests {
     /// One member called the way a compiled call site calls it: no call site,
     /// the name, the one value-or-option argument, and no labels.
     fn called(member: NvsFn, ctx: &mut Ctx, name: &str, value: Value) -> Result<Value, i32> {
-        let name = Value::str(NvsStr::new(name.as_bytes()));
+        let name = Value::text(name);
         let answer = nvs_runtime::call(
             member,
             ctx,

@@ -764,7 +764,7 @@ mod tests {
             "日本語",
             "ok \u{1f1e9}\u{1f1ea}!",
         ] {
-            let value = Value::str(nvs_runtime::NvsStr::new(subject.as_bytes()));
+            let value = Value::text(subject);
             for unit in [Unit::CodePoint, Unit::Grapheme] {
                 let total = i64::try_from(unit.length(subject)).unwrap_or(i64::MAX);
                 for index in -total - 2..=total + 2 {

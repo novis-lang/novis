@@ -564,7 +564,7 @@ nvs_runtime::nvs_helper! {
         match nvs_runtime::environment::var(name) {
             None => Ok(Value::null()),
             Some(value) => match value.to_str() {
-                Some(text) => Ok(Value::str(NvsStr::new(text.as_bytes()))),
+                Some(text) => Ok(Value::text(text)),
                 // Unreachable from source in `Core\Command`'s `usage` sense
                 // rather than a diagnostic's: no program can put anything in
                 // the environment, because there is no `putenv` and nothing in
@@ -593,7 +593,7 @@ nvs_runtime::nvs_helper! {
         match nvs_runtime::environment::var(name) {
             None => Ok(Value::null()),
             Some(value) => match value.to_str() {
-                Some(text) => Ok(Value::str(NvsStr::new(text.as_bytes()))),
+                Some(text) => Ok(Value::text(text)),
                 // Unreachable from source, for the reason `get`'s same arm
                 // gives: no program can write the environment, so only an
                 // operator who exported a value that is not text reaches it.
@@ -623,7 +623,7 @@ nvs_runtime::nvs_helper! {
         for (name, value) in sorted {
             out.set(
                 NvsStr::new(name.as_bytes()),
-                Value::str(NvsStr::new(value.as_bytes())),
+                Value::text(&value),
             );
         }
         Ok(Value::array(out))
@@ -669,7 +669,7 @@ nvs_runtime::nvs_helper! {
 mod tests {
     use std::sync::Arc;
 
-    use nvs_runtime::{Ctx, NvsArray, NvsFn, NvsStr, Value, call};
+    use nvs_runtime::{Ctx, NvsArray, NvsFn, Value, call};
 
     use super::{
         mode_ordinal, nvs_core_env_all, nvs_core_env_get, nvs_core_env_mode, nvs_core_env_secret,
@@ -715,7 +715,7 @@ mod tests {
     /// the same bytes at run time, because `secret` is a type the checker
     /// enforces and not a different value.
     fn read(member: NvsFn, label: &str, ctx: &mut Ctx, name: &str) -> Option<String> {
-        let argument = Value::str(NvsStr::new(name.as_bytes()));
+        let argument = Value::text(name);
         let answered = call(member, ctx, &[argument]).expect("the member answers");
         assert!(
             ctx.take_pending().is_none(),

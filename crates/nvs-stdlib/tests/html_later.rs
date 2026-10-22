@@ -9,7 +9,7 @@ use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
 
 use nvs_host::{Completion, Isolate, Output, Program, Scheduler};
-use nvs_runtime::{Ctx, NvsStr, OutputSink, TaskRoot, Value};
+use nvs_runtime::{Ctx, OutputSink, TaskRoot, Value};
 use nvs_stdlib::html::{nvs_core_html_escape, nvs_core_html_later};
 
 thread_local! {
@@ -201,14 +201,14 @@ slot_fn!(sets_status, |ctx| {
 });
 
 slot_fn!(sets_header, |ctx| {
-    let name = Value::str(NvsStr::new(b"X-Shop"));
-    let value = Value::str(NvsStr::new(b"open"));
+    let name = Value::text("X-Shop");
+    let value = Value::text("open");
     try_head(ctx, "nvs_core_response_set_header", &[name, value]);
     Ok(Value::null())
 });
 
 slot_fn!(writes_text, |ctx| {
-    let body = Value::str(NvsStr::new(b"plain"));
+    let body = Value::text("plain");
     try_head(ctx, "nvs_core_response_text", &[body]);
     Ok(Value::null())
 });
@@ -232,12 +232,8 @@ slot_fn!(writes_too_much, |ctx| {
 
 /// A `Core\Html\Markup` holding `text`, escaped.
 fn markup(ctx: &mut Ctx, text: &str) -> Value {
-    nvs_runtime::call(
-        nvs_core_html_escape,
-        ctx,
-        &[Value::str(NvsStr::new(text.as_bytes()))],
-    )
-    .expect("escaping a string cannot fail")
+    nvs_runtime::call(nvs_core_html_escape, ctx, &[Value::text(text)])
+        .expect("escaping a string cannot fail")
 }
 
 /// The bytes a `Markup` carries.

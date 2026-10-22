@@ -67,7 +67,7 @@
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use nvs_runtime::{Fault, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Fault, Tag, ThrownClass, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
@@ -3655,7 +3655,7 @@ nvs_runtime::nvs_helper! {
         announce(ctx, handle)?;
         Ok(crate::instance::build(
             &ID,
-            [Value::uint(id), Value::str(NvsStr::new(queue.as_bytes()))],
+            [Value::uint(id), Value::text(&queue)],
         ))
     }
 }
@@ -7593,8 +7593,8 @@ mod tests {
     /// One `push` of `script` with every option left unwritten, as the call site fills them.
     fn pushed(ctx: &mut nvs_runtime::Ctx, script: &str) -> Result<Value, i32> {
         let mut args = [Value::null(); 13];
-        args[super::SCRIPT_ARG] = Value::str(nvs_runtime::NvsStr::new(script.as_bytes()));
-        args[super::QUEUE_ARG] = Value::str(nvs_runtime::NvsStr::new(b"default"));
+        args[super::SCRIPT_ARG] = Value::text(script);
+        args[super::QUEUE_ARG] = Value::text("default");
         let answered = nvs_runtime::call(super::nvs_core_queue_push, ctx, &args);
         #[expect(
             unsafe_code,

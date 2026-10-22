@@ -1510,10 +1510,7 @@ const URL_SIGNED: &str = r"Core\Router::urlSigned";
 /// than of the route's identity.
 fn signed_payload(name: &str, params: &Value, member: &str) -> Result<Value, Fault> {
     let mut payload = NvsArray::new();
-    payload.set(
-        NvsStr::new(b"route"),
-        Value::str(NvsStr::new(name.as_bytes())),
-    );
+    payload.set(NvsStr::new(b"route"), Value::text(name));
     payload.set(
         NvsStr::new(b"params"),
         Value::array(written_form(params, member)?),
@@ -1550,7 +1547,7 @@ fn written_form(params: &Value, member: &str) -> Result<NvsArray, Fault> {
             Value::array(written_form(&value, member)?)
         } else {
             let label = std::str::from_utf8(key.as_bytes()).unwrap_or("<not text>");
-            Value::str(NvsStr::new(segment_text(value, member, label)?.as_bytes()))
+            Value::text(&segment_text(value, member, label)?)
         };
         out.set(key, written);
     }
@@ -1764,17 +1761,11 @@ fn derived_payload(
             return Err(unverified());
         }
         let text = capture_text(bound, capture)?;
-        params.set(
-            NvsStr::new(bound.as_bytes()),
-            Value::str(NvsStr::new(text.as_bytes())),
-        );
+        params.set(NvsStr::new(bound.as_bytes()), Value::text(&text));
     }
 
     let mut payload = NvsArray::new();
-    payload.set(
-        NvsStr::new(b"route"),
-        Value::str(NvsStr::new(name.as_bytes())),
-    );
+    payload.set(NvsStr::new(b"route"), Value::text(name));
     payload.set(NvsStr::new(b"params"), Value::array(params));
     Ok(Value::array(payload))
 }
@@ -1876,7 +1867,7 @@ fn link_template<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> 
 
 /// A freshly built `string` result.
 fn produced(text: &str) -> HelperResult {
-    Ok(Value::str(NvsStr::new(text.as_bytes())))
+    Ok(Value::text(text))
 }
 
 /// The answer both members give for a name that reached run time at all, which
@@ -1983,13 +1974,13 @@ pub(crate) fn match_value(
         &MATCH,
         [
             match matched.name() {
-                Some(name) => Value::str(NvsStr::new(name.as_bytes())),
+                Some(name) => Value::text(name),
                 None => Value::null(),
             },
             Value::array(params),
             Value::int(method),
             match matched.route().access() {
-                Some(access) => Value::str(NvsStr::new(access.as_bytes())),
+                Some(access) => Value::text(access),
                 None => Value::null(),
             },
             // A row index always fits in an `int`. `-1` names no row, and
@@ -2191,17 +2182,15 @@ fn capture_value(
     capture: &nvs_runtime::routes::Param,
 ) -> Result<Value, Fault> {
     Ok(match capture {
-        nvs_runtime::routes::Param::Text(text) => Value::str(NvsStr::new(
-            crate::uri::decode_capture(text, name)?.as_bytes(),
-        )),
+        nvs_runtime::routes::Param::Text(text) => {
+            Value::text(&crate::uri::decode_capture(text, name)?)
+        }
         nvs_runtime::routes::Param::Int(number) => Value::int(*number),
         nvs_runtime::routes::Param::Uint(number) => Value::uint(*number),
         nvs_runtime::routes::Param::Decimal(value) => Value::decimal(*value),
         nvs_runtime::routes::Param::Uuid(octets) => crate::uuid::of_octets(*octets),
         nvs_runtime::routes::Param::Parses { class, text } => {
-            let text = Value::str(NvsStr::new(
-                crate::uri::decode_capture(text, name)?.as_bytes(),
-            ));
+            let text = Value::text(&crate::uri::decode_capture(text, name)?);
             parsed(ctx, class, text)?
         }
     })
@@ -3040,7 +3029,7 @@ mod tests {
         let mut folded = nvs_runtime::NvsArray::new();
         folded.set(
             nvs_runtime::NvsStr::new(b"Shop::show"),
-            Value::str(nvs_runtime::NvsStr::new(b"sixty")),
+            Value::text("sixty"),
         );
         let payloads = Value::array(folded);
 
@@ -3084,9 +3073,9 @@ mod tests {
     /// `Core\Router::match($method, $path)` over the table `ctx` holds, `None`
     /// for the `null` it answers when no row claims the pair, or the sentence
     /// it threw.
-    fn asked(ctx: &mut Ctx, verb: &str, path: &[u8]) -> Result<Option<Value>, String> {
+    fn asked(ctx: &mut Ctx, verb: &str, path: &str) -> Result<Option<Value>, String> {
         let method = Value::int(super::method_case(verb).expect("the case names a roster verb"));
-        let path = Value::str(nvs_runtime::NvsStr::new(path));
+        let path = Value::text(path);
         let answered = nvs_runtime::call(super::nvs_core_router_match, ctx, &[method, path]);
         dropped(path);
         match answered {
@@ -3108,7 +3097,7 @@ mod tests {
     fn router_match_answers_the_row_for_its_verb_and_path_and_null_otherwise() {
         let mut ctx = Ctx::new(OutputSink::Sink);
         assert_eq!(
-            asked(&mut ctx, "Get", b"/shop/7").map(|found| found.is_some()),
+            asked(&mut ctx, "Get", "/shop/7").map(|found| found.is_some()),
             Ok(false),
             "a program with no `#[Route]` has no table, so nothing matches"
         );
@@ -3143,14 +3132,14 @@ mod tests {
             ),
         ])));
 
-        let found = asked(&mut ctx, "Get", b"/shop/7")
+        let found = asked(&mut ctx, "Get", "/shop/7")
             .expect("an `int` capture refuses nothing")
             .expect("the row claims its own verb and path");
         let name = nvs_runtime::call(super::nvs_core_router_match_name, &mut ctx, &[found])
             .expect("a match answers its own name");
         assert_eq!(name.as_str_bytes(), Some(&b"Shop::show"[..]));
         dropped(name);
-        let key = Value::str(nvs_runtime::NvsStr::new(b"id"));
+        let key = Value::text("id");
         let id = nvs_runtime::call(super::nvs_core_router_match_param, &mut ctx, &[found, key])
             .expect("a match answers its own capture");
         assert_eq!(
@@ -3161,20 +3150,15 @@ mod tests {
         dropped(key);
         dropped(found);
 
-        for (verb, path) in [
-            ("Post", &b"/shop/7"[..]),
-            ("Get", b"/shop"),
-            ("Get", b"/shop/x"),
-        ] {
+        for (verb, path) in [("Post", "/shop/7"), ("Get", "/shop"), ("Get", "/shop/x")] {
             assert_eq!(
                 asked(&mut ctx, verb, path).map(|found| found.is_some()),
                 Ok(false),
-                "no row claims {verb} {}",
-                String::from_utf8_lossy(path)
+                "no row claims {verb} {path}"
             );
         }
 
-        let refused = asked(&mut ctx, "Get", b"/files/%ff").expect_err("`%ff` is no `string`");
+        let refused = asked(&mut ctx, "Get", "/files/%ff").expect_err("`%ff` is no `string`");
         assert!(refused.contains("`name`"), "{refused}");
     }
 
@@ -3218,7 +3202,7 @@ mod tests {
             count
         };
 
-        let found = asked(&mut ctx, "Post", b"/articles/7")
+        let found = asked(&mut ctx, "Post", "/articles/7")
             .expect("an `int` capture refuses nothing")
             .expect("the row claims its own verb and path");
         let name = nvs_runtime::call(super::nvs_core_router_match_name, &mut ctx, &[found])
@@ -3226,12 +3210,12 @@ mod tests {
         assert_eq!(name.as_str_bytes(), Some(&b"Articles::update"[..]));
         dropped(name);
         assert_eq!(captures(&mut ctx, found), 1);
-        let key = Value::str(nvs_runtime::NvsStr::new(b"id"));
+        let key = Value::text("id");
         let id = nvs_runtime::call(super::nvs_core_router_match_param, &mut ctx, &[found, key])
             .expect("a match answers a capture it has");
         assert_eq!(id.as_int(), Some(7), "the capture is the converted number");
         dropped(key);
-        let unknown = Value::str(nvs_runtime::NvsStr::new(b"slug"));
+        let unknown = Value::text("slug");
         let absent = nvs_runtime::call(
             super::nvs_core_router_match_param,
             &mut ctx,
@@ -3249,7 +3233,7 @@ mod tests {
         dropped(access);
         dropped(found);
 
-        let bare = asked(&mut ctx, "Get", b"/health")
+        let bare = asked(&mut ctx, "Get", "/health")
             .expect("a row with no capture refuses nothing")
             .expect("the row claims its own verb and path");
         let unnamed = nvs_runtime::call(super::nvs_core_router_match_name, &mut ctx, &[bare])
@@ -3261,8 +3245,8 @@ mod tests {
 
     /// The ordinals `Core\Router::methodsFor($path)` answers over the table
     /// `ctx` holds.
-    fn verbs_for(ctx: &mut Ctx, path: &[u8]) -> Vec<i64> {
-        let path = Value::str(nvs_runtime::NvsStr::new(path));
+    fn verbs_for(ctx: &mut Ctx, path: &str) -> Vec<i64> {
+        let path = Value::text(path);
         let answered = nvs_runtime::call(super::nvs_core_router_methods_for, ctx, &[path])
             .expect("`methodsFor` throws for nothing");
         dropped(path);
@@ -3288,7 +3272,7 @@ mod tests {
     fn methods_for_answers_each_verb_once_in_table_order_and_nothing_without_a_claim() {
         let mut ctx = Ctx::new(OutputSink::Sink);
         assert!(
-            verbs_for(&mut ctx, b"/shop/7").is_empty(),
+            verbs_for(&mut ctx, "/shop/7").is_empty(),
             "no table claims nothing"
         );
 
@@ -3313,15 +3297,15 @@ mod tests {
 
         let case = |verb| super::method_case(verb).expect("a roster verb");
         assert_eq!(
-            verbs_for(&mut ctx, b"/shop/7"),
+            verbs_for(&mut ctx, "/shop/7"),
             vec![case("Delete"), case("Get")]
         );
         assert!(
-            verbs_for(&mut ctx, b"/shop").is_empty(),
+            verbs_for(&mut ctx, "/shop").is_empty(),
             "no row claims the prefix"
         );
         assert!(
-            verbs_for(&mut ctx, b"/shop/-7").is_empty(),
+            verbs_for(&mut ctx, "/shop/-7").is_empty(),
             "a `uint` capture refuses a sign"
         );
     }
@@ -3584,17 +3568,14 @@ mod tests {
             .map(|(tag, text)| format!("{}{text}", *tag as char))
             .collect::<Vec<_>>()
             .join(&super::link::PIECE_SEPARATOR.to_string());
-        Value::str(nvs_runtime::NvsStr::new(template.as_bytes()))
+        Value::text(&template)
     }
 
     /// A `$params` array of text values under the given keys.
     fn text_params(entries: &[(&str, &str)]) -> Value {
         let mut params = nvs_runtime::NvsArray::new();
         for (key, value) in entries {
-            params.set(
-                nvs_runtime::NvsStr::new(key.as_bytes()),
-                Value::str(nvs_runtime::NvsStr::new(value.as_bytes())),
-            );
+            params.set(nvs_runtime::NvsStr::new(key.as_bytes()), Value::text(value));
         }
         Value::array(params)
     }
@@ -3755,25 +3736,19 @@ mod tests {
         // Every byte a URL gives a meaning to, in one capture: a member that
         // escaped one set too few would leave the segment here.
         let mut params = nvs_runtime::NvsArray::new();
-        params.set(
-            nvs_runtime::NvsStr::new(b"slug"),
-            Value::str(nvs_runtime::NvsStr::new(b"a/b?c#d e")),
-        );
+        params.set(nvs_runtime::NvsStr::new(b"slug"), Value::text("a/b?c#d e"));
         let params = Value::array(params);
         let ring = crate::keyring::tests::ring_of(&[&[7; 32]]);
 
         let plain = linked(
             super::nvs_core_router_link,
-            &[
-                Value::str(nvs_runtime::NvsStr::new(template.as_bytes())),
-                params,
-            ],
+            &[Value::text(&template), params],
         );
         let signed = linked(
             super::nvs_core_router_link_signed,
             &[
-                Value::str(nvs_runtime::NvsStr::new(template.as_bytes())),
-                Value::str(nvs_runtime::NvsStr::new(b"Docs::show")),
+                Value::text(&template),
+                Value::text("Docs::show"),
                 params,
                 ring,
                 Value::null(),
@@ -3915,8 +3890,8 @@ mod tests {
         let link = linked(
             super::nvs_core_router_link_signed,
             &[
-                Value::str(nvs_runtime::NvsStr::new(template.as_bytes())),
-                Value::str(nvs_runtime::NvsStr::new(b"Shop::show")),
+                Value::text(&template),
+                Value::text("Shop::show"),
                 params,
                 ring,
                 Value::null(),

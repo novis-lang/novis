@@ -486,17 +486,14 @@ mod tests {
         let floored = nvs_render::json::line(&floor::uncaught(&thrown));
 
         let mut fields = NvsArray::new();
-        fields.set(
-            NvsStr::new(b"class"),
-            Value::str(NvsStr::new(thrown.class_name().as_bytes())),
-        );
+        fields.set(NvsStr::new(b"class"), Value::text(&thrown.class_name()));
         call(
             nvs_core_log_write,
             &mut ctx,
             &[
                 no_source(),
                 Value::int(error_severity()),
-                Value::str(NvsStr::new(thrown.message().as_bytes())),
+                Value::text(&thrown.message()),
                 Value::array(fields),
             ],
         )
@@ -547,7 +544,7 @@ mod tests {
             &[
                 source,
                 Value::int(error_severity()),
-                Value::str(NvsStr::new(b"a message")),
+                Value::text("a message"),
                 Value::array(NvsArray::new()),
             ],
         )
@@ -650,7 +647,7 @@ mod tests {
             &[
                 no_source(),
                 Value::int(error_severity()),
-                Value::str(NvsStr::new(message.as_bytes())),
+                Value::text(message),
                 Value::array(NvsArray::new()),
             ],
         )
@@ -971,7 +968,7 @@ mod tests {
             &[
                 no_source(),
                 Value::int(error_severity()),
-                Value::str(NvsStr::new(b"the application said so")),
+                Value::text("the application said so"),
                 Value::array(NvsArray::new()),
             ],
         )
@@ -1042,7 +1039,7 @@ mod tests {
                 &[
                     no_source(),
                     Value::int(level.syslog_severity().into()),
-                    Value::str(NvsStr::new(level.name().as_bytes())),
+                    Value::text(level.name()),
                     Value::array(NvsArray::new()),
                 ],
             )
@@ -1104,7 +1101,7 @@ mod tests {
                 &[
                     no_source(),
                     Value::int(level.syslog_severity().into()),
-                    Value::str(NvsStr::new(message.as_bytes())),
+                    Value::text(message),
                     Value::array(NvsArray::new()),
                 ],
             )
@@ -1153,7 +1150,7 @@ mod tests {
             &[
                 no_source(),
                 Value::int(Level::Error.syslog_severity().into()),
-                Value::str(NvsStr::new(b"the application said so")),
+                Value::text("the application said so"),
                 Value::array(NvsArray::new()),
             ],
         )

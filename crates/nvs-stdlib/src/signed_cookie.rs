@@ -91,7 +91,7 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
-use nvs_runtime::{Fault, NvsStr, Value};
+use nvs_runtime::{Fault, Value};
 
 use crate::keyring::KEY;
 use crate::registry::{
@@ -273,7 +273,7 @@ nvs_runtime::nvs_helper! {
         let cipher = crate::keyring::cipher_at(&held, slot,SEAL)?;
 
         let sealed = crate::crypto::seal_under(ctx, &cipher, &[], value.as_bytes(), SEAL)?;
-        Ok(Value::str(NvsStr::new(URL_SAFE_NO_PAD.encode(&sealed).as_bytes())))
+        Ok(Value::text(&URL_SAFE_NO_PAD.encode(&sealed)))
     }
 }
 
@@ -289,10 +289,10 @@ nvs_runtime::nvs_helper! {
     /// refusal as the tag check, so a cookie that is not base64 at all is not
     /// a distinguishable answer.
     ///
-    /// The `string` the plaintext comes back as is safe to tag without
-    /// re-validating: only this module's own `seal` produces bytes that
-    /// authenticate, and it sealed a `string`. That is authenticity buying
-    /// something concrete rather than being a formality.
+    /// The plaintext is checked for UTF-8 before it becomes a `string`. A tag
+    /// that holds proves who sealed the bytes, not that they are text: any
+    /// holder of a key in the ring can seal a cookie. A plaintext that is not
+    /// UTF-8 gets the same refusal as a cookie that does not authenticate.
     fn nvs_core_signed_cookie_open(_ctx, args: [2]) {
         let cookie = text_of(args, "open")?;
         let ring = crate::keyring::borrow(args, 1, OPEN)?;
@@ -307,8 +307,9 @@ nvs_runtime::nvs_helper! {
             let cipher = crate::keyring::cipher_at(&held, slot,OPEN)?;
             if let Some(sealed) = sealed.as_deref()
                 && let Some(plain) = crate::crypto::open_under(&cipher, &[], sealed, OPEN)?
+                && let Ok(text) = std::str::from_utf8(&plain)
             {
-                return Ok(Value::str(NvsStr::new(&plain)));
+                return Ok(Value::text(text));
             }
         }
 
@@ -323,7 +324,7 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use chacha20poly1305::aead::Aead;
-    use nvs_runtime::NvsArray;
+    use nvs_runtime::{NvsArray, NvsStr};
 
     use super::*;
 
@@ -451,7 +452,7 @@ mod tests {
     #[test]
     fn seal_returns_cookie_text_open_reads_and_an_empty_ring_is_refused() {
         let keys = crate::keyring::tests::ring_of(&[&[9_u8; 32]]);
-        let value = Value::str(NvsStr::new(b"user=ada"));
+        let value = Value::text("user=ada");
 
         let mut ctx = nvs_runtime::Ctx::buffered();
         let cookie = nvs_runtime::call(nvs_core_signed_cookie_seal, &mut ctx, &[value, keys])
@@ -504,7 +505,7 @@ mod tests {
         let old = crate::keyring::tests::ring_of(&[&[4_u8; 32]]);
         let rotated = crate::keyring::tests::ring_of(&[&[9_u8; 32], &[4_u8; 32]]);
         let retired = crate::keyring::tests::ring_of(&[&[9_u8; 32]]);
-        let value = Value::str(NvsStr::new(b"cart=3"));
+        let value = Value::text("cart=3");
 
         let mut ctx = nvs_runtime::Ctx::buffered();
         let cookie = nvs_runtime::call(nvs_core_signed_cookie_seal, &mut ctx, &[value, old])
@@ -521,7 +522,7 @@ mod tests {
         let mut forged = cookie.as_text().expect("seal returns a string").to_owned();
         let last = if forged.ends_with('A') { "B" } else { "A" };
         forged.replace_range(forged.len() - 1.., last);
-        let forged = Value::str(NvsStr::new(forged.as_bytes()));
+        let forged = Value::text(&forged);
 
         let mut sentences = Vec::new();
         for (text, ring) in [(forged, rotated), (cookie, retired)] {

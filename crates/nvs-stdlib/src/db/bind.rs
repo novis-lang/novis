@@ -193,12 +193,7 @@ pub(super) fn statement_failure(
             // refusal says nothing about whether there was a statement behind
             // it, so `sql` is not the server's half of the error and does not
             // follow the server's.
-            let wrote = sql.map(|text| {
-                (
-                    nvs_runtime::SQL_SLOT,
-                    Value::str(NvsStr::new(text.as_bytes())),
-                )
-            });
+            let wrote = sql.map(|text| (nvs_runtime::SQL_SLOT, Value::text(text)));
             match nvs_db::ServerError::of(refused) {
                 // The raw codes ride beside the kind normalised from them, so an
                 // application that § 8's eleven conditions do not cover reads
@@ -216,10 +211,7 @@ pub(super) fn statement_failure(
                 Some(server) => {
                     let mut slots = vec![(nvs_runtime::KIND_SLOT, error_kind_value(server.kind))];
                     if !server.sql_state.is_empty() {
-                        slots.push((
-                            nvs_runtime::SQL_STATE_SLOT,
-                            Value::str(NvsStr::new(server.sql_state.as_bytes())),
-                        ));
+                        slots.push((nvs_runtime::SQL_STATE_SLOT, Value::text(&server.sql_state)));
                     }
                     if let Some(code) = server.driver_code {
                         slots.push((nvs_runtime::DRIVER_CODE_SLOT, Value::int(i64::from(code))));
@@ -231,10 +223,7 @@ pub(super) fn statement_failure(
                     // same reason `driverCode` above is written only where a
                     // server sends one.
                     if let Some(constraint) = &server.constraint {
-                        slots.push((
-                            nvs_runtime::CONSTRAINT_SLOT,
-                            Value::str(NvsStr::new(constraint.as_bytes())),
-                        ));
+                        slots.push((nvs_runtime::CONSTRAINT_SLOT, Value::text(constraint)));
                     }
                     slots.extend(wrote);
                     Fault::thrown_with_slots(ThrownClass::DbError, message, slots)
@@ -775,7 +764,7 @@ mod tests {
     /// only one of them has it.
     #[test]
     fn a_driver_code_reaches_the_throw_only_where_the_server_sent_one() {
-        let block = Value::str(NvsStr::new(b"main"));
+        let block = Value::text("main");
         let refusal = |driver_code| {
             std::io::Error::other(nvs_db::ServerError {
                 kind: nvs_db::DbErrorKind::UniqueViolation,
@@ -835,7 +824,7 @@ mod tests {
                 &TRANSACTION,
                 [
                     Value::uint(0),
-                    Value::str(NvsStr::new(b"main")),
+                    Value::text("main"),
                     Value::bool(open),
                     Value::null(),
                 ],
@@ -846,7 +835,7 @@ mod tests {
         let args = |receiver| {
             [
                 receiver,
-                Value::str(NvsStr::new(b"insert into t (name) values (?)")),
+                Value::text("insert into t (name) values (?)"),
                 Value::null(),
                 Value::null(),
             ]
@@ -896,7 +885,7 @@ mod tests {
                 &TRANSACTION,
                 [
                     Value::uint(0),
-                    Value::str(NvsStr::new(b"main")),
+                    Value::text("main"),
                     Value::bool(false),
                     Value::null(),
                 ],
@@ -908,7 +897,7 @@ mod tests {
         let args = |receiver| {
             [
                 receiver,
-                Value::str(NvsStr::new(b"insert into t (name) values (?)")),
+                Value::text("insert into t (name) values (?)"),
                 sets,
                 Value::null(),
             ]
@@ -979,7 +968,7 @@ mod tests {
                 &TRANSACTION,
                 [
                     Value::uint(0),
-                    Value::str(NvsStr::new(b"main")),
+                    Value::text("main"),
                     Value::bool(open),
                     Value::null(),
                 ],
@@ -991,7 +980,7 @@ mod tests {
         let args = |receiver| {
             [
                 receiver,
-                Value::str(NvsStr::new(b"select id from t")),
+                Value::text("select id from t"),
                 Value::null(),
                 zero,
             ]

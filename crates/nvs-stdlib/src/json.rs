@@ -1703,7 +1703,7 @@ nvs_runtime::nvs_helper! {
             format!("Core\\Json::encode(): {why}"),
         ))?;
         let written = if escape { escape_non_ascii(&written) } else { written };
-        Ok(Value::str(NvsStr::new(written.as_bytes())))
+        Ok(Value::text(&written))
     }
 }
 
@@ -1802,7 +1802,7 @@ impl<'de> Visitor<'de> for Decode<'_> {
     }
 
     fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Value, E> {
-        Ok(Value::str(NvsStr::new(value.as_bytes())))
+        Ok(Value::text(value))
     }
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Value, A::Error> {
@@ -4141,7 +4141,7 @@ mod tests {
     fn decode_applies_the_depth_it_is_handed_and_refuses_one_outside_the_ceiling() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let mut ask = |text: &str, max: u64| {
-            let args = [Value::str(NvsStr::new(text.as_bytes())), Value::uint(max)];
+            let args = [Value::text(text), Value::uint(max)];
             let answer = nvs_runtime::call(nvs_core_json_decode, &mut ctx, &args);
             let why = ctx
                 .take_pending()
@@ -4250,7 +4250,7 @@ mod tests {
     fn is_valid_answers_false_rather_than_throwing_and_holds_the_default_depth() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let mut ask = |text: &str| {
-            let args = [Value::str(NvsStr::new(text.as_bytes()))];
+            let args = [Value::text(text)];
             let answer = nvs_runtime::call(nvs_core_json_is_valid, &mut ctx, &args)
                 .expect("isValid never throws for text");
             assert!(
@@ -5086,8 +5086,8 @@ mod tests {
                     rows.set(NvsStr::new(b"0"), Value::array(record));
                     vec![
                         Value::array(rows),
-                        Value::str(NvsStr::new(b",")),
-                        Value::str(NvsStr::new(b"\"")),
+                        Value::text(","),
+                        Value::text("\""),
                         Value::null(),
                     ]
                 },

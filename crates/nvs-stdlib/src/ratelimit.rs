@@ -907,7 +907,7 @@ mod tests {
     use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
     use std::time::Duration;
 
-    use nvs_runtime::{Ctx, NvsStr, Tag};
+    use nvs_runtime::{Ctx, Tag};
 
     use super::{
         ALLOWED_SLOT, CLASS, CONSUME_DOC, DECISION, PREFIX, SCRIPT, SHED_DOC, Value, Window,
@@ -953,7 +953,7 @@ mod tests {
             nvs_core_ratelimit_shed,
             ctx,
             &[
-                Value::str(NvsStr::new(SHED_KEY.as_bytes())),
+                Value::text(SHED_KEY),
                 Value::uint(1),
                 crate::time::duration_of(3_600 * 1_000_000_000),
                 Value::null(),
@@ -1082,7 +1082,7 @@ mod tests {
         )));
         let arguments = |limit: u64, cost: Value| {
             [
-                Value::str(NvsStr::new(b"account:1")),
+                Value::text("account:1"),
                 Value::uint(limit),
                 crate::time::duration_of(1_000_000_000),
                 Value::null(),

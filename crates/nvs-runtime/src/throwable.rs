@@ -70,7 +70,7 @@
 
 use crate::ctx::Ctx;
 use crate::object::{ClassDesc, NvsObj, ObjHeader};
-use crate::{NvsArray, NvsStr, Value};
+use crate::{NvsArray, Value};
 
 /// One backtrace frame, taken apart from the label the throw pushed.
 ///
@@ -554,9 +554,9 @@ impl Thrown {
             reason = "the caller guarantees the descriptor outlives the instance"
         )]
         let obj = unsafe { NvsObj::new(class) };
-        obj.set_field(MESSAGE_SLOT, Value::str(NvsStr::new(message.as_bytes())));
+        obj.set_field(MESSAGE_SLOT, Value::text(message));
         obj.set_field(BACKTRACE_SLOT, Value::array(NvsArray::new()));
-        obj.set_field(LOCATION_SLOT, Value::str(NvsStr::new(b"")));
+        obj.set_field(LOCATION_SLOT, Value::text(""));
         if extra.is_empty() {
             match thrown {
                 ThrownClass::Parse if count > ISSUES_SLOT => {
@@ -569,7 +569,7 @@ impl Thrown {
                 // synthesized constructor — two spellings of one class
                 // answering differently.
                 ThrownClass::DbRolledBack if count > REASON_SLOT => {
-                    obj.set_field(REASON_SLOT, Value::str(NvsStr::new(message.as_bytes())));
+                    obj.set_field(REASON_SLOT, Value::text(message));
                 }
                 _ => {}
             }
@@ -879,7 +879,7 @@ impl Thrown {
     /// Appends one frame label to the `backtrace` property, in place, and
     /// answers whether it was recorded.
     pub fn push_frame(&self, label: &str) -> bool {
-        self.with_backtrace(|frames| frames.append(Value::str(NvsStr::new(label.as_bytes()))))
+        self.with_backtrace(|frames| frames.append(Value::text(label)))
     }
 
     /// Overwrites the innermost frame with `label` — how the compiler's own
@@ -891,7 +891,7 @@ impl Thrown {
     /// frame it was called with.
     pub fn replace_innermost_frame(&self, label: &str) {
         self.with_backtrace(|frames| {
-            let value = Value::str(NvsStr::new(label.as_bytes()));
+            let value = Value::text(label);
             match frames
                 .count()
                 .checked_sub(1)
@@ -949,7 +949,7 @@ impl Thrown {
             return false;
         };
         let rendered = crate::source::location(&source);
-        obj.set_field(LOCATION_SLOT, Value::str(NvsStr::new(rendered.as_bytes())));
+        obj.set_field(LOCATION_SLOT, Value::text(&rendered));
         self.push_frame(&format!(
             "{}() at {rendered}",
             source.member.as_deref().unwrap_or(ENTRY_SCRIPT_FRAME)

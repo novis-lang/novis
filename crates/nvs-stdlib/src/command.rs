@@ -98,7 +98,7 @@
 //! `nvs-stdlib` is handed it rather than reading `argv[0]` (`rule:security/capability-check-at-the-door`).
 
 use nvs_runtime::commands::{ArgConv, CaseValue, Command, CommandArg, CommandTable};
-use nvs_runtime::{Decimal, Fault, MethodRow, NvsArray, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Decimal, Fault, MethodRow, NvsArray, Tag, ThrownClass, Value};
 
 use crate::registry::{
     ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -265,7 +265,7 @@ nvs_runtime::nvs_helper! {
                 page_for(row, signature_of(ctx, row))
             }
         };
-        Ok(crate::cli::built(Value::str(NvsStr::new(page.as_bytes()))))
+        Ok(crate::cli::built(Value::text(&page)))
     }
 }
 
@@ -411,7 +411,7 @@ nvs_runtime::nvs_helper! {
             Shell::Fish => fish_script(&program, table),
             Shell::Pwsh => pwsh_script(&program, table),
         };
-        Ok(Value::str(NvsStr::new(script.as_bytes())))
+        Ok(Value::text(&script))
     }
 }
 
@@ -522,7 +522,7 @@ fn fill(row: &Command, words: &[String], slots: &mut [Option<Value>]) -> Result<
         if arg.conv == ArgConv::Words {
             let mut collected = NvsArray::new();
             for word in &rest {
-                collected.append(Value::str(NvsStr::new(word.as_bytes())));
+                collected.append(Value::text(word));
             }
             *slot = Some(Value::array(collected));
             continue;
@@ -560,7 +560,7 @@ fn fill(row: &Command, words: &[String], slots: &mut [Option<Value>]) -> Result<
 /// checker recorded on the row.
 fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
     match &arg.conv {
-        ArgConv::Text => Ok(Value::str(NvsStr::new(text.as_bytes()))),
+        ArgConv::Text => Ok(Value::text(text)),
         // A *positional* `bool`, which has no spelling to be written and so
         // reads the words instead — an option never reaches here.
         ArgConv::Flag => match text {
@@ -601,7 +601,7 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
         // has and a walk over words has not. Nothing typed `string` here
         // reaches a parameter that declared a class — that second pass runs
         // over this same list before the handler is called.
-        ArgConv::Parses(_) => Ok(Value::str(NvsStr::new(text.as_bytes()))),
+        ArgConv::Parses(_) => Ok(Value::text(text)),
         // § 3's closed set, and the one conversion whose refusal can name every
         // value it would have accepted — a command line is a person typing, so
         // the set is worth more in the message than the type's own spelling.
@@ -609,7 +609,7 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
         // ArgConv::OneOf`'s own doc to justify.
         ArgConv::OneOf(admitted) => {
             if admitted.iter().any(|value| value == text) {
-                Ok(Value::str(NvsStr::new(text.as_bytes())))
+                Ok(Value::text(text))
             } else {
                 Err(format!(
                     "`{}` is one of {}, and `{text}` is none of them",
@@ -1906,10 +1906,7 @@ mod tests {
     fn parses_row() -> (Command, Vec<Value>) {
         let mut row = deploy();
         row.args[0].conv = ArgConv::Parses("Deployer".to_owned());
-        let values = vec![
-            Value::str(nvs_runtime::NvsStr::new("prod".as_bytes())),
-            Value::bool(false),
-        ];
+        let values = vec![Value::text("prod"), Value::bool(false)];
         (row, values)
     }
 
@@ -2053,7 +2050,7 @@ mod tests {
         );
         release(vec![page]);
 
-        let name = Value::str(nvs_runtime::NvsStr::new("deplyo".as_bytes()));
+        let name = Value::text("deplyo");
         assert_eq!(
             call(super::nvs_core_command_help, &mut ctx, &[name])
                 .expect_err("a name this table holds no row for"),

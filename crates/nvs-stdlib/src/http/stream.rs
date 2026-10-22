@@ -570,11 +570,7 @@ fn consumed(receiver: *mut nvs_runtime::ObjHeader, member: &str) -> Result<Value
     // No retain: a key is a `uint` and holds no reference, which is the whole
     // of what moving it costs compared with moving the octets it replaced.
     crate::instance::set_slot(receiver, STREAM_BODY_AT, Value::null());
-    crate::instance::set_slot(
-        receiver,
-        READ_BY_AT,
-        Value::str(NvsStr::new(member.as_bytes())),
-    );
+    crate::instance::set_slot(receiver, READ_BY_AT, Value::text(member));
     Ok(held)
 }
 
@@ -905,10 +901,11 @@ impl EventScan {
                 if self.written {
                     // All three are checked before any is allocated, so a
                     // refusal leaves nothing to release.
-                    checked(&self.data, "events")?;
-                    if let Some(name) = &self.name {
-                        checked(name, "events")?;
-                    }
+                    let data = checked(&self.data, "events")?;
+                    let name = match &self.name {
+                        Some(name) => Some(checked(name, "events")?),
+                        None => None,
+                    };
                     if let Id::Set(id) = &self.id {
                         checked(id, "events")?;
                     }
@@ -916,6 +913,10 @@ impl EventScan {
                         match std::mem::replace(&mut self.id, Id::Carried(Value::null())) {
                             Id::Carried(id) => (id, None),
                             Id::Set(octets) => {
+                                #[expect(
+                                    clippy::disallowed_methods,
+                                    reason = "`checked` passed these bytes above"
+                                )]
                                 let id = Value::str(NvsStr::new(&octets));
                                 (id, Some(id))
                             }
@@ -934,8 +935,8 @@ impl EventScan {
                     let event = crate::instance::build(
                         &EVENT,
                         [
-                            Value::str(NvsStr::new(&self.data)),
-                            optional_text(self.name.as_deref()),
+                            Value::text(data),
+                            name.map_or_else(Value::null, Value::text),
                             id,
                         ],
                     );
@@ -991,27 +992,20 @@ impl EventScan {
     }
 }
 
-/// The `?string` slot behind `name()` and `id()`, over octets [`checked`]
-/// has already passed.
-fn optional_text(value: Option<&[u8]>) -> Value {
-    value.map_or_else(Value::null, |text| Value::str(NvsStr::new(text)))
-}
-
 /// One framed piece of the reply as a `string`, or the error saying it is not
 /// text.
 fn text_of(octets: &[u8], member: &str) -> Result<Value, Fault> {
-    checked(octets, member)?;
-    Ok(Value::str(NvsStr::new(octets)))
+    Ok(Value::text(checked(octets, member)?))
 }
 
-/// `Ok` when `octets` may become a `string`. They are whatever the origin
+/// The text of `octets` when they may become a `string`. They are whatever the origin
 /// sent, and a `string` is well-formed UTF-8 by `NvsStr`'s own invariant, so
 /// every framed piece is checked before it becomes one — the way
 /// `Core\Http\Response::text` checks a whole body. `chunks()` reads the same
 /// reply as `bytes`, which asks nothing of it.
-fn checked(octets: &[u8], member: &str) -> Result<(), Fault> {
+fn checked<'a>(octets: &'a [u8], member: &str) -> Result<&'a str, Fault> {
     match std::str::from_utf8(octets) {
-        Ok(_) => Ok(()),
+        Ok(text) => Ok(text),
         Err(err) => Err(Fault::thrown(format!(
             "{STREAM_NAME}::{member}(): a piece of this reply is not valid UTF-8, so it is not a \
              `string` — byte {} of it is where it stops being text, and `chunks()` reads the \
@@ -1602,7 +1596,7 @@ mod tests {
     /// one long id cost its whole length again on every short event after it.
     #[test]
     fn an_event_with_no_id_of_its_own_shares_the_one_in_force() {
-        let carried = Value::str(nvs_runtime::NvsStr::new(&[b'7'; 4096]));
+        let carried = Value::text(&"7".repeat(4096));
         let (event, _, set) = event_at(b"data: one\n\n", true, carried)
             .expect("no cap is reached")
             .expect("the block ends with a blank line");
@@ -1719,7 +1713,7 @@ mod tests {
         );
         let mut ctx = Ctx::buffered();
         let mut header = |name: &str| {
-            let name = Value::str(super::NvsStr::new(name.as_bytes()));
+            let name = Value::text(name);
             nvs_runtime::call(
                 super::nvs_core_http_stream_header,
                 &mut ctx,
@@ -1736,7 +1730,7 @@ mod tests {
         nvs_runtime::call(super::nvs_core_http_stream_chunks, &mut ctx, &[stream])
             .expect("nothing has read the body yet");
         let mut header = |name: &str| {
-            let name = Value::str(super::NvsStr::new(name.as_bytes()));
+            let name = Value::text(name);
             nvs_runtime::call(
                 super::nvs_core_http_stream_header,
                 &mut ctx,
@@ -1848,7 +1842,7 @@ mod tests {
         );
         let mut ctx = Ctx::buffered();
         let mut headers = |name: &str| {
-            let name = Value::str(super::NvsStr::new(name.as_bytes()));
+            let name = Value::text(name);
             let list = nvs_runtime::call(
                 super::nvs_core_http_stream_headers,
                 &mut ctx,
@@ -1890,7 +1884,7 @@ mod tests {
     fn save_to_refuses_a_taken_body_and_a_path_it_may_not_write() {
         let dir = nvs_repo::scratch("http-stream-save-to");
         let path = dir.join("refused.bin");
-        let target = Value::str(super::NvsStr::new(path.to_string_lossy().as_bytes()));
+        let target = Value::text(&path.to_string_lossy());
         let mut ctx = Ctx::buffered();
 
         let taken = crate::instance::build(
@@ -1899,7 +1893,7 @@ mod tests {
                 Value::int(200),
                 Value::null(),
                 Value::null(),
-                Value::str(super::NvsStr::new(b"lines")),
+                Value::text("lines"),
             ],
         );
         let again = nvs_runtime::call(

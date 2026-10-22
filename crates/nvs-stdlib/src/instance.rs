@@ -971,16 +971,17 @@ pub(crate) fn append_to_text_slot(receiver: *mut ObjHeader, index: usize, suffix
     )]
     let grown =
         unsafe { nvs_runtime::NvsStr::from_raw(nvs_runtime::nvs_str_append(target, suffix)) };
+    #[expect(clippy::disallowed_methods, reason = "two `string`s joined")]
     set_slot(receiver, index, Value::str(grown));
 }
 
-/// Appends `bytes` to the string in slot `index` of `receiver` —
-/// [`append_to_text_slot`] for bytes a member has in hand, so the suffix is
-/// never a string of its own.
+/// Appends `suffix` to the string in slot `index` of `receiver` —
+/// [`append_to_text_slot`] for Rust text a member has in hand, so the suffix
+/// is never a string of its own.
 ///
 /// An append that fits the string's room allocates nothing, and the room
 /// doubles, so a loop of these is linear in the bytes appended.
-pub(crate) fn append_bytes_to_text_slot(receiver: *mut ObjHeader, index: usize, bytes: &[u8]) {
+pub(crate) fn append_str_to_text_slot(receiver: *mut ObjHeader, index: usize, suffix: &str) {
     let held = take_slot(receiver, index);
     let Some(target) = held.str_ptr() else {
         unreachable!("a text slot holds a string, which its caller checked");
@@ -991,7 +992,8 @@ pub(crate) fn append_bytes_to_text_slot(receiver: *mut ObjHeader, index: usize, 
                   owns it, and the append's result goes back into that slot"
     )]
     let owned = unsafe { nvs_runtime::NvsStr::from_raw(target) };
-    set_slot(receiver, index, Value::str(owned.append(bytes)));
+    #[expect(clippy::disallowed_methods, reason = "a `string` followed by a `&str`")]
+    set_slot(receiver, index, Value::str(owned.append(suffix.as_bytes())));
 }
 
 /// Whether `receiver` has exactly one owner — the one test that lets a
@@ -1363,14 +1365,14 @@ mod tests {
                       instance made from it, which is `NvsObj::new`'s obligation"
         )]
         let forged = unsafe { NvsObj::new(table.desc(forged_id)) };
-        forged.set_field(0, Value::str(nvs_runtime::NvsStr::new(b"x")));
+        forged.set_field(0, Value::text("x"));
         let forged = Value::object(forged);
         let other = build(&crate::regex::MATCH, [Value::null(), Value::int(7)]);
         let genuine = build(
             &RESPONSE,
             [
                 Value::int(201),
-                Value::str(nvs_runtime::NvsStr::new(b"")),
+                Value::text(""),
                 Value::array(nvs_runtime::NvsArray::new()),
             ],
         );

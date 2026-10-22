@@ -863,7 +863,7 @@ fn runtime(
         Crossed::Int(number) => Value::int(number),
         Crossed::Uint(number) => Value::uint(number),
         Crossed::Float(number) => Value::float(number),
-        Crossed::String(text) => Value::str(NvsStr::new(text.as_bytes())),
+        Crossed::String(text) => Value::text(&text),
         Crossed::Bytes(octets) => Value::bytes(NvsStr::new(&octets)),
         Crossed::Array(entries) => match ty {
             NovisType::Optional(inner) => {

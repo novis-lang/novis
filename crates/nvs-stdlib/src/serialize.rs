@@ -199,10 +199,7 @@ mod tests {
         inner.append(Value::float(2.5));
         inner.append(Value::null());
         let mut outer = NvsArray::new();
-        outer.set(
-            NvsStr::new(b"name"),
-            Value::str(NvsStr::new("Café 🔑".as_bytes())),
-        );
+        outer.set(NvsStr::new(b"name"), Value::text("Café 🔑"));
         outer.set(NvsStr::new(b"paid"), Value::bool(true));
         outer.set(
             NvsStr::new(b"raw"),

@@ -1039,7 +1039,7 @@ fn no_connection(member: &str) -> Fault {
 /// as the one place that decides it.
 fn message_of_frame(frame: PeerFrame) -> Value {
     let (text, bytes) = match frame {
-        PeerFrame::Text(payload) => (Value::str(NvsStr::new(payload.as_bytes())), Value::null()),
+        PeerFrame::Text(payload) => (Value::text(&payload), Value::null()),
         PeerFrame::Binary(payload) => (Value::null(), Value::bytes(NvsStr::new(&payload))),
     };
     crate::instance::build(&MESSAGE, [Value::null(), text, bytes, Value::null()])
@@ -1051,7 +1051,7 @@ fn message_of_frame(frame: PeerFrame) -> Value {
 /// delivery — [`Delivery`] hands its one owned reference on rather than
 /// copying it, and the slot is where that reference comes to rest.
 fn message_of_delivery(delivery: Delivery) -> Value {
-    let topic = Value::str(NvsStr::new(delivery.topic().as_bytes()));
+    let topic = Value::text(delivery.topic());
     let value = delivery.into_value();
     crate::instance::build(&MESSAGE, [topic, Value::null(), Value::null(), value])
 }
@@ -1524,7 +1524,7 @@ mod tests {
         let mut conn = Ctx::buffered();
         conn.set_peer(Box::new(peer));
         sched.spawn(conn, nvs_runtime::TaskRoot::Worker, move |ctx| {
-            let name = Value::str(NvsStr::new(topic.as_bytes()));
+            let name = Value::text(topic);
             nvs_runtime::call(crate::topic::nvs_core_topic_subscribe, ctx, &[name])
                 .expect("a connection may subscribe");
             let handle = nvs_runtime::call(nvs_core_socket_current, ctx, &[])
@@ -1556,7 +1556,7 @@ mod tests {
     fn a_receive_parked_on_the_peer_wakes_for_a_delivery() {
         let (topic, parks) =
             received_while_parked(Parking::default(), "socket:parked-here", |ctx| {
-                let name = Value::str(NvsStr::new(b"socket:parked-here"));
+                let name = Value::text("socket:parked-here");
                 let published = nvs_runtime::call(
                     crate::topic::nvs_core_topic_publish,
                     ctx,
@@ -1587,7 +1587,7 @@ mod tests {
         let publisher = std::thread::spawn(move || {
             parked.recv().expect("the connection parked");
             let mut ctx = Ctx::buffered();
-            let name = Value::str(NvsStr::new(b"socket:parked-there"));
+            let name = Value::text("socket:parked-there");
             let published = nvs_runtime::call(
                 crate::topic::nvs_core_topic_publish,
                 &mut ctx,
@@ -1735,7 +1735,7 @@ mod tests {
 
         let conn = nvs_runtime::call(nvs_core_socket_current, &mut ctx, &[])
             .expect("a connection isolate answers `current()`");
-        let payload = Value::str(NvsStr::new(b"ack"));
+        let payload = Value::text("ack");
         nvs_runtime::call(nvs_core_socket_send, &mut ctx, &[conn, payload])
             .expect_err("a send that could not buffer is a throw");
         let reported = ctx
@@ -1773,7 +1773,7 @@ mod tests {
 
         let conn = nvs_runtime::call(nvs_core_socket_current, &mut ctx, &[])
             .expect("a connection isolate answers `current()`");
-        let text = Value::str(NvsStr::new("héllo".as_bytes()));
+        let text = Value::text("héllo");
         nvs_runtime::call(nvs_core_socket_send, &mut ctx, &[conn, text])
             .expect("a peer that reads takes a text frame");
         let octets = Value::bytes(NvsStr::new(&[0x00, 0xff, 0x80]));
@@ -1845,7 +1845,7 @@ mod tests {
         let conn = crate::instance::build(&CLASS, []);
         nvs_runtime::call(nvs_core_socket_receive, &mut ctx, &[conn])
             .expect_err("there is no peer to wait on");
-        let payload = Value::str(NvsStr::new(b"ack"));
+        let payload = Value::text("ack");
         nvs_runtime::call(nvs_core_socket_send, &mut ctx, &[conn, payload])
             .expect_err("there is no peer to send to");
         dropped(payload);
@@ -1987,10 +1987,7 @@ mod tests {
             nvs_runtime::CALLABLE_PARAM_TAGS_SLOT,
             Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
         );
-        object.set_field(
-            nvs_runtime::CALLABLE_PARAM_NAMES_SLOT,
-            Value::str(NvsStr::new(names.as_bytes())),
-        );
+        object.set_field(nvs_runtime::CALLABLE_PARAM_NAMES_SLOT, Value::text(names));
         Value::object(object)
     }
 
@@ -2043,7 +2040,7 @@ mod tests {
         let slot = UpgradeSlot::new();
         upgradable(&mut ctx, &slot);
 
-        let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
+        let path = Value::text("/sockets/chat.nvs");
         let mine = a_room();
         nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &upgrading(path, mine))
             .expect("an offered slot takes the upgrade");
@@ -2086,7 +2083,7 @@ mod tests {
         let mut ctx = granting();
         ctx.set_inbound(Inbound::new("GET", "/live/chat", ""));
 
-        let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
+        let path = Value::text("/sockets/chat.nvs");
         nvs_runtime::call(
             nvs_core_socket_upgrade,
             &mut ctx,
@@ -2117,7 +2114,7 @@ mod tests {
     /// never got would open a connection on nothing.
     #[test]
     fn an_entry_a_resolver_refuses_is_a_throw_the_program_catches() {
-        let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
+        let path = Value::text("/sockets/chat.nvs");
         for installed in [true, false] {
             let refusing = installed.then(refusing);
             let mut ctx = granting();
@@ -2159,7 +2156,7 @@ mod tests {
         let slot = UpgradeSlot::new();
         upgradable(&mut ctx, &slot);
 
-        let path = Value::str(NvsStr::new(b"sockets/chat.nvs"));
+        let path = Value::text("sockets/chat.nvs");
         nvs_runtime::call(
             nvs_core_socket_upgrade,
             &mut ctx,
@@ -2201,7 +2198,7 @@ mod tests {
         let slot = UpgradeSlot::new();
         upgradable(&mut ctx, &slot);
 
-        let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
+        let path = Value::text("/sockets/chat.nvs");
         nvs_runtime::call(
             nvs_core_socket_upgrade,
             &mut ctx,
@@ -2248,7 +2245,7 @@ mod tests {
         let mut by_path = granting();
         let path_slot = UpgradeSlot::new();
         upgradable(&mut by_path, &path_slot);
-        let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
+        let path = Value::text("/sockets/chat.nvs");
         let path_args = a_room();
         nvs_runtime::call(
             nvs_core_socket_upgrade,
@@ -2395,8 +2392,8 @@ mod tests {
         let slot = UpgradeSlot::new();
         upgradable(&mut ctx, &slot);
 
-        let first = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
-        let second = Value::str(NvsStr::new(b"/sockets/other-and-longer.nvs"));
+        let first = Value::text("/sockets/chat.nvs");
+        let second = Value::text("/sockets/other-and-longer.nvs");
         nvs_runtime::call(
             nvs_core_socket_upgrade,
             &mut ctx,
@@ -2440,8 +2437,8 @@ mod tests {
         // A context with no configuration holds no capability at all.
         let ctx = Ctx::buffered();
         let mut names = NvsArray::new();
-        names.append(Value::str(NvsStr::new(b"fs.read")));
-        names.append(Value::str(NvsStr::new(b"no.such")));
+        names.append(Value::text("fs.read"));
+        names.append(Value::text("no.such"));
         let grants = Value::array(names);
         let narrowing = super::upgrade_narrowing(
             &ctx,
