@@ -969,14 +969,18 @@ fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registra
         .and_then(|wedged| WEDGED.replace(Some(Arc::clone(wedged))));
     // Only a thread with a meter: the raise finds the running request through
     // the publications, and a thread with no clock publishes none.
-    let seat = shared.slices.get().filter(|_| meter.is_some()).map(|slices| {
-        let shared = Arc::downgrade(shared);
-        slices.seat(Box::new(move || {
-            if let Some(shared) = shared.upgrade() {
-                shared.ask_to_yield(id);
-            }
-        }))
-    });
+    let seat = shared
+        .slices
+        .get()
+        .filter(|_| meter.is_some())
+        .map(|slices| {
+            let shared = Arc::downgrade(shared);
+            slices.seat(Box::new(move || {
+                if let Some(shared) = shared.upgrade() {
+                    shared.ask_to_yield(id);
+                }
+            }))
+        });
     Registration {
         shared: Arc::clone(shared),
         id,
@@ -2171,7 +2175,10 @@ mod tests {
         let first_before = charged(&first);
         let second_left = charged(&second);
         spin_until_asked(&first);
-        assert!(asked(&first), "a request that ran for a slice was not asked to yield");
+        assert!(
+            asked(&first),
+            "a request that ran for a slice was not asked to yield"
+        );
         assert!(!asked(&second), "a parked request was asked to yield");
         assert!(
             charged(&first) >= first_before + Duration::from_millis(20),
@@ -2186,7 +2193,10 @@ mod tests {
         switch_to(second.tree_key());
         let first_left = charged(&first);
         spin_until_asked(&second);
-        assert!(asked(&second), "the request switched to was not asked to yield");
+        assert!(
+            asked(&second),
+            "the request switched to was not asked to yield"
+        );
         assert!(
             charged(&second) >= second_left + Duration::from_millis(20),
             "the request switched to was not charged for its slice"

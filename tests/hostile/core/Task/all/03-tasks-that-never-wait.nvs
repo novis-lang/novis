@@ -3,7 +3,8 @@
 // of the call should stop both tasks, and no task should still count after the call returns.
 // hostile: timeout-ms 5000
 
-class Counter {
+class Counter
+{
     public static int $count = 0;
 }
 
