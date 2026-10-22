@@ -270,6 +270,21 @@ A refusal ends the parse with a `FATAL`, and `Core\Request`'s readers report it 
 memory error. So a name of any depth stops at the ceiling inside one parse, and no nesting or count
 limit exists beside it. `NvsArray::new` stays for arrays whose count the runtime chooses.
 
+**A parser that builds from input asks in front of each step it takes.** `Core\Csv::parse` and
+`::rows` ask for a field's place in its record, for each entry and string of a row, and for each
+chunk of a field that has not ended. `Core\Json::decode`, `::isValid`, `::decodeAs` and
+`Core\Request::json` ask for each array they open, for each element's or key's place in front of it,
+and for each string. `Core\Xml::parse` asks for each node and each attribute, and for the doubling
+of an element's attributes or children before it is made. `Core\Html::parse` and `::sanitize` ask
+for each node's room in the arena, for each doubling of the arena or of an element's children or
+attributes, and for each string they copy. A refusal ends the parse with the memory
+`FATAL`, so an upload
+of any size stops at the ceiling inside the parse and never after it. Each ask is the size of its step
+and never zero. The budget's ceiling sits below `[limits] memory` by the limit handler's reserve, and
+in that band only a recorded refusal ends the request, so an ask of nothing would report a refused
+allocation of `0` bytes. The cost is a few thread-local reads per field, beside the allocations each
+field already makes.
+
 **A primitive that carries no `ctx` refuses by returning a degenerate value, and acquires no status
 channel to say so.** `nvs_str_append` answers its target unchanged, which exactly balances the one
 reference it consumes; `nvs_str_concat` and `nvs_str_concat_n` answer the immortal empty string,
