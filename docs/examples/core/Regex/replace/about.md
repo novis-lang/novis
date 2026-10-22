@@ -5,7 +5,8 @@ The replacement text can contain parts of the match. `$0` is the whole match. `$
 are the groups of the pattern, counted from the left. A named group is written `${name}`. Write
 `${1}0` when a digit comes right after a group, and `$$` for one dollar sign. A group that the
 pattern does not have inserts nothing. The `limit` option replaces only the first matches.
-`\1` is not a group in the replacement text.
+`\1` is not a group in the replacement text. Text from a visitor is not allowed as the replacement,
+and does not compile. To insert it, return it from the function of `Core\Regex::replaceWith`.
 
 **Good to know:** the replacement is the same text for every match. To build a different text
 for each match with your own code, use `Core\Regex::replaceWith`.

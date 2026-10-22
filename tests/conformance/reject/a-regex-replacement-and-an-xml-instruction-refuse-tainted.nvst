@@ -1,0 +1,36 @@
+--TEST--
+a regex replacement and an XML processing instruction's target and data refuse a tainted argument, and the text and attribute members beside them still take one — `rule:security/every-grammar-is-a-sink`
+--FILE--
+<?nvs
+tainted string $t = "a";
+
+// The replacement is a template: `$1` and `${name}` choose captured text.
+string $replaced = Core\Regex::replace("abc", "b", $t);
+
+// Text from outside goes in through the function of `replaceWith`, which compiles.
+string $kept = Core\Regex::replaceWith("abc", "b", fn(Core\Regex\Match $m): string => "x");
+
+Core\Xml\Writer $w = Core\Xml::writer();
+$w->startDocument();
+$w->startElement("feed");
+// An instruction escapes nothing, and its reader follows it.
+$w->instruction($t, "go");
+$w->instruction("xml-stylesheet", $t);
+// Text and an attribute value are escaped, so both compile.
+$w->attribute("title", $t);
+$w->content($t);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:5:52
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:14:17
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:15:35
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
