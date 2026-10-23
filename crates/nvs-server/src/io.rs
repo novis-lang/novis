@@ -87,13 +87,15 @@
 //! reading a `408` either.
 //!
 //! **What that spends**, per `rule:programs/memory-priority`:
-//! [`SCRATCH`] bytes of the accepting coroutine's own stack while a read is in
-//! flight, and one `memcpy` of at most that much per readable poll. Per
-//! connection and only while it is polling, so O(in-flight) and nothing held
-//! between polls. AGENTS.md's ordering puts security above latency, and a
-//! bounded `memcpy` on an L1-resident buffer is the cheap
-//! side of that trade; if a benchmark ever says otherwise, the thing to change
-//! is the buffer's size, and only then the `forbid`.
+//! [`SCRATCH`] bytes of heap per open connection, zeroed once when the
+//! connection is accepted, and one `memcpy` of at most that much per readable
+//! poll. The buffer is the connection's rather than the read's, so a read
+//! touches no fresh stack and zeroes nothing. It is O(in-flight), and
+//! `rule:concurrency/connection-bounds-are-finite` bounds how many there are.
+//! AGENTS.md's ordering puts security above latency, and a bounded `memcpy` on
+//! an L1-resident buffer is the cheap side of that trade; if a benchmark ever
+//! says otherwise, the thing to change is the buffer's size, and only then the
+//! `forbid`.
 
 use std::cell::Cell;
 use std::io;
@@ -110,7 +112,7 @@ use nvs_runtime::DrainWake;
 use crate::Draining;
 use crate::heads::{Heads, Scanner};
 
-/// The scratch buffer one read borrows from the coroutine's stack.
+/// The size of the scratch buffer every read of a connection copies through.
 ///
 /// 8 KiB is a socket read's ordinary size and comfortably more than an h1
 /// request head, so the common connection — a head, then a small body — is one
@@ -239,6 +241,9 @@ pub struct ConnectionIo {
     /// Whether the last write found the socket full, shared with the
     /// connection loop: [`ConnectionIo::write_parked`].
     write_parked: Rc<Cell<bool>>,
+    /// The [`SCRATCH`] bytes each read lands in before it is copied into
+    /// `hyper`'s cursor, zeroed once here and reused by every read.
+    scratch: Box<[u8]>,
 }
 
 impl ConnectionIo {
@@ -257,6 +262,7 @@ impl ConnectionIo {
             woken_at_drain: None,
             scanner: Scanner::default(),
             write_parked: Rc::new(Cell::new(false)),
+            scratch: vec![0_u8; SCRATCH].into_boxed_slice(),
         }
     }
 
@@ -461,20 +467,20 @@ impl Read for ConnectionIo {
             // read zero bytes and be mistaken for the peer's end of stream.
             return Poll::Ready(Ok(()));
         }
-        let mut scratch = [0_u8; SCRATCH];
-        match self.stream.poll_read(&mut scratch[..want]) {
+        let this = &mut *self;
+        match this.stream.poll_read(&mut this.scratch[..want]) {
             Poll::Ready(Ok(read)) => {
                 // The first byte after a response is the next request's head,
                 // which ends the keep-alive wait and fixes that head's deadline.
                 // In the head itself this arming moves nothing.
                 if read > 0 {
-                    if self.phase.get() == Phase::KeepAlive {
-                        self.phase.set(Phase::Head);
+                    if this.phase.get() == Phase::KeepAlive {
+                        this.phase.set(Phase::Head);
                     }
-                    self.arm(true);
+                    this.arm(true);
                 }
-                self.scanner.feed(&scratch[..read]);
-                cursor.put_slice(&scratch[..read]);
+                this.scanner.feed(&this.scratch[..read]);
+                cursor.put_slice(&this.scratch[..read]);
                 Poll::Ready(Ok(()))
             }
             Poll::Ready(Err(err)) => Poll::Ready(Err(err)),

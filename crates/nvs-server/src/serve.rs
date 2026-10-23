@@ -10151,14 +10151,16 @@ pub(crate) mod tests {
     /// serves them ([`nvs_host::counts`], which exists in debug builds only).
     ///
     /// The bounds are what the server spends today, so a change that spends
-    /// more fails here. A change that spends less lowers them. The connection
-    /// adds one poke of its own beside its requests'.
+    /// more fails here. A change that spends less lowers them. Each request makes
+    /// one read that answers `WouldBlock`, and every later read waits on the
+    /// stream's readiness bit. The drive's wakes of itself set its flag and poke
+    /// nothing. The connection adds one poke of its own.
     #[cfg(debug_assertions)]
     #[test]
     fn a_keep_alive_request_reads_and_wakes_within_its_count() {
         const REQUESTS: u64 = 20;
-        const WOULD_BLOCK_READS_PER_REQUEST: u64 = 4;
-        const WAKE_POKES_PER_REQUEST: u64 = 1;
+        const WOULD_BLOCK_READS_PER_REQUEST: u64 = 1;
+        const WAKE_POKES_PER_REQUEST: u64 = 0;
         const WAKE_POKES_PER_CONNECTION: u64 = 1;
 
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
