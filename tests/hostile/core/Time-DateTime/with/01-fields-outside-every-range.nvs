@@ -8,29 +8,89 @@ var $june = Core\Time::at(2024, 6, 30, Core\Time\Zone::of('Europe/Berlin'), { ho
 array<int> $years = [9223372036854775807, -9223372036854775807 - 1, 10000, -10000];
 int $refused = 0;
 foreach ($years as int $year) {
-    try { $june->with({ year: $year }); } catch (RuntimeError $far) { $refused = $refused + 1; }
+    try {
+        $june->with({ year: $year });
+    } catch (RuntimeError $far) {
+        $refused = $refused + 1;
+    }
 }
 
 // 2. The largest `uint`, and numbers just past what each field can hold, for the six other options.
 array<uint> $numbers = [18446744073709551615, 4294967296, 2147483648, 256, 128, 1000000000];
 foreach ($numbers as uint $number) {
-    try { $june->with({ month: $number }); } catch (RuntimeError $a) { $refused = $refused + 1; }
-    try { $june->with({ day: $number }); } catch (RuntimeError $b) { $refused = $refused + 1; }
-    try { $june->with({ hour: $number }); } catch (RuntimeError $c) { $refused = $refused + 1; }
-    try { $june->with({ minute: $number }); } catch (RuntimeError $d) { $refused = $refused + 1; }
-    try { $june->with({ second: $number }); } catch (RuntimeError $e) { $refused = $refused + 1; }
-    try { $june->with({ nanos: $number }); } catch (RuntimeError $f) { $refused = $refused + 1; }
+    try {
+        $june->with({ month: $number });
+    } catch (RuntimeError $a) {
+        $refused = $refused + 1;
+    }
+    try {
+        $june->with({ day: $number });
+    } catch (RuntimeError $b) {
+        $refused = $refused + 1;
+    }
+    try {
+        $june->with({ hour: $number });
+    } catch (RuntimeError $c) {
+        $refused = $refused + 1;
+    }
+    try {
+        $june->with({ minute: $number });
+    } catch (RuntimeError $d) {
+        $refused = $refused + 1;
+    }
+    try {
+        $june->with({ second: $number });
+    } catch (RuntimeError $e) {
+        $refused = $refused + 1;
+    }
+    try {
+        $june->with({ nanos: $number });
+    } catch (RuntimeError $f) {
+        $refused = $refused + 1;
+    }
 }
 
 // 3. One past the end of each field, and a day that June does not have.
-try { $june->with({ month: 0 }); } catch (RuntimeError $g) { $refused = $refused + 1; }
-try { $june->with({ month: 13 }); } catch (RuntimeError $h) { $refused = $refused + 1; }
-try { $june->with({ day: 0 }); } catch (RuntimeError $i) { $refused = $refused + 1; }
-try { $june->with({ day: 31 }); } catch (RuntimeError $j) { $refused = $refused + 1; }
-try { $june->with({ month: 2, day: 30 }); } catch (RuntimeError $k) { $refused = $refused + 1; }
-try { $june->with({ hour: 24 }); } catch (RuntimeError $l) { $refused = $refused + 1; }
-try { $june->with({ minute: 60 }); } catch (RuntimeError $m) { $refused = $refused + 1; }
-try { $june->with({ second: 60 }); } catch (RuntimeError $n) { $refused = $refused + 1; }
+try {
+    $june->with({ month: 0 });
+} catch (RuntimeError $g) {
+    $refused = $refused + 1;
+}
+try {
+    $june->with({ month: 13 });
+} catch (RuntimeError $h) {
+    $refused = $refused + 1;
+}
+try {
+    $june->with({ day: 0 });
+} catch (RuntimeError $i) {
+    $refused = $refused + 1;
+}
+try {
+    $june->with({ day: 31 });
+} catch (RuntimeError $j) {
+    $refused = $refused + 1;
+}
+try {
+    $june->with({ month: 2, day: 30 });
+} catch (RuntimeError $k) {
+    $refused = $refused + 1;
+}
+try {
+    $june->with({ hour: 24 });
+} catch (RuntimeError $l) {
+    $refused = $refused + 1;
+}
+try {
+    $june->with({ minute: 60 });
+} catch (RuntimeError $m) {
+    $refused = $refused + 1;
+}
+try {
+    $june->with({ second: 60 });
+} catch (RuntimeError $n) {
+    $refused = $refused + 1;
+}
 echo $refused, " refused\n";
 
 // 4. The last moment there is gets its last nanosecond, and the same fields in UTC.

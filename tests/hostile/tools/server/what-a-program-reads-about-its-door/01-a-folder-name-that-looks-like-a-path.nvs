@@ -8,7 +8,9 @@ class Files
     #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::show")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $name): string
-    { return 'one file'; }
+    {
+        return 'one file';
+    }
 }
 
 // 1. Reads the path, the prefix and the captures. The path has `..` parts and `%` escapes.

@@ -79,7 +79,7 @@ foreach ($plan->steps() as Step $step) {
     $total = $total + 1;
     if ($step->grade() == Step::Grade::Safe) {
         $safe = $safe + 1;
-    } else if ($step->grade() == Step::Grade::Locking) {
+    } elseif ($step->grade() == Step::Grade::Locking) {
         $locking = $locking + 1;
     } else {
         $destructive = $destructive + 1;

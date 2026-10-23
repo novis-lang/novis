@@ -25,9 +25,9 @@ while ($i < $n) {
     $pick = $seed % 97;
     if ($pick == 0) {
         $ints[] = 9223372036854775807;
-    } else if ($pick == 1) {
+    } elseif ($pick == 1) {
         $ints[] = -9223372036854775807 - 1;
-    } else if ($pick == 2) {
+    } elseif ($pick == 2) {
         $ints[] = 0;
     } else {
         $ints[] = $seed - 1073741824;
@@ -52,17 +52,17 @@ while ($i < $n) {
     $pick = $seed % 13;
     if ($pick == 0) {
         $floats[] = $nan;
-    } else if ($pick == 1) {
+    } elseif ($pick == 1) {
         $floats[] = 0.0 - $nan;
-    } else if ($pick == 2) {
+    } elseif ($pick == 2) {
         $floats[] = 0.0;
-    } else if ($pick == 3) {
+    } elseif ($pick == 3) {
         $floats[] = -0.0;
-    } else if ($pick == 4) {
+    } elseif ($pick == 4) {
         $floats[] = $inf;
-    } else if ($pick == 5) {
+    } elseif ($pick == 5) {
         $floats[] = 0.0 - $inf;
-    } else if ($pick == 6) {
+    } elseif ($pick == 6) {
         $floats[] = 5e-324;
     } else {
         $floats[] = ($seed as float) / 3.0 - 300000000.0;
@@ -88,15 +88,15 @@ while ($i < $n) {
     $pick = $seed % 11;
     if ($pick == 0) {
         $strings[] = '';
-    } else if ($pick == 1) {
+    } elseif ($pick == 1) {
         $strings[] = $long;
-    } else if ($pick == 2) {
+    } elseif ($pick == 2) {
         $strings[] = $long . 'a';
-    } else if ($pick == 3) {
+    } elseif ($pick == 3) {
         $strings[] = $long . 'b';
-    } else if ($pick == 4) {
+    } elseif ($pick == 4) {
         $strings[] = 'é' . (($seed % 7) as string);
-    } else if ($pick == 5) {
+    } elseif ($pick == 5) {
         $strings[] = "\u{ffff}";
     } else {
         $strings[] = (($seed % 100000) as string);

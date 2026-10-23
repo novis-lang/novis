@@ -23,7 +23,9 @@ final class Crate extends Box
     public string $label = 'label';
     public string $name = 'crate';
     public function constructor()
-    { parent::constructor(); }
+    {
+        parent::constructor();
+    }
 }
 
 final class Attack

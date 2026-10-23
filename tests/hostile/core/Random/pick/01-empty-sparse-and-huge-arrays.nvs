@@ -24,7 +24,7 @@ while ($round < 10000) {
     ?string $drawn = Core\Random::pick($far);
     if ($drawn == 'low') {
         $low = $low + 1;
-    } else if ($drawn == 'high') {
+    } elseif ($drawn == 'high') {
         $high = $high + 1;
     }
     $round = $round + 1;

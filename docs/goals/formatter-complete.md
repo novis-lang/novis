@@ -13,7 +13,7 @@ stages:
         rules: [tooling/fmt-exit-status-says-what-it-found, tooling/fmt-check-writes-nothing]
   - id: 2
     title: "one statement per line, a closing brace on its own line, and `elseif` as one word"
-    status: open
+    status: done
     context: [crates/nvs-fmt/src/brace.rs, crates/nvs-fmt/src/indent.rs, crates/nvs-fmt/tests/base_style.rs, crates/nvs-syntax/src/parser/stmt.rs, data/gaps/nvs-fmt/closing-brace-is-moved-onto-a.json, data/gaps/nvs-fmt/else-if-is-kept-as-two-words.json]
     extra:
       context:
@@ -95,12 +95,13 @@ region's own text stays the author's, because that text is what the program prin
 that changed it would change the program's output. Stage 4 writes both into the rule fragment before
 the code.
 
-**The repository's own `.nvs` files are not reformatted in bulk.** Nothing runs `nvs fmt --check`
-over the tree. `bun nv verify`'s `nvs-fmt` step formats only the `.nvs` files under `tests/` and `examples/`
-that the working tree changed (`tools/nv/cmd/verify.ts:162`), and skips `tests/fmt/input/`. So a
-stage that changes output (2, 3, 4, 5, 6) reformats nothing else. A later session that edits one of
-those files gets that one file reformatted, and its expectations are checked in that session's verify.
-A bulk pass would move line numbers that `.out` and `.nvst` expectations pin, for no reader's gain.
+**A stage that changes output reformats the corpus in the same commit.**
+`crates/nvs-fmt/tests/identity.rs` holds every `.nvs` file under `tests/` and `examples/` to the
+formatter's output, `tests/fmt/input/` aside, so a rule the corpus does not follow is red there.
+`NVS_FMT_ACCEPT=1 cargo test --test identity` writes the files back. Before accepting, list the
+changed files that have an expectation file beside them (`.out`, `.nvst`, `.nvsr`) and check that
+none pins a line number the reformat moves. Stage 2 moved 57 files, all but one under
+`tests/hostile/`, and no expectation beside them names a line.
 
 **Lanes.** Stage 1 is in `nvs-cli` and `tools/nv/cmd/scaling.ts`, and shares no file with stages 2
 to 6, so it can run first, last, or as a side goal. Stages 3 and 6 share `crates/nvs-syntax/src/walk.rs`
@@ -133,11 +134,11 @@ a hook simpler to write.
 
 **Does:** the brace paragraph of `rule:tooling/fmt-base-style-is-per` is fully applied.
 
-- [ ] Two statements on one line are split onto two lines. `crates/nvs-fmt/src/indent.rs:116`
-- [ ] A `}` that shares a line with the statement before it moves onto a line of its own. `crates/nvs-fmt/src/brace.rs:87`
-- [ ] `else if` is written `elseif`. The parser reads both into one arm, so the tree does not change. `crates/nvs-syntax/src/parser/stmt.rs:411`, `crates/nvs-fmt/src/tokens.rs:163`
-- [ ] A base-style test for each, and the corpus idempotence test covers the new output (`rule:tooling/fmt-is-idempotent`). `crates/nvs-fmt/tests/base_style.rs:1`, `crates/nvs-fmt/tests/corpus.rs:52`
-- [ ] Both records are deleted. `data/gaps/nvs-fmt/closing-brace-is-moved-onto-a.json:1`, `data/gaps/nvs-fmt/else-if-is-kept-as-two-words.json:1`
+- [x] Two statements on one line are split onto two lines. `crates/nvs-fmt/src/indent.rs:116`
+- [x] A `}` that shares a line with the statement before it moves onto a line of its own. `crates/nvs-fmt/src/brace.rs:87`
+- [x] `else if` is written `elseif`. The parser reads both into one arm, so the tree does not change. `crates/nvs-syntax/src/parser/stmt.rs:411`, `crates/nvs-fmt/src/tokens.rs:163`
+- [x] A base-style test for each, and the corpus idempotence test covers the new output (`rule:tooling/fmt-is-idempotent`). `crates/nvs-fmt/tests/base_style.rs:1`, `crates/nvs-fmt/tests/corpus.rs:52`
+- [x] Both records are deleted. `data/gaps/nvs-fmt/closing-brace-is-moved-onto-a.json:1`, `data/gaps/nvs-fmt/else-if-is-kept-as-two-words.json:1`
 
 ### 3. a shape type is a node, so its fields are formatted as a list
 
@@ -199,36 +200,41 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done (886e60cbd). `nvs fmt` exits through `Found` (`crates/nvs-cli/src/fmt.rs`, the
-enum above `Mode`): `Settled` 0, `Changed` 1, `Refused` 2, the worst file wins. `--check --stdin`
-prints `<stdin>` when the buffer would change. `collect` skips a child directory named `vendor`; a
-named path is walked whatever it is called. `crates/nvs-cli/tests/fmt.rs` pins every code, and its
-8 `fmt_` cases pass. `bun nv scaling`'s fmt ladder no longer matches the refusal's text.
+Stages 1 (886e60cbd) and 2 are done. Stage 2's new module `crates/nvs-fmt/src/statement.rs` finds
+each statement and each body's `}` that shares a line with the `;`, `{` or `}` before it.
+`Indent::new` keeps those offsets (`breaks`). `Indent::opening_of` treats one as a line start, so a
+body's contents indent from the line its opener is moved to. A one-line `fn`, anonymous class or
+property hook body is kept whole. `of_line` now places a `}` that closes a `try` clause.
+`brace.rs`'s `joins_an_if` writes the run inside `else if` empty, so it comes out `elseif`. A
+comment between the words keeps them apart. Three new `base_style.rs` cases pass, as do every other
+`nvs-fmt` suite, `identity` included.
 
-The acceptance sweep's reds at the start of this session: `env-secret-proofs` exits 0 at HEAD, with
-nothing owed. The nightly run 39922764699 was at 7b6ef53ee, 106 commits behind. Every job it shares
-with push CI is green on push run 39982774098 (6d3c2770a) except the stale guard 9ceb43a49 fixed, and
-the observer cost guard it failed passes in release at HEAD. The nightly-only macOS `Serve soak` step
-grew a steady 2280 bytes per 50-request connection there. At HEAD the soak passes in release on
-Windows, and 071663316 (a spawned tree's start-up bytes leave the tree that spawned it) is the likely
-fix. Only the next nightly can confirm it on macOS. If it is red there again, that run's soak is the
-slice to take first.
+The corpus was reformatted in this commit (`NVS_FMT_ACCEPT=1`): 57 files, `examples/schema.nvs` and
+56 under `tests/hostile/`. No expectation beside them names a line. The VS Code extension's attack
+needs two secrets on one line, so they now sit in a one-line `fn`, which the rule keeps whole
+(`tests/hostile/tools/editor/the-vs-code-extension/01-ranges-a-bar-has-to-land-on.nvs:23`). The standing decision on the
+corpus is rewritten to say a stage that changes output reformats it.
 
-No test is expected to go red from stage 1: no other file reads `nvs fmt`'s exit code above `0`.
+The acceptance sweep's reds were unchanged at this session's start: `env-secret-proofs` exits 0, and
+no nightly has run since 39922764699 (106 commits stale). The last handoff's triage stands. If the
+next nightly's macOS `Serve soak` is red again, that is the slice to take first.
+
+Expected red at the gate: nothing known. The hostile cases that were reformatted run the same
+programs. An LSP formatting test that pins a one-line body would move with the rule.
 
 ### Next
 
-**Stage 2: one statement per line, a closing brace on its own line, `elseif`.** One file set:
-`crates/nvs-fmt/src/indent.rs`, `crates/nvs-fmt/src/brace.rs`, `crates/nvs-fmt/src/tokens.rs`,
-`crates/nvs-fmt/tests/base_style.rs`. No gate. Do the split first, as the standing decision says.
+**Stage 3: a shape type is a node, so its fields are formatted as a list.** Files:
+`crates/nvs-syntax/src/walk.rs`, `crates/nvs-fmt/src/list.rs`, `crates/nvs-cli/tests/ast.rs`,
+`crates/nvs-fmt/tests/list_layout.rs`. Do the stage's Explore split first. Read
+`rule:ide/ast-json-schema-is-frozen` before adding the kind. The playbook's first Tooling trap applies:
+a new walk node moves indentation, so run `cargo test --test identity` and accept the corpus as stage 2 did.
 
-- [ ] Two statements on one line are split onto two lines. `crates/nvs-fmt/src/indent.rs:116`
-- [ ] A `}` that shares a line with the statement before it moves onto a line of its own. `crates/nvs-fmt/src/brace.rs:87`
-- [ ] `else if` is written `elseif`. `crates/nvs-syntax/src/parser/stmt.rs:411`, `crates/nvs-fmt/src/tokens.rs:163`
-- [ ] A base-style test for each. `crates/nvs-fmt/tests/base_style.rs:1`, `crates/nvs-fmt/tests/corpus.rs:52`
-- [ ] Both records are deleted. `data/gaps/nvs-fmt/closing-brace-is-moved-onto-a.json:1`, `data/gaps/nvs-fmt/else-if-is-kept-as-two-words.json:1`
-
-Stage 3 shares no file with stage 2, so a session with room may take it after.
+- [ ] A node for a type, a shape type among them, in the syntax walk, and each consumer on the Explore list still matches. `crates/nvs-syntax/src/walk.rs:148`
+- [ ] The frozen `ast --json` example is re-recorded. `crates/nvs-cli/tests/ast.rs:184`
+- [ ] `list.rs` lays out a shape type's fields as a list, with a test. `crates/nvs-fmt/src/list.rs:94`, `crates/nvs-fmt/tests/list_layout.rs:1`
+- [ ] The record is deleted. `data/gaps/nvs-fmt/comma-separated-list-whose-closing-delimiter.json:1`
+- [ ] `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` is `shipped`. `data/rules/tooling/fmt-a-list-is-one-line-or-one-item-per-line.json:3`
 
 ### Backlog
 

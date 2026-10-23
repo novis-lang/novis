@@ -18,8 +18,10 @@ secret string $afterMarks = 'sk-live-combining';
 // the rest of the line must not be shown backwards.
 secret string $override = "sk-live-\u{202E}gnitset";
 
-// Two secrets on one line. Revealing one of them must show that one only.
-secret string $left = 'sk-live-left'; secret string $right = 'sk-live-right';
+// Two secrets on one line, inside a function written on one line. Revealing one
+// of them must show that one only.
+var $both = fn(): void => { secret string $left = 'sk-live-left'; secret string $right = 'sk-live-right'; };
+$both();
 
 // An empty secret string. Its range starts and ends at the same position. The blur
 // must not be lost, drawn twice or drawn at the start of the file.

@@ -184,3 +184,114 @@ class Queue
 ";
     assert_eq!(formatted(mangled), canonical);
 }
+
+/// A `for` header's clauses and a one-line anonymous function are not two
+/// statements, and an empty body keeps its braces together.
+#[test]
+fn two_statements_on_one_line_are_split_onto_two() {
+    let mangled = "\
+<?nvs
+class Counter
+{
+    public int $a = 0; public int $b = 0;
+
+    public function reset(): void
+    {
+    }
+}
+
+var $c = new Counter(); $c->a = 1;
+for ($i = 0; $i < 2; $i++) {
+    $c->a = $c->a + $i; $c->b = $c->b + 1;
+}
+var $twice = fn(int $n): int => { int $m = $n * 2; return $m; };
+";
+    let canonical = "\
+<?nvs
+class Counter
+{
+    public int $a = 0;
+    public int $b = 0;
+
+    public function reset(): void
+    {
+    }
+}
+
+var $c = new Counter();
+$c->a = 1;
+for ($i = 0; $i < 2; $i++) {
+    $c->a = $c->a + $i;
+    $c->b = $c->b + 1;
+}
+var $twice = fn(int $n): int => { int $m = $n * 2; return $m; };
+";
+    assert_eq!(formatted(mangled), canonical);
+}
+
+/// A body written on one line is opened out, and what it contains is indented
+/// from the line its declaration now starts on.
+#[test]
+fn a_closing_brace_after_a_statement_starts_its_own_line() {
+    let mangled = "\
+<?nvs
+class Page
+{ public function render(): string
+{ return 'home'; } }
+
+if ($ok) { echo 'yes'; }
+try { risky(); } catch (Error $e) { echo 'no';}
+";
+    let canonical = "\
+<?nvs
+class Page
+{
+    public function render(): string
+    {
+        return 'home';
+    }
+}
+
+if ($ok) {
+    echo 'yes';
+}
+try {
+    risky();
+} catch (Error $e) {
+    echo 'no';
+}
+";
+    assert_eq!(formatted(mangled), canonical);
+}
+
+/// A comment between the two words, and the words inside a string, are the
+/// author's.
+#[test]
+fn else_if_is_written_as_one_word() {
+    let mangled = "\
+<?nvs
+if ($a) {
+    echo 'else if';
+} else if ($b) {
+    echo 'b';
+} else /* two words */ if ($c) {
+    echo 'c';
+} else
+if ($d) {
+    echo 'd';
+}
+";
+    let canonical = "\
+<?nvs
+if ($a) {
+    echo 'else if';
+} elseif ($b) {
+    echo 'b';
+} else /* two words */ if ($c) {
+    echo 'c';
+} elseif ($d) {
+    echo 'd';
+}
+";
+    assert_eq!(formatted(mangled), canonical);
+}

@@ -8,12 +8,16 @@ class Files
     #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::show")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $name, #[Core\Query] string $q = ''): string
-    { return 'one file'; }
+    {
+        return 'one file';
+    }
 
     #[Core\Route(path: "/docs/{rest...}", method: Core\Http\Method::Get, name: "Files::docs")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function docs(string $rest): string
-    { return 'a page'; }
+    {
+        return 'a page';
+    }
 }
 
 string $origin = 'https://www.example.com/';

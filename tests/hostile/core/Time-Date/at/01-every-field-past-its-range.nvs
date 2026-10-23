@@ -8,14 +8,26 @@ int $refused = 0;
 
 // 1. A year past both ends of the calendar.
 foreach ($years as int $wrongYear) {
-    try { Core\Time\Date::at($wrongYear, 1, 1); } catch (RuntimeError $badYear) { $refused = $refused + 1; }
+    try {
+        Core\Time\Date::at($wrongYear, 1, 1);
+    } catch (RuntimeError $badYear) {
+        $refused = $refused + 1;
+    }
 }
 
 // 2. A month and a day past their ranges, up to the largest unsigned number.
 foreach ($numbers as uint $number) {
-    try { Core\Time\Date::at(2024, $number, 1); } catch (RuntimeError $badMonth) { $refused = $refused + 1; }
+    try {
+        Core\Time\Date::at(2024, $number, 1);
+    } catch (RuntimeError $badMonth) {
+        $refused = $refused + 1;
+    }
     if ($number != 13) {
-        try { Core\Time\Date::at(2024, 1, $number); } catch (RuntimeError $badDay) { $refused = $refused + 1; }
+        try {
+            Core\Time\Date::at(2024, 1, $number);
+        } catch (RuntimeError $badDay) {
+            $refused = $refused + 1;
+        }
     }
 }
 echo $refused, " refused\n";

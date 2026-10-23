@@ -38,7 +38,8 @@ foreach ($escapes as string $path) {
         Core\Http\Part $part = Core\Http\Part::file($path);
         throw new LogicError(Core\Str::format('a part was created for a path outside the grant: %s', $path));
     } catch (RuntimeError $error) {
-        $refused = $refused + 1;    }
+        $refused = $refused + 1;
+    }
 }
 echo 'step 1: ', $refused, "\n";
 

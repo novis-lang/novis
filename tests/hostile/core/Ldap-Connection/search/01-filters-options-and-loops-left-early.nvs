@@ -49,18 +49,66 @@ echo '1 found: ', $found, ', threw: ', $threw, "\n";
 var $everyone = Core\Ldap\Filter::present('cn');
 $found = 0;
 $threw = 0;
-try { $found = $found + Count::all($corp->search($everyone, { base: $company, pageSize: 0 })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { $found = $found + Count::all($corp->search($everyone, { base: $company, pageSize: 4000000000 })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { $found = $found + Count::all($corp->search($everyone, { base: $company, sizeLimit: 1 })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { $found = $found + Count::all($corp->search($everyone, { base: $company, window: 2 })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { $found = $found + Count::all($corp->search($everyone, { base: $company, offset: 2 })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { $found = $found + Count::all($corp->search($everyone, { base: $company, descending: true })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { $found = $found + Count::all($corp->search($everyone, { base: $company, sort: 'cn', offset: 4000000000, window: 4000000000 })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { $found = $found + Count::all($corp->search($everyone, { base: $company, sort: '(cn=*)' })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { $found = $found + Count::all($corp->search($everyone, { base: $company, select: ['', '*', '+', "cn\x00"] })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { $found = $found + Count::all($corp->search($everyone, { base: 'OU=Nowhere,DC=example,DC=test' })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { $found = $found + Count::all($corp->search($everyone, { base: 'not a name' })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { $found = $found + Count::all($corp->search($everyone, { base: $company, showDeleted: true })); } catch (Throwable $error) { $threw = $threw + 1; }
+try {
+    $found = $found + Count::all($corp->search($everyone, { base: $company, pageSize: 0 }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    $found = $found + Count::all($corp->search($everyone, { base: $company, pageSize: 4000000000 }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    $found = $found + Count::all($corp->search($everyone, { base: $company, sizeLimit: 1 }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    $found = $found + Count::all($corp->search($everyone, { base: $company, window: 2 }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    $found = $found + Count::all($corp->search($everyone, { base: $company, offset: 2 }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    $found = $found + Count::all($corp->search($everyone, { base: $company, descending: true }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    $found = $found + Count::all($corp->search($everyone, { base: $company, sort: 'cn', offset: 4000000000, window: 4000000000 }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    $found = $found + Count::all($corp->search($everyone, { base: $company, sort: '(cn=*)' }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    $found = $found + Count::all($corp->search($everyone, { base: $company, select: ['', '*', '+', "cn\x00"] }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    $found = $found + Count::all($corp->search($everyone, { base: 'OU=Nowhere,DC=example,DC=test' }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    $found = $found + Count::all($corp->search($everyone, { base: 'not a name' }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    $found = $found + Count::all($corp->search($everyone, { base: $company, showDeleted: true }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
 echo '2 found: ', $found, ', threw: ', $threw, "\n";
 
 // 3. Two hundred searches of one entry per page, each left after its first entry.

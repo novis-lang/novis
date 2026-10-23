@@ -9,17 +9,23 @@ class Files
     #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Delete, name: "Files::show")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $name): string
-    { return 'one file'; }
+    {
+        return 'one file';
+    }
 
     #[Core\Route(path: "/docs/{rest...}", method: Core\Http\Method::Get, name: "Files::docs")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function docs(string $rest): string
-    { return 'a page'; }
+    {
+        return 'a page';
+    }
 
     #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Files::order")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function order(uint $id): string
-    { return 'one order'; }
+    {
+        return 'one order';
+    }
 }
 
 // 1. A path segment of one million characters.

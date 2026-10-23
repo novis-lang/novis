@@ -10,17 +10,33 @@ int $refused = 0;
 
 foreach ($calendar as Core\Unit $unit) {
     // 1. The largest and the smallest whole number as the count.
-    try { $start->minus(9223372036854775807, $unit); } catch (RuntimeError $high) { $refused = $refused + 1; }
-    try { $start->minus(-9223372036854775807 - 1, $unit); } catch (RuntimeError $low) { $refused = $refused + 1; }
+    try {
+        $start->minus(9223372036854775807, $unit);
+    } catch (RuntimeError $high) {
+        $refused = $refused + 1;
+    }
+    try {
+        $start->minus(-9223372036854775807 - 1, $unit);
+    } catch (RuntimeError $low) {
+        $refused = $refused + 1;
+    }
     // 2. One step back from the first day the calendar has.
-    try { $first->minus(1, $unit); } catch (RuntimeError $past) { $refused = $refused + 1; }
+    try {
+        $first->minus(1, $unit);
+    } catch (RuntimeError $past) {
+        $refused = $refused + 1;
+    }
 }
 echo $refused, " refused\n";
 
 // 3. Every unit smaller than a day, with the largest count.
 int $notAllowed = 0;
 foreach ($clock as Core\Unit $unit) {
-    try { $start->minus(9223372036854775807, $unit); } catch (LogicError $small) { $notAllowed = $notAllowed + 1; }
+    try {
+        $start->minus(9223372036854775807, $unit);
+    } catch (LogicError $small) {
+        $notAllowed = $notAllowed + 1;
+    }
 }
 echo $notAllowed, " not allowed\n";
 

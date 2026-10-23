@@ -72,7 +72,8 @@ try {
     Core\IO::write('claimed.txt', 'granted after all');
     echo "fs.write opened\n";
 } catch (RuntimeError $refused) {
-    echo "fs.write still refused\n";}
+    echo "fs.write still refused\n";
+}
 try {
     var $store = Core\Cache::shared();
     $store->put('claimed', 'mine');

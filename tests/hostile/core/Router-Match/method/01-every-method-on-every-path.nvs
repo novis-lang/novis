@@ -8,12 +8,16 @@ class Tasks
     #[Core\Route(path: "/tasks", method: Core\Http\Method::Post, name: "Tasks::list")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(): string
-    { return 'all tasks'; }
+    {
+        return 'all tasks';
+    }
 
     #[Core\Route(path: "/tasks/{id}", method: Core\Http\Method::Delete, name: "Tasks::remove")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function remove(uint $id): string
-    { return 'removed'; }
+    {
+        return 'removed';
+    }
 }
 
 array<Core\Http\Method> $methods = [

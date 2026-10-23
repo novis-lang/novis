@@ -30,8 +30,18 @@ int $built = 0;
 int $refused = 0;
 foreach ($zones as Core\Time\Zone $zone) {
     foreach ($units as Core\Unit $unit) {
-        try { $first->in($zone)->startOf($unit); $built = $built + 1; } catch (RuntimeError $a) { $refused = $refused + 1; }
-        try { $last->in($zone)->startOf($unit); $built = $built + 1; } catch (RuntimeError $b) { $refused = $refused + 1; }
+        try {
+            $first->in($zone)->startOf($unit);
+            $built = $built + 1;
+        } catch (RuntimeError $a) {
+            $refused = $refused + 1;
+        }
+        try {
+            $last->in($zone)->startOf($unit);
+            $built = $built + 1;
+        } catch (RuntimeError $b) {
+            $refused = $refused + 1;
+        }
     }
 }
 echo $built, ' built, ', $refused, " refused\n";

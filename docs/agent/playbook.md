@@ -47,6 +47,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   still exits 0, so the error looks like a finished run. Run the copy instead:
   `bun tools/looper/main.ts verify` and `bun tools/looper/main.ts check --name <text>`
   (AGENTS.md § *Novis works without looper*). See `tools/looper/main.ts`. `until: gone tools/looper/main.ts:verify`
+- **A formatter rule that starts a new line has to register it with `Indent`, or the lines below it
+  indent from the author's old line.** `Indent::opening_of` measures a body from the line its opener
+  was written on, so `{ public function f()` split onto two lines still left the method's `{` and
+  body at column 0. `crates/nvs-fmt/src/statement.rs` computes its breaks before any indentation, and
+  `Indent::new` keeps them. A later rule that inserts a line break adds its offsets there.
+  `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
 - **`bun nv site --check` and `bun nv proofs --run` pick `target/release/nvs` before the debug

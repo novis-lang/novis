@@ -65,9 +65,29 @@ echo '2 threw: ', $threw, "\n";
 
 // 3. Bases that are not the root of the domain, and attribute names that are not names.
 $threw = 0;
-try { Count::all($corp->changes($units, { base: 'OU=Company,DC=example,DC=test' })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { Count::all($corp->changes($units, { base: 'DC=other,DC=test' })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { Count::all($corp->changes($units, { base: 'not a name' })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { Count::all($corp->changes($units, { select: ['', '(ou=*)', "ou\x00"] })); } catch (Throwable $error) { $threw = $threw + 1; }
-try { Count::all($corp->changes($units, { select: Core\Arr::fill(10000, 'ou') })); } catch (Throwable $error) { $threw = $threw + 1; }
+try {
+    Count::all($corp->changes($units, { base: 'OU=Company,DC=example,DC=test' }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    Count::all($corp->changes($units, { base: 'DC=other,DC=test' }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    Count::all($corp->changes($units, { base: 'not a name' }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    Count::all($corp->changes($units, { select: ['', '(ou=*)', "ou\x00"] }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    Count::all($corp->changes($units, { select: Core\Arr::fill(10000, 'ou') }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
 echo '3 threw: ', $threw, "\n";

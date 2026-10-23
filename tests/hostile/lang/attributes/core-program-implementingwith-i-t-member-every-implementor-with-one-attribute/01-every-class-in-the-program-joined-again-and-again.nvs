@@ -23,55 +23,71 @@ class HandlerForTheVeryFirstThingThisProgramEverHasToHandle implements Handler
 {
     #[Wide(label: "first", order: 1, group: "a", owner: "team-one", tier: 1, note: "n")]
     public function handle(): int
-    { return 1; }
+    {
+        return 1;
+    }
 }
 
 class HandlerForTheSecondThingAndEverythingThatLooksLikeIt implements Handler
 {
     #[Wide(label: "second", order: 2, group: "a", owner: "team-one", tier: 1, note: "n")]
     public function handle(): int
-    { return 2; }
+    {
+        return 2;
+    }
 }
 
 class HandlerForTheThirdThingWhoseNameIsLongerThanItsBody implements Handler
 {
     #[Wide(label: "third", order: 3, group: "b", owner: "team-two", tier: 2, note: "n")]
     public function handle(): int
-    { return 3; }
+    {
+        return 3;
+    }
 }
 
 class HandlerForTheFourthThingThatCarriesNoAttributeAtAll implements Handler
 {
     public function handle(): int
-    { return 4; }
+    {
+        return 4;
+    }
 }
 
 class HandlerForTheFifthThingAndTheOnesThatFollowIt implements Handler
 {
     #[Wide(label: "fifth", order: 5, group: "b", owner: "team-two", tier: 2, note: "n")]
     public function handle(): int
-    { return 5; }
+    {
+        return 5;
+    }
 }
 
 class HandlerForTheSixthThingWrittenExactlyLikeTheFifth implements Handler
 {
     #[Wide(label: "sixth", order: 6, group: "c", owner: "team-three", tier: 3, note: "n")]
     public function handle(): int
-    { return 6; }
+    {
+        return 6;
+    }
 }
 
 class HandlerForTheSeventhThingWhichIsAlsoDocumented implements Handler
 {
     #[Wide(label: "seventh", order: 7, group: "c", owner: "team-three", tier: 3, note: "n")]
     public function handle(): int
-    { return 7; }
+    {
+        return 7;
+    }
 }
 
 class HandlerForTheEighthThingAndTheLastOfTheFirstEight implements Handler
 {
     #[Wide(label: "eighth", order: 8, group: "d", owner: "team-four", tier: 4, note: "n")]
     public function handle(): int
-    { return 8; }
+    {
+        return 8;
+    }
 }
 
 // 2. An interface nothing in the program implements, which should be an empty

@@ -35,9 +35,29 @@ try {
 
 // 4. The request uses every other method after `destroy()`. Each one throws a `RuntimeError`.
 uint $refused = 0;
-try { Core\Session::get('big'); } catch (RuntimeError $e) { $refused = $refused + 1; }
-try { Core\Session::set('big', 'y'); } catch (RuntimeError $e) { $refused = $refused + 1; }
-try { Core\Session::remove('big'); } catch (RuntimeError $e) { $refused = $refused + 1; }
-try { Core\Session::clear(); } catch (RuntimeError $e) { $refused = $refused + 1; }
-try { Core\Session::regenerate(); } catch (RuntimeError $e) { $refused = $refused + 1; }
+try {
+    Core\Session::get('big');
+} catch (RuntimeError $e) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Session::set('big', 'y');
+} catch (RuntimeError $e) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Session::remove('big');
+} catch (RuntimeError $e) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Session::clear();
+} catch (RuntimeError $e) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Session::regenerate();
+} catch (RuntimeError $e) {
+    $refused = $refused + 1;
+}
 echo 'methods that threw: ', $refused, "\n";

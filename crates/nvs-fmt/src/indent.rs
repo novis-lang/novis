@@ -66,7 +66,7 @@
 use nvs_diagnostics::BytePos;
 use nvs_syntax::{IndexNode, SyntaxIndex, Trivia, TriviaKind};
 
-use crate::{chain, list};
+use crate::{chain, list, statement};
 
 /// One level of indentation.
 pub(crate) const UNIT: &str = "    ";
@@ -83,7 +83,7 @@ pub(crate) const ARM_LIST: &str = "Match";
 /// that carries them. `NamespaceDecl` is here for its bracketed form and costs
 /// nothing in the statement form, which has no body to contain anything. `New`
 /// carries an anonymous class's members, and `Property` a hook's body.
-const BODIES: &[&str] = &[
+pub(crate) const BODIES: &[&str] = &[
     "Block",
     "Try",
     "ClassDecl",
@@ -111,15 +111,19 @@ pub(crate) struct Indent<'a> {
     index: &'a SyntaxIndex,
     text: &'a str,
     trivia: &'a [Trivia],
+    /// Where [`crate::statement`] starts a line the author did not, in source
+    /// order.
+    breaks: Vec<usize>,
 }
 
 impl<'a> Indent<'a> {
     /// Reads `index` and `trivia`, which must both be `text`'s own parse.
-    pub(crate) const fn new(index: &'a SyntaxIndex, text: &'a str, trivia: &'a [Trivia]) -> Self {
+    pub(crate) fn new(index: &'a SyntaxIndex, text: &'a str, trivia: &'a [Trivia]) -> Self {
         Self {
             index,
             text,
             trivia,
+            breaks: statement::breaks(index, text, trivia),
         }
     }
 
@@ -147,12 +151,13 @@ impl<'a> Indent<'a> {
         // A byte closing a body sits where that body's own opening was written,
         // and a statement or member the body contains sits one level in from it.
         // A `match`'s arm list closes the same way, on the line its own `match`
-        // keyword was written on.
+        // keyword was written on. A `try` writes the braces of every clause
+        // itself, so each `}` directly inside it closes one.
         let closing = (self.text.as_bytes().get(offset) == Some(&b'}'))
             .then(|| {
-                nodes.iter().position(|node| {
+                nodes.iter().enumerate().position(|(at, node)| {
                     (BODIES.contains(&node.kind) || node.kind == ARM_LIST)
-                        && node.span.end as usize == offset + 1
+                        && (node.span.end as usize == offset + 1 || at == 0 && node.kind == "Try")
                 })
             })
             .flatten();
@@ -207,12 +212,28 @@ impl<'a> Indent<'a> {
     ///
     /// The recursion ends because a body opens strictly before anything it
     /// contains, so each step asks about an earlier line than the last.
+    ///
+    /// A line [`crate::statement`] starts is a line here too: the last of its
+    /// breaks between the author's line start and `pos` is where the line
+    /// opens, and that statement or brace is always one this module places.
     pub(crate) fn opening_of(&self, pos: usize) -> String {
         let line_start = self.text[..pos].rfind('\n').map_or(0, |brk| brk + 1);
         let written = &self.text[line_start..];
         let width = written.len() - written.trim_start_matches([' ', '\t']).len();
-        self.of_line(line_start + width)
-            .unwrap_or_else(|| self.text[line_start..line_start + width].to_owned())
+        let first = line_start + width;
+        let moved = self.breaks[..self.breaks.partition_point(|&at| at <= pos)]
+            .last()
+            .filter(|&&at| at > first);
+        if let Some(opening) = moved.and_then(|&at| self.of_line(at)) {
+            return opening;
+        }
+        self.of_line(first)
+            .unwrap_or_else(|| self.text[line_start..first].to_owned())
+    }
+
+    /// Every offset [`crate::statement`] starts a new line at, in source order.
+    pub(crate) fn breaks(&self) -> &[usize] {
+        &self.breaks
     }
 }
 

@@ -6,7 +6,9 @@
 //! declaration's opener is preceded by a line break and the declaration's own
 //! indentation, a control structure's by exactly one space, and `elseif`,
 //! `else`, `catch` and `finally` continue one space after the brace that closed
-//! the clause above them. So what this answers is not "where does the brace
+//! the clause above them. `else if` is written `elseif`, one word: the parser
+//! reads both into the same arm, so the run between the two words is written
+//! empty and the tree does not change. So what this answers is not "where does the brace
 //! go" but "what does the run before this byte have to be", which is the
 //! printer's own frame ([`crate::print`]).
 //!
@@ -141,7 +143,10 @@ fn scan(
         let continues = matches!(bytes[offset], b'e' | b'c' | b'f')
             .then(|| continues_a_clause(bytes, offset))
             .flatten();
-        if bytes[offset] != b'{' && continues.is_none() {
+        let joins = (bytes[offset] == b'e')
+            .then(|| joins_an_if(bytes, offset))
+            .flatten();
+        if bytes[offset] != b'{' && continues.is_none() && joins.is_none() {
             continue;
         }
         let Ok(pos) = BytePos::try_from(offset) else {
@@ -152,6 +157,9 @@ fn scan(
         let Some(node) = nodes.first() else {
             continue;
         };
+        if let Some(at) = joins.filter(|_| node.kind == "If") {
+            wanted.push((at, String::new()));
+        }
         if let Some(owner) = continues {
             if owner == node.kind {
                 wanted.push((offset, " ".to_owned()));
@@ -205,6 +213,30 @@ fn continues_a_clause(bytes: &[u8], offset: usize) -> Option<&'static str> {
         .find(|byte| !byte.is_ascii_whitespace())
         == Some(&b'}');
     closed.then_some(*owner)
+}
+
+/// Where the `if` of an `else if` written at `offset` begins, if one is.
+///
+/// The parser reads `else if` and `elseif` into the same arm of one `if`
+/// chain, so the two words are joined by writing nothing in the whitespace
+/// between them. A comment between the two is the author's, and they stay two
+/// words. The caller checks that the `else` is code an `If` wrote, which
+/// keeps the same words inside a string out of this.
+fn joins_an_if(bytes: &[u8], offset: usize) -> Option<usize> {
+    const ELSE: &[u8] = b"else";
+    if offset > 0 && is_word(bytes[offset - 1]) || !bytes[offset..].starts_with(ELSE) {
+        return None;
+    }
+    let after = offset + ELSE.len();
+    let gap = bytes[after..]
+        .iter()
+        .take_while(|byte| byte.is_ascii_whitespace())
+        .count();
+    let at = after + gap;
+    let joined = gap > 0
+        && bytes[at..].starts_with(b"if")
+        && !bytes.get(at + 2).copied().is_some_and(is_word);
+    joined.then_some(at)
 }
 
 /// Whether `byte` can sit inside a name, which a keyword's neighbour may not.

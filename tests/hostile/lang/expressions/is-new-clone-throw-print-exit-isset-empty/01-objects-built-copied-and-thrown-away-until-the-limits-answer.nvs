@@ -82,11 +82,21 @@ class Attack
                 2 => 2.5,
                 default => new Node($i),
             };
-            if ($value is int) { $hits = $hits + 1; }
-            if ($value is string) { $hits = $hits + 1; }
-            if ($value is float) { $hits = $hits + 1; }
-            if ($value is Node) { $hits = $hits + 1; }
-            if ($value is bool) { $hits = $hits + 1; }
+            if ($value is int) {
+                $hits = $hits + 1;
+            }
+            if ($value is string) {
+                $hits = $hits + 1;
+            }
+            if ($value is float) {
+                $hits = $hits + 1;
+            }
+            if ($value is Node) {
+                $hits = $hits + 1;
+            }
+            if ($value is bool) {
+                $hits = $hits + 1;
+            }
             $i = $i + 1;
         }
         return $hits;

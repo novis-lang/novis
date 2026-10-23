@@ -56,10 +56,26 @@ echo 'step 2: done', "\n";
 Core\IO\File $closed = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 $closed->close();
 uint $thrown = 0;
-try { $closed->read(10); } catch (RuntimeError $e) { $thrown = $thrown + 1; }
-try { $closed->readLine(); } catch (RuntimeError $e) { $thrown = $thrown + 1; }
-try { $closed->write('x'); } catch (RuntimeError $e) { $thrown = $thrown + 1; }
-try { $closed->close(); } catch (RuntimeError $e) { $thrown = $thrown + 1; }
+try {
+    $closed->read(10);
+} catch (RuntimeError $e) {
+    $thrown = $thrown + 1;
+}
+try {
+    $closed->readLine();
+} catch (RuntimeError $e) {
+    $thrown = $thrown + 1;
+}
+try {
+    $closed->write('x');
+} catch (RuntimeError $e) {
+    $thrown = $thrown + 1;
+}
+try {
+    $closed->close();
+} catch (RuntimeError $e) {
+    $thrown = $thrown + 1;
+}
 if ($thrown != 4) {
     throw new LogicError('a closed handle was used without an error');
 }

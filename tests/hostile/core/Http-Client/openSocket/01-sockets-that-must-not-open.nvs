@@ -46,13 +46,13 @@ foreach ($names as string $name) {
     try {
         if ($name == 'deadline') {
             Core\Http\Socket $a = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { deadline: 0s });
-        } else if ($name == 'connectTimeout') {
+        } elseif ($name == 'connectTimeout') {
             Core\Http\Socket $b = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { connectTimeout: 0s });
-        } else if ($name == 'idle') {
+        } elseif ($name == 'idle') {
             Core\Http\Socket $c = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { idle: 0s });
-        } else if ($name == 'maxDuration') {
+        } elseif ($name == 'maxDuration') {
             Core\Http\Socket $d = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { maxDuration: 0s });
-        } else if ($name == 'sendTimeout') {
+        } elseif ($name == 'sendTimeout') {
             Core\Http\Socket $e = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { sendTimeout: 0s });
         } else {
             Core\Http\Socket $f = Core\Http\Client::openSocket('wss://203.0.113.10/chat', { ping: 0s });
