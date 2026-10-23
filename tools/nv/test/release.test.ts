@@ -1,14 +1,21 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import { gunzipSync, inflateRawSync } from "node:zlib";
+import { ROOT } from "../lib/paths.ts";
 import {
   bumpManifest,
+  bumpPackageJson,
   CHANGELOG_HEADER,
   classify,
   dockerTags,
+  FIRST_NOTES,
+  firstReleaseNotes,
   fixesIn,
   nextVersion,
+  notesFor,
   parseLog,
   pinProblems,
+  planVersion,
   prependChangelog,
   releaseTags,
   renderNotes,
@@ -48,6 +55,20 @@ describe("nv release versions", () => {
   test("release tags sort by version, not by name, and other tags are ignored", () => {
     expect(releaseTags("v0.9.0\nv0.10.0\npre-overhaul\nv1.0.0-rc1\n").map((t) => t.name)).toEqual(["v0.10.0", "v0.9.0"]);
   });
+
+  test("with no tag, patch and minor release the current version, and major alone needs the contract", () => {
+    expect(planVersion("0.0.1", "patch", "", [], false)).toBe("0.0.1");
+    expect(planVersion("0.0.1", "minor", "", [], false)).toBe("0.0.1");
+    expect(() => planVersion("0.0.1", "major", "", [], false)).toThrow(/version contract/);
+    expect(planVersion("0.0.1", "major", "", [], true)).toBe("0.1.0");
+  });
+
+  test("once a tag exists, a release advances past it", () => {
+    const known = releaseTags("v0.0.1");
+    expect(planVersion("0.0.1", "patch", "", known, false)).toBe("0.0.2");
+    expect(() => planVersion("0.0.1", "patch", "0.0.1", known, false)).toThrow(/does not advance/);
+    expect(() => planVersion("0.0.1", "patch", "", releaseTags("v0.0.2"), false)).toThrow(/ahead of/);
+  });
 });
 
 describe("nv release manifest", () => {
@@ -80,6 +101,38 @@ describe("nv release manifest", () => {
   test("a pin written as a table of its own is an error, not a release with a stale pin", () => {
     const dotted = MANIFEST + '\n[workspace.dependencies.nvs-c]\npath = "crates/nvs-c"\nversion = "0.0.1"\n';
     expect(() => bumpManifest(dotted, "0.1.0")).toThrow(/nvs-c/);
+  });
+
+  test("the extension's package.json and both lockfile versions follow the workspace, and nothing else moves", () => {
+    const pkg = '{\n  "name": "nvs",\n  "version": "0.0.1",\n  "dependencies": {\n    "x": "^1.0.0"\n  }\n}\n';
+    expect(bumpPackageJson(pkg, "0.0.2", "package.json")).toBe(pkg.replace('"0.0.1"', '"0.0.2"'));
+    const lock = [
+      "{",
+      '  "name": "nvs",',
+      '  "version": "0.0.1",',
+      '  "lockfileVersion": 3,',
+      '  "packages": {',
+      '    "": {',
+      '      "name": "nvs",',
+      '      "version": "0.0.1",',
+      '      "license": "MIT"',
+      "    },",
+      '    "node_modules/x": {',
+      '      "version": "1.0.0"',
+      "    }",
+      "  }",
+      "}",
+      "",
+    ].join("\n");
+    const bumped = JSON.parse(bumpPackageJson(lock, "0.0.2", "package-lock.json"));
+    expect([bumped.version, bumped.packages[""].version, bumped.packages["node_modules/x"].version]).toEqual(["0.0.2", "0.0.2", "1.0.0"]);
+    expect(bumpPackageJson(lock, "0.0.1", "package-lock.json")).toBe(lock);
+  });
+
+  test("an extension manifest with a version the edit cannot reach is an error", () => {
+    expect(() => bumpPackageJson('{\n  "name": "nvs"\n}\n', "0.0.2", "package.json")).toThrow(/package.json/);
+    const rootless = '{\n  "version": "0.0.1",\n  "lockfileVersion": 3,\n  "packages": {}\n}\n';
+    expect(() => bumpPackageJson(rootless, "0.0.2", "package-lock.json")).toThrow(/package-lock.json/);
   });
 });
 
@@ -117,6 +170,21 @@ describe("nv release notes", () => {
     expect(fixesIn(entries).map((e) => e.sha)).toEqual(["b2"]);
     const more = parseLog("g7\x1ffix(http)!: a framing fix\x1f\x1eh8\x1fperf: faster\x1f\x1e").map(classify);
     expect(fixesIn(more).map((e) => e.sha)).toEqual(["g7"]);
+  });
+
+  test("the first release's notes are the written file under the version heading", async () => {
+    expect(firstReleaseNotes("0.0.1", "\nNovis is here.\n\n", "2026-01-02")).toBe("## [0.0.1] - 2026-01-02\n\nNovis is here.\n");
+    const written = (await Bun.file(join(ROOT, FIRST_NOTES)).text()).trim();
+    const first = await notesFor("0.0.1", null, 10);
+    expect(first).toMatch(/^## \[0\.0\.1\] - \d{4}-\d{2}-\d{2}\n\n/);
+    expect(first).toContain(written);
+  });
+
+  test("a release after a tag renders the commit log, not the written notes", async () => {
+    // `HEAD..HEAD` is empty, so this needs no history and runs on a shallow clone.
+    const later = await notesFor("0.0.2", "HEAD", 10);
+    expect(later).toContain("No commits since the previous release.");
+    expect(later).not.toContain((await Bun.file(join(ROOT, FIRST_NOTES)).text()).trim().split("\n")[0]!);
   });
 
   test("a section is prepended above the newest release, and a first release starts the file", () => {
