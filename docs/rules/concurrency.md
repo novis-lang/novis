@@ -2114,9 +2114,17 @@ A connection whose every wait ends in socket readiness — the ordinary one, sin
 task by id and never through a waker — therefore issues exactly one permission for the whole
 connection, and gives it back unused when the drive returns.
 
+**A wake from the drive's own running task, on its own core, fires nothing.** The drive is running,
+so its loop reads the woken flag before it parks, and the flag is the whole wake. The permission
+stays in its slot, and the core's wake descriptor is not written. The test is the one a handle's own
+drop makes ([`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing)): the current task is the
+one the handle names, and the current reactor is the one that issued it.
+
 **Declined:**
 - **A fresh permission per park.** Each one is issued and collected once per readiness edge, which
   is a delivered poke per wait for a wake nobody asked for.
+- **A self-wake queued on the core's local wake list.** The drive has not parked, so there is no
+  park for a queued wake to end. It would end the next park instead, early.
 
 <sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing).</sub>
 
@@ -2279,6 +2287,21 @@ always finds the request bytes already buffered: they arrived with the connectio
 A registration is kept while the task holds the stream rather than torn down per park, so a stream
 that parks repeatedly pays a modification and not a creation.
 
+**A stream keeps a readiness bit, as tokio does, so the syscall is tried only when it might
+succeed.** A `WouldBlock` clears the bit. Any readiness event the reactor reports for the task the
+stream is registered under sets it again. The reactor's tokens are task ids, so the bit is the
+reactor's per-task event count, taken at the `WouldBlock` and compared on the next read. A poll that
+finds the bit clear files its deadline and arms exactly as a `WouldBlock` would, and answers
+`Pending` with no syscall. The first read after registration, a read after any change of
+registration and a read off a core always try the syscall. An event on another descriptor of the
+same task sets the bit too, which costs one extra failed `recv` and never a missed one.
+
+What it spends: four bytes per registered task in the reactor, and four per stream.
+
+**Declined:**
+- **A bit set by the event for the descriptor itself.** The token would have to name the stream,
+  which is a second table beside the task ids for one failed `recv` saved per shared wake.
+
 <sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream).</sub>
 
 <a id="concurrency-the-reactor-reports-readiness"></a>
@@ -2364,6 +2387,21 @@ count and rounded up, read each time a stack comes back so a reload moves it. A 
 is handed back to the operating system, so one burst does not leave its stacks resident for the life
 of the worker. That is the O(in-flight) shape [`programs/memory-priority`](programs.md#programs-memory-priority) asks for.
 
+A worker keeps **one pool per role**: the server's own work, such as the accept loop and a
+connection, takes from one, and compiled Novis code, an isolate's task and every task beneath it,
+from the other. A pooled stack keeps the pages its deepest task touched, so one pool let a connection
+keep the pages a program grew. Each pool has the cap above, so a serving core holds up to twice its
+share idle, which is one connection stack and one program stack per request in flight.
+
+**An idle core gives the pages back.** When a core is about to wait with nothing ready and has taken
+no stack for a whole second, each idle stack returned since the last trim gives back all but its top
+8 KiB, through `madvise(MADV_DONTNEED)` on Unix and `DiscardVirtualMemory` on Windows. The stack
+keeps its mapping and its place in the pool. A trim never runs when a stack comes back, which would
+be a system call per request, and never while the core keeps taking stacks. It costs one system call
+per idle stack on Unix and a few on Windows, once per quiet period, and up to two wakes of a quiet
+core. A trim is not a scrubbing guarantee, and on macOS the old bytes may stay: Novis code cannot
+read them because the language is memory-safe.
+
 A scheduler that is not a serving core, such as `nvs run`'s or a queue worker's, has no admission
 number and keeps its high-water mark. Its tasks are already bounded by `max_tasks` per program, and
 `nvs run`'s scheduler ends with its one program, so a second compiled-in number would bound nothing
@@ -2378,8 +2416,9 @@ thread. Code on it never calls compiled Novis code, whose recursion limit is arm
 
 - **Memory:** each task in flight reserves 1 MiB of address space, charged to its request, and keeps
   resident only the pages its frames touched. So a request whose memory limit is 256 MB runs at most
-  about 250 tasks at once. A serving core also holds up to its share of
-  `max_in_flight` in idle reservations between tasks, and each worker thread one 8 MiB spare stack.
+  about 250 tasks at once. A serving core also holds up to twice its share of
+  `max_in_flight` in idle reservations between tasks, with all but 8 KiB of each given back once the
+  core is idle, and each worker thread one 8 MiB spare stack.
 
 <sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream).</sub>
 

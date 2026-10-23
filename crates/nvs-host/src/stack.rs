@@ -629,11 +629,18 @@ mod tests {
         stacks.bound_by(Rc::new(|| 2));
         for role in [Role::Host, Role::Program] {
             for _ in 0..4 {
-                stacks.give(role, DefaultStack::new(TASK_STACK_SIZE).expect("a test stack"));
+                stacks.give(
+                    role,
+                    DefaultStack::new(TASK_STACK_SIZE).expect("a test stack"),
+                );
             }
         }
         assert_eq!(stacks.pooled_for(Role::Host), 2);
-        assert_eq!(stacks.pooled_for(Role::Program), 2, "the program pool kept its burst");
+        assert_eq!(
+            stacks.pooled_for(Role::Program),
+            2,
+            "the program pool kept its burst"
+        );
         assert_eq!(stacks.pooled(), 4, "a core keeps the cap once per pool");
     }
 
@@ -768,26 +775,18 @@ mod tests {
             Value::null()
         });
         let mut cell = Some(program);
-        sched.spawn(
-            Ctx::new(OutputSink::Sink),
-            TaskRoot::Request,
-            move |ctx| {
-                let program = cell.take().expect("run once");
-                let _ = Isolate::new(program, Value::null(), Output::Capture).run(ctx);
-            },
-        );
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |ctx| {
+            let program = cell.take().expect("run once");
+            let _ = Isolate::new(program, Value::null(), Output::Capture).run(ctx);
+        });
         let (read, seen) = (Rc::clone(&floor), Rc::clone(&resident));
-        sched.spawn(
-            Ctx::new(OutputSink::Sink),
-            TaskRoot::Request,
-            move |_ctx| {
-                while read.get() == 0 {
-                    let _ = crate::timer::sleep(Duration::from_millis(10));
-                }
-                let _ = crate::timer::sleep(Duration::from_millis(20));
-                seen.set(resident_pages(read.get(), TASK_STACK_SIZE));
-            },
-        );
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            while read.get() == 0 {
+                let _ = crate::timer::sleep(Duration::from_millis(10));
+            }
+            let _ = crate::timer::sleep(Duration::from_millis(20));
+            seen.set(resident_pages(read.get(), TASK_STACK_SIZE));
+        });
         run_until_idle(&mut sched).expect("the loop failed");
 
         assert_ne!(floor.get(), 0, "the program never ran");
