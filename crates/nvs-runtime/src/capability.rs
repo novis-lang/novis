@@ -2554,6 +2554,10 @@ mod tests {
     /// writes with nothing written, and only the context that made one writes or reads it. Two
     /// requests share the root, and neither reaches the other's directory or anything outside its
     /// own. A CLI run on the same tree writes outside the root.
+    #[cfg_attr(
+        miri,
+        ignore = "writes a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn server_work_writes_its_own_temporary_dirs_and_not_another_requests() {
         let root = scratch("server-default");
