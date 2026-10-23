@@ -926,25 +926,7 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         // `Core\Http\Method` case and its body is no stream, so only the CSRF
         // check is taken, with [`Door`]'s inputs and as `answer_on_the_wire`
         // takes it. A unit that does not dispatch is answered as before.
-        if self.routes.dispatches() {
-            let door = Door::of(ctx);
-            // A synthetic body is already in memory, so its form field is read
-            // here, where `answer_on_the_wire` leaves it to the request's task.
-            let verdict = match nvs_server::route::csrf(&inbound, door.key.as_deref(), &door.cookie)
-            {
-                nvs_server::route::Csrf::InBody => nvs_server::route::csrf_in_body(
-                    &mut inbound,
-                    door.key.as_deref(),
-                    &door.cookie,
-                    ctx.request_body_limit(),
-                ),
-                verdict => verdict,
-            };
-            if verdict == nvs_server::route::Csrf::Refused {
-                inbound.set_refusal(nvs_runtime::routes::Refusal::Csrf);
-                inbound.clear_body();
-            }
-        }
+        refuse_a_forged_write(ctx, &self.routes, &mut inbound);
         let unit = Arc::clone(&self.unit);
         let routes = std::sync::Arc::clone(&self.routes);
         // The same program `crate::script::program_over` builds for a `spawn
@@ -2469,6 +2451,40 @@ impl TestServer {
         if let Some(task) = self.task {
             nvs_host::cancel_task(task);
         }
+    }
+}
+
+/// `rule:security/csrf-is-on-by-default`'s refusal over a request already in
+/// memory, in `rule:routing/a-gate-answers-around-every-handler`'s refusal
+/// mode: a forged write is marked refused and its body cleared, and the gate
+/// answers it. `UnderTest::answer` and `nvs run --request` both take it, so a
+/// request read off a file meets the door a test's request meets. A unit that
+/// does not dispatch is left as it was.
+///
+/// A synthetic body is already in memory, so its form field is read here,
+/// where `answer_on_the_wire` leaves it to the request's task. `ctx` is read
+/// for the tree, so it must already carry the run's configuration.
+pub(crate) fn refuse_a_forged_write(
+    ctx: &nvs_runtime::Ctx,
+    routes: &nvs_runtime::routes::Routes,
+    inbound: &mut nvs_runtime::Inbound,
+) {
+    if !routes.dispatches() {
+        return;
+    }
+    let door = Door::of(ctx);
+    let verdict = match nvs_server::route::csrf(inbound, door.key.as_deref(), &door.cookie) {
+        nvs_server::route::Csrf::InBody => nvs_server::route::csrf_in_body(
+            inbound,
+            door.key.as_deref(),
+            &door.cookie,
+            ctx.request_body_limit(),
+        ),
+        verdict => verdict,
+    };
+    if verdict == nvs_server::route::Csrf::Refused {
+        inbound.set_refusal(nvs_runtime::routes::Refusal::Csrf);
+        inbound.clear_body();
     }
 }
 

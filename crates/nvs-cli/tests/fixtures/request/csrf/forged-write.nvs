@@ -1,0 +1,32 @@
+<?nvs
+// A routed program whose one write prints `saved`, and whose gate prints
+// `refused` for a CSRF refusal.
+class Notes
+{
+    #[Core\Route(path: "/notes", method: Core\Http\Method::Post, name: "save")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function save(): void
+    {
+        echo 'saved';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo $reason == Core\Router\Refusal::Csrf ? 'refused' : 'other';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed';
+    }
+}
+
+Core\Router::dispatch(new Gate());

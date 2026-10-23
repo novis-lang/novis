@@ -1821,8 +1821,13 @@ fn run_run(
     // Every request is also offered `rule:concurrency/two-doors-one-isolate`'s
     // SSE cell, as `nvs_host::Isolate::offering_sse` offers it to every request
     // a server answers, so `Core\Sse::upgrade` prepares a stream here too.
+    //
+    // The CSRF door is taken too, by `runner::refuse_a_forged_write`, once the
+    // tree is on the context below, so a forged write is refused here as
+    // `Core\Test::request` refuses it.
     let mut offered = None;
     let mut offered_sse = None;
+    let mut arrived = None;
     if let Some(file) = request {
         match inbound_from(file) {
             Ok(mut inbound) => {
@@ -1837,7 +1842,7 @@ fn run_run(
                 let sse = nvs_runtime::SseSlot::new();
                 inbound.offer_sse(sse.clone());
                 offered_sse = Some(sse);
-                ctx.set_inbound(inbound);
+                arrived = Some(inbound);
             }
             Err(error) => {
                 eprintln!("error: --request {}: {error}", file.display());
@@ -1908,6 +1913,10 @@ fn run_run(
     ctx.set_config(snapshot);
     if let Some(folder) = folder {
         ctx.set_app_folder(folder.into());
+    }
+    if let Some(mut inbound) = arrived {
+        runner::refuse_a_forged_write(&ctx, &routes, &mut inbound);
+        ctx.set_inbound(inbound);
     }
     // `rule:tooling/commands-are-compiled`: `Core\Command`'s members are generated from the table the
     // front end already built, so the rows cross here — once, before the program
