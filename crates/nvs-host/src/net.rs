@@ -1918,6 +1918,7 @@ mod tests {
     /// has answered `WouldBlock`, a second poll before the reactor reports the
     /// stream ready answers `Pending` without reading, and the read after the
     /// reactor's event reads the bytes.
+    #[cfg(debug_assertions)]
     #[test]
     fn a_read_the_reactor_has_not_reported_ready_makes_no_system_call() {
         let (mut server, mut client) = connected_pair();

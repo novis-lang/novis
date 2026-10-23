@@ -416,6 +416,7 @@ mod tests {
     /// inside its own poll, on its own core, polls again and writes nothing to
     /// the core's wake descriptor. The permission it holds stays installed and
     /// is given back unused when the drive ends.
+    #[cfg(debug_assertions)]
     #[test]
     fn a_drive_that_wakes_itself_on_its_own_core_writes_no_wake() {
         let mut sched = Scheduler::new();

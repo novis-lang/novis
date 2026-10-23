@@ -102,6 +102,24 @@
 //! Windows, and up to two wakes of a quiet core. It gives back all but 8 KiB of
 //! each trimmed stack.
 //!
+//! # What a sleeping program touches
+//!
+//! A first profile put about 32 KiB of resident program stack under each
+//! waiting request. The host's own part of that is small. An isolate's task
+//! that sleeps as `Core\Time::sleep` does, on a fresh stack, has 2 pages
+//! resident in a release build on Windows and 7 in a debug one. The largest
+//! frame is the task's entry: `corosensei`'s start and the closure in
+//! `Scheduler::start` that holds the task's `Ctx` (1,776 bytes) by value. The
+//! program begins about 6.2 KiB below the base in release and 23 KiB below it
+//! in debug, and 5.6 KiB and 21 KiB of that are the entry. No frame of the
+//! host's path is worth splitting, and [`KEPT_RESIDENT`] covers it whole.
+//!
+//! So the rest of the 32 KiB is pages a served request touched before it
+//! slept: compiled code, the `Core` members it called, and a deeper call that
+//! returned. A pooled stack keeps those pages until the idle trim.
+//! `a_sleeping_program_touches_the_pages_its_own_frames_need` holds the host's
+//! part to its count.
+//!
 //! # The spare stack
 //!
 //! A parse whose recursion depth is set by its input — `serde_json` takes one
@@ -438,6 +456,20 @@ impl StackPool {
 /// which costs memory and nothing else, so it is ignored.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn discard(start: usize, len: usize) {
+    // `madvise` rounds a length up to whole pages. On a host whose pages are
+    // larger than 4 KiB that would reach into the kept top, so the range ends
+    // at the last whole page below it instead.
+    #[expect(
+        unsafe_code,
+        reason = "`sysconf` has no `std` spelling; it reads a constant of the process"
+    )]
+    // SAFETY: `_SC_PAGESIZE` is a valid name, and the call writes no memory.
+    let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+    let page = usize::try_from(page).unwrap_or(4096).max(1);
+    let len = ((start + len) / page * page).saturating_sub(start);
+    if len == 0 {
+        return;
+    }
     #[expect(
         unsafe_code,
         reason = "`madvise` has no `std` spelling. The range is inside the writable part of a \
@@ -591,6 +623,20 @@ mod tests {
         );
     }
 
+    #[test]
+    fn each_pool_is_held_to_the_cap_on_its_own() {
+        let mut stacks = Stacks::new();
+        stacks.bound_by(Rc::new(|| 2));
+        for role in [Role::Host, Role::Program] {
+            for _ in 0..4 {
+                stacks.give(role, DefaultStack::new(TASK_STACK_SIZE).expect("a test stack"));
+            }
+        }
+        assert_eq!(stacks.pooled_for(Role::Host), 2);
+        assert_eq!(stacks.pooled_for(Role::Program), 2, "the program pool kept its burst");
+        assert_eq!(stacks.pooled(), 4, "a core keeps the cap once per pool");
+    }
+
     /// How many pages of the `len` bytes at `start` are resident.
     #[cfg(target_os = "linux")]
     fn resident_pages(start: usize, len: usize) -> usize {
@@ -696,6 +742,64 @@ mod tests {
 
         let again = stacks.take(Role::Program).expect("a test stack");
         assert_eq!(again.base().get(), base, "a trimmed stack is still pooled");
+    }
+
+    /// The module doc's *What a sleeping program touches*, as a count: an
+    /// isolate's task that sleeps the way `Core\Time::sleep` does, on a fresh
+    /// program stack, read by a neighbour while it is parked. The bound is the
+    /// figure measured on Windows in each profile, with one page of margin.
+    #[test]
+    fn a_sleeping_program_touches_the_pages_its_own_frames_need() {
+        use crate::isolate::{Isolate, Output, Program};
+        use crate::reactor::{Reactor, install, run_until_idle};
+        use crate::scheduler::Scheduler;
+        use nvs_runtime::{Ctx, OutputSink, TaskRoot, Value};
+        use std::cell::Cell;
+
+        let floor = Rc::new(Cell::new(0_usize));
+        let resident = Rc::new(Cell::new(0_usize));
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let armed = Rc::clone(&floor);
+        let program: Program = Box::new(move |ctx: &mut Ctx, _args| {
+            armed.set(ctx.stack_bounds().1);
+            let _ = nvs_runtime::peer::sleep(ctx, Duration::from_millis(200));
+            Value::null()
+        });
+        let mut cell = Some(program);
+        sched.spawn(
+            Ctx::new(OutputSink::Sink),
+            TaskRoot::Request,
+            move |ctx| {
+                let program = cell.take().expect("run once");
+                let _ = Isolate::new(program, Value::null(), Output::Capture).run(ctx);
+            },
+        );
+        let (read, seen) = (Rc::clone(&floor), Rc::clone(&resident));
+        sched.spawn(
+            Ctx::new(OutputSink::Sink),
+            TaskRoot::Request,
+            move |_ctx| {
+                while read.get() == 0 {
+                    let _ = crate::timer::sleep(Duration::from_millis(10));
+                }
+                let _ = crate::timer::sleep(Duration::from_millis(20));
+                seen.set(resident_pages(read.get(), TASK_STACK_SIZE));
+            },
+        );
+        run_until_idle(&mut sched).expect("the loop failed");
+
+        assert_ne!(floor.get(), 0, "the program never ran");
+        if cfg!(any(target_os = "linux", windows)) {
+            // 7 pages in a debug build and 2 in a release one.
+            let bound = if cfg!(debug_assertions) { 8 } else { 3 };
+            let pages = resident.get();
+            assert!(
+                (1..=bound).contains(&pages),
+                "a sleeping program left {pages} pages of its stack resident"
+            );
+        }
     }
 
     /// Where a local of the function `on_spare_stack` runs lives.
