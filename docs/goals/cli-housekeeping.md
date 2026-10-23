@@ -20,7 +20,7 @@ stages:
         rules: [config/telemetry-and-update-endpoints-are-configuration, tooling/update-check-states-the-whole-picture, tooling/telemetry-is-two-opt-ins]
   - id: 3
     title: "`nvs telemetry` records a closed set of counters locally"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/telemetry.rs, crates/nvs-cli/src/endpoints.rs, docs/rules/tooling/telemetry-is-two-opt-ins.md, docs/rules/tooling/telemetry-counters-are-a-closed-set.md, docs/rules/tooling/telemetry-show-prints-the-payload.md]
     extra:
       context:
@@ -225,15 +225,15 @@ whole picture its rule names.
 **Does:** `nvs telemetry on|off|status|reset|show` keeps consent and counters in plain files, and
 every invocation increments one counter from the compiled-in command table.
 
-- [ ] The rule states the file paths and the `DO_NOT_TRACK` and CI switch as § *Standing decisions* settles them (`rule:tooling/telemetry-is-two-opt-ins`). `docs/rules/tooling/telemetry-is-two-opt-ins.md:1`, `crates/nvs-config/src/data.rs:459`
-- [ ] The five verbs, and `on` says that nothing is uploaded while `endpoints.rs` names no upload URL. `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] A counter is `invocation.<subcommand>` from the command table, or `invocation.unknown`, and the argv never becomes a name (`rule:tooling/telemetry-counters-are-a-closed-set`). `crates/nvs-cli/src/telemetry.rs:1`, `crates/nvs-cli/src/main.rs:566`
-- [ ] The payload is the JSON document the rule shows: `os` and `arch` mapped onto their closed lists, `days_active` from the day bits, and `first` from the lifetime upload count (`rule:tooling/telemetry-counters-are-a-closed-set`). `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] The panic hook counts `internal-error.<subcommand>` once per invocation, and a Novis program's own error counts nothing. `crates/nvs-cli/src/main.rs:502`, `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] `nvs telemetry show` prints the exact payload, and a test compares it with what a local listener receives (`rule:tooling/telemetry-show-prints-the-payload`). `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] `# nvs telemetry` in the CLI reference, after `# nvs info`: both consents, the payload field by field, every counter, `DO_NOT_TRACK`, and how to turn it off and delete the files (`rule:tooling/telemetry-show-prints-the-payload`). `docs/reference/tools/10-cli.md:509`
-- [ ] Tests over a temporary data folder: consent round trip, `reset`, `DO_NOT_TRACK`, an unknown subcommand, `days_active` over a week of set days, `first` before and after an accepted upload, and a forced panic counted once. `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] The three rules `shipped`. `data/rules/tooling/telemetry-is-two-opt-ins.json:3`, `data/rules/tooling/telemetry-counters-are-a-closed-set.json:3`, `data/rules/tooling/telemetry-show-prints-the-payload.json:3`
+- [x] The rule states the file paths and the `DO_NOT_TRACK` and CI switch as § *Standing decisions* settles them (`rule:tooling/telemetry-is-two-opt-ins`). `docs/rules/tooling/telemetry-is-two-opt-ins.md:1`, `crates/nvs-config/src/data.rs:459`
+- [x] The five verbs, and `on` says that nothing is uploaded while `endpoints.rs` names no upload URL. `crates/nvs-cli/src/telemetry.rs:1`
+- [x] A counter is `invocation.<subcommand>` from the command table, or `invocation.unknown`, and the argv never becomes a name (`rule:tooling/telemetry-counters-are-a-closed-set`). `crates/nvs-cli/src/telemetry.rs:1`, `crates/nvs-cli/src/main.rs:566`
+- [x] The payload is the JSON document the rule shows: `os` and `arch` mapped onto their closed lists, `days_active` from the day bits, and `first` from the lifetime upload count (`rule:tooling/telemetry-counters-are-a-closed-set`). `crates/nvs-cli/src/telemetry.rs:1`
+- [x] The panic hook counts `internal-error.<subcommand>` once per invocation, and a Novis program's own error counts nothing. `crates/nvs-cli/src/main.rs:502`, `crates/nvs-cli/src/telemetry.rs:1`
+- [x] `nvs telemetry show` prints the exact payload (`rule:tooling/telemetry-show-prints-the-payload`). The test against a local listener needs an upload, so it is stage 4's. `crates/nvs-cli/src/telemetry.rs:1`
+- [x] `# nvs telemetry` in the CLI reference, after `# nvs info`: both consents, the payload field by field, every counter, `DO_NOT_TRACK`, and how to turn it off and delete the files (`rule:tooling/telemetry-show-prints-the-payload`). `docs/reference/tools/10-cli.md:509`
+- [x] Tests over a temporary data folder: consent round trip, `reset`, `DO_NOT_TRACK`, an unknown subcommand, `days_active` over a week of set days, `first` before and after an accepted upload, and a forced panic counted once. `crates/nvs-cli/src/telemetry.rs:1`
+- [x] The three rules `shipped`. `data/rules/tooling/telemetry-is-two-opt-ins.json:3`, `data/rules/tooling/telemetry-counters-are-a-closed-set.json:3`, `data/rules/tooling/telemetry-show-prints-the-payload.json:3`
 
 ### 4. an upload is carried, never fails the command, and never runs in a serving process
 
@@ -246,6 +246,7 @@ at most three seconds.
 - [ ] A three-second budget, one honest line on failure, and the command's own exit status untouched (`rule:tooling/a-failed-upload-never-fails-the-command`). `crates/nvs-cli/src/telemetry.rs:1`
 - [ ] The answer decides the week's report: `204` records the upload, `429` and `5xx` keep it, `400`, `413` and `415` drop it, each with its line (`rule:tooling/a-failed-upload-never-fails-the-command`). `crates/nvs-cli/src/telemetry.rs:1`
 - [ ] Tests against a local listener: one upload per finished week, none for an empty week, a dead listener inside the budget, and one case per status above. `crates/nvs-cli/src/telemetry.rs:1`
+- [ ] A test that the bytes `nvs telemetry show` prints equal what the listener receives, and the **Not on disk.** lines of the three telemetry rules and the update-check rule removed (`rule:tooling/telemetry-show-prints-the-payload`). `crates/nvs-cli/src/telemetry.rs:247`, `docs/rules/tooling/telemetry-show-prints-the-payload.md:1`
 - [ ] The `nvs serve` test § *Standing decisions* names: zero connections under load, `invocation.serve` counted. `crates/nvs-cli/src/telemetry.rs:1`
 - [ ] Both rules `shipped`. `data/rules/tooling/a-serving-process-never-uploads.json:3`, `data/rules/tooling/a-failed-upload-never-fails-the-command.json:3`
 
@@ -301,21 +302,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. Stage 2 is `60dad5de8`. `crates/nvs-cli/src/endpoints.rs` reads
-`NVS_UPDATE_URL` (default: the GitHub Releases API's latest release) and `NVS_TELEMETRY_URL` (no
-default), and `nvs --help` lists both. `nvs update-check` is `crates/nvs-cli/src/update_check.rs`
-over the new `nvs_stdlib::tool_get` (`crates/nvs-stdlib/src/http.rs`, beside `extension_send`). That
-function is a Ctx-free `GET` over `transport::send`: system resolver, strict TLS, three redirects, no
-plaintext hop, one attempt, no pooled connection, and a 1 MiB reply cap. Both rules are shipped. The
-switch always prints `off` and the JSON's `"telemetry"` is the literal `"off"`, because telemetry
-does not exist yet. A real run against GitHub prints `status 404, so no release is published`,
-because the repository has no published release yet.
+Stages 1, 2 and 3 are done. `nvs telemetry on|off|status|reset|show` is
+`crates/nvs-cli/src/telemetry.rs`. Its files are `<data folder>/telemetry/consent` (`on` or `off`)
+and `telemetry/counters`. The counter file has `uploads`, `bytes`, the current `week` with `days`
+(seven digits, Monday first) and its counters, and `pending`, the last finished week not sent yet.
+`Counters::roll` moves a finished week to `pending`. The counter file's layout is stated in
+`rule:tooling/telemetry-counters-are-a-closed-set`. Choices this stage made, each written into its
+rule:
 
-The tests written this session ran once and pass: `update_check::tests` (4). No test is expected to
-go red.
+- the command table is `COMMAND_NAMES` in `main.rs`, and a test holds it equal to clap's list
+- `main` parses through `Cli::command().try_get_matches()`, and a failed parse (`--help` and
+  `--version` included) counts `invocation.unknown` in the folder `--data` names, read from argv by
+  `data_flag`
+- `run_hosted` counts a stored service line, because only it names that line's data folder
+- the telemetry panic hook is installed before the floor's, so a panic under a served request never
+  reaches it
+- a count is a read and a rewrite through a rename, not an append. Two invocations at the same
+  moment may lose one count
+- `show` prints `pending`, or else the current week with a note on stderr
 
-The acceptance sweep's items are green at HEAD. `env-secret-proofs` passes. Of the nightly reds on
-`7b6ef53ee`, these are fixed by later commits:
+`nvs update-check` prints the real switch through `telemetry::is_on`. Upload history is still not
+printed, because nothing uploads yet. The three telemetry rules are shipped, each keeping a **Not on
+disk.** line that says nothing uploads yet. `website/public/llms-full.txt` is rendered again.
+
+The tests written this session ran once and pass: `telemetry::tests` (9) and `update_check::tests`
+(4). A run through the binary with `--data` counted `invocation.info`, `invocation.telemetry` and
+`invocation.unknown`, and skipped the count under `DO_NOT_TRACK=1`. No test is expected to go red.
+
+The acceptance sweep's items are the ones the last session traced. `env-secret-proofs` exits 0 at
+HEAD, and the nightly is still the `7b6ef53ee` run. Of its reds, these are fixed by later commits:
 
 - the property-observer cost guard passes locally in release
 - the proofs gate owes nothing
@@ -334,16 +349,16 @@ still refuses to stage it while interactive session 6884de4b claims the file.
 
 ### Next
 
-**Stage 3: `nvs telemetry`**, one file set: `crates/nvs-cli/src/telemetry.rs` (new), the subcommand
-table and the panic hook in `crates/nvs-cli/src/main.rs`, and the CLI reference. No gate.
+**Stage 4: the upload**, one file set: `crates/nvs-cli/src/telemetry.rs`,
+`crates/nvs-cli/src/update_check.rs`, a `POST` beside `nvs_stdlib::tool_get`
+(`crates/nvs-stdlib/src/http.rs`), and `nvs telemetry upload` in the verb table. No gate.
 
-- [ ] The rule states the paths and the `DO_NOT_TRACK`/`CI` switch. `docs/rules/tooling/telemetry-is-two-opt-ins.md:1`, `crates/nvs-config/src/data.rs:467`
-- [ ] The five verbs, and `on` says nothing is uploaded while `endpoints::telemetry_url` is `None`. `crates/nvs-cli/src/telemetry.rs:1`, `crates/nvs-cli/src/endpoints.rs:28`
-- [ ] One counter per invocation from the command table, with `invocation.unknown`. `crates/nvs-cli/src/main.rs:394`, `crates/nvs-cli/src/main.rs:606`
-- [ ] The payload, `nvs telemetry show`, and the panic hook's `internal-error.<subcommand>`. `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] `nvs update-check` reads the real switch: replace the literal `off` in `check`, `upload_line` and `document`, and update its rule's **Not on disk.** line. `crates/nvs-cli/src/update_check.rs:67`, `crates/nvs-cli/src/update_check.rs:108`, `docs/rules/tooling/update-check-states-the-whole-picture.md:1`
-- [ ] `# nvs telemetry` after `# nvs info`. `docs/reference/tools/10-cli.md:509`
-- [ ] Tests over a temporary data folder as stage 3's last item lists, and the three rules shipped. `crates/nvs-cli/src/telemetry.rs:1`
+- [ ] The carrier allow-list: one exhaustive `match` over `Command`, where only `update-check` and `telemetry upload` say yes. `crates/nvs-cli/src/main.rs:398`, `docs/rules/tooling/a-serving-process-never-uploads.md:1`
+- [ ] A Ctx-free `POST` with a three-second bound, beside `tool_get`. `crates/nvs-stdlib/src/http.rs:1`
+- [ ] The upload sends `Counters::payload` of `pending`. The answer decides it: `204` adds to `uploads` and `bytes` and clears `pending`, `429` and `5xx` keep it, and `400`, `413` and `415` drop it. `crates/nvs-cli/src/telemetry.rs:579`, `crates/nvs-cli/src/telemetry.rs:550`
+- [ ] The weekly gate and the randomised point in the window. The upload history goes into `status` and `update-check`'s lines and JSON. `crates/nvs-cli/src/telemetry.rs:203`, `crates/nvs-cli/src/update_check.rs:68`, `crates/nvs-cli/src/update_check.rs:185`
+- [ ] Tests against a local listener as stage 4's items list, including `show`'s bytes against the received ones, and the `nvs serve` test. `crates/nvs-cli/src/telemetry.rs:1`
+- [ ] Both rules shipped, and every **Not on disk.** line about uploads removed. `docs/rules/tooling/telemetry-show-prints-the-payload.md:1`, `docs/rules/tooling/update-check-states-the-whole-picture.md:1`
 
 ### Backlog
 
