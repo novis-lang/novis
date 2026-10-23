@@ -1,0 +1,32 @@
+<?nvs
+namespace Shop;
+
+use Core\Arr;
+use Core\Str;
+
+class Basket
+{
+    public int $count = 0;
+
+    public string $owner = '';
+    public function add(int $n): int
+    {
+        $this->count += $n;
+        return $this->count;
+    } // The end of `add`.
+
+    // `total` returns the number of items.
+    public function total(): int
+    {
+        return $this->count;
+    }
+
+    public string $label {
+        get => Str::upper($this->owner);
+    }
+
+    public function sizes(): array<int>
+    {
+        return Arr::filled(1, $this->count);
+    }
+}

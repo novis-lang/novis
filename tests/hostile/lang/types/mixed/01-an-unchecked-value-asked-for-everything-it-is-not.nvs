@@ -17,6 +17,7 @@ class Poke
             return 'refused';
         }
     }
+
     public static function key(mixed $base, mixed $k): tainted string
     {
         try {
@@ -25,6 +26,7 @@ class Poke
             return 'refused';
         }
     }
+
     public static function whole(mixed $v): string
     {
         try {

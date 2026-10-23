@@ -52,14 +52,39 @@
 //! next file is read. This is a command-line tool and an editor request:
 //! nothing here runs on the request path or inside the runtime.
 //!
-//! # Known gaps
+//! # The modules that write a rule
 //!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-fmt/src/lib.rs` lists them.
+//! The run walk in [`crate::print`] is the frame every rule under
+//! `docs/rules/tooling/fmt-*` hangs off, and each rule lands in it from one
+//! module:
+//!
+//! - [`crate::indent`]: four spaces per enclosing body.
+//! - [`crate::statement`]: one statement per line, and a closing brace on a
+//!   line of its own.
+//! - [`crate::brace`]: the line each opening brace sits on, `elseif`, `else`,
+//!   `catch` and `finally` on the closing brace's line, and `elseif` as one
+//!   word.
+//! - [`crate::blank`]: the blank line after `namespace`, after the `use` block
+//!   and between two members that each have a body.
+//! - [`crate::modifiers`]: one canonical order for a declaration's modifiers.
+//! - [`crate::imports`]: the order a run of imports goes out in.
+//! - [`crate::list`]: a list on one line or one item per line.
+//! - [`crate::chain`]: a call chain or an operator chain on one line or one
+//!   link per line.
+//! - [`crate::space`]: the run a qualified type, a one-line anonymous object
+//!   and each arm of a multi-line `match` are written with.
+//! - [`crate::tokens`]: the quote a plain string literal is delimited by, the
+//!   comma a multi-line list ends its last item on, and the one case a reserved
+//!   spelling has.
+//!
+//! [`crate::split_join`] writes no rule of its own: its edits are laid out the
+//! way [`crate::list`] and [`crate::chain`] lay them out.
 
 use std::fmt;
 
 use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap};
 
+mod blank;
 mod brace;
 mod chain;
 mod imports;
