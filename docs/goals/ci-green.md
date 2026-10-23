@@ -99,59 +99,29 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `7b6ef53ee`, the push of `security-hardening`'s end. Its Website run is green.
-Its CI run, https://github.com/novis-lang/novis/actions/runs/39865426742, was still going at this
-handoff and ended red in 15 jobs. Every red is now read, and nine fixes are committed and not
-pushed. The five from this session:
+`origin/main` is at `5dc6c26e3`, the push of `request-overhead`'s end. It carried the nine fixes
+of the two sessions before, and its run cleared every job they fixed. Its Website run is green.
+Its CI run, https://github.com/novis-lang/novis/actions/runs/39926481336, ended red in three jobs.
+The nightly deep-lane run on `7b6ef53ee` was cancelled when this push came in. Before that it
+showed only reds `5dc6c26e3` already fixed. Three fixes are committed and not pushed:
 
-- `test / macos-aarch64 (tests)`: `a_redirect_to_a_host_only_the_caller_may_reach_is_denied` in
-  `crates/nvs-ext/tests/http.rs` bound `127.0.0.2`, which macOS's loopback does not have.
-  `342675093` uses `::1`.
-- `test / windows-x86_64 (tests)`: the runner's `target/` inherits a `BUILTIN\Users` write grant,
-  so the ownership check from `13a377590` refused the trees three `nvs-cli` bin cases wrote. The
-  sd_notify case's failed assertion poisoned the recorder the service case shares. `ba8930b80`
-  writes them with `nvs_repo::scratch_private`.
-- `test / linux-x86_64 (tests)`: `a_parked_task_runs_between_the_slices_of_a_task_that_never_waits`
-  raced. The neighbour could be woken and finish before the spinner started. `3fd261531` wakes it
-  only once the spinner runs.
-- `crates/nvs-server/src/serve.rs` from `b0a2379fa` was not formatted. `1c3c217d2` formats it.
-- `test / linux-aarch64`: `a_flood_past_capacity_is_refused_and_every_place_and_byte_comes_back`
-  found a real leak on every platform. A loop's back-edge poll returned with no error edge, so a
-  request stopped there by a limit kept every local of its frame. `922abf5f0` gives each back-edge
-  poll a landing block that releases them. A subagent wrote it and checked it on WSL Linux and on
-  Windows, with 3105 conformance cases green. The root did not build when this session checked it
-  again, because the main loop has an unfinished edit in `crates/nvs-stdlib/src/json.rs`.
-  The subagent noted that the function-entry poll also returns directly, which may leak the
-  arguments of one frame. That is in *Backlog*.
-
-The `cargo test` jobs stop at the first failing test binary. The next push may show reds that the
-binaries above hid.
-
-The four fixes from the session before:
-
-- `test / * (conformance)`, all three platforms: 41 to 45 image, intl, pdf and spreadsheet cases
-  failed on the shared worker with "the extension used all of the request's CPU time". The shared
-  worker kept one `Calls` for its whole life. Its budget read the tree of the first case that
-  called an extension, and once that tree ended `Spent::cpu_spent` read it as spent. `dc3a2ed29`
-  installs `extensions::Tested` there. All 72 `tests/conformance/novis/` cases pass locally.
-- `the chapter examples run and the website matches the binary`: `core.json` and `llms-full.txt`
-  were stale. `f6ce06671` renders them again with a binary built at `HEAD` in a scratch worktree.
-- `asan`: `io::tests::a_windows_alias_is_refused_by_its_text_before_any_network_attempt`. On Linux,
-  `\\host\share` joined to the base no longer starts the path, so `Core\IO::within` passed it.
-  `93919e633` runs `capability::alias_refusal` over `$path` before the join. It was checked on
-  Windows only, where it passed before as well.
-- `cost guards / linux` and `windows`, and `extension sandbox probes`:
-  `a_class_without_a_property_observer_costs_nothing_extra` counted 9 calls. `a8d700d37` armed every
-  non-nullable slot of a class with any hook, so an unhooked read tested the unset tag. `42409d10d`
-  arms only the slots a constructor can reach a hook before writing. A subagent wrote it. The guard
-  passes in release, and the 136 `tests/conformance/class/` cases pass.
-
-One red is not fixed:
-
-- `proofs` on all three platforms: 765 perf records are stale since `38c110098` changed their impl
-  files. That red belongs to the main loop: `request-overhead`'s stage 8 records the ledgers again,
-  and it was told with `loop say`. The proofs gate stops before the attacks run, so the LDAP
-  `whoami: Timeout` attack has still not had its second try.
+- `supply chain`: `cargo deny` found RUSTSEC-2026-0385 in `ctutils 0.4.3`, which `aes-gcm`
+  pulls in. `a024f2253` moves it to `0.4.4` in both lock files. `cargo deny check advisories`
+  passes locally. `deny.toml`'s RUSTSEC-2026-0206 entry warns "not encountered", because
+  `rustybuzz` is only in `extensions/pdf/Cargo.lock`. That is a warning, and it is left as it is.
+- `proofs` on all three platforms: six `about.md` pages ran 201 to 237 words, past the gate's
+  200. They are the pages of `Core\Response::redirect`, `Core\Db::quoteIdentifier`, and the
+  `queryAs` and `streamAs` of `Db\Connection` and `Db\Transaction`. `296755665` shortens them.
+  `bun nv proofs --owed --limit 0` owes nothing. The gate still stops before the attacks run, so
+  the LDAP `whoami: Timeout` attack has not had its second try.
+- `test / windows-x86_64 (tests)`: `env_context`'s socket, job and schedule cases stopped with
+  E0607, because `BUILTIN\Users` could write their trees under `target/tmp`. The runner's `D:`
+  grants that group create rights in every folder, and `bun nv checkout-acl` removed only
+  `Authenticated Users` and `Everyone`. `8ea16803f` removes `BUILTIN\Users` too and grants it
+  `(OI)(CI)(RX)` back. Every served test binary after `env_context` writes under
+  `CARGO_TARGET_TMPDIR` too, and this fixes them all at once. `ba8930b80`'s per-test
+  `scratch_private` was the symptom fix. The new ACL was tested on a local folder built with the
+  runner's grant, and has not run on a runner yet.
 
 `.agent-tmp/wt-ci`, `.agent-tmp/wt-cig` and `.agent-tmp/wt-r` are empty scratch folders. Git no
 longer lists them as worktrees. Each contains only a `.looper` directory that Windows will not
@@ -161,9 +131,11 @@ delete while looper runs. Delete all three when looper is stopped.
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Watch for the next push, past `proofs` alone. `tools/nv/cmd/ci.ts:265`
-  Run `bun nv ci --watch --past proofs`. Until `request-overhead` records the ledgers, the
-  proofs gate stays red on perf.
+- [ ] Watch for the next push. `tools/nv/cmd/ci.ts:265`
+  Run `bun nv ci --watch --next`, so the red run on `5dc6c26e3` does not end the watch at once.
+  If `test / windows-x86_64 (tests)` fails with E0607 again, read the `checkout-acl` step's log
+  first. `tools/nv/cmd/checkout-acl.ts:91` If the Windows test binaries after `env_context` now
+  run, expect new reds there: the earlier failures stopped those binaries before they ran.
 - [ ] Once proofs runs its attacks, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
   A second LDAP `whoami: Timeout` is not noise. Compare the socket deadline with the slice yield
   commits `13004e4f9` and `2b292f862`.
