@@ -99,13 +99,21 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `88fb690a3`, the end of `first-release`. That push carried the stale page
-and question fix `aecce6733`. Both of its runs are green: CI,
-https://github.com/novis-lang/novis/actions/runs/40001333855, in all 38 jobs, and Website,
-https://github.com/novis-lang/novis/actions/runs/40001333533. `proofs` is green on all three
-platforms, so its attacks ran past the stale guard and the LDAP login attack passed its second
-try. `bun nv site --check stale questions` passed at `9ceb43a49` before the watch. Nothing is
-committed and unpushed for this goal.
+`origin/main` is at `a61973440`, the end of `formatter-complete`. Its Website run is green. Its CI
+run, https://github.com/novis-lang/novis/actions/runs/40023075871, is red in two jobs, and
+every other job is green:
+
+- `lint`, step `rustfmt`: rustfmt 1.10 joins a `#[cfg_attr(miri, ignore = "...")]` that was split
+  over four lines. `crates/nvs-stdlib/src/session/sqlite.rs` is fixed in `608953a3f`. The same red in
+  `crates/nvs-runtime/src/capability.rs:2259` went to the main loop with `loop say`, because the
+  `formatter-complete` interactive session claimed that file. The root's working tree has it
+  formatted, but no commit had it when this session ended.
+- `proofs` on all three platforms: the perf records of `Core\Ast` and `Core\Ast\Node` were stale
+  after the formatter's changes to `crates/nvs-stdlib/src/ast.rs`. `870f3e7aa` records all seven,
+  and `bun nv proofs --owed` names none of them now.
+
+Both fixes are committed and not yet pushed, and they go out with the next goal end.
+`bun nv site --check stale questions` passed before the watch.
 
 `.agent-tmp/wt-ci`, `.agent-tmp/wt-cig` and `.agent-tmp/wt-r` are empty scratch folders. Git no
 longer lists them as worktrees. Each contains only a `.looper` directory that Windows will not
@@ -116,7 +124,10 @@ delete while looper runs. Delete all three when looper is stopped.
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch for the next push. `tools/nv/cmd/ci.ts:265`
-  Run `bun nv ci --watch --next`, so the green run on `88fb690a3` does not end the watch at once.
+  Run `bun nv ci --watch --next`, so the red run on `a61973440` does not end the watch at once.
+  First run `git log origin/main..HEAD -- crates/nvs-runtime/src/capability.rs` and `cargo fmt --all
+  --check`. If the formatted `capability.rs` is still not committed and no session claims it, commit
+  it, or `lint` goes red again.
   An exit of 3 with a run still going means the push came late: watch again. The questions check counts as stale every page whose feature's examples changed. So an example
   sweep in the main loop's work turns `Website stale guard` red again. Run `bun nv site --check
   stale questions` at `HEAD` before you watch, and fix what it names as the last item below says.
