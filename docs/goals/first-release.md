@@ -1,13 +1,13 @@
 ---
 looper: 1
 title: "Novis is ready for its first release, and the README and the website say Pre-Alpha and show the roadmap that is left"
-summary: "bun nv release names the first release 0.0.1 with written notes, the README matches the website's home page and its prose, every page says Pre-Alpha and released, the public roadmap is a short list of the planned work kept in step with the goal chain by a check, the website deploys again after a release is published, and the checks below pass."
+summary: "bun nv release names the first release 0.0.1 with written notes, every release attaches the VS Code extension at its own version, the README matches the website's home page and its prose, every page says Pre-Alpha and released, the public roadmap is a short list of the planned work kept in step with the goal chain by a check, the website deploys again after a release is published, and the checks below pass."
 context: [docs/release.md, tools/nv/cmd/release.ts, README.md, website/src/content/docs/index.mdx]
 stages:
   - id: 1
-    title: "the first release is 0.0.1 with written notes, and a published release redeploys the website"
+    title: "the first release is 0.0.1 with written notes and the extension attached, and a published release redeploys the website"
     status: open
-    context: [tools/nv/test/release.test.ts, .github/workflows/release-promote.yml, .github/workflows/pages.yml]
+    context: [tools/nv/test/release.test.ts, .github/workflows/release.yml, .github/workflows/release-promote.yml, editors/vscode/package.json]
   - id: 2
     title: "the roadmap is a short list kept in step with the chain, and every page says Pre-Alpha and released"
     status: open
@@ -77,6 +77,20 @@ today.
 push starts no workflow. So the site would show the old version until the next push to `main`.
 `release-promote.yml` dispatches `pages.yml` on `main` once the tags have moved. A dispatch is one of
 the two events a `GITHUB_TOKEN` may start. The job gains `actions: write` and nothing else.
+
+**Every release attaches the VS Code extension as `nvs-<version>.vsix`.** The user's call
+(2026-10-23): publish the `.vsix` with each release, and not in the Marketplace for now. So no account,
+token or secret is added. A `vsix` job in `release.yml` runs after `plan`. It applies the version with
+`--manifests-only`, then runs `npm ci` and `npm run package` in `editors/vscode`, and attests the file.
+`publish` downloads it beside the archives. It is listed in `SHA256SUMS` and attached to the draft,
+and `publish` refuses a release without it. The `test` step already ran the extension's suites on the
+same commit, so this job runs none. Building the file is not repeated in CI.
+
+**The release bumps the extension's version too.** Today `bumpManifest` rewrites `Cargo.toml` alone,
+and `editors/vscode/package.json` stays at `0.0.1`. The contributions suite asserts that the two agree
+(`editors/vscode/test/contributions/contributions.test.ts:217`), so the second release would turn CI
+red. `--apply` and `--manifests-only` also rewrite the `version` of `package.json` and the two
+top-level ones in `package-lock.json`, and die if any of the three is missing.
 
 **The website reads the version from `Cargo.toml` at build time.** One module,
 `website/src/data/release.ts`, exports the workspace version and the archive names built from it. The
@@ -150,10 +164,10 @@ costs one line in `roadmap.json`.
 
 ## Stages
 
-### 1. the first release is 0.0.1 with written notes, and a published release redeploys the website
+### 1. the first release is 0.0.1 with written notes and the extension attached, and a published release redeploys the website
 
-**Does:** `bun nv release --preview patch` prints `0.0.1 --patch--> 0.0.1` and the written notes, and
-publishing a release redeploys the website.
+**Does:** `bun nv release --preview patch` prints `0.0.1 --patch--> 0.0.1` and the written notes. A
+release attaches the extension at its own version, and publishing it redeploys the website.
 
 - [ ] With no `v*` tag, `resolveNext` releases the current version for `patch` and `minor`, and `major` still needs `allow_contract`. `tools/nv/cmd/release.ts:624`
 - [ ] `apply` commits the changelog alone when no manifest needs a bump. `tools/nv/cmd/release.ts:667`
@@ -161,7 +175,10 @@ publishing a release redeploys the website.
 - [ ] Write `docs/release-notes/first.md` to the prose rules, from the home page's words, at most 40 lines. `docs/release-notes/first.md:1`
 - [ ] Tests: with no tag, `patch` and `minor` give `0.0.1` and `major` alone dies. No previous tag gives the written notes, and a tag gives the commit log. Run once by name: `bun test tools/nv/test/release.test.ts`. `tools/nv/test/release.test.ts:1`
 - [ ] `release-promote.yml` dispatches `pages.yml` on `main` after the tags move, with `actions: write` on that job alone, and no `${{ }}` inside a `run:` block. `.github/workflows/release-promote.yml:61`
-- [ ] `docs/release.md`: the version table says the first release is `0.0.1`, step 6 says the website redeploys, and the setup sections say GitHub is set up. `docs/release.md:1`
+- [ ] `--apply` and `--manifests-only` rewrite the version in `editors/vscode/package.json` and `editors/vscode/package-lock.json`, with a test beside the others. `tools/nv/cmd/release.ts:216`, `tools/nv/test/release.test.ts:1`
+- [ ] A `vsix` job builds and attests `nvs-<version>.vsix`. `publish` requires it, lists it in `SHA256SUMS` and attaches it to the draft. `.github/workflows/release.yml:292`, `.github/workflows/release.yml:437`, `.github/workflows/release.yml:452`
+- [ ] `docs/release.md`: the version table says the first release is `0.0.1`, step 6 says the website redeploys, and the setup sections say GitHub is set up. *What an archive carries* names the `.vsix`. `docs/release.md:1`
+- [ ] The extension's README says each release attaches the `.vsix`, and that it is not in the Marketplace. `editors/vscode/README.md:67`
 
 ### 2. the roadmap is a short list kept in step with the chain, and every page says Pre-Alpha and released
 
@@ -179,6 +196,7 @@ does not match, and no page says "no release yet".
 - [ ] The home page's install card says download, with build from source second. `website/src/components/home/Path.astro:25`
 - [ ] The hero shows a small "Pre-Alpha" label with the version from `release.ts`, linking to What changed. `website/src/components/home/Hero.astro:1`
 - [ ] The Docker guide pulls the published image first, and building your own image comes after. Its tags come from `release.ts`. `website/src/content/docs/guides/production/docker.mdx:20`, `website/src/content/docs/guides/production/docker.mdx:139`
+- [ ] The editor page installs the `.vsix` from the release, with its link from `release.ts`, by *Extensions: Install from VSIX* or `code --install-extension`. Building the file from source comes after. `website/src/content/docs/install/editor.mdx:35`
 - [ ] The In depth index describes the roadmap as the planned work. `website/src/content/docs/in-depth/index.mdx:22`
 - [ ] The compiler page no longer names a planned faster compiler, because the roadmap does not have one. `website/src/content/docs/in-depth/concepts/compiled.mdx:35`
 - [ ] `CONTRIBUTING.md` says Pre-Alpha and released at `0.0.1`, and its "not built yet" example names planned work. `CONTRIBUTING.md:3`, `CONTRIBUTING.md:9`, `CONTRIBUTING.md:138`
@@ -186,8 +204,7 @@ does not match, and no page says "no release yet".
 - [ ] `bun nv proofs --comments` and `bun nv site --check` pass on every page this stage touched.
 
 These stay as they are, and were checked on 2026-10-23. `in-depth/new.mdx:27` (the registry is still
-planned). `how-novis-is-tested.mdx:496` (test practice, not the roadmap). `install/editor.mdx:35`: the
-release does not ship the `.vsix`, and the page's source link still works. `Sponsors.astro`: its
+planned). `how-novis-is-tested.mdx:496` (test practice, not the roadmap). `Sponsors.astro`: its
 progress list is empty. The generated `llms.txt` follows the page descriptions by itself.
 
 **Split:** after the first four items land, two writing subagents run side by side. One takes the
@@ -222,7 +239,7 @@ These steps are the user's, with an interactive session. The loop takes none of 
    environment, and publish the draft.
 4. Make the `novis` container package public, once (`docs/release.md` § 6). Then check `docker pull`,
    `docker run ghcr.io/novis-lang/novis:0.0.1 nvs --version`, the checksums of one archive, and the
-   install page's links.
+   install page's links. Install `nvs-0.0.1.vsix` from the release in VS Code, and open a `.nvs` file.
 
 ## Handoff
 
@@ -239,12 +256,13 @@ patch` names `0.0.2` and prints the whole commit log, and every status line says
 - [ ] With no tag, `patch` and `minor` release the current version. `tools/nv/cmd/release.ts:624`
 - [ ] `apply` commits the changelog alone when no manifest needs a bump. `tools/nv/cmd/release.ts:667`
 - [ ] The first release's notes are `docs/release-notes/first.md`. `tools/nv/cmd/release.ts:603`, `docs/release-notes/first.md:1`
+- [ ] The release rewrites the extension's version too. `tools/nv/cmd/release.ts:216`
+- [ ] The `vsix` job, and `publish` attaches the file. `.github/workflows/release.yml:292`
 - [ ] The tests, run once by name. `tools/nv/test/release.test.ts:1`
 - [ ] `release-promote.yml` dispatches `pages.yml`. `.github/workflows/release-promote.yml:61`
-- [ ] `docs/release.md` says so. `docs/release.md:1`
+- [ ] `docs/release.md` and the extension's README say so. `docs/release.md:1`, `editors/vscode/README.md:67`
 
 ### Backlog
 
 - Stage 2: `roadmap.json`, `release.ts`, the roadmap check, and every status line.
 - Stage 3: the README follows the home page.
-- Not in this goal: the release could attach `nvs.vsix`, so the editor page needs no source checkout.
