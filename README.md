@@ -1,47 +1,117 @@
-# Novis — The Web-Native Programming Language
+# Novis-Lang
 
-A programming language for the web. Secure by design, not by discipline. Untrusted data: tracked, and
-blocked from anywhere dangerous. Secrets: can't leak into logs or screens, not even by accident.
-Downloaded code: does only what you allow. Fast, like you would expect. Easy to write, easy to scale.
-For web servers and the command line. Familiar syntax (Hello PHP).
+**The programming language for web applications and the command line. Fast. Secure by default.**
 
-> **Status: pre-alpha, not released.** The language, its standard library, the HTTP server, the
-> extension system and the editor support are built and tested. There is no release yet, and nothing
-> here is stable.
+You can build a business app, a website, an API or any other web service with it. The tools that a
+modern web application needs are built in.
 
-## What it is trying to be
+> **Status: Pre-Alpha.** Novis is released, and the [install page](https://novis-lang.org/install/) has
+> the latest version. Any release can change the language, and Novis is not ready for production use.
 
-- **Injection and secret leakage are compile errors.** Untrusted input carries a `tainted` type from the
-  moment it enters, credentials carry `secret`, and every sink that could leak either one refuses them — so
-  the whole class fails the build instead of a scan afterwards
-  ([why, and how the other web languages compare](website/src/content/docs/in-depth/concepts/tainted-input.mdx)).
-- **No build step.** Edit a `.nvs` file and run it. Compilation happens on load and is cached.
-- **Actually compiled.** Cranelift emits native code. There is no interpreter tier.
-- **Parallel in-language.** `async`/`await` for overlapping I/O plus isolated workers for real multicore
-  CPU work — with no `async` function colouring, so any function may do I/O.
-- **One process, many requests.** A single server process handles as many concurrent requests as its
-  memory holds at each request's limit (128M unless you set one), each fully isolated, all sharing one
-  in-memory compiled-code cache.
-- **Isolation you can reach from the language.** `spawn script 'job.nvs'` runs another file with its own
-  heap, its own globals and its own slice of the caller's budget, and starts in microseconds
-  ([`security/isolate-shares-nothing`](docs/rules/security.md#security-isolate-shares-nothing)).
-- **Typed on purpose.** Every parameter, property and variable declares its type, and no value changes
-  type behind your back: conversions are explicit and throw rather than quietly yielding `0`. Unions and
-  `mixed` are there for the cases that genuinely are dynamic. `uint` gives you the whole unsigned 64-bit
-  range, and arrays are ordered hashes with declarable, nestable element types — `array<array<uint>>`
-  ([the type rules](docs/rules/types.md)).
-- **Memory-safe and contained.** Written in Rust. `unsafe` is forbidden in every crate but seven, and
-  each `unsafe` block in those seven is audited and states its reason. A
-  runtime bug or a resource-limit breach kills one request, never the process.
-- **Fast and simple first; memory is what pays for that.** Novis targets server-class hardware, so where a
-  design can be safer, faster or simpler by holding more memory, it holds more memory — deliberately, within
-  an enforced per-request cap ([the memory rule](docs/rules/programs.md#programs-memory-priority)). It is not a
-  low-footprint runtime, and sizing it means sizing for concurrency.
-- **Extensible without giving up any of that.** Extensions are sandboxed WebAssembly components: one
-  precompiled binary runs on every platform, written in whatever language you like, and a crashing or
-  hostile extension harms one request rather than the process.
+Free and open source · Windows, Linux and macOS · An extension for VS Code · Ready for Docker
 
-Coming from PHP? [How Novis is different, and how to port a program](website/src/content/docs/in-depth/coming-from-php.mdx).
+[Install Novis](https://novis-lang.org/install/) · [Take the tour](https://novis-lang.org/guides/tour/) ·
+[novis-lang.org](https://novis-lang.org/)
+
+- **[Input is tainted.](https://novis-lang.org/in-depth/concepts/tainted-input/)** Text from a request
+  must be checked or escaped before it reaches a database, a shell or a page.
+- **[Every request on its own.](https://novis-lang.org/in-depth/concepts/isolation/)** Each request has
+  its own memory. When one request crashes, the others keep running.
+- **[One program.](https://novis-lang.org/reference/cli/one-binary/)** `nvs` runs your code, serves web
+  requests, runs your tests and formats your files.
+- **[Compiled to machine code.](https://novis-lang.org/in-depth/concepts/compiled/)** Each file is
+  compiled the first time it is needed. You never run a build step.
+
+## The compiler finds the mistake first
+
+Some mistakes are common in web code. The Novis compiler finds them before any of your code runs.
+
+- **Text from a request in a database query.** A value from a request is a `tainted string`. It cannot
+  become part of the text of a query. You send it as a parameter instead.
+  [How tainted input works](https://novis-lang.org/guides/why-novis/tainted-input/)
+- **A password in the output.** A password or a key is a `secret string`. Code that prints it or writes
+  it to a log does not compile. [How secret values work](https://novis-lang.org/guides/why-novis/secret-values/)
+
+## Small programs, clear rules
+
+Novis checks the things that often go wrong in web code. The checks are part of the language, so there
+is nothing extra to install.
+
+- **[Every conversion is checked.](https://novis-lang.org/guides/why-novis/checked-conversions/)**
+  `as int` throws an error when the text is not a whole number. `as ?int` gives `null`, and your code
+  decides what happens next.
+- **[Text as people read it.](https://novis-lang.org/guides/why-novis/unicode-strings/)** `Core\Str`
+  counts the characters a person sees. An accent or an emoji stays whole.
+- **[JSON in one line.](https://novis-lang.org/reference/core/json/)** `Core\Json::encode` writes a
+  shape, a list, a string or any other value as JSON. A shape keeps its keys in the order you write them.
+- **[Jobs that run at the same time.](https://novis-lang.org/syntax/concurrency/tasks/)**
+  `Core\Task::all` runs several functions at the same time. Each result has its own name and its own type.
+- **[HTML that escapes itself.](https://novis-lang.org/guides/why-novis/html-escapes/)** An `html`
+  template escapes every value in it. A comment from a user is shown as text.
+- **[Typed JSON.](https://novis-lang.org/guides/why-novis/typed-json/)** `Core\Json::decodeAs` reads
+  JSON into an object of your class and checks every property.
+- **[Null is checked.](https://novis-lang.org/guides/why-novis/no-null-surprises/)** A `User` is never
+  `null`. Only a `?User` can be. The compiler checks every place that uses it before the program runs.
+- **[Errors with a default.](https://novis-lang.org/guides/why-novis/simple-errors/)** `catch` after a
+  call gives a default value when the call throws an error.
+
+## One request cannot break another
+
+A request can crash, run out of memory or loop forever. When that happens, only that request stops. The
+server keeps running, and every other request finishes normally.
+
+- Each request has its own memory and its own copy of every static property.
+- You set limits for memory and time in `nvs.toml`. They apply to every request.
+- A request that uses more than a limit stops immediately. Only that request stops.
+
+[How isolation works](https://novis-lang.org/in-depth/concepts/isolation/) ·
+[Memory and CPU limits](https://novis-lang.org/in-depth/concepts/limits/)
+
+## One library comes with it
+
+It has classes for JSON, databases, HTTP, passwords, dates and much more. Most programs need no package
+from outside. Every class has its own page in the [reference](https://novis-lang.org/reference/). It
+lists each method and its parameters.
+
+## One program runs, tests and serves your code
+
+`nvs` is one program. It runs your code, serves web requests, runs your tests and formats your files.
+
+| Command | What it does |
+|---|---|
+| [`nvs run app.nvs`](https://novis-lang.org/reference/cli/nvs-run/) | Check, compile and run a program |
+| [`nvs serve app.nvs`](https://novis-lang.org/reference/cli/nvs-serve/) | Serve web requests |
+| [`nvs test tests/`](https://novis-lang.org/reference/cli/nvs-test/) | Run every test |
+| [`nvs check app.nvs`](https://novis-lang.org/reference/cli/nvs-check/) | Report every error and run nothing |
+| `nvs fmt` | Format your files |
+| [`nvs build --compile app.nvs`](https://novis-lang.org/reference/cli/nvs-build-compile/) | Write one executable file with your program |
+| [`nvs build --openapi app.nvs`](https://novis-lang.org/reference/cli/nvs-build-openapi/) | Write the OpenAPI document of your web API |
+| [`nvs lsp`](https://novis-lang.org/install/editor/) | Errors and completion in your editor |
+
+Tests live next to your code. A test is a method with `#[Test]`. `nvs test` runs each test on its own.
+You do not install a package for it. [Tests in the language](https://novis-lang.org/guides/why-novis/tests-in-code/)
+
+## Let a coding agent write your Novis code
+
+`nvs` contains the full documentation of the language and its library. A coding agent looks up what it
+needs. The compiler checks every file the agent writes before the file runs.
+
+- **The documentation is in `nvs`.** `nvs agent find` and `nvs agent show` print the documentation of
+  each class, method, setting and error code. It always matches the version you installed.
+- **One command sets up your project.** `nvs agent init` writes an `AGENTS.md` file and the files your
+  agent reads.
+- **Errors after every edit.** In Claude Code and Cursor, `nvs` checks each `.nvs` file after the agent
+  edits it. The agent sees the errors at once.
+
+[Set up your project](https://novis-lang.org/reference/cli/nvs-agent-init/) ·
+[All agent commands](https://novis-lang.org/reference/cli/nvs-agent/)
+
+## Measured and counted
+
+The [home page](https://novis-lang.org/) shows the numbers of the latest recorded benchmark run. It also
+counts the tests in the repository and the crates with no unsafe Rust.
+[Compare with other languages](https://novis-lang.org/in-depth/compare/) ·
+[How Novis is tested](https://novis-lang.org/in-depth/how-novis-is-written/#tested-from-every-direction)
 
 ## Roadmap
 
@@ -61,66 +131,57 @@ dates. The [roadmap page](https://novis-lang.org/in-depth/roadmap/) has the same
 
 ## Contributing
 
-Novis is early enough that an opinion is worth more than a patch. Ideas, questions and disagreements go to
-[Discussions](https://github.com/novis-lang/novis/discussions), bugs and concrete proposals to
-[Issues](https://github.com/novis-lang/novis/issues), and [Discord](https://discord.gg/8ftMjPeH8h) is
-where the day-to-day conversation happens — all of that is open to anyone, at any time.
+Ideas, questions and disagreements go to [Discussions](https://github.com/novis-lang/novis/discussions).
+Bugs and concrete proposals go to [Issues](https://github.com/novis-lang/novis/issues). Talk with us
+every day on [Discord](https://discord.gg/8ftMjPeH8h). All of these are open to anyone, at any time.
 
-**Pull requests are the exception: they are not open yet.** The core team is building the language out to
-one vision first, and they open once it is settled, so that maintenance becomes a shared job between the
-community and the core team. Code contributions are the only thing this affects.
+**Pull requests are not open yet.** The core team builds the language to one design first. When the
+design is settled, pull requests open. Then the community and the core team maintain Novis together.
+This affects code contributions only.
 
-[CONTRIBUTING.md](CONTRIBUTING.md) routes all of that, and its second half is the developer's half of this
-file: the design in one page, the repository layout, how to build and check the tree, and the conventions a
-change is expected to follow. Start there, then [AGENTS.md](AGENTS.md) — it carries the priority ordering
-every design choice is judged against, the invariants that are easy to break, and a table pointing at the
-*one* document to open for a given piece of work.
+[CONTRIBUTING.md](CONTRIBUTING.md) says where each kind of contribution goes. Its second half is for
+developers. It describes the design, the folders of the repository, how to build and test, and the
+conventions for a change. Then read [AGENTS.md](AGENTS.md). It lists the priorities for every design
+decision and the rules that are easy to break. It also has a table of which document to read for each
+kind of work.
 
 ## Sponsoring
 
-Novis is open source and free, and it always will be. What it costs is time — and time is exactly what we
-are willing to invest to reach our goal. But some things already cost real money: servers, licences,
-hardware. Novis has a baseline that is paid every month.
+Novis is open source and free to use. It is under the MIT license, and it always will be. A solid
+language needs time, and infrastructure that costs money every month. Sponsors pay for this work.
 
-That is where sponsors come in — maybe you?! Sponsors help us cover those fixed costs. Novis is already run
-by a company: a sole proprietorship (*Einzelunternehmen*) in Austria, owned and run by Roland, the creator
-of Novis. When the team is bigger and sponsoring makes it possible, we will found a *FlexCo* named
-Novis-Lang — the *Flexible Kapitalgesellschaft*, a form of company Austria introduced in 2024 for startups
-and growing companies — so that we can employ people and rent an office. You can give through GitHub
-Sponsors, Polar or a bank transfer. The website's sponsoring page lists the tiers, and
-publishes a report every quarter: how many gave, the total, and what we spent it on. By default, nothing
-about you is published — not your name and not your amount. We show them only if you ask us to.
+You can give through GitHub Sponsors, Polar or a bank transfer. You can give once or every month. All
+money, after the fees of the platforms, goes into development, infrastructure and the ecosystem. Every
+quarter, we publish a short report with the number of donors, the total and what we spent it on.
 
-Whatever form the company takes, Novis is open source and always will be, it is under the MIT licence and
-always will be, and the open-source code is all of Novis — there is no paid edition or paywalls. We may sell additional services
-around Novis one day, consulting for example, but a service never takes a feature away from the free Novis just to make money out of it.
-And we do our best to keep Novis the best and simplest way to run the web applications of today and of
-the future.
+By default, we publish nothing about you: not your name, not your logo and not your amount. These
+promises stay the same:
 
-Every donation helps, no matter how large, how small, how long or how short. Ask on
-[Discord](https://discord.gg/8ftMjPeH8h) and we will tell you how — the full story is on the website's
-sponsoring page.
+- Novis is open source under the MIT license, and it always will be.
+- The open-source release is all of Novis. There are no paid features and no hidden parts of the core.
+- Everybody can learn Novis, build with it and deploy it for free.
 
-And if you would rather not donate, or cannot: come to us with ideas and discussion instead, any time.
-That is what [CONTRIBUTING.md](CONTRIBUTING.md) is for.
+The [sponsoring page](https://novis-lang.org/sponsoring/) lists the tiers, the ways to give and the
+reports. If you cannot give money, your ideas and questions help too. [CONTRIBUTING.md](CONTRIBUTING.md)
+says where they go.
 
-## Licence
+## License
 
-Novis is [MIT](LICENSE). Contributions are accepted under the same licence.
+Novis is under the [MIT](LICENSE) license. Contributions are accepted under the same license.
 
-Every third-party component compiled into the `nvs` binary is permissively licensed and attributed in
-[THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt), with each component's own copyright notice and
-licence text reproduced in full. That file is **generated** from the resolved dependency graph and
-**embedded in the binary**, so a copy of `nvs` carries its notices without the repository:
+Every third-party component in the `nvs` binary has a permissive license.
+[THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt) lists each one with its copyright notice and its full
+license text. A tool generates this file from the dependencies. The file is also built into the binary,
+so every copy of `nvs` contains the notices:
 
 ```sh
-nvs info                # build and host facts, plus every component and its licence
-nvs info --licenses     # the same, plus every licence text in full
+nvs info                # facts about the build and the host, and every component with its license
+nvs info --licenses     # the same, and the full text of every license
 
-bun nv gen-attribution           # regenerate after changing a dependency
-bun nv gen-attribution --check   # what CI runs; fails if the notice is stale
+bun nv gen-attribution           # generate the file again after you change a dependency
+bun nv gen-attribution --check   # what CI runs: it fails if the file is out of date
 ```
 
-The generator fails closed: a licence it has no policy for, or one missing from
-[deny.toml](deny.toml)'s allow list, stops the build instead of quietly omitting a notice. `cargo deny`
-decides what may be *linked*; this decides what must be *shipped*.
+The generator stops the build for a license it has no policy for. It also stops it for a license that is
+not in the allow list of [deny.toml](deny.toml). So a notice is never left out. `cargo deny` checks which
+licenses may be linked. The generator writes the notices that must ship with the binary.
