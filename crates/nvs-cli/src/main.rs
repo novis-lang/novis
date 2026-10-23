@@ -394,6 +394,41 @@ fn initializes(command: &Command) -> bool {
     )
 }
 
+/// Whether `command` may carry a telemetry upload (`rule:tooling/a-serving-process-never-uploads`):
+/// only `nvs update-check` and `nvs telemetry upload`. Every variant is named, so a new command
+/// does not compile until it answers, and a command that serves or stays running answers `false`.
+fn carries_upload(command: &Command) -> bool {
+    match command {
+        Command::UpdateCheck(_) => true,
+        Command::Telemetry(args) => args.uploads(),
+        Command::Ast(_)
+        | Command::Check(_)
+        | Command::Run(_)
+        | Command::Serve(_)
+        | Command::Test(_)
+        | Command::Build(_)
+        | Command::Api(_)
+        | Command::Ext(_)
+        | Command::Init(_)
+        | Command::Config(_)
+        | Command::Queue(_)
+        | Command::Schema(_)
+        | Command::Tmp(_)
+        | Command::Cache(_)
+        | Command::Service(_)
+        | Command::InstallService(_)
+        | Command::Fmt(_)
+        | Command::Lsp(_)
+        | Command::LspTest(_)
+        | Command::Info(_)
+        | Command::Meta(_)
+        | Command::Doc(_)
+        | Command::Agent(_)
+        | Command::Code(_)
+        | Command::Stubs(_) => false,
+    }
+}
+
 #[derive(Subcommand)]
 enum Command {
     Ast(ast::Args),
@@ -545,11 +580,15 @@ fn run_hosted(argv: &[String]) -> ExitCode {
     // The line runs as the service would, so it logs where the service does.
     log_like_a_service();
     // Counted here and not in `main`, because only now is the stored line's data folder named.
-    telemetry::start(match &cli.command {
-        Some(Command::Serve(_)) => "serve",
-        Some(Command::Run(_)) => "run",
-        _ => telemetry::UNKNOWN,
-    });
+    // A stored line serves or runs a program, so it never carries an upload.
+    telemetry::start(
+        match &cli.command {
+            Some(Command::Serve(_)) => "serve",
+            Some(Command::Run(_)) => "run",
+            _ => telemetry::UNKNOWN,
+        },
+        false,
+    );
     let no_init = std::env::var_os(config::NO_INIT);
     let init = config::init_gate(
         cli.command.as_ref().is_some_and(initializes),
@@ -667,7 +706,7 @@ fn main() -> ExitCode {
     }
     // [`run_hosted`] counts a stored line itself, once it has named that line's data folder.
     if !matches!(&command, Command::Service(args) if args.runs_a_stored_line()) {
-        telemetry::start(invoked(&matches));
+        telemetry::start(invoked(&matches), carries_upload(&command));
     }
 
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 4's gate,

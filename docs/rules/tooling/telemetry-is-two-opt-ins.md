@@ -26,16 +26,18 @@ creates, privately, after the data folder passes its ownership check. `telemetry
 `off`, and a folder without it is off. `telemetry/counters` holds the counters
 (`rule:tooling/telemetry-counters-are-a-closed-set`). `off` writes `off` and keeps the counters, and
 `reset` deletes the directory, which also turns telemetry off. `status` prints the switch, the counter
-file's path, the upload URL or the note that `NVS_TELEMETRY_URL` is not set, and the lifetime upload
-totals. `on` says that nothing is uploaded while no upload URL is set
-(`rule:config/telemetry-and-update-endpoints-are-configuration`).
+file's path, the upload URL or the note that `NVS_TELEMETRY_URL` is not set, and the upload history:
+`last upload:`, `next upload: from`, and the lifetime totals. `on` says that nothing is uploaded while
+no upload URL is set (`rule:config/telemetry-and-update-endpoints-are-configuration`).
+
+**One connection never carries both.** The release read and the upload go to different hosts, so
+`nvs update-check` opens one connection for each, and the upload's only when telemetry is on.
 
 **`DO_NOT_TRACK` and `CI`.** A non-empty `DO_NOT_TRACK` or `CI` turns telemetry off for that process:
 nothing is recorded and nothing is sent, the stored consent is left as it is, and `status` names the
 variable. The update check still runs when it is invoked. An operator's standing opt-out wins over a
 stored consent, and a CI machine's runs are not the population being measured.
 
-**Not on disk.** Nothing uploads yet (`rule:tooling/a-serving-process-never-uploads`).
 
 **Declined:**
 - **Opt-out telemetry.** It gives bigger numbers and is the wrong default for a runtime whose first

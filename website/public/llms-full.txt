@@ -54207,7 +54207,7 @@ COMPONENTS (339)
 
 ### nvs telemetry
 
-    nvs telemetry on|off|status|reset|show
+    nvs telemetry on|off|status|reset|show|upload
 
 Telemetry counts how often each `nvs` command runs. It is off until you run `nvs telemetry on`. The
 counters are in a plain file in the data folder (see `--data`), and you can read it with any editor.
@@ -54219,9 +54219,10 @@ other.
 |---|---|
 | `nvs telemetry on` | Starts recording. Each `nvs` command after it adds 1 to its counter. |
 | `nvs telemetry off` | Stops recording. The counters already recorded stay in the file. |
-| `nvs telemetry status` | Prints whether telemetry is on, the path of the counter file, the upload address and how many uploads were accepted. |
+| `nvs telemetry status` | Prints whether telemetry is on, the path of the counter file, the upload address, the last and next upload, and how many uploads were accepted. |
 | `nvs telemetry reset` | Deletes the `telemetry` folder in the data folder. Telemetry is then off. |
 | `nvs telemetry show` | Prints the exact JSON document that the next upload sends. |
+| `nvs telemetry upload` | Sends the last finished week, if it is due. It prints one line that says what happened. |
 
 Nothing is uploaded unless `NVS_TELEMETRY_URL` is set. Deleting the `telemetry` folder in the data
 folder does the same as `nvs telemetry reset`.
@@ -54263,6 +54264,26 @@ An error in your program is not an internal error, and it is not counted. `nvs s
 The document contains no machine ID, no time of day, no arguments, no paths and no environment
 variables.
 
+**When an upload is sent.** Only `nvs update-check` and `nvs telemetry upload` send an upload. No
+other command sends one. `nvs serve` never sends one, however long it runs. To send your counters,
+run one of the two commands from a scheduled job, such as a daily cron job.
+
+An upload sends the last finished week, once. It waits until a random time in the first 24 hours
+after the week ends, so that many machines do not send at the same moment. Before that time, the
+command prints when the week can be sent. A week with no counters is not sent.
+
+An upload has 3 seconds. If it fails, the command still does its own work and exits with the same
+status. The upload goes to the collector (the server at `NVS_TELEMETRY_URL`), and the command prints
+one of these lines:
+
+| Line | What happens to the week |
+|---|---|
+| `telemetry: sent week 2026-W43, 180 bytes` | The collector accepted it. It is removed from the file and added to the totals. |
+| `telemetry: could not send (timeout after 3s); kept for next time` | It stays in the file, and the next upload sends it. A status `429`, a `5xx` or any other status does the same. |
+| `telemetry: refused by the collector (400: week); dropped` | It is removed from the file. A status `413` or `415` does the same. |
+
+The upload is one `POST` of the document as `application/json`. It follows no redirect.
+
 `nvs telemetry show` prints the document on standard output. If the week is not finished yet, a note
 on standard error says so. The counter file looks like this:
 
@@ -54277,6 +54298,32 @@ invocation.telemetry 1
 ```
 
 `days` has one digit for each day from Monday to Sunday. `1` means that `nvs` ran on that day.
+
+After an upload is accepted, the file also has `last`, the time of that upload. While a finished week
+waits, the file has `pending` with that week's lines, and `due`, the time the week can be sent. Both
+times are seconds since 1970-01-01 in UTC.
+
+### nvs update-check
+
+    nvs update-check [--json]
+
+`nvs update-check` checks whether a newer version of Novis is released. It prints whether telemetry
+is on, the version you run and the latest released version. It reads the latest release from
+GitHub. `NVS_UPDATE_URL` replaces that address.
+
+Each line is printed as soon as its step is done, so you can see where a slow network waits. The
+command always exits with status `0`. A script uses `--json`, which prints one JSON document:
+
+```json
+{"schema":1,"telemetry":"off","telemetry_url":null,"local":"0.4.0","latest":"0.5.0","update_available":true,"error":null,"upload":null,"last_upload":null,"next_upload":null,"uploads":null,"bytes_sent":null}
+```
+
+`latest` and `update_available` are `null` if the release could not be read, and `error` then says
+why. When telemetry is on, the command also sends the last finished week, if it is due (see
+`nvs telemetry`). It then prints the upload line, the time of the last and the next upload, and the
+totals. In the JSON document, `upload` is `{"result":"sent","message":"telemetry: sent week …"}`. Its
+`result` is `sent`, `kept`, `dropped`, `not-due` or `nothing`. `upload` and the four fields after it
+are `null` while telemetry is off.
 
 ### nvs meta --json
 

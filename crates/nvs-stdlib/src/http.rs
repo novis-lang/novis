@@ -3909,7 +3909,7 @@ pub struct ToolReply {
     pub body: Vec<u8>,
 }
 
-/// The most a [`tool_get`] reply may decode to. A release document is a few KiB.
+/// The most a [`tool_get`] or [`tool_post`] reply may decode to. A release document is a few KiB.
 const TOOL_CEILING: u64 = 1 << 20;
 
 /// One `GET` the `nvs` tool sends for itself, such as `nvs update-check`'s read of the latest
@@ -3929,6 +3929,38 @@ pub fn tool_get(
     member: &str,
     url: &str,
     headers: Vec<(String, String)>,
+    within: Duration,
+) -> Result<ToolReply, String> {
+    tool_send(member, "GET", url, headers, None, within)
+}
+
+/// One `POST` of `body` as `content_type` the `nvs` tool sends for itself, such as a telemetry
+/// upload, under [`tool_get`]'s terms with one difference: no redirect is followed, so a `3xx`
+/// is the reply and the body goes to the URL that was named and nowhere else. Memory: `body`
+/// and the reply, released on return.
+///
+/// # Errors
+///
+/// [`tool_get`]'s.
+pub fn tool_post(
+    member: &str,
+    url: &str,
+    headers: Vec<(String, String)>,
+    content_type: &str,
+    body: Vec<u8>,
+    within: Duration,
+) -> Result<ToolReply, String> {
+    let body = held(Some(content_type.to_owned()), body);
+    tool_send(member, "POST", url, headers, Some(body), within)
+}
+
+/// [`tool_get`] and [`tool_post`]: one `verb` to `url` with `body`, sent once within `within`.
+fn tool_send(
+    member: &str,
+    verb: &str,
+    url: &str,
+    headers: Vec<(String, String)>,
+    body: Option<transport::Body>,
     within: Duration,
 ) -> Result<ToolReply, String> {
     let resolve = |url: &str| -> Result<Vec<IpAddr>, Fault> {
@@ -3969,7 +4001,7 @@ pub fn tool_get(
     };
     let call = transport::Call {
         member,
-        verb: "GET",
+        verb,
         url: url.to_owned(),
         addresses: resolve(url).map_err(said)?,
         deadline: Instant::now() + within,
@@ -3977,11 +4009,11 @@ pub fn tool_get(
         idle: within,
         max_duration: within,
         headers,
-        redirects: 3,
+        redirects: if body.is_some() { 0 } else { 3 },
         attempts: 1,
         backoff: Duration::ZERO,
         idempotency_key: None,
-        body: None,
+        body,
         pool: pool::Caps {
             idle: 0,
             timeout: Duration::ZERO,
@@ -3993,7 +4025,7 @@ pub fn tool_get(
         identity: None,
         policy: CallPolicy::default(),
         traceparent: None,
-        span: std::cell::RefCell::new(span::HttpSpan::opened("GET", Duration::ZERO)),
+        span: std::cell::RefCell::new(span::HttpSpan::opened(verb, Duration::ZERO)),
         proxy: None,
     };
     let reply = transport::send(&call, &mut |hop, downgrade| {

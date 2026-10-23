@@ -3,7 +3,7 @@
 
 # Tooling
 
-*11 of 69 rules below are **designed** rather than shipped, and are marked where they appear.*
+*5 of 69 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -1955,7 +1955,7 @@ nothing outlives the call. No limit and no setting is added.
 
 <a id="tooling-telemetry-is-two-opt-ins"></a>
 
-## Usage telemetry and the update check are two independent opt-ins, both off by default, and neither ever implies the other  *(designed — owned by goal cli-housekeeping)*
+## Usage telemetry and the update check are two independent opt-ins, both off by default, and neither ever implies the other
 
 `rule:tooling/telemetry-is-two-opt-ins`
 
@@ -1982,8 +1982,23 @@ The undercount is accepted and stated: opt-in telemetry reports a small share of
 and a deployed server whose operator never runs another command records forever and uploads never.
 Download counts and cronned update checks are the correction.
 
-**Not on disk.** Nothing in `crates/` implements any of this: there is no `nvs telemetry` command and no
-`nvs update-check`.
+**The files.** Both are under the data folder's `telemetry/` directory, which only `nvs telemetry on`
+creates, privately, after the data folder passes its ownership check. `telemetry/consent` is `on` or
+`off`, and a folder without it is off. `telemetry/counters` holds the counters
+([`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set)). `off` writes `off` and keeps the counters, and
+`reset` deletes the directory, which also turns telemetry off. `status` prints the switch, the counter
+file's path, the upload URL or the note that `NVS_TELEMETRY_URL` is not set, and the upload history:
+`last upload:`, `next upload: from`, and the lifetime totals. `on` says that nothing is uploaded while
+no upload URL is set ([`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration)).
+
+**One connection never carries both.** The release read and the upload go to different hosts, so
+`nvs update-check` opens one connection for each, and the upload's only when telemetry is on.
+
+**`DO_NOT_TRACK` and `CI`.** A non-empty `DO_NOT_TRACK` or `CI` turns telemetry off for that process:
+nothing is recorded and nothing is sent, the stored consent is left as it is, and `status` names the
+variable. The update check still runs when it is invoked. An operator's standing opt-out wins over a
+stored consent, and a CI machine's runs are not the population being measured.
+
 
 **Declined:**
 - **Opt-out telemetry.** It gives bigger numbers and is the wrong default for a runtime whose first
@@ -1996,7 +2011,7 @@ Download counts and cronned update checks are the correction.
 
 <a id="tooling-telemetry-counters-are-a-closed-set"></a>
 
-## A counter is `invocation.<subcommand>` or `internal-error.<subcommand>` from the compiled-in command table, or its `unknown` bucket, the payload adds only `first` and `days_active` to the version, system and week, and nothing derived from traffic is ever counted  *(designed — owned by goal cli-housekeeping)*
+## A counter is `invocation.<subcommand>` or `internal-error.<subcommand>` from the compiled-in command table, or its `unknown` bucket, the payload adds only `first` and `days_active` to the version, system and week, and nothing derived from traffic is ever counted
 
 `rule:tooling/telemetry-counters-are-a-closed-set`
 
@@ -2008,11 +2023,26 @@ increments `invocation.unknown` and nothing else, so arbitrary user input cannot
 and every counter that can ever exist is enumerable from the binary that wrote it. A closed set with one
 `unknown` bucket is the whole difference between a schema and a log.
 
+The command table is `COMMAND_NAMES` in `crates/nvs-cli/src/main.rs`, and a test holds it equal to the
+parser's own list of subcommands. A command line that runs no command, `--help` and `--version`
+included, counts `invocation.unknown`. A service's stored line counts the command it runs.
+
 `internal-error.<subcommand>` counts an invocation that ended in a panic of `nvs` itself, such as an
 internal compiler error. The panic hook increments it once, before the process ends, and records no
-message, location or backtrace. A Novis program that throws, fails to compile or exits with an error is
-the program's result, not an internal error, and counts nothing. A request that fails inside
-`nvs serve` counts nothing either, by the traffic rule below.
+message, location or backtrace. It then calls the hook it wrapped, so the panic prints as before. A
+Novis program that throws, fails to compile or exits with an error is the program's result, not an
+internal error, and counts nothing. A panic under a request that `nvs serve` runs is claimed by the
+request's own log first and counts nothing either, by the traffic rule below.
+
+**The counter file** is `telemetry/counters`, one `key value` line each: `uploads` and `bytes`, the
+lifetime totals of accepted uploads; `last`, when the collector last accepted one, and `due`, when the
+pending week may be sent, each in seconds since 1970 and absent until it has a value
+([`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads)); `week`, the current ISO week in UTC, then its `days` as seven
+digits from Monday to Sunday and each counter above zero; and `pending`, the last finished week that
+counted anything and is not sent yet, laid out the same way. A week that ends becomes `pending`, and
+replaces the one there. A week after today, which only a clock set back can leave, is dropped. The file
+is read through the closed set, so a line an editor added that names anything else is dropped and never
+reaches a payload.
 
 The payload is one JSON document, and these are all its fields:
 
@@ -2036,11 +2066,11 @@ records the operator's action; request counts, routes, headers and anything else
 to the site's visitors, who never consented, and are permanently out of schema — not merely off by
 default. The counter file is provably a function of what the operator did.
 
-- **Memory:** a few KiB in one local file per user, and one buffered append per invocation. For
-  `nvs serve` that append happens once, at startup, before the listener binds. Nothing is spent on the
-  request path.
+- **Memory:** a few KiB in one local file per user, and per invocation one read and one rewrite
+  through a file beside it and a rename, so a reader never sees half a file. Two invocations that end
+  at the same moment may lose one count. For `nvs serve` the rewrite happens once, at startup, before
+  the listener binds. Nothing is spent on the request path.
 
-**Not on disk.** There is no counter file and no payload.
 
 **Declined:**
 - **Counts of compiler diagnostic codes.** They would show which errors confuse people, but they are
@@ -2054,7 +2084,7 @@ default. The counter file is provably a function of what the operator did.
 
 <a id="tooling-telemetry-show-prints-the-payload"></a>
 
-## `nvs telemetry show` prints the exact payload the next upload would send, and the schema, the endpoint contracts and the aggregated data are all published  *(designed — owned by goal cli-housekeeping)*
+## `nvs telemetry show` prints the exact payload the next upload would send, and the schema, the endpoint contracts and the aggregated data are all published
 
 `rule:tooling/telemetry-show-prints-the-payload`
 
@@ -2071,13 +2101,17 @@ of what is collected. The service side is `apps/telemetry/`
 ([`tooling/the-collector-never-stores-an-address`](tooling.md#tooling-the-collector-never-stores-an-address)), and publishes every total
 ([`tooling/telemetry-totals-are-public`](tooling.md#tooling-telemetry-totals-are-public)), so anyone can see exactly what the project sees.
 
-**Not on disk.** There is no `nvs telemetry show`.
+`show` prints the payload alone on standard output, so it can be compared byte for byte. It prints the
+`pending` week when there is one, and otherwise the current week as it stands, with a note on standard
+error that the week is not finished. With nothing recorded it prints nothing, and says so on standard
+error. The upload sends the same function's bytes, and a test holds the bytes a listener on loopback
+receives equal to what `show` printed just before.
 
 <sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration).</sub>
 
 <a id="tooling-a-serving-process-never-uploads"></a>
 
-## An upload carries only the previous finished week, rides a short-lived user-initiated command at most weekly, and a process that has bound a socket never uploads  *(designed — owned by goal cli-housekeeping)*
+## An upload carries only the previous finished week, rides a short-lived user-initiated command at most weekly, and a process that has bound a socket never uploads
 
 `rule:tooling/a-serving-process-never-uploads`
 
@@ -2095,7 +2129,19 @@ for schedulers that want only that. There is no daemon, no timer and no backgrou
 `invocation.serve`. Every claim here is testable against a local listener, because the endpoint is
 configuration ([`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration)).
 
-**Not on disk.** Nothing in `crates/` uploads telemetry, and there is no `nvs telemetry upload`.
+**The carriers are an allow-list.** `carries_upload` in `crates/nvs-cli/src/main.rs` is one `match`
+that names every command, and only `update-check` and `telemetry upload` answer yes. A new command
+does not compile until it answers, so an allow-list fails closed. The answer reaches the telemetry
+module once, at startup, and a process it said no for sends nothing whatever it calls. A service's
+stored line answers no. `crates/nvs-cli/tests/telemetry.rs` runs `nvs serve` with a finished week
+waiting and the upload URL at a listener, and the listener accepts no connection.
+
+**The window.** A finished week's point is the Monday 00:00 UTC that ends it plus a random offset
+under 24 hours, drawn the first time a carrier sees the week and kept in the counter file as `due`
+([`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set)). A carrier that runs before the point sends
+nothing and prints `telemetry: week <week> is sent from <time>`. The point is never inside the ISO
+week of the last accepted upload. An accepted week leaves the file, so `nvs telemetry upload` with
+nothing waiting prints `telemetry: no finished week is waiting to be sent`.
 
 **Declined:**
 - **A background daemon or timer that phones home.** It is the shape people distrust even when opted
@@ -2107,7 +2153,7 @@ configuration ([`config/telemetry-and-update-endpoints-are-configuration`](confi
 
 <a id="tooling-a-failed-upload-never-fails-the-command"></a>
 
-## An upload gets three seconds, is abandoned with its counters kept when that expires or the collector asks to retry, is dropped when the collector refuses it, says so, and never changes the carrying command's exit status  *(designed — owned by goal cli-housekeeping)*
+## An upload gets three seconds, is abandoned with its counters kept when that expires or the collector asks to retry, is dropped when the collector refuses it, says so, and never changes the carrying command's exit status
 
 `rule:tooling/a-failed-upload-never-fails-the-command`
 
@@ -2127,13 +2173,18 @@ An operator who opted in is lending a command they ran for another reason
 one honest line, never a failed cron job or a changed exit code
 ([`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture)).
 
-**Not on disk.** Nothing in `crates/` uploads telemetry, so there is no upload to fail.
+**The lines.** An accepted week prints `telemetry: sent week <week>, <n> bytes` and adds to the
+lifetime totals. A kept one prints `telemetry: could not send (<why>); kept for next time`, where
+`<why>` is `timeout after 3s`, the transport's error, or `the collector returned <status>`. A dropped
+one names the reply's first line as the field, printable ASCII only and at most 64 characters, so a
+collector cannot write control characters to the terminal. The upload is one `POST` that follows no
+redirect, so the body goes only to the URL that was named.
 
 <sub>See also [`tooling/a-telemetry-report-is-checked-against-a-closed-schema`](tooling.md#tooling-a-telemetry-report-is-checked-against-a-closed-schema), [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture).</sub>
 
 <a id="tooling-update-check-states-the-whole-picture"></a>
 
-## `nvs update-check` always reports the telemetry switch, the local and latest versions, and with telemetry on its upload history; `--json` is stable and the exit status is always 0  *(designed — owned by goal cli-housekeeping)*
+## `nvs update-check` always reports the telemetry switch, the local and latest versions, and with telemetry on its upload history; `--json` is stable and the exit status is always 0
 
 `rule:tooling/update-check-states-the-whole-picture`
 
@@ -2148,7 +2199,30 @@ when something is slow, and follows the terminal's conventions. The exit status 
 update exists and whether or not a telemetry send succeeded
 ([`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command)); automation reads the JSON.
 
-**Not on disk.** There is no `nvs update-check`.
+**The human output** is these lines, in this order, each written and flushed as it happens:
+`telemetry: on, ...` or `telemetry: off, ...` with the upload URL or the note that `NVS_TELEMETRY_URL`
+is not set, `this
+version: <v>`, `reading the latest release from <url>`, then either `latest version: <v>` and one of
+`an update is available: <local> to <latest>` or `you have the latest version`, or `could not read the
+latest release: <why>`. The latest version is the Releases API document's `tag_name` with a leading
+`v` removed. Versions compare number by number, and a release follows its own pre-release.
+
+**`--json`** prints `{"schema":1,"telemetry":"on"|"off","telemetry_url":…,"local":…,"latest":…,
+"update_available":…,"error":…}` in that key order. `latest` and `update_available` are `null` when the
+request failed, and `error` is `null` when it did not. The request is one `GET` with a ten-second
+bound over the transport `Core\Http\Client` uses, and its reply is capped at 1 MiB.
+
+The switch is on when the data folder's consent is `on` and neither `DO_NOT_TRACK` nor `CI` is set
+([`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins)).
+
+**With telemetry on**, the command carries the upload once the release is read
+([`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads)). After the release lines it prints the upload's one
+line when an upload URL is set, then `last upload: <time>` or `last upload: never`, `next upload: from
+<time>` and `uploads accepted: <n>, bytes sent: <b>`. A time is UTC, as `2026-10-26T05:12:00Z`.
+`--json` adds `"upload":{"result":…,"message":…}`, where `result` is `sent`, `kept`, `dropped`,
+`not-due` or `nothing` and `message` is that line, then `"last_upload"`, `"next_upload"`, `"uploads"`
+and `"bytes_sent"`, after `error` and in that order. Each is `null` while telemetry is off, and
+`upload` is also `null` when no upload URL is set.
 
 <sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink).</sub>
 

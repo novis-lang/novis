@@ -1266,6 +1266,18 @@
       "Preview the service file before installing it"
     ]
   },
+  "/reference/cli/nvs-telemetry/": {
+    "feature": "tools:cli/nvs-telemetry",
+    "hash": "e07ad740648e58e6",
+    "questions": [
+      "How do I turn usage telemetry on or off?",
+      "What data does Novis telemetry collect about my commands?",
+      "See the exact JSON that the next telemetry upload sends",
+      "Does nvs serve send telemetry while it handles traffic?",
+      "Stop telemetry on CI machines with DO_NOT_TRACK",
+      "What happens when the telemetry upload times out?"
+    ]
+  },
   "/reference/cli/nvs-test/": {
     "feature": "tools:cli/nvs-test",
     "hash": "e2243c199c7b99b0",
@@ -1276,6 +1288,16 @@
       "Generate a code coverage report in lcov or Cobertura format",
       "Update failing inline snapshots automatically",
       "List all tests without running them"
+    ]
+  },
+  "/reference/cli/nvs-update-check/": {
+    "feature": "tools:cli/nvs-update-check",
+    "hash": "aa360ff60c321c9b",
+    "questions": [
+      "How do I check whether a newer Novis version exists?",
+      "Check for updates from a cron job and read JSON",
+      "Point the update check at my own release server",
+      "Why does the update check always exit with status 0?"
     ]
   },
   "/reference/cli/one-binary/": {

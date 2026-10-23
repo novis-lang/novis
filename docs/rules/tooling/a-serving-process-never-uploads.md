@@ -12,7 +12,19 @@ for schedulers that want only that. There is no daemon, no timer and no backgrou
 `invocation.serve`. Every claim here is testable against a local listener, because the endpoint is
 configuration (`rule:config/telemetry-and-update-endpoints-are-configuration`).
 
-**Not on disk.** Nothing in `crates/` uploads telemetry, and there is no `nvs telemetry upload`.
+**The carriers are an allow-list.** `carries_upload` in `crates/nvs-cli/src/main.rs` is one `match`
+that names every command, and only `update-check` and `telemetry upload` answer yes. A new command
+does not compile until it answers, so an allow-list fails closed. The answer reaches the telemetry
+module once, at startup, and a process it said no for sends nothing whatever it calls. A service's
+stored line answers no. `crates/nvs-cli/tests/telemetry.rs` runs `nvs serve` with a finished week
+waiting and the upload URL at a listener, and the listener accepts no connection.
+
+**The window.** A finished week's point is the Monday 00:00 UTC that ends it plus a random offset
+under 24 hours, drawn the first time a carrier sees the week and kept in the counter file as `due`
+(`rule:tooling/telemetry-counters-are-a-closed-set`). A carrier that runs before the point sends
+nothing and prints `telemetry: week <week> is sent from <time>`. The point is never inside the ISO
+week of the last accepted upload. An accepted week leaves the file, so `nvs telemetry upload` with
+nothing waiting prints `telemetry: no finished week is waiting to be sent`.
 
 **Declined:**
 - **A background daemon or timer that phones home.** It is the shape people distrust even when opted

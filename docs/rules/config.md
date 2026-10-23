@@ -3,8 +3,6 @@
 
 # Configuration
 
-*1 of 64 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
 ## The configuration file is `nvs.toml`, and it is TOML
@@ -2537,7 +2535,7 @@ world-writable directory are the packaging chapter's; this rule is only the rost
 
 <a id="config-telemetry-and-update-endpoints-are-configuration"></a>
 
-## The update check reads GitHub's latest release by default, telemetry has no default upload URL, and `NVS_UPDATE_URL` and `NVS_TELEMETRY_URL` set either  *(designed — owned by goal cli-housekeeping)*
+## The update check reads GitHub's latest release by default, telemetry has no default upload URL, and `NVS_UPDATE_URL` and `NVS_TELEMETRY_URL` set either
 
 `rule:config/telemetry-and-update-endpoints-are-configuration`
 
@@ -2559,7 +2557,9 @@ consents, the counter schema and the two endpoints' contracts are the tooling ch
 
 - **Memory:** none on the request path. The update check reads one small JSON document per run.
 
-**Not on disk.** Nothing in `crates/` reads either variable.
+The default is `https://api.github.com/repos/novis-lang/novis/releases/latest`. A variable that is
+empty or only whitespace counts as unset. Each is read when a command needs it and never kept, and
+`nvs --help` lists both.
 
 **Declined:**
 - **A default telemetry upload URL before a collector exists.** It sends opted-in data to a host nobody
