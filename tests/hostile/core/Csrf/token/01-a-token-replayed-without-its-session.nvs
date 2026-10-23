@@ -1,0 +1,103 @@
+<?nvs
+// Attack: a token from a form page is sent back without the session it belongs to.
+// Steps 1 to 5 should each get the status 403, and the save method should not run.
+// hostile: timeout-ms 30000
+use Core\Http\Method;
+
+class Notes
+{
+    #[Core\Route(path: "/form", method: Method::Get, name: "Notes::form")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function form(): void
+    {
+        Core\Session::start();
+        echo Core\Csrf::token();
+    }
+
+    #[Core\Route(path: "/notes", method: Method::Post, name: "Notes::save")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function save(): void
+    {
+        echo 'saved';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo $reason == Core\Router\Refusal::Csrf ? 'csrf' : 'other';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed';
+    }
+}
+
+class Attack
+{
+    // Every error is caught here, so the steps after it still run.
+    public static function send(string $step, array<string> $headers, string $body): void
+    {
+        try {
+            var $answer = Core\Test::request(Method::Post, '/notes', {headers: $headers, body: $body});
+            echo $step, ' ', $answer->status(), ' ', $answer->body(), "\n";
+        } catch (Throwable $e) {
+            echo $step, ' threw ', $e->message, "\n";
+        }
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // The victim and the attacker each open the form, so each has a session and a token.
+    var $victimPage = Core\Test::request(Method::Get, '/form');
+    string $victim = $victimPage->cookies()['nvsid'] ?? '';
+    string $victimToken = $victimPage->body() as string;
+    var $attackerPage = Core\Test::request(Method::Get, '/form');
+    string $attacker = $attackerPage->cookies()['nvsid'] ?? '';
+    string $attackerToken = $attackerPage->body() as string;
+    string $form = 'application/x-www-form-urlencoded';
+
+    // 1. The victim's token with no cookie at all, in the header and in the form.
+    Attack::send('1 header', ['x-csrf-token' => $victimToken], '');
+    Attack::send('1 form', ['content-type' => $form], '_csrf=' . $victimToken);
+
+    // 2. The victim's token with the attacker's cookie.
+    Attack::send('2', ['cookie' => 'nvsid=' . $attacker, 'x-csrf-token' => $victimToken], '');
+
+    // 3. Another site sends the victim's cookie with the attacker's own token.
+    array<string> $crossSite = [
+        'cookie' => 'nvsid=' . $victim,
+        'origin' => 'https://attacker.example',
+        'x-csrf-token' => $attackerToken,
+    ];
+    Attack::send('3 with a token', $crossSite, '');
+
+    // 4. Another site sends the victim's cookie and no token at all.
+    Attack::send('4 no token', ['cookie' => 'nvsid=' . $victim, 'origin' => 'https://attacker.example'], '');
+
+    // 5. Broken copies of the victim's token, with the victim's cookie.
+    array<string> $broken = [
+        '',
+        Core\Str::slice($victimToken, 0, 98),
+        $victimToken . $victimToken,
+        Core\Str::slice($victimToken, 1, 98) . 'A',
+        Core\Str::repeat('A', 99),
+        Core\Str::repeat('A', 100000),
+    ];
+    foreach ($broken as string $token) {
+        Attack::send('5 a token of ' . Core\Str::length($token) . ' characters',
+            ['cookie' => 'nvsid=' . $victim, 'content-type' => $form], '_csrf=' . $token);
+    }
+
+    // 6. The same token with the victim's own cookie. This one should pass.
+    Attack::send('6 the real visitor', ['cookie' => 'nvsid=' . $victim, 'x-csrf-token' => $victimToken], '');
+}

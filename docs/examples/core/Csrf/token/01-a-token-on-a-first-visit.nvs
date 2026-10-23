@@ -1,0 +1,53 @@
+<?nvs
+// Shows a contact page that puts a CSRF token in its form, for a visitor who has no session yet.
+use Core\Http\Method;
+
+class Contact
+{
+    #[Core\Route(path: "/contact", method: Method::Get, name: "Contact::form")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function form(): void
+    {
+        Core\Session::start();
+        string $token = Core\Csrf::token();
+        echo html`<form method="post" action="/contact">
+<input type="hidden" name="_csrf" value="{$token}">
+<textarea name="message"></textarea>
+<button>Send</button>
+</form>`;
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'You cannot open this page.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // This request sends no cookie, as a first visit does.
+    var $page = Core\Test::request(Method::Get, '/contact');
+    echo 'status: ', $page->status(), "\n";
+
+    // `token()` created the session, so the response sets the `nvsid` cookie. This prints `yes`.
+    string $session = $page->cookies()['nvsid'] ?? '';
+    echo 'session cookie sent: ', $session != '' ? 'yes' : 'no', "\n";
+
+    // The token is different on every visit, so this prints only that the form has one.
+    string $body = $page->body() as string;
+    echo 'form has a token: ', Core\Str::contains($body, 'name="_csrf" value="') ? 'yes' : 'no', "\n";
+}

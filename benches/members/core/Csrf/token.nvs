@@ -1,0 +1,20 @@
+<?nvs
+// Measures creating a token for the visitor's session, as a page does every time it shows a form.
+// bench: iterations 256
+// bench: calls 2
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Csrf::token());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Session::start();
+echo Bench::run(256), "\n";

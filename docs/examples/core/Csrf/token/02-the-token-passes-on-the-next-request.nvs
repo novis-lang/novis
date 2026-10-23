@@ -1,0 +1,62 @@
+<?nvs
+// Shows a form that is sent back with its token, and the same form sent without one.
+use Core\Http\Method;
+
+class Contact
+{
+    #[Core\Route(path: "/contact", method: Method::Get, name: "Contact::form")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function form(): void
+    {
+        Core\Session::start();
+        echo Core\Csrf::token();
+    }
+
+    #[Core\Route(path: "/contact", method: Method::Post, name: "Contact::send")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function send(): void
+    {
+        echo 'Thank you. Your message was sent.';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    // The server calls this method when a form arrives without a valid token.
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo $reason == Core\Router\Refusal::Csrf ? 'This form has expired. Please reload the page.' : 'Not found.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // The first request shows the form. Here the page prints only the token.
+    var $page = Core\Test::request(Method::Get, '/contact');
+    string $session = $page->cookies()['nvsid'] ?? '';
+    string $token = $page->body() as string;
+
+    // The browser sends the cookie back, and the form sends the token in its `_csrf` field.
+    // The server checks the token before `send()` runs. This prints `200`.
+    array<string> $headers = [
+        'cookie' => 'nvsid=' . $session,
+        'content-type' => 'application/x-www-form-urlencoded',
+    ];
+    var $sent = Core\Test::request(Method::Post, '/contact', {headers: $headers, body: '_csrf=' . $token . '&message=Hello'});
+    echo $sent->status(), ' ', $sent->body(), "\n";
+
+    // The same form without the token. `send()` does not run, and this prints `403`.
+    var $forged = Core\Test::request(Method::Post, '/contact', {headers: $headers, body: 'message=Hello'});
+    echo $forged->status(), ' ', $forged->body(), "\n";
+}

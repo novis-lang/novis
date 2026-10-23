@@ -1,0 +1,4 @@
+# The server checks CSRF tokens with this key. These examples use a fixed key.
+# Your own key is 32 random bytes, written in base64.
+[http]
+csrf_key = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc"
