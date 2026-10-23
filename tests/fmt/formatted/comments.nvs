@@ -16,7 +16,7 @@ class Ledger
     /// What a method is for.
     public function record(/* before a parameter */ int $count): int
     {
-        // Above a statement.
+        // Above a statement, and moved to the statement's indentation.
         $this->entries = $this->entries + /* inside an expression */ $count;
 
         if ($count > 0) {
@@ -34,6 +34,7 @@ var $total = $ledger->record(2);
 
 for (int $i = 0; /* inside a header */ $i < 2; $i += 1) {
     $total += 1;
+    // Above a closing brace, and moved to the indentation of the body's statements.
 }
 
 array<int> $counts = [

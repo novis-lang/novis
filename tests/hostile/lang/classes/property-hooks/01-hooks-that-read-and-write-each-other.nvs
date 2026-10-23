@@ -38,7 +38,7 @@ final class Grower
     public string $text {
         get => $this->text;
         set (string $v) {
-            // Every write builds a string of its own.
+        // Every write builds a string of its own.
         $this->text = Core\Str::repeat($v, 100);
         }
     }

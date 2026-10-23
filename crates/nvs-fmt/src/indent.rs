@@ -35,8 +35,10 @@
 //! chain ([`crate::chain`]), when it opens a statement or a
 //! member that a body directly
 //! contains, when it opens that body's own closing brace, which sits at the
-//! body's own depth rather than its contents', or when it opens with the `?>`
-//! that leaves code mode. That tag is the last code on its line and sits where
+//! body's own depth rather than its contents', when it opens with a comment
+//! and the code below that comment is placed, or when it opens with the `?>`
+//! that leaves code mode. A comment line sits where the code below it sits,
+//! and one above a body's closing brace where that body's statements sit. That tag is the last code on its line and sits where
 //! the body's statements sit; every byte after it belongs to the text region,
 //! which is the program's own output and is copied.
 //!
@@ -171,6 +173,19 @@ impl<'a> Indent<'a> {
         if let Some(list) = list.filter(|list| arm_starts(self, **list).contains(&offset)) {
             return Some(self.opening_of(list.span.start as usize) + UNIT);
         }
+        // A comment line sits where the line below it sits, which is the line
+        // it describes. A comment above a closing brace is inside that body,
+        // so it sits where the body's statements sit, one level in from the
+        // brace. When the line below is not placed, the comment's line is not
+        // placed either.
+        if let Some(below) = self.code_below(offset) {
+            let placed = self.of_line(below)?;
+            return Some(if self.text.as_bytes().get(below) == Some(&b'}') {
+                placed + UNIT
+            } else {
+                placed
+            });
+        }
 
         let opens_child = nodes
             .windows(2)
@@ -229,6 +244,27 @@ impl<'a> Indent<'a> {
         }
         self.of_line(first)
             .unwrap_or_else(|| self.text[line_start..first].to_owned())
+    }
+
+    /// Where the first code after the comment at `offset` starts, or [`None`]
+    /// when no comment starts at `offset`.
+    ///
+    /// Comments and the whitespace between them are skipped together, so a
+    /// block of comment lines answers with the line of code under all of them.
+    fn code_below(&self, offset: usize) -> Option<usize> {
+        let mut at = self
+            .trivia
+            .partition_point(|trivium| (trivium.span.start as usize) < offset);
+        let first = self.trivia.get(at)?;
+        if first.span.start as usize != offset || first.kind == TriviaKind::Whitespace {
+            return None;
+        }
+        let mut below = offset;
+        while let Some(trivium) = self.trivia.get(at).filter(|t| t.span.start as usize == below) {
+            below = trivium.span.end as usize;
+            at += 1;
+        }
+        Some(below)
     }
 
     /// Every offset [`crate::statement`] starts a new line at, in source order.
