@@ -530,14 +530,14 @@ size, and an idle server gives the pages back.
 
 - [x] One pool per role, with `take` and `give` by role and a cap per pool (`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`). `crates/nvs-host/src/stack.rs:159`, `crates/nvs-host/src/scheduler.rs:865`, `crates/nvs-host/src/scheduler.rs:1089`, `crates/nvs-host/src/scheduler.rs:1179`, `crates/nvs-host/src/scheduler.rs:1319`, `crates/nvs-cli/src/serve.rs:951`
 - [x] The idle trim, at most once a second per core, through an audited `unsafe` block on each platform. `crates/nvs-host/src/stack.rs:236`, `crates/nvs-host/src/scheduler.rs:998`
-- [ ] Find the 32 KiB a sleeping program touches, and fix it or write it into the module doc. `crates/nvs-host/src/isolate.rs:1066`, `crates/nvs-host/src/stack.rs:1`
-  - [ ] A test that serves a sleeping program reads the program stack's resident pages, through `resident_pages` in `stack.rs`'s tests.
-  - [ ] The frames on `start_as_task` → program entry → the sleep helper are measured, and the largest is named.
-  - [ ] A large frame in Novis's own code is fixed, or the finding goes into `stack.rs`'s module doc.
+- [x] Find the 32 KiB a sleeping program touches, and fix it or write it into the module doc. `crates/nvs-host/src/isolate.rs:1066`, `crates/nvs-host/src/stack.rs:1`
+  - [x] A test that serves a sleeping program reads the program stack's resident pages, through `resident_pages` in `stack.rs`'s tests.
+  - [x] The frames on `start_as_task` → program entry → the sleep helper are measured, and the largest is named.
+  - [x] A large frame in Novis's own code is fixed, or the finding goes into `stack.rs`'s module doc.
 - [x] Rust tests `a_pooled_stack_gives_its_pages_back_when_its_core_is_idle` (resident pages through `mincore` on Linux, and through the platform's query elsewhere) and `a_connection_stack_and_a_program_stack_come_from_their_own_pools`. `crates/nvs-host/src/stack.rs:258`
 - [x] The rule says what the trim costs and that it is not a scrubbing guarantee. `docs/rules/concurrency/a-task-stack-is-reserved-wide-and-pooled.md:1`
-- [ ] The guards stay green and unchanged. `stack.rs:258`, `:277`, `:287` and `:345`; `scheduler.rs:1863`, `:1886`, `:1907`, `:1946` and `:2221`; `nvs-codegen/tests/stack_limit.rs`; the state-bleed suite at `serve.rs:8521` to `:8727`; and the `lang:errors` hostile group. `crates/nvs-host/src/scheduler.rs:1886`
-- [ ] Review: an `Explore` subagent reads the stage's diff against this stage's guards, and every finding is fixed. `crates/nvs-host/src/stack.rs:1`
+- [x] The guards stay green and unchanged. `stack.rs:258`, `:277`, `:287` and `:345`; `scheduler.rs:1863`, `:1886`, `:1907`, `:1946` and `:2221`; `nvs-codegen/tests/stack_limit.rs`; the state-bleed suite at `serve.rs:8521` to `:8727`; and the `lang:errors` hostile group. `crates/nvs-host/src/scheduler.rs:1886`
+- [x] Review: an `Explore` subagent reads the stage's diff against this stage's guards, and every finding is fixed. `crates/nvs-host/src/stack.rs:1`
 
 ### 8. the ledgers and the comparison are recorded again, and the fault rows keep their results
 
@@ -570,10 +570,34 @@ subagent. Such subagents run side by side, and none of them builds.
 ### State
 
 Stages 1 to 4 are done: a0f56ab2f, e03aa7e53, ac7342049, and 7f9435294 with 051c6efa3. Stage 5's
-items are all done in b4b080479, and stage 6's in d9a8e974f. Both statuses stay
-open until decision `d7` is answered, because their checks are among the five it covers.
-Stage 7's pools, trim, tests and rule landed in c2d5e836a. Its 32 KiB item, guards and review
-are open.
+items are all done in b4b080479, stage 6's in d9a8e974f, and stage 7's in c2d5e836a with
+5b14afeac. The three statuses stay open until decision `d7` is answered, because their checks
+are among the five it covers.
+
+- Stage 7's 32 KiB item: `a_sleeping_program_touches_the_pages_its_own_frames_need`
+  (`crates/nvs-host/src/stack.rs`) starts an isolate that sleeps through `nvs_runtime::peer::sleep`
+  and counts its fresh program stack's resident pages while it is parked. On Windows that is 2 pages
+  in release and 7 in debug. The largest frame is the task's entry in `Scheduler::start`
+  (`crates/nvs-host/src/scheduler.rs:912`): 5.6 KiB of the 6.2 KiB above the program in release.
+  So the host's part fits in `KEPT_RESIDENT`, and the rest of the 32 KiB is the served request's
+  compiled code and `Core` calls before the sleep. The module doc's *What a sleeping program
+  touches* says so. Nothing was fixed, because no host frame is worth splitting.
+- The release figure came from `cargo test --release --lib -- <name>`, which builds every crate's
+  lib tests in release (about 20 minutes cold). It found that `nvs-host`'s lib tests did not compile
+  in release: two stage 6 tests read `crate::counts`, which is debug-only. Both are
+  `#[cfg(debug_assertions)]` now, as the `nvs-server` count test already was.
+- Stage 7's review subagent found no moved, removed or later check. Two small findings are fixed in
+  5b14afeac: the Unix trim now ends at a whole page of the host's size, so 16 KiB and 64 KiB page
+  hosts keep the top too, and `each_pool_is_held_to_the_cap_on_its_own` covers the program pool's
+  cap. The Unix trim change is compiled out on this Windows machine. CI's Linux and macOS jobs build
+  it first.
+- Stage 7's guards ran once each, all green: `cargo test --lib` over `scheduler::tests`,
+  `stack::tests` and `reactor::tests` (63 passed), `--test stack_limit` (3 passed), the four
+  `the_state_bleed_suite_*` tests, and `bun nv proofs --run --group lang:errors` (46 examples,
+  14 attacks). The two new tests passed by name. Clippy is clean. Neither new test was seen to fail
+  before its change. The first is a measurement, and its bound is the measured count plus one page.
+- The sweep's `env-secret-proofs` passes when run again (exit 0, nothing owed), for the fifth time.
+  The nightly run 39746060276 was cancelled by a newer push, not by a failure.
 
 - Stage 7: `stack::Stacks` (`crates/nvs-host/src/stack.rs:214`) holds a host pool and a program
   pool. The reactor's `turn` calls `Scheduler::idle_wait` before it blocks
@@ -584,8 +608,6 @@ are open.
   The `mincore` path has not run here, because this machine is Windows. Clippy is clean, and
   `bun nv rules --check` is clean. Neither new test was seen to fail before the change.
 - 4e41fa18d formats six files stages 3 to 6 left unformatted, so the gate's format check passes.
-- The sweep's `env-secret-proofs` passes when run again (its log says exit 0, nothing owed), for
-  the fourth time. The nightly run 39746060276 was cancelled by a newer push.
 
 - Stage 6: a stream keeps a readiness bit read off the reactor's per-task event count, a drive's
   wake of itself fires nothing, and `ConnectionIo` reads through its own heap scratch.
@@ -597,8 +619,6 @@ are open.
   before the change, though by the counts they would have (3 reads, 1 poke).
 - The review subagent found no lost wake. It found two things, both fixed: the quiet path judged a
   passed deadline before trying the read, and the parking `Read::read` left the bit set.
-- The sweep's `env-secret-proofs` passes when run again (exit 0, nothing owed), for the third time.
-  The nightly run 39746060276 was cancelled by a newer push.
 - Stage 5: a snapshot keeps a lazily filled limits table (`crates/nvs-config/src/limits.rs`), and
   `Request::limit` and `Request::deprecated` read it unless the overlay holds the key or a mode
   flip. § *Standing decisions*' *Stage 5 as built* says what each part does.
@@ -651,25 +671,34 @@ are open.
 ### Next
 
 First, if decision `d7` is answered, apply it to the five named-test checks in the front matter.
-Then run `runtime-tests` and `server-tests`, and set stages 5 and 6 to done once each is green.
+Then run `runtime-tests`, `server-tests` and `host-tests`, and set stages 5, 6 and 7 to done once
+each is green.
 
-Then finish stage 7, in this order:
+Then stage 8, which runs after every other stage. Stages 5 to 7 wait only for `d7`, so stage 8
+starts whether or not it is answered:
 
-- The 32 KiB a sleeping program touches. Its checkpoints are under the item. Start at
-  `crates/nvs-host/src/isolate.rs:1066`. `resident_pages` (`crates/nvs-host/src/stack.rs:596`)
-  counts a stack's resident pages on Linux and Windows. The safe default is a paragraph in
-  `stack.rs`'s module doc.
-- The guards the stage names, run once each. `stack::tests` and `reactor::tests` are green
-  already. The rest are `scheduler.rs`' pool tests, `nvs-codegen/tests/stack_limit.rs`, the
-  state-bleed suite in `nvs-server`'s `serve.rs`, and the `lang:errors` hostile group.
-- The review item: an `Explore` subagent gets `git diff b28f90dd9 c2d5e836a` and the guard list.
+- Record the member ledgers again: `bun nv proofs --record-perf --group <group>` for `Core\Json`,
+  `Core\Html`, `Core\Cli`, `Core\Config` and every group reading `nvs-config`'s `request.rs` or
+  `defaults.rs` (`tools/nv/cmd/proofs.ts`). Each touched member's allocations per operation must
+  be no higher than before.
+- `bun nv bench-compare --profile <case>` for hello, json-api, html-page and wait, compared with
+  § *Why*'s table. This needs Docker with a privileged container. Check whether `memory_breach`
+  is still its own symbol, and how many KiB a waiting request costs now.
+- The comparison is recorded again from a detached worktree, and the page's speed and memory
+  paragraphs are rewritten (`website/src/content/docs/in-depth/compare.mdx:62`).
+- The `hostile-groups`, `memory-row` and `loop-row` checks.
 
-No test is expected to go red. `scheduler.rs`' pool tests read `pooled_stacks`, which now sums
-both pools. A test that spawns a root and a child in it still uses the host pool for both. The perf figures for `Core\Json::decodeAs`, every member whose
+No test is expected to go red. The perf figures for `Core\Json::decodeAs`, every member whose
 file is `nvs-render`'s `html.rs` or `text.rs`, and every member reading `nvs-config`'s `request.rs`
 or `defaults.rs` are stale. Stage 8 records them again.
 
 ### Backlog
+
+- The part of a waiting request's program stack above the host's 8 KiB is not broken down. It is
+  the compiled code and the `Core` calls a served request made before it slept. A served count
+  needs `resident_pages` reachable from `nvs-server`'s tests, for example beside
+  `nvs_host::counts` under `debug_assertions`. The task's entry could also box its `Ctx`
+  (1,776 bytes) to save about one page per task (`crates/nvs-host/src/scheduler.rs:911`).
 
 - `Core\Request::jsonAs` still reads its body into arrays and then walks them through `hydrate`
   (`crates/nvs-stdlib/src/request.rs:3167`). It could call `read_against` (`json.rs:2734`) after
