@@ -15,6 +15,27 @@
 
 use super::*;
 
+/// [`Ctx::new`]'s note of where it ran and what it allocated, by address:
+/// what [`Ctx::hand_over_its_making`] checks before it credits anything.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Made {
+    /// The tree whose turn made the context.
+    pub(super) turn: *const TreeState,
+    pub(super) tree: *const TreeState,
+    pub(super) deadline: *const std::sync::atomic::AtomicU64,
+    pub(super) live: *const crate::object::LiveList,
+}
+
+impl Made {
+    /// The bytes an `Arc<T>` or an `Rc<T>` allocates: two counts, then the
+    /// value, as the standard library lays both out.
+    fn inner<T>() -> usize {
+        std::alloc::Layout::new::<[usize; 2]>()
+            .extend(std::alloc::Layout::new::<T>())
+            .map_or(0, |(layout, _)| layout.pad_to_align().size())
+    }
+}
+
 impl Ctx {
     /// How many bytes this request has allocated and not yet freed.
     ///
@@ -341,6 +362,48 @@ impl Ctx {
         drop(self);
         drop(crate::budget::ArmedStack::take());
         outside.restore();
+    }
+
+    /// Moves what making this context cost, and `body` bytes more, off the
+    /// running tree's balance: `nvs_host`'s `spawn_child` and `spawn_root`, as
+    /// they hand the context to a task of its own tree.
+    ///
+    /// [`Self::new`] allocates the tree's state, the deadline and the object
+    /// list on the turn that spawns, and `body` is the task's boxed body. The
+    /// child frees all of them, in its last turn or after it. Left on the
+    /// spawning tree, each spawn is a charge nobody frees, so an accept loop's
+    /// balance grows with every connection it serves
+    /// (`rule:security/isolate-budget-is-the-trees`).
+    ///
+    /// It credits nothing unless the context is still its own tree, unshared,
+    /// and was made on this turn. A context that joined another tree frees its
+    /// state on that tree's turns, and crediting it as well would let a loop of
+    /// spawns lower a request's balance with no bound. Each allocation counts
+    /// only while it is still the one [`Self::new`] made and nothing else
+    /// holds it. One that was replaced was freed on the turn that replaced it.
+    ///
+    /// **Cost:** a thread-local read and three compares per spawn.
+    pub fn hand_over_its_making(&mut self, body: usize) {
+        let Some(made) = self.made.take() else {
+            return;
+        };
+        let own_tree = std::ptr::eq(std::sync::Arc::as_ptr(&self.tree), made.tree)
+            && std::sync::Arc::strong_count(&self.tree) == 1;
+        if !own_tree || !std::ptr::eq(made.turn, crate::budget::running_turn()) {
+            return;
+        }
+        let mut bytes = Made::inner::<TreeState>().saturating_add(body);
+        if std::ptr::eq(std::sync::Arc::as_ptr(&self.deadline), made.deadline)
+            && std::sync::Arc::strong_count(&self.deadline) == 1
+        {
+            bytes = bytes.saturating_add(Made::inner::<std::sync::atomic::AtomicU64>());
+        }
+        if std::ptr::eq(std::rc::Rc::as_ptr(&self.live), made.live)
+            && std::rc::Rc::strong_count(&self.live) == 1
+        {
+            bytes = bytes.saturating_add(Made::inner::<crate::object::LiveList>());
+        }
+        crate::budget::credit_turn(isize::try_from(bytes).unwrap_or(isize::MAX));
     }
 
     /// Swaps the thread's armed pair and refusal with the ones this context

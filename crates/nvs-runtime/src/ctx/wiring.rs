@@ -135,6 +135,7 @@ impl Ctx {
             // hands back what it took as it drops.
             memory_refused_saved: crate::budget::take_refusal(),
             memory_off_stack: false,
+            made: None,
             output_base: crate::budget::written_bytes(),
             // A context is on its tree's root core until something says
             // otherwise, and the only thing that can is `Ctx::join_tree` on the
@@ -232,6 +233,15 @@ impl Ctx {
             live: std::rc::Rc::new(crate::object::LiveList::default()),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);
+        let turn = crate::budget::running_turn();
+        if !turn.is_null() {
+            ctx.made = Some(super::limits::Made {
+                turn,
+                tree: std::sync::Arc::as_ptr(&ctx.tree),
+                deadline: std::sync::Arc::as_ptr(&ctx.deadline),
+                live: std::rc::Rc::as_ptr(&ctx.live),
+            });
+        }
         ctx
     }
 

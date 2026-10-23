@@ -1237,10 +1237,18 @@ impl Scheduler {
     ///
     /// The `next` ones go to the front in reverse, so they run in the order
     /// they were spawned.
+    ///
+    /// The emptied list goes back with its buffer. A spawn pushes on its
+    /// task's turn, and this drain runs on the scheduler's own stack, so a
+    /// buffer freed here would be allocated again by the next spawn and left
+    /// charged to that task's tree: one [`Pending`] per connection, on the
+    /// accept loop's balance (`rule:security/isolate-budget-is-the-trees`).
+    /// **What it spends:** the buffer of the largest burst of spawns between
+    /// two drains, held per core.
     fn drain_pending(&mut self) {
-        let pending = std::mem::take(&mut self.tree.borrow_mut().pending);
+        let mut pending = std::mem::take(&mut self.tree.borrow_mut().pending);
         let (next, last): (Vec<Pending>, Vec<Pending>) =
-            pending.into_iter().partition(|pending| pending.next);
+            pending.drain(..).partition(|pending| pending.next);
         for pending in last.into_iter().chain(next.into_iter().rev()) {
             let Pending {
                 id,
@@ -1251,6 +1259,10 @@ impl Scheduler {
                 role,
             } = pending;
             self.start(id, ctx, root, body, next, role);
+        }
+        let mut tree = self.tree.borrow_mut();
+        if tree.pending.is_empty() {
+            tree.pending = pending;
         }
     }
 
@@ -1441,6 +1453,8 @@ where
     let tree = current_tree()?;
     let mut ctx = ctx;
     ctx.leave_this_stack();
+    // The child frees its context and its body, so their bytes are its own.
+    ctx.hand_over_its_making(std::mem::size_of::<F>());
     let mut tree = tree.borrow_mut();
     let id = tree.issue(Some(parent));
     tree.pending.push(Pending {
@@ -1479,6 +1493,9 @@ where
     let tree = current_tree()?;
     let mut ctx = ctx;
     ctx.leave_this_stack();
+    let body: Box<dyn FnOnce(&mut Ctx)> = Box::new(body);
+    // The root frees its context and its body, so their bytes are its own.
+    ctx.hand_over_its_making(std::mem::size_of::<F>());
     let mut tree = tree.borrow_mut();
     let id = tree.issue(None);
     if let Some(node) = tree.nodes.get_mut(&id) {
@@ -1488,7 +1505,7 @@ where
         id,
         ctx,
         root,
-        body: Box::new(body),
+        body,
         next: false,
         role: Role::Program,
     });
@@ -2863,6 +2880,49 @@ mod tests {
             "a task spawned from the worker itself is a root"
         );
         assert_eq!(sched.tracked_tasks(), 2);
+    }
+
+    /// A parent that spawns children of their own trees, one after another,
+    /// holds as much after the last as after the first: what a spawn allocates
+    /// on the parent's turn and the child frees is the child's, never a charge
+    /// left on the parent (`rule:security/isolate-budget-is-the-trees`). An
+    /// accept loop is this parent, and each connection is one child.
+    #[test]
+    fn a_parent_that_spawns_and_outlives_many_children_stays_flat() {
+        const WARM: usize = 8;
+        const CHILDREN: usize = 200;
+        let readings: Rc<RefCell<Vec<isize>>> = Rc::new(RefCell::new(Vec::with_capacity(2)));
+        let out = Rc::clone(&readings);
+
+        let mut sched = Scheduler::new();
+        sched.spawn(ctx(), TaskRoot::Request, move |task_ctx| {
+            for spawned in 0..WARM + CHILDREN {
+                if spawned == WARM {
+                    out.borrow_mut().push(nvs_runtime::budget::live_bytes());
+                }
+                // A body of some size, so the box it is spawned in is not empty.
+                let held = [spawned; 4];
+                spawn_child(ctx(), TaskRoot::Request, move |_| {
+                    std::hint::black_box(held);
+                })
+                .expect("a task running under a scheduler can spawn a child");
+                // Twice, so the child has started and ended before the next.
+                suspend(task_ctx, Waiting::Yielded);
+                suspend(task_ctx, Waiting::Yielded);
+            }
+            out.borrow_mut().push(nvs_runtime::budget::live_bytes());
+        });
+        sched.run();
+
+        let readings = readings.borrow();
+        let [first, last] = readings[..] else {
+            panic!("the parent took two readings: {readings:?}");
+        };
+        let grew = last - first;
+        assert!(
+            grew < 1024,
+            "the parent held {grew} bytes more after {CHILDREN} children had ended"
+        );
     }
 
     #[test]

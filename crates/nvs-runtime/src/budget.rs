@@ -48,7 +48,11 @@
 //! ([`Ctx::end_in_its_turn`](crate::Ctx::end_in_its_turn)), and a connection
 //! that starts the next request's tree hands its running turn to it
 //! ([`Ctx::reroot`](crate::Ctx::reroot)), so a byte is given back on the tree
-//! it was charged to.
+//! it was charged to. A spawn that hands a new tree its context moves the
+//! context's own allocations and the task's body off the spawning tree
+//! ([`Ctx::hand_over_its_making`](crate::Ctx::hand_over_its_making)), because
+//! the new tree frees them. Otherwise an accept loop is charged once for every
+//! connection it serves.
 //!
 //! **The unit is the tree and never one task's stack**
 //! (`rule:security/isolate-budget-is-the-trees`). A `Core\Task` child charges
@@ -288,7 +292,9 @@ thread_local! {
     /// `rule:errors/on-limit`'s memory limit as an **absolute** balance rather
     /// than as the request's own reading, so that the compare in [`add`]
     /// subtracts nothing first. [`Ctx::refresh_limits`](crate::Ctx) is the one
-    /// pass that computes the ceiling and [`arm`] the one writer of this.
+    /// pass that computes the ceiling and [`arm`] the one writer of this, but
+    /// for [`credit_turn`], which moves it with [`FOREIGN`] so the ceiling in
+    /// the tree's own units stays where it is.
     static CEILING: Cell<isize> = const { Cell::new(0) };
     /// The safepoint word the request that armed [`CEILING`] polls, or null
     /// where nothing is armed.
@@ -692,6 +698,43 @@ pub(crate) fn reroot_turn(
             other => other,
         };
         cell.set(next);
+    });
+}
+
+/// The tree whose turn the running stack is, by address, or null on a stack
+/// that runs no tree's turn. [`Ctx::new`](crate::Ctx::new) notes it, so a
+/// spawn can tell whether the context was made on the turn that hands it over.
+pub(crate) fn running_turn() -> *const crate::TreeState {
+    TURN.with(|cell| {
+        let turn = cell.take();
+        let at = turn
+            .as_ref()
+            .map_or(std::ptr::null(), std::sync::Arc::as_ptr);
+        cell.set(turn);
+        at
+    })
+}
+
+/// Takes `bytes` off the running tree's balance and leaves the thread's
+/// [`LIVE`] where it is.
+///
+/// For bytes this turn allocated that another tree's last turn frees: a
+/// context a spawn hands to a task of its own tree
+/// ([`Ctx::hand_over_its_making`](crate::Ctx::hand_over_its_making)). Left on
+/// this tree, they are a charge nobody frees, one per task spawned. The mark
+/// and the ceiling move with the balance, so in the tree's units only the
+/// balance moves.
+pub(crate) fn credit_turn(bytes: isize) {
+    FOREIGN.with(|cell| cell.set(cell.get().wrapping_add(bytes)));
+    PEAK.with(|cell| cell.set(cell.get().wrapping_add(bytes)));
+    CEILING.with(|cell| {
+        let raw = cell.get();
+        if raw != 0 {
+            cell.set(match raw.saturating_add(bytes) {
+                0 => 1,
+                moved => moved,
+            });
+        }
     });
 }
 
