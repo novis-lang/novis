@@ -20,8 +20,10 @@
 // Age alone never condemns anything in `deps/`. Cargo never rewrites an artifact it has decided is
 // fresh, so a superseded generation and a live one can carry the same date. The live set is asked for
 // instead: the cargo commands in `LIVE_QUERIES` over `target/debug`, which a person builds by hand, and
-// in `COVWS_QUERIES` over `target/covws`, which the pipeline builds, each warm and with
-// `--message-format=json`, name every file those graphs use. Age is only ever a reason to keep: nothing
+// in `COVWS_QUERIES` over `target/covws`, which the pipeline builds, each with
+// `--message-format=json`, name every file those graphs use. Only a warm query answers: one that would
+// compile a unit or wait for another build is killed at once (`NOT_WARM`), and `deps/` is left alone
+// until a later sweep finds the build up to date. Age is only ever a reason to keep: nothing
 // written in the last `GRACE_HOURS` is swept whatever the list says, which covers a build still under
 // way and a `--test <name>` run that resolves a dev-dependency its own way. `incremental/` has no
 // artifact list to ask, so there age and the newest `KEEP_INCREMENTAL` per crate are the whole rule,
@@ -472,22 +474,33 @@ function queryArgv(query: string[], covws: { wrapped: boolean } | null): { argv:
   return { argv: ["cargo", head[0]!, "--message-format=json", ...head.slice(1), ...args, ...tail], env: own };
 }
 
+/** A cargo line on stderr that means the query would build or wait: a unit it starts to compile or
+ * check, or another build holding the target directory. */
+export const NOT_WARM = /^\s*(Compiling|Checking|Blocking) /;
+
 /**
  * Every file the graph `LIVE_QUERIES` and `COVWS_QUERIES` build uses, as cargo reports it. A warm call
- * is a no-op build that still emits a `compiler-artifact` line per unit. Null if any query fails, and
- * the caller then leaves `deps/` untouched rather than deleting on a partial answer.
+ * is a no-op build that still emits a `compiler-artifact` line per unit. A query that would compile
+ * anything, or wait for another build, is killed at its first `NOT_WARM` line: a sweep never builds, and
+ * on a tree the loop edits all the time a cold query is seven full builds written onto a full disk. Null
+ * if any query is stopped or fails, and the caller then leaves `deps/` untouched rather than deleting on
+ * a partial answer.
  */
 async function liveArtifacts(): Promise<Set<string> | null> {
   const live = new Set<string>();
   const queries = [...LIVE_QUERIES.map((q) => queryArgv(q, null)), ...COVWS_QUERIES.map((q) => queryArgv(q.args, q))];
   for (const { argv, env } of queries) {
+    const stop = new AbortController();
+    const onLine = (line: string, stream: "stdout" | "stderr") => {
+      if (stream === "stderr" && NOT_WARM.test(line)) stop.abort();
+    };
     let out;
     try {
-      out = await runProgram(argv, { timeoutMs: 4 * 60 * 60 * 1000, ...(env ? { env } : {}) });
+      out = await runProgram(argv, { timeoutMs: 30 * 60 * 1000, onLine, signal: stop.signal, ...(env ? { env } : {}) });
     } catch {
       return null;
     }
-    if (out.code !== 0) return null;
+    if (out.code !== 0 || out.aborted) return null;
     for (const line of out.stdout.split(/\r?\n/)) {
       let msg;
       try {
@@ -786,8 +799,8 @@ export interface CleanOptions {
   keepIncremental?: number;
   graceHours?: number;
   dryRun?: boolean;
-  /** Whether `target/deps` and `target/incremental` are swept; true unless named. Without them cargo is
-   * not asked for the live set, and the result has neither part. */
+  /** Whether `target/deps` is swept; true unless named. Without it cargo is not asked for the live set,
+   * and the result has no `target/deps` part. */
   build?: boolean;
 }
 
@@ -800,18 +813,12 @@ export async function clean(opts: CleanOptions = {}): Promise<Record<string, num
   const dryRun = opts.dryRun ?? false;
   const grace = opts.graceHours ?? GRACE_HOURS;
   const build = opts.build ?? true;
-  const live = build ? await liveSet() : null;
   const logs = await pruneLogs(opts.keepRuns ?? KEEP_RUNS, dryRun);
   const scratch = await pruneScratch(opts.scratchDays ?? SCRATCH_DAYS, dryRun);
-  let deps: number | null = null;
-  if (live !== null) {
-    deps = 0;
-    for (const p of deadDeps(live, grace)) deps += await rm(p, dryRun);
-  }
   let leftovers = 0;
   for (const p of retiredCovwsProof()) leftovers += await rm(p, dryRun);
   let incremental = 0;
-  if (build) for (const p of staleIncremental(opts.keepIncremental ?? KEEP_INCREMENTAL, grace)) incremental += await rm(p, dryRun);
+  for (const p of staleIncremental(opts.keepIncremental ?? KEEP_INCREMENTAL, grace)) incremental += await rm(p, dryRun);
   let optimized = 0;
   for (const p of staleOptimized()) optimized += await rm(p, dryRun);
   let extensions = 0;
@@ -820,10 +827,18 @@ export async function clean(opts: CleanOptions = {}): Promise<Record<string, num
   for (const p of staleMaps(COVMAP_DIR, grace)) maps += await rm(p, dryRun);
   for (const p of strayProfiles()) leftovers += await rm(p, dryRun);
   for (const p of RETIRED_MEMOS) if (existsSync(join(ROOT, p))) leftovers += await rm(join(ROOT, p), dryRun);
+  // Last, so everything above is freed before cargo is asked anything.
+  const live = build ? await liveSet() : null;
+  let deps: number | null = null;
+  if (live !== null) {
+    deps = 0;
+    for (const p of deadDeps(live, grace)) deps += await rm(p, dryRun);
+  }
   return {
     ".loop/logs": logs,
     ".agent-tmp": scratch,
-    ...(build && { "target/deps": deps, "target/incremental": incremental }),
+    ...(build && { "target/deps": deps }),
+    "target/incremental": incremental,
     "target/optimized": optimized,
     "extensions/*/target": extensions,
     "coverage maps": maps,
@@ -841,7 +856,7 @@ export function total(freed: Record<string, number | null>): number {
 export function freedLines(freed: Record<string, number | null>, verb = "freed"): string[] {
   return Object.entries(freed).map(([name, n]) =>
     n === null
-      ? `${name.padEnd(19)} left alone -- cargo could not name the live set; does the tree build?`
+      ? `${name.padEnd(19)} left alone -- cargo could not name the live set: the build is not up to date, another build is running, or the tree does not build`
       : `${name.padEnd(19)} ${verb} ${human(n)}`,
   );
 }
