@@ -693,8 +693,8 @@ fn lost_walk() -> io::Error {
 ///   — § 3's own defaults are settled on the same footing.
 /// - **WAL, for a file opened for writing whose block keeps the default**
 ///   ([`SqliteTarget::wal`]): readers run beside the one writer instead of
-///   waiting for it. The statement is [`WAL`], which the session store's file
-///   opens with too.
+///   waiting for it. [`into_wal`] switches the file, and the session store's
+///   file opens the same way.
 /// - **The lock wait is the statement's, not the connection's.** Every
 ///   statement path files one through [`crate::Connection::set_statement_deadline`]:
 ///   the statement's own deadline, or the time its request has left. A writer
@@ -736,9 +736,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
         };
         connection.set_prepared_statement_cache_capacity(capacity);
         if wal && !read_only {
-            connection.pragma_update_and_check(None, "journal_mode", WAL, |row| {
-                row.get::<_, String>(0)
-            })?;
+            into_wal(&connection)?;
         }
         connection.execute_batch(SESSION_PRAGMAS)?;
         connection.authorizer(Some(authorize))?;
@@ -772,6 +770,37 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
 /// and [`SqliteConn::reset`] does not repeat it. The session store's file opens
 /// with it as well.
 pub const WAL: &str = "WAL";
+
+/// How long [`into_wal`] waits before it tries the switch again.
+const WAL_RETRY: std::time::Duration = std::time::Duration::from_millis(5);
+
+/// Puts `connection`'s file in [`WAL`], trying again on `SQLITE_BUSY` until
+/// [`LOCK_WAIT`] has passed.
+///
+/// **The busy timeout does not cover this switch.** Two connections that open a
+/// file still in rollback mode at once both read it under a shared lock, and
+/// both need the exclusive one to switch. SQLite answers one of them
+/// `SQLITE_BUSY` at once, without calling the busy handler, because waiting
+/// would deadlock. That one waits here, on the blocking pool [`open`] runs on,
+/// and finds the file in WAL once the other has switched it. What it spends:
+/// one blocking-pool thread for at most [`LOCK_WAIT`], only while two opens of
+/// one file race.
+fn into_wal(connection: &rusqlite::Connection) -> rusqlite::Result<()> {
+    let until = std::time::Instant::now() + LOCK_WAIT;
+    loop {
+        match connection
+            .pragma_update_and_check(None, "journal_mode", WAL, |row| row.get::<_, String>(0))
+        {
+            Err(rusqlite::Error::SqliteFailure(error, _))
+                if error.code == rusqlite::ErrorCode::DatabaseBusy
+                    && std::time::Instant::now() < until =>
+            {
+                std::thread::sleep(WAL_RETRY);
+            }
+            switched => return switched.map(drop),
+        }
+    }
+}
 
 /// How long a statement with no deadline of its own waits for another
 /// connection's write lock when its run has no `wall_time` either.
