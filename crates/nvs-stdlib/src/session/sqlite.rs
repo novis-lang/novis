@@ -252,10 +252,7 @@ mod tests {
     /// Two threads are two cores, each with its own connection, which is what two concurrent
     /// requests are. The first thread is held between its load and its save until the second has
     /// finished, so a lock taken at `load` would hang this test instead of passing it.
-    #[cfg_attr(
-        miri,
-        ignore = "SQLite is C, which Miri cannot interpret"
-    )]
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn two_requests_of_one_session_both_finish_and_the_last_write_wins() {
         const ID: &str = "PmA5tKz1QvR3sYbNqLwXe2";
@@ -314,10 +311,7 @@ mod tests {
     /// one connection is read through another that opened the file afterwards. A second server
     /// process on the same data folder is exactly such a connection: the record is in the file and
     /// its WAL, not in any process.
-    #[cfg_attr(
-        miri,
-        ignore = "SQLite is C, which Miri cannot interpret"
-    )]
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_record_survives_into_a_connection_another_process_would_open() {
         const ID: &str = "QvR3sYbNqLwXe2PmA5tKz1";
@@ -337,10 +331,7 @@ mod tests {
 
     /// `rule:http-server/session-expiry-belongs-to-the-store`: an expired row is absent at once,
     /// and the sweep deletes it while it keeps the live one.
-    #[cfg_attr(
-        miri,
-        ignore = "SQLite is C, which Miri cannot interpret"
-    )]
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn an_expired_row_is_absent_and_the_sweep_deletes_it() {
         const LIVE: &str = "LwXe2PmA5tKz1QvR3sYbNq";
