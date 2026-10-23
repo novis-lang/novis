@@ -14,7 +14,7 @@ stages:
     context: [website/src/content/docs/in-depth/roadmap.mdx, website/src/content/docs/in-depth/what-changed.mdx, website/src/content/docs/install/index.mdx, website/src/content/docs/guides/production/docker.mdx, tools/nv/cmd/site.ts]
   - id: 3
     title: "the README follows the website's home page, in its order and its words"
-    status: open
+    status: done
     context: [website/src/components/home/Hero.astro, website/src/components/home/Facts.astro, website/src/content/docs/sponsoring.mdx, CONTRIBUTING.md]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -215,12 +215,12 @@ website pages and components, and one takes `CONTRIBUTING.md` and `SECURITY.md`.
 **Does:** the README reads like a short version of the home page, in its order and with its sentences.
 Every link goes to the website.
 
-- [ ] The title, the opening paragraph and the status take the home page's hero and facts, with the Pre-Alpha line. `README.md:1`, `website/src/components/home/Hero.astro:1`, `website/src/components/home/Facts.astro:1`
-- [ ] The feature list follows the home page's sections in their order, each with the website's sentence and a link to its page. `README.md:12`
-- [ ] The roadmap section is the generated list and a link to the roadmap page. `README.md:46`
-- [ ] *Sponsoring* is a short version of the sponsoring page, and links to it. `README.md:80`, `website/src/content/docs/sponsoring.mdx:1`
-- [ ] *Contributing* and *Licence* follow the prose rules, and keep what they say. `README.md:63`, `README.md:108`
-- [ ] `bun nv site --check roadmap` passes, and `bun nv proofs --comments README.md` passes.
+- [x] The title, the opening paragraph and the status take the home page's hero and facts, with the Pre-Alpha line. `README.md:1`, `website/src/components/home/Hero.astro:1`, `website/src/components/home/Facts.astro:1`
+- [x] The feature list follows the home page's sections in their order, each with the website's sentence and a link to its page. `README.md:12`
+- [x] The roadmap section is the generated list and a link to the roadmap page. `README.md:46`
+- [x] *Sponsoring* is a short version of the sponsoring page, and links to it. `README.md:80`, `website/src/content/docs/sponsoring.mdx:1`
+- [x] *Contributing* and *Licence* follow the prose rules, and keep what they say. `README.md:63`, `README.md:108`
+- [x] `bun nv site --check roadmap` passes, and `bun nv proofs --comments README.md` passes.
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -245,44 +245,42 @@ These steps are the user's, with an interactive session. The loop takes none of 
 
 ### State
 
-Stages 1 and 2 are done and committed. Stage 2: `website/src/data/roadmap.json` is the roadmap,
-`tools/nv/lib/site-roadmap.ts` is its check and its README writer, and `bun nv site --check roadmap`
-and `bun nv site --roadmap` call them. The check also names a goal in two places, and an `internal`
-slug off the chain. So when `first-release` retires, its `internal` entry must go in the same commit.
-`website/src/data/release.ts` reads the version from `Cargo.toml`. It lists only the four archives
-`publish` requires, since the two optional targets may be missing. `Roadmap.astro` renders the page.
-The pages, the hero label, `CONTRIBUTING.md` and `SECURITY.md` say Pre-Alpha and `0.0.1`.
+Stages 1, 2 and 3 are done and committed. Stage 3 rewrote `README.md` as a short version of the home
+page: the hero's headline and tagline, the Pre-Alpha status, the four facts, then one section per home
+page section in the order `index.mdx` uses them. Each uses the component's own sentences and links to
+`https://novis-lang.org/...`. No link goes to `docs/rules/` or into `website/src/`. *Measured and
+counted* points to the home page and does not copy its numbers, because they change with each recorded
+run. The status line names no version, so the README does not go stale at the next release.
+*Sponsoring* shortens `sponsoring.mdx` and drops the company details, which the page does not have.
+The heading *Licence* is now *License*, as the website writes it. No file links to a README anchor.
 
-What ran: `bun test tools/nv/test/site-roadmap.test.ts` once (10 pass), `tsc` over the tools,
-`bun nv site --check prose structure in-depth roadmap` (all ok), `bun nv prose` on the five pages,
-and `bun nv site --build` (green; the built hero says `Pre-Alpha 0.0.1`). `bun nv site --check
-questions` was already red with 66 owed or stale pages before this stage. The roadmap page's
-questions were rewritten and stamped.
+Stage 2's notes still hold: when `first-release` retires, its `internal` entry in
+`website/src/data/roadmap.json` goes in the same commit.
 
-`bun nv affected` needs no code for the roadmap: it maps a `bun nv` check by the reads of its last
-recorded run. `roadmap-check` has never been recorded, so `affected` does not pick it until the
-sweep runs it once.
+What ran this session: `bun nv site --check roadmap` (ok), `bun nv proofs --comments README.md` (ok),
+`bun nv prose README.md` (ok), and a check that every website link in the README names a page.
 
-The acceptance sweep's reds were stale again: the nightly ran at `7b6ef53ee`, and
-`env-secret-proofs` passes locally. CI run `39982774098` on `6d3c2770a` had no red job at this
-session's end. If it ended red, read it first.
+**CI is red on one job, and the gate owns it.** Run `39982774098` on `6d3c2770a`: `proofs /
+linux-x86_64` failed in the *Website stale guard* step (`.github/workflows/ci.yml:483`). Its
+`questions` part fails locally with 62 entries. Most are stale or owed pages from before this goal.
+Three came from stage 2: `/install/` and `/install/editor/` have 7 questions each, not four to six
+(`website/src/data/questions.json:963`, `website/src/data/questions.json:976`). "Is Novis ready for
+production use?" is on both `/in-depth/what-changed/` and `/in-depth/new/`
+(`website/src/data/questions.json:914`, `website/src/data/questions.json:949`). The sweep's nightly
+reds ran at `7b6ef53ee` and are stale, and `env-secret-proofs` passes locally.
 
-No test is expected to go red.
+Expected red in the gate: `bun nv site --check questions`, as above.
 
 ### Next
 
-**Stage 3, all of it**, on `README.md` alone, after reading the home page's components under
-`website/src/components/home/` in the order `website/src/content/docs/index.mdx` uses them. The
-roadmap section stays the generated list: never edit between its markers, run `bun nv site
---roadmap`.
+**Stage 4, the gate.**
 
-- [ ] Title, opening paragraph and status from `Hero.astro` and `Facts.astro`, with the Pre-Alpha sentence. `README.md:1`
-- [ ] The feature list follows the home page's eight sections, each linking to `https://novis-lang.org/...`. `README.md:12`
-- [ ] The roadmap section keeps its markers and its link. `README.md:46`
-- [ ] *Sponsoring* shortens `sponsoring.mdx`. `README.md:79`
-- [ ] *Contributing* and *Licence* to the prose rules. `README.md:62`, `README.md:107`
-- [ ] `bun nv site --check roadmap` and `bun nv proofs --comments README.md` pass. `README.md:1`
+- [ ] Fix the three `questions` entries stage 2 caused, then rewrite and stamp each stale or owed page the check names. `website/src/data/questions.json:963`
+- [ ] Start `looper verify` with `run_in_background`, and end the turn to wait. `docs/goals/first-release.md:227`
+- [ ] Fix every failure it names in one pass, never deleting or loosening a test. `docs/goals/first-release.md:228`
+- [ ] Run `looper verify` again until green, then the goal-end gates of AGENTS.md § *In the loop*. `AGENTS.md:1`
 
 ### Backlog
 
-- Stage 4: the gate.
+- Nothing after the gate. The goal's *After the goal* steps are the user's.
+
