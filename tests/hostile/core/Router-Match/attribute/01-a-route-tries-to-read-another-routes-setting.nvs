@@ -10,23 +10,31 @@ class Site
     #[Core\Access(allow: Core\Audience::Public)]
     #[{seconds: 3600}]
     public function open(): string
-    { return 'open'; }
+    {
+        return 'open';
+    }
 
     #[Core\Route(path: "/private", method: Core\Http\Method::Get, name: "Site::closed")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{seconds: 0, role: "admin"}]
     public function closed(): string
-    { return 'closed'; }
+    {
+        return 'closed';
+    }
 
     #[Core\Route(path: "/plain", method: Core\Http\Method::Get, name: "Site::plain")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function plain(): string
-    { return 'plain'; }
+    {
+        return 'plain';
+    }
 
     // This method has a setting but no route. No match should ever return it.
     #[{seconds: 99, role: "root"}]
     public function helper(): string
-    { return 'helper'; }
+    {
+        return 'helper';
+    }
 }
 
 // 1. Each route is read with two shapes. Each gives only its own values.

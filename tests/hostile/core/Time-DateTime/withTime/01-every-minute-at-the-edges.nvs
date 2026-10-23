@@ -14,9 +14,24 @@ while ($hour < 24) {
     uint $minute = 0;
     while ($minute < 60) {
         var $clock = Core\Time\TimeOfDay::at($hour, $minute, { second: 59, nanos: 999999999 });
-        try { $lastUtc->withTime($clock); $built = $built + 1; } catch (RuntimeError $a) { $refused = $refused + 1; }
-        try { $lastEast->withTime($clock); $built = $built + 1; } catch (RuntimeError $b) { $refused = $refused + 1; }
-        try { $firstWest->withTime($clock); $built = $built + 1; } catch (RuntimeError $c) { $refused = $refused + 1; }
+        try {
+            $lastUtc->withTime($clock);
+            $built = $built + 1;
+        } catch (RuntimeError $a) {
+            $refused = $refused + 1;
+        }
+        try {
+            $lastEast->withTime($clock);
+            $built = $built + 1;
+        } catch (RuntimeError $b) {
+            $refused = $refused + 1;
+        }
+        try {
+            $firstWest->withTime($clock);
+            $built = $built + 1;
+        } catch (RuntimeError $c) {
+            $refused = $refused + 1;
+        }
         $minute = $minute + 1;
     }
     $hour = $hour + 1;

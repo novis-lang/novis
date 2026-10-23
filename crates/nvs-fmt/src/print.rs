@@ -11,7 +11,8 @@
 //! brace sits rewrites the runs on either side of it.
 //!
 //! What a whitespace run has to be is [`Runs`], which every stage that decides
-//! one contributes to: the line a brace sits on ([`crate::brace`]) and the run
+//! one contributes to: the line a brace sits on ([`crate::brace`]), the line
+//! break in front of a statement or a closing brace ([`crate::statement`]) and the run
 //! a qualifier, a one-line anonymous object or a `match` arm wants
 //! ([`crate::space`]) are the same answer to "what must precede this byte", and
 //! the run that is not there to rewrite is written into the code run instead.
@@ -35,7 +36,7 @@ use nvs_diagnostics::{Diagnostics, SourceFile, Span};
 use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
 use crate::indent::Indent;
-use crate::{brace, chain, imports, list, modifiers, space, tokens};
+use crate::{brace, chain, imports, list, modifiers, space, statement, tokens};
 
 /// One run of bytes, and what the printer writes in its place.
 ///
@@ -141,6 +142,7 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) 
     wanted.extend(space::runs(&parsed.index, &indent, text, &parsed.trivia));
     wanted.extend(list::runs(&parsed.index, &indent, text, &parsed.trivia));
     wanted.extend(chain::runs(&parsed.index, &indent, text, &parsed.trivia));
+    wanted.extend(statement::runs(&indent));
     let runs = Runs::new(wanted, &parsed.trivia);
     let mut edits = modifiers::rewrites(parsed, text);
     edits.extend(imports::rewrites(parsed, text));

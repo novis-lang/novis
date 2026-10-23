@@ -19,12 +19,24 @@ final class Wide
         while ($i < $rounds) {
             try {
                 int $which = $i % 7;
-                if ($which == 0) { throw new IOError('io'); }
-                if ($which == 1) { throw new ParseError('parse'); }
-                if ($which == 2) { throw new TimeoutError('timeout'); }
-                if ($which == 3) { throw new RecursionError('recursion'); }
-                if ($which == 4) { throw new NotInteractive('prompt'); }
-                if ($which == 5) { throw new RolledBack('rolled back'); }
+                if ($which == 0) {
+                    throw new IOError('io');
+                }
+                if ($which == 1) {
+                    throw new ParseError('parse');
+                }
+                if ($which == 2) {
+                    throw new TimeoutError('timeout');
+                }
+                if ($which == 3) {
+                    throw new RecursionError('recursion');
+                }
+                if ($which == 4) {
+                    throw new NotInteractive('prompt');
+                }
+                if ($which == 5) {
+                    throw new RolledBack('rolled back');
+                }
                 throw new DbError('db');
             } catch (RuntimeError $theWorld) {
                 // This reads the message, so every error must have a real message.
@@ -61,8 +73,12 @@ final class Wide
         try {
             return Wide::swap($depth - 1);
         } catch (RuntimeError $rising) {
-            if ($depth % 3 == 0) { throw new TimeoutError($rising->message); }
-            if ($depth % 3 == 1) { throw new ParseError($rising->message); }
+            if ($depth % 3 == 0) {
+                throw new TimeoutError($rising->message);
+            }
+            if ($depth % 3 == 1) {
+                throw new ParseError($rising->message);
+            }
             throw new IOError($rising->message);
         }
     }

@@ -9,7 +9,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Html\Markup $part = Core\Html::later(fn(): Core\Html\Markup => html`<p>part</p>`);
     if ($path == '/fake') {
         echo Core\Request::body(), "\n", $part, "\n";
-    } else if ($path == '/twice') {
+    } elseif ($path == '/twice') {
         echo $part, $part, "\n";
     } else {
         uint $i = 0;

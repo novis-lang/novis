@@ -34,7 +34,7 @@ while ($i < 200000) {
     array<string> $names = [];
     if ($i % 3 == 0) {
         $names = $vault->inside();
-    } else if ($i % 3 == 1) {
+    } elseif ($i % 3 == 1) {
         $names = Stranger::outside($vault);
     } else {
         var $here = Core\Reflect::forObject($vault);

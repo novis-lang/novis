@@ -29,7 +29,9 @@ class Crowded
         "t121", "t122", "t123", "t124", "t125", "t126", "t127", "t128",
     ])]
     public function show(): uint
-    { return 1; }
+    {
+        return 1;
+    }
 }
 
 // 2. One operation naming 64 error responses. Every entry is checked against
@@ -73,7 +75,9 @@ class Failing
         {status: 462, type: Missing::class}, {status: 463, type: Missing::class},
     ])]
     public function show(): uint
-    { return 2; }
+    {
+        return 2;
+    }
 }
 
 // 3. One example payload with a value long enough to be worth copying. Every
@@ -99,7 +103,9 @@ class Bulky
         a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7,
     })]
     public function show(): Wide
-    { return new Wide(); }
+    {
+        return new Wide();
+    }
 }
 
 // 4. Sixteen more annotated operations, so the table the compiler builds holds
@@ -110,97 +116,129 @@ class Many
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r01(): uint
-    { return 1; }
+    {
+        return 1;
+    }
 
     #[Core\Route(path: "/many/02", method: Core\Http\Method::Get, name: "Many::r02")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r02(): uint
-    { return 2; }
+    {
+        return 2;
+    }
 
     #[Core\Route(path: "/many/03", method: Core\Http\Method::Get, name: "Many::r03")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r03(): uint
-    { return 3; }
+    {
+        return 3;
+    }
 
     #[Core\Route(path: "/many/04", method: Core\Http\Method::Get, name: "Many::r04")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r04(): uint
-    { return 4; }
+    {
+        return 4;
+    }
 
     #[Core\Route(path: "/many/05", method: Core\Http\Method::Get, name: "Many::r05")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r05(): uint
-    { return 5; }
+    {
+        return 5;
+    }
 
     #[Core\Route(path: "/many/06", method: Core\Http\Method::Get, name: "Many::r06")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r06(): uint
-    { return 6; }
+    {
+        return 6;
+    }
 
     #[Core\Route(path: "/many/07", method: Core\Http\Method::Get, name: "Many::r07")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r07(): uint
-    { return 7; }
+    {
+        return 7;
+    }
 
     #[Core\Route(path: "/many/08", method: Core\Http\Method::Get, name: "Many::r08")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r08(): uint
-    { return 8; }
+    {
+        return 8;
+    }
 
     #[Core\Route(path: "/many/09", method: Core\Http\Method::Get, name: "Many::r09")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r09(): uint
-    { return 9; }
+    {
+        return 9;
+    }
 
     #[Core\Route(path: "/many/10", method: Core\Http\Method::Get, name: "Many::r10")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r10(): uint
-    { return 10; }
+    {
+        return 10;
+    }
 
     #[Core\Route(path: "/many/11", method: Core\Http\Method::Get, name: "Many::r11")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r11(): uint
-    { return 11; }
+    {
+        return 11;
+    }
 
     #[Core\Route(path: "/many/12", method: Core\Http\Method::Get, name: "Many::r12")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r12(): uint
-    { return 12; }
+    {
+        return 12;
+    }
 
     #[Core\Route(path: "/many/13", method: Core\Http\Method::Get, name: "Many::r13")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r13(): uint
-    { return 13; }
+    {
+        return 13;
+    }
 
     #[Core\Route(path: "/many/14", method: Core\Http\Method::Get, name: "Many::r14")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r14(): uint
-    { return 14; }
+    {
+        return 14;
+    }
 
     #[Core\Route(path: "/many/15", method: Core\Http\Method::Get, name: "Many::r15")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r15(): uint
-    { return 15; }
+    {
+        return 15;
+    }
 
     #[Core\Route(path: "/many/16", method: Core\Http\Method::Get, name: "Many::r16")]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["many"], security: ["bearer"])]
     public function r16(): uint
-    { return 16; }
+    {
+        return 16;
+    }
 }
 
 // 5. Calling the annotated handlers 200000 times. The running program must

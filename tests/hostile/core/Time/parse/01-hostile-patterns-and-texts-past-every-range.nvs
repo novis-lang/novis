@@ -12,22 +12,62 @@ string $everyLetter = '';
 foreach ($letters as string $letter) {
     $everyLetter = $everyLetter . Core\Str::repeat($letter, 1000) . ' ';
 }
-try { Core\Time::parse('2024-06-05', $everyLetter, $utc); } catch (LogicError $letterPattern) { $badPattern = $badPattern + 1; } catch (ParseError $letterText) { $badText = $badText + 1; }
+try {
+    Core\Time::parse('2024-06-05', $everyLetter, $utc);
+} catch (LogicError $letterPattern) {
+    $badPattern = $badPattern + 1;
+} catch (ParseError $letterText) {
+    $badText = $badText + 1;
+}
 
 // 2. Quotes that never close, and one million quoted characters.
-try { Core\Time::parse('2024', "yyyy '" . Core\Str::repeat('x', 1000000), $utc); } catch (LogicError $open) { $badPattern = $badPattern + 1; }
-try { Core\Time::parse('2024', Core\Str::repeat("'", 1000001), $utc); } catch (LogicError $odd) { $badPattern = $badPattern + 1; } catch (ParseError $oddText) { $badText = $badText + 1; }
-try { Core\Time::parse('2024', "'" . Core\Str::repeat('x', 1000000) . "'yyyy", $utc); } catch (ParseError $longQuoted) { $badText = $badText + 1; }
+try {
+    Core\Time::parse('2024', "yyyy '" . Core\Str::repeat('x', 1000000), $utc);
+} catch (LogicError $open) {
+    $badPattern = $badPattern + 1;
+}
+try {
+    Core\Time::parse('2024', Core\Str::repeat("'", 1000001), $utc);
+} catch (LogicError $odd) {
+    $badPattern = $badPattern + 1;
+} catch (ParseError $oddText) {
+    $badText = $badText + 1;
+}
+try {
+    Core\Time::parse('2024', "'" . Core\Str::repeat('x', 1000000) . "'yyyy", $utc);
+} catch (ParseError $longQuoted) {
+    $badText = $badText + 1;
+}
 
 // 3. A year field one million letters wide, with one million digits of text.
 string $digits = Core\Str::repeat('9', 1000000);
-try { Core\Time::parse($digits, Core\Str::repeat('y', 1000000), $utc); } catch (ParseError $hugeYear) { $badText = $badText + 1; }
-try { Core\Time::parse('2024-06-05 12:00:00.' . $digits, 'yyyy-MM-dd HH:mm:ss.' . Core\Str::repeat('S', 1000000), $utc); } catch (ParseError $hugeFraction) { $badText = $badText + 1; }
-try { Core\Time::parse($digits, 'g', $utc); } catch (ParseError $hugeJulian) { $badText = $badText + 1; }
+try {
+    Core\Time::parse($digits, Core\Str::repeat('y', 1000000), $utc);
+} catch (ParseError $hugeYear) {
+    $badText = $badText + 1;
+}
+try {
+    Core\Time::parse('2024-06-05 12:00:00.' . $digits, 'yyyy-MM-dd HH:mm:ss.' . Core\Str::repeat('S', 1000000), $utc);
+} catch (ParseError $hugeFraction) {
+    $badText = $badText + 1;
+}
+try {
+    Core\Time::parse($digits, 'g', $utc);
+} catch (ParseError $hugeJulian) {
+    $badText = $badText + 1;
+}
 
 // 4. Ten million bytes of text, and a pattern that names a time zone.
-try { Core\Time::parse(Core\Str::repeat('é', 5000000), 'yyyy-MM-dd', $utc); } catch (ParseError $junk) { $badText = $badText + 1; }
-try { Core\Time::parse('2024-06-05 UTC', 'yyyy-MM-dd ' . Core\Str::repeat('V', 2), $utc); } catch (LogicError $zonal) { $badPattern = $badPattern + 1; }
+try {
+    Core\Time::parse(Core\Str::repeat('é', 5000000), 'yyyy-MM-dd', $utc);
+} catch (ParseError $junk) {
+    $badText = $badText + 1;
+}
+try {
+    Core\Time::parse('2024-06-05 UTC', 'yyyy-MM-dd ' . Core\Str::repeat('V', 2), $utc);
+} catch (LogicError $zonal) {
+    $badPattern = $badPattern + 1;
+}
 echo $badPattern, ' bad patterns, ', $badText, " bad texts\n";
 
 // 5. The first minute past each end of the range. The message names the range.

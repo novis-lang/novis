@@ -38,7 +38,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         var $answer = Core\Test::request(Core\Http\Method::Get, '/', { headers: ['x-run-as' => 'Command'] });
         if ($round == 0) {
             $first = $answer->body();
-        } else if ($answer->body() != $first) {
+        } elseif ($answer->body() != $first) {
             $different = $different + 1;
         }
         $round = $round + 1;

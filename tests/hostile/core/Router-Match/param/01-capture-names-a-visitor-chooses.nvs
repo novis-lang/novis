@@ -7,7 +7,9 @@ class Users
     #[Core\Route(path: "/users/{id}/{tab?}", method: Core\Http\Method::Get, name: "Users::show")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id, string $tab = 'profile'): string
-    { return 'one user'; }
+    {
+        return 'one user';
+    }
 }
 
 ?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, '/users/7');

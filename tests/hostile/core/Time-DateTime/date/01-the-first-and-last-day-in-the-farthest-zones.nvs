@@ -9,12 +9,20 @@ int $refused = 0;
 // 1. The last moment in time, read in the zone farthest ahead, is on the last day of the calendar.
 var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead)->date();
 echo $last->format('yyyy-MM-dd'), "\n";
-try { $last->plus(1, Core\Unit::Day); } catch (RuntimeError $past) { $refused = $refused + 1; }
+try {
+    $last->plus(1, Core\Unit::Day);
+} catch (RuntimeError $past) {
+    $refused = $refused + 1;
+}
 
 // 2. The first moment in time, read in the zone farthest behind, is on the first day of the calendar.
 var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind)->date();
 echo $first->format('yyyy-MM-dd'), "\n";
-try { $first->minus(1, Core\Unit::Day); } catch (RuntimeError $before) { $refused = $refused + 1; }
+try {
+    $first->minus(1, Core\Unit::Day);
+} catch (RuntimeError $before) {
+    $refused = $refused + 1;
+}
 echo $refused, " refused\n";
 
 // 3. Samoa skipped 30 December 2011. Every hour from 29 to 31 December is read, and no date is the 30th.

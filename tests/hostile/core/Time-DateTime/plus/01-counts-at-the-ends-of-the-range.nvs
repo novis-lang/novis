@@ -37,8 +37,16 @@ var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed
 var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
 int $past = 0;
 foreach ($units as Core\Unit $step) {
-    try { $last->plus(1, $step); } catch (RuntimeError $late) { $past = $past + 1; }
-    try { $first->plus(-1, $step); } catch (RuntimeError $early) { $past = $past + 1; }
+    try {
+        $last->plus(1, $step);
+    } catch (RuntimeError $late) {
+        $past = $past + 1;
+    }
+    try {
+        $first->plus(-1, $step);
+    } catch (RuntimeError $early) {
+        $past = $past + 1;
+    }
 }
 echo $past, " of 22 past the range refused\n";
 

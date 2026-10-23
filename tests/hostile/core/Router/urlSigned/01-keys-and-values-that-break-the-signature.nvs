@@ -7,7 +7,9 @@ class Files
     #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::show")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $name, #[Core\Query] string $q = ''): string
-    { return 'one file'; }
+    {
+        return 'one file';
+    }
 }
 
 secret bytes $key = Core\Crypto::generateKey();

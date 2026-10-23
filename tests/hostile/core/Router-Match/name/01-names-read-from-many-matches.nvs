@@ -7,12 +7,16 @@ class Pages
     #[Core\Route(path: "/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $slug): string
-    { return 'one page'; }
+    {
+        return 'one page';
+    }
 
     #[Core\Route(path: "/pages", method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
-    { return 'a new page'; }
+    {
+        return 'a new page';
+    }
 }
 
 // 1. Ten thousand matches are kept in an array at the same time.

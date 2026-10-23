@@ -12,8 +12,16 @@ echo $behind->toInstant()->in($behind->zone())->format('uuuu-MM-dd HH:mm:ss'), "
 
 // 2. One second more than the widest offset throws an error.
 int $refused = 0;
-try { Core\Time\Zone::fixed(26h); } catch (RuntimeError $wide) { $refused = $refused + 1; }
-try { Core\Time\Zone::fixed(26h->negated()); } catch (RuntimeError $wide) { $refused = $refused + 1; }
+try {
+    Core\Time\Zone::fixed(26h);
+} catch (RuntimeError $wide) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Time\Zone::fixed(26h->negated());
+} catch (RuntimeError $wide) {
+    $refused = $refused + 1;
+}
 echo $refused, " refused\n";
 
 // 3. One moment is read in many zones, including zones on a half or quarter hour.

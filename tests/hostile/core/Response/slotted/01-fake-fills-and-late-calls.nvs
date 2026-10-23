@@ -11,7 +11,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     if ($path == '/fake') {
         tainted string $text = Core\Request::body();
         echo Core\Html::later(fn(): Core\Html\Markup => html`<p>{$text}</p>`), "\n";
-    } else if ($path == '/late') {
+    } elseif ($path == '/late') {
         var $slotted = fn(): void => { Core\Response::slotted(); };
         echo Core\Html::later(fn(): void => {
             try {

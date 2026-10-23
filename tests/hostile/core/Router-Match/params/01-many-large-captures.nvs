@@ -7,7 +7,9 @@ class Search
     #[Core\Route(path: "/s/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}", method: Core\Http\Method::Get, name: "Search::deep")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function deep(string $a, string $b, string $c, string $d, string $e, string $f, string $g, string $h): string
-    { return 'results'; }
+    {
+        return 'results';
+    }
 }
 
 // 1. Eight captures of 200000 characters each. Every character is the escape `%41`.

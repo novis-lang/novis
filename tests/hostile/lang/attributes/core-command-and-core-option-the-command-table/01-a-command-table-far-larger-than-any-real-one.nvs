@@ -47,7 +47,9 @@ class Crowded
         #[Core\Option(long: "opt32")] bool $o32,
     ): void
     {
-        if ($o01 && $o32) { echo 'both', "\n"; }
+        if ($o01 && $o32) {
+            echo 'both', "\n";
+        }
     }
 }
 
