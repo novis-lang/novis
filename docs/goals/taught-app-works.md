@@ -22,7 +22,7 @@ stages:
     context: [website/src/content/docs/guides/example-apps/notes.mdx, website/src/content/docs/syntax/attributes/routes.mdx, website/src/content/docs/guides/cookbook/upload-file.mdx, docs/examples/core/Compress/compress/03-a-smaller-answer-over-the-network.nvs, crates/nvs-types/src/attributes.rs, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: db-tests
@@ -195,55 +195,45 @@ subagent. Such subagents run side by side, and none of them builds.
 - [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
 - [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
 - [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
-- [ ] The three gaps `security-hardening` left with this goal are built and their records deleted, and `bun nv owners --closes taught-app-works` is green. `data/gaps/nvs-db/a-slow-sqlite-statement-runs-past-cpu-time.json:1`, `data/gaps/nvs-stdlib/arr-haskey-refuses-a-tainted-key.json:1`, `data/gaps/nvs-stdlib/decode-as-refuses-a-tainted-string.json:1`
-  - [ ] `Core\Arr::hasKey` takes a `tainted` key, and the overlay case uses `hasKey` again.
-  - [ ] The `decodeAs`/`shapeAs` doors take a `tainted string` where the field check runs, with a conformance case.
-  - [ ] A SQLite statement stops near the request's remaining `cpu_time`, through the progress handler, with a test.
-  - [ ] `bun nv affected --run` is green over the three.
+- [x] The three gaps `security-hardening` left with this goal are built and their records deleted, and `bun nv owners --closes taught-app-works` is green. `crates/nvs-types/src/expr/args.rs:1`, `crates/nvs-types/src/core_lib.rs:1`, `crates/nvs-db/src/sqlite.rs:1`
+  - [x] `Core\Arr::hasKey` takes a `tainted` key, and the overlay case uses `hasKey` again.
+  - [x] The `decodeAs`/`shapeAs` doors take a `tainted string` where the field check runs, with a conformance case.
+  - [x] A SQLite statement stops near the request's remaining `cpu_time`, through the progress handler, with a test.
+  - [x] `bun nv affected --run` is green over the three.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 have landed, and stage 5's gate is green: `bun nv affected --run` passed 22 of 22
-steps on the third run. The first run failed on two stale rule pages and the second on the CSRF
-token attack's layout (`nvs-fmt`'s `identity` test). Both are fixed in fed0fb506. `bun nv verify
---doc` is green, and `bun nv proofs --id 'Core\Csrf::token' --nvs target/debug/nvs.exe` says complete.
+Every stage has landed and the goal is reached. The three gaps `security-hardening` left here are
+built, and their records are deleted:
 
-Both backlog items are settled. `nvs run --request` now takes the CSRF door through
-`runner::refuse_a_forged_write` (`crates/nvs-cli/src/runner.rs`), the same check `Core\Test::request`
-takes, with the test `a_request_file_with_a_forged_token_is_refused_before_its_handler` in
-`crates/nvs-cli/tests/request.rs` (75daa865f). `nvs agent show "[db.main] journal_mode"` prints the
-key's entry, so its Help proof is not owed.
+- `Core\Arr::hasKey` takes a `tainted` key (f13fa3690). The fault was in the checker, not the row:
+  a generic call's first pass (`check_generic_args`, `crates/nvs-types/src/expr/args.rs`) checked a
+  closed position with `check_expr` before the qualifier admission ran. It now admits the qualifier
+  as the ordinary path does. Test `a_neutral_parameter_of_a_generic_member_admits_a_tainted_argument`
+  in `crates/nvs-types/tests/tainted.rs`. The overlay case uses `hasKey` again.
+- `Core\Json::decodeAs` takes a `tainted string` document (14fb6ec23). `core_lib`'s
+  `decodes_a_document` writes the class as the signature's `contagious_return`, `substituted` now
+  reaches that field, and `converts_outside_text` treats any tainted argument as outside text, so
+  E0810 asks every text property to be `tainted`. `shapeAs` already admitted a tainted array. Cases
+  `core/json-decode-as-takes-a-tainted-document-into-tainted-properties` and
+  `reject/json-decode-as-a-tainted-document-needs-tainted-properties`.
+- A SQLite statement stops near the request's `cpu_time` (16f020bab). `bound_connection` files
+  `cpu_limit - nvs_host::watchdog::running_spent()` on the `Interrupt`, and the progress handler
+  compares it with `nvs_host::blocking::job_cpu()`, read only once the wall time since filing passes
+  the budget. Test `an_endless_statement_stops_near_the_cpu_time_its_request_has_left` in
+  `crates/nvs-db/tests/sqlite_contention.rs`. A manual `nvs run` with `cpu_time = "500ms"` stopped
+  an endless CTE at 0.5 s, then failed with the `cpu_time` FATAL.
 
-`bun nv owners --closes taught-app-works` is still red, on the three gaps `security-hardening` left
-here (see § *Standing decisions*). The fourth record, the session id for a CSRF token, is deleted,
-because `Core\Csrf::token` closes it.
-
-The nightly CI fixes are still local and not pushed, so the sweep's CI list is stale until a push.
-The `env-secret-proofs` log says exit 0.
+`bun nv affected --run` over the session is green: 22 of 22 steps, 7491 tests, 3106 cases and
+1197 benches with none red. `bun nv owners --closes taught-app-works` and `bun nv verify --doc` are
+green. The `env-secret-proofs` check passes when run again. The nightly CI failures are on commits
+that are not pushed yet, so the sweep's CI list is stale until a push.
 
 ### Next
 
-**Stage 5's last item**, the three gaps, in this order:
-
-1. `data/gaps/nvs-db/a-slow-sqlite-statement-runs-past-cpu-time.json`: a progress-handler deadline from
-   the request's remaining CPU time, beside the interrupt the handler already checks
-   (`crates/nvs-db/src/sqlite.rs`, near the busy timeout at `:1658`). A test where an endless
-   statement stops near `cpu_time`.
-2. `data/gaps/nvs-stdlib/arr-haskey-refuses-a-tainted-key.json`: `hasKey`'s key parameter accepts
-   `tainted` (`crates/nvs-stdlib/src/arr.rs`). The conformance case
-   `arr-overlay-deep-at-a-key-is-itself-one-level-down-and-keeps-the-bases-order` uses `hasKey` again.
-3. `data/gaps/nvs-stdlib/decode-as-refuses-a-tainted-string.json`: the `decodeAs`/`shapeAs` doors
-   admit a tainted argument where `written_class_of`'s `subject_outside` check runs
-   (`crates/nvs-stdlib/src/json.rs`). A conformance case for both a tainted and a plain property.
-
-Delete each record as it is built, then run `bun nv affected --run` once more, and
-`bun nv owners --closes taught-app-works`. Then `DONE`.
-
-Tests that may go red: any test or case that pins `hasKey` or `decodeAs` refusing a tainted
-argument, a roster or signature snapshot of those members, and any SQLite test that expects a long
-statement to run past `cpu_time`.
+- None. The goal is reached.
 
 ### Backlog
 
