@@ -1644,9 +1644,16 @@ request still has.** The request's remaining `wall_time` is its busy timeout, or
 run with no `wall_time`. A writer that meets another connection's lock waits on `nvs-host`'s blocking
 pool, never on a core, and fails as `Deadlock` when the wait ends with the lock still held. A
 statement's own `timeout` wins, and it also interrupts the statement once it runs, which the
-request's time does not. Answering `SQLITE_BUSY` at once failed every writer but one when two
+request's `wall_time` does not. Answering `SQLITE_BUSY` at once failed every writer but one when two
 requests wrote together, and an unbounded wait is not allowed
 ([`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect)).
+
+**A SQLite statement stops near the request's `cpu_time`.** The pool charges a statement's CPU time
+to its request only when it returns, so each statement is handed the CPU time its request has left,
+and SQLite's progress handler interrupts it once its pool thread has spent that much. The statement
+fails as a timeout, and the request stops on its `cpu_time` at its next safepoint. A lock wait spends
+no CPU time, so it is bounded by the wall clock alone. The handler reads the thread's CPU clock only
+after the wall clock since the statement began passes the budget, so a short statement pays nothing.
 
 **A SQLite file a program may write opens in WAL**, so readers run beside the one writer. `[db.<name>]
 journal_mode = "delete"` leaves the file's journal as it is, and a read-only open and `:memory:`

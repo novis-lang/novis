@@ -298,6 +298,41 @@ thread_local! {
     /// route, and the same reasoning, as [`crate::reactor::with_current`].
     static POOL: std::cell::RefCell<Option<BlockingPool>> =
         const { std::cell::RefCell::new(None) };
+
+    /// This thread's CPU clock when the job it is running started, or `None`
+    /// outside a job. [`run`] sets it for the length of its job, and
+    /// [`Asked::next_question`] for each question of a walk. [`job_cpu`] reads it.
+    static JOB_STARTED: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
+}
+
+/// The CPU time the job running on this thread has spent so far, or `None`
+/// outside a job and on a platform with no thread clock ([`crate::cpuclock`]).
+///
+/// What a job checks to stop itself near its request's `[limits] cpu_time`:
+/// the request is charged for the job only when its answer lands, so a long job
+/// is the one place the ceiling is not checked while the time is spent.
+/// `nvs_db::sqlite::Interrupt` asks it from SQLite's progress handler. Each call
+/// is one clock read.
+#[must_use]
+pub fn job_cpu() -> Option<Duration> {
+    let started = JOB_STARTED.get()?;
+    Some(cpu_now()?.saturating_sub(started))
+}
+
+/// Runs `f` on this thread as one job, so [`job_cpu`] measures it there too.
+///
+/// [`run`]'s way for a thread with no task or no reactor, which runs the job
+/// where it is asked. The outer reading is put back afterwards, on the
+/// panicking path as well.
+fn inline<T>(f: impl FnOnce() -> T) -> T {
+    struct Restore(Option<Duration>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            JOB_STARTED.set(self.0);
+        }
+    }
+    let _restore = Restore(JOB_STARTED.replace(cpu_now()));
+    f()
 }
 
 /// Runs `f` against this thread's pool, building one if this is its first job.
@@ -360,10 +395,10 @@ where
     T: Send + 'static,
 {
     let Some(me) = current_task() else {
-        return f();
+        return inline(f);
     };
     let Some(wake) = reactor::with_current(|reactor| reactor.remote_wake(me)) else {
-        return f();
+        return inline(f);
     };
 
     type Slot<T> = Option<(std::thread::Result<T>, isize, Duration)>;
@@ -373,7 +408,9 @@ where
         pool.submit(move || {
             let before = nvs_runtime::budget::live_bytes();
             let started = cpu_now();
+            JOB_STARTED.set(started);
             let outcome = std::panic::catch_unwind(AssertUnwindSafe(f));
+            JOB_STARTED.set(None);
             let spent = cpu_since(started);
             let kept = nvs_runtime::budget::live_bytes().wrapping_sub(before);
             nvs_runtime::budget::carry(kept.wrapping_neg());
@@ -515,6 +552,7 @@ impl<Q, A> Asked<Q, A> {
         let mut request = self.asked.recv().ok()?;
         request.asked_at = nvs_runtime::budget::live_bytes();
         request.cpu_at = cpu_now();
+        JOB_STARTED.set(request.cpu_at);
         Some(request)
     }
 }

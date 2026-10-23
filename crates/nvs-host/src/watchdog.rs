@@ -553,6 +553,24 @@ pub(crate) fn charge_running(spent: Duration) {
     });
 }
 
+/// The CPU time the tree this thread is running has been charged so far, on
+/// this thread and by the blocking pool for it, or `None` on a thread that
+/// registered nothing, publishes no such tree or has no clock.
+///
+/// What a job sent to the pool is given as its budget, with the request's
+/// `[limits] cpu_time`: `nvs_stdlib::db` files the difference on a SQLite
+/// statement, which stops itself near the ceiling. One thread-local read and
+/// one clock read.
+#[must_use]
+pub fn running_spent() -> Option<Duration> {
+    METER.with_borrow(|local| {
+        let meter = local.as_ref()?.meter.borrow();
+        let charging = meter.charges.get(&meter.running)?;
+        let now = nanos(meter.clock.burned()?);
+        Some(Duration::from_nanos(charging.charge.at(now)))
+    })
+}
+
 /// The tree this thread is charging now, or [`NO_TREE`].
 pub(crate) fn running_tree() -> usize {
     METER.with_borrow(|local| {

@@ -885,8 +885,8 @@ impl InsertedRow {
 /// of [`Interrupt`].
 ///
 /// A statement that is past its deadline stops within this many instructions.
-/// A check is one atomic load when no deadline is filed, and a clock read as
-/// well when one is.
+/// A check is two atomic loads when nothing is filed, and a clock read as well
+/// when a deadline or a CPU budget is.
 const INTERRUPT_EVERY: std::ffi::c_int = 1_000;
 
 /// The deadline a running statement is interrupted at —
@@ -905,11 +905,27 @@ const INTERRUPT_EVERY: std::ffi::c_int = 1_000;
 /// no deadline and one atomic holds the whole state. `Relaxed` is enough: the
 /// connection's own lock orders the filing before the statement that reads it.
 ///
-/// **What it spends:** sixteen bytes and one `Arc` per open connection.
+/// **The request's CPU time stops a statement too.** The blocking pool charges
+/// a statement's CPU time to its request only when the statement returns, so
+/// a statement that runs past `[limits] cpu_time` is stopped here. The time the
+/// request has left is filed as `cpu_budget`, and the handler compares it with
+/// what the job has spent on its pool thread (`nvs_host::blocking::job_cpu`).
+/// A thread cannot spend more CPU time than the wall clock shows, so that clock
+/// is read only once the wall time since `cpu_filed` reaches the budget. A
+/// short statement never reads it. The statement ends as a deadline ends it,
+/// and the request stops at its next safepoint with the `cpu_time` error once
+/// the statement's time is charged.
+///
+/// **What it spends:** thirty-two bytes and one `Arc` per open connection.
 #[derive(Debug)]
 pub struct Interrupt {
     base: std::time::Instant,
     at: AtomicU64,
+    /// The CPU time the next statement may spend, in nanoseconds, or `0` for
+    /// none filed.
+    cpu_budget: AtomicU64,
+    /// When `cpu_budget` was filed, in nanoseconds past `base`.
+    cpu_filed: AtomicU64,
 }
 
 impl Default for Interrupt {
@@ -918,30 +934,55 @@ impl Default for Interrupt {
         Interrupt {
             base: std::time::Instant::now(),
             at: AtomicU64::new(0),
+            cpu_budget: AtomicU64::new(0),
+            cpu_filed: AtomicU64::new(0),
         }
     }
 }
 
 impl Interrupt {
     /// Files `at` as the instant the next statement is interrupted at, or
-    /// lifts it.
+    /// lifts it, and lifts any CPU budget.
     pub(crate) fn file(&self, at: Option<std::time::Instant>) {
         let stored = at.map_or(0, |deadline| {
             let past = deadline.saturating_duration_since(self.base).as_nanos();
             u64::try_from(past).unwrap_or(u64::MAX - 1) + 1
         });
         self.at.store(stored, Ordering::Relaxed);
+        self.file_cpu(None);
     }
 
-    /// Whether a deadline is filed and has passed.
+    /// Files `budget` as the CPU time the next statement may spend, or lifts
+    /// it. A budget of zero stops the statement at the first check.
+    pub(crate) fn file_cpu(&self, budget: Option<std::time::Duration>) {
+        let stored = budget.map_or(0, |budget| {
+            u64::try_from(budget.as_nanos()).unwrap_or(u64::MAX).max(1)
+        });
+        self.cpu_filed.store(self.now(), Ordering::Relaxed);
+        self.cpu_budget.store(stored, Ordering::Relaxed);
+    }
+
+    /// Nanoseconds past `base`.
+    fn now(&self) -> u64 {
+        u64::try_from(self.base.elapsed().as_nanos()).unwrap_or(u64::MAX)
+    }
+
+    /// Whether a deadline is filed and has passed, or a CPU budget is filed and
+    /// the job has spent it.
     fn passed(&self) -> bool {
-        match self.at.load(Ordering::Relaxed) {
-            0 => false,
-            stored => {
-                let now = u64::try_from(self.base.elapsed().as_nanos()).unwrap_or(u64::MAX);
-                now >= stored - 1
-            }
+        let at = self.at.load(Ordering::Relaxed);
+        let budget = self.cpu_budget.load(Ordering::Relaxed);
+        if at == 0 && budget == 0 {
+            return false;
         }
+        let now = self.now();
+        if at != 0 && now >= at - 1 {
+            return true;
+        }
+        budget != 0
+            && now.saturating_sub(self.cpu_filed.load(Ordering::Relaxed)) >= budget
+            && nvs_host::blocking::job_cpu()
+                .is_some_and(|spent| u64::try_from(spent.as_nanos()).unwrap_or(u64::MAX) >= budget)
     }
 }
 

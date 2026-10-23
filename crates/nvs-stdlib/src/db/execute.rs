@@ -84,9 +84,17 @@ pub(super) fn bound_connection<'a>(
     let lock_wait = deadline.is_none().then(|| {
         std::time::Instant::now() + ctx.wall_time_left().unwrap_or(nvs_db::sqlite::LOCK_WAIT)
     });
+    // A SQLite statement runs on the blocking pool, where the request's CPU
+    // time is charged only once it returns, so it is handed what is left and
+    // stops itself there. A request with no ceiling, or on a thread the
+    // watchdog does not charge, files none.
+    let cpu_left = (ctx.cpu_limit() > 0)
+        .then(nvs_host::watchdog::running_spent)
+        .flatten()
+        .map(|spent| std::time::Duration::from_nanos(ctx.cpu_limit()).saturating_sub(spent));
     let connection = filed_connection(ctx, key, named)?;
     connection
-        .set_statement_deadline(deadline, lock_wait)
+        .set_statement_deadline(deadline, lock_wait, cpu_left)
         .map_err(|refused| {
             Fault::thrown(format!(
                 "{named}: the connection would not take a `timeout`: {refused}"
