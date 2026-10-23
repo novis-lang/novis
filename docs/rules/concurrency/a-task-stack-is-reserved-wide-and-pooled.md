@@ -49,3 +49,8 @@ thread. Code on it never calls compiled Novis code, whose recursion limit is arm
   about 250 tasks at once. A serving core also holds up to twice its share of
   `max_in_flight` in idle reservations between tasks, with all but 8 KiB of each given back once the
   core is idle, and each worker thread one 8 MiB spare stack.
+
+**Declined:**
+- **One stack per request, shared by its connection and its program.** A request can outlive its
+  connection: the server still watches its wall time after the peer is gone, so the program needs a
+  task, and a stack, of its own.
