@@ -99,27 +99,20 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `cdcedb5f8`. That push carried the three fixes for `5dc6c26e3`: the
-`ctutils` bump, the six shorter `about.md` pages and the `checkout-acl` grant on `BUILTIN\Users`.
-Its Website run is green. Its CI run, https://github.com/novis-lang/novis/actions/runs/39954797984,
-ended red in three jobs. Every other job is green, `supply chain` and
-`test / windows-x86_64 (tests)` among them, so the new ACL works on a runner. Two fixes are committed and not pushed:
+`origin/main` is at `6d3c2770a`, the end of `config-follows-links`. That push carried the
+attribution fix `5bb2ee97a`, the SQLite WAL retry `2c7767e80` and the nine `Core\Session` perf
+records `9270c45c4`. Its Website run is green. Its CI run,
+https://github.com/novis-lang/novis/actions/runs/39982774098, is green in every job but `proofs`
+on all three platforms. `third-party attribution` and `five-driver matrix` are green, so both fixes work.
 
-- `third-party attribution`: `THIRD-PARTY-LICENSES.txt` still named `ctutils 0.4.3`.
-  `5bb2ee97a` writes it again with `bun nv gen-attribution`, and `--check` passes.
-- `five-driver matrix`, the SQLite leg: three `db_stream` cases panicked at open with
-  `database is locked`. Since `e5f84a22c`, `open` switches a writable file to WAL. Two opens of a
-  file still in rollback mode both need the exclusive lock, and SQLite returns `SQLITE_BUSY` to one
-  at once without calling the busy handler. `2c7767e80` adds `into_wal`, which tries again every
-  5 ms until `LOCK_WAIT`. The failure reproduced locally on a fresh file, and
-  `bun nv db-matrix --driver sqlite` now passes.
-
-Handed to the main loop with `loop say`, and not fixed here:
-
-- `proofs` on all three platforms: the nine `Core\Session` perf records are stale, because the
-  Csrf commit `2b1a2544a` changed `crates/nvs-stdlib/src/session.rs`. The Csrf feature's proofs
-  are still untracked in the root, so its stage owns the new records. The gate stops before the
-  attacks again, so the LDAP `whoami: Timeout` attack has still not had its second try.
+Each `proofs` leg failed at `Website stale guard`, which runs before the perf records and the
+attacks. Five syntax pages and 58 pages' search questions were stale, because `c775ff1cc`,
+`cabecb9c7` and `15892cf11` changed the examples their features hash. `Core\Csrf::token` had no
+questions. At `HEAD`, the main loop's `505f95a9e` also gave `/install/` and `/install/editor/`
+seven questions each, and a question that `/in-depth/what-changed/` shares with `/in-depth/new/`.
+`aecce6733` rereads every one of those pages and stamps them, and `bun nv site --check stale
+questions prose` passes. It is committed and not pushed. The attacks have still not run on a
+runner, so the LDAP `whoami: Timeout` attack has still not had its second try.
 
 `.agent-tmp/wt-ci`, `.agent-tmp/wt-cig` and `.agent-tmp/wt-r` are empty scratch folders. Git no
 longer lists them as worktrees. Each contains only a `.looper` directory that Windows will not
@@ -130,11 +123,11 @@ delete while looper runs. Delete all three when looper is stopped.
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch for the next push. `tools/nv/cmd/ci.ts:265`
-  Run `bun nv ci --watch --next`, so the red run on `cdcedb5f8` does not end the watch at once.
-  Before that, run `bun nv proofs --owed --limit 0`. If the `Core\Session` perf rows are still
-  owed and the push carries no new record, pass `--past proofs`. If the main loop's Csrf work has
-  ended without recording them, record them yourself as the last item below says.
-  If the SQLite leg of `five-driver matrix` fails again, read `crates/nvs-db/src/sqlite.rs:into_wal`.
+  Run `bun nv ci --watch --next`, so the red run on `6d3c2770a` does not end the watch at once.
+  The questions check counts as stale every page whose feature's examples changed. So an example
+  sweep in the main loop's work turns `Website stale guard` red again. Run `bun nv site --check
+  stale questions` at `HEAD` before you watch, and fix what it names as the last item below says.
+  Each page reread goes to a subagent that writes a scratch JSON, never `questions.json` itself.
 - [ ] Once proofs runs its attacks, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
   A second LDAP `whoami: Timeout` is not noise. Compare the socket deadline with the slice yield
   commits `13004e4f9` and `2b292f862`.
