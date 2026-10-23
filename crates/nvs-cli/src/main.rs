@@ -182,7 +182,7 @@ mod worker;
 fn header() -> String {
     let name = Style::new().effects(Effects::UNDERLINE);
     format!(
-        "{}Novis{} — The Web-Native Programming Language\nversion: {} · commit: {} · {}",
+        "{}Novis-Lang{}\nversion: {} · commit: {} · {}",
         name.render(),
         name.render_reset(),
         env!("CARGO_PKG_VERSION"),
@@ -3016,6 +3016,25 @@ mod tests {
             out.push(word);
         }
         out
+    }
+
+    /// The banner's first line is `README.md`'s H1, word for word, as
+    /// `rule:packaging/the-banner-states-the-build` says. The underline is the
+    /// only thing the two may differ by.
+    #[test]
+    fn the_banner_opens_with_the_readme_title() {
+        let readme = include_str!("../../../README.md");
+        let title = readme
+            .lines()
+            .find_map(|line| line.strip_prefix("# "))
+            .expect("README.md has an H1");
+        let header = super::header();
+        let first = header.lines().next().expect("a banner line");
+        let name = super::Style::new().effects(super::Effects::UNDERLINE);
+        let plain = first
+            .replace(&name.render().to_string(), "")
+            .replace(&name.render_reset().to_string(), "");
+        assert_eq!(plain, title);
     }
 
     /// A stored argv this binary would answer with a usage error is refused at
