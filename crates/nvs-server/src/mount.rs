@@ -292,18 +292,9 @@ impl Table {
             .as_ref()
             .and_then(|mode| mode.default.as_deref())
             == Some(nvs_config::mode::DEVELOPMENT);
-        // A `path` is absolute once the configuration resolved, and a
-        // server's block has none.
-        let databases = config
-            .db
-            .blocks
-            .values()
-            .filter_map(|block| block.path.as_deref())
-            .map(PathBuf::from)
-            .filter(|path| path.is_absolute());
         Self::new(mounts, switches.dispatch, switches.serve_static)
             .with_health(health)
-            .withholding(databases)
+            .withholding(databases(config).map(Path::to_path_buf))
             .local_hosts_only(development)
     }
 
@@ -573,7 +564,24 @@ pub enum Host<'a> {
     Refused,
 }
 
-/// [`Host`] for one request: a target's own authority where it has one, which
+/// The SQLite files `config`'s `[db.<name>]` blocks name, which
+/// [`Table::from_config`] withholds.
+///
+/// These are every database file a configuration can name: an `[[app]]` block
+/// has no `[db]` table, so an entry's snapshot names the host's blocks and no
+/// other. A `path` is absolute once the configuration resolved, and a server's
+/// block has none.
+pub fn databases(config: &Config) -> impl Iterator<Item = &Path> {
+    config
+        .db
+        .blocks
+        .values()
+        .filter_map(|block| block.path.as_deref())
+        .map(Path::new)
+        .filter(|path| path.is_absolute())
+}
+
+/// [`Host`] for one request:a target's own authority where it has one, which
 /// is a target in absolute form and HTTP/2's `:authority`, and the `Host` line
 /// otherwise.
 ///

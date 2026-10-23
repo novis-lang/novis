@@ -50,9 +50,11 @@
 //! **The table's three switches follow a reload.** `[server] dispatch` and
 //! `static`, resolved against the mode by
 //! `nvs_config::server::switches_for`, and `health_path` are read from the
-//! snapshot the request cloned ([`Local::table`]). A core builds a new table
+//! snapshot the request cloned ([`Local::table`]), and so are the `[db]`
+//! files the table withholds from static serving. A core builds a new table
 //! when one of them differs from the table it holds, and otherwise keeps it,
-//! so a reload that changes only `[mode] default` builds a new one too.
+//! so a reload that changes only `[mode] default` or a database's `path`
+//! builds a new one too.
 //!
 //! **What it spends:** one `stat` per directory the expansion looked in, per
 //! `revalidate_freq`, off the request path. Two sets of rows live during a
@@ -71,6 +73,7 @@ use nvs_config::resolve::Files;
 use nvs_config::tree::Mount;
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap};
 use nvs_server::Table;
+use nvs_server::mount::databases;
 
 use crate::config::LocalFiles;
 use crate::script::Compiler;
@@ -132,7 +135,8 @@ struct Built {
     table: Rc<Table>,
 }
 
-/// What a table is built with besides its rows: the dispatch and the
+/// What a table is built with besides its rows and the database files it
+/// withholds (`nvs_server::mount::databases`): the dispatch and the
 /// static-file switch as the mode resolves them, and the health path. The
 /// switches are compared resolved, so a reload that changes only the mode
 /// builds a new table.
@@ -173,7 +177,10 @@ impl Local {
         if same_rows && Arc::ptr_eq(&built.of, snapshot) {
             return Rc::clone(&built.table);
         }
-        if same_rows && switches(&built.of.config) == switches(&snapshot.config) {
+        if same_rows
+            && switches(&built.of.config) == switches(&snapshot.config)
+            && databases(&built.of.config).eq(databases(&snapshot.config))
+        {
             built.of = Arc::clone(snapshot);
             return Rc::clone(&built.table);
         }
@@ -555,5 +562,53 @@ mod tests {
             !Rc::ptr_eq(&first, &development),
             "a snapshot that changed only the mode kept the old table"
         );
+    }
+
+    /// A reload that moves only a `[db]` block's file builds a new table, so
+    /// the new file is withheld from static serving and the old table is not
+    /// kept. Before and after, the file the snapshot names under the static
+    /// root falls through to the entry.
+    #[test]
+    fn a_snapshot_that_moves_only_a_database_file_rebuilds_the_table() {
+        let dir = nvs_repo::scratch("mounts-database-moves");
+        let root = nvs_config::trust::canonical(&dir).expect("the scratch folder");
+        for name in ["index.nvs", "old.sqlite", "new.sqlite", "style.css"] {
+            std::fs::write(root.join(name), "x").expect("a scratch file");
+        }
+        let entry = root.join("index.nvs");
+        let rows = vec![Mounted {
+            prefix: "/".to_owned(),
+            host: None,
+            root: root.clone(),
+            entry: entry.clone(),
+            origin: None,
+            captures: Vec::new(),
+        }];
+        let tree = |file: &str| {
+            let path = root.join(file).to_string_lossy().replace('\\', "/");
+            snapshot(&format!(
+                "[mode]\ndefault = \"development\"\n[db.main]\ndriver = \"sqlite\"\npath = \"{path}\"\n"
+            ))
+        };
+        let local = Local::new(Arc::new(Mounts::new(rows)), tree("old.sqlite"));
+        let what = |table: &Table, path: &str| {
+            table
+                .resolve(None, path, &nvs_server::OnDisk)
+                .and_then(nvs_server::Resolved::selection)
+                .expect("the root mount covers every path")
+                .what
+        };
+        let before = local.table(&tree("old.sqlite"));
+        assert_eq!(what(&before, "/old.sqlite"), nvs_server::What::Run(entry.clone()));
+        assert_eq!(
+            what(&before, "/style.css"),
+            nvs_server::What::Static(root.join("style.css"))
+        );
+        let after = local.table(&tree("new.sqlite"));
+        assert!(
+            !Rc::ptr_eq(&before, &after),
+            "a snapshot that moved only its database file kept the old table"
+        );
+        assert_eq!(what(&after, "/new.sqlite"), nvs_server::What::Run(entry));
     }
 }
