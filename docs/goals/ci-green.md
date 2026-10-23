@@ -99,29 +99,27 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `5dc6c26e3`, the push of `request-overhead`'s end. It carried the nine fixes
-of the two sessions before, and its run cleared every job they fixed. Its Website run is green.
-Its CI run, https://github.com/novis-lang/novis/actions/runs/39926481336, ended red in three jobs.
-The nightly deep-lane run on `7b6ef53ee` was cancelled when this push came in. Before that it
-showed only reds `5dc6c26e3` already fixed. Three fixes are committed and not pushed:
+`origin/main` is at `cdcedb5f8`. That push carried the three fixes for `5dc6c26e3`: the
+`ctutils` bump, the six shorter `about.md` pages and the `checkout-acl` grant on `BUILTIN\Users`.
+Its Website run is green. Its CI run, https://github.com/novis-lang/novis/actions/runs/39954797984,
+ended red in three jobs. Every other job is green, `supply chain` and
+`test / windows-x86_64 (tests)` among them, so the new ACL works on a runner. Two fixes are committed and not pushed:
 
-- `supply chain`: `cargo deny` found RUSTSEC-2026-0385 in `ctutils 0.4.3`, which `aes-gcm`
-  pulls in. `a024f2253` moves it to `0.4.4` in both lock files. `cargo deny check advisories`
-  passes locally. `deny.toml`'s RUSTSEC-2026-0206 entry warns "not encountered", because
-  `rustybuzz` is only in `extensions/pdf/Cargo.lock`. That is a warning, and it is left as it is.
-- `proofs` on all three platforms: six `about.md` pages ran 201 to 237 words, past the gate's
-  200. They are the pages of `Core\Response::redirect`, `Core\Db::quoteIdentifier`, and the
-  `queryAs` and `streamAs` of `Db\Connection` and `Db\Transaction`. `296755665` shortens them.
-  `bun nv proofs --owed --limit 0` owes nothing. The gate still stops before the attacks run, so
-  the LDAP `whoami: Timeout` attack has not had its second try.
-- `test / windows-x86_64 (tests)`: `env_context`'s socket, job and schedule cases stopped with
-  E0607, because `BUILTIN\Users` could write their trees under `target/tmp`. The runner's `D:`
-  grants that group create rights in every folder, and `bun nv checkout-acl` removed only
-  `Authenticated Users` and `Everyone`. `8ea16803f` removes `BUILTIN\Users` too and grants it
-  `(OI)(CI)(RX)` back. Every served test binary after `env_context` writes under
-  `CARGO_TARGET_TMPDIR` too, and this fixes them all at once. `ba8930b80`'s per-test
-  `scratch_private` was the symptom fix. The new ACL was tested on a local folder built with the
-  runner's grant, and has not run on a runner yet.
+- `third-party attribution`: `THIRD-PARTY-LICENSES.txt` still named `ctutils 0.4.3`.
+  `5bb2ee97a` writes it again with `bun nv gen-attribution`, and `--check` passes.
+- `five-driver matrix`, the SQLite leg: three `db_stream` cases panicked at open with
+  `database is locked`. Since `e5f84a22c`, `open` switches a writable file to WAL. Two opens of a
+  file still in rollback mode both need the exclusive lock, and SQLite returns `SQLITE_BUSY` to one
+  at once without calling the busy handler. `2c7767e80` adds `into_wal`, which tries again every
+  5 ms until `LOCK_WAIT`. The failure reproduced locally on a fresh file, and
+  `bun nv db-matrix --driver sqlite` now passes.
+
+Handed to the main loop with `loop say`, and not fixed here:
+
+- `proofs` on all three platforms: the nine `Core\Session` perf records are stale, because the
+  Csrf commit `2b1a2544a` changed `crates/nvs-stdlib/src/session.rs`. The Csrf feature's proofs
+  are still untracked in the root, so its stage owns the new records. The gate stops before the
+  attacks again, so the LDAP `whoami: Timeout` attack has still not had its second try.
 
 `.agent-tmp/wt-ci`, `.agent-tmp/wt-cig` and `.agent-tmp/wt-r` are empty scratch folders. Git no
 longer lists them as worktrees. Each contains only a `.looper` directory that Windows will not
@@ -132,10 +130,11 @@ delete while looper runs. Delete all three when looper is stopped.
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch for the next push. `tools/nv/cmd/ci.ts:265`
-  Run `bun nv ci --watch --next`, so the red run on `5dc6c26e3` does not end the watch at once.
-  If `test / windows-x86_64 (tests)` fails with E0607 again, read the `checkout-acl` step's log
-  first. `tools/nv/cmd/checkout-acl.ts:91` If the Windows test binaries after `env_context` now
-  run, expect new reds there: the earlier failures stopped those binaries before they ran.
+  Run `bun nv ci --watch --next`, so the red run on `cdcedb5f8` does not end the watch at once.
+  Before that, run `bun nv proofs --owed --limit 0`. If the `Core\Session` perf rows are still
+  owed and the push carries no new record, pass `--past proofs`. If the main loop's Csrf work has
+  ended without recording them, record them yourself as the last item below says.
+  If the SQLite leg of `five-driver matrix` fails again, read `crates/nvs-db/src/sqlite.rs:into_wal`.
 - [ ] Once proofs runs its attacks, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
   A second LDAP `whoami: Timeout` is not noise. Compare the socket deadline with the slice yield
   commits `13004e4f9` and `2b292f862`.
