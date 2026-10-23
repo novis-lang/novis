@@ -1,0 +1,19 @@
+--TEST--
+a payload value is an expression the server walks the attribute lists to reach, so an enum name inside `#[...]` is offered its cases exactly as one in a body is, `rule:attributes/payload-is-a-compile-time-constant`
+--FILE--
+<?nvs
+enum Status: int {
+    case Draft = 1;
+    case Live = 2;
+}
+
+#[{state: Status::<|>}]
+class Post
+{
+    public string $title = "";
+}
+--REQUEST--
+completion
+--EXPECT--
+Draft = 1 enumMember
+Live = 2 enumMember

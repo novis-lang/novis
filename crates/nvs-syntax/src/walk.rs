@@ -119,11 +119,10 @@ use nvs_diagnostics::{Diagnostics, MAX_SOURCE_LEN, SourceMap, Span};
 
 use crate::ast::{
     AnonClassDecl, AssignOp, AttributeGroup, BinaryOp, Block, CallArgs, ClassMember,
-    ClassMemberKind,
-    DestructureElement, DestructureTarget, EnumCase, Expr, ExprKind, FnBody, FnExpr, ForInit,
-    ForeachBinding, ForeachBindingTy, IncDecOp, MemberName, MethodMember, NewTarget, Param,
-    PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, SwitchCase, TestOperand, Type, TypeAtom,
-    TypeKind, UnaryOp,
+    ClassMemberKind, DestructureElement, DestructureTarget, EnumCase, Expr, ExprKind, FnBody,
+    FnExpr, ForInit, ForeachBinding, ForeachBindingTy, IncDecOp, MemberName, MethodMember,
+    NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, SwitchCase,
+    TestOperand, Type, TypeAtom, TypeKind, UnaryOp,
 };
 use crate::parse_file;
 
@@ -1310,18 +1309,21 @@ mod tests {
 
     use super::{KINDS, of_source};
 
-    /// The three spans of this file a kind literal can appear in, as the
-    /// `fn` line that opens each and the one that closes it.
+    /// The spans of this file a kind literal can appear in, as the `fn` line
+    /// that opens each and the one that closes it.
     ///
     /// Everything between `unary_op` and `member` is the parser's own
-    /// vocabulary — a [`Field::Word`] rather than a production — which is why
-    /// the productions are two spans and not one.
+    /// vocabulary — a [`Field::Word`] rather than a production — so the
+    /// productions are several spans and not one. A helper that builds a
+    /// node of its own, such as `push_type` or `switch_case`, needs a span.
     ///
     /// [`Field::Word`]: super::Field::Word
     const SPANS: &[(&str, &str)] = &[
         ("pub fn of_source(", "pub fn of_stmts("),
         ("fn stmt(", "fn unary_op("),
         ("fn member(", "fn push_opt("),
+        ("fn push_type(", "fn push_atom("),
+        ("fn switch_case(", "fn push_anon_class("),
     ];
 
     /// [`KINDS`] is the productions the match arms answer with, exactly.

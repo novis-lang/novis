@@ -1,0 +1,16 @@
+--TEST--
+a compiler attribute's name is no declaration and no read of one, so asking for its references answers nothing, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Blog
+{
+    #[Core\Ro<|>ute(path: "/", method: Core\Http\Method::Get)]
+    public static function index(): string
+    {
+        return "hello";
+    }
+}
+--REQUEST--
+references
+--EXPECT--
+none

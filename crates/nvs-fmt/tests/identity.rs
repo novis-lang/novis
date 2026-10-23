@@ -1,20 +1,19 @@
-//! The printer is the identity, and a file that does not parse is refused.
+//! Every corpus file is already formatted, and a file that does not parse is
+//! refused.
 //!
-//! Goal stage 2's two claims, over the corpus rather than over a fixture:
-//! `crates/nvs-syntax/tests/lossless.rs` proves the tokens and the trivia tile
-//! every file in it, and these are that proof turned into a program — the
-//! bytes `nvs fmt` answers today are the bytes it was given, and every layout
-//! rule that lands later is a departure from this baseline it has to state.
+//! Over the corpus rather than over a fixture: every `.nvs` file under
+//! `tests/` and `examples/`, `tests/fmt/input/` aside, is the formatter's own
+//! output. `crates/nvs-syntax/tests/lossless.rs` proves the tokens and the
+//! trivia tile every file, and this proves the layout rules hold over them.
 //!
-//! A rule that lands is therefore a corpus edit in the same session, and
-//! `NVS_FMT_ACCEPT=1 cargo test -p nvs-fmt --test identity` is how that edit is
-//! made: with it set, every file the printer would change is written back
-//! instead of reported, and the run then fails naming what it wrote. The
-//! `nvs fmt` command is the tool a person uses; this exists because the
-//! corpus has to absorb a rule in the session that lands it, and the whole
-//! command is not always there yet to do it. Reading the diff before committing
-//! it is the whole review, which is why the accepting run is never a passing
-//! one.
+//! A change to a layout rule is therefore a corpus edit in the same commit,
+//! and `NVS_FMT_ACCEPT=1 cargo test --test identity` makes it: with it set,
+//! every file the printer would change is written back instead of reported,
+//! and the run then fails naming what it wrote. Reading the diff before
+//! committing it is the whole review, which is why the accepting run is never
+//! a passing one. Before accepting, list the changed files that have an
+//! expectation file beside them (`.out`, `.nvst`, `.nvsr`), and check that
+//! none pins a line number the reformat moves.
 
 use std::path::{Path, PathBuf};
 

@@ -117,8 +117,8 @@ use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 use crate::card::{core_member_hover, core_type_hover, namespace_card};
 use crate::completion_files::CompletionFiles;
 use crate::definition::{
-    Target, attribute_at, clause_at, import_at, site, target_of, type_member_at,
-    type_name_at, written_class_name_at,
+    Target, attribute_at, clause_at, import_at, site, target_of, type_member_at, type_name_at,
+    written_class_name_at,
 };
 use crate::document::Analysed;
 use crate::position::range_at;

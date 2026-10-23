@@ -141,7 +141,12 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) 
     // A blank line comes before the statement stage's single break, so the
     // two breaks win where both name the same byte.
     let mut wanted = blank::runs(parsed, &indent);
-    wanted.extend(brace::placements(&parsed.index, &indent, text, &parsed.trivia));
+    wanted.extend(brace::placements(
+        &parsed.index,
+        &indent,
+        text,
+        &parsed.trivia,
+    ));
     wanted.extend(space::runs(&parsed.index, &indent, text, &parsed.trivia));
     wanted.extend(list::runs(&parsed.index, &indent, text, &parsed.trivia));
     wanted.extend(chain::runs(&parsed.index, &indent, text, &parsed.trivia));
