@@ -20,7 +20,7 @@ stages:
         rules: [core-api/core-classes-are-sealed, security/isolate-values-cross-by-copy]
   - id: 3
     title: "`Json::decodeAs` fills its class in one pass"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/budget.rs]
     extra:
       context:
@@ -249,6 +249,20 @@ A field typed `mixed` still goes through the generic visitor. `Json::decode`, wh
 keeps its path. Safe default: if one pass cannot give the same error for a shape the hostile cases
 cover, that shape keeps two passes, and `json.rs`'s module doc says why.
 
+As built:
+
+- The parse fills a `Read` tree, one slot per declared field, and the heap-frame walk builds every
+  object from it after `end()`. So a constructor still runs only once the whole text has parsed.
+- A scalar, `mixed`, undeclared, hand-written or mismatched value is read by `Decode` itself. Its
+  checks did not move.
+- An undeclared value is parsed in full and released at once, with its lists not noted. `Lists` is
+  keyed by address, and a freed address can come back for an object built later
+  (`an_object_after_an_undeclared_list_is_not_read_as_a_list`).
+- A root class that writes `fromJson` keeps the two-pass path. So do `Request::jsonAs`, `queryAs`,
+  `postAs` and `Arr::shapeAs`, through `hydrate`.
+- A per-key ask no longer includes an array's growth, because no array is built. The list
+  vector's growth and the undeclared-key set's growth are asked for before each one allocates.
+
 **Stage 4: one byte scan finds both an escapable byte and the `0xE2` lead byte.** The bidi analysis
 (`crates/nvs-render/src/bidi.rs:127`) runs only when `0xE2` appears. It runs exactly as today, and so
 does the U+FFFD replacement (`crates/nvs-render/src/html.rs:115`). The CLI sink
@@ -394,12 +408,16 @@ one hash lookup of the name.
 **Does:** a document decoded into a class builds no intermediate array, and every refusal is the
 same.
 
-- [ ] A `DeserializeSeed` driven by the `Contract` fills each field as serde reads its key (`rule:security/derived-codec-qualifiers`). `crates/nvs-stdlib/src/json.rs:2034`, `crates/nvs-stdlib/src/json.rs:2461`, `crates/nvs-stdlib/src/json.rs:2577`, `crates/nvs-stdlib/src/json.rs:2757`, `crates/nvs-stdlib/src/json.rs:3297`
-- [ ] The depth check, the integer range, the constructor's stack check, and the budget checks of `security-hardening` stage 6 are in the new path, at the same points (`rule:http-server/engine-depth-is-bounded-per-decoder`, `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`). `crates/nvs-stdlib/src/json.rs:1808`, `crates/nvs-stdlib/src/json.rs:1793`, `crates/nvs-stdlib/src/json.rs:3031`
-- [ ] A repeated key is refused, declared or not, with the message of `a_repeated_key_is_refused_and_named`. `crates/nvs-stdlib/src/json.rs:1832`, `crates/nvs-stdlib/src/json.rs:4009`
-- [ ] Rust tests `a_decode_as_builds_no_array_for_the_object_it_fills` (an allocation count) and `a_decode_as_refuses_a_repeated_key_the_class_does_not_declare`. `crates/nvs-stdlib/src/json.rs:4009`
-- [ ] The guards stay green and unchanged. Hostile: `core/Json/decodeAs/01`, `core/Json/decode/01` and `02`, `core/Request/jsonAs/01` and `core/Http-Response/jsonAs/01`. Conformance: `core/a-json-body-past-max-depth-is-refused.nvst`. Rust: `request.rs:7324`. `tests/hostile/core/Json/decodeAs/01-documents-that-do-not-fit-the-class.nvs:1`
-- [ ] Review: an `Explore` subagent reads the stage's diff against this stage's guards, and every finding is fixed. `crates/nvs-stdlib/src/json.rs:1`
+- [x] A `DeserializeSeed` driven by the `Contract` fills each field as serde reads its key (`rule:security/derived-codec-qualifiers`). `crates/nvs-stdlib/src/json.rs:2034`, `crates/nvs-stdlib/src/json.rs:2461`, `crates/nvs-stdlib/src/json.rs:2577`, `crates/nvs-stdlib/src/json.rs:2757`, `crates/nvs-stdlib/src/json.rs:3297`
+  - [x] A `Read` tree holds one slot per declared field, and an object seed fills it from the keys serde reads.
+  - [x] A scalar, `mixed`, hand-written or undeclared value is read by `Decode` itself, so its checks do not move.
+  - [x] The walk reads a `Read` or an array through one view, and still builds every object after the parse ends.
+  - [x] `decode_as` reads through the seed, and `hydrate`'s other callers keep the array path.
+- [x] The depth check, the integer range, the constructor's stack check, and the budget checks of `security-hardening` stage 6 are in the new path, at the same points (`rule:http-server/engine-depth-is-bounded-per-decoder`, `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`). `crates/nvs-stdlib/src/json.rs:1808`, `crates/nvs-stdlib/src/json.rs:1793`, `crates/nvs-stdlib/src/json.rs:3031`
+- [x] A repeated key is refused, declared or not, with the message of `a_repeated_key_is_refused_and_named`. `crates/nvs-stdlib/src/json.rs:1832`, `crates/nvs-stdlib/src/json.rs:4009`
+- [x] Rust tests `a_decode_as_builds_no_array_for_the_object_it_fills` (an allocation count) and `a_decode_as_refuses_a_repeated_key_the_class_does_not_declare`. `crates/nvs-stdlib/src/json.rs:4009`
+- [x] The guards stay green and unchanged. Hostile: `core/Json/decodeAs/01`, `core/Json/decode/01` and `02`, `core/Request/jsonAs/01` and `core/Http-Response/jsonAs/01`. Conformance: `core/a-json-body-past-max-depth-is-refused.nvst`. Rust: `request.rs:7324`. `tests/hostile/core/Json/decodeAs/01-documents-that-do-not-fit-the-class.nvs:1`
+- [x] Review: an `Explore` subagent reads the stage's diff against this stage's guards, and every finding is fixed. `crates/nvs-stdlib/src/json.rs:1`
 
 ### 4. escaping scans text once, and a request under its memory limit passes the poll cheaply
 
@@ -480,8 +498,23 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done: a0f56ab2f and e03aa7e53.
+Stages 1, 2 and 3 are done: a0f56ab2f, e03aa7e53 and the stage 3 commit after 2b59fa606.
 
+- Stage 3: `decode_as` (`crates/nvs-stdlib/src/json.rs:2114`) parses into a `Found`/`Read` tree
+  with the `Fill` and `FillList` seeds (`json.rs:2425`, `json.rs:2532`). § *Standing decisions*'
+  *As built* list says what changed and what kept the array path.
+- The review subagent found three things, and all three are fixed. An undeclared value's lists were
+  noted and then freed, so a later object could take the address and read as a list. The list
+  vector's growth and the undeclared-key set's growth were not asked for.
+- Run once each after the change: `cargo test --lib` over `json::`, `jwt::` and
+  `a_streaming_reader_refuses_every_later_reader` (50 passed), the five new tests by name, and
+  `bun nv proofs --run` over `Core\Json`, `Core\Request`, `Core\Http\Response` and `Core\Jwt`
+  (114 examples, 45 attacks, all ok). `a-json-body-past-max-depth-is-refused.nvst` passed.
+  `cargo clippy --all-targets -- -D warnings` is clean.
+- `an_object_after_an_undeclared_list_is_not_read_as_a_list` was written after its fix and was not
+  seen to fail before it. The allocator does not promise to reuse the freed address.
+- The sweep's `env-secret-proofs` passes again (exit 0, nothing owed). The nightly run
+  39746060276 was cancelled by a newer push.
 - All four profiles ran on main at bd86f7a9d, and § *Why*'s table holds them: hello 27.1 µs,
   json-api 60.9 µs, html-page 88.4 µs, wait 801.5 µs per request. A waiting request costs 87–101 KB,
   and the second load's peak is higher than the first's. No hot spot is gone yet, so no bullet is struck.
@@ -490,30 +523,27 @@ Stages 1 and 2 are done: a0f56ab2f and e03aa7e53.
   keeps an `FxHashMap` from each name to its first id, and `id_of` reads it. The standing decision,
   the stage's title and the `stdlib-tests` check's test name
   (`every_core_class_finds_its_descriptor_in_one_hash_lookup`) say this now.
-- `cargo test --lib instance::tests` passed, 12 tests. The review subagent found no check moved or
-  removed. Its one finding, a comment, is fixed.
-- `bun nv proofs --run --group lang:classes` passed after the change: 90 examples and 20 attacks.
-- The env-secret-proofs check the sweep reported red passes when it is run again (exit 0, nothing
-  owed). The nightly run 39746060276 was cancelled by a newer push, not by a failure.
 - The proofs job is red on main: 765 perf records are stale since 38c110098. Stage 8 records the
   ledgers again, and `ci-green` passes over it until then.
-- Another session has uncommitted edits in `crates/nvs-cli/tests/serve_isolation.rs`. Two
-  `eprintln!` lines there fail `cargo clippy --all-targets`. They are not this goal's, so clippy on
-  this goal's crates is read with `--keep-going`.
 
 ### Next
 
-Stage 3.
+Stage 4, and then stage 5, which shares `crates/nvs-runtime/src/ctx/limits.rs` with it.
 
-- Stage 3: `Json::decodeAs` reads with a `DeserializeSeed` driven by the class's `Contract`, as
-  § *Standing decisions* says. Write its checkpoints first. `crates/nvs-stdlib/src/json.rs:2070`,
-  `crates/nvs-stdlib/src/json.rs:2613`
-- Stage 3's tests: `a_decode_as_builds_no_array_for_the_object_it_fills` and
-  `a_decode_as_refuses_a_repeated_key_the_class_does_not_declare`.
+- Stage 4: one byte scan finds an escapable byte and the `0xE2` lead byte, and the bidi analysis
+  runs only after `0xE2`. Write its checkpoints first. `crates/nvs-render/src/html.rs:131`,
+  `crates/nvs-render/src/bidi.rs:127`, `crates/nvs-render/src/text.rs:60`
+- Stage 4's poll: what `memory_breach` costs under the limit. `crates/nvs-runtime/src/ctx/limits.rs:505`
+- Stage 4's test: `text_with_nothing_to_escape_is_scanned_once`.
 
-No test is expected to go red.
+No test is expected to go red. The perf figures for `Core\Json::decodeAs` are stale, because
+`json.rs` changed. Stage 8 records them again.
 
 ### Backlog
+
+- `Core\Request::jsonAs` still reads its body into arrays and then walks them through `hydrate`
+  (`crates/nvs-stdlib/src/request.rs:3167`). It could call `read_against` (`json.rs:2734`) after
+  its own body checks. Check whether the json-api case reads its body with `jsonAs` first.
 
 - The CPU clock read at each cross-tree switch (`crates/nvs-host/src/cpuclock.rs:171`) is a real
   system call. The json-api profile shows 5 `clock_gettime` per request. A cheaper clock must still

@@ -15,9 +15,11 @@
 //!
 //! * **It can be driven without its own `Value` tree.** [`Decode`] is a
 //!   `serde::de::Visitor`, so a document becomes [`nvs_runtime::NvsArray`]s and
-//!   [`Value`]s *directly* — nothing is ever materialized twice. That is what
-//!   keeps latency, in `rule:programs/memory-priority`'s
-//!   ordering, honest on a member every request path uses.
+//!   [`Value`]s *directly*. `decodeAs<T>`'s [`Fill`] is a visitor driven by the
+//!   class's field list, so an object the class fills becomes one slot per
+//!   field and never an array. Nothing is ever materialized twice. That is
+//!   what keeps latency, in `rule:programs/memory-priority`'s ordering, honest
+//!   on a member every request path uses.
 //! * **Every byte of the document is the crate's.** Novis writes no JSON
 //!   grammar of its own at all: one scalar at a time goes through the crate's
 //!   serializer for its escaping and its number formatting, and the structure
@@ -80,7 +82,10 @@
 //! * **A key written twice in one object throws**, naming the key
 //!   (`rule:errors/ambiguous-input-refused`). Two readers keep different
 //!   copies of a repeated key, so the document says two things at once. The
-//!   insert's own lookup reports the repeat, so the check costs nothing.
+//!   insert's own lookup reports the repeat, and under `decodeAs` a declared
+//!   key's own slot does, so the check costs nothing there. A key the class
+//!   does not declare is kept in a set until its object is read, which is the
+//!   one place the check spends memory.
 //! * **A non-finite `float` refuses to encode.** JSON has no `NaN` and no
 //!   `Infinity`; PHP's `json_encode` fails too, but only if
 //!   `JSON_PARTIAL_OUTPUT_ON_ERROR` was not passed, and there is no such flag
@@ -247,9 +252,10 @@
 //! structure.
 //!
 //! **The decoder builds objects the same way.** The parse runs on the spare
-//! stack, and what it reads is turned into instances by [`walk`]: an object or
-//! a list nested in the document pushes a [`Build`] frame, and an object's
-//! constructor runs when its frame is popped, once every field is a value. So
+//! stack, and what it reads is turned into instances by [`walk`] once it has
+//! ended: an object or a list nested in the document pushes a [`Build`]
+//! frame, and an object's constructor runs when its frame is popped, once
+//! every field is a value. So
 //! a document inside `maxDepth` is built whatever the build's native frames
 //! weigh, and `maxDepth` is the only bound on its depth. Two calls still take
 //! native stack, and each is compiled code with its own check: a constructor,
@@ -265,6 +271,28 @@
 //! through, rendered once at the root. So a document's paths cost the issues'
 //! own depth and never the square of the document's.
 //!
+//! # `decodeAs` reads the text against the class
+//!
+//! `Core\Json::decodeAs` parses once, with [`Fill`] driven by the class's
+//! field list, and [`walk`] builds the instances from what it read. A JSON
+//! object the class fills becomes a [`Read`]: one slot per field, at the
+//! field's index. Its keys are matched against the field list as they are
+//! read, borrowed from the text, so no key string and no array is built for
+//! it. Every other value is read by [`Decode`] unchanged, so each check that
+//! visitor makes is made at the same place, with the same message. That
+//! covers a key the class does not declare, a `mixed` field, a class that
+//! wrote its own `fromJson`, and a value of the wrong JSON type, whose issue
+//! names what it found.
+//!
+//! **What it spends:** per object filled, one slot vector of
+//! `size_of::<Option<Found>>()` times the field count. A set of undeclared
+//! keys is made only once an object has one, and lives until that object is
+//! read. Generic arrays are built only for the values above that [`Decode`]
+//! reads. The tree is freed with the call, once the instances are built.
+//!
+//! `Core\Request::jsonAs`, `queryAs`, `postAs` and `Core\Arr::shapeAs` hold
+//! their values already, and [`hydrate`] runs the same walk over those.
+//!
 //! # What a list decode costs
 //!
 //! **A decode is linear in the document, and so is its issue list.** An
@@ -278,6 +306,7 @@
 //! a list, [`decode_each`], stops at the first bad element instead: which of the
 //! two a list field should do is not a cost question, and it stays as written.
 
+use std::borrow::Cow;
 use std::fmt;
 
 use nvs_runtime::{
@@ -1875,13 +1904,15 @@ fn over_memory<E: serde::de::Error>() -> E {
     E::custom("the document does not fit in the request's memory limit")
 }
 
-/// The longest text [`read`] parses on the caller's own stack.
+/// The longest text [`read`] and [`read_against`] parse on the caller's own
+/// stack.
 ///
 /// Each nesting level takes at least one byte, so a text this short nests at
 /// most this deep. A helper is entered with at least `nvs_runtime`'s
 /// `STACK_RESERVE` of stack left, and
-/// `the_deepest_short_text_parses_in_the_unwinding_reserve` checks that this many
-/// levels fit in it on the debug profile.
+/// `the_deepest_short_text_parses_in_the_unwinding_reserve` and
+/// `a_decode_as_parses_its_deepest_short_text_in_the_unwinding_reserve` check
+/// that this many levels fit in it on the debug profile.
 const IN_PLACE_BYTES: usize = 64;
 
 /// Reads one whole document, refusing anything after it.
@@ -1909,16 +1940,20 @@ fn read_with(text: &str, max: u32, lists: Option<&Lists>) -> Result<Value, serde
     }
 }
 
-/// The arrays one [`read_marked`] parse built from a JSON list, by address.
+/// The arrays one class decode's parse built from a JSON list, by address.
 ///
 /// A JSON list and a JSON object both become one `NvsArray`, and `["a"]` has
 /// the same entries as `{"0": "a"}`, so the array alone cannot say which the
 /// document wrote. A class decodes from an object only, and this is how it
 /// tells a list apart. An address is unique while the document is alive,
-/// which is the whole of the decode that asks.
+/// which is the whole of the decode that asks. [`read_marked`] notes every
+/// list it builds. [`decode_as`]'s parse notes each list [`Decode`] builds
+/// inside it, and a list [`FillList`] reads is a [`Found::List`], which needs
+/// no note.
 ///
-/// **What it spends:** one address per JSON list in the document, on a class
-/// decode only, freed with the decode. The document's own size bounds it.
+/// **What it spends:** one address per array built from a JSON list, on a
+/// class decode only, freed with the decode. The document's own size bounds
+/// it.
 #[derive(Debug, Default)]
 pub(crate) struct Lists(std::cell::RefCell<std::collections::HashSet<usize>>);
 
@@ -2046,6 +2081,15 @@ nvs_runtime::nvs_helper! {
 /// contract checked once, the document read once, and then one instance —
 /// or, for `list`, one per element of a JSON array.
 ///
+/// The text is read in one pass against the contract ([`Fill`]): an object
+/// the class fills is read into one slot per field ([`Read`]), and never into
+/// an array. Every check [`Decode`] makes still applies, at the same place,
+/// with the same message. Once the parse has ended, [`walk`] builds the
+/// instances out of that tree, so no constructor runs before the whole
+/// document has parsed. A class that wrote [`DECODE`] is handed the document
+/// as it arrived, so its text is read by [`read_marked`] and built by
+/// [`hydrate`].
+///
 /// The two shapes share this frame because the codec questions are the
 /// contract's and not the document's: an `Opaque` field is a decoder this crate
 /// has not written, whether it is asked for once or a thousand times.
@@ -2081,26 +2125,657 @@ pub(crate) unsafe fn decode_as(
         check_codec(class, shape, member)?;
     }
     let lists = Lists::default();
-    let document = read_marked(text, max, &lists).map_err(|why| {
+    let unparsed = |why: serde_json::Error| {
         let message = format!("{member}(): {why}");
         let issues = crate::issue::list([("", message.as_str())]);
         Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
-    })?;
+    };
     #[expect(
         unsafe_code,
-        reason = "the same live descriptor the caller vouched for"
+        reason = "the caller guarantees the descriptor and the contract are live"
     )]
-    unsafe {
-        hydrate(
-            ctx,
-            class,
-            shape,
-            document,
-            list,
-            Reading::Wire(&lists),
-            member,
-        )
+    let contract = unsafe { Contract::new(class, shape) }.over(Reading::Wire(&lists));
+    if contract.writes_decoder() {
+        let document = read_marked(text, max, &lists).map_err(unparsed)?;
+        #[expect(
+            unsafe_code,
+            reason = "the same live descriptor the caller vouched for"
+        )]
+        return unsafe {
+            hydrate(
+                ctx,
+                class,
+                shape,
+                document,
+                list,
+                Reading::Wire(&lists),
+                member,
+            )
+        };
     }
+    let tree = read_against(text, max, contract, list).map_err(unparsed)?;
+    #[expect(
+        unsafe_code,
+        reason = "the same live descriptor the caller vouched for, and a tree this \
+                  frame keeps alive across the walk"
+    )]
+    let decoded = unsafe {
+        if list {
+            decode_each(ctx, contract, tree.seen(), member)
+        } else {
+            decode_object(ctx, contract, tree.seen(), None, member)
+        }
+    };
+    // Every value an instance kept out of the tree took a reference of its own
+    // on the way past, so dropping the tree frees exactly what nothing else
+    // holds.
+    drop(tree);
+    decoded
+}
+
+// ============================================================================
+// Reading a document against a contract — `decodeAs`'s one pass
+// ============================================================================
+
+/// One value [`Fill`] read: the generic value [`Decode`] builds, or an object
+/// or a list read against the contract.
+///
+/// The read builds an [`Found::Object`] only for a contract the walk fills
+/// field by field, and a [`Found::List`] only where a list's elements nest such
+/// an object. Everything else is a [`Found::Value`], so the walk meets every
+/// value it judges in the same form [`hydrate`]'s callers hand it.
+///
+/// Dropping one releases every value under it. The drop takes no native frame
+/// per level: it moves each container's children onto one heap list and frees
+/// them from there, so a tree nested to [`DEPTH_CEILING`] frees on any stack.
+enum Found {
+    /// A value [`Decode`] read, with the one reference that read made.
+    Value(Value),
+    /// A JSON object read against a field list.
+    Object(Read),
+    /// A JSON list whose elements were read against a list field's element.
+    List(Vec<Found>),
+}
+
+/// One JSON object read against a contract's field list.
+///
+/// **What it spends:** one slot of `size_of::<Option<Found>>()` per field of
+/// the contract, per object filled. The keys are not kept: a key the contract
+/// declares is the slot's index, and a key it does not declare is checked and
+/// dropped while the object is read.
+struct Read {
+    /// One slot per entry of [`Contract::fields`], at that field's index, and
+    /// `None` where the object has no such key.
+    found: Box<[Option<Found>]>,
+}
+
+impl Found {
+    /// This value as the walk reads it.
+    fn seen(&self) -> Seen<'_> {
+        match self {
+            Self::Value(value) => Seen::Value(*value),
+            Self::Object(read) => Seen::Object(read),
+            Self::List(items) => Seen::List(items),
+        }
+    }
+
+    /// Moves this value's children onto `pending`, and leaves it with none.
+    fn drain_into(&mut self, pending: &mut Vec<Self>) {
+        match self {
+            Self::Value(_) => {}
+            Self::Object(read) => {
+                pending.extend(
+                    std::mem::take(&mut read.found)
+                        .into_vec()
+                        .into_iter()
+                        .flatten(),
+                );
+            }
+            Self::List(items) => pending.append(items),
+        }
+    }
+}
+
+impl Drop for Found {
+    fn drop(&mut self) {
+        if let Self::Value(value) = self {
+            #[expect(
+                unsafe_code,
+                reason = "a `Found::Value` owns the one reference its read made, and \
+                          the walk took its own reference to anything it kept"
+            )]
+            unsafe {
+                value.release();
+            }
+            return;
+        }
+        // Each child is emptied before it drops, so the drop below never
+        // recurses.
+        let mut pending = Vec::new();
+        self.drain_into(&mut pending);
+        while let Some(mut next) = pending.pop() {
+            next.drain_into(&mut pending);
+        }
+    }
+}
+
+/// One value the walk reads: the document's own value, or an object or a list
+/// [`Fill`] read against the contract.
+///
+/// The walk is one walk over both. [`hydrate`]'s callers hand it values, and
+/// [`decode_as`] hands it the tree [`Fill`] read.
+#[derive(Clone, Copy)]
+enum Seen<'a> {
+    /// A value, borrowed from whoever owns the document.
+    Value(Value),
+    /// An object read against the contract the walk is filling.
+    Object(&'a Read),
+    /// A list whose elements were read against the field's element.
+    List(&'a [Found]),
+}
+
+/// The object one [`Fields`] frame reads its fields from.
+enum Object<'a> {
+    /// An array the document built, borrowed. A field is found by its key.
+    Array(std::mem::ManuallyDrop<NvsArray>),
+    /// An object [`Fill`] read. A field is found by its index.
+    Read(&'a Read),
+}
+
+impl<'a> Object<'a> {
+    /// The `index`th field's value, whose wire key is `key`, or `None` where
+    /// the object has no such key.
+    fn field(&self, index: usize, key: &str) -> Option<Seen<'a>> {
+        match self {
+            Self::Array(array) => array.get(key.as_bytes()).map(Seen::Value),
+            Self::Read(read) => {
+                let read: &'a Read = read;
+                read.found.get(index)?.as_ref().map(Found::seen)
+            }
+        }
+    }
+}
+
+/// The list one [`Positions`] frame, or [`decode_each`], reads its positions
+/// from.
+enum Sequence<'a> {
+    /// An array the document built, borrowed, and the value it is, which a
+    /// message describes.
+    Array {
+        /// The array as a value.
+        found: Value,
+        /// The same array, borrowed.
+        items: std::mem::ManuallyDrop<NvsArray>,
+    },
+    /// A list [`Fill`] read.
+    Read(&'a [Found]),
+}
+
+impl<'a> Sequence<'a> {
+    /// How many positions the list has.
+    fn count(&self) -> usize {
+        match self {
+            Self::Array { items, .. } => items.count(),
+            Self::Read(items) => items.len(),
+        }
+    }
+
+    /// The value at position `at`, or `None` where an array has no such
+    /// position: a JSON object read where a list was declared.
+    fn at(&self, at: usize) -> Option<Seen<'a>> {
+        match self {
+            Self::Array { items, .. } => i64::try_from(at)
+                .ok()
+                .and_then(|position| items.get_index(position))
+                .map(Seen::Value),
+            Self::Read(items) => {
+                let items: &'a [Found] = items;
+                items.get(at).map(Found::seen)
+            }
+        }
+    }
+
+    /// What the list is, for an issue's "found" half.
+    fn describe(&self, contract: Contract<'_>) -> &'static str {
+        match self {
+            Self::Array { found, .. } => contract.describe(*found),
+            Self::Read(_) => "a list",
+        }
+    }
+}
+
+/// The engine fault for a value the read built in a form the walk does not
+/// take there: an object or a list where the wire type reads a value, or the
+/// reverse.
+///
+/// Unreachable: [`Fill`] builds an object or a list only where the walk takes
+/// one, and both read the same contract. `key` is the field the walk was
+/// reading, and `None` for the document itself.
+fn misread(contract: Contract<'_>, key: Option<&str>) -> Fault {
+    let place = key.map_or_else(|| "document".to_owned(), |key| format!("`{key}` field"));
+    Fault::fatal(format!(
+        "internal error: `{}`'s {place} was read in a form its wire type does not take",
+        contract.name()
+    ))
+}
+
+/// The contract the `index`th field of `contract` fills field by field, or
+/// `None` where [`Decode`] reads its value instead.
+///
+/// `None` where the field names no class, where the class wrote [`DECODE`],
+/// and where a class carries no field list. In each of those the walk takes
+/// the value as it arrived: it hands it to the member, or it reports the fault
+/// it reports for an array.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, for the descriptor the field names.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn filled<'a>(contract: Contract<'a>, index: usize) -> Option<Contract<'a>> {
+    let class = contract.class_at(index)?;
+    #[expect(unsafe_code, reason = "the descriptor `nvs-codegen` resolved is live")]
+    let nested = unsafe { Contract::new(class, contract.shape_at(index)) }.over(contract.reading);
+    let walked = !nested.writes_decoder() && (nested.is_shape() || !nested.fields().is_empty());
+    walked.then_some(nested)
+}
+
+/// The visitor methods [`Fill`] and [`FillList`] hand to [`Decode`] unchanged:
+/// a scalar is the same value whatever reads it.
+macro_rules! decoded_scalars {
+    () => {
+        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("a JSON value")
+        }
+
+        fn visit_unit<E: serde::de::Error>(self) -> Result<Found, E> {
+            Visitor::visit_unit(self.decode).map(Found::Value)
+        }
+
+        fn visit_bool<E: serde::de::Error>(self, value: bool) -> Result<Found, E> {
+            Visitor::visit_bool(self.decode, value).map(Found::Value)
+        }
+
+        fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<Found, E> {
+            Visitor::visit_i64(self.decode, value).map(Found::Value)
+        }
+
+        fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Found, E> {
+            Visitor::visit_u64(self.decode, value).map(Found::Value)
+        }
+
+        fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<Found, E> {
+            Visitor::visit_f64(self.decode, value).map(Found::Value)
+        }
+
+        fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Found, E> {
+            Visitor::visit_str(self.decode, value).map(Found::Value)
+        }
+    };
+}
+
+/// The visitor that reads one value where `contract` fills an object: a JSON
+/// object becomes a [`Read`], and every other value is [`Decode`]'s.
+///
+/// `Copy`, as [`Decode`] is, and small, because the parse takes one native
+/// frame of it per nesting level. The slots live on the heap.
+#[derive(Clone, Copy)]
+struct Fill<'a> {
+    /// This value's level, its cap, and the lists the parse notes.
+    decode: Decode<'a>,
+    /// The class or shape the object fills.
+    contract: Contract<'a>,
+}
+
+impl<'de> DeserializeSeed<'de> for Fill<'_> {
+    type Value = Found;
+
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Found, D::Error> {
+        deserializer.deserialize_any(self)
+    }
+}
+
+impl<'de> Visitor<'de> for Fill<'_> {
+    type Value = Found;
+
+    decoded_scalars!();
+
+    fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Found, A::Error> {
+        Visitor::visit_seq(self.decode, seq).map(Found::Value)
+    }
+
+    /// [`Decode::visit_map`]'s checks in the same order, with the same
+    /// messages: the depth first, the memory asked for in front of each step,
+    /// and a repeated key refused once its value is read.
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Found, A::Error> {
+        let Self { decode, contract } = self;
+        if decode.depth >= decode.max {
+            return Err(decode.too_deep());
+        }
+        let fields = contract.fields();
+        let slots = size_of::<Option<Found>>().saturating_mul(fields.len());
+        if !nvs_runtime::budget::affords(size_of::<Read>().saturating_add(slots)) {
+            return Err(over_memory());
+        }
+        let mut read = Read {
+            found: std::iter::repeat_with(|| None).take(fields.len()).collect(),
+        };
+        // The keys the contract does not declare, kept only to refuse a
+        // repeat, and made only once the first one appears.
+        let mut undeclared: Option<std::collections::HashSet<Cow<'de, str>>> = None;
+        while let Some(key) = map.next_key_seed(Key)? {
+            if !nvs_runtime::budget::affords(size_of::<Value>().saturating_add(key.len())) {
+                return Err(over_memory());
+            }
+            let child = decode.child();
+            if let Some(index) = fields.iter().position(|field| field.key == *key) {
+                let found = map.next_value_seed(Typed::field(child, contract, index))?;
+                // `read.found` has one slot per field. On the refusal,
+                // dropping `found` releases what it read.
+                let slot = &mut read.found[index];
+                if slot.is_some() {
+                    return Err(repeated(&key));
+                }
+                *slot = Some(found);
+            } else {
+                // Read in full, so every check on it is made, and then
+                // released: no field takes it. Its lists are not noted,
+                // because `Lists` is keyed by address and the release frees
+                // that address for an array the parse builds later.
+                let value = map.next_value_seed(Decode {
+                    lists: None,
+                    ..child
+                })?;
+                #[expect(
+                    unsafe_code,
+                    reason = "the value is the one reference this read made, and \
+                              nothing else holds it"
+                )]
+                unsafe {
+                    value.release();
+                }
+                let seen = undeclared.get_or_insert_with(std::collections::HashSet::new);
+                if seen.contains(&*key) {
+                    return Err(repeated(&key));
+                }
+                // The entry, and the set's growth when it is full, are asked
+                // for in front of the insert that allocates them.
+                let grow = if seen.len() == seen.capacity() {
+                    seen.capacity().max(4).saturating_mul(size_of::<Cow<'_, str>>())
+                } else {
+                    0
+                };
+                if !nvs_runtime::budget::affords(
+                    size_of::<Cow<'_, str>>()
+                        .saturating_add(key.len())
+                        .saturating_add(grow),
+                ) {
+                    return Err(over_memory());
+                }
+                seen.insert(key);
+            }
+        }
+        Ok(Found::Object(read))
+    }
+}
+
+/// The visitor that reads one value where a JSON list is expected whose
+/// elements nest an object the contract fills: a JSON list becomes a
+/// [`Found::List`], and every other value is [`Decode`]'s.
+///
+/// `element` is the link of the field's element chain each element is read
+/// against, and `None` for a document that is an `array<T>`, whose every
+/// element is an object of `contract` itself.
+#[derive(Clone, Copy)]
+struct FillList<'a> {
+    /// This value's level, its cap, and the lists the parse notes.
+    decode: Decode<'a>,
+    /// The contract whose field this list is, or whose objects it lists.
+    contract: Contract<'a>,
+    /// That field's index. Every label at every depth is read through it.
+    index: usize,
+    /// The element each position is read against.
+    element: Option<&'a nvs_runtime::CodecElement>,
+}
+
+impl<'de> Visitor<'de> for FillList<'_> {
+    type Value = Found;
+
+    decoded_scalars!();
+
+    /// [`Decode::visit_seq`]'s checks in the same order, with the same
+    /// messages.
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Found, A::Error> {
+        let Self {
+            decode,
+            contract,
+            index,
+            element,
+        } = self;
+        if decode.depth >= decode.max {
+            return Err(decode.too_deep());
+        }
+        let mut items = Vec::new();
+        loop {
+            // Each element's place, and the vector's growth when it is full,
+            // are asked for in front of the push that allocates them. The
+            // first growth is the vector itself.
+            let grow = if items.len() == items.capacity() {
+                items.capacity().max(4).saturating_mul(size_of::<Found>())
+            } else {
+                0
+            };
+            if !nvs_runtime::budget::affords(size_of::<Found>().saturating_add(grow)) {
+                return Err(over_memory());
+            }
+            let child = decode.child();
+            let next = match element {
+                None => seq.next_element_seed(Fill {
+                    decode: child,
+                    contract,
+                })?,
+                Some(element) => {
+                    seq.next_element_seed(Typed::link(child, contract, index, element))?
+                }
+            };
+            let Some(found) = next else {
+                break;
+            };
+            items.push(found);
+        }
+        Ok(Found::List(items))
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Found, A::Error> {
+        Visitor::visit_map(self.decode, map).map(Found::Value)
+    }
+}
+
+/// The seed that reads one value by its wire type: a field's, or a link of a
+/// list field's element chain.
+///
+/// A class or a shape the walk fills is read by [`Fill`], and a list whose
+/// chain ends in one by [`FillList`]. Everything else is read by [`Decode`],
+/// whose own visitor, unchanged, makes every check on it.
+#[derive(Clone, Copy)]
+struct Typed<'a> {
+    /// This value's level, its cap, and the lists the parse notes.
+    decode: Decode<'a>,
+    /// The contract whose field this value is.
+    contract: Contract<'a>,
+    /// That field's index, which every label is read through.
+    index: usize,
+    /// The wire type the value is read as.
+    ty: CodecTy,
+    /// The element of a list, where `ty` is one.
+    element: Option<&'a nvs_runtime::CodecElement>,
+}
+
+impl<'a> Typed<'a> {
+    /// The seed for the `index`th field's value.
+    fn field(decode: Decode<'a>, contract: Contract<'a>, index: usize) -> Self {
+        let field = &contract.fields()[index];
+        Self {
+            decode,
+            contract,
+            index,
+            ty: field.ty,
+            element: field.element.as_ref(),
+        }
+    }
+
+    /// The seed for one position of a list read against `element`.
+    fn link(
+        decode: Decode<'a>,
+        contract: Contract<'a>,
+        index: usize,
+        element: &'a nvs_runtime::CodecElement,
+    ) -> Self {
+        Self {
+            decode,
+            contract,
+            index,
+            ty: element.ty,
+            element: element.element.as_deref(),
+        }
+    }
+}
+
+impl<'de> DeserializeSeed<'de> for Typed<'_> {
+    type Value = Found;
+
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Found, D::Error> {
+        let Self {
+            decode,
+            contract,
+            index,
+            ty,
+            element,
+        } = self;
+        match ty {
+            CodecTy::Class | CodecTy::Shape => {
+                #[expect(
+                    unsafe_code,
+                    reason = "every descriptor under a decode is the caller's or one \
+                              `nvs-codegen` resolved out of the same class table"
+                )]
+                let nested = unsafe { filled(contract, index) };
+                if let Some(nested) = nested {
+                    return deserializer.deserialize_any(Fill {
+                        decode,
+                        contract: nested,
+                    });
+                }
+            }
+            CodecTy::List => {
+                if let Some(element) = element
+                    && matches!(element.terminal(), CodecTy::Class | CodecTy::Shape)
+                {
+                    return deserializer.deserialize_any(FillList {
+                        decode,
+                        contract,
+                        index,
+                        element: Some(element),
+                    });
+                }
+            }
+            _ => {}
+        }
+        decode.deserialize(deserializer).map(Found::Value)
+    }
+}
+
+/// The seed for one object key: borrowed from the text where the key has no
+/// escape in it, and copied only where it has one.
+struct Key;
+
+impl<'de> DeserializeSeed<'de> for Key {
+    type Value = Cow<'de, str>;
+
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
+        deserializer.deserialize_str(self)
+    }
+}
+
+impl<'de> Visitor<'de> for Key {
+    type Value = Cow<'de, str>;
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("a string")
+    }
+
+    fn visit_borrowed_str<E: serde::de::Error>(self, value: &'de str) -> Result<Self::Value, E> {
+        Ok(Cow::Borrowed(value))
+    }
+
+    fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(Cow::Owned(value.to_owned()))
+    }
+
+    fn visit_string<E: serde::de::Error>(self, value: String) -> Result<Self::Value, E> {
+        Ok(Cow::Owned(value))
+    }
+}
+
+/// The refusal of a key written twice in one object, as [`Decode::visit_map`]
+/// words it.
+fn repeated<E: serde::de::Error>(key: &str) -> E {
+    E::custom(format!("the key {key:?} appears twice in one object"))
+}
+
+/// Reads one whole document against `contract`, refusing anything after it:
+/// [`read_with`]'s choice of stack, for [`Fill`]'s parse.
+///
+/// `list` reads an `array<T>` document, whose elements are each an object of
+/// `contract`. The contract's reading is [`Reading::Wire`], and its lists are
+/// where the parse notes each JSON list [`Decode`] builds.
+fn read_against(
+    text: &str,
+    max: u32,
+    contract: Contract<'_>,
+    list: bool,
+) -> Result<Found, serde_json::Error> {
+    if text.len() <= IN_PLACE_BYTES {
+        parse_against(text, max, contract, list)
+    } else {
+        nvs_host::on_spare_stack(|| parse_against(text, max, contract, list))
+    }
+}
+
+/// [`read_against`]'s parse, on whatever stack it is called on, with
+/// [`parse`]'s reason for `disable_recursion_limit`.
+fn parse_against(
+    text: &str,
+    max: u32,
+    contract: Contract<'_>,
+    list: bool,
+) -> Result<Found, serde_json::Error> {
+    let lists = match contract.reading {
+        Reading::Wire(lists) => Some(lists),
+        Reading::Values => None,
+    };
+    let mut deserializer = serde_json::Deserializer::from_str(text);
+    deserializer.disable_recursion_limit();
+    let decode = Decode {
+        depth: 1,
+        max,
+        lists,
+    };
+    let found = if list {
+        (&mut deserializer).deserialize_any(FillList {
+            decode,
+            contract,
+            index: 0,
+            element: None,
+        })?
+    } else {
+        (&mut deserializer).deserialize_any(Fill { decode, contract })?
+    };
+    // On an error, `found` drops here and releases everything it read.
+    deserializer.end()?;
+    Ok(found)
 }
 
 /// The field list one decode walks and the class it fills: a class's own
@@ -2466,14 +3141,17 @@ unsafe fn hand_written(
     })
 }
 
-/// One instance of `class` out of a document already read — or, for `list`, one
-/// per element of it.
+/// One instance of `class` out of a document already read into arrays — or,
+/// for `list`, one per element of it.
 ///
-/// Split out of [`decode_as`] for a borrow: `Core\Request::jsonAs` reads its
-/// document out of the octets the request holds, and the `&mut Ctx` this half
-/// needs cannot be taken while that borrow is live. Reading is the half that
-/// needs no context, so the two halves are two calls. The caller owes
-/// [`check_codec`] first.
+/// The door for a caller that holds the document's values already.
+/// `Core\Request::jsonAs` reads its document out of the octets the request
+/// holds, and the `&mut Ctx` this half needs cannot be taken while that borrow
+/// is live, so reading and building are two calls there. `Core\Arr::shapeAs`
+/// and the request wrappers over it are handed arrays a program or a form
+/// built. [`decode_as`] reads its text against the class itself ([`Fill`]),
+/// and comes here only for a class that wrote [`DECODE`], whose member is
+/// handed the document as it arrived. The caller owes [`check_codec`] first.
 ///
 /// `document` is transferred: this releases it whichever branch ran and whether
 /// or not it failed.
@@ -2514,9 +3192,9 @@ pub(crate) unsafe fn hydrate(
     )]
     let decoded = unsafe {
         if list {
-            decode_each(ctx, contract, document, member)
+            decode_each(ctx, contract, Seen::Value(document), member)
         } else {
-            decode_object(ctx, contract, document, None, member)
+            decode_object(ctx, contract, Seen::Value(document), None, member)
         }
     };
     // Released here whichever branch ran and whether or not it failed: every
@@ -2554,10 +3232,10 @@ pub(crate) unsafe fn hydrate(
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
 )]
-unsafe fn decode_each(
+unsafe fn decode_each<'a>(
     ctx: &mut nvs_runtime::Ctx,
-    contract: Contract<'_>,
-    document: Value,
+    contract: Contract<'a>,
+    document: Seen<'a>,
     member: &str,
 ) -> Result<Value, Fault> {
     let refusal = || {
@@ -2568,20 +3246,24 @@ unsafe fn decode_each(
         let issues = crate::issue::list([("", message.as_str())]);
         Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
     };
-    let Some(ptr) = contract.list_of(document) else {
-        return Err(refusal());
+    let source = match document {
+        Seen::List(items) => Sequence::Read(items),
+        Seen::Value(found) => match contract.list_of(found) {
+            Some(ptr) => Sequence::Array {
+                found,
+                items: crate::arr::borrowed(ptr),
+            },
+            None => return Err(refusal()),
+        },
+        Seen::Object(_) => return Err(misread(contract, None)),
     };
-    let source = crate::arr::borrowed(ptr);
     let mut decoded = NvsArray::new();
     for index in 0..source.count() {
         // A position that is not there is an object arriving at a list
         // decode: `{"a": 1}` has a count of one and no index 0. A wire decode
         // has already refused every JSON object above, and this test is what
         // tells an array a program built from a list.
-        let element = i64::try_from(index)
-            .ok()
-            .and_then(|position| source.get_index(position))
-            .ok_or_else(refusal)?;
+        let element = source.at(index).ok_or_else(refusal)?;
         // Dropping `decoded` on the way out releases every instance already
         // built, which is what the early return owes.
         #[expect(
@@ -2610,10 +3292,10 @@ unsafe fn decode_each(
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
 )]
-unsafe fn decode_object(
+unsafe fn decode_object<'a>(
     ctx: &mut nvs_runtime::Ctx,
-    contract: Contract<'_>,
-    document: Value,
+    contract: Contract<'a>,
+    document: Seen<'a>,
     at: Option<usize>,
     member: &str,
 ) -> Result<Value, Fault> {
@@ -2622,6 +3304,9 @@ unsafe fn decode_object(
     // question: [`DECODE`] takes a `mixed`, and a list decode reaches here once
     // per element, so each element goes over on its own.
     if contract.writes_decoder() {
+        let Seen::Value(document) = document else {
+            return Err(misread(contract, None));
+        };
         #[expect(
             unsafe_code,
             reason = "the same live descriptor, and the caller's own reference \
@@ -2629,7 +3314,14 @@ unsafe fn decode_object(
         )]
         return unsafe { hand_written(ctx, contract, document, member) };
     }
-    let Some(ptr) = contract.object_of(document) else {
+    let found = match document {
+        Seen::Object(read) => Some(Object::Read(read)),
+        Seen::Value(document) => contract
+            .object_of(document)
+            .map(|ptr| Object::Array(crate::arr::borrowed(ptr))),
+        Seen::List(_) => return Err(misread(contract, None)),
+    };
+    let Some(source) = found else {
         let message = match at {
             None => format!(
                 "{member}(): a `{}` decodes from a JSON object",
@@ -2650,7 +3342,6 @@ unsafe fn decode_object(
         ));
     };
 
-    let source = crate::arr::borrowed(ptr);
     #[expect(
         unsafe_code,
         reason = "the same live descriptor, and a borrow of the document's own object"
@@ -2793,7 +3484,7 @@ impl<'a> Issue<'a> {
 unsafe fn decode_fields<'a>(
     ctx: &mut nvs_runtime::Ctx,
     contract: Contract<'a>,
-    source: std::mem::ManuallyDrop<NvsArray>,
+    source: Object<'a>,
 ) -> Result<Value, DecodeFailure<'a>> {
     #[expect(
         unsafe_code,
@@ -2889,9 +3580,9 @@ unsafe fn walk<'a>(
 struct Fields<'a> {
     /// The class or shape the object builds.
     contract: Contract<'a>,
-    /// The document's object. It is borrowed, because [`hydrate`]'s caller
-    /// keeps the whole document alive across the walk.
-    source: std::mem::ManuallyDrop<NvsArray>,
+    /// The document's object. It is borrowed, because the caller of the walk
+    /// keeps the whole document alive across it.
+    source: Object<'a>,
     /// The index of the next field to read.
     next: usize,
     /// One owned reference per position filled, and `null` in the others.
@@ -2913,7 +3604,7 @@ impl Drop for Fields<'_> {
 
 impl<'a> Fields<'a> {
     /// A frame for `source`, with no field read yet.
-    fn new(contract: Contract<'a>, source: std::mem::ManuallyDrop<NvsArray>) -> Self {
+    fn new(contract: Contract<'a>, source: Object<'a>) -> Self {
         let arity = contract.arity();
         Self {
             contract,
@@ -3096,10 +3787,8 @@ struct Positions<'a> {
     element: &'a nvs_runtime::CodecElement,
     /// The field's enum roster, where `element` is an enum.
     cases: Option<&'a EnumCases>,
-    /// The array itself, which a message describes.
-    found: Value,
-    /// The same array, borrowed as [`Fields::source`] is.
-    source: std::mem::ManuallyDrop<NvsArray>,
+    /// The array, borrowed as [`Fields::source`] is.
+    source: Sequence<'a>,
     /// The next position to read.
     next: usize,
     /// The values built so far. Dropping it releases every one.
@@ -3138,13 +3827,10 @@ impl<'a> Positions<'a> {
             // A JSON object reads back as one `NvsArray` too, so a position that
             // is not there is `{"a": 1}` arriving where a list was declared —
             // `decode_each` tells the two apart the same way.
-            let Some(item) = i64::try_from(at)
-                .ok()
-                .and_then(|position| self.source.get_index(position))
-            else {
+            let Some(item) = self.source.at(at) else {
                 return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
                     "expected an array, found {}",
-                    contract.describe(self.found)
+                    self.source.describe(contract)
                 ))])));
             };
             // A nested object at a position, whichever of the two kinds it is: a
@@ -3183,6 +3869,15 @@ impl<'a> Positions<'a> {
                     }
                 }
                 None => {
+                    // The read builds a nested object or list only at a
+                    // position whose element is one, so this is the document's
+                    // own value.
+                    let Seen::Value(item) = item else {
+                        return Step::Done(Err(DecodeFailure::Fault(misread(
+                            contract,
+                            Some(&field.key),
+                        ))));
+                    };
                     #[expect(
                         unsafe_code,
                         reason = "the document owns this element for the length of the walk"
@@ -3334,11 +4029,11 @@ unsafe fn decode_field<'a>(
     ctx: &mut nvs_runtime::Ctx,
     contract: Contract<'a>,
     index: usize,
-    source: &NvsArray,
+    source: &Object<'a>,
 ) -> Step<'a> {
     let field = &contract.fields()[index];
     let issue = |why: String| Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(why)])));
-    let Some(found) = source.get(field.key.as_bytes()) else {
+    let Some(found) = source.field(index, &field.key) else {
         // `nvs_runtime::CodecField::required` is what tells the two absences
         // apart, and this is the presence column alone: a required field fails
         // whatever its type admits.
@@ -3418,16 +4113,30 @@ unsafe fn convert_field<'a>(
     ctx: &mut nvs_runtime::Ctx,
     contract: Contract<'a>,
     index: usize,
-    found: Value,
+    found: Seen<'a>,
 ) -> Step<'a> {
     let field = &contract.fields()[index];
     let issue = |why: String| Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(why)])));
-    if found.tag() == Some(Tag::Null) {
+    if let Seen::Value(value) = found
+        && value.tag() == Some(Tag::Null)
+    {
         if field.nullable {
             return Step::Done(Ok(Value::null()));
         }
         return issue("null is not permitted".to_owned());
     }
+    // The read builds a nested object or list only for the two arms that
+    // return first below, so every scalar arm has the document's own value.
+    let held = match found {
+        Seen::Value(value) => Some(value),
+        Seen::Object(_) | Seen::List(_) => None,
+    };
+    let wrong_form = || {
+        Step::Done(Err(DecodeFailure::Fault(misread(
+            contract,
+            Some(&field.key),
+        ))))
+    };
     let converted = match field.ty {
         // `rule:core-classes/derive-property-list`'s nested class and its inline
         // shape, both decoded by running a field list over this key's object —
@@ -3452,6 +4161,9 @@ unsafe fn convert_field<'a>(
         | CodecTy::Str
         | CodecTy::Decimal
         | CodecTy::Instant => {
+            let Some(found) = held else {
+                return wrong_form();
+            };
             #[expect(
                 unsafe_code,
                 reason = "the document owns this value for the length of this call"
@@ -3467,6 +4179,9 @@ unsafe fn convert_field<'a>(
             let cases = match cases_of(contract, field) {
                 Ok(cases) => cases,
                 Err(fault) => return Step::Done(Err(fault)),
+            };
+            let Some(found) = held else {
+                return wrong_form();
             };
             #[expect(
                 unsafe_code,
@@ -3493,6 +4208,9 @@ unsafe fn convert_field<'a>(
         }
     };
     let Some(value) = converted else {
+        let Some(found) = held else {
+            return wrong_form();
+        };
         return issue(format!(
             "expected {}, found {}",
             wanted(field.ty),
@@ -3531,9 +4249,15 @@ unsafe fn decode_nested<'a>(
     ctx: &mut nvs_runtime::Ctx,
     contract: Contract<'a>,
     index: usize,
-    found: Value,
+    found: Seen<'a>,
 ) -> Step<'a> {
     let field = &contract.fields()[index];
+    let wrong_form = || {
+        Step::Done(Err(DecodeFailure::Fault(misread(
+            contract,
+            Some(&field.key),
+        ))))
+    };
     let Some(class) = contract.class_at(index) else {
         // Unreachable from source: `nvs_types::derive` refused a field type
         // with no codec at the declaration, so a label with no descriptor is
@@ -3554,6 +4278,9 @@ unsafe fn decode_nested<'a>(
     // and not only at the one the call site named: a field typed as a class
     // that wrote [`DECODE`] hands that member the value this key holds, whole.
     if nested.writes_decoder() {
+        let Seen::Value(found) = found else {
+            return wrong_form();
+        };
         #[expect(
             unsafe_code,
             reason = "the resolved descriptor, and the document's own value"
@@ -3577,6 +4304,13 @@ unsafe fn decode_nested<'a>(
             nested.name()
         )))));
     }
+    let found = match found {
+        Seen::Object(read) => {
+            return Step::Enter(Build::Fields(Fields::new(nested, Object::Read(read))));
+        }
+        Seen::Value(found) => found,
+        Seen::List(_) => return wrong_form(),
+    };
     let Some(ptr) = contract.object_of(found) else {
         return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
             "expected an object for `{}`, found {}",
@@ -3586,7 +4320,7 @@ unsafe fn decode_nested<'a>(
     };
     Step::Enter(Build::Fields(Fields::new(
         nested,
-        crate::arr::borrowed(ptr),
+        Object::Array(crate::arr::borrowed(ptr)),
     )))
 }
 
@@ -3770,7 +4504,7 @@ fn cases_of<'a>(
 /// — `tags.3`, which is `rule:core-classes/derive-reports-every-field`'s own example — and an element that is a class, a
 /// shape or a list of either nests once further, `authors.1.name` and
 /// `grid.2.0`.
-fn decode_list<'a>(contract: Contract<'a>, index: usize, found: Value) -> Step<'a> {
+fn decode_list<'a>(contract: Contract<'a>, index: usize, found: Seen<'a>) -> Step<'a> {
     let field = &contract.fields()[index];
     let Some(element) = field.element.as_ref() else {
         // Unreachable from source: `nvs_types::derive` writes the element
@@ -3799,14 +4533,29 @@ fn decode_positions<'a>(
     contract: Contract<'a>,
     index: usize,
     element: &'a nvs_runtime::CodecElement,
-    found: Value,
+    found: Seen<'a>,
 ) -> Step<'a> {
     let field = &contract.fields()[index];
-    let Some(ptr) = contract.list_of(found) else {
-        return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
-            "expected an array, found {}",
-            contract.describe(found)
-        ))])));
+    let source = match found {
+        Seen::List(items) => Sequence::Read(items),
+        Seen::Value(found) => {
+            let Some(ptr) = contract.list_of(found) else {
+                return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
+                    "expected an array, found {}",
+                    contract.describe(found)
+                ))])));
+            };
+            Sequence::Array {
+                found,
+                items: crate::arr::borrowed(ptr),
+            }
+        }
+        Seen::Object(_) => {
+            return Step::Done(Err(DecodeFailure::Fault(misread(
+                contract,
+                Some(&field.key),
+            ))));
+        }
     };
     // Resolved once rather than per position: an element's roster is the
     // field's own, as its class label is.
@@ -3823,8 +4572,7 @@ fn decode_positions<'a>(
         index,
         element,
         cases,
-        found,
-        source: crate::arr::borrowed(ptr),
+        source,
         next: 0,
         decoded: NvsArray::new(),
         issues: Vec::new(),
@@ -3854,9 +4602,15 @@ unsafe fn decode_element<'a>(
     ctx: &mut nvs_runtime::Ctx,
     contract: Contract<'a>,
     index: usize,
-    item: Value,
+    item: Seen<'a>,
 ) -> Step<'a> {
     let field = &contract.fields()[index];
+    let wrong_form = || {
+        Step::Done(Err(DecodeFailure::Fault(misread(
+            contract,
+            Some(&field.key),
+        ))))
+    };
     let Some(class) = contract.class_at(index) else {
         // Unreachable from source, as [`decode_nested`]'s twin: the element
         // type was refused at the declaration if it had no codec, so a label
@@ -3880,6 +4634,9 @@ unsafe fn decode_element<'a>(
     // member is handed one element at a time, as the enclosing walk hands it
     // one key's value.
     if element.writes_decoder() {
+        let Seen::Value(item) = item else {
+            return wrong_form();
+        };
         #[expect(
             unsafe_code,
             reason = "the resolved descriptor, and the document's own element"
@@ -3901,6 +4658,13 @@ unsafe fn decode_element<'a>(
             element.name()
         )))));
     }
+    let item = match item {
+        Seen::Object(read) => {
+            return Step::Enter(Build::Fields(Fields::new(element, Object::Read(read))));
+        }
+        Seen::Value(item) => item,
+        Seen::List(_) => return wrong_form(),
+    };
     let Some(ptr) = contract.object_of(item) else {
         return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
             "expected an object for `{}`, found {}",
@@ -3910,7 +4674,7 @@ unsafe fn decode_element<'a>(
     };
     Step::Enter(Build::Fields(Fields::new(
         element,
-        crate::arr::borrowed(ptr),
+        Object::Array(crate::arr::borrowed(ptr)),
     )))
 }
 
@@ -4134,6 +4898,331 @@ mod tests {
         let why = decoded_on_a_thread("[".repeat(IN_PLACE_BYTES), nvs_runtime::STACK_RESERVE)
             .expect_err("an unclosed list is not a document");
         assert!(why.contains("EOF while parsing a list"), "{why}");
+    }
+
+    /// A class `Node` whose one field, keyed `""`, nests another `Node`:
+    /// directly, or through a list of them where `through_a_list`. The key is
+    /// empty so a text nests as many levels per byte as a class can.
+    ///
+    /// Leaked for [`holder_class`]'s reason. Only [`read_against`] reads it,
+    /// so it needs no compiled constructor.
+    fn self_nesting_class(through_a_list: bool) -> *const ClassDesc {
+        let field = CodecField {
+            key: String::new(),
+            slot: 0,
+            param: 0,
+            ty: if through_a_list {
+                CodecTy::List
+            } else {
+                CodecTy::Class
+            },
+            element: through_a_list.then(|| nvs_runtime::CodecElement::leaf(CodecTy::Class)),
+            class: Some("Node".to_owned()),
+            cases: None,
+            shape: None,
+            nullable: true,
+            required: true,
+            default: None,
+        };
+        let mut table = ClassTable::new();
+        let id = table.define("Node", &[""], &[]);
+        let desc = table.desc(id);
+        table.set_codec(id, vec![field], 1, vec![desc], vec![std::ptr::null()]);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        table.desc(id)
+    }
+
+    /// Parses `text` against [`self_nesting_class`] at the ceiling, on a
+    /// thread whose own stack is `stack` bytes. The tree is dropped inside
+    /// that thread, because a refcount is a per-thread fact.
+    fn read_against_on_a_thread(
+        through_a_list: bool,
+        text: String,
+        stack: usize,
+    ) -> Result<(), String> {
+        let max = u32::try_from(DEPTH_CEILING).expect("the ceiling fits a u32");
+        std::thread::Builder::new()
+            .stack_size(stack)
+            .spawn(move || {
+                let class = self_nesting_class(through_a_list);
+                let lists = Lists::default();
+                #[expect(
+                    unsafe_code,
+                    reason = "`self_nesting_class` leaks its table, so the descriptor \
+                              outlives the parse"
+                )]
+                let contract = unsafe { Contract::new(class, None) }.over(Reading::Wire(&lists));
+                read_against(&text, max, contract, false)
+                    .map(drop)
+                    .map_err(|why| why.to_string())
+            })
+            .expect("a test thread is spawnable")
+            .join()
+            .expect("the parsing thread does not panic")
+    }
+
+    /// The deepest text [`read_against`] parses in place fits in the stack a
+    /// helper is always entered with, as [`read`]'s does. Each text nests a
+    /// class in itself, directly and through a list, and fails only at its
+    /// end.
+    #[test]
+    fn a_decode_as_parses_its_deepest_short_text_in_the_unwinding_reserve() {
+        let direct = r#"{"":"#.repeat(IN_PLACE_BYTES / 4);
+        let listed = format!(r#"{}{{"":"#, r#"{"":["#.repeat((IN_PLACE_BYTES - 4) / 5));
+        for (through_a_list, text) in [(false, direct), (true, listed)] {
+            assert!(text.len() <= IN_PLACE_BYTES, "{text}");
+            let why = read_against_on_a_thread(through_a_list, text, nvs_runtime::STACK_RESERVE)
+                .expect_err("an unclosed object is not a document");
+            assert!(why.contains("EOF while parsing a value"), "{why}");
+        }
+    }
+
+    /// [`a_document_at_the_ceiling_decodes_whatever_stack_the_caller_has`]
+    /// for [`read_against`]: a class nested in itself to the ceiling parses,
+    /// and its tree drops, on a thread whose own stack could not hold that
+    /// parse.
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_decode_as_document_at_the_ceiling_parses_whatever_stack_the_caller_has() {
+        let levels = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize") - 1;
+        let direct = format!(r#"{}null{}"#, r#"{"":"#.repeat(levels), "}".repeat(levels));
+        // Each unit is an object and a list, two levels, so one more object
+        // makes the count odd.
+        let units = levels / 2;
+        let listed = format!(
+            r#"{}{{"":null}}{}"#,
+            r#"{"":["#.repeat(units),
+            "]}".repeat(units)
+        );
+        for (through_a_list, text) in [(false, direct), (true, listed)] {
+            read_against_on_a_thread(through_a_list, text, 64 << 10)
+                .expect("the ceiling is decodable");
+        }
+    }
+
+    /// A shape of one `int` field per key, at the key's index. `keys` is
+    /// sorted, because a shape's slots are in its field names' order.
+    ///
+    /// Leaked for [`holder_class`]'s reason.
+    fn int_shape(keys: &[&str]) -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
+        let fields = keys
+            .iter()
+            .enumerate()
+            .map(|(at, key)| CodecField {
+                key: (*key).to_owned(),
+                slot: at,
+                param: at,
+                ty: CodecTy::Int,
+                element: None,
+                class: None,
+                cases: None,
+                shape: None,
+                nullable: false,
+                required: true,
+                default: None,
+            })
+            .collect();
+        let mut table = ClassTable::new();
+        let id = table.define("$shape{ints}", keys, &[]);
+        let shape = table.define_shape_codec(
+            fields,
+            vec![std::ptr::null(); keys.len()],
+            vec![std::ptr::null(); keys.len()],
+        );
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        (table.desc(id), shape)
+    }
+
+    /// `decodeAs` reads an object the shape fills into its slots, and builds
+    /// no array and no key string for it.
+    ///
+    /// The bound is the field count. A read into an array makes at least one
+    /// allocation per key, for the key's string, and the generic read of the
+    /// same text is asserted to reach it. The read into slots makes a fixed
+    /// few: the slots, the walk's two vectors and the instance.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_decode_as_builds_no_array_for_the_object_it_fills() {
+        let keys = ["a", "b", "c", "d", "e", "f", "g", "h"];
+        let (class, shape) = int_shape(&keys);
+        let document = format!(
+            "{{{}}}",
+            keys.iter()
+                .enumerate()
+                .map(|(at, key)| format!("\"{key}\":{at}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        let mut ctx = nvs_runtime::Ctx::buffered();
+
+        let lists = Lists::default();
+        let before = nvs_runtime::budget::allocations();
+        let generic =
+            read_marked(&document, DEFAULT_MAX_DEPTH_U32, &lists).expect("the document parses");
+        let by_array = nvs_runtime::budget::allocations() - before;
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            generic.release();
+        }
+        assert!(by_array >= keys.len(), "the generic read made {by_array}");
+
+        let before = nvs_runtime::budget::allocations();
+        #[expect(
+            unsafe_code,
+            reason = "`int_shape` leaks its table, so both addresses outlive \
+                      every object decoded against them"
+        )]
+        let decoded = unsafe {
+            decode_as(
+                &mut ctx,
+                class,
+                Some(shape),
+                &document,
+                DEFAULT_MAX_DEPTH_U32,
+                false,
+                r"Core\Json::decodeAs",
+            )
+        };
+        let by_slots = nvs_runtime::budget::allocations() - before;
+        let Ok(value) = decoded else {
+            panic!("every field is an `int`");
+        };
+        assert!(by_slots < keys.len(), "the read into slots made {by_slots}");
+
+        let ptr = value
+            .obj_ptr()
+            .expect("a decoded shape is always an object");
+        #[expect(
+            unsafe_code,
+            reason = "the value owns a reference to a live allocation, and the \
+                      rebuilt handle is never dropped, so nothing is released twice"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        for (at, key) in keys.iter().enumerate() {
+            assert_eq!(object.field(at).as_int(), i64::try_from(at).ok(), "{key}");
+        }
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// `decodeAs` refuses a key written twice in one object as
+    /// [`a_repeated_key_is_refused_and_named`] shows `decode` does, whether
+    /// or not the class declares the key, and at any depth.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_decode_as_refuses_a_repeated_key_the_class_does_not_declare() {
+        let (class, shape) = codec_class("Money", "amount", CodecTy::Decimal);
+        let (nested, nested_shape) = nested_shape_class();
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        for (class, shape, document, key) in [
+            (
+                class,
+                shape,
+                r#"{"amount":"1","extra":1,"extra":2}"#,
+                "extra",
+            ),
+            (
+                class,
+                shape,
+                r#"{"extra":[1],"amount":"1","extra":{"a":1}}"#,
+                "extra",
+            ),
+            (class, shape, r#"{"amount":"1","amount":"2"}"#, "amount"),
+            (nested, nested_shape, r#"{"meta":{"n":1,"n":2}}"#, "n"),
+            (nested, nested_shape, r#"{"meta":{"n":1,"x":1,"x":1}}"#, "x"),
+        ] {
+            #[expect(
+                unsafe_code,
+                reason = "both helpers leak their tables, so every address outlives \
+                          the decode"
+            )]
+            let outcome = unsafe {
+                decode_as(
+                    &mut ctx,
+                    class,
+                    Some(shape),
+                    document,
+                    DEFAULT_MAX_DEPTH_U32,
+                    false,
+                    r"Core\Json::decodeAs",
+                )
+            };
+            // The debug form escapes the message's quotes, so they are taken
+            // out before the message is compared.
+            let why = match outcome {
+                Ok(_) => panic!("`{document}` repeats `{key}`"),
+                Err(why) => format!("{why:?}").replace('\\', ""),
+            };
+            assert!(why.contains("Parse"), "{why}");
+            assert!(
+                why.contains(&format!(r#"the key "{key}" appears twice in one object"#)),
+                "{why}"
+            );
+        }
+    }
+
+    /// A JSON object that follows an undeclared JSON list is still an object.
+    ///
+    /// The undeclared list is freed during the parse, and the object built next
+    /// can take its address. `Lists` is keyed by address, so a noted undeclared
+    /// list would make the object read as a list and fill an `array<int>`.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn an_object_after_an_undeclared_list_is_not_read_as_a_list() {
+        let field = || CodecField {
+            key: "tags".to_owned(),
+            slot: 0,
+            param: 0,
+            ty: CodecTy::List,
+            element: Some(nvs_runtime::CodecElement::leaf(CodecTy::Int)),
+            class: None,
+            cases: None,
+            shape: None,
+            nullable: false,
+            required: true,
+            default: None,
+        };
+        let mut table = ClassTable::new();
+        let id = table.define("Tagged", &["tags"], &[]);
+        table.set_codec(
+            id,
+            vec![field()],
+            1,
+            vec![std::ptr::null()],
+            vec![std::ptr::null()],
+        );
+        let shape = table.define_shape_codec(
+            vec![field()],
+            vec![std::ptr::null()],
+            vec![std::ptr::null()],
+        );
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        #[expect(
+            unsafe_code,
+            reason = "the table is leaked, so both addresses outlive the decode"
+        )]
+        let outcome = unsafe {
+            decode_as(
+                &mut ctx,
+                table.desc(id),
+                Some(shape),
+                r#"{"extra":[1],"tags":{"0":1}}"#,
+                DEFAULT_MAX_DEPTH_U32,
+                false,
+                r"Core\Json::decodeAs",
+            )
+        };
+        let why = match outcome {
+            Ok(_) => panic!("a JSON object filled an `array<int>` field"),
+            Err(why) => format!("{why:?}"),
+        };
+        assert!(why.contains("1 value(s) of `Tagged` did not match"), "{why}");
     }
 
     #[test]
