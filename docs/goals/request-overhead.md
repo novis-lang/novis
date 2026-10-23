@@ -34,21 +34,21 @@ stages:
         rules: [security/bidi-predicate, security/bidi-boundaries, core-classes/html-escape-answers-markup, errors/on-limit]
   - id: 5
     title: a request reads its limits from a table its unit resolved once
-    status: open
+    status: done
     context: [crates/nvs-config/src/request.rs, crates/nvs-config/src/defaults.rs, crates/nvs-config/src/snapshot.rs, crates/nvs-runtime/src/ctx/limits.rs, crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-server/src/trace.rs, crates/nvs-stdlib/src/config.rs]
     extra:
       context:
         rules: [config/a-runtime-set-is-request-local, config/the-config-is-an-immutable-snapshot, config/a-request-keeps-the-unit-it-resolved, security/no-cross-request-state]
   - id: 6
     title: "a read the reactor has not reported ready, and a wake on a core's own task, make no system call"
-    status: open
+    status: done
     context: [crates/nvs-host/src/net.rs, crates/nvs-host/src/block_on.rs, crates/nvs-host/src/reactor.rs, crates/nvs-server/src/io.rs, crates/nvs-server/src/serve.rs]
     extra:
       context:
         rules: [concurrency/try-the-syscall-then-park, concurrency/a-waker-is-one-permission-to-poll, concurrency/one-permission-per-drive, http-server/four-idle-waits-all-finite, concurrency/connection-bounds-are-finite]
   - id: 7
     title: "pooled stacks do not grow: one pool per role, and pages go back when a core is idle"
-    status: open
+    status: done
     context: [crates/nvs-host/src/stack.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/isolate.rs, crates/nvs-cli/src/serve.rs]
     extra:
       context:
