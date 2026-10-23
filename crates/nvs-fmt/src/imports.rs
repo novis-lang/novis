@@ -8,16 +8,20 @@
 //! `use A\{B, C};` form in Novis, so a declaration names one path and the sort
 //! key is that path's own text.
 //!
-//! **What moves is the path, not the declaration.** A run is a permutation of
-//! itself, which is [`crate::modifiers`]'s shape one step larger: each path
-//! goes out at a place one of the run's own paths was written, and everything
-//! else in the run stays exactly where it was put. That is not an
-//! optimization — the printer writes a file as trivia and the code runs
-//! between them, so an edit has to lie inside one run
-//! ([`print::one_code_run`]), and `use Core\Str;` is two of them either side of
-//! the space after the keyword. Its path is one, and it is also the only thing
-//! that differs between two declarations: the keyword, the spacing and the
-//! semicolon are the same bytes in every one.
+//! **What moves is the import and its comments.** An import is the
+//! declaration, every comment written directly above it on lines of their own
+//! with no blank line between, and a comment after its `;` on the same line.
+//! The comment describes the import, so it goes wherever the import goes. A
+//! run is a permutation of those elements: each one goes out at the place one
+//! of the run's own elements was written, and the whitespace between two places
+//! stays where it was.
+//!
+//! An element spans trivia, and the printer applies each edit inside one code
+//! run ([`crate::print::one_code_run`]), so the sort is not an edit the printer
+//! makes. [`sorted`] writes the file's text with every run in order, and
+//! [`crate::format()`] parses that text again and prints it. Every other rule
+//! then places the moved lines exactly as it places lines the author wrote,
+//! comment lines included.
 //!
 //! Three things end a run, and a run of one is never sorted:
 //!
@@ -25,100 +29,165 @@
 //!   statements come from [`nvs_syntax::Parsed`] rather than from a scan, so an
 //!   import written inside a bracketed `namespace` is one this reaches and a
 //!   `use` written inside a string literal is not.
-//! - **A comment between two of them.** A comment is content the formatter has
-//!   no opinion about (`rule:tooling/fmt-quotes`) and it is not part of the
-//!   declaration below it, so sorting across one would leave it describing an
-//!   import it was not written for. Keeping the run on this side of it is the
-//!   direction that cannot be wrong, and it is a known gap in
-//!   [`the crate's own doc`](crate) rather than a rule: what closes it is a
-//!   comment that belongs to the declaration it precedes.
-//! - **A path this cannot move whole**, which is one with a comment inside it,
+//! - **A comment that belongs to no import**: one with a blank line between it
+//!   and the import below. It describes the imports around it, or none, so the
+//!   imports on each side of it are sorted apart.
+//! - **A path this cannot sort by**, which is one with a comment inside it,
 //!   and an `as Alias` — an import cannot be renamed
 //!   (`rule:statements/nothing-gets-a-second-name`), so a declaration carrying
 //!   one is a file on its way to a diagnostic and its bytes are left as its
 //!   author typed them.
+//!
+//! # What it spends
+//!
+//! Nothing for a file whose runs are already in order. A file with a run out
+//! of order costs one more copy of its text and one more parse, both dropped
+//! once it is printed.
 
-use nvs_diagnostics::BytePos;
 use nvs_syntax::ast::{Stmt, StmtKind, UseDecl};
 use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
-use crate::print::{self, Rewrite};
+use crate::print;
 
-/// Every import path `parsed` writes somewhere other than where it was
-/// written, in source order and covering no byte twice.
+/// `text` with every run of imports in path order, or [`None`] when every run
+/// already is.
 ///
 /// `text` must be `parsed`'s own file: every span is an offset into it.
-pub(crate) fn rewrites<'t>(parsed: &Parsed, text: &'t str) -> Vec<Rewrite<'t>> {
-    let mut out = Vec::new();
-    push_block(&mut out, &parsed.stmts, &parsed.trivia, text);
-    out
+pub(crate) fn sorted(parsed: &Parsed, text: &str) -> Option<String> {
+    let mut moves = Vec::new();
+    push_block(&mut moves, &parsed.stmts, &parsed.trivia, text);
+    if moves.is_empty() {
+        return None;
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut cursor = 0;
+    for (place, belongs) in moves {
+        out.push_str(&text[cursor..place.start]);
+        out.push_str(&text[belongs.start..belongs.end]);
+        cursor = place.end;
+    }
+    out.push_str(&text[cursor..]);
+    Some(out)
+}
+
+/// The bytes one import covers: the comments it carries and its declaration.
+#[derive(Clone, Copy)]
+struct Element<'a> {
+    start: usize,
+    end: usize,
+    decl: &'a UseDecl,
 }
 
 /// Adds what each run of imports in `stmts` owes, and descends into the
 /// namespace bodies that hold runs of their own.
-fn push_block<'t>(out: &mut Vec<Rewrite<'t>>, stmts: &[Stmt], trivia: &[Trivia], text: &'t str) {
-    let mut run: Vec<&UseDecl> = Vec::new();
+fn push_block<'a>(
+    moves: &mut Vec<(Element<'a>, Element<'a>)>,
+    stmts: &'a [Stmt],
+    trivia: &[Trivia],
+    text: &str,
+) {
+    let mut run: Vec<Element<'a>> = Vec::new();
     for stmt in stmts {
         if let StmtKind::UseDecl(decl) = &stmt.kind {
-            let broken = run
+            let element = element(trivia, text, decl);
+            let joined = run
                 .last()
-                .is_some_and(|above| commented(trivia, above.span.end, decl.span.start));
-            if broken || !sortable(trivia, decl) {
-                push_run(out, &run, text);
+                .is_some_and(|above| text[above.end..element.start].trim().is_empty());
+            if !joined || !sortable(trivia, decl) {
+                push_run(moves, &run, text);
                 run.clear();
             }
             if sortable(trivia, decl) {
-                run.push(decl);
+                run.push(element);
             }
             continue;
         }
-        push_run(out, &run, text);
+        push_run(moves, &run, text);
         run.clear();
         if let StmtKind::NamespaceDecl(decl) = &stmt.kind
             && let Some(body) = &decl.body
         {
-            push_block(out, &body.stmts, trivia, text);
+            push_block(moves, &body.stmts, trivia, text);
         }
     }
-    push_run(out, &run, text);
+    push_run(moves, &run, text);
 }
 
 /// Adds what one run owes, which is nothing when it is already in order.
-fn push_run<'t>(out: &mut Vec<Rewrite<'t>>, run: &[&UseDecl], text: &'t str) {
+fn push_run<'a>(moves: &mut Vec<(Element<'a>, Element<'a>)>, run: &[Element<'a>], text: &str) {
     if run.len() < 2 {
         return;
     }
     let mut sorted = run.to_vec();
-    sorted.sort_by(|left, right| path(text, left).cmp(path(text, right)));
-    for (place, belongs) in run.iter().zip(sorted) {
-        if belongs.path.span.start == place.path.span.start {
-            continue;
-        }
-        out.push(Rewrite {
-            start: place.path.span.start as usize,
-            end: place.path.span.end as usize,
-            written: path(text, belongs),
-        });
+    sorted.sort_by(|left, right| path(text, left.decl).cmp(path(text, right.decl)));
+    if run
+        .iter()
+        .zip(&sorted)
+        .all(|(place, belongs)| place.start == belongs.start)
+    {
+        return;
     }
+    moves.extend(run.iter().copied().zip(sorted));
 }
 
-/// One declaration's sort key, and the bytes that go out at another's place:
-/// the full path, backslashes and all.
+/// `decl` and the comments that belong to it.
+///
+/// A comment above belongs to it when it opens its own line and only
+/// whitespace without a blank line separates it from the declaration or from
+/// another comment that belongs to it. A comment after the `;` belongs to it
+/// when no line break comes first.
+fn element<'a>(trivia: &[Trivia], text: &str, decl: &'a UseDecl) -> Element<'a> {
+    let mut start = decl.span.start as usize;
+    let mut before = trivia.partition_point(|trivium| (trivium.span.end as usize) <= start);
+    while before >= 2 {
+        let (gap, comment) = (trivia[before - 1], trivia[before - 2]);
+        let gap_text = &text[gap.span.start as usize..gap.span.end as usize];
+        let ends_where_it_starts = gap.span.end as usize == start;
+        if !ends_where_it_starts
+            || gap.kind != TriviaKind::Whitespace
+            || comment.kind == TriviaKind::Whitespace
+            || gap_text.matches('\n').count() > 1
+            || !opens_its_line(text, comment.span.start as usize)
+        {
+            break;
+        }
+        start = comment.span.start as usize;
+        before -= 2;
+    }
+    let mut end = decl.span.end as usize;
+    let mut after = trivia.partition_point(|trivium| (trivium.span.start as usize) < end);
+    if let Some(gap) = trivia.get(after).filter(|gap| {
+        gap.span.start as usize == end
+            && gap.kind == TriviaKind::Whitespace
+            && !text[gap.span.start as usize..gap.span.end as usize].contains('\n')
+    }) {
+        end = gap.span.end as usize;
+        after += 1;
+    }
+    match trivia.get(after) {
+        Some(comment)
+            if comment.span.start as usize == end && comment.kind != TriviaKind::Whitespace =>
+        {
+            end = comment.span.end as usize;
+        }
+        _ => end = decl.span.end as usize,
+    }
+    Element { start, end, decl }
+}
+
+/// Whether only spaces and tabs come between the start of its line and
+/// `offset`.
+fn opens_its_line(text: &str, offset: usize) -> bool {
+    let line_start = text[..offset].rfind('\n').map_or(0, |brk| brk + 1);
+    text[line_start..offset].trim_start_matches([' ', '\t']).is_empty()
+}
+
+/// One declaration's sort key: the full path, backslashes and all.
 fn path<'t>(text: &'t str, decl: &UseDecl) -> &'t str {
     &text[decl.path.span.start as usize..decl.path.span.end as usize]
 }
 
-/// Whether `decl`'s path is bytes the printer can write somewhere else.
+/// Whether `decl`'s path is one run of code the sort can read whole.
 fn sortable(trivia: &[Trivia], decl: &UseDecl) -> bool {
     decl.alias.is_none() && print::one_code_run(trivia, decl.path.span)
-}
-
-/// Whether anything but whitespace was written between `from` and `to`, which
-/// are the end of one import and the start of the next.
-fn commented(trivia: &[Trivia], from: BytePos, to: BytePos) -> bool {
-    let first = trivia.partition_point(|trivium| trivium.span.start < from);
-    trivia[first..]
-        .iter()
-        .take_while(|trivium| trivium.span.start < to)
-        .any(|trivium| trivium.kind != TriviaKind::Whitespace)
 }

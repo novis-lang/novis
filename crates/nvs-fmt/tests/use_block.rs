@@ -45,18 +45,41 @@ class Job
 }
 
 #[test]
-fn a_comment_between_two_imports_holds_them_apart() {
+fn a_comment_moves_with_the_import_it_was_written_above_or_beside() {
     let source = "\
 <?nvs
 use Core\\Str;
-// the two below are the queue's
+// Runs the jobs.
+/* One per queue. */
+use App\\Worker;
+use App\\Queue; // the queue itself
+";
+    let sorted = "\
+<?nvs
+use App\\Queue; // the queue itself
+// Runs the jobs.
+/* One per queue. */
+use App\\Worker;
+use Core\\Str;
+";
+    assert_eq!(formatted(source), sorted);
+}
+
+#[test]
+fn a_comment_a_blank_line_away_from_the_next_import_holds_the_block_apart() {
+    let source = "\
+<?nvs
+use Core\\Str;
+// The two below are the queue's.
+
 use App\\Worker;
 use App\\Queue;
 ";
     let sorted = "\
 <?nvs
 use Core\\Str;
-// the two below are the queue's
+// The two below are the queue's.
+
 use App\\Queue;
 use App\\Worker;
 ";

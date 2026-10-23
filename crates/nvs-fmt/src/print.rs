@@ -19,8 +19,7 @@
 //!
 //! A code run is copied byte for byte, save for the edits that write something
 //! other than what is there, each of them a [`Rewrite`]: a modifier list goes
-//! out in its canonical order ([`crate::modifiers`]), a run of imports in path
-//! order ([`crate::imports`]), a run [`Runs`] requires where its author wrote
+//! out in its canonical order ([`crate::modifiers`]), a run [`Runs`] requires where its author wrote
 //! none, and a literal the quote rule respells
 //! gets the delimiters — a multi-line list the comma, and a mis-cased reserved
 //! spelling its lower-case letters — that [`crate::tokens`] decides.
@@ -36,7 +35,7 @@ use nvs_diagnostics::{Diagnostics, SourceFile, Span};
 use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
 use crate::indent::Indent;
-use crate::{brace, chain, imports, list, modifiers, space, statement, tokens};
+use crate::{brace, chain, list, modifiers, space, statement, tokens};
 
 /// One run of bytes, and what the printer writes in its place.
 ///
@@ -145,7 +144,6 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) 
     wanted.extend(statement::runs(&indent));
     let runs = Runs::new(wanted, &parsed.trivia);
     let mut edits = modifiers::rewrites(parsed, text);
-    edits.extend(imports::rewrites(parsed, text));
     edits.extend(tokens::rewrites(&parsed.index, text, &parsed.trivia));
     edits.extend(tokens::spellings(reported, text));
     // An insertion sorts before the run that starts where it does, and a
