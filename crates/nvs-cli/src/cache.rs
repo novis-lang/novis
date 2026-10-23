@@ -187,6 +187,7 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use memmap2::{Mmap, MmapOptions};
 use nvs_config::cache::{Digest, EnvHash, artifact_key, content_hash, env_hash};
@@ -1164,6 +1165,35 @@ pub(crate) enum Stored {
     AlreadyPresent,
 }
 
+/// One published artifact as a walk finds it: its `mtime`, its length and its path.
+type Artifact = (SystemTime, u64, PathBuf);
+
+/// What one walk of [`Cache::gc`] or [`Cache::clear`] removed, and what it could not.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Swept {
+    /// The artifacts deleted.
+    pub(crate) removed: u64,
+    /// Their bytes.
+    pub(crate) freed: u64,
+    /// The artifacts the walk tried to delete and the platform kept. On Windows that is routinely
+    /// a file another process has open; the next walk finds it again.
+    pub(crate) skipped: u64,
+}
+
+impl Swept {
+    /// Delete the artifact at `path` and count it, as removed or as skipped. `true` when it went.
+    fn remove(&mut self, path: &Path, len: u64) -> bool {
+        if fs::remove_file(path).is_ok() {
+            self.removed += 1;
+            self.freed += len;
+            true
+        } else {
+            self.skipped += 1;
+            false
+        }
+    }
+}
+
 /// One cache directory, and the environment every artifact in it was compiled against.
 ///
 /// Holding `env` here rather than passing it per call is what keeps § 2's header field and § 1's
@@ -1418,9 +1448,9 @@ impl Cache {
     }
 
     /// § 6's walk: delete oldest-by-`mtime` artifacts until the cache is under the hysteresis
-    /// floor, and answer what that freed.
+    /// floor, and answer what that removed.
     ///
-    /// This is the deterministic half of § 6 — what `nvs cache gc` will call, and what
+    /// This is the deterministic half of § 6 — what `nvs cache gc` calls, and what
     /// [`maybe_gc`](Self::maybe_gc) calls with a probability in front of it. **Nothing on the read
     /// path calls it**: § 6 buys the warm-hit cost by putting every size question here.
     ///
@@ -1431,11 +1461,56 @@ impl Cache {
     ///
     /// # Errors
     ///
-    /// Whatever reading the cache directory said.
-    pub(crate) fn gc(&self) -> io::Result<u64> {
+    /// Whatever reading the cache directory said. A directory that does not exist yet is an empty
+    /// cache, and no error.
+    pub(crate) fn gc(&self) -> io::Result<Swept> {
+        let (mut total, mut artifacts) = self.artifacts()?;
+        let mut swept = Swept::default();
+        if total <= self.eviction.max_size {
+            return Ok(swept);
+        }
+
+        // Oldest first, which is the only order § 6 names.
+        artifacts.sort_unstable_by_key(|(modified, _, _)| *modified);
+        let floor = self.eviction.max_size / 100 * GC_FLOOR_PERCENT;
+        for (_, len, path) in artifacts {
+            if total <= floor {
+                break;
+            }
+            if swept.remove(&path, len) {
+                total -= len;
+            }
+        }
+        Ok(swept)
+    }
+
+    /// `nvs cache clear`: delete every artifact, whatever the cap, and answer what that removed.
+    ///
+    /// The same walk as [`gc`](Self::gc) with no size question, so it leaves `.tmp-` files alone
+    /// for the same reason.
+    ///
+    /// # Errors
+    ///
+    /// Whatever reading the cache directory said, as for [`gc`](Self::gc).
+    pub(crate) fn clear(&self) -> io::Result<Swept> {
+        let (_, artifacts) = self.artifacts()?;
+        let mut swept = Swept::default();
+        for (_, len, path) in artifacts {
+            swept.remove(&path, len);
+        }
+        Ok(swept)
+    }
+
+    /// Every published artifact under the root with its `mtime` and length, and their total.
+    fn artifacts(&self) -> io::Result<(u64, Vec<Artifact>)> {
         let mut total = 0;
         let mut artifacts = Vec::new();
-        for shard in fs::read_dir(&self.dir)? {
+        let shards = match fs::read_dir(&self.dir) {
+            Ok(shards) => shards,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok((0, artifacts)),
+            Err(err) => return Err(err),
+        };
+        for shard in shards {
             let shard = shard?.path();
             if !shard.is_dir() {
                 continue;
@@ -1450,26 +1525,7 @@ impl Cache {
                 artifacts.push((meta.modified()?, meta.len(), entry.path()));
             }
         }
-        if total <= self.eviction.max_size {
-            return Ok(0);
-        }
-
-        // Oldest first, which is the only order § 6 names.
-        artifacts.sort_unstable_by_key(|(modified, _, _)| *modified);
-        let floor = self.eviction.max_size / 100 * GC_FLOOR_PERCENT;
-        let mut freed = 0;
-        for (_, len, path) in artifacts {
-            if total <= floor {
-                break;
-            }
-            // A file another process is reading refuses to be deleted on Windows. It is the
-            // newest-but-one problem of a moment, and the next walk will find it again.
-            if fs::remove_file(&path).is_ok() {
-                total -= len;
-                freed += len;
-            }
-        }
-        Ok(freed)
+        Ok((total, artifacts))
     }
 
     /// The temp file, header then payload, synced and closed.
