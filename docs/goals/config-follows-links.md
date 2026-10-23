@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-cli/src/reload.rs, crates/nvs-config/src/resolve.rs, crates/nvs-config/src/trust.rs]
   - id: 2
     title: "the directory holding a link is checked, a real cluster applies a changed ConfigMap, and the rule and the guide say so"
-    status: open
+    status: done
     context: [crates/nvs-server/src/mount.rs, crates/nvs-cli/src/serve/mounts.rs, crates/nvs-config/src/snapshot.rs, website/src/content/docs/guides/production/docker.mdx]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
@@ -73,12 +73,14 @@ read-only mount.** That is the kubelet's ConfigMap volume, measured on `kind` as
 a read-only `ext4` mount. Every other check stays as the 2026-10-22 call says, the file's own
 directory included. Built as `trust::platform::check_link_holder` (`crates/nvs-config/src/trust.rs`).
 
-**The gap this goal owns is closed here, by withholding every `[[app]]` block's `[db]` files.**
-Security-hardening handed `a-mount-entrys-own-database-files-are-not-withheld` to this goal. An
-entry's snapshot is folded lazily (`Published::entry`), and the mount table is chosen before the
-entry is known. So the table withholds the `[db]` paths of the host tree and of every `[[app]]`
-block, matched or not. Withholding a file one entry does not use only refuses a static request for a
-database file, so it costs no correct request. Memory: four paths per `[db]` block, per table.
+**The gap this goal owns is closed here, and its premise did not hold.** Security-hardening handed
+`a-mount-entrys-own-database-files-are-not-withheld` to this goal, on the reading that a mount entry's
+tree could name a `[db]` file of its own. It cannot: `tree::App` is `deny_unknown_fields` with no
+`db` field, and a mount reads no `nvs.toml` of its own, so every `[db]` path is the host tree's,
+includes merged, and `Table::from_config` already withheld it. The real hole was the reload: a core
+kept its table when only a `[db]` path moved, so the new file was served. `Local::table` now compares
+`nvs_server::mount::databases` of both snapshots too, with no allocation. Memory: nothing new. A
+future `[app.db]` table would have to feed `databases` as well.
 
 **The check notices a swap.** The stamp gains the file's identity: device and inode on Unix, the file
 index on Windows (`crates/nvs-cli/src/reload.rs:561`). Then a swap to a file with the same time and size
@@ -127,12 +129,12 @@ ConfigMap reaches a running server on `kind`, and the rule and the guide describ
   - [x] The guide's Deployment serves the `nvs` image, and a changed ConfigMap prints the reload line.
 - [x] The rule says a root is stored as given and read through its links on every reload, and that the directory holding a link is checked. Its title changes to match. `docs/rules/config/the-resolved-root-is-announced-and-stored.md:1`, `data/rules/config/the-resolved-root-is-announced-and-stored.json:2`, `docs/rules/config/ownership-is-the-trust-boundary.md:1`
 - [x] The Docker guide says the server reads a changed ConfigMap by itself once Kubernetes updates the file, and the restart step is gone. `website/src/content/docs/guides/production/docker.mdx:1`
-- [ ] Static serving withholds every `[db]` file the tree names, an `[[app]]` block's included, and a reload that changes only `[db]` builds a new table (the gap `a-mount-entrys-own-database-files-are-not-withheld`). `crates/nvs-server/src/mount.rs:281`, `crates/nvs-cli/src/serve/mounts.rs:139`
-  - [ ] `Table::from_config` takes the `[db]` paths of the host tree and of every `[[app]]` block.
-  - [ ] `switches` in `serve/mounts.rs` compares the withheld paths too.
-  - [ ] A served test fetches an `[[app]]` block's SQLite file under the static root and gets `404`, before and after a reload that moves it.
-  - [ ] The gap record `data/gaps/nvs-server/a-mount-entrys-own-database-files-are-not-withheld.json` is deleted.
-- [ ] `bun nv rules --render` and `bun nv owners --closes config-follows-links` are clean. `docs/rules/config.md:1`
+- [x] Static serving withholds every `[db]` file the tree names, and a reload that changes only `[db]` builds a new table (the gap `a-mount-entrys-own-database-files-are-not-withheld`). `crates/nvs-server/src/mount.rs:281`, `crates/nvs-cli/src/serve/mounts.rs:139`
+  - [x] `Table::from_config` takes the `[db]` paths of the host tree, which are all of them: an `[[app]]` block has no `[db]` table (see `## Standing decisions`).
+  - [x] `Local::table` compares the withheld paths too.
+  - [x] A test: the SQLite file under the static root falls through to the entry before and after a reload that moves it, and the table is rebuilt. `a_snapshot_that_moves_only_a_database_file_rebuilds_the_table`, run once, green.
+  - [x] The gap record `data/gaps/nvs-server/a-mount-entrys-own-database-files-are-not-withheld.json` is deleted.
+- [x] `bun nv rules --render` and `bun nv owners --closes config-follows-links` are clean. `docs/rules/config.md:1`
 
 ### 3. the goal is verified once, and every failure is fixed
 
@@ -144,8 +146,14 @@ ConfigMap reaches a running server on `kind`, and the rule and the guide describ
 
 ### State
 
-**Stage 2 is built except for one item: the gap this goal owns.** `d8` is answered, recorded under
-`## Standing decisions` and closed. `trust::check` walks the path as given and checks the parent of
+**Stage 2 is done, and stage 3, the gate, is next.** The gap this goal owned is closed in
+`216fd2d3e`: an `[[app]]` block has no `[db]` table, so the host's `[db]` paths were already every
+file to withhold, and `Local::table` now rebuilds the table when only a `[db]` path moves
+(`crates/nvs-cli/src/serve/mounts.rs:169`, `nvs_server::mount::databases`). Its test
+`a_snapshot_that_moves_only_a_database_file_rebuilds_the_table` ran once, green.
+`bun nv rules --render` and `bun nv owners --closes config-follows-links` are clean.
+
+`d8` is answered, recorded under `## Standing decisions` and closed. `trust::check` walks the path as given and checks the parent of
 each link through `platform::check_link_holder`, which skips the mode test for a root-owned
 directory on a read-only mount (`crates/nvs-config/src/trust.rs:136`, `:248`). Its unit test is
 `a_root_owned_link_holder_on_a_read_only_mount_skips_the_mode_test`. `tests/trust.rs` has a private
@@ -175,24 +183,41 @@ The modes the previous session measured, in a busybox pod:
 Stage 1 is built: `Root` stores each root as given (`crates/nvs-cli/src/config.rs:618`), and
 `Stamp` carries the file's identity (`crates/nvs-cli/src/reload.rs:517`).
 
-The acceptance sweep's `env-secret-proofs` exits 0 on disk, and run 39922764699 is the nightly the
-previous handoff traced to fix commits. Clippy is clean. The only tests run were `--test trust`,
-once, green on Windows.
+**The acceptance sweep, traced this session.** `env-secret-proofs` exits 0 on disk (`bun nv proofs
+--gate --only 'Core\Env::secret'`, run this session). Nightly run 39922764699 ran on `7b6ef53ee`.
+Every red job in it but one is fixed by a later commit, each checked by name at HEAD: the
+property-observer probe guard by `42409d10d`, the four Windows serve tests by `ba8930b80`, the macOS
+redirect case by `342675093`, the proofs gate by `ba8e5e8bd` and `9270c45c4`, linux-aarch64's
+isolation flood by `922abf5f0`, conformance's extension CPU time by `dc3a2ed29`, asan's Windows alias
+by `93919e633`, and the website check by `f6ce06671`. The cancelled jobs were cancelled behind those.
+
+**One is still red at HEAD: the cost guard
+`serve::tests::live_bytes_stay_flat_while_one_core_serves_thousands_of_requests`**
+(`crates/nvs-cli/src/serve.rs:4465`, `cargo test --release -p nvs-cli --bin nvs -- --ignored <name>`).
+It failed on macOS in the nightly, and fails on Windows at HEAD: about +2.2 KB per 50-request
+keep-alive connection. A bisect names `040873f47` (`feat(runtime): a turn's memory is charged to the
+request tree that ran it`). Its parent `53e203709` passes. It was not fixed this session because it
+is a runtime slice outside this goal's files.
 
 ### Next
 
-**Stage 2's last item: the gap `a-mount-entrys-own-database-files-are-not-withheld`**, whose design
-is under `## Standing decisions`. `bun nv owners --closes config-follows-links` names it, and it is
-the only thing it names.
+**First, the live-bytes cost guard, because a balance that grows with traffic is a leak in the
+accounting** (`rule:security/isolate-budget-is-the-trees`). The bisect's reading, a pointer to check:
+the memory is freed, but the accept loop's tree is charged for each connection's spawn and never
+credited.
 
-- [ ] `Table::from_config` withholds the `[db]` paths of every `[[app]]` block beside the host's. `AppBlocks` (`crates/nvs-config/src/snapshot.rs:416`) has the blocks, and the table is built at `crates/nvs-server/src/mount.rs:281`. A block's `path` is absolute once resolved: confirm that for an `[[app]]` block before you filter on `is_absolute`.
-- [ ] `switches` compares the withheld paths, so a reload that changes only `[db]` builds a new table. Today it keeps the old one. `crates/nvs-cli/src/serve/mounts.rs:139`
-- [ ] A test: an `[[app]]` block's SQLite file under the static root is `404`, before and after a reload. The host-tree cases to copy are unit tests in `crates/nvs-server/src/mount.rs:1832` and `crates/nvs-server/src/mount.rs:1878`.
-- [ ] Delete the gap record, then `bun nv owners --closes config-follows-links` is clean. Set stage 2 to `done`. `data/gaps/nvs-server/a-mount-entrys-own-database-files-are-not-withheld.json:1`
+- [ ] Confirm the cause. `serve_on_this_core` spawns each connection with `spawn_child` (`crates/nvs-server/src/serve.rs:3203`), which allocates the child's `Ctx`, its `Arc<TreeState>`, the closure and the task node on the accept loop's turn. These are freed in the child's last turn (`crates/nvs-host/src/scheduler.rs:1124`, `end_in_its_turn`), so the accept tree's `TreeState::balance` (`crates/nvs-runtime/src/ctx/safepoint.rs:687`) only grows. A new tree's balance is seeded from it in `Ctx::leave_this_stack` (`crates/nvs-runtime/src/ctx/limits.rs:287`).
+- [ ] Fix it so the bytes belong to the tree that frees them. The simpler option: at spawn, move the measured construction bytes from the parent's balance to the child's starting balance in `leave_this_stack`. The other option: free the child's spawn-time state as a turn of the parent's tree. Pick by the priority ordering, and record it in the module doc. `crates/nvs-runtime/src/ctx/limits.rs:287`
+- [ ] A runtime test beside `children_that_together_cross_the_ceiling_are_each_over_it`: a parent spawns and joins many children, and its `live_bytes()` stays flat. `crates/nvs-host/src/group.rs:1340`
+- [ ] The cost guard passes, run once by name with the command above. `crates/nvs-cli/src/serve.rs:4465`
 
-Tests that may go red: none expected. `live_config.rs` keeps its roots without links. The new Unix
-test `a_link_in_a_group_writable_folder_is_refused_at_reload_and_at_boot` is unrun.
+**Then stage 3, the gate:** `looper verify` over the whole goal, every failure fixed in one pass,
+then once more. Then the goal-end gates in AGENTS.md § *In the loop*.
+
+Tests that may go red at the gate: the Unix test
+`a_link_in_a_group_writable_folder_is_refused_at_reload_and_at_boot` has never run.
+`live_config.rs` keeps its roots without links, so none of its cases should change.
 
 ### Backlog
 
-- Stage 3, the gate.
+- Nothing beyond stage 3.
