@@ -432,7 +432,9 @@ under a running process reloads the file the operator can see rather than an unl
 `nvs.toml` that appears in the working directory later is not read until the next boot. A boot on
 the shipped defaults reloads the shipped defaults. The configuration check stats each stored root
 as given, beside the files the tree reached, and a stamp carries the file's identity, so a link that
-points at a new file with the same time and size is still noticed.
+points at a new file with the same time and size is still noticed. Because the link decides the
+file, the directory that holds each link on the stored path is ownership-checked like the file's own
+([`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary)), at boot and on every reload.
 
 `nvs serve` prints the root as it was found, the path it was read from, and every file the tree
 reached, on standard error before it binds:
@@ -649,6 +651,17 @@ included and not only the mode: an entry can be replaced by whoever can write th
 it, whatever the file's own bits say. A failure is a refusal to start (`E0607`), naming the path and
 the mode, and it is re-run on every reload.
 
+**The directory that holds each link on the path as given is checked too.** A reload reads a root
+through its links again ([`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored)), so whoever can write
+the directory a link sits in chooses the file the next reload reads. Every prefix of the path that is a
+link has its parent checked, a `current` link above the file as well as the file's own link. A path
+with no link is checked as the file and its directory alone. A link's directory has one waiver the
+file's directory lacks: **a root-owned directory on a read-only mount skips the mode test.** That is
+the kubelet's ConfigMap volume, measured on `kind`: `0777 root:root` on a read-only `ext4` mount,
+holding `override.toml -> ..data/override.toml` and `..data -> ..<timestamp>`. No account in the pod
+can write it, and only root on the node changes it. A directory another account owns, or one on a
+writable mount, keeps the mode test. The waiver is `trust::platform::check_link_holder`.
+
 The configuration grants capabilities, so whoever can write any file in the tree can grant themselves
 every one of them, and a running server publishes a saved file without a restart. The cache directory
 already gets this refusal, and a file that grants `process.exec` cannot have less protection than a
@@ -689,7 +702,12 @@ private to its account and never re-permissions one that exists: it checks it.
 - **The full check on the default data folder.** It is correct in principle and unusable on a stock
   Windows drive, and it protects only against an account that could replace the binary anyway.
 - **Waiving the mode test on a read-only mount too.** A writable mode under `:ro` is either a
-  mistake or Docker Desktop's `0777`, and the container cannot tell the two apart.
+  mistake or Docker Desktop's `0777`, and the container cannot tell the two apart. Only a
+  root-owned directory that holds a link has that waiver, because a ConfigMap volume is exactly that.
+- **The mode test on a link's directory with no waiver.** It refuses every Kubernetes ConfigMap,
+  whose volume directory is `0777 root:root` on a read-only mount.
+- **The waiver for a link's directory another account owns.** Docker Desktop's `0777` bind mount
+  belongs to the host's account, and that is the case the mode test is kept for.
 - **A configuration key that turns the check off.** It would be written in the file the check
   guards, so whoever can write the file could turn it off.
 

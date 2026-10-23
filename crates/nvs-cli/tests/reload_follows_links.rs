@@ -252,3 +252,81 @@ fn a_swapped_current_link_is_read_by_the_next_check() {
 
     server.awaits("same-origin");
 }
+
+/// A `current` link in a folder its group can write. The reload that follows a
+/// swap there is refused with `E0607`, and the old value keeps serving. A boot
+/// through the same link is refused too.
+#[cfg(unix)]
+#[test]
+fn a_link_in_a_group_writable_folder_is_refused_at_reload_and_at_boot() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let base = nvs_repo::scratch_private("follows-links-shared");
+    let program = program(&base);
+    let one = base.join("releases").join("1");
+    let two = base.join("releases").join("2");
+    for (release, policy) in [(&one, "no-referrer"), (&two, "same-origin")] {
+        write_file(&release.join("nvs.toml"), ROOT);
+        write_file(&release.join("headers.toml"), &headers(policy));
+    }
+    let shared = base.join("shared");
+    std::fs::create_dir(&shared).expect("the folder the link sits in");
+    let current = shared.join("current");
+    link_dir(&one, &current);
+    let root = current.join("nvs.toml");
+
+    let server = Server::start(&program, &root);
+    server.awaits("no-referrer");
+    std::fs::set_permissions(&shared, std::fs::Permissions::from_mode(0o775))
+        .expect("a group-writable mode");
+    std::fs::remove_file(&current).expect("`current` is unlinked");
+    link_dir(&two, &current);
+    let started = Instant::now();
+    while !server.stderr.lock().expect("no reader panicked").contains("E0607") {
+        assert!(
+            started.elapsed() <= BOUND,
+            "no reload refusal after {BOUND:?}; the server wrote: {}",
+            server.stderr.lock().expect("no reader panicked")
+        );
+        thread::sleep(POLL);
+    }
+    assert_eq!(server.policy().as_deref(), Some("no-referrer"));
+    drop(server);
+
+    let data = nvs_repo::scratch_private("follows-links-shared-data");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--config")
+        .arg(&root)
+        .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
+        .current_dir(&program)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the `nvs` binary this test was built beside starts");
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().expect("the child can be waited on") {
+            break status;
+        }
+        if started.elapsed() > BOOT {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("`nvs serve` still runs after {BOOT:?} through a shared link");
+        }
+        thread::sleep(POLL);
+    };
+    let mut said = String::new();
+    child
+        .stderr
+        .take()
+        .expect("standard error is piped")
+        .read_to_string(&mut said)
+        .expect("standard error is text");
+    assert!(
+        !status.success() && said.contains("E0607"),
+        "the boot is refused by the link's folder ({status}): {said}"
+    );
+}

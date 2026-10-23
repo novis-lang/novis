@@ -122,6 +122,98 @@ fn a_file_in_a_world_writable_directory_is_a_breach_too() {
     );
 }
 
+/// A link to the folder `target` at `at`. On Windows a junction, which needs no right, is made
+/// where a symbolic link cannot be.
+fn link_dir(target: &std::path::Path, at: &std::path::Path) {
+    #[cfg(unix)]
+    let linked = std::os::unix::fs::symlink(target, at).is_ok();
+    #[cfg(windows)]
+    let linked = std::os::windows::fs::symlink_dir(target, at).is_ok()
+        || nvs_repo::spawn("cmd", &[])
+            .arg("/C")
+            .arg("mklink")
+            .arg("/J")
+            .arg(at)
+            .arg(target)
+            .output()
+            .is_ok_and(|out| out.status.success());
+    assert!(linked, "`{}` could not be linked", at.display());
+}
+
+/// A link deploy, `current` pointing at a release folder: the directory that holds the link is
+/// checked as well as the folder the file is in, because whoever can write it picks the file the
+/// next reload reads. A private directory holding the link passes.
+#[test]
+fn a_link_in_a_private_directory_passes() {
+    let dir = scratch("link-private");
+    let release = dir.join("releases").join("1");
+    fs::create_dir_all(&release).expect("a release folder");
+    fs::write(release.join("nvs.toml"), "").expect("a configuration file");
+    link_dir(&release, &dir.join("current"));
+
+    let trusted = check(&dir.join("current").join("nvs.toml")).expect("every directory is private");
+    assert!(
+        trusted.ends_with(std::path::Path::new("releases").join("1").join("nvs.toml")),
+        "the canonical path is the release's file: {trusted:?}",
+    );
+}
+
+/// The same deploy, with the directory that holds `current` group-writable. The release folder
+/// and the file are private, so only the link's directory can be the breach, and the refusal names
+/// it and the link.
+#[cfg(unix)]
+#[test]
+fn a_link_in_a_group_writable_directory_is_a_breach() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = scratch("link-group-writable");
+    let release = dir.join("releases").join("1");
+    let shared = dir.join("shared");
+    fs::create_dir_all(&release).expect("a release folder");
+    fs::create_dir(&shared).expect("the directory the link sits in");
+    fs::write(release.join("nvs.toml"), "").expect("a configuration file");
+    link_dir(&release, &shared.join("current"));
+    fs::set_permissions(&shared, fs::Permissions::from_mode(0o775)).expect("a group-writable mode");
+
+    let why = check(&shared.join("current").join("nvs.toml"))
+        .expect_err("anyone in the group could point `current` at another file");
+    assert!(
+        matches!(&why, Untrusted::Breach(_))
+            && why.message().contains("group-writable")
+            && why.message().contains("holds the link")
+            && why.message().contains(&shared.display().to_string()),
+        "the refusal names the link's directory: {why:?}",
+    );
+    check(&release.join("nvs.toml")).expect("the file reached with no link is trusted");
+}
+
+/// The Windows half of the case above: `BUILTIN\Users` may write the directory that holds the
+/// junction, so the junction is a breach.
+#[cfg(windows)]
+#[test]
+fn a_link_in_a_directory_a_well_known_group_may_write_is_a_breach() {
+    let dir = scratch("link-dacl");
+    let release = dir.join("releases").join("1");
+    let shared = dir.join("shared");
+    fs::create_dir_all(&release).expect("a release folder");
+    fs::create_dir(&shared).expect("the directory the link sits in");
+    fs::write(release.join("nvs.toml"), "").expect("a configuration file");
+    link_dir(&release, &shared.join("current"));
+    icacls(&shared, &["/inheritance:d"]);
+    icacls(&shared, &["/grant:r", &format!("{USERS}:(WD)")]);
+
+    let why = check(&shared.join("current").join("nvs.toml"))
+        .expect_err("anyone in BUILTIN\\Users could replace the junction");
+    assert!(
+        matches!(&why, Untrusted::Breach(_))
+            && why.message().contains("BUILTIN\\Users")
+            && why.message().contains("holds the link"),
+        "the refusal names the link's directory: {why:?}",
+    );
+    check(&release.join("nvs.toml")).expect("the file reached with no link is trusted");
+    icacls(&shared, &["/remove:g", USERS]);
+}
+
 /// The installation chapter's Linux layout, asked of the check mode by mode. Every mode its
 /// `install` commands set passes, on the directory and on `nvs.toml` alike; each mode it names as
 /// failing is a breach that quotes the mode back; and `chmod go-w`, the repair it prescribes, is

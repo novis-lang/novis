@@ -6,7 +6,9 @@ under a running process reloads the file the operator can see rather than an unl
 `nvs.toml` that appears in the working directory later is not read until the next boot. A boot on
 the shipped defaults reloads the shipped defaults. The configuration check stats each stored root
 as given, beside the files the tree reached, and a stamp carries the file's identity, so a link that
-points at a new file with the same time and size is still noticed.
+points at a new file with the same time and size is still noticed. Because the link decides the
+file, the directory that holds each link on the stored path is ownership-checked like the file's own
+(`rule:config/ownership-is-the-trust-boundary`), at boot and on every reload.
 
 `nvs serve` prints the root as it was found, the path it was read from, and every file the tree
 reached, on standard error before it binds:
