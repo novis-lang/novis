@@ -14,6 +14,10 @@ Exactly one blank line follows a `namespace` line, one follows the `use` block, 
 members that each have a body; adjacent simple property and constant declarations get none. A comment
 between two members belongs to the member below it, so the blank line goes above the comment.
 
+A comment that opens a line sits at the indentation of the code below it, which is the line it describes.
+A comment above a body's closing brace is inside that body, so it sits where the body's statements sit.
+A line of a block comment after its first is the comment's own text and is copied.
+
 Modifier order is canonical, not the author's: `abstract`/`final`, then visibility (including
 `private(set)`), then `static`, then `readonly`, then `lateinit`, one space between each. The parser
 accepts these in any order, which is exactly why the formatter must fix one — `static public $x;` and

@@ -55,9 +55,9 @@ try {
         echo 'inserted 2', "\n";
         $tx->rollBack('this fixture keeps nothing from the first attempt');
     });
-// The class is written out here rather than imported: a `use` alias reaches a
-// `new` and a parameter type, and does not yet reach a `catch` — `nvs-ir`
-// tests the thrown value against the source text of the clause.
+    // The class is written out here rather than imported: a `use` alias reaches a
+    // `new` and a parameter type, and does not yet reach a `catch` — `nvs-ir`
+    // tests the thrown value against the source text of the clause.
 } catch (Core\Db\RolledBack $rolled) {
     // The string `rollBack` was given is on the throwable as `$reason`, so the
     // caller that catches it can say *why* the work was abandoned without the
