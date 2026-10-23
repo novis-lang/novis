@@ -62,7 +62,7 @@ stages:
         rules: [testing/member-perf-ledger, http-server/a-requests-blast-radius-is-bounded-at-four-tiers]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: stdlib-tests
@@ -598,8 +598,26 @@ subagent. Such subagents run side by side, and none of them builds.
 
 Stages 1 to 8 are done: a0f56ab2f, e03aa7e53, ac7342049, 7f9435294 with 051c6efa3, b4b080479,
 d9a8e974f, c2d5e836a with 5b14afeac, and stage 8 in ba8e5e8bd, 4f01826ad and 80f2f3841. Stage 9's
-three items are done (133a8c1e3, 9bd4e68e6): the third `bun nv affected --run` is green, 22 of 22.
-Only the goal-end gates are left.
+three items are done (133a8c1e3, 9bd4e68e6), and so are the goal-end gates. **The goal is reached.**
+
+- **The goal-end gates are green.** `bun nv verify --doc` resolves every link.
+  `bun nv owners --closes request-overhead` named one gap that security-hardening handed over,
+  `static-serving-answers-every-method`. It is built in d7526e8f3: `statics::serve` answers a
+  method other than `GET` or `HEAD` at a static file with a bodiless `405` and `Allow: GET, HEAD`,
+  and `nvs serve`'s mount dispatch calls it. `sendFile` keeps `statics::send`. Its tests are
+  `a_static_file_answers_a_write_method_with_405` and
+  `a_served_static_file_answers_a_write_method_with_405`, and
+  `rule:http-server/static-serving-is-one-policy` states it. `bun nv affected --run` over it is
+  green, 22 of 22, after the rules page was rendered again.
+- **Each decision only this file held now has a home.** A subagent checked 74 bullets, and 64 already
+  sat in module docs and rules. The declined descriptor indexes are on `Descriptors::first`
+  (`crates/nvs-stdlib/src/instance.rs`). The declined stack per request is in
+  `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`. "No counter on a production path"
+  is in `rule:testing/perf-two-mechanisms`. The rest describe how this goal ran its stages and end
+  with it.
+- **The backlog is eight gap records owned by `bench-counters`**, under `data/gaps/nvs-host/` and
+  `data/gaps/nvs-stdlib/`. The bench image's rebuild is the one item left out, because it is
+  tooling and has no crate module.
 
 - **The gate found a lost wake that stage 6 exposed, and it is fixed in the server (133a8c1e3).**
   `an_idle_kept_alive_connection_is_closed_when_the_drain_begins` hung to the client's 10 s about
@@ -667,16 +685,8 @@ Only the goal-end gates are left.
 
 ### Next
 
-The goal-end gates, then `DONE` (AGENTS.md § *In the loop*):
-
-- `bun nv verify --doc`, and fix every broken doc link it names.
-- `bun nv owners --closes request-overhead`, and close or re-own every gap it names.
-- Move each decision only this file's prose holds into a rule or a module doc. § *Standing
-  decisions*' "as built" lists for stages 2 to 7 are the bulk. Most already sit in the module docs
-  they name: check each one against its file, such as `crates/nvs-host/src/stack.rs`'s *The idle
-  trim*. The drain fix's reason is in its comment at `crates/nvs-server/src/serve.rs`, after
-  `between_requests`.
-- Set stage 9's `status: done`, delete this file, and write `DONE`.
+Nothing. The driver runs the acceptance checks and retires this goal, and the chain moves to
+`taught-app-works`.
 
 No test is expected to go red. The Unix stack trim and its `mincore` count run first on CI's Linux
 job. The website build (`bun nv site --build`) has not run on the new
@@ -684,31 +694,7 @@ job. The website build (`bun nv site --build`) has not run on the new
 
 ### Backlog
 
-- The scheduler hashes each `TaskId` with SipHash: 1.4% of hello and 0.8% of wait. A `TaskId` is
-  the scheduler's own number, never a request's, so an unkeyed hash is safe there. The `HashMap` is
-  in `crates/nvs-host/src/scheduler.rs`.
-- `Core\Test\Response::body` copies its `bytes` slot into a string on every call. The slot could
-  keep the checked string beside the bytes after the first call (`crates/nvs-stdlib/src/test.rs:3126`).
-- The part of a waiting request's program stack above the host's 8 KiB is not broken down. It is
-  the compiled code and the `Core` calls a served request made before it slept. A served count
-  needs `resident_pages` reachable from `nvs-server`'s tests, for example beside
-  `nvs_host::counts` under `debug_assertions`. The task's entry could also box its `Ctx`
-  (1,776 bytes) to save about one page per task (`crates/nvs-host/src/scheduler.rs:911`).
-
-- `Core\Request::jsonAs` still reads its body into arrays and then walks them through `hydrate`
-  (`crates/nvs-stdlib/src/request.rs:3167`). It could call `read_against` (`json.rs:2734`) after
-  its own body checks. Check whether the json-api case reads its body with `jsonAs` first.
-
-- The CPU clock read at each cross-tree switch (`crates/nvs-host/src/cpuclock.rs:171`) is a real
-  system call. The json-api profile shows 5 `clock_gettime` per request. A cheaper clock must still
-  charge `[limits] cpu_time` to the right request.
-- `Core\Math::intDiv` is an out-of-line helper (`crates/nvs-stdlib/src/math.rs:1825`). The `/`
-  operator is already inline (`crates/nvs-codegen/src/emit.rs:1909`).
-- The isolate's start and finish cost about 2.5 µs per request (`crates/nvs-host/src/isolate.rs:627`,
-  `crates/nvs-host/src/isolate.rs:1250`).
-- A literal `Str::format` template could be split while compiling (`crates/nvs-stdlib/src/format.rs:91`).
-- The heap's 26–34 KiB per waiting request is not broken down. hyper's buffers and the isolate are
-  the likely parts.
-- The bench image recompiles from `nvs-types` up on every build while the tree has edits.
-  `--profile` could take a prebuilt binary, as `bench-proxied --nvs-bin` does
-  (`tools/nv/cmd/bench-compare.ts`).
+- Request-path costs this goal measured and left are gap records owned by `bench-counters`:
+  `bun nv gaps --module crates/nvs-host/src/scheduler.rs` and its siblings list them (`data/gaps/`).
+- `--profile` rebuilds the bench image from `nvs-types` up while the tree has edits. It could take a
+  prebuilt binary, as `bench-proxied --nvs-bin` does (`tools/nv/cmd/bench-compare.ts`).
