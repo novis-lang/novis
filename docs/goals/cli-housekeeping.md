@@ -265,19 +265,19 @@ is rewritten in the `require` group.
 
 The walk, one group:
 
-- [ ] The `ignore` crate in the workspace `Cargo.toml` and in `nvs-hir`, and `bun nv lints` and `deny.toml` accept it. `Cargo.toml:1`, `crates/nvs-hir/Cargo.toml:17`
-- [ ] `sources` walks with `WalkBuilder` and the settings § *Standing decisions* names, and its doc comment says so. `crates/nvs-hir/src/lenders.rs:239`
-- [ ] `nvs fmt`'s walk is replaced by `sources`, and a path named on the command line is still formatted. `crates/nvs-cli/src/fmt.rs:177`
-- [ ] Tests over a temporary tree: a file a `.gitignore` names, one an `.ignore` names, a nested `.gitignore`, no git repository, `vendor/` and a dot-directory. `crates/nvs-hir/src/lenders.rs:239`
-- [ ] The rule names the ignore files, with the Declined exclude key (`rule:tooling/nvs-code-answers-about-the-project`). `docs/rules/tooling/nvs-code-answers-about-the-project.md:1`
-- [ ] `rule:tooling/fmt-check-writes-nothing` says `nvs fmt` walks the project's files with the same function. `docs/rules/tooling/fmt-check-writes-nothing.md:1`
-- [ ] Each fragment the subagent listed says the same. `docs/rules/tooling/nvs-code-answers-about-the-project.md:1`
+- [x] The `ignore` crate in the workspace `Cargo.toml` and in `nvs-hir`, and `bun nv lints` and `deny.toml` accept it. `Cargo.toml:1`, `crates/nvs-hir/Cargo.toml:17`
+- [x] `sources` walks with `WalkBuilder` and the settings § *Standing decisions* names, and its doc comment says so. `crates/nvs-hir/src/lenders.rs:239`
+- [x] `nvs fmt`'s walk is replaced by `sources`, and a path named on the command line is still formatted. `crates/nvs-cli/src/fmt.rs:177`
+- [x] Tests over a temporary tree: a file a `.gitignore` names, one an `.ignore` names, a nested `.gitignore`, no git repository, `vendor/` and a dot-directory. `crates/nvs-hir/src/lenders.rs:239`
+- [x] The rule names the ignore files, with the Declined exclude key (`rule:tooling/nvs-code-answers-about-the-project`). `docs/rules/tooling/nvs-code-answers-about-the-project.md:1`
+- [x] `rule:tooling/fmt-check-writes-nothing` says `nvs fmt` walks the project's files with the same function. `docs/rules/tooling/fmt-check-writes-nothing.md:1`
+- [x] Each fragment the subagent listed says the same. `docs/rules/tooling/nvs-code-answers-about-the-project.md:1`
 
 `nvs check <directory>`, its own group:
 
-- [ ] `nvs check` reads a directory through `Program::Directory` (`rule:testing/a-directory-of-programs-is-one-test-program`). `crates/nvs-cli/src/main.rs:1100`, `crates/nvs-cli/src/main.rs:2585`
-- [ ] A test over a directory whose files have one error between them. `crates/nvs-cli/tests/check_command.rs:1`
-- [ ] The gap record deleted. `data/gaps/nvs-cli/check-of-a-directory-is-not-one-program.json:1`
+- [x] `nvs check` reads a directory through `Program::Directory` (`rule:testing/a-directory-of-programs-is-one-test-program`). `crates/nvs-cli/src/main.rs:1100`, `crates/nvs-cli/src/main.rs:2585`
+- [x] A test over a directory whose files have one error between them. `crates/nvs-cli/tests/check_command.rs:1`
+- [x] The gap record deleted. `data/gaps/nvs-cli/check-of-a-directory-is-not-one-program.json:1`
 
 A `require` that cannot be followed, its own group:
 
@@ -304,66 +304,69 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done. Stage 4's proofs landed in `1196274f5`:
+Stages 1 to 4 are done. In stage 5, the walk group and the `nvs check <directory>` group are done:
 
-- `tools:cli/nvs-telemetry` has `about.md`, three `.cmd` examples, the attack
-  `tests/hostile/tools/cli/nvs-telemetry/01-a-counter-file-with-forged-lines.nvs` and `covers:` tests
-- `tools:cli/nvs-update-check` has `about.md`, one `.cmd` example with `NVS_UPDATE_URL` at
-  `127.0.0.1:9`, and the attack `01-a-release-that-writes-to-the-terminal.nvs`
-- each attack's program prints its payload, and `crates/nvs-cli/tests/telemetry.rs` drives it
-  through the binary: the forged counter file goes into the telemetry folder, and each reply line is
-  served to `nvs update-check`
-- the attacks found two real bugs, both fixed. A huge `last` panicked `nvs telemetry status` with a
-  multiply overflow (`telemetry.rs`, `Counters::earliest`), so a week outside `YEARS` and a time
-  outside `TIMES` now read as absent, and counts saturate. `nvs update-check` printed any
-  `tag_name` raw, so `is_version` in `update_check.rs` now refuses a tag that is not 1 to 64 of
-  `[A-Za-z0-9.+-]`. Both rules say so
-- a `.cmd` example may start with `NAME=value` words, and never inherits `CI`, `DO_NOT_TRACK`,
-  `NVS_TELEMETRY_URL` or `NVS_UPDATE_URL` (`COMMAND_UNSET` in `tools/nv/proofs/run.ts`,
-  `docs/examples/README.md` § *A command instead of a program*). Without it, every telemetry
-  example fails on CI, where `CI` is set
+- `ea61d2634`: `nvs_hir::lenders::sources` walks with `ignore::WalkBuilder`. It reads `.gitignore`
+  and `.ignore` at and under the root, also outside git (`require_git(false)`). It does not read
+  the global excludes file, `.git/info/exclude` or an ignore file above the root
+  (`parents(false)`). It skips `target`, `vendor` and dot-directories by `filter_entry`, reads
+  dot-files, follows no link, and always walks the root (depth 0 is never filtered). `nvs fmt`'s
+  `collect` calls it and sorts, and still fails on a named directory it cannot list. Five tests in
+  `lenders::tests` ran once and pass. `cargo deny check bans licenses sources` is ok, and
+  `THIRD-PARTY-LICENSES.txt` is regenerated. The three fragments that state a walk's files
+  (`nvs-code-answers-about-the-project`, `fmt-check-writes-nothing`,
+  `check-scope-defaults-to-the-workspace`) say so, with the Declined exclude key. The Explore
+  subagent's other hits (`an-autoloaded-file-borrows-its-programs-map.md:46` "skipping what the
+  server skips", `completion-files-offer-values-at-named-parameters.md:76`) were already true.
+- `f13c733d7`: `nvs check <directory>` checks `Program::entry(dir, files)`, the overlay entry
+  `nvs test` builds, through `front_end_in`, with `--fix`, `--json` and `--autoload-map`.
+  `front_end_in` folds the configuration for the entry's directory when the loaded entry is not on
+  disk, as `Program::configured` does. The help says "The file or directory to check", and
+  `docs/reference/tools/10-cli.md` § *nvs check* says so. The gap record is deleted. The test
+  `nvs_check_of_a_directory_checks_its_files_as_one_program` ran once and passes.
 
-The two new tests ran once and pass, and both fail against the unfixed sources. The runner's
-`proof-command.test.ts` passes (17). `bun nv proofs --run` passes all four examples and both attacks.
-`bun nv proofs --gate --no-perf` owes nothing in the whole roster, and `rules --check` and
-`render --website --check` are clean. No test is expected to go red.
+No test is expected to go red. A `nvs fmt` test that formats a file under a dot-directory or
+`target/` inside the walked tree would, because the walk now skips both, but none was found.
 
-`bun nv proofs --gate` with perf lists 28 `Core\Http` members whose perf record is stale, because
-last session's `tool_post` changed `crates/nvs-stdlib/src/http.rs`. Per `docs/agent/commands.md`
-§ *Verifying*, the benches wait for a release, where `bun nv benches --owed` pays them.
-
-The acceptance sweep's items are the ones the last session traced. `env-secret-proofs`'s own log
-shows exit 0, and the nightly is still the `7b6ef53ee` run. Of its reds, these are fixed by later commits:
-
-- the property-observer cost guard passes locally in release
-- the proofs gate owes nothing
-- `render --website --check` is current
-- the shared-worker extension budget is `dc3a2ed29`
-- the UNC alias is `93919e633`
-- the macOS loopback is `342675093`
-- the Windows `BUILTIN\Users` E0607 is `ba8930b80` and `8ea16803f`
-
-Two memory-growth checks were not chased: `serve.rs`'s live-bytes guard on macOS, which
-`config-follows-links` already names, and `serve_isolation.rs:614`'s flood on linux-aarch64. The next
-nightly says whether either holds.
+The acceptance sweep's items are the ones the earlier sessions traced. `env-secret-proofs`'s log
+shows exit 0, and the nightly is still the `7b6ef53ee` run, whose reds later commits fix (see
+`git log` from `dc3a2ed29`). The two memory-growth checks (`serve.rs`'s live-bytes guard on macOS,
+`serve_isolation.rs:614` on linux-aarch64) wait for the next nightly.
 
 `crates/nvs-runtime/src/capability.rs` still has the uncommitted rustfmt join at line 2259. The guard
-refused to stage it a third time, because interactive session 6884de4b (`formatter-complete`) still
-claims the file, although that goal is gone. It has to be committed before the next goal end's push.
-If the claim still holds, name the call in the status line so the user can release it.
+refused to stage it again: interactive session 6884de4b (`formatter-complete`) still claims it. The
+user has to release that claim before the goal end's push.
+
+`bun nv proofs --gate` with perf still lists the 28 stale `Core\Http` perf records, which wait for a
+release (`docs/agent/commands.md` § *Verifying*).
 
 ### Next
 
-**Stage 5**, whose gate holds now that `formatter-complete` is gone. Follow its `**Split:**` line:
-send the two `Explore` subagents together, then take the walk group.
+**Stage 5's `require` group**, as stage 5 lists it. The Explore subagent found every dynamic
+`require` in the tree, and each is rewritten or turned into an error case:
 
-- [ ] Two `Explore` subagents: the rule fragments that say which files a walk reads, and every `require` whose path is not statically known. `docs/rules/tooling/nvs-code-answers-about-the-project.md:1`, `crates/nvs-hir/src/requires.rs:88`
-- [ ] The `ignore` crate in the workspace and `nvs-hir`, and `bun nv lints` and `deny.toml` accept it. `Cargo.toml:1`, `crates/nvs-hir/Cargo.toml:17`
-- [ ] `sources` walks with `WalkBuilder` as § *Standing decisions* says, and its temporary-tree tests. `crates/nvs-hir/src/lenders.rs:239`
-- [ ] `nvs fmt`'s walk is replaced by `sources`. `crates/nvs-cli/src/fmt.rs:177`
+- `tests/conformance/lang/a-require-with-a-computed-path-throws.nvst:9` (`require $path;`) and `:16`
+  (`require $dir . 'setup.nvs';`). This case pins the runtime throw, which can no longer happen.
+  Delete it and write `a-require-whose-path-is-not-statically-known-is-a-compile-error.nvst` in its
+  place
+- `crates/nvs-hir/src/requires.rs:2176` (`a_concatenation_with_a_dynamic_half_stays_dynamic`),
+  `:2229` (`a_require_path_naming_an_undeclared_const_stays_dynamic`, a `Paths::LIB` nobody
+  declares), `:2345` (`a_dynamic_require_path_is_left_for_the_runtime_fallback`). Each asserts no
+  error, so each now asserts the new code
+- `:2356` (`a_require_with_no_on_disk_path_is_left_for_the_runtime_fallback`): a literal in a file
+  with no path. Decide whether that is the new code too. The recommendation is no: the path is
+  static, and the file has no directory (`requires.rs` module doc, *A file with no on-disk path*)
+- `nvs-ir`'s `lower_unloaded_require` (`crates/nvs-ir/src/lower/exception.rs:69`, called at
+  `stmt.rs:433` and `expr.rs:689`) still lowers the missing target. A compile error now stops the
+  dynamic case before lowering, so only the no-path case reaches it
 
-Then the `nvs check <directory>` group (`crates/nvs-cli/src/main.rs:2585`) and the `require` group
-(`crates/nvs-diagnostics/src/code/names.rs:64`), each as stage 5 lists it.
+- [ ] The rule lists the static forms and the new code. `docs/rules/statements/require-is-the-only-inclusion-construct.md:1`
+- [ ] The new code beside `E0311`, with plain help. `crates/nvs-diagnostics/src/code/names.rs:64`
+- [ ] The fallback reports it at the `require`, and the module doc says so. `crates/nvs-hir/src/requires.rs:8`
+- [ ] The conformance case, and the old one and the three Rust tests rewritten. `tests/conformance/lang/a-require-with-a-computed-path-throws.nvst:1`
+- [ ] The gap record deleted, and `bun nv owners --closes cli-housekeeping` passes. `data/gaps/nvs-hir/a-require-path-that-is-not-static-reports-nothing.json:1`
+
+Then stage 6, the gate.
 
 ### Backlog
 
