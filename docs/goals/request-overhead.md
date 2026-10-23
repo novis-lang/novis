@@ -588,17 +588,38 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. A failing guard of the security floor is fixed in the optimization, never in the guard. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. A failing guard of the security floor is fixed in the optimization, never in the guard. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
 Stages 1 to 8 are done: a0f56ab2f, e03aa7e53, ac7342049, 7f9435294 with 051c6efa3, b4b080479,
-d9a8e974f, c2d5e836a with 5b14afeac, and stage 8 in ba8e5e8bd, 4f01826ad and 80f2f3841. Stage 9,
-the gate, is next.
+d9a8e974f, c2d5e836a with 5b14afeac, and stage 8 in ba8e5e8bd, 4f01826ad and 80f2f3841. Stage 9's
+three items are done (133a8c1e3, 9bd4e68e6): the third `bun nv affected --run` is green, 22 of 22.
+Only the goal-end gates are left.
+
+- **The gate found a lost wake that stage 6 exposed, and it is fixed in the server (133a8c1e3).**
+  `an_idle_kept_alive_connection_is_closed_when_the_drain_begins` hung to the client's 10 s about
+  once in a hundred runs under load. The connection's drive in `crates/nvs-server/src/serve.rs`
+  asked hyper to close only at the top of a poll, but the phase turns `KeepAlive` inside the poll.
+  A drain that began while the request ran had fired its one wake already. The self-wake's poke
+  used to give one more poll, and stage 6 removed it. A poll that ends in that state now wakes its
+  own drive. Bisected by stress, 48 runs at once: before stage 6 0 of 480 hung, at d9a8e974f 4 of
+  480, with the fix 0 of 480.
+- `a_keep_alive_request_reads_and_wakes_within_its_count` went over under load with 21 reads and
+  then 2 pokes. Its bounds counted the per-connection costs once, over two connections. They now
+  count 1 read and 1 poke per connection. d9a8e974f's own build shows the same 2 pokes. The
+  per-request bounds are unchanged, and 0 of 240 stressed runs fail.
+- `conformance_coverage` named `json.rs`'s `misread` fault. Its doc now says "unreachable from
+  source" in the window the gate reads. The concurrency rulebook page is rendered again, and
+  `fuzz/Cargo.lock` has stage 2's `rustc-hash`.
+- Redis, ldap and `live_edit` timed out beside the other binaries. They read through the parking
+  path, which the readiness bit does not reach, and each passed when run alone afterwards.
+- The sweep's `env-secret-proofs` log now shows exit 0 with nothing owed. The nightly run
+  39746060276 is a cancelled `workflow_dispatch` from 2026-10-22, so nothing in it failed.
 
 - **Decision `d7` is answered and closed.** The five named-test checks run `cargo test -- <names>`
   (e10cfd2b0), and § *Standing decisions* says so. `runtime-tests`, `server-tests` and `host-tests`
@@ -611,10 +632,6 @@ the gate, is next.
   memory paragraphs state no figure, so they are unchanged. The deploy paragraphs now give PHP's
   mixed pages as 47% and 90%, and Novis's big-deploy time as 3.5 s. Every fault row kept its result.
 - `hostile-groups`, `memory-row`, `loop-row` and `rules-check` passed, each once by name.
-- The sweep's `env-secret-proofs` is not in the tree: `looper check --name env-secret-proofs` says
-  `no check matches` and exits 1, which is the red the sweep reports. `bun nv proofs --gate --only
-  'Core\Env::secret'` exits 0 with nothing owed. The check is in looper's service. The nightly run
-  39746060276 is a cancelled `workflow_dispatch` from 2026-10-22.
 - `docs/agent/playbook.md:58` was over `looper lint`'s 700 bytes, and is shortened.
 
 - **The ledger is current.** `bun nv proofs --record-perf` recorded 765 stale figures again on the
@@ -650,14 +667,19 @@ the gate, is next.
 
 ### Next
 
-Stage 9, the gate (`docs/goals/request-overhead.md` § *9.*):
+The goal-end gates, then `DONE` (AGENTS.md § *In the loop*):
 
-- Start `bun nv affected --run` with `run_in_background`, end the turn, and fix every failure it
-  names in one pass. The Unix stack trim and its `mincore` count run first on CI's Linux job.
-- Before `DONE`: `bun nv verify --doc`, then `bun nv owners --closes request-overhead`. Move each
-  decision only this file's prose holds into a rule or a module doc.
+- `bun nv verify --doc`, and fix every broken doc link it names.
+- `bun nv owners --closes request-overhead`, and close or re-own every gap it names.
+- Move each decision only this file's prose holds into a rule or a module doc. § *Standing
+  decisions*' "as built" lists for stages 2 to 7 are the bulk. Most already sit in the module docs
+  they name: check each one against its file, such as `crates/nvs-host/src/stack.rs`'s *The idle
+  trim*. The drain fix's reason is in its comment at `crates/nvs-server/src/serve.rs`, after
+  `between_requests`.
+- Set stage 9's `status: done`, delete this file, and write `DONE`.
 
-No test is expected to go red. The website build (`bun nv site --build`) has not run on the new
+No test is expected to go red. The Unix stack trim and its `mincore` count run first on CI's Linux
+job. The website build (`bun nv site --build`) has not run on the new
 `website/src/data/compare.json`. Its shape did not change.
 
 ### Backlog
