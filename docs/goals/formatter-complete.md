@@ -168,11 +168,13 @@ and 6 read against a new kind.
 **Does:** the `use` block sorts across a comment, and each line the tree does not place today gets
 a rule.
 
-- [ ] An import carries the comment written above it as a second span, and the whole block sorts (`rule:tooling/fmt-sorts-the-use-block`), with a test. `crates/nvs-fmt/src/imports.rs:112`, `crates/nvs-fmt/tests/use_block.rs:1`
+- [x] An import carries the comment written above it as a second span, and the whole block sorts (`rule:tooling/fmt-sorts-the-use-block`), with a test. `crates/nvs-fmt/src/imports.rs:112`, `crates/nvs-fmt/tests/use_block.rs:1`
 - [ ] A comment line is placed at the indentation of the line below it (`rule:tooling/fmt-base-style-is-per`). `crates/nvs-fmt/src/indent.rs:270`
 - [ ] A `switch` body is placed as PER-CS places it, and a template region's text stays the author's, each written into `rule:tooling/fmt-base-style-is-per` first. `crates/nvs-fmt/src/indent.rs:107`, `docs/rules/tooling/fmt-base-style-is-per.md:1`
 - [ ] A continuation line that is not part of a broken list, chain or operator chain stays the author's, and `indent.rs`'s module doc says so (`rule:tooling/fmt-never-reflows`). `crates/nvs-fmt/src/indent.rs:29`
 - [ ] Both records are deleted. `data/gaps/nvs-fmt/comment-written-between-two-imports-holds.json:1`, `data/gaps/nvs-fmt/line-the-tree-does-not-place.json:1`
+  - [x] The import record is deleted.
+  - [ ] The line record is deleted.
 
 ### 5. PER's blank lines are written, and the printer's record is closed
 

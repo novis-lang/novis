@@ -58,7 +58,7 @@
 
 use std::fmt;
 
-use nvs_diagnostics::{Diagnostics, SourceFile};
+use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap};
 
 mod brace;
 mod chain;
@@ -144,6 +144,16 @@ pub fn format(file: &SourceFile) -> Result<String, Refusal> {
             diagnostics,
         });
     }
+    let Some(sorted) = imports::sorted(&parsed, file.text()) else {
+        return Ok(print::print(file, &parsed, &diagnostics));
+    };
+    // The imports moved whole, so the text parses as the file did, and every
+    // other rule places the moved lines from this second parse.
+    let mut map = SourceMap::new();
+    let id = map.add(file.name(), sorted);
+    let file = map.file(id);
+    let mut diagnostics = Diagnostics::new();
+    let parsed = nvs_syntax::parse(file, &mut diagnostics);
     Ok(print::print(file, &parsed, &diagnostics))
 }
 

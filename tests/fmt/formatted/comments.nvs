@@ -3,10 +3,9 @@
 #  The other line spelling says the same thing.
 //// And four slashes is a comment as well, not documentation.
 
-use Core\Str;
-// A comment between two imports keeps each of them on its own side of it, so
-// this one still describes the import below rather than the one above.
+// A comment directly above an import moves with it when the block is sorted.
 use Core\Arr;
+use Core\Str;
 
 /// A doc comment belongs to the declaration under it.
 class Ledger
