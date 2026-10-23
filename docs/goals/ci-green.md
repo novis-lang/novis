@@ -99,20 +99,13 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `6d3c2770a`, the end of `config-follows-links`. That push carried the
-attribution fix `5bb2ee97a`, the SQLite WAL retry `2c7767e80` and the nine `Core\Session` perf
-records `9270c45c4`. Its Website run is green. Its CI run,
-https://github.com/novis-lang/novis/actions/runs/39982774098, is green in every job but `proofs`
-on all three platforms. `third-party attribution` and `five-driver matrix` are green, so both fixes work.
-
-Each `proofs` leg failed at `Website stale guard`, which runs before the perf records and the
-attacks. Five syntax pages and 58 pages' search questions were stale, because `c775ff1cc`,
-`cabecb9c7` and `15892cf11` changed the examples their features hash. `Core\Csrf::token` had no
-questions. At `HEAD`, the main loop's `505f95a9e` also gave `/install/` and `/install/editor/`
-seven questions each, and a question that `/in-depth/what-changed/` shares with `/in-depth/new/`.
-`aecce6733` rereads every one of those pages and stamps them, and `bun nv site --check stale
-questions prose` passes. It is committed and not pushed. The attacks have still not run on a
-runner, so the LDAP `whoami: Timeout` attack has still not had its second try.
+`origin/main` is at `88fb690a3`, the end of `first-release`. That push carried the stale page
+and question fix `aecce6733`. Both of its runs are green: CI,
+https://github.com/novis-lang/novis/actions/runs/40001333855, in all 38 jobs, and Website,
+https://github.com/novis-lang/novis/actions/runs/40001333533. `proofs` is green on all three
+platforms, so its attacks ran past the stale guard and the LDAP login attack passed its second
+try. `bun nv site --check stale questions` passed at `9ceb43a49` before the watch. Nothing is
+committed and unpushed for this goal.
 
 `.agent-tmp/wt-ci`, `.agent-tmp/wt-cig` and `.agent-tmp/wt-r` are empty scratch folders. Git no
 longer lists them as worktrees. Each contains only a `.looper` directory that Windows will not
@@ -123,13 +116,13 @@ delete while looper runs. Delete all three when looper is stopped.
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch for the next push. `tools/nv/cmd/ci.ts:265`
-  Run `bun nv ci --watch --next`, so the red run on `6d3c2770a` does not end the watch at once.
-  The questions check counts as stale every page whose feature's examples changed. So an example
+  Run `bun nv ci --watch --next`, so the green run on `88fb690a3` does not end the watch at once.
+  An exit of 3 with a run still going means the push came late: watch again. The questions check counts as stale every page whose feature's examples changed. So an example
   sweep in the main loop's work turns `Website stale guard` red again. Run `bun nv site --check
   stale questions` at `HEAD` before you watch, and fix what it names as the last item below says.
   Each page reread goes to a subagent that writes a scratch JSON, never `questions.json` itself.
-- [ ] Once proofs runs its attacks, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
-  A second LDAP `whoami: Timeout` is not noise. Compare the socket deadline with the slice yield
+- [ ] If the LDAP login attack fails again, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
+  It passed on `88fb690a3`. A second `whoami: Timeout` is not noise. Compare the socket deadline with the slice yield
   commits `13004e4f9` and `2b292f862`.
 - [ ] Fix and commit each other red job. `.github/workflows/ci.yml:1`
   A render red needs a binary built at `HEAD`: the root's `target/debug/nvs.exe` carries the main
