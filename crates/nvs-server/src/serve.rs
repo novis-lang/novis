@@ -2450,6 +2450,18 @@ where
         if polled.is_pending() && !write_parked.get() && sending.borrow_mut().take().is_some() {
             ctx.borrow_mut().between_requests();
         }
+        // The phase moves to `KeepAlive` inside the poll above, when `hyper`
+        // reads after its answer. A drain that began earlier fired its wake
+        // then, so nothing else would poll this connection again. The drive's
+        // own wake polls it once more at once, and the question at the top is
+        // put to `hyper` there.
+        if polled.is_pending()
+            && !asked_to_close
+            && phase.get() == Phase::KeepAlive
+            && draining.is_draining()
+        {
+            cx.waker().wake_by_ref();
+        }
         // Last, and after the whole pass rather than inside it: an event stream
         // that is about to park has to be woken in time to write its keep-alive,
         // and a request the drain period cuts in time to be cut.
@@ -10153,13 +10165,18 @@ pub(crate) mod tests {
     /// The bounds are what the server spends today, so a change that spends
     /// more fails here. A change that spends less lowers them. Each request makes
     /// one read that answers `WouldBlock`, and every later read waits on the
-    /// stream's readiness bit. The drive's wakes of itself set its flag and poke
-    /// nothing. The connection adds one poke of its own.
+    /// stream's readiness bit. A connection's first read may also answer
+    /// `WouldBlock` once, when the server accepts it before the client's bytes
+    /// arrive. The case has two connections: the client's and the one that
+    /// ends the loop. The drive's wakes of itself set its flag and poke
+    /// nothing. Each connection adds one poke of its own.
     #[cfg(debug_assertions)]
     #[test]
     fn a_keep_alive_request_reads_and_wakes_within_its_count() {
         const REQUESTS: u64 = 20;
+        const CONNECTIONS: u64 = 2;
         const WOULD_BLOCK_READS_PER_REQUEST: u64 = 1;
+        const WOULD_BLOCK_READS_PER_CONNECTION: u64 = 1;
         const WAKE_POKES_PER_REQUEST: u64 = 0;
         const WAKE_POKES_PER_CONNECTION: u64 = 1;
 
@@ -10217,11 +10234,15 @@ pub(crate) mod tests {
         client.join().expect("the client thread panicked");
 
         assert!(
-            spent.would_block_reads <= WOULD_BLOCK_READS_PER_REQUEST * REQUESTS
+            spent.would_block_reads
+                <= WOULD_BLOCK_READS_PER_REQUEST * REQUESTS
+                    + WOULD_BLOCK_READS_PER_CONNECTION * CONNECTIONS
                 && spent.wake_pokes
-                    <= WAKE_POKES_PER_REQUEST * REQUESTS + WAKE_POKES_PER_CONNECTION,
+                    <= WAKE_POKES_PER_REQUEST * REQUESTS + WAKE_POKES_PER_CONNECTION * CONNECTIONS,
             "{REQUESTS} keep-alive requests spent {spent:?}, over {WOULD_BLOCK_READS_PER_REQUEST} \
-             reads that answered WouldBlock and {WAKE_POKES_PER_REQUEST} wake pokes each"
+             reads that answered WouldBlock each and {WOULD_BLOCK_READS_PER_CONNECTION} per \
+             connection, and {WAKE_POKES_PER_REQUEST} wake pokes each and \
+             {WAKE_POKES_PER_CONNECTION} per connection"
         );
     }
 
