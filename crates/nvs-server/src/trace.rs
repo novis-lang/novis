@@ -314,13 +314,11 @@ pub fn respond(headers: &mut hyper::HeaderMap, trace: &TraceContext) {
 ///
 /// Read per request off the snapshot the request ran under, so an `[[app]]`
 /// block that writes its own value and a reload both reach the next request.
-/// What it costs is one key lookup in the snapshot's table, and only for a
-/// response that is not a `5xx`.
+/// What it costs is one read of the limits the snapshot resolved once, and
+/// only for a response that is not a `5xx`.
 #[must_use]
 pub fn access_on(snapshot: &std::sync::Arc<nvs_config::Snapshot>) -> bool {
-    nvs_config::Request::new(std::sync::Arc::clone(snapshot))
-        .get("log.access")
-        .is_some_and(|written| written == "true")
+    snapshot.access_log()
 }
 
 /// What `rule:http-server/the-access-log-is-a-mode-default` puts on one access

@@ -131,9 +131,20 @@ pub struct Snapshot {
     /// deserializes has the `_file` sibling and no content, so [`retype`](Snapshot::retype) puts
     /// these back every time it runs and `Core\Config::get` reads them from here.
     pub secrets: BTreeMap<String, Secret>,
+    /// The limits this snapshot resolves once, on the first read ([`crate::limits`]). Empty in
+    /// every snapshot built and in every clone.
+    pub limits: crate::limits::Cell,
 }
 
 impl Snapshot {
+    /// Whether `[log] access` is `true` for a request under this snapshot: what the file wrote, or
+    /// the mode's default (`rule:config/a-mode-is-five-defaults`). Read off the resolved limits,
+    /// so asking makes no allocation once one request has read them.
+    #[must_use]
+    pub fn access_log(self: &Arc<Self>) -> bool {
+        crate::limits::resolved(self).access
+    }
+
     /// Builds the snapshot for `entry` out of an already-resolved tree.
     ///
     /// `entry` is canonicalized first and kept that way, for [`app`]'s reason: every comparison
@@ -209,6 +220,7 @@ impl Snapshot {
             origins: resolved.origins.clone(),
             warnings: resolved.warnings.clone(),
             secrets: resolved.secrets.clone(),
+            limits: crate::limits::Cell::default(),
         };
         // The roster goes with the blocks it lists: it is what *selected* the directives below, and
         // a key of it left in the table would deserialize into `config.app` as the host's whole set
@@ -367,6 +379,8 @@ impl Snapshot {
             }
             changed.push(row);
             put_at(&mut next.table, row.key, running);
+            // A table read off the tree before this change would describe the old tree.
+            next.limits = crate::limits::Cell::default();
             // And the origins with it, so `nvs config dump --origin` names the file the value in
             // force was written in rather than the one that asked for a change nothing applied.
             next.origins.retain(|key, _| !governs(row.key, key));

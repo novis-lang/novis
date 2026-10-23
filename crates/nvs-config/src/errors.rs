@@ -54,10 +54,7 @@ impl Deprecated {
     /// [`Ignore`]: Self::Ignore
     #[must_use]
     pub fn in_force(request: &Request) -> Self {
-        request
-            .get(KEY)
-            .and_then(|written| Self::of(&written))
-            .unwrap_or_default()
+        request.deprecated()
     }
 
     /// The value as `nvs.toml` writes it.
