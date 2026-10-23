@@ -1,6 +1,6 @@
-- **A `floor-debt` red on one `requires:` program can be the full run's load, and running it alone
-  pays it.** `bun nv debt` runs every owed proof program in one 45-minute run, and an LDAP attack
-  under `tests/hostile/core/Ldap-Connection/` missed its socket deadline there. `bun nv proofs --run
-  --id '<feature>'` runs it alone on the recording build and records its atom green in
-  `.cache/select.sqlite`, so the next `floor-debt` has nothing left to pay. The guard refuses
-  `bun nv debt` in a session. `until: gone tools/nv/cmd/debt.ts:export const DEBT_ITEM`
+- **An LDAP attack that times out, or stays owed in `floor-debt` with 0 red, can be Samba's restart
+  back-off.** Some attacks crash a Samba LDAP worker, and Samba waits longer after each crash to
+  restart one. `docker logs novis-db-samba-ad-1` shows `terminated with signal 11`. `tests/db/compose.yaml`
+  sets the back-off to 1 s, and an older container needs `docker compose up -d --wait samba-ad`. Then `bun nv proofs --run
+  --id 'Core\Ldap\Connection::<method>'` records the atom green. The guard refuses `bun nv debt`.
+  `until: gone tests/db/compose.yaml:prefork maximum backoff`
