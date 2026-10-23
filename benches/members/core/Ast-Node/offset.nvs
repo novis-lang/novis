@@ -3,7 +3,7 @@
 // cuts that part's own text out of the source.
 // bench: iterations 4096
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

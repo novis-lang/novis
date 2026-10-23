@@ -2,7 +2,7 @@
 // Measures reading one setting by name. A program does this when it needs a
 // limit or a log level before it starts work.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

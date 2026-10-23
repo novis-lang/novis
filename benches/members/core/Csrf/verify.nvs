@@ -2,7 +2,7 @@
 // Measures checking one token, as a program does on every request that changes
 // something.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

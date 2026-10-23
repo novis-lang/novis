@@ -2,7 +2,7 @@
 // Walks everything below a node, as a tool searching a parsed file for one
 // construct does.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

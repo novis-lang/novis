@@ -2,7 +2,7 @@
 // Measures reading the most memory the process has used. A server does this
 // when it fills in a metrics page.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

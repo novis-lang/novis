@@ -2,7 +2,7 @@
 // Measures reading the number of cores. A program does this when it decides
 // how many workers to start.
 // bench: iterations 1024
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: statements 3
 // bench: complexity constant

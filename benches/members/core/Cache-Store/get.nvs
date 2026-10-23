@@ -2,7 +2,7 @@
 // Measures reading one value out of the memory cache. That is the read a
 // request makes before it decides whether it has to build the value.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

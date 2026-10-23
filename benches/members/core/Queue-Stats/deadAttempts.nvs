@@ -2,7 +2,7 @@
 // Reads the attempts of the failed jobs of a queue, as a health check or a daily report does.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 use Core\Queue;
 

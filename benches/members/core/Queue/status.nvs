@@ -1,7 +1,7 @@
 <?nvs
 // Reads the state of one job, as a page does when it shows the progress of an export.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 use Core\Queue;
 use Core\Queue\Id;

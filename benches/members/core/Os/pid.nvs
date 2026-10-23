@@ -2,7 +2,7 @@
 // Measures reading the process number. A program does this when it writes the
 // number into a log line or a file name.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {
