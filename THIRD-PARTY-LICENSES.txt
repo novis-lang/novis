@@ -146,7 +146,7 @@ platform Novis builds for, so one may appear that a given build omits.
   cssparser-macros                           0.7.1                          MPL-2.0
   csv-core                                   0.1.13                         MIT                             (Unlicense/MIT)
   ctr                                        0.10.1                         MIT                             (MIT OR Apache-2.0)
-  ctutils                                    0.4.3                          MIT                             (Apache-2.0 OR MIT)
+  ctutils                                    0.4.4                          MIT                             (Apache-2.0 OR MIT)
   curve25519-dalek                           5.0.0                          BSD-3-Clause
   curve25519-dalek-derive                    0.1.1                          MIT                             (MIT/Apache-2.0)
   data-encoding                              2.11.1                         MIT
@@ -2926,7 +2926,7 @@ DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
-  ctutils 0.4.3
+  ctutils 0.4.4
 
 ------------------------------------------------------------------------------
 
