@@ -20,8 +20,8 @@ stages:
         rules: [tooling/fmt-base-style-is-per, tooling/fmt-is-idempotent]
   - id: 3
     title: "a shape type is a node, so its fields are formatted as a list"
-    status: open
-    context: [crates/nvs-syntax/src/walk.rs, crates/nvs-fmt/src/list.rs, crates/nvs-cli/tests/ast.rs, crates/nvs-fmt/tests/list_layout.rs, data/gaps/nvs-fmt/comma-separated-list-whose-closing-delimiter.json]
+    status: done
+    context: [crates/nvs-syntax/src/walk.rs, crates/nvs-fmt/src/list.rs, crates/nvs-cli/tests/ast.rs, crates/nvs-fmt/tests/list_layout.rs]
     extra:
       context:
         rules: [tooling/fmt-a-list-is-one-line-or-one-item-per-line, tooling/fmt-trailing-commas, ide/ast-json-schema-is-frozen]
@@ -149,11 +149,11 @@ node kinds (`Node::kind`, the kind list at `crates/nvs-syntax/src/walk.rs:148`) 
 the LSP, the checker, `nvs ast`. It returns `file.rs:NN` and one line each. That list is what stages 3
 and 6 read against a new kind.
 
-- [ ] A node for a type, a shape type among them, in the syntax walk, and each consumer on the Explore list still matches. `crates/nvs-syntax/src/walk.rs:148`
-- [ ] The frozen `ast --json` example is re-recorded (`rule:ide/ast-json-schema-is-frozen`). `crates/nvs-cli/tests/ast.rs:184`
-- [ ] `list.rs` lays out a shape type's fields as a list (`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`, `rule:tooling/fmt-trailing-commas`), with a test. `crates/nvs-fmt/src/list.rs:94`, `crates/nvs-fmt/tests/list_layout.rs:1`
-- [ ] The record is deleted. `data/gaps/nvs-fmt/comma-separated-list-whose-closing-delimiter.json:1`
-- [ ] `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` is `shipped`. `data/rules/tooling/fmt-a-list-is-one-line-or-one-item-per-line.json:3`
+- [x] A node for a type, a shape type among them, in the syntax walk, and each consumer on the Explore list still matches. `crates/nvs-syntax/src/walk.rs:148`
+- [x] The frozen `ast --json` example is re-recorded (`rule:ide/ast-json-schema-is-frozen`). `crates/nvs-cli/tests/ast.rs:184`
+- [x] `list.rs` lays out a shape type's fields as a list (`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`, `rule:tooling/fmt-trailing-commas`), with a test. `crates/nvs-fmt/src/list.rs:94`, `crates/nvs-fmt/tests/list_layout.rs:1`
+- [x] The record is deleted. `data/gaps/nvs-fmt/comma-separated-list-whose-closing-delimiter.json:1`
+- [x] `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` is `shipped`. `data/rules/tooling/fmt-a-list-is-one-line-or-one-item-per-line.json:3`
 
 ### 6. an attribute is a node, so a literal inside it is formatted
 
@@ -200,41 +200,45 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 (886e60cbd) and 2 are done. Stage 2's new module `crates/nvs-fmt/src/statement.rs` finds
-each statement and each body's `}` that shares a line with the `;`, `{` or `}` before it.
-`Indent::new` keeps those offsets (`breaks`). `Indent::opening_of` treats one as a line start, so a
-body's contents indent from the line its opener is moved to. A one-line `fn`, anonymous class or
-property hook body is kept whole. `of_line` now places a `}` that closes a `try` clause.
-`brace.rs`'s `joins_an_if` writes the run inside `else if` empty, so it comes out `elseif`. A
-comment between the words keeps them apart. Three new `base_style.rs` cases pass, as do every other
-`nvs-fmt` suite, `identity` included.
+Stages 1, 2 and 3 are done. Stage 3 is 0b7e77765. The syntax walk writes a `ShapeType` node
+wherever a shape type is written, inside another type too, and no other type is a node. So a file
+with no shape walks as before. `push_type` is the one place (`crates/nvs-syntax/src/walk.rs:1111`).
+`Core\Ast`'s `productions!` gains `ShapeType` at the same sorted place. The redaction walk skips the
+node in front of a property's initializer (`crates/nvs-types/src/redaction.rs:199`). `list.rs` reads
+a shape's commas by depth, as it reads a parameter list's (`bracketed`). `space.rs` gives a one-line
+shape one space inside each brace (`rule:tooling/fmt-novis-constructs`). The corpus was reformatted:
+36 files, spacing only, and no line moved. `nvs ast --json`'s frozen document is `examples/hello.nvs`,
+which has no shape, so it is unchanged and the schema check over every example passes.
 
-The corpus was reformatted in this commit (`NVS_FMT_ACCEPT=1`): 57 files, `examples/schema.nvs` and
-56 under `tests/hostile/`. No expectation beside them names a line. The VS Code extension's attack
-needs two secrets on one line, so they now sit in a one-line `fn`, which the rule keeps whole
-(`tests/hostile/tools/editor/the-vs-code-extension/01-ranges-a-bar-has-to-land-on.nvs:23`). The standing decision on the
-corpus is rewritten to say a stage that changes output reformats it.
+Explore's consumer list for stages 3 and 6: the kind tables are `KINDS` and `productions!`. Position
+readers are `redaction.rs`'s `property` (first child is the initializer) and
+`nvs-types/src/deprecated/fix.rs:947` (a child's rank in `If`, `Switch`, `Foreach`). Other position
+readers are `nvs-lsp/src/arguments.rs:524`, `hover.rs:247` and `completion.rs:1322` (call children
+after the `(`), and `nvs-lsp/src/index.rs:1266` (an enum case's first child). Counting `.nvst` cases
+are under `tests/conformance/core/` (`core-ast-*`), and `.out` files under `docs/examples/core/Ast*`.
 
-The acceptance sweep's reds were unchanged at this session's start: `env-secret-proofs` exits 0, and
-no nightly has run since 39922764699 (106 commits stale). The last handoff's triage stands. If the
-next nightly's macOS `Serve soak` is red again, that is the slice to take first.
+The acceptance sweep's reds are unchanged: the `env-secret-proofs` log shows exit 0, and no nightly
+has run since 39922764699. The last handoff's triage stands. If the next nightly's macOS
+`Serve soak` is red again, take that slice first.
 
-Expected red at the gate: nothing known. The hostile cases that were reformatted run the same
-programs. An LSP formatting test that pins a one-line body would move with the rule.
+Expected red at the gate: nothing known. `list_layout`, `novis_constructs`, `identity` and `ast`
+passed after this change. An LSP completion case whose cursor is inside a shape type now has
+`ShapeType` as its innermost node, and no case in `tests/lsp/` writes one.
 
 ### Next
 
-**Stage 3: a shape type is a node, so its fields are formatted as a list.** Files:
-`crates/nvs-syntax/src/walk.rs`, `crates/nvs-fmt/src/list.rs`, `crates/nvs-cli/tests/ast.rs`,
-`crates/nvs-fmt/tests/list_layout.rs`. Do the stage's Explore split first. Read
-`rule:ide/ast-json-schema-is-frozen` before adding the kind. The playbook's first Tooling trap applies:
-a new walk node moves indentation, so run `cargo test --test identity` and accept the corpus as stage 2 did.
+**Stage 6: an attribute is a node, so a literal inside it is formatted.** Files:
+`crates/nvs-syntax/src/walk.rs`, `crates/nvs-fmt/src/tokens.rs`, `crates/nvs-fmt/src/space.rs`,
+`crates/nvs-cli/tests/ast.rs`. The walk's module doc says why an attribute's payload is no node
+today: a payload node under a method moves what `nvs fmt`'s indenter and `Core\Ast` print
+(`crates/nvs-syntax/src/walk.rs:31`). Read that first, and rewrite it with the change. Read the
+consumer list above against the new kind. Add the kind to `productions!` at the same sorted place.
+Run `cargo test --test identity` and accept the corpus as stages 2 and 3 did. `examples/` has
+attributes, so the frozen-schema check in `cargo test --test ast` is the one to run.
 
-- [ ] A node for a type, a shape type among them, in the syntax walk, and each consumer on the Explore list still matches. `crates/nvs-syntax/src/walk.rs:148`
-- [ ] The frozen `ast --json` example is re-recorded. `crates/nvs-cli/tests/ast.rs:184`
-- [ ] `list.rs` lays out a shape type's fields as a list, with a test. `crates/nvs-fmt/src/list.rs:94`, `crates/nvs-fmt/tests/list_layout.rs:1`
-- [ ] The record is deleted. `data/gaps/nvs-fmt/comma-separated-list-whose-closing-delimiter.json:1`
-- [ ] `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` is `shipped`. `data/rules/tooling/fmt-a-list-is-one-line-or-one-item-per-line.json:3`
+- [ ] A node for an attribute and its arguments in the syntax walk, each consumer on the list above still matching, and the frozen `ast --json` example re-recorded if it changes. `crates/nvs-syntax/src/walk.rs:31`, `crates/nvs-cli/tests/ast.rs:184`
+- [ ] `tokens.rs` respells a literal inside it (`rule:tooling/fmt-quotes`), with a test. `crates/nvs-fmt/src/tokens.rs:227`
+- [ ] The record is deleted. `data/gaps/nvs-fmt/literal-written-inside-an-attribute-keeps.json:1`
 
 ### Backlog
 
