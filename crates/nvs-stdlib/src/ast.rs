@@ -341,6 +341,7 @@ productions![
     "Require",
     "Return",
     "SelfExpr",
+    "ShapeType",
     "SpawnScript",
     "StaticCall",
     "StaticExpr",

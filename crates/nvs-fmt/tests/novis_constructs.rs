@@ -216,13 +216,10 @@ fn a_class_scoped_type_alias_has_one_layout() {
     // (`rule:tooling/fmt-base-style-is-per`), in a class, an interface and an
     // enum alike. Each owner here writes one at a depth nobody would choose —
     // too deep, at the left margin, half a level, a tab — and every other byte
-    // is what the printer answers today. The runs inside the type expression
-    // are among them: a type is a node to nobody in
-    // `crates/nvs-syntax/src/walk.rs`, so the `{` of a shape written in type
-    // position is outside the one-space rule the anonymous object below is
-    // inside, which is the crate's own known gap `nvs-fmt/comma-separated-list-whose-closing-delimiter` and is the same at file
-    // scope. The blank line each author left is theirs, here as everywhere
-    // (the record `data/gaps/nvs-fmt/rules-written-into-the-printer-are.json`).
+    // is what the printer answers today. A shape type gets the one space inside
+    // each brace the anonymous object below gets, here as at file scope. The
+    // blank line each author left is theirs, here as everywhere (the record
+    // `data/gaps/nvs-fmt/rules-written-into-the-printer-are.json`).
     let mangled = "\
 <?nvs
 class Order
@@ -262,7 +259,7 @@ echo Report::total({ total: 2.5 }), \"\\n\";
 <?nvs
 class Order
 {
-    type Meta = {total: decimal, note?: string};
+    type Meta = { total: decimal, note?: string };
     type Tag = string|int;
 
     public function stamp(Meta $meta): Tag
@@ -273,7 +270,7 @@ class Order
 
 interface Shipper
 {
-    type Label = {code: string};
+    type Label = { code: string };
 }
 
 enum Status

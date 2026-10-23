@@ -94,7 +94,7 @@ string $idToken = Core\Jwt::sign(
     $issuer,
 );
 
-var $claims = Core\Jwt::verifyIssued<tainted {sub: string}>(
+var $claims = Core\Jwt::verifyIssued<tainted { sub: string }>(
     $idToken,
     $published,
     'https://issuer.example',
@@ -112,7 +112,7 @@ string $confusedToken = Core\Encoding::toBase64Url(
     Core\Encoding::encodeText("{\"alg\":\"HS256\",\"typ\":\"JWT\"}", Core\Charset::Utf8),
 ) . '.' . $parts[1] . '.' . $parts[2];
 try {
-    var $forgedClaims = Core\Jwt::verifyIssued<tainted {sub: string}>(
+    var $forgedClaims = Core\Jwt::verifyIssued<tainted { sub: string }>(
         $confusedToken,
         $published,
         'https://issuer.example',

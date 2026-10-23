@@ -4,8 +4,8 @@
 // names and the spellings against each other. The program below should compile
 // and run to its last line.
 
-type Command = {name: string, about: string};
-type Option = {long: string};
+type Command = { name: string, about: string };
+type Option = { long: string };
 
 // 1. One command carrying 32 options. Every spelling is compared with every
 //    other one, so this tries to make that comparison slow.

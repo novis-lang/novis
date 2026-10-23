@@ -5,8 +5,8 @@
 // missing field throws. The program must not crash.
 // hostile: timeout-ms 30000
 
-type Point = {x: int, y: int};
-type Optional = {id: string, label?: string};
+type Point = { x: int, y: int };
+type Optional = { id: string, label?: string };
 
 class Attack
 {

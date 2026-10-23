@@ -11,7 +11,7 @@ uint $round = 0;
 uint $seen = 0;
 while ($round < 5000) {
     try {
-        Core\Arr::shapeAs<{a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int}>([
+        Core\Arr::shapeAs<{ a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int }>([
             'a' => 'x',
             'b' => 'x',
             'c' => 'x',
@@ -50,7 +50,7 @@ array<ParseError> $kept = [];
 uint $held = 0;
 while ($held < 200000) {
     try {
-        Core\Arr::shapeAs<{a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int}>([
+        Core\Arr::shapeAs<{ a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int }>([
             'a' => 'x',
             'b' => 'x',
             'c' => 'x',

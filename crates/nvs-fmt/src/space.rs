@@ -1,6 +1,7 @@
 //! The whitespace a construct of Novis's own requires: one space in front of a
-//! qualified type, one inside each brace of a one-line anonymous object, and a
-//! line of its own for each arm of a `match` written across lines.
+//! qualified type, one inside each brace of a one-line anonymous object or
+//! shape type, and a line of its own for each arm of a `match` written across
+//! lines.
 //!
 //! `rule:tooling/fmt-novis-constructs` gives every construct PER never saw one
 //! layout, and three of them are the run between two tokens that the author may
@@ -33,7 +34,7 @@
 //! every other one (`rule:tooling/fmt-never-reflows`), and a gap holding one is
 //! left alone.
 //!
-//! # A one-line anonymous object
+//! # A one-line anonymous object or shape type
 //!
 //! `{a: 1, b: 2}` goes out as `{ a: 1, b: 2 }`: one space after the opening
 //! brace and one before the closing one. Only an object its author wrote on one
@@ -44,10 +45,9 @@
 //! `crates/nvs-syntax/src/walk.rs` builds, which is a known gap in
 //! [`the crate's own doc`](crate).
 //!
-//! A shape type's braces are the same layout in the same rule, and they are not
-//! here: a type is no node in that walk, so the `{` of `tainted {a: string}`
-//! cannot be told from the `{` of a block by asking the index what wrote it.
-//! That half is the same known gap the trailing comma has over the same fields.
+//! A shape type's braces are the same layout in the same rule: `{a: string}`
+//! goes out as `{ a: string }`. Its node starts at a qualifier written in front
+//! of it, so the brace is the node's first `{` rather than its first byte.
 //!
 //! # A `match` arm list written across lines
 //!
@@ -108,7 +108,8 @@ pub(crate) fn runs(
 }
 
 /// Reads `text[from..to]`, which is code and nothing else, and records what
-/// each qualifier, each one-line anonymous object and each `match` arm list in it
+/// each qualifier, each one-line anonymous object or shape type and each
+/// `match` arm list in it
 /// requires.
 fn scan(
     wanted: &mut Vec<(usize, String)>,
@@ -164,8 +165,9 @@ fn qualifier(
     wanted.push((at, SPACE.to_owned()));
 }
 
-/// Records the two spaces the anonymous object opened at `offset` requires
-/// inside its braces, where one is written there on a single line.
+/// Records the two spaces the anonymous object or shape type opened at
+/// `offset` requires inside its braces, where one is written there on a single
+/// line.
 fn anon_object(
     wanted: &mut Vec<(usize, String)>,
     index: &SyntaxIndex,
@@ -179,7 +181,13 @@ fn anon_object(
     let Some(node) = index.at(pos).innermost() else {
         return;
     };
-    if node.kind != "AnonObject" || node.span.start as usize != offset {
+    let start = node.span.start as usize;
+    let opens = match node.kind {
+        "AnonObject" => start == offset,
+        "ShapeType" => !text[start..offset].contains('{'),
+        _ => false,
+    };
+    if !opens {
         return;
     }
     let end = node.span.end as usize;

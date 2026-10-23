@@ -39,6 +39,6 @@ class Admin implements Account
 
 // 2. The request asks for a function that creates every `Account` from a name
 //    that it chooses. `Admin` is in the list, so this does not compile.
-foreach (Core\Program::constructors<Account, callable(string): Account>() as {class: string, make: callable(string): Account} $row) {
+foreach (Core\Program::constructors<Account, callable(string): Account>() as { class: string, make: callable(string): Account } $row) {
     echo ($row->make)('mallory')->owner(), "\n";
 }

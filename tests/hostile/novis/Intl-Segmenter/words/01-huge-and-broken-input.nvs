@@ -14,7 +14,7 @@ try {
 // 2. One string of one million letters with no space, and one of one million spaces.
 try {
     array<string> $long = [Core\Str::repeat('a', 1000000), Core\Str::repeat(' ', 1000000)];
-    array<array<{text: string, wordLike: bool}>> $parts = Segmenter::words($long, 'en');
+    array<array<{ text: string, wordLike: bool }>> $parts = Segmenter::words($long, 'en');
     echo 'step 2 ran ', Core\Arr::count($parts[0]), ' ', Core\Arr::count($parts[1]), "\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";

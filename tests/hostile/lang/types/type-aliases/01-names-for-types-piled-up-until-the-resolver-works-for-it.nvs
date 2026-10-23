@@ -44,7 +44,7 @@ type N5 = array<N4>;
 type N6 = array<N5>;
 
 type Anything = int|string|float|bool|null;
-type Wide = {a: int, b: string, c: float, d: bool, e: int, f: string, g: float, h: bool};
+type Wide = { a: int, b: string, c: float, d: bool, e: int, f: string, g: float, h: bool };
 type Nest = array<mixed>;
 
 class Poke

@@ -1294,8 +1294,8 @@ fn symbol_of(target: &Target<'_>) -> String {
 /// A production that wrote no name at all — `new $class()`, `$u->{$name}` —
 /// answers the whole expression, which is the widest true thing there is to
 /// say about where it was written. A type test is that shape too: the type on
-/// the right of `is` is no child of its own, so the test answers the name it
-/// carries over the span it covers.
+/// the right of `is` is no child it names, a shape type being a child with no
+/// name, so the test answers the name it carries over the span it covers.
 fn named(node: &walk::Node) -> Span {
     let written = match node.kind {
         "Call" => node.children.first(),

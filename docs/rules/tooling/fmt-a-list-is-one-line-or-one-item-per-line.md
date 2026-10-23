@@ -51,10 +51,6 @@ A comment inside a broken list stays on the line of the item it follows, or keep
 when it was written on one. A line comment breaks the list it sits in, because a line break follows
 it. `match` arms keep their own rule (`rule:tooling/fmt-novis-constructs`).
 
-**Not on disk.** `nvs fmt` lays out every other list this way (`crates/nvs-fmt/src/list.rs:7`). A shape
-type's fields keep the line breaks and the trailing comma their author wrote, because a shape type is
-not a node and the formatter cannot tell its `{` from a block's (`crates/nvs-fmt/src/list.rs:54`).
-
 **Declined:**
 - **Keeping several items per line in a broken list.** That is the packing a width-fitting printer
   does, and it gives a list a third layout.

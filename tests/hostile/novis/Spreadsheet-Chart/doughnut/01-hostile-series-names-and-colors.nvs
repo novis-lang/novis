@@ -7,7 +7,7 @@ use Novis\Spreadsheet\Workbook;
 class Attack
 {
     // This method adds a doughnut at D2 and prints whether the file was written, or the class of the error.
-    public static function attempt(int $step, ?{categories?: string, name?: string, color?: string} $options): void
+    public static function attempt(int $step, ?{ categories?: string, name?: string, color?: string } $options): void
     {
         try {
             var $book = Workbook::createInMemory();

@@ -46,8 +46,8 @@ foreach ($paths as string $path) {
             echo $path, ' -> no route', "\n";
             continue;
         }
-        ?{seconds: int} $cache = $found->attribute<{seconds: int}>();
-        ?{role: string} $role = $found->attribute<{role: string}>();
+        ?{ seconds: int } $cache = $found->attribute<{ seconds: int }>();
+        ?{ role: string } $role = $found->attribute<{ role: string }>();
         echo $path,
             ' seconds=', $cache == null ? 'none' : $cache->seconds as string,
             ' role=', $role == null ? 'none' : $role->role, "\n";
@@ -67,7 +67,7 @@ if ($open != null) {
     Core\Router\Match $route = $open;
     uint $i = 0;
     while ($i < 1000000) {
-        if ($route->attribute<{role: string}>() != null) {
+        if ($route->attribute<{ role: string }>() != null) {
             $leaked = $leaked + 1;
         }
         $i = $i + 1;

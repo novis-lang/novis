@@ -4,7 +4,7 @@
 // The field is tainted, so the program should not compile.
 // hostile: expect-refusal
 
-type Command = {sql: string};
+type Command = { sql: string };
 
 // 1. The form arrives as `sql=DROP TABLE users`.
 Command $command = Core\Arr::shapeAs<Command>(Core\Request::postArray('form'));
