@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-server/src/mount.rs, crates/nvs-cli/src/serve/mounts.rs, crates/nvs-config/src/snapshot.rs, website/src/content/docs/guides/production/docker.mdx]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: config-tests
@@ -138,9 +138,9 @@ ConfigMap reaches a running server on `kind`, and the rule and the guide describ
 
 ### 3. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
@@ -183,40 +183,48 @@ The modes the previous session measured, in a busybox pod:
 Stage 1 is built: `Root` stores each root as given (`crates/nvs-cli/src/config.rs:618`), and
 `Stamp` carries the file's identity (`crates/nvs-cli/src/reload.rs:517`).
 
-**The acceptance sweep, traced this session.** `env-secret-proofs` exits 0 on disk (`bun nv proofs
---gate --only 'Core\Env::secret'`, run this session). Nightly run 39922764699 ran on `7b6ef53ee`.
+**The acceptance sweep's reds are fixed.** `env-secret-proofs` exits 0: its own log at
+`.looper/loops/main/checks/env-secret-proofs.log` reads `exit 0`. Nightly run 39922764699 ran on `7b6ef53ee`.
 Every red job in it but one is fixed by a later commit, each checked by name at HEAD: the
 property-observer probe guard by `42409d10d`, the four Windows serve tests by `ba8930b80`, the macOS
 redirect case by `342675093`, the proofs gate by `ba8e5e8bd` and `9270c45c4`, linux-aarch64's
 isolation flood by `922abf5f0`, conformance's extension CPU time by `dc3a2ed29`, asan's Windows alias
 by `93919e633`, and the website check by `f6ce06671`. The cancelled jobs were cancelled behind those.
 
-**One is still red at HEAD: the cost guard
-`serve::tests::live_bytes_stay_flat_while_one_core_serves_thousands_of_requests`**
-(`crates/nvs-cli/src/serve.rs:4465`, `cargo test --release -p nvs-cli --bin nvs -- --ignored <name>`).
-It failed on macOS in the nightly, and fails on Windows at HEAD: about +2.2 KB per 50-request
-keep-alive connection. A bisect names `040873f47` (`feat(runtime): a turn's memory is charged to the
-request tree that ran it`). Its parent `53e203709` passes. It was not fixed this session because it
-is a runtime slice outside this goal's files.
+**The last red, the live-bytes cost guard, is fixed in `071663316`.** About 2 KB of each
+connection's spawn stayed on the accept loop's balance. Two charges were allocated on the spawning
+turn and freed elsewhere:
+
+- `Scheduler::drain_pending` took the pending list, so the scheduler's stack freed its buffer, and the
+  next spawn allocated it again. The emptied list now goes back with its buffer
+  (`crates/nvs-host/src/scheduler.rs:1240`). That buffer was about 1.8 KB of the 2 KB.
+- `Ctx::new`'s tree state, deadline and object list, and the boxed body. `spawn_child` and
+  `spawn_root` now credit them to the running turn through `Ctx::hand_over_its_making`
+  (`crates/nvs-runtime/src/ctx/limits.rs`, `budget::credit_turn`). The credit applies only while the
+  context is its own unshared tree, made on this turn, and each allocation counts only while it is
+  still unshared and not replaced. So a joined child credits nothing, and no byte is credited twice.
+
+The new test `a_parent_that_spawns_and_outlives_many_children_stays_flat` measured +411 KB over 200
+children before the fix and is flat after it. The cost guard
+(`cargo test --release -p nvs-cli --bin nvs -- --ignored live_bytes_stay_flat_while_one_core_serves_thousands_of_requests`)
+passed once on Windows.
+
+**Stage 3 is done, and the goal is reached.** The installed `looper` binary has no `verify`
+subcommand, so the gate ran as `bun tools/looper/main.ts verify`. The first run was green in 833 s,
+and its formatter rewrapped four of this goal's files, committed in `668607a4f`. The second run kept
+that verdict. `config-tests` and `cli-tests` are green: 7496 passed, 0 failed.
+`bun nv verify --doc` and `bun nv owners --closes config-follows-links` are clean. Every standing
+decision has a home: the two config rule fragments,
+`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`, and
+`nvs_server::mount::databases`' doc.
 
 ### Next
 
-**First, the live-bytes cost guard, because a balance that grows with traffic is a leak in the
-accounting** (`rule:security/isolate-budget-is-the-trees`). The bisect's reading, a pointer to check:
-the memory is freed, but the accept loop's tree is charged for each connection's spawn and never
-credited.
+- Retire the goal. The loop's retire step deletes this file and rebuilds `target/release/nvs`.
 
-- [ ] Confirm the cause. `serve_on_this_core` spawns each connection with `spawn_child` (`crates/nvs-server/src/serve.rs:3203`), which allocates the child's `Ctx`, its `Arc<TreeState>`, the closure and the task node on the accept loop's turn. These are freed in the child's last turn (`crates/nvs-host/src/scheduler.rs:1124`, `end_in_its_turn`), so the accept tree's `TreeState::balance` (`crates/nvs-runtime/src/ctx/safepoint.rs:687`) only grows. A new tree's balance is seeded from it in `Ctx::leave_this_stack` (`crates/nvs-runtime/src/ctx/limits.rs:287`).
-- [ ] Fix it so the bytes belong to the tree that frees them. The simpler option: at spawn, move the measured construction bytes from the parent's balance to the child's starting balance in `leave_this_stack`. The other option: free the child's spawn-time state as a turn of the parent's tree. Pick by the priority ordering, and record it in the module doc. `crates/nvs-runtime/src/ctx/limits.rs:287`
-- [ ] A runtime test beside `children_that_together_cross_the_ceiling_are_each_over_it`: a parent spawns and joins many children, and its `live_bytes()` stays flat. `crates/nvs-host/src/group.rs:1340`
-- [ ] The cost guard passes, run once by name with the command above. `crates/nvs-cli/src/serve.rs:4465`
-
-**Then stage 3, the gate:** `looper verify` over the whole goal, every failure fixed in one pass,
-then once more. Then the goal-end gates in AGENTS.md § *In the loop*.
-
-Tests that may go red at the gate: the Unix test
-`a_link_in_a_group_writable_folder_is_refused_at_reload_and_at_boot` has never run.
-`live_config.rs` keeps its roots without links, so none of its cases should change.
+The Unix test `a_link_in_a_group_writable_folder_is_refused_at_reload_and_at_boot` first runs in
+Unix CI, and it may go red there. The nightly's live-bytes cost guard should pass on macOS and Linux
+from `071663316`.
 
 ### Backlog
 
