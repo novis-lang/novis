@@ -28,6 +28,11 @@
 #
 # Nothing in this file interpolates a `${{ }}` into a shell, and the only credential is the
 # per-run `GITHUB_TOKEN` — the same posture release.yml's header sets out in full.
+#
+# ## The website is deployed again
+#
+# The last step dispatches `pages.yml` on `main`, so the site shows the version just published.
+# That is the one use of `actions: write`.
 
 name: Promote release images
 
@@ -61,6 +66,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # For the website dispatch below, and for nothing else.
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -135,3 +142,14 @@ jobs:
             echo
             echo "    docker pull $IMAGE:latest"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The website reads the version from `Cargo.toml` when it is built. `publish` pushed the
+      # release commit with the run's `GITHUB_TOKEN`, and such a push starts no workflow, so the
+      # site would show the previous version until the next push to `main`. A dispatch is one of
+      # the events that token may start, so the site is built and deployed again from `main` here,
+      # once the tags have moved.
+      - name: Deploy the website again
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: gh workflow run pages.yml --repo "$REPO" --ref main

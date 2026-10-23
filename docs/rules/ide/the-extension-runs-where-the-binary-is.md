@@ -6,8 +6,11 @@ The language id is `nvs`, and `extensionKind` is `["workspace"]`. The
 client spawns `nvs lsp`, which has to be the binary next to the code, so a WSL distro, an SSH host and a
 devcontainer all get the remote's toolchain rather than a missing one.
 
-CI produces an installable `.vsix` artifact. Nothing is published — no Marketplace publisher and no
-listing; that decision is open. The package does carry the branding a listing
+CI produces an installable `.vsix` artifact, and every release attaches it to the GitHub release as
+`nvs-<version>.vsix`, at the release's own version (`.github/workflows/release.yml`'s `vsix` job). The
+Marketplace lists nothing: there is no publisher account, no token and no listing, and that decision is
+open. The release asset needs no credential beyond the run's own token, so it adds no secret to the
+release. The package does carry the branding a listing
 would need. `media/novis-logo.png` is the extension's icon and both languages' file icon, copied from
 `website/media/` because a `.vsix` holds no path out of its own directory; `displayName` is the H1 of the
 repository's `README.md`, the same home `nvs --help`'s first line reads from

@@ -12,6 +12,8 @@
 #
 #     plan → test → build → publish → docker
 #
+# `vsix` packages the VS Code extension beside `build`, and `publish` waits for both.
+#
 # `docker` is last for the same reason read from the other end: it needs a tag that already
 # exists, so an image can never be pushed for a release the repository has no record of. A
 # registry tag is also the one write here that cannot be undone by force-pushing a branch —
@@ -325,6 +327,76 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
+  # 3b. The VS Code extension, at the version about to be released.
+  #
+  # The same `--manifests-only` bump as `build`, in this job's own working copy, so the
+  # extension's `package.json` says the version the archives say. `test` already ran the
+  # extension's suites on this commit, so this job packages and attests and runs none. The
+  # artifact's name starts `dist-`, so `publish` downloads it beside the archives.
+  # ---------------------------------------------------------------------------
+  vsix:
+    name: build the VS Code extension
+    needs: plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # For the provenance attestation, as in `build`, and for nothing else.
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      # `--apply` reads the workspace with `cargo metadata` when the version moves, as in `build`.
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - name: Fetch dependencies against the committed lock
+        run: cargo fetch --locked
+
+      # In this working copy only. Nothing is committed here — see the header.
+      - name: Set the version being released
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: bun nv release --apply "$VERSION" --manifests-only
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: editors/vscode/.nvmrc
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - name: Install
+        working-directory: editors/vscode
+        run: npm ci
+
+      - name: Package
+        working-directory: editors/vscode
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          npm run package
+          mkdir -p ../../dist
+          mv nvs.vsix "../../dist/nvs-$VERSION.vsix"
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: dist/nvs-*.vsix
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: dist-vsix
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
   # 4. The only job that writes anything: bump, changelog, commit, tag, draft.
   #
   # Gated on the `release` environment, so the tag and the push wait for a human click after the
@@ -332,7 +404,7 @@ jobs:
   # ---------------------------------------------------------------------------
   publish:
     name: tag, changelog and draft release
-    needs: [plan, test, build]
+    needs: [plan, test, build, vsix]
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     environment: release
@@ -359,9 +431,12 @@ jobs:
           path: dist
 
       # `build` may lose an optional leg without failing (see its comment), so the release would
-      # otherwise ship quietly incomplete. Required targets are checked by name here instead.
+      # otherwise ship quietly incomplete. Required targets are checked by name here instead, and
+      # so is the extension.
       - name: Every required archive arrived
         shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
         run: |
           set -euo pipefail
           required="linux-x86_64 linux-aarch64 windows-x86_64 macos-aarch64"
@@ -369,6 +444,7 @@ jobs:
           for target in $required; do
             ls dist/nvs-*-"$target".* >/dev/null 2>&1 || missing="$missing $target"
           done
+          [ -f "dist/nvs-$VERSION.vsix" ] || missing="$missing nvs-$VERSION.vsix"
           if [ -n "$missing" ]; then
             echo "::error::required build(s) missing:$missing" >&2
             exit 1
@@ -412,8 +488,9 @@ jobs:
           git config user.name  'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           # Named files, never `git add -A`: a runner's working tree also holds dist/ and
-          # whatever a build script dropped, and a release commit contains three files.
-          git add Cargo.toml Cargo.lock CHANGELOG.md
+          # whatever a build script dropped. The first release changes CHANGELOG.md alone, and an
+          # unchanged file named here adds nothing.
+          git add Cargo.toml Cargo.lock CHANGELOG.md editors/vscode/package.json editors/vscode/package-lock.json
           # Written to a file and passed with -F. The subject follows
           # docs/agent/conventions.md, and the commit-msg hook rejects trailers — there are none.
           printf '%s\n' \
