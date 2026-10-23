@@ -72,72 +72,95 @@ class Many
     #[Core\Command(name: 'c01', about: 'one')]
     public static function c01(): void
     {}
+
     #[Core\Command(name: 'c02', about: 'two')]
     public static function c02(): void
     {}
+
     #[Core\Command(name: 'c03', about: 'three')]
     public static function c03(): void
     {}
+
     #[Core\Command(name: 'c04', about: 'four')]
     public static function c04(): void
     {}
+
     #[Core\Command(name: 'c05', about: 'five')]
     public static function c05(): void
     {}
+
     #[Core\Command(name: 'c06', about: 'six')]
     public static function c06(): void
     {}
+
     #[Core\Command(name: 'c07', about: 'seven')]
     public static function c07(): void
     {}
+
     #[Core\Command(name: 'c08', about: 'eight')]
     public static function c08(): void
     {}
+
     #[Core\Command(name: 'c09', about: 'nine')]
     public static function c09(): void
     {}
+
     #[Core\Command(name: 'c10', about: 'ten')]
     public static function c10(): void
     {}
+
     #[Core\Command(name: 'c11', about: 'eleven')]
     public static function c11(): void
     {}
+
     #[Core\Command(name: 'c12', about: 'twelve')]
     public static function c12(): void
     {}
+
     #[Core\Command(name: 'c13', about: 'thirteen')]
     public static function c13(): void
     {}
+
     #[Core\Command(name: 'c14', about: 'fourteen')]
     public static function c14(): void
     {}
+
     #[Core\Command(name: 'c15', about: 'fifteen')]
     public static function c15(): void
     {}
+
     #[Core\Command(name: 'c16', about: 'sixteen')]
     public static function c16(): void
     {}
+
     #[Core\Command(name: 'c17', about: 'seventeen')]
     public static function c17(): void
     {}
+
     #[Core\Command(name: 'c18', about: 'eighteen')]
     public static function c18(): void
     {}
+
     #[Core\Command(name: 'c19', about: 'nineteen')]
     public static function c19(): void
     {}
+
     #[Core\Command(name: 'c20', about: 'twenty')]
     public static function c20(): void
     {}
+
     #[Core\Command(name: 'c21', about: 'twenty one')]
     public static function c21(): void
     {}
+
     #[Core\Command(name: 'c22', about: 'twenty two')]
     public static function c22(): void
     {}
+
     #[Core\Command(name: 'c23', about: 'twenty three')]
     public static function c23(): void
     {}
+
     #[Core\Command(name: 'c24', about: 'twenty four')]
     public static function c24(): void
     {}

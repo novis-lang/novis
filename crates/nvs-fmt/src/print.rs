@@ -12,7 +12,8 @@
 //!
 //! What a whitespace run has to be is [`Runs`], which every stage that decides
 //! one contributes to: the line a brace sits on ([`crate::brace`]), the line
-//! break in front of a statement or a closing brace ([`crate::statement`]) and the run
+//! break in front of a statement or a closing brace ([`crate::statement`]), the
+//! blank line after a declaration ([`crate::blank`]) and the run
 //! a qualifier, a one-line anonymous object or a `match` arm wants
 //! ([`crate::space`]) are the same answer to "what must precede this byte", and
 //! the run that is not there to rewrite is written into the code run instead.
@@ -35,7 +36,7 @@ use nvs_diagnostics::{Diagnostics, SourceFile, Span};
 use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
 use crate::indent::Indent;
-use crate::{brace, chain, list, modifiers, space, statement, tokens};
+use crate::{blank, brace, chain, list, modifiers, space, statement, tokens};
 
 /// One run of bytes, and what the printer writes in its place.
 ///
@@ -137,7 +138,10 @@ pub(crate) fn one_code_run(trivia: &[Trivia], span: Span) -> bool {
 pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) -> String {
     let text = file.text();
     let indent = Indent::new(&parsed.index, text, &parsed.trivia);
-    let mut wanted = brace::placements(&parsed.index, &indent, text, &parsed.trivia);
+    // A blank line comes before the statement stage's single break, so the
+    // two breaks win where both name the same byte.
+    let mut wanted = blank::runs(parsed, &indent);
+    wanted.extend(brace::placements(&parsed.index, &indent, text, &parsed.trivia));
     wanted.extend(space::runs(&parsed.index, &indent, text, &parsed.trivia));
     wanted.extend(list::runs(&parsed.index, &indent, text, &parsed.trivia));
     wanted.extend(chain::runs(&parsed.index, &indent, text, &parsed.trivia));

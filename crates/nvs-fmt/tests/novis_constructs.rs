@@ -217,9 +217,9 @@ fn a_class_scoped_type_alias_has_one_layout() {
     // enum alike. Each owner here writes one at a depth nobody would choose —
     // too deep, at the left margin, half a level, a tab — and every other byte
     // is what the printer answers today. A shape type gets the one space inside
-    // each brace the anonymous object below gets, here as at file scope. The
-    // blank line each author left is theirs, here as everywhere (the record
-    // `data/gaps/nvs-fmt/rules-written-into-the-printer-are.json`).
+    // each brace the anonymous object below gets, here as at file scope. An
+    // alias has no body, so the blank line each author left beside one is
+    // theirs (`rule:tooling/fmt-base-style-is-per`).
     let mangled = "\
 <?nvs
 class Order

@@ -41,8 +41,8 @@ stages:
         rules: [tooling/fmt-sorts-the-use-block, tooling/fmt-base-style-is-per, tooling/fmt-never-reflows]
   - id: 5
     title: "PER's blank lines are written, and the printer's record is closed"
-    status: open
-    context: [crates/nvs-fmt/src/lib.rs, crates/nvs-fmt/src/print.rs, crates/nvs-fmt/tests/corpus.rs, data/gaps/nvs-fmt/rules-written-into-the-printer-are.json]
+    status: done
+    context: [crates/nvs-fmt/src/lib.rs, crates/nvs-fmt/src/print.rs, crates/nvs-fmt/src/blank.rs, crates/nvs-fmt/tests/corpus.rs]
     extra:
       context:
         rules: [tooling/fmt-base-style-is-per, ide/tokens-plus-trivia-reproduce-the-file]
@@ -108,6 +108,11 @@ to 6, so it can run first, last, or as a side goal. Stages 3 and 6 share `crates
 and `crates/nvs-cli/tests/ast.rs`, so 6 follows 3. Neither shares a file with 2 or 5. Stage 4 follows
 stage 2, because both edit `crates/nvs-fmt/src/indent.rs`. Stage 5 runs last, because its module doc
 lists every module the other stages leave writing a rule. No stage waits on another goal.
+
+**Blank lines PER does not fix stay the author's.** Between two members where either has no body,
+inside the `use` block, and between a comment and its member. A blank line between simple
+properties groups them, and deleting it would delete what the author meant. The rule fragment
+holds the reason.
 
 **Trade-offs.** No program's behaviour changes, and nothing runs on the request path. `nvs fmt`
 output changes for files that differ from the rules, which is the point. Two more node kinds make
@@ -182,9 +187,12 @@ a rule.
 **Does:** the blank lines `rule:tooling/fmt-base-style-is-per` names are written by the printer,
 not kept from the author.
 
-- [ ] One blank line after `namespace`, one after the `use` block, and one between two members, with a member's comment kept above it. `crates/nvs-fmt/src/print.rs:137`
-- [ ] The crate's module doc lists every module that writes a rule, `list.rs` and `chain.rs` included. The record names neither today. `crates/nvs-fmt/src/lib.rs:21`
-- [ ] The record is deleted. `data/gaps/nvs-fmt/rules-written-into-the-printer-are.json:1`
+- [x] One blank line after `namespace`, one after the `use` block, and one between two members, with a member's comment kept above it. `crates/nvs-fmt/src/blank.rs:1`
+  - [x] `blank.rs` asks for the run after each declaration, and `print.rs` takes it ahead of the statement stage.
+  - [x] The corpus is reformatted: six hostile files moved, and none pins a line.
+  - [x] `tests/fmt/*/blank.nvs` pins the layout.
+- [x] The crate's module doc lists every module that writes a rule, `list.rs` and `chain.rs` included. `crates/nvs-fmt/src/lib.rs:55`
+- [x] The record is deleted. `crates/nvs-fmt/src/lib.rs:55`
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -203,44 +211,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 4 and 6 are done. This session landed stage 4's last items: dc4bc42d9 and
-6a74dc50c.
+Stages 1 to 6 are done. This session landed stage 5 in one commit.
 
-dc4bc42d9: a property hook is a `PropertyHook` node, a child of its `Property`
-(`hook`, `crates/nvs-syntax/src/walk.rs`), and the kind is in `indent.rs`'s `BODIES`. A hook's
-statements sit one level in from the hook's line. `redaction.rs`'s `property` now reads its children
-by kind. Two hostile files moved, as predicted. `tests/fmt/*/hooks.nvs` pins it.
+`crates/nvs-fmt/src/blank.rs` writes PER's blank lines. It walks `parsed.stmts` and asks for two
+line breaks in the first whitespace run with a break after a `namespace;` line, after the last
+import of a run, and after a member when it and the next member each have a body (a method with a
+block, a property with hooks, or a nested enum). `print.rs` puts these runs ahead of the statement
+stage's, so the two breaks win where both name one byte. A trailing comment stays on its member's
+line, and a comment on a line of its own stays below the blank line. Every other blank line is the
+author's, and `rule:tooling/fmt-base-style-is-per` now says so, with the reason. The corpus
+mostly followed the rule already: six hostile files moved, with no expectation file beside any of
+them and no line number pinned in any of them. `tests/fmt/*/blank.nvs` pins the layout.
 
-6a74dc50c: a `switch` case is a `Case` node (`switch_case`, `crates/nvs-syntax/src/walk.rs`).
-`Switch` and `Case` are in `BODIES`, and `Switch` left `OPAQUE`, which now holds `InlineHtml`
-alone. The corpus already followed PER-CS, so no file moved. `tests/fmt/*/switch.nvs` pins the
-layout. `nvs_lsp::html_template`'s `allowed_under` refuses a `Case` parent as it did `Switch`.
-`rule:tooling/fmt-base-style-is-per` states the hook and switch layouts and that template text is
-copied, and `rule:tooling/fmt-never-reflows` now says a continuation line keeps the indentation its
-author wrote. The line gap record is deleted.
-
-Both nodes are new `kind` values in `nvs ast --json`, which `rule:ide/ast-json-schema-is-frozen`
-allows. The frozen example in `crates/nvs-cli/tests/ast.rs` has no hook and no switch, so it did not
-change.
+The crate's module doc lists every module that writes a rule, and the gap record is deleted.
+`bun nv owners --closes formatter-complete` is green, and no gap record under `data/gaps/nvs-fmt/`
+is left.
 
 The acceptance sweep's reds are unchanged: `env-secret-proofs` exits 0 when run now, and no
 nightly has run since 39922764699. The last handoff's triage stands. If the next nightly's macOS
 `Serve soak` is red again, take that slice first.
 
 Expected red at the gate: possibly an `nvs-lsp` definition or hover case whose cursor is inside an
-attribute payload, from stage 6. No test reads `Core\Ast\Switch` or `Core\Ast\Property`, so the
-new nodes should break none. `identity` and `fixtures` passed this session.
+attribute payload, from stage 6. A test elsewhere whose formatted input has two bodied members
+with no blank line between them would go red too. `nvs-fmt`'s `identity` and `fixtures` passed
+this session.
 
 ### Next
 
-**Stage 5.** Files: `crates/nvs-fmt/src/print.rs`, `crates/nvs-fmt/src/lib.rs`,
-`docs/rules/tooling/fmt-base-style-is-per.md`. A stage that changes output reformats the corpus in
-the same commit (`NVS_FMT_ACCEPT=1 cargo test --test identity`), so expect many files to move with
-the blank-line rule. List the moved files that have an expectation beside them first.
+**Stage 7, the gate.** Start `looper verify` with `run_in_background`, and end the turn to wait.
+Group the failures by cause, fix them in one pass, and run it once more. Then the goal-end gates:
+`bun nv verify --doc`, and `bun nv owners --closes formatter-complete`.
 
-- [ ] One blank line after `namespace`, one after the `use` block, and one between two members, with a member's comment kept above it. `crates/nvs-fmt/src/print.rs:137`, `crates/nvs-fmt/src/print.rs:210`
-- [ ] The crate's module doc lists every module that writes a rule, `list.rs` and `chain.rs` included. The record names neither today. `crates/nvs-fmt/src/lib.rs:21`
-- [ ] The record is deleted, and `bun nv owners --closes formatter-complete` is green. `data/gaps/nvs-fmt/rules-written-into-the-printer-are.json:1`
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog
 
