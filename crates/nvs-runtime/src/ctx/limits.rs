@@ -189,15 +189,20 @@ impl Ctx {
     /// configuration does not state one. The boot path refuses a value that is
     /// not between `0` and `1`, so anything else read here is treated as unset.
     fn configured_memory_high_water(&self) -> Option<f64> {
-        let written = self
-            .config
-            .as_ref()
-            .and_then(|config| config.get("memory_high_water"))?;
-        let setting = nvs_config::Setting::Text(written);
-        match nvs_config::Quantity::parse("memory_high_water", nvs_config::Unit::Ratio, &setting) {
-            Ok(nvs_config::Quantity::Ratio(fraction)) => Some(fraction),
+        match self.limit("memory_high_water", nvs_config::Unit::Ratio) {
+            nvs_config::Reading::Read(nvs_config::Quantity::Ratio(fraction)) => Some(fraction),
             _ => None,
         }
+    }
+
+    /// `[limits] leaf` as this request reads it, in `unit`: the table its
+    /// snapshot resolved once unless its overlay holds the key
+    /// (`nvs_config::Request::limit`). A context with no configuration reads
+    /// every limit as unset.
+    fn limit(&self, leaf: &str, unit: nvs_config::Unit) -> nvs_config::Reading {
+        self.config
+            .as_ref()
+            .map_or(nvs_config::Reading::Unset, |config| config.limit(leaf, unit))
     }
 
     /// The ceiling **ordinary execution** is held to, in bytes, `0` for no cap.
@@ -713,14 +718,10 @@ impl Ctx {
     /// can name the line, and a reading that got this far stops every spawn
     /// rather than allowing any number of them.
     fn configured_max_tasks(&self) -> Option<u64> {
-        let written = self
-            .config
-            .as_ref()
-            .and_then(|config| config.get("max_tasks"))?;
-        let setting = nvs_config::Setting::Text(written);
-        match nvs_config::Quantity::parse("max_tasks", nvs_config::Unit::Count, &setting) {
-            Ok(nvs_config::Quantity::Count(count)) => Some(count),
-            Ok(nvs_config::Quantity::Unbounded) => None,
+        match self.limit("max_tasks", nvs_config::Unit::Count) {
+            nvs_config::Reading::Read(nvs_config::Quantity::Count(count)) => Some(count),
+            nvs_config::Reading::Unset
+            | nvs_config::Reading::Read(nvs_config::Quantity::Unbounded) => None,
             _ => Some(0),
         }
     }
@@ -795,16 +796,8 @@ impl Ctx {
     /// the same request to everything downstream.
     ///
     fn configured_cpu_time(&self) -> u64 {
-        let Some(written) = self
-            .config
-            .as_ref()
-            .and_then(|config| config.get("cpu_time"))
-        else {
-            return 0;
-        };
-        let setting = nvs_config::Setting::Text(written);
-        match nvs_config::Quantity::parse("cpu_time", nvs_config::Unit::Duration, &setting) {
-            Ok(nvs_config::Quantity::Nanos(nanos)) => nanos,
+        match self.limit("cpu_time", nvs_config::Unit::Duration) {
+            nvs_config::Reading::Read(nvs_config::Quantity::Nanos(nanos)) => nanos,
             _ => 0,
         }
     }
@@ -845,16 +838,8 @@ impl Ctx {
     /// read as [`Self::configured_cpu_time`] reads its key: a malformed value
     /// and `false` both answer `0`.
     pub(super) fn configured_wall_time(&self) -> u64 {
-        let Some(written) = self
-            .config
-            .as_ref()
-            .and_then(|config| config.get("wall_time"))
-        else {
-            return 0;
-        };
-        let setting = nvs_config::Setting::Text(written);
-        match nvs_config::Quantity::parse("wall_time", nvs_config::Unit::Duration, &setting) {
-            Ok(nvs_config::Quantity::Nanos(nanos)) => nanos,
+        match self.limit("wall_time", nvs_config::Unit::Duration) {
+            nvs_config::Reading::Read(nvs_config::Quantity::Nanos(nanos)) => nanos,
             _ => 0,
         }
     }
@@ -1002,18 +987,11 @@ impl Ctx {
     /// is one level — so the safe direction is the only one left.
     ///
     fn configured_max_script_depth(&self) -> u32 {
-        let Some(written) = self
-            .config
-            .as_ref()
-            .and_then(|config| config.get("max_script_depth"))
-        else {
-            return Self::DEFAULT_MAX_SCRIPT_DEPTH;
-        };
-        let setting = nvs_config::Setting::Text(written);
-        match nvs_config::Quantity::parse("max_script_depth", nvs_config::Unit::Count, &setting) {
-            Ok(nvs_config::Quantity::Count(0)) => Self::DEFAULT_MAX_SCRIPT_DEPTH,
-            Ok(nvs_config::Quantity::Count(depth)) => u32::try_from(depth).unwrap_or(u32::MAX),
-            Ok(nvs_config::Quantity::Unbounded) => 0,
+        match self.limit("max_script_depth", nvs_config::Unit::Count) {
+            nvs_config::Reading::Read(nvs_config::Quantity::Count(depth)) if depth != 0 => {
+                u32::try_from(depth).unwrap_or(u32::MAX)
+            }
+            nvs_config::Reading::Read(nvs_config::Quantity::Unbounded) => 0,
             _ => Self::DEFAULT_MAX_SCRIPT_DEPTH,
         }
     }
@@ -1025,14 +1003,10 @@ impl Ctx {
     /// [`Self::configured_memory_limit`] answers "no cap": the file was already
     /// parsed and refused at the boundary that can name the line.
     fn configured_fatal_reserve(&self) -> Option<usize> {
-        let written = self
-            .config
-            .as_ref()
-            .and_then(|config| config.get("fatal_reserve_memory"))?;
-        let setting = nvs_config::Setting::Text(written);
-        match nvs_config::Quantity::parse("fatal_reserve_memory", nvs_config::Unit::Bytes, &setting)
-        {
-            Ok(nvs_config::Quantity::Bytes(bytes)) => Some(usize::try_from(bytes).unwrap_or(0)),
+        match self.limit("fatal_reserve_memory", nvs_config::Unit::Bytes) {
+            nvs_config::Reading::Read(nvs_config::Quantity::Bytes(bytes)) => {
+                Some(usize::try_from(bytes).unwrap_or(0))
+            }
             _ => None,
         }
     }
@@ -1043,17 +1017,8 @@ impl Ctx {
     /// Malformed is `None` and takes the default below, for
     /// [`Self::configured_fatal_reserve`]'s reason.
     fn configured_fatal_reserve_time(&self) -> Option<u64> {
-        let written = self
-            .config
-            .as_ref()
-            .and_then(|config| config.get("fatal_reserve_time"))?;
-        let setting = nvs_config::Setting::Text(written);
-        match nvs_config::Quantity::parse(
-            "fatal_reserve_time",
-            nvs_config::Unit::Duration,
-            &setting,
-        ) {
-            Ok(nvs_config::Quantity::Nanos(nanos)) => Some(nanos),
+        match self.limit("fatal_reserve_time", nvs_config::Unit::Duration) {
+            nvs_config::Reading::Read(nvs_config::Quantity::Nanos(nanos)) => Some(nanos),
             _ => None,
         }
     }
@@ -1212,19 +1177,11 @@ impl Ctx {
     /// too: a body of unbounded parts is the shape the rule exists to stop.
     #[must_use]
     pub fn multipart_parts_limit(&self) -> usize {
-        let shipped = nvs_config::defaults::LIMITS_MAX_MULTIPART_PARTS;
-        let Some(written) = self
-            .config
-            .as_ref()
-            .and_then(|config| config.get("max_multipart_parts"))
-        else {
-            return shipped;
-        };
-        let setting = nvs_config::Setting::Text(written);
-        match nvs_config::Quantity::parse("max_multipart_parts", nvs_config::Unit::Count, &setting)
-        {
-            Ok(nvs_config::Quantity::Count(count)) => usize::try_from(count).unwrap_or(usize::MAX),
-            _ => shipped,
+        match self.limit("max_multipart_parts", nvs_config::Unit::Count) {
+            nvs_config::Reading::Read(nvs_config::Quantity::Count(count)) => {
+                usize::try_from(count).unwrap_or(usize::MAX)
+            }
+            _ => nvs_config::defaults::LIMITS_MAX_MULTIPART_PARTS,
         }
     }
 
@@ -1240,14 +1197,12 @@ impl Ctx {
     /// A value that is not a size reads as the key's shipped default, which is
     /// what an unwritten one reads as, and never as no cap.
     fn configured_bytes(&self, key: &str) -> usize {
-        let Some(written) = self.config.as_ref().and_then(|config| config.get(key)) else {
-            return 0;
-        };
-        let setting = nvs_config::Setting::Text(written);
-        match nvs_config::Quantity::parse(key, nvs_config::Unit::Bytes, &setting) {
-            Ok(nvs_config::Quantity::Bytes(bytes)) => usize::try_from(bytes).unwrap_or(usize::MAX),
-            Ok(_) => 0,
-            Err(_) => match nvs_config::defaults::row(&format!("limits.{key}")) {
+        match self.limit(key, nvs_config::Unit::Bytes) {
+            nvs_config::Reading::Read(nvs_config::Quantity::Bytes(bytes)) => {
+                usize::try_from(bytes).unwrap_or(usize::MAX)
+            }
+            nvs_config::Reading::Unset | nvs_config::Reading::Read(_) => 0,
+            nvs_config::Reading::Malformed => match nvs_config::defaults::row(&format!("limits.{key}")) {
                 Some(nvs_config::defaults::Builtin {
                     value: nvs_config::defaults::Value::Size(bytes),
                     ..
@@ -1284,6 +1239,25 @@ mod tests {
             crate::OutputSink::Buffer(bytes) => String::from_utf8_lossy(bytes).into_owned(),
             _ => panic!("the case buffered the diagnostic stream"),
         }
+    }
+
+    /// A request that sets nothing reads every ceiling off the table its
+    /// snapshot resolved once, so arming them makes no allocation and parses
+    /// no text. The first read resolves the table, and the counted one is the
+    /// next request's.
+    #[test]
+    fn a_request_that_sets_nothing_reads_its_limits_without_allocating() {
+        let mut ctx = high_water_ctx("[limits]\nmemory = \"64M\"\nwall_time = \"30s\"\n");
+        ctx.refresh_limits();
+        let before = crate::counting_alloc::allocated_bytes();
+        ctx.refresh_limits();
+        let wall = ctx.configured_wall_time();
+        let high_water = ctx.configured_memory_high_water();
+        let made = crate::counting_alloc::allocated_bytes() - before;
+        assert_eq!(made, 0, "reading the limits allocated {made} bytes");
+        assert_eq!(ctx.memory_limit + ctx.fatal_reserve, 64 << 20);
+        assert_eq!(wall, 30_000_000_000);
+        assert_eq!(high_water, None);
     }
 
     /// `rule:observability/memory-high-water-writes-a-warn`: a written `0` is a

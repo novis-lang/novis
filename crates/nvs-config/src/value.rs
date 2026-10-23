@@ -98,10 +98,77 @@ impl Unit {
     }
 }
 
+/// One `[limits]` key: its bare name, its dotted name, and the unit it is written in.
+#[derive(Clone, Copy, Debug)]
+pub struct Limit {
+    /// The name `Core\Config` takes with no block: `memory`.
+    pub leaf: &'static str,
+    /// The dotted key the file writes: `limits.memory`.
+    pub key: &'static str,
+    /// What the value measures.
+    pub unit: Unit,
+}
+
+/// One [`LIMITS`] row, with its dotted key spelled from its leaf.
+macro_rules! limit {
+    ($leaf:literal, $unit:expr) => {
+        Limit {
+            leaf: $leaf,
+            key: concat!("limits.", $leaf),
+            unit: $unit,
+        }
+    };
+}
+
+/// Every `[limits]` key, in one table. Adding a limit is one row here, and [`unit_of`], a bare
+/// name's block and a snapshot's resolved limits ([`crate::limits`]) all read it.
+pub const LIMITS: &[Limit] = &[
+    limit!("memory", Unit::Bytes),
+    limit!("max_output", Unit::Bytes),
+    // `rule:errors/on-limit`'s reserved slice is a quantity of the same heap `memory` bounds, so
+    // it is read in the same units and by the same parser.
+    limit!("fatal_reserve_memory", Unit::Bytes),
+    // `rule:core-classes/decompression-bound`'s absolute half is a quantity of the same heap
+    // `memory` bounds, so it is read in the same units and by the same parser.
+    limit!("max_decompressed", Unit::Bytes),
+    // The two body caps count the bytes of a request body, which is a size like the response
+    // `max_output` counts.
+    limit!("request_body", Unit::Bytes),
+    limit!("upload_total", Unit::Bytes),
+    limit!("cpu_time", Unit::Duration),
+    limit!("wall_time", Unit::Duration),
+    // The other half of that slice is a quantity of the same CPU time `cpu_time` bounds, and is
+    // read here for the same reason: a limit missing from this table has no block, so a bare name
+    // never reaches `[limits]` and the reader silently answers its default instead.
+    limit!("fatal_reserve_time", Unit::Duration),
+    // The grace after a disconnect is a stretch of the same wall-clock time `wall_time` bounds,
+    // read here so a bare number of seconds means what it means there.
+    limit!("disconnect_grace", Unit::Duration),
+    // The backtracking tier's step budget is a count of steps for the reason `max_tasks` is a
+    // count of tasks: a number of things, with no unit anyone would suffix it with. A multipart
+    // body's part count is one for the same reason.
+    limit!("max_tasks", Unit::Count),
+    limit!("max_script_depth", Unit::Count),
+    // The ratio half is a multiplier rather than a fraction — output per octet of input — so it is
+    // a `Count` and not `Unit::Ratio`, whose values run between zero and one.
+    limit!("max_decompression_ratio", Unit::Count),
+    limit!("max_regex_steps", Unit::Count),
+    limit!("max_multipart_parts", Unit::Count),
+    // `rule:observability/memory-high-water-writes-a-warn`'s threshold is a share of the memory
+    // ceiling, which is what a `Ratio` is.
+    limit!("memory_high_water", Unit::Ratio),
+];
+
+/// The [`LIMITS`] row whose bare name is `leaf`, and its index there.
+#[must_use]
+pub fn limit(leaf: &str) -> Option<(usize, &'static Limit)> {
+    LIMITS.iter().enumerate().find(|(_, row)| row.leaf == leaf)
+}
+
 /// The unit `key` is written in, and `None` for a key that is not a quantity at all.
 ///
-/// The limit keys are the whole table; adding a key is one row, and a key outside a
-/// limits block gets `None` however it is spelled.
+/// The limit keys are [`LIMITS`], and a key outside a limits block gets `None` however it is
+/// spelled.
 #[must_use]
 pub fn unit_of(key: &str) -> Option<Unit> {
     let (block, leaf) = match key.rfind('.') {
@@ -111,42 +178,7 @@ pub fn unit_of(key: &str) -> Option<Unit> {
     if !in_a_limits_block(block) {
         return None;
     }
-    match leaf {
-        // `rule:errors/on-limit`'s reserved slice is a quantity of the same heap `memory`
-        // bounds, so it is read in the same units and by the same parser.
-        // `rule:core-classes/decompression-bound`'s absolute half is a quantity of the same heap
-        // `memory` bounds, so it is read in the same units and by the same parser.
-        // The two body caps count the bytes of a request body, which is a size like the response
-        // `max_output` counts.
-        "memory"
-        | "max_output"
-        | "fatal_reserve_memory"
-        | "max_decompressed"
-        | "request_body"
-        | "upload_total" => Some(Unit::Bytes),
-        // The other half of that slice is a quantity of the same CPU time `cpu_time` bounds, and
-        // is read here for the same reason: a limit missing from this table has no block, so a
-        // bare name never reaches `[limits]` and the reader silently answers its default instead.
-        // The grace after a disconnect is a stretch of the same wall-clock time `wall_time`
-        // bounds, read here so a bare number of seconds means what it means there.
-        "cpu_time" | "wall_time" | "fatal_reserve_time" | "disconnect_grace" => {
-            Some(Unit::Duration)
-        }
-        // The ratio half is a multiplier rather than a fraction — output per octet of input — so
-        // it is a `Count` and not `Unit::Ratio`, whose values run between zero and one.
-        // The backtracking tier's step budget is a count of steps for the reason `max_tasks` is a
-        // count of tasks: a number of things, with no unit anyone would suffix it with. A
-        // multipart body's part count is one for the same reason.
-        "max_tasks"
-        | "max_script_depth"
-        | "max_decompression_ratio"
-        | "max_regex_steps"
-        | "max_multipart_parts" => Some(Unit::Count),
-        // `rule:observability/memory-high-water-writes-a-warn`'s threshold is a share of the
-        // memory ceiling, which is what a `Ratio` is.
-        "memory_high_water" => Some(Unit::Ratio),
-        _ => None,
-    }
+    limit(leaf).map(|(_, row)| row.unit)
 }
 
 /// Whether a limit written in `block` is one of `rule:config/three-changeability-classes`'s — `""` for the bare name

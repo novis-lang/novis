@@ -152,16 +152,48 @@ impl Request {
     #[must_use]
     pub fn get(&self, name: &str) -> Option<String> {
         let key = canonical(name);
-        if let Some(set) = self.overlay.get(key.as_ref()) {
+        if let Some(set) = self.overlay.get(key) {
             return Some(set.clone());
         }
-        if let Some(secret) = self.base.secrets.get(key.as_ref()) {
+        if let Some(secret) = self.base.secrets.get(key) {
             return Some(secret.value.clone());
         }
-        match value_at(&self.base.table, &key) {
+        match value_at(&self.base.table, key) {
             Some(written) => as_text(written),
-            None => self.default_of(&key),
+            None => self.default_of(key),
         }
+    }
+
+    /// The `[limits]` key `leaf` read in `unit`, as `get` and [`Quantity::parse`](value::Quantity::parse)
+    /// would read it.
+    ///
+    /// A request whose overlay holds neither the key nor a mode flip reads the table its snapshot
+    /// resolved once ([`crate::limits`]), which parses no text and allocates nothing. Any other
+    /// request, and a key or unit [`value::LIMITS`] does not name, reads it through `get`.
+    #[must_use]
+    pub fn limit(&self, leaf: &str, unit: value::Unit) -> crate::Reading {
+        if let Some((index, row)) = value::limit(leaf)
+            && row.unit == unit
+            && !self.overlay.contains_key(row.key)
+            && !self.overlay.contains_key(mode::KEY)
+        {
+            return crate::limits::resolved(&self.base).limit(index, self.serving);
+        }
+        crate::Reading::of(leaf, unit, self.get(leaf))
+    }
+
+    /// `[errors] deprecated` in force for this request: what it set, then what the file wrote,
+    /// then [`Deprecated::Ignore`](crate::errors::Deprecated::Ignore). Read off the resolved table
+    /// as [`limit`](Self::limit) reads a limit.
+    #[must_use]
+    pub fn deprecated(&self) -> crate::errors::Deprecated {
+        let key = crate::errors::KEY;
+        if !self.overlay.contains_key(key) && !self.overlay.contains_key(mode::KEY) {
+            return crate::limits::resolved(&self.base).deprecated;
+        }
+        self.get(key)
+            .and_then(|written| crate::errors::Deprecated::of(&written))
+            .unwrap_or_default()
     }
 
     /// The built-in default in force for the canonical `key` on this run, rendered as `get`
@@ -188,10 +220,10 @@ impl Request {
         // A name under a settable block that is not one of its keys — `log`, `log.x`,
         // `limits..memory` — is still governed by that block's row, but no reader ever asks for it,
         // so a set of it would change nothing and say `true`.
-        if !is_key(&key) {
+        if !is_key(key) {
             return false;
         }
-        let Some(row) = lookup(&key) else {
+        let Some(row) = lookup(key) else {
             return false;
         };
         if !row.class.settable_by_a_request() {
@@ -206,17 +238,17 @@ impl Request {
         let asked = Setting::Text(value.to_string());
         let bound = match row.class {
             // Up to the ceiling the operator kept, and freely below it (`rule:config/three-changeability-classes`).
-            Class::Runtime => self.ceiling(&key),
+            Class::Runtime => self.ceiling(key),
             // Narrowing only: what is in force *is* the ceiling, so the same comparison answers
             // both classes and a directive with nothing in force has nothing to narrow from.
-            Class::RuntimeTighten => match self.in_force(&key) {
+            Class::RuntimeTighten => match self.in_force(key) {
                 Some(current) => Some(current),
                 None => return false,
             },
             Class::System => return false,
         };
         match bound {
-            Some(bound) => match value::within_ceiling(&key, &asked, &bound) {
+            Some(bound) => match value::within_ceiling(key, &asked, &bound) {
                 Ok(Some(true)) => {}
                 // `Ok(None)` is a directive with no quantity to compare. A `Runtime` one is then
                 // unbounded and accepted; a `RuntimeTighten` one cannot be shown to narrow, which
@@ -228,17 +260,17 @@ impl Request {
             // No ceiling stated. The value still has to spell its own unit, or `get` would answer
             // with something the boot path would have refused from the file.
             None => {
-                if let Some(unit) = unit_of(&key)
-                    && value::Quantity::parse(&key, unit, &asked).is_err()
+                if let Some(unit) = unit_of(key)
+                    && value::Quantity::parse(key, unit, &asked).is_err()
                 {
                     return false;
                 }
             }
         }
-        if !self.stays_meaningful(&key, value) {
+        if !self.stays_meaningful(key, value) {
             return false;
         }
-        self.overlay.insert(key.into_owned(), value.to_string());
+        self.overlay.insert(key.to_string(), value.to_string());
         true
     }
 
@@ -354,7 +386,7 @@ impl Request {
     /// force again, or the built-in default where the file writes none. A name this request never
     /// set is not an error — there is nothing to undo and nothing to report.
     pub fn restore(&mut self, name: &str) {
-        self.overlay.remove(canonical(name).as_ref());
+        self.overlay.remove(canonical(name));
     }
 
     /// `Core\Config::all`: every directive in force for this request, by dotted name — the
@@ -440,12 +472,15 @@ impl Request {
 }
 
 /// The dotted key a `Core\Config` name resolves to — the module doc's *A bare name is a limit's
-/// name*, in the one place both `get` and `set` reach it.
-fn canonical(name: &str) -> Cow<'_, str> {
-    if !name.contains('.') && unit_of(name).is_some() {
-        return Cow::Owned(format!("limits.{name}"));
+/// name*, in the one place both `get` and `set` reach it. A bare limit's key is the static one
+/// [`value::LIMITS`] spells, so resolving a name never allocates.
+fn canonical(name: &str) -> &str {
+    if !name.contains('.')
+        && let Some((_, row)) = value::limit(name)
+    {
+        return row.key;
     }
-    Cow::Borrowed(name)
+    name
 }
 
 /// Whether `key` is a leaf key an `nvs.toml` may write: one of the setting lines of the shipped

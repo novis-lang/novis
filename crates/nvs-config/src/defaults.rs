@@ -29,7 +29,8 @@
 //! `[log] target`, whose unwritten state is a split between two channels — has a row for its
 //! readers and for the drift test, and `get` never renders it.
 //!
-//! Cost: one `&'static` slice and no allocation until a value is rendered. `get` scans it only when
+//! Cost: one `&'static` slice and no allocation until a value is rendered. A value fixed by the
+//! binary is rendered once per process, and [`in_force`] copies it. `get` scans it only when
 //! neither the request, a secret nor the file has the key, and `all` renders every row once. Neither
 //! runs on the request path unless a program calls `Core\Config`.
 
@@ -593,8 +594,41 @@ pub fn row(key: &str) -> Option<&'static Builtin> {
 /// key has no default in force.
 #[must_use]
 pub fn in_force(key: &str, at: &At<'_>) -> Option<String> {
-    let row = DEFAULTS.iter().find(|row| applies(row, key, at.table))?;
+    let (index, row) = DEFAULTS
+        .iter()
+        .enumerate()
+        .find(|(_, row)| applies(row, key, at.table))?;
+    if let Some(text) = fixed(index) {
+        return Some(text.to_owned());
+    }
     render(&row.value, key, at)
+}
+
+/// The rendering of the [`DEFAULTS`] row at `index` where its value is fixed by the binary, and
+/// `None` where it is computed when it is read or is a list.
+///
+/// Every fixed row is rendered once per process, on the first call. **What it spends:** one
+/// `String` per fixed row, for the process. The rows are the binary's, so this never grows.
+fn fixed(index: usize) -> Option<&'static str> {
+    static RENDERED: std::sync::OnceLock<Box<[Option<String>]>> = std::sync::OnceLock::new();
+    RENDERED
+        .get_or_init(|| DEFAULTS.iter().map(|row| render_fixed(&row.value)).collect())
+        .get(index)?
+        .as_deref()
+}
+
+/// A value fixed by the binary, rendered as [`render`] renders it, and `None` for any other value.
+fn render_fixed(value: &Value) -> Option<String> {
+    match *value {
+        Value::Size(bytes) => Some(size(bytes)),
+        Value::Time(duration) => Some(time(duration)),
+        Value::Count(count) => Some(count.to_string()),
+        Value::Ratio(fraction) => Some(format!("{fraction:?}")),
+        Value::Flag(flag) => Some(flag.to_string()),
+        Value::Text(text) => Some(text.to_string()),
+        Value::FileMode(bits) => Some(format!("{bits:04o}")),
+        _ => None,
+    }
 }
 
 /// Every default in force at `at`, by dotted key, inserted into `out`.
@@ -613,14 +647,14 @@ pub fn fill(at: &At<'_>, out: &mut std::collections::BTreeMap<String, String>) {
 #[must_use]
 pub fn render(value: &Value, key: &str, at: &At<'_>) -> Option<String> {
     match *value {
-        Value::Size(bytes) => Some(size(bytes)),
-        Value::Time(duration) => Some(time(duration)),
-        Value::Count(count) => Some(count.to_string()),
-        Value::Ratio(fraction) => Some(format!("{fraction:?}")),
-        Value::Flag(flag) => Some(flag.to_string()),
-        Value::Text(text) => Some(text.to_string()),
+        Value::Size(_)
+        | Value::Time(_)
+        | Value::Count(_)
+        | Value::Ratio(_)
+        | Value::Flag(_)
+        | Value::Text(_)
+        | Value::FileMode(_) => render_fixed(value),
         Value::List(_) => None,
-        Value::FileMode(bits) => Some(format!("{bits:04o}")),
         Value::Serving(duration) => at.serving.then(|| time(duration)),
         Value::ByMode => mode::DERIVED
             .iter()
