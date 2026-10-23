@@ -196,8 +196,11 @@ fn a_kubelet_configmap_update_is_read_by_the_next_check() {
     let second = volume.join("..2026_10_23_08_01_00.000000002");
     write_file(&second.join("nvs.toml"), ROOT);
     write_file(&second.join("headers.toml"), &headers("same-origin"));
-    symlink(second.file_name().expect("a name"), volume.join("..data_tmp"))
-        .expect("`..data_tmp` is linked");
+    symlink(
+        second.file_name().expect("a name"),
+        volume.join("..data_tmp"),
+    )
+    .expect("`..data_tmp` is linked");
     std::fs::rename(volume.join("..data_tmp"), volume.join("..data"))
         .expect("`..data_tmp` replaces `..data`");
     std::fs::remove_dir_all(&first).expect("the old folder is deleted");
@@ -282,7 +285,12 @@ fn a_link_in_a_group_writable_folder_is_refused_at_reload_and_at_boot() {
     std::fs::remove_file(&current).expect("`current` is unlinked");
     link_dir(&two, &current);
     let started = Instant::now();
-    while !server.stderr.lock().expect("no reader panicked").contains("E0607") {
+    while !server
+        .stderr
+        .lock()
+        .expect("no reader panicked")
+        .contains("E0607")
+    {
         assert!(
             started.elapsed() <= BOUND,
             "no reload refusal after {BOUND:?}; the server wrote: {}",

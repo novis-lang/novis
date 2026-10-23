@@ -847,13 +847,16 @@ mod tests {
         judged_link_holder(&volume, SERVER, || true).expect("the kubelet's ConfigMap volume");
         let why = judged_link_holder(&volume, SERVER, || false)
             .expect_err("anyone on this host could swap the link");
-        assert!(why.message().contains("group- and world-writable"), "{why:?}");
+        assert!(
+            why.message().contains("group- and world-writable"),
+            "{why:?}"
+        );
         let hosts = Stat {
             owner: HOST,
             ..volume
         };
-        let why = judged_link_holder(&hosts, SERVER, || true)
-            .expect_err("the waiver is root's alone");
+        let why =
+            judged_link_holder(&hosts, SERVER, || true).expect_err("the waiver is root's alone");
         assert!(why.message().contains("mode 0777"), "{why:?}");
         judged(&volume, SERVER, || true).expect_err("the file's own directory keeps the mode test");
     }
