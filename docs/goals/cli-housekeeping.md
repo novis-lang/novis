@@ -27,7 +27,7 @@ stages:
         rules: [tooling/telemetry-is-two-opt-ins, tooling/telemetry-counters-are-a-closed-set, tooling/telemetry-show-prints-the-payload]
   - id: 4
     title: "an upload is carried, never fails the command, and never runs in a serving process"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/telemetry.rs, crates/nvs-cli/src/update_check.rs, docs/rules/tooling/a-serving-process-never-uploads.md, docs/rules/tooling/a-failed-upload-never-fails-the-command.md]
     extra:
       context:
@@ -249,8 +249,8 @@ at most three seconds.
 - [x] A test that the bytes `nvs telemetry show` prints equal what the listener receives, and the **Not on disk.** lines of the three telemetry rules and the update-check rule removed (`rule:tooling/telemetry-show-prints-the-payload`). `crates/nvs-cli/src/telemetry.rs:247`, `docs/rules/tooling/telemetry-show-prints-the-payload.md:1`
 - [x] The `nvs serve` test § *Standing decisions* names: zero connections under load, `invocation.serve` counted. `crates/nvs-cli/src/telemetry.rs:1`
 - [x] Both rules `shipped`. `data/rules/tooling/a-serving-process-never-uploads.json:3`, `data/rules/tooling/a-failed-upload-never-fails-the-command.json:3`
-- [ ] `tools:cli/nvs-telemetry` owes no proof: `about.md`, an example, an attack and a test case, as `bun nv proofs --id 'tools:cli/nvs-telemetry'` lists. `docs/reference/tools/10-cli.md:548`, `docs/examples/tools/cli/nvs-info/about.md:1`
-- [ ] `tools:cli/nvs-update-check` owes no proof, the same way, and `bun nv proofs --gate` is green. `docs/reference/tools/10-cli.md:646`
+- [x] `tools:cli/nvs-telemetry` owes no proof: `about.md`, an example, an attack and a test case, as `bun nv proofs --id 'tools:cli/nvs-telemetry'` lists. `docs/reference/tools/10-cli.md:548`, `docs/examples/tools/cli/nvs-info/about.md:1`
+- [x] `tools:cli/nvs-update-check` owes no proof, the same way, and `bun nv proofs --gate` is green. `docs/reference/tools/10-cli.md:646`
 
 ### 5. the project walk skips what `.gitignore` ignores, `nvs check` reads a directory, and a `require` that cannot be followed is an error
 
@@ -304,37 +304,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done, and stage 4's upload is built. Its two proof items are open. The upload:
+Stages 1 to 4 are done. Stage 4's proofs landed in `1196274f5`:
 
-- `nvs_stdlib::tool_post` (`crates/nvs-stdlib/src/http.rs`) is `tool_get`'s `POST` through one
-  private `tool_send`, and it follows no redirect
-- `carries_upload` in `main.rs` is the exhaustive allow-list. `telemetry::start(command, carrier)`
-  stores the answer in `CARRIER`, and `carry_from` sends nothing in a process it said no for. A
-  service's stored line passes `false`
-- the counter file gains `last` (seconds of the last accepted upload) and `due` (the pending week's
-  point: the Monday that ends it plus a random offset under 24 hours, drawn by the first carrier
-  that sees the week). The point is never inside the week of `last`
-- `Counters::send` is one `POST` under `BUDGET` (3s). `204` records, `400`, `413` and `415` drop,
-  everything else keeps. A `400`'s field is the reply's first line, printable ASCII, at most 64
-  characters
-- `status` and `update-check` print `last upload:`, `next upload: from` and the totals.
-  `update-check --json` adds `upload`, `last_upload`, `next_upload`, `uploads` and `bytes_sent`
-- "one connection when both are on" is read as `rule:tooling/telemetry-is-two-opt-ins`'s sentence:
-  the two requests go to different hosts, so no connection carries both. The rule now says so
+- `tools:cli/nvs-telemetry` has `about.md`, three `.cmd` examples, the attack
+  `tests/hostile/tools/cli/nvs-telemetry/01-a-counter-file-with-forged-lines.nvs` and `covers:` tests
+- `tools:cli/nvs-update-check` has `about.md`, one `.cmd` example with `NVS_UPDATE_URL` at
+  `127.0.0.1:9`, and the attack `01-a-release-that-writes-to-the-terminal.nvs`
+- each attack's program prints its payload, and `crates/nvs-cli/tests/telemetry.rs` drives it
+  through the binary: the forged counter file goes into the telemetry folder, and each reply line is
+  served to `nvs update-check`
+- the attacks found two real bugs, both fixed. A huge `last` panicked `nvs telemetry status` with a
+  multiply overflow (`telemetry.rs`, `Counters::earliest`), so a week outside `YEARS` and a time
+  outside `TIMES` now read as absent, and counts saturate. `nvs update-check` printed any
+  `tag_name` raw, so `is_version` in `update_check.rs` now refuses a tag that is not 1 to 64 of
+  `[A-Za-z0-9.+-]`. Both rules say so
+- a `.cmd` example may start with `NAME=value` words, and never inherits `CI`, `DO_NOT_TRACK`,
+  `NVS_TELEMETRY_URL` or `NVS_UPDATE_URL` (`COMMAND_UNSET` in `tools/nv/proofs/run.ts`,
+  `docs/examples/README.md` § *A command instead of a program*). Without it, every telemetry
+  example fails on CI, where `CI` is set
 
-Every rule is written to match. Both upload rules are shipped, and every **Not on disk.** line about
-uploads is gone, including the stale one in `telemetry-counters-are-a-closed-set`. The reference
-chapter documents the upload and has a new `# nvs update-check` page. Both CLI pages have their
-search questions, stamped, and `bun nv site --check questions` passes.
+The two new tests ran once and pass, and both fail against the unfixed sources. The runner's
+`proof-command.test.ts` passes (17). `bun nv proofs --run` passes all four examples and both attacks.
+`bun nv proofs --gate --no-perf` owes nothing in the whole roster, and `rules --check` and
+`render --website --check` are clean. No test is expected to go red.
 
-The tests written this session ran once and pass: `telemetry::tests` and `update_check::tests` (20
-together), and `crates/nvs-cli/tests/telemetry.rs` (3). The latter runs `nvs serve` under 50
-requests with zero collector connections, and `nvs telemetry upload` and `nvs update-check` through
-the binary. No test is expected to go red. `bun nv proofs --gate` is red for the two CLI pages, and
-stage 4's open items fix that.
+`bun nv proofs --gate` with perf lists 28 `Core\Http` members whose perf record is stale, because
+last session's `tool_post` changed `crates/nvs-stdlib/src/http.rs`. Per `docs/agent/commands.md`
+§ *Verifying*, the benches wait for a release, where `bun nv benches --owed` pays them.
 
-The acceptance sweep's items are the ones the last session traced. `env-secret-proofs` exits 0 at
-HEAD, and the nightly is still the `7b6ef53ee` run. Of its reds, these are fixed by later commits:
+The acceptance sweep's items are the ones the last session traced. `env-secret-proofs`'s own log
+shows exit 0, and the nightly is still the `7b6ef53ee` run. Of its reds, these are fixed by later commits:
 
 - the property-observer cost guard passes locally in release
 - the proofs gate owes nothing
@@ -349,22 +348,22 @@ Two memory-growth checks were not chased: `serve.rs`'s live-bytes guard on macOS
 nightly says whether either holds.
 
 `crates/nvs-runtime/src/capability.rs` still has the uncommitted rustfmt join at line 2259. The guard
-refused to stage it again this session, because interactive session 6884de4b (`formatter-complete`)
-still claims the file. It has to be committed before the next goal end's push.
+refused to stage it a third time, because interactive session 6884de4b (`formatter-complete`) still
+claims the file, although that goal is gone. It has to be committed before the next goal end's push.
+If the claim still holds, name the call in the status line so the user can release it.
 
 ### Next
 
-**Stage 4's proofs**, one batch of files under `docs/examples/tools/cli/` and `tests/hostile/tools/cli/`.
-Read how `tools:cli/nvs-info` pays its proofs first, because it has no `tests/hostile/` folder and the
-gate still passes it. Every `.nvs`, `.cmd` comment and `about.md` follows AGENTS.md § *Text an end user
-reads*.
+**Stage 5**, whose gate holds now that `formatter-complete` is gone. Follow its `**Split:**` line:
+send the two `Explore` subagents together, then take the walk group.
 
-- [ ] `tools:cli/nvs-telemetry`: `about.md`, the examples, the attack and the test case `bun nv proofs --id 'tools:cli/nvs-telemetry'` lists. An example runs with `--data` in a scratch folder and `DO_NOT_TRACK` unset. `docs/examples/tools/cli/nvs-info/about.md:1`, `crates/nvs-cli/tests/info.rs:1`
-- [ ] `tools:cli/nvs-update-check`: the same, with `NVS_UPDATE_URL` at a dead port, so no example reaches GitHub. `docs/reference/tools/10-cli.md:646`
-- [ ] `bun nv proofs --gate` is green, and stage 4 is set `done` in the front matter. `docs/goals/cli-housekeeping.md:30`
+- [ ] Two `Explore` subagents: the rule fragments that say which files a walk reads, and every `require` whose path is not statically known. `docs/rules/tooling/nvs-code-answers-about-the-project.md:1`, `crates/nvs-hir/src/requires.rs:88`
+- [ ] The `ignore` crate in the workspace and `nvs-hir`, and `bun nv lints` and `deny.toml` accept it. `Cargo.toml:1`, `crates/nvs-hir/Cargo.toml:17`
+- [ ] `sources` walks with `WalkBuilder` as § *Standing decisions* says, and its temporary-tree tests. `crates/nvs-hir/src/lenders.rs:239`
+- [ ] `nvs fmt`'s walk is replaced by `sources`. `crates/nvs-cli/src/fmt.rs:177`
 
-**Then stage 5**, whose gate holds now that `formatter-complete` is gone. Follow its `**Split:**`
-line: two `Explore` subagents first, then the walk group. `crates/nvs-hir/src/lenders.rs:239`
+Then the `nvs check <directory>` group (`crates/nvs-cli/src/main.rs:2585`) and the `require` group
+(`crates/nvs-diagnostics/src/code/names.rs:64`), each as stage 5 lists it.
 
 ### Backlog
 
