@@ -302,8 +302,63 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
         unix_transport(name, db, origins)?;
         pool_for(name, db, origins)?;
         slow_query_for(name, db, origins)?;
+        journal_mode_for(name, db, origins)?;
     }
     Ok(())
+}
+
+/// `[db.<name>] journal_mode`: how a SQLite file the block opens for writing keeps its journal.
+///
+/// WAL lets readers run while one connection writes, and it is the default. It adds a `-wal` and
+/// a `-shm` file beside the database, does not work on a network drive, and stays on the file
+/// once set, which is why `Delete` exists. `nvs_db::sqlite::open` is the one place either is applied.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JournalMode {
+    /// `"wal"`: `PRAGMA journal_mode = WAL` at open.
+    Wal,
+    /// `"delete"`: the file keeps whatever journal mode it already has, SQLite's own `DELETE` for a
+    /// new one.
+    Delete,
+}
+
+impl JournalMode {
+    /// The block's mode, [`crate::defaults::DB_JOURNAL_MODE`]'s for a block that writes none, or
+    /// `None` for a value that is neither spelling, which [`validate`] has refused at boot.
+    #[must_use]
+    pub fn of(db: &Database) -> Option<JournalMode> {
+        match db
+            .journal_mode
+            .as_deref()
+            .unwrap_or(crate::defaults::DB_JOURNAL_MODE)
+        {
+            "wal" => Some(JournalMode::Wal),
+            "delete" => Some(JournalMode::Delete),
+            _ => None,
+        }
+    }
+}
+
+/// [`JournalMode::of`], with a value that is neither spelling refused under `E0601` naming
+/// `db.<name>.journal_mode`.
+///
+/// # Errors
+///
+/// The refusal for a `journal_mode` other than `"wal"` and `"delete"`.
+pub fn journal_mode_for(
+    name: &str,
+    db: &Database,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<JournalMode, Diagnostic> {
+    JournalMode::of(db).ok_or_else(|| {
+        refuse(
+            &format!("db.{name}.journal_mode"),
+            db.journal_mode.as_deref().unwrap_or_default(),
+            "a SQLite journal mode here is `\"wal\"` or `\"delete\"`",
+            "write `journal_mode = \"delete\"` for a database on a network drive, or leave the key \
+             out for WAL",
+            origins,
+        )
+    })
 }
 
 /// The refusal `name`'s block earns by naming a socket this build has no transport for.
