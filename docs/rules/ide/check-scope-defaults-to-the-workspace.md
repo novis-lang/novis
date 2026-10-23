@@ -1,6 +1,7 @@
 `nvs.check.scope` is `"workspace"` or `"open"`, default `"workspace"`: the symbol index is built over every
-`.nvs` file under the workspace folder, or over the open documents and their `require`/`autoload` graph
-alone. The index is what completion offers a type out of, what references and the code lens count, and
+`.nvs` file the project walk finds under the workspace folder
+(`rule:tooling/nvs-code-answers-about-the-project`, which skips what `.gitignore` and `.ignore` name), or
+over the open documents and their `require`/`autoload` graph alone. The index is what completion offers a type out of, what references and the code lens count, and
 what diagnostics are published for, so the default is the scope at which a developer is offered the classes
 of their own project and not only the ones already on screen. `nvs.checkWorkspace` runs one workspace pass
 on demand without changing the setting, which is what a developer who chose `"open"` reaches for. The

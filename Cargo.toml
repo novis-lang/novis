@@ -420,6 +420,13 @@ anyhow = "1"
 thiserror = "2"
 bitflags = "2"
 rustc-hash = "2"
+# The project walk `nvs_hir::lenders::sources` reads `.gitignore` and `.ignore`
+# through this crate's `WalkBuilder`, the walker ripgrep uses, so `nvs code`, the
+# editor's index, `nvs check` and `nvs fmt` skip what a project already says it
+# does not write. Pure Rust, no C, no build script, MIT or Unlicense; it brings
+# `globset`, `walkdir` and `same-file`, and its `regex-automata` and `memchr` are
+# the ones `regex` already pulls in. Never on the request path.
+ignore = "0.4"
 # Two consumers, one crate: the on-disk artifact cache keys on it, and
 # `Core\Hash::Digest::Blake3` computes it — the second is what finally put
 # it in `Cargo.lock`. `pure` and no default features on purpose: blake3 ships

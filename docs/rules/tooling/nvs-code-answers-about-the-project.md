@@ -14,7 +14,13 @@ that may not compile.
   the same function.
 - **The project** is the directory of the nearest `nvs.toml` at or above the working directory, and
   the working directory where there is none. Every `.nvs` file under it is analysed, as the editor
-  analyses a workspace.
+  analyses a workspace, except what the project walk skips. That walk is `nvs_hir::lenders::sources`,
+  the one walk `nvs code`, the editor's index, `nvs check`'s lender search and `nvs fmt` share. It
+  skips a path a `.gitignore` or `.ignore` names, read in every directory at and under the root and
+  also outside a git repository. It reads no global git excludes file, no `.git/info/exclude` and no
+  ignore file above the root, so one tree gives one file list on every machine and in CI. It never
+  enters `target/`, `vendor/` or a dot-directory, reads a dot-file, follows no symbolic link, and
+  always walks the root it is given.
 - **A position** is `path:line:column`: the path relative to the working directory, the line and the
   column from 1, the column in characters. JSON carries the byte `start` and `end` beside it.
 - **A `refs` line** is the position, the kind (`declared`, `import`, `use`) and the source line without
@@ -32,7 +38,8 @@ that may not compile.
   reach a terminal or an agent's context here, and must reach it as text and nothing else.
 
 A call costs one cold analysis of the project, one `analyse_file` per `.nvs` file under its root, and
-nothing outlives the call. No limit and no setting is added.
+nothing outlives the call. No limit and no setting is added. The walk reads each ignore file once and
+keeps its parsed patterns, a few KiB, until it ends.
 
 - **Performance:** nothing on the request path; this is tooling.
 - **Memory:** one index over the project for the length of one call, and nothing per request.
@@ -43,6 +50,10 @@ nothing outlives the call. No limit and no setting is added.
   verbs.
 
 **Declined:**
+- **An exclude key in `nvs.toml`.** A project already lists what it does not write in `.gitignore`,
+  and every project would repeat that list in a second place that drifts from the first.
+- **Reading the global git excludes file and `.git/info/exclude`.** Both are one machine's settings,
+  so the same tree would give a different file list on a colleague's machine or in CI.
 - **A `rename` verb, or any verb that writes a file.** The language server does not rename yet, and a
   second implementation of it here would be the one that drifts
   (`rule:ide/one-server-two-thin-clients`).
