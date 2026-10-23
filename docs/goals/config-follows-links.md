@@ -134,7 +134,8 @@ link directory sentence to it. Clippy is clean, and no other test was run.
 
 The acceptance sweep's `env-secret-proofs` was already green on disk. Every nightly CI failure in run
 39922764699 has a fix commit on main after it, such as `42409d10d`, `922abf5f0`, `8ea16803f` and
-`296755665`. Nothing was changed for them.
+`296755665`. The proofs job on `cdcedb5f8` had one more red: the nine `Core\Session` perf records
+were stale. `9270c45c4` records them again.
 
 ### Next
 
