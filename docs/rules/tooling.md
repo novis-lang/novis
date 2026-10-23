@@ -710,8 +710,12 @@ The one exception is an enum whose cases are on one line, which keeps its `{` on
 ([`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line)).
 
 Exactly one blank line follows a `namespace` line, one follows the `use` block, and one separates two
-members that each have a body; adjacent simple property and constant declarations get none. A comment
-between two members belongs to the member below it, so the blank line goes above the comment.
+members of a class, interface or enum that each have a body: a method with a block, a property with
+hooks, or an enum. A comment between two members belongs to the member below it, so the blank line goes
+above the comment, and a comment that ends a member's last line stays on that line, above the blank line.
+Every other blank line is the author's: between two members when either has no body, inside the `use`
+block, and between a comment and the member it describes. A blank line between two simple properties
+groups them, PER fixes no grouping, and a formatter that deleted it would delete what the author meant.
 
 A property's hooks sit one level in from the property's line, and a hook's block is a body of its own:
 its statements sit one level in from the hook's line, and its `}` on the hook's.

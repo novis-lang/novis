@@ -179,7 +179,9 @@ fn element<'a>(trivia: &[Trivia], text: &str, decl: &'a UseDecl) -> Element<'a> 
 /// `offset`.
 fn opens_its_line(text: &str, offset: usize) -> bool {
     let line_start = text[..offset].rfind('\n').map_or(0, |brk| brk + 1);
-    text[line_start..offset].trim_start_matches([' ', '\t']).is_empty()
+    text[line_start..offset]
+        .trim_start_matches([' ', '\t'])
+        .is_empty()
 }
 
 /// One declaration's sort key: the full path, backslashes and all.

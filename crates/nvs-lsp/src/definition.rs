@@ -106,9 +106,9 @@ use lsp_types::{Position, Range};
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, DocComment, EnumCase, EnumDecl, Expr, ExprKind,
-    FnBody, ForInit, MethodMember, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt,
-    StmtKind, TestOperand, Type, TypeAtom, TypeKind,
+    ClassMember, ClassMemberKind, DocComment, EnumCase, EnumDecl, Expr, ExprKind, FnBody, ForInit,
+    MethodMember, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, TestOperand,
+    Type, TypeAtom, TypeKind,
 };
 use nvs_types::{ExprInfo, ResolvedCall, Ty, TypeId, TypeInterner};
 use rustc_hash::FxHashMap;

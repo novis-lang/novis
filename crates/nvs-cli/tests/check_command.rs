@@ -99,7 +99,9 @@ fn a_source_file_that_is_not_utf_8_is_e0006_at_its_first_bad_byte() {
     bytes.extend_from_slice(&[0xE9, b'\n']);
     fs::write(dir.join("latin1.nvs"), bytes).unwrap();
 
-    for command in [&["check"][..], &["ast"], &["fmt", "--check"]] {
+    // `nvs fmt` exits `2` for a file it refused, and one it could not read is
+    // refused (`rule:tooling/fmt-exit-status-says-what-it-found`).
+    for (command, code) in [(&["check"][..], 1), (&["ast"], 1), (&["fmt", "--check"], 2)] {
         let data = nvs_repo::scratch_private("nvsdata");
         let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
             .arg("--data")
@@ -110,7 +112,7 @@ fn a_source_file_that_is_not_utf_8_is_e0006_at_its_first_bad_byte() {
             .output()
             .expect("the `nvs` binary this test was built beside runs");
         let stderr = String::from_utf8_lossy(&out.stderr);
-        assert_eq!(out.status.code(), Some(1), "{command:?}: {stderr}");
+        assert_eq!(out.status.code(), Some(code), "{command:?}: {stderr}");
         assert!(stderr.contains("error[E0006]"), "{command:?}: {stderr}");
         assert!(
             stderr.contains("latin1.nvs:3:7"),

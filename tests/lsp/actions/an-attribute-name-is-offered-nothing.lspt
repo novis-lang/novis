@@ -1,0 +1,16 @@
+--TEST--
+a compiler attribute written as the roster spells it carries no violation, so nothing is offered on its name, `rule:core-api/identifier-casing`
+--FILE--
+<?nvs
+class Blog
+{
+    #[Core\Ro<|>ute(path: "/", method: Core\Http\Method::Get)]
+    public static function index(): string
+    {
+        return "hello";
+    }
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

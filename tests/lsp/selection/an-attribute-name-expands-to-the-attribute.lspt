@@ -1,0 +1,18 @@
+--TEST--
+an attribute is a node of its own, so the step out of its name is the attribute and the step after it is the method it is written above, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Blog
+{
+    #[Core\Ro<|>ute(path: "/", method: Core\Http\Method::Get)]
+    public static function index(): string
+    {
+        return "hello";
+    }
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+4:7-4:59
+4:5-8:6
+2:1-9:2

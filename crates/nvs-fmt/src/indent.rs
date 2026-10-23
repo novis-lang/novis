@@ -270,7 +270,11 @@ impl<'a> Indent<'a> {
             return None;
         }
         let mut below = offset;
-        while let Some(trivium) = self.trivia.get(at).filter(|t| t.span.start as usize == below) {
+        while let Some(trivium) = self
+            .trivia
+            .get(at)
+            .filter(|t| t.span.start as usize == below)
+        {
             below = trivium.span.end as usize;
             at += 1;
         }

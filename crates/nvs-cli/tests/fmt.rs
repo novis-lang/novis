@@ -195,7 +195,10 @@ fn fmt_check_writes_nothing_and_exits_non_zero_naming_each_file() {
 /// them, and the file after the refusal is still named.
 #[test]
 fn fmt_check_exits_two_when_a_file_is_refused_beside_one_that_would_change() {
-    let (dir, paths) = fixture("exit-two", &[("a-broken.nvs", BROKEN), ("b-ragged.nvs", MANGLED)]);
+    let (dir, paths) = fixture(
+        "exit-two",
+        &[("a-broken.nvs", BROKEN), ("b-ragged.nvs", MANGLED)],
+    );
 
     let (out, err, code) = fmt(&[std::ffi::OsStr::new("--check"), dir.as_os_str()]);
     assert_eq!(code, Some(2), "a refusal outranks a change: {err}");
@@ -225,12 +228,24 @@ fn fmt_walk_skips_vendor_and_a_named_vendor_is_formatted() {
 
     let (_, err, code) = fmt(&[dir.as_os_str()]);
     assert_eq!(code, Some(0), "the walk formats the project's file: {err}");
-    assert_eq!(text(&paths[0]), CANONICAL, "the project's own file was rewritten");
+    assert_eq!(
+        text(&paths[0]),
+        CANONICAL,
+        "the project's own file was rewritten"
+    );
     assert_eq!(text(&pulled), MANGLED, "the vendored file was left alone");
 
     let (_, err, code) = fmt(&[vendor.as_os_str()]);
-    assert_eq!(code, Some(0), "a named vendor directory is formatted: {err}");
-    assert_eq!(text(&pulled), CANONICAL, "the named vendored file was rewritten");
+    assert_eq!(
+        code,
+        Some(0),
+        "a named vendor directory is formatted: {err}"
+    );
+    assert_eq!(
+        text(&pulled),
+        CANONICAL,
+        "the named vendored file was rewritten"
+    );
 }
 
 /// `--diff`: the same verdict as `--check`, rendered as the change itself.
@@ -307,7 +322,11 @@ fn nvs_check_never_reports_an_unformatted_file() {
 
     // The premise, from the formatter's own side: this file *is* unformatted.
     let (_, _, code) = fmt(&[std::ffi::OsStr::new("--check"), paths[0].as_os_str()]);
-    assert_eq!(code, Some(1), "the fixture is a file `nvs fmt` would rewrite");
+    assert_eq!(
+        code,
+        Some(1),
+        "the fixture is a file `nvs fmt` would rewrite"
+    );
 
     let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
