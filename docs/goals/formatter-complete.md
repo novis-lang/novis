@@ -235,6 +235,13 @@ a subcommand of the installed `looper`, so the gate ran as `bun nv affected --ru
 The acceptance sweep's reds are unchanged: `env-secret-proofs` exits 0, and no nightly has run
 since 39922764699.
 
+The first DONE was refused because `floor-debt` left one atom owed with 0 red:
+`tests/hostile/core/Ldap-Entry/dn/01-names-built-from-user-text.nvs`. Samba's log shows two LDAP
+workers ending with signal 11 during that run, so the attack's recording run met a restarting
+worker, as the playbook's Samba bullet says. The attack passes alone on release and on the covws
+build (3.7 s), and `bun nv proofs --id 'Core\Ldap\Entry::dn' --run` recorded it green. The store
+now has the atom green with nothing owed, so `floor-debt` has no atom left.
+
 ### Next
 
 Nothing. The goal is reached, and its file is deleted when looper retires it.
