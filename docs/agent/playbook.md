@@ -35,6 +35,13 @@ session the bullets it ranks highest for the live goal, and names how many more 
   inside a template literal, so a replacement either missed its anchor or wrote a broken `.nvs`.
   Write the script with the Write tool, or make a backslash-heavy edit with Edit.
   `until: gone tools/looper/main.ts:guard`
+- **A goal check with a `tests:` list cannot pass when its `run` is `bun nv verify`.** looper's
+  check needs a `test <path> ... ok` line per name (`tools/looper/src/verify/accept.ts:568`), and
+  verify prints only its summary, so the check says "did not run and pass" while the test is green.
+  Its log is `.looper/checks/<id>.log`, not the sweep's `.looper/loops/main/checks/`. Write such a
+  check's `run` as `cargo test -- <names>` when you write the goal. The permission classifier refused
+  a session's later edit of a check as a CI bypass.
+  `until: gone tools/looper/src/verify/accept.ts:did not run and pass`
 
 ## Running things
 - **`bun nv site --check` and `bun nv proofs --run` pick `target/release/nvs` before the debug
