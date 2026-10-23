@@ -14,4 +14,9 @@ An operator who opted in is lending a command they ran for another reason
 one honest line, never a failed cron job or a changed exit code
 (`rule:tooling/update-check-states-the-whole-picture`).
 
-**Not on disk.** Nothing in `crates/` uploads telemetry, so there is no upload to fail.
+**The lines.** An accepted week prints `telemetry: sent week <week>, <n> bytes` and adds to the
+lifetime totals. A kept one prints `telemetry: could not send (<why>); kept for next time`, where
+`<why>` is `timeout after 3s`, the transport's error, or `the collector returned <status>`. A dropped
+one names the reply's first line as the field, printable ASCII only and at most 64 characters, so a
+collector cannot write control characters to the terminal. The upload is one `POST` that follows no
+redirect, so the body goes only to the URL that was named.

@@ -1001,6 +1001,19 @@
     },
     {
       "area": "cli",
+      "slug": "nvs-update-check",
+      "url": "/reference/cli/nvs-update-check/",
+      "title": "nvs update-check",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-update-check",
+        "title": "nvs update-check",
+        "examples": "tools/cli/nvs-update-check"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
       "slug": "nvs-meta-json",
       "url": "/reference/cli/nvs-meta-json/",
       "title": "nvs meta --json",

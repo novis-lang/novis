@@ -14,8 +14,13 @@
 //! document's `tag_name` with a leading `v` removed. The switch is [`telemetry::is_on`], printed
 //! beside the upload URL `NVS_TELEMETRY_URL` names.
 //!
+//! **It carries the telemetry upload.** With telemetry on, [`telemetry::report`] sends the
+//! finished week once the release is read, and its line and the upload history follow the
+//! release lines. A failed upload changes neither the exit status nor the release result.
+//!
 //! Cost: one HTTPS request per run, its reply capped at 1 MiB, and only when a user runs the
-//! command. Nothing here runs in a server.
+//! command. With telemetry on and a week due, one more request of at most three seconds. Nothing
+//! here runs in a server.
 
 use std::io::Write;
 use std::process::ExitCode;
@@ -33,8 +38,9 @@ const LOCAL: &str = env!("CARGO_PKG_VERSION");
 ///
 /// This prints whether telemetry is on, the version you run and the latest
 /// released version. The latest version is read from GitHub, and
-/// `NVS_UPDATE_URL` replaces that address. The command always exits with
-/// status 0, so use `--json` in a script.
+/// `NVS_UPDATE_URL` replaces that address. When telemetry is on, it also
+/// sends the last finished week if it is due, and prints the upload history.
+/// The command always exits with status 0, so use `--json` in a script.
 #[derive(clap::Args)]
 pub(crate) struct Args {
     /// Print one JSON document at the end, in place of one line per step.
@@ -50,6 +56,7 @@ impl Args {
             telemetry::is_on(),
             endpoints::telemetry_url().as_deref(),
             self.json,
+            telemetry::report,
             &mut std::io::stdout(),
         )
     }
@@ -64,8 +71,16 @@ struct Found {
 }
 
 /// The whole command against `url`, with telemetry `on` or off and `upload` as its upload URL,
-/// written to `out`. Always [`ExitCode::SUCCESS`].
-fn check(url: &str, on: bool, upload: Option<&str>, json: bool, out: &mut impl Write) -> ExitCode {
+/// written to `out`. `report` carries the upload once the release is read. Always
+/// [`ExitCode::SUCCESS`].
+fn check(
+    url: &str,
+    on: bool,
+    upload: Option<&str>,
+    json: bool,
+    report: impl FnOnce() -> Option<telemetry::Report>,
+    out: &mut impl Write,
+) -> ExitCode {
     let switch = if on { "on" } else { "off" };
     if !json {
         step(
@@ -86,7 +101,8 @@ fn check(url: &str, on: bool, upload: Option<&str>, json: bool, out: &mut impl W
         },
     };
     if json {
-        step(out, &document(&found, switch, upload));
+        let report = report();
+        step(out, &document(&found, switch, upload, report.as_ref()));
     } else {
         match (&found.latest, &found.error) {
             (Some(latest), _) => {
@@ -104,6 +120,14 @@ fn check(url: &str, on: bool, upload: Option<&str>, json: bool, out: &mut impl W
                     error.as_deref().unwrap_or_default()
                 ),
             ),
+        }
+        if let Some(report) = report() {
+            if let Some(outcome) = &report.outcome {
+                step(out, &outcome.line());
+            }
+            for line in report.history.lines() {
+                step(out, &line);
+            }
         }
     }
     ExitCode::SUCCESS
@@ -180,9 +204,15 @@ fn newer(latest: &str, local: &str) -> bool {
     ordered(latest) > ordered(local)
 }
 
-/// `--json`'s document, with `switch` as `"telemetry"`. Written by hand, as `nvs cache`'s is, so
-/// the keys keep the order shown.
-fn document(found: &Found, switch: &str, upload: Option<&str>) -> String {
+/// `--json`'s document, with `switch` as `"telemetry"` and `report`'s upload and history, which
+/// are `null` while telemetry is off. Written by hand, as `nvs cache`'s is, so the keys keep the
+/// order shown.
+fn document(
+    found: &Found,
+    switch: &str,
+    upload: Option<&str>,
+    report: Option<&telemetry::Report>,
+) -> String {
     let text = |value: Option<&str>| {
         value.map_or_else(
             || "null".to_owned(),
@@ -196,12 +226,39 @@ fn document(found: &Found, switch: &str, upload: Option<&str>) -> String {
             "false"
         }
     });
+    let sent = report
+        .and_then(|report| report.outcome.as_ref())
+        .map_or_else(
+            || "null".to_owned(),
+            |outcome| {
+                format!(
+                    r#"{{"result":"{}","message":{}}}"#,
+                    outcome.result(),
+                    text(Some(&outcome.line()))
+                )
+            },
+        );
+    let history = report.map(|report| &report.history);
+    let number = |value: Option<u64>| value.map_or_else(|| "null".to_owned(), |n| n.to_string());
     format!(
-        r#"{{"schema":1,"telemetry":"{switch}","telemetry_url":{},"local":{},"latest":{},"update_available":{update},"error":{}}}"#,
+        r#"{{"schema":1,"telemetry":"{switch}","telemetry_url":{},"local":{},"latest":{},"update_available":{update},"error":{},"upload":{sent},"last_upload":{},"next_upload":{},"uploads":{},"bytes_sent":{}}}"#,
         text(upload),
         text(Some(LOCAL)),
         text(found.latest.as_deref()),
         text(found.error.as_deref()),
+        text(
+            history
+                .and_then(|history| history.last)
+                .map(telemetry::stamp)
+                .as_deref()
+        ),
+        text(
+            history
+                .map(|history| telemetry::stamp(history.next))
+                .as_deref()
+        ),
+        number(history.map(|history| history.uploads)),
+        number(history.map(|history| history.bytes)),
     )
 }
 
@@ -246,7 +303,10 @@ mod tests {
     /// What the command printed against `url`, with telemetry off.
     fn printed(url: &str, upload: Option<&str>, json: bool) -> String {
         let mut out = Vec::new();
-        assert_eq!(check(url, false, upload, json, &mut out), ExitCode::SUCCESS);
+        assert_eq!(
+            check(url, false, upload, json, || None, &mut out),
+            ExitCode::SUCCESS
+        );
         String::from_utf8(out).expect("the command prints text")
     }
 
@@ -282,7 +342,8 @@ mod tests {
             out,
             format!(
                 "{{\"schema\":1,\"telemetry\":\"off\",\"telemetry_url\":\"http://collector.example/v1\",\
-                 \"local\":\"{LOCAL}\",\"latest\":\"{LOCAL}\",\"update_available\":false,\"error\":null}}\n"
+                 \"local\":\"{LOCAL}\",\"latest\":\"{LOCAL}\",\"update_available\":false,\"error\":null,\
+                 \"upload\":null,\"last_upload\":null,\"next_upload\":null,\"uploads\":null,\"bytes_sent\":null}}\n"
             )
         );
 
@@ -314,6 +375,62 @@ mod tests {
         assert_eq!(document["latest"], serde_json::Value::Null);
         assert_eq!(document["update_available"], serde_json::Value::Null);
         assert!(document["error"].is_string(), "{out}");
+    }
+
+    #[test]
+    fn with_telemetry_on_the_upload_and_its_history_follow_the_release() {
+        let report = || {
+            Some(telemetry::Report {
+                outcome: Some(telemetry::Outcome::Kept("timeout after 3s".to_owned())),
+                history: telemetry::History {
+                    last: Some(1_761_436_800),
+                    next: 1_762_041_600,
+                    uploads: 2,
+                    bytes: 400,
+                },
+            })
+        };
+        let (url, served) = releases(&format!("v{LOCAL}"));
+        let mut out = Vec::new();
+        let _ = check(
+            &url,
+            true,
+            Some("http://collector.example/v1"),
+            false,
+            report,
+            &mut out,
+        );
+        served.join().expect("the listener thread");
+        let out = String::from_utf8(out).expect("text");
+        assert!(
+            out.ends_with(
+                "you have the latest version\n\
+                 telemetry: could not send (timeout after 3s); kept for next time\n\
+                 last upload: 2025-10-26T00:00:00Z\n\
+                 next upload: from 2025-11-02T00:00:00Z\n\
+                 uploads accepted: 2, bytes sent: 400\n"
+            ),
+            "{out}"
+        );
+
+        let (url, served) = releases(&format!("v{LOCAL}"));
+        let mut out = Vec::new();
+        let _ = check(
+            &url,
+            true,
+            Some("http://collector.example/v1"),
+            true,
+            report,
+            &mut out,
+        );
+        served.join().expect("the listener thread");
+        let document: serde_json::Value = serde_json::from_slice(&out).expect("one JSON document");
+        assert_eq!(document["telemetry"], "on");
+        assert_eq!(document["upload"]["result"], "kept");
+        assert_eq!(document["last_upload"], "2025-10-26T00:00:00Z");
+        assert_eq!(document["next_upload"], "2025-11-02T00:00:00Z");
+        assert_eq!(document["uploads"], 2);
+        assert_eq!(document["bytes_sent"], 400);
     }
 
     #[test]

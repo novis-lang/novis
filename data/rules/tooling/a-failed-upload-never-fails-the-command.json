@@ -1,6 +1,6 @@
 {
   "title": "An upload gets three seconds, is abandoned with its counters kept when that expires or the collector asks to retry, is dropped when the collector refuses it, says so, and never changes the carrying command's exit status",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "tooling/a-telemetry-report-is-checked-against-a-closed-schema",
     "tooling/a-serving-process-never-uploads",

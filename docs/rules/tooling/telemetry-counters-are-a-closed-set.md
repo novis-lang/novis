@@ -18,7 +18,9 @@ internal error, and counts nothing. A panic under a request that `nvs serve` run
 request's own log first and counts nothing either, by the traffic rule below.
 
 **The counter file** is `telemetry/counters`, one `key value` line each: `uploads` and `bytes`, the
-lifetime totals of accepted uploads; `week`, the current ISO week in UTC, then its `days` as seven
+lifetime totals of accepted uploads; `last`, when the collector last accepted one, and `due`, when the
+pending week may be sent, each in seconds since 1970 and absent until it has a value
+(`rule:tooling/a-serving-process-never-uploads`); `week`, the current ISO week in UTC, then its `days` as seven
 digits from Monday to Sunday and each counter above zero; and `pending`, the last finished week that
 counted anything and is not sent yet, laid out the same way. A week that ends becomes `pending`, and
 replaces the one there. A week after today, which only a clock set back can leave, is dropped. The file
@@ -52,7 +54,6 @@ default. The counter file is provably a function of what the operator did.
   at the same moment may lose one count. For `nvs serve` the rewrite happens once, at startup, before
   the listener binds. Nothing is spent on the request path.
 
-**Not on disk.** There is no counter file and no payload.
 
 **Declined:**
 - **Counts of compiler diagnostic codes.** They would show which errors confuse people, but they are
