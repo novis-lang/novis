@@ -27,7 +27,7 @@ stages:
         rules: [http-server/engine-depth-is-bounded-per-decoder, errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself, security/taint-propagation, security/derived-codec-qualifiers]
   - id: 4
     title: "escaping scans text once, and a request under its memory limit passes the poll cheaply"
-    status: open
+    status: done
     context: [crates/nvs-render/src/html.rs, crates/nvs-render/src/bidi.rs, crates/nvs-render/src/text.rs, crates/nvs-runtime/src/ctx/limits.rs]
     extra:
       context:
@@ -275,6 +275,19 @@ that comparison, it stays as it is. The per-allocation charge in `budget::Accoun
 (`crates/nvs-runtime/src/budget.rs:1100`) is not changed. The allocator's share falls because stages
 2, 3 and 5 allocate less.
 
+Stage 4 as built:
+
+- Each sink has its own byte scan: `html.rs`' `scan` over a 256-entry class table, and `text.rs`'
+  `scan` with a two-byte look for a C1. Each calls `bidi::for_each_unterminated` only when it saw
+  `bidi::LEAD_BYTE`, so the predicate keeps its own `0xE2` check for the lexer.
+- The HTML escape copies the run between two changed bytes as one slice.
+- A `cfg(test)` pass counter, `nvs_render::passes`, counts each sink scan and each bidi pass.
+- The poll was a cross-crate call. `run_helper` is generic, so it is built in `nvs-stdlib`, and
+  `memory_breach` was a large function with its message in the same frame. It is now `#[inline]`
+  and keeps the under-limit path: the off-core test, `REFUSED`, `LIVE` and `FOREIGN`, the
+  root-core test with one relaxed load, and the comparison. The message is a cold `memory_fault`.
+  The thread-local reads stay, because a refusal leaves the balance under the ceiling.
+
 **Stage 5: a unit's snapshot resolves its limits once.** When the configuration snapshot is built,
 `[limits]` and `log.access` are resolved into typed values: `memory`, `fatal_reserve`, `cpu_time`,
 `fatal_reserve_time`, `wall_time`, `max_script_depth`, `max_output`, `memory_high_water` and
@@ -424,12 +437,12 @@ same.
 **Does:** text with nothing to escape is read once, and the memory poll costs one comparison under
 the limit.
 
-- [ ] One byte scan for an escapable byte and `0xE2`, and the bidi analysis only after `0xE2` (`rule:security/bidi-predicate`). `crates/nvs-render/src/html.rs:131`, `crates/nvs-render/src/bidi.rs:127`
-- [ ] The CLI sink gets the same scan if it walks twice. `crates/nvs-render/src/text.rs:60`
-- [ ] Rust test `text_with_nothing_to_escape_is_scanned_once`, beside `an_unterminated_bidi_control_is_replaced_and_not_referenced`. `crates/nvs-render/src/html.rs:423`
-- [ ] Find what `memory_breach` costs under the limit, and make that path a root-core test and one comparison if it is more (`rule:errors/on-limit`). `crates/nvs-runtime/src/ctx/limits.rs:481`
-- [ ] The guards stay green and unchanged. Rust: `bidi.rs:162`, `nvs-render/src/html.rs:423`, and `nvs-stdlib/src/html.rs:2300` and `:2462`. Hostile: `core/Html/escape/01` and `core/Cli/escape/01`. Conformance: the `security/bidi-boundaries` cases and `error/one-operation-past-the-ceiling-is-refused-before-it-allocates.nvst`. `crates/nvs-render/src/bidi.rs:162`
-- [ ] Review: an `Explore` subagent reads the stage's diff against this stage's guards, and every finding is fixed. `crates/nvs-render/src/html.rs:1`
+- [x] One byte scan for an escapable byte and `0xE2`, and the bidi analysis only after `0xE2` (`rule:security/bidi-predicate`). `crates/nvs-render/src/html.rs:131`, `crates/nvs-render/src/bidi.rs:127`
+- [x] The CLI sink gets the same scan if it walks twice. `crates/nvs-render/src/text.rs:60`
+- [x] Rust test `text_with_nothing_to_escape_is_scanned_once`, beside `an_unterminated_bidi_control_is_replaced_and_not_referenced`. `crates/nvs-render/src/html.rs:423`
+- [x] Find what `memory_breach` costs under the limit, and make that path a root-core test and one comparison if it is more (`rule:errors/on-limit`). `crates/nvs-runtime/src/ctx/limits.rs:481`
+- [x] The guards stay green and unchanged. Rust: `bidi.rs:162`, `nvs-render/src/html.rs:423`, and `nvs-stdlib/src/html.rs:2300` and `:2462`. Hostile: `core/Html/escape/01` and `core/Cli/escape/01`. Conformance: the `security/bidi-boundaries` cases and `error/one-operation-past-the-ceiling-is-refused-before-it-allocates.nvst`. `crates/nvs-render/src/bidi.rs:162`
+- [x] Review: an `Explore` subagent reads the stage's diff against this stage's guards, and every finding is fixed. `crates/nvs-render/src/html.rs:1`
 
 ### 5. a request reads its limits from a table its unit resolved once
 
@@ -498,8 +511,20 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done: a0f56ab2f, e03aa7e53 and the stage 3 commit after 2b59fa606.
+Stages 1 to 4 are done: a0f56ab2f, e03aa7e53, ac7342049, and 7f9435294 with 051c6efa3.
 
+- Stage 4: `html::escape` and `text::substitute` scan bytes once and walk the bidi predicate only
+  after `0xE2`. `memory_breach` is `#[inline]` with its message in a cold `memory_fault`.
+  § *Standing decisions*' *Stage 4 as built* says what each does.
+- Stage 4 ran once each: the three new tests by name, `cargo test --lib` over `html::`,
+  `text::tests` and `bidi::` (64 passed), the memory-breach lib tests (15 passed),
+  `bun nv proofs --run` over `Core\Html` and `Core\Cli` (63 examples, 26 attacks, all ok), the five
+  `reject/*bidi*` cases and five memory and ceiling cases under `error/`, and the `render-tests`
+  check (green). Clippy is clean. The review subagent found nothing.
+- The poll's gain is not counted. A profile in stage 8 shows whether `memory_breach` still appears
+  as its own symbol.
+- The sweep's `env-secret-proofs` passes when run again (exit 0, nothing owed). The nightly run
+  39746060276 was cancelled by a newer push.
 - Stage 3: `decode_as` (`crates/nvs-stdlib/src/json.rs:2114`) parses into a `Found`/`Read` tree
   with the `Fill` and `FillList` seeds (`json.rs:2425`, `json.rs:2532`). § *Standing decisions*'
   *As built* list says what changed and what kept the array path.
@@ -513,8 +538,6 @@ Stages 1, 2 and 3 are done: a0f56ab2f, e03aa7e53 and the stage 3 commit after 2b
   `cargo clippy --all-targets -- -D warnings` is clean.
 - `an_object_after_an_undeclared_list_is_not_read_as_a_list` was written after its fix and was not
   seen to fail before it. The allocator does not promise to reuse the freed address.
-- The sweep's `env-secret-proofs` passes again (exit 0, nothing owed). The nightly run
-  39746060276 was cancelled by a newer push.
 - All four profiles ran on main at bd86f7a9d, and § *Why*'s table holds them: hello 27.1 µs,
   json-api 60.9 µs, html-page 88.4 µs, wait 801.5 µs per request. A waiting request costs 87–101 KB,
   and the second load's peak is higher than the first's. No hot spot is gone yet, so no bullet is struck.
@@ -528,16 +551,19 @@ Stages 1, 2 and 3 are done: a0f56ab2f, e03aa7e53 and the stage 3 commit after 2b
 
 ### Next
 
-Stage 4, and then stage 5, which shares `crates/nvs-runtime/src/ctx/limits.rs` with it.
+Stage 5: a unit's snapshot resolves its limits once. Write its checkpoints first.
 
-- Stage 4: one byte scan finds an escapable byte and the `0xE2` lead byte, and the bidi analysis
-  runs only after `0xE2`. Write its checkpoints first. `crates/nvs-render/src/html.rs:131`,
-  `crates/nvs-render/src/bidi.rs:127`, `crates/nvs-render/src/text.rs:60`
-- Stage 4's poll: what `memory_breach` costs under the limit. `crates/nvs-runtime/src/ctx/limits.rs:505`
-- Stage 4's test: `text_with_nothing_to_escape_is_scanned_once`.
+- The typed limits table, built with the snapshot. `crates/nvs-config/src/snapshot.rs:736`
+- The readers that move to it: `refresh_limits` (`crates/nvs-runtime/src/ctx/limits.rs:740`),
+  `configured_bytes` (`limits.rs:1242`), `configured_wall_time` (`limits.rs:847`) and
+  `report_memory_peak` (`limits.rs:154`).
+- `canonical()` and `in_force`: `crates/nvs-config/src/request.rs:434`,
+  `crates/nvs-config/src/defaults.rs:595`, `defaults.rs:729`. `access_on`:
+  `crates/nvs-server/src/trace.rs:316`.
+- Stage 5's test: `a_request_that_sets_nothing_reads_its_limits_without_allocating`.
 
-No test is expected to go red. The perf figures for `Core\Json::decodeAs` are stale, because
-`json.rs` changed. Stage 8 records them again.
+No test is expected to go red. The perf figures for `Core\Json::decodeAs` and every member whose
+file is `nvs-render`'s `html.rs` or `text.rs` are stale. Stage 8 records them again.
 
 ### Backlog
 
