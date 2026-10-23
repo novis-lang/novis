@@ -331,11 +331,30 @@ Stage 5 as built:
 - `rule:concurrency/try-the-syscall-then-park` is rewritten to say this.
 
 **Stage 6: a wake from a drive's own running task on its own core does not use the eventfd.**
-The permission is taken as now (`rule:concurrency/one-permission-per-drive`). The task is queued on
-the core's local wake list, as `Ended::drop` does (`crates/nvs-host/src/isolate.rs:1046`).
+The permission is taken as now (`rule:concurrency/one-permission-per-drive`).
 `is_held_by_its_running_task` (`crates/nvs-host/src/reactor.rs:320`) detects it.
 `a_future_that_wakes_itself_inside_its_own_poll_is_polled_again` (`crates/nvs-host/src/block_on.rs:387`)
 stays green.
+
+Stage 6 as built:
+
+- The self-wake fires nothing and queues nothing. The drive is running, so its loop reads the woken
+  flag before it parks, and the flag is the whole wake. The permission stays in its slot. A queue on
+  the core's local wake list, as the design said, was declined: there is no park for it to end, so
+  it would end the next park early. The rule's Declined list says so.
+- `block_on_yielding`'s yield still fires its permission in `yield_turn`, so a guest call still
+  gives up its core.
+- The readiness bit is the reactor's per-task event count (`Reactor::readiness_events`), because a
+  token is a task and not a descriptor. `poll_read` keeps the count at a `WouldBlock`, and a later
+  poll with the same count, armed for reading alone under the running task, goes to `arm_only` with
+  no read. Any event for the task, any change of registration, `unregister` and the parking
+  `Read::read` clear the bit. The quiet path takes only `Pending` from `arm_only`. A passed
+  deadline goes round the read loop, so the read is still tried before the deadline is judged.
+- The read scratch is a boxed slice on `ConnectionIo`. `Nonblocking`, the client's adapter, keeps
+  its stack scratch.
+- The keep-alive count went from 4 `WouldBlock` reads and 1 poke per request to 1 read and no poke.
+  The test's bounds are now 1, 0, and 1 per connection.
+- Memory: 8 KiB of heap per open connection, four bytes per registered task and four per stream.
 
 **Stage 6: the read scratch moves to the connection.** It becomes a buffer on `ConnectionIo`,
 zeroed once per connection. No `unsafe` is used, because `nvs-server` is not on `UNSAFE_CRATES`.
@@ -476,12 +495,12 @@ the limit.
 **Does:** a keep-alive request makes the reads and wakes it needs, and every deadline is filed as
 before.
 
-- [ ] The readiness bit on `NvsStream`, and `rule:concurrency/try-the-syscall-then-park` rewritten for it. `crates/nvs-host/src/net.rs:1520`, `crates/nvs-host/src/net.rs:1595`, `crates/nvs-host/src/net.rs:1475`
-- [ ] A self-wake on the drive's own core is queued locally (`rule:concurrency/one-permission-per-drive`). `crates/nvs-host/src/block_on.rs:316`, `crates/nvs-host/src/reactor.rs:320`, `crates/nvs-server/src/serve.rs:2127`
-- [ ] The read scratch is a per-connection buffer. `crates/nvs-server/src/io.rs:445`, `crates/nvs-server/src/io.rs:120`
-- [ ] Rust tests `a_read_the_reactor_has_not_reported_ready_makes_no_system_call` and `a_drive_that_wakes_itself_on_its_own_core_writes_no_wake`. Stage 1's count test is renamed `a_keep_alive_request_reads_and_wakes_within_its_count`, with its bounds lowered to the new counts. `crates/nvs-host/src/net.rs:1820`, `crates/nvs-host/src/block_on.rs:387`, `crates/nvs-server/src/serve.rs:10102`
-- [ ] The guards stay green and unchanged. `serve.rs:11151`, `:11205`, `:11285` and `:12953`; `io.rs:660` and `:733`; `reactor.rs:937` to `:1381`; and `block_on.rs:372` to `:459`. `crates/nvs-server/src/serve.rs:11205`
-- [ ] Review: an `Explore` subagent reads the stage's diff against this stage's guards, and every finding is fixed. `crates/nvs-host/src/net.rs:1`
+- [x] The readiness bit on `NvsStream`, and `rule:concurrency/try-the-syscall-then-park` rewritten for it. `crates/nvs-host/src/net.rs:1520`, `crates/nvs-host/src/net.rs:1595`, `crates/nvs-host/src/net.rs:1475`
+- [x] A self-wake on the drive's own core is queued locally (`rule:concurrency/one-permission-per-drive`). `crates/nvs-host/src/block_on.rs:316`, `crates/nvs-host/src/reactor.rs:320`, `crates/nvs-server/src/serve.rs:2127`
+- [x] The read scratch is a per-connection buffer. `crates/nvs-server/src/io.rs:445`, `crates/nvs-server/src/io.rs:120`
+- [x] Rust tests `a_read_the_reactor_has_not_reported_ready_makes_no_system_call` and `a_drive_that_wakes_itself_on_its_own_core_writes_no_wake`. Stage 1's count test is renamed `a_keep_alive_request_reads_and_wakes_within_its_count`, with its bounds lowered to the new counts. `crates/nvs-host/src/net.rs:1820`, `crates/nvs-host/src/block_on.rs:387`, `crates/nvs-server/src/serve.rs:10102`
+- [x] The guards stay green and unchanged. `serve.rs:11151`, `:11205`, `:11285` and `:12953`; `io.rs:660` and `:733`; `reactor.rs:937` to `:1381`; and `block_on.rs:372` to `:459`. `crates/nvs-server/src/serve.rs:11205`
+- [x] Review: an `Explore` subagent reads the stage's diff against this stage's guards, and every finding is fixed. `crates/nvs-host/src/net.rs:1`
 
 ### 7. pooled stacks do not grow: one pool per role, and pages go back when a core is idle
 
@@ -527,8 +546,21 @@ subagent. Such subagents run side by side, and none of them builds.
 ### State
 
 Stages 1 to 4 are done: a0f56ab2f, e03aa7e53, ac7342049, and 7f9435294 with 051c6efa3. Stage 5's
-items are all done in b4b080479, and its status stays open until decision `d7` is answered.
+items are all done in b4b080479, and stage 6's in d9a8e974f. Both statuses stay
+open until decision `d7` is answered, because their checks are among the five it covers.
 
+- Stage 6: a stream keeps a readiness bit read off the reactor's per-task event count, a drive's
+  wake of itself fires nothing, and `ConnectionIo` reads through its own heap scratch.
+  § *Standing decisions*' *Stage 6 as built* says what each part does and what was declined.
+- Stage 6 ran once each: the two new tests by name (passed), the keep-alive count test (passed
+  three times at 1 read, 0 pokes per request, 1 per connection), and `cargo test --lib` over
+  `reactor::`, `block_on::`, `net::`, `io::` and `serve::` (222 passed, run again after the review
+  fixes). Clippy is clean. `bun nv rules --check` is clean. The two new tests were not seen to fail
+  before the change, though by the counts they would have (3 reads, 1 poke).
+- The review subagent found no lost wake. It found two things, both fixed: the quiet path judged a
+  passed deadline before trying the read, and the parking `Read::read` left the bit set.
+- The sweep's `env-secret-proofs` passes when run again (exit 0, nothing owed), for the third time.
+  The nightly run 39746060276 was cancelled by a newer push.
 - Stage 5: a snapshot keeps a lazily filled limits table (`crates/nvs-config/src/limits.rs`), and
   `Request::limit` and `Request::deprecated` read it unless the overlay holds the key or a mode
   flip. § *Standing decisions*' *Stage 5 as built* says what each part does.
@@ -544,8 +576,6 @@ items are all done in b4b080479, and its status stays open until decision `d7` i
   (`tools/looper/src/verify/accept.ts:568`), so each says "did not run and pass". `render-tests`,
   green last session, is red now. An edit of the checks to `[cargo, test, --, <names>]` was refused
   by the permission classifier as a CI bypass. The checks are as committed.
-- The sweep's `env-secret-proofs` passes when run again (exit 0, nothing owed), for the second time.
-  The nightly run 39746060276 was cancelled by a newer push.
 - Stage 4: `html::escape` and `text::substitute` scan bytes once and walk the bidi predicate only
   after `0xE2`. `memory_breach` is `#[inline]` with its message in a cold `memory_fault`.
   § *Standing decisions*' *Stage 4 as built* says what each does.
@@ -582,18 +612,18 @@ items are all done in b4b080479, and its status stays open until decision `d7` i
 
 ### Next
 
-First, apply the answer to decision `d7` to the five named-test checks in the front matter. Then
-run `runtime-tests` and set stage 5's status to done once it is green.
+First, if decision `d7` is answered, apply it to the five named-test checks in the front matter.
+Then run `runtime-tests` and `server-tests`, and set stages 5 and 6 to done once each is green.
 
-Then stage 6: a stream keeps a readiness bit, and a self-wake on a drive's own core is queued
-locally. Write its checkpoints first. § *Standing decisions*' three stage 6 entries are the design.
+Then stage 7: one stack pool per role, and an idle trim. Write its checkpoints first.
+§ *Standing decisions*' stage 7 entries are the design.
 
-- The readiness bit and the deadline filing: `crates/nvs-host/src/net.rs:1520`, `net.rs:1595`,
-  `net.rs:1606`, `net.rs:1475`. The first-read test: `net.rs:1780`.
-- The self-wake: `crates/nvs-host/src/block_on.rs:316`, `crates/nvs-host/src/reactor.rs:320`,
-  `crates/nvs-server/src/serve.rs:2127`, and `Ended::drop` at `crates/nvs-host/src/isolate.rs:1046`.
-- The read scratch: `crates/nvs-server/src/io.rs:445`, `io.rs:120`.
-- The counts: `nvs_host::counts`. The count test to rename and tighten: `serve.rs:10102`.
+- The pools: `crates/nvs-host/src/stack.rs:159`, `crates/nvs-host/src/scheduler.rs:865`,
+  `scheduler.rs:1089`, `scheduler.rs:1179`, `scheduler.rs:1319`, `crates/nvs-cli/src/serve.rs:951`.
+- The idle trim and its `unsafe` blocks: `crates/nvs-host/src/stack.rs:236`,
+  `crates/nvs-host/src/scheduler.rs:998`. The guard page and armed floor at `stack.rs:150` stay.
+- The 32 KiB a sleeping program touches: `crates/nvs-host/src/isolate.rs:1066`.
+- The two tests go in `crates/nvs-host/src/stack.rs:258`.
 
 No test is expected to go red. The perf figures for `Core\Json::decodeAs`, every member whose
 file is `nvs-render`'s `html.rs` or `text.rs`, and every member reading `nvs-config`'s `request.rs`
