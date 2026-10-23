@@ -84,7 +84,8 @@ pub(crate) const ARM_LIST: &str = "Match";
 /// structure's braces are a `Block` statement of its own, which is the node
 /// that carries them. `NamespaceDecl` is here for its bracketed form and costs
 /// nothing in the statement form, which has no body to contain anything. `New`
-/// carries an anonymous class's members, and `Property` a hook's body.
+/// carries an anonymous class's members, `Property` its hooks, and
+/// `PropertyHook` a hook's body.
 pub(crate) const BODIES: &[&str] = &[
     "Block",
     "Try",
@@ -96,6 +97,7 @@ pub(crate) const BODIES: &[&str] = &[
     "Method",
     "Fn",
     "Property",
+    "PropertyHook",
     "New",
 ];
 

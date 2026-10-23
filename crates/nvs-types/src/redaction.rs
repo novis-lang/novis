@@ -188,31 +188,27 @@ impl Concealing<'_> {
     /// but from [`ExprTypeTable::property_default_ty`], which the checker fills
     /// from the signature pass for exactly this.
     ///
-    /// `nvs_syntax::walk` gives this production its initializer as the first
-    /// child and its hooks after it, and a property that declared no
-    /// initializer has hooks in that position instead. Asking the initializer's
-    /// own span is what tells those apart without counting: a hook body's span
-    /// was never recorded, so it answers `None` and carries nothing. A hook is
-    /// a body rather than a value written into the property, so a literal
-    /// inside one is a byte of the program — concealing it would be the
-    /// over-redaction `rule:ide/redaction-covers-bytes-only` refuses.
+    /// `nvs_syntax::walk` gives this production one `PropertyHook` node per
+    /// hook, and the one other child that is neither an attribute nor a shape
+    /// type is the initializer. A hook is a body rather than a value written
+    /// into the property, so a literal inside one is a byte of the program —
+    /// concealing it would be the over-redaction
+    /// `rule:ide/redaction-covers-bytes-only` refuses.
     fn property(&mut self, node: &Node) {
-        // An attribute and a shape type the declaration writes are nodes in
-        // front of the initializer, and neither is a value written into the
-        // property.
-        let mut children = node
-            .children
-            .iter()
-            .filter(|child| !matches!(child.kind, "Attribute" | "ShapeType"));
-        if let Some(first) = children.next() {
-            let secret = self
-                .exprs
-                .property_default_ty(first.span)
-                .is_some_and(|ty| quals::carries_secret(ty, self.interner));
-            self.node(first, secret);
-        }
-        for hook in children {
-            self.node(hook, false);
+        for child in &node.children {
+            match child.kind {
+                // Written by the declaration, and no value stored in the
+                // property.
+                "Attribute" | "ShapeType" => {}
+                "PropertyHook" => self.node(child, false),
+                _ => {
+                    let secret = self
+                        .exprs
+                        .property_default_ty(child.span)
+                        .is_some_and(|ty| quals::carries_secret(ty, self.interner));
+                    self.node(child, secret);
+                }
+            }
         }
     }
 

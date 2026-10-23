@@ -50,6 +50,12 @@
 //! inside one of its fields is its child. No other type is a node, so a
 //! signature with no shape in it walks exactly as before.
 //!
+//! A property hook is a node, `PropertyHook`, a child of its `Property`, and
+//! its attributes, its parameter's default and its body are its children. A
+//! hook's block is a brace-delimited body of its own, and without a node its
+//! statements are the property's, so `nvs fmt`'s indenter would measure them
+//! from the property's line rather than from the hook's.
+//!
 //! The alternative was one node per struct in [`crate::ast`], and
 //! `rule:tooling/reflection-and-source-parsing-are-core-features`'s typed
 //! roster is not it: that roster is one class per *production*, which is
@@ -87,7 +93,7 @@
 //! at all, and needs no placeholder for a `secret` one.
 //!
 //! **What it spends:** one [`Node`] per statement, expression, member,
-//! attribute and shape type —
+//! attribute, property hook and shape type —
 //! two words for the kind, a span, an optional second span for the name, and
 //! two `Vec` headers, allocated per parse and dropped when the caller is done
 //! with it, plus one small allocation for each node that has a field at all.
@@ -240,6 +246,7 @@ pub const KINDS: &[&str] = &[
     "Print",
     "Property",
     "PropertyAccess",
+    "PropertyHook",
     "Require",
     "Return",
     "SelfExpr",
@@ -998,9 +1005,7 @@ fn member(m: &ClassMember) -> Node {
             push_attributes(&mut kids, &p.attributes);
             push_type(&mut kids, &p.ty);
             push_opt(&mut kids, p.default.as_ref());
-            for hook in p.hooks.iter().flatten() {
-                push_hook(&mut kids, hook);
-            }
+            kids.extend(p.hooks.iter().flatten().map(hook));
             "Property"
         }
         ClassMemberKind::Const(c) => {
@@ -1238,15 +1243,25 @@ fn push_fn(kids: &mut Vec<Node>, f: &FnExpr) {
     }
 }
 
-fn push_hook(kids: &mut Vec<Node>, hook: &PropertyHook) {
-    push_attributes(kids, &hook.attributes);
+/// One `PropertyHook` node, holding the hook's attributes, its parameter's
+/// default and its body.
+fn hook(hook: &PropertyHook) -> Node {
+    let mut kids = Vec::new();
+    push_attributes(&mut kids, &hook.attributes);
     if let Some(param) = &hook.param {
-        push_param(kids, param);
+        push_param(&mut kids, param);
     }
     match &hook.body {
         None => {}
         Some(PropertyHookBody::Expr(e)) => kids.push(expr(e)),
-        Some(PropertyHookBody::Block(b)) => push_block(kids, b),
+        Some(PropertyHookBody::Block(b)) => push_block(&mut kids, b),
+    }
+    Node {
+        kind: "PropertyHook",
+        span: hook.span,
+        name: None,
+        children: kids,
+        fields: Vec::new(),
     }
 }
 

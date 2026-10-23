@@ -14,6 +14,9 @@ Exactly one blank line follows a `namespace` line, one follows the `use` block, 
 members that each have a body; adjacent simple property and constant declarations get none. A comment
 between two members belongs to the member below it, so the blank line goes above the comment.
 
+A property's hooks sit one level in from the property's line, and a hook's block is a body of its own:
+its statements sit one level in from the hook's line, and its `}` on the hook's.
+
 A comment that opens a line sits at the indentation of the code below it, which is the line it describes.
 A comment above a body's closing brace is inside that body, so it sits where the body's statements sit.
 A line of a block comment after its first is the comment's own text and is copied.

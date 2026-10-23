@@ -339,6 +339,7 @@ productions![
     "Print",
     "Property",
     "PropertyAccess",
+    "PropertyHook",
     "Require",
     "Return",
     "SelfExpr",
