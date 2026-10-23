@@ -14,6 +14,7 @@
 //                                          named `APP/FILE`
 //     bun nv site --build                  the Astro build, and `site: built` when it succeeds
 //     bun nv site --roadmap                write README.md's roadmap list from website/src/data/roadmap.json
+//     bun nv site --roadmap --retired      drop the retired goals from roadmap.json, then write and commit
 //     bun nv site --questions --status     `questions <area>: <n> owed, <n> stale` per area, exit 0
 //     bun nv site --questions --owed [AREA] [--limit N]
 //                                          each owed or stale page, with what its questions are written
@@ -180,7 +181,7 @@ import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
 import { styleProblems } from "../lib/site-css.ts";
 import { diagramProblems } from "../lib/site-diagrams.ts";
-import { roadmapProblems, writeRoadmap } from "../lib/site-roadmap.ts";
+import { pruneRetired, roadmapProblems, writeRoadmap } from "../lib/site-roadmap.ts";
 import { commentProblems } from "../proofs/collect.ts";
 import { dockerAbsent, servicesFor } from "../proofs/run.ts";
 import { ABOUT, EXAMPLES, examplesDir, metaJson, roster, RosterError, type Entry, type Meta } from "../proofs/roster.ts";
@@ -1752,6 +1753,11 @@ export async function run(args: string[]): Promise<number> {
     return mode === undefined ? 2 : 0;
   }
   if (mode === "--build") return build();
+  if (mode === "--roadmap" && operands[0] === "--retired") {
+    const { said, ok } = pruneRetired(ROOT);
+    console.log(`nv site: ${said}`);
+    return ok ? 0 : 1;
+  }
   if (mode === "--roadmap") {
     const problem = writeRoadmap(ROOT);
     console.log(problem === null ? "nv site: wrote the roadmap into README.md" : `nv site: ${problem}`);

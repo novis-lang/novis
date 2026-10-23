@@ -88,7 +88,10 @@ after_session = [{ run = ["bun", "nv", "sweep"], timeout = 900, on_fail = "pause
 # files and seeds the selection store, each only when it is missing; in any other loop it does nothing.
 # The timeout covers its own 600-second cap on `bun install` and the copies.
 before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 900, on_fail = "pause" }]
-# `tools/nv/cmd/ci.ts`: once a goal is retired, it pushes `main`, and the push starts the CI runs the
+# `tools/nv/lib/site-roadmap.ts`: once a goal is retired, it drops the goal from the public roadmap and
+# commits that, because the retirement commits only the goals directory. A failure pauses the loop,
+# because the roadmap check stays red until it is fixed.
+# `tools/nv/cmd/ci.ts`: then it pushes `main`, and the push starts the CI runs the
 # `ci-green` goal's loop watches. A failed push only warns, so the next goal still starts, and the next
 # retirement pushes again. The timeout covers a fetch and a push.
 # `tools/nv/cmd/relink.ts`: then it rebuilds `target/release/nvs`, the binary the user's editor and
@@ -96,6 +99,7 @@ before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 90
 # never share the machine with a release build. A failed build only warns. The timeout covers a cold
 # release build with thin LTO.
 after_retire = [
+  { run = ["bun", "nv", "site", "--roadmap", "--retired"], timeout = 120, on_fail = "pause" },
   { run = ["bun", "nv", "ci", "--push"], timeout = 600, on_fail = "warn" },
   { run = ["bun", "nv", "relink", "--build", "--hook"], timeout = 3600, on_fail = "warn" },
 ]
