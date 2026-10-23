@@ -18,7 +18,7 @@ stages:
     context: [website/src/components/home/Hero.astro, website/src/components/home/Facts.astro, website/src/content/docs/sponsoring.mdx, CONTRIBUTING.md]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: release-tests
@@ -224,9 +224,9 @@ Every link goes to the website.
 
 ### 4. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## After the goal
 
@@ -245,42 +245,40 @@ These steps are the user's, with an interactive session. The loop takes none of 
 
 ### State
 
-Stages 1, 2 and 3 are done and committed. Stage 3 rewrote `README.md` as a short version of the home
-page: the hero's headline and tagline, the Pre-Alpha status, the four facts, then one section per home
-page section in the order `index.mdx` uses them. Each uses the component's own sentences and links to
-`https://novis-lang.org/...`. No link goes to `docs/rules/` or into `website/src/`. *Measured and
-counted* points to the home page and does not copy its numbers, because they change with each recorded
-run. The status line names no version, so the README does not go stale at the next release.
-*Sponsoring* shortens `sponsoring.mdx` and drops the company details, which the page does not have.
-The heading *Licence* is now *License*, as the website writes it. No file links to a README anchor.
+All four stages are done and committed. The gate ran `bun tools/looper/main.ts verify`, because the
+installed `looper` binary has no `verify` or `check` subcommand. It found one failure. The
+extension's contributions suite asserts that `displayName` is the README's H1, and stage 3 made the
+H1 `Novis-Lang`. `d77fa9b34` sets the extension's `displayName` and the `nvs --help` banner to
+`Novis-Lang`. A unit test in `crates/nvs-cli/src/main.rs` now holds the banner to the H1. One rerun
+stopped on a Windows lock on `target/covws/.../nvs.exe`. No process held it afterwards, and the next
+run was green. The final verify is green.
 
-Stage 2's notes still hold: when `first-release` retires, its `internal` entry in
-`website/src/data/roadmap.json` goes in the same commit.
+The roadmap check went red at every retirement, because the driver commits only the goals directory.
+`24144805f` adds `bun nv site --roadmap --retired` as the first `after_retire` hook in `looper.toml`.
+It drops the retired goals and any themes left with no goals, then commits. Here it drops
+`first-release` from `internal`. No hand edit to `roadmap.json` is owed.
 
-What ran this session: `bun nv site --check roadmap` (ok), `bun nv proofs --comments README.md` (ok),
-`bun nv prose README.md` (ok), and a check that every website link in the README names a page.
+The goal-end gates pass: `bun nv verify --doc` (every link resolves) and `bun nv owners --closes
+first-release` (no gap). The acceptance checks pass: `release-tests` (20 pass) and `roadmap-check`.
+The decisions only this file held are now in `docs/agent/conventions.md` § *The README and the
+status*. The release, version and roadmap decisions already live in the headers of
+`tools/nv/cmd/release.ts`, `website/src/data/release.ts` and `tools/nv/lib/site-roadmap.ts`.
 
-**CI is red on one job, and the gate owns it.** Run `39982774098` on `6d3c2770a`: `proofs /
-linux-x86_64` failed in the *Website stale guard* step (`.github/workflows/ci.yml:483`). Its
-`questions` part fails locally with 62 entries. Most are stale or owed pages from before this goal.
-Three came from stage 2: `/install/` and `/install/editor/` have 7 questions each, not four to six
-(`website/src/data/questions.json:963`, `website/src/data/questions.json:976`). "Is Novis ready for
-production use?" is on both `/in-depth/what-changed/` and `/in-depth/new/`
-(`website/src/data/questions.json:914`, `website/src/data/questions.json:949`). The sweep's nightly
-reds ran at `7b6ef53ee` and are stale, and `env-secret-proofs` passes locally.
+The website stale guard is green locally. `aecce6733` restamped the pages that CI run `39982774098`
+named. The sweep's nightly reds ran at `7b6ef53ee`, and later commits fixed those cases: `ba8930b80`,
+`342675093` and `dc3a2ed29`. `env-secret-proofs` exits 0.
 
-Expected red in the gate: `bun nv site --check questions`, as above.
+Expected red: none.
 
 ### Next
 
 **Stage 4, the gate.**
 
-- [ ] Fix the three `questions` entries stage 2 caused, then rewrite and stamp each stale or owed page the check names. `website/src/data/questions.json:963`
-- [ ] Start `looper verify` with `run_in_background`, and end the turn to wait. `docs/goals/first-release.md:227`
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test. `docs/goals/first-release.md:228`
-- [ ] Run `looper verify` again until green, then the goal-end gates of AGENTS.md § *In the loop*. `AGENTS.md:1`
+- [x] Fix the `questions` entries, then rewrite and stamp each stale or owed page the check names. `website/src/data/questions.json:963`
+- [x] Run `looper verify`, fix every failure in one pass, and run it again until green. `docs/goals/first-release.md:227`
+- [x] The goal-end gates of AGENTS.md § *In the loop*. `AGENTS.md:1`
 
 ### Backlog
 
-- Nothing after the gate. The goal's *After the goal* steps are the user's.
+- Nothing. The goal's *After the goal* steps are the user's.
 
