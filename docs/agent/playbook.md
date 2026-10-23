@@ -60,7 +60,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   (`tools/looper/src/jobs/hang.ts`), which has no `OUTSIDE` rule like `tools/nv/lib/hang.ts`'s, so
   the release compile in Docker's VM reads as a tree with no CPU. Run a bench row in the foreground
   with a 600 s timeout. A full record survives in the background once `--smoke` has built the
-  images in the foreground, and a filter on it uses `grep --line-buffered`. `until: gone tools/looper/src/jobs/hang.ts:WAIT_LINES`
+  images in the foreground, and a filter on it uses `grep --line-buffered`. `--profile wait` is
+  killed the same way while it loads, when its output goes into a file through a buffered `grep`, and
+  its container runs on. `docker logs -f <id>` recovers what it prints.
+  `until: gone tools/looper/src/jobs/hang.ts:WAIT_LINES`
 - **A new `benches/compare.json` changes nothing on the built comparison page until `bun nv render`
   copies it to `website/src/data/compare.json`.** `bun nv site --build` reads only the copy, so a
   chart new to the record shows its empty text. Run `bun nv render`, then build, and commit the copy
