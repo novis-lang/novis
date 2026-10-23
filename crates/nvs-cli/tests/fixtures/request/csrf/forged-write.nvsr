@@ -1,0 +1,8 @@
+--METHOD--
+POST
+--PATH--
+/notes
+--HEADERS--
+cookie: nvsid=AAAAAAAAAAAAAAAAAAAAAA
+x-csrf-token: not-a-token-this-server-issued
+--BODY--

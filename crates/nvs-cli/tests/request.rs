@@ -88,6 +88,31 @@ fn a_run_without_a_request_file_answers_no_request() {
     );
 }
 
+/// `rule:security/csrf-is-on-by-default`: a write read off a request file
+/// crosses the door `Core\Test::request` crosses, so a token this server never
+/// issued reaches the gate as a CSRF refusal and the handler does not run.
+#[test]
+fn a_request_file_with_a_forged_token_is_refused_before_its_handler() {
+    let data = nvs_repo::scratch_private("nvsdata");
+    let csrf = fixtures().join("csrf");
+    // Run from the fixture's folder, which is where its `nvs.toml` with the
+    // key is found.
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .current_dir(&csrf)
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
+        .arg("run")
+        .arg("--request")
+        .arg(csrf.join("forged-write.nvsr"))
+        .arg(csrf.join("forged-write.nvs"))
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "the gate answers it: {stderr}");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "refused");
+}
+
 /// Runs the event-stream fixture as the answer to the fixture request, with
 /// the events file beside it where `events` says so.
 fn stream(events: bool) -> Output {
