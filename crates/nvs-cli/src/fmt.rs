@@ -14,12 +14,20 @@
 //! directory only `.nvs` files are collected, in sorted order so two runs over
 //! one tree report in the same order; a path given on the command line is
 //! formatted whatever it is called, because naming it is already the choice the
-//! extension filter exists to make for a walk.
+//! extension filter exists to make for a walk. A walk skips every directory
+//! named `vendor` under the path it starts from, which is code a project pulls
+//! in rather than writes, as `nvs check --fix` leaves it alone
+//! (`check::vendored`); naming one on the command line formats it.
 //!
 //! **One file's refusal never stops the walk.** Each file is its own parse
 //! ([`nvs_fmt`]'s module doc), so a file that does not parse is named on
 //! standard error with its diagnostics rendered under it and the files after it
-//! are still formatted. The exit code is non-zero once any file was refused.
+//! are still formatted.
+//!
+//! **The exit code says what the run found** ([`Found`]):
+//! `rule:tooling/fmt-exit-status-says-what-it-found`. `1` is a file that would
+//! change, which running `nvs fmt` fixes, and `2` is a file refused or not read
+//! or written, which it does not; `2` wins when one run finds both.
 //!
 //! **Nothing is written when the bytes already match.** A file in its canonical
 //! layout keeps its modification time, which is what an editor watching the
@@ -59,10 +67,35 @@ const CONTEXT: usize = 3;
 /// The largest subsequence table `--diff` allocates, in cells.
 const CELLS: usize = 1 << 20;
 
+/// The directory a walk does not enter.
+const VENDOR: &str = "vendor";
+
+/// What one file, or one run, found: the worst wins, and it is the exit code.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub(crate) enum Found {
+    /// Already canonical, or rewritten in place.
+    Settled,
+    /// A mode that writes nothing found a file that would change. Exit `1`.
+    Changed,
+    /// Refused, or not read or written. Exit `2`.
+    Refused,
+}
+
+impl From<Found> for ExitCode {
+    fn from(found: Found) -> Self {
+        match found {
+            Found::Settled => ExitCode::SUCCESS,
+            Found::Changed => ExitCode::from(1),
+            Found::Refused => ExitCode::from(2),
+        }
+    }
+}
+
 /// Where a formatted file's text goes.
 ///
 /// The three modes over the named paths; `--stdin` is [`stdin`] rather than a
-/// fourth variant, because it resolves no path at all.
+/// fourth variant, because it resolves no path at all, and it takes
+/// [`Mode::Write`] or [`Mode::Check`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Mode {
     /// Rewrite each file that would change. The default.
@@ -90,12 +123,14 @@ pub(crate) struct Args {
     /// `.nvs` files under it.
     #[arg(required_unless_present = "stdin")]
     paths: Vec<PathBuf>,
-    /// Write nothing and name each file that would change, exiting
-    /// non-zero if any would.
-    #[arg(long, alias = "dry-run", conflicts_with_all = ["diff", "stdin"])]
+    /// Write nothing and print the name of each file that would change.
+    /// The exit code is 1 if a file would change, and 2 if a file has an
+    /// error. With `--stdin`, the name printed is `<stdin>`.
+    #[arg(long, alias = "dry-run", conflicts_with = "diff")]
     check: bool,
-    /// Write nothing and print a unified diff per file that would change,
-    /// exiting non-zero if any would.
+    /// Write nothing and print a unified diff for each file that would
+    /// change. The exit code is 1 if a file would change, and 2 if a file
+    /// has an error.
     // Refused beside `--check` for the reason `nvs check`'s `--json` is
     // refused beside `--autoload-map`: both render the same list onto the
     // same standard output, and one printed after the other is neither.
@@ -110,70 +145,77 @@ pub(crate) struct Args {
 impl Args {
     /// Runs `nvs fmt` with the arguments clap parsed.
     pub(crate) fn run(self) -> ExitCode {
-        if self.stdin {
-            stdin()
-        } else if self.check {
-            run(&self.paths, Mode::Check)
+        let mode = if self.check {
+            Mode::Check
         } else if self.diff {
-            run(&self.paths, Mode::Diff)
+            Mode::Diff
         } else {
-            run(&self.paths, Mode::Write)
+            Mode::Write
+        };
+        if self.stdin {
+            stdin(mode).into()
+        } else {
+            run(&self.paths, mode).into()
         }
     }
 }
 
-/// Formats every file `paths` names, and answers the process's exit code.
-///
-/// Non-zero once any file was refused, and — in a mode that writes nothing —
-/// once any file would have changed.
-pub(crate) fn run(paths: &[PathBuf], mode: Mode) -> ExitCode {
+/// Formats every file `paths` names, and answers the worst any of them found.
+pub(crate) fn run(paths: &[PathBuf], mode: Mode) -> Found {
     let mut files = Vec::new();
     for path in paths {
         if let Err(err) = collect(path, &mut files) {
             eprintln!("error: could not read {}: {err}", path.display());
-            return ExitCode::FAILURE;
+            return Found::Refused;
         }
     }
 
-    let mut settled = true;
-    for file in &files {
-        settled &= one(file, mode);
-    }
-    if settled {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::FAILURE
-    }
+    files
+        .iter()
+        .map(|file| one(file, mode))
+        .max()
+        .unwrap_or(Found::Settled)
 }
 
-/// Formats what standard input holds onto standard output.
+/// Formats what standard input holds: onto standard output under
+/// [`Mode::Write`], and under [`Mode::Check`] only as [`STDIN_NAME`] when it
+/// would change.
 ///
 /// A refusal writes nothing at all to standard output — the buffer an editor
 /// sent is the buffer it keeps, rather than one this replaced with a partial
 /// rendering of a file its author has not finished typing.
-pub(crate) fn stdin() -> ExitCode {
+pub(crate) fn stdin(mode: Mode) -> Found {
     let mut source = String::new();
     if let Err(err) = io::stdin().read_to_string(&mut source) {
         eprintln!("error: could not read standard input: {err}");
-        return ExitCode::FAILURE;
+        return Found::Refused;
     }
 
     let mut map = SourceMap::new();
     let id = map.add(STDIN_NAME, source);
     match nvs_fmt::format(map.file(id)) {
+        Ok(formatted) if mode == Mode::Check => {
+            if formatted == map.file(id).text() {
+                Found::Settled
+            } else {
+                println!("{STDIN_NAME}");
+                Found::Changed
+            }
+        }
         Ok(formatted) => {
             print!("{formatted}");
-            ExitCode::SUCCESS
+            Found::Settled
         }
         Err(refusal) => {
             eprintln!("error: {refusal}");
             crate::render_diagnostics(&mut refusal.into_diagnostics(), &map);
-            ExitCode::FAILURE
+            Found::Refused
         }
     }
 }
 
-/// Adds `path` to `into`: itself, or every `.nvs` file under it.
+/// Adds `path` to `into`: itself, or every `.nvs` file under it outside a
+/// directory named [`VENDOR`].
 fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
     if !path.is_dir() {
         into.push(path.to_path_buf());
@@ -186,6 +228,9 @@ fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
     entries.sort();
     for entry in entries {
         if entry.is_dir() {
+            if entry.file_name().is_some_and(|name| name == VENDOR) {
+                continue;
+            }
             collect(&entry, into)?;
         } else if entry.extension().is_some_and(|ext| ext == EXTENSION) {
             into.push(entry);
@@ -196,15 +241,16 @@ fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
 
 /// One file, through the mode in force.
 ///
-/// `false` once the file was refused or could not be read or written, and once
-/// a mode that writes nothing found one that would change.
-fn one(path: &Path, mode: Mode) -> bool {
+/// [`Found::Refused`] once the file was refused or could not be read or
+/// written, and [`Found::Changed`] once a mode that writes nothing found that
+/// it would change.
+fn one(path: &Path, mode: Mode) -> Found {
     let mut map = SourceMap::new();
     let id = match map.load(path) {
         Ok(id) => id,
         Err(err) => {
             crate::report_unreadable(path, &err, crate::Sink::Text);
-            return false;
+            return Found::Refused;
         }
     };
 
@@ -214,28 +260,28 @@ fn one(path: &Path, mode: Mode) -> bool {
         Err(refusal) => {
             eprintln!("error: {refusal}");
             crate::render_diagnostics(&mut refusal.into_diagnostics(), &map);
-            return false;
+            return Found::Refused;
         }
     };
     if after == before {
-        return true;
+        return Found::Settled;
     }
 
     match mode {
         Mode::Write => match fs::write(path, &after) {
-            Ok(()) => true,
+            Ok(()) => Found::Settled,
             Err(err) => {
                 eprintln!("error: could not write {}: {err}", path.display());
-                false
+                Found::Refused
             }
         },
         Mode::Check => {
             println!("{}", path.display());
-            false
+            Found::Changed
         }
         Mode::Diff => {
             print!("{}", unified(&path.display().to_string(), &before, &after));
-            false
+            Found::Changed
         }
     }
 }

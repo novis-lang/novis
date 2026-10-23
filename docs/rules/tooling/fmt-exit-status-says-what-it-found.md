@@ -8,9 +8,6 @@ by running `nvs fmt`. A file that does not parse is not, and running the formatt
 the refusal. Prettier and Black split their exit codes the same way, so a hook written for either reads
 this one without a lookup.
 
-**Not on disk.** Both failures exit `1` (`crates/nvs-cli/src/fmt.rs`), and `--check` is refused
-beside `--stdin` (`crates/nvs-cli/src/main.rs`).
-
 **Declined:**
 - **One non-zero code for both failures.** A hook then reports a broken file as unformatted, and the
   fix it suggests does nothing.
