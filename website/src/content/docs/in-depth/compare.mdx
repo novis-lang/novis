@@ -147,7 +147,7 @@ takes about 2 seconds.
 
 Novis waits until no file has changed for 1 second. Then it switches to the whole new program at
 once. In this test, it used the new version 1.2 seconds after the copy, and every page was
-complete. PHP had no failed request, but 46% of its pages mixed old and new files. PHP checks each
+complete. PHP had no failed request, but 47% of its pages mixed old and new files. PHP checks each
 file on its own, so during the copy some files are new and others are still old. Bun and Go need a
 restart, and some requests failed during each restart.
 
@@ -157,8 +157,8 @@ The new version is 2,000 source files, copied the same way. This takes about 20 
 
 <FaultCharts chart="deploy-big" />
 
-Novis used the new version 3.1 seconds after the copy, and every page was complete. PHP mixed old
-and new files in 93% of its pages. The copy took longer on PHP's server, because the copy and PHP's
+Novis used the new version 3.5 seconds after the copy, and every page was complete. PHP mixed old
+and new files in 90% of its pages. The copy took longer on PHP's server, because the copy and PHP's
 workers share the one CPU core. Bun and Go failed requests during the restart, as in the small
 deploy.
 
