@@ -2348,8 +2348,9 @@ impl<'a> Sequence<'a> {
 /// take there: an object or a list where the wire type reads a value, or the
 /// reverse.
 ///
-/// Unreachable: [`Fill`] builds an object or a list only where the walk takes
-/// one, and both read the same contract. `key` is the field the walk was
+/// Unreachable from source with no diagnostic to name: [`Fill`] builds an
+/// object or a list only where the walk takes one, and both read the same
+/// contract. `key` is the field the walk was
 /// reading, and `None` for the document itself.
 fn misread(contract: Contract<'_>, key: Option<&str>) -> Fault {
     let place = key.map_or_else(|| "document".to_owned(), |key| format!("`{key}` field"));
