@@ -488,6 +488,13 @@ pub struct Ctx {
     /// the thread as it is. Arming its own word there would name a word the
     /// rest of the drop frees.
     memory_off_stack: bool,
+    /// Where [`Self::new`] made this context and what it allocated, until a
+    /// spawn hands those bytes to the context's own tree
+    /// ([`Self::hand_over_its_making`]). `None` where it was made on no
+    /// tree's turn, and after the hand-over.
+    ///
+    /// **What it spends:** four words per context.
+    made: Option<limits::Made>,
     /// The thread's output-byte count when this context was made — the zero
     /// point [`Self::output_used`] measures this request's own writing from.
     /// [`Self::memory_base`]'s twin in every respect, the reason it sits below
