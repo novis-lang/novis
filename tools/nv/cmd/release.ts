@@ -44,7 +44,13 @@
 // back and refuses a manifest where any pin still differs, and `cargo metadata` must read the workspace
 // or the manifest is put back. `cargo update --workspace --offline` rewrites `Cargo.lock` for workspace
 // members only, so a release cannot carry a dependency bump — that pass is a person's, per
-// `docs/agent/dependency-update.md`.
+// `docs/agent/dependency-update.md`. The editor extension ships the same version, so `--apply` also
+// rewrites `editors/vscode/package.json` and the two versions in its `package-lock.json`.
+//
+// **The first release is the version the tree already says.** With no `v*` tag, `patch` and `minor`
+// release `Cargo.toml`'s version as it is, and the notes are the written `docs/release-notes/first.md`,
+// because a changelog of the whole history is no release note. `--apply` then bumps nothing, and the
+// release commit carries the changelog alone.
 //
 // **The notes are compacted.** `git log` here is written by an unattended loop and is largely
 // bookkeeping. So `feat`, `fix` and `perf` are listed in full and grouped by scope, anything breaking
@@ -249,6 +255,31 @@ export function bumpManifest(manifest: string, version: string): { text: string;
     die(`the rewritten manifest still disagrees with ${version}; its shape changed:\n  ${[...stale, ...[...pinned].map((n) => `${n} is not an inline table on one line`)].join("\n  ")}`);
   }
   return { text, changed };
+}
+
+/** The editor extension's manifests, which carry the workspace version as their own. */
+export const EXTENSION_MANIFESTS = ["editors/vscode/package.json", "editors/vscode/package-lock.json"];
+
+/**
+ * An extension manifest with its version set to `version`. `package.json` has one version, and
+ * `package-lock.json` has two: the top-level one and the root package's under `packages[""]`. Each is
+ * edited on its own line, so the file keeps npm's formatting. The result is read back, and a version
+ * this edit could not reach is an error rather than a release whose extension says another version.
+ */
+export function bumpPackageJson(text: string, version: string, file: string): string {
+  parseVersion(version);
+  let out = text.replace(/^(  "version": )"[^"]*"/m, `$1"${version}"`);
+  const lock = /"lockfileVersion"/.test(text);
+  if (lock) out = out.replace(/^(    "": \{\r?\n(?:      .*\r?\n)*?      "version": )"[^"]*"/m, `$1"${version}"`);
+  let parsed: { version?: unknown; packages?: Record<string, { version?: unknown }> };
+  try {
+    parsed = JSON.parse(out);
+  } catch (e) {
+    return die(`${file} is not JSON after the version was rewritten: ${(e as Error).message}`);
+  }
+  const found = [parsed.version, ...(lock ? [parsed.packages?.[""]?.version] : [])];
+  if (found.some((v) => v !== version)) die(`${file} still disagrees with ${version}; its shape changed (found ${found.map(String).join(", ")})`);
+  return out;
 }
 
 /** Insert `section` above the newest release, or start the file with the header on a first release. */
@@ -600,11 +631,27 @@ function repoUrl(): string {
   return typeof repo === "string" ? repo.replace(/\/+$/, "") : "";
 }
 
-async function notesFor(version: string, previousTag: string | null, cap: number): Promise<string> {
-  // Never through a shell: a subject in this history may contain backticks, `$(...)` or a quote.
-  const span = previousTag ? `${previousTag}..HEAD` : "HEAD";
-  const raw = await git(["log", "--reverse", "--no-merges", "--format=%H%x1f%s%x1f%b%x1e", span]);
+/** The first release's notes, written by hand: the whole history is no release note. */
+export const FIRST_NOTES = "docs/release-notes/first.md";
+
+/** The first release's section: the written notes under the version heading. */
+export function firstReleaseNotes(version: string, written: string, today: string): string {
+  return [`## [${version}] - ${today}`, "", written.replace(/^\s+|\s+$/g, ""), ""].join("\n");
+}
+
+/**
+ * The changelog section for `version`. With no previous tag this is the first release, and its notes
+ * are `FIRST_NOTES`. Every later release renders the commit log since `previousTag`.
+ */
+export async function notesFor(version: string, previousTag: string | null, cap: number): Promise<string> {
   const today = new Date().toISOString().slice(0, 10);
+  if (!previousTag) {
+    const path = join(ROOT, FIRST_NOTES);
+    if (!existsSync(path)) die(`the first release's notes are ${FIRST_NOTES}, and it is missing`);
+    return firstReleaseNotes(version, readFileSync(path, "utf8"), today);
+  }
+  // Never through a shell: a subject in this history may contain backticks, `$(...)` or a quote.
+  const raw = await git(["log", "--reverse", "--no-merges", "--format=%H%x1f%s%x1f%b%x1e", `${previousTag}..HEAD`]);
   return renderNotes(version, previousTag, parseLog(raw).map(classify), repoUrl(), today, cap);
 }
 
@@ -620,17 +667,21 @@ async function fixesMissingFrom(built: string, previousTag: string | null): Prom
   return fixesIn(parseLog(raw).map(classify));
 }
 
-/** (current, next, previous tag): every guard a release clears before it writes. */
-async function resolveNext(bump: string, exact: string, allowContract: boolean): Promise<[string, string, string | null]> {
-  const current = workspaceVersion(manifest());
-  const known = await tags();
-  const previous = known[0]?.name ?? null;
+/**
+ * The version a release names, after every guard it clears before it writes. Once a `v*` tag exists, a
+ * release advances the workspace version. Before the first tag, the version `Cargo.toml` already says
+ * was never released, so `patch` and `minor` release it as it is, and `major` still moves to the next
+ * breaking line, behind `allowContract`.
+ */
+export function planVersion(current: string, bump: string, exact: string, known: Tag[], allowContract: boolean): string {
   if (known.length > 0 && compareVersions(known[0]!.version, parseVersion(current)) > 0) {
-    die(`tag ${previous} is ahead of Cargo.toml's ${current}. The tree is behind a release that already happened -- reconcile before releasing again.`);
+    die(`tag ${known[0]!.name} is ahead of Cargo.toml's ${current}. The tree is behind a release that already happened -- reconcile before releasing again.`);
   }
-  const target = exact.trim() ? exact.trim() : nextVersion(current, bump);
+  const unreleased = known.length === 0;
+  const target = exact.trim() ? exact.trim() : unreleased && bump !== "major" ? current : nextVersion(current, bump);
   const want = parseVersion(target);
-  if (compareVersions(want, parseVersion(current)) <= 0) die(`${target} does not advance ${current}`);
+  const order = compareVersions(want, parseVersion(current));
+  if (order < 0 || (order === 0 && !unreleased)) die(`${target} does not advance ${current}`);
   if (known.some((t) => compareVersions(t.version, want) === 0)) die(`v${target} is already tagged`);
   if (compareVersions(want, [0, 1, 0]) >= 0 && compareVersions(parseVersion(current), [0, 1, 0]) < 0 && !allowContract) {
     die(
@@ -642,7 +693,14 @@ async function resolveNext(bump: string, exact: string, allowContract: boolean):
         "  or pass --allow-contract locally.",
     );
   }
-  return [current, target, previous];
+  return target;
+}
+
+/** (current, next, previous tag), from the manifest and the tags on this clone. */
+async function resolveNext(bump: string, exact: string, allowContract: boolean): Promise<[string, string, string | null]> {
+  const current = workspaceVersion(manifest());
+  const known = await tags();
+  return [current, planVersion(current, bump, exact, known, allowContract), known[0]?.name ?? null];
 }
 
 async function check(): Promise<number> {
@@ -673,21 +731,39 @@ async function apply(version: string, notesFile: string | undefined, manifestsOn
   }
   const before = manifest();
   const { text, changed } = bumpManifest(before, version);
-  writeFileSync(cargoToml(), text);
-  for (const argv of [
-    ["cargo", "metadata", "--no-deps", "--format-version", "1", "--offline"],
-    ["cargo", "update", "--workspace", "--offline"],
-  ]) {
-    const r = await runProc(argv);
-    if (r.code !== 0) {
-      writeFileSync(cargoToml(), before);
-      die(`${argv.join(" ")} failed, so Cargo.toml was put back:\n${r.stdout}\n${r.stderr}`);
+  // Every rewrite is computed before any is written, so a manifest of an unexpected shape stops the
+  // release with the tree untouched.
+  const extensions = EXTENSION_MANIFESTS.map((file) => {
+    const path = join(ROOT, file);
+    if (!existsSync(path)) die(`${file} is missing, and the extension's version lives in it`);
+    const old = readFileSync(path, "utf8");
+    return { path, old, next: bumpPackageJson(old, version, file) };
+  });
+  // The first release names the version the tree already says, and then no manifest changes: the
+  // release commit carries the changelog alone.
+  const bumped = text !== before;
+  if (bumped) {
+    writeFileSync(cargoToml(), text);
+    for (const argv of [
+      ["cargo", "metadata", "--no-deps", "--format-version", "1", "--offline"],
+      ["cargo", "update", "--workspace", "--offline"],
+    ]) {
+      const r = await runProc(argv);
+      if (r.code !== 0) {
+        writeFileSync(cargoToml(), before);
+        die(`${argv.join(" ")} failed, so Cargo.toml was put back:\n${r.stdout}\n${r.stderr}`);
+      }
     }
   }
+  for (const { path, old, next } of extensions) if (next !== old) writeFileSync(path, next);
   if (section !== null) {
     writeFileSync(changelogPath(), prependChangelog(existsSync(changelogPath()) ? readFileSync(changelogPath(), "utf8") : null, section));
   }
-  console.log(`nv release: ${changed} version fields at ${version}; Cargo.lock updated.`);
+  console.log(
+    bumped
+      ? `nv release: ${changed} version fields at ${version}; Cargo.lock and the extension updated.`
+      : `nv release: the manifests already say ${version}; nothing to bump.`,
+  );
   return 0;
 }
 
