@@ -599,7 +599,10 @@ mod tests {
                 .what
         };
         let before = local.table(&tree("old.sqlite"));
-        assert_eq!(what(&before, "/old.sqlite"), nvs_server::What::Run(entry.clone()));
+        assert_eq!(
+            what(&before, "/old.sqlite"),
+            nvs_server::What::Run(entry.clone())
+        );
         assert_eq!(
             what(&before, "/style.css"),
             nvs_server::What::Static(root.join("style.css"))

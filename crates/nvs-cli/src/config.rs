@@ -653,7 +653,10 @@ impl Root {
             return lines;
         }
         for (named, _, reached) in &self.named {
-            lines.push(format!("info: configuration {named} -> {}", reached.display()));
+            lines.push(format!(
+                "info: configuration {named} -> {}",
+                reached.display()
+            ));
         }
         let count = self.files.len();
         lines.push(format!(
@@ -733,7 +736,8 @@ fn resolved_in(
                         (None, Some(data)) if !local => data.display().to_string(),
                         (None, _) => format!("./{}", nvs_config::resolve::LOCAL_FILE),
                     };
-                    let reached = nvs_config::trust::canonical(path).unwrap_or_else(|_| path.clone());
+                    let reached =
+                        nvs_config::trust::canonical(path).unwrap_or_else(|_| path.clone());
                     (named, path.clone(), reached)
                 })
                 .collect()
