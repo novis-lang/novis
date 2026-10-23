@@ -1215,6 +1215,14 @@ pub(crate) fn encodes_outside_text(
 /// text, and an `array<string>` or a literal of the program's own values is
 /// not. A literal is read element by element because its type is the
 /// parameter's `array<mixed>` whatever it holds.
+///
+/// **A `tainted` argument is outside text at every door.** `Core\Json::decodeAs`
+/// admits a `tainted string` document because its signature's
+/// `contagious_return` is the class it builds (`crate::core_lib`'s
+/// `decodes_a_document`), and this answer is what makes that admission sound:
+/// the decode site it records asks every text field of the class to be
+/// `tainted`, so the mark the argument carried reaches each field. A plain
+/// document records no site, and its class keeps plain fields.
 pub(crate) fn converts_outside_text(
     qname: &QName,
     args: &CallArgs,
@@ -1223,6 +1231,13 @@ pub(crate) fn converts_outside_text(
     scope: &LocalScope,
     env: &mut Env<'_>,
 ) -> bool {
+    let tainted_argument = slots
+        .iter()
+        .zip(arg_types)
+        .any(|(slot, &ty)| matches!(slot, ArgSlot::Param(_)) && carries_tainted(ty, env.interner));
+    if tainted_argument {
+        return true;
+    }
     if qname.to_string() != r"Core\Arr" {
         return false;
     }

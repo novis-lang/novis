@@ -1,0 +1,31 @@
+--TEST--
+`Core\Json::decodeAs<T>` takes a `tainted string` document, and each text property it fills is written `tainted`, so the mark the document carried reaches every one — `rule:security/derived-codec-qualifiers`, `rule:security/unclassified-parameter-refuses-tainted`
+--FILE--
+<?nvs
+#[Core\Json\Derive]
+class Note {
+    public function constructor(
+        public tainted string $title,
+        public int $stars,
+    ) {}
+}
+
+// A document from outside the program, and a list of two of them.
+tainted string $one = "{\"title\":\"first\",\"stars\":3}" as tainted string;
+Note $note = Core\Json::decodeAs<Note>($one);
+echo $note->title, " ", $note->stars as string, "\n";
+
+tainted string $many = "[{\"title\":\"a\",\"stars\":1},{\"title\":\"b\",\"stars\":2}]" as tainted string;
+array<Note> $notes = Core\Json::decodeAs<array<Note>>($many);
+foreach ($notes as Note $each) {
+    echo $each->title, " ", $each->stars as string, "\n";
+}
+
+// The program's own document decodes into the same class.
+Note $own = Core\Json::decodeAs<Note>("{\"title\":\"own\",\"stars\":5}");
+echo $own->title, " ", $own->stars as string, "\n";
+--EXPECT--
+first 3
+a 1
+b 2
+own 5

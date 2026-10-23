@@ -1,0 +1,26 @@
+--TEST--
+`Core\Json::decodeAs<T>` over a `tainted string` document is refused where a text property of `T` is written without `tainted`, and the program's own document fills the same class — `rule:security/derived-codec-qualifiers`
+--FILE--
+<?nvs
+#[Core\Json\Derive]
+class Note {
+    public function constructor(
+        public string $title,
+    ) {}
+}
+
+// The program's own document: a plain property is allowed.
+Note $own = Core\Json::decodeAs<Note>("{\"title\":\"own\"}");
+echo $own->title, "\n";
+
+// A document from outside the program: `$title` must be `tainted`.
+tainted string $outside = "{\"title\":\"x\"}" as tainted string;
+Note $note = Core\Json::decodeAs<Note>($outside);
+echo $note->title, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0810]: `Note::$title` is declared `string`, and `Core\Json::decodeAs` fills it with text from outside the program
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

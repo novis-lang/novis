@@ -158,7 +158,11 @@ pub struct MethodSig {
     /// parameter carried `tainted`, when the signature says so itself; `None`
     /// answers `crate::expr::quals::tainted_result` of [`Self::return_ty`].
     ///
-    /// Only an extension method writes one, a built-in component's engine
+    /// A `Core` member that decodes a document into its written class writes
+    /// that class (`crate::core_lib`'s `decodes_a_document`), and the decode
+    /// site carries the mark into the class's text fields.
+    ///
+    /// An extension method writes one too, a built-in component's engine
     /// included (`rule:security/extension-contagion`): its declared return with
     /// `tainted` on every `string` and `bytes`, the fields of a shape included,
     /// which `tainted_result` does not reach into.
@@ -419,6 +423,9 @@ impl MethodSig {
                 .map(|id| crate::generics::substitute(*id, bindings, interner))
                 .collect(),
             return_ty: crate::generics::substitute(self.return_ty, bindings, interner),
+            contagious_return: self
+                .contagious_return
+                .map(|id| crate::generics::substitute(id, bindings, interner)),
             ..self
         }
     }

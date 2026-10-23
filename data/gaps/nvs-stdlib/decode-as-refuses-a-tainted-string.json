@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/json.rs",
-  "title": "`Core\\Json::decodeAs<T>` and the other `decodeAs`/`shapeAs` doors refuse a `tainted string` argument.",
-  "text": "`written_class_of` already takes a `subject_outside` flag that checks each text field for `tainted`, but the doors refuse a tainted argument outright. So a program can decode a request body into a class only through `Core\\Request::jsonAs`. Closing it is admitting a tainted argument where the field check runs, and a conformance case that decodes a tainted string into a class with a `tainted string` property and is refused for a plain one.",
-  "goal": "taught-app-works"
-}
