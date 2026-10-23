@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/main.rs, crates/nvs-config/src/data.rs]
 stages:
   - id: 1
     title: "`nvs cache gc` and `nvs cache clear`"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/cache.rs, crates/nvs-cli/src/cache_cmd.rs, docs/rules/packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape.md, docs/rules/packaging/eviction-rides-the-cold-miss-at-a-probability.md]
     extra:
       context:
@@ -195,18 +195,18 @@ path. A dynamic `require` that compiled before and always threw now fails to com
 **Does:** two subcommands over the existing cache, as
 `rule:packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape` says.
 
-- [ ] The rule states the output, `.tmp-` files, the skipped Windows entry and the relocated cache as § *Standing decisions* settles them (`rule:packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`). `docs/rules/packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape.md:1`
-- [ ] `nvs cache gc` calls `Cache::gc` without the probability roll of `maybe_gc`. `crates/nvs-cli/src/cache_cmd.rs:1`, `crates/nvs-cli/src/cache.rs:1435`, `crates/nvs-cli/src/cache.rs:1403`
-- [ ] `nvs cache clear` deletes every `.nvsc` entry in the store, the same way. `crates/nvs-cli/src/cache_cmd.rs:1`, `crates/nvs-cli/src/cache.rs:1435`
-- [ ] The `Cache` variant and its dispatch arm. `crates/nvs-cli/src/main.rs:373`, `crates/nvs-cli/src/main.rs:566`
-- [ ] Tests over a temporary cache: over the cap, under it, a `.tmp-` file kept, `--json`. `crates/nvs-cli/src/cache_cmd.rs:1`
-- [ ] The help text in the binary. `crates/nvs-cli/src/cache_cmd.rs:1`
-- [ ] The rule `shipped` (`rule:packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`). `data/rules/packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape.json:3`
+- [x] The rule states the output, `.tmp-` files, the skipped Windows entry and the relocated cache as § *Standing decisions* settles them (`rule:packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`). `docs/rules/packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape.md:1`
+- [x] `nvs cache gc` calls `Cache::gc` without the probability roll of `maybe_gc`. `crates/nvs-cli/src/cache_cmd.rs:1`, `crates/nvs-cli/src/cache.rs:1435`, `crates/nvs-cli/src/cache.rs:1403`
+- [x] `nvs cache clear` deletes every `.nvsc` entry in the store, the same way. `crates/nvs-cli/src/cache_cmd.rs:1`, `crates/nvs-cli/src/cache.rs:1435`
+- [x] The `Cache` variant and its dispatch arm. `crates/nvs-cli/src/main.rs:373`, `crates/nvs-cli/src/main.rs:566`
+- [x] Tests over a temporary cache: over the cap, under it, a `.tmp-` file kept, `--json`. `crates/nvs-cli/src/cache_cmd.rs:1`
+- [x] The help text in the binary. `crates/nvs-cli/src/cache_cmd.rs:1`
+- [x] The rule `shipped` (`rule:packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`). `data/rules/packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape.json:3`
 
 `nvs agent find`, the one gap record this goal owns:
 
-- [ ] `find` also matches a section's code spans, with a case for a form no heading names, beside the reachability test. `crates/nvs-cli/src/agent.rs:986`, `crates/nvs-cli/tests/agent.rs:907`
-- [ ] The gap record deleted. `data/gaps/nvs-cli/agent-find-matches-only-heading-slugs.json:1`
+- [x] `find` also matches a section's code spans, with a case for a form no heading names, beside the reachability test. `crates/nvs-cli/src/agent.rs:986`, `crates/nvs-cli/tests/agent.rs:907`
+- [x] The gap record deleted. `data/gaps/nvs-cli/agent-find-matches-only-heading-slugs.json:1`
 
 ### 2. the endpoints are configuration, and `nvs update-check` reads GitHub's latest release
 
@@ -301,25 +301,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. Every open point is settled in § *Standing decisions*, and each stage writes
-its choice into its rule first. The anchors above were checked against the tree. Stage 5 waits for
-`formatter-complete`, and owns two gap records.
+Stage 1 is done (`7f5e568d0`, `ac4b1dcf2`). `nvs cache gc` and `nvs cache clear` are
+`crates/nvs-cli/src/cache_cmd.rs` over `Cache::gc` and the new `Cache::clear`, which share one walk
+and return `Swept { removed, freed, skipped }`. The rule is shipped. The cache-help check passes.
+`nvs agent find` lists, after the name matches, each section that has an inline code span equal to
+the query. A span matches whole, so `length` and `strlen` give the same output as before. The agents
+chapter's `find autoload` transcript and `website/public/llms-full.txt` show the nine new section
+lines. The gap record is deleted.
+
+The tests written this session ran once and pass: `cache_cmd::tests` (5) and `tests/agent.rs` (65).
+No test is expected to go red. `formatter-complete` is retired, so stage 5's gate holds.
+
+`crates/nvs-runtime/src/capability.rs` has the uncommitted rustfmt join the operator asked for at
+line 2259. The guard refused to stage it, because the live interactive `formatter-complete` session
+6884de4b still claims the file. Commit it once that claim is released (`looper claims`).
 
 ### Next
 
-**Stage 1: `nvs cache gc` and `nvs cache clear`**, one file set: `crates/nvs-cli/src/cache_cmd.rs`,
-`crates/nvs-cli/src/cache.rs`, the subcommand table in `crates/nvs-cli/src/main.rs`, and
-`crates/nvs-cli/src/agent.rs` for the gap. No gate.
+**Stage 2: the endpoints, and `nvs update-check`**, one file set: `crates/nvs-cli/src/endpoints.rs`
+and `crates/nvs-cli/src/update_check.rs` (both new), the subcommand table in
+`crates/nvs-cli/src/main.rs`, and a public entry point in `nvs-stdlib`. No gate.
 
-- [ ] The rule states the output, `.tmp-` files, Windows and the relocated cache (`rule:packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`). `docs/rules/packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape.md:1`
-- [ ] `nvs cache gc` over `Cache::gc`, without the roll. `crates/nvs-cli/src/cache_cmd.rs:1`, `crates/nvs-cli/src/cache.rs:1435`
-- [ ] `nvs cache clear`. `crates/nvs-cli/src/cache_cmd.rs:1`
-- [ ] The `Cache` variant and dispatch arm. `crates/nvs-cli/src/main.rs:373`, `crates/nvs-cli/src/main.rs:566`
-- [ ] Tests over a temporary cache. `crates/nvs-cli/src/cache_cmd.rs:1`
-- [ ] The help text in the binary. `crates/nvs-cli/src/cache_cmd.rs:1`
-- [ ] The rule `shipped`. `data/rules/packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape.json:3`
-- [ ] `nvs agent find` matches a section's code spans. `crates/nvs-cli/src/agent.rs:986`, `crates/nvs-cli/tests/agent.rs:907`
-- [ ] The gap record deleted. `data/gaps/nvs-cli/agent-find-matches-only-heading-slugs.json:1`
+- [ ] Both URL variables read, GitHub's latest release as the update default, no telemetry default. `crates/nvs-cli/src/endpoints.rs:1`, `docs/rules/config/telemetry-and-update-endpoints-are-configuration.md:1`
+- [ ] A public HTTPS GET for the CLI over the client's transport. `nvs_stdlib`'s `http` module is private (`crates/nvs-stdlib/src/lib.rs:163`) and `transport::send` is `pub(crate)` (`crates/nvs-stdlib/src/http/transport.rs:1290`), so `nvs-cli` needs one small `pub` function in `nvs-stdlib`. Add no dependency. `crates/nvs-stdlib/src/http/transport.rs:1290`
+- [ ] `nvs update-check`: one line per step, telemetry switch, local and latest version, `--json` with a schema version, exit `0` always. `crates/nvs-cli/src/update_check.rs:1`, `docs/rules/tooling/update-check-states-the-whole-picture.md:1`
+- [ ] The `UpdateCheck` variant and its dispatch arm, beside `Cache`. `crates/nvs-cli/src/main.rs:386`, `crates/nvs-cli/src/main.rs:596`
+- [ ] Tests against a local listener with a Releases API document: newer, same, unreachable. `crates/nvs-cli/src/update_check.rs:1`
+- [ ] Both rules `shipped`. `data/rules/config/telemetry-and-update-endpoints-are-configuration.json:3`, `data/rules/tooling/update-check-states-the-whole-picture.json:3`
 
 ### Backlog
 
