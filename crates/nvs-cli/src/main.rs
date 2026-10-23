@@ -1295,7 +1295,10 @@ fn run_check(
         match Program::named_by(path) {
             Ok(Some(Program::Directory { dir, files })) => Some(Program::entry(&dir, &files)),
             Ok(_) => {
-                eprintln!("error: {}: this directory has no `.nvs` file", path.display());
+                eprintln!(
+                    "error: {}: this directory has no `.nvs` file",
+                    path.display()
+                );
                 return ExitCode::FAILURE;
             }
             Err(message) => {

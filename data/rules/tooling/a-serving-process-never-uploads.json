@@ -8,6 +8,5 @@
     "config/telemetry-and-update-endpoints-are-configuration",
     "http-server/two-deployments-and-nothing-a-proxy-owns"
   ],
-  "guardedBy": [],
-  "goal": "cli-housekeeping"
+  "guardedBy": []
 }

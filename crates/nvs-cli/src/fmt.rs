@@ -56,7 +56,6 @@ use std::process::ExitCode;
 
 use nvs_diagnostics::SourceMap;
 
-
 /// What a buffer read from standard input is called in a diagnostic.
 const STDIN_NAME: &str = "<stdin>";
 
@@ -65,7 +64,6 @@ const CONTEXT: usize = 3;
 
 /// The largest subsequence table `--diff` allocates, in cells.
 const CELLS: usize = 1 << 20;
-
 
 /// What one file, or one run, found: the worst wins, and it is the exit code.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]

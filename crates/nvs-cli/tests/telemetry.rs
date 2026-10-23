@@ -294,7 +294,13 @@ fn a_forged_counter_file_reaches_no_payload_and_overflows_nothing() {
         file.contains(&format!("\nuploads {0}\nbytes {0}\n", u64::MAX)),
         "{file}"
     );
-    for forged in ["ssh", "hunter2", "extra", "invocation.serve", "9223372036854775807"] {
+    for forged in [
+        "ssh",
+        "hunter2",
+        "extra",
+        "invocation.serve",
+        "9223372036854775807",
+    ] {
         assert!(!file.contains(forged), "{forged}: {file}");
     }
     assert!(!controls(&file), "{file:?}");
