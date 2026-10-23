@@ -424,7 +424,7 @@ green. What no check covers is floor debt, and `bun nv debt` pays all of it once
 check `floor-debt` that looper judges last (`tools/nv/cmd/debt.ts`): every owed atom but the benches,
 and every red proof program and leg, oldest first. The benches wait for a release, where `bun nv benches --owed` pays them, because the
 release gate's `proofs` job is red on a stale perf record. Between two sessions only `bun nv sweep` runs, looper's `after_session` hook
-(`tools/nv/cmd/sweep.ts`): it sweeps the disk, the build only when the disk is low, and reads the newest
+(`tools/nv/cmd/sweep.ts`): it sweeps the disk, its stale build caches included, and reads the newest
 nightly CI run back, writing each job it failed into `.loop/last-sweep.md`.
 
 **CI's billing and runners are the user's.** A session that finds CI blocked by billing says so and

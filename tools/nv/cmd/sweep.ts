@@ -6,10 +6,10 @@
 // this command runs none of them, and it pays no floor debt: `bun nv debt` does that, once per goal, as
 // a floor check (`cmd/debt.ts`). Each run does two things, in this order.
 //
-// **It sweeps the disk** (`sweepDisk`), as `nv disk --clean` does, while nothing else is building. It
-// prunes the logs, the scratch and the leftovers every time. It sweeps `target/deps` and
-// `target/incremental` only when the disk is below `nv disk`'s `MIN_FREE_GB`, so the next session's
-// build stays warm while there is room, and cargo is asked for its live set only then.
+// **It sweeps the disk** (`sweepDisk`), the whole of `nv disk --clean`, while nothing else is building.
+// That includes `target/deps` and `target/incremental` every time. What it deletes there is already
+// dead or past the newest caches per crate, so the next session's build stays as warm, and waiting for
+// a low disk would let `target/` fill most of the drive first.
 //
 // **It reads the newest nightly CI run back** (`readNightly`): the newest completed `workflow_dispatch`
 // run of `ci.yml` on `main`, which the cron on `landing` dispatches. It asks `gh`, and it only reads.
@@ -33,7 +33,7 @@ import { dirname, join } from "node:path";
 import { ev } from "../lib/events.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
-import { clean, freedLines, freeGb, human, KEEP_RUNS, MIN_FREE_GB, total } from "./disk.ts";
+import { clean, freedLines, freeGb, human, KEEP_RUNS, total } from "./disk.ts";
 
 /** The file looper writes with its sweep's reds, repo-relative, to which this command adds its own. */
 export const LAST_SWEEP = ".loop/last-sweep.md";
@@ -46,7 +46,7 @@ export const NIGHTLY_LINE = "- nightly CI: ";
 export const DISK_ITEM = "sweep:disk";
 export const NIGHTLY_ITEM = "sweep:nightly";
 
-export const summary = `looper's hook after each session: sweeps the disk, its build only when the disk is low, reads the newest nightly CI run, and writes what is red into ${LAST_SWEEP}: nv sweep [--keep-runs <n>]`;
+export const summary = `looper's hook after each session: sweeps the disk, reads the newest nightly CI run, and writes what is red into ${LAST_SWEEP}: nv sweep [--keep-runs <n>]`;
 
 const USAGE = "usage: bun nv sweep [--keep-runs <n>]";
 
@@ -76,13 +76,12 @@ export interface SweepSeams {
 
 // ---- the disk ----------------------------------------------------------------------------------------
 
-/** `nv disk --clean`'s sweep, its build only below `MIN_FREE_GB`. Says each part, and returns the one-line summary. */
+/** `nv disk --clean`'s sweep. Says each part, and returns the one-line summary. */
 async function sweepDisk(keepRuns: number, say: (line: string) => void, root: string = ROOT): Promise<string> {
   const before = freeGb(root);
-  const build = before < MIN_FREE_GB;
   let freed: Record<string, number | null>;
   try {
-    freed = await clean({ keepRuns, build });
+    freed = await clean({ keepRuns });
   } catch (e) {
     const failed = `disk: the sweep failed -- ${(e as Error).message}`;
     say(failed);
@@ -90,8 +89,7 @@ async function sweepDisk(keepRuns: number, say: (line: string) => void, root: st
   }
   let summary = `disk: freed ${human(total(freed))}, ${before.toFixed(1)}G -> ${freeGb(root).toFixed(1)}G free`;
   for (const line of freedLines(freed)) say(`  ${line}`);
-  if (!build) summary += `; the build kept, above the ${MIN_FREE_GB}G line`;
-  else if (freed["target/deps"] === null) summary += "; deps/ left alone, cargo could not name the live set";
+  if (freed["target/deps"] === null) summary += "; deps/ left alone, cargo could not name the live set";
   return summary;
 }
 
