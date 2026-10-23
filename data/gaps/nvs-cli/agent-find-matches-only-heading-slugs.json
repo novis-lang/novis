@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-cli/src/agent.rs",
-  "title": "`nvs agent find` matches a heading's slug and nothing in a section's text.",
-  "text": "A form a generated chapter under `docs/reference/lang/` names only in prose is found through an example's name or not at all. Every form `every_syntactic_form_is_reachable_through_a_heading` lists is reached today, so the gap is that an example's name is load-bearing for search. It closes when `find` also matches a section's code spans, with a case for a form that no heading names.",
-  "goal": "cli-housekeeping"
-}

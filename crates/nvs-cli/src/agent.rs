@@ -406,6 +406,11 @@ struct Entry {
     /// What `show` prints under the line for an entry whose text is its own
     /// rather than the document's; empty for every other entry.
     body: String,
+    /// A section's inline code spans, lowercased, from its own text up to the
+    /// next heading. `find` matches a whole span after the names, so a form a
+    /// section writes only in its prose is still found. Empty for every other
+    /// entry.
+    spans: Vec<String>,
 }
 
 impl Entry {
@@ -420,6 +425,7 @@ impl Entry {
             title: None,
             summary: None,
             body: String::new(),
+            spans: Vec::new(),
         }
     }
 
@@ -576,6 +582,7 @@ fn entries(document: &Value) -> Vec<Entry> {
         let mut entry = Entry::new(kind, topic.symbol, topic.line);
         entry.title = Some(topic.title);
         entry.summary = topic.summary.map(str::to_owned);
+        entry.spans = code_spans(&topic.lines);
         out.push(entry);
     }
 
@@ -660,6 +667,45 @@ fn topics() -> Vec<Topic> {
                 level,
                 lines: lines[i..end].to_vec(),
             });
+        }
+    }
+    out
+}
+
+/// The inline code spans of a section's `lines`, lowercased, from the line after
+/// its heading up to the next heading of any level. A fenced block is skipped:
+/// it is an example, and its names are what the spans are matched beside.
+///
+/// A span opens on a run of backticks and closes on the next run of the same
+/// length, as Markdown reads it. A run with no closing run is text.
+fn code_spans(lines: &[&str]) -> Vec<String> {
+    let mut out = Vec::new();
+    let levels = heading_levels(lines);
+    let mut fenced = false;
+    for (i, line) in lines.iter().enumerate().skip(1) {
+        if levels[i] > 0 {
+            break;
+        }
+        if line.trim_start().starts_with("```") {
+            fenced = !fenced;
+            continue;
+        }
+        if fenced {
+            continue;
+        }
+        let mut rest = *line;
+        while let Some(open) = rest.find('`') {
+            let ticks = rest[open..].len() - rest[open..].trim_start_matches('`').len();
+            let after = &rest[open + ticks..];
+            let fence = &rest[open..open + ticks];
+            let Some(close) = after.find(fence) else {
+                break;
+            };
+            let span = after[..close].trim();
+            if !span.is_empty() {
+                out.push(span.to_lowercase());
+            }
+            rest = &after[close + ticks..];
         }
     }
     out
@@ -1008,7 +1054,12 @@ pub(crate) fn pretty(document: Value) -> String {
     out
 }
 
-/// The index lines whose symbol contains `query`, compared without case.
+/// The index lines whose symbol contains `query`, compared without case, then
+/// the sections that write `query` as a whole code span of their text.
+///
+/// A span matches whole and not as a substring. A section writing
+/// `Core\Str::length` is not an answer to `length`, which already finds the
+/// member itself, while `??=` is the span a section writes for that form.
 ///
 /// A query nothing matches still succeeds with nothing on standard output, or
 /// with `json` a document whose `entries` is empty, and says on standard error
@@ -1016,13 +1067,16 @@ pub(crate) fn pretty(document: Value) -> String {
 pub(crate) fn find(query: &str, json: bool) -> ExitCode {
     let document = crate::meta::document();
     let wanted = query.to_lowercase();
-    let found: Vec<Entry> = entries(&document)
+    let (mut found, rest): (Vec<Entry>, Vec<Entry>) = entries(&document)
         .into_iter()
-        .filter(|entry| entry.named(|name| name.contains(&wanted)))
-        .collect();
+        .partition(|entry| entry.named(|name| name.contains(&wanted)));
+    found.extend(
+        rest.into_iter()
+            .filter(|entry| entry.spans.contains(&wanted)),
+    );
     if found.is_empty() {
         eprintln!(
-            "nothing matches `{query}`: no `Core` symbol, chapter heading, configuration key, command, flag or diagnostic code has it."
+            "nothing matches `{query}`: no `Core` symbol, chapter heading, code in a chapter's text, configuration key, command, flag or diagnostic code has it."
         );
         eprintln!(
             "a keyword may be written under a heading that does not name it: `nvs agent primer` ends with the chapter map, and `nvs agent show <chapter>` lists one chapter's sections."
