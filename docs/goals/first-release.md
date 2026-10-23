@@ -6,7 +6,7 @@ context: [docs/release.md, tools/nv/cmd/release.ts, README.md, website/src/conte
 stages:
   - id: 1
     title: "the first release is 0.0.1 with written notes and the extension attached, and a published release redeploys the website"
-    status: open
+    status: done
     context: [tools/nv/test/release.test.ts, .github/workflows/release.yml, .github/workflows/release-promote.yml, editors/vscode/package.json]
   - id: 2
     title: "the roadmap is a short list kept in step with the chain, and every page says Pre-Alpha and released"
@@ -169,16 +169,16 @@ costs one line in `roadmap.json`.
 **Does:** `bun nv release --preview patch` prints `0.0.1 --patch--> 0.0.1` and the written notes. A
 release attaches the extension at its own version, and publishing it redeploys the website.
 
-- [ ] With no `v*` tag, `resolveNext` releases the current version for `patch` and `minor`, and `major` still needs `allow_contract`. `tools/nv/cmd/release.ts:624`
-- [ ] `apply` commits the changelog alone when no manifest needs a bump. `tools/nv/cmd/release.ts:667`
-- [ ] With no previous tag, `notesFor` returns `docs/release-notes/first.md` under the version heading. `tools/nv/cmd/release.ts:603`
-- [ ] Write `docs/release-notes/first.md` to the prose rules, from the home page's words, at most 40 lines. `docs/release-notes/first.md:1`
-- [ ] Tests: with no tag, `patch` and `minor` give `0.0.1` and `major` alone dies. No previous tag gives the written notes, and a tag gives the commit log. Run once by name: `bun test tools/nv/test/release.test.ts`. `tools/nv/test/release.test.ts:1`
-- [ ] `release-promote.yml` dispatches `pages.yml` on `main` after the tags move, with `actions: write` on that job alone, and no `${{ }}` inside a `run:` block. `.github/workflows/release-promote.yml:61`
-- [ ] `--apply` and `--manifests-only` rewrite the version in `editors/vscode/package.json` and `editors/vscode/package-lock.json`, with a test beside the others. `tools/nv/cmd/release.ts:216`, `tools/nv/test/release.test.ts:1`
-- [ ] A `vsix` job builds and attests `nvs-<version>.vsix`. `publish` requires it, lists it in `SHA256SUMS` and attaches it to the draft. `.github/workflows/release.yml:292`, `.github/workflows/release.yml:437`, `.github/workflows/release.yml:452`
-- [ ] `docs/release.md`: the version table says the first release is `0.0.1`, step 6 says the website redeploys, and the setup sections say GitHub is set up. *What an archive carries* names the `.vsix`. `docs/release.md:1`
-- [ ] The extension's README says each release attaches the `.vsix`, and that it is not in the Marketplace. `editors/vscode/README.md:67`
+- [x] With no `v*` tag, `resolveNext` releases the current version for `patch` and `minor`, and `major` still needs `allow_contract`. `tools/nv/cmd/release.ts:624`
+- [x] `apply` commits the changelog alone when no manifest needs a bump. `tools/nv/cmd/release.ts:667`
+- [x] With no previous tag, `notesFor` returns `docs/release-notes/first.md` under the version heading. `tools/nv/cmd/release.ts:603`
+- [x] Write `docs/release-notes/first.md` to the prose rules, from the home page's words, at most 40 lines. `docs/release-notes/first.md:1`
+- [x] Tests: with no tag, `patch` and `minor` give `0.0.1` and `major` alone dies. No previous tag gives the written notes, and a tag gives the commit log. Run once by name: `bun test tools/nv/test/release.test.ts`. `tools/nv/test/release.test.ts:1`
+- [x] `release-promote.yml` dispatches `pages.yml` on `main` after the tags move, with `actions: write` on that job alone, and no `${{ }}` inside a `run:` block. `.github/workflows/release-promote.yml:61`
+- [x] `--apply` and `--manifests-only` rewrite the version in `editors/vscode/package.json` and `editors/vscode/package-lock.json`, with a test beside the others. `tools/nv/cmd/release.ts:216`, `tools/nv/test/release.test.ts:1`
+- [x] A `vsix` job builds and attests `nvs-<version>.vsix`. `publish` requires it, lists it in `SHA256SUMS` and attaches it to the draft. `.github/workflows/release.yml:292`, `.github/workflows/release.yml:437`, `.github/workflows/release.yml:452`
+- [x] `docs/release.md`: the version table says the first release is `0.0.1`, step 6 says the website redeploys, and the setup sections say GitHub is set up. *What an archive carries* names the `.vsix`. `docs/release.md:1`
+- [x] The extension's README says each release attaches the `.vsix`, and that it is not in the Marketplace. `editors/vscode/README.md:67`
 
 ### 2. the roadmap is a short list kept in step with the chain, and every page says Pre-Alpha and released
 
@@ -245,24 +245,36 @@ These steps are the user's, with an interactive session. The loop takes none of 
 
 ### State
 
-The goal is new and nothing is built. GitHub is set up for a release. `bun nv release --preview
-patch` names `0.0.2` and prints the whole commit log, and every status line says there is no release.
+Stage 1 is done and committed (`23a7b22d0`, `8f9245912`). `bun nv release --preview patch` prints
+`0.0.1 --patch--> 0.0.1` and the written notes, `docs/release-notes/first.md`. `planVersion` holds the
+version guards, and `--apply` writes no manifest that already says the version. It also bumps the
+extension's `package.json` and both lockfile versions. `release.yml` has a `vsix` job, and `publish`
+requires and attaches `nvs-<version>.vsix`. `release-promote.yml` dispatches `pages.yml`.
+`rule:ide/the-extension-runs-where-the-binary-is` now says each release attaches the `.vsix`.
+`bun test tools/nv/test/release.test.ts` ran once: 20 pass. Nothing else ran. No workflow change is
+proven until a release runs, and `dry_run` stops before `publish` and before the promote job.
+
+The acceptance sweep's reds were stale. The nightly ran at `7b6ef53ee`, 90 commits back, and its
+reds (the property-observer cost guard, the `Core\Session` perf records, attribution, the SQLite
+lock) were fixed by later `ci-green` commits. `env-secret-proofs` and the `Core\Session` proofs gate
+pass locally. CI run `39982774098` on `6d3c2770a` was still queued at this session's end. If it is
+red, read it first.
+
+No test is expected to go red.
 
 ### Next
 
-**Stage 1**, once `config-follows-links` is retired, on `tools/nv/cmd/release.ts`,
-`tools/nv/test/release.test.ts` and `.github/workflows/release-promote.yml`.
+**Stage 2, its first four items**, on `website/src/data/` and `tools/nv/cmd/site.ts`. Then its
+**Split** line: two writing subagents for the pages and for `CONTRIBUTING.md` and `SECURITY.md`.
 
-- [ ] With no tag, `patch` and `minor` release the current version. `tools/nv/cmd/release.ts:624`
-- [ ] `apply` commits the changelog alone when no manifest needs a bump. `tools/nv/cmd/release.ts:667`
-- [ ] The first release's notes are `docs/release-notes/first.md`. `tools/nv/cmd/release.ts:603`, `docs/release-notes/first.md:1`
-- [ ] The release rewrites the extension's version too. `tools/nv/cmd/release.ts:216`
-- [ ] The `vsix` job, and `publish` attaches the file. `.github/workflows/release.yml:292`
-- [ ] The tests, run once by name. `tools/nv/test/release.test.ts:1`
-- [ ] `release-promote.yml` dispatches `pages.yml`. `.github/workflows/release-promote.yml:61`
-- [ ] `docs/release.md` and the extension's README say so. `docs/release.md:1`, `editors/vscode/README.md:67`
+- [ ] `website/src/data/roadmap.json` with the themes in § *Standing decisions* and `internal`. `website/src/data/roadmap.json:1`
+- [ ] `website/src/data/release.ts`: the version from `Cargo.toml`, and the archive and `.vsix` names. `website/src/data/release.ts:1`
+- [ ] A roadmap component, and the page loses *What is built*. `website/src/content/docs/in-depth/roadmap.mdx:9`
+- [ ] `bun nv site --roadmap` and the `roadmap` part of `--check`, a new entry in `PARTS`, with a test per failure. `tools/nv/cmd/site.ts:197`, `tools/nv/cmd/site.ts:1652`, `tools/nv/cmd/site.ts:1741`
+- [ ] `bun nv affected` maps the chain and `roadmap.json` to it. `tools/nv/cmd/affected.ts:1`
+- [ ] The README's roadmap markers. `README.md:46`
 
 ### Backlog
 
-- Stage 2: `roadmap.json`, `release.ts`, the roadmap check, and every status line.
+- Stage 2's page items, after the four above.
 - Stage 3: the README follows the home page.

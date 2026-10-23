@@ -80,12 +80,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   which rebuilds the release binary first. See `tools/nv/cmd/proofs.ts`.
   `until: gone tools/nv/cmd/proofs.ts:const nvs = bin?.path ?? binary(named);`
 - **A balance that grows by a fixed amount per spawn is a buffer freed on the scheduler's stack.**
-  A task's turn charges its tree, and the scheduler's own stack charges none. So a `Vec` a task pushes
-  into and the scheduler `mem::take`s is allocated again on the next spawn and never credited back.
-  That was `drain_pending`'s pending list, about 1.8 KB per connection on the accept loop. Find it
-  with a debug test that spawns many children and reads `budget::live_bytes()` before and after, as
-  `a_parent_that_spawns_and_outlives_many_children_stays_flat` in `crates/nvs-host/src/scheduler.rs`
-  does. That runs in seconds, against 20 minutes for the release cost guard.
+  A task's turn charges its tree and the scheduler's stack charges none, so a `Vec` a task fills and
+  the scheduler `mem::take`s is never credited back (`drain_pending`, 1.8 KB per connection). A debug
+  test that spawns many children and reads `budget::live_bytes()` finds it in seconds, as the one
+  below in `crates/nvs-host/src/scheduler.rs` does.
   `until: gone crates/nvs-host/src/scheduler.rs:a_parent_that_spawns_and_outlives_many_children_stays_flat`
 
 ## Writing a test case
