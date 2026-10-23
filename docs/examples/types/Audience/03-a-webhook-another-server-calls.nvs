@@ -15,7 +15,7 @@ class Checkout {
     public function settled(): string { return "recorded"; }
 }
 
-// Open says who may reach the route. It does not say that the handler believes
-// what it is given: a webhook still checks the signature the provider sends.
+// `Core\Audience::Public` means everyone may call the route. The webhook must
+// still check the signature the provider sends, because it does not use a session.
 echo Core\Router::url("Checkout::start", []), "\n";
 echo Core\Router::url("Checkout::settled", []), "\n";

@@ -172,6 +172,17 @@ pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
 pub(crate) const ACCESS_OPTIONS: &[(&str, OptionTy)] =
     &[(ALLOW, OptionTy::Mixed), (CSRF, OptionTy::Bool)];
 
+/// The attribute an unknown option of `attribute` is written on instead: one of
+/// [`ACCESS_OPTIONS`] written on `#[Route]` belongs on its `#[Access]`.
+///
+/// `csrf: false` on the route row is the likely mistake, because the opt-out is
+/// about the route's verbs. A list of `#[Route]`'s own options would not say
+/// where `csrf` goes, so [`crate::attributes::check_roster`] names the sibling instead.
+pub(crate) fn option_home(attribute: &str, option: &str) -> Option<&'static str> {
+    (attribute == "Route" && ACCESS_OPTIONS.iter().any(|(name, _)| *name == option))
+        .then_some("Core\\Access")
+}
+
 /// One `#[Access]` payload, held to the two of `rule:attributes/access-payload`'s rules that are
 /// questions about this payload alone.
 ///

@@ -146,6 +146,28 @@ fn only_the_three_options_section_1_names_are_admitted() {
 }
 
 #[test]
+fn csrf_on_the_route_row_is_refused_with_a_help_naming_access() {
+    // The opt-out is written on `#[Core\Access]`. On `#[Route]` it stays
+    // `E0454`, and the help names the sibling rather than `#[Route]`'s roster.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/hooks\", method: Core\\Http\\Method::Post, csrf: false)]\n  \
+         public function hook(): string { return \"\"; }\n",
+    ));
+    let refusal = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_UNKNOWN_OPTION))
+        .expect("`csrf` on `#[Route]` is E0454");
+    assert!(
+        refusal
+            .notes
+            .iter()
+            .any(|note| note.contains("is an option of `#[Core\\Access]`")),
+        "{:?}",
+        refusal.notes
+    );
+}
+
+#[test]
 fn a_path_and_a_name_are_strings_and_each_is_written_once() {
     // A path that reads plausibly — `path: 1` — is refused at the value rather
     // than accepted and folded to something no route table could match.
