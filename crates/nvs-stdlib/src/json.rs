@@ -2503,7 +2503,9 @@ impl<'de> Visitor<'de> for Fill<'_> {
                 // The entry, and the set's growth when it is full, are asked
                 // for in front of the insert that allocates them.
                 let grow = if seen.len() == seen.capacity() {
-                    seen.capacity().max(4).saturating_mul(size_of::<Cow<'_, str>>())
+                    seen.capacity()
+                        .max(4)
+                        .saturating_mul(size_of::<Cow<'_, str>>())
                 } else {
                     0
                 };
@@ -5222,7 +5224,10 @@ mod tests {
             Ok(_) => panic!("a JSON object filled an `array<int>` field"),
             Err(why) => format!("{why:?}"),
         };
-        assert!(why.contains("1 value(s) of `Tagged` did not match"), "{why}");
+        assert!(
+            why.contains("1 value(s) of `Tagged` did not match"),
+            "{why}"
+        );
     }
 
     #[test]

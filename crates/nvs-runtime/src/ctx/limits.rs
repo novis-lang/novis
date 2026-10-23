@@ -202,7 +202,9 @@ impl Ctx {
     fn limit(&self, leaf: &str, unit: nvs_config::Unit) -> nvs_config::Reading {
         self.config
             .as_ref()
-            .map_or(nvs_config::Reading::Unset, |config| config.limit(leaf, unit))
+            .map_or(nvs_config::Reading::Unset, |config| {
+                config.limit(leaf, unit)
+            })
     }
 
     /// The ceiling **ordinary execution** is held to, in bytes, `0` for no cap.
@@ -1202,13 +1204,15 @@ impl Ctx {
                 usize::try_from(bytes).unwrap_or(usize::MAX)
             }
             nvs_config::Reading::Unset | nvs_config::Reading::Read(_) => 0,
-            nvs_config::Reading::Malformed => match nvs_config::defaults::row(&format!("limits.{key}")) {
-                Some(nvs_config::defaults::Builtin {
-                    value: nvs_config::defaults::Value::Size(bytes),
-                    ..
-                }) => usize::try_from(*bytes).unwrap_or(usize::MAX),
-                _ => 0,
-            },
+            nvs_config::Reading::Malformed => {
+                match nvs_config::defaults::row(&format!("limits.{key}")) {
+                    Some(nvs_config::defaults::Builtin {
+                        value: nvs_config::defaults::Value::Size(bytes),
+                        ..
+                    }) => usize::try_from(*bytes).unwrap_or(usize::MAX),
+                    _ => 0,
+                }
+            }
         }
     }
 }

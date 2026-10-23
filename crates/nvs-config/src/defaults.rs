@@ -612,7 +612,12 @@ pub fn in_force(key: &str, at: &At<'_>) -> Option<String> {
 fn fixed(index: usize) -> Option<&'static str> {
     static RENDERED: std::sync::OnceLock<Box<[Option<String>]>> = std::sync::OnceLock::new();
     RENDERED
-        .get_or_init(|| DEFAULTS.iter().map(|row| render_fixed(&row.value)).collect())
+        .get_or_init(|| {
+            DEFAULTS
+                .iter()
+                .map(|row| render_fixed(&row.value))
+                .collect()
+        })
         .get(index)?
         .as_deref()
 }
