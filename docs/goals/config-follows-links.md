@@ -11,7 +11,7 @@ stages:
   - id: 2
     title: "the directory holding a link is checked, a real cluster applies a changed ConfigMap, and the rule and the guide say so"
     status: open
-    context: [crates/nvs-config/src/trust.rs, crates/nvs-config/src/resolve.rs, website/src/content/docs/guides/production/docker.mdx, docs/rules/config/the-config-is-an-immutable-snapshot.md]
+    context: [crates/nvs-server/src/mount.rs, crates/nvs-cli/src/serve/mounts.rs, crates/nvs-config/src/snapshot.rs, website/src/content/docs/guides/production/docker.mdx]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -73,6 +73,13 @@ read-only mount.** That is the kubelet's ConfigMap volume, measured on `kind` as
 a read-only `ext4` mount. Every other check stays as the 2026-10-22 call says, the file's own
 directory included. Built as `trust::platform::check_link_holder` (`crates/nvs-config/src/trust.rs`).
 
+**The gap this goal owns is closed here, by withholding every `[[app]]` block's `[db]` files.**
+Security-hardening handed `a-mount-entrys-own-database-files-are-not-withheld` to this goal. An
+entry's snapshot is folded lazily (`Published::entry`), and the mount table is chosen before the
+entry is known. So the table withholds the `[db]` paths of the host tree and of every `[[app]]`
+block, matched or not. Withholding a file one entry does not use only refuses a static request for a
+database file, so it costs no correct request. Memory: four paths per `[db]` block, per table.
+
 **The check notices a swap.** The stamp gains the file's identity: device and inode on Unix, the file
 index on Windows (`crates/nvs-cli/src/reload.rs:561`). Then a swap to a file with the same time and size
 still moves the stamp. The check stats each root as given beside `files` and `probed`, so a stat that
@@ -112,14 +119,19 @@ and the old target is deleted, with no restart.
 **Does:** a link in a directory another account can write stops the boot with `E0607`, the guide's
 ConfigMap reaches a running server on `kind`, and the rule and the guide describe it.
 
-- [ ] `trust::check` checks the parent of the path as given when it differs from the canonical path, with the read-only waiver (`rule:config/ownership-is-the-trust-boundary`). `crates/nvs-config/src/trust.rs:113`
-- [ ] Rust tests: a link in a group-writable directory is refused at boot and at reload, and a root with no link is checked as before. `crates/nvs-config/tests/trust.rs:1`
-- [ ] On `kind`, the guide's ConfigMap and Deployment serve, a changed ConfigMap is published without a restart, and the modes of the three directories are recorded in the handoff. The safe default above applies where no cluster runs. `website/src/content/docs/guides/production/docker.mdx:1`
+- [x] `trust::check` checks the parent of the path as given when it differs from the canonical path, with the read-only waiver (`rule:config/ownership-is-the-trust-boundary`). `crates/nvs-config/src/trust.rs:136`
+- [x] Rust tests: a link in a group-writable directory is refused at boot and at reload, and a root with no link is checked as before. `crates/nvs-config/tests/trust.rs:1`
+- [x] On `kind`, the guide's ConfigMap and Deployment serve, a changed ConfigMap is published without a restart, and the modes of the three directories are recorded in the handoff. The safe default above applies where no cluster runs. `website/src/content/docs/guides/production/docker.mdx:1`
   - [x] A `kind` cluster runs in Docker Desktop, with the guide's ConfigMap mounted read-only in a pod.
   - [x] The modes of `/etc/nvs`, `..data` and the timestamped folder are recorded in the handoff.
-  - [ ] The guide's Deployment serves the `nvs` image, and a changed ConfigMap prints the reload line.
-- [ ] The rule says a root is stored as given and read through its links on every reload, and that the directory holding a link is checked. Its title changes to match. `docs/rules/config/the-resolved-root-is-announced-and-stored.md:1`, `data/rules/config/the-resolved-root-is-announced-and-stored.json:2`, `docs/rules/config/ownership-is-the-trust-boundary.md:1`
-- [ ] The Docker guide says the server reads a changed ConfigMap by itself once Kubernetes updates the file, and the restart step is gone. `website/src/content/docs/guides/production/docker.mdx:1`
+  - [x] The guide's Deployment serves the `nvs` image, and a changed ConfigMap prints the reload line.
+- [x] The rule says a root is stored as given and read through its links on every reload, and that the directory holding a link is checked. Its title changes to match. `docs/rules/config/the-resolved-root-is-announced-and-stored.md:1`, `data/rules/config/the-resolved-root-is-announced-and-stored.json:2`, `docs/rules/config/ownership-is-the-trust-boundary.md:1`
+- [x] The Docker guide says the server reads a changed ConfigMap by itself once Kubernetes updates the file, and the restart step is gone. `website/src/content/docs/guides/production/docker.mdx:1`
+- [ ] Static serving withholds every `[db]` file the tree names, an `[[app]]` block's included, and a reload that changes only `[db]` builds a new table (the gap `a-mount-entrys-own-database-files-are-not-withheld`). `crates/nvs-server/src/mount.rs:281`, `crates/nvs-cli/src/serve/mounts.rs:139`
+  - [ ] `Table::from_config` takes the `[db]` paths of the host tree and of every `[[app]]` block.
+  - [ ] `switches` in `serve/mounts.rs` compares the withheld paths too.
+  - [ ] A served test fetches an `[[app]]` block's SQLite file under the static root and gets `404`, before and after a reload that moves it.
+  - [ ] The gap record `data/gaps/nvs-server/a-mount-entrys-own-database-files-are-not-withheld.json` is deleted.
 - [ ] `bun nv rules --render` and `bun nv owners --closes config-follows-links` are clean. `docs/rules/config.md:1`
 
 ### 3. the goal is verified once, and every failure is fixed
@@ -132,8 +144,24 @@ ConfigMap reaches a running server on `kind`, and the rule and the guide describ
 
 ### State
 
-**Stage 2 is blocked on decision `d8`.** A `kind` cluster (v0.27.0, Docker Desktop) mounted the
-guide's ConfigMap read-only at `/etc/nvs` in a busybox pod running as uid 65532. Measured:
+**Stage 2 is built except for one item: the gap this goal owns.** `d8` is answered, recorded under
+`## Standing decisions` and closed. `trust::check` walks the path as given and checks the parent of
+each link through `platform::check_link_holder`, which skips the mode test for a root-owned
+directory on a read-only mount (`crates/nvs-config/src/trust.rs:136`, `:248`). Its unit test is
+`a_root_owned_link_holder_on_a_read_only_mount_skips_the_mode_test`. `tests/trust.rs` has a private
+link that passes and a refused link on each platform. The Windows cases passed once, through a
+junction. `reload_follows_links.rs:261` refuses a shared link at reload and at boot. It is
+`cfg(unix)` and has never run, so the gate's Unix run is its first. Both rule fragments and the guide
+say it, and `bun nv rules --render` is clean.
+
+**The real cluster ran.** A Linux `nvs` built at `6b5dd907f` in the `benches/proxied/Dockerfile`
+build stage served the guide's ConfigMap and Deployment on `kind` v0.27.0. The boot passed the
+check. After `kubectl patch` set `memory = "512M"`, the pod printed `configuration reloaded` with
+`applied: ["limits.memory"]` 60 seconds later, with no restart. The cluster, the images and the
+scratch files are deleted. `looper.toml`'s `hang_exempt` now covers `docker build`: the watch
+killed the first build, whose compile runs in Docker's VM.
+
+The modes the previous session measured, in a busybox pod:
 
 | Path | Mode | Owner |
 |---|---|---|
@@ -142,37 +170,28 @@ guide's ConfigMap read-only at `/etc/nvs` in a busybox pod running as uid 65532.
 | `/etc/nvs/..2026_10_23_13_06_24.610892580` | `0755` | `root:root` |
 | `/etc/nvs/..data/override.toml` | `0644` | `root:root` |
 
-`/proc/mounts` shows `/etc/nvs` as `ext4 ro`. So the planned check on the directory that holds a link
-would refuse every ConfigMap: the mode test runs on a read-only mount too, by the user's 2026-10-22
-call. Today's check passes the ConfigMap, because it checks only the canonical file and the
-timestamped folder. Nothing in `trust.rs` changed, and the cluster and the scratch files are deleted.
-The `nvs` image never ran on the cluster, so the reload on a changed ConfigMap is not measured yet.
+`/proc/mounts` shows `/etc/nvs` as `ext4 ro`.
 
-Stage 1 is built. `Root` stores each root as given, beside the canonical path the announcement
-prints (`crates/nvs-cli/src/config.rs:618`). `Stamp` carries device and inode, or the Windows volume
-and file index, and `Process::stamps` stats the stored roots first (`crates/nvs-cli/src/reload.rs:517`).
-`crates/nvs-cli/tests/reload_follows_links.rs` has both cases. The `current` link case passed once on
-Windows, through a junction. The kubelet case is `cfg(unix)` and has not run yet, so the gate's Unix run
-is its first. The rule fragment and its title already say a root is stored as given. Stage 2 adds the
-link directory sentence to it. Clippy is clean, and no other test was run.
+Stage 1 is built: `Root` stores each root as given (`crates/nvs-cli/src/config.rs:618`), and
+`Stamp` carries the file's identity (`crates/nvs-cli/src/reload.rs:517`).
 
-The acceptance sweep's `env-secret-proofs` was already green on disk. Every nightly CI failure in run
-39922764699 has a fix commit on main after it, such as `42409d10d`, `922abf5f0`, `8ea16803f` and
-`296755665`. The proofs job on `cdcedb5f8` had one more red: the nine `Core\Session` perf records
-were stale. `9270c45c4` records them again.
+The acceptance sweep's `env-secret-proofs` exits 0 on disk, and run 39922764699 is the nightly the
+previous handoff traced to fix commits. Clippy is clean. The only tests run were `--test trust`,
+once, green on Windows.
 
 ### Next
 
-**Stage 2**, on `crates/nvs-config/src/trust.rs` and the Docker guide, once `d8` is answered.
-The recommended option skips the mode test only for a link's directory that is root-owned on a
-read-only mount. Record the answer under `## Standing decisions`, then build it.
+**Stage 2's last item: the gap `a-mount-entrys-own-database-files-are-not-withheld`**, whose design
+is under `## Standing decisions`. `bun nv owners --closes config-follows-links` names it, and it is
+the only thing it names.
 
-- [ ] `trust::check` also checks the directory that holds each link on the path as given, as `d8` says. Walk the given path's prefixes, `symlink_metadata` each, and check the parent of each link. That covers a `current` link above the file as well as the file's own link. `crates/nvs-config/src/trust.rs:113`
-- [ ] The trust tests: a link in a group-writable directory is refused, and a plain root is not. `crates/nvs-config/tests/trust.rs:1`
-- [ ] The `kind` run with the `nvs` image: change the ConfigMap and wait for the reload line. `GOBIN=.agent-tmp/kind go install sigs.k8s.io/kind@v0.27.0` installs `kind`. Load the image with `kind load docker-image`. `website/src/content/docs/guides/production/docker.mdx:208`
-- [ ] The rule's link directory sentence, and the guide's restart step removed. `website/src/content/docs/guides/production/docker.mdx:251`
+- [ ] `Table::from_config` withholds the `[db]` paths of every `[[app]]` block beside the host's. `AppBlocks` (`crates/nvs-config/src/snapshot.rs:416`) has the blocks, and the table is built at `crates/nvs-server/src/mount.rs:281`. A block's `path` is absolute once resolved: confirm that for an `[[app]]` block before you filter on `is_absolute`.
+- [ ] `switches` compares the withheld paths, so a reload that changes only `[db]` builds a new table. Today it keeps the old one. `crates/nvs-cli/src/serve/mounts.rs:139`
+- [ ] A test: an `[[app]]` block's SQLite file under the static root is `404`, before and after a reload. The host-tree cases to copy are unit tests in `crates/nvs-server/src/mount.rs:1832` and `crates/nvs-server/src/mount.rs:1878`.
+- [ ] Delete the gap record, then `bun nv owners --closes config-follows-links` is clean. Set stage 2 to `done`. `data/gaps/nvs-server/a-mount-entrys-own-database-files-are-not-withheld.json:1`
 
-Tests that may go red: none expected. `live_config.rs` keeps its roots without links.
+Tests that may go red: none expected. `live_config.rs` keeps its roots without links. The new Unix
+test `a_link_in_a_group_writable_folder_is_refused_at_reload_and_at_boot` is unrun.
 
 ### Backlog
 

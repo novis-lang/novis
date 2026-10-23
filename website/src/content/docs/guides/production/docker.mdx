@@ -248,8 +248,12 @@ Each key in `override.toml` replaces the same key in `/app/nvs.toml`. Every othe
 value from the image. Kubernetes writes the file as root, and only root can change it. So
 `nvs serve` accepts it.
 
-`nvs` reads the file when it starts. After you change the ConfigMap, restart the pods with
-`kubectl rollout restart deployment/shop`.
+After you change the ConfigMap, Kubernetes updates the file in each pod. This can take about a
+minute. `nvs serve` checks its configuration files every two seconds, and it uses the new values by
+itself. You do not need to restart the pods.
+
+A few settings are read only when the server starts, such as `listen` and `workers`. If you change
+one of them, restart the pods with `kubectl rollout restart deployment/shop`.
 
 Do not put a password in a ConfigMap. Put it in a Secret, mount the Secret as a file, and name that
 file with `password_file`.
