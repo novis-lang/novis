@@ -42,6 +42,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   check's `run` as `cargo test -- <names>` when you write the goal. The permission classifier refused
   a session's later edit of a check as a CI bypass.
   `until: gone tools/looper/src/verify/accept.ts:did not run and pass`
+- **The installed `looper` binary can be older than the kit's copy, and then `looper verify` and
+  `looper check` fail with "unrecognized subcommand".** In the background, `looper verify 2>&1 | tail`
+  still exits 0, so the error looks like a finished run. Run the copy instead:
+  `bun tools/looper/main.ts verify` and `bun tools/looper/main.ts check --name <text>`
+  (AGENTS.md § *Novis works without looper*). See `tools/looper/main.ts`. `until: gone tools/looper/main.ts:verify`
 
 ## Running things
 - **`bun nv site --check` and `bun nv proofs --run` pick `target/release/nvs` before the debug
