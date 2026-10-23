@@ -1,0 +1,27 @@
+<?nvs
+// Attack: this program prints a telemetry counter file with forged lines. A test writes it into
+// the telemetry folder and runs `nvs telemetry`. Only real counters should reach the upload, and no
+// command should crash.
+
+// 1. The totals and the two times are at the largest numbers a line can have.
+echo "uploads 18446744073709551615\n";
+echo "bytes 18446744073709551615\n";
+echo "last 9223372036854775807\n";
+echo "due -9223372036854775808\n";
+
+// 2. A finished week has a counter that is already at the largest number, and too many day digits.
+echo "pending 2020-W01\n";
+echo "days 11111111111111\n";
+echo "invocation.run 18446744073709551615\n";
+echo "internal-error.check 2\n";
+
+// 3. These lines try to put a path, a password and control characters into the upload.
+echo "invocation./home/somebody/.ssh/id_rsa 1\n";
+echo "password hunter2\n";
+echo "invocation.run\x07\u{9b}2J 1\n";
+echo "invocation.run.extra 5\n";
+echo "internal-error.check\rinvocation.serve 7\n";
+
+// 4. The current week is in a year that is too large for any date.
+echo "week 9223372036854775807-W53\n";
+echo "invocation.check 1\n";

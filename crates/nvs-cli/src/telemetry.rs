@@ -7,7 +7,9 @@
 //! without it is off. `telemetry/counters` is one `key value` line each: the lifetime upload
 //! totals, the current week's day bits and counters, and the last finished week that is not sent
 //! yet. A counter file somebody edited is read through the same closed set, so a line that names
-//! anything else is dropped and never reaches a payload.
+//! anything else is dropped and never reaches a payload. A week or a time outside [`YEARS`] and
+//! [`TIMES`] is read as absent, and every count stops at `u64::MAX`, so no value in the file can
+//! make the arithmetic overflow.
 //!
 //! **A counter name is only ever built from [`crate::COMMAND_NAMES`].** [`Counter`] keeps a
 //! `&'static str` out of that table, or [`UNKNOWN`], so no byte of the command line can become a
@@ -78,6 +80,14 @@ const WINDOW: i64 = 86_400;
 
 /// Seconds in a day.
 const DAY: i64 = 86_400;
+
+/// The years a week in the counter file may name. A file somebody edited may name any number,
+/// and a week outside these years is read as absent, so no date arithmetic on it can overflow.
+const YEARS: std::ops::RangeInclusive<i64> = 1970..=9999;
+
+/// The times in seconds `last` and `due` may hold: 1970-01-01 up to the end of 9999. A value
+/// outside them is read as absent, for the same reason as [`YEARS`].
+const TIMES: std::ops::RangeInclusive<i64> = 0..=253_402_300_799;
 
 /// Whether this process's command may carry an upload, which [`start`] sets once.
 static CARRIER: AtomicBool = AtomicBool::new(false);
@@ -406,14 +416,14 @@ impl Week {
         fourth - weekday(fourth) + self.number * 7
     }
 
-    /// The week [`Week::label`] wrote.
+    /// The week [`Week::label`] wrote, with its year in [`YEARS`].
     fn parse(text: &str) -> Option<Self> {
         let (year, number) = text.split_once("-W")?;
         let week = Self {
             year: year.parse().ok()?,
             number: number.parse().ok()?,
         };
-        (1..=53).contains(&week.number).then_some(week)
+        (YEARS.contains(&week.year) && (1..=53).contains(&week.number)).then_some(week)
     }
 }
 
@@ -575,8 +585,8 @@ impl Counters {
             match key {
                 "uploads" => counters.uploads = value.parse().unwrap_or(0),
                 "bytes" => counters.bytes = value.parse().unwrap_or(0),
-                "last" => counters.last = value.parse().ok(),
-                "due" => counters.due = value.parse().ok(),
+                "last" => counters.last = value.parse().ok().filter(|time| TIMES.contains(time)),
+                "due" => counters.due = value.parse().ok().filter(|time| TIMES.contains(time)),
                 "week" => {
                     counters.current = Week::parse(value).map(Tally::new);
                     pending = Some(false);
@@ -716,7 +726,7 @@ impl Counters {
         );
         match reply {
             Ok(reply) if reply.status == 204 => {
-                self.uploads += 1;
+                self.uploads = self.uploads.saturating_add(1);
                 self.bytes = self.bytes.saturating_add(bytes);
                 self.last = Some(now);
                 self.pending = None;
@@ -746,7 +756,8 @@ impl Counters {
             .current
             .get_or_insert_with(|| Tally::new(Week::of(day)));
         tally.days |= 1 << weekday(day);
-        *tally.counts.entry(counter).or_insert(0) += 1;
+        let count = tally.counts.entry(counter).or_insert(0);
+        *count = count.saturating_add(1);
     }
 
     /// The JSON document an upload of `tally` sends, with its keys in the rule's order.

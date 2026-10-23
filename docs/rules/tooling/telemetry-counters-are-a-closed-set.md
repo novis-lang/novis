@@ -25,7 +25,9 @@ digits from Monday to Sunday and each counter above zero; and `pending`, the las
 counted anything and is not sent yet, laid out the same way. A week that ends becomes `pending`, and
 replaces the one there. A week after today, which only a clock set back can leave, is dropped. The file
 is read through the closed set, so a line an editor added that names anything else is dropped and never
-reaches a payload.
+reaches a payload. A week outside the years 1970 to 9999, and a `last` or `due` outside them, is read
+as absent, and a count stops at the largest 64-bit number, so no value in the file overflows the date
+or count arithmetic.
 
 The payload is one JSON document, and these are all its fields:
 

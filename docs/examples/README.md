@@ -229,7 +229,10 @@ Without a `.nvse` file, the stream ends at its first `receive()`. What the strea
 
 A CLI command that reads no program, such as `nvs agent init`, cannot be shown by a `.nvs` file. Its
 example is `NN-title.cmd` instead: one line, a `nvs` command with its arguments, and the `.out`
-beside it. A word in quotes may hold spaces. `--bless` and the sweep run the command with the binary
+beside it. A word in quotes may hold spaces. Words of the form `NAME=value` before `nvs` set those
+variables for the command, as a shell does. The command never inherits `CI`, `DO_NOT_TRACK`,
+`NVS_TELEMETRY_URL` or `NVS_UPDATE_URL`, because each changes what `nvs` prints and a CI machine sets
+the first two. `--bless` and the sweep run the command with the binary
 under test, in an empty directory of its own that is deleted afterwards, and compare its standard
 output with the `.out` byte for byte, as they do for a program. A `.in` beside it is its standard
 input. The other files above are not read for it. The website shows the line as a shell block, with

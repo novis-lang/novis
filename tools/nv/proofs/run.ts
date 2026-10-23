@@ -295,17 +295,32 @@ const sibling = (proof: string, suffix: string) => proof.replace(/\.(nvs|cmd)$/,
 /** Where a `.cmd` example runs: a directory of its own under this one, made for the run and deleted after it. */
 const COMMAND_SCRATCH = join(ROOT, ".agent-tmp", "proof-cmd");
 
+/** A word before `nvs` that sets a variable for the command, as a shell reads `NAME=value`. */
+const ASSIGNMENT_RE = /^([A-Z_][A-Z0-9_]*)=(.*)$/s;
+
+/** The variables a `.cmd` example's command never inherits, because each changes what `nvs` prints
+ * and a CI machine sets the first two. A line that needs one sets it before `nvs`. */
+export const COMMAND_UNSET = ["CI", "DO_NOT_TRACK", "NVS_TELEMETRY_URL", "NVS_UPDATE_URL"];
+
 /**
- * The arguments of a `.cmd` example, after the `nvs` its one command line starts with. A word in single or
- * double quotes may hold spaces, and the quotes are not part of it. Throws when the file is not one
- * `nvs` command line.
+ * The variables and the arguments of a `.cmd` example: each `NAME=value` word before the `nvs` its one
+ * command line runs, and every word after it. A word in single or double quotes may hold spaces, and the
+ * quotes are not part of it. Throws when the file is not one `nvs` command line.
  */
-export function commandArgs(proof: string, source: string): string[] {
+export function commandLine(proof: string, source: string): { env: Record<string, string>; args: string[] } {
   const lines = source.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length !== 1) throw new Error(`${proof} has ${lines.length} lines, and a .cmd example is one \`nvs\` command line`);
   const words = [...lines[0]!.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((m) => m[1] ?? m[2] ?? m[3]!);
-  if (words[0] !== "nvs") throw new Error(`${proof} starts with \`${words[0]}\`, and a .cmd example runs \`nvs\``);
-  return words.slice(1);
+  const env: Record<string, string> = {};
+  let at = 0;
+  for (let m: RegExpMatchArray | null; at < words.length && (m = words[at]!.match(ASSIGNMENT_RE)); at++) env[m[1]!] = m[2]!;
+  if (words[at] !== "nvs") throw new Error(`${proof} starts with \`${words[at]}\`, and a .cmd example runs \`nvs\``);
+  return { env, args: words.slice(at + 1) };
+}
+
+/** The arguments of a `.cmd` example, after the `nvs` its one command line runs (`commandLine`). */
+export function commandArgs(proof: string, source: string): string[] {
+  return commandLine(proof, source).args;
 }
 
 /** The environment variable naming the directory each proof program's run is recorded into. */
@@ -367,15 +382,19 @@ export function proofRecording(proof: string, dir: string | undefined = process.
  * get beside the recording's. With `unlogged` and no record directory, the run writes no footprint log,
  * not even the one this process inherited. A proof marked `requires: <service>` runs once that service
  * of `tests/db/compose.yaml` is up (`servicesFor`), and throws the reason when it cannot be brought up.
- * A `.cmd` proof runs the binary `argv[0]` names with its command line's arguments (`commandArgs`), in
- * an empty directory of its own, and none of the files above but the `.in` is read for it. */
+ * A `.cmd` proof runs the binary `argv[0]` names with its command line's arguments and variables
+ * (`commandLine`), without `COMMAND_UNSET`, in an empty directory of its own, and none of the files above
+ * but the `.in` is read for it. */
 export async function spawnProof(argv: string[], proof: string, timeoutMs: number, record?: { dir?: string; env?: Record<string, string>; unlogged?: boolean }): Promise<Ran> {
   const source = existsSync(abs(proof)) ? readFileSync(abs(proof), "utf8") : "";
   const missing = await servicesFor(source);
   if (missing) throw new Error(missing);
   let scratch: string | null = null;
+  let commandEnv: Record<string, string> | null = null;
   if (proof.endsWith(".cmd")) {
-    argv = [argv[0]!, ...commandArgs(proof, source)];
+    const line = commandLine(proof, source);
+    argv = [argv[0]!, ...line.args];
+    commandEnv = line.env;
     mkdirSync(COMMAND_SCRATCH, { recursive: true });
     scratch = mkdtempSync(join(COMMAND_SCRATCH, "run-"));
   }
@@ -393,6 +412,10 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   if (recording.NVS_FOOTPRINT_LOG) mkdirSync(dirname(recording.NVS_FOOTPRINT_LOG), { recursive: true });
   const env: Record<string, string | undefined> = { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...record?.env, ...recording };
   if (record?.unlogged && !recording.NVS_FOOTPRINT_LOG) delete env.NVS_FOOTPRINT_LOG;
+  if (commandEnv) {
+    for (const name of COMMAND_UNSET) delete env[name];
+    Object.assign(env, commandEnv);
+  }
   const release = SAMBA_AD_RE.test(source) ? await sambaSlot() : () => {};
   try {
     return await spawnTimed(argv, env, feed, timeoutMs, scratch ?? ROOT);
