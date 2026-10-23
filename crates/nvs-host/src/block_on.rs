@@ -321,7 +321,21 @@ impl std::task::Wake for Signal {
         self.woken.store(true, Ordering::SeqCst);
         match &self.route {
             Route::Core { permit } => {
-                if let Some(wake) = lock(permit).take() {
+                let mut held = lock(permit);
+                // `rule:concurrency/one-permission-per-drive`: a wake from the
+                // drive's own task, on its own core, is a wake from a drive
+                // that is running. Its loop reads the flag before it parks, so
+                // the flag is the whole wake. The permission stays installed,
+                // and the core's wake descriptor is not written.
+                if held
+                    .as_ref()
+                    .is_some_and(RemoteWake::is_held_by_its_running_task)
+                {
+                    return;
+                }
+                let fired = held.take();
+                drop(held);
+                if let Some(wake) = fired {
                     // A failed poke loses the wake's promptness and not the
                     // wake — the id is queued before the poke is attempted —
                     // and a waker has nobody to report an error to.
@@ -396,6 +410,42 @@ mod tests {
         }));
         assert_eq!(answer, Some("done"));
         assert_eq!(polls.get(), 3);
+    }
+
+    /// `rule:concurrency/one-permission-per-drive`: a drive that wakes itself
+    /// inside its own poll, on its own core, polls again and writes nothing to
+    /// the core's wake descriptor. The permission it holds stays installed and
+    /// is given back unused when the drive ends.
+    #[test]
+    fn a_drive_that_wakes_itself_on_its_own_core_writes_no_wake() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let polls = Rc::new(Cell::new(0_usize));
+        let counted = Rc::clone(&polls);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let answer = block_on(std::future::poll_fn(|cx| {
+                counted.set(counted.get() + 1);
+                if counted.get() < 4 {
+                    cx.waker().wake_by_ref();
+                    return Poll::Pending;
+                }
+                Poll::Ready(())
+            }));
+            assert_eq!(answer, Some(()));
+        });
+
+        let before = crate::counts::Counts::now();
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        let pokes = crate::counts::Counts::now().since(before).wake_pokes;
+        assert_eq!(report.finished, 1);
+        assert_eq!(polls.get(), 4);
+        assert_eq!(pokes, 0, "a drive's wake of itself wrote the wake descriptor");
+        assert_eq!(
+            with_current(|reactor| reactor.remote_waits()),
+            Some(0),
+            "the drive left a permission outstanding"
+        );
     }
 
     /// The shape the server is built on: the drive parks its coroutine, the

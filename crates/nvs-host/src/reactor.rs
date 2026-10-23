@@ -316,7 +316,7 @@ impl RemoteWake {
     /// names a different task on every core. A reactor that is borrowed, gone,
     /// or another core's answers `false`, which leaves the drop to queue its
     /// wake as any other does.
-    fn is_held_by_its_running_task(&self) -> bool {
+    pub(crate) fn is_held_by_its_running_task(&self) -> bool {
         crate::scheduler::current_task() == Some(self.id)
             && INSTALLED
                 .try_with(|slot| {
@@ -349,6 +349,18 @@ impl Drop for RemoteWake {
     }
 }
 
+/// One task's row in [`Reactor`]'s registration table.
+///
+/// `count` is a count rather than a set because one task may wait on more than
+/// one descriptor, and dropping the entry on the first `deregister` would lose
+/// the others. `events` is [`Reactor::readiness_events`]'s answer. What it
+/// spends: four bytes per registered task.
+#[derive(Debug, Default, Clone, Copy)]
+struct Registered {
+    count: u32,
+    events: u32,
+}
+
 /// The readiness source of one core.
 ///
 /// Created on the thread that polls it and never moved off it — `!Send` and
@@ -357,10 +369,9 @@ impl Drop for RemoteWake {
 pub struct Reactor {
     poll: Poll,
     events: Events,
-    /// How many live registrations each task holds. A count rather than a set
-    /// because one task may wait on more than one descriptor, and dropping the
-    /// entry on the first `deregister` would lose the others.
-    registrations: HashMap<TaskId, u32>,
+    /// What each task with a live registration holds: how many, and how many
+    /// readiness events this reactor has reported for it.
+    registrations: HashMap<TaskId, Registered>,
     /// The ids the last poll reported, reused across calls so a poll allocates
     /// nothing on the steady path.
     ready: Vec<TaskId>,
@@ -448,7 +459,7 @@ impl Reactor {
         self.poll
             .registry()
             .register(source, token_of(id)?, interest)?;
-        *self.registrations.entry(id).or_insert(0) += 1;
+        self.registrations.entry(id).or_default().count += 1;
         Ok(())
     }
 
@@ -490,9 +501,9 @@ impl Reactor {
         S: Source + ?Sized,
     {
         self.poll.registry().deregister(source)?;
-        if let Some(count) = self.registrations.get_mut(&id) {
-            *count = count.saturating_sub(1);
-            if *count == 0 {
+        if let Some(entry) = self.registrations.get_mut(&id) {
+            entry.count = entry.count.saturating_sub(1);
+            if entry.count == 0 {
                 self.registrations.remove(&id);
             }
         }
@@ -545,6 +556,20 @@ impl Reactor {
     #[must_use]
     pub fn is_registered(&self, id: TaskId) -> bool {
         self.registrations.contains_key(&id)
+    }
+
+    /// How many readiness events this reactor has reported for `id` since its
+    /// entry was made, or `None` while it holds no registration.
+    ///
+    /// The count only goes up while a registration lives. So a reader that saw
+    /// it before a wait and sees the same number now knows that no descriptor
+    /// of `id`'s was reported ready in between. The token is the task and not
+    /// the descriptor, so an event on any of the task's descriptors moves it,
+    /// and the reader then makes its system call again: the safe direction.
+    /// [`crate::NvsStream`]'s readiness bit is that reader.
+    #[must_use]
+    pub fn readiness_events(&self, id: TaskId) -> Option<u32> {
+        self.registrations.get(&id).map(|entry| entry.events)
     }
 
     /// Issues a one-shot handle that wakes `id` from another thread.
@@ -625,7 +650,13 @@ impl Reactor {
             // for; `u64::MAX` is never an issued id, so a hypothetical one
             // would wake nothing rather than wake a stranger.
             let raw = u64::try_from(event.token().0).unwrap_or(u64::MAX);
-            self.ready.push(TaskId::from_raw(raw));
+            let id = TaskId::from_raw(raw);
+            // Counted whether or not the task is parked, because a stream reads
+            // the count to decide whether its next read needs the system call.
+            if let Some(entry) = self.registrations.get_mut(&id) {
+                entry.events = entry.events.wrapping_add(1);
+            }
+            self.ready.push(id);
         }
         if remote {
             // Outside the loop because it borrows `self` whole, and before the

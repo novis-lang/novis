@@ -200,6 +200,16 @@ pub struct NvsStream<S: Source> {
     /// the clock — an idle timeout a write silently cancels. So the entry is
     /// lifted by the interest that filed it and by no other.
     timed: Option<Interest>,
+    /// The readiness bit: the reactor's event count for the registered task,
+    /// taken when this stream's last read answered `WouldBlock`, or `None`
+    /// while the next read must try the system call.
+    ///
+    /// `rule:concurrency/try-the-syscall-then-park`. While the count is still
+    /// the same, no descriptor of the task was reported ready, so
+    /// [`Self::poll_read`] files its deadline and answers `Pending` with no
+    /// read. Any event for the task, a successful read, an error and every
+    /// change of registration clear it.
+    quiet: Option<u32>,
     /// A flag another thread may raise to end a readable wait already in
     /// flight, or `None` for a stream nothing cuts short —
     /// [`Self::cut_at_drain`] and [`Self::cut_once`] share it.
@@ -228,6 +238,7 @@ impl<S: Source> NvsStream<S> {
             registered: None,
             deadline: None,
             timed: None,
+            quiet: None,
             cut: None,
         }
     }
@@ -1480,6 +1491,7 @@ impl<S: Source> NvsStream<S> {
                     // a live registration already reports what this wait needs.
                     return Ok(());
                 }
+                self.quiet = None;
                 reactor.reregister(&mut self.inner, me, interest)?;
             }
             Some((other, _)) => {
@@ -1487,6 +1499,7 @@ impl<S: Source> NvsStream<S> {
                 // entry before taking the new one keeps the reactor's per-task
                 // count honest; both tasks are on this core, because nothing
                 // here is `Send`.
+                self.quiet = None;
                 reactor.deregister(&mut self.inner, other)?;
                 reactor.register(&mut self.inner, me, interest)?;
             }
@@ -1513,6 +1526,9 @@ impl<S: Source> NvsStream<S> {
     /// rule 1 in the shape a poll can keep it: the wake has somewhere to be
     /// recorded before there is anything to record.
     ///
+    /// A read whose readiness bit is set skips the system call. It still files
+    /// its deadline and arms as a `WouldBlock` would, so the only thing it
+    /// leaves out is the read the reactor already said would block.
     ///
     /// # Errors
     ///
@@ -1521,7 +1537,14 @@ impl<S: Source> NvsStream<S> {
     where
         S: Read,
     {
+        // Only `Pending` is taken from the quiet path. A passed deadline or an
+        // arming error goes round the loop below, so the read is tried before
+        // the deadline is judged, exactly as it was before the bit existed.
+        if self.still_quiet() && matches!(self.arm_only(Interest::READABLE), Ok(true)) {
+            return Poll::Pending;
+        }
         loop {
+            self.quiet = None;
             match self.inner.read(buf) {
                 Ok(read) => return self.answer(Interest::READABLE, Ok(read)),
                 Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
@@ -1529,7 +1552,10 @@ impl<S: Source> NvsStream<S> {
                     #[cfg(debug_assertions)]
                     crate::counts::would_block_read();
                     match self.arm_only(Interest::READABLE) {
-                        Ok(true) => return Poll::Pending,
+                        Ok(true) => {
+                            self.quiet = self.readiness_events();
+                            return Poll::Pending;
+                        }
                         Ok(false) => {}
                         Err(err) => return self.answer(Interest::READABLE, Err(err)),
                     }
@@ -1537,6 +1563,25 @@ impl<S: Source> NvsStream<S> {
                 Err(err) => return self.answer(Interest::READABLE, Err(err)),
             }
         }
+    }
+
+    /// Whether the readiness bit says the next read would block: this stream
+    /// is armed for reading alone under the running task, and the reactor has
+    /// reported no event for that task since the last `WouldBlock`.
+    fn still_quiet(&self) -> bool {
+        let Some(seen) = self.quiet else {
+            return false;
+        };
+        let Some(me) = current_task() else {
+            return false;
+        };
+        self.registered == Some((me, Interest::READABLE)) && self.readiness_events() == Some(seen)
+    }
+
+    /// The reactor's event count for the task this stream is registered under.
+    fn readiness_events(&self) -> Option<u32> {
+        let (task, _) = self.registered?;
+        reactor::with_current(|reactor| reactor.readiness_events(task)).flatten()
     }
 
     /// [`Self::poll_read`] on the other interest.
@@ -1625,6 +1670,7 @@ impl<S: Source> NvsStream<S> {
         // Whatever this stream filed with the timers is no longer its to lift:
         // the registration the filing belonged to is going away with it.
         self.timed = None;
+        self.quiet = None;
         let Some((task, _)) = self.registered.take() else {
             return;
         };
@@ -1713,6 +1759,9 @@ impl<S: Source> Drop for NvsStream<S> {
 impl<S: Source + Read> Read for NvsStream<S> {
     /// `rule:concurrency/try-the-syscall-then-park`, in order: try, return, and only then park.
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        // This path parks rather than answering `Pending`, so it keeps no
+        // readiness bit, and a read here makes the bit stale.
+        self.quiet = None;
         loop {
             match self.inner.read(buf) {
                 Ok(read) => return Ok(read),
@@ -1863,6 +1912,59 @@ mod tests {
         );
         // Rule 3: the task ended, so the loop retired what it held.
         assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
+    }
+
+    /// `rule:concurrency/try-the-syscall-then-park`'s readiness bit: once a read
+    /// has answered `WouldBlock`, a second poll before the reactor reports the
+    /// stream ready answers `Pending` without reading, and the read after the
+    /// reactor's event reads the bytes.
+    #[test]
+    fn a_read_the_reactor_has_not_reported_ready_makes_no_system_call() {
+        let (mut server, mut client) = connected_pair();
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let writer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(20));
+            client.write_all(b"hi").expect("the write failed");
+        });
+
+        let quiet_reads = Rc::new(Cell::new(u64::MAX));
+        let seen = Rc::clone(&quiet_reads);
+        let got = Rc::new(Cell::new(0_usize));
+        let filled = Rc::clone(&got);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let mut first = true;
+            let read = crate::block_on(std::future::poll_fn(|_cx| {
+                let mut buf = [0_u8; 8];
+                if first {
+                    first = false;
+                    let before = crate::counts::Counts::now();
+                    assert!(server.poll_read(&mut buf).is_pending());
+                    assert!(server.poll_read(&mut buf).is_pending());
+                    assert!(server.poll_read(&mut buf).is_pending());
+                    seen.set(crate::counts::Counts::now().since(before).would_block_reads);
+                    return Poll::Pending;
+                }
+                match server.poll_read(&mut buf) {
+                    Poll::Ready(read) => Poll::Ready(read.map(|read| buf[..read].to_vec())),
+                    Poll::Pending => Poll::Pending,
+                }
+            }))
+            .expect("the drive was cancelled")
+            .expect("the read failed");
+            assert_eq!(read, b"hi");
+            filled.set(read.len());
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        writer.join().expect("the writing thread panicked");
+        assert_eq!(
+            quiet_reads.get(),
+            1,
+            "a read the reactor had not reported ready made a system call"
+        );
+        assert_eq!(got.get(), 2, "the read after the reactor's event found nothing");
     }
 
     #[test]

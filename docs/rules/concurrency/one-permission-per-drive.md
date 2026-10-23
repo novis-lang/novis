@@ -11,6 +11,14 @@ A connection whose every wait ends in socket readiness — the ordinary one, sin
 task by id and never through a waker — therefore issues exactly one permission for the whole
 connection, and gives it back unused when the drive returns.
 
+**A wake from the drive's own running task, on its own core, fires nothing.** The drive is running,
+so its loop reads the woken flag before it parks, and the flag is the whole wake. The permission
+stays in its slot, and the core's wake descriptor is not written. The test is the one a handle's own
+drop makes (`rule:concurrency/a-handle-given-up-by-its-task-wakes-nothing`): the current task is the
+one the handle names, and the current reactor is the one that issued it.
+
 **Declined:**
 - **A fresh permission per park.** Each one is issued and collected once per readiness edge, which
   is a delivered poke per wait for a wake nobody asked for.
+- **A self-wake queued on the core's local wake list.** The drive has not parked, so there is no
+  park for a queued wake to end. It would end the next park instead, early.
