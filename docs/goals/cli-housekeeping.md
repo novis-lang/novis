@@ -34,7 +34,7 @@ stages:
         rules: [tooling/a-serving-process-never-uploads, tooling/a-failed-upload-never-fails-the-command, config/telemetry-and-update-endpoints-are-configuration]
   - id: 5
     title: "the project walk skips what `.gitignore` ignores, `nvs check` reads a directory, and a `require` that cannot be followed is an error"
-    status: open
+    status: done
     context: [crates/nvs-hir/src/lenders.rs, crates/nvs-cli/src/fmt.rs, crates/nvs-lsp/src/index.rs, crates/nvs-hir/src/requires.rs, docs/rules/tooling/nvs-code-answers-about-the-project.md, docs/rules/tooling/fmt-check-writes-nothing.md, docs/rules/statements/require-is-the-only-inclusion-construct.md]
     extra:
       context:
@@ -281,11 +281,11 @@ The walk, one group:
 
 A `require` that cannot be followed, its own group:
 
-- [ ] `rule:statements/require-is-the-only-inclusion-construct` lists the statically known forms and the new code. `docs/rules/statements/require-is-the-only-inclusion-construct.md:1`
-- [ ] The new code beside `E0311`, with help text that follows AGENTS.md § *Text an end user reads*. `crates/nvs-diagnostics/src/code/names.rs:64`
-- [ ] The dynamic fallback reports it at the `require`, and its module doc says so. `crates/nvs-hir/src/requires.rs:8`, `crates/nvs-hir/src/requires.rs:1837`
-- [ ] A conformance case: a `require` of a call joined with a literal is the new error, and the literal form compiles. `tests/conformance/lang/a-require-whose-path-is-not-statically-known-is-a-compile-error.nvst:1`
-- [ ] The gap record deleted, and `bun nv owners --closes cli-housekeeping` passes. `data/gaps/nvs-hir/a-require-path-that-is-not-static-reports-nothing.json:1`
+- [x] `rule:statements/require-is-the-only-inclusion-construct` lists the statically known forms and the new code. `docs/rules/statements/require-is-the-only-inclusion-construct.md:1`
+- [x] The new code beside `E0311`, with help text that follows AGENTS.md § *Text an end user reads*. `crates/nvs-diagnostics/src/code/names.rs:64`
+- [x] The dynamic fallback reports it at the `require`, and its module doc says so. `crates/nvs-hir/src/requires.rs:8`, `crates/nvs-hir/src/requires.rs:1837`
+- [x] A conformance case: a `require` of a call joined with a literal is the new error, and the literal form compiles. `tests/conformance/lang/a-require-whose-path-is-not-statically-known-is-a-compile-error.nvst:1`
+- [x] The gap record deleted, and `bun nv owners --closes cli-housekeeping` passes. `data/gaps/nvs-hir/a-require-path-that-is-not-static-reports-nothing.json:1`
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -304,69 +304,56 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done. In stage 5, the walk group and the `nvs check <directory>` group are done:
+Stages 1 to 5 are done. Stage 5's last group, the `require` group, landed in `e03014035`:
 
-- `ea61d2634`: `nvs_hir::lenders::sources` walks with `ignore::WalkBuilder`. It reads `.gitignore`
-  and `.ignore` at and under the root, also outside git (`require_git(false)`). It does not read
-  the global excludes file, `.git/info/exclude` or an ignore file above the root
-  (`parents(false)`). It skips `target`, `vendor` and dot-directories by `filter_entry`, reads
-  dot-files, follows no link, and always walks the root (depth 0 is never filtered). `nvs fmt`'s
-  `collect` calls it and sorts, and still fails on a named directory it cannot list. Five tests in
-  `lenders::tests` ran once and pass. `cargo deny check bans licenses sources` is ok, and
-  `THIRD-PARTY-LICENSES.txt` is regenerated. The three fragments that state a walk's files
-  (`nvs-code-answers-about-the-project`, `fmt-check-writes-nothing`,
-  `check-scope-defaults-to-the-workspace`) say so, with the Declined exclude key. The Explore
-  subagent's other hits (`an-autoloaded-file-borrows-its-programs-map.md:46` "skipping what the
-  server skips", `completion-files-offer-values-at-named-parameters.md:76`) were already true.
-- `f13c733d7`: `nvs check <directory>` checks `Program::entry(dir, files)`, the overlay entry
-  `nvs test` builds, through `front_end_in`, with `--fix`, `--json` and `--autoload-map`.
-  `front_end_in` folds the configuration for the entry's directory when the loaded entry is not on
-  disk, as `Program::configured` does. The help says "The file or directory to check", and
-  `docs/reference/tools/10-cli.md` § *nvs check* says so. The gap record is deleted. The test
-  `nvs_check_of_a_directory_checks_its_files_as_one_program` ran once and passes.
+- A `require` whose path is not statically known is `E0330` (`E_REQUIRE_PATH_NOT_STATIC`,
+  `crates/nvs-diagnostics/src/code/names.rs`) at the path, with help naming
+  `require './autoload.nvs';`. The walk collects such paths in `Harvest::dynamic` and reports them
+  per file, and a path whose class constant nothing read so far declares is reported where
+  `resolve_segments` fails. A constant nobody declares also gets the checker's `E0303` at the class.
+- A literal in a file with no on-disk path still reports nothing and throws when it is reached. It
+  is the one case that reaches `nvs-ir`'s `lower_unloaded_require`, and its doc and the two call
+  sites' comments say so.
+- `rule:statements/require-is-the-only-inclusion-construct` lists the static forms, `E0330`, and a
+  Declined entry for the old runtime throw.
+- `a-require-with-a-computed-path-throws.nvst` is replaced by
+  `a-require-whose-path-is-not-statically-known-is-a-compile-error.nvst`, which ran once and
+  passes. The three Rust tests now assert `E0330`, a fourth covers a call joined with a literal, and
+  the `requires::tests` that touch `require` ran once and pass.
+- The gap record is deleted, and `bun nv owners --closes cli-housekeeping` passes.
 
-No test is expected to go red. A `nvs fmt` test that formats a file under a dot-directory or
-`target/` inside the walked tree would, because the walk now skips both, but none was found.
+Earlier in stage 5: `ea61d2634` (the project walk reads `.gitignore` and `.ignore` through
+`ignore::WalkBuilder`, and `nvs fmt` walks with it) and `f13c733d7` (`nvs check <directory>` checks
+the program `nvs test` runs for it).
 
-The acceptance sweep's items are the ones the earlier sessions traced. `env-secret-proofs`'s log
-shows exit 0, and the nightly is still the `7b6ef53ee` run, whose reds later commits fix (see
-`git log` from `dc3a2ed29`). The two memory-growth checks (`serve.rs`'s live-bytes guard on macOS,
+No test is expected to go red. A program anywhere in the tree that writes a `require` of a
+variable, a call or an interpolation would, but the Explore search found none beyond the ones
+rewritten. A `nvs fmt` test over a file under a dot-directory or `target/` would too, and none was
+found.
+
+The acceptance sweep's items are the ones earlier sessions traced. `env-secret-proofs`'s log shows
+exit 0, and the nightly is still the `7b6ef53ee` run, whose reds later commits fix (see `git log`
+from `dc3a2ed29`). The two memory-growth checks (`serve.rs`'s live-bytes guard on macOS,
 `serve_isolation.rs:614` on linux-aarch64) wait for the next nightly.
 
-`crates/nvs-runtime/src/capability.rs` still has the uncommitted rustfmt join at line 2259. The guard
-refused to stage it again: interactive session 6884de4b (`formatter-complete`) still claims it. The
-user has to release that claim before the goal end's push.
+`crates/nvs-runtime/src/capability.rs` still has the uncommitted rustfmt join at line 2259, claimed
+by interactive session 6884de4b (`formatter-complete`). The user has to release that claim before
+the goal end's push.
 
 `bun nv proofs --gate` with perf still lists the 28 stale `Core\Http` perf records, which wait for a
 release (`docs/agent/commands.md` § *Verifying*).
 
 ### Next
 
-**Stage 5's `require` group**, as stage 5 lists it. The Explore subagent found every dynamic
-`require` in the tree, and each is rewritten or turned into an error case:
+**Stage 6, the gate.** Start `bun nv affected --run` (in the loop, `looper verify`) with
+`run_in_background` and end the turn to wait. Group the failures by cause and fix them in one pass,
+then run it once more. Before `DONE`: `bun nv verify --doc`, `bun nv owners --closes
+cli-housekeeping`, and move each decision only this file's prose holds to a rule or a module doc.
 
-- `tests/conformance/lang/a-require-with-a-computed-path-throws.nvst:9` (`require $path;`) and `:16`
-  (`require $dir . 'setup.nvs';`). This case pins the runtime throw, which can no longer happen.
-  Delete it and write `a-require-whose-path-is-not-statically-known-is-a-compile-error.nvst` in its
-  place
-- `crates/nvs-hir/src/requires.rs:2176` (`a_concatenation_with_a_dynamic_half_stays_dynamic`),
-  `:2229` (`a_require_path_naming_an_undeclared_const_stays_dynamic`, a `Paths::LIB` nobody
-  declares), `:2345` (`a_dynamic_require_path_is_left_for_the_runtime_fallback`). Each asserts no
-  error, so each now asserts the new code
-- `:2356` (`a_require_with_no_on_disk_path_is_left_for_the_runtime_fallback`): a literal in a file
-  with no path. Decide whether that is the new code too. The recommendation is no: the path is
-  static, and the file has no directory (`requires.rs` module doc, *A file with no on-disk path*)
-- `nvs-ir`'s `lower_unloaded_require` (`crates/nvs-ir/src/lower/exception.rs:69`, called at
-  `stmt.rs:433` and `expr.rs:689`) still lowers the missing target. A compile error now stops the
-  dynamic case before lowering, so only the no-path case reaches it
-
-- [ ] The rule lists the static forms and the new code. `docs/rules/statements/require-is-the-only-inclusion-construct.md:1`
-- [ ] The new code beside `E0311`, with plain help. `crates/nvs-diagnostics/src/code/names.rs:64`
-- [ ] The fallback reports it at the `require`, and the module doc says so. `crates/nvs-hir/src/requires.rs:8`
-- [ ] The conformance case, and the old one and the three Rust tests rewritten. `tests/conformance/lang/a-require-with-a-computed-path-throws.nvst:1`
-- [ ] The gap record deleted, and `bun nv owners --closes cli-housekeeping` passes. `data/gaps/nvs-hir/a-require-path-that-is-not-static-reports-nothing.json:1`
-
-Then stage 6, the gate.
+- The walk: `crates/nvs-hir/src/lenders.rs:239`, `crates/nvs-cli/src/fmt.rs:177`
+- `nvs check <directory>`: `crates/nvs-cli/src/main.rs:1100`, `crates/nvs-cli/tests/check_command.rs:1`
+- `require`: `crates/nvs-hir/src/requires.rs:1`, `tests/conformance/lang/a-require-whose-path-is-not-statically-known-is-a-compile-error.nvst:1`
+- The telemetry and cache commands: `crates/nvs-cli/src/telemetry.rs:1`, `crates/nvs-cli/src/cache_cmd.rs:1`
 
 ### Backlog
 
