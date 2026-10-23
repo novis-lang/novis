@@ -21,14 +21,14 @@ final class Knot
     public int $up {
         get => 0;
         set (int $v) {
-        $this->down = $v + 1;
+            $this->down = $v + 1;
         }
     }
 
     public int $down {
         get => 0;
         set (int $v) {
-        $this->up = $v + 1;
+            $this->up = $v + 1;
         }
     }
 }
@@ -38,15 +38,15 @@ final class Grower
     public string $text {
         get => $this->text;
         set (string $v) {
-        // Every write builds a string of its own.
-        $this->text = Core\Str::repeat($v, 100);
+            // Every write builds a string of its own.
+            $this->text = Core\Str::repeat($v, 100);
         }
     }
 
     public int $always {
         get => 0;
         set (int $v) {
-        throw new LogicError('this property refuses every write');
+            throw new LogicError('this property refuses every write');
         }
     }
 

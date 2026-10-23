@@ -13,7 +13,7 @@ class Target
 
     public int $loop {
         get {
-        return Core\Reflect::forObject($this)->get($this, 'loop') as int;
+            return Core\Reflect::forObject($this)->get($this, 'loop') as int;
         }
     }
 

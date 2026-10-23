@@ -713,6 +713,13 @@ Exactly one blank line follows a `namespace` line, one follows the `use` block, 
 members that each have a body; adjacent simple property and constant declarations get none. A comment
 between two members belongs to the member below it, so the blank line goes above the comment.
 
+A property's hooks sit one level in from the property's line, and a hook's block is a body of its own:
+its statements sit one level in from the hook's line, and its `}` on the hook's.
+
+A comment that opens a line sits at the indentation of the code below it, which is the line it describes.
+A comment above a body's closing brace is inside that body, so it sits where the body's statements sit.
+A line of a block comment after its first is the comment's own text and is copied.
+
 Modifier order is canonical, not the author's: `abstract`/`final`, then visibility (including
 `private(set)`), then `static`, then `readonly`, then `lateinit`, one space between each. The parser
 accepts these in any order, which is exactly why the formatter must fix one — `static public $x;` and
@@ -968,6 +975,11 @@ what makes adding an element to a multi-line list a one-line diff.
 Consecutive `use` declarations are sorted lexicographically by their full path, ascending and
 case-sensitive, with no blank line between them. Exactly one blank line separates that block from the
 `namespace` line above and from the first real declaration below.
+
+A comment moves with the import it belongs to. Every comment written directly above an import, on
+lines of its own with no blank line between, belongs to it, and so does a comment after its `;` on the
+same line. A comment with a blank line between it and the import below belongs to none, and the imports
+on each side of it are sorted apart.
 
 A `use` declaration names exactly one imported path, so there is no grouped `use A\{B, C};`
 form to order or to expand. This is the only reordering the formatter performs anywhere: class members
