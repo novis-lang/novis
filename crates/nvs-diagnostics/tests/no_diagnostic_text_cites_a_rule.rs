@@ -226,6 +226,10 @@ fn no_card_names_a_rule_or_a_refusal() {
     );
 }
 
+#[cfg_attr(
+    miri,
+    ignore = "reads the source of every crate that builds a diagnostic, which Miri interprets for longer than CI's miri job may run, and a text scan has no undefined behaviour of its own to find"
+)]
 #[test]
 fn no_diagnostic_text_names_a_rule_or_a_refusal() {
     let mut files = Vec::new();
