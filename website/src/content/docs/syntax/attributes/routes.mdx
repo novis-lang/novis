@@ -17,8 +17,12 @@ A few facts the examples do not show:
 - `Core\Router::urlAbsolute` puts the origin in front, such as `https://example.com`. The origin is
   the `origin` setting under `[[app]]` in `nvs.toml`.
 - `Post`, `Put`, `Patch` and `Delete` requests are checked for CSRF (a request sent from another
-  site). A `Get` request that opens a WebSocket from another site is not allowed. `csrf: false`
-  turns both checks off for one method.
+  site). A `Get` request that opens a WebSocket from another site is not allowed.
+- `csrf: false` turns both checks off for one method. You write it in `#[Core\Access]`, as in
+  `#[Core\Access(allow: Core\Audience::Public, csrf: false)]`. On `#[Core\Route]`, it does not compile.
+- Use `csrf: false` only on a route that does not use the session cookie. A webhook that another
+  server signs is one example. Without the check, another site can send a form with your visitor's
+  cookie. The [webhook example](/reference/types/audience/) shows such a route.
 
 ## Handling a request
 

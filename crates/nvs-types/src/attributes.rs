@@ -535,13 +535,19 @@ pub(crate) fn check_roster(
         let expected = declared.and_then(|ty| ty.intern(env));
         check_expr(&field.value, expected, &mut live, &scope, ctx, env);
         if declared.is_none() {
+            let help = match crate::routes::option_home(attribute, &name) {
+                Some(home) => format!(
+                    "`{name}` is an option of `#[{home}]`. Write it in the `#[{home}]` of the same method"
+                ),
+                None => format!("the options are: {}", roster_names(options)),
+            };
             env.diags.report(
                 Diagnostic::error(
                     code::E_UNKNOWN_OPTION,
                     format!("`{name}` is not an option of `#[{attribute}]`"),
                 )
                 .with_primary(field.span, "no such option")
-                .with_help(format!("the options are: {}", roster_names(options))),
+                .with_help(help),
             );
         } else if seen.iter().any(|already| already == &name) {
             env.diags.report(
