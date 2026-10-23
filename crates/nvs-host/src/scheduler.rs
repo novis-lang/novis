@@ -174,7 +174,7 @@ use std::rc::Rc;
 use corosensei::{Coroutine, CoroutineResult, Yielder};
 use nvs_runtime::{Ctx, TaskPanic, TaskRoot};
 
-use crate::stack::StackPool;
+use crate::stack::{Role, Stacks};
 use crate::tsan::Fiber;
 
 /// What a suspended task is waiting for.
@@ -364,6 +364,8 @@ struct Pending {
     body: Box<dyn FnOnce(&mut Ctx)>,
     /// Whether it goes to the front of the run queue ([`spawn_child_next`]).
     next: bool,
+    /// Which pool its stack comes from.
+    role: Role,
 }
 
 impl std::fmt::Debug for Pending {
@@ -646,6 +648,8 @@ struct Task {
     /// every resume, so the CPU time the task spends is charged to its own
     /// request.
     tree: usize,
+    /// Which pool its stack came from, and so which pool it goes back to.
+    role: Role,
     /// This task's ThreadSanitizer fiber — a zero-sized nothing in every build
     /// but the sanitizer leg's, where it is the access history that follows
     /// this stack rather than the thread currently under it. [`crate::tsan`] is
@@ -720,12 +724,12 @@ pub struct Scheduler {
     /// Every task that ended, however it ended, until whoever drops their I/O
     /// registrations takes them — [`Scheduler::take_ended`].
     ended: Vec<TaskId>,
-    /// This worker's supply of task stacks — `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`, and
+    /// This worker's two pools of task stacks — `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`, and
     /// [`crate::stack`]'s module doc for the whole policy. It lives here rather
     /// than in [`crate::Worker`] because this is the type that knows when a
     /// task starts and when it ends, which is the only pair of moments a pool
     /// cares about.
-    stacks: StackPool,
+    stacks: Stacks,
     /// Makes this type `!Send` and `!Sync`, which is the module doc's whole
     /// first section. A raw pointer is the standard spelling and costs no
     /// bytes.
@@ -817,7 +821,7 @@ impl Scheduler {
             parked: HashMap::new(),
             finished: Vec::new(),
             ended: Vec::new(),
-            stacks: StackPool::new(),
+            stacks: Stacks::new(),
             _pinned_to_one_thread: PhantomData,
         }
     }
@@ -847,6 +851,10 @@ impl Scheduler {
     /// A task the worker cannot give a stack never runs: [`Scheduler::refuse`]
     /// ends it as a limit and files it the way a task that ran is filed.
     ///
+    /// Its stack comes from the host pool, whatever it runs: on a serving core
+    /// a root is the server's own work, and `nvs run`'s one program has no
+    /// connection to share a pool with.
+    ///
     /// Nothing runs until [`Scheduler::run`] is called.
     pub fn spawn<F>(&mut self, ctx: Ctx, root: TaskRoot, body: F) -> TaskId
     where
@@ -862,7 +870,7 @@ impl Scheduler {
         // context's goes with it to the task — `Ctx::leave_this_stack`.
         let mut ctx = ctx;
         ctx.leave_this_stack();
-        self.start(id, ctx, root, Box::new(body), false);
+        self.start(id, ctx, root, Box::new(body), false, Role::Host);
         id
     }
 
@@ -880,8 +888,9 @@ impl Scheduler {
         root: TaskRoot,
         body: Box<dyn FnOnce(&mut Ctx)>,
         next: bool,
+        role: Role,
     ) {
-        let stack = match self.stacks.take() {
+        let stack = match self.stacks.take(role) {
             Ok(stack) => stack,
             Err(error) => {
                 self.refuse(id, ctx, body, &error);
@@ -920,6 +929,7 @@ impl Scheduler {
                 id,
                 yielder: raw,
                 tree: ctx.tree_key(),
+                role,
             }));
             let outcome = nvs_runtime::run_task(root, || body(&mut ctx));
             // Cleared on both paths, the contained-panic one included, so no
@@ -943,6 +953,7 @@ impl Scheduler {
             unwindable: true,
             told: false,
             tree,
+            role,
             fiber: Fiber::new(),
         };
         if next {
@@ -1122,7 +1133,7 @@ impl Scheduler {
                         // stack is recyclable, and letting `task` drop here
                         // instead would hand every request's mapping back to the
                         // OS.
-                        self.stacks.give(task.coro.into_stack());
+                        self.stacks.give(task.role, task.coro.into_stack());
                     }
                 }
                 self.drain_pending();
@@ -1212,7 +1223,7 @@ impl Scheduler {
         }
         // Unwound is finished as far as the stack is concerned, so the mapping
         // is recyclable here exactly as it is for a task that returned.
-        self.stacks.give(task.coro.into_stack());
+        self.stacks.give(task.role, task.coro.into_stack());
         self.orphan(task.id);
         self.ended.push(task.id);
         report.cancelled += 1;
@@ -1237,8 +1248,9 @@ impl Scheduler {
                 root,
                 body,
                 next,
+                role,
             } = pending;
-            self.start(id, ctx, root, body, next);
+            self.start(id, ctx, root, body, next, role);
         }
     }
 
@@ -1341,7 +1353,8 @@ impl Scheduler {
         self.ready.len()
     }
 
-    /// How many task stacks this worker is holding idle for the next spawn.
+    /// How many task stacks this worker is holding idle for the next spawn, in
+    /// both pools.
     ///
     /// Bounded by the cap [`bound_pool_by`](Self::bound_pool_by) set, if any,
     /// and by the number of tasks this scheduler has ever had in flight at
@@ -1352,14 +1365,22 @@ impl Scheduler {
         self.stacks.pooled()
     }
 
-    /// Keeps at most what `cap` returns of idle task stacks, read each time a
-    /// finished task gives its stack back.
+    /// Keeps at most what `cap` returns of idle task stacks in each pool, read
+    /// each time a finished task gives its stack back.
     ///
     /// A serving core passes its share of `[server] max_in_flight`, read live so
     /// that a reload moves it. A scheduler never bounded keeps the most it has
     /// had in flight at once. [`crate::stack`]'s *Why a pool* owns both.
     pub fn bound_pool_by(&mut self, cap: impl Fn() -> usize + 'static) {
-        self.stacks.bound_by(Box::new(cap));
+        self.stacks.bound_by(Rc::new(cap));
+    }
+
+    /// Called by the reactor when the core is about to wait with nothing
+    /// ready: trims the idle stacks once the core has been idle a whole
+    /// interval, and returns how long the wait may last before the next call
+    /// is due. [`crate::stack`]'s *The idle trim* owns the policy.
+    pub(crate) fn idle_wait(&mut self) -> Option<std::time::Duration> {
+        self.stacks.idle_wait(std::time::Instant::now())
     }
 }
 
@@ -1384,7 +1405,7 @@ pub fn spawn_child<F>(ctx: Ctx, root: TaskRoot, body: F) -> Option<TaskId>
 where
     F: FnOnce(&mut Ctx) + 'static,
 {
-    spawn_child_ordered(ctx, root, false, body)
+    spawn_child_ordered(ctx, root, false, running_role(), body)
 }
 
 /// [`spawn_child`], with the child run before every task already on the run
@@ -1400,15 +1421,16 @@ pub fn spawn_child_next<F>(ctx: Ctx, root: TaskRoot, body: F) -> Option<TaskId>
 where
     F: FnOnce(&mut Ctx) + 'static,
 {
-    spawn_child_ordered(ctx, root, true, body)
+    spawn_child_ordered(ctx, root, true, running_role(), body)
 }
 
 /// [`spawn_child_next`] where `next` is `true`, and [`spawn_child`] where it is
-/// `false`.
+/// `false`, with the child's stack from `role`'s pool.
 pub(crate) fn spawn_child_ordered<F>(
     ctx: Ctx,
     root: TaskRoot,
     next: bool,
+    role: Role,
     body: F,
 ) -> Option<TaskId>
 where
@@ -1427,8 +1449,15 @@ where
         root,
         body,
         next,
+        role,
     });
     Some(id)
+}
+
+/// The pool of the running task's stack, which a child it spawns takes its own
+/// from. The host pool with no task running.
+fn running_role() -> Role {
+    RUNNING.get().map_or(Role::Host, |running| running.role)
 }
 
 /// Spawns a root from inside a task, answering with its id.
@@ -1439,6 +1468,8 @@ where
 /// `rule:errors/handler-script`'s handler on a serving core
 /// ([`crate::ladder`]). Like a tree [`detach_current`] cut loose, its context
 /// is dropped when it ends rather than filed as [`Finished`].
+///
+/// Its stack comes from the program pool, because the handler is a script.
 ///
 /// `None` with no scheduler turning on this thread, and nothing is spawned.
 pub fn spawn_root<F>(ctx: Ctx, root: TaskRoot, body: F) -> Option<TaskId>
@@ -1459,6 +1490,7 @@ where
         root,
         body: Box::new(body),
         next: false,
+        role: Role::Program,
     });
     Some(id)
 }
@@ -1608,6 +1640,8 @@ struct Running {
     /// park made through [`suspend_current`], which has no context to name a
     /// tree, keeps the tree [`charge_running_task_to`] moved the task to.
     tree: usize,
+    /// Which pool the task's stack came from, for [`running_role`].
+    role: Role,
 }
 
 /// Charges the running task, from this instant on, to `tree`, as

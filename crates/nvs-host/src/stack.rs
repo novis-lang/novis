@@ -28,7 +28,7 @@
 //! What it spends, in the terms
 //! `rule:programs/memory-priority` asks for: one
 //! reservation per in-flight task, charged to the request that owns it, plus at
-//! most the worker's cap of reservations held idle between tasks, which is its
+//! most the worker's cap of reservations held idle in each of its two pools, which is its
 //! share of `[server] max_in_flight` on a serving core. Both are O(in-flight)
 //! and neither grows with requests served.
 //!
@@ -68,6 +68,40 @@
 //! and `nvs run`'s scheduler ends with its one program, so a compiled-in
 //! number here would bound nothing the work does not.
 //!
+//! # One pool per role
+//!
+//! A worker keeps two pools ([`Stacks`]): one for the server's own work — the
+//! accept loop, a connection, a ticker — and one for compiled Novis code — an
+//! isolate's task, a handler script, and every task beneath one of them
+//! ([`Role`]). A child takes the pool of the task that spawned it. A pooled
+//! stack keeps the pages its deepest task touched, so with one pool a
+//! connection that took a stack a program had grown deep kept the program's
+//! pages for a task that needs a few. With two, a connection's stack stays at a
+//! connection's depth. Each pool is capped as the one pool was, so a serving
+//! core may hold twice its share of `max_in_flight` idle: what a waiting request
+//! holds in flight, a connection stack and a program stack.
+//!
+//! # The idle trim
+//!
+//! A pooled stack keeps every page it was given, so the pages of a burst stay
+//! resident after it. When the core is about to wait with nothing ready and
+//! has taken no stack for a whole [`TRIM_INTERVAL`], each idle stack that came
+//! back since the last trim gives back its pages, except its top
+//! [`KEPT_RESIDENT`] bytes: `madvise(MADV_DONTNEED)` on Unix and
+//! `DiscardVirtualMemory` on Windows. A stack keeps its mapping and its place in
+//! the pool, so the next task pays page faults and no `mmap`.
+//!
+//! The trim never runs on a give, which would be a system call per request, and
+//! never while the core is busy, which would fault the pages of a hot stack back
+//! in once a second. While a stack waits for its trim, the core's wait is
+//! bounded by the interval, so a core that then goes quiet wakes at most twice
+//! more to trim. A trim is not a scrubbing guarantee: on macOS the old bytes may
+//! stay. Novis code cannot read them, because the language is memory-safe.
+//!
+//! What it spends: one system call per idle stack per trim on Unix and a few on
+//! Windows, and up to two wakes of a quiet core. It gives back all but 8 KiB of
+//! each trimmed stack.
+//!
 //! # The spare stack
 //!
 //! A parse whose recursion depth is set by its input — `serde_json` takes one
@@ -83,6 +117,8 @@
 //! stay resident for the life of the thread.
 
 use std::cell::RefCell;
+use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use corosensei::stack::{DefaultStack, Stack as _};
 
@@ -151,18 +187,141 @@ pub(crate) fn bounds(stack: &DefaultStack) -> (usize, usize) {
     (stack.base().get(), TASK_STACK_SIZE)
 }
 
-/// One worker's supply of task stacks.
+/// How long a core must go without taking a stack before its pools give their
+/// pages back, and so the most often a trim runs. The module doc's *The idle
+/// trim* owns why.
+pub(crate) const TRIM_INTERVAL: Duration = Duration::from_secs(1);
+
+/// The top of a pooled stack a trim leaves resident: the pages the next task's
+/// first frames write.
+pub(crate) const KEPT_RESIDENT: usize = 8 << 10;
+
+/// Which pool a task's stack comes from. The module doc's *One pool per role*
+/// owns the split.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Role {
+    /// The server's own work: the accept loop, a connection, a ticker.
+    Host,
+    /// Compiled Novis code: an isolate's task, a handler script, and every
+    /// task beneath one of them.
+    Program,
+}
+
+/// One worker's two pools and the trim that serves both.
+///
+/// Not `Send`, for [`StackPool`]'s reason.
+#[derive(Debug)]
+pub(crate) struct Stacks {
+    host: StackPool,
+    program: StackPool,
+    /// When the core last asked whether it was idle a whole interval.
+    checked: Instant,
+    /// Whether a stack was taken since [`Self::checked`].
+    taken: bool,
+}
+
+impl Stacks {
+    /// Two empty pools with no cap.
+    pub(crate) fn new() -> Self {
+        Self {
+            host: StackPool::new(),
+            program: StackPool::new(),
+            checked: Instant::now(),
+            taken: false,
+        }
+    }
+
+    fn pool(&mut self, role: Role) -> &mut StackPool {
+        match role {
+            Role::Host => &mut self.host,
+            Role::Program => &mut self.program,
+        }
+    }
+
+    /// A stack for a task of `role`, from that role's pool.
+    ///
+    /// # Errors
+    ///
+    /// [`StackPool::take`]'s.
+    pub(crate) fn take(&mut self, role: Role) -> std::io::Result<DefaultStack> {
+        self.taken = true;
+        self.pool(role).take()
+    }
+
+    /// A finished task's stack, back to the pool of the role it was taken for.
+    pub(crate) fn give(&mut self, role: Role, stack: DefaultStack) {
+        self.pool(role).give(stack);
+    }
+
+    /// Caps each pool at what `cap` returns, read each time a stack comes back.
+    pub(crate) fn bound_by(&mut self, cap: Rc<dyn Fn() -> usize>) {
+        self.host.cap = Some(Rc::clone(&cap));
+        self.program.cap = Some(cap);
+    }
+
+    /// How many stacks are idle in both pools.
+    pub(crate) fn pooled(&self) -> usize {
+        self.host.pooled() + self.program.pooled()
+    }
+
+    /// How many stacks are idle in `role`'s pool.
+    #[cfg(test)]
+    pub(crate) fn pooled_for(&self, role: Role) -> usize {
+        match role {
+            Role::Host => self.host.pooled(),
+            Role::Program => self.program.pooled(),
+        }
+    }
+
+    /// Called when the core is about to wait with nothing ready. Trims every
+    /// idle stack a trim has not reached yet once the core has taken no stack
+    /// for a whole [`TRIM_INTERVAL`], and returns how long the wait may last
+    /// before the next call is due. `None` when no stack is left to trim, so
+    /// the wait is not bounded for it.
+    pub(crate) fn idle_wait(&mut self, now: Instant) -> Option<Duration> {
+        if !self.host.untrimmed() && !self.program.untrimmed() {
+            return None;
+        }
+        let since = now.saturating_duration_since(self.checked);
+        if since < TRIM_INTERVAL {
+            return Some(TRIM_INTERVAL - since);
+        }
+        if !self.taken {
+            self.host.trim();
+            self.program.trim();
+        }
+        self.taken = false;
+        self.checked = now;
+        (self.host.untrimmed() || self.program.untrimmed()).then_some(TRIM_INTERVAL)
+    }
+
+    /// Makes every reservation either pool would make from now on fail.
+    #[cfg(test)]
+    pub(crate) fn refuse_fresh(&mut self) {
+        self.host.refuse_fresh();
+        self.program.refuse_fresh();
+    }
+}
+
+/// A stack idle in a pool, and whether its pages may still be resident.
+struct Pooled {
+    stack: DefaultStack,
+    /// `false` once a trim gave its pages back, until a task takes it again.
+    resident: bool,
+}
+
+/// One role's supply of task stacks on one worker.
 ///
 /// Not `Send`: it holds no lock because it is never reached from a second
 /// thread, which is the same structural property [`crate::Scheduler`] carries
 /// and for the same reason.
 pub(crate) struct StackPool {
-    free: Vec<DefaultStack>,
+    free: Vec<Pooled>,
     /// How many idle stacks the pool keeps, read each time one comes back.
     /// `None` keeps every one, so the pool is bounded by the most tasks its
     /// scheduler has had in flight at once. The module doc owns which
     /// schedulers have a cap.
-    cap: Option<Box<dyn Fn() -> usize>>,
+    cap: Option<Rc<dyn Fn() -> usize>>,
     /// Whether a fresh reservation fails, which only a test sets.
     #[cfg(test)]
     refuse_fresh: bool,
@@ -194,12 +353,13 @@ impl StackPool {
     #[cfg(test)]
     pub(crate) fn with_cap(cap: usize) -> Self {
         let mut pool = Self::new();
-        pool.bound_by(Box::new(move || cap));
+        pool.bound_by(Rc::new(move || cap));
         pool
     }
 
     /// Keeps at most what `cap` returns idle, from the next stack given back.
-    pub(crate) fn bound_by(&mut self, cap: Box<dyn Fn() -> usize>) {
+    #[cfg(test)]
+    pub(crate) fn bound_by(&mut self, cap: Rc<dyn Fn() -> usize>) {
         self.cap = Some(cap);
     }
 
@@ -213,8 +373,8 @@ impl StackPool {
     /// (`rule:errors/on-limit`), so a refusal fails that task's request and
     /// the worker goes on serving the others.
     pub(crate) fn take(&mut self) -> std::io::Result<DefaultStack> {
-        if let Some(stack) = self.free.pop() {
-            return Ok(stack);
+        if let Some(pooled) = self.free.pop() {
+            return Ok(pooled.stack);
         }
         #[cfg(test)]
         if self.refuse_fresh {
@@ -234,12 +394,16 @@ impl StackPool {
     /// the pool is already at its cap. A cap lowered since the last call frees
     /// the idle stacks past it here.
     pub(crate) fn give(&mut self, stack: DefaultStack) {
+        let pooled = Pooled {
+            stack,
+            resident: true,
+        };
         let Some(cap) = self.cap.as_ref().map(|cap| cap()) else {
-            self.free.push(stack);
+            self.free.push(pooled);
             return;
         };
         if self.free.len() < cap {
-            self.free.push(stack);
+            self.free.push(pooled);
         }
         self.free.truncate(cap);
     }
@@ -248,7 +412,106 @@ impl StackPool {
     pub(crate) fn pooled(&self) -> usize {
         self.free.len()
     }
+
+    /// Whether an idle stack here may still hold pages a trim would give back.
+    fn untrimmed(&self) -> bool {
+        self.free.iter().any(|pooled| pooled.resident)
+    }
+
+    /// Gives back the pages of every idle stack a trim has not reached since
+    /// it came back, except its top [`KEPT_RESIDENT`] bytes. One system call
+    /// per such stack on Unix, and a few on Windows.
+    fn trim(&mut self) {
+        for pooled in self.free.iter_mut().filter(|pooled| pooled.resident) {
+            let base = pooled.stack.base().get();
+            // `bounds`' floor: at or above the first byte the task may write,
+            // so the range is inside the stack's writable part.
+            let floor = base - TASK_STACK_SIZE;
+            discard(floor, base - KEPT_RESIDENT - floor);
+            pooled.resident = false;
+        }
+    }
 }
+
+/// Tells the OS the `len` bytes at `start`, inside an idle pooled stack, hold
+/// nothing, so it may take their pages back. A failure leaves them resident,
+/// which costs memory and nothing else, so it is ignored.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn discard(start: usize, len: usize) {
+    #[expect(
+        unsafe_code,
+        reason = "`madvise` has no `std` spelling. The range is inside the writable part of a \
+                  stack this pool owns and no task runs on, so no live frame is in it. A page \
+                  read after `MADV_DONTNEED` reads as zero on Linux and keeps or loses its old \
+                  bytes on macOS, and the next task writes every frame before it reads one."
+    )]
+    // SAFETY: as the reason above says, nothing reads these bytes until a new
+    // task's frames write them.
+    let _ = unsafe {
+        libc::madvise(
+            std::ptr::with_exposed_provenance_mut::<libc::c_void>(start),
+            len,
+            libc::MADV_DONTNEED,
+        )
+    };
+}
+
+/// [`discard`] on Windows: `DiscardVirtualMemory` over each committed,
+/// read-write region of the range. The pages stay committed, so the guard page
+/// `corosensei` moves down a growing stack still works. The reserved pages
+/// below it are skipped, because the call fails on a range that holds one.
+#[cfg(windows)]
+fn discard(start: usize, len: usize) {
+    use windows_sys::Win32::System::Memory::{
+        DiscardVirtualMemory, MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_READWRITE, VirtualQuery,
+    };
+    let end = start + len;
+    let mut at = start;
+    while at < end {
+        let mut info = MEMORY_BASIC_INFORMATION::default();
+        #[expect(
+            unsafe_code,
+            reason = "`VirtualQuery` has no `std` spelling. It reads the attributes of an address \
+                      this pool's stack reserved, into a stack struct this call owns."
+        )]
+        // SAFETY: the out-parameter is a live, correctly sized struct.
+        let filled = unsafe {
+            VirtualQuery(
+                std::ptr::with_exposed_provenance::<std::ffi::c_void>(at),
+                &raw mut info,
+                size_of::<MEMORY_BASIC_INFORMATION>(),
+            )
+        };
+        if filled == 0 {
+            return;
+        }
+        let region_end = (info.BaseAddress.addr() + info.RegionSize).min(end);
+        if region_end <= at {
+            return;
+        }
+        if info.State == MEM_COMMIT && info.Protect == PAGE_READWRITE {
+            #[expect(
+                unsafe_code,
+                reason = "`DiscardVirtualMemory` has no `std` spelling. The region is committed, \
+                          read-write and inside a stack this pool owns and no task runs on, so \
+                          no live frame is in it, and the next task writes every frame before it \
+                          reads one."
+            )]
+            // SAFETY: as the reason above says.
+            let _ = unsafe {
+                DiscardVirtualMemory(
+                    std::ptr::with_exposed_provenance_mut::<std::ffi::c_void>(at),
+                    region_end - at,
+                )
+            };
+        }
+        at = region_end;
+    }
+}
+
+/// [`discard`] where neither call exists: the pages stay resident.
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+fn discard(_start: usize, _len: usize) {}
 
 #[cfg(test)]
 mod tests {
@@ -288,7 +551,7 @@ mod tests {
         let cap = std::rc::Rc::new(std::cell::Cell::new(4));
         let mut pool = StackPool::new();
         let read = std::rc::Rc::clone(&cap);
-        pool.bound_by(Box::new(move || read.get()));
+        pool.bound_by(Rc::new(move || read.get()));
         for _ in 0..4 {
             pool.give(DefaultStack::new(TASK_STACK_SIZE).expect("a test stack"));
         }
@@ -296,6 +559,143 @@ mod tests {
         cap.set(1);
         pool.give(DefaultStack::new(TASK_STACK_SIZE).expect("a test stack"));
         assert_eq!(pool.pooled(), 1, "a reload's lower cap was not met");
+    }
+
+    #[test]
+    fn a_connection_stack_and_a_program_stack_come_from_their_own_pools() {
+        let mut stacks = Stacks::new();
+        let program = stacks.take(Role::Program).expect("a test stack");
+        let program_base = program.base();
+        stacks.give(Role::Program, program);
+        assert_eq!(stacks.pooled_for(Role::Program), 1);
+        assert_eq!(stacks.pooled_for(Role::Host), 0);
+
+        let host = stacks.take(Role::Host).expect("a test stack");
+        assert_ne!(
+            host.base(),
+            program_base,
+            "a connection took the stack a program ran on"
+        );
+        assert_eq!(
+            stacks.pooled_for(Role::Program),
+            1,
+            "the program's stack stays in its pool"
+        );
+        stacks.give(Role::Host, host);
+
+        let again = stacks.take(Role::Program).expect("a test stack");
+        assert_eq!(
+            again.base(),
+            program_base,
+            "the next program gets the program's stack back"
+        );
+    }
+
+    /// How many pages of the `len` bytes at `start` are resident.
+    #[cfg(target_os = "linux")]
+    fn resident_pages(start: usize, len: usize) -> usize {
+        let page = 4096;
+        let mut flags = vec![0_u8; len.div_ceil(page)];
+        #[expect(
+            unsafe_code,
+            reason = "`mincore` has no `std` spelling; the vector has one byte per page of the range"
+        )]
+        // SAFETY: the range is page aligned and mapped, and `flags` is long enough.
+        let read = unsafe {
+            libc::mincore(
+                std::ptr::with_exposed_provenance_mut::<libc::c_void>(start),
+                len,
+                flags.as_mut_ptr(),
+            )
+        };
+        assert_eq!(read, 0, "mincore failed");
+        flags.iter().filter(|flag| **flag & 1 == 1).count()
+    }
+
+    /// [`resident_pages`] on Windows, through the working set.
+    #[cfg(windows)]
+    fn resident_pages(start: usize, len: usize) -> usize {
+        use windows_sys::Win32::System::ProcessStatus::{
+            K32QueryWorkingSetEx, PSAPI_WORKING_SET_EX_INFORMATION,
+        };
+        use windows_sys::Win32::System::Threading::GetCurrentProcess;
+        let page = 4096;
+        let mut pages: Vec<PSAPI_WORKING_SET_EX_INFORMATION> = (0..len.div_ceil(page))
+            .map(|n| PSAPI_WORKING_SET_EX_INFORMATION {
+                VirtualAddress: std::ptr::with_exposed_provenance_mut(start + n * page),
+                ..Default::default()
+            })
+            .collect();
+        let bytes = u32::try_from(size_of_val(pages.as_slice())).expect("a small query");
+        #[expect(
+            unsafe_code,
+            reason = "`QueryWorkingSetEx` has no `std` spelling; the buffer is `bytes` long"
+        )]
+        // SAFETY: the buffer is live and `bytes` long, and the handle is this process's.
+        let read =
+            unsafe { K32QueryWorkingSetEx(GetCurrentProcess(), pages.as_mut_ptr().cast(), bytes) };
+        assert_ne!(read, 0, "QueryWorkingSetEx failed");
+        #[expect(
+            unsafe_code,
+            reason = "both fields of the union are a `usize` of flags"
+        )]
+        // SAFETY: every bit pattern of the union is valid.
+        pages
+            .iter()
+            .filter(|page| unsafe { page.VirtualAttributes.Flags } & 1 == 1)
+            .count()
+    }
+
+    /// [`resident_pages`] where the test has no query: it counts every page.
+    #[cfg(not(any(target_os = "linux", windows)))]
+    fn resident_pages(_start: usize, len: usize) -> usize {
+        len / 4096
+    }
+
+    #[test]
+    fn a_pooled_stack_gives_its_pages_back_when_its_core_is_idle() {
+        let mut stacks = Stacks::new();
+        let mut stack = stacks.take(Role::Program).expect("a test stack");
+        corosensei::on_stack(&mut stack, || {
+            let frame = std::hint::black_box([1_u8; 256 << 10]);
+            std::hint::black_box(&frame);
+        });
+        let base = stack.base().get();
+        let floor = base - TASK_STACK_SIZE;
+        let trimmed = base - KEPT_RESIDENT - floor;
+        stacks.give(Role::Program, stack);
+        let touched = resident_pages(floor, trimmed);
+        assert!(
+            touched >= 32,
+            "the deep frame left {touched} pages resident"
+        );
+
+        let start = stacks.checked;
+        assert!(
+            stacks.idle_wait(start).is_some(),
+            "a stack waiting for its trim bounds the core's wait"
+        );
+        // The core took a stack in its first interval, so it is not idle yet.
+        assert!(stacks.idle_wait(start + TRIM_INTERVAL).is_some());
+        assert!(
+            resident_pages(floor, trimmed) >= 32,
+            "a core that took a stack this interval trimmed"
+        );
+        assert_eq!(
+            stacks.idle_wait(start + 2 * TRIM_INTERVAL),
+            None,
+            "a trimmed pool still bounds the wait"
+        );
+        if cfg!(any(target_os = "linux", windows)) {
+            let left = resident_pages(floor, trimmed);
+            assert!(
+                left <= 2,
+                "the idle trim left {left} of {touched} pages resident"
+            );
+        }
+
+        let again = stacks.take(Role::Program).expect("a test stack");
+        assert_eq!(again.base().get(), base, "a trimmed stack is still pooled");
     }
 
     /// Where a local of the function `on_spare_stack` runs lives.

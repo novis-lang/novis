@@ -285,6 +285,10 @@ windows-sys = { version = "0.61", features = [
     # the record types the event viewer will render, so a source registered without them shows an
     # administrator nothing. `crates/nvs-cli/src/service.rs` is the one caller.
     "Win32_System_EventLog",
+    # `VirtualQuery` and `DiscardVirtualMemory`: an idle core gives the pages of its pooled task
+    # stacks back (`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`), and these find the
+    # committed part of a stack and discard it. `crates/nvs-host/src/stack.rs` is the one caller.
+    "Win32_System_Memory",
 ] }
 
 # --- TLS over the parking stream (`rule:core-api/tier-roster`'s "TLS via `rustls`") ---
