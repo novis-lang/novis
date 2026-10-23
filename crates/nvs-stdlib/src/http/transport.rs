@@ -2996,6 +2996,12 @@ pub(crate) mod tests {
     use std::sync::{Arc, Mutex, PoisonError, mpsc};
     use std::time::{Duration, Instant};
 
+    /// How long [`origin_raw`] waits for the requests it was told to expect,
+    /// and how long one of its connections waits for the next request. Miri
+    /// runs a case many times slower, so under Miri both are longer.
+    const ORIGIN_WAIT: Duration = Duration::from_secs(if cfg!(miri) { 240 } else { 20 });
+    const ORIGIN_READ_WAIT: Duration = Duration::from_secs(if cfg!(miri) { 60 } else { 5 });
+
     /// What an origin thread reports once it has served every reply it was
     /// given: the requests in arrival order, and how many connections carried
     /// them.
@@ -3041,7 +3047,7 @@ pub(crate) mod tests {
         let served = std::thread::spawn(move || {
             // A case that never sends what it said it would ends here rather
             // than holding the run: the assertion it fails is its own.
-            let ends = Instant::now() + Duration::from_secs(20);
+            let ends = Instant::now() + ORIGIN_WAIT;
             while asked_so_far(&state) < replies.len() && Instant::now() < ends {
                 let Ok((stream, _)) = listener.accept() else {
                     std::thread::sleep(Duration::from_millis(1));
@@ -3081,7 +3087,7 @@ pub(crate) mod tests {
             .set_nonblocking(false)
             .expect("a connection that waits for its request");
         stream
-            .set_read_timeout(Some(Duration::from_secs(5)))
+            .set_read_timeout(Some(ORIGIN_READ_WAIT))
             .expect("a bound on this origin's own wait");
         loop {
             let mut request = [0_u8; 4096];

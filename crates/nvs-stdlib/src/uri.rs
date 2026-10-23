@@ -3765,7 +3765,7 @@ mod tests {
         // Deep enough that a list of the name's steps, 24 bytes each, would
         // itself cross the limit.
         let (depth, limit) = if cfg!(miri) {
-            (20_000, 1 << 18)
+            (4_000, 1 << 15)
         } else {
             (400_000, 4 << 20)
         };

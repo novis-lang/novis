@@ -7044,6 +7044,10 @@ mod tests {
     /// `contentType` replace those defaults. A file that exists outside the
     /// grant is refused by `fs.read` before it is looked at.
     // covers: Core\Http\Part::file
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn part_file_holds_the_path_and_no_octets_and_asks_the_grant_first() {
         let dir = nvs_repo::scratch("http-part-file");
@@ -7135,6 +7139,10 @@ mod tests {
     /// when the part is built and may not read when the form is framed, so the
     /// error being the name's rather than `fs.read`'s shows that no file was
     /// opened first.
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn a_multipart_form_checks_every_name_before_it_opens_a_file() {
         let dir = nvs_repo::scratch("http-multipart-order");

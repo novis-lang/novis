@@ -782,6 +782,10 @@ mod tests {
     /// `delete` removes the file, and deleting it a second time throws: a key
     /// that names nothing is reported rather than passed over.
     // covers: Core\Storage::delete
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn delete_removes_the_object_and_a_second_delete_throws() {
         let (root, mut ctx) = disk("delete");
@@ -811,6 +815,10 @@ mod tests {
     /// a regular file named by a key, filters by `prefix`, and throws for a
     /// prefix no key can start with.
     // covers: Core\Storage::list
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn list_gives_sorted_keys_of_regular_files_and_filters_by_prefix() {
         let (root, mut ctx) = disk("list");
