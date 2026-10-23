@@ -1,6 +1,6 @@
 {
   "name": "nvs",
-  "displayName": "Novis — The Web-Native Programming Language",
+  "displayName": "Novis-Lang",
   "description": "Novis language support: syntax, diagnostics, completion and navigation for .nvs files.",
   "version": "0.0.1",
   "publisher": "novis-lang",
