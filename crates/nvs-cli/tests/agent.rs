@@ -1004,7 +1004,10 @@ fn a_form_no_heading_names_is_found_by_the_code_its_section_writes() {
 
     let (card, _, ok) = agent(&["show", symbol_of(section)]);
     assert!(ok, "the section's symbol resolves");
-    assert!(card.contains("`??=`"), "the section writes the form: {card}");
+    assert!(
+        card.contains("`??=`"),
+        "the section writes the form: {card}"
+    );
 }
 
 /// The lines one section of the agents chapter shows as lines the binary
