@@ -1061,6 +1061,10 @@ pub struct Database {
     /// `Core\Db`'s — it carries the span `rule:observability/trace-events-carry-a-kind`'s `query` event carries, which is what `rule:observability/a-slow-query-is-logged-past-a-threshold` means
     /// by *the same facts*.
     pub slow_query: Option<Setting>,
+    /// How a SQLite file this block opens for writing keeps its journal: `"wal"`, the default, or
+    /// `"delete"`. `nvs_config::db::JournalMode` reads it and [`mod@crate::db`] refuses any other
+    /// value at boot. A server driver refuses the key, as it refuses `path`.
+    pub journal_mode: Option<String>,
     /// The zone this database's zone-less `DATETIME`/`TIMESTAMP` columns are written in
     /// (`rule:core-classes/db-column-types`), defaulting to UTC.
     ///

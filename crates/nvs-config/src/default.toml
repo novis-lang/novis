@@ -686,6 +686,10 @@
 # and never a zone name, because it is sent to the server as a numeric offset and a named zone needs
 # server-side tables that usually are not populated.
 #time_zone = "+00:00"                 # default
+# SQLite only. `"wal"` lets readers run while one connection writes. It adds a `-wal` and a `-shm`
+# file beside the database and does not work on a network drive. `"delete"` leaves the file's
+# journal as it is. A file opened in WAL stays in WAL.
+#journal_mode = "wal"                 # default
 # `false` turns pooling off for this block alone; a table of bounds is the other shape, below.
 #pool = false                         # default: on
 

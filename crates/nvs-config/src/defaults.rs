@@ -210,6 +210,9 @@ pub const DB_POOL_ACQUIRE: Duration = Duration::from_secs(5);
 pub const DB_STATEMENT_CACHE: usize = 16;
 /// `[db.<name>] time_zone`.
 pub const DB_TIME_ZONE: &str = "+00:00";
+/// `[db.<name>] journal_mode`. **What it spends:** a `-wal` and a `-shm` file beside each SQLite
+/// database a program writes, and the file's journal mode for good.
+pub const DB_JOURNAL_MODE: &str = "wal";
 /// `[ldap.<name>] tls`.
 pub const LDAP_TLS: &str = "required";
 /// `[ldap.<name>] timeout`.
@@ -544,6 +547,7 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("db.pool.acquire", Scope::Unaddressed, Value::Time(DB_POOL_ACQUIRE)),
     row!("db.<name>.statement_cache", Scope::Named, Value::Count(DB_STATEMENT_CACHE as u64)),
     row!("db.<name>.time_zone", Scope::Named, Value::Text(DB_TIME_ZONE)),
+    row!("db.<name>.journal_mode", Scope::Named, Value::Text(DB_JOURNAL_MODE)),
     row!("db.<name>.pool.max", Scope::Named, Value::Count(DB_POOL_MAX as u64)),
     row!("db.<name>.pool.idle", Scope::Named, Value::Count(DB_POOL_IDLE as u64)),
     row!("db.<name>.pool.lifetime", Scope::Named, Value::Time(DB_POOL_LIFETIME)),
