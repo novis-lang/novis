@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-cli/src/main.rs",
-  "title": "`nvs check <directory>` fails with `could not read` and does not check the directory as one program.",
-  "text": "`nvs check` opens its path as one file, so a directory gives `error: could not read <dir>:` followed by the operating system's own error text, in the system's language. `nvs test <directory>` already reads a directory as one program (`rule:testing/a-directory-of-programs-is-one-test-program`, `Program::Directory` at `crates/nvs-cli/src/main.rs:2585`). It closes when `nvs check <directory>` checks the program `nvs test` runs for that directory, with a test over a directory whose files have one error between them.",
-  "goal": "cli-housekeeping"
-}

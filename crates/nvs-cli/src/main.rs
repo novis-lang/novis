@@ -1073,8 +1073,15 @@ fn front_end_in(
     // Read after the entry file and before anything is parsed: a missing program
     // is still "could not read", and a broken `nvs.toml` is the configuration
     // error rather than the first thing the parser noticed.
+    // An entry that loaded but is not on disk is a directory's program
+    // ([`Program::entry`]), and its tree folds for that directory, as
+    // [`Program::configured`] folds it for `nvs test`.
+    let configured = match path.parent() {
+        Some(dir) if !path.exists() => dir,
+        _ => path,
+    };
     let (grants, extensions) = match config {
-        Some(config) => config::grants(config, path, init)?,
+        Some(config) => config::grants(config, configured, init)?,
         None => (None, extensions),
     };
     let extensions = extensions::with_built_in(extensions);
@@ -1271,6 +1278,12 @@ fn names_an_undeclared_type(diagnostic: &nvs_diagnostics::Diagnostic) -> bool {
 /// writes each pass's safe edits ([`check::safe_edits`]) until a pass has none
 /// or [`FIX_PASSES`] have run, says how many it made, and then checks the
 /// program once more the ordinary way, so what it prints is what is left.
+///
+/// A directory is checked as the one program `nvs test` runs for it
+/// ([`Program::Directory`], `rule:testing/a-directory-of-programs-is-one-test-program`):
+/// an entry that exists only in memory requires every `.nvs` file under it
+/// that no other one requires, so the two commands agree on what the
+/// directory is. `--autoload-map` renders its paths from the directory.
 fn run_check(
     config: &[std::path::PathBuf],
     path: &std::path::Path,
@@ -1278,17 +1291,50 @@ fn run_check(
     init: config::Init,
 ) -> ExitCode {
     let survey = survey_root(config);
+    let directory = if path.is_dir() {
+        match Program::named_by(path) {
+            Ok(Some(Program::Directory { dir, files })) => Some(Program::entry(&dir, &files)),
+            Ok(_) => {
+                eprintln!("error: {}: this directory has no `.nvs` file", path.display());
+                return ExitCode::FAILURE;
+            }
+            Err(message) => {
+                eprintln!("error: {message}");
+                return ExitCode::FAILURE;
+            }
+        }
+    } else {
+        None
+    };
+    let front = |sink: Sink| match &directory {
+        Some((entry, text)) => {
+            let mut map = SourceMap::new();
+            map.overlay(entry, text);
+            front_end_in(
+                map,
+                entry,
+                Some(config),
+                Vec::new(),
+                flags.strict_docs,
+                sink,
+                init,
+                None,
+                Some(&survey),
+            )
+        }
+        None => front_end_granted(
+            path,
+            Some(config),
+            flags.strict_docs,
+            sink,
+            init,
+            Some(&survey),
+        ),
+    };
     if flags.fix {
         let (mut made, mut files) = (0, std::collections::BTreeSet::new());
         for _ in 0..FIX_PASSES {
-            let _ = front_end_granted(
-                path,
-                Some(config),
-                flags.strict_docs,
-                Sink::Fix,
-                init,
-                Some(&survey),
-            );
+            let _ = front(Sink::Fix);
             let mut wrote = 0;
             for file in check::take().edits {
                 match check::apply(&file) {
@@ -1320,20 +1366,14 @@ fn run_check(
         list_todos: flags.todos,
         read_todos: flags.deny.contains(&check::Deny::Todo),
     };
-    match front_end_granted(
-        path,
-        Some(config),
-        flags.strict_docs,
-        sink,
-        init,
-        Some(&survey),
-    ) {
+    match front(sink) {
         Ok(checked) => {
             if flags.count {
                 eprintln!("{}", checked.count_line(None));
             }
             if flags.autoload_map {
                 let base = match path.parent() {
+                    _ if directory.is_some() => path,
                     Some(dir) if !dir.as_os_str().is_empty() => dir,
                     _ => std::path::Path::new("."),
                 };
@@ -2843,20 +2883,29 @@ impl Program {
         match self {
             Self::File(path) => front_end_extended(path, extensions),
             Self::Directory { dir, files } => {
-                // A name no file under the directory carries, so the overlay
-                // never stands in front of a real file's bytes.
-                let mut name = String::from("#tests.nvs");
-                while files
-                    .iter()
-                    .any(|file| file.file_name().is_some_and(|f| f == name.as_str()))
-                {
-                    name.insert(0, '#');
-                }
-                let entry = dir.join(name);
-                let roots = unrequired(&entry, dir, files);
-                front_end_synthesized(&entry, &directory_entry(dir, &roots), extensions)
+                let (entry, text) = Self::entry(dir, files);
+                front_end_synthesized(&entry, &text, extensions)
             }
         }
+    }
+
+    /// The entry a directory of programs runs from: where it would sit, and
+    /// its text, one `require` per file of `files` that no other one requires.
+    /// It never exists on disk, and `nvs test` and `nvs check` both read it.
+    fn entry(dir: &std::path::Path, files: &[PathBuf]) -> (PathBuf, String) {
+        // A name no file under the directory carries, so the overlay never
+        // stands in front of a real file's bytes.
+        let mut name = String::from("#tests.nvs");
+        while files
+            .iter()
+            .any(|file| file.file_name().is_some_and(|f| f == name.as_str()))
+        {
+            name.insert(0, '#');
+        }
+        let entry = dir.join(name);
+        let roots = unrequired(&entry, dir, files);
+        let text = directory_entry(dir, &roots);
+        (entry, text)
     }
 }
 

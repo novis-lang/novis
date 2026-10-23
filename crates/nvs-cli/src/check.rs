@@ -58,8 +58,10 @@ use crate::config;
 /// found.
 #[derive(clap::Args)]
 pub(crate) struct Args {
-    /// The file to check.
-    file: PathBuf,
+    /// The file or directory to check.
+    ///
+    /// A directory is checked as one program, the program `nvs test` runs for it.
+    path: PathBuf,
     /// Print the diagnostics as the frozen JSON document rather than
     /// rendering them for a terminal.
     // Refused beside `--autoload-map` rather than one of them winning:
@@ -106,7 +108,7 @@ impl Args {
     pub(crate) fn run(self, config: &[PathBuf], init: config::Init) -> ExitCode {
         crate::run_check(
             config,
-            &self.file,
+            &self.path,
             &crate::CheckFlags {
                 json: self.json,
                 autoload_map: self.autoload_map,
