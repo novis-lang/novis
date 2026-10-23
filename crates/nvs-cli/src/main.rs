@@ -70,6 +70,9 @@
 //!   `rule:packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`'s two commands over the
 //!   artifact cache a run reads: § 6's eviction walk without its roll, and every entry removed;
 //!   see [`cache_cmd`].
+//! * `nvs update-check` — `rule:tooling/update-check-states-the-whole-picture`: the telemetry
+//!   switch, this version and the latest release GitHub lists, one line per step or `--json`,
+//!   exit `0` always; see [`update_check`], and [`endpoints`] for the URLs it reads.
 //! * `nvs serve [<file>]` — one worker per core, every socket `[server] listen`
 //!   names, every request running the entry file as its own isolate; see
 //!   [`serve`].
@@ -147,6 +150,7 @@ mod coverage;
 )]
 mod dispatch;
 mod doc;
+mod endpoints;
 mod events;
 mod ext;
 mod extensions;
@@ -172,6 +176,7 @@ mod stubs;
 #[cfg(test)]
 mod testing;
 mod tmp;
+mod update_check;
 mod wall;
 mod worker;
 
@@ -228,6 +233,9 @@ Environment:
   NOVIS_CHECK_TYPES    Test each value a program reads against its declared type, and stop with
                        an error at the first value that does not match. A value like that is a
                        bug in Novis. Reads and writes no compiled artifact.
+  NVS_UPDATE_URL       The address `nvs update-check` reads the latest release from. The default
+                       is the GitHub Releases API of the Novis repository.
+  NVS_TELEMETRY_URL    The address telemetry is uploaded to. If it is not set, nothing is uploaded.
   NVS_FOOTPRINT_LOG    Append each `Core` class looked up, file read, directory listed and path
                        tested to this file, one line each. Used to record what a test run needs.";
 
@@ -398,6 +406,7 @@ enum Command {
     Schema(schema::Args),
     Tmp(tmp::Args),
     Cache(cache_cmd::Args),
+    UpdateCheck(update_check::Args),
     Service(service::Args),
     /// Another name for `nvs service install`.
     // The syntax `mysqld --install` and `httpd -k install` made familiar.
@@ -594,6 +603,7 @@ fn main() -> ExitCode {
         Command::Schema(args) => args.run(&cli.config),
         Command::Tmp(args) => args.run(&cli.config),
         Command::Cache(args) => args.run(&cli.config),
+        Command::UpdateCheck(args) => args.run(),
         Command::InstallService(args) => args.run(&cli.config),
         Command::Service(args) => args.run(&cli.config),
         Command::Fmt(args) => args.run(),

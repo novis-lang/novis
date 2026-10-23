@@ -3900,6 +3900,117 @@ fn exchanged(
     ))
 }
 
+/// A response the `nvs` tool's own request came back with: the status and the body.
+#[derive(Debug)]
+pub struct ToolReply {
+    /// The status line's code.
+    pub status: i64,
+    /// The body, with its transfer and content codings undone.
+    pub body: Vec<u8>,
+}
+
+/// The most a [`tool_get`] reply may decode to. A release document is a few KiB.
+const TOOL_CEILING: u64 = 1 << 20;
+
+/// One `GET` the `nvs` tool sends for itself, such as `nvs update-check`'s read of the latest
+/// release, over the transport a `Core\Http\Client` call takes, so there is one TLS stack.
+///
+/// No program and no `Ctx` is involved: the URL is the tool's own, so no `[capabilities]` grant
+/// is asked, the system resolver finds the host, and `within` bounds the whole call. TLS is
+/// verified strictly against the compiled-in anchors, up to three redirects are followed, a hop
+/// into plaintext is refused, the request is sent once and no connection is kept. A refusal
+/// names `member`. Memory: the reply, at most [`TOOL_CEILING`] decoded, released on return.
+///
+/// # Errors
+///
+/// The text of what failed: a URL that names no host, a host that resolves to nothing, and every
+/// transport failure.
+pub fn tool_get(
+    member: &str,
+    url: &str,
+    headers: Vec<(String, String)>,
+    within: Duration,
+) -> Result<ToolReply, String> {
+    let resolve = |url: &str| -> Result<Vec<IpAddr>, Fault> {
+        use std::net::ToSocketAddrs as _;
+        let reference = UriRef::parse(url)
+            .map_err(|_| Fault::thrown(format!("{member}: `{url}` is not a URL")))?;
+        let tls = reference
+            .scheme()
+            .is_some_and(|scheme| scheme.as_str().eq_ignore_ascii_case("https"));
+        let authority = reference
+            .authority()
+            .ok_or_else(|| Fault::thrown(format!("{member}: `{url}` names no host")))?;
+        let port = authority
+            .port_to_u16()
+            .ok()
+            .flatten()
+            .unwrap_or(if tls { 443 } else { 80 });
+        let host = Authority::host(&authority)
+            .trim_start_matches('[')
+            .trim_end_matches(']');
+        let mut addresses: Vec<IpAddr> = (host, port)
+            .to_socket_addrs()
+            .map_err(|error| {
+                Fault::thrown(format!("{member}: `{host}` does not resolve: {error}"))
+            })?
+            .map(|address| address.ip())
+            .collect();
+        addresses.dedup();
+        addresses.truncate(8);
+        if addresses.is_empty() {
+            return Err(Fault::thrown(format!("{member}: `{host}` has no address")));
+        }
+        Ok(addresses)
+    };
+    let said = |fault: Fault| match fault {
+        Fault::Thrown(_, message) => message.into_owned(),
+        other => format!("{other:?}"),
+    };
+    let call = transport::Call {
+        member,
+        verb: "GET",
+        url: url.to_owned(),
+        addresses: resolve(url).map_err(said)?,
+        deadline: Instant::now() + within,
+        connect_timeout: within,
+        idle: within,
+        max_duration: within,
+        headers,
+        redirects: 3,
+        attempts: 1,
+        backoff: Duration::ZERO,
+        idempotency_key: None,
+        body: None,
+        pool: pool::Caps {
+            idle: 0,
+            timeout: Duration::ZERO,
+        },
+        compress: crate::compress::Bound {
+            bytes: TOOL_CEILING,
+            ratio: 100,
+        },
+        identity: None,
+        policy: CallPolicy::default(),
+        traceparent: None,
+        span: std::cell::RefCell::new(span::HttpSpan::opened("GET", Duration::ZERO)),
+        proxy: None,
+    };
+    let reply = transport::send(&call, &mut |hop, downgrade| {
+        if downgrade {
+            return Err(Fault::thrown(format!(
+                "{member}: the redirect to `{hop}` leaves HTTPS"
+            )));
+        }
+        resolve(hop)
+    })
+    .map_err(said)?;
+    Ok(ToolReply {
+        status: reply.status,
+        body: reply.body,
+    })
+}
+
 /// A response an extension's outbound request came back with, whole.
 #[derive(Debug)]
 pub struct ExtensionReply {
