@@ -89,10 +89,11 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
             .map(|method| (method, true))
             .chain(class.instance.iter().map(|method| (method, false)))
         {
-            methods.insert(
-                method.name.to_owned(),
-                method_sig(method, is_static, interner),
-            );
+            let mut sig = method_sig(method, is_static, interner);
+            if decodes_a_document(class.name, method.name) {
+                sig.contagious_return = Some(sig.return_ty);
+            }
+            methods.insert(method.name.to_owned(), sig);
         }
         // A `Core` class is constructible only where
         // `nvs_stdlib::registry::CONSTRUCTORS` says so, and that roster's row
@@ -264,6 +265,21 @@ fn build_importable() -> Vec<&'static str> {
     );
     names.extend(crate::derive::ATTRIBUTES);
     names
+}
+
+/// Whether `owner::method` builds its written class out of a document it is
+/// handed, such as `Core\Json::decodeAs<T>`'s `$json`.
+///
+/// Such a member's contagious parameter admits a `tainted` argument, and the
+/// class it builds is what the call answers
+/// (`MethodSig::contagious_return`). The class carries the mark through its
+/// fields: `crate::expr::quals::converts_outside_text` makes a tainted argument
+/// outside text, so the decode site asks every text field to be `tainted`. A
+/// row and a test double read no document, so neither is one.
+fn decodes_a_document(owner: &str, method: &str) -> bool {
+    nvs_stdlib::registry::takes_written_class(owner, method)
+        && !crate::derive::hydrates_a_row(owner)
+        && !crate::derive::stands_in_for_a_class(owner)
 }
 
 /// One registry row as the checker's own signature.
