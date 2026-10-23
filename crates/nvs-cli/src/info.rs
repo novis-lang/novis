@@ -82,10 +82,10 @@ fn report(licenses: bool) -> String {
     let mut out = String::new();
     let (components, texts) = sections();
 
-    heading(&mut out, &format!("Novis {}", env!("CARGO_PKG_VERSION")));
+    heading(&mut out, &format!("Novis {}", env!("NVS_VERSION")));
 
     out.push_str("\nBuild\n");
-    row(&mut out, "version", env!("CARGO_PKG_VERSION"));
+    row(&mut out, "version", env!("NVS_VERSION"));
     row(&mut out, "commit", env!("NVS_COMMIT"));
     row(&mut out, "commit date", env!("NVS_COMMIT_DATE"));
     row(&mut out, "profile", env!("NVS_PROFILE"));
