@@ -55,9 +55,9 @@ checks:
     run: [cargo, run, -q, --bin, nvs, --, update-check, --help]
   - id: telemetry-help
     stage: 3
-    name: nvs telemetry has its five verbs
+    name: nvs telemetry has its six verbs
     run: [cargo, run, -q, --bin, nvs, --, telemetry, --help]
-    stdout_contains: ["on", "off", status, reset, show]
+    stdout_contains: ["on", "off", status, reset, show, upload]
   - id: owners-closes
     stage: 5
     name: no gap record or designed rule names this goal
@@ -240,15 +240,17 @@ every invocation increments one counter from the compiled-in command table.
 **Does:** the previous finished week's counters go out once, carried by a short-lived command, in
 at most three seconds.
 
-- [ ] The rule states the carrier allow-list as § *Standing decisions* settles it (`rule:tooling/a-serving-process-never-uploads`). `docs/rules/tooling/a-serving-process-never-uploads.md:1`, `crates/nvs-cli/src/main.rs:373`
-- [ ] The weekly gate, the randomised point in the window, and `nvs telemetry upload`. `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] `nvs update-check` carries an upload when telemetry is on, over one connection when both are on. `crates/nvs-cli/src/update_check.rs:1`
-- [ ] A three-second budget, one honest line on failure, and the command's own exit status untouched (`rule:tooling/a-failed-upload-never-fails-the-command`). `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] The answer decides the week's report: `204` records the upload, `429` and `5xx` keep it, `400`, `413` and `415` drop it, each with its line (`rule:tooling/a-failed-upload-never-fails-the-command`). `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] Tests against a local listener: one upload per finished week, none for an empty week, a dead listener inside the budget, and one case per status above. `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] A test that the bytes `nvs telemetry show` prints equal what the listener receives, and the **Not on disk.** lines of the three telemetry rules and the update-check rule removed (`rule:tooling/telemetry-show-prints-the-payload`). `crates/nvs-cli/src/telemetry.rs:247`, `docs/rules/tooling/telemetry-show-prints-the-payload.md:1`
-- [ ] The `nvs serve` test § *Standing decisions* names: zero connections under load, `invocation.serve` counted. `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] Both rules `shipped`. `data/rules/tooling/a-serving-process-never-uploads.json:3`, `data/rules/tooling/a-failed-upload-never-fails-the-command.json:3`
+- [x] The rule states the carrier allow-list as § *Standing decisions* settles it (`rule:tooling/a-serving-process-never-uploads`). `docs/rules/tooling/a-serving-process-never-uploads.md:1`, `crates/nvs-cli/src/main.rs:373`
+- [x] The weekly gate, the randomised point in the window, and `nvs telemetry upload`. `crates/nvs-cli/src/telemetry.rs:1`
+- [x] `nvs update-check` carries an upload when telemetry is on, over one connection when both are on. `crates/nvs-cli/src/update_check.rs:1`
+- [x] A three-second budget, one honest line on failure, and the command's own exit status untouched (`rule:tooling/a-failed-upload-never-fails-the-command`). `crates/nvs-cli/src/telemetry.rs:1`
+- [x] The answer decides the week's report: `204` records the upload, `429` and `5xx` keep it, `400`, `413` and `415` drop it, each with its line (`rule:tooling/a-failed-upload-never-fails-the-command`). `crates/nvs-cli/src/telemetry.rs:1`
+- [x] Tests against a local listener: one upload per finished week, none for an empty week, a dead listener inside the budget, and one case per status above. `crates/nvs-cli/src/telemetry.rs:1`
+- [x] A test that the bytes `nvs telemetry show` prints equal what the listener receives, and the **Not on disk.** lines of the three telemetry rules and the update-check rule removed (`rule:tooling/telemetry-show-prints-the-payload`). `crates/nvs-cli/src/telemetry.rs:247`, `docs/rules/tooling/telemetry-show-prints-the-payload.md:1`
+- [x] The `nvs serve` test § *Standing decisions* names: zero connections under load, `invocation.serve` counted. `crates/nvs-cli/src/telemetry.rs:1`
+- [x] Both rules `shipped`. `data/rules/tooling/a-serving-process-never-uploads.json:3`, `data/rules/tooling/a-failed-upload-never-fails-the-command.json:3`
+- [ ] `tools:cli/nvs-telemetry` owes no proof: `about.md`, an example, an attack and a test case, as `bun nv proofs --id 'tools:cli/nvs-telemetry'` lists. `docs/reference/tools/10-cli.md:548`, `docs/examples/tools/cli/nvs-info/about.md:1`
+- [ ] `tools:cli/nvs-update-check` owes no proof, the same way, and `bun nv proofs --gate` is green. `docs/reference/tools/10-cli.md:646`
 
 ### 5. the project walk skips what `.gitignore` ignores, `nvs check` reads a directory, and a `require` that cannot be followed is an error
 
@@ -302,32 +304,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. `nvs telemetry on|off|status|reset|show` is
-`crates/nvs-cli/src/telemetry.rs`. Its files are `<data folder>/telemetry/consent` (`on` or `off`)
-and `telemetry/counters`. The counter file has `uploads`, `bytes`, the current `week` with `days`
-(seven digits, Monday first) and its counters, and `pending`, the last finished week not sent yet.
-`Counters::roll` moves a finished week to `pending`. The counter file's layout is stated in
-`rule:tooling/telemetry-counters-are-a-closed-set`. Choices this stage made, each written into its
-rule:
+Stages 1, 2 and 3 are done, and stage 4's upload is built. Its two proof items are open. The upload:
 
-- the command table is `COMMAND_NAMES` in `main.rs`, and a test holds it equal to clap's list
-- `main` parses through `Cli::command().try_get_matches()`, and a failed parse (`--help` and
-  `--version` included) counts `invocation.unknown` in the folder `--data` names, read from argv by
-  `data_flag`
-- `run_hosted` counts a stored service line, because only it names that line's data folder
-- the telemetry panic hook is installed before the floor's, so a panic under a served request never
-  reaches it
-- a count is a read and a rewrite through a rename, not an append. Two invocations at the same
-  moment may lose one count
-- `show` prints `pending`, or else the current week with a note on stderr
+- `nvs_stdlib::tool_post` (`crates/nvs-stdlib/src/http.rs`) is `tool_get`'s `POST` through one
+  private `tool_send`, and it follows no redirect
+- `carries_upload` in `main.rs` is the exhaustive allow-list. `telemetry::start(command, carrier)`
+  stores the answer in `CARRIER`, and `carry_from` sends nothing in a process it said no for. A
+  service's stored line passes `false`
+- the counter file gains `last` (seconds of the last accepted upload) and `due` (the pending week's
+  point: the Monday that ends it plus a random offset under 24 hours, drawn by the first carrier
+  that sees the week). The point is never inside the week of `last`
+- `Counters::send` is one `POST` under `BUDGET` (3s). `204` records, `400`, `413` and `415` drop,
+  everything else keeps. A `400`'s field is the reply's first line, printable ASCII, at most 64
+  characters
+- `status` and `update-check` print `last upload:`, `next upload: from` and the totals.
+  `update-check --json` adds `upload`, `last_upload`, `next_upload`, `uploads` and `bytes_sent`
+- "one connection when both are on" is read as `rule:tooling/telemetry-is-two-opt-ins`'s sentence:
+  the two requests go to different hosts, so no connection carries both. The rule now says so
 
-`nvs update-check` prints the real switch through `telemetry::is_on`. Upload history is still not
-printed, because nothing uploads yet. The three telemetry rules are shipped, each keeping a **Not on
-disk.** line that says nothing uploads yet. `website/public/llms-full.txt` is rendered again.
+Every rule is written to match. Both upload rules are shipped, and every **Not on disk.** line about
+uploads is gone, including the stale one in `telemetry-counters-are-a-closed-set`. The reference
+chapter documents the upload and has a new `# nvs update-check` page. Both CLI pages have their
+search questions, stamped, and `bun nv site --check questions` passes.
 
-The tests written this session ran once and pass: `telemetry::tests` (9) and `update_check::tests`
-(4). A run through the binary with `--data` counted `invocation.info`, `invocation.telemetry` and
-`invocation.unknown`, and skipped the count under `DO_NOT_TRACK=1`. No test is expected to go red.
+The tests written this session ran once and pass: `telemetry::tests` and `update_check::tests` (20
+together), and `crates/nvs-cli/tests/telemetry.rs` (3). The latter runs `nvs serve` under 50
+requests with zero collector connections, and `nvs telemetry upload` and `nvs update-check` through
+the binary. No test is expected to go red. `bun nv proofs --gate` is red for the two CLI pages, and
+stage 4's open items fix that.
 
 The acceptance sweep's items are the ones the last session traced. `env-secret-proofs` exits 0 at
 HEAD, and the nightly is still the `7b6ef53ee` run. Of its reds, these are fixed by later commits:
@@ -345,20 +349,22 @@ Two memory-growth checks were not chased: `serve.rs`'s live-bytes guard on macOS
 nightly says whether either holds.
 
 `crates/nvs-runtime/src/capability.rs` still has the uncommitted rustfmt join at line 2259. The guard
-still refuses to stage it while interactive session 6884de4b claims the file.
+refused to stage it again this session, because interactive session 6884de4b (`formatter-complete`)
+still claims the file. It has to be committed before the next goal end's push.
 
 ### Next
 
-**Stage 4: the upload**, one file set: `crates/nvs-cli/src/telemetry.rs`,
-`crates/nvs-cli/src/update_check.rs`, a `POST` beside `nvs_stdlib::tool_get`
-(`crates/nvs-stdlib/src/http.rs`), and `nvs telemetry upload` in the verb table. No gate.
+**Stage 4's proofs**, one batch of files under `docs/examples/tools/cli/` and `tests/hostile/tools/cli/`.
+Read how `tools:cli/nvs-info` pays its proofs first, because it has no `tests/hostile/` folder and the
+gate still passes it. Every `.nvs`, `.cmd` comment and `about.md` follows AGENTS.md § *Text an end user
+reads*.
 
-- [ ] The carrier allow-list: one exhaustive `match` over `Command`, where only `update-check` and `telemetry upload` say yes. `crates/nvs-cli/src/main.rs:398`, `docs/rules/tooling/a-serving-process-never-uploads.md:1`
-- [ ] A Ctx-free `POST` with a three-second bound, beside `tool_get`. `crates/nvs-stdlib/src/http.rs:1`
-- [ ] The upload sends `Counters::payload` of `pending`. The answer decides it: `204` adds to `uploads` and `bytes` and clears `pending`, `429` and `5xx` keep it, and `400`, `413` and `415` drop it. `crates/nvs-cli/src/telemetry.rs:579`, `crates/nvs-cli/src/telemetry.rs:550`
-- [ ] The weekly gate and the randomised point in the window. The upload history goes into `status` and `update-check`'s lines and JSON. `crates/nvs-cli/src/telemetry.rs:203`, `crates/nvs-cli/src/update_check.rs:68`, `crates/nvs-cli/src/update_check.rs:185`
-- [ ] Tests against a local listener as stage 4's items list, including `show`'s bytes against the received ones, and the `nvs serve` test. `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] Both rules shipped, and every **Not on disk.** line about uploads removed. `docs/rules/tooling/telemetry-show-prints-the-payload.md:1`, `docs/rules/tooling/update-check-states-the-whole-picture.md:1`
+- [ ] `tools:cli/nvs-telemetry`: `about.md`, the examples, the attack and the test case `bun nv proofs --id 'tools:cli/nvs-telemetry'` lists. An example runs with `--data` in a scratch folder and `DO_NOT_TRACK` unset. `docs/examples/tools/cli/nvs-info/about.md:1`, `crates/nvs-cli/tests/info.rs:1`
+- [ ] `tools:cli/nvs-update-check`: the same, with `NVS_UPDATE_URL` at a dead port, so no example reaches GitHub. `docs/reference/tools/10-cli.md:646`
+- [ ] `bun nv proofs --gate` is green, and stage 4 is set `done` in the front matter. `docs/goals/cli-housekeeping.md:30`
+
+**Then stage 5**, whose gate holds now that `formatter-complete` is gone. Follow its `**Split:**`
+line: two `Explore` subagents first, then the walk group. `crates/nvs-hir/src/lenders.rs:239`
 
 ### Backlog
 
