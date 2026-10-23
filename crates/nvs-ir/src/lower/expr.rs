@@ -669,8 +669,8 @@ impl<'a> Lowering<'a> {
             // returned — so the consumer owns it and `Self::aliasing_read`
             // answers `false` for this shape, as it does for a call.
             //
-            // A path with no recorded target is one no file was compiled for:
-            // the site throws (`Self::lower_unloaded_require`), and the tagged
+            // A path with no recorded target is a literal in a source with no
+            // folder, and no file was compiled for it: the site throws (`Self::lower_unloaded_require`), and the tagged
             // `1` after it sits on a block nothing reaches, as an
             // expression-position `throw`'s dead value does.
             ExprKind::Require { path } => {

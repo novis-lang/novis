@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-hir/src/requires.rs",
-  "title": "A `require` whose path is not statically known is not followed, and nothing says so.",
-  "text": "`require Core\\Path::thisDir() . '/autoload.nvs';` is the dynamic fallback (`crates/nvs-hir/src/requires.rs:8`): no file is loaded while compiling, the `require` reports nothing, and every `use` of a name that file declares is `E0306`. When the site is reached it throws, so it can never work. `rule:statements/require-is-the-only-inclusion-construct` does not say which paths are statically known; only the module doc does (`crates/nvs-hir/src/requires.rs:88`). It closes when such a `require` is a compile error of its own at the `require`, whose help names the literal form `require './autoload.nvs';`, which resolves from the file it is written in (`rule:programs/relative-paths-resolve-from-their-file`), and the rule lists the forms that are statically known.",
-  "goal": "cli-housekeeping"
-}

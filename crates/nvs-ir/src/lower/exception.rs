@@ -57,9 +57,10 @@ impl<'a> Lowering<'a> {
             },
         );
     }
-    /// A `require` whose path names no compiled file — a path computed at run
-    /// time, or a literal written in a source with no folder to resolve it
-    /// from (`nvs_hir::requires`' module doc lists both). The file graph closes
+    /// A `require` whose path names no compiled file: a literal written in a
+    /// source with no folder to resolve it from (`nvs_hir::requires`' module
+    /// doc). A path that is not statically known is a compile error and never
+    /// reaches lowering. The file graph closes
     /// while compiling (`rule:programs/no-runtime-autoload`), so no such path
     /// can load anything, and `rule:statements/require-is-the-only-inclusion-construct`
     /// says a `require` whose target is missing throws. The path is evaluated
