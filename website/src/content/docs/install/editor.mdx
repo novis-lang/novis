@@ -4,7 +4,8 @@ covers: []
 description: Install the Novis extension for VS Code, and the settings and commands it adds.
 ---
 
-import { Steps } from '@astrojs/starlight/components'
+import { Code, Steps } from '@astrojs/starlight/components'
+import { vsix } from '@data/release'
 import Replay from '@components/Replay.astro'
 import Snippet from '@components/Snippet.astro'
 
@@ -32,9 +33,25 @@ shows the error.
 
 ## Install the extension
 
-The extension is not in the VS Code Marketplace. You build it as a file, `nvs.vsix`, and install
-that file. You need [Node.js](https://nodejs.org/) and the Novis source code from
-[Install Novis](/install/).
+The extension is not in the VS Code Marketplace. Each release has it as a file, and you install that
+file.
+
+<Steps>
+
+1. Download <a href={vsix.url}><code>{vsix.file}</code></a> from the current release.
+
+2. Install it. In VS Code, open the command palette and run **Extensions: Install from VSIX...**.
+   Then choose the file. You can also install it from a terminal:
+
+   <Code lang="sh" code={`code --install-extension ${vsix.file}`} />
+
+3. Open a `.nvs` file. The status bar shows the version of `nvs` that the extension uses.
+
+</Steps>
+
+### Build the extension from source
+
+You need [Node.js](https://nodejs.org/) and the Novis source code from [Install Novis](/install/).
 
 <Steps>
 
@@ -54,9 +71,7 @@ that file. You need [Node.js](https://nodejs.org/) and the Novis source code fro
    code --install-extension nvs.vsix
    ```
 
-   You can also open the Extensions view, click **...** and choose **Install from VSIX...**.
-
-3. Open a `.nvs` file. The status bar shows the version of `nvs` that the extension uses.
+   You can also run **Extensions: Install from VSIX...** in VS Code.
 
 </Steps>
 

@@ -297,7 +297,7 @@
   },
   "/guides/production/docker/": {
     "feature": "guides/production/docker.mdx",
-    "hash": "86e29b107e7b0477",
+    "hash": "5ed94d0498eb274e",
     "questions": [
       "How do I run a Novis app in a Docker container?",
       "Which tag of the official Novis image should I deploy?",
@@ -743,7 +743,7 @@
   },
   "/in-depth/": {
     "feature": "in-depth/index.mdx",
-    "hash": "b4e678ad0cff9247",
+    "hash": "ae48ca2306616b3e",
     "questions": [
       "Why does Novis work the way it does?",
       "Where can I read about the design decisions behind Novis?",
@@ -796,7 +796,7 @@
   },
   "/in-depth/concepts/compiled/": {
     "feature": "in-depth/concepts/compiled.mdx",
-    "hash": "f8c809d64ae5f38f",
+    "hash": "108a577ae18f9780",
     "questions": [
       "Is Novis compiled or interpreted?",
       "Do I need a build step before I run a Novis file?",
@@ -929,23 +929,24 @@
   },
   "/in-depth/roadmap/": {
     "feature": "in-depth/roadmap.mdx",
-    "hash": "7ba344072f75cc78",
+    "hash": "61000179bd834b72",
     "questions": [
       "What features are planned for Novis?",
       "Will Novis get a package manager?",
-      "Is there a web framework for Novis?",
-      "Which databases does Novis support today?",
-      "What can Novis do today, and what comes next?"
+      "Will Novis get a debugger?",
+      "What is the Novis team working on now?",
+      "Is there a release date for the next feature?"
     ]
   },
   "/in-depth/what-changed/": {
     "feature": "in-depth/what-changed.mdx",
-    "hash": "18a8127b1b851eaf",
+    "hash": "c7a2ed5a4084d732",
     "questions": [
       "Release notes for each version of Novis",
       "Which changes in a new release can break my code?",
       "Changelog of the Novis language",
-      "What does the version number of Novis mean?"
+      "What does the version number of Novis mean?",
+      "Is Novis ready for production use?"
     ]
   },
   "/in-depth/what-for/": {
@@ -961,9 +962,10 @@
   },
   "/install/": {
     "feature": "install/index.mdx",
-    "hash": "a0954432867dfe13",
+    "hash": "fc2368d2313d2126",
     "questions": [
       "How do I install Novis?",
+      "Download nvs for Windows, Linux or macOS",
       "Build nvs from source on Windows, Linux or macOS",
       "Which Rust version and C compiler do I need to build Novis?",
       "How do I add nvs to my PATH?",
@@ -973,8 +975,9 @@
   },
   "/install/editor/": {
     "feature": "install/editor.mdx",
-    "hash": "67734218de07620b",
+    "hash": "f484286b5e48c1bf",
     "questions": [
+      "How do I install the VS Code extension from a .vsix file?",
       "How do I build the VS Code extension from source?",
       "Why does the extension not find my nvs program?",
       "Which extension version works with my nvs version?",

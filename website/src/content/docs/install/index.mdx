@@ -1,15 +1,72 @@
 ---
 title: Install Novis
 covers: []
-description: Build the nvs program from source on Windows, Linux or macOS, and put it on your PATH.
+description: Download the nvs program for Windows, Linux or macOS, or build it from source, and put it on your PATH.
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
+import { Code, Steps, Tabs, TabItem } from '@astrojs/starlight/components'
+import { version, status, releaseUrl, image, archives, archiveFor, sums } from '@data/release'
 
-Novis is one program, `nvs`. It checks, compiles, runs, tests and serves your code. You build it
-from source and put it on your `PATH`.
+Novis is one program, `nvs`. It checks, compiles, runs, tests and serves your code. You download
+`nvs` or build it from source. Then you put it on your `PATH`.
 
-## What you need
+The current release is <code>{version}</code>. Novis is {status}. Any release can change the
+language, and Novis is not ready for production use.
+
+## Download a release
+
+Each release has an archive of `nvs` for each platform:
+
+<ul>
+  {archives.map((a) => (
+    <li>
+      {a.label}: <a href={a.url}><code>{a.file}</code></a>
+    </li>
+  ))}
+</ul>
+
+The file <a href={sums.url}><code>{sums.file}</code></a> has the checksum of each archive.
+[Check a release archive](#check-a-release-archive) shows how to use it. The
+<a href={releaseUrl}>release page</a> lists every file of the release.
+
+<Steps>
+
+1. Download the archive for your platform, and unpack it. The archive has a folder with `nvs` in it.
+
+   <Tabs syncKey="os">
+   <TabItem label="Windows">
+   Right-click the `.zip` file and choose **Extract All**.
+   </TabItem>
+   <TabItem label="Linux">
+   <Code lang="sh" code={`tar -xzf ${archiveFor('linux-x86_64').file}`} />
+
+   On an ARM64 computer, use the file that ends in `linux-aarch64.tar.gz`.
+   </TabItem>
+   <TabItem label="macOS">
+   <Code lang="sh" code={`tar -xzf ${archiveFor('macos-aarch64').file}`} />
+   </TabItem>
+   </Tabs>
+
+2. Copy `nvs` to a folder that is on your `PATH`, as step 4 of
+   [Build from source](#build-from-source) shows.
+
+3. Check that it runs. The first line of the output is the version.
+
+   ```sh
+   nvs --help
+   ```
+
+</Steps>
+
+## Run Novis with Docker
+
+Each release also publishes an image with `nvs` in it:
+
+<Code lang="sh" code={`docker pull ${image}:${version}`} />
+
+[Docker](/guides/production/docker/) shows how to serve an application with it.
+
+## What you need to build from source
 
 You need Rust, which you install with [rustup](https://rustup.rs/). You do not need to choose a
 Rust version. The repository has a file, `rust-toolchain.toml`, that names the version. `rustup`
@@ -92,16 +149,15 @@ compiler.
 
 ## Check a release archive
 
-There is no release yet. Each release will have an archive of `nvs` for each platform, and a file
-`SHA256SUMS` with the checksum of each archive. Each archive also has a signed statement. It says
-that the release workflow of the Novis repository built the archive, and from which commit.
+Each release has the file `SHA256SUMS` with the checksum of each archive. Each archive also has a
+signed statement. It says that the release workflow of the Novis repository built the archive, and
+from which commit.
 
-These two commands check an archive. The first one needs the GitHub CLI, `gh`.
+These two commands check an archive. The first one needs the GitHub CLI, `gh`. Download
+`SHA256SUMS` into the folder of the archive first.
 
-```sh
-gh attestation verify nvs-0.1.0-linux-x86_64.tar.gz --repo novis-lang/novis
-sha256sum --check --ignore-missing SHA256SUMS
-```
+<Code lang="sh" code={`gh attestation verify ${archiveFor('linux-x86_64').file} --repo novis-lang/novis
+sha256sum --check --ignore-missing SHA256SUMS`} />
 
 The first command checks the signed statement. The second command checks the archive against its
 checksum in `SHA256SUMS`.

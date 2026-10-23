@@ -1,0 +1,45 @@
+---
+/**
+ * The roadmap page's list of planned work, one item per theme in
+ * src/data/roadmap.json, in the order of the goal chain. The first theme is
+ * the work in progress. `bun nv site --check roadmap` keeps the file in step
+ * with the chain, and `bun nv site --roadmap` copies the same list into the
+ * README. A theme's text may put code in backticks, and nothing else.
+ */
+import data from '@data/roadmap.json'
+
+interface Theme {
+  title: string
+  text: string
+  goals: string[]
+}
+
+const themes = data.themes as Theme[]
+
+const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const inline = (s: string) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>')
+---
+
+<ol class="roadmap">
+  {
+    themes.map((theme, i) => (
+      <li>
+        <strong>{theme.title}.</strong>
+        {i === 0 && <span class="roadmap-now">Working on it now</span>} <Fragment set:html={inline(theme.text)} />
+      </li>
+    ))
+  }
+</ol>
+
+<style>
+  .roadmap-now {
+    display: inline-block;
+    margin-inline: 0.25rem;
+    padding: 0 0.5rem;
+    border-radius: 999px;
+    background: var(--sl-color-accent-low);
+    color: var(--sl-color-accent-high);
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+  }
+</style>
