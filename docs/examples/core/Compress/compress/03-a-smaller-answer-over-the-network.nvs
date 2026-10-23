@@ -1,15 +1,29 @@
 <?nvs
-// Shows what a web program does before it sends a long answer: compress the
-// body once, then send the header that names the format it used.
+// Shows how a web page sends a compressed body only to a browser that can read it.
+use Core\Http\Method;
 
-string $body = Core\Str::repeat("<li>Order 1042 shipped to Berlin</li>\n", 80);
-bytes $frame = Core\Compress::compress($body, Core\Compress::Codec::Gzip);
+if (Core\Env::context() == Core\Env::Context::Request) {
+    string $body = Core\Str::repeat("<li>Order 1042 shipped to Berlin</li>\n", 80);
 
-uint $before = Core\Bytes::length($body as bytes);
-uint $after = Core\Bytes::length($frame);
+    // The answer depends on `Accept-Encoding`, so `Vary` tells caches to keep one copy per value.
+    Core\Response::setHeader("Vary", "Accept-Encoding");
 
-// A browser needs both of these lines to read the body you send.
-echo "Content-Encoding: gzip\n";
-echo 'Content-Length: ', $after, "\n";
+    // A browser lists the formats it can read in `Accept-Encoding`.
+    tainted string $accepted = Core\Request::header("Accept-Encoding") ?? "";
+    if (Core\Str::contains($accepted, "gzip")) {
+        // The browser needs `Content-Encoding` to read the compressed body.
+        Core\Response::setHeader("Content-Encoding", "gzip");
+        Core\Response::bytes(Core\Compress::compress($body, Core\Compress::Codec::Gzip), "text/html");
+    } else {
+        Core\Response::bytes($body as bytes, "text/html");
+    }
+} else {
+    // This browser can read gzip, so the body is compressed. This prints `gzip`.
+    var $gzip = Core\Test::request(Method::Get, '/orders', {headers: ['accept-encoding' => 'gzip, br']});
+    echo 'gzip offered: ', $gzip->header('Content-Encoding') ?? 'none', "\n";
 
-echo 'saved ', $before - $after, ' of ', $before, " bytes\n";
+    // This client sends no `Accept-Encoding`, so the body is plain text. This prints `none`.
+    var $plain = Core\Test::request(Method::Get, '/orders');
+    echo 'nothing offered: ', $plain->header('Content-Encoding') ?? 'none', "\n";
+    echo 'vary: ', $plain->header('Vary') ?? 'none', "\n";
+}
