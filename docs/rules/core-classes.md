@@ -1639,6 +1639,23 @@ would do, and it is recorded here rather than hidden. An empty set list is a no-
 `INSERT … ON DUPLICATE KEY UPDATE` reports `2` for a row it updated on MySQL and MariaDB; that is the
 server's number and it is not rewritten.
 
+**A SQLite statement with no `timeout` of its own waits for the write lock for as long as its
+request still has.** The request's remaining `wall_time` is its busy timeout, or five seconds for a
+run with no `wall_time`. A writer that meets another connection's lock waits on `nvs-host`'s blocking
+pool, never on a core, and fails as `Deadlock` when the wait ends with the lock still held. A
+statement's own `timeout` wins, and it also interrupts the statement once it runs, which the
+request's time does not. Answering `SQLITE_BUSY` at once failed every writer but one when two
+requests wrote together, and an unbounded wait is not allowed
+([`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect)).
+
+**A SQLite file a program may write opens in WAL**, so readers run beside the one writer. `[db.<name>]
+journal_mode = "delete"` leaves the file's journal as it is, and a read-only open and `:memory:`
+never change it. WAL is the session store's mode too, set by the same line.
+
+- **What the wait spends:** one blocking-pool thread per waiting statement, for at most the request's
+  remaining time. It is per request in flight and attributed to it.
+- **What WAL spends:** a `-wal` and a `-shm` file beside the database. The mode stays on the file once
+  set, and it does not work on a network drive, which is what `journal_mode` is for.
 - **Memory:** a buffered `query` holds its whole result for the rest of the request, counted against
   the request's memory cap. A program that does not reach for `stream` meets the cap, not a slow path.
 

@@ -285,11 +285,16 @@ impl<'a> PgTarget<'a> {
             None => return Err(BlockError::UnknownDriver { written }),
         }
 
-        if block.path.is_some() {
-            return Err(BlockError::Unusable {
-                field: "path",
-                expected: Driver::Postgres,
-            });
+        for (field, written) in [
+            ("path", block.path.is_some()),
+            ("journal_mode", block.journal_mode.is_some()),
+        ] {
+            if written {
+                return Err(BlockError::Unusable {
+                    field,
+                    expected: Driver::Postgres,
+                });
+            }
         }
 
         let password = match (block.password.as_deref(), block.password_file.is_some()) {

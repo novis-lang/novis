@@ -79,12 +79,19 @@ pub(super) fn bound_connection<'a>(
     named: &str,
     deadline: Option<std::time::Instant>,
 ) -> Result<&'a mut nvs_db::Connection, Fault> {
+    // A SQLite writer with no deadline of its own waits for another's lock as
+    // long as the request still has, and never past it.
+    let lock_wait = deadline.is_none().then(|| {
+        std::time::Instant::now() + ctx.wall_time_left().unwrap_or(nvs_db::sqlite::LOCK_WAIT)
+    });
     let connection = filed_connection(ctx, key, named)?;
-    connection.set_deadline(deadline).map_err(|refused| {
-        Fault::thrown(format!(
-            "{named}: the connection would not take a `timeout`: {refused}"
-        ))
-    })?;
+    connection
+        .set_statement_deadline(deadline, lock_wait)
+        .map_err(|refused| {
+            Fault::thrown(format!(
+                "{named}: the connection would not take a `timeout`: {refused}"
+            ))
+        })?;
     Ok(connection)
 }
 
