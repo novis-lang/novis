@@ -18,7 +18,7 @@ stages:
     context: [docs/examples/core/Csrf/issue/about.md, benches/members/core/Csrf/issue.nvs, tests/hostile/core/Csrf/issue/01-one-token-for-a-second-session.nvs, docs/rules/testing/feature-proofs.md, docs/rules/testing/hostile-case-contract.md]
   - id: 4
     title: "the pages and examples teach the forms that work"
-    status: open
+    status: done
     context: [website/src/content/docs/guides/example-apps/notes.mdx, website/src/content/docs/syntax/attributes/routes.mdx, website/src/content/docs/guides/cookbook/upload-file.mdx, docs/examples/core/Compress/compress/03-a-smaller-answer-over-the-network.nvs, crates/nvs-types/src/attributes.rs, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -172,11 +172,11 @@ after stage 2 has landed. The session checks each against `docs/agent/prose.md` 
 compression example ends with a form that works on the first visit, an opt-out written on
 `#[Core\Access]`, an upload form that carries its token, and compression only when the client offered it.
 
-- [ ] BBK-1: the notes page's "add a login and a CSRF token" note shows `Core\Session::start()` and `Core\Csrf::token()` in a form. `website/src/content/docs/guides/example-apps/notes.mdx:156`
-- [ ] BBK-2: the routes page says `csrf: false` is written on `#[Core\Access]`. It says to use it only on a route that does not trust the session cookie, such as a signed webhook, and links the webhook example. `website/src/content/docs/syntax/attributes/routes.mdx:19`, `docs/examples/types/Audience/03-a-webhook-another-server-calls.nvs:1`
-- [ ] BBK-2: `csrf` written on `#[Core\Route]` keeps `E0454`, and its help says the option is written on `#[Core\Access]`; a diagnostic test pins it. `crates/nvs-types/src/attributes.rs:541`
-- [ ] BBK-4: the upload page's form puts the token in its `action` query, and one sentence says a multipart form carries it there (`rule:security/csrf-is-on-by-default`). `website/src/content/docs/guides/cookbook/upload-file.mdx:9`
-- [ ] BBK-5: the network example reads `Accept-Encoding`, compresses only when `gzip` is offered, and sets `Vary: Accept-Encoding`; its `.out` is regenerated. `docs/examples/core/Compress/compress/03-a-smaller-answer-over-the-network.nvs:1`
+- [x] BBK-1: the notes page's "add a login and a CSRF token" note shows `Core\Session::start()` and `Core\Csrf::token()` in a form. `website/src/content/docs/guides/example-apps/notes.mdx:156`
+- [x] BBK-2: the routes page says `csrf: false` is written on `#[Core\Access]`. It says to use it only on a route that does not trust the session cookie, such as a signed webhook, and links the webhook example. `website/src/content/docs/syntax/attributes/routes.mdx:19`, `docs/examples/types/Audience/03-a-webhook-another-server-calls.nvs:1`
+- [x] BBK-2: `csrf` written on `#[Core\Route]` keeps `E0454`, and its help says the option is written on `#[Core\Access]`; a diagnostic test pins it. `crates/nvs-types/src/attributes.rs:541`
+- [x] BBK-4: the upload page's form puts the token in its `action` query, and one sentence says a multipart form carries it there (`rule:security/csrf-is-on-by-default`). `website/src/content/docs/guides/cookbook/upload-file.mdx:9`
+- [x] BBK-5: the network example reads `Accept-Encoding`, compresses only when `gzip` is offered, and sets `Vary: Accept-Encoding`; its `.out` is regenerated. `docs/examples/core/Compress/compress/03-a-smaller-answer-over-the-network.nvs:1`
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -195,31 +195,28 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 have landed. `Core\Csrf::token` (`crates/nvs-stdlib/src/csrf.rs:401`, card
-`csrf.rs:190`) has every proof, and `bun nv proofs --id 'Core\Csrf::token'` prints `complete.` The
-examples are under `docs/examples/core/Csrf/token/`, and a `nvs.toml` there sets `csrf_key`. 01 and
-02 send requests with `Core\Test::request`, because `nvs run --request` does not check the CSRF token.
-03 runs under a `.nvsr`. The attack, `tests/hostile/core/Csrf/token/01-*.nvs`, gets `403 csrf` in
-steps 1 to 5 and `200` in its control step 6. A cross-origin request with the visitor's own token
-passes, as `rule:security/csrf-is-on-by-default` says, so the attack's cross-origin steps use the
-attacker's token or none. The bench `benches/members/core/Csrf/token.nvs` declares `complexity
-constant` and has no `.scale.nvs`. Its `.nvsr` gives it a request, and the new class-directory
-`benches/members/core/Csrf/nvs.toml` gives it the key. That file now replaces the root config for the
-`issue` and `verify` benches too, and all three were recorded again (`data/perf/members.ndjson`).
-The release binary measures `0.0 ns/op` here, as 2,300 earlier records do. The counts decide.
+Stages 1 to 4 have landed. `Core\Csrf::token` has every proof (stage 3). Stage 4 landed in four
+commits. The notes page lists the three steps a form needs (`notes.mdx:155`). The routes page says
+`csrf: false` is written in `#[Core\Access]`, warns, and links `/reference/types/audience/`
+(`routes.mdx:19`). The upload page shows the form tag with `_csrf` in its `action`
+(`upload-file.mdx:27`). The compression example now sends itself two `Core\Test::request`s, with and
+without `gzip`, and prints `Content-Encoding` and `Vary`. Its `.nvsr` was tried and dropped, because
+`nvs run --request` prints the gzip bytes as the `.out`. An option of `#[Core\Access]` on `#[Core\Route]`
+is still `E0454`, and its help now names `#[Core\Access]` (`crates/nvs-types/src/routes.rs:option_home`,
+test `csrf_on_the_route_row_is_refused_with_a_help_naming_access` in `crates/nvs-types/tests/routes.rs`,
+run once, green). `bun nv rules --check` is green.
+
+A page may not carry an inline Novis fence (`tools/nv/cmd/site.ts:157`), and a snippet's
+`.http.out` has no wildcard, so a served form with a fresh token can never match. Both pages show
+the form as inline code for that reason.
 
 The nightly CI fixes (a024f2253, 296755665, the `env_context.rs` `E0607`) are still local and not
 pushed, so the sweep's CI list is stale until a push. The `env-secret-proofs` log says exit 0.
-
 ### Next
 
-**Stage 4**, the pages and examples teach the forms that work. Its items touch disjoint files.
-
-- [ ] BBK-1: the notes page's login note shows `Core\Session::start()` and `Core\Csrf::token()` in a form. `website/src/content/docs/guides/example-apps/notes.mdx:156`
-- [ ] BBK-2: the routes page puts `csrf: false` on `#[Core\Access]` with its warning. `website/src/content/docs/syntax/attributes/routes.mdx:19`, `docs/examples/types/Audience/03-a-webhook-another-server-calls.nvs:1`
-- [ ] BBK-2: `E0454`'s help names `#[Core\Access]`, and a diagnostic test pins it. `crates/nvs-types/src/attributes.rs:541`
-- [ ] BBK-4: the upload form puts the token in its `action` query. `website/src/content/docs/guides/cookbook/upload-file.mdx:9`
-- [ ] BBK-5: the network example reads `Accept-Encoding` and sets `Vary`. `docs/examples/core/Compress/compress/03-a-smaller-answer-over-the-network.nvs:1`
+**Stage 5**, the gate. Start `bun nv affected --run` with `run_in_background`, end the turn, and
+fix every failure in one pass. Then the goal-end gates: `bun nv verify --doc` and
+`bun nv owners --closes taught-app-works`. Settle the two backlog items below.
 
 `bun nv proofs` without `--nvs` reads `target/release/nvs`, so a member newer than that binary reads
 as `no feature`. Pass `--nvs target/debug/nvs.exe`, or let `--record-perf` rebuild the release binary.
@@ -228,7 +225,8 @@ Tests that may go red at the gate: `crates/nvs-config/tests/defaults.rs` (the ne
 row against its `# default` line), any test that asserts SQLite answers `SQLITE_BUSY` at once, any
 case that reads a SQLite file's journal mode, and any roster count of `Core` members or of
 `Core\Csrf`'s methods, and any check that compares the `issue` or `verify` benches with a run under
-the root `nvs.toml`.
+the root `nvs.toml`. Also `bun nv site --check` over the four stage 4 pages, and any test or
+conformance case that pins the old `E0454` help text for `csrf` on `#[Route]`.
 
 ### Backlog
 
