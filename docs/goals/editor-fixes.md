@@ -298,4 +298,5 @@ waits on goal `editor-refactors` (`crates/nvs-lsp/src/generate.rs`). Every other
 ### Backlog
 
 - The copy half of the import-carrying paste has no proof in a real editor, because nothing makes the editor fire a real copy (`editors/vscode/src/imports.ts`, § *Known gaps*).
+- A cursor on an attribute's name, as in `#[Core\Ro<|>ute(...)]`, is offered every `Core` type rather than the attributes the site allows. No `.lspt` case freezes that answer yet; the payload case is `tests/lsp/completion/an-enum-name-inside-an-attribute-payload-offers-its-cases.lspt`.
 - `semanticTokenScopes` needs no new entry: every token type is in LSP's standard legend, and only the two modifiers are mapped (`docs/rules/ide/novis-ships-names-not-colours.md`).

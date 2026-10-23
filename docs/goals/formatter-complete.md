@@ -48,7 +48,7 @@ stages:
         rules: [tooling/fmt-base-style-is-per, ide/tokens-plus-trivia-reproduce-the-file]
   - id: 7
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-closes
@@ -203,48 +203,41 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done. This session landed stage 5 in one commit.
+Every stage is done, and the goal is reached. The second `bun nv affected --run` was green with
+22 of 22 steps, `bun nv verify --doc` is green, and `bun nv owners --closes formatter-complete`
+names no gap.
 
-`crates/nvs-fmt/src/blank.rs` writes PER's blank lines. It walks `parsed.stmts` and asks for two
-line breaks in the first whitespace run with a break after a `namespace;` line, after the last
-import of a run, and after a member when it and the next member each have a body (a method with a
-block, a property with hooks, or a nested enum). `print.rs` puts these runs ahead of the statement
-stage's, so the two breaks win where both name one byte. A trailing comment stays on its member's
-line, and a comment on a line of its own stays below the blank line. Every other blank line is the
-author's, and `rule:tooling/fmt-base-style-is-per` now says so, with the reason. The corpus
-mostly followed the rule already: six hostile files moved, with no expectation file beside any of
-them and no line number pinned in any of them. `tests/fmt/*/blank.nvs` pins the layout.
+The first gate run found four causes, each fixed at its cause:
 
-The crate's module doc lists every module that writes a rule, and the gap record is deleted.
-`bun nv owners --closes formatter-complete` is green, and no gap record under `data/gaps/nvs-fmt/`
-is left.
+- `docs/rules/tooling.md` was stale after stage 5's rule edit, and is rendered again. `cargo fmt`
+  rewrote eight files the stages had left unformatted.
+- `walk.rs`'s kind-table test read three spans of the file, and the `ShapeType`, `Case` and
+  `PropertyHook` arms are built in `push_type` and `switch_case`, outside them. The test now reads
+  those two helpers too.
+- `check_command.rs` held `fmt --check` on a file that is not UTF-8 to exit `1`. Stage 1's rule
+  makes an unreadable file a refusal, so it exits `2`, and the test now says so per command.
+- `Attribute` is a construct since stage 6, and five cursor requests had no `.lspt` case at it.
+  Five cases under `tests/lsp/` now cover it. A cursor on an attribute's name is offered every
+  `Core` type; that answer is not frozen, and `editor-fixes`'s backlog owns it.
 
-The acceptance sweep's reds are unchanged: `env-secret-proofs` exits 0 when run now, and no
-nightly has run since 39922764699. The last handoff's triage stands. If the next nightly's macOS
-`Serve soak` is red again, take that slice first.
+The identity test's module doc now carries the accept procedure and the expectation-file check, so
+nothing only this file's standing decisions say is lost when it is deleted. `looper verify` is not
+a subcommand of the installed `looper`, so the gate ran as `bun nv affected --run`.
 
-Expected red at the gate: possibly an `nvs-lsp` definition or hover case whose cursor is inside an
-attribute payload, from stage 6. A test elsewhere whose formatted input has two bodied members
-with no blank line between them would go red too. `nvs-fmt`'s `identity` and `fixtures` passed
-this session.
+The acceptance sweep's reds are unchanged: `env-secret-proofs` exits 0, and no nightly has run
+since 39922764699.
 
 ### Next
 
-**Stage 7, the gate.** Start `looper verify` with `run_in_background`, and end the turn to wait.
-Group the failures by cause, fix them in one pass, and run it once more. Then the goal-end gates:
-`bun nv verify --doc`, and `bun nv owners --closes formatter-complete`.
-
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+Nothing. The goal is reached, and its file is deleted when looper retires it.
 
 ### Backlog
 
