@@ -74,6 +74,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `NVS_BIN=E:/mwl/target/debug/nvs.exe bun nv soundness --probe`, with an absolute path, because a
   relative one is not found. See `tools/nv/cmd/soundness.ts`.
   `until: gone tools/nv/cmd/soundness.ts:covws`
+- **`bun nv proofs --id` reads the roster from `target/release/nvs`, which no build of yours refreshes.**
+  A `Core` member added since the last release build prints `no feature '…'`, which reads as a quoting
+  mistake. Pass `--nvs target/debug/nvs.exe`, or run `bun nv proofs --record-perf --group '<class>'`,
+  which rebuilds the release binary first. See `tools/nv/cmd/proofs.ts`.
+  `until: gone tools/nv/cmd/proofs.ts:const nvs = bin?.path ?? binary(named);`
 
 ## Writing a test case
 
