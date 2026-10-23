@@ -185,17 +185,18 @@ fn header() -> String {
         "{}Novis-Lang{}\nversion: {} · commit: {} · {}",
         name.render(),
         name.render_reset(),
-        env!("CARGO_PKG_VERSION"),
+        env!("NVS_VERSION"),
         env!("NVS_COMMIT"),
         env!("NVS_COMMIT_DATE"),
     )
 }
 
-/// What `nvs --version` prints after the name: the release, then the commit and
-/// its date as [`header`] prints them, because a bug report and an upgrade check
-/// both need the commit and `--version` is where people look for it.
+/// What `nvs --version` prints after the name: the version, `+dev` after it on a
+/// build that is not a release, then the commit and its date as [`header`] prints
+/// them, because a bug report and an upgrade check both need the commit and
+/// `--version` is where people look for it.
 const VERSION: &str = concat!(
-    env!("CARGO_PKG_VERSION"),
+    env!("NVS_VERSION"),
     " (commit ",
     env!("NVS_COMMIT"),
     ", ",

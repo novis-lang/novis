@@ -293,12 +293,31 @@ jobs:
           VERSION: ${{ needs.plan.outputs.version }}
         run: bun nv release --apply "$VERSION" --manifests-only
 
+      # `NVS_RELEASE` tells crates/nvs-cli/build.rs that this build is the release. The tag
+      # `v<version>` does not exist yet, and without it `nvs --version` would print `+dev`.
       - name: Build
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
+          NVS_RELEASE: ${{ needs.plan.outputs.version }}
           CC_x86_64_unknown_linux_musl: musl-gcc
         run: cargo auditable build --release --locked --offline -p nvs-cli --target "$TARGET"
+
+      - name: The binary prints the version being released
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          exe="target/$TARGET/release/nvs"
+          if [ -f "$exe.exe" ]; then exe="$exe.exe"; fi
+          out="$("$exe" --version)"
+          echo "$out"
+          case "$out" in
+            "nvs $VERSION (commit "*) ;;
+            *) echo "::error::nvs --version does not print $VERSION alone: $out"; exit 1 ;;
+          esac
 
       - name: Package
         shell: bash

@@ -19,7 +19,8 @@ const SUBCOMMANDS: &[&str] = &[
     "run", "check", "test", "build", "api", "init", "config", "info", "meta", "agent", "ast",
 ];
 
-/// `--version` is one line, `nvs <version> (commit <hash>, <date>)`. Every
+/// `--version` is one line, `nvs <version> (commit <hash>, <date>)`, and the
+/// version is this crate's, with `+dev` after it unless the build is a release. Every
 /// subcommand the table lists answers `--help` with status `0`. `-i`, `-a`,
 /// `-r`, `-f` and `-v` are refused with a non-zero status, and so is
 /// `convert`, which this build does not carry.
@@ -35,7 +36,11 @@ fn nvs_is_one_binary_with_a_subcommand_for_every_operation() {
         .strip_prefix("nvs ")
         .expect("it starts with the binary's name");
     let (semver, build) = rest.split_once(" (commit ").expect("then the commit");
-    assert_eq!(semver.split('.').count(), 3, "a three-part version: {line}");
+    let release = env!("CARGO_PKG_VERSION");
+    assert!(
+        semver == release || semver == format!("{release}+dev"),
+        "this crate's version, or it with `+dev`: {line}"
+    );
     let (_hash, date) = build.split_once(", ").expect("then the date");
     assert!(
         date.ends_with(')') && date.len() == "2026-09-24)".len(),

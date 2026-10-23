@@ -42,6 +42,7 @@ fn main() {
     emit("NVS_RUSTC", &rustc_version());
     let commit = commit(&workspace);
     emit("NVS_COMMIT", &commit);
+    emit("NVS_VERSION", &shown_version(&workspace, &commit));
     emit("NVS_COMMIT_DATE", &commit_date(&workspace));
     emit(
         "NVS_CRANELIFT",
@@ -64,6 +65,7 @@ fn main() {
     );
     println!("cargo:rerun-if-env-changed=NVS_BUILD_COMMIT");
     println!("cargo:rerun-if-env-changed=NVS_BUILD_COMMIT_DATE");
+    println!("cargo:rerun-if-env-changed=NVS_RELEASE");
 
     windows_resource(&manifest, &workspace, &commit);
 }
@@ -244,6 +246,33 @@ fn commit(workspace: &Path) -> String {
     .is_some_and(|status| !status.is_empty());
 
     if dirty { format!("{hash}-dirty") } else { hash }
+}
+
+/// The version `nvs --version`, the `--help` banner and `nvs info` print:
+/// `CARGO_PKG_VERSION` for a release build, and `CARGO_PKG_VERSION+dev` for
+/// every other one, so a binary built from `main` after a release never prints
+/// that release's number alone (`rule:packaging/the-banner-states-the-build`).
+///
+/// A build is a release when `NVS_RELEASE` names this version, which the
+/// release workflow sets because it builds before the tag exists, or when the
+/// checkout is clean and `HEAD` carries the tag `v<version>`. Anything this
+/// script cannot tell is `+dev`: claiming a release is the one wrong answer.
+fn shown_version(workspace: &Path, commit: &str) -> String {
+    let version = env("CARGO_PKG_VERSION");
+    let named = std::env::var("NVS_RELEASE").is_ok_and(|named| named.trim() == version);
+    let tagged = || {
+        commit != unknown()
+            && !commit.ends_with("-dirty")
+            && run(Command::new("git")
+                .current_dir(workspace)
+                .args(["tag", "--points-at", "HEAD"]))
+            .is_some_and(|tags| tags.lines().any(|tag| tag.trim() == format!("v{version}")))
+    };
+    if named || tagged() {
+        version
+    } else {
+        format!("{version}+dev")
+    }
 }
 
 /// The directory that holds this checkout's `HEAD` and `index`, or `None`
