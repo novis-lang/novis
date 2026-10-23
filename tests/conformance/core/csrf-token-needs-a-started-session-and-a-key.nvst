@@ -1,0 +1,24 @@
+--TEST--
+`Core\Csrf::token` before `Core\Session::start` throws a `RuntimeError` naming `start`, and after it with no `[http] csrf_key` throws one naming that key — `rule:core-classes/session-is-started-explicitly`
+--GET--
+under=a-request
+--FILE--
+<?nvs
+// covers: Core\Csrf::token
+// No session is started yet, so `token` throws.
+try {
+    echo Core\Csrf::token();
+} catch (RuntimeError $first) {
+    echo "before start: ", Core\Str::contains($first->message, "Core\\Session::start()") ? "names start" : $first->message, "\n";
+}
+
+// The session is started, but this case writes no `[http] csrf_key`.
+Core\Session::start();
+try {
+    echo Core\Csrf::token();
+} catch (RuntimeError $second) {
+    echo "with no key: ", Core\Str::contains($second->message, "[http] csrf_key") ? "names the key" : $second->message, "\n";
+}
+--EXPECT--
+before start: names start
+with no key: names the key

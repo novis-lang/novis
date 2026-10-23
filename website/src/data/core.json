@@ -7474,11 +7474,39 @@
     {
       "id": "Csrf",
       "name": "Core\\Csrf",
-      "summary": "Protects forms against cross-site request forgery, a request that another site sends in the user's name. `issue` creates a token for one session, and `verify` checks a token.",
+      "summary": "Protects forms against cross-site request forgery, a request that another site sends in the user's name. `token` creates a token for the visitor's session, which the server checks on the next request. `issue` creates a token for a value you choose, and `verify` checks one.",
       "enums": [],
       "types": [],
       "constants": [],
       "members": [
+        {
+          "id": "Csrf.token",
+          "name": "token",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "token(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns a CSRF token for the visitor's session. Put it in a form field named <code>_csrf</code>, in the <code>x-csrf-token</code> header or in a <code>_csrf</code> query parameter. The server checks it on the next request. Call <code>Core\\Session::start()</code> first. If the visitor has no session yet, this call creates one and sends its cookie.",
+            "returnHtml": "A different string on every call. Each one is valid for the whole session. It uses only <code>A-Za-z0-9-_</code>, so a form field, a header and a URL carry it unchanged.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The request has not called <code>Core\\Session::start()</code>, or <code>[http] csrf_key</code> is not set."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "The call runs inside a function passed to <code>Core\\Task::afterResponse</code>, after the response was sent. The session cookie cannot be sent then."
+              }
+            ]
+          },
+          "slug": "token",
+          "url": "/reference/core/csrf/token/",
+          "examples": "core/Csrf/token"
+        },
         {
           "id": "Csrf.issue",
           "name": "issue",
@@ -7600,7 +7628,7 @@
       ],
       "slug": "csrf",
       "url": "/reference/core/csrf/",
-      "summaryHtml": "<p>Protects forms against cross-site request forgery, a request that another site sends in the user's name. <code>issue</code> creates a token for one session, and <code>verify</code> checks a token.</p>"
+      "summaryHtml": "<p>Protects forms against cross-site request forgery, a request that another site sends in the user's name. <code>token</code> creates a token for the visitor's session, which the server checks on the next request. <code>issue</code> creates a token for a value you choose, and <code>verify</code> checks one.</p>"
     },
     {
       "id": "Csv",

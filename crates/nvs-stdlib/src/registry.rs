@@ -6058,6 +6058,13 @@ mod tests {
     /// by neither claim, which is the rule's own point: where a token is
     /// compared, the comparison is the exposed operation.
     ///
+    /// **A member that derives from the deployment's configured key is the one
+    /// other derivation**, and `CONFIGURED_KEY` below names each. `Csrf::token`
+    /// seals a fresh nonce under `[http] csrf_key`, the key the server door
+    /// checks with, so it is handed its key by the configuration rather than by
+    /// an argument, and it still reads nothing back. A member is added there only
+    /// when a configuration key, not a stored value, is what it derives from.
+    ///
     /// This is what stands in for a test of constant-time behaviour, which is
     /// not reliably measurable in CI, so this test holds
     /// `rule:security/verification-throws-and-compares-in-constant-time` in its
@@ -6137,6 +6144,10 @@ mod tests {
             }
         }
 
+        /// The members that derive their answer from a key the configuration
+        /// names, with the key each reads. The doc above says when one belongs.
+        const CONFIGURED_KEY: &[(&str, &str)] = &[(r"Core\Csrf::token", "[http] csrf_key")];
+
         for held in PROTOCOLS {
             for method in held.members() {
                 let what = format!("{}::{}", held.name, method.name);
@@ -6144,8 +6155,11 @@ mod tests {
                     !secret(&method.return_ty),
                     "{what} answers secret material, which a protocol hands to no caller"
                 );
+                let configured = CONFIGURED_KEY.iter().any(|(member, _)| *member == what);
                 assert!(
-                    !comparable(&method.return_ty) || method.params.iter().any(keyed),
+                    !comparable(&method.return_ty)
+                        || method.params.iter().any(keyed)
+                        || configured,
                     "{what} answers text without being handed a key to derive it from, \
                      so it reads a value back for the caller to compare"
                 );
