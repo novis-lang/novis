@@ -14,10 +14,11 @@
 //! directory only `.nvs` files are collected, in sorted order so two runs over
 //! one tree report in the same order; a path given on the command line is
 //! formatted whatever it is called, because naming it is already the choice the
-//! extension filter exists to make for a walk. A walk skips every directory
-//! named `vendor` under the path it starts from, which is code a project pulls
-//! in rather than writes, as `nvs check --fix` leaves it alone
-//! (`check::vendored`); naming one on the command line formats it.
+//! extension filter exists to make for a walk. The walk is
+//! [`nvs_hir::lenders::sources`], the one every command that reads a project
+//! uses: it skips what a `.gitignore` or `.ignore` names, and every directory
+//! named `vendor` or `target` and every dot-directory under the path it starts
+//! from. Naming one of those on the command line formats it.
 //!
 //! **One file's refusal never stops the walk.** Each file is its own parse
 //! ([`nvs_fmt`]'s module doc), so a file that does not parse is named on
@@ -55,8 +56,6 @@ use std::process::ExitCode;
 
 use nvs_diagnostics::SourceMap;
 
-/// The extension a directory walk collects, and the only one.
-const EXTENSION: &str = "nvs";
 
 /// What a buffer read from standard input is called in a diagnostic.
 const STDIN_NAME: &str = "<stdin>";
@@ -67,8 +66,6 @@ const CONTEXT: usize = 3;
 /// The largest subsequence table `--diff` allocates, in cells.
 const CELLS: usize = 1 << 20;
 
-/// The directory a walk does not enter.
-const VENDOR: &str = "vendor";
 
 /// What one file, or one run, found: the worst wins, and it is the exit code.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -214,28 +211,22 @@ pub(crate) fn stdin(mode: Mode) -> Found {
     }
 }
 
-/// Adds `path` to `into`: itself, or every `.nvs` file under it outside a
-/// directory named [`VENDOR`].
+/// Adds `path` to `into`: itself, or every `.nvs` file the project walk
+/// [`nvs_hir::lenders::sources`] finds under it, in sorted order.
+///
+/// A directory that cannot be listed is an error here, because it is the one
+/// the command line named. A directory under it that cannot be listed is
+/// skipped, as the walk skips it for every other command.
 fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
     if !path.is_dir() {
         into.push(path.to_path_buf());
         return Ok(());
     }
 
-    let mut entries = fs::read_dir(path)?
-        .map(|entry| entry.map(|entry| entry.path()))
-        .collect::<io::Result<Vec<_>>>()?;
-    entries.sort();
-    for entry in entries {
-        if entry.is_dir() {
-            if entry.file_name().is_some_and(|name| name == VENDOR) {
-                continue;
-            }
-            collect(&entry, into)?;
-        } else if entry.extension().is_some_and(|ext| ext == EXTENSION) {
-            into.push(entry);
-        }
-    }
+    fs::read_dir(path)?;
+    let mut found = nvs_hir::lenders::sources(path);
+    found.sort();
+    into.extend(found);
     Ok(())
 }
 

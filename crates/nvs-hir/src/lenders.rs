@@ -19,9 +19,9 @@
 //! declares. Both pick through [`choose`].
 
 use std::borrow::Borrow;
-use std::fs;
 use std::path::{Path, PathBuf};
 
+use ignore::WalkBuilder;
 use nvs_diagnostics::{Diagnostics, SourceMap, canonical_key};
 use nvs_syntax::parse_file;
 
@@ -231,33 +231,148 @@ pub fn first_lender(root: &Path, path: &Path, plain: bool) -> Option<Lender> {
 
 /// Every `.nvs` file under `root`, recursively, in no particular order.
 ///
-/// A build directory and a dot-directory hold no source anybody wrote, and
-/// `vendor` holds source nobody here edits, so none of them is entered. A
-/// directory this process cannot read is skipped: a tree with one unreadable
-/// directory in it is still a tree.
+/// This is the one project walk: `nvs code`, the editor's workspace index,
+/// `nvs check`'s lender search and `nvs fmt` all read the files it returns
+/// (`rule:tooling/nvs-code-answers-about-the-project`). It goes through the
+/// `ignore` crate's [`WalkBuilder`], and:
+///
+/// * a `.gitignore` or `.ignore` in `root` or any directory under it is read,
+///   also outside a git repository, and a path one of them names is skipped;
+/// * the global git excludes file, `.git/info/exclude` and an ignore file
+///   above `root` are not read, so one tree gives one list on every machine;
+/// * a directory named `target` or `vendor` and a dot-directory are not
+///   entered, because they hold no source anybody here writes, while a
+///   dot-file is still read;
+/// * `root` itself is always walked, whatever it is called and whatever an
+///   ignore file says, because naming it is the caller's choice;
+/// * a symbolic link is not followed, and a directory this process cannot
+///   read is skipped: a tree with one unreadable directory in it is still a
+///   tree.
+///
+/// Cost: each ignore file is read once per walk, and its parsed patterns, a
+/// few KiB, live until the walk ends. Nothing here runs on the request path.
 #[must_use]
 pub fn sources(root: &Path) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    collect_sources(root, &mut found);
-    found
+    WalkBuilder::new(root)
+        .hidden(false)
+        .parents(false)
+        .ignore(true)
+        .git_ignore(true)
+        .require_git(false)
+        .git_global(false)
+        .git_exclude(false)
+        .follow_links(false)
+        .filter_entry(|entry| {
+            let dir = entry.file_type().is_some_and(|kind| kind.is_dir());
+            let name = entry.file_name().to_str();
+            !(dir
+                && name.is_some_and(|name| {
+                    name == "target" || name == "vendor" || name.starts_with('.')
+                }))
+        })
+        .build()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_some_and(|kind| kind.is_file()))
+        .map(ignore::DirEntry::into_path)
+        .filter(|path| path.extension().is_some_and(|ext| ext == "nvs"))
+        .collect()
 }
 
-fn collect_sources(dir: &Path, found: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            let skip = path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name == "target" || name == "vendor" || name.starts_with('.'));
-            if !skip {
-                collect_sources(&path, found);
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+
+    /// A scratch tree with `files` written into it, each `(path, contents)`.
+    fn tree(name: &str, files: &[(&str, &str)]) -> nvs_repo::Scratch {
+        let dir = nvs_repo::scratch(&format!("hir-sources-{name}"));
+        for (rel, contents) in files {
+            let path = dir.join(rel);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).expect("create fixture directory");
             }
-        } else if path.extension().is_some_and(|ext| ext == "nvs") {
-            found.push(path);
+            fs::write(&path, contents).expect("write fixture");
         }
+        dir
+    }
+
+    /// What [`sources`] found under `root`, relative to it, with `/`, sorted.
+    fn found(root: &Path) -> Vec<String> {
+        let mut found: Vec<String> = sources(root)
+            .iter()
+            .map(|path| {
+                path.strip_prefix(root)
+                    .expect("a source under the root")
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect();
+        found.sort();
+        found
+    }
+
+    #[test]
+    fn a_file_a_gitignore_names_is_skipped_outside_a_git_repository() {
+        let dir = tree(
+            "gitignore",
+            &[
+                (".gitignore", "generated.nvs\nbuild/\n"),
+                ("main.nvs", ""),
+                ("generated.nvs", ""),
+                ("build/out.nvs", ""),
+            ],
+        );
+        assert_eq!(found(&dir), ["main.nvs"]);
+    }
+
+    #[test]
+    fn a_file_an_ignore_file_names_is_skipped() {
+        let dir = tree(
+            "ignore",
+            &[(".ignore", "scratch.nvs\n"), ("main.nvs", ""), ("scratch.nvs", "")],
+        );
+        assert_eq!(found(&dir), ["main.nvs"]);
+    }
+
+    #[test]
+    fn a_nested_gitignore_applies_under_its_own_directory() {
+        let dir = tree(
+            "nested",
+            &[
+                ("src/.gitignore", "cache.nvs\n"),
+                ("src/cache.nvs", ""),
+                ("src/main.nvs", ""),
+                ("cache.nvs", ""),
+            ],
+        );
+        assert_eq!(found(&dir), ["cache.nvs", "src/main.nvs"]);
+    }
+
+    #[test]
+    fn vendor_target_and_a_dot_directory_are_not_entered_and_a_dot_file_is_read() {
+        let dir = tree(
+            "skipped",
+            &[
+                ("vendor/lib.nvs", ""),
+                ("target/out.nvs", ""),
+                (".cache/x.nvs", ""),
+                (".hidden.nvs", ""),
+                ("main.nvs", ""),
+                ("notes.txt", ""),
+            ],
+        );
+        assert_eq!(found(&dir), [".hidden.nvs", "main.nvs"]);
+    }
+
+    #[test]
+    fn the_root_is_walked_whatever_it_is_called_or_an_ignore_file_says() {
+        let dir = tree(
+            "root",
+            &[(".gitignore", "vendor/\n"), ("vendor/lib.nvs", ""), ("vendor/sub/deep.nvs", "")],
+        );
+        let vendor = dir.join("vendor");
+        assert_eq!(found(&vendor), ["lib.nvs", "sub/deep.nvs"]);
+        assert!(found(&dir).is_empty());
     }
 }
