@@ -50,6 +50,11 @@ const RLI: char = '\u{2067}';
 const FSI: char = '\u{2068}';
 const PDI: char = '\u{2069}';
 
+/// The first byte of every control above in UTF-8. Each of the nine is in the
+/// `U+2000` block, so each begins `0xE2`. A sink scans for this byte and asks
+/// for the predicate only when it appears.
+pub const LEAD_BYTE: u8 = 0xE2;
+
 /// The Unicode name of one of the seven openers, for a diagnostic that has to
 /// name a character the reader cannot see.
 #[must_use]
@@ -127,12 +132,15 @@ type Unclosed = Vec<(usize, char)>;
 fn scan(text: &str) -> (Unclosed, Unclosed) {
     let mut embeddings = Vec::new();
     let mut isolates = Vec::new();
-    // Every one of the nine code points is `U+2000`-block, so its UTF-8 form
-    // begins `0xE2`. A span without that byte cannot contain one, which is
-    // almost every span this is called on.
-    if !text.as_bytes().contains(&0xE2) {
+    #[cfg(test)]
+    crate::passes::note();
+    // A span without the lead byte cannot contain a control, which is almost
+    // every span this is called on.
+    if !text.as_bytes().contains(&LEAD_BYTE) {
         return (embeddings, isolates);
     }
+    #[cfg(test)]
+    crate::passes::note();
     for (offset, c) in text.char_indices() {
         match c {
             LRE | RLE | LRO | RLO => embeddings.push((offset, c)),

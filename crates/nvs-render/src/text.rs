@@ -53,12 +53,16 @@ const REPLACEMENT: char = '\u{FFFD}';
 /// takes `.into_owned()` and is exactly where it was.
 #[must_use]
 pub fn substitute(text: &str) -> Cow<'_, str> {
-    // Neither transformation fires on the overwhelmingly common input, and
-    // both are a scan. Checking first keeps ordinary text at one pass and no
-    // allocation at all.
+    // Neither transformation fires on the overwhelmingly common input. One
+    // pass finds both, so ordinary text is read once and allocates nothing.
+    // The bidi predicate walks the span again, so it runs only when a
+    // control's lead byte appeared.
+    let (substitutes, lead) = scan(text.as_bytes());
     let mut unterminated = Vec::new();
-    crate::bidi::for_each_unterminated(text, |offset, _| unterminated.push(offset));
-    if unterminated.is_empty() && !text.chars().any(needs_substitution) {
+    if lead {
+        crate::bidi::for_each_unterminated(text, |offset, _| unterminated.push(offset));
+    }
+    if !substitutes && unterminated.is_empty() {
         return Cow::Borrowed(text);
     }
 
@@ -78,10 +82,28 @@ pub fn substitute(text: &str) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
-/// Whether `c` is one of the code points [`substituted`] replaces — the
-/// cheap half of the scan above, with no allocation behind it.
-fn needs_substitution(c: char) -> bool {
-    substituted(c).is_some()
+/// Whether `bytes` has a code point [`substituted`] replaces, and whether it
+/// has [`crate::bidi::LEAD_BYTE`], in one pass that stops once both are found.
+///
+/// It reads bytes: a C0 and `DEL` are one byte each, and a C1 is `0xC2` and
+/// then `0x80..=0x9F`, so no character is decoded.
+fn scan(bytes: &[u8]) -> (bool, bool) {
+    #[cfg(test)]
+    crate::passes::note();
+    let (mut substitutes, mut lead) = (false, false);
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'\n' | b'\t' => continue,
+            0x00..=0x1F | 0x7F => substitutes = true,
+            0xC2 => substitutes |= matches!(bytes.get(i + 1), Some(0x80..=0x9F)),
+            crate::bidi::LEAD_BYTE => lead = true,
+            _ => continue,
+        }
+        if substitutes && lead {
+            break;
+        }
+    }
+    (substitutes, lead)
 }
 
 /// What `c` becomes under `rule:tooling/terminal-output-is-a-sink`'s table, or `None` where it passes
@@ -159,5 +181,32 @@ mod tests {
     fn ordinary_text_is_not_copied() {
         assert!(matches!(substitute("hello, world"), Cow::Borrowed(_)));
         assert!(matches!(substitute("a\u{1B}b"), Cow::Owned(_)));
+    }
+
+    /// Ordinary text is read once, and the bidi predicate walks it only when
+    /// a control's lead byte appears.
+    #[test]
+    fn ordinary_text_is_scanned_once() {
+        crate::passes::take();
+        assert_eq!(substitute("hello, ©°"), "hello, ©°");
+        assert_eq!(crate::passes::take(), 1);
+        assert_eq!(substitute("a\u{202E}b"), "a\u{FFFD}b");
+        assert_eq!(crate::passes::take(), 3);
+    }
+
+    /// The byte scan finds exactly the code points [`substituted`] replaces,
+    /// alone and between two other characters, over the first three blocks.
+    #[test]
+    fn the_byte_scan_finds_exactly_what_is_substituted() {
+        for c in ('\0'..='\u{2FF}').chain(['\u{2028}', '\u{FFFD}']) {
+            for text in [c.to_string(), format!("a{c}b")] {
+                assert_eq!(
+                    scan(text.as_bytes()).0,
+                    substituted(c).is_some(),
+                    "{:?}",
+                    c
+                );
+            }
+        }
     }
 }

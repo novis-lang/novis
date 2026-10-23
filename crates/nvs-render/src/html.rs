@@ -91,19 +91,56 @@ pub fn style_element(nonce: &str) -> String {
 /// What each of the five characters is written as.
 ///
 /// A `match` rather than a table because it is the whole of the transformation
-/// and the compiler turns it into one: five arms over an ASCII byte.
-fn escaped(c: char) -> Option<&'static str> {
-    match c {
+/// and the compiler turns it into one: five arms over an ASCII byte. A byte
+/// rather than a `char`, because no byte of a multi-byte character is ASCII.
+const fn escaped(b: u8) -> Option<&'static str> {
+    match b {
         // First, and the only one whose escape is not about a delimiter: an
         // unescaped `&` makes every other reference in the output ambiguous.
-        '&' => Some("&amp;"),
-        '<' => Some("&lt;"),
-        '>' => Some("&gt;"),
-        '"' => Some("&quot;"),
+        b'&' => Some("&amp;"),
+        b'<' => Some("&lt;"),
+        b'>' => Some("&gt;"),
+        b'"' => Some("&quot;"),
         // Not `&apos;` — that name is XML's and HTML 4 never defined it.
-        '\'' => Some("&#39;"),
+        b'\'' => Some("&#39;"),
         _ => None,
     }
+}
+
+/// [`scan`]'s bit for a byte [`escaped`] rewrites.
+const ESCAPABLE: u8 = 1;
+/// [`scan`]'s bit for [`crate::bidi::LEAD_BYTE`].
+const LEAD: u8 = 2;
+
+/// Each byte's bits, so [`scan`] is one load and one `or` per byte.
+const CLASS: [u8; 256] = {
+    let mut class = [0; 256];
+    let mut b: u8 = 0;
+    loop {
+        if escaped(b).is_some() {
+            class[b as usize] = ESCAPABLE;
+        }
+        if b == u8::MAX {
+            break;
+        }
+        b += 1;
+    }
+    class[crate::bidi::LEAD_BYTE as usize] = LEAD;
+    class
+};
+
+/// The bits of every byte in `bytes`, in one pass that stops once both are set.
+fn scan(bytes: &[u8]) -> u8 {
+    #[cfg(test)]
+    crate::passes::note();
+    let mut seen = 0;
+    for &b in bytes {
+        seen |= CLASS[usize::from(b)];
+        if seen == ESCAPABLE | LEAD {
+            break;
+        }
+    }
+    seen
 }
 
 /// What an unterminated directional control becomes.
@@ -129,29 +166,39 @@ const REPLACEMENT: char = '\u{FFFD}';
 /// what it would cost.
 #[must_use]
 pub fn escape(text: &str) -> Cow<'_, str> {
-    // Both halves are a scan and neither fires on ordinary text, so they are
-    // asked before anything is allocated.
+    // One pass finds both things that can change, before anything is
+    // allocated. The bidi predicate walks the span again, so it runs only when
+    // a control's lead byte appeared.
+    let seen = scan(text.as_bytes());
     let mut unterminated = Vec::new();
-    crate::bidi::for_each_unterminated(text, |offset, _| unterminated.push(offset));
-    if unterminated.is_empty() && !text.chars().any(|c| escaped(c).is_some()) {
+    if seen & LEAD != 0 {
+        crate::bidi::for_each_unterminated(text, |offset, c| {
+            unterminated.push((offset, c.len_utf8()));
+        });
+    }
+    if seen & ESCAPABLE == 0 && unterminated.is_empty() {
         return Cow::Borrowed(text);
     }
 
     // Every escape is longer than what it replaces, so the input's length is a
-    // floor and never a wasted reservation.
+    // floor and never a wasted reservation. Every byte that changes is ASCII
+    // or starts a control, so the text between two of them is copied whole.
     let mut out = String::with_capacity(text.len());
     let mut cuts = unterminated.into_iter().peekable();
-    for (offset, c) in text.char_indices() {
-        if cuts.peek() == Some(&offset) {
-            cuts.next();
+    let mut copied = 0;
+    for (offset, &b) in text.as_bytes().iter().enumerate() {
+        if cuts.peek().is_some_and(|&(cut, _)| cut == offset) {
+            let (_, len) = cuts.next().expect("peeked");
+            out.push_str(&text[copied..offset]);
             out.push(REPLACEMENT);
-            continue;
-        }
-        match escaped(c) {
-            Some(reference) => out.push_str(reference),
-            None => out.push(c),
+            copied = offset + len;
+        } else if let Some(reference) = escaped(b) {
+            out.push_str(&text[copied..offset]);
+            out.push_str(reference);
+            copied = offset + 1;
         }
     }
+    out.push_str(&text[copied..]);
     Cow::Owned(out)
 }
 
@@ -458,6 +505,30 @@ mod tests {
     #[test]
     fn an_unterminated_bidi_control_is_replaced_and_not_referenced() {
         assert_eq!(escape("a\u{202E}b"), "a\u{FFFD}b");
+    }
+
+    /// Most of a page has nothing to escape, so its text is read once and the
+    /// bidi predicate never walks it. A control's lead byte is what starts
+    /// that walk, and the control is still replaced when it is left open.
+    #[test]
+    fn text_with_nothing_to_escape_is_scanned_once() {
+        crate::passes::take();
+        assert!(matches!(escape("an ordinary paragraph"), Cow::Borrowed(_)));
+        assert_eq!(crate::passes::take(), 1, "plain text");
+        assert_eq!(escape("é and ü"), "é and ü");
+        assert_eq!(crate::passes::take(), 1, "text with no lead byte");
+        assert_eq!(escape("a < b"), "a &lt; b");
+        assert_eq!(crate::passes::take(), 1, "text with an escape");
+
+        // The lead byte starts the predicate's own two passes, and a balanced
+        // scope is still the borrow.
+        let balanced = "\u{2066}user_id\u{2069}";
+        assert!(matches!(escape(balanced), Cow::Borrowed(_)));
+        assert_eq!(crate::passes::take(), 3, "a balanced scope");
+        assert_eq!(escape("<\u{202E}>"), "&lt;\u{FFFD}&gt;");
+        assert_eq!(crate::passes::take(), 3, "an open control");
+        // `…` has the lead byte and is no control.
+        assert_eq!(escape("wait…"), "wait…");
     }
 
     /// Escaping is not idempotent, and that is the property the carrier exists
