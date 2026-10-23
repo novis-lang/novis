@@ -12,6 +12,7 @@
     "tests/conformance/core/db-execute-many-answers-a-count-and-not-a-write.nvst",
     "tests/conformance/core/db-execute-many-takes-a-set-per-execution.nvst",
     "tests/conformance/core/db-query-as-answers-rows-at-the-class-it-was-written-with.nvst",
-    "tests/conformance/core/db-write-tells-an-absent-count-from-a-zero-one.nvst"
+    "tests/conformance/core/db-write-tells-an-absent-count-from-a-zero-one.nvst",
+    "crates/nvs-db/tests/sqlite_contention.rs"
   ]
 }

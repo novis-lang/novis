@@ -161,6 +161,10 @@ pub struct SqliteTarget<'a> {
     /// sets this for a program-supplied path its run may read but not write
     /// (`rule:core-classes/db-capabilities`).
     pub read_only: bool,
+    /// Whether [`open`] puts a file it opens for writing in WAL, `[db.<name>] journal_mode`
+    /// through `nvs_config::db::JournalMode`. A read-only open never does, and SQLite keeps a
+    /// `:memory:` database in its own `memory` mode whatever is asked.
+    pub wal: bool,
 }
 
 impl<'a> SqliteTarget<'a> {
@@ -226,6 +230,9 @@ impl<'a> SqliteTarget<'a> {
             time_zone,
             statement_cache: statement_cache_for(block),
             read_only: false,
+            // `nvs_config::db::validate` has refused any other value at boot, so a value that is
+            // neither spelling only reaches here from a block no boot read, and it opens as it is.
+            wal: nvs_config::db::JournalMode::of(block) == Some(nvs_config::db::JournalMode::Wal),
         })
     }
 }
@@ -684,11 +691,16 @@ fn lost_walk() -> io::Error {
 ///   schema and the same write would refuse on every other driver and silently
 ///   corrupt the reference here. So it is not configurable to the unsafe value
 ///   — § 3's own defaults are settled on the same footing.
-/// - **No busy timeout.** A lock contention answers `SQLITE_BUSY` at once, which
-///   § 8 normalises to `Deadlock`, which is one of the kinds § 7's `retries`
-///   re-runs a callable on. A timeout set here would block a pool thread inside C
-///   for the duration and hide the conflict from the mechanism written to handle
-///   it.
+/// - **WAL, for a file opened for writing whose block keeps the default**
+///   ([`SqliteTarget::wal`]): readers run beside the one writer instead of
+///   waiting for it. The statement is [`WAL`], which the session store's file
+///   opens with too.
+/// - **The lock wait is the statement's, not the connection's.** Every
+///   statement path files one through [`crate::Connection::set_statement_deadline`]:
+///   the statement's own deadline, or the time its request has left. A writer
+///   that meets another's lock waits that long and then answers `SQLITE_BUSY`,
+///   which § 8 normalises to `Deadlock`. The wait runs on the blocking pool,
+///   never on a core.
 /// - **[`SqliteTarget::read_only`] opens with `SQLITE_OPEN_READ_ONLY`**, beside the
 ///   URI and no-mutex flags `rusqlite`'s default carries, and never creates the
 ///   file.
@@ -708,6 +720,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
     let interrupt = Arc::new(Interrupt::default());
     let watching = Arc::clone(&interrupt);
     let read_only = target.read_only;
+    let wal = target.wal;
 
     let handle = nvs_host::blocking::run(move || -> rusqlite::Result<rusqlite::Connection> {
         let connection = if read_only {
@@ -722,6 +735,11 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
             rusqlite::Connection::open(path)?
         };
         connection.set_prepared_statement_cache_capacity(capacity);
+        if wal && !read_only {
+            connection.pragma_update_and_check(None, "journal_mode", WAL, |row| {
+                row.get::<_, String>(0)
+            })?;
+        }
         connection.execute_batch(SESSION_PRAGMAS)?;
         connection.authorizer(Some(authorize))?;
         connection.update_hook(Some(
@@ -747,6 +765,22 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
     })
 }
 
+/// The journal mode [`open`] sets on a file it opens for writing, unless the
+/// block says `journal_mode = "delete"`.
+///
+/// It belongs to the file and not to the connection, so it is set once at open
+/// and [`SqliteConn::reset`] does not repeat it. The session store's file opens
+/// with it as well.
+pub const WAL: &str = "WAL";
+
+/// How long a statement with no deadline of its own waits for another
+/// connection's write lock when its run has no `wall_time` either.
+///
+/// It is the 5000 ms [`SESSION_PRAGMAS`] files, so a statement waits as long as
+/// a connection nobody filed a bound on. A request with a `wall_time` waits for
+/// what it has left instead (`rule:core-classes/db-statement-members`).
+pub const LOCK_WAIT: std::time::Duration = std::time::Duration::from_millis(5000);
+
 /// The pragmas [`open`] sets and [`SqliteConn::reset`] sets again.
 ///
 /// `foreign_keys` is the one the open needs for its own sake (see [`open`]).
@@ -758,10 +792,10 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
 /// file and every connection to it, so neither is here.
 ///
 /// `busy_timeout` is the one that is not SQLite's default: it is the 5000 ms
-/// `rusqlite` sets when it opens a connection, so a reused connection waits on
-/// another's write lock as long as a fresh one does. A queue worker and every
-/// statement with no deadline of its own lean on that wait. `0` would answer
-/// `SQLITE_BUSY` at once, and a worker sharing the file with a request stops.
+/// `rusqlite` sets when it opens a connection, and [`LOCK_WAIT`], so a reused
+/// connection waits on another's write lock as long as a fresh one does. A
+/// queue worker leans on that wait. `0` would answer `SQLITE_BUSY` at once, and
+/// a worker sharing the file with a request stops.
 const SESSION_PRAGMAS: &str = "PRAGMA foreign_keys = ON; \
      PRAGMA query_only = OFF; \
      PRAGMA recursive_triggers = OFF; \
@@ -1756,9 +1790,11 @@ fn read_row(cursor: &mut rusqlite::Rows<'_>, width: usize) -> io::Result<Option<
 /// means everywhere else — the call answers, one way or the other, rather than
 /// blocking a request-serving core until someone else commits.
 ///
-/// `None` restores SQLite's own default, which is to answer `SQLITE_BUSY` at
-/// once rather than to wait unboundedly: an unbounded lock wait is not a shape
-/// this backend has, and it is not one `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` would allow if it did.
+/// `None` is SQLite's own default, which is to answer `SQLITE_BUSY` at once.
+/// A statement whose caller named no deadline does not reach here with `None`:
+/// [`crate::Connection::set_statement_deadline`] files the time its request
+/// has left. An unbounded lock wait is not a shape this backend has, and
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` would not allow one.
 ///
 /// # Errors
 ///

@@ -1236,6 +1236,33 @@ impl Connection {
         Ok(())
     }
 
+    /// [`Self::set_deadline`] for a statement, where `lock_wait` bounds a SQLite
+    /// statement that names no deadline of its own (`rule:core-classes/db-statement-members`).
+    ///
+    /// `nvs-stdlib` passes the instant the request's `wall_time` runs out, or
+    /// [`crate::sqlite::LOCK_WAIT`] from now for a run with none. On SQLite it
+    /// becomes the busy timeout alone: a writer that meets another's lock
+    /// waits until then, and nothing interrupts a statement that is running.
+    /// A statement's own deadline wins. The four drivers with a wire have no
+    /// lock to wait for and ignore `lock_wait`.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::set_deadline`]'s.
+    pub fn set_statement_deadline(
+        &mut self,
+        at: Option<std::time::Instant>,
+        lock_wait: Option<std::time::Instant>,
+    ) -> std::io::Result<()> {
+        match self {
+            Connection::Sqlite(c) => {
+                c.interrupt.file(at);
+                crate::sqlite::set_busy_timeout(c, at.or(lock_wait))
+            }
+            _ => self.set_deadline(at),
+        }
+    }
+
     /// Whether a new statement may be written now — `rule:core-classes/db-statement-members`.
     #[must_use]
     pub fn may_start_statement(&self) -> bool {

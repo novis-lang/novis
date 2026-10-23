@@ -41,7 +41,6 @@ use nvs_db::{SqliteConn, SqliteTarget, SqliteValue};
 /// whose next request can sign the user in again. `WITHOUT ROWID` stores the record in the key's
 /// own b-tree, so a read is one lookup.
 const SCHEMA: &[&str] = &[
-    "PRAGMA journal_mode = WAL",
     "PRAGMA synchronous = NORMAL",
     "PRAGMA busy_timeout = 5000",
     "CREATE TABLE IF NOT EXISTS nvs_session (\
@@ -103,7 +102,7 @@ fn with<T>(path: &Path, operation: impl FnOnce(&mut Held) -> io::Result<T>) -> i
     answer
 }
 
-/// A new connection to `path`, with [`SCHEMA`] applied.
+/// A new connection to `path` in WAL mode, with [`SCHEMA`] applied.
 ///
 /// # Errors
 ///
@@ -114,6 +113,7 @@ fn opened(path: &Path) -> io::Result<Held> {
         time_zone: 0,
         statement_cache: STATEMENTS,
         read_only: false,
+        wal: true,
     })?;
     for statement in SCHEMA {
         drop(conn.query(statement, Vec::new())?);
