@@ -76,9 +76,9 @@ timeout = 1800           # the acceptance runner's own
 # the `(pass)` lines, so every check runs with it empty.
 env = { CLAUDECODE = "" }
 
-# `tools/nv/cmd/sweep.ts`: it sweeps the disk, the build only when the disk is low, and reads the nightly
+# `tools/nv/cmd/sweep.ts`: it sweeps the disk, its stale build caches included, and reads the nightly
 # CI run back. It runs no check and pays no floor debt, which the floor check `floor-debt` pays once per
-# goal. The timeout covers the cargo queries a low disk's sweep asks for the live set. The command exits 0
+# goal. The timeout covers the cargo queries the sweep asks for the live set after a manifest changes. The command exits 0
 # whatever it finds, so only a timeout or a crash fails it, and that pauses the loop. It is attached, so
 # the next session starts once it has ended.
 [hooks]

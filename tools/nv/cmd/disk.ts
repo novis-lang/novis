@@ -5,11 +5,9 @@
 //     bun nv disk --clean -n    say what --clean would delete; delete nothing
 //     bun nv disk --deep        also size the places outside this repository
 //
-// Nothing here runs on the session path. `bun nv sweep` runs `clean` after each session, a moment
-// nothing is building, and sweeps `target/deps` and `target/incremental` only when the disk is below
-// `MIN_FREE_GB`: the next session's build stays warm while there is room. A person runs the whole of
-// `--clean` by hand, and runs it only when no session is building, since sweeping `target/` under a live
-// build can break it.
+// Nothing here runs on the session path. `bun nv sweep` runs the whole of `clean` after each session, a
+// moment nothing is building. A person runs `--clean` by hand only when no session is building, since
+// sweeping `target/` under a live build can break it.
 //
 // Cargo never garbage-collects `target/`. A crate's artifacts are named `<name>-<metadata-hash>`, and
 // the hash covers the dependency graph, so every `Cargo.toml` or `Cargo.lock` edit mints a fresh
@@ -796,8 +794,7 @@ export interface CleanOptions {
 /**
  * The whole of `--clean`, as the bytes freed per part. `target/deps` is null when cargo could not name
  * the live set, and `deps/` was then left alone. The command a person types and `bun nv sweep` run
- * this one function under the same policy; the sweep sets `build` only when the disk is below
- * `MIN_FREE_GB`, so the next session's build stays warm.
+ * this one function under the same policy.
  */
 export async function clean(opts: CleanOptions = {}): Promise<Record<string, number | null>> {
   const dryRun = opts.dryRun ?? false;
