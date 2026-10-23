@@ -93,6 +93,20 @@ fn a_neutral_parameter_admits_a_tainted_argument() {
 }
 
 #[test]
+fn a_neutral_parameter_of_a_generic_member_admits_a_tainted_argument() {
+    // `Core\Arr::hasKey`'s `array<T>` makes the call generic, and its key is a
+    // closed position the first pass checks before any binding. That pass
+    // admits the qualifier as the ordinary path does, or a key read back from
+    // an array could not be looked up.
+    let diags = check_in_method(
+        "array<int> $a = [\"x\" => 1];\n\
+         tainted string $k = \"x\" as tainted string;\n\
+         bool $has = Core\\Arr::hasKey($a, $k);\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
 fn a_contagious_parameter_admits_a_tainted_argument_and_taints_the_result() {
     // `Core\Str::join`'s separator decides which bytes come back, so the
     // answer is tainted whenever the separator was.

@@ -1591,7 +1591,22 @@ pub(crate) fn check_generic_args(
         // much a second report as an error repeated.
         let reported = env.diags.iter().len();
         let refused_before = env.refused_exprs;
-        arg_types.push(check_expr(value, expected, live, scope, ctx, env));
+        // A closed position at a classified parameter admits its qualifier here
+        // as on the ordinary path, so `Core\Arr::hasKey`'s neutral key takes a
+        // `tainted string` although `array<T>` makes the call generic.
+        let admitted = match slots[index] {
+            ArgSlot::Param(param) if !open => Admitted {
+                tainted: admits_tainted_argument_at(&sig, param, env.interner),
+                secret: admits_secret_argument(sig.qual_at(param)),
+            },
+            _ => Admitted::NONE,
+        };
+        arg_types.push(match expected {
+            Some(want) if admitted.any() => {
+                check_arg_admitting_quals(value, want, admitted, live, scope, ctx, env)
+            }
+            _ => check_expr(value, expected, live, scope, ctx, env),
+        });
         refused[index] = env.refused_exprs != refused_before;
         // A literal that reported anything is left where it is: it has said
         // its piece already, and checking it again would repeat that.

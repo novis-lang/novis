@@ -60,9 +60,9 @@ foreach ($subs as array<array<mixed>> $pair) {
     // every incoming key would fail.
     array<tainted string> $expected = Core\Arr::keys($bs);
     foreach (Core\Arr::keys($ls) as tainted string $lk) {
-        // A key read back from an array is tainted, so the check uses
-        // `contains` over the base's keys.
-        if (!Core\Arr::contains(Core\Arr::keys($bs), $lk)) {
+        // A key read back from an array is tainted, and `hasKey`'s key
+        // parameter takes it, because a lookup writes nothing.
+        if (!Core\Arr::hasKey($bs, $lk)) {
             $expected[] = $lk;
         }
     }
