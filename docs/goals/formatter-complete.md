@@ -27,7 +27,7 @@ stages:
         rules: [tooling/fmt-a-list-is-one-line-or-one-item-per-line, tooling/fmt-trailing-commas, ide/ast-json-schema-is-frozen]
   - id: 6
     title: "an attribute is a node, so a literal inside it is formatted"
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/walk.rs, crates/nvs-fmt/src/tokens.rs, crates/nvs-fmt/src/space.rs, crates/nvs-cli/tests/ast.rs, data/gaps/nvs-fmt/literal-written-inside-an-attribute-keeps.json]
     extra:
       context:
@@ -159,9 +159,9 @@ and 6 read against a new kind.
 
 **Does:** a literal inside an attribute takes the quote every other literal takes.
 
-- [ ] A node for an attribute and its arguments in the syntax walk, each consumer on stage 3's Explore list still matching, and the frozen `ast --json` example re-recorded (`rule:ide/ast-json-schema-is-frozen`). `crates/nvs-syntax/src/walk.rs:148`, `crates/nvs-cli/tests/ast.rs:184`
-- [ ] `tokens.rs` respells a literal inside it (`rule:tooling/fmt-quotes`), with a test. `crates/nvs-fmt/src/tokens.rs:220`
-- [ ] The record is deleted. `data/gaps/nvs-fmt/literal-written-inside-an-attribute-keeps.json:1`
+- [x] A node for an attribute and its arguments in the syntax walk, each consumer on stage 3's Explore list still matching, and the frozen `ast --json` example re-recorded (`rule:ide/ast-json-schema-is-frozen`). `crates/nvs-syntax/src/walk.rs:148`, `crates/nvs-cli/tests/ast.rs:184`
+- [x] `tokens.rs` respells a literal inside it (`rule:tooling/fmt-quotes`), with a test. `crates/nvs-fmt/src/tokens.rs:220`
+- [x] The record is deleted. `data/gaps/nvs-fmt/literal-written-inside-an-attribute-keeps.json:1`
 
 ### 4. a comment moves with its import, and every line is placed
 
@@ -200,45 +200,51 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3 is 0b7e77765. The syntax walk writes a `ShapeType` node
-wherever a shape type is written, inside another type too, and no other type is a node. So a file
-with no shape walks as before. `push_type` is the one place (`crates/nvs-syntax/src/walk.rs:1111`).
-`Core\Ast`'s `productions!` gains `ShapeType` at the same sorted place. The redaction walk skips the
-node in front of a property's initializer (`crates/nvs-types/src/redaction.rs:199`). `list.rs` reads
-a shape's commas by depth, as it reads a parameter list's (`bracketed`). `space.rs` gives a one-line
-shape one space inside each brace (`rule:tooling/fmt-novis-constructs`). The corpus was reformatted:
-36 files, spacing only, and no line moved. `nvs ast --json`'s frozen document is `examples/hello.nvs`,
-which has no shape, so it is unchanged and the schema check over every example passes.
+Stages 1, 2, 3 and 6 are done. Stage 3 is 0b7e77765, and stage 6 is the commit after this
+handoff's.
 
-Explore's consumer list for stages 3 and 6: the kind tables are `KINDS` and `productions!`. Position
-readers are `redaction.rs`'s `property` (first child is the initializer) and
-`nvs-types/src/deprecated/fix.rs:947` (a child's rank in `If`, `Switch`, `Foreach`). Other position
-readers are `nvs-lsp/src/arguments.rs:524`, `hover.rs:247` and `completion.rs:1322` (call children
-after the `(`), and `nvs-lsp/src/index.rs:1266` (an enum case's first child). Counting `.nvst` cases
-are under `tests/conformance/core/` (`core-ast-*`), and `.out` files under `docs/examples/core/Ast*`.
+Stage 6: the syntax walk writes one `Attribute` node per attribute, with the payload's values as
+its children (`push_attributes`, `crates/nvs-syntax/src/walk.rs:1060`). It is the first child of
+the declaration it decorates, a parameter's going to its function. Every declaration's span already
+opens at its first `#[` (`ast.rs`'s `ClassDecl` and `EnumCase` docs said otherwise and are fixed).
+The node starts at the name, past the `#[`, so the indenter still places a `#[` line as the
+declaration's line, and no line's indentation moved. `Core\Ast`'s `productions!` has `Attribute`.
+`redaction.rs`'s `property` skips it with `ShapeType`, and `list.rs`'s `cases` lets it stand in
+front of an enum's cases. `nvs fmt` now respells a literal inside an attribute. A named attribute's
+`(...)` is a list in `LISTS` (`crates/nvs-fmt/src/list.rs:85`). Before, a method's parameter list
+was misread as its attribute's `(` (`bracketed` found the first `(`), so this also makes
+an attributed method's real parameter list a list. The LSP's own payload walk (`payload_path`) is
+deleted from `definition.rs` and `hover.rs`, because the index path now reaches a payload. The
+stub-tree rule's Declined entry against payload nodes is removed. The corpus was reformatted: 52
+files, quotes and commas, and one hostile file's 128-item array inside `#[Core\Api(tags: [...])]` went
+to one item per line under the list rule. `examples/hello.nvs`, the frozen `ast --json` document,
+has no attribute, so it is unchanged. `identity`, `ast` and the new
+`a_literal_inside_an_attribute_is_rewritten_to_single_quotes` passed.
 
 The acceptance sweep's reds are unchanged: the `env-secret-proofs` log shows exit 0, and no nightly
 has run since 39922764699. The last handoff's triage stands. If the next nightly's macOS
 `Serve soak` is red again, take that slice first.
 
-Expected red at the gate: nothing known. `list_layout`, `novis_constructs`, `identity` and `ast`
-passed after this change. An LSP completion case whose cursor is inside a shape type now has
-`ShapeType` as its innermost node, and no case in `tests/lsp/` writes one.
+Expected red at the gate: possibly an `nvs-lsp` definition or hover case whose cursor is inside an
+attribute payload. It now resolves through the index path rather than `payload_path`, innermost
+first, and should answer the same. A `.lspt` completion or hover case inside an attribute now has
+`Attribute` or a payload value as its innermost node. No `Core\Ast` case or `.out` parses an
+attribute.
 
 ### Next
 
-**Stage 6: an attribute is a node, so a literal inside it is formatted.** Files:
-`crates/nvs-syntax/src/walk.rs`, `crates/nvs-fmt/src/tokens.rs`, `crates/nvs-fmt/src/space.rs`,
-`crates/nvs-cli/tests/ast.rs`. The walk's module doc says why an attribute's payload is no node
-today: a payload node under a method moves what `nvs fmt`'s indenter and `Core\Ast` print
-(`crates/nvs-syntax/src/walk.rs:31`). Read that first, and rewrite it with the change. Read the
-consumer list above against the new kind. Add the kind to `productions!` at the same sorted place.
-Run `cargo test --test identity` and accept the corpus as stages 2 and 3 did. `examples/` has
-attributes, so the frozen-schema check in `cargo test --test ast` is the one to run.
+**Stage 4: a comment moves with its import, and every line is placed.** Files:
+`crates/nvs-fmt/src/imports.rs`, `crates/nvs-fmt/src/indent.rs`, `crates/nvs-fmt/tests/use_block.rs`,
+`docs/rules/tooling/fmt-base-style-is-per.md`. Read the two records first. The standing decision
+on *A line no rule places yet* settles the `switch` and template-region layouts, and both are
+written into the rule fragment before the code. A stage that changes output reformats the corpus
+in the same commit (`NVS_FMT_ACCEPT=1 cargo test --test identity`).
 
-- [ ] A node for an attribute and its arguments in the syntax walk, each consumer on the list above still matching, and the frozen `ast --json` example re-recorded if it changes. `crates/nvs-syntax/src/walk.rs:31`, `crates/nvs-cli/tests/ast.rs:184`
-- [ ] `tokens.rs` respells a literal inside it (`rule:tooling/fmt-quotes`), with a test. `crates/nvs-fmt/src/tokens.rs:227`
-- [ ] The record is deleted. `data/gaps/nvs-fmt/literal-written-inside-an-attribute-keeps.json:1`
+- [ ] An import carries the comment written above it as a second span, and the whole block sorts (`rule:tooling/fmt-sorts-the-use-block`), with a test. `crates/nvs-fmt/src/imports.rs:112`, `crates/nvs-fmt/tests/use_block.rs:1`
+- [ ] A comment line is placed at the indentation of the line below it (`rule:tooling/fmt-base-style-is-per`). `crates/nvs-fmt/src/indent.rs:270`
+- [ ] A `switch` body is placed as PER-CS places it, and a template region's text stays the author's, each written into `rule:tooling/fmt-base-style-is-per` first. `crates/nvs-fmt/src/indent.rs:107`, `docs/rules/tooling/fmt-base-style-is-per.md:1`
+- [ ] A continuation line that is not part of a broken list, chain or operator chain stays the author's, and `indent.rs`'s module doc says so (`rule:tooling/fmt-never-reflows`). `crates/nvs-fmt/src/indent.rs:29`
+- [ ] Both records are deleted. `data/gaps/nvs-fmt/comment-written-between-two-imports-holds.json:1`, `data/gaps/nvs-fmt/line-the-tree-does-not-place.json:1`
 
 ### Backlog
 
