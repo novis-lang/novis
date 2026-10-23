@@ -3,7 +3,7 @@
 // twenty thousand times in a row. Every list must be freed again, so the
 // program should stay inside its memory limit and run to its last line.
 
-type Route = {path: string};
+type Route = { path: string };
 
 interface Page
 {
@@ -157,7 +157,7 @@ class P20 implements Page
 uint $rounds = 0;
 uint $routed = 0;
 while ($rounds < 20000) {
-    foreach (Core\Program::implementingWith<Page, Route>('render') as {instance: Page, attribute: ?Route} $row) {
+    foreach (Core\Program::implementingWith<Page, Route>('render') as { instance: Page, attribute: ?Route } $row) {
         if ($row->attribute != null) {
             $routed = $routed + 1;
         }

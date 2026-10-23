@@ -29,7 +29,7 @@ try {
 
 // 4. Marks for one hundred thousand pages, each with one mark.
 try {
-    array<array<{name: string, value: string}>> $marks = [];
+    array<array<{ name: string, value: string }>> $marks = [];
     for (int $n = 0; $n < 100000; $n++) {
         $marks[] = [{ name: 'amount', value: '1.00' }];
     }

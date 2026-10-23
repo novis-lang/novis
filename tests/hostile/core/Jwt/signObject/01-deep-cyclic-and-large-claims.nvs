@@ -86,7 +86,7 @@ try {
     $refused = $refused + 1;
 }
 try {
-    Core\Jwt::signObject(Core\Arr::shapeAs<{exp: int}>(['exp' => 9999999999]), 1h, $pair);
+    Core\Jwt::signObject(Core\Arr::shapeAs<{ exp: int }>(['exp' => 9999999999]), 1h, $pair);
 } catch (LogicError $exp) {
     $refused = $refused + 1;
 }

@@ -23,8 +23,8 @@
 // is a `tainted string` and `age`, being an `int`, carries nothing. That is
 // what a peer chose, said out loud — the qualifier costs nothing at run time
 // and is the reason a sink cannot be reached from here by accident.
-(tainted {email: string, age: int, nickname?: string}) $account =
-    Core\Request::postAs<tainted {email: string, age: int, nickname?: string}>();
+(tainted { email: string, age: int, nickname?: string }) $account =
+    Core\Request::postAs<tainted { email: string, age: int, nickname?: string }>();
 echo 'email is ', $account->email, "\n";
 echo 'age is ', $account->age as string, "\n";
 
@@ -37,14 +37,14 @@ echo 'nickname is ', $account->nickname ?? 'absent', "\n";
 // The query string, through the same walk. `queryAs` and `postAs` are one
 // mechanism over two subjects — `Core\Arr::shapeAs` below is that mechanism
 // said in general, with the array named outright.
-(tainted {city: string}) $where = Core\Request::queryAs<tainted {city: string}>();
+(tainted { city: string }) $where = Core\Request::queryAs<tainted { city: string }>();
 echo 'city is ', $where->city, "\n";
 
 // Width subtyping over loose values: `note` is a key the shape never named, so
 // it is left behind rather than refused. That is deliberate and has no opt-out
 // — a client adding a field must not break a server that never asked for it
 // (`rule:core-api/shape-rules`).
-if (Core\Json::encode(Core\Arr::shapeAs<{city: string}>(['city' => 'Vienna', 'note' => 'ignored']))
+if (Core\Json::encode(Core\Arr::shapeAs<{ city: string }>(['city' => 'Vienna', 'note' => 'ignored']))
     == "{\"city\":\"Vienna\"}") {
     echo "an unnamed field was left behind\n";
 }
@@ -55,7 +55,7 @@ if (Core\Json::encode(Core\Arr::shapeAs<{city: string}>(['city' => 'Vienna', 'no
 // dotted path, because a form wants the whole list rather than the first item
 // of it (`rule:core-classes/derive-reports-every-field`).
 try {
-    Core\Request::queryAs<tainted {age: int, city: string}>({ name: 'bad' });
+    Core\Request::queryAs<tainted { age: int, city: string }>({ name: 'bad' });
     echo "not reached\n";
 } catch (ParseError $refused) {
     if (Core\Arr::count($refused->issues) == 2) {

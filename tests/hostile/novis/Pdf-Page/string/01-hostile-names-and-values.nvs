@@ -23,7 +23,7 @@ try {
 
 // 3. One hundred thousand saved values on one page.
 try {
-    array<{name: string, value: string}> $strings = [];
+    array<{ name: string, value: string }> $strings = [];
     for (int $n = 0; $n < 100000; $n++) {
         $strings[] = { name: "name{$n}", value: 'x' };
     }

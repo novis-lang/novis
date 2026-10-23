@@ -24,8 +24,8 @@ try {
 
 // 3. Lists of one hundred thousand entries, with the largest line, column and page numbers.
 try {
-    array<{property: string, value: string, selector: string, line: uint, column: uint}> $dropped = [];
-    array<{page: uint, area: string, text: string}> $overflows = [];
+    array<{ property: string, value: string, selector: string, line: uint, column: uint }> $dropped = [];
+    array<{ page: uint, area: string, text: string }> $overflows = [];
     for (int $n = 0; $n < 100000; $n++) {
         $dropped[] = { property: 'color', value: "\u{0}", selector: '*', line: 18446744073709551615, column: 18446744073709551615 };
         $overflows[] = { page: 18446744073709551615, area: 'footer', text: '</p>' };

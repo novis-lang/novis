@@ -9,7 +9,7 @@ Image $small = Image::create(16, 16, Color::hex('#ff0000'));
 
 // 1. A thousand entries in one call.
 try {
-    array<{width?: uint}> $set = [];
+    array<{ width?: uint }> $set = [];
     uint $i = 0;
     while ($i < 1000) {
         $set[] = { width: 1 + $i % 16 };

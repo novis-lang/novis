@@ -7,7 +7,7 @@
 // hostile: ends-early 4 FATAL
 
 // Each array below has the type `array<mixed>`, so its text is tainted.
-type Small = {a: int, b: tainted string};
+type Small = { a: int, b: tainted string };
 
 // 1. A form with 200,000 keys the shape does not name. They are all left out,
 // so this prints `1`.
@@ -18,7 +18,7 @@ echo $small->a, "\n";
 // 2. Every field holds a value its declared type cannot take. The member
 // throws an error that lists all three.
 try {
-    Core\Arr::shapeAs<{one: int, two: int, three: int}>([
+    Core\Arr::shapeAs<{ one: int, two: int, three: int }>([
         'one' => 'no',
         'two' => 'no',
         'three' => 'no',
@@ -37,7 +37,7 @@ while ($d < 10000) {
     $d = $d + 1;
 }
 try {
-    Core\Arr::shapeAs<{text: tainted string}>(['text' => $deep]);
+    Core\Arr::shapeAs<{ text: tainted string }>(['text' => $deep]);
     echo "deep value accepted\n";
 } catch (Throwable $refused) {
     echo "deep value refused\n";
@@ -50,7 +50,7 @@ array<mixed> $rows = Core\Arr::fill(1000, ['n' => 1]);
 uint $k = 0;
 while ($k < 40) {
     $rows = Core\Arr::appendAll($rows, $rows);
-    Core\Arr::shapeAs<array<{n: int}>>($rows);
+    Core\Arr::shapeAs<array<{ n: int }>>($rows);
     $k = $k + 1;
 }
 echo "grew forever\n";

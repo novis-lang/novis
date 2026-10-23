@@ -5,7 +5,8 @@
 //! Each case is the smallest file that shows one half of the rule: what counts
 //! as a break at the list's own level, what does not, and the one layout a
 //! broken list gets. A call's arguments, a parameter list, an array literal,
-//! an anonymous object and an enum's cases are the lists these cases cover.
+//! an anonymous object, a shape type's fields and an enum's cases are the lists
+//! these cases cover.
 
 use nvs_diagnostics::SourceMap;
 use nvs_fmt::format;
@@ -126,6 +127,23 @@ fn an_anonymous_object_follows_the_list_rule() {
     );
     let one_line = "<?nvs\n$log->write({ level: 'info', message: 'started' }, true);\n";
     formats_to(one_line, one_line);
+}
+
+#[test]
+fn a_shape_types_fields_follow_the_list_rule() {
+    formats_to(
+        "<?nvs\ntype Line = {name: string,\ncount: int};\n",
+        "<?nvs\ntype Line = {\n    name: string,\n    count: int,\n};\n",
+    );
+    formats_to(
+        "<?nvs\ntype Line = {name: string, count: int,};\n",
+        "<?nvs\ntype Line = { name: string, count: int };\n",
+    );
+    // A comma inside a field's own type is not one of the shape's.
+    formats_to(
+        "<?nvs\nclass Shop\n{\n    public static function total(?{lines: array<{sku: string, count: int}>,\nnote: tainted {text: string}} $order): int\n    {\n        return 0;\n    }\n}\n",
+        "<?nvs\nclass Shop\n{\n    public static function total(?{\n        lines: array<{ sku: string, count: int }>,\n        note: tainted { text: string },\n    } $order): int\n    {\n        return 0;\n    }\n}\n",
+    );
 }
 
 #[test]

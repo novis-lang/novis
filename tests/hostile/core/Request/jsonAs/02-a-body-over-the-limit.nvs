@@ -35,7 +35,7 @@ class Notes
     public function form(): void
     {
         try {
-            var $draft = Core\Request::postAs<tainted {title: string}>();
+            var $draft = Core\Request::postAs<tainted { title: string }>();
             echo 'saved';
         } catch (ParseError $error) {
             echo 'not a form';

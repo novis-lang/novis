@@ -77,9 +77,9 @@ uint $issues = 0;
 int $pass = 0;
 while ($pass < 10000) {
     try {
-        Core\Arr::shapeAs<{name: string, age: int, active: bool}>(['name' => 1, 'age' => 'x', 'active' => 'x']);
+        Core\Arr::shapeAs<{ name: string, age: int, active: bool }>(['name' => 1, 'age' => 'x', 'active' => 'x']);
     } catch (ParseError $bad) {
-        foreach ($bad->issues as ({path: string, message: string}) $issue) {
+        foreach ($bad->issues as ({ path: string, message: string }) $issue) {
             $issues = $issues + Core\Str::length($issue->path);
         }
     }

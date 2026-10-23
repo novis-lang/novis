@@ -34,6 +34,14 @@
 //! a method moves what both print. An editor that needs a span inside a
 //! payload walks the attribute lists itself (`nvs_lsp::definition`).
 //!
+//! A shape type is the one type that is a node, `ShapeType`, wherever it is
+//! written: in a signature, a declaration, a conversion, a type test or a call's
+//! type arguments, and inside another type. Its fields are a comma-separated
+//! list `nvs fmt` lays out (`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`),
+//! and without a node its `{` cannot be told from a block's. A shape written
+//! inside one of its fields is its child. No other type is a node, so a
+//! signature with no shape in it walks exactly as before.
+//!
 //! The alternative was one node per struct in [`crate::ast`], and
 //! `rule:tooling/reflection-and-source-parsing-are-core-features`'s typed
 //! roster is not it: that roster is one class per *production*, which is
@@ -70,7 +78,8 @@
 //! `rule:ide/ast-json-schema-is-frozen`). So the dump carries no literal text
 //! at all, and needs no placeholder for a `secret` one.
 //!
-//! **What it spends:** one [`Node`] per statement, expression and member —
+//! **What it spends:** one [`Node`] per statement, expression, member and
+//! shape type —
 //! two words for the kind, a span, an optional second span for the name, and
 //! two `Vec` headers, allocated per parse and dropped when the caller is done
 //! with it, plus one small allocation for each node that has a field at all.
@@ -92,8 +101,9 @@ use nvs_diagnostics::{Diagnostics, MAX_SOURCE_LEN, SourceMap, Span};
 use crate::ast::{
     AnonClassDecl, AssignOp, BinaryOp, Block, CallArgs, ClassMember, ClassMemberKind,
     DestructureElement, DestructureTarget, EnumCase, Expr, ExprKind, FnBody, FnExpr, ForInit,
-    IncDecOp, MemberName, MethodMember, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt,
-    StmtKind, StringPart, TestOperand, UnaryOp,
+    ForeachBinding, ForeachBindingTy, IncDecOp, MemberName, MethodMember, NewTarget, Param,
+    PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, TestOperand, Type, TypeAtom,
+    TypeKind, UnaryOp,
 };
 use crate::parse_file;
 
@@ -223,6 +233,7 @@ pub const KINDS: &[&str] = &[
     "Require",
     "Return",
     "SelfExpr",
+    "ShapeType",
     "SpawnScript",
     "StaticCall",
     "StaticExpr",
@@ -439,9 +450,19 @@ fn stmt(s: &Stmt) -> Node {
             kids.push(stmt(body));
             "For"
         }
-        StmtKind::Foreach { subject, body, .. } => {
-            // The bindings are not nodes — the module doc's second decision.
+        StmtKind::Foreach {
+            subject,
+            key,
+            value,
+            body,
+            ..
+        } => {
+            // The bindings are not nodes — the module doc's second decision —
+            // but a shape type one of them writes is.
             kids.push(expr(subject));
+            for binding in key.iter().chain(std::iter::once(value)) {
+                push_binding(&mut kids, binding);
+            }
             kids.push(stmt(body));
             "Foreach"
         }
@@ -468,6 +489,7 @@ fn stmt(s: &Stmt) -> Node {
         } => {
             push_block(&mut kids, body);
             for catch in catches {
+                push_type(&mut kids, &catch.ty);
                 push_block(&mut kids, &catch.body);
             }
             if let Some(finally) = finally {
@@ -485,10 +507,12 @@ fn stmt(s: &Stmt) -> Node {
         }
         StmtKind::LocalDecl {
             name: declared,
+            ty,
             value,
             ..
         } => {
             name = Some(*declared);
+            push_types(&mut kids, ty.as_ref());
             push_opt(&mut kids, value.as_ref());
             "LocalDecl"
         }
@@ -502,7 +526,8 @@ fn stmt(s: &Stmt) -> Node {
             name = Some(*label);
             "Goto"
         }
-        StmtKind::StaticLocal { vars, .. } => {
+        StmtKind::StaticLocal { ty, vars } => {
+            push_types(&mut kids, ty.as_ref());
             for var in vars {
                 push_opt(&mut kids, var.default.as_ref());
             }
@@ -535,6 +560,7 @@ fn stmt(s: &Stmt) -> Node {
         StmtKind::AutoloadDecl(_) => "AutoloadDecl",
         StmtKind::TypeAliasDecl(decl) => {
             name = Some(decl.name.span);
+            push_type(&mut kids, &decl.ty);
             "TypeAliasDecl"
         }
         StmtKind::TopLevelFunction(f) => {
@@ -544,6 +570,7 @@ fn stmt(s: &Stmt) -> Node {
         }
         StmtKind::TopLevelConst(consts) => {
             for c in consts {
+                push_types(&mut kids, c.ty.as_ref());
                 kids.push(expr(&c.value));
             }
             "Const"
@@ -654,8 +681,11 @@ fn expr(e: &Expr) -> Node {
         // PHP's `(T)expr` is refused by the parser, so it is the `Error` it
         // stands for here, and its operand is not part of the tree.
         ExprKind::Conversion { legacy: true, .. } => "Error",
-        ExprKind::Conversion { expr: operand, .. } => {
+        ExprKind::Conversion {
+            expr: operand, ty, ..
+        } => {
             kids.push(expr(operand));
+            push_type(&mut kids, ty);
             "Conversion"
         }
         ExprKind::TypeTest {
@@ -663,8 +693,9 @@ fn expr(e: &Expr) -> Node {
             against,
         } => {
             kids.push(expr(operand));
-            if let TestOperand::Value(value) = against {
-                kids.push(expr(value));
+            match against {
+                TestOperand::Type(ty) => push_type(&mut kids, ty),
+                TestOperand::Value(value) => kids.push(expr(value)),
             }
             "TypeTest"
         }
@@ -677,27 +708,29 @@ fn expr(e: &Expr) -> Node {
             object,
             nullsafe,
             method,
+            type_args,
             args,
-            ..
         } => {
             fields.push(("nullsafe", Field::Flag(*nullsafe)));
             fields.push(("member", Field::Word(member_form(method))));
             name = member_span(method);
             kids.push(expr(object));
             push_member_name(&mut kids, method);
+            type_args.iter().for_each(|ty| push_type(&mut kids, ty));
             push_args(&mut kids, args);
             "MethodCall"
         }
         ExprKind::StaticCall {
             class,
             method,
+            type_args,
             args,
-            ..
         } => {
             fields.push(("member", Field::Word(member_form(method))));
             name = member_span(method);
             kids.push(expr(class));
             push_member_name(&mut kids, method);
+            type_args.iter().for_each(|ty| push_type(&mut kids, ty));
             push_args(&mut kids, args);
             "StaticCall"
         }
@@ -732,7 +765,11 @@ fn expr(e: &Expr) -> Node {
             push_opt(&mut kids, index.as_deref());
             "Index"
         }
-        ExprKind::New { target, args, .. } => {
+        ExprKind::New {
+            target,
+            type_args,
+            args,
+        } => {
             fields.push(("target", Field::Word(new_target(target))));
             match target {
                 NewTarget::Name(written) => name = Some(written.span),
@@ -740,6 +777,7 @@ fn expr(e: &Expr) -> Node {
                 NewTarget::Expr(e) => kids.push(expr(e)),
                 NewTarget::AnonClass(decl) => push_anon_class(&mut kids, decl),
             }
+            type_args.iter().for_each(|ty| push_type(&mut kids, ty));
             push_args(&mut kids, args);
             "New"
         }
@@ -764,6 +802,7 @@ fn expr(e: &Expr) -> Node {
         ExprKind::Catch { guarded, arms } => {
             kids.push(expr(guarded));
             for arm in arms {
+                push_type(&mut kids, &arm.ty);
                 kids.push(expr(&arm.body));
             }
             "Catch"
@@ -943,6 +982,7 @@ fn member(m: &ClassMember) -> Node {
     let kind = match &m.kind {
         ClassMemberKind::Property(p) => {
             name = Some(p.name);
+            push_type(&mut kids, &p.ty);
             push_opt(&mut kids, p.default.as_ref());
             for hook in p.hooks.iter().flatten() {
                 push_hook(&mut kids, hook);
@@ -951,6 +991,7 @@ fn member(m: &ClassMember) -> Node {
         }
         ClassMemberKind::Const(c) => {
             name = Some(c.name);
+            push_types(&mut kids, c.ty.as_ref());
             kids.push(expr(&c.value));
             "Const"
         }
@@ -961,6 +1002,7 @@ fn member(m: &ClassMember) -> Node {
         }
         ClassMemberKind::TypeAlias(a) => {
             name = Some(a.name.span);
+            push_type(&mut kids, &a.ty);
             "TypeAliasDecl"
         }
         // The same node a file-scope enum is, so a tool reading the tree
@@ -1044,12 +1086,106 @@ fn push_member_name(kids: &mut Vec<Node>, name: &MemberName) {
 
 fn push_params(kids: &mut Vec<Node>, params: &[Param]) {
     for param in params {
-        push_opt(kids, param.default.as_ref());
+        push_param(kids, param);
+    }
+}
+
+fn push_param(kids: &mut Vec<Node>, param: &Param) {
+    push_types(kids, param.ty.as_ref());
+    push_opt(kids, param.default.as_ref());
+}
+
+fn push_binding(kids: &mut Vec<Node>, binding: &ForeachBinding) {
+    match &binding.ty {
+        ForeachBindingTy::Written(ty) => push_type(kids, ty),
+        ForeachBindingTy::Var(_) | ForeachBindingTy::Omitted => {}
+    }
+}
+
+fn push_types(kids: &mut Vec<Node>, ty: Option<&Type>) {
+    if let Some(ty) = ty {
+        push_type(kids, ty);
+    }
+}
+
+/// A type is no node, and a shape type is the one exception: its fields are a
+/// list `nvs fmt` lays out, so its braces need a node of their own to be told
+/// from a block's. A shape written inside another type — `?{a: int}`,
+/// `array<{a: int}>`, a field's own shape — is a node too, and a shape inside a
+/// shape is that shape's child.
+fn push_type(kids: &mut Vec<Node>, ty: &Type) {
+    match &ty.kind {
+        TypeKind::Nullable(inner) | TypeKind::Paren(inner) => push_type(kids, inner),
+        TypeKind::Union(members) | TypeKind::Intersection(members) => {
+            members.iter().for_each(|member| push_type(kids, member));
+        }
+        TypeKind::Atom(TypeAtom::Shape(fields)) => {
+            let mut inner = Vec::new();
+            for field in fields {
+                push_type(&mut inner, &field.ty);
+            }
+            kids.push(Node {
+                kind: "ShapeType",
+                span: ty.span,
+                name: None,
+                children: inner,
+                fields: Vec::new(),
+            });
+        }
+        TypeKind::Atom(atom) => push_atom(kids, atom),
+    }
+}
+
+/// The shape types written inside an atom that is not one itself.
+fn push_atom(kids: &mut Vec<Node>, atom: &TypeAtom) {
+    match atom {
+        TypeAtom::Array(Some(inner))
+        | TypeAtom::ClassRef(inner)
+        | TypeAtom::PropertyKey(inner)
+        | TypeAtom::PropertyPath(inner)
+        | TypeAtom::StringHoles { key: inner, .. } => push_type(kids, inner),
+        TypeAtom::CallableSig { params, ret } => {
+            params.iter().for_each(|param| push_type(kids, param));
+            push_type(kids, ret);
+        }
+        TypeAtom::Name(_, args) => args.iter().for_each(|arg| push_type(kids, arg)),
+        TypeAtom::Shape(_)
+        | TypeAtom::Array(None)
+        | TypeAtom::Null
+        | TypeAtom::Bool
+        | TypeAtom::Int
+        | TypeAtom::Uint
+        | TypeAtom::Float
+        | TypeAtom::Decimal
+        | TypeAtom::String
+        | TypeAtom::Bytes
+        | TypeAtom::TaintedString
+        | TypeAtom::TaintedBytes
+        | TypeAtom::SecretString
+        | TypeAtom::SecretBytes
+        | TypeAtom::SecretTaintedString
+        | TypeAtom::SecretTaintedBytes
+        | TypeAtom::Object
+        | TypeAtom::Mixed
+        | TypeAtom::Void
+        | TypeAtom::Never
+        | TypeAtom::True
+        | TypeAtom::False
+        | TypeAtom::SingleValueString(_)
+        | TypeAtom::SingleValueInt(_)
+        | TypeAtom::Member(..)
+        | TypeAtom::MemberCase(..)
+        | TypeAtom::Iterable
+        | TypeAtom::Callable
+        | TypeAtom::SelfTy
+        | TypeAtom::StaticTy
+        | TypeAtom::Parent => {}
     }
 }
 
 fn push_method(kids: &mut Vec<Node>, f: &MethodMember) {
     push_params(kids, &f.params);
+    push_types(kids, f.return_type.as_ref());
     if let Some(body) = &f.body {
         push_block(kids, body);
     }
@@ -1057,6 +1193,7 @@ fn push_method(kids: &mut Vec<Node>, f: &MethodMember) {
 
 fn push_fn(kids: &mut Vec<Node>, f: &FnExpr) {
     push_params(kids, &f.params);
+    push_types(kids, f.return_type.as_ref());
     match &f.body {
         FnBody::Expr(e) => kids.push(expr(e)),
         FnBody::Block(b) => push_block(kids, b),
@@ -1065,7 +1202,7 @@ fn push_fn(kids: &mut Vec<Node>, f: &FnExpr) {
 
 fn push_hook(kids: &mut Vec<Node>, hook: &PropertyHook) {
     if let Some(param) = &hook.param {
-        push_opt(kids, param.default.as_ref());
+        push_param(kids, param);
     }
     match &hook.body {
         None => {}
@@ -1083,7 +1220,10 @@ fn push_destructure(kids: &mut Vec<Node>, target: &DestructureTarget) {
     for element in &target.elements {
         match element {
             DestructureElement::Skip => {}
-            DestructureElement::Leaf { key, .. } => push_opt(kids, key.as_ref()),
+            DestructureElement::Leaf { key, ty, .. } => {
+                push_opt(kids, key.as_ref());
+                push_types(kids, ty.as_ref());
+            }
             DestructureElement::Nested { key, target, .. } => {
                 push_opt(kids, key.as_ref());
                 push_destructure(kids, target);

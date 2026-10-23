@@ -2,7 +2,7 @@
 // Attack: the attribute list of a class is read many times, on a class with many
 // attributes, on a subclass and on a class with none. Every list should be freed.
 
-type Route = {path: string};
+type Route = { path: string };
 
 #[Route(path: '/a')]
 #[{a: 1}]

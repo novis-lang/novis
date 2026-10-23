@@ -7,7 +7,7 @@ use Novis\Spreadsheet\Workbook;
 class Attack
 {
     // This method starts a column chart with `$options` and prints whether the file was written, or the class of the error.
-    public static function attempt(int $step, ?{title?: string, xTitle?: string, yTitle?: string, legend?: string, labels?: bool} $options): void
+    public static function attempt(int $step, ?{ title?: string, xTitle?: string, yTitle?: string, legend?: string, labels?: bool } $options): void
     {
         try {
             var $book = Workbook::createInMemory();

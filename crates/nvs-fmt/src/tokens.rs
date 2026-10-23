@@ -62,8 +62,8 @@
 //! last code byte before the closer, which is the byte the walk has in hand.
 //! A parameter list and an enum-case list end inside a node that runs on past
 //! them, so a closer is also a list's when [`List::of`] finds that closer in
-//! the node there. A shape type's fields are a known gap in
-//! [`the crate's own doc`](crate).
+//! the node there, and so does a shape type's field list, whose node starts at
+//! a qualifier written in front of its `{`.
 //!
 //! # The reserved spellings
 //!

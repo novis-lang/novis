@@ -4,7 +4,7 @@
 
 // 1. Sends a number too large for `uint`, and a negative one.
 try {
-    var $big = Core\Request::postAs<{big: uint, negative: uint}>();
+    var $big = Core\Request::postAs<{ big: uint, negative: uint }>();
     echo 'not reached: ', $big->big, "\n";
 } catch (ParseError $error) {
     echo 'numbers: ', Core\Arr::count($error->issues), " issues\n";
@@ -12,7 +12,7 @@ try {
 
 // 2. Sends an array where the field is a string.
 try {
-    var $form = Core\Request::postAs<tainted {email: string}>();
+    var $form = Core\Request::postAs<tainted { email: string }>();
     echo 'not reached: ', $form->email, "\n";
 } catch (ParseError $error) {
     echo 'array for a string: ', Core\Arr::count($error->issues), " issue\n";
@@ -20,7 +20,7 @@ try {
 
 // 3. Reads a name that the form does not have.
 try {
-    var $missing = Core\Request::postAs<tainted {city: string}>({ name: 'address' });
+    var $missing = Core\Request::postAs<tainted { city: string }>({ name: 'address' });
     echo 'not reached: ', $missing->city, "\n";
 } catch (ParseError $error) {
     echo 'missing name: ', Core\Arr::count($error->issues), " issue\n";
@@ -28,7 +28,7 @@ try {
 
 // 4. Reads the name nested 100 levels deep as a shape with one field.
 try {
-    var $deep = Core\Request::postAs<tainted {a: string}>({ name: 'deep' });
+    var $deep = Core\Request::postAs<tainted { a: string }>({ name: 'deep' });
     echo 'not reached: ', $deep->a, "\n";
 } catch (ParseError $error) {
     echo 'deep: ', Core\Arr::count($error->issues), " issue\n";
@@ -39,7 +39,7 @@ uint $failed = 0;
 uint $i = 0;
 while ($i < 2000) {
     try {
-        var $again = Core\Request::postAs<tainted {a: string}>({ name: 'deep' });
+        var $again = Core\Request::postAs<tainted { a: string }>({ name: 'deep' });
         echo 'not reached: ', $again->a, "\n";
     } catch (ParseError $error) {
         $failed = $failed + 1;

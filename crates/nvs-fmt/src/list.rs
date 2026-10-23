@@ -24,10 +24,12 @@
 //! cases are its body, so its braces are the list's opener and closer, as long
 //! as the body holds cases and nothing else. A parameter is no node at all, and
 //! only its default value is a child, so a parameter list is read from the
-//! signature's own bytes ([`parameters`]): its first `(` at depth zero, the
-//! `)` that matches it, and the commas at depth one. A string an attribute
-//! writes is no node either, and its quotes are followed so a bracket inside
-//! one never counts.
+//! signature's own bytes ([`bracketed`]): its first `(` at depth zero, the
+//! `)` that matches it, and the commas at depth one. A shape type's fields are
+//! read the same way from its braces, because a field is no node either and a
+//! field's type can write a comma of its own, as `Map<string, int>` does. A
+//! string an attribute writes is no node either, and its quotes are followed
+//! so a bracket inside one never counts.
 //!
 //! # Broken
 //!
@@ -51,9 +53,7 @@
 //!
 //! # Where a list is kept as written
 //!
-//! A shape type's fields keep the line breaks and the trailing comma their
-//! author wrote: a shape type is no node, so nothing tells its `{` from a
-//! block's. A `match` arm list is laid out by [`crate::indent`], not here. An
+//! A `match` arm list is laid out by [`crate::indent`], not here. An
 //! enum on one line keeps its `{` on the `enum` line, which [`crate::brace`]
 //! writes from [`List::on_one_line`]. A list inside a `switch` or inline HTML
 //! is kept as written, like every other line there ([`crate::indent`]'s
@@ -90,9 +90,15 @@ const PARAMETERS: &[&str] = &["Function", "Method", "Fn"];
 /// The production whose body is its case list.
 const ENUM: &str = "EnumDecl";
 
+/// The production whose braces are its field list.
+const SHAPE: &str = "ShapeType";
+
 /// Whether a node of `kind` writes a list this module lays out.
 pub(crate) fn writes_a_list(kind: &str) -> bool {
-    kind == ENUM || PARAMETERS.contains(&kind) || LISTS.iter().any(|(list, ..)| *list == kind)
+    kind == ENUM
+        || kind == SHAPE
+        || PARAMETERS.contains(&kind)
+        || LISTS.iter().any(|(list, ..)| *list == kind)
 }
 
 /// Where a line opened inside a broken list sits.
@@ -133,7 +139,9 @@ impl List {
         let mut children = index.children_of(node);
         children.sort_by_key(|child| child.span.start);
         let (opener, closer, commas) = if PARAMETERS.contains(&node.kind) {
-            parameters(bytes, trivia, node, &children)?
+            bracketed(bytes, trivia, node, &children, b'(')?
+        } else if node.kind == SHAPE {
+            bracketed(bytes, trivia, node, &children, b'{')?
         } else if node.kind == ENUM {
             cases(bytes, trivia, node, &children)?
         } else {
@@ -368,19 +376,21 @@ fn cases(
     Some((opener, closer, commas))
 }
 
-/// The opener, closer and commas of a function's parameter list.
+/// The opener, closer and commas of a function's parameter list, where `open`
+/// is `(`, or of a shape type's fields, where it is `{`.
 ///
-/// A parameter is no node, and only its default value is a child, so the list
-/// is read from the bytes: the first `(` of code at the signature's own level
-/// opens it, and the `)` that brings the depth back to that level closes it. A
-/// default value is skipped whole, and a type's own brackets and `<` … `>`
-/// count as depth, so a comma inside a shape type or a generic type is not
-/// one of the list's.
-fn parameters(
+/// A parameter or a field is no node, and only a default value or a shape
+/// type is a child, so the list is read from the bytes: the first `open` of
+/// code at the node's own level opens it, and the delimiter that brings the
+/// depth back to that level closes it. A child is skipped whole, and a type's
+/// own brackets and `<` … `>` count as depth, so a comma inside a generic type
+/// or a callable signature is not one of the list's.
+fn bracketed(
     bytes: &[u8],
     trivia: &[Trivia],
     node: IndexNode,
     children: &[IndexNode],
+    open: u8,
 ) -> Option<(usize, usize, Vec<usize>)> {
     let mut depth = 0_usize;
     let mut opener = None;
@@ -388,7 +398,7 @@ fn parameters(
     let span = node.span.start as usize..node.span.end as usize;
     for at in own_code(bytes, trivia, children, span) {
         match bytes[at] {
-            b'(' if depth == 0 && opener.is_none() => {
+            byte if byte == open && depth == 0 && opener.is_none() => {
                 opener = Some(at);
                 depth = 1;
             }

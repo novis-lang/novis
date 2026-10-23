@@ -45,7 +45,7 @@ try {
 }
 
 // An object with fifty-two fields is passed as a `Pair`, which needs two fields.
-type Pair = {a: int, b: int};
+type Pair = { a: int, b: int };
 class Shapes
 {
     public static function add(Pair $p): int

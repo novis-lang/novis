@@ -14,7 +14,7 @@ try {
 
 // 2. Twenty thousand items in one call.
 try {
-    array<{count: int, unit: RelativeTime::Unit}> $many = [];
+    array<{ count: int, unit: RelativeTime::Unit }> $many = [];
     for (int $i = 0; $i < 20000; $i++) {
         $many[] = { count: $i - 10000, unit: RelativeTime::Unit::Minute };
     }

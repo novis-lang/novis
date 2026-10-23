@@ -3,7 +3,7 @@
 
 # Tooling
 
-*13 of 69 rules below are **designed** rather than shipped, and are marked where they appear.*
+*12 of 69 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -1153,7 +1153,9 @@ never has to tell "laid out differently" from "semantically wrong".
 writes nothing: it prints which files would change and exits non-zero if any would, in both cases without
 touching disk — the mode a CI job or a pre-commit hook runs, mirroring `rustfmt --check`.
 `nvs fmt --diff <path>...` prints a unified diff instead of a bare file list, and `--stdin` formats what
-it is given.
+it is given. A directory is walked for its `.nvs` files, and the walk skips every directory named `vendor`
+under it, the code a project pulls in rather than writes, as `nvs check --fix` leaves it alone. A
+`vendor` directory named on the command line is formatted, because naming it is the choice.
 
 These, with the target paths, are the only flags: every one is an I/O mode, and none changes the output
 ([`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style)). `--check` exits `0` on an already-formatted file because the
@@ -1165,7 +1167,7 @@ never one command ([`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-
 
 <a id="tooling-fmt-exit-status-says-what-it-found"></a>
 
-## `nvs fmt` exits `1` when a file would change and `2` when a file is refused  *(designed — owned by goal formatter-complete)*
+## `nvs fmt` exits `1` when a file would change and `2` when a file is refused
 
 `rule:tooling/fmt-exit-status-says-what-it-found`
 
@@ -1178,9 +1180,6 @@ A CI job or a pre-commit hook acts differently on the two failures. A file that 
 by running `nvs fmt`. A file that does not parse is not, and running the formatter again only repeats
 the refusal. Prettier and Black split their exit codes the same way, so a hook written for either reads
 this one without a lookup.
-
-**Not on disk.** Both failures exit `1` (`crates/nvs-cli/src/fmt.rs`), and `--check` is refused
-beside `--stdin` (`crates/nvs-cli/src/main.rs`).
 
 **Declined:**
 - **One non-zero code for both failures.** A hook then reports a broken file as unformatted, and the

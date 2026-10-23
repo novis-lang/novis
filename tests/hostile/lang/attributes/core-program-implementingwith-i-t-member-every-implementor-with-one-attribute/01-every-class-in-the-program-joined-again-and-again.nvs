@@ -9,7 +9,7 @@ type Wide = {
     group: string,
     owner: string,
     tier: int,
-    note: string
+    note: string,
 };
 
 interface Handler
@@ -106,7 +106,7 @@ class Attack
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            array<{instance: Handler, attribute: ?Wide}> $rows =
+            array<{ instance: Handler, attribute: ?Wide }> $rows =
                 Core\Program::implementingWith<Handler, Wide>('handle');
             // Each round is picked with the total the round before left, so
             // none of this can be dropped.
@@ -122,7 +122,7 @@ echo Attack::hammer(200000), "\n";
 // 4. The empty member name reads the attributes on the class itself, where
 //    none of these classes has written one.
 uint $none = 0;
-foreach (Core\Program::implementingWith<Handler, Wide>('') as {instance: Handler, attribute: ?Wide} $row) {
+foreach (Core\Program::implementingWith<Handler, Wide>('') as { instance: Handler, attribute: ?Wide } $row) {
     if ($row->attribute == null) {
         $none = $none + 1;
     }
@@ -130,7 +130,7 @@ foreach (Core\Program::implementingWith<Handler, Wide>('') as {instance: Handler
 echo $none, "\n";
 
 // 5. An interface with no implementors at all.
-array<{instance: NobodyImplementsThisOne, attribute: ?Wide}> $empty =
+array<{ instance: NobodyImplementsThisOne, attribute: ?Wide }> $empty =
     Core\Program::implementingWith<NobodyImplementsThisOne, Wide>('handle');
 echo Core\Arr::count($empty), "\n";
 

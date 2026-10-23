@@ -7,12 +7,12 @@
 // 1. Types of the program's own, named after the ones Novis reads. Attaching
 //    these tries to make the compiler write a codec, a route or a command row.
 type Derive = {};
-type Field = {name: string};
-type Route = {path: string, method: string};
-type Access = {allow: string};
-type Command = {name: string, about: string};
-type Option = {long: string};
-type Api = {summary: string};
+type Field = { name: string };
+type Route = { path: string, method: string };
+type Access = { allow: string };
+type Command = { name: string, about: string };
+type Option = { long: string };
+type Api = { summary: string };
 
 // 2. One real command, called `import`. A second real command of that name
 //    stops the program from compiling, so every step below claims that word.
