@@ -6,7 +6,6 @@
       "title": "Formatter and command line",
       "text": "`nvs fmt` formats every part of the language. New commands clear the cache and check for a newer version. You can choose to send anonymous usage counts, and the totals are public.",
       "goals": [
-        "formatter-complete",
         "cli-housekeeping",
         "telemetry-service"
       ]
