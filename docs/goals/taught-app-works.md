@@ -128,6 +128,11 @@ most for the request's remaining time. That is per request in flight, attributed
 one `Core` member and spends one session row per visitor who is shown a form. The store's TTL already
 bounds that row. Language surface: one member and one key, each with its help.
 
+**The three gaps `security-hardening` left here are built here.** `owners --closes` names them, and no
+goal on the chain is about taint or `cpu_time`. The `cpu_time` one goes first, because it is a limit a
+request can overrun (security and request isolation). The two taint ones only refuse safe code, so
+they cost usability and no safety.
+
 ## Stages
 
 ### 1. a SQLite writer waits for the lock, and a new file database opens in WAL
@@ -187,50 +192,59 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [ ] The three gaps `security-hardening` left with this goal are built and their records deleted, and `bun nv owners --closes taught-app-works` is green. `data/gaps/nvs-db/a-slow-sqlite-statement-runs-past-cpu-time.json:1`, `data/gaps/nvs-stdlib/arr-haskey-refuses-a-tainted-key.json:1`, `data/gaps/nvs-stdlib/decode-as-refuses-a-tainted-string.json:1`
+  - [ ] `Core\Arr::hasKey` takes a `tainted` key, and the overlay case uses `hasKey` again.
+  - [ ] The `decodeAs`/`shapeAs` doors take a `tainted string` where the field check runs, with a conformance case.
+  - [ ] A SQLite statement stops near the request's remaining `cpu_time`, through the progress handler, with a test.
+  - [ ] `bun nv affected --run` is green over the three.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 have landed. `Core\Csrf::token` has every proof (stage 3). Stage 4 landed in four
-commits. The notes page lists the three steps a form needs (`notes.mdx:155`). The routes page says
-`csrf: false` is written in `#[Core\Access]`, warns, and links `/reference/types/audience/`
-(`routes.mdx:19`). The upload page shows the form tag with `_csrf` in its `action`
-(`upload-file.mdx:27`). The compression example now sends itself two `Core\Test::request`s, with and
-without `gzip`, and prints `Content-Encoding` and `Vary`. Its `.nvsr` was tried and dropped, because
-`nvs run --request` prints the gzip bytes as the `.out`. An option of `#[Core\Access]` on `#[Core\Route]`
-is still `E0454`, and its help now names `#[Core\Access]` (`crates/nvs-types/src/routes.rs:option_home`,
-test `csrf_on_the_route_row_is_refused_with_a_help_naming_access` in `crates/nvs-types/tests/routes.rs`,
-run once, green). `bun nv rules --check` is green.
+Stages 1 to 4 have landed, and stage 5's gate is green: `bun nv affected --run` passed 22 of 22
+steps on the third run. The first run failed on two stale rule pages and the second on the CSRF
+token attack's layout (`nvs-fmt`'s `identity` test). Both are fixed in fed0fb506. `bun nv verify
+--doc` is green, and `bun nv proofs --id 'Core\Csrf::token' --nvs target/debug/nvs.exe` says complete.
 
-A page may not carry an inline Novis fence (`tools/nv/cmd/site.ts:157`), and a snippet's
-`.http.out` has no wildcard, so a served form with a fresh token can never match. Both pages show
-the form as inline code for that reason.
+Both backlog items are settled. `nvs run --request` now takes the CSRF door through
+`runner::refuse_a_forged_write` (`crates/nvs-cli/src/runner.rs`), the same check `Core\Test::request`
+takes, with the test `a_request_file_with_a_forged_token_is_refused_before_its_handler` in
+`crates/nvs-cli/tests/request.rs` (75daa865f). `nvs agent show "[db.main] journal_mode"` prints the
+key's entry, so its Help proof is not owed.
 
-The nightly CI fixes (a024f2253, 296755665, the `env_context.rs` `E0607`) are still local and not
-pushed, so the sweep's CI list is stale until a push. The `env-secret-proofs` log says exit 0.
+`bun nv owners --closes taught-app-works` is still red, on the three gaps `security-hardening` left
+here (see § *Standing decisions*). The fourth record, the session id for a CSRF token, is deleted,
+because `Core\Csrf::token` closes it.
+
+The nightly CI fixes are still local and not pushed, so the sweep's CI list is stale until a push.
+The `env-secret-proofs` log says exit 0.
+
 ### Next
 
-**Stage 5**, the gate. Start `bun nv affected --run` with `run_in_background`, end the turn, and
-fix every failure in one pass. Then the goal-end gates: `bun nv verify --doc` and
-`bun nv owners --closes taught-app-works`. Settle the two backlog items below.
+**Stage 5's last item**, the three gaps, in this order:
 
-`bun nv proofs` without `--nvs` reads `target/release/nvs`, so a member newer than that binary reads
-as `no feature`. Pass `--nvs target/debug/nvs.exe`, or let `--record-perf` rebuild the release binary.
+1. `data/gaps/nvs-db/a-slow-sqlite-statement-runs-past-cpu-time.json`: a progress-handler deadline from
+   the request's remaining CPU time, beside the interrupt the handler already checks
+   (`crates/nvs-db/src/sqlite.rs`, near the busy timeout at `:1658`). A test where an endless
+   statement stops near `cpu_time`.
+2. `data/gaps/nvs-stdlib/arr-haskey-refuses-a-tainted-key.json`: `hasKey`'s key parameter accepts
+   `tainted` (`crates/nvs-stdlib/src/arr.rs`). The conformance case
+   `arr-overlay-deep-at-a-key-is-itself-one-level-down-and-keeps-the-bases-order` uses `hasKey` again.
+3. `data/gaps/nvs-stdlib/decode-as-refuses-a-tainted-string.json`: the `decodeAs`/`shapeAs` doors
+   admit a tainted argument where `written_class_of`'s `subject_outside` check runs
+   (`crates/nvs-stdlib/src/json.rs`). A conformance case for both a tainted and a plain property.
 
-Tests that may go red at the gate: `crates/nvs-config/tests/defaults.rs` (the new `journal_mode`
-row against its `# default` line), any test that asserts SQLite answers `SQLITE_BUSY` at once, any
-case that reads a SQLite file's journal mode, and any roster count of `Core` members or of
-`Core\Csrf`'s methods, and any check that compares the `issue` or `verify` benches with a run under
-the root `nvs.toml`. Also `bun nv site --check` over the four stage 4 pages, and any test or
-conformance case that pins the old `E0454` help text for `csrf` on `#[Route]`.
+Delete each record as it is built, then run `bun nv affected --run` once more, and
+`bun nv owners --closes taught-app-works`. Then `DONE`.
+
+Tests that may go red: any test or case that pins `hasKey` or `decodeAs` refusing a tainted
+argument, a roster or signature snapshot of those members, and any SQLite test that expects a long
+statement to run past `cpu_time`.
 
 ### Backlog
 
-- `nvs run --request` lets a POST with a wrong token reach its handler, and `Core\Test::request`
-  refuses it. Stage 5 checks whether the door is meant to run there, and fixes or records it.
-- `journal_mode` has its line in `default.toml` and its row in the config reference. Stage 5 checks
-  that `nvs agent show` reaches it, so its Help proof is not owed.
+- None.
