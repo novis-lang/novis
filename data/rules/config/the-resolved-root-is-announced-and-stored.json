@@ -1,5 +1,5 @@
 {
-  "title": "The resolved root is canonicalized once at boot, announced with every file it reached, and re-read from that stored path on reload",
+  "title": "The resolved root is stored once at boot as the absolute path it was given, announced with every file it reached, and resolved again through its links on reload",
   "status": "shipped",
   "seeAlso": [
     "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",

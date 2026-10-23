@@ -609,16 +609,17 @@ fn set_of(resolved: nvs_config::resolve::Resolved) -> Result<BootSet, Diagnostic
     ))
 }
 
-/// `rule:config/the-resolved-root-is-announced-and-stored`: the roots a boot chose, each canonical,
-/// and what `nvs serve` prints about them.
+/// `rule:config/the-resolved-root-is-announced-and-stored`: the roots a boot chose, each absolute
+/// and as given, and what `nvs serve` prints about them.
 ///
-/// Cost, as `rule:programs/memory-priority` requires: one per process, holding a path per root and
-/// per file the tree reached. Nothing per request.
+/// Cost, as `rule:programs/memory-priority` requires: one per process, holding two paths per root
+/// and one per file the tree reached. Nothing per request.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Root {
     /// Each root as it was named — a `--config` as typed, `./nvs.toml`, or the data folder's file —
-    /// and the canonical path read for it. Empty for the shipped defaults.
-    named: Vec<(String, PathBuf)>,
+    /// then the absolute path a reload resolves again, then the canonical path the boot read for
+    /// it. Empty for the shipped defaults.
+    named: Vec<(String, PathBuf, PathBuf)>,
     /// Every file the tree reached, in the order it read them.
     files: Vec<PathBuf>,
     /// Why step 4's write into the data folder did not happen, as [`Declined::note_about`] renders
@@ -627,12 +628,13 @@ pub(crate) struct Root {
 }
 
 impl Root {
-    /// The roots a reload resolves: the canonical paths this boot read.
+    /// The roots a reload resolves: the absolute paths this boot was given, so each reload follows
+    /// their links again.
     pub(crate) fn stored(&self) -> nvs_config::Roots {
         if self.named.is_empty() {
             nvs_config::Roots::Defaults
         } else {
-            nvs_config::Roots::Files(self.named.iter().map(|(_, path)| path.clone()).collect())
+            nvs_config::Roots::Files(self.named.iter().map(|(_, path, _)| path.clone()).collect())
         }
     }
 
@@ -650,8 +652,8 @@ impl Root {
             );
             return lines;
         }
-        for (named, path) in &self.named {
-            lines.push(format!("info: configuration {named} -> {}", path.display()));
+        for (named, _, reached) in &self.named {
+            lines.push(format!("info: configuration {named} -> {}", reached.display()));
         }
         let count = self.files.len();
         lines.push(format!(
@@ -715,16 +717,12 @@ fn resolved_in(
             Err(why) => declined = Some(why.note_about(data)),
         }
     }
-    // Canonical once, here, so the boot reads the files a reload will read. A root that does not
-    // canonicalize keeps its absolute path, and the resolve below reports it.
-    let named = match &mut roots {
+    // Each root is stored as `roots` gives it, absolute and never canonical, so a reload follows its
+    // links again: a swapped `current` link or a changed Kubernetes ConfigMap is read without a
+    // restart. Only the announcement shows the file it reached now.
+    let named = match &roots {
         nvs_config::Roots::Defaults => Vec::new(),
         nvs_config::Roots::Files(paths) => {
-            for path in paths.iter_mut() {
-                if let Ok(canonical) = nvs_config::trust::canonical(path) {
-                    *path = canonical;
-                }
-            }
             let local = files.exists(&cwd.join(nvs_config::resolve::LOCAL_FILE));
             paths
                 .iter()
@@ -735,7 +733,8 @@ fn resolved_in(
                         (None, Some(data)) if !local => data.display().to_string(),
                         (None, _) => format!("./{}", nvs_config::resolve::LOCAL_FILE),
                     };
-                    (named, path.clone())
+                    let reached = nvs_config::trust::canonical(path).unwrap_or_else(|_| path.clone());
+                    (named, path.clone(), reached)
                 })
                 .collect()
         }

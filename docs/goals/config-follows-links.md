@@ -6,7 +6,7 @@ context: [docs/rules/config/the-resolved-root-is-announced-and-stored.md, docs/r
 stages:
   - id: 1
     title: "a reload follows the root's links, and a swapped link is noticed"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/reload.rs, crates/nvs-config/src/resolve.rs, crates/nvs-config/src/trust.rs]
   - id: 2
     title: "the directory holding a link is checked, a real cluster applies a changed ConfigMap, and the rule and the guide say so"
@@ -97,10 +97,10 @@ deploy and a ConfigMap work the way an operator expects, and the guide loses a r
 **Does:** a server whose root is reached through a link reads the new file after the link is swapped
 and the old target is deleted, with no restart.
 
-- [ ] The boot stores each root as `resolve::roots` gives it, and the canonicalizing loop is gone (`rule:config/the-resolved-root-is-announced-and-stored`). `crates/nvs-cli/src/config.rs:700`
-- [ ] `Stamp` carries the file's identity, and the check stats each stored root beside `files` and `probed`. `crates/nvs-cli/src/reload.rs:561`, `crates/nvs-cli/src/reload.rs:517`
-- [ ] A Unix Rust test replays the kubelet's update: a root reached through `..data`, a swap to a new timestamped folder, and the old folder deleted. The next check publishes the new value, and an include inside the folder follows. `crates/nvs-cli/tests/reload_follows_links.rs:1`
-- [ ] A Rust test swaps a `current` link between two release folders, the shape a link deploy has. `crates/nvs-cli/tests/reload_follows_links.rs:1`
+- [x] The boot stores each root as `resolve::roots` gives it, and the canonicalizing loop is gone (`rule:config/the-resolved-root-is-announced-and-stored`). `crates/nvs-cli/src/config.rs:700`
+- [x] `Stamp` carries the file's identity, and the check stats each stored root beside `files` and `probed`. `crates/nvs-cli/src/reload.rs:561`, `crates/nvs-cli/src/reload.rs:517`
+- [x] A Unix Rust test replays the kubelet's update: a root reached through `..data`, a swap to a new timestamped folder, and the old folder deleted. The next check publishes the new value, and an include inside the folder follows. `crates/nvs-cli/tests/reload_follows_links.rs:1`
+- [x] A Rust test swaps a `current` link between two release folders, the shape a link deploy has. `crates/nvs-cli/tests/reload_follows_links.rs:1`
 
 ### 2. the directory holding a link is checked, a real cluster applies a changed ConfigMap, and the rule and the guide say so
 
@@ -124,18 +124,29 @@ ConfigMap reaches a running server on `kind`, and the rule and the guide describ
 
 ### State
 
-The goal is new and nothing is built. A root reached through a link is canonicalized at boot, so a
-ConfigMap update or a swapped `current` link makes every reload fail as unreadable until a restart.
+Stage 1 is built. `Root` stores each root as given, beside the canonical path the announcement
+prints (`crates/nvs-cli/src/config.rs:618`). `Stamp` carries device and inode, or the Windows volume
+and file index, and `Process::stamps` stats the stored roots first (`crates/nvs-cli/src/reload.rs:517`).
+`crates/nvs-cli/tests/reload_follows_links.rs` has both cases. The `current` link case passed once on
+Windows, through a junction. The kubelet case is `cfg(unix)` and has not run yet, so the gate's Unix run
+is its first. The rule fragment and its title already say a root is stored as given. Stage 2 adds the
+link directory sentence to it. Clippy is clean, and no other test was run.
+
+The acceptance sweep's `env-secret-proofs` was already green on disk. Every nightly CI failure in run
+39922764699 has a fix commit on main after it, such as `42409d10d`, `922abf5f0`, `8ea16803f` and
+`296755665`. Nothing was changed for them.
 
 ### Next
 
-**Stage 1**, once `security-hardening` stage 15 has landed (the gate above), on
-`crates/nvs-cli/src/config.rs` and `crates/nvs-cli/src/reload.rs`.
+**Stage 2**, on `crates/nvs-config/src/trust.rs` and the Docker guide.
 
-- [ ] Store each root as given, and drop the canonicalizing loop. `crates/nvs-cli/src/config.rs:700`
-- [ ] Add the file's identity to `Stamp`, and stat the stored roots. `crates/nvs-cli/src/reload.rs:561`
-- [ ] The kubelet replay test and the `current` link test. `crates/nvs-cli/tests/reload_follows_links.rs:1`
+- [ ] `trust::check` also checks the parent of the path as given when it is a link. `crates/nvs-config/src/trust.rs:113`
+- [ ] The trust tests: a link in a group-writable directory is refused, and a plain root is not. `crates/nvs-config/tests/trust.rs:1`
+- [ ] The `kind` run, or the safe default, with the three directory modes in the handoff. `website/src/content/docs/guides/production/docker.mdx:208`
+- [ ] The rule's link directory sentence, and the guide's restart step removed. `website/src/content/docs/guides/production/docker.mdx:251`
+
+Tests that may go red: none expected. `live_config.rs` keeps its roots without links.
 
 ### Backlog
 
-- Stage 2's link directory check, the `kind` run, and the rule and guide text.
+- Stage 3, the gate.
