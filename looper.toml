@@ -67,8 +67,9 @@ heavy = [
   "bun nv proofs --record-perf",
 ]
 # The commands that drive Docker. An image build runs in Docker's VM, whose CPU the watch cannot see,
-# and `bench-compare` builds Novis's image in release without printing for minutes.
-hang_exempt = ["^bun nv bench-(compare|proxied)\\b"]
+# and `bench-compare` builds Novis's image in release without printing for minutes. `docker build` is
+# the same wait run by hand, as `docker/README.md` builds a Linux `nvs`.
+hang_exempt = ["^bun nv bench-(compare|proxied)\\b", "\\bdocker build\\b"]
 
 [checks]
 timeout = 1800           # the acceptance runner's own
