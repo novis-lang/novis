@@ -68,17 +68,17 @@ checks:
   - id: stdlib-tests
     stage: 3
     name: "a Core class's descriptor and a decodeAs object are built with one hash lookup and in one pass"
-    run: [bun, nv, verify, --fast, -p, nvs-stdlib]
+    run: [cargo, test, --, every_core_class_finds_its_descriptor_in_one_hash_lookup, a_decode_as_builds_no_array_for_the_object_it_fills, a_decode_as_refuses_a_repeated_key_the_class_does_not_declare]
     tests: [every_core_class_finds_its_descriptor_in_one_hash_lookup, a_decode_as_builds_no_array_for_the_object_it_fills, a_decode_as_refuses_a_repeated_key_the_class_does_not_declare]
   - id: render-tests
     stage: 4
     name: escaping scans text once and still replaces an open direction control
-    run: [bun, nv, verify, --fast, -p, nvs-render]
+    run: [cargo, test, --, text_with_nothing_to_escape_is_scanned_once]
     tests: [text_with_nothing_to_escape_is_scanned_once]
   - id: runtime-tests
     stage: 5
     name: a request that sets nothing reads its limits without allocating
-    run: [bun, nv, verify, --fast, -p, nvs-runtime]
+    run: [cargo, test, --, a_request_that_sets_nothing_reads_its_limits_without_allocating]
     tests: [a_request_that_sets_nothing_reads_its_limits_without_allocating]
   - id: config-tests
     stage: 5
@@ -87,12 +87,12 @@ checks:
   - id: server-tests
     stage: 6
     name: "a keep-alive request reads and wakes within its count, and the slow-client deadlines hold"
-    run: [bun, nv, verify, --fast, -p, nvs-server]
+    run: [cargo, test, --, a_keep_alive_request_reads_and_wakes_within_its_count]
     tests: [a_keep_alive_request_reads_and_wakes_within_its_count]
   - id: host-tests
     stage: 7
     name: "reads, wakes and pooled stacks make only the system calls they need"
-    run: [bun, nv, verify, --fast, -p, nvs-host]
+    run: [cargo, test, --, a_read_the_reactor_has_not_reported_ready_makes_no_system_call, a_drive_that_wakes_itself_on_its_own_core_writes_no_wake, a_pooled_stack_gives_its_pages_back_when_its_core_is_idle, a_connection_stack_and_a_program_stack_come_from_their_own_pools]
     tests: [a_read_the_reactor_has_not_reported_ready_makes_no_system_call, a_drive_that_wakes_itself_on_its_own_core_writes_no_wake, a_pooled_stack_gives_its_pages_back_when_its_core_is_idle, a_connection_stack_and_a_program_stack_come_from_their_own_pools]
   - id: hostile-groups
     stage: 8
@@ -170,6 +170,12 @@ Speed and memory rank below security and request isolation, so this goal takes t
 every check.
 
 ## Standing decisions
+
+**A check that names tests runs them with cargo (decision `d7`, the user's).** `stdlib-tests`,
+`render-tests`, `runtime-tests`, `server-tests` and `host-tests` run `cargo test -- <names>`, because
+libtest prints `test <path> ... ok` for each name and looper's check reads that line. `bun nv verify`
+prints only its summary. Stage 9's verify still runs every suite, the slow-client deadline tests
+included.
 
 **The security floor: no check is removed, weakened or moved behind work an input reaches first.**
 
