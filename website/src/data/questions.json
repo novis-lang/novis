@@ -103,7 +103,7 @@
   },
   "/guides/cookbook/signed-cookie/": {
     "feature": "guides/cookbook/signed-cookie.mdx",
-    "hash": "c96ba7846ba8818f",
+    "hash": "88c3342f7e432f7d",
     "questions": [
       "Cookie example where the client cannot see the value",
       "Example of storing a value in a cookie and reading it back",
@@ -123,13 +123,14 @@
   },
   "/guides/cookbook/upload-file/": {
     "feature": "guides/cookbook/upload-file.mdx",
-    "hash": "3d26573810ea87ad",
+    "hash": "693046fc496b438c",
     "questions": [
       "Store user uploads safely on the server",
       "Example of a file upload to a folder on the server",
       "Set a maximum size for files that users upload",
       "Why should I not use the file name the client sends?",
-      "Why can my request not save a file in the uploads folder?"
+      "Why can my request not save a file in the uploads folder?",
+      "How do I send the CSRF token with a file upload form?"
     ]
   },
   "/guides/cookbook/validate-form/": {
@@ -154,13 +155,14 @@
   },
   "/guides/example-apps/notes/": {
     "feature": "guides/example-apps/notes.mdx",
-    "hash": "d9b3c1e549156526",
+    "hash": "98c53586e135fb41",
     "questions": [
       "Example web app with SQLite, HTML pages and a JSON API",
       "How do I download and run the Notes example app?",
       "Start my own app by copying an example project",
       "Small CRUD app with forms and tests",
-      "Example of checking a form before saving it to a database"
+      "Example of checking a form before saving it to a database",
+      "Add a login and CSRF tokens before putting an example app online"
     ]
   },
   "/guides/example-apps/paperwork/": {
@@ -321,7 +323,7 @@
   },
   "/guides/production/reverse-proxy/": {
     "feature": "guides/production/reverse-proxy.mdx",
-    "hash": "9d518475141f7378",
+    "hash": "d5f0b42b2abd47d9",
     "questions": [
       "How do I run Novis behind nginx with HTTPS?",
       "Example Caddy configuration for a Novis server",
@@ -763,7 +765,7 @@
   },
   "/in-depth/compare/": {
     "feature": "in-depth/compare.mdx",
-    "hash": "280bbd4f245b2b15",
+    "hash": "b7f6bce7a52c377c",
     "questions": [
       "How do Novis, PHP, Bun and Go compare in requests per second and memory?",
       "Can one request split its work over several CPU cores?",
@@ -946,7 +948,7 @@
       "Which changes in a new release can break my code?",
       "Changelog of the Novis language",
       "What does the version number of Novis mean?",
-      "Is Novis ready for production use?"
+      "What stays the same between releases from version 0.1.0 on?"
     ]
   },
   "/in-depth/what-for/": {
@@ -969,7 +971,6 @@
       "Build nvs from source on Windows, Linux or macOS",
       "Which Rust version and C compiler do I need to build Novis?",
       "How do I add nvs to my PATH?",
-      "Which nvs commands should I learn first?",
       "Check the checksum and signature of a release archive"
     ]
   },
@@ -982,8 +983,7 @@
       "Why does the extension not find my nvs program?",
       "Which extension version works with my nvs version?",
       "Show a sign next to tainted values in the editor",
-      "Run a file or its tests from the VS Code command palette",
-      "Why is a property name in a string underlined in red?"
+      "Run a file or its tests from the VS Code command palette"
     ]
   },
   "/install/hello-world/": {
@@ -1428,7 +1428,7 @@
   },
   "/reference/config/http/": {
     "feature": "directive:http",
-    "hash": "0d90f4507aae693e",
+    "hash": "a75b68e54057a205",
     "questions": [
       "How do I set security headers on every response?",
       "Allow cross-origin requests from another website",
@@ -1574,7 +1574,7 @@
   },
   "/reference/config/secrets-from-files/": {
     "feature": "tools:config/secrets-from-files",
-    "hash": "de5668975cfa6559",
+    "hash": "3a64188f2fcb0663",
     "questions": [
       "How do I keep the database password out of the config file?",
       "Read a password from a Docker or Kubernetes secret",
@@ -1608,12 +1608,13 @@
   },
   "/reference/config/the-blocks-the-binary-accepts/": {
     "feature": "tools:config/the-blocks-the-binary-accepts",
-    "hash": "c6652914feedccd6",
+    "hash": "1dca411b3517d7a5",
     "questions": [
       "Which sections can I write in the configuration file?",
       "Why do I get an unknown key error at startup?",
       "Configure a database connection or mail server",
-      "What does error E0601 mean in my configuration?"
+      "What does error E0601 mean in my configuration?",
+      "What does warning W1024 mean for an empty unknown section?"
     ]
   },
   "/reference/config/the-file-and-where-it-is-read-from/": {
@@ -2152,7 +2153,7 @@
   },
   "/reference/core/arr/shapeas/": {
     "feature": "Core\\Arr::shapeAs",
-    "hash": "f0c860d7798bf1c0",
+    "hash": "6045d04c9fdc58d1",
     "questions": [
       "How do I convert an array into a typed object or shape?",
       "Read form data into a class with typed fields",
@@ -3351,7 +3352,7 @@
   },
   "/reference/core/compress/compress/": {
     "feature": "Core\\Compress::compress",
-    "hash": "1d2e2471caa64259",
+    "hash": "c90b9d6da5235bd3",
     "questions": [
       "How do I gzip a string?",
       "Compress data before sending it over the network",
@@ -3465,7 +3466,7 @@
   },
   "/reference/core/config/all/": {
     "feature": "Core\\Config::all",
-    "hash": "d1ca8fbf633ba3b8",
+    "hash": "f56bd4ac31f69107",
     "questions": [
       "How do I list every configuration setting in force?",
       "Get all settings as one array",
@@ -3476,13 +3477,14 @@
   },
   "/reference/core/config/get/": {
     "feature": "Core\\Config::get",
-    "hash": "ea2dffe6c4bd72b8",
+    "hash": "57fb9d35797c05f5",
     "questions": [
       "How do I read one configuration setting by name?",
       "Get the current memory limit value",
       "Read a single value from the config file",
       "What is the current log level setting?",
-      "Check the value of a setting for this request"
+      "Check the value of a setting for this request",
+      "Why does reading a config setting give null?"
     ]
   },
   "/reference/core/config/restore/": {
@@ -3543,7 +3545,7 @@
   },
   "/reference/core/crypto/expandkey/": {
     "feature": "Core\\Crypto::expandKey",
-    "hash": "d47e715f9aa7dc97",
+    "hash": "ac26492f0d096fbc",
     "questions": [
       "How do I make several keys from one shared secret?",
       "Derive a key from random material with a context label",
@@ -3576,7 +3578,7 @@
   },
   "/reference/core/crypto/open/": {
     "feature": "Core\\Crypto::open",
-    "hash": "fca17eab7528bb09",
+    "hash": "6ce29432c0ccc63e",
     "questions": [
       "How do I decrypt a message encrypted with a key?",
       "Decrypt data and check nobody changed it",
@@ -3587,7 +3589,7 @@
   },
   "/reference/core/crypto/seal/": {
     "feature": "Core\\Crypto::seal",
-    "hash": "376d9fad0fdd0243",
+    "hash": "fbcf847c3c632502",
     "questions": [
       "How do I encrypt a message with a secret key?",
       "Encrypt data so nobody can change it",
@@ -3640,7 +3642,7 @@
   },
   "/reference/core/crypto-keypair/read/": {
     "feature": "Core\\Crypto\\KeyPair::read",
-    "hash": "a1772f3b844d369d",
+    "hash": "4064fb97af9cb78f",
     "questions": [
       "How do I load a private key from a PEM file?",
       "Read a PKCS#8 private key",
@@ -3703,7 +3705,7 @@
   },
   "/reference/core/csrf/": {
     "feature": "Core\\Csrf",
-    "hash": "3cb92d6ca4bf7eb3",
+    "hash": "23c9fe7f740dcb6b",
     "questions": [
       "How do I protect forms against CSRF attacks?",
       "Stop other sites from submitting forms as my user",
@@ -3713,24 +3715,37 @@
   },
   "/reference/core/csrf/issue/": {
     "feature": "Core\\Csrf::issue",
-    "hash": "c24cf314f57d5880",
+    "hash": "cf9a0ef68653643f",
     "questions": [
       "How do I create a CSRF token for a form?",
       "Generate an anti-forgery token for a session",
       "Put a hidden security token in my form",
       "Make a token to send in a request header",
+      "Make a CSRF token from my own key and session ID",
+      "Create a CSRF token without storing anything on the server"
+    ]
+  },
+  "/reference/core/csrf/token/": {
+    "feature": "Core\\Csrf::token",
+    "hash": "ff13f84b6171aa1e",
+    "questions": [
+      "Get the CSRF token for the current visitor session",
       "Which form field name should the CSRF token use?",
-      "Send a CSRF token in a link as a query parameter"
+      "Send a CSRF token in a link as a query parameter",
+      "Send the CSRF token in a header from JavaScript",
+      "Why does my form post get status 403?",
+      "Why does Csrf::token throw an error before the session starts?"
     ]
   },
   "/reference/core/csrf/verify/": {
     "feature": "Core\\Csrf::verify",
-    "hash": "37e2f03307294682",
+    "hash": "a83444513cd778be",
     "questions": [
       "How do I check a CSRF token from a form?",
       "Validate the anti-forgery token on submit",
       "Reject a request with a bad form token",
-      "Is this submitted token valid for the session?"
+      "Is this submitted token valid for the session?",
+      "Why does my CSRF token check return false?"
     ]
   },
   "/reference/core/csv/": {
@@ -3767,7 +3782,7 @@
   },
   "/reference/core/csv/rows/": {
     "feature": "Core\\Csv::rows",
-    "hash": "484d542078e450ee",
+    "hash": "8ded1fc151d4b59e",
     "questions": [
       "How do I read a large CSV file line by line?",
       "Loop over CSV records without loading the whole file",
@@ -3832,12 +3847,12 @@
   },
   "/reference/core/db/quoteidentifier/": {
     "feature": "Core\\Db::quoteIdentifier",
-    "hash": "627f66debac435be",
+    "hash": "d014d5b84e0be0fe",
     "questions": [
       "How do I safely use a table name from user input?",
       "Validate a column name for a SQL query",
       "Put a dynamic column name in an ORDER BY",
-      "Escape a table or column name",
+      "Check a sort column from a visitor against allowed names",
       "Prevent SQL injection in identifiers"
     ]
   },
@@ -3962,7 +3977,7 @@
   },
   "/reference/core/db-connection/queryas/": {
     "feature": "Core\\Db\\Connection::queryAs",
-    "hash": "c655a9eb5a6cbb9e",
+    "hash": "265ec418f0f63fa3",
     "questions": [
       "How do I map query rows to objects of my class?",
       "Read database rows straight into typed objects",
@@ -3995,7 +4010,7 @@
   },
   "/reference/core/db-connection/streamas/": {
     "feature": "Core\\Db\\Connection::streamAs",
-    "hash": "1f89962423f7dacf",
+    "hash": "9fd9d81c7e88b0f4",
     "questions": [
       "How do I read a large table as objects one row at a time?",
       "Stream query results into typed objects without loading them all",
@@ -4203,7 +4218,7 @@
   },
   "/reference/core/db-row/string/": {
     "feature": "Core\\Db\\Row::string",
-    "hash": "f1226ffc7f4b7d68",
+    "hash": "3aef68ff2e374146",
     "questions": [
       "How do I read a text column from a database row?",
       "Get a VARCHAR or TEXT value from a query result",
@@ -4439,7 +4454,7 @@
   },
   "/reference/core/db-transaction/queryas/": {
     "feature": "Core\\Db\\Transaction::queryAs",
-    "hash": "469f55d157d2019c",
+    "hash": "b3c50e768996fb60",
     "questions": [
       "How do I read rows as objects inside a transaction?",
       "Load typed objects from a query in a transaction",
@@ -4471,7 +4486,7 @@
   },
   "/reference/core/db-transaction/streamas/": {
     "feature": "Core\\Db\\Transaction::streamAs",
-    "hash": "1ab1094f4ee8c11e",
+    "hash": "c84a3bf73f38d529",
     "questions": [
       "How do I read a large result as objects in a transaction?",
       "Build one object per row without loading every row",
@@ -4902,7 +4917,7 @@
   },
   "/reference/core/hash/hmac/": {
     "feature": "Core\\Hash::hmac",
-    "hash": "6d0b8d7bee45a2c4",
+    "hash": "1982ed31a222fede",
     "questions": [
       "How do I sign data with a secret key?",
       "Compute an HMAC with SHA-256",
@@ -5121,7 +5136,7 @@
   },
   "/reference/core/http/allowurl/": {
     "feature": "Core\\Http::allowUrl",
-    "hash": "24617229a1a27bbf",
+    "hash": "40f931f79cdae5fa",
     "questions": [
       "Send a request to a URL the user gave",
       "How do I protect against server-side request forgery?",
@@ -6252,7 +6267,7 @@
   },
   "/reference/core/jwe/decrypt/": {
     "feature": "Core\\Jwe::decrypt",
-    "hash": "ab6050a22d8b7638",
+    "hash": "7db6aeb0430c36fe",
     "questions": [
       "How do I read the text inside an encrypted token?",
       "Decrypt a JWE token",
@@ -6313,7 +6328,7 @@
   },
   "/reference/core/jwe-key/shared/": {
     "feature": "Core\\Jwe\\Key::shared",
-    "hash": "e556b8ce40ff2a96",
+    "hash": "36022006e7260d9b",
     "questions": [
       "How do I encrypt tokens with a secret key both servers know?",
       "Fastest key for encrypting tokens",
@@ -6334,7 +6349,7 @@
   },
   "/reference/core/jwt/sign/": {
     "feature": "Core\\Jwt::sign",
-    "hash": "9d89e73576c5e0e8",
+    "hash": "8faa23777f8077aa",
     "questions": [
       "How do I create a JWT with a user id?",
       "Sign a login token that expires in one hour",
@@ -6355,7 +6370,7 @@
   },
   "/reference/core/jwt/verify/": {
     "feature": "Core\\Jwt::verify",
-    "hash": "ff549bc46c97f87d",
+    "hash": "90952688782d8c4c",
     "questions": [
       "How do I check a JWT my program created?",
       "Validate a token and read its claims",
@@ -6919,7 +6934,7 @@
   },
   "/reference/core/ldap-connection/add/": {
     "feature": "Core\\Ldap\\Connection::add",
-    "hash": "95293ec495ca70d2",
+    "hash": "f5bc2ed283b4e9ab",
     "questions": [
       "How do I create a new entry in LDAP?",
       "Create a new group or organizational unit in the directory",
@@ -7320,7 +7335,7 @@
   },
   "/reference/core/ldap-entry/toarray/": {
     "feature": "Core\\Ldap\\Entry::toArray",
-    "hash": "0d4056fc18cbca16",
+    "hash": "28e55b159b3a7fb9",
     "questions": [
       "Get every attribute of an entry as an array",
       "Show all fields of an LDAP entry",
@@ -7572,13 +7587,14 @@
   },
   "/reference/core/mail/send/": {
     "feature": "Core\\Mail::send",
-    "hash": "9c7df4873165868c",
+    "hash": "8a094d0763a04d0a",
     "questions": [
       "How do I send an email with an HTML body?",
       "Send one message to several recipients",
       "Add hidden copy recipients to an email",
       "Set the reply address of an email",
-      "What happens when the mail server cannot be reached?"
+      "What happens when the mail server cannot be reached?",
+      "Why does an email address with a line break throw an error?"
     ]
   },
   "/reference/core/math/": {
@@ -10972,7 +10988,7 @@
   },
   "/reference/core/random-seeded/bytes/": {
     "feature": "Core\\Random\\Seeded::bytes",
-    "hash": "dee67ba6a356a50d",
+    "hash": "68bafbd6f91f3ff2",
     "questions": [
       "Generate the same random bytes on every test run",
       "How do I make repeatable test file content?",
@@ -11032,7 +11048,7 @@
   },
   "/reference/core/random-seeded/token/": {
     "feature": "Core\\Random\\Seeded::token",
-    "hash": "e1f4a6ca0940fc39",
+    "hash": "756105fd8b4024db",
     "questions": [
       "Generate a fixed ID for a test user",
       "How do I make repeatable hex strings for test data?",
@@ -11663,7 +11679,7 @@
   },
   "/reference/core/regex/replace/": {
     "feature": "Core\\Regex::replace",
-    "hash": "5306bf85075fb088",
+    "hash": "f4b54124d2578bb7",
     "questions": [
       "How do I replace text that fits a pattern?",
       "Search and replace with a regular expression",
@@ -12199,7 +12215,7 @@
   },
   "/reference/core/response/redirect/": {
     "feature": "Core\\Response::redirect",
-    "hash": "32f4addd0f67c26e",
+    "hash": "e898ba59c9af2c8b",
     "questions": [
       "How do I send the user to another page?",
       "Redirect after a form is submitted",
@@ -12222,7 +12238,7 @@
   },
   "/reference/core/response/setheader/": {
     "feature": "Core\\Response::setHeader",
-    "hash": "f1f4fff6289d2af6",
+    "hash": "e024c7545bc861c5",
     "questions": [
       "How do I add a header to the response?",
       "Turn off browser caching for a page",
@@ -12313,7 +12329,7 @@
   },
   "/reference/core/response-stream/write/": {
     "feature": "Core\\Response\\Stream::write",
-    "hash": "46cc255daf9acf6c",
+    "hash": "45e4ae3685849b3d",
     "questions": [
       "How do I send the next piece of a streamed body?",
       "Write one chunk of data to an open response",
@@ -12759,7 +12775,7 @@
   },
   "/reference/core/session/set/": {
     "feature": "Core\\Session::set",
-    "hash": "bb429ae0996f10de",
+    "hash": "eab5e185e33d99d0",
     "questions": [
       "How do I save a value in the session?",
       "Keep a shopping cart between pages",
@@ -12780,7 +12796,7 @@
   },
   "/reference/core/session/start/": {
     "feature": "Core\\Session::start",
-    "hash": "07fa64de36d36776",
+    "hash": "cfb00388369b5a7d",
     "questions": [
       "How do I begin using sessions on a page?",
       "Open the session before reading or writing values",
@@ -12822,7 +12838,7 @@
   },
   "/reference/core/signature/sign/": {
     "feature": "Core\\Signature::sign",
-    "hash": "a4947a83e78406ad",
+    "hash": "d3e130bdaeff4172",
     "questions": [
       "How do I create a signed link?",
       "Build a password reset link that expires after one hour",
@@ -12854,7 +12870,7 @@
   },
   "/reference/core/signedcookie/open/": {
     "feature": "Core\\SignedCookie::open",
-    "hash": "bbc4dabe99350388",
+    "hash": "bc5e0c22c2bf4b3f",
     "questions": [
       "How do I read the value from an encrypted cookie?",
       "Treat a changed cookie as a guest",
@@ -12864,7 +12880,7 @@
   },
   "/reference/core/signedcookie/seal/": {
     "feature": "Core\\SignedCookie::seal",
-    "hash": "298b28972f82485a",
+    "hash": "bebee065baa96441",
     "questions": [
       "How do I encrypt a value before putting it in a cookie?",
       "Keep a shopping cart in a cookie",
@@ -13108,12 +13124,13 @@
   },
   "/reference/core/storage/get/": {
     "feature": "Core\\Storage::get",
-    "hash": "7d703b1b0ba26184",
+    "hash": "afb16a7460c2ea7d",
     "questions": [
       "How do I read a saved file back from storage?",
       "Load the contents of a stored file by name",
       "Check if a stored file exists and read it",
-      "Return null when a saved file is missing"
+      "Return null when a saved file is missing",
+      "Is a file read from a storage disk tainted?"
     ]
   },
   "/reference/core/storage/list/": {
@@ -13128,7 +13145,7 @@
   },
   "/reference/core/storage/put/": {
     "feature": "Core\\Storage::put",
-    "hash": "c704dcf0a61526be",
+    "hash": "268081ceda3fdcc3",
     "questions": [
       "How do I save bytes as a file?",
       "Write an uploaded file to disk under a safe name",
@@ -13881,7 +13898,7 @@
   },
   "/reference/core/test/request/": {
     "feature": "Core\\Test::request",
-    "hash": "8b5cd7e38d003840",
+    "hash": "88af9c360b453e00",
     "questions": [
       "How do I test a route of my web app?",
       "Send a fake HTTP request to my own program",
@@ -14012,7 +14029,7 @@
   },
   "/reference/core/test-response/body/": {
     "feature": "Core\\Test\\Response::body",
-    "hash": "ba95a1306741485f",
+    "hash": "89e6ebf450a92148",
     "questions": [
       "How do I read the page text my app returned in a test?",
       "Get the HTML output of a route in a test",
@@ -14052,7 +14069,7 @@
   },
   "/reference/core/test-response/json/": {
     "feature": "Core\\Test\\Response::json",
-    "hash": "174764b4d820c649",
+    "hash": "44c270a55c9ee9aa",
     "questions": [
       "How do I decode the JSON my endpoint returned in a test?",
       "Check values in an API reply during a test",
@@ -14062,7 +14079,7 @@
   },
   "/reference/core/test-response/jsonas/": {
     "feature": "Core\\Test\\Response::jsonAs",
-    "hash": "597cb8508dd34ecb",
+    "hash": "9ea45c91b045d155",
     "questions": [
       "How do I turn an API reply into a class in a test?",
       "Read a JSON list from my endpoint into objects",
@@ -15040,7 +15057,7 @@
   },
   "/reference/core/totp/check/": {
     "feature": "Core\\Totp::check",
-    "hash": "becfa529164f458b",
+    "hash": "8808b0ef39caf4a8",
     "questions": [
       "How do I verify a code from an authenticator app?",
       "Check a two-factor code a user typed",
@@ -15050,7 +15067,7 @@
   },
   "/reference/core/totp/code/": {
     "feature": "Core\\Totp::code",
-    "hash": "ac3b4a6974a14f7a",
+    "hash": "4038dc677cdfe227",
     "questions": [
       "How do I generate the current two-factor code for a secret?",
       "Create a one-time code for an automated login test",
@@ -15719,7 +15736,7 @@
   },
   "/reference/core/xml-writer/instruction/": {
     "feature": "Core\\Xml\\Writer::instruction",
-    "hash": "01c17a6ebafbf0dc",
+    "hash": "d04dd5602104faee",
     "questions": [
       "How do I link a stylesheet to an XML feed?",
       "Write a processing instruction into XML output",
@@ -15821,7 +15838,7 @@
   },
   "/reference/types/audience/": {
     "feature": "Core\\Audience",
-    "hash": "8df28fcc423ae550",
+    "hash": "47056e6683718061",
     "questions": [
       "Make a route public for everyone",
       "Allow any visitor to call a route",
@@ -16760,7 +16777,7 @@
   },
   "/reference/types/stringable/": {
     "feature": "Stringable",
-    "hash": "7e4538cc3cad873b",
+    "hash": "771a26debe403fda",
     "questions": [
       "How do I make my object printable with echo?",
       "Convert my own class to a string",
@@ -16883,14 +16900,14 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "352491430dfdec2c",
+    "hash": "79b9de344ccc759b",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
       "Why does my route not compile without an access rule?",
       "How do I turn off the CSRF check for one route?",
       "Generate an OpenAPI document from my routes",
-      "Optional and catch-all parts in a URL path"
+      "Call the route method for each request with a gate"
     ]
   },
   "/syntax/attributes/writing-and-reading/": {
