@@ -586,12 +586,12 @@ const COMPILE: Measure = {
 };
 
 /** The fastest of `reps` runs of `nvs fmt --check` on `program`, in nanoseconds. It exits 1 for a file
- * that would change, so only a refusal fails. */
+ * that would change and 2 for a file it refused, so only a 2 fails. */
 async function timeFmt(nvs: string, program: string, bench: string, reps: number): Promise<number> {
   let best = Infinity;
   for (let i = 0; i < reps; i++) {
     const out = await spawnProof([nvs, "fmt", "--check", program], program, TIMEOUT_MS, { unlogged: true });
-    if (out.code > 1 || out.stderr.includes("does not parse")) throw new PerfError(`\`nvs fmt\` refused the program ${bench} printed: ${out.stderr.trim().split(/\r?\n/)[0] ?? ""}`);
+    if (out.code > 1) throw new PerfError(`\`nvs fmt\` refused the program ${bench} printed: ${out.stderr.trim().split(/\r?\n/)[0] ?? ""}`);
     best = Math.min(best, out.ms * 1e6);
   }
   return best;

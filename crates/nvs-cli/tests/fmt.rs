@@ -74,8 +74,8 @@ fn fixture(name: &str, files: &[(&str, &str)]) -> (nvs_repo::Scratch, Vec<PathBu
     (dir, paths)
 }
 
-/// `nvs fmt <args...>`, as `(stdout, stderr, success)`.
-fn fmt<S: AsRef<std::ffi::OsStr>>(args: &[S]) -> (String, String, bool) {
+/// `nvs fmt <args...>`, as `(stdout, stderr, exit code)`.
+fn fmt<S: AsRef<std::ffi::OsStr>>(args: &[S]) -> (String, String, Option<i32>) {
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
         .arg("fmt")
         .args(args)
@@ -84,14 +84,15 @@ fn fmt<S: AsRef<std::ffi::OsStr>>(args: &[S]) -> (String, String, bool) {
     (
         String::from_utf8(out.stdout).expect("the text is UTF-8"),
         String::from_utf8(out.stderr).expect("the diagnostics are UTF-8"),
-        out.status.success(),
+        out.status.code(),
     )
 }
 
-/// `nvs fmt --stdin` over `source`, as `(stdout, stderr, success)`.
-fn stdin(source: &str) -> (String, String, bool) {
+/// `nvs fmt --stdin <args...>` over `source`, as `(stdout, stderr, exit code)`.
+fn stdin(source: &str, args: &[&str]) -> (String, String, Option<i32>) {
     let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
         .args(["fmt", "--stdin"])
+        .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -107,7 +108,7 @@ fn stdin(source: &str) -> (String, String, bool) {
     (
         String::from_utf8(out.stdout).expect("the text is UTF-8"),
         String::from_utf8(out.stderr).expect("the diagnostics are UTF-8"),
-        out.status.success(),
+        out.status.code(),
     )
 }
 
@@ -129,23 +130,24 @@ fn fmt_rewrites_each_named_file_in_place() {
         ],
     );
 
-    let (out, err, ok) = fmt(&paths[..2]);
-    assert!(ok, "two files that parse are formatted: {err}");
+    let (out, err, code) = fmt(&paths[..2]);
+    assert_eq!(code, Some(0), "two files that parse are formatted: {err}");
     assert_eq!(out, "", "the default mode prints nothing on success");
     assert_eq!(text(&paths[0]), CANONICAL, "the first file was rewritten");
     assert_eq!(text(&paths[1]), CANONICAL, "the second file was rewritten");
 
     // The same call again: the formatter is a fixed point, so the second run
     // has nothing to write (`rule:tooling/fmt-is-idempotent`).
-    let (_, err, ok) = fmt(&paths[..2]);
-    assert!(
-        ok,
+    let (_, err, code) = fmt(&paths[..2]);
+    assert_eq!(
+        code,
+        Some(0),
         "a formatted file is formatted again without complaint: {err}"
     );
     assert_eq!(text(&paths[0]), CANONICAL, "the second run changed nothing");
 
-    let (_, err, ok) = fmt(&paths[2..]);
-    assert!(!ok, "a file that does not parse exits non-zero");
+    let (_, err, code) = fmt(&paths[2..]);
+    assert_eq!(code, Some(2), "a file that does not parse exits 2");
     assert!(
         err.contains("broken.nvs"),
         "the refusal names the file: {err}"
@@ -157,18 +159,18 @@ fn fmt_rewrites_each_named_file_in_place() {
     );
 }
 
-/// `--check`: the file list on standard output, a non-zero exit, and a disk
-/// nothing touched.
+/// `--check`: the file list on standard output, exit `1`, and a disk nothing
+/// touched.
 #[test]
 fn fmt_check_writes_nothing_and_exits_non_zero_naming_each_file() {
     let (_dir, paths) = fixture("check", &[("ragged.nvs", MANGLED), ("tidy.nvs", CANONICAL)]);
 
-    let (out, _, ok) = fmt(&[
+    let (out, _, code) = fmt(&[
         std::ffi::OsStr::new("--check"),
         paths[0].as_os_str(),
         paths[1].as_os_str(),
     ]);
-    assert!(!ok, "a file that would change exits non-zero");
+    assert_eq!(code, Some(1), "a file that would change exits 1");
     assert!(
         out.contains("ragged.nvs"),
         "the file that would change is named: {out}"
@@ -183,9 +185,52 @@ fn fmt_check_writes_nothing_and_exits_non_zero_naming_each_file() {
         "`--check` wrote nothing to the file it named"
     );
 
-    let (out, _, ok) = fmt(&[std::ffi::OsStr::new("--check"), paths[1].as_os_str()]);
-    assert!(ok, "an already-formatted file exits zero");
+    let (out, _, code) = fmt(&[std::ffi::OsStr::new("--check"), paths[1].as_os_str()]);
+    assert_eq!(code, Some(0), "an already-formatted file exits zero");
     assert_eq!(out, "", "and is named nowhere");
+}
+
+/// `rule:tooling/fmt-exit-status-says-what-it-found`: `2` for a refused file
+/// outranks `1` for one that would change, in whichever order the walk meets
+/// them, and the file after the refusal is still named.
+#[test]
+fn fmt_check_exits_two_when_a_file_is_refused_beside_one_that_would_change() {
+    let (dir, paths) = fixture("exit-two", &[("a-broken.nvs", BROKEN), ("b-ragged.nvs", MANGLED)]);
+
+    let (out, err, code) = fmt(&[std::ffi::OsStr::new("--check"), dir.as_os_str()]);
+    assert_eq!(code, Some(2), "a refusal outranks a change: {err}");
+    assert!(
+        out.contains("b-ragged.nvs"),
+        "the file after the refusal is still named: {out}"
+    );
+    assert!(
+        err.contains("a-broken.nvs"),
+        "the refusal names the file: {err}"
+    );
+
+    let (_, err, code) = fmt(&[std::ffi::OsStr::new("--check"), paths[1].as_os_str()]);
+    assert_eq!(code, Some(1), "the change alone exits 1: {err}");
+}
+
+/// `rule:tooling/fmt-check-writes-nothing`: a walk leaves a directory named
+/// `vendor` alone, and the same directory named on the command line is
+/// formatted.
+#[test]
+fn fmt_walk_skips_vendor_and_a_named_vendor_is_formatted() {
+    let (dir, paths) = fixture("vendor", &[("own.nvs", MANGLED)]);
+    let vendor = dir.join("vendor");
+    std::fs::create_dir(&vendor).expect("the vendor directory is created");
+    let pulled = vendor.join("pulled.nvs");
+    std::fs::write(&pulled, MANGLED).expect("the vendored file is written");
+
+    let (_, err, code) = fmt(&[dir.as_os_str()]);
+    assert_eq!(code, Some(0), "the walk formats the project's file: {err}");
+    assert_eq!(text(&paths[0]), CANONICAL, "the project's own file was rewritten");
+    assert_eq!(text(&pulled), MANGLED, "the vendored file was left alone");
+
+    let (_, err, code) = fmt(&[vendor.as_os_str()]);
+    assert_eq!(code, Some(0), "a named vendor directory is formatted: {err}");
+    assert_eq!(text(&pulled), CANONICAL, "the named vendored file was rewritten");
 }
 
 /// `--diff`: the same verdict as `--check`, rendered as the change itself.
@@ -193,8 +238,8 @@ fn fmt_check_writes_nothing_and_exits_non_zero_naming_each_file() {
 fn fmt_diff_prints_the_diff_and_writes_nothing() {
     let (_dir, paths) = fixture("diff", &[("ragged.nvs", MANGLED)]);
 
-    let (out, _, ok) = fmt(&[std::ffi::OsStr::new("--diff"), paths[0].as_os_str()]);
-    assert!(!ok, "a file that would change exits non-zero");
+    let (out, _, code) = fmt(&[std::ffi::OsStr::new("--diff"), paths[0].as_os_str()]);
+    assert_eq!(code, Some(1), "a file that would change exits 1");
     assert!(
         out.starts_with("--- ") && out.contains("+++ ") && out.contains("@@ -"),
         "a unified diff, headed and hunked: {out}"
@@ -218,17 +263,34 @@ fn fmt_diff_prints_the_diff_and_writes_nothing() {
 /// `--stdin`: the buffer an editor holds, formatted onto standard output.
 #[test]
 fn fmt_stdin_writes_the_formatted_file_to_stdout() {
-    let (out, err, ok) = stdin(MANGLED);
-    assert!(ok, "a buffer that parses is formatted: {err}");
+    let (out, err, code) = stdin(MANGLED, &[]);
+    assert_eq!(code, Some(0), "a buffer that parses is formatted: {err}");
     assert_eq!(out, CANONICAL, "the whole formatted file, and nothing else");
+}
+
+/// `--check --stdin`: the buffer is never written back, and the exit code is
+/// the one a file would get.
+#[test]
+fn fmt_check_stdin_writes_nothing_and_exits_by_what_it_found() {
+    let (out, err, code) = stdin(MANGLED, &["--check"]);
+    assert_eq!(code, Some(1), "a buffer that would change exits 1: {err}");
+    assert_eq!(out, "<stdin>\n", "it is named, and its text is not printed");
+
+    let (out, err, code) = stdin(CANONICAL, &["--check"]);
+    assert_eq!(code, Some(0), "a formatted buffer exits 0: {err}");
+    assert_eq!(out, "", "and is named nowhere");
+
+    let (out, err, code) = stdin(BROKEN, &["--check"]);
+    assert_eq!(code, Some(2), "a buffer that does not parse exits 2: {err}");
+    assert_eq!(out, "", "standard output is empty");
 }
 
 /// The safe direction: a half-written buffer comes back to its editor
 /// unchanged, because nothing at all was written for it.
 #[test]
 fn fmt_stdin_writes_nothing_to_stdout_for_a_file_with_a_syntax_error() {
-    let (out, err, ok) = stdin(BROKEN);
-    assert!(!ok, "a buffer that does not parse exits non-zero");
+    let (out, err, code) = stdin(BROKEN, &[]);
+    assert_eq!(code, Some(2), "a buffer that does not parse exits 2");
     assert_eq!(out, "", "standard output is empty, not partial");
     assert!(
         err.contains("<stdin>"),
@@ -244,8 +306,8 @@ fn nvs_check_never_reports_an_unformatted_file() {
     let (dir, paths) = fixture("never-a-diagnostic", &[("ragged.nvs", UNFORMATTED)]);
 
     // The premise, from the formatter's own side: this file *is* unformatted.
-    let (_, _, formatted) = fmt(&[std::ffi::OsStr::new("--check"), paths[0].as_os_str()]);
-    assert!(!formatted, "the fixture is a file `nvs fmt` would rewrite");
+    let (_, _, code) = fmt(&[std::ffi::OsStr::new("--check"), paths[0].as_os_str()]);
+    assert_eq!(code, Some(1), "the fixture is a file `nvs fmt` would rewrite");
 
     let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
