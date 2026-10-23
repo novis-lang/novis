@@ -66,6 +66,10 @@
 //!   root whose owning process is gone, removed. Keyed on liveness and never on
 //!   age, with `--dry-run` and deliberately no force flag; see [`tmp`], and
 //!   [`serve`] for the other half of § 4, which is the same walk at boot.
+//! * `nvs cache gc|clear` —
+//!   `rule:packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`'s two commands over the
+//!   artifact cache a run reads: § 6's eviction walk without its roll, and every entry removed;
+//!   see [`cache_cmd`].
 //! * `nvs serve [<file>]` — one worker per core, every socket `[server] listen`
 //!   names, every request running the entry file as its own isolate; see
 //!   [`serve`].
@@ -128,6 +132,7 @@ mod ast;
 mod build;
 mod bundle;
 mod cache;
+mod cache_cmd;
 mod check;
 mod code;
 mod config;
@@ -392,6 +397,7 @@ enum Command {
     Queue(queue::Args),
     Schema(schema::Args),
     Tmp(tmp::Args),
+    Cache(cache_cmd::Args),
     Service(service::Args),
     /// Another name for `nvs service install`.
     // The syntax `mysqld --install` and `httpd -k install` made familiar.
@@ -587,6 +593,7 @@ fn main() -> ExitCode {
         Command::Queue(args) => args.run(&cli.config),
         Command::Schema(args) => args.run(&cli.config),
         Command::Tmp(args) => args.run(&cli.config),
+        Command::Cache(args) => args.run(&cli.config),
         Command::InstallService(args) => args.run(&cli.config),
         Command::Service(args) => args.run(&cli.config),
         Command::Fmt(args) => args.run(),

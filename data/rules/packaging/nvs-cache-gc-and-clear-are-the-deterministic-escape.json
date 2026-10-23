@@ -1,9 +1,10 @@
 {
   "title": "`nvs cache gc` and `nvs cache clear` are the operator's deterministic alternative to the roll",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/eviction-rides-the-cold-miss-at-a-probability"
   ],
-  "guardedBy": [],
-  "goal": "cli-housekeeping"
+  "guardedBy": [
+    "crates/nvs-cli/src/cache_cmd.rs"
+  ]
 }
