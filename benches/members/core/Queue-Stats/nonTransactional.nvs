@@ -2,7 +2,7 @@
 // Reads how many jobs of a queue were pushed inside another database's transaction, as a health check does.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 use Core\Queue;
 

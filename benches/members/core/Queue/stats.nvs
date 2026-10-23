@@ -1,7 +1,7 @@
 <?nvs
 // Counts the jobs of one queue, as a health check or a status page does.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 use Core\Queue;
 

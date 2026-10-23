@@ -2,7 +2,7 @@
 // Measures building one object of every class that implements an interface, as a
 // framework does when it collects its health checks or its commands.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 interface Check {

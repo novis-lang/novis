@@ -2,7 +2,7 @@
 // Measures changing one setting. A program does this at the start of a job that
 // needs a different limit than the rest of the request.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

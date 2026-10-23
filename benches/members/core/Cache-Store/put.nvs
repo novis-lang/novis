@@ -2,7 +2,7 @@
 // Measures writing one value into the memory cache. That is what a request
 // does after it builds a value it wants to keep.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

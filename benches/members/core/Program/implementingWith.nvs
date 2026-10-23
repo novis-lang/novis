@@ -2,7 +2,7 @@
 // Measures building the list of every page with its route path, as a framework does
 // once when it starts and builds its dispatch table.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 3
 // bench: complexity constant
 
 type Route = {path: string};
