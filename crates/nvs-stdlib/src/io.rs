@@ -4258,6 +4258,10 @@ mod tests {
     /// with nothing at it. A context with no `fs.read` throws, so `false` never means *not
     /// allowed*.
     // covers: Core\IO::exists
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_exists_finds_both_kinds_and_a_refusal_is_not_false() {
         assert_eq!(kinds_of(nvs_core_io_exists, "exists"), [true, true, false]);
@@ -4274,6 +4278,10 @@ mod tests {
     /// `Core\IO::isFile` answers `true` for a file alone: a directory and a missing name are both
     /// `false`. A context with no `fs.read` throws.
     // covers: Core\IO::isFile
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_is_file_answers_true_for_a_file_alone_and_a_refusal_throws() {
         assert_eq!(
@@ -4292,6 +4300,10 @@ mod tests {
     /// `Core\IO::isDir` answers `true` for a directory alone: a file and a missing name are both
     /// `false`. A context with no `fs.read` throws.
     // covers: Core\IO::isDir
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_is_dir_answers_true_for_a_directory_alone_and_a_refusal_throws() {
         assert_eq!(kinds_of(nvs_core_io_is_dir, "is-dir"), [false, true, false]);
@@ -4350,6 +4362,10 @@ mod tests {
     /// for a name with nothing at it where `exists` answers `false`. A context with no `fs.read`
     /// throws before the operating system is asked.
     // covers: Core\IO::size
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_size_counts_bytes_and_throws_for_a_missing_file() {
         let (_dir, file) = scratch("size.txt");
@@ -4381,6 +4397,10 @@ mod tests {
     /// or a folder, from one call. A name with nothing at it throws naming the member, and a
     /// context with no `fs.read` throws before the operating system is asked.
     // covers: Core\IO::stat
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_stat_answers_size_and_kind_and_throws_for_a_missing_name() {
         let (_dir, file) = scratch("stat.txt");
@@ -4434,6 +4454,10 @@ mod tests {
     /// file is 0. The value is a snapshot: after the file grows it still returns 5, however
     /// often it is asked, and only a new `stat` returns the new size.
     // covers: Core\IO\Metadata::size
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_metadata_size_counts_bytes_and_does_not_follow_the_file() {
         let (_dir, path) = scratch("metadata-size.txt");
@@ -4472,6 +4496,10 @@ mod tests {
     /// `stat` ran, to the second a test set it to. Setting a later time leaves the held value
     /// on the old one, and a new `stat` returns the later one.
     // covers: Core\IO\Metadata::modifiedAt
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_metadata_modified_at_returns_the_recorded_time_of_its_own_stat() {
         let (_dir, path) = scratch("metadata-modified-at.txt");
@@ -4526,6 +4554,10 @@ mod tests {
     /// `isDir` gives the other answer. When the file is replaced by a directory of the same
     /// name, the value taken before still returns `true`, and a new `stat` returns `false`.
     // covers: Core\IO\Metadata::isFile
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_metadata_is_file_answers_the_kind_its_stat_saw() {
         let (_dir, path) = scratch("metadata-is-file");
@@ -4552,6 +4584,10 @@ mod tests {
     /// `isFile` gives the other answer. When the directory is replaced by a file of the same
     /// name, the value taken before still returns `true`, and a new `stat` returns `false`.
     // covers: Core\IO\Metadata::isDir
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_metadata_is_dir_answers_the_kind_its_stat_saw() {
         let (_dir, path) = scratch("metadata-is-dir");
@@ -4578,6 +4614,10 @@ mod tests {
     /// test set it to, for a file and for a directory, and throws for a name with nothing at it.
     /// A context with no `fs.read` throws before the operating system is asked.
     // covers: Core\IO::modifiedAt
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_modified_at_answers_the_recorded_time_and_throws_for_a_missing_name() {
         let (_dir, file) = scratch("modified-at.txt");
@@ -4707,6 +4747,10 @@ mod tests {
     /// member and the path. A folder throws and is left in place, and a context granting
     /// `fs.read` alone throws naming `fs.write` and leaves the file.
     // covers: Core\IO::remove
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_remove_deletes_a_file_and_throws_for_a_missing_name_or_a_folder() {
         let (_dir, root) = scratch("remove");
@@ -4741,6 +4785,10 @@ mod tests {
     /// keeps both. A file and a missing name throw, and a context granting `fs.read` alone throws
     /// naming `fs.write` and leaves the folder.
     // covers: Core\IO::removeDir
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_remove_dir_deletes_an_empty_folder_and_throws_for_one_with_entries() {
         let (_dir, root) = scratch("remove-dir");
@@ -4810,6 +4858,10 @@ mod tests {
     /// returns an empty array. A file and a missing name throw, and a context granting
     /// `fs.write` alone throws naming `fs.read`.
     // covers: Core\IO::list
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_list_returns_bare_names_one_level_deep_and_refuses_a_file() {
         let (_dir, root) = scratch("list");
@@ -4874,6 +4926,10 @@ mod tests {
     /// nothing, a file and a missing name throw naming the member, and a context granting
     /// `fs.write` alone throws naming `fs.read`.
     // covers: Core\IO::walk
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_walk_returns_relative_paths_level_by_level_and_refuses_a_file() {
         let (_dir, root) = scratch("walk");
@@ -4970,6 +5026,10 @@ mod tests {
     /// missing or is a file throws naming the member, and a context granting `fs.write` alone
     /// throws naming `fs.read`.
     // covers: Core\IO::within
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_within_resolves_inside_the_base_and_refuses_an_escape_or_a_missing_base() {
         let (_dir, root) = scratch("within");
@@ -5034,7 +5094,8 @@ mod tests {
     /// SINK-1 and SINK-3's attack: a network, device or verbatim path, a stream, a trailing dot
     /// or space and an 8.3 short name are each refused by `Core\IO::within` on every platform,
     /// by their text. The network address is one nothing answers, and the whole loop must end
-    /// well under the second a connection attempt would wait, so no packet was sent.
+    /// well under the second a connection attempt would wait, so no packet was sent. Miri
+    /// interprets the loop far slower than that, so under Miri the refusals alone are checked.
     #[test]
     fn a_windows_alias_is_refused_by_its_text_before_any_network_attempt() {
         let (_dir, root) = scratch("within-alias");
@@ -5065,7 +5126,7 @@ mod tests {
             assert!(refused.contains("on any platform"), "{alias}: {refused}");
         }
         assert!(
-            started.elapsed() < std::time::Duration::from_millis(500),
+            cfg!(miri) || started.elapsed() < std::time::Duration::from_millis(500),
             "ten refusals took {:?}, which is a network wait",
             started.elapsed()
         );

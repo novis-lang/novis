@@ -3280,8 +3280,10 @@ mod tests {
     // covers: Core\Html::parse
     #[test]
     fn many_siblings_stop_at_the_memory_limit_before_the_arena_doubles() {
+        // Under Miri, 4,000 line breaks build an arena of about 560 KB, more than
+        // twice the 256 KiB limit.
         let (count, limit) = if cfg!(miri) {
-            (20_000, 1 << 20)
+            (4_000, 1 << 18)
         } else {
             (500_000, 8 << 20)
         };

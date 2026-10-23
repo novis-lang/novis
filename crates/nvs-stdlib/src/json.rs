@@ -5422,13 +5422,13 @@ mod tests {
     /// stops the request with the memory limit's `FATAL`. It is never answered
     /// `false`, which a program would read as "the text is not JSON".
     // covers: Core\Json::isValid
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn is_valid_past_the_memory_limit_stops_the_request() {
-        let (count, limit) = if cfg!(miri) {
-            (20_000, 256 << 10)
-        } else {
-            (100_000, 1 << 20)
-        };
+        let (count, limit) = (100_000, 1 << 20);
         let document = format!("[{}\"a\"]", "\"a\",".repeat(count));
         // Made before the context, so the text is not on its balance.
         let args = [Value::text(&document)];
@@ -6340,7 +6340,7 @@ mod tests {
     #[test]
     fn documents_past_the_memory_limit_stop_the_parse_at_the_limit() {
         let (count, limit) = if cfg!(miri) {
-            (20_000, 256 << 10)
+            (5_000, 64 << 10)
         } else {
             (100_000, 1 << 20)
         };

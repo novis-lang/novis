@@ -2259,6 +2259,10 @@ mod tests {
     /// Server work with no line refuses the name before it looks it up, and starts it once the
     /// line names it. A `.cmd` name stays refused however wide the grant is, and a relative path
     /// with a folder in it is still refused on both kinds of run.
+    #[cfg_attr(
+        miri,
+        ignore = "starts a process, which Miri cannot do"
+    )]
     #[test]
     fn a_bare_name_is_found_on_path_on_a_cli_run_and_needs_a_line_in_server_work() {
         let mut cli = Ctx::buffered();

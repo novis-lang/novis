@@ -4753,11 +4753,13 @@ mod tests {
     /// One element with a great many attributes, and one with a great many
     /// children. Each vector doubles as it fills, and the parse asks for the
     /// doubling before it is made, so the peak stays under twice the limit.
+    /// Under Miri there are 4,000 of each and the limit is 64 KiB: more of them
+    /// for each byte of the limit than outside Miri, so the limit is still reached.
     // covers: Core\Xml::parse
     #[test]
     fn a_wide_element_stops_at_the_memory_limit_before_its_room_doubles() {
         let (count, limit) = if cfg!(miri) {
-            (20_000, 1 << 20)
+            (4_000, 1 << 16)
         } else {
             (400_000, 8 << 20)
         };
