@@ -289,6 +289,7 @@ productions![
     "Bool",
     "Break",
     "Call",
+    "Case",
     "Catch",
     "ClassConstAccess",
     "ClassDecl",

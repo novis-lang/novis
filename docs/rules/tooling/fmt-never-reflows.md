@@ -7,7 +7,8 @@ What follows from the choice is `nvs fmt`'s: a broken construct gets one fixed l
 line (`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`,
 `rule:tooling/fmt-a-broken-call-chain-is-one-call-per-line`,
 `rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`). Every other line break inside an
-expression stays where its author wrote it, with the indentation of the line it continues.
+expression stays where its author wrote it, and the line after it keeps the indentation its author
+wrote.
 
 There is deliberately no line-length rule anywhere, soft or hard. With no width decision to make, a
 width limit would be advisory prose with nothing in the tool to enforce it, and the editor's own ruler

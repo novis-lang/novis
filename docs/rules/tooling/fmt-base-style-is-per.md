@@ -17,6 +17,11 @@ between two members belongs to the member below it, so the blank line goes above
 A property's hooks sit one level in from the property's line, and a hook's block is a body of its own:
 its statements sit one level in from the hook's line, and its `}` on the hook's.
 
+A `switch` is laid out as PER-CS lays it out: each `case` and `default` sits one level in from the
+`switch` line, a case's statements one level in from that case's line, and the closing brace on the
+`switch` line. A template region's own text, every byte between a `?>` and the next open tag, is what
+the program prints, so its lines are copied exactly as written and never re-indented.
+
 A comment that opens a line sits at the indentation of the code below it, which is the line it describes.
 A comment above a body's closing brace is inside that body, so it sits where the body's statements sit.
 A line of a block comment after its first is the comment's own text and is copied.

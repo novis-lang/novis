@@ -163,7 +163,7 @@ fn is_concat(text: &str) -> bool {
 /// whether the result type-checks is the preview's to show.
 fn allowed_under(parent: &IndexNode, target: Span, parent_text: &str) -> bool {
     match parent.kind {
-        "Const" | "EnumCase" | "Switch" | "Require" | "UseDecl" | "AutoloadDecl" | "Index"
+        "Const" | "EnumCase" | "Switch" | "Case" | "Require" | "UseDecl" | "AutoloadDecl" | "Index"
         | "Isset" | "Unset" | "Global" => false,
         "ArrayLiteral" | "Match" => {
             let Some(snippet) = Snippet::parse(parent_text) else {
