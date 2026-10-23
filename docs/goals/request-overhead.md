@@ -55,7 +55,7 @@ stages:
         rules: [concurrency/a-task-stack-is-reserved-wide-and-pooled, concurrency/a-tasks-recursion-limit-comes-from-its-own-stack, errors/stack-depth]
   - id: 8
     title: "the ledgers and the comparison are recorded again, and the fault rows keep their results"
-    status: open
+    status: done
     context: [tools/nv/cmd/bench-compare.ts, website/src/content/docs/in-depth/compare.mdx, benches/compare.json]
     extra:
       context:
@@ -574,8 +574,10 @@ session's, written to `AGENTS.md` § *Text an end user reads*.
 - [x] `bun nv bench-compare --profile` for the four cases, compared with stage 1's table, and the result written into the handoff. `tools/nv/cmd/bench-compare.ts:1`
   - [x] hello, json-api, html-page and wait profiled at ba8e5e8bd.
   - [x] § *Why* holds the second table beside the first.
-- [ ] The comparison recorded again from a detached worktree, and the page's speed and memory paragraphs say what the new run measured. `benches/compare.json:1`, `website/src/content/docs/in-depth/compare.mdx:62`
-- [ ] The `hostile-groups`, `memory-row` and `loop-row` checks pass. `tools/nv/cmd/bench-compare.ts:1`
+- [x] The comparison recorded again from a detached worktree, and the page's speed and memory paragraphs say what the new run measured. `benches/compare.json:1`, `website/src/content/docs/in-depth/compare.mdx:62`
+  - [x] The fair arm and the feature rows recorded at 4f01826ad, and the record copied back and rendered.
+  - [x] The page's figures checked against the run, and the two deploy paragraphs' figures updated.
+- [x] The `hostile-groups`, `memory-row` and `loop-row` checks pass. `tools/nv/cmd/bench-compare.ts:1`
 
 ### 9. the goal is verified once, and every failure is fixed
 
@@ -594,10 +596,26 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done: a0f56ab2f, e03aa7e53, ac7342049, and 7f9435294 with 051c6efa3. Stage 5's
-items are all done in b4b080479, stage 6's in d9a8e974f, and stage 7's in c2d5e836a with
-5b14afeac. The three statuses stay open until decision `d7` is answered, because their checks
-are among the five it covers. Stage 8's first two items are done in ba8e5e8bd and the commit after it.
+Stages 1 to 8 are done: a0f56ab2f, e03aa7e53, ac7342049, 7f9435294 with 051c6efa3, b4b080479,
+d9a8e974f, c2d5e836a with 5b14afeac, and stage 8 in ba8e5e8bd, 4f01826ad and 80f2f3841. Stage 9,
+the gate, is next.
+
+- **Decision `d7` is answered and closed.** The five named-test checks run `cargo test -- <names>`
+  (e10cfd2b0), and § *Standing decisions* says so. `runtime-tests`, `server-tests` and `host-tests`
+  then passed, so stages 5, 6 and 7 are done (1f6530d40).
+- **The comparison is recorded again at 4f01826ad** (80f2f3841), from a detached worktree that is
+  now removed. Every peer is 10 to 20% slower than in the 2026-10-22 record, so the machine was
+  slower. Novis's share of the fastest server still rose in every case: hello 0.77 → 0.87, json-api
+  0.46 → 0.57, html-page 0.46 → 0.60, wait 0.89 → 0.92. Its peak in the wait case fell from 121.5
+  to 107.4 MB, and the `waiting` row measured 89.2 KiB per request. No place changed. The speed and
+  memory paragraphs state no figure, so they are unchanged. The deploy paragraphs now give PHP's
+  mixed pages as 47% and 90%, and Novis's big-deploy time as 3.5 s. Every fault row kept its result.
+- `hostile-groups`, `memory-row`, `loop-row` and `rules-check` passed, each once by name.
+- The sweep's `env-secret-proofs` is not in the tree: `looper check --name env-secret-proofs` says
+  `no check matches` and exits 1, which is the red the sweep reports. `bun nv proofs --gate --only
+  'Core\Env::secret'` exits 0 with nothing owed. The check is in looper's service. The nightly run
+  39746060276 is a cancelled `workflow_dispatch` from 2026-10-22.
+- `docs/agent/playbook.md:58` was over `looper lint`'s 700 bytes, and is shortened.
 
 - **The ledger is current.** `bun nv proofs --record-perf` recorded 765 stale figures again on the
   release binary (ba8e5e8bd), so the proofs job's stale records are gone. 31 benches still declared
@@ -625,15 +643,6 @@ are among the five it covers. Stage 8's first two items are done in ba8e5e8bd an
 - `--profile wait` runs for minutes with a quiet host side. The guard's hang watch killed a loop that
   piped it into a file, while the container ran on. `docker logs -f <id>` recovered its output.
   Run each `--profile` alone and unpiped.
-- The sweep's `env-secret-proofs` is red again with exit 1, while its saved log
-  (`.looper/loops/main/checks/env-secret-proofs.log`, dated 2026-10-22) says exit 0. The check is
-  defined in looper's service and not in the tree, so this session could not run it by name. The
-  nightly run 39746060276 was cancelled by a newer push, not by a failure.
-- **Decision `d7` is open: the named-test checks cannot pass as written.** `runtime-tests`,
-  `render-tests`, `stdlib-tests`, `server-tests` and `host-tests` run `bun nv verify --fast -p`,
-  which prints no per-test line. looper's check needs `test <path> ... ok` for each name
-  (`tools/looper/src/verify/accept.ts:568`). An edit of the checks to `[cargo, test, --, <names>]`
-  was refused by the permission classifier as a CI bypass. The checks are as committed.
 - Stages 2 to 7 as built are in § *Standing decisions*. Each stage's guards ran once and were green,
   and each review subagent's findings are fixed. No new test of stages 3 to 7 was seen to fail
   before its change. The Unix trim and the `mincore` count have not run on this Windows machine.
@@ -641,21 +650,15 @@ are among the five it covers. Stage 8's first two items are done in ba8e5e8bd an
 
 ### Next
 
-First, if decision `d7` is answered, apply it to the five named-test checks in the front matter.
-Then run `runtime-tests`, `server-tests` and `host-tests`, and set stages 5, 6 and 7 to done once
-each is green.
+Stage 9, the gate (`docs/goals/request-overhead.md` § *9.*):
 
-Then stage 8's last two items:
+- Start `bun nv affected --run` with `run_in_background`, end the turn, and fix every failure it
+  names in one pass. The Unix stack trim and its `mincore` count run first on CI's Linux job.
+- Before `DONE`: `bun nv verify --doc`, then `bun nv owners --closes request-overhead`. Move each
+  decision only this file's prose holds into a rule or a module doc.
 
-- The comparison recorded again from a detached worktree at HEAD: `bun nv bench-compare --record
-  benches/compare.json`, then `--scenarios --record benches/compare.json`
-  (`tools/nv/cmd/bench-compare.ts:8`). It runs for hours, so start it with `run_in_background` and
-  no pipe into a file. Copy `benches/compare.json` back into the tree, and rewrite the page's speed
-  and memory paragraphs from what it measured (`website/src/content/docs/in-depth/compare.mdx:62`),
-  following `AGENTS.md` § *Text an end user reads*.
-- The `hostile-groups`, `memory-row` and `loop-row` checks, each once with `looper check --name`.
-
-Then stage 9, the gate. No test is expected to go red.
+No test is expected to go red. The website build (`bun nv site --build`) has not run on the new
+`website/src/data/compare.json`. Its shape did not change.
 
 ### Backlog
 

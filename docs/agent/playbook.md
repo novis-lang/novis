@@ -56,13 +56,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   265 s. Record that feature alone with `--only`, then the others.
   `until: gone benches/members/lang/concurrency/no-colouring-i-o-just-waits.nvs`
 - **`bun nv bench-compare` run with `run_in_background` is killed as a `HANG:` while Docker builds
-  the `nvs` image, and the report is `-looper-sh.txt`.** That is looper's shell watcher
-  (`tools/looper/src/jobs/hang.ts`), which has no `OUTSIDE` rule like `tools/nv/lib/hang.ts`'s, so
-  the release compile in Docker's VM reads as a tree with no CPU. Run a bench row in the foreground
-  with a 600 s timeout. A full record survives in the background once `--smoke` has built the
-  images in the foreground, and a filter on it uses `grep --line-buffered`. `--profile wait` is
-  killed the same way while it loads, when its output goes into a file through a buffered `grep`, and
-  its container runs on. `docker logs -f <id>` recovers what it prints.
+  the `nvs` image.** looper's watcher (`tools/looper/src/jobs/hang.ts`) has no `OUTSIDE` rule, so a
+  compile in Docker's VM looks idle. Run a row in the foreground with a 600 s timeout. A full
+  record survives in the background, unpiped, once the image is built. `--profile wait` piped into a
+  file dies the same way: `docker logs -f <id>` recovers it.
   `until: gone tools/looper/src/jobs/hang.ts:WAIT_LINES`
 - **A new `benches/compare.json` changes nothing on the built comparison page until `bun nv render`
   copies it to `website/src/data/compare.json`.** `bun nv site --build` reads only the copy, so a
