@@ -6,6 +6,5 @@
     "tooling/a-serving-process-never-uploads",
     "tooling/update-check-states-the-whole-picture"
   ],
-  "guardedBy": [],
-  "goal": "cli-housekeeping"
+  "guardedBy": []
 }

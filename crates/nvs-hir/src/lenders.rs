@@ -330,7 +330,11 @@ mod tests {
     fn a_file_an_ignore_file_names_is_skipped() {
         let dir = tree(
             "ignore",
-            &[(".ignore", "scratch.nvs\n"), ("main.nvs", ""), ("scratch.nvs", "")],
+            &[
+                (".ignore", "scratch.nvs\n"),
+                ("main.nvs", ""),
+                ("scratch.nvs", ""),
+            ],
         );
         assert_eq!(found(&dir), ["main.nvs"]);
     }
@@ -369,7 +373,11 @@ mod tests {
     fn the_root_is_walked_whatever_it_is_called_or_an_ignore_file_says() {
         let dir = tree(
             "root",
-            &[(".gitignore", "vendor/\n"), ("vendor/lib.nvs", ""), ("vendor/sub/deep.nvs", "")],
+            &[
+                (".gitignore", "vendor/\n"),
+                ("vendor/lib.nvs", ""),
+                ("vendor/sub/deep.nvs", ""),
+            ],
         );
         let vendor = dir.join("vendor");
         assert_eq!(found(&vendor), ["lib.nvs", "sub/deep.nvs"]);
