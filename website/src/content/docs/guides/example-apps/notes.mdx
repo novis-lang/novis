@@ -115,7 +115,7 @@ public.
 
 `dispatch` sets the status code before it calls `refused` or `failed`, so the gate only shows the page.
 
-`src/Draft.nvs` is a note that is not saved yet. The form and the JSON API both create a `Draft`.
+`src/Draft.nvs` is a new note before it is saved. The form and the JSON API both create a `Draft`.
 Its text came from the user, so it is `tainted string`. `problems()` returns one message for each
 property that is not valid.
 
@@ -153,8 +153,18 @@ curl http://127.0.0.1:8000/api/notes
 4. Delete the classes you do not need, and their tests. Run `nvs test .` after each change.
 
 Notes has no login. Anybody who can open the page can write a note. Before you put an app like this
-on the internet, add a login and a [CSRF token](/reference/core/csrf/) to each form. Then read the
-[security checklist](/guides/production/security-checklist/).
+on the internet, add a login and a CSRF token to each form. A CSRF token is a value that proves a
+form came from your own page.
+
+1. In `nvs.toml`, set `csrf_key` under `[http]`. The key is 32 random bytes, written in base64.
+2. In the method that shows a form, call `Core\Session::start()`. Then call `Core\Csrf::token()`.
+   It returns the token, and the response sends the session cookie.
+3. Put the token in a hidden field of the form:
+   `<input type="hidden" name="_csrf" value="{$token}">`
+
+The server then checks the token of each `Post` request before your method runs. A request without
+a valid token gets the status `403`. The [reference page of `Core\Csrf::token`](/reference/core/csrf/token/)
+shows a whole form. Then read the [security checklist](/guides/production/security-checklist/).
 
 ## Read more
 
