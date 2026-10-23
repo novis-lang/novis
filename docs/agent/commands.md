@@ -692,10 +692,11 @@ delete.
 
 `nvs serve` checks the ownership of every configuration file at boot and at each reload
 (`rule:config/the-ownership-check-runs-where-it-can-be-answered`), and a checkout on a non-system drive
-inherits the drive's `Authenticated Users` write grant, so every server on a checkout file and every
-served test under `target/` stops with `E0607`. `bun nv checkout-acl` breaks the checkout root's
-inheritance, grants this account full control and removes `Authenticated Users` and `Everyone`, once;
-`--check` only reports. CI's Windows jobs run it after the tool install. Its header names the undo.
+inherits the drive's `Authenticated Users` write grant, and on the CI runners `BUILTIN\Users`' right
+to create files in every folder, so every server on a checkout file and every served test under
+`target/` stops with `E0607`. `bun nv checkout-acl` breaks the checkout root's inheritance, grants this
+account full control, removes `Authenticated Users`, `Everyone` and `BUILTIN\Users`, and gives
+`BUILTIN\Users` read and execute back, once; `--check` only reports. CI's Windows jobs run it after the tool install. Its header names the undo.
 
 **Compiling the Unix half from Windows** is `cargo check --tests` in WSL with its own
 `CARGO_TARGET_DIR` on ext4. Keep the output unfiltered and print a heartbeat, or the hang watcher
