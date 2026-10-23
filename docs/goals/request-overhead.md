@@ -304,6 +304,21 @@ Stage 4 as built:
 
 Memory: a few dozen bytes per snapshot.
 
+Stage 5 as built:
+
+- The table is `nvs_config::limits`, a `OnceLock` cell on `Snapshot` filled by the first reader,
+  not at build time. A snapshot is built by many hands, tests included, and a lazy cell covers each
+  one. A clone starts empty, and `carry_boot` empties it, so a changed tree never keeps an old table.
+- Each reading is `Request::get` of a fresh request over the snapshot, then `Quantity::parse`. So
+  the table is `get`'s answer, kept. It has a half for CLI runs and a half for server work, because
+  an unwritten `cpu_time` differs.
+- It covers every `[limits]` key, which is now one table, `value::LIMITS`, read by `unit_of` and
+  `canonical()`. It also holds `[errors] deprecated` and `[log] access`.
+- `Request::limit` and `Request::deprecated` read it unless the overlay holds the key or a mode
+  flip. The runtime's readers map each `Reading` exactly as they mapped the parse before.
+- `in_force` renders each fixed row once per process and copies it on each read.
+- Memory: under a kilobyte per snapshot, and one `String` per fixed default row per process.
+
 **Stage 6: a stream keeps a readiness bit, as tokio does.**
 
 - `WouldBlock` clears the bit, and the reactor's event for the token sets it again.
@@ -448,13 +463,13 @@ the limit.
 
 **Does:** a request that sets nothing resolves its limits with no allocation and no text parsing.
 
-- [ ] The snapshot's typed limits table, built with the snapshot (`rule:config/the-config-is-an-immutable-snapshot`). `crates/nvs-config/src/snapshot.rs:736`
-- [ ] `refresh_limits`, `configured_bytes`, `configured_wall_time` and `report_memory_peak` read the table unless the overlay holds the key. `crates/nvs-runtime/src/ctx/limits.rs:692`, `crates/nvs-runtime/src/ctx/limits.rs:1194`, `crates/nvs-runtime/src/ctx/limits.rs:799`, `crates/nvs-runtime/src/ctx/limits.rs:145`
-- [ ] `canonical()` returns a static string, and `in_force` renders each default once per process. `crates/nvs-config/src/request.rs:434`, `crates/nvs-config/src/defaults.rs:595`, `crates/nvs-config/src/defaults.rs:729`
-- [ ] `access_on` reads the table, with no new `Request`. `crates/nvs-server/src/trace.rs:316`
-- [ ] Rust test `a_request_that_sets_nothing_reads_its_limits_without_allocating`, which uses the allocator's own totals. `crates/nvs-runtime/src/ctx/limits.rs:692`
-- [ ] The guards stay green and unchanged. Rust: `nvs-config/tests/request.rs:125` and `:539`, and `nvs-cli/tests/live_edit.rs`. Conformance: `config/config-set-is-invisible-to-the-next-request.nvst` and `core/config-set-memory-above-the-default-moves-the-ceiling-the-runtime-enforces.nvst`. Hostile: the `config:directives` group. `crates/nvs-config/tests/request.rs:125`
-- [ ] Review: an `Explore` subagent reads the stage's diff against this stage's guards, and every finding is fixed. `crates/nvs-config/src/request.rs:1`
+- [x] The snapshot's typed limits table, built with the snapshot (`rule:config/the-config-is-an-immutable-snapshot`). `crates/nvs-config/src/snapshot.rs:736`
+- [x] `refresh_limits`, `configured_bytes`, `configured_wall_time` and `report_memory_peak` read the table unless the overlay holds the key. `crates/nvs-runtime/src/ctx/limits.rs:692`, `crates/nvs-runtime/src/ctx/limits.rs:1194`, `crates/nvs-runtime/src/ctx/limits.rs:799`, `crates/nvs-runtime/src/ctx/limits.rs:145`
+- [x] `canonical()` returns a static string, and `in_force` renders each default once per process. `crates/nvs-config/src/request.rs:434`, `crates/nvs-config/src/defaults.rs:595`, `crates/nvs-config/src/defaults.rs:729`
+- [x] `access_on` reads the table, with no new `Request`. `crates/nvs-server/src/trace.rs:316`
+- [x] Rust test `a_request_that_sets_nothing_reads_its_limits_without_allocating`, which uses the allocator's own totals. `crates/nvs-runtime/src/ctx/limits.rs:692`
+- [x] The guards stay green and unchanged. Rust: `nvs-config/tests/request.rs:125` and `:539`, and `nvs-cli/tests/live_edit.rs`. Conformance: `config/config-set-is-invisible-to-the-next-request.nvst` and `core/config-set-memory-above-the-default-moves-the-ceiling-the-runtime-enforces.nvst`. Hostile: the `config:directives` group. `crates/nvs-config/tests/request.rs:125`
+- [x] Review: an `Explore` subagent reads the stage's diff against this stage's guards, and every finding is fixed. `crates/nvs-config/src/request.rs:1`
 
 ### 6. a read the reactor has not reported ready, and a wake on a core's own task, make no system call
 
@@ -511,8 +526,26 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done: a0f56ab2f, e03aa7e53, ac7342049, and 7f9435294 with 051c6efa3.
+Stages 1 to 4 are done: a0f56ab2f, e03aa7e53, ac7342049, and 7f9435294 with 051c6efa3. Stage 5's
+items are all done in b4b080479, and its status stays open until decision `d7` is answered.
 
+- Stage 5: a snapshot keeps a lazily filled limits table (`crates/nvs-config/src/limits.rs`), and
+  `Request::limit` and `Request::deprecated` read it unless the overlay holds the key or a mode
+  flip. § *Standing decisions*' *Stage 5 as built* says what each part does.
+- Stage 5 ran once each: the new test by name (passed), `cargo test --test request --test live_edit`
+  (55 passed), the two conformance guard cases (2 passed), `bun nv proofs --run --group
+  config:directives` (56 examples, 58 attacks, all ok), and the `config-tests` check (green). Clippy
+  is clean. The new test was not seen to fail before the change.
+- The review subagent found no regression. It named one fragile spot: `carry_boot` changes a
+  snapshot in place after a reader may have filled its table. `carry_boot` now empties the cell.
+- **Decision `d7` is open: the named-test checks cannot pass as written.** `runtime-tests`,
+  `render-tests`, `stdlib-tests`, `server-tests` and `host-tests` run `bun nv verify --fast -p`,
+  which prints no per-test line. looper's check needs `test <path> ... ok` for each name
+  (`tools/looper/src/verify/accept.ts:568`), so each says "did not run and pass". `render-tests`,
+  green last session, is red now. An edit of the checks to `[cargo, test, --, <names>]` was refused
+  by the permission classifier as a CI bypass. The checks are as committed.
+- The sweep's `env-secret-proofs` passes when run again (exit 0, nothing owed), for the second time.
+  The nightly run 39746060276 was cancelled by a newer push.
 - Stage 4: `html::escape` and `text::substitute` scan bytes once and walk the bidi predicate only
   after `0xE2`. `memory_breach` is `#[inline]` with its message in a cold `memory_fault`.
   § *Standing decisions*' *Stage 4 as built* says what each does.
@@ -523,8 +556,6 @@ Stages 1 to 4 are done: a0f56ab2f, e03aa7e53, ac7342049, and 7f9435294 with 051c
   check (green). Clippy is clean. The review subagent found nothing.
 - The poll's gain is not counted. A profile in stage 8 shows whether `memory_breach` still appears
   as its own symbol.
-- The sweep's `env-secret-proofs` passes when run again (exit 0, nothing owed). The nightly run
-  39746060276 was cancelled by a newer push.
 - Stage 3: `decode_as` (`crates/nvs-stdlib/src/json.rs:2114`) parses into a `Found`/`Read` tree
   with the `Fill` and `FillList` seeds (`json.rs:2425`, `json.rs:2532`). § *Standing decisions*'
   *As built* list says what changed and what kept the array path.
@@ -551,19 +582,22 @@ Stages 1 to 4 are done: a0f56ab2f, e03aa7e53, ac7342049, and 7f9435294 with 051c
 
 ### Next
 
-Stage 5: a unit's snapshot resolves its limits once. Write its checkpoints first.
+First, apply the answer to decision `d7` to the five named-test checks in the front matter. Then
+run `runtime-tests` and set stage 5's status to done once it is green.
 
-- The typed limits table, built with the snapshot. `crates/nvs-config/src/snapshot.rs:736`
-- The readers that move to it: `refresh_limits` (`crates/nvs-runtime/src/ctx/limits.rs:740`),
-  `configured_bytes` (`limits.rs:1242`), `configured_wall_time` (`limits.rs:847`) and
-  `report_memory_peak` (`limits.rs:154`).
-- `canonical()` and `in_force`: `crates/nvs-config/src/request.rs:434`,
-  `crates/nvs-config/src/defaults.rs:595`, `defaults.rs:729`. `access_on`:
-  `crates/nvs-server/src/trace.rs:316`.
-- Stage 5's test: `a_request_that_sets_nothing_reads_its_limits_without_allocating`.
+Then stage 6: a stream keeps a readiness bit, and a self-wake on a drive's own core is queued
+locally. Write its checkpoints first. § *Standing decisions*' three stage 6 entries are the design.
 
-No test is expected to go red. The perf figures for `Core\Json::decodeAs` and every member whose
-file is `nvs-render`'s `html.rs` or `text.rs` are stale. Stage 8 records them again.
+- The readiness bit and the deadline filing: `crates/nvs-host/src/net.rs:1520`, `net.rs:1595`,
+  `net.rs:1606`, `net.rs:1475`. The first-read test: `net.rs:1780`.
+- The self-wake: `crates/nvs-host/src/block_on.rs:316`, `crates/nvs-host/src/reactor.rs:320`,
+  `crates/nvs-server/src/serve.rs:2127`, and `Ended::drop` at `crates/nvs-host/src/isolate.rs:1046`.
+- The read scratch: `crates/nvs-server/src/io.rs:445`, `io.rs:120`.
+- The counts: `nvs_host::counts`. The count test to rename and tighten: `serve.rs:10102`.
+
+No test is expected to go red. The perf figures for `Core\Json::decodeAs`, every member whose
+file is `nvs-render`'s `html.rs` or `text.rs`, and every member reading `nvs-config`'s `request.rs`
+or `defaults.rs` are stale. Stage 8 records them again.
 
 ### Backlog
 
