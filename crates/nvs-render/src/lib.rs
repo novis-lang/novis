@@ -96,6 +96,27 @@ pub mod json;
 pub mod plain;
 pub mod text;
 
+/// How many passes over a text this crate's sinks made on this thread, for the
+/// tests that count them. It exists in test builds only.
+#[cfg(test)]
+pub(crate) mod passes {
+    use std::cell::Cell;
+
+    thread_local! {
+        static PASSES: Cell<usize> = const { Cell::new(0) };
+    }
+
+    /// One more pass over a text.
+    pub(crate) fn note() {
+        PASSES.with(|p| p.set(p.get() + 1));
+    }
+
+    /// The passes noted since the last call, and the count starts again at zero.
+    pub(crate) fn take() -> usize {
+        PASSES.with(|p| p.replace(0))
+    }
+}
+
 /// `rule:errors/log-level`'s five levels, with the fixed syslog mapping that section's table gives.
 ///
 /// The mapping is fixed because `rule:errors/engine-floor` names `syslog` as a target and a severity is not optional there.
