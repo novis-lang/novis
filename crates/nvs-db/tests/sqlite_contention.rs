@@ -84,8 +84,12 @@ fn fifty_writers_at_once_all_insert() {
             let start = Arc::clone(&start);
             std::thread::spawn(move || {
                 let mut conn = connect(&block);
-                conn.set_statement_deadline(None, Some(Instant::now() + Duration::from_secs(30)))
-                    .expect("the lock wait files");
+                conn.set_statement_deadline(
+                    None,
+                    Some(Instant::now() + Duration::from_secs(30)),
+                    None,
+                )
+                .expect("the lock wait files");
                 start.wait();
                 run(
                     &conn,
@@ -130,7 +134,7 @@ fn a_lock_held_past_the_wait_fails_as_deadlock() {
     let waited = Duration::from_millis(200);
     let started = Instant::now();
     writer
-        .set_statement_deadline(None, Some(started + waited))
+        .set_statement_deadline(None, Some(started + waited), None)
         .expect("the lock wait files");
     let refused = run(&writer, "insert into notes values ('late')", Vec::new())
         .expect_err("the lock is still held when the wait ends");
@@ -143,6 +147,47 @@ fn a_lock_held_past_the_wait_fails_as_deadlock() {
         started.elapsed()
     );
     holding.commit().expect("the holder commits");
+}
+
+#[test]
+fn an_endless_statement_stops_near_the_cpu_time_its_request_has_left() {
+    // Where the platform has no thread clock there is no CPU ceiling to stop
+    // at, and this statement would never end.
+    if nvs_host::cpuclock::ThreadClock::current().is_none() {
+        return;
+    }
+    let scratch = nvs_repo::scratch("sqlite-cpu-time");
+    let mut conn = connect(&block(&scratch.join("app.sqlite"), None));
+    let budget = Duration::from_millis(300);
+    let started = Instant::now();
+    conn.set_statement_deadline(None, Some(started + Duration::from_secs(30)), Some(budget))
+        .expect("the bounds file");
+    let refused = run(
+        &conn,
+        "with recursive c(x) as (select 1 union all select x + 1 from c) \
+         select count(*) from c",
+        Vec::new(),
+    )
+    .expect_err("a statement with no end stops at its CPU budget");
+
+    let server = ServerError::of(&refused).expect("an interrupt carries a kind");
+    assert_eq!(server.kind, DbErrorKind::Timeout);
+    let took = started.elapsed();
+    assert!(
+        took >= budget / 2,
+        "the statement stopped after {took:?}, before its budget of {budget:?}"
+    );
+    assert!(
+        took < budget * 20,
+        "the statement ran {took:?} on a budget of {budget:?}"
+    );
+    // The bound is the statement's: the next one runs to its end.
+    conn.set_statement_deadline(None, Some(Instant::now() + Duration::from_secs(30)), None)
+        .expect("the bounds lift");
+    assert_eq!(
+        run(&conn, "select 1", Vec::new()).expect("the connection is idle again"),
+        vec![vec![SqliteValue::Int(1)]]
+    );
 }
 
 #[test]

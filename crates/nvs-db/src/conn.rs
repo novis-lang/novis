@@ -1237,14 +1237,17 @@ impl Connection {
     }
 
     /// [`Self::set_deadline`] for a statement, where `lock_wait` bounds a SQLite
-    /// statement that names no deadline of its own (`rule:core-classes/db-statement-members`).
+    /// statement that names no deadline of its own (`rule:core-classes/db-statement-members`),
+    /// and `cpu_left` is the CPU time its request has left.
     ///
     /// `nvs-stdlib` passes the instant the request's `wall_time` runs out, or
     /// [`crate::sqlite::LOCK_WAIT`] from now for a run with none. On SQLite it
     /// becomes the busy timeout alone: a writer that meets another's lock
-    /// waits until then, and nothing interrupts a statement that is running.
-    /// A statement's own deadline wins. The four drivers with a wire have no
-    /// lock to wait for and ignore `lock_wait`.
+    /// waits until then, and the wall clock does not interrupt a statement that
+    /// is running. A statement's own deadline wins. `cpu_left` does interrupt
+    /// one, once the statement has spent it ([`crate::sqlite::Interrupt`]). The
+    /// four drivers with a wire spend their time waiting on the server, have no
+    /// lock to wait for, and ignore both.
     ///
     /// # Errors
     ///
@@ -1253,10 +1256,12 @@ impl Connection {
         &mut self,
         at: Option<std::time::Instant>,
         lock_wait: Option<std::time::Instant>,
+        cpu_left: Option<std::time::Duration>,
     ) -> std::io::Result<()> {
         match self {
             Connection::Sqlite(c) => {
                 c.interrupt.file(at);
+                c.interrupt.file_cpu(cpu_left);
                 crate::sqlite::set_busy_timeout(c, at.or(lock_wait))
             }
             _ => self.set_deadline(at),
