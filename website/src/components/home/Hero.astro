@@ -3,7 +3,8 @@
  * The front page's hero, in two rows. The first is the page's one `<h1>`,
  * centred across the full width: the name Novis-Lang, the headline with a
  * small note "and the command line" below its words "web applications", and
- * the slogan. The second is the tagline, the two calls to action and the facts
+ * the slogan. The second is the release label, the tagline, the two calls to
+ * action and the facts
  * beside a code window with three small web programs. The programs come in
  * through the named slots `html`, `sql` and `secret`, because the site
  * checker finds a page's snippets in the page itself. The second row has two
@@ -38,6 +39,7 @@
  */
 import { Icon } from '@astrojs/starlight/components'
 import { INSTALL } from '@config/site.mjs'
+import { status, version } from '@data/release'
 import { withBase } from '~/lib/base'
 
 // One entry per tab: the slot its snippet comes in through, the tab's label,
@@ -105,6 +107,10 @@ const phrases = [
   </div>
 
   <div class="copy">
+    <a class="release" href={withBase('/in-depth/what-changed/')}>
+      <span class="release-status">{status}</span>
+      <span class="release-version">{version}</span>
+    </a>
     <div class="text">
       <p class="tagline">
         You can build a business app, a website, an API or any other web service with it. The tools that a modern
@@ -682,6 +688,34 @@ const phrases = [
     [data-animate][data-clicked] .drum {
       transition: transform 650ms cubic-bezier(0.2, 0.9, 0.3, 1.04);
     }
+  }
+
+  /* The release label above the tagline: the status in gold and the
+     version beside it, small, in a hairline pill. It links to the page
+     that lists what each release changed. */
+  .release {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.2em 0.75em;
+    border: 1px solid var(--nv-hairline);
+    border-radius: 999px;
+    background: var(--nv-surface);
+    font-size: var(--sl-text-xs);
+    line-height: 1.6;
+    color: var(--sl-color-gray-3);
+    text-decoration: none;
+    transition: border-color var(--nv-fast) var(--nv-ease);
+  }
+  .release:hover {
+    border-color: var(--sl-color-text-accent);
+  }
+  .release-status {
+    font-weight: 700;
+    color: var(--nv-gold-text);
+  }
+  .release-version {
+    font-variant-numeric: tabular-nums;
   }
 
   .text {

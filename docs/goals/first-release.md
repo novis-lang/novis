@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/test/release.test.ts, .github/workflows/release.yml, .github/workflows/release-promote.yml, editors/vscode/package.json]
   - id: 2
     title: "the roadmap is a short list kept in step with the chain, and every page says Pre-Alpha and released"
-    status: open
+    status: done
     context: [website/src/content/docs/in-depth/roadmap.mdx, website/src/content/docs/in-depth/what-changed.mdx, website/src/content/docs/install/index.mdx, website/src/content/docs/guides/production/docker.mdx, tools/nv/cmd/site.ts]
   - id: 3
     title: "the README follows the website's home page, in its order and its words"
@@ -185,23 +185,23 @@ release attaches the extension at its own version, and publishing it redeploys t
 **Does:** the roadmap page lists only planned work from `roadmap.json`. The check fails on a chain it
 does not match, and no page says "no release yet".
 
-- [ ] `website/src/data/roadmap.json` with the themes above, their sentences and `internal`. `website/src/data/roadmap.json:1`
-- [ ] `website/src/data/release.ts`: the version from `Cargo.toml`, and the archive name for each target. `website/src/data/release.ts:1`
-- [ ] A roadmap component renders the themes, the first one labelled "Working on it now". The roadmap page uses it and loses *What is built*. `website/src/content/docs/in-depth/roadmap.mdx:1`
-- [ ] `bun nv site --roadmap` writes the README's roadmap list between the markers, and `bun nv site --check roadmap` runs the five checks above. A test covers each failure. `tools/nv/cmd/site.ts:1`
-- [ ] `bun nv affected` maps `docs/goals/README.md` and `website/src/data/roadmap.json` to the roadmap check. `tools/nv/cmd/affected.ts:1`
-- [ ] The install page leads with the release archives and the Docker image, with download links from `release.ts`. Building from source comes after. *Check a release archive* uses the real archive name. `website/src/content/docs/install/index.mdx:95`
-- [ ] What changed and the roadmap page lose "There is no release yet". What changed says the first release is `0.0.1`. `website/src/content/docs/in-depth/what-changed.mdx:13`, `website/src/content/docs/in-depth/roadmap.mdx:37`
-- [ ] The install page's description and opening say you download `nvs` or build it from source. `website/src/content/docs/install/index.mdx:4`, `website/src/content/docs/install/index.mdx:9`
-- [ ] The home page's install card says download, with build from source second. `website/src/components/home/Path.astro:25`
-- [ ] The hero shows a small "Pre-Alpha" label with the version from `release.ts`, linking to What changed. `website/src/components/home/Hero.astro:1`
-- [ ] The Docker guide pulls the published image first, and building your own image comes after. Its tags come from `release.ts`. `website/src/content/docs/guides/production/docker.mdx:20`, `website/src/content/docs/guides/production/docker.mdx:139`
-- [ ] The editor page installs the `.vsix` from the release, with its link from `release.ts`, by *Extensions: Install from VSIX* or `code --install-extension`. Building the file from source comes after. `website/src/content/docs/install/editor.mdx:35`
-- [ ] The In depth index describes the roadmap as the planned work. `website/src/content/docs/in-depth/index.mdx:22`
-- [ ] The compiler page no longer names a planned faster compiler, because the roadmap does not have one. `website/src/content/docs/in-depth/concepts/compiled.mdx:35`
-- [ ] `CONTRIBUTING.md` says Pre-Alpha and released at `0.0.1`, and its "not built yet" example names planned work. `CONTRIBUTING.md:3`, `CONTRIBUTING.md:9`, `CONTRIBUTING.md:138`
-- [ ] `SECURITY.md`'s table supports the latest release and `main`, and its status line says Pre-Alpha. `SECURITY.md:9`, `SECURITY.md:14`
-- [ ] `bun nv proofs --comments` and `bun nv site --check` pass on every page this stage touched.
+- [x] `website/src/data/roadmap.json` with the themes above, their sentences and `internal`. `website/src/data/roadmap.json:1`
+- [x] `website/src/data/release.ts`: the version from `Cargo.toml`, and the archive name for each target. `website/src/data/release.ts:1`
+- [x] A roadmap component renders the themes, the first one labelled "Working on it now". The roadmap page uses it and loses *What is built*. `website/src/content/docs/in-depth/roadmap.mdx:1`
+- [x] `bun nv site --roadmap` writes the README's roadmap list between the markers, and `bun nv site --check roadmap` runs the five checks above. A test covers each failure. `tools/nv/cmd/site.ts:1`
+- [x] `bun nv affected` maps `docs/goals/README.md` and `website/src/data/roadmap.json` to the roadmap check. `tools/nv/cmd/affected.ts:1`. No code: `affected` maps a `bun nv` check by the reads its last recorded run made, and `site --check roadmap` reads both. The sweep's first run of `roadmap-check` records them.
+- [x] The install page leads with the release archives and the Docker image, with download links from `release.ts`. Building from source comes after. *Check a release archive* uses the real archive name. `website/src/content/docs/install/index.mdx:95`
+- [x] What changed and the roadmap page lose "There is no release yet". What changed says the first release is `0.0.1`. `website/src/content/docs/in-depth/what-changed.mdx:13`, `website/src/content/docs/in-depth/roadmap.mdx:37`
+- [x] The install page's description and opening say you download `nvs` or build it from source. `website/src/content/docs/install/index.mdx:4`, `website/src/content/docs/install/index.mdx:9`
+- [x] The home page's install card says download, with build from source second. `website/src/components/home/Path.astro:25`
+- [x] The hero shows a small "Pre-Alpha" label with the version from `release.ts`, linking to What changed. `website/src/components/home/Hero.astro:1`
+- [x] The Docker guide pulls the published image first, and building your own image comes after. Its tags come from `release.ts`. `website/src/content/docs/guides/production/docker.mdx:20`, `website/src/content/docs/guides/production/docker.mdx:139`
+- [x] The editor page installs the `.vsix` from the release, with its link from `release.ts`, by *Extensions: Install from VSIX* or `code --install-extension`. Building the file from source comes after. `website/src/content/docs/install/editor.mdx:35`
+- [x] The In depth index describes the roadmap as the planned work. `website/src/content/docs/in-depth/index.mdx:22`
+- [x] The compiler page no longer names a planned faster compiler, because the roadmap does not have one. `website/src/content/docs/in-depth/concepts/compiled.mdx:35`
+- [x] `CONTRIBUTING.md` says Pre-Alpha and released at `0.0.1`, and its "not built yet" example names planned work. `CONTRIBUTING.md:3`, `CONTRIBUTING.md:9`, `CONTRIBUTING.md:138`
+- [x] `SECURITY.md`'s table supports the latest release and `main`, and its status line says Pre-Alpha. `SECURITY.md:9`, `SECURITY.md:14`
+- [x] `bun nv proofs --comments` and `bun nv site --check` pass on every page this stage touched. `prose`, `structure`, `in-depth` and `roadmap` pass, `bun nv prose` passes on the pages, and `bun nv site --build` is green. The stage touched no `.nvs` file.
 
 These stay as they are, and were checked on 2026-10-23. `in-depth/new.mdx:27` (the registry is still
 planned). `how-novis-is-tested.mdx:496` (test practice, not the roadmap). `Sponsors.astro`: its
@@ -245,36 +245,44 @@ These steps are the user's, with an interactive session. The loop takes none of 
 
 ### State
 
-Stage 1 is done and committed (`23a7b22d0`, `8f9245912`). `bun nv release --preview patch` prints
-`0.0.1 --patch--> 0.0.1` and the written notes, `docs/release-notes/first.md`. `planVersion` holds the
-version guards, and `--apply` writes no manifest that already says the version. It also bumps the
-extension's `package.json` and both lockfile versions. `release.yml` has a `vsix` job, and `publish`
-requires and attaches `nvs-<version>.vsix`. `release-promote.yml` dispatches `pages.yml`.
-`rule:ide/the-extension-runs-where-the-binary-is` now says each release attaches the `.vsix`.
-`bun test tools/nv/test/release.test.ts` ran once: 20 pass. Nothing else ran. No workflow change is
-proven until a release runs, and `dry_run` stops before `publish` and before the promote job.
+Stages 1 and 2 are done and committed. Stage 2: `website/src/data/roadmap.json` is the roadmap,
+`tools/nv/lib/site-roadmap.ts` is its check and its README writer, and `bun nv site --check roadmap`
+and `bun nv site --roadmap` call them. The check also names a goal in two places, and an `internal`
+slug off the chain. So when `first-release` retires, its `internal` entry must go in the same commit.
+`website/src/data/release.ts` reads the version from `Cargo.toml`. It lists only the four archives
+`publish` requires, since the two optional targets may be missing. `Roadmap.astro` renders the page.
+The pages, the hero label, `CONTRIBUTING.md` and `SECURITY.md` say Pre-Alpha and `0.0.1`.
 
-The acceptance sweep's reds were stale. The nightly ran at `7b6ef53ee`, 90 commits back, and its
-reds (the property-observer cost guard, the `Core\Session` perf records, attribution, the SQLite
-lock) were fixed by later `ci-green` commits. `env-secret-proofs` and the `Core\Session` proofs gate
-pass locally. CI run `39982774098` on `6d3c2770a` was still queued at this session's end. If it is
-red, read it first.
+What ran: `bun test tools/nv/test/site-roadmap.test.ts` once (10 pass), `tsc` over the tools,
+`bun nv site --check prose structure in-depth roadmap` (all ok), `bun nv prose` on the five pages,
+and `bun nv site --build` (green; the built hero says `Pre-Alpha 0.0.1`). `bun nv site --check
+questions` was already red with 66 owed or stale pages before this stage. The roadmap page's
+questions were rewritten and stamped.
+
+`bun nv affected` needs no code for the roadmap: it maps a `bun nv` check by the reads of its last
+recorded run. `roadmap-check` has never been recorded, so `affected` does not pick it until the
+sweep runs it once.
+
+The acceptance sweep's reds were stale again: the nightly ran at `7b6ef53ee`, and
+`env-secret-proofs` passes locally. CI run `39982774098` on `6d3c2770a` had no red job at this
+session's end. If it ended red, read it first.
 
 No test is expected to go red.
 
 ### Next
 
-**Stage 2, its first four items**, on `website/src/data/` and `tools/nv/cmd/site.ts`. Then its
-**Split** line: two writing subagents for the pages and for `CONTRIBUTING.md` and `SECURITY.md`.
+**Stage 3, all of it**, on `README.md` alone, after reading the home page's components under
+`website/src/components/home/` in the order `website/src/content/docs/index.mdx` uses them. The
+roadmap section stays the generated list: never edit between its markers, run `bun nv site
+--roadmap`.
 
-- [ ] `website/src/data/roadmap.json` with the themes in § *Standing decisions* and `internal`. `website/src/data/roadmap.json:1`
-- [ ] `website/src/data/release.ts`: the version from `Cargo.toml`, and the archive and `.vsix` names. `website/src/data/release.ts:1`
-- [ ] A roadmap component, and the page loses *What is built*. `website/src/content/docs/in-depth/roadmap.mdx:9`
-- [ ] `bun nv site --roadmap` and the `roadmap` part of `--check`, a new entry in `PARTS`, with a test per failure. `tools/nv/cmd/site.ts:197`, `tools/nv/cmd/site.ts:1652`, `tools/nv/cmd/site.ts:1741`
-- [ ] `bun nv affected` maps the chain and `roadmap.json` to it. `tools/nv/cmd/affected.ts:1`
-- [ ] The README's roadmap markers. `README.md:46`
+- [ ] Title, opening paragraph and status from `Hero.astro` and `Facts.astro`, with the Pre-Alpha sentence. `README.md:1`
+- [ ] The feature list follows the home page's eight sections, each linking to `https://novis-lang.org/...`. `README.md:12`
+- [ ] The roadmap section keeps its markers and its link. `README.md:46`
+- [ ] *Sponsoring* shortens `sponsoring.mdx`. `README.md:79`
+- [ ] *Contributing* and *Licence* to the prose rules. `README.md:62`, `README.md:107`
+- [ ] `bun nv site --check roadmap` and `bun nv proofs --comments README.md` pass. `README.md:1`
 
 ### Backlog
 
-- Stage 2's page items, after the four above.
-- Stage 3: the README follows the home page.
+- Stage 4: the gate.

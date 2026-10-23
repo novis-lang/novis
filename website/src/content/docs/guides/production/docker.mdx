@@ -4,6 +4,9 @@ covers: []
 description: Run a Novis application in a container, with the official image or an image you build yourself.
 ---
 
+import { Code } from '@astrojs/starlight/components'
+import { version, minor, image } from '@data/release'
+
 A Novis application needs only the `nvs` binary and your files. A container for it is small.
 
 `nvs` is the compiler, the server, the test runner and the command line tool. One image runs all of
@@ -13,12 +16,10 @@ them. The command you give chooses one: `serve`, `run`, `test` or `check`.
 
 Each release publishes an image to the GitHub Container Registry:
 
-```sh
-docker pull ghcr.io/novis-lang/novis:0.4.1
-```
+<Code code={`docker pull ${image}:${version}`} lang="sh" />
 
-`0.4.1` on this page stands for the version you use. Until the first release, there is no image to
-pull. Until then, [build your own image](#build-your-own-image).
+The commands on this page use the current release, <code>{version}</code>. To use another release,
+change the tag. You can also [build your own image](#build-your-own-image).
 
 The image runs nothing by itself. You always give the command. A `docker run` with no command
 prints the help of `nvs` and exits with code `0`.
@@ -27,25 +28,25 @@ prints the help of `nvs` and exits with code `0`.
 
 | Tag | Changes | Use it for |
 |---|---|---|
-| `0.4.1` | never | Production. This tag always means the same build. |
-| `0.4` | on each patch release of 0.4 | Fixes that do not break your program. |
+| <code>{version}</code> | never | Production. This tag always means the same build. |
+| <code>{minor}</code> | on each patch release of {minor} | Fixes that do not break your program. |
 | `latest` | on each release | Trying Novis. Do not deploy it. |
 | `sha-abc1234` | never | One commit of the repository. |
 
 There is no `0` tag before version 1.0. Below 1.0, a new minor version such as 0.5 can break your
 program. A `0` tag would move to it.
 
-`latest` and `0.4` change when the release is published. That is usually a few minutes after
-`0.4.1` appears.
+`latest` and <code>{minor}</code> change when the release is published. That is usually a few
+minutes after <code>{version}</code> appears.
 
 ### Two variants
 
 | Tag | Base image | Size without `nvs` |
 |---|---|---|
-| `0.4.1` | `gcr.io/distroless/cc-debian13` | about 43 MB |
-| `0.4.1-debian` | `debian:trixie-slim` | about 119 MB |
+| <code>{version}</code> | `gcr.io/distroless/cc-debian13` | about 43 MB |
+| <code>{`${version}-debian`}</code> | `debian:trixie-slim` | about 119 MB |
 
-Use the default, `0.4.1`. It has no shell and no package manager. The `-debian` variant has the
+Use the default, <code>{version}</code>. It has no shell and no package manager. The `-debian` variant has the
 same `nvs` and a shell, so you can open a shell in a running container with `docker exec`. Use it to
 find a problem, and deploy the default.
 
@@ -58,11 +59,9 @@ certificates, so outbound TLS works.
 
 Mount your application at `/app`, and give the path of its entry file to `serve`:
 
-```sh
-docker run --rm -p 8000:8000 \
-  -v "$PWD:/app:ro" -v novis-data:/usr/local/bin/.nvsdata \
-  ghcr.io/novis-lang/novis:0.4.1 serve /app/public/index.nvs --listen 0.0.0.0:8000
-```
+<Code lang="sh" code={`docker run --rm -p 8000:8000 \\
+  -v "$PWD:/app:ro" -v novis-data:/usr/local/bin/.nvsdata \\
+  ${image}:${version} serve /app/public/index.nvs --listen 0.0.0.0:8000`} />
 
 The volume `novis-data` keeps the compile cache when you remove the container.
 [The data folder](#the-data-folder) explains it.
@@ -81,10 +80,9 @@ On Windows, Docker Desktop can show every file of a mounted folder as writable b
 
 ### A Compose file
 
-```yaml
-services:
+<Code lang="yaml" code={`services:
   app:
-    image: ghcr.io/novis-lang/novis:0.4.1
+    image: ${image}:${version}
     command: ["serve", "/app/public/index.nvs", "--listen", "0.0.0.0:8000"]
     ports: ["8000:8000"]
     volumes:
@@ -97,8 +95,7 @@ services:
     stop_grace_period: 35s
 
 volumes:
-  novis-data:
-```
+  novis-data:`} />
 
 `read_only: true` works because `nvs` writes only to its data folder, and the volume is that folder.
 The image already runs as the account `nonroot`, with the uid 65532. `cap_drop` and
@@ -108,20 +105,18 @@ The image already runs as the account `nonroot`, with the uid 65532. `cap_drop` 
 
 The image starts `nvs`, so each command of `nvs` is the first word after the image:
 
-```sh
-# Run a script.
-docker run --rm -v "$PWD:/app:ro" ghcr.io/novis-lang/novis:0.4.1 run hello.nvs
+<Code lang="sh" code={`# Run a script.
+docker run --rm -v "$PWD:/app:ro" ${image}:${version} run hello.nvs
 
 # Run the tests in a folder.
-docker run --rm -v "$PWD:/app:ro" ghcr.io/novis-lang/novis:0.4.1 test tests/
+docker run --rm -v "$PWD:/app:ro" ${image}:${version} test tests/
 
 # Check the types of a program without running it.
-docker run --rm -v "$PWD:/app:ro" ghcr.io/novis-lang/novis:0.4.1 check src/main.nvs
+docker run --rm -v "$PWD:/app:ro" ${image}:${version} check src/main.nvs
 
 # Print the version and the build information.
-docker run --rm ghcr.io/novis-lang/novis:0.4.1 --version
-docker run --rm ghcr.io/novis-lang/novis:0.4.1 info
-```
+docker run --rm ${image}:${version} --version
+docker run --rm ${image}:${version} info`} />
 
 The working folder in the image is `/app`, so `hello.nvs` above is `/app/hello.nvs`. If you mount
 the folder you are in, the paths are the same as on your computer.
@@ -136,8 +131,8 @@ your computer too. To keep your own owner, add `--user "$(id -u):$(id -g)"`. The
 
 ## Build your own image
 
-Build `nvs` for Linux as [Install](/install/) shows. Then copy the binary into the image with your
-application:
+Download the Linux archive of `nvs`, or build it from source, as [Install](/install/) shows. Then
+copy the binary into the image with your application:
 
 ```dockerfile
 FROM debian:trixie-slim
@@ -347,11 +342,9 @@ need `docker run --init`.
 Each official image has a signed statement. It says that the release workflow of the Novis
 repository built this image, and from which commit. This command checks it:
 
-```sh
-gh attestation verify oci://ghcr.io/novis-lang/novis:0.4.1 --repo novis-lang/novis
-```
+<Code lang="sh" code={`gh attestation verify oci://${image}:${version} --repo novis-lang/novis`} />
 
-The image contains the same `nvs` as the release archive for Linux. `latest` and `0.4` are other
+The image contains the same `nvs` as the release archive for Linux. `latest` and <code>{minor}</code> are other
 names for the same image, so the command checks the same statement for them.
 
 The `nvs` in the official image has its debug information. A backtrace shows the file and the line
