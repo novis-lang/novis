@@ -134,6 +134,21 @@ by hand at e96f0adec.
 The `wait` case held 1000 requests in flight twice. The server's cgroup peaked at 86.8 KB per request
 over idle in the first pass and at 100.7 KB in the second, so the pools still grow between loads.
 
+The same four profiles after stages 2 to 7, at ba8e5e8bd:
+
+| Case | Novis per request | Top self cost | System calls per request (`-c 8`) |
+|---|---|---|---|
+| hello | 19.6 µs | the scheduler 1.9%, the head scanner 1.8%, SipHash of a `TaskId` 1.4% | `recvfrom` 2.0 (1.0 `EAGAIN`), `sendto` 1.0, `clock_gettime` 1.0 |
+| json-api | 48.8 µs | `json::decode_object` 6.7%, the budget allocator 4.7%, `release_value` 2.8%, `digest_of` 2.3% | `recvfrom` 2.0 (1.0 `EAGAIN`), `sendto` 1.0, `clock_gettime` 6.1 |
+| html-page | 80.0 µs | the budget allocator 11.4%, `escape_text` 5.9%, `format` 4.6%, `concat_onto` 3.2%, `intDiv` 2.5% | `recvfrom` 2.0 (1.0 `EAGAIN`), `sendto` 1.0, `clock_gettime` 1.0 |
+| wait | 799.9 µs (it sleeps) | the connection 2.1%, the scheduler 2.0%, `Timers::arm` 1.4% | `recvfrom` 2.0 (1.0 `EAGAIN`), `clock_gettime` 5.3, `epoll_wait` 1.5, `futex` 1.5 |
+
+`memory_breach`, `Descriptors::find`, `defaults::in_force`, `defaults::spells` and `bidi::scan` are
+no longer in any top list. The `wait` case peaked at 93.0 KB per request in the first pass and at
+96.5 KB in the second. The growth between loads fell from 13.9 KB to 3.5 KB. The first pass is 6 KB
+higher, about the 8 KiB read scratch stage 6 moved to each connection's heap. The trim does not
+lower a peak, because it runs only while a core is idle.
+
 - Every `Core` object build looks its class up by name, with a binary search of string compares
   (`crates/nvs-stdlib/src/instance.rs:593`).
 - `Json::decodeAs` first builds a generic array with SipHash keys, then reads each field back out
@@ -547,8 +562,12 @@ the limits still stop a runaway request end to end.
 **Split:** after stages 2 to 7 land, the session runs the recordings itself. The page text is the
 session's, written to `AGENTS.md` § *Text an end user reads*.
 
-- [ ] Record again the member ledgers of every file stages 2 to 5 changed. Each touched member's allocations per operation are no higher than before. `tools/nv/cmd/proofs.ts:1`
-- [ ] `bun nv bench-compare --profile` for the four cases, compared with stage 1's table, and the result written into the handoff. `tools/nv/cmd/bench-compare.ts:1`
+- [x] Record again the member ledgers of every file stages 2 to 5 changed. Each touched member's allocations per operation are no higher than before. `tools/nv/cmd/proofs.ts:1`
+  - [x] Every stale record recorded again, and each bench's stale `calls` line set to what it measured.
+  - [x] The touched groups measured with the binary at a0f56ab2f and at HEAD: none allocates more, 19 allocate less.
+- [x] `bun nv bench-compare --profile` for the four cases, compared with stage 1's table, and the result written into the handoff. `tools/nv/cmd/bench-compare.ts:1`
+  - [x] hello, json-api, html-page and wait profiled at ba8e5e8bd.
+  - [x] § *Why* holds the second table beside the first.
 - [ ] The comparison recorded again from a detached worktree, and the page's speed and memory paragraphs say what the new run measured. `benches/compare.json:1`, `website/src/content/docs/in-depth/compare.mdx:62`
 - [ ] The `hostile-groups`, `memory-row` and `loop-row` checks pass. `tools/nv/cmd/bench-compare.ts:1`
 
@@ -572,101 +591,47 @@ subagent. Such subagents run side by side, and none of them builds.
 Stages 1 to 4 are done: a0f56ab2f, e03aa7e53, ac7342049, and 7f9435294 with 051c6efa3. Stage 5's
 items are all done in b4b080479, stage 6's in d9a8e974f, and stage 7's in c2d5e836a with
 5b14afeac. The three statuses stay open until decision `d7` is answered, because their checks
-are among the five it covers.
+are among the five it covers. Stage 8's first two items are done in ba8e5e8bd and the commit after it.
 
-- Stage 7's 32 KiB item: `a_sleeping_program_touches_the_pages_its_own_frames_need`
-  (`crates/nvs-host/src/stack.rs`) starts an isolate that sleeps through `nvs_runtime::peer::sleep`
-  and counts its fresh program stack's resident pages while it is parked. On Windows that is 2 pages
-  in release and 7 in debug. The largest frame is the task's entry in `Scheduler::start`
-  (`crates/nvs-host/src/scheduler.rs:912`): 5.6 KiB of the 6.2 KiB above the program in release.
-  So the host's part fits in `KEPT_RESIDENT`, and the rest of the 32 KiB is the served request's
-  compiled code and `Core` calls before the sleep. The module doc's *What a sleeping program
-  touches* says so. Nothing was fixed, because no host frame is worth splitting.
-- The release figure came from `cargo test --release --lib -- <name>`, which builds every crate's
-  lib tests in release (about 20 minutes cold). It found that `nvs-host`'s lib tests did not compile
-  in release: two stage 6 tests read `crate::counts`, which is debug-only. Both are
-  `#[cfg(debug_assertions)]` now, as the `nvs-server` count test already was.
-- Stage 7's review subagent found no moved, removed or later check. Two small findings are fixed in
-  5b14afeac: the Unix trim now ends at a whole page of the host's size, so 16 KiB and 64 KiB page
-  hosts keep the top too, and `each_pool_is_held_to_the_cap_on_its_own` covers the program pool's
-  cap. The Unix trim change is compiled out on this Windows machine. CI's Linux and macOS jobs build
-  it first.
-- Stage 7's guards ran once each, all green: `cargo test --lib` over `scheduler::tests`,
-  `stack::tests` and `reactor::tests` (63 passed), `--test stack_limit` (3 passed), the four
-  `the_state_bleed_suite_*` tests, and `bun nv proofs --run --group lang:errors` (46 examples,
-  14 attacks). The two new tests passed by name. Clippy is clean. Neither new test was seen to fail
-  before its change. The first is a measurement, and its bound is the measured count plus one page.
-- The sweep's `env-secret-proofs` passes when run again (exit 0, nothing owed), for the fifth time.
-  The nightly run 39746060276 was cancelled by a newer push, not by a failure.
-
-- Stage 7: `stack::Stacks` (`crates/nvs-host/src/stack.rs:214`) holds a host pool and a program
-  pool. The reactor's `turn` calls `Scheduler::idle_wait` before it blocks
-  (`crates/nvs-host/src/reactor.rs:718`). § *Standing decisions*' *Stage 7 as built* says what
-  each part does and what was declined.
-- Stage 7 ran once: `cargo test --lib -- stack::tests reactor::tests` on Windows, 26 passed,
-  the two new tests among them. The trim test read the working set through `QueryWorkingSetEx`.
-  The `mincore` path has not run here, because this machine is Windows. Clippy is clean, and
-  `bun nv rules --check` is clean. Neither new test was seen to fail before the change.
-- 4e41fa18d formats six files stages 3 to 6 left unformatted, so the gate's format check passes.
-
-- Stage 6: a stream keeps a readiness bit read off the reactor's per-task event count, a drive's
-  wake of itself fires nothing, and `ConnectionIo` reads through its own heap scratch.
-  § *Standing decisions*' *Stage 6 as built* says what each part does and what was declined.
-- Stage 6 ran once each: the two new tests by name (passed), the keep-alive count test (passed
-  three times at 1 read, 0 pokes per request, 1 per connection), and `cargo test --lib` over
-  `reactor::`, `block_on::`, `net::`, `io::` and `serve::` (222 passed, run again after the review
-  fixes). Clippy is clean. `bun nv rules --check` is clean. The two new tests were not seen to fail
-  before the change, though by the counts they would have (3 reads, 1 poke).
-- The review subagent found no lost wake. It found two things, both fixed: the quiet path judged a
-  passed deadline before trying the read, and the parking `Read::read` left the bit set.
-- Stage 5: a snapshot keeps a lazily filled limits table (`crates/nvs-config/src/limits.rs`), and
-  `Request::limit` and `Request::deprecated` read it unless the overlay holds the key or a mode
-  flip. § *Standing decisions*' *Stage 5 as built* says what each part does.
-- Stage 5 ran once each: the new test by name (passed), `cargo test --test request --test live_edit`
-  (55 passed), the two conformance guard cases (2 passed), `bun nv proofs --run --group
-  config:directives` (56 examples, 58 attacks, all ok), and the `config-tests` check (green). Clippy
-  is clean. The new test was not seen to fail before the change.
-- The review subagent found no regression. It named one fragile spot: `carry_boot` changes a
-  snapshot in place after a reader may have filled its table. `carry_boot` now empties the cell.
+- **The ledger is current.** `bun nv proofs --record-perf` recorded 765 stale figures again on the
+  release binary (ba8e5e8bd), so the proofs job's stale records are gone. 31 benches still declared
+  `calls 0` from before the call probes counted every `Core` call, and each now declares what it
+  measured. `Core\Test\Response::body` declares `allocations 1`. Since f70139ab1, a security-hardening
+  fix, its slot is `bytes`, and each call checks it and copies it into a string.
+  `Core\IO\Metadata::isDir` and `Core\Net\Stream::read` missed their batch growth check under load
+  and passed on a later run. The record-perf run itself lowered `Core\Crypto::verify`'s and
+  `Core\Xml\Writer::attribute`'s iterations to where their callgrind ramp settled.
+- **No touched member allocates more.** The groups `lang:concurrency`, `Core\Task`, `Core\Html`,
+  `Core\Response`, `Core\Config`, `Core\Json`, `Core\Cli` and `Core\Request` were measured with
+  `--force --nvs` on a release binary built at a0f56ab2f (before stage 2) and on HEAD's. None of
+  the 75 allocates more, and 19 allocate less: `Json::decodeAs` 15 → 7, `Config::set` 29 → 10,
+  `Config::restore` 24 → 1, `Request::body` 5 → 1. Both runs' ledger lines were discarded.
+- A spawned task's bytes rose by about 1.8 KB between the 2026-10-22 records and today. The a0f56ab2f
+  binary shows the same figures, so the rise came before this goal, from security-hardening.
+- **All four profiles ran at ba8e5e8bd**, and § *Why*'s second table holds them: hello 27.1 → 19.6 µs,
+  json-api 60.9 → 48.8 µs, html-page 88.4 → 80.0 µs, wait 801.5 → 799.9 µs. `memory_breach`,
+  `Descriptors::find`, `in_force`, `spells` and `bidi::scan` are gone from every top list.
+  Every case now makes 2 `recvfrom` per request (1 `EAGAIN`).
+- The `wait` case's memory is not the 17 KiB less the trade-offs predicted. It peaks at 93.0 and
+  96.5 KB per request in flight, against 86.8 and 100.7 KB. The growth between loads fell from
+  13.9 KB to 3.5 KB. The first pass is 6 KB higher, about stage 6's 8 KiB heap scratch per
+  connection. The trim cannot lower a peak, because it runs only on an idle core.
+- `--profile wait` runs for minutes with a quiet host side. The guard's hang watch killed a loop that
+  piped it into a file, while the container ran on. `docker logs -f <id>` recovered its output.
+  Run each `--profile` alone and unpiped.
+- The sweep's `env-secret-proofs` is red again with exit 1, while its saved log
+  (`.looper/loops/main/checks/env-secret-proofs.log`, dated 2026-10-22) says exit 0. The check is
+  defined in looper's service and not in the tree, so this session could not run it by name. The
+  nightly run 39746060276 was cancelled by a newer push, not by a failure.
 - **Decision `d7` is open: the named-test checks cannot pass as written.** `runtime-tests`,
   `render-tests`, `stdlib-tests`, `server-tests` and `host-tests` run `bun nv verify --fast -p`,
   which prints no per-test line. looper's check needs `test <path> ... ok` for each name
-  (`tools/looper/src/verify/accept.ts:568`), so each says "did not run and pass". `render-tests`,
-  green last session, is red now. An edit of the checks to `[cargo, test, --, <names>]` was refused
-  by the permission classifier as a CI bypass. The checks are as committed.
-- Stage 4: `html::escape` and `text::substitute` scan bytes once and walk the bidi predicate only
-  after `0xE2`. `memory_breach` is `#[inline]` with its message in a cold `memory_fault`.
-  § *Standing decisions*' *Stage 4 as built* says what each does.
-- Stage 4 ran once each: the three new tests by name, `cargo test --lib` over `html::`,
-  `text::tests` and `bidi::` (64 passed), the memory-breach lib tests (15 passed),
-  `bun nv proofs --run` over `Core\Html` and `Core\Cli` (63 examples, 26 attacks, all ok), the five
-  `reject/*bidi*` cases and five memory and ceiling cases under `error/`, and the `render-tests`
-  check (green). Clippy is clean. The review subagent found nothing.
-- The poll's gain is not counted. A profile in stage 8 shows whether `memory_breach` still appears
-  as its own symbol.
-- Stage 3: `decode_as` (`crates/nvs-stdlib/src/json.rs:2114`) parses into a `Found`/`Read` tree
-  with the `Fill` and `FillList` seeds (`json.rs:2425`, `json.rs:2532`). § *Standing decisions*'
-  *As built* list says what changed and what kept the array path.
-- The review subagent found three things, and all three are fixed. An undeclared value's lists were
-  noted and then freed, so a later object could take the address and read as a list. The list
-  vector's growth and the undeclared-key set's growth were not asked for.
-- Run once each after the change: `cargo test --lib` over `json::`, `jwt::` and
-  `a_streaming_reader_refuses_every_later_reader` (50 passed), the five new tests by name, and
-  `bun nv proofs --run` over `Core\Json`, `Core\Request`, `Core\Http\Response` and `Core\Jwt`
-  (114 examples, 45 attacks, all ok). `a-json-body-past-max-depth-is-refused.nvst` passed.
-  `cargo clippy --all-targets -- -D warnings` is clean.
-- `an_object_after_an_undeclared_list_is_not_read_as_a_list` was written after its fix and was not
-  seen to fail before it. The allocator does not promise to reuse the freed address.
-- All four profiles ran on main at bd86f7a9d, and § *Why*'s table holds them: hello 27.1 µs,
-  json-api 60.9 µs, html-page 88.4 µs, wait 801.5 µs per request. A waiting request costs 87–101 KB,
-  and the second load's peak is higher than the first's. No hot spot is gone yet, so no bullet is struck.
-- Stage 2 changed its design. A `Core` class is a `const`, so no static can cache its descriptor.
-  An index by the name literal's address missed in debug builds and was declined. `Descriptors` now
-  keeps an `FxHashMap` from each name to its first id, and `id_of` reads it. The standing decision,
-  the stage's title and the `stdlib-tests` check's test name
-  (`every_core_class_finds_its_descriptor_in_one_hash_lookup`) say this now.
-- The proofs job is red on main: 765 perf records are stale since 38c110098. Stage 8 records the
-  ledgers again, and `ci-green` passes over it until then.
+  (`tools/looper/src/verify/accept.ts:568`). An edit of the checks to `[cargo, test, --, <names>]`
+  was refused by the permission classifier as a CI bypass. The checks are as committed.
+- Stages 2 to 7 as built are in § *Standing decisions*. Each stage's guards ran once and were green,
+  and each review subagent's findings are fixed. No new test of stages 3 to 7 was seen to fail
+  before its change. The Unix trim and the `mincore` count have not run on this Windows machine.
+  CI's Linux and macOS jobs build them first.
 
 ### Next
 
@@ -674,26 +639,25 @@ First, if decision `d7` is answered, apply it to the five named-test checks in t
 Then run `runtime-tests`, `server-tests` and `host-tests`, and set stages 5, 6 and 7 to done once
 each is green.
 
-Then stage 8, which runs after every other stage. Stages 5 to 7 wait only for `d7`, so stage 8
-starts whether or not it is answered:
+Then stage 8's last two items:
 
-- Record the member ledgers again: `bun nv proofs --record-perf --group <group>` for `Core\Json`,
-  `Core\Html`, `Core\Cli`, `Core\Config` and every group reading `nvs-config`'s `request.rs` or
-  `defaults.rs` (`tools/nv/cmd/proofs.ts`). Each touched member's allocations per operation must
-  be no higher than before.
-- `bun nv bench-compare --profile <case>` for hello, json-api, html-page and wait, compared with
-  § *Why*'s table. This needs Docker with a privileged container. Check whether `memory_breach`
-  is still its own symbol, and how many KiB a waiting request costs now.
-- The comparison is recorded again from a detached worktree, and the page's speed and memory
-  paragraphs are rewritten (`website/src/content/docs/in-depth/compare.mdx:62`).
-- The `hostile-groups`, `memory-row` and `loop-row` checks.
+- The comparison recorded again from a detached worktree at HEAD: `bun nv bench-compare --record
+  benches/compare.json`, then `--scenarios --record benches/compare.json`
+  (`tools/nv/cmd/bench-compare.ts:8`). It runs for hours, so start it with `run_in_background` and
+  no pipe into a file. Copy `benches/compare.json` back into the tree, and rewrite the page's speed
+  and memory paragraphs from what it measured (`website/src/content/docs/in-depth/compare.mdx:62`),
+  following `AGENTS.md` § *Text an end user reads*.
+- The `hostile-groups`, `memory-row` and `loop-row` checks, each once with `looper check --name`.
 
-No test is expected to go red. The perf figures for `Core\Json::decodeAs`, every member whose
-file is `nvs-render`'s `html.rs` or `text.rs`, and every member reading `nvs-config`'s `request.rs`
-or `defaults.rs` are stale. Stage 8 records them again.
+Then stage 9, the gate. No test is expected to go red.
 
 ### Backlog
 
+- The scheduler hashes each `TaskId` with SipHash: 1.4% of hello and 0.8% of wait. A `TaskId` is
+  the scheduler's own number, never a request's, so an unkeyed hash is safe there. The `HashMap` is
+  in `crates/nvs-host/src/scheduler.rs`.
+- `Core\Test\Response::body` copies its `bytes` slot into a string on every call. The slot could
+  keep the checked string beside the bytes after the first call (`crates/nvs-stdlib/src/test.rs:3126`).
 - The part of a waiting request's program stack above the host's 8 KiB is not broken down. It is
   the compiled code and the `Core` calls a served request made before it slept. A served count
   needs `resident_pages` reachable from `nvs-server`'s tests, for example beside
