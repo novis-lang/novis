@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/session.rs",
-  "title": "No `Core\\Session` member returns the session id a CSRF token is issued for.",
-  "text": "Under a keyed CSRF door a token issued for no session is refused, and a bare `Core\\Session::start` sends no cookie until the session is first written. So a page that renders a token for a visitor with no session must write the session first, and no member returns the id to issue the token for. Closing it is that member, or `Core\\Csrf::issue` taking the started session, and the taught login pages using it.",
-  "goal": "taught-app-works"
-}
