@@ -71,7 +71,7 @@
   "syntax/classes/property-hooks.mdx": {
     "lang:classes/property-hooks": "3947ede2719cc0ad",
     "lang:classes/propertyguard": "fa8dc9193507f102",
-    "lang:classes/propertyobserver": "f34f221fdfdb1503",
+    "lang:classes/propertyobserver": "062dfbc38672cf79",
     "PropertyGuard": "763425ca905233c2",
     "PropertyObserver": "3195e184baf840bf"
   },
@@ -86,7 +86,7 @@
     "lang:classes/parses": "2f816c8d9dec9f89",
     "lang:classes/stringable": "3b2b2753f126d15d",
     "Parses": "76732b35d3fe313a",
-    "Stringable": "2a07d08fab1b1475"
+    "Stringable": "039a0d7cfee2f1d3"
   },
   "syntax/concurrency/channels.mdx": {
     "lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks": "c46a28c083c0647f"
@@ -97,7 +97,7 @@
     "lang:concurrency/isolates-spawn-script-and-await": "15e132bf718a8771"
   },
   "syntax/concurrency/limits-and-errors.mdx": {
-    "lang:concurrency/a-child-s-throw": "808605947c8ef8cf",
+    "lang:concurrency/a-child-s-throw": "02e26c9e175c35bb",
     "lang:concurrency/limit-and-deadline": "97675d25ca3e8481"
   },
   "syntax/concurrency/tasks.mdx": {
@@ -157,7 +157,7 @@
     "Core\\Script\\Finished": "d67e0a8d12713160",
     "IOError": "dcea56a0ab16c5c1",
     "lang:errors/constructing-and-subclassing": "a5bcb56442e41c11",
-    "lang:errors/properties-not-accessors": "26871e5d7b36a59d",
+    "lang:errors/properties-not-accessors": "6e72899ebbe2ba53",
     "lang:errors/the-throwable-tree": "b3b80ca14f3b0a41",
     "LogicError": "cd5f4e4f9909071d",
     "ParseError": "745c7b0b84cecbaf",
@@ -254,7 +254,7 @@
   "syntax/values/enums.mdx": {
     "Core\\Arr::Order": "5933688e0cc27d92",
     "Core\\Arr::SetOn": "6f39a54cea93305f",
-    "Core\\Audience": "563cd38183dc8ae6",
+    "Core\\Audience": "a64d5f89e5370e65",
     "Core\\Charset": "2a993835856562a7",
     "Core\\Cldr::PluralCategory": "ec3ee07e5dc9b804",
     "Core\\Cli::ColorDepth": "51d0c97d3a5c74c2",
