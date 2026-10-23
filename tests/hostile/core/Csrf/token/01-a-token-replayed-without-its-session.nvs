@@ -46,7 +46,7 @@ class Attack
     public static function send(string $step, array<string> $headers, string $body): void
     {
         try {
-            var $answer = Core\Test::request(Method::Post, '/notes', {headers: $headers, body: $body});
+            var $answer = Core\Test::request(Method::Post, '/notes', { headers: $headers, body: $body });
             echo $step, ' ', $answer->status(), ' ', $answer->body(), "\n";
         } catch (Throwable $e) {
             echo $step, ' threw ', $e->message, "\n";
@@ -94,8 +94,11 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         Core\Str::repeat('A', 100000),
     ];
     foreach ($broken as string $token) {
-        Attack::send('5 a token of ' . Core\Str::length($token) . ' characters',
-            ['cookie' => 'nvsid=' . $victim, 'content-type' => $form], '_csrf=' . $token);
+        Attack::send(
+            '5 a token of ' . Core\Str::length($token) . ' characters',
+            ['cookie' => 'nvsid=' . $victim, 'content-type' => $form],
+            '_csrf=' . $token,
+        );
     }
 
     // 6. The same token with the victim's own cookie. This one should pass.

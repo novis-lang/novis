@@ -6157,9 +6157,7 @@ mod tests {
                 );
                 let configured = CONFIGURED_KEY.iter().any(|(member, _)| *member == what);
                 assert!(
-                    !comparable(&method.return_ty)
-                        || method.params.iter().any(keyed)
-                        || configured,
+                    !comparable(&method.return_ty) || method.params.iter().any(keyed) || configured,
                     "{what} answers text without being handed a key to derive it from, \
                      so it reads a value back for the caller to compare"
                 );

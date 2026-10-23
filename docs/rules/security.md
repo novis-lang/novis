@@ -3230,9 +3230,15 @@ refused.
 readers that split the header differently would check a token against one session while the program
 opens another. **A request with no session passes no token**, from any origin. A token for no session
 is what a page shows a visitor who has none, so anyone can load one, and accepting it would let
-another site sign a visitor in to an account the attacker chose. An application that checks a write
-from a visitor with no session, such as a login form, writes the session before it renders the form,
-so the token is bound to an identifier.
+another site sign a visitor in to an account the attacker chose.
+
+**A page issues a token with `Core\Csrf::token`**, after `Core\Session::start`. It binds the token to
+the identifier the response's session cookie carries, under `[http] csrf_key` read by the door's own
+reader, so the token it renders is one the door accepts on the next request. For a visitor with no
+session, the call is the session's first write: it draws the identifier and sends the cookie, so a
+login form shown to a new visitor is bound to an identifier too. `token` before `start` throws naming
+`start`, and with no key it throws naming `[http] csrf_key`. `Core\Csrf::issue` stays for a program
+that binds a token to a value of its own and checks it itself with `verify`.
 
 **The token rides in the `x-csrf-token` header, a `_csrf` query parameter or an urlencoded form's
 `_csrf` field**, and the first of the three present decides. A plain HTML form therefore needs no

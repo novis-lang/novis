@@ -2793,6 +2793,11 @@ grows with sessions somebody wrote, never with requests served, and a flood of c
 that only read leaves nothing behind. `regenerate` on such a session does nothing, because no client
 holds an identifier for it, and `destroy` has no row to delete.
 
+**A CSRF token counts as a write.** `Core\Csrf::token` binds its token to the identifier the response
+sends, so on a session with none it draws one and sends the cookie, and it marks the session changed
+even while the record is empty, so the end of the request writes the row and the next request's
+`start` finds it. It spends one row per visitor who is shown a token, and `[session] ttl` expires it.
+
 **Declined:**
 - **A session that starts on the first `Core\Session` access.** A read that starts a session is a side
   effect at a distance, the kind of hidden step the explicit `start` exists to remove.
