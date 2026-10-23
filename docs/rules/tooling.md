@@ -3,7 +3,7 @@
 
 # Tooling
 
-*12 of 69 rules below are **designed** rather than shipped, and are marked where they appear.*
+*11 of 69 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -767,7 +767,7 @@ evolves ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)).
 
 <a id="tooling-fmt-a-list-is-one-line-or-one-item-per-line"></a>
 
-## A list is on one line or has one item per line, and a line break its author wrote at the list's own level is what breaks it  *(designed — owned by goal formatter-complete)*
+## A list is on one line or has one item per line, and a line break its author wrote at the list's own level is what breaks it
 
 `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`
 
@@ -823,10 +823,6 @@ enum Permission: uint
 A comment inside a broken list stays on the line of the item it follows, or keeps a line of its own
 when it was written on one. A line comment breaks the list it sits in, because a line break follows
 it. `match` arms keep their own rule ([`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs)).
-
-**Not on disk.** `nvs fmt` lays out every other list this way (`crates/nvs-fmt/src/list.rs:7`). A shape
-type's fields keep the line breaks and the trailing comma their author wrote, because a shape type is
-not a node and the formatter cannot tell its `{` from a block's (`crates/nvs-fmt/src/list.rs:54`).
 
 **Declined:**
 - **Keeping several items per line in a broken list.** That is the packing a width-fitting printer

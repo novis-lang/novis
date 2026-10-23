@@ -1661,8 +1661,8 @@ pub enum DocTagKind {
 /// `class Name (extends Base)? (implements Iface, ...)? { ... }`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClassDecl {
-    /// The whole declaration, `class` through the closing brace (attributes
-    /// and modifiers, if any, are not included).
+    /// The whole declaration, its first attribute or modifier through the
+    /// closing brace.
     pub span: Span,
     /// The `///` run above it, if one is attached.
     pub doc: Option<DocComment>,
@@ -1758,7 +1758,8 @@ pub struct EnumDecl {
 /// One `Name (= expr)?` case of an [`EnumDecl`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumCase {
-    /// The whole case, name through its optional value.
+    /// The whole case, its first attribute or its name through its optional
+    /// value.
     pub span: Span,
     /// The `///` run above it, if one is attached.
     pub doc: Option<DocComment>,

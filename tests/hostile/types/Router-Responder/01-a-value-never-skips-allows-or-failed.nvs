@@ -8,14 +8,14 @@ use Core\Router\Refusal;
 
 class Shop
 {
-    #[Core\Route(path: "/shop/admin", method: Core\Http\Method::Get, name: "Shop::admin")]
+    #[Core\Route(path: '/shop/admin', method: Core\Http\Method::Get, name: 'Shop::admin')]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function admin(): Core\Html\Markup
     {
         return html`<p>secret-admin-page</p>`;
     }
 
-    #[Core\Route(path: "/shop/broken", method: Core\Http\Method::Get, name: "Shop::broken")]
+    #[Core\Route(path: '/shop/broken', method: Core\Http\Method::Get, name: 'Shop::broken')]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function broken(): Core\Html\Markup
     {
@@ -29,7 +29,7 @@ class Shop
 
 class Blog
 {
-    #[Core\Route(path: "/blog", method: Core\Http\Method::Get, name: "Blog::index")]
+    #[Core\Route(path: '/blog', method: Core\Http\Method::Get, name: 'Blog::index')]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function index(): Core\Html\Markup
     {

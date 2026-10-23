@@ -5,7 +5,7 @@
 class Tool
 {
     // 1. `app run report.nvs` must reach this method. It must not start `nvs run`.
-    #[Core\Command(name: "run", about: "Print the file name it is given")]
+    #[Core\Command(name: 'run', about: 'Print the file name it is given')]
     public static function run(string $file): uint
     {
         echo 'tool run ', $file, "\n";
@@ -13,11 +13,11 @@ class Tool
     }
 
     // 2. `app build --compile x.nvs -o out` must reach this method. No file `out` is written.
-    #[Core\Command(name: "build", about: "Print the words it is given")]
+    #[Core\Command(name: 'build', about: 'Print the words it is given')]
     public static function build(
         string $file,
-        #[Core\Option(about: "A flag with the same name as the flag of `nvs build`")] bool $compile = false,
-        #[Core\Option(short: "o", about: "A path that is only printed")] string $output = '',
+        #[Core\Option(about: 'A flag with the same name as the flag of `nvs build`')] bool $compile = false,
+        #[Core\Option(short: 'o', about: 'A path that is only printed')] string $output = '',
     ): uint
     {
         echo 'tool build ', $file, ' compile ', $compile ? 'yes' : 'no', ' output ', $output, "\n";

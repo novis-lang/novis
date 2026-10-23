@@ -24,15 +24,23 @@
 //!
 //! Those are the productions `rule:core-classes/ast-is-inert`'s own examples name
 //! (`Core\Ast\ClassDecl`, `Core\Ast\MethodDecl`). Everything else the grammar
-//! carries — a type, a name, a modifier, an attribute, a parameter, a match
-//! arm, a catch clause, a `foreach` binding — is a *property* of the node it
-//! belongs to rather than a node of its own, and its nested expressions are
-//! children of that node. So a parameter's default is a child of the function
-//! it belongs to, and no node stands for the parameter itself. An attribute's
-//! payload is the one exception: its values are no node's children, because
-//! `nvs fmt`'s indenter and `Core\Ast` read this tree and a payload node under
-//! a method moves what both print. An editor that needs a span inside a
-//! payload walks the attribute lists itself (`nvs_lsp::definition`).
+//! carries — a type, a name, a modifier, a parameter, a match arm, a catch
+//! clause, a `foreach` binding — is a *property* of the node it belongs to
+//! rather than a node of its own, and its nested expressions are children of
+//! that node. So a parameter's default is a child of the function it belongs
+//! to, and no node stands for the parameter itself.
+//!
+//! An attribute is a node, `Attribute`, and the values its payload writes are
+//! its children. Without one, a literal inside a payload is no node's, and
+//! neither `nvs fmt` (`rule:tooling/fmt-quotes`) nor an editor's cursor can
+//! reach it. The node is a child of the declaration it decorates, a
+//! parameter's going to the function, and it comes before that declaration's
+//! other children, because the declaration's span opens at its first `#[`. A
+//! consumer reading a declaration's children by position skips the
+//! `Attribute`s in front of them. The node starts at the attribute's name,
+//! past the `#[`, so a line opening with `#[` still opens on the declaration
+//! itself, and `nvs fmt`'s indenter places it as the declaration's line rather
+//! than as a line of its body.
 //!
 //! A shape type is the one type that is a node, `ShapeType`, wherever it is
 //! written: in a signature, a declaration, a conversion, a type test or a call's
@@ -78,8 +86,8 @@
 //! `rule:ide/ast-json-schema-is-frozen`). So the dump carries no literal text
 //! at all, and needs no placeholder for a `secret` one.
 //!
-//! **What it spends:** one [`Node`] per statement, expression, member and
-//! shape type —
+//! **What it spends:** one [`Node`] per statement, expression, member,
+//! attribute and shape type —
 //! two words for the kind, a span, an optional second span for the name, and
 //! two `Vec` headers, allocated per parse and dropped when the caller is done
 //! with it, plus one small allocation for each node that has a field at all.
@@ -99,7 +107,8 @@
 use nvs_diagnostics::{Diagnostics, MAX_SOURCE_LEN, SourceMap, Span};
 
 use crate::ast::{
-    AnonClassDecl, AssignOp, BinaryOp, Block, CallArgs, ClassMember, ClassMemberKind,
+    AnonClassDecl, AssignOp, AttributeGroup, BinaryOp, Block, CallArgs, ClassMember,
+    ClassMemberKind,
     DestructureElement, DestructureTarget, EnumCase, Expr, ExprKind, FnBody, FnExpr, ForInit,
     ForeachBinding, ForeachBindingTy, IncDecOp, MemberName, MethodMember, NewTarget, Param,
     PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, TestOperand, Type, TypeAtom,
@@ -173,6 +182,7 @@ pub const KINDS: &[&str] = &[
     "AnonObject",
     "ArrayLiteral",
     "Assign",
+    "Attribute",
     "AutoloadDecl",
     "Await",
     "Binary",
@@ -535,16 +545,19 @@ fn stmt(s: &Stmt) -> Node {
         }
         StmtKind::ClassDecl(decl) => {
             name = Some(decl.name.span);
+            push_attributes(&mut kids, &decl.attributes);
             kids.extend(decl.members.iter().map(member));
             "ClassDecl"
         }
         StmtKind::InterfaceDecl(decl) => {
             name = Some(decl.name.span);
+            push_attributes(&mut kids, &decl.attributes);
             kids.extend(decl.members.iter().map(member));
             "InterfaceDecl"
         }
         StmtKind::EnumDecl(decl) => {
             name = Some(decl.name.span);
+            push_attributes(&mut kids, &decl.attributes);
             kids.extend(decl.cases.iter().map(enum_case));
             kids.extend(decl.members.iter().map(member));
             "EnumDecl"
@@ -982,6 +995,7 @@ fn member(m: &ClassMember) -> Node {
     let kind = match &m.kind {
         ClassMemberKind::Property(p) => {
             name = Some(p.name);
+            push_attributes(&mut kids, &p.attributes);
             push_type(&mut kids, &p.ty);
             push_opt(&mut kids, p.default.as_ref());
             for hook in p.hooks.iter().flatten() {
@@ -991,6 +1005,7 @@ fn member(m: &ClassMember) -> Node {
         }
         ClassMemberKind::Const(c) => {
             name = Some(c.name);
+            push_attributes(&mut kids, &c.attributes);
             push_types(&mut kids, c.ty.as_ref());
             kids.push(expr(&c.value));
             "Const"
@@ -1009,6 +1024,7 @@ fn member(m: &ClassMember) -> Node {
         // treats the two alike (`rule:enums/class-scoped-enum`).
         ClassMemberKind::Enum(decl) => {
             name = Some(decl.name.span);
+            push_attributes(&mut kids, &decl.attributes);
             kids.extend(decl.cases.iter().map(enum_case));
             kids.extend(decl.members.iter().map(member));
             "EnumDecl"
@@ -1027,6 +1043,7 @@ fn member(m: &ClassMember) -> Node {
 /// One `case` of an enum declaration.
 fn enum_case(c: &EnumCase) -> Node {
     let mut kids = Vec::new();
+    push_attributes(&mut kids, &c.attributes);
     push_opt(&mut kids, c.value.as_ref());
     Node {
         kind: "EnumCase",
@@ -1034,6 +1051,25 @@ fn enum_case(c: &EnumCase) -> Node {
         name: Some(c.name.span),
         children: kids,
         fields: Vec::new(),
+    }
+}
+
+/// One `Attribute` node per attribute in `groups`, in source order, each
+/// holding the values its payload writes. The node's name is the name the
+/// attribute wrote, and a bare `#[{...}]` has none.
+fn push_attributes(kids: &mut Vec<Node>, groups: &[AttributeGroup]) {
+    for attribute in groups.iter().flat_map(|group| &group.attributes) {
+        kids.push(Node {
+            kind: "Attribute",
+            span: attribute.span,
+            name: attribute.written_name(),
+            children: attribute
+                .fields
+                .iter()
+                .map(|field| expr(&field.value))
+                .collect(),
+            fields: Vec::new(),
+        });
     }
 }
 
@@ -1091,6 +1127,7 @@ fn push_params(kids: &mut Vec<Node>, params: &[Param]) {
 }
 
 fn push_param(kids: &mut Vec<Node>, param: &Param) {
+    push_attributes(kids, &param.attributes);
     push_types(kids, param.ty.as_ref());
     push_opt(kids, param.default.as_ref());
 }
@@ -1184,6 +1221,7 @@ fn push_atom(kids: &mut Vec<Node>, atom: &TypeAtom) {
 }
 
 fn push_method(kids: &mut Vec<Node>, f: &MethodMember) {
+    push_attributes(kids, &f.attributes);
     push_params(kids, &f.params);
     push_types(kids, f.return_type.as_ref());
     if let Some(body) = &f.body {
@@ -1201,6 +1239,7 @@ fn push_fn(kids: &mut Vec<Node>, f: &FnExpr) {
 }
 
 fn push_hook(kids: &mut Vec<Node>, hook: &PropertyHook) {
+    push_attributes(kids, &hook.attributes);
     if let Some(param) = &hook.param {
         push_param(kids, param);
     }

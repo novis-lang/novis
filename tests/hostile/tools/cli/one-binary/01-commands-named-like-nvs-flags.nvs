@@ -5,11 +5,11 @@
 class Tool
 {
     // 1. `nvs run app.nvs version -h` must reach this method with `$human` set. It must not print help.
-    #[Core\Command(name: "version", about: "Print a version")]
+    #[Core\Command(name: 'version', about: 'Print a version')]
     public static function version(
-        #[Core\Option(short: "h", about: "A flag with the short name of help")] bool $human = false,
-        #[Core\Option(short: "V", about: "A flag with the short name of version")] bool $verbose = false,
-        #[Core\Option(short: "i", about: "A flag with a short name that `nvs` does not accept")] bool $info = false,
+        #[Core\Option(short: 'h', about: 'A flag with the short name of help')] bool $human = false,
+        #[Core\Option(short: 'V', about: 'A flag with the short name of version')] bool $verbose = false,
+        #[Core\Option(short: 'i', about: 'A flag with a short name that `nvs` does not accept')] bool $info = false,
     ): uint
     {
         echo 'tool version ', $human ? 'human' : 'plain', "\n";
@@ -17,11 +17,11 @@ class Tool
     }
 
     // 2. `nvs run app.nvs help --help --config x` must reach this method. `nvs` reads no file `x`.
-    #[Core\Command(name: "help", about: "A command with the name help")]
+    #[Core\Command(name: 'help', about: 'A command with the name help')]
     public static function help(
-        #[Core\Option(about: "An option with the name help")] bool $help = false,
-        #[Core\Option(about: "An option with the name version")] bool $version = false,
-        #[Core\Option(about: "An option with the name config")] string $config = '',
+        #[Core\Option(about: 'An option with the name help')] bool $help = false,
+        #[Core\Option(about: 'An option with the name version')] bool $version = false,
+        #[Core\Option(about: 'An option with the name config')] string $config = '',
     ): uint
     {
         echo 'tool help ', $config, "\n";

@@ -4,12 +4,13 @@
 //!
 //! # Where a list's own level is
 //!
-//! A call's arguments, an array literal and an anonymous object are each a
-//! production in [`LISTS`] whose own last byte is the delimiter that closes it. Its items are the node's children, and a child covers every
-//! byte of the expression it is, so a byte of the list's span that no child
-//! covers is the list's own: the opener, the commas, and what an item writes in
-//! front of its expression — an array key's `=>`, a named argument's name, an
-//! anonymous object's field name, a spread's `...`. A delimiter or a comma
+//! A call's arguments, an array literal, an anonymous object and an attribute's
+//! `(...)` payload are each a production in [`LISTS`] whose own last byte is
+//! the delimiter that closes it. Its items are the node's children, and a child
+//! covers every byte of the expression it is, so a byte of the list's span that
+//! no child covers is the list's own: the opener, the commas, and what an item
+//! writes in front of its expression — an array key's `=>`, a named argument's
+//! name, a field's name, a spread's `...`. A delimiter or a comma
 //! inside a child belongs to that child, however deep, and that is the whole of
 //! "a break inside an item never breaks the list around it".
 //!
@@ -28,8 +29,8 @@
 //! `)` that matches it, and the commas at depth one. A shape type's fields are
 //! read the same way from its braces, because a field is no node either and a
 //! field's type can write a comma of its own, as `Map<string, int>` does. A
-//! string an attribute writes is no node either, and its quotes are followed
-//! so a bracket inside one never counts.
+//! string a type writes, such as the literal type `'get'`, is no node either,
+//! and its quotes are followed so a bracket inside one never counts.
 //!
 //! # Broken
 //!
@@ -81,6 +82,7 @@ const LISTS: &[(&str, u8, u8)] = &[
     ("New", b'(', b')'),
     ("ArrayLiteral", b'[', b']'),
     ("AnonObject", b'{', b'}'),
+    ("Attribute", b'(', b')'),
 ];
 
 /// The productions whose parameter list is a list: the first `(` of code at
@@ -343,14 +345,18 @@ fn delimited(
 /// where the body holds cases and nothing else.
 ///
 /// The `{` is the first one of code at the declaration's own level, so a
-/// brace inside an attribute in front of the `enum` keyword is not it.
+/// brace inside an attribute in front of the `enum` keyword is not it. An
+/// attribute on the enum is a child in front of its cases and no case.
 fn cases(
     bytes: &[u8],
     trivia: &[Trivia],
     node: IndexNode,
     children: &[IndexNode],
 ) -> Option<(usize, usize, Vec<usize>)> {
-    if children.iter().any(|child| child.kind != "EnumCase") {
+    if children
+        .iter()
+        .any(|child| !matches!(child.kind, "EnumCase" | "Attribute"))
+    {
         return None;
     }
     let closer = (node.span.end as usize).checked_sub(1)?;
@@ -421,8 +427,8 @@ fn bracketed(
 /// Every offset in `span` whose byte is code a node writes itself: not inside
 /// a comment, a child or a string literal.
 ///
-/// A string an attribute writes is no node, so its quotes are followed here,
-/// and a bracket or a comma inside one is never a delimiter.
+/// A string a type writes is no node, so its quotes are followed here, and a
+/// bracket or a comma inside one is never a delimiter.
 fn own_code<'a>(
     bytes: &'a [u8],
     trivia: &'a [Trivia],

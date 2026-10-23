@@ -10,26 +10,26 @@ use Core\Test;
 class Options
 {
     // 1. The two ends of the allowance: the largest whole number, and 1.
-    #[Test(retries: 9223372036854775807, because: "the largest allowance a whole number can hold")]
+    #[Test(retries: 9223372036854775807, because: 'the largest allowance a whole number can hold')]
     public function itTakesTheLargestAllowance(): void
     {
         Test::assertTrue(true);
     }
 
-    #[Test(retries: 1, because: "the smallest allowance")]
+    #[Test(retries: 1, because: 'the smallest allowance')]
     public function itTakesTheSmallestAllowance(): void
     {
         Test::assertTrue(true);
     }
 
     // 2. The two ends of the clock, as the instant a test reads.
-    #[Test(at: "0001-01-01T00:00:00Z")]
+    #[Test(at: '0001-01-01T00:00:00Z')]
     public function itTakesTheEarliestInstant(): void
     {
         Test::assertTrue(true);
     }
 
-    #[Test(at: "9999-12-31T23:59:59Z")]
+    #[Test(at: '9999-12-31T23:59:59Z')]
     public function itTakesTheLatestInstant(): void
     {
         Test::assertTrue(true);
@@ -50,14 +50,14 @@ class Options
 
     // 4. Five hundred characters of text in both options that take text, with
     //    characters outside the English alphabet in them.
-    #[Test(skip: "ünïcödé 🙂 abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij", retries: 3, because: "ünïcödé 🙂 abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij")]
+    #[Test(skip: 'ünïcödé 🙂 abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij', retries: 3, because: 'ünïcödé 🙂 abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij')]
     public function itTakesVeryLongReasons(): void
     {
         Test::assertTrue(true);
     }
 
     // 5. Every option at once, on one test.
-    #[Test(skip: "every option at once", at: "2026-01-01T00:00:00Z", seed: 1, retries: 1, because: "every option at once", db: "main", server: true)]
+    #[Test(skip: 'every option at once', at: '2026-01-01T00:00:00Z', seed: 1, retries: 1, because: 'every option at once', db: 'main', server: true)]
     public function itTakesEveryOptionAtOnce(): void
     {
         Test::assertTrue(true);

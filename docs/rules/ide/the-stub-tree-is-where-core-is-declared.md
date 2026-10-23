@@ -51,6 +51,3 @@ server process's life after its first `Core` jump, and one copy on disk per serv
 - **A `.lspt` stub location written as an absolute path.** An absolute path in a frozen expectation
   is a path no other checkout has. Under the case's own directory it is written like every other
   location in another file.
-- **Attribute payload values as nodes of the syntax walk.** The formatter and `Core\Ast` read that
-  walk, and a payload node under a method changes what both print. The server walks a payload itself
-  instead.

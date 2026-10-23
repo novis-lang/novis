@@ -9,25 +9,25 @@ class Tool
     // A command name of two hundred characters, so every page written below is
     // a large one.
     #[Core\Command(
-        name: "deploy-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        about: "Push the current build to one of the very many places this program knows about",
+        name: 'deploy-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        about: 'Push the current build to one of the very many places this program knows about',
     )]
     public static function deploy(
         string $target,
-        #[Core\Option(short: "a", about: "Print what would happen")] bool $one = false,
-        #[Core\Option(short: "b", about: "Print what would happen")] bool $two = false,
-        #[Core\Option(short: "c", about: "Print what would happen")] bool $three = false,
-        #[Core\Option(short: "d", about: "Print what would happen")] bool $four = false,
-        #[Core\Option(short: "e", about: "How many times to try")] uint $five = 1,
-        #[Core\Option(short: "f", about: "How many times to try")] uint $six = 2,
-        #[Core\Option(short: "g", about: "How many times to try")] uint $seven = 3,
-        #[Core\Option(short: "h", about: "How many times to try")] uint $eight = 4,
+        #[Core\Option(short: 'a', about: 'Print what would happen')] bool $one = false,
+        #[Core\Option(short: 'b', about: 'Print what would happen')] bool $two = false,
+        #[Core\Option(short: 'c', about: 'Print what would happen')] bool $three = false,
+        #[Core\Option(short: 'd', about: 'Print what would happen')] bool $four = false,
+        #[Core\Option(short: 'e', about: 'How many times to try')] uint $five = 1,
+        #[Core\Option(short: 'f', about: 'How many times to try')] uint $six = 2,
+        #[Core\Option(short: 'g', about: 'How many times to try')] uint $seven = 3,
+        #[Core\Option(short: 'h', about: 'How many times to try')] uint $eight = 4,
     ): uint
     {
         return 0;
     }
 
-    #[Core\Command(name: "version", about: "Print the version and stop")]
+    #[Core\Command(name: 'version', about: 'Print the version and stop')]
     public static function version(): uint
     {
         return 0;
