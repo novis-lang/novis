@@ -24,4 +24,13 @@ file to a path. `max` is the largest size in bytes. A larger file throws a `Runt
 The program does not use the file name from the client. A name like `../../config.toml` could
 point outside the folder. `Core\Uuid::v4` gives a new name that is different each time.
 
+The server checks a CSRF token (a value that proves the form came from your own page) for each
+`Post` request. A form that uploads a file sends `multipart/form-data`, and the server does not read
+the token from that body. So the form carries the token in the URL of its `action`:
+
+`<form method="post" action="/upload?_csrf={$token}" enctype="multipart/form-data">`
+
+The page that shows the form calls `Core\Session::start()` and then sets `$token` with
+[`Core\Csrf::token()`](/reference/core/csrf/token/).
+
 Read [Core\Request](/reference/core/request/) for the other parts of a form.
