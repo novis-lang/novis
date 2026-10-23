@@ -34,7 +34,7 @@ stages:
         rules: [tooling/fmt-quotes, ide/ast-json-schema-is-frozen]
   - id: 4
     title: "a comment moves with its import, and every line is placed"
-    status: open
+    status: done
     context: [crates/nvs-fmt/src/imports.rs, crates/nvs-fmt/src/indent.rs, crates/nvs-fmt/tests/use_block.rs, data/gaps/nvs-fmt/comment-written-between-two-imports-holds.json, data/gaps/nvs-fmt/line-the-tree-does-not-place.json]
     extra:
       context:
@@ -170,12 +170,12 @@ a rule.
 
 - [x] An import carries the comment written above it as a second span, and the whole block sorts (`rule:tooling/fmt-sorts-the-use-block`), with a test. `crates/nvs-fmt/src/imports.rs:112`, `crates/nvs-fmt/tests/use_block.rs:1`
 - [x] A comment line is placed at the indentation of the line below it (`rule:tooling/fmt-base-style-is-per`). `crates/nvs-fmt/src/indent.rs:270`
-- [ ] A property hook's block is a node, so its statements sit one level in from the hook's line, and the corpus is reformatted (`rule:tooling/fmt-base-style-is-per`). `crates/nvs-syntax/src/walk.rs:1241`, `crates/nvs-fmt/src/indent.rs:85`
-- [ ] A `switch` body is placed as PER-CS places it, and a template region's text stays the author's, each written into `rule:tooling/fmt-base-style-is-per` first. `crates/nvs-fmt/src/indent.rs:107`, `docs/rules/tooling/fmt-base-style-is-per.md:1`
-- [ ] A continuation line that is not part of a broken list, chain or operator chain stays the author's, and `indent.rs`'s module doc says so (`rule:tooling/fmt-never-reflows`). `crates/nvs-fmt/src/indent.rs:29`
-- [ ] Both records are deleted. `data/gaps/nvs-fmt/comment-written-between-two-imports-holds.json:1`, `data/gaps/nvs-fmt/line-the-tree-does-not-place.json:1`
+- [x] A property hook's block is a node, so its statements sit one level in from the hook's line, and the corpus is reformatted (`rule:tooling/fmt-base-style-is-per`). `crates/nvs-syntax/src/walk.rs:1241`, `crates/nvs-fmt/src/indent.rs:85`
+- [x] A `switch` body is placed as PER-CS places it, and a template region's text stays the author's, each written into `rule:tooling/fmt-base-style-is-per` first. `crates/nvs-fmt/src/indent.rs:107`, `docs/rules/tooling/fmt-base-style-is-per.md:1`
+- [x] A continuation line that is not part of a broken list, chain or operator chain stays the author's, and `indent.rs`'s module doc says so (`rule:tooling/fmt-never-reflows`). `crates/nvs-fmt/src/indent.rs:29`
+- [x] Both records are deleted. `data/gaps/nvs-fmt/comment-written-between-two-imports-holds.json:1`, `data/gaps/nvs-fmt/line-the-tree-does-not-place.json:1`
   - [x] The import record is deleted.
-  - [ ] The line record is deleted.
+  - [x] The line record is deleted.
 
 ### 5. PER's blank lines are written, and the printer's record is closed
 
@@ -203,45 +203,44 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3 and 6 are done. Stage 4 has its first two items: c33c9ace9 and 5574d358d.
+Stages 1, 2, 3, 4 and 6 are done. This session landed stage 4's last items: dc4bc42d9 and
+6a74dc50c.
 
-c33c9ace9: `imports.rs` is now a text pass, `sorted` (`crates/nvs-fmt/src/imports.rs:55`). An
-import's element is its declaration, every comment directly above it on its own line with no blank
-line between, and a same-line comment after its `;`. A run is permuted by element, and `format`
-(`crates/nvs-fmt/src/lib.rs:136`) parses the sorted text again and prints that. A comment with a
-blank line below it still ends a run. The printer no longer takes import rewrites. A bracketed
-`namespace` is `E0243`, so no test uses one. The import gap record is deleted, and
-`rule:tooling/fmt-sorts-the-use-block` says which comment belongs to an import.
+dc4bc42d9: a property hook is a `PropertyHook` node, a child of its `Property`
+(`hook`, `crates/nvs-syntax/src/walk.rs`), and the kind is in `indent.rs`'s `BODIES`. A hook's
+statements sit one level in from the hook's line. `redaction.rs`'s `property` now reads its children
+by kind. Two hostile files moved, as predicted. `tests/fmt/*/hooks.nvs` pins it.
 
-5574d358d: a line opening with a comment is placed with the first code after it (`code_below`,
-`crates/nvs-fmt/src/indent.rs`), and one above a body's `}` sits one level in from it. Placing it
-at the `}`'s depth was tried: 10 corpus files moved, mostly a comment alone in an empty `catch`
-body, so the exception stands. A comment above `} catch` in `examples/pool.nvs` and
-`examples/transaction.nvs` moved into the `try` body. `tests/fmt/*/comments.nvs` pins both cases.
+6a74dc50c: a `switch` case is a `Case` node (`switch_case`, `crates/nvs-syntax/src/walk.rs`).
+`Switch` and `Case` are in `BODIES`, and `Switch` left `OPAQUE`, which now holds `InlineHtml`
+alone. The corpus already followed PER-CS, so no file moved. `tests/fmt/*/switch.nvs` pins the
+layout. `nvs_lsp::html_template`'s `allowed_under` refuses a `Case` parent as it did `Switch`.
+`rule:tooling/fmt-base-style-is-per` states the hook and switch layouts and that template text is
+copied, and `rule:tooling/fmt-never-reflows` now says a continuation line keeps the indentation its
+author wrote. The line gap record is deleted.
 
-Found: a property hook's block (`set (...) { ... }`) has no node of its own. The walk pushes its
-statements under `Property` (`push_hook`, `crates/nvs-syntax/src/walk.rs:1241`), so they sit one
-level in from the property's line, not from the hook's. The corpus has the wrong layout in
-`tests/hostile/lang/classes/property-hooks/01-*.nvs` and
-`tests/hostile/core/Reflect-ClassInfo/get/01-*.nvs`. It is a new stage 4 item.
+Both nodes are new `kind` values in `nvs ast --json`, which `rule:ide/ast-json-schema-is-frozen`
+allows. The frozen example in `crates/nvs-cli/tests/ast.rs` has no hook and no switch, so it did not
+change.
 
-The acceptance sweep's reds are unchanged: the `env-secret-proofs` log shows exit 0, and no nightly
-has run since 39922764699. The last handoff's triage stands. If the next nightly's macOS
+The acceptance sweep's reds are unchanged: `env-secret-proofs` exits 0 when run now, and no
+nightly has run since 39922764699. The last handoff's triage stands. If the next nightly's macOS
 `Serve soak` is red again, take that slice first.
 
 Expected red at the gate: possibly an `nvs-lsp` definition or hover case whose cursor is inside an
-attribute payload, from stage 6. `identity`, `fixtures` and `use_block` passed this session.
+attribute payload, from stage 6. No test reads `Core\Ast\Switch` or `Core\Ast\Property`, so the
+new nodes should break none. `identity` and `fixtures` passed this session.
 
 ### Next
 
-**Stage 4's remaining items.** Files: `crates/nvs-syntax/src/walk.rs`, `crates/nvs-fmt/src/indent.rs`,
+**Stage 5.** Files: `crates/nvs-fmt/src/print.rs`, `crates/nvs-fmt/src/lib.rs`,
 `docs/rules/tooling/fmt-base-style-is-per.md`. A stage that changes output reformats the corpus in
-the same commit (`NVS_FMT_ACCEPT=1 cargo test --test identity`).
+the same commit (`NVS_FMT_ACCEPT=1 cargo test --test identity`), so expect many files to move with
+the blank-line rule. List the moved files that have an expectation beside them first.
 
-- [ ] A property hook's block is a node, so its statements sit one level in from the hook's line. Mirror b17b28d8b's `Attribute` node: `walk.rs`'s `push_hook`, `Core\Ast`'s `productions!` in `crates/nvs-stdlib/src/ast.rs`, `redaction.rs`'s `property`, and the kind in `indent.rs`'s `BODIES`. `crates/nvs-syntax/src/walk.rs:1241`, `crates/nvs-fmt/src/indent.rs:85`
-- [ ] A `switch` body is placed as PER-CS places it, and a template region's text stays the author's, each written into `rule:tooling/fmt-base-style-is-per` first. `crates/nvs-fmt/src/indent.rs:107`, `docs/rules/tooling/fmt-base-style-is-per.md:1`
-- [ ] A continuation line that is not part of a broken list, chain or operator chain stays the author's, and `indent.rs`'s module doc says so (`rule:tooling/fmt-never-reflows`). `crates/nvs-fmt/src/indent.rs:29`
-- [ ] The line record is deleted. `data/gaps/nvs-fmt/line-the-tree-does-not-place.json:1`
+- [ ] One blank line after `namespace`, one after the `use` block, and one between two members, with a member's comment kept above it. `crates/nvs-fmt/src/print.rs:137`, `crates/nvs-fmt/src/print.rs:210`
+- [ ] The crate's module doc lists every module that writes a rule, `list.rs` and `chain.rs` included. The record names neither today. `crates/nvs-fmt/src/lib.rs:21`
+- [ ] The record is deleted, and `bun nv owners --closes formatter-complete` is green. `data/gaps/nvs-fmt/rules-written-into-the-printer-are.json:1`
 
 ### Backlog
 
