@@ -11,7 +11,8 @@
 //!
 //! **The latest release is GitHub's.** The request is one `GET` of [`endpoints::update_url`]
 //! through [`nvs_stdlib::tool_get`], the transport `Core\Http\Client` uses, and the version is the
-//! document's `tag_name` with a leading `v` removed. The switch is [`telemetry::is_on`], printed
+//! document's `tag_name` with a leading `v` removed. A tag that is not version-shaped is an error,
+//! so no byte of the reply but a version reaches the terminal. The switch is [`telemetry::is_on`], printed
 //! beside the upload URL `NVS_TELEMETRY_URL` names.
 //!
 //! **It carries the telemetry upload.** With telemetry on, [`telemetry::report`] sends the
@@ -30,6 +31,9 @@ use crate::{endpoints, telemetry};
 
 /// How long the whole request may take, connecting included.
 const WITHIN: Duration = Duration::from_secs(10);
+
+/// The longest version [`is_version`] accepts from the server.
+const VERSION_LENGTH: usize = 64;
 
 /// The version of this binary, as `Cargo.toml` writes it.
 const LOCAL: &str = env!("CARGO_PKG_VERSION");
@@ -181,7 +185,21 @@ fn latest(url: &str) -> Result<String, String> {
         .get("tag_name")
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| "the reply has no `tag_name`".to_owned())?;
-    Ok(tag.trim().trim_start_matches(['v', 'V']).to_owned())
+    let version = tag.trim().trim_start_matches(['v', 'V']);
+    if !is_version(version) {
+        return Err("the reply's `tag_name` is not a version".to_owned());
+    }
+    Ok(version.to_owned())
+}
+
+/// Whether `text` can be a version: 1 to [`VERSION_LENGTH`] characters, each an ASCII letter, a
+/// digit, `.`, `-` or `+`. Anything else from the server is never printed, so a reply cannot
+/// write control characters to the terminal.
+fn is_version(text: &str) -> bool {
+    (1..=VERSION_LENGTH).contains(&text.len())
+        && text
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+'))
 }
 
 /// Whether `latest` is a later version than `local`: the numbers compared in order, a missing

@@ -1,0 +1,3 @@
+telemetry: on
+...
+`DO_NOT_TRACK` is set, so nothing is recorded while it is set.

@@ -15,7 +15,9 @@ is not set, `this
 version: <v>`, `reading the latest release from <url>`, then either `latest version: <v>` and one of
 `an update is available: <local> to <latest>` or `you have the latest version`, or `could not read the
 latest release: <why>`. The latest version is the Releases API document's `tag_name` with a leading
-`v` removed. Versions compare number by number, and a release follows its own pre-release.
+`v` removed. A tag that is not 1 to 64 ASCII letters, digits, `.`, `-` and `+` fails the read, and
+the line's reason says the reply's `tag_name` is not a version, so a reply never writes another byte
+to the terminal. Versions compare number by number, and a release follows its own pre-release.
 
 **`--json`** prints `{"schema":1,"telemetry":"on"|"off","telemetry_url":…,"local":…,"latest":…,
 "update_available":…,"error":…}` in that key order. `latest` and `update_available` are `null` when the

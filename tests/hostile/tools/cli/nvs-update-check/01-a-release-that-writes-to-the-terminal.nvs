@@ -1,0 +1,16 @@
+<?nvs
+// Attack: a release server sends versions that try to change the terminal. This program prints one
+// reply per line, and a test sends each one to `nvs update-check`. Each check should print an error,
+// exit with status 0 and print no control characters.
+
+// 1. The version has the JSON code for the escape character, which clears the screen.
+echo '{"tag_name":"v1.0.0\u001b[2J\u001b[H","name":"Novis"}', "\n";
+
+// 2. The version rings the bell, and a carriage return writes a false result over the line.
+echo '{"tag_name":"v9.9.9\u0007\ryou have the latest version","name":"Novis"}', "\n";
+
+// 3. The version is 100000 characters long.
+echo '{"tag_name":"v', Core\Str::repeat('9', 100000), '","name":"Novis"}', "\n";
+
+// 4. The version is a number and not a string.
+echo '{"tag_name":9,"name":"Novis"}', "\n";

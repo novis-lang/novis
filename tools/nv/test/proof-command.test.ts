@@ -4,13 +4,21 @@ import { join, relative } from "node:path";
 import { binary } from "../cmd/proofs.ts";
 import { ROOT } from "../lib/paths.ts";
 import { detailsProblems, skippedOf } from "../proofs/collect.ts";
-import { commandArgs, exampleOutput, firstDifference, matchesOut, spawnProof, testReport } from "../proofs/run.ts";
+import { commandArgs, commandLine, exampleOutput, firstDifference, matchesOut, spawnProof, testReport } from "../proofs/run.ts";
 import { scratch } from "./scratch.ts";
 
 describe("a `.cmd` example", () => {
   test("its arguments are the words after `nvs`, and a quoted word keeps its spaces", () => {
     expect(commandArgs("a.cmd", "nvs agent init --agent codex\n")).toEqual(["agent", "init", "--agent", "codex"]);
     expect(commandArgs("a.cmd", "nvs run \"two words\" 'and more'\r\n")).toEqual(["run", "two words", "and more"]);
+  });
+
+  test("each `NAME=value` word before `nvs` sets a variable for the command", () => {
+    expect(commandLine("a.cmd", "DO_NOT_TRACK=1 NVS_UPDATE_URL= nvs update-check\n")).toEqual({
+      env: { DO_NOT_TRACK: "1", NVS_UPDATE_URL: "" },
+      args: ["update-check"],
+    });
+    expect(() => commandArgs("a.cmd", "DO_NOT_TRACK=1 rm x\n")).toThrow("starts with `rm`");
   });
 
   test("a relative `--nvs` is made absolute, so it still names the binary from the example's scratch directory", () => {
