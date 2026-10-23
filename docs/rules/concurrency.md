@@ -2420,6 +2420,11 @@ thread. Code on it never calls compiled Novis code, whose recursion limit is arm
   `max_in_flight` in idle reservations between tasks, with all but 8 KiB of each given back once the
   core is idle, and each worker thread one 8 MiB spare stack.
 
+**Declined:**
+- **One stack per request, shared by its connection and its program.** A request can outlive its
+  connection: the server still watches its wall time after the peer is gone, so the program needs a
+  task, and a stack, of its own.
+
 <sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream).</sub>
 
 <a id="concurrency-a-tasks-recursion-limit-comes-from-its-own-stack"></a>

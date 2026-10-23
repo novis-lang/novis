@@ -437,6 +437,12 @@ struct Descriptors {
     /// it, so no input can grow a bucket, and the hash is `rustc_hash`'s, which
     /// is fast and not keyed.
     ///
+    /// Three other ways to find a descriptor are declined. An index by the
+    /// address of the name literal misses: a debug build copies each literal per
+    /// codegen unit, even for `registry::CLASSES`' own entries. A compile-time
+    /// `ClassId` changes the IR. A field on `CoreClass`, or class statics in
+    /// place of consts, edits every class literal in the crate for one pointer.
+    ///
     /// **What it spends:** one entry, a name and an id, per `Core` class, for
     /// the process.
     first: rustc_hash::FxHashMap<&'static str, nvs_runtime::ClassId>,
