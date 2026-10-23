@@ -43124,12 +43124,26 @@ Checks that `$cookie` was made by `Core\SignedCookie::seal` for the cookie `$nam
 <a id="core-core-csrf"></a>
 ### `Core\Csrf`
 
-Keywords: issue, verify
+Keywords: token, issue, verify
 
 | Member | Signature |
 |---|---|
+| [`Core\Csrf::token`](#core-core-csrf-token) | `token(): string` |
 | [`Core\Csrf::issue`](#core-core-csrf-issue) | `issue(string $session, secret bytes $key): string` |
 | [`Core\Csrf::verify`](#core-core-csrf-verify) | `verify(string $token, string $session, secret bytes $key): bool` |
+
+<a id="core-core-csrf-token"></a>
+#### `Core\Csrf::token`
+
+```nvs skip
+Core\Csrf::token(): string
+```
+
+Returns a CSRF token for the visitor's session. Put it in a form field named `_csrf`, in the `x-csrf-token` header or in a `_csrf` query parameter. The server checks it on the next request. Call `Core\Session::start()` first. If the visitor has no session yet, this call creates one and sends its cookie.
+
+**Returns** `string` — A different string on every call. Each one is valid for the whole session. It uses only `A-Za-z0-9-_`, so a form field, a header and a URL carry it unchanged.
+
+**Throws** `RuntimeError` — The request has not called `Core\Session::start()`, or `[http] csrf_key` is not set.; `LogicError` — The call runs inside a function passed to `Core\Task::afterResponse`, after the response was sent. The session cookie cannot be sent then.
 
 <a id="core-core-csrf-issue"></a>
 #### `Core\Csrf::issue`
@@ -54610,7 +54624,7 @@ setting under it gives the warning `W1024`, and Novis ignores it.
 | `[[app]]` | a per-application block: `root` or `entry`, `mode`, `origin`, `[app.limits]`, `[app.limits.hard]`, `[app.capabilities]` (below) |
 | `[[include]]` | `path`, `dir`, `optional` (below) |
 | `[cache.memory]`, `[cache.shared]` | `Core\Cache`'s two caches: `max_size`, `fill_wait`; `url`, `timeout`. The compiled-artifact cache is not here — it is `[opcache]`'s `file_cache_dir` (the `nvs` command chapter) |
-| `[db.<name>]` | `driver`, `path`, `host`, `port`, `user`, `password`, `password_file`, `database`, `tls_ca_file`, `statement_cache`, `time_zone`, `slow_query`, `pool` |
+| `[db.<name>]` | `driver`, `path`, `host`, `port`, `user`, `password`, `password_file`, `database`, `tls_ca_file`, `statement_cache`, `time_zone`, `slow_query`, `journal_mode`, `pool` |
 | `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire` — the connection pool's bounds, written as a table where `pool = false` turns it off |
 | `[db] pool` | `pool = false` written beside the blocks rather than inside one, turning pooling off for every connection this process opens — including one `Core\Db::open` described for itself, which names no block. Bounds are not written here: they belong to the block they size |
 | `[mail.<name>]` | `host`, `port`, `from`, `user`, `password`, `password_file`, `timeout` — an SMTP submission endpoint |

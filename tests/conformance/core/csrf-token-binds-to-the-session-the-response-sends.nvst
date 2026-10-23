@@ -1,0 +1,66 @@
+--TEST--
+`Core\Csrf::token` on a first visit sends the session cookie and returns a token the server accepts on the next request carrying that cookie, and refuses with another session's cookie or none — `rule:security/csrf-is-on-by-default`
+--FILE nvs.toml--
+[http]
+csrf_key = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc"
+--FILE--
+<?nvs
+// covers: Core\Csrf::token
+class Notes {
+    #[Core\Route(path: "/form", method: Core\Http\Method::Get, name: "form")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function form(): void {
+        Core\Session::start();
+        echo Core\Csrf::token();
+    }
+
+    #[Core\Route(path: "/notes", method: Core\Http\Method::Post, name: "save")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function save(): void {
+        echo "saved";
+    }
+}
+
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo $reason == Core\Router\Refusal::Csrf ? "refused" : "other";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // The first visit has no cookie. The page gets a token and the response sets `nvsid`.
+    var $page = Core\Test::request(Core\Http\Method::Get, "/form");
+    string $session = $page->cookies()["nvsid"] ?? "";
+    string $token = $page->body() as string;
+    echo "the first visit sets a session cookie: ", $session != "" ? "yes" : "no", "\n";
+
+    // The form comes back with the cookie and the token, so the route runs.
+    array<string> $mine = ["cookie" => "nvsid=" . $session, "x-csrf-token" => $token];
+    var $saved = Core\Test::request(Core\Http\Method::Post, "/notes", {headers: $mine});
+    echo $saved->status(), " ", $saved->body(), "\n";
+
+    // The same token with another visitor's cookie is refused.
+    array<string> $other = ["cookie" => "nvsid=AAAAAAAAAAAAAAAAAAAAAA", "x-csrf-token" => $token];
+    var $stolen = Core\Test::request(Core\Http\Method::Post, "/notes", {headers: $other});
+    echo $stolen->status(), " ", $stolen->body(), "\n";
+
+    // The same token with no cookie at all is refused too.
+    array<string> $bare = ["x-csrf-token" => $token];
+    var $alone = Core\Test::request(Core\Http\Method::Post, "/notes", {headers: $bare});
+    echo $alone->status(), " ", $alone->body(), "\n";
+}
+--EXPECT--
+the first visit sets a session cookie: yes
+200 saved
+403 refused
+403 refused

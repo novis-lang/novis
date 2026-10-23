@@ -937,17 +937,20 @@ nvs_runtime::nvs_helper! {
 
 /// The `Set-Cookie` line carrying `id`, under `[session] cookie` and `[http.cookies]`' policy.
 ///
+/// `who` is the member a refusal names, written whole (`Core\Session::set`), because
+/// `Core\Csrf::token` draws an identifier too.
+///
 /// # Errors
 ///
 /// A thrown `RuntimeError` for a `[session] cookie` that is not a cookie name. That is an
 /// operator's typo rather than anything a program did, and it is refused here because the value
 /// reaches a header line: a name carrying a `;` or a newline would end the line and begin one
 /// nobody wrote. The identifier needs no such check — it is 22 characters this core drew.
-fn issue_cookie(ctx: &mut Ctx, member: &str, id: &str) -> Result<(), Fault> {
+fn issue_cookie(ctx: &mut Ctx, who: &str, id: &str) -> Result<(), Fault> {
     let name = cookie(ctx);
     if !crate::response::nameable(&name) {
         return Err(Fault::thrown(format!(
-            "{NAME}::{member}(): `[session] cookie = \"{name}\"` is not a cookie name — a name is \
+            "{who}(): `[session] cookie = \"{name}\"` is not a cookie name — a name is \
              a non-empty token, and this one reaches a `Set-Cookie` line"
         )));
     }
@@ -1187,7 +1190,7 @@ fn write_back(ctx: &mut Ctx, record: NvsArray, member: &str) -> Result<Value, Fa
         // session as it was.
         crate::response::head_open(ctx, &format!("{NAME}::{member}"))?;
         let id = mint(ctx);
-        issue_cookie(ctx, member, &id)?;
+        issue_cookie(ctx, &format!("{NAME}::{member}"), &id)?;
         let session = ctx.session_mut().ok_or_else(|| unstarted(member))?;
         session.id = id;
         session.record = payload;
@@ -1197,6 +1200,44 @@ fn write_back(ctx: &mut Ctx, record: NvsArray, member: &str) -> Result<Value, Fa
     session.record = payload;
     session.dirty = true;
     Ok(Value::null())
+}
+
+/// The identifier the response sends for this request's session, with the session marked
+/// changed. `Core\Csrf::token` binds its token to it.
+///
+/// **A session `start` opened with no identifier draws one here**, and sends its cookie, as its
+/// first [`write_back`] would. So the token and the cookie name the same session, and the door
+/// accepts the token on the next request (`rule:security/csrf-is-on-by-default`).
+///
+/// **The record is marked changed even while it is empty**, so the write-back stores a row under
+/// the identifier and the next request's `start` finds it rather than opening a fresh one. What
+/// it spends is one row per visitor who is shown a token, which `[session] ttl` expires, and one
+/// store write per such request.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` naming `Core\Session::start` while this request has started no session,
+/// and, for a session with no identifier yet, [`crate::response::head_open`]'s and
+/// [`issue_cookie`]'s.
+pub(crate) fn sent_id(ctx: &mut Ctx, who: &str) -> Result<String, Fault> {
+    let unstarted = || {
+        Fault::thrown(format!(
+            "{who}(): this request has not started a session. Call `{NAME}::start()` first, \
+             because a token is bound to the session."
+        ))
+    };
+    let fresh = ctx.session().ok_or_else(unstarted)?.id.is_empty();
+    if fresh {
+        // Drawn and sent before the session changes, so a cookie that cannot be sent leaves the
+        // session as it was.
+        crate::response::head_open(ctx, who)?;
+        let id = mint(ctx);
+        issue_cookie(ctx, who, &id)?;
+        ctx.session_mut().ok_or_else(unstarted)?.id = id;
+    }
+    let session = ctx.session_mut().ok_or_else(unstarted)?;
+    session.dirty = true;
+    Ok(session.id.clone())
 }
 
 nvs_runtime::nvs_helper! {
@@ -1436,7 +1477,7 @@ nvs_runtime::nvs_helper! {
         let lifetime = ttl(ctx);
         put(&store, "regenerate", &fresh, &record, lifetime)?;
         forgot(&store, "regenerate", &retired)?;
-        issue_cookie(ctx, "regenerate", &fresh)?;
+        issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh)?;
 
         // Not dirty: the record was written whole a line ago, so the write-back has nothing left
         // to send. `Ctx::open_session` replaces rather than refuses for exactly this call.

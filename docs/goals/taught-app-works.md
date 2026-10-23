@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-db/src/sqlite.rs, crates/nvs-db/src/conn.rs, crates/nvs-config/src/tree.rs, crates/nvs-config/src/defaults.rs, crates/nvs-config/src/default.toml, crates/nvs-stdlib/src/session/sqlite.rs, docs/reference/tools/20-config.md, docs/rules/core-classes/db-statement-members.md]
   - id: 2
     title: "`Core\\Csrf::token` returns a token bound to the session the response sends"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/csrf.rs, crates/nvs-stdlib/src/session.rs, crates/nvs-config/src/http.rs, crates/nvs-server/src/route.rs, docs/rules/security/csrf-is-on-by-default.md, docs/rules/core-classes/session-is-started-explicitly.md]
   - id: 3
     title: "`Core\\Csrf::token` has its feature proofs"
@@ -147,11 +147,11 @@ writing is in WAL unless its block says `journal_mode = "delete"`.
 token the door accepts on the next one. A program that has not started its session gets an error that
 names `start`.
 
-- [ ] BBK-1, BBK-3: `Core\Csrf::token(): string` binds the token to the id the response sends, marks the session written, and reads the key with `nvs_config::http::csrf_key` (`rule:security/csrf-is-on-by-default`). `crates/nvs-stdlib/src/csrf.rs:134`, `crates/nvs-stdlib/src/csrf.rs:305`, `crates/nvs-config/src/http.rs:550`
-- [ ] Session gives `token` the id it will send, including a fresh one, and counts the call as a write. `crates/nvs-stdlib/src/session.rs:172`
-- [ ] `token` before `start` throws naming `Core\Session::start`, and with no key it throws naming `[http] csrf_key`. `crates/nvs-stdlib/src/csrf.rs:305`
-- [ ] The session rule says a token counts as a write, and the CSRF rule names `Core\Csrf::token` as the way a page issues a token (`rule:core-classes/session-is-started-explicitly`, `rule:security/csrf-is-on-by-default`). `docs/rules/core-classes/session-is-started-explicitly.md:1`, `docs/rules/security/csrf-is-on-by-default.md:9`
-- [ ] Rust tests beside the member: a first request's token passes the door on the second request carrying the cookie the first sent, and a token sent with another session's cookie is refused. `crates/nvs-stdlib/src/csrf.rs:305`
+- [x] BBK-1, BBK-3: `Core\Csrf::token(): string` binds the token to the id the response sends, marks the session written, and reads the key with `nvs_config::http::csrf_key` (`rule:security/csrf-is-on-by-default`). `crates/nvs-stdlib/src/csrf.rs:134`, `crates/nvs-stdlib/src/csrf.rs:305`, `crates/nvs-config/src/http.rs:550`
+- [x] Session gives `token` the id it will send, including a fresh one, and counts the call as a write. `crates/nvs-stdlib/src/session.rs:172`
+- [x] `token` before `start` throws naming `Core\Session::start`, and with no key it throws naming `[http] csrf_key`. `crates/nvs-stdlib/src/csrf.rs:305`
+- [x] The session rule says a token counts as a write, and the CSRF rule names `Core\Csrf::token` as the way a page issues a token (`rule:core-classes/session-is-started-explicitly`, `rule:security/csrf-is-on-by-default`). `docs/rules/core-classes/session-is-started-explicitly.md:1`, `docs/rules/security/csrf-is-on-by-default.md:9`
+- [x] Rust tests beside the member: a first request's token passes the door on the second request carrying the cookie the first sent, and a token sent with another session's cookie is refused. `crates/nvs-stdlib/src/csrf.rs:305`
 
 ### 3. `Core\Csrf::token` has its feature proofs
 
@@ -161,7 +161,7 @@ names `start`.
 after stage 2 has landed. The session checks each against `docs/agent/prose.md` and writes the help card.
 
 - [ ] The description and three examples: a form's token on a first visit, the token passing on the next request, and `token` before `start`. `docs/examples/core/Csrf/token/about.md:1`, `docs/examples/core/Csrf/token/01-a-token-on-a-first-visit.nvs:1`
-- [ ] A Novis test: the conformance case that a token from `token` verifies for the session the response sent, and for no other. `tests/conformance/core/csrf-token-binds-to-the-session-the-response-sends.nvst:1`
+- [x] A Novis test: the conformance case that a token from `token` verifies for the session the response sent, and for no other. `tests/conformance/core/csrf-token-binds-to-the-session-the-response-sends.nvst:1`
 - [ ] The bench and its growth. `benches/members/core/Csrf/token.nvs:1`, `benches/members/core/Csrf/token.scale.nvs:1`
 - [ ] The attack: a token from a page that sent no cookie, replayed with no cookie, with another visitor's cookie, and cross-origin, is refused each time (`rule:testing/hostile-case-contract`). `tests/hostile/core/Csrf/token/01-a-token-replayed-without-its-session.nvs:1`
 - [ ] The help card in the member table, in the voice of AGENTS.md § *Text an end user reads* (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/csrf.rs:134`
@@ -195,44 +195,48 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 has landed. `Core\Db`'s statement path calls `nvs_db::Connection::set_statement_deadline`,
-which files the request's remaining `wall_time` as SQLite's busy timeout. A run with no `wall_time`
-gets `nvs_db::sqlite::LOCK_WAIT`, five seconds, which is `SESSION_PRAGMAS`' figure. A writable file
-opens in WAL through `SqliteTarget::wal`, read from `nvs_config::db::JournalMode`. A bad
-`journal_mode` is `E0601` at boot, and the four server drivers refuse the key as they refuse `path`.
-The session store sets `wal: true` and no longer runs its own pragma. The three cases in
-`crates/nvs-db/tests/sqlite_contention.rs` pass, and the rule names the file in its `guardedBy`.
-`Core\Csrf` still has only `issue` and `verify`.
+Stages 1 and 2 have landed. `Core\Csrf::token(): string` is on disk
+(`crates/nvs-stdlib/src/csrf.rs:401`, card `csrf.rs:190`). It throws naming `Core\Session::start()`
+before `start`, then reads the key with `nvs_config::http::csrf_key` and throws naming
+`[http] csrf_key` without one. Only then does it ask `crate::session::sent_id`
+(`crates/nvs-stdlib/src/session.rs:1222`) for the identifier. A session with none draws one and sends
+its cookie there, and the session is marked changed even while empty, so the write-back stores its row.
+`issue_cookie` now takes the whole member name. `registry.rs:6149`'s raw-value test names `token` in
+`CONFIGURED_KEY`, because it derives from the configured key, not an argument. Both rules say what
+the stage asked. Two Rust tests sit beside the member. Three conformance cases pass under
+`nvs test`: `tests/conformance/core/csrf-token-*.nvst`. They meet `conformance_coverage`'s floor of
+three, and the first is stage 3's Novis test. `website/src/data/core.json` and `llms-full.txt` are
+rendered with the new card.
 
-The acceptance sweep's `env-secret-proofs` check was green when it was read again (exit 0), and no
-live goal defines it now.
+**The nightly CI causes are fixed in local commits that are not pushed yet.** Run 39926481336 built
+`5dc6c26e3`. Its asan, chapter-examples, Linux and macOS cost guards, and Linux and macOS conformance
+jobs are green. Its red jobs are each fixed by a commit after it: the `ctutils` advisory (a024f2253),
+the six about pages over 200 words (296755665), and `crates/nvs-cli/tests/env_context.rs`'s Windows
+`E0607`, which now uses `nvs_repo::scratch_private`. The acceptance sweep's `env-secret-proofs` log
+says exit 0. That entry is stale.
 
 ### Next
 
-**The nightly CI failures come first, in a session of their own.** Run 39922764699 built
-`7b6ef53ee`, 46 commits behind this handoff, so the first step is a fresh nightly on HEAD. Then fix
-what is still red. The causes the old run showed, each with its jobs:
+**Stage 3**, `Core\Csrf::token`'s feature proofs, follows its `**Split:**` line. One writing subagent
+writes the `about.md`, the three examples, the bench with its `.scale.nvs`, and the attack. The
+session checks each against `docs/agent/prose.md`. A program that calls `token` needs `--GET--` or
+`Core\Test::request`. `bun nv try` runs only `--FILE--`, so run a case with `target/debug/nvs test
+<case>.nvst`. The three conformance cases show the shapes.
 
-- [ ] `benches/abi-probe/tests/perf_guards.rs:2648` `a_class_without_a_property_observer_costs_nothing_extra`: three unhooked property accesses emit 9 calls, not 0. Cost guards on all three platforms and the extension sandbox probes.
-- [ ] `bun nv proofs --gate`: 770 features owe a proof, most of them "perf: stale" since `crates/nvs-stdlib/src/str.rs` changed. Proofs on all three platforms. `tools/nv/cmd/proofs.ts:1`
-- [ ] `website/src/data/core.json` and `llms-full.txt` are stale against their sources. The chapter-examples job. `website/src/data/core.json:1`
-- [ ] 59 conformance cases under `tests/conformance/novis` (image, spreadsheet, pdf, intl) fail with "the extension used all of the request's CPU time". Linux conformance. `tests/conformance/novis/image-a-barcode-renders-as-png.nvst:1`
-- [ ] Windows: `E0607` "grants write access to BUILTIN\Users" at `crates/nvs-cli/src/serve.rs:3370` and `crates/nvs-cli/src/worker.rs:2356`, then the reload at `serve.rs:4849` and a `PoisonError` at `service.rs:1351`.
-- [ ] `crates/nvs-stdlib/src/io.rs:5060` `a_windows_alias_is_refused_by_its_text_before_any_network_attempt` under asan.
-- [ ] Probably flaky, rerun first: `crates/nvs-cli/tests/serve_isolation.rs:614` (linux-aarch64), `crates/nvs-cli/src/serve.rs:4459` (macOS cost guards), `crates/nvs-ext/tests/http.rs:356` (macOS, no free loopback port).
+- [ ] The description and three examples. `docs/examples/core/Csrf/token/about.md:1`, `docs/examples/core/Csrf/issue/about.md:1`
+- [ ] The bench and its growth. `benches/members/core/Csrf/token.nvs:1`, `benches/members/core/Csrf/issue.nvs:1`
+- [ ] The attack: a token replayed without its session, with another visitor's cookie, and cross-origin. `tests/hostile/core/Csrf/token/01-a-token-replayed-without-its-session.nvs:1`
+- [ ] `bun nv proofs --id 'Core\Csrf::token'` prints nothing owed, and the card passes the prose rules. `crates/nvs-stdlib/src/csrf.rs:190`
 
-**Then stage 2**, on `crates/nvs-stdlib/src/csrf.rs` and `crates/nvs-stdlib/src/session.rs`.
-
-- [ ] `Core\Csrf::token` binds to the id the response sends and marks the session written. `crates/nvs-stdlib/src/csrf.rs:305`
-- [ ] Session gives `token` that id, a fresh one included. `crates/nvs-stdlib/src/session.rs:172`
-- [ ] The two throws, the two rules' text and the Rust tests beside the member. `crates/nvs-stdlib/src/csrf.rs:305`
+The `proofs` CI job is red until stage 3 lands, because `Core\Csrf::token` owes its proofs.
 
 Tests that may go red at the gate: `crates/nvs-config/tests/defaults.rs` (the new `journal_mode`
-row against its `# default` line), any test that asserts SQLite answers `SQLITE_BUSY` at once, and
-any case that reads a SQLite file's journal mode.
+row against its `# default` line), any test that asserts SQLite answers `SQLITE_BUSY` at once, any
+case that reads a SQLite file's journal mode, and any roster count of `Core` members or of
+`Core\Csrf`'s methods.
 
 ### Backlog
 
-- Stages 3 and 4 follow stage 2 in their own sessions. `docs/examples/core/Csrf/token/about.md`
+- Stage 4 follows stage 3 in its own session. `website/src/content/docs/guides/example-apps/notes.mdx:156`
 - `journal_mode` has its line in `default.toml` and its row in the config reference. Stage 5 checks
   that `nvs agent show` reaches it, so its Help proof is not owed.
