@@ -6,11 +6,24 @@ increments `invocation.unknown` and nothing else, so arbitrary user input cannot
 and every counter that can ever exist is enumerable from the binary that wrote it. A closed set with one
 `unknown` bucket is the whole difference between a schema and a log.
 
+The command table is `COMMAND_NAMES` in `crates/nvs-cli/src/main.rs`, and a test holds it equal to the
+parser's own list of subcommands. A command line that runs no command, `--help` and `--version`
+included, counts `invocation.unknown`. A service's stored line counts the command it runs.
+
 `internal-error.<subcommand>` counts an invocation that ended in a panic of `nvs` itself, such as an
 internal compiler error. The panic hook increments it once, before the process ends, and records no
-message, location or backtrace. A Novis program that throws, fails to compile or exits with an error is
-the program's result, not an internal error, and counts nothing. A request that fails inside
-`nvs serve` counts nothing either, by the traffic rule below.
+message, location or backtrace. It then calls the hook it wrapped, so the panic prints as before. A
+Novis program that throws, fails to compile or exits with an error is the program's result, not an
+internal error, and counts nothing. A panic under a request that `nvs serve` runs is claimed by the
+request's own log first and counts nothing either, by the traffic rule below.
+
+**The counter file** is `telemetry/counters`, one `key value` line each: `uploads` and `bytes`, the
+lifetime totals of accepted uploads; `week`, the current ISO week in UTC, then its `days` as seven
+digits from Monday to Sunday and each counter above zero; and `pending`, the last finished week that
+counted anything and is not sent yet, laid out the same way. A week that ends becomes `pending`, and
+replaces the one there. A week after today, which only a clock set back can leave, is dropped. The file
+is read through the closed set, so a line an editor added that names anything else is dropped and never
+reaches a payload.
 
 The payload is one JSON document, and these are all its fields:
 
@@ -34,9 +47,10 @@ records the operator's action; request counts, routes, headers and anything else
 to the site's visitors, who never consented, and are permanently out of schema — not merely off by
 default. The counter file is provably a function of what the operator did.
 
-- **Memory:** a few KiB in one local file per user, and one buffered append per invocation. For
-  `nvs serve` that append happens once, at startup, before the listener binds. Nothing is spent on the
-  request path.
+- **Memory:** a few KiB in one local file per user, and per invocation one read and one rewrite
+  through a file beside it and a rename, so a reader never sees half a file. Two invocations that end
+  at the same moment may lose one count. For `nvs serve` the rewrite happens once, at startup, before
+  the listener binds. Nothing is spent on the request path.
 
 **Not on disk.** There is no counter file and no payload.
 

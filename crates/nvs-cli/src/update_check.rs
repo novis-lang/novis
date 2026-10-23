@@ -11,8 +11,8 @@
 //!
 //! **The latest release is GitHub's.** The request is one `GET` of [`endpoints::update_url`]
 //! through [`nvs_stdlib::tool_get`], the transport `Core\Http\Client` uses, and the version is the
-//! document's `tag_name` with a leading `v` removed. Telemetry does not record anything yet, so the
-//! switch reads `off`, beside the upload URL `NVS_TELEMETRY_URL` names.
+//! document's `tag_name` with a leading `v` removed. The switch is [`telemetry::is_on`], printed
+//! beside the upload URL `NVS_TELEMETRY_URL` names.
 //!
 //! Cost: one HTTPS request per run, its reply capped at 1 MiB, and only when a user runs the
 //! command. Nothing here runs in a server.
@@ -21,7 +21,7 @@ use std::io::Write;
 use std::process::ExitCode;
 use std::time::Duration;
 
-use crate::endpoints;
+use crate::{endpoints, telemetry};
 
 /// How long the whole request may take, connecting included.
 const WITHIN: Duration = Duration::from_secs(10);
@@ -47,6 +47,7 @@ impl Args {
     pub(crate) fn run(self) -> ExitCode {
         check(
             &endpoints::update_url(),
+            telemetry::is_on(),
             endpoints::telemetry_url().as_deref(),
             self.json,
             &mut std::io::stdout(),
@@ -62,11 +63,15 @@ struct Found {
     error: Option<String>,
 }
 
-/// The whole command against `url`, with `upload` as the telemetry upload URL, written to `out`.
-/// Always [`ExitCode::SUCCESS`].
-fn check(url: &str, upload: Option<&str>, json: bool, out: &mut impl Write) -> ExitCode {
+/// The whole command against `url`, with telemetry `on` or off and `upload` as its upload URL,
+/// written to `out`. Always [`ExitCode::SUCCESS`].
+fn check(url: &str, on: bool, upload: Option<&str>, json: bool, out: &mut impl Write) -> ExitCode {
+    let switch = if on { "on" } else { "off" };
     if !json {
-        step(out, &format!("telemetry: off, {}", upload_line(upload)));
+        step(
+            out,
+            &format!("telemetry: {switch}, {}", upload_line(upload)),
+        );
         step(out, &format!("this version: {LOCAL}"));
         step(out, &format!("reading the latest release from {url}"));
     }
@@ -81,7 +86,7 @@ fn check(url: &str, upload: Option<&str>, json: bool, out: &mut impl Write) -> E
         },
     };
     if json {
-        step(out, &document(&found, upload));
+        step(out, &document(&found, switch, upload));
     } else {
         match (&found.latest, &found.error) {
             (Some(latest), _) => {
@@ -175,8 +180,9 @@ fn newer(latest: &str, local: &str) -> bool {
     ordered(latest) > ordered(local)
 }
 
-/// `--json`'s document. Written by hand, as `nvs cache`'s is, so the keys keep the order shown.
-fn document(found: &Found, upload: Option<&str>) -> String {
+/// `--json`'s document, with `switch` as `"telemetry"`. Written by hand, as `nvs cache`'s is, so
+/// the keys keep the order shown.
+fn document(found: &Found, switch: &str, upload: Option<&str>) -> String {
     let text = |value: Option<&str>| {
         value.map_or_else(
             || "null".to_owned(),
@@ -191,7 +197,7 @@ fn document(found: &Found, upload: Option<&str>) -> String {
         }
     });
     format!(
-        r#"{{"schema":1,"telemetry":"off","telemetry_url":{},"local":{},"latest":{},"update_available":{update},"error":{}}}"#,
+        r#"{{"schema":1,"telemetry":"{switch}","telemetry_url":{},"local":{},"latest":{},"update_available":{update},"error":{}}}"#,
         text(upload),
         text(Some(LOCAL)),
         text(found.latest.as_deref()),
@@ -237,10 +243,10 @@ mod tests {
         (url, served)
     }
 
-    /// What the command printed against `url`.
+    /// What the command printed against `url`, with telemetry off.
     fn printed(url: &str, upload: Option<&str>, json: bool) -> String {
         let mut out = Vec::new();
-        assert_eq!(check(url, upload, json, &mut out), ExitCode::SUCCESS);
+        assert_eq!(check(url, false, upload, json, &mut out), ExitCode::SUCCESS);
         String::from_utf8(out).expect("the command prints text")
     }
 

@@ -11,4 +11,10 @@ of what is collected. The service side is `apps/telemetry/`
 (`rule:tooling/the-collector-never-stores-an-address`), and publishes every total
 (`rule:tooling/telemetry-totals-are-public`), so anyone can see exactly what the project sees.
 
-**Not on disk.** There is no `nvs telemetry show`.
+`show` prints the payload alone on standard output, so it can be compared byte for byte. It prints the
+`pending` week when there is one, and otherwise the current week as it stands, with a note on standard
+error that the week is not finished. With nothing recorded it prints nothing, and says so on standard
+error. The upload sends the same function's bytes.
+
+**Not on disk.** Nothing uploads yet, so no listener has received a payload to compare
+(`rule:tooling/a-serving-process-never-uploads`).

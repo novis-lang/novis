@@ -73,6 +73,9 @@
 //! * `nvs update-check` — `rule:tooling/update-check-states-the-whole-picture`: the telemetry
 //!   switch, this version and the latest release GitHub lists, one line per step or `--json`,
 //!   exit `0` always; see [`update_check`], and [`endpoints`] for the URLs it reads.
+//! * `nvs telemetry on|off|status|reset|show` — `rule:tooling/telemetry-is-two-opt-ins`'s
+//!   consent and the closed counter set every invocation adds to; see [`telemetry`], and
+//!   [`COMMAND_NAMES`] for the table a counter is named from.
 //! * `nvs serve [<file>]` — one worker per core, every socket `[server] listen`
 //!   names, every request running the entry file as its own isolate; see
 //!   [`serve`].
@@ -125,7 +128,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::builder::styling::{Effects, Style};
-use clap::{Parser as ClapParser, Subcommand};
+use clap::{CommandFactory, FromArgMatches, Parser as ClapParser, Subcommand};
 use nvs_diagnostics::{Diagnostics, Renderer, SourceMap};
 use nvs_syntax::{check_declarations, parse_file};
 
@@ -173,6 +176,7 @@ mod service;
 mod shared;
 mod stop;
 mod stubs;
+mod telemetry;
 #[cfg(test)]
 mod testing;
 mod tmp;
@@ -407,6 +411,7 @@ enum Command {
     Tmp(tmp::Args),
     Cache(cache_cmd::Args),
     UpdateCheck(update_check::Args),
+    Telemetry(telemetry::Args),
     Service(service::Args),
     /// Another name for `nvs service install`.
     // The syntax `mysqld --install` and `httpd -k install` made familiar.
@@ -423,6 +428,67 @@ enum Command {
     Agent(agent::Args),
     Code(code::Args),
     Stubs(stubs::Args),
+}
+
+/// Every subcommand's name as clap writes it: the closed set a telemetry counter names
+/// (`rule:tooling/telemetry-counters-are-a-closed-set`). A test holds it equal to [`Command`]'s
+/// table, so a new command that is not listed here fails it, and until then counts as `unknown`.
+const COMMAND_NAMES: [&str; 27] = [
+    "ast",
+    "check",
+    "run",
+    "serve",
+    "test",
+    "build",
+    "api",
+    "ext",
+    "init",
+    "config",
+    "queue",
+    "schema",
+    "tmp",
+    "cache",
+    "update-check",
+    "telemetry",
+    "service",
+    "install-service",
+    "fmt",
+    "lsp",
+    "lsp-test",
+    "info",
+    "meta",
+    "doc",
+    "agent",
+    "code",
+    "stubs",
+];
+
+/// The subcommand `matches` ran, as its [`COMMAND_NAMES`] entry, or [`telemetry::UNKNOWN`]. The
+/// name is the table's own string, never a byte of the command line.
+fn invoked(matches: &clap::ArgMatches) -> &'static str {
+    let name = matches.subcommand_name();
+    COMMAND_NAMES
+        .into_iter()
+        .find(|known| Some(*known) == name)
+        .unwrap_or(telemetry::UNKNOWN)
+}
+
+/// The value of `--data` on this process's command line, read without the parser, for a command
+/// line the parser did not accept.
+fn data_flag() -> Option<PathBuf> {
+    let mut args = std::env::args_os().skip(1);
+    while let Some(arg) = args.next() {
+        if arg == "--" {
+            break;
+        }
+        if arg == "--data" {
+            return args.next().map(PathBuf::from);
+        }
+        if let Some(value) = arg.to_str().and_then(|arg| arg.strip_prefix("--data=")) {
+            return Some(PathBuf::from(value));
+        }
+    }
+    None
 }
 
 /// `nvs serve`, under the service control manager if it was started by one.
@@ -478,6 +544,12 @@ fn run_hosted(argv: &[String]) -> ExitCode {
     }
     // The line runs as the service would, so it logs where the service does.
     log_like_a_service();
+    // Counted here and not in `main`, because only now is the stored line's data folder named.
+    telemetry::start(match &cli.command {
+        Some(Command::Serve(_)) => "serve",
+        Some(Command::Run(_)) => "run",
+        _ => telemetry::UNKNOWN,
+    });
     let no_init = std::env::var_os(config::NO_INIT);
     let init = config::init_gate(
         cli.command.as_ref().is_some_and(initializes),
@@ -534,7 +606,9 @@ fn main() -> ExitCode {
     // that request's log. It claims nothing else: every command here is a CLI
     // run with no request beneath it, so its panic goes to stderr through the
     // default hook exactly as it did — `nvs_runtime::floor::install_panic_hook`
-    // owns that split.
+    // owns that split. The telemetry hook goes first, so the floor's hook calls it only for a
+    // panic no served request claimed (`telemetry::install_panic_hook`).
+    telemetry::install_panic_hook();
     nvs_runtime::floor::install_panic_hook();
 
     // Tier 3 of `rule:errors/escalation-ladder` lives in `nvs_host`, above the
@@ -567,7 +641,16 @@ fn main() -> ExitCode {
         nvs_codegen::compile_checked_types();
     }
 
-    let cli = Cli::parse();
+    // A command line that names no command, `--help` and `--version` included, counts
+    // `invocation.unknown` before clap prints and exits.
+    let matches = Cli::command().try_get_matches().unwrap_or_else(|error| {
+        telemetry::unparsed(data_flag().as_deref());
+        error.exit()
+    });
+    let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| {
+        telemetry::unparsed(data_flag().as_deref());
+        error.exit()
+    });
 
     // Unreachable: `arg_required_else_help` makes a bare `nvs` print help.
     let Some(command) = cli.command else {
@@ -581,6 +664,10 @@ fn main() -> ExitCode {
     }
     if prepares(&command) {
         prepare_data_folder();
+    }
+    // [`run_hosted`] counts a stored line itself, once it has named that line's data folder.
+    if !matches!(&command, Command::Service(args) if args.runs_a_stored_line()) {
+        telemetry::start(invoked(&matches));
     }
 
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 4's gate,
@@ -604,6 +691,7 @@ fn main() -> ExitCode {
         Command::Tmp(args) => args.run(&cli.config),
         Command::Cache(args) => args.run(&cli.config),
         Command::UpdateCheck(args) => args.run(),
+        Command::Telemetry(args) => args.run(),
         Command::InstallService(args) => args.run(&cli.config),
         Command::Service(args) => args.run(&cli.config),
         Command::Fmt(args) => args.run(),
