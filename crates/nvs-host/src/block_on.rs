@@ -440,7 +440,10 @@ mod tests {
         let pokes = crate::counts::Counts::now().since(before).wake_pokes;
         assert_eq!(report.finished, 1);
         assert_eq!(polls.get(), 4);
-        assert_eq!(pokes, 0, "a drive's wake of itself wrote the wake descriptor");
+        assert_eq!(
+            pokes, 0,
+            "a drive's wake of itself wrote the wake descriptor"
+        );
         assert_eq!(
             with_current(|reactor| reactor.remote_waits()),
             Some(0),

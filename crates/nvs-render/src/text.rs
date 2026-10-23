@@ -200,12 +200,7 @@ mod tests {
     fn the_byte_scan_finds_exactly_what_is_substituted() {
         for c in ('\0'..='\u{2FF}').chain(['\u{2028}', '\u{FFFD}']) {
             for text in [c.to_string(), format!("a{c}b")] {
-                assert_eq!(
-                    scan(text.as_bytes()).0,
-                    substituted(c).is_some(),
-                    "{:?}",
-                    c
-                );
+                assert_eq!(scan(text.as_bytes()).0, substituted(c).is_some(), "{:?}", c);
             }
         }
     }

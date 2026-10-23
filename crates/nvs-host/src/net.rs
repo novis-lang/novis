@@ -1964,7 +1964,11 @@ mod tests {
             1,
             "a read the reactor had not reported ready made a system call"
         );
-        assert_eq!(got.get(), 2, "the read after the reactor's event found nothing");
+        assert_eq!(
+            got.get(),
+            2,
+            "the read after the reactor's event found nothing"
+        );
     }
 
     #[test]
