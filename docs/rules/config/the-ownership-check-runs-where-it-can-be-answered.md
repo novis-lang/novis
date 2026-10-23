@@ -18,9 +18,10 @@ refused, names the path in the log, and the running snapshot keeps serving. Deve
 checked too. The mode is written in the same file, so a check the mode could skip is one whoever
 writes the file could skip.
 
-A Windows checkout on a non-system drive inherits the drive's `Authenticated Users` write grant, so
-the repository's own servers fail there until the grant is removed. `bun nv checkout-acl` removes it
-once, and CI's Windows jobs run it before they build.
+A Windows checkout on a non-system drive inherits the drive's `Authenticated Users` write grant, and
+on the CI runners `BUILTIN\Users`' right to create files in every folder, so the repository's own
+servers fail there until both are removed. `bun nv checkout-acl` removes them once, and CI's Windows
+jobs run it before they build.
 
 Two writes are checked even where the read is not: the data folder before anything is created in it,
 and the directory a project command or `nvs init` writes the shipped `nvs.toml` into.

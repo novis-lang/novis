@@ -2,17 +2,20 @@
 // so `nvs serve` passes the ownership check on the repository's own configuration files.
 //
 // `rule:config/ownership-is-the-trust-boundary` refuses a configuration file, or its directory, that
-// `Authenticated Users` or `Everyone` may write. Windows gives `Authenticated Users` modify rights on a
-// non-system drive's root, and a checkout there inherits them, so every server the repository starts on a
-// file in the checkout, and every served test under `target/`, stops with `E0607` until that grant is
-// gone. This command breaks the checkout root's inheritance (the inherited entries are copied as its own),
-// removes every grant to those two groups, and gives this account full control. Everything below the root
-// inherits the result. `BUILTIN\Users` keeps its read access.
+// `Authenticated Users`, `Everyone` or `BUILTIN\Users` may write. Windows gives `Authenticated Users`
+// modify rights on a non-system drive's root, and `BUILTIN\Users` the right to create files and folders
+// in every folder below it, as on the CI runners' `D:`. A checkout there inherits both, so every server
+// the repository starts on a file in the checkout, and every served test under `target/`, stops with
+// `E0607` until those grants are gone. This command breaks the checkout root's inheritance (the
+// inherited entries are copied as its own), removes every grant to the three groups, gives
+// `BUILTIN\Users` read and execute back, and gives this account full control. Everything below the
+// root inherits the result.
 //
 // A root that already has no inherited entry is left alone, so a second run does nothing. On any other
 // platform the command does nothing: a Unix checkout is the mode bits git already wrote.
 //
-// To undo: `icacls <checkout> /inheritance:e` and `icacls <checkout> /grant *S-1-5-11:(OI)(CI)(M)`.
+// To undo: `icacls <checkout> /remove:g *S-1-5-32-545`, `icacls <checkout> /inheritance:e` and
+// `icacls <checkout> /grant *S-1-5-11:(OI)(CI)(M)`.
 //
 // CI's Windows jobs run it right after the checkout. Its cost is one propagation over the tree, which
 // is why the CI step runs before the build writes `target/`.
@@ -26,8 +29,11 @@ import { run as runProc } from "../lib/proc.ts";
 
 export const summary = "on Windows, remove the write grant other accounts inherit on the checkout: nv checkout-acl [--check]";
 
+/** `BUILTIN\Users`, which keeps read and execute on the checkout and loses every other right. */
+const USERS = "*S-1-5-32-545";
+
 /** The SIDs a configuration file may not be writable by, which this command removes from the root. */
-const OTHERS = ["*S-1-5-11", "*S-1-1-0"];
+const OTHERS = ["*S-1-5-11", "*S-1-1-0", USERS];
 
 /** The longest one propagation over a large tree may take. */
 const PROPAGATION_MS = 30 * 60_000;
@@ -86,6 +92,7 @@ export async function run(args: string[]): Promise<number> {
     ["/inheritance:d"],
     ["/grant", `*${sid}:(OI)(CI)(F)`],
     ["/remove:g", ...OTHERS],
+    ["/grant", `${USERS}:(OI)(CI)(RX)`],
   ];
   for (const step of steps) {
     console.log(`$ icacls ${ROOT} ${step.join(" ")}`);
