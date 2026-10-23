@@ -6,7 +6,7 @@ context: [crates/nvs-fmt/src/lib.rs, docs/rules/tooling/fmt-base-style-is-per.md
 stages:
   - id: 1
     title: "the exit status says what `nvs fmt` found, and the walk leaves `vendor/` alone"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/fmt.rs, crates/nvs-cli/src/check.rs, crates/nvs-cli/tests/fmt.rs, tools/nv/cmd/scaling.ts, docs/rules/tooling/fmt-exit-status-says-what-it-found.md, docs/rules/tooling/fmt-check-writes-nothing.md]
     extra:
       context:
@@ -121,13 +121,13 @@ a hook simpler to write.
 **Does:** `nvs fmt` exits `0`, `1` or `2` by what it found, a directory walk skips `vendor/`, and
 `--check` works with `--stdin`.
 
-- [ ] A refused or unreadable file exits `2`, and a file that would change exits `1`. `2` wins when both happen (`rule:tooling/fmt-exit-status-says-what-it-found`). `crates/nvs-cli/src/fmt.rs:129`, `crates/nvs-cli/src/fmt.rs:154`
-- [ ] The walk skips a directory named `vendor`, as `nvs check --fix` leaves vendored code alone. A path named on the command line is still formatted. `crates/nvs-cli/src/fmt.rs:177`, `crates/nvs-cli/src/check.rs:215`
-- [ ] `--check` with `--stdin` writes nothing and exits by the same codes. `crates/nvs-cli/src/fmt.rs:95`
-- [ ] A test for each of the three. `crates/nvs-cli/tests/fmt.rs:78`
-- [ ] `rule:tooling/fmt-check-writes-nothing` says the walk skips `vendor/`. `docs/rules/tooling/fmt-check-writes-nothing.md:1`
-- [ ] The fmt ladder's doc comment says `1` is a file that would change and `2` a refusal. `tools/nv/cmd/scaling.ts:561`
-- [ ] `rule:tooling/fmt-exit-status-says-what-it-found` is `shipped`. `data/rules/tooling/fmt-exit-status-says-what-it-found.json:3`
+- [x] A refused or unreadable file exits `2`, and a file that would change exits `1`. `2` wins when both happen (`rule:tooling/fmt-exit-status-says-what-it-found`). `crates/nvs-cli/src/fmt.rs:129`, `crates/nvs-cli/src/fmt.rs:154`
+- [x] The walk skips a directory named `vendor`, as `nvs check --fix` leaves vendored code alone. A path named on the command line is still formatted. `crates/nvs-cli/src/fmt.rs:177`, `crates/nvs-cli/src/check.rs:215`
+- [x] `--check` with `--stdin` writes nothing and exits by the same codes. `crates/nvs-cli/src/fmt.rs:95`
+- [x] A test for each of the three. `crates/nvs-cli/tests/fmt.rs:78`
+- [x] `rule:tooling/fmt-check-writes-nothing` says the walk skips `vendor/`. `docs/rules/tooling/fmt-check-writes-nothing.md:1`
+- [x] The fmt ladder's doc comment says `1` is a file that would change and `2` a refusal. `tools/nv/cmd/scaling.ts:561`
+- [x] `rule:tooling/fmt-exit-status-says-what-it-found` is `shipped`. `data/rules/tooling/fmt-exit-status-says-what-it-found.json:3`
 
 ### 2. one statement per line, a closing brace on its own line, and `elseif` as one word
 
@@ -199,20 +199,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage has started. The anchors were checked against the tree when the goal was written.
+Stage 1 is done (886e60cbd). `nvs fmt` exits through `Found` (`crates/nvs-cli/src/fmt.rs`, the
+enum above `Mode`): `Settled` 0, `Changed` 1, `Refused` 2, the worst file wins. `--check --stdin`
+prints `<stdin>` when the buffer would change. `collect` skips a child directory named `vendor`; a
+named path is walked whatever it is called. `crates/nvs-cli/tests/fmt.rs` pins every code, and its
+8 `fmt_` cases pass. `bun nv scaling`'s fmt ladder no longer matches the refusal's text.
+
+The acceptance sweep's reds at the start of this session: `env-secret-proofs` exits 0 at HEAD, with
+nothing owed. The nightly run 39922764699 was at 7b6ef53ee, 106 commits behind. Every job it shares
+with push CI is green on push run 39982774098 (6d3c2770a) except the stale guard 9ceb43a49 fixed, and
+the observer cost guard it failed passes in release at HEAD. The nightly-only macOS `Serve soak` step
+grew a steady 2280 bytes per 50-request connection there. At HEAD the soak passes in release on
+Windows, and 071663316 (a spawned tree's start-up bytes leave the tree that spawned it) is the likely
+fix. Only the next nightly can confirm it on macOS. If it is red there again, that run's soak is the
+slice to take first.
+
+No test is expected to go red from stage 1: no other file reads `nvs fmt`'s exit code above `0`.
 
 ### Next
 
-**Stage 1: the CLI side**, one file set: `crates/nvs-cli/src/fmt.rs`, `crates/nvs-cli/tests/fmt.rs`,
-`tools/nv/cmd/scaling.ts`. No gate.
+**Stage 2: one statement per line, a closing brace on its own line, `elseif`.** One file set:
+`crates/nvs-fmt/src/indent.rs`, `crates/nvs-fmt/src/brace.rs`, `crates/nvs-fmt/src/tokens.rs`,
+`crates/nvs-fmt/tests/base_style.rs`. No gate. Do the split first, as the standing decision says.
 
-- [ ] Exit `2` for a refused file, `1` for one that would change (`rule:tooling/fmt-exit-status-says-what-it-found`). `crates/nvs-cli/src/fmt.rs:129`, `crates/nvs-cli/src/fmt.rs:154`
-- [ ] The walk skips `vendor/` (`rule:tooling/fmt-check-writes-nothing`). `crates/nvs-cli/src/fmt.rs:177`, `crates/nvs-cli/src/check.rs:215`
-- [ ] `--check` with `--stdin`. `crates/nvs-cli/src/fmt.rs:95`
-- [ ] A test for each of the three. `crates/nvs-cli/tests/fmt.rs:78`
-- [ ] The rule fragment names the `vendor/` skip. `docs/rules/tooling/fmt-check-writes-nothing.md:1`
-- [ ] The fmt ladder's doc comment states the new codes. `tools/nv/cmd/scaling.ts:561`
-- [ ] `rule:tooling/fmt-exit-status-says-what-it-found` is `shipped`. `data/rules/tooling/fmt-exit-status-says-what-it-found.json:3`
+- [ ] Two statements on one line are split onto two lines. `crates/nvs-fmt/src/indent.rs:116`
+- [ ] A `}` that shares a line with the statement before it moves onto a line of its own. `crates/nvs-fmt/src/brace.rs:87`
+- [ ] `else if` is written `elseif`. `crates/nvs-syntax/src/parser/stmt.rs:411`, `crates/nvs-fmt/src/tokens.rs:163`
+- [ ] A base-style test for each. `crates/nvs-fmt/tests/base_style.rs:1`, `crates/nvs-fmt/tests/corpus.rs:52`
+- [ ] Both records are deleted. `data/gaps/nvs-fmt/closing-brace-is-moved-onto-a.json:1`, `data/gaps/nvs-fmt/else-if-is-kept-as-two-words.json:1`
+
+Stage 3 shares no file with stage 2, so a session with room may take it after.
 
 ### Backlog
 
