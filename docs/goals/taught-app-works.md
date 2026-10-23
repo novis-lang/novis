@@ -6,7 +6,7 @@ context: [docs/rules/security/csrf-is-on-by-default.md, docs/rules/core-classes/
 stages:
   - id: 1
     title: "a SQLite writer waits for the lock, and a new file database opens in WAL"
-    status: open
+    status: done
     context: [crates/nvs-db/src/sqlite.rs, crates/nvs-db/src/conn.rs, crates/nvs-config/src/tree.rs, crates/nvs-config/src/defaults.rs, crates/nvs-config/src/default.toml, crates/nvs-stdlib/src/session/sqlite.rs, docs/reference/tools/20-config.md, docs/rules/core-classes/db-statement-members.md]
   - id: 2
     title: "`Core\\Csrf::token` returns a token bound to the session the response sends"
@@ -93,7 +93,9 @@ own files the request's remaining `wall_time` as its `sqlite3_busy_timeout`. The
 `nvs-host`'s blocking pool, never on a core, as every SQLite statement does
 (`crates/nvs-db/src/sqlite.rs:1644`). An unbounded wait stays impossible
 (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`). A statement's own deadline still
-wins. Outside a request, the run's own `wall_time` bounds it the same way.
+wins. Outside a request, the run's own `wall_time` bounds it the same way. A run with no
+`wall_time` waits `nvs_db::sqlite::LOCK_WAIT`, the five seconds a fresh connection already waits.
+The request's time bounds the lock wait alone and does not interrupt a running statement.
 
 **WAL is applied at open, to a file database the program may write.** `:memory:`, a read-only open and
 `journal_mode = "delete"` skip it. The accepted values are `"wal"` and `"delete"`. Any other value is
@@ -133,11 +135,11 @@ bounds that row. Language surface: one member and one key, each with its help.
 **Does:** fifty simultaneous inserts through `Core\Db` all succeed, and a database file opened for
 writing is in WAL unless its block says `journal_mode = "delete"`.
 
-- [ ] APP-1: a statement with no deadline of its own files the request's remaining `wall_time` as its busy timeout, through `set_busy_timeout` (`rule:core-classes/db-statement-members`). `crates/nvs-db/src/sqlite.rs:1658`, `crates/nvs-db/src/conn.rs:1221`
-- [ ] APP-1: `open` runs the session store's `PRAGMA journal_mode = WAL` for a writable file database, skipping `:memory:`, a read-only open and `journal_mode = "delete"`. `crates/nvs-db/src/sqlite.rs:723`, `crates/nvs-stdlib/src/session/sqlite.rs:44`
-- [ ] The `[db.<name>] journal_mode` key: `"wal"` by default, `"delete"` the other value, anything else refused at load naming the key, and its row in the config reference. `crates/nvs-config/src/tree.rs:1052`, `crates/nvs-config/src/defaults.rs:544`, `crates/nvs-config/src/default.toml:679`, `docs/reference/tools/20-config.md:62`
-- [ ] The rule says what a SQLite connection opens with and what WAL spends, and the statement rule says what a statement with no deadline waits for (`rule:core-classes/db-statement-members`). `docs/rules/core-classes/db-statement-members.md:1`
-- [ ] The attack, as a Rust test because the harness cannot hold two requests at once: fifty connections insert at once and all succeed, a lock held past the remaining time fails as `Deadlock`, and `journal_mode = "delete"` leaves no `-wal` file. It is named in the rule's `guardedBy`. `crates/nvs-db/tests/sqlite_contention.rs:1`
+- [x] APP-1: a statement with no deadline of its own files the request's remaining `wall_time` as its busy timeout, through `set_busy_timeout` (`rule:core-classes/db-statement-members`). `crates/nvs-db/src/sqlite.rs:1658`, `crates/nvs-db/src/conn.rs:1221`
+- [x] APP-1: `open` runs the session store's `PRAGMA journal_mode = WAL` for a writable file database, skipping `:memory:`, a read-only open and `journal_mode = "delete"`. `crates/nvs-db/src/sqlite.rs:723`, `crates/nvs-stdlib/src/session/sqlite.rs:44`
+- [x] The `[db.<name>] journal_mode` key: `"wal"` by default, `"delete"` the other value, anything else refused at load naming the key, and its row in the config reference. `crates/nvs-config/src/tree.rs:1052`, `crates/nvs-config/src/defaults.rs:544`, `crates/nvs-config/src/default.toml:679`, `docs/reference/tools/20-config.md:62`
+- [x] The rule says what a SQLite connection opens with and what WAL spends, and the statement rule says what a statement with no deadline waits for (`rule:core-classes/db-statement-members`). `docs/rules/core-classes/db-statement-members.md:1`
+- [x] The attack, as a Rust test because the harness cannot hold two requests at once: fifty connections insert at once and all succeed, a lock held past the remaining time fails as `Deadlock`, and `journal_mode = "delete"` leaves no `-wal` file. It is named in the rule's `guardedBy`. `crates/nvs-db/tests/sqlite_contention.rs:1`
 
 ### 2. `Core\Csrf::token` returns a token bound to the session the response sends
 
@@ -193,20 +195,44 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new. Nothing has started. `Core\Db`'s SQLite connections open with `foreign_keys` alone, a
-statement with no deadline answers `SQLITE_BUSY` at once, and `Core\Csrf` has `issue` and `verify`.
+Stage 1 has landed. `Core\Db`'s statement path calls `nvs_db::Connection::set_statement_deadline`,
+which files the request's remaining `wall_time` as SQLite's busy timeout. A run with no `wall_time`
+gets `nvs_db::sqlite::LOCK_WAIT`, five seconds, which is `SESSION_PRAGMAS`' figure. A writable file
+opens in WAL through `SqliteTarget::wal`, read from `nvs_config::db::JournalMode`. A bad
+`journal_mode` is `E0601` at boot, and the four server drivers refuse the key as they refuse `path`.
+The session store sets `wal: true` and no longer runs its own pragma. The three cases in
+`crates/nvs-db/tests/sqlite_contention.rs` pass, and the rule names the file in its `guardedBy`.
+`Core\Csrf` still has only `issue` and `verify`.
+
+The acceptance sweep's `env-secret-proofs` check was green when it was read again (exit 0), and no
+live goal defines it now.
 
 ### Next
 
-**Stage 1**, on `crates/nvs-db/src/sqlite.rs`, `crates/nvs-db/src/conn.rs` and `crates/nvs-config`.
-No gate. Stage 2 may run beside it as a side goal once its SESS-1 gate holds.
+**The nightly CI failures come first, in a session of their own.** Run 39922764699 built
+`7b6ef53ee`, 46 commits behind this handoff, so the first step is a fresh nightly on HEAD. Then fix
+what is still red. The causes the old run showed, each with its jobs:
 
-- [ ] A statement with no deadline waits up to the request's remaining `wall_time` (`rule:core-classes/db-statement-members`). `crates/nvs-db/src/sqlite.rs:1658`
-- [ ] WAL at open for a writable file database. `crates/nvs-db/src/sqlite.rs:723`
-- [ ] The `journal_mode` key and its reference row. `crates/nvs-config/src/tree.rs:1052`
-- [ ] The rule text. `docs/rules/core-classes/db-statement-members.md:1`
-- [ ] The fifty-writer Rust test. `crates/nvs-db/tests/sqlite_contention.rs:1`
+- [ ] `benches/abi-probe/tests/perf_guards.rs:2648` `a_class_without_a_property_observer_costs_nothing_extra`: three unhooked property accesses emit 9 calls, not 0. Cost guards on all three platforms and the extension sandbox probes.
+- [ ] `bun nv proofs --gate`: 770 features owe a proof, most of them "perf: stale" since `crates/nvs-stdlib/src/str.rs` changed. Proofs on all three platforms. `tools/nv/cmd/proofs.ts:1`
+- [ ] `website/src/data/core.json` and `llms-full.txt` are stale against their sources. The chapter-examples job. `website/src/data/core.json:1`
+- [ ] 59 conformance cases under `tests/conformance/novis` (image, spreadsheet, pdf, intl) fail with "the extension used all of the request's CPU time". Linux conformance. `tests/conformance/novis/image-a-barcode-renders-as-png.nvst:1`
+- [ ] Windows: `E0607` "grants write access to BUILTIN\Users" at `crates/nvs-cli/src/serve.rs:3370` and `crates/nvs-cli/src/worker.rs:2356`, then the reload at `serve.rs:4849` and a `PoisonError` at `service.rs:1351`.
+- [ ] `crates/nvs-stdlib/src/io.rs:5060` `a_windows_alias_is_refused_by_its_text_before_any_network_attempt` under asan.
+- [ ] Probably flaky, rerun first: `crates/nvs-cli/tests/serve_isolation.rs:614` (linux-aarch64), `crates/nvs-cli/src/serve.rs:4459` (macOS cost guards), `crates/nvs-ext/tests/http.rs:356` (macOS, no free loopback port).
+
+**Then stage 2**, on `crates/nvs-stdlib/src/csrf.rs` and `crates/nvs-stdlib/src/session.rs`.
+
+- [ ] `Core\Csrf::token` binds to the id the response sends and marks the session written. `crates/nvs-stdlib/src/csrf.rs:305`
+- [ ] Session gives `token` that id, a fresh one included. `crates/nvs-stdlib/src/session.rs:172`
+- [ ] The two throws, the two rules' text and the Rust tests beside the member. `crates/nvs-stdlib/src/csrf.rs:305`
+
+Tests that may go red at the gate: `crates/nvs-config/tests/defaults.rs` (the new `journal_mode`
+row against its `# default` line), any test that asserts SQLite answers `SQLITE_BUSY` at once, and
+any case that reads a SQLite file's journal mode.
 
 ### Backlog
 
 - Stages 3 and 4 follow stage 2 in their own sessions. `docs/examples/core/Csrf/token/about.md`
+- `journal_mode` has its line in `default.toml` and its row in the config reference. Stage 5 checks
+  that `nvs agent show` reaches it, so its Help proof is not owed.
