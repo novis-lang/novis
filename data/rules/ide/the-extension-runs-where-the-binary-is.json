@@ -1,5 +1,5 @@
 {
-  "title": "The extension is `novis-lang.nvs`, language `nvs`, `extensionKind: [\"workspace\"]`, built as a `.vsix` and published nowhere",
+  "title": "The extension is `novis-lang.nvs`, language `nvs`, `extensionKind: [\"workspace\"]`, built as a `.vsix` that every release attaches and no Marketplace lists",
   "status": "shipped",
   "seeAlso": [
     "ide/the-extension-claims-nvs-only",

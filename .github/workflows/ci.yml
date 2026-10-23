@@ -715,9 +715,10 @@ jobs:
   # Linux, for what only a running editor can answer
   # (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`).
   #
-  # The `.vsix` is a build artifact and is published nowhere: no Marketplace, no
-  # release asset (`rule:ide/the-extension-runs-where-the-binary-is`). One leg
-  # uploads it, since the package is the same bytes on all three.
+  # Here the `.vsix` is a build artifact. A release builds its own copy at the
+  # release's version and attaches it, and no Marketplace lists it
+  # (`rule:ide/the-extension-runs-where-the-binary-is`). One leg uploads it,
+  # since the package is the same bytes on all three.
   # ---------------------------------------------------------------------------
   extension:
     name: extension / ${{ matrix.name }}

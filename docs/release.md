@@ -12,14 +12,16 @@ exactly one trigger, and it is a person choosing `Run workflow`.
 
 | | | Writes |
 |---|---|---|
-| 1 | `plan` — the next version, and the notes rendered from the commit log | nothing |
+| 1 | `plan` — the next version, and the notes rendered from the commit log, or for the first release the written [release-notes/first.md](release-notes/first.md) | nothing |
 | 2 | `test` — the whole of [ci.yml](../.github/workflows/ci.yml), called, not copied | nothing |
 | 3 | `build` — six targets, each at the version being released | nothing |
-| 4 | `publish` — bump, changelog, commit, tag, push, draft release | **everything, at once** |
+| 3b | `vsix` — the VS Code extension as `nvs-<version>.vsix`, at the version being released | nothing |
+| 4 | `publish` — bump, changelog, commit, tag, push, draft release with the archives and the `.vsix` | **everything, at once** |
 | 5 | `docker` — two image variants, from the binaries step 3 built, each smoke-tested by `tests/docker/smoke.sh` before it is pushed | the immutable image tags; in a dry run, nothing |
 
 Then, on the click that publishes the draft, [release-promote.yml](../.github/workflows/release-promote.yml)
-moves `latest` and the `MAJOR.MINOR` image tags. It rebuilds nothing — it re-points a tag at a
+moves `latest` and the `MAJOR.MINOR` image tags, then deploys the website again so it shows the new
+version. It rebuilds no image — it re-points a tag at a
 digest that already exists — and the website's Docker guide,
 [docker.mdx](../website/src/content/docs/guides/production/docker.mdx), is the user-facing half of
 all this.
@@ -29,9 +31,11 @@ would leave a version commit and a tag on `main` for a release that does not exi
 have to be undone by hand on `main`. Nothing is written until every test and every
 binary is green.
 
-## Before the first release: setting up GitHub
+## Setting up GitHub
 
-Six things, once. **None of them is a secret** — see *Credentials* below.
+GitHub is set up for releases: § 1 to § 5 are done. They are here for a new fork or a moved
+repository, and § 6 is the one step left, after the first release. **None of them is a secret** — see
+*Credentials* below.
 
 ### 1. The code is on `main`, and `landing` is the default branch
 
@@ -147,20 +151,23 @@ thing to question.
 
 6. That click starts [release-promote.yml](../.github/workflows/release-promote.yml), which points
    the `latest` and `MAJOR.MINOR` container tags at the digest already published under the version
-   tag. Nothing is rebuilt. If the `docker` job had to be re-run by hand and the promotion was
-   therefore missed, dispatch that workflow with the tag — it is idempotent.
+   tag. Nothing is rebuilt. Its last step dispatches [pages.yml](../.github/workflows/pages.yml) on
+   `main`, so the website shows the new version: the release commit was pushed with the run's
+   `GITHUB_TOKEN`, and that push started no workflow. If the `docker` job had to be re-run by hand
+   and the promotion was therefore missed, dispatch that workflow with the tag — it is idempotent.
 
 ## The version scheme is not plain SemVer
 
 `rule:packaging/below-1-0-the-breaking-slot-moves-left` owns it, and the website's
 [What changed](../website/src/content/docs/in-depth/what-changed.mdx) page says it to users. What
-it means for `bump`, from today's 0.0.1:
+it means for `bump`. `Cargo.toml` says 0.0.1 and no `v*` tag exists, so the first release is the
+version the tree already says, and the release commit changes `CHANGELOG.md` alone:
 
-| `bump` | Result | |
-|---|---|---|
-| `patch` | 0.0.2 | |
-| `minor` | 0.0.2 | the same, deliberately: below 1.0 there is no third slot for a compatible feature |
-| `major` | 0.1.0 | **and refuses unless `allow_contract` is ticked** |
+| `bump` | First release | Once `v0.0.1` exists | |
+|---|---|---|---|
+| `patch` | 0.0.1 | 0.0.2 | |
+| `minor` | 0.0.1 | 0.0.2 | the same, deliberately: below 1.0 there is no third slot for a compatible feature |
+| `major` | 0.1.0 | 0.1.0 | **and refuses unless `allow_contract` is ticked** |
 
 That refusal is not a formality. `rule:packaging/the-version-contract-starts-at-0-1-0` makes 0.1.0 the release that ends the prototyping
 regime and declares the version contract — "the switch is thrown once, in the commit that tags
@@ -182,7 +189,10 @@ it and the commit log this workflow reads is written by an unattended loop, not 
 ## What an archive carries
 
 Each archive carries a keyless build provenance attestation, so there is no key to leak, and the
-release carries `SHA256SUMS`. How a user checks both is the website's
+release carries `SHA256SUMS`. The release also attaches the VS Code extension as `nvs-<version>.vsix`,
+attested the same way and listed in `SHA256SUMS`; `publish` refuses a release without it. Its version
+is the release's, because `--apply` rewrites `editors/vscode/package.json` and its lockfile with the
+workspace. No Marketplace lists it. How a user checks both is the website's
 [install page](../website/src/content/docs/install/index.mdx) § *Check a release archive*.
 
 Archives are deliberately **not** stripped. `[profile.release]` in [Cargo.toml](../Cargo.toml)

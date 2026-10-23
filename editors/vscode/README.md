@@ -64,9 +64,11 @@ which `rule:ide/novis-ships-names-not-colours` refuses. So the glyph is one BMP 
 emoji presentation, no colour font to be at the mercy of, drawn in the editor's own face and coloured by
 a theme reference (`rule:ide/tainted-has-no-default-decoration`).
 
-**Nothing is published.** CI builds an installable `.vsix` as an artifact. There is no Marketplace
-publisher, no listing and no branding; `rule:ide/one-server-two-thin-clients` § *Revisiting* keeps that
-question open.
+**Each release attaches the `.vsix`, and the Marketplace lists nothing.** CI builds an installable
+`.vsix` as an artifact, and every release attaches `nvs-<version>.vsix` at its own version beside the
+archives. A user installs it with *Install from VSIX...* in the Extensions view. There is no Marketplace
+publisher and no listing; `rule:ide/one-server-two-thin-clients` § *Revisiting* keeps that question
+open.
 
 **One version, compared by series.** The extension's `version` is the workspace's, from the root
 `Cargo.toml`, and the client refuses a server outside its own `major.minor`
