@@ -92,6 +92,7 @@ use nvs_runtime::{
 };
 
 use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child_ordered, suspend_current};
+use crate::stack::Role;
 use crate::watchdog::Registration;
 
 pub use nvs_runtime::script::Program;
@@ -1089,108 +1090,116 @@ fn start_as_task(
     // A served request runs before the next ready connection is admitted, so
     // what it allocates is counted first (`crate::scheduler::spawn_child_next`).
     let next = isolate_ctx.inbound().is_some();
-    let spawned = spawn_child_ordered(isolate_ctx, TaskRoot::Request, next, move |child| {
-        // Moved in so the guard is dropped with the body — including when the
-        // body is torn down half-way through by a forced unwind.
-        let ended = ended;
-        // Published here, where the body starts on this core, and not at the
-        // spawn: [`Published`] owns why. Withdrawn by the same guard, held past
-        // `ended` below: the answer is filed there, while
-        // `rule:concurrency/after-response-outlives-the-connection`'s work runs
-        // on this stack afterwards and is this request's CPU as much as its body
-        // was.
-        let _published = watch.map(|watch| Published::new(watch, child));
-        let began = timed.then(Instant::now);
-        let answer = program(child, args);
-        // `rule:core-classes/html-later`: the page is the body with every slot
-        // filled, so the pass runs before the answer is copied out.
-        nvs_runtime::later::run_later(child);
-        // Stopped where the body stops and before the crossing below, so the
-        // copy-out lands on the parent's side of the split rather than inside
-        // the child's own compute.
-        let wall = began.map(|at| at.elapsed());
-        let mut completion = finish(child, answer, receiving.as_ref());
-        completion.wall = wall;
-        // `rule:concurrency/a-connection-is-a-root-isolate`: a connection isolate's end **is** the connection's end,
-        // and § 7 asks for a defined code rather than the reset a dropped
-        // descriptor gives. This is the one place that holds both halves — the
-        // socket is a field of this child's context and the answer it ended
-        // with is in hand — so a close written anywhere else would be reading
-        // one of the two through something that outlived it.
-        //
-        // Every isolate but a connection's has no peer and takes this branch
-        // never, which is why it is asked of the context rather than of a flag
-        // this builder would have to carry.
-        //
-        // **A panic does not reach this line, and that is the answer rather
-        // than an omission.** `nvs_runtime::run_task` contains one — the core
-        // survives it and [`Started::join`] hands the waiter a cancelled
-        // completion — but the unwind runs [`Ended`]'s `Drop` and leaves,
-        // closing the descriptor with the child's context and giving the peer
-        // the reset § 7 asks this branch to replace. Moving the close into that
-        // guard is the only way to answer otherwise and it is refused twice
-        // over: the guard holds no context to reach a peer through, and a close
-        // is a *write*, which parks — where a stack being unwound may not
-        // (`crate::scheduler`'s module doc, `nvs_runtime::HelperFrame`). Nor is
-        // it the case § 1 is about: a panic is `rule:errors/escalation-ladder`'s engine floor rather
-        // than one of the `[limits]` a connection has a budget of, and every
-        // one of *those* arrives here as a fault because
-        // `nvs_runtime::run_helper` caught it a frame earlier.
-        if let Some(peer) = child.peer() {
-            peer.close(if completion.ok {
-                nvs_runtime::Closing::Done
-            } else {
-                // Including a `[limits]` budget the connection ran past, which
-                // is what makes this the answer to § 1's "closed with a defined
-                // code": the limit machinery has already torn the isolate down
-                // by here, so the peer is told why instead of reading a reset.
-                nvs_runtime::Closing::Faulted
-            });
-        }
-        // `rule:concurrency/after-response-outlives-the-connection`'s condition, read off the answer this isolate just
-        // produced: a program that threw, exited or was torn down runs none of
-        // its after-response work, and `nvs_runtime::deferred`'s module doc
-        // owns why those registrations are released unrun instead.
-        //
-        // **Two questions, because an `exit` is not a failure.** Its answer
-        // crosses and `Completion::ok` is true, so the flag alone cannot tell it
-        // from the last top-level statement having run; the status the program
-        // recorded (`Ctx::ending`) is what does. A finish records none, which is
-        // the whole of why the fourth ending comes out on this side of the gate.
-        let deferred = completion.ok && child.ending().is_ok() && child.has_deferred();
-        *filed.borrow_mut() = Some(completion);
-        // The answer is filed and the guard publishes it, so from here whoever
-        // was waiting may take it and go. Everything below therefore runs on a
-        // tree its joiner has already let go of, which is what § 6 means by the
-        // connection ending while the request tree does not.
-        drop(ended);
-        if deferred {
-            // Before a line of the work, and in this order for a reason a
-            // comment is the only place to keep: a task's death cancels what it
-            // left running (`crate::scheduler`), and the task that joined this
-            // one is a connection about to return. Nothing has yielded between
-            // the wake above and this call, so the connection cannot have
-            // reached its own end in between — this is the last moment the link
-            // can be cut, and the first at which cutting it costs nothing.
-            crate::scheduler::detach_current();
-            // Then the core, to whoever was waiting. § 6's work runs *after
-            // the response is written*, and on one core that is a scheduling
-            // fact rather than a turn of phrase: this task is runnable and the
-            // joiner has only just been woken, so a drain started here would
-            // put the whole of a request's after-response work in front of the
-            // bytes the client is still waiting for. One slice is enough — the
-            // joiner resumes inside the poll that was waiting for this answer,
-            // and what it does with it either finishes or parks on the socket.
-            let resumed = suspend_current(Waiting::Yielded);
-            if resumed.cancelled() {
-                // `rule:concurrency/cancellation-runs-no-user-code`: no user code runs on the way out of a
-                // cancellation, and the registrations are released with the
-                // context a few lines from here.
-                return;
+    // The program's stack comes from the program pool, so a connection never
+    // takes a stack a program grew deep (`crate::stack`'s *One pool per role*).
+    let spawned = spawn_child_ordered(
+        isolate_ctx,
+        TaskRoot::Request,
+        next,
+        Role::Program,
+        move |child| {
+            // Moved in so the guard is dropped with the body — including when the
+            // body is torn down half-way through by a forced unwind.
+            let ended = ended;
+            // Published here, where the body starts on this core, and not at the
+            // spawn: [`Published`] owns why. Withdrawn by the same guard, held past
+            // `ended` below: the answer is filed there, while
+            // `rule:concurrency/after-response-outlives-the-connection`'s work runs
+            // on this stack afterwards and is this request's CPU as much as its body
+            // was.
+            let _published = watch.map(|watch| Published::new(watch, child));
+            let began = timed.then(Instant::now);
+            let answer = program(child, args);
+            // `rule:core-classes/html-later`: the page is the body with every slot
+            // filled, so the pass runs before the answer is copied out.
+            nvs_runtime::later::run_later(child);
+            // Stopped where the body stops and before the crossing below, so the
+            // copy-out lands on the parent's side of the split rather than inside
+            // the child's own compute.
+            let wall = began.map(|at| at.elapsed());
+            let mut completion = finish(child, answer, receiving.as_ref());
+            completion.wall = wall;
+            // `rule:concurrency/a-connection-is-a-root-isolate`: a connection isolate's end **is** the connection's end,
+            // and § 7 asks for a defined code rather than the reset a dropped
+            // descriptor gives. This is the one place that holds both halves — the
+            // socket is a field of this child's context and the answer it ended
+            // with is in hand — so a close written anywhere else would be reading
+            // one of the two through something that outlived it.
+            //
+            // Every isolate but a connection's has no peer and takes this branch
+            // never, which is why it is asked of the context rather than of a flag
+            // this builder would have to carry.
+            //
+            // **A panic does not reach this line, and that is the answer rather
+            // than an omission.** `nvs_runtime::run_task` contains one — the core
+            // survives it and [`Started::join`] hands the waiter a cancelled
+            // completion — but the unwind runs [`Ended`]'s `Drop` and leaves,
+            // closing the descriptor with the child's context and giving the peer
+            // the reset § 7 asks this branch to replace. Moving the close into that
+            // guard is the only way to answer otherwise and it is refused twice
+            // over: the guard holds no context to reach a peer through, and a close
+            // is a *write*, which parks — where a stack being unwound may not
+            // (`crate::scheduler`'s module doc, `nvs_runtime::HelperFrame`). Nor is
+            // it the case § 1 is about: a panic is `rule:errors/escalation-ladder`'s engine floor rather
+            // than one of the `[limits]` a connection has a budget of, and every
+            // one of *those* arrives here as a fault because
+            // `nvs_runtime::run_helper` caught it a frame earlier.
+            if let Some(peer) = child.peer() {
+                peer.close(if completion.ok {
+                    nvs_runtime::Closing::Done
+                } else {
+                    // Including a `[limits]` budget the connection ran past, which
+                    // is what makes this the answer to § 1's "closed with a defined
+                    // code": the limit machinery has already torn the isolate down
+                    // by here, so the peer is told why instead of reading a reset.
+                    nvs_runtime::Closing::Faulted
+                });
             }
-            nvs_runtime::deferred::run_deferred(child);
-        }
-    });
+            // `rule:concurrency/after-response-outlives-the-connection`'s condition, read off the answer this isolate just
+            // produced: a program that threw, exited or was torn down runs none of
+            // its after-response work, and `nvs_runtime::deferred`'s module doc
+            // owns why those registrations are released unrun instead.
+            //
+            // **Two questions, because an `exit` is not a failure.** Its answer
+            // crosses and `Completion::ok` is true, so the flag alone cannot tell it
+            // from the last top-level statement having run; the status the program
+            // recorded (`Ctx::ending`) is what does. A finish records none, which is
+            // the whole of why the fourth ending comes out on this side of the gate.
+            let deferred = completion.ok && child.ending().is_ok() && child.has_deferred();
+            *filed.borrow_mut() = Some(completion);
+            // The answer is filed and the guard publishes it, so from here whoever
+            // was waiting may take it and go. Everything below therefore runs on a
+            // tree its joiner has already let go of, which is what § 6 means by the
+            // connection ending while the request tree does not.
+            drop(ended);
+            if deferred {
+                // Before a line of the work, and in this order for a reason a
+                // comment is the only place to keep: a task's death cancels what it
+                // left running (`crate::scheduler`), and the task that joined this
+                // one is a connection about to return. Nothing has yielded between
+                // the wake above and this call, so the connection cannot have
+                // reached its own end in between — this is the last moment the link
+                // can be cut, and the first at which cutting it costs nothing.
+                crate::scheduler::detach_current();
+                // Then the core, to whoever was waiting. § 6's work runs *after
+                // the response is written*, and on one core that is a scheduling
+                // fact rather than a turn of phrase: this task is runnable and the
+                // joiner has only just been woken, so a drain started here would
+                // put the whole of a request's after-response work in front of the
+                // bytes the client is still waiting for. One slice is enough — the
+                // joiner resumes inside the poll that was waiting for this answer,
+                // and what it does with it either finishes or parks on the socket.
+                let resumed = suspend_current(Waiting::Yielded);
+                if resumed.cancelled() {
+                    // `rule:concurrency/cancellation-runs-no-user-code`: no user code runs on the way out of a
+                    // cancellation, and the registrations are released with the
+                    // context a few lines from here.
+                    return;
+                }
+                nvs_runtime::deferred::run_deferred(child);
+            }
+        },
+    );
 
     let Some(id) = spawned else {
         // Unreachable from inside a turn: holding a `Wake` is `current_task`

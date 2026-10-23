@@ -694,6 +694,7 @@ impl Reactor {
     /// As [`Reactor::poll`].
     pub fn turn(&mut self, sched: &mut Scheduler) -> io::Result<usize> {
         loop {
+            let mut trim = None;
             let timeout = if sched.ready_count() > 0 {
                 Some(Duration::ZERO)
             } else if sched.parked_count() > 0
@@ -701,6 +702,8 @@ impl Reactor {
                     && self.timers.is_empty()
                     && self.remote_waits() == 0)
             {
+                // The idle trim bounds it too, while a pooled stack waits for
+                // one (`crate::stack`'s *The idle trim*).
                 // A filed deadline bounds the wait; with none, only readiness
                 // or a cross-thread wake can end it. Either way this is the
                 // blocking state rule 4 names, and the deadline only says how
@@ -708,9 +711,15 @@ impl Reactor {
                 // something that can end the wait even though this core holds
                 // no descriptor for it — that is the whole state a task waiting
                 // on the blocking pool is in.
-                self.timers
+                let due = self
+                    .timers
                     .next_due()
-                    .map(|at| at.saturating_duration_since(Instant::now()))
+                    .map(|at| at.saturating_duration_since(Instant::now()));
+                trim = sched.idle_wait();
+                match (due, trim) {
+                    (Some(due), Some(trim)) => Some(due.min(trim)),
+                    (due, trim) => due.or(trim),
+                }
             } else {
                 return Ok(0);
             };
@@ -732,7 +741,10 @@ impl Reactor {
                     woken += 1;
                 }
             }
-            let can_still_wake = !self.timers.is_empty() || self.remote_waits() > 0;
+            // A wait the trim bounded comes back to call it again, and the
+            // tasks it left parked can still be woken by what they wait on.
+            let can_still_wake =
+                !self.timers.is_empty() || self.remote_waits() > 0 || trim.is_some();
             if woken > 0 || timeout == Some(Duration::ZERO) || !can_still_wake {
                 return Ok(woken);
             }
