@@ -10,16 +10,20 @@ update exists and whether or not a telemetry send succeeded
 (`rule:tooling/a-failed-upload-never-fails-the-command`); automation reads the JSON.
 
 **The human output** is these lines, in this order, each written and flushed as it happens:
-`telemetry: off, ...` with the upload URL or the note that `NVS_TELEMETRY_URL` is not set, `this
+`telemetry: on, ...` or `telemetry: off, ...` with the upload URL or the note that `NVS_TELEMETRY_URL`
+is not set, `this
 version: <v>`, `reading the latest release from <url>`, then either `latest version: <v>` and one of
 `an update is available: <local> to <latest>` or `you have the latest version`, or `could not read the
 latest release: <why>`. The latest version is the Releases API document's `tag_name` with a leading
 `v` removed. Versions compare number by number, and a release follows its own pre-release.
 
-**`--json`** prints `{"schema":1,"telemetry":"off","telemetry_url":…,"local":…,"latest":…,
+**`--json`** prints `{"schema":1,"telemetry":"on"|"off","telemetry_url":…,"local":…,"latest":…,
 "update_available":…,"error":…}` in that key order. `latest` and `update_available` are `null` when the
 request failed, and `error` is `null` when it did not. The request is one `GET` with a ten-second
 bound over the transport `Core\Http\Client` uses, and its reply is capped at 1 MiB.
 
-**Not on disk.** `nvs telemetry` does not exist, so the switch always reads `off` and no upload
-history is printed (`rule:tooling/telemetry-is-two-opt-ins`).
+The switch is on when the data folder's consent is `on` and neither `DO_NOT_TRACK` nor `CI` is set
+(`rule:tooling/telemetry-is-two-opt-ins`).
+
+**Not on disk.** Nothing uploads yet, so no upload history is printed
+(`rule:tooling/a-serving-process-never-uploads`).

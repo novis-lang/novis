@@ -1,11 +1,12 @@
 {
   "title": "`nvs telemetry show` prints the exact payload the next upload would send, and the schema, the endpoint contracts and the aggregated data are all published",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "tooling/telemetry-counters-are-a-closed-set",
     "tooling/telemetry-is-two-opt-ins",
     "config/telemetry-and-update-endpoints-are-configuration"
   ],
-  "guardedBy": [],
-  "goal": "cli-housekeeping"
+  "guardedBy": [
+    "crates/nvs-cli/src/telemetry.rs"
+  ]
 }

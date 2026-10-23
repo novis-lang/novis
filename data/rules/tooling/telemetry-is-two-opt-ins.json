@@ -1,6 +1,6 @@
 {
   "title": "Usage telemetry and the update check are two independent opt-ins, both off by default, and neither ever implies the other",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "tooling/telemetry-counters-are-a-closed-set",
     "tooling/a-serving-process-never-uploads",
@@ -8,6 +8,7 @@
     "config/telemetry-and-update-endpoints-are-configuration",
     "packaging/a-package-is-its-digest"
   ],
-  "guardedBy": [],
-  "goal": "cli-housekeeping"
+  "guardedBy": [
+    "crates/nvs-cli/src/telemetry.rs"
+  ]
 }

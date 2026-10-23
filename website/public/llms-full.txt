@@ -54205,6 +54205,79 @@ COMPONENTS (339)
 ...
 ```
 
+### nvs telemetry
+
+    nvs telemetry on|off|status|reset|show
+
+Telemetry counts how often each `nvs` command runs. It is off until you run `nvs telemetry on`. The
+counters are in a plain file in the data folder (see `--data`), and you can read it with any editor.
+
+Telemetry and `nvs update-check` are two separate settings. Turning one on does not turn on the
+other.
+
+| Command | What it does |
+|---|---|
+| `nvs telemetry on` | Starts recording. Each `nvs` command after it adds 1 to its counter. |
+| `nvs telemetry off` | Stops recording. The counters already recorded stay in the file. |
+| `nvs telemetry status` | Prints whether telemetry is on, the path of the counter file, the upload address and how many uploads were accepted. |
+| `nvs telemetry reset` | Deletes the `telemetry` folder in the data folder. Telemetry is then off. |
+| `nvs telemetry show` | Prints the exact JSON document that the next upload sends. |
+
+Nothing is uploaded unless `NVS_TELEMETRY_URL` is set. Deleting the `telemetry` folder in the data
+folder does the same as `nvs telemetry reset`.
+
+**`DO_NOT_TRACK` and `CI`.** If either variable is set to a value that is not empty, telemetry is off
+for that command. Nothing is recorded and nothing is uploaded. Your setting is not changed, and
+`nvs telemetry status` names the variable. Most CI services set `CI`.
+
+**The counters.** Each command adds 1 to one counter:
+
+- `invocation.<command>` counts one run of a command, such as `invocation.run` or
+  `invocation.serve`. The name of the command comes from the list of commands that `nvs` has.
+- `invocation.unknown` counts a command line that runs no command. This includes a mistyped command,
+  `--help` and `--version`. Your text never becomes a counter name.
+- `internal-error.<command>` counts a crash of `nvs` itself during that command. It is counted once.
+  The error message is not recorded.
+- `internal-error.unknown` is the same for a command line that runs no command.
+
+An error in your program is not an internal error, and it is not counted. `nvs serve` adds 1 to
+`invocation.serve` when it starts. Nothing about requests is counted.
+
+**The upload.** An upload sends one JSON document for one finished week:
+
+```json
+{"schema":1,"version":"0.4.0","os":"linux","arch":"x86_64","week":"2026-W42","first":false,"days_active":3,"counters":{"invocation.run":41,"invocation.serve":2,"internal-error.check":1}}
+```
+
+| Field | What it is |
+|---|---|
+| `schema` | The version of this format. It is `1`. |
+| `version` | The version of `nvs`. |
+| `os` | `linux`, `macos`, `windows` or `other`. |
+| `arch` | `x86_64`, `aarch64` or `other`. |
+| `week` | The week the counters are for, as an ISO week in UTC. A week starts on Monday. |
+| `first` | `true` until one upload from this data folder is accepted. |
+| `days_active` | On how many days of that week `nvs` ran, from 1 to 7. |
+| `counters` | Each counter that is above zero. |
+
+The document contains no machine ID, no time of day, no arguments, no paths and no environment
+variables.
+
+`nvs telemetry show` prints the document on standard output. If the week is not finished yet, a note
+on standard error says so. The counter file looks like this:
+
+```text
+### Usage counters of `nvs telemetry`. Run `nvs telemetry show` to see what an upload sends.
+uploads 0
+bytes 0
+week 2026-W43
+days 0000100
+invocation.run 3
+invocation.telemetry 1
+```
+
+`days` has one digit for each day from Monday to Sunday. `1` means that `nvs` ran on that day.
+
 ### nvs meta --json
 
     nvs meta --json [entry.nvs]

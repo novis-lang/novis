@@ -988,6 +988,19 @@
     },
     {
       "area": "cli",
+      "slug": "nvs-telemetry",
+      "url": "/reference/cli/nvs-telemetry/",
+      "title": "nvs telemetry",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-telemetry",
+        "title": "nvs telemetry",
+        "examples": "tools/cli/nvs-telemetry"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
       "slug": "nvs-meta-json",
       "url": "/reference/cli/nvs-meta-json/",
       "title": "nvs meta --json",

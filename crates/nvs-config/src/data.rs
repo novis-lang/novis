@@ -7,6 +7,7 @@
 //! [`Folder::logs`] and [`Folder::sessions`]; each of those has a configuration key that moves it
 //! or replaces it, and this module only owns the default. `logs/` is the default only for a service: `nvs_cli`'s hosted entry point reads it
 //! when the resolved tree sets no `[log] target`, and the command line keeps `stderr`.
+//! [`Folder::telemetry`] has no key: it belongs to the user who runs `nvs`, not to a deployment.
 //!
 //! **One value per process.** The CLI names the folder once at startup through [`set`], and every
 //! reader asks [`current`]. A process that never set one — an in-process test, a library caller —
@@ -164,6 +165,13 @@ impl Folder {
     #[must_use]
     pub fn lsp_root(&self) -> PathBuf {
         self.root.join("lsp")
+    }
+
+    /// `telemetry/`: the consent and counter files of `nvs telemetry`, which only `nvs telemetry
+    /// on` creates. Deleting it deletes everything telemetry recorded.
+    #[must_use]
+    pub fn telemetry(&self) -> PathBuf {
+        self.root.join("telemetry")
     }
 
     /// `logs/`: where a service writes `nvs.log` when its configuration sets no `[log] target`.

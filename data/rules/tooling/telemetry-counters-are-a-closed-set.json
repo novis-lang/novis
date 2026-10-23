@@ -1,12 +1,13 @@
 {
   "title": "A counter is `invocation.<subcommand>` or `internal-error.<subcommand>` from the compiled-in command table, or its `unknown` bucket, the payload adds only `first` and `days_active` to the version, system and week, and nothing derived from traffic is ever counted",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "tooling/telemetry-is-two-opt-ins",
     "tooling/telemetry-show-prints-the-payload",
     "tooling/a-telemetry-report-is-checked-against-a-closed-schema",
     "observability/the-runtime-exports-what-it-already-measures"
   ],
-  "guardedBy": [],
-  "goal": "cli-housekeeping"
+  "guardedBy": [
+    "crates/nvs-cli/src/telemetry.rs"
+  ]
 }
