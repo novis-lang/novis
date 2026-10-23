@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { README, ROADMAP, ROADMAP_END, ROADMAP_START, renderRoadmap, roadmapProblems, writeRoadmap, type Roadmap } from "../lib/site-roadmap.ts";
+import { README, ROADMAP, ROADMAP_END, ROADMAP_START, pruneRetired, renderRoadmap, roadmapProblems, writeRoadmap, type Roadmap } from "../lib/site-roadmap.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -79,5 +79,30 @@ describe("site roadmap", () => {
     tmp.put(README, "# Novis\n");
     expect(roadmapProblems(root)).toEqual([`${README}: no roadmap markers; put ${ROADMAP_START} and ${ROADMAP_END} where the list goes`]);
     expect(writeRoadmap(root)).not.toBeNull();
+  });
+
+  test("--retired drops the retired goals and their emptied themes, and commits", () => {
+    const root = tree(GOOD);
+    const git = (...args: string[]) => Bun.spawnSync(["git", ...args], { cwd: root, stdout: "pipe", stderr: "pipe" });
+    for (const args of [["init", "-q"], ["config", "user.name", "t"], ["config", "user.email", "t@example.com"], ["config", "core.hooksPath", ".none"], ["add", "-A"], ["commit", "-q", "-m", "start"]]) {
+      expect(git(...args).exitCode).toBe(0);
+    }
+    tmp.put("docs/goals/README.md", "---\nlooper: 1\nchain: [fmt, cli, pkg]\n---\n# Goals\n");
+    tmp.put("docs/goals/pkg.md", "# pkg\n");
+    expect(roadmapProblems(root)).toContain(`${ROADMAP}: "Editor" has no goal left on the chain; remove the theme`);
+    expect(pruneRetired(root)).toEqual({ said: "dropped live, editor and 1 theme(s), and committed", ok: true });
+    expect(roadmapProblems(root)).toEqual([]);
+    const map = JSON.parse(readFileSync(join(root, ROADMAP), "utf8")) as Roadmap;
+    expect(map.internal).toEqual([]);
+    expect(map.themes.map((t) => t.title)).toEqual(["Command line", "Packages"]);
+    expect(git("log", "-1", "--format=%s").stdout.toString().trim()).toBe("chore(site): the roadmap drops live, editor, retired from the chain");
+    expect(pruneRetired(root)).toEqual({ said: "the roadmap names no retired goal", ok: true });
+  });
+
+  test("--retired keeps a goal off the chain whose file is still there", () => {
+    const root = tree(GOOD, ["fmt", "cli", "editor", "pkg"]);
+    tmp.put("docs/goals/live.md", "# live\n");
+    expect(pruneRetired(root)).toEqual({ said: "the roadmap names no retired goal", ok: true });
+    expect(roadmapProblems(root)).toEqual([`${ROADMAP}: \`internal\` names live, which is not on the chain`]);
   });
 });

@@ -9,10 +9,11 @@
 // `bun nv site --check roadmap` fails when a goal on the chain is in no theme and not internal, when a
 // theme or `internal` names a goal that is not on the chain, when a goal is named twice, when a theme
 // has no goals left, when the themes are not in the chain order of their first goal, and when the
-// README's copy differs. So a new goal joins a theme when it joins the chain, and a theme leaves the
-// page when its last goal is retired.
+// README's copy differs. So a new goal joins a theme when it joins the chain. A retired goal leaves the
+// file through `bun nv site --roadmap --retired`, looper's `after_retire` hook, and a theme leaves the
+// page with its last goal.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { chainGoals } from "./chain.ts";
 
@@ -86,6 +87,34 @@ export function writeRoadmap(root: string): string | null {
   if (next === null) return `${README}: no roadmap markers; put ${ROADMAP_START} and ${ROADMAP_END} where the list goes`;
   if (next !== readme) writeFileSync(join(root, README), next);
   return null;
+}
+
+/**
+ * `--roadmap --retired`, looper's `after_retire` hook: drop each goal that is off the chain and has no
+ * goal file, which is what a retirement leaves, and each theme left with no goal. Then write the
+ * README's list and commit both files when either changed. The retirement commits only the goals
+ * directory, so without this the check is red after every goal end. A slug off the chain whose file
+ * is still there is not retired, and stays for the check to name. Gives what it did, or the problem.
+ */
+export function pruneRetired(root: string): { said: string; ok: boolean } {
+  const map = readRoadmap(root);
+  if (typeof map === "string") return { said: map, ok: false };
+  const on = new Set(chainGoals(root).map((g) => g.slug));
+  const retired = (slug: string) => !on.has(slug) && !existsSync(join(root, "docs/goals", `${slug}.md`));
+  const gone = [...map.internal, ...map.themes.flatMap((t) => t.goals)].filter(retired);
+  if (gone.length === 0) return { said: "the roadmap names no retired goal", ok: true };
+  const raw = JSON.parse(read(root, ROADMAP) ?? "{}") as Roadmap;
+  raw.internal = raw.internal.filter((s) => !retired(s));
+  raw.themes = raw.themes.map((t) => ({ ...t, goals: t.goals.filter((s) => !retired(s)) })).filter((t) => t.goals.length > 0);
+  const dropped = map.themes.length - raw.themes.length;
+  writeFileSync(join(root, ROADMAP), `${JSON.stringify(raw, null, 2)}\n`);
+  const problem = writeRoadmap(root);
+  if (problem !== null) return { said: problem, ok: false };
+  const git = (args: string[]) => Bun.spawnSync(["git", ...args], { cwd: root, stdout: "pipe", stderr: "pipe" });
+  const subject = `chore(site): the roadmap drops ${gone.join(", ")}, retired from the chain`;
+  const commit = git(["commit", "-q", "-m", subject, "--only", "--", ROADMAP, README]);
+  if (commit.exitCode !== 0) return { said: `the commit failed: ${commit.stderr.toString().trim()}`, ok: false };
+  return { said: `dropped ${gone.join(", ")} and ${dropped} theme(s), and committed`, ok: true };
 }
 
 /** Every way the roadmap is out of step with the chain or the README, one line each. */
