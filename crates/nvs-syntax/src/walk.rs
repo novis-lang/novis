@@ -56,6 +56,11 @@
 //! statements are the property's, so `nvs fmt`'s indenter would measure them
 //! from the property's line rather than from the hook's.
 //!
+//! A `case` or a `default` of a `switch` is a node, `Case`, for the same
+//! reason: its statements sit one level in from its own line, and the
+//! `switch`'s children are its subject and then one `Case` each. A `Case`'s
+//! value, when it has one, is its first child.
+//!
 //! The alternative was one node per struct in [`crate::ast`], and
 //! `rule:tooling/reflection-and-source-parsing-are-core-features`'s typed
 //! roster is not it: that roster is one class per *production*, which is
@@ -93,7 +98,7 @@
 //! at all, and needs no placeholder for a `secret` one.
 //!
 //! **What it spends:** one [`Node`] per statement, expression, member,
-//! attribute, property hook and shape type —
+//! attribute, property hook, `switch` case and shape type —
 //! two words for the kind, a span, an optional second span for the name, and
 //! two `Vec` headers, allocated per parse and dropped when the caller is done
 //! with it, plus one small allocation for each node that has a field at all.
@@ -117,7 +122,7 @@ use crate::ast::{
     ClassMemberKind,
     DestructureElement, DestructureTarget, EnumCase, Expr, ExprKind, FnBody, FnExpr, ForInit,
     ForeachBinding, ForeachBindingTy, IncDecOp, MemberName, MethodMember, NewTarget, Param,
-    PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, TestOperand, Type, TypeAtom,
+    PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, SwitchCase, TestOperand, Type, TypeAtom,
     TypeKind, UnaryOp,
 };
 use crate::parse_file;
@@ -196,6 +201,7 @@ pub const KINDS: &[&str] = &[
     "Bool",
     "Break",
     "Call",
+    "Case",
     "Catch",
     "ClassConstAccess",
     "ClassDecl",
@@ -485,10 +491,7 @@ fn stmt(s: &Stmt) -> Node {
         }
         StmtKind::Switch { subject, cases } => {
             kids.push(expr(subject));
-            for case in cases {
-                push_opt(&mut kids, case.cond.as_ref());
-                kids.extend(case.body.iter().map(stmt));
-            }
+            kids.extend(cases.iter().map(switch_case));
             "Switch"
         }
         StmtKind::Break(depth) => {
@@ -1240,6 +1243,21 @@ fn push_fn(kids: &mut Vec<Node>, f: &FnExpr) {
     match &f.body {
         FnBody::Expr(e) => kids.push(expr(e)),
         FnBody::Block(b) => push_block(kids, b),
+    }
+}
+
+/// One `Case` node for a `case` or the `default` of a `switch`, holding its
+/// value and then its statements.
+fn switch_case(case: &SwitchCase) -> Node {
+    let mut kids = Vec::new();
+    push_opt(&mut kids, case.cond.as_ref());
+    kids.extend(case.body.iter().map(stmt));
+    Node {
+        kind: "Case",
+        span: case.span,
+        name: None,
+        children: kids,
+        fields: Vec::new(),
     }
 }
 

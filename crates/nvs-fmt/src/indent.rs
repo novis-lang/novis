@@ -24,11 +24,17 @@
 //! # A line is re-indented only where the tree says what it is
 //!
 //! [`Indent::of_line`] answers [`None`] for a line the tree does not place, and
-//! the printer then copies the author's own whitespace. That is what keeps a
-//! rule that has not landed yet from moving a byte: a continuation line inside
-//! an item of a list, a `switch` case and a template region's own text are all
-//! bytes some later rule owns, and answering [`None`] for them is how this one
-//! stays inside `rule:tooling/fmt-never-reflows`.
+//! the printer then copies the author's own whitespace. Two kinds of line are
+//! never placed, and both are rules rather than gaps:
+//!
+//! - **A template region's own text**, every byte after a `?>`, is what the
+//!   program prints, so changing it would change the program's output
+//!   (`rule:tooling/fmt-base-style-is-per`).
+//! - **A continuation line that is not a part of a broken list, call chain
+//!   or operator chain**, such as the second line of a long condition the
+//!   author wrapped. This formatter chooses no line break inside an
+//!   expression, so it has no depth of its own to give that line, and
+//!   `rule:tooling/fmt-never-reflows` keeps the author's.
 //!
 //! A line is placed when it opens an item, a comment between two items or the
 //! closer of a broken list ([`crate::list`]) or an arrow of a broken call
@@ -85,10 +91,14 @@ pub(crate) const ARM_LIST: &str = "Match";
 /// that carries them. `NamespaceDecl` is here for its bracketed form and costs
 /// nothing in the statement form, which has no body to contain anything. `New`
 /// carries an anonymous class's members, `Property` its hooks, and
-/// `PropertyHook` a hook's body.
+/// `PropertyHook` a hook's body. A `switch` has no `Block`: `Switch` carries
+/// its braces and its cases, and each `Case` its statements, which is what
+/// puts a case one level in from the `switch` and its statements one further.
 pub(crate) const BODIES: &[&str] = &[
     "Block",
     "Try",
+    "Switch",
+    "Case",
     "ClassDecl",
     "InterfaceDecl",
     "EnumDecl",
@@ -101,14 +111,12 @@ pub(crate) const BODIES: &[&str] = &[
     "New",
 ];
 
-/// The node kinds whose interior layout no landed rule states yet.
+/// The node kinds whose interior is never laid out.
 ///
-/// A `switch` indents its cases and their statements by different amounts, so
-/// it is not the `+1 per body` this module counts; inline HTML is a program's
-/// own output bytes and never a formatter's. A line anywhere inside one of
-/// these is left exactly as its author wrote it, which is the safe direction
-/// and the one an editor saving a file expects.
-pub(crate) const OPAQUE: &[&str] = &["Switch", "InlineHtml"];
+/// Inline HTML is a program's own output bytes and never a formatter's
+/// (`rule:tooling/fmt-base-style-is-per`). A line anywhere inside it is left
+/// exactly as its author wrote it.
+pub(crate) const OPAQUE: &[&str] = &["InlineHtml"];
 
 /// Where each line of a file sits, answered from that file's parse.
 pub(crate) struct Indent<'a> {

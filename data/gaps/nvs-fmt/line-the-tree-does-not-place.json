@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-fmt/src/lib.rs",
-  "title": "A line the tree does not place keeps the author's own indentation.",
-  "text": "`indent.rs`'s own doc says which ones those are: a `switch`, a template region's own text, and every continuation line inside an expression. The first two are rules that have not landed — the `?>` that opens a template region is code and is placed, the text after it is not — and a continuation line is placed by `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`, `rule:tooling/fmt-a-broken-call-chain-is-one-call-per-line` or `rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line` when it is a part of a broken construct, and otherwise stays the author's under `rule:tooling/fmt-never-reflows`. A comment line is placed with the code below it, so it follows that code's answer.",
-  "goal": "formatter-complete"
-}

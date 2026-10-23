@@ -56,9 +56,8 @@
 //!
 //! A `match` arm list is laid out by [`crate::indent`], not here. An
 //! enum on one line keeps its `{` on the `enum` line, which [`crate::brace`]
-//! writes from [`List::on_one_line`]. A list inside a `switch` or inline HTML
-//! is kept as written, like every other line there ([`crate::indent`]'s
-//! `OPAQUE`).
+//! writes from [`List::on_one_line`]. A list inside inline HTML is kept as
+//! written, like every other line there ([`crate::indent`]'s `OPAQUE`).
 //!
 //! # What it spends
 //!
