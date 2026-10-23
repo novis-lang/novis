@@ -1,0 +1,3 @@
+# The server checks CSRF tokens with this key. This attack uses a fixed key.
+[http]
+csrf_key = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc"

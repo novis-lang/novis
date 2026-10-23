@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `token()` needs a started session.
+
+// The session is not started yet, so `token()` throws a `RuntimeError`.
+try {
+    echo Core\Csrf::token();
+} catch (RuntimeError $e) {
+    echo "no session yet: RuntimeError\n";
+}
+
+// After `Core\Session::start()`, the call works. The token has 99 characters, so this prints `99`.
+Core\Session::start();
+string $token = Core\Csrf::token();
+echo "token length: ", Core\Str::length($token), "\n";
