@@ -23,9 +23,11 @@
 //!
 //! **The server checks its own configuration files** —
 //! `rule:config/the-config-is-an-immutable-snapshot`'s last paragraph. [`check`]
-//! starts one thread that, every [`CHECK`], takes the stamp (`mtime` and size)
-//! of every path the serving tree was read from or probed
-//! ([`Snapshot::files`] and [`Snapshot::probed`]). A stamp that moved and then
+//! starts one thread that, every [`CHECK`], takes the stamp (`mtime`, size and
+//! file identity) of each root as given and every path the serving tree was
+//! read from or probed ([`Snapshot::files`] and [`Snapshot::probed`]). The
+//! root's stamp follows its links, so a link swapped to a new file moves it
+//! even when the old file is still there. A stamp that moved and then
 //! holds for one more check is a saved file, and [`Process::noticed`] resolves
 //! the tree again and publishes it through the same steps every reload runs.
 //! A tree equal to the one serving publishes nothing, so a file saved with the
@@ -35,11 +37,12 @@
 //! file, and this check has nothing to stat.
 //!
 //! **A reload re-reads the roots the boot stored; it never chooses or writes
-//! one.** The boot canonicalized the roots it read
+//! one.** The boot stored each root as the absolute path it was given
 //! (`rule:config/the-resolved-root-is-announced-and-stored`), and a reload
-//! resolves those paths through [`crate::config::stored_set`]. It never asks
-//! the working directory or the data folder again, so a directory replaced
-//! under the running process does not change which file is read. A boot on the
+//! resolves those paths through [`crate::config::stored_set`], following their
+//! links again. So a swapped `current` link or a changed Kubernetes ConfigMap
+//! is read without a restart. It never asks the working directory or the data
+//! folder again, so a `nvs.toml` that appears there later is not read. A boot on the
 //! shipped defaults reloads the shipped defaults. The boot may have created a
 //! default `nvs.toml` ([`crate::config::Init`]), and a reload never does: that
 //! would be a file appearing on disk because a file next to it was saved.
@@ -72,14 +75,15 @@
 //! read the process's drain, which only a stop begins.
 //!
 //! Cost, as `rule:programs/memory-priority` requires: one of these per process,
-//! holding the canonical roots, the restart keys already logged with their two
+//! holding the roots as given, the restart keys already logged with their two
 //! values, and the last refusal the check logged. A reload holds one snapshot's
 //! worth of tree while it resolves and drops the previous one when the new one
 //! is published; requests already running keep theirs, which is
 //! `rule:config/the-config-is-an-immutable-snapshot`'s own promise and bounds
 //! that hold at O(in-flight). The check is one thread per process, asleep
-//! between passes, and one `stat` per configuration file per [`CHECK`]. No
-//! request makes one.
+//! between passes, and one `stat` per configuration file and per root per
+//! [`CHECK`], with one open more on Windows to read the file index. Each stamp
+//! is two more integers than a time and a size. No request makes one.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -134,9 +138,10 @@ pub(crate) struct Process {
     /// The published tree — what the accept loop hands a request at its start,
     /// and what a reload replaces whole.
     current: Arc<Current>,
-    /// The canonical roots this boot read (`crate::config::Root::stored`), so a
-    /// reload reads the same files and never asks the working directory or the
-    /// data folder again (`rule:config/the-resolved-root-is-announced-and-stored`).
+    /// The roots this boot was given, absolute and not canonical
+    /// (`crate::config::Root::stored`), so a reload follows their links again
+    /// and never asks the working directory or the data folder again
+    /// (`rule:config/the-resolved-root-is-announced-and-stored`).
     roots: nvs_config::Roots,
     /// The mount rows the server answers from, whose entries a reload folds
     /// before it publishes (`rule:http-server/the-served-file-is-optional`), or
@@ -509,16 +514,22 @@ impl Process {
         self.logged(&outcome, changed);
     }
 
-    /// Every path the serving tree was read from or probed, with its stamp now.
+    /// Every path the serving tree was read from or probed, and each root as
+    /// the boot was given it, with its stamp now. The tree's files are canonical,
+    /// so a root's own stamp is what sees a link that points somewhere new.
     ///
     /// Only [`check`] calls this, once before its thread starts and then once
     /// per pass, so the `stat` calls grow with the passes and never with the
     /// requests.
     fn stamps(&self) -> Vec<(PathBuf, Stamp)> {
         let serving = self.current.load();
-        serving
-            .files
+        let roots = match &self.roots {
+            nvs_config::Roots::Defaults => &[][..],
+            nvs_config::Roots::Files(paths) => &paths[..],
+        };
+        roots
             .iter()
+            .chain(&serving.files)
             .chain(&serving.probed)
             .map(|path| (path.clone(), stamp(path)))
             .collect()
@@ -557,13 +568,53 @@ impl crate::service::hosted::Running for Process {
 /// directive: no operator needs to tune how quickly a saved file is noticed.
 pub(crate) const CHECK: Duration = Duration::from_secs(2);
 
-/// A path's modification time and size, or `None` where it is absent.
-type Stamp = Option<(SystemTime, u64)>;
+/// A path's modification time, size and file identity, or `None` where it is
+/// absent. The identity is what moves when a link is swapped to a file with the
+/// same time and size, and it is `None` where it could not be read.
+type Stamp = Option<(SystemTime, u64, Option<(u64, u64)>)>;
 
-/// The stamp of `path` now.
+/// The stamp of `path` now, following its links.
 fn stamp(path: &Path) -> Stamp {
     let meta = std::fs::metadata(path).ok()?;
-    Some((meta.modified().ok()?, meta.len()))
+    Some((meta.modified().ok()?, meta.len(), identity(path, &meta)))
+}
+
+/// The device and inode `path` reaches.
+#[cfg(unix)]
+fn identity(_path: &Path, meta: &std::fs::Metadata) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    Some((meta.dev(), meta.ino()))
+}
+
+/// The volume serial number and file index `path` reaches. `std` keeps both
+/// behind an unstable feature, so they are read off an open handle.
+#[cfg(windows)]
+fn identity(path: &Path, _meta: &std::fs::Metadata) -> Option<(u64, u64)> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Storage::FileSystem::{
+        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+    };
+    let file = std::fs::File::open(path).ok()?;
+    let mut info = BY_HANDLE_FILE_INFORMATION::default();
+    #[expect(
+        unsafe_code,
+        reason = "`GetFileInformationByHandle` is the stable way to read a file's volume and file \
+                  number off a handle. The handle is borrowed from a live `File`, and the \
+                  out-parameter is a stack struct this call owns exclusively."
+    )]
+    let ok = unsafe { GetFileInformationByHandle(file.as_raw_handle(), &raw mut info) };
+    (ok != 0).then(|| {
+        (
+            u64::from(info.dwVolumeSerialNumber),
+            u64::from(info.nFileIndexHigh) << 32 | u64::from(info.nFileIndexLow),
+        )
+    })
+}
+
+/// No identity where the platform has none to read.
+#[cfg(not(any(unix, windows)))]
+fn identity(_path: &Path, _meta: &std::fs::Metadata) -> Option<(u64, u64)> {
+    None
 }
 
 /// Starts the configuration check: one thread that, every [`CHECK`], takes

@@ -420,15 +420,19 @@ accepted into the wrong block.
 
 <a id="config-the-resolved-root-is-announced-and-stored"></a>
 
-## The resolved root is canonicalized once at boot, announced with every file it reached, and re-read from that stored path on reload
+## The resolved root is stored once at boot as the absolute path it was given, announced with every file it reached, and resolved again through its links on reload
 
 `rule:config/the-resolved-root-is-announced-and-stored`
 
-Whichever step won is **canonicalized to an absolute path once, at boot, and stored**. A reload
-re-reads that stored path and never re-resolves the working directory or the data folder, so a
-deployment that replaced its directory under a running process reloads the file the operator can see
-rather than an unlinked inode, and a `nvs.toml` that appears in the working directory later is not
-read until the next boot. A boot on the shipped defaults reloads the shipped defaults.
+Whichever step won is **stored once, at boot, as the absolute path it was given, never its
+canonical path**. A reload resolves that stored path again, through its links, and never re-resolves
+the working directory or the data folder. So a swapped `current` link or a changed Kubernetes
+ConfigMap is read by the next reload without a restart, a deployment that replaced its directory
+under a running process reloads the file the operator can see rather than an unlinked inode, and a
+`nvs.toml` that appears in the working directory later is not read until the next boot. A boot on
+the shipped defaults reloads the shipped defaults. The configuration check stats each stored root
+as given, beside the files the tree reached, and a stamp carries the file's identity, so a link that
+points at a new file with the same time and size is still noticed.
 
 `nvs serve` prints the root as it was found, the path it was read from, and every file the tree
 reached, on standard error before it binds:
