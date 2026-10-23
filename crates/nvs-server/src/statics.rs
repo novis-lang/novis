@@ -12,8 +12,10 @@
 //! no production one; the switch decides *whether* step 3 runs, never what it
 //! does.
 //!
-//! What § 4 states, in the order [`send`] answers it:
+//! What § 4 states, in the order [`serve`] and [`send`] answer it:
 //!
+//! - **`GET` and `HEAD` only.** Any other method at a static file is a `405`
+//!   with `Allow: GET, HEAD`, which is [`serve`]'s test in front of [`send`].
 //! - **The exact file, never a listing.** A directory answers nothing here —
 //!   [`crate::mount::Existing::file`] refused it a step earlier — and a `.nvs`
 //!   file is never served as source, which is [`crate::mount`]'s extension test
@@ -65,10 +67,10 @@ use std::time::SystemTime;
 
 use hyper::body::Bytes;
 use hyper::header::{
-    ACCEPT_RANGES, CACHE_CONTROL, CONTENT_RANGE, CONTENT_SECURITY_POLICY, CONTENT_TYPE, ETAG,
-    HeaderMap, HeaderValue, IF_NONE_MATCH, IF_RANGE, RANGE,
+    ACCEPT_RANGES, ALLOW, CACHE_CONTROL, CONTENT_RANGE, CONTENT_SECURITY_POLICY, CONTENT_TYPE,
+    ETAG, HeaderMap, HeaderValue, IF_NONE_MATCH, IF_RANGE, RANGE,
 };
-use hyper::{Response, StatusCode};
+use hyper::{Method, Response, StatusCode};
 
 use nvs_runtime::conditional::{Asked, Decision, Window, decide, unsatisfied_range};
 
@@ -198,12 +200,33 @@ pub fn asked(headers: &HeaderMap) -> HeaderMap {
     kept
 }
 
+/// Step 3's answer to a request whose path selected `file`: a `405` with
+/// `Allow: GET, HEAD` for any other method, and [`send`]'s answer for those two.
+///
+/// A file under a static root is read-only, so a write method has nothing to
+/// do there. Sending the file for a `POST` would answer a request that meant to
+/// change something as if it had. A program's `Core\Response::sendFile` does not
+/// come through here: a program may answer any method with a file.
+#[must_use]
+pub fn serve(file: &Path, method: &Method, headers: &HeaderMap, source: &dyn Source) -> Reply {
+    if !matches!(*method, Method::GET | Method::HEAD) {
+        let mut response = Response::new(Answer::empty());
+        *response.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
+        response
+            .headers_mut()
+            .insert(ALLOW, HeaderValue::from_static("GET, HEAD"));
+        return Reply::Done(response);
+    }
+    send(file, headers, source)
+}
+
 /// `rule:http-server/a-request-resolves-in-five-steps`'s static policy over one selected file.
 ///
-/// `headers` are the request's, which is all of a request this reads: a method
-/// is `hyper`'s to honour — it drops the body of a `HEAD` while keeping the
-/// headers this built — and a path was already turned into `file` by
-/// [`crate::mount`], so nothing here goes near request bytes.
+/// `headers` are the request's, which is all of a request this reads: the
+/// method was judged by [`serve`] for a mount's file and is the program's for
+/// `sendFile`, `hyper` drops the body of a `HEAD` while keeping the headers
+/// this built, and a path was already turned into `file` by [`crate::mount`],
+/// so nothing here goes near request bytes.
 ///
 /// A file that vanished between selection and this call answers `404` rather
 /// than falling back to the mount's entry: re-entering § 4 at step 5 from here
@@ -617,6 +640,26 @@ mod tests {
             .iter()
             .find(|(header, _)| header == name)
             .map_or_else(String::new, |(_, value)| value.clone())
+    }
+
+    /// A static file answers `GET` and `HEAD`, and every write method gets a
+    /// `405` naming those two, with none of the file's bytes or headers.
+    #[test]
+    fn a_static_file_answers_a_write_method_with_405() {
+        let fs = Fake::with(&[("/www/public/style.css", b"body{}", 7)]);
+        let file = p("/www/public/style.css");
+        for method in [Method::POST, Method::PUT, Method::DELETE, Method::PATCH] {
+            let refused = answered(serve(&file, &method, &HeaderMap::new(), &fs));
+            assert_eq!(refused.0, StatusCode::METHOD_NOT_ALLOWED, "{method}");
+            assert_eq!(header(&refused, "allow"), "GET, HEAD", "{method}");
+            assert_eq!(header(&refused, "etag"), "", "{method}");
+            assert!(refused.2.is_empty(), "{method} was sent the file");
+        }
+        for method in [Method::GET, Method::HEAD] {
+            let sent = answered(serve(&file, &method, &HeaderMap::new(), &fs));
+            assert_eq!(sent.0, StatusCode::OK, "{method}");
+            assert_eq!(sent.2, b"body{}", "{method}");
+        }
     }
 
     /// `rule:http-server/a-request-resolves-in-five-steps`'s static paragraph, asserted as **one** policy: the same

@@ -930,6 +930,33 @@ fn a_changed_server_block_reaches_the_next_request() {
     );
 }
 
+/// A served static file answers a write method with `405` and `Allow: GET, HEAD`,
+/// and still sends the file for a `GET`. The program never runs for either.
+#[test]
+fn a_served_static_file_answers_a_write_method_with_405() {
+    let server = Server::start(
+        "static-methods",
+        SWITCHES_ON,
+        &[
+            ("app.nvs", "<?nvs\necho \"program ran\";\n"),
+            ("style.css", "body {}\n"),
+        ],
+    );
+    server.awaits("/style.css", "the stylesheet", |answer| {
+        answer.status == 200 && answer.body == "body {}\n"
+    });
+    for method in ["POST", "PUT", "DELETE"] {
+        let answer = server.send(method, "/style.css", &[]);
+        assert_eq!(answer.status, 405, "{method}: {answer:?}");
+        assert_eq!(
+            answer.header("allow"),
+            Some("GET, HEAD"),
+            "{method}: {answer:?}"
+        );
+        assert_eq!(answer.body, "", "{method} was sent the file: {answer:?}");
+    }
+}
+
 /// A mount table of one block: `[server] root` is `root` and the block mounts
 /// `app.nvs` under it at `prefix`.
 fn mounted(root: &str, prefix: &str) -> String {
