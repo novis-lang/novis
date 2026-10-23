@@ -1074,9 +1074,15 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 // Step 3 chose a file to *send*, and sending it is one policy
                 // this command shares with every other deployment rather than a
                 // development reading of one (`nvs_server::statics`). Nothing is
-                // run for it: it is already an answer.
+                // run for it: it is already an answer, and a method other than
+                // `GET` or `HEAD` is that policy's `405`.
                 What::Static(file) => {
-                    return nvs_server::statics::send(&file, request.headers(), &OnDisk);
+                    return nvs_server::statics::serve(
+                        &file,
+                        request.method(),
+                        request.headers(),
+                        &OnDisk,
+                    );
                 }
             };
             // The snapshot the program runs under: the one the `[[app]]` blocks
