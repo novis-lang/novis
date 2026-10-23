@@ -65,6 +65,15 @@ codes! {
         "The file that `require` names cannot be loaded. It does not exist, or it is not valid \
          UTF-8 text. Check the path.",
     );
+    /// A `require` whose path is not statically known per
+    /// `rule:statements/require-is-the-only-inclusion-construct`: a variable, a call, an
+    /// interpolation, or a class constant no file read so far declares. No file is loaded for
+    /// it while compiling, so it could only ever throw where it is reached.
+    pub const E_REQUIRE_PATH_NOT_STATIC: Code = Code::new("E0330").card(
+        "The path after `require` must be known before the program runs. Write it as text, \
+         such as `require './autoload.nvs';`. A relative path starts from the folder of the file \
+         that contains the `require`. You can also join text and class constants with `.`.",
+    );
     /// A `require` chain whose statically-resolved string-literal paths lead back
     /// to a file already being resolved — `require`'s own semantics (same
     /// frame, runs every time reached) give this no other resolution than a

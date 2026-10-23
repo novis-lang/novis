@@ -1,0 +1,31 @@
+--TEST--
+A `require` whose path is not known while compiling is `E0330` at the path, in the statement and the value form, and the literal form of the same path compiles — `rule:statements/require-is-the-only-inclusion-construct`
+--FILE--
+<?nvs
+require Core\Path::thisDir() . '/lib/setup.nvs';
+
+string $dir = 'lib/';
+mixed $v = require $dir . 'setup.nvs';
+
+// The control: text joined with `.` is known while compiling, so it reports nothing.
+require './lib/' . 'setup.nvs';
+--FILE lib/setup.nvs--
+<?nvs
+echo "setup ran\n";
+--EXPECTF-ERROR--
+error[E0330]: the path of this `require` is not known while compiling
+  --> %s:2:9
+  |
+2 | require Core\Path::thisDir() . '/lib/setup.nvs';
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no file can be loaded for this path
+  = help: write the path as text, such as `require './autoload.nvs';`. A relative path starts from the folder of the file that contains the `require`
+
+error[E0330]: the path of this `require` is not known while compiling
+  --> %s:5:20
+  |
+5 | mixed $v = require $dir . 'setup.nvs';
+  |                    ^^^^^^^^^^^^^^^^^^ no file can be loaded for this path
+  = help: write the path as text, such as `require './autoload.nvs';`. A relative path starts from the folder of the file that contains the `require`
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

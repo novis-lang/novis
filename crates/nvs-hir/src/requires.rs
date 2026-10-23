@@ -6,13 +6,15 @@
 //! resolution exactly as if it had been pasted in at the `require` site.
 //! [`resolve_program`] is the entry point that makes that happen for a
 //! `require` whose path is statically known. A path that is not (a variable,
-//! an interpolated string, and the other shapes the paragraph *A statically
-//! known path* lists below) is left alone entirely here: no diagnostic and
-//! nothing collected. That is the dynamic fallback. The file graph closes
-//! while compiling (`rule:programs/no-runtime-autoload`), so no file is ever
-//! loaded for such a path, and `nvs_ir`'s lowering makes the site throw a
-//! `RuntimeError` when it is reached, which is
-//! `rule:statements/require-is-the-only-inclusion-construct`'s missing target.
+//! a call, an interpolated string, and the other shapes the paragraph *A
+//! statically known path* lists below) is `code::E_REQUIRE_PATH_NOT_STATIC` at
+//! the path, and nothing is collected for it. The file graph closes while
+//! compiling (`rule:programs/no-runtime-autoload`), so no file could ever be
+//! loaded for such a path, and the site could only throw where it is reached.
+//! A literal in a file with no on-disk path is the one `require` that reaches
+//! `nvs_ir`'s lowering with no target, and that site throws a `RuntimeError`,
+//! which is `rule:statements/require-is-the-only-inclusion-construct`'s
+//! missing target.
 //!
 //! The mechanism is the multi-file shape [`crate::resolve::Resolver`],
 //! [`crate::hierarchy::HierarchyResolver`], [`crate::members::MemberResolver`]
@@ -68,9 +70,10 @@
 //! **A file with no on-disk path resolves no relative `require`.** Every other
 //! test fixture in this crate is built with [`nvs_diagnostics::SourceMap::add`]
 //! rather than [`nvs_diagnostics::SourceMap::load`], so it has no directory to
-//! resolve against and a literal `require` written inside one is left as a
-//! dynamic fallback. That is inherent to running from a source with no path — a
-//! REPL line, `stdin` — rather than a limitation to fix.
+//! resolve against, and a literal `require` written inside one reports nothing
+//! here and throws where it is reached. The path is static, and only the folder
+//! is missing. That is inherent to running from a source with no path — a REPL
+//! line, `stdin` — rather than a limitation to fix.
 //!
 //! **The name harvest is an over-approximation, and every AST variant it
 //! walks is named.** Each `match` over an `nvs_syntax::ast` enum here — types
@@ -91,8 +94,8 @@
 //! folds a `.` between two halves that are themselves segments, so
 //! `require 'lib/' . 'db.nvs';` and `require Paths::LIB . 'db.nvs';` are
 //! resolved and bundled exactly as the one-literal spelling is. Everything
-//! else is the dynamic fallback: a heredoc/nowdoc token, an interpolation, an
-//! `as` conversion, a variable.
+//! else is `code::E_REQUIRE_PATH_NOT_STATIC`: a heredoc/nowdoc token, an
+//! interpolation, an `as` conversion, a call, a variable.
 //!
 //! **The constant folder runs ahead of the walk, and sees the files the walk
 //! has already read.** A class constant is the only constant Novis has
@@ -107,7 +110,8 @@
 //! there before any of its own paths are folded, and so are the constants of a
 //! file an *earlier* `require` in it loaded, while a constant declared in a
 //! file this walk reaches later — or reaches only through an `autoload` probe —
-//! leaves the path dynamic rather than being chased. The class side of
+//! makes the path `code::E_REQUIRE_PATH_NOT_STATIC` rather than being chased,
+//! and so does a constant nothing declares. The class side of
 //! `Class::CONST` is a written name, never `self`, a variable or an expression.
 //! Nothing here checks that the class exists or that the constant is visible
 //! from the `require`: the checker reports both, against the same expression.
@@ -162,9 +166,10 @@ pub struct Loaded {
     /// at the `require` site, and its span key is
     /// what survives both the `Stmt` move above and the crate boundary.
     ///
-    /// A path that is not a literal, that resolves to nothing loadable, or
-    /// that closes a cycle contributes no entry — each is already a
-    /// diagnostic, or the dynamic fallback `rule:statements/require-is-the-only-inclusion-construct` leaves alone. A path
+    /// A path that is not statically known, that resolves to nothing
+    /// loadable, or that closes a cycle contributes no entry, because each is
+    /// already a diagnostic. Nor does a literal in a file with no on-disk
+    /// path, whose site throws when it is reached. A path
     /// naming a file some *other* file already required does contribute one:
     /// the file is loaded once, and both sites name it.
     pub requires: Vec<(Span, SourceId)>,
@@ -390,6 +395,9 @@ fn walk(
             wanted.append(&mut harvest.names);
             scan = scan.or_else(|| harvest.scans.first().copied());
             let targets = std::mem::take(&mut harvest.requires);
+            for span in std::mem::take(&mut harvest.dynamic) {
+                report_not_static(span, diags);
+            }
             let base_dir = map
                 .file(id)
                 .path()
@@ -429,8 +437,9 @@ fn walk(
                     // before the loop: a constant declared in the file a
                     // previous target loaded is in the table by now. A
                     // constant nothing walked so far declares makes the path
-                    // not statically known, which the runtime fallback owns.
+                    // not statically known.
                     let Some(literal) = resolve_segments(&segments, &consts) else {
+                        report_not_static(span, diags);
                         continue;
                     };
                     let target = base_dir.join(&literal);
@@ -778,6 +787,9 @@ struct Harvest {
     /// because a constant in the path cannot be answered where it is read —
     /// see [`Segment`].
     requires: Vec<(Vec<Segment>, Span)>,
+    /// The span of each `require` path that is not statically known, which is
+    /// `code::E_REQUIRE_PATH_NOT_STATIC`.
+    dynamic: Vec<Span>,
     /// Each `autoload` declaration, cooked, still needing the declaring
     /// file's own directory bound to it — [`autoload::Site`]'s `base_dir`.
     autoloads: Vec<(autoload::SiteKind, Span)>,
@@ -1026,11 +1038,10 @@ fn record_implements(clauses: &[ImplementsClause], src: &SourceFile, out: &mut H
     }
 }
 
-/// Walks `stmts` looking for every `require` expression whose path is
-/// statically known, appending each one's cooked path text and span to
-/// `out`. A `require` whose path is anything else (a variable, an
-/// interpolated string) is left out entirely — that is the
-/// dynamic-fallback case this module does not touch.
+/// Walks `stmts` looking for every `require` expression, appending each
+/// statically known path's segments and span to `out.requires` and the span of
+/// every other path (a variable, a call, an interpolated string) to
+/// `out.dynamic`.
 ///
 /// The same walk harvests `rule:programs/no-runtime-autoload`'s other inputs — every `autoload`
 /// declaration, and every name that might need one — because they are found
@@ -1465,12 +1476,9 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
         ExprKind::Require { path } => {
             if let Some(segments) = require_path_segments(path, src, &out.namespace, &out.imports) {
                 out.requires.push((segments, path.span));
+            } else {
+                out.dynamic.push(path.span);
             }
-            // A dynamic path may still nest its own sub-expressions worth
-            // walking for a further, statically-resolvable `require` inside
-            // them (e.g. a ternary choosing between two literal paths, one
-            // arm still worth statically pulling in) — that generality isn't
-            // needed yet, so this stops at the top-level path expression.
         }
         // `rule:core-classes/html-template`'s html template carries the same
         // parts an interpolated string does, and a hole in either is an
@@ -1805,9 +1813,24 @@ fn collect_class_consts(
     }
 }
 
+/// Reports a `require` whose path is not statically known at that path.
+fn report_not_static(span: Span, diags: &mut Diagnostics) {
+    diags.report(
+        Diagnostic::error(
+            code::E_REQUIRE_PATH_NOT_STATIC,
+            "the path of this `require` is not known while compiling",
+        )
+        .with_primary(span, "no file can be loaded for this path")
+        .with_help(
+            "write the path as text, such as `require './autoload.nvs';`. A relative path starts \
+             from the folder of the file that contains the `require`",
+        ),
+    );
+}
+
 /// Joins a path's segments into the one path text they denote, or `None` when a
-/// constant among them is not in `consts` — the dynamic fallback, which is the
-/// same answer a variable in the path gets.
+/// constant among them is not in `consts`, which makes the path not statically
+/// known, as a variable in it does.
 fn resolve_segments(segments: &[Segment], consts: &ConstTable) -> Option<String> {
     let mut path = String::new();
     for segment in segments {
@@ -1831,9 +1854,8 @@ fn resolve_segments(segments: &[Segment], consts: &ConstTable) -> Option<String>
 /// `require __DIR__` is not the spelling Novis has, so a program building a
 /// path out of a prefix writes the prefix as a literal or a constant and
 /// concatenates, and folding the operator here is what keeps that program's
-/// target statically known rather than a dynamic fallback. A chain of any
-/// length resolves, and one dynamic operand anywhere in it makes the whole
-/// path dynamic again.
+/// target statically known. A chain of any length resolves, and one dynamic
+/// operand anywhere in it makes the whole path not statically known.
 fn require_path_segments(
     expr: &Expr,
     src: &SourceFile,
@@ -1878,7 +1900,7 @@ fn require_path_segments(
 /// written the same way denote the same bytes, octal, hex and `\u{...}`
 /// escapes included. What this adds is the *spelling* filter: a heredoc/nowdoc
 /// token's raw text starts with `<`, and that falls through to `None`, which is
-/// the dynamic fallback.
+/// not a statically known path.
 ///
 /// A literal whose escapes do not fully cook — a `\u{...}` past the Unicode
 /// ceiling, a byte escape that is not valid UTF-8 — still yields a value here,
@@ -2168,7 +2190,7 @@ class Unreached {}
     }
 
     #[test]
-    fn a_concatenation_with_a_dynamic_half_stays_dynamic() {
+    fn a_concatenation_with_a_dynamic_half_is_not_static() {
         let dir = TempDir::new("concat-dynamic");
         dir.write("lib/db.nvs", "<?nvs\nclass Db {}\n");
         dir.write(
@@ -2177,10 +2199,10 @@ class Unreached {}
         );
 
         let (module, diags) = resolve_entry(&dir, "main.nvs");
-        assert!(!diags.has_errors(), "{diags:?}");
+        assert_not_static(&diags);
         assert!(
             !module.symbols.contains(&crate::qname::QName::parse("Db")),
-            "a dynamic operand makes the whole path dynamic"
+            "a dynamic operand makes the whole path not statically known"
         );
     }
 
@@ -2223,15 +2245,22 @@ class Unreached {}
     }
 
     #[test]
-    fn a_require_path_naming_an_undeclared_const_stays_dynamic() {
+    fn a_require_path_naming_an_undeclared_const_is_not_static() {
         let dir = TempDir::new("concat-const-unknown");
         dir.write("lib/db.nvs", "<?nvs\nclass Db {}\n");
         dir.write("main.nvs", "<?nvs\nrequire Paths::LIB . 'db.nvs';\n");
 
-        let (module, _diags) = resolve_entry(&dir, "main.nvs");
+        // `Paths` itself is `E0303` beside it, at the class name.
+        let (module, diags) = resolve_entry(&dir, "main.nvs");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_REQUIRE_PATH_NOT_STATIC)),
+            "{diags:?}"
+        );
         assert!(
             !module.symbols.contains(&crate::qname::QName::parse("Db")),
-            "a constant no file walked declares leaves the path for the runtime"
+            "a constant no file walked declares loads nothing"
         );
     }
 
@@ -2342,7 +2371,7 @@ class Unreached {}
     }
 
     #[test]
-    fn a_dynamic_require_path_is_left_for_the_runtime_fallback() {
+    fn a_require_of_a_variable_is_not_static() {
         let dir = TempDir::new("dynamic");
         dir.write(
             "main.nvs",
@@ -2350,11 +2379,30 @@ class Unreached {}
         );
 
         let (_module, diags) = resolve_entry(&dir, "main.nvs");
-        assert!(!diags.has_errors(), "{diags:?}");
+        assert_not_static(&diags);
     }
 
     #[test]
-    fn a_require_with_no_on_disk_path_is_left_for_the_runtime_fallback() {
+    fn a_require_of_a_call_joined_with_a_literal_is_not_static() {
+        let dir = TempDir::new("dynamic-call");
+        dir.write("autoload.nvs", "<?nvs\n");
+        dir.write(
+            "main.nvs",
+            "<?nvs\nrequire Core\\Path::thisDir() . '/autoload.nvs';\n",
+        );
+
+        let (_module, diags) = resolve_entry(&dir, "main.nvs");
+        assert_not_static(&diags);
+    }
+
+    /// One `E_REQUIRE_PATH_NOT_STATIC`, and no other error from the walk.
+    fn assert_not_static(diags: &Diagnostics) {
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert_eq!(codes, [code::E_REQUIRE_PATH_NOT_STATIC], "{diags:?}");
+    }
+
+    #[test]
+    fn a_require_with_no_on_disk_path_reports_nothing_and_throws_when_reached() {
         let mut map = SourceMap::new();
         let id = map.add("virtual.nvs", "<?nvs\nrequire 'lib.nvs';\n");
         let mut diags = Diagnostics::new();
