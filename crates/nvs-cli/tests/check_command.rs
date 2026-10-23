@@ -88,6 +88,41 @@ fn nvs_check_reports_every_diagnostic_and_runs_nothing() {
     assert!(stderr.contains("aborting due to 2 errors"), "{stderr}");
 }
 
+/// A directory is checked as the one program `nvs test` runs for it: a class
+/// one file declares is known in the other, so the one wrong argument between
+/// them is the one error, and with it fixed the directory has none.
+// covers: tools:cli/nvs-check
+#[test]
+fn nvs_check_of_a_directory_checks_its_files_as_one_program() {
+    let dir = scratch("directory");
+    let app = dir.join("app");
+    fs::create_dir_all(app.join("lib")).unwrap();
+    fs::write(app.join("lib").join("order.nvs"), ORDER).unwrap();
+    fs::write(
+        app.join("use.nvs"),
+        "<?nvs\nOrder $o = new Order();\n$o->add(\"seven\");\n",
+    )
+    .unwrap();
+
+    let bad = check_in(&dir, &["app"]);
+    let stderr = String::from_utf8_lossy(&bad.stderr);
+    assert_eq!(bad.status.code(), Some(1), "{stderr}");
+    assert!(!stderr.contains("could not read"), "{stderr}");
+    assert!(stderr.contains("error[E0401]"), "{stderr}");
+    assert!(stderr.contains("use.nvs:3:9"), "{stderr}");
+    assert!(stderr.contains("aborting due to 1 error"), "{stderr}");
+
+    fs::write(
+        app.join("use.nvs"),
+        "<?nvs\nOrder $o = new Order();\n$o->add(7);\n",
+    )
+    .unwrap();
+    let good = check_in(&dir, &["app"]);
+    let stderr = String::from_utf8_lossy(&good.stderr);
+    assert_eq!(good.status.code(), Some(0), "{stderr}");
+    assert_eq!(String::from_utf8_lossy(&good.stdout), "no errors\n");
+}
+
 /// A file that is not UTF-8 is `E0006` at its first byte that is not, from
 /// each command that reads a source file, and a file that is not there is
 /// still the uncoded `could not read`.

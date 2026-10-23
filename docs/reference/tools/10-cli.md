@@ -18,7 +18,7 @@ usually one file:
 | Command | What it does |
 |---|---|
 | `nvs run <file>` | check, compile and run a program |
-| `nvs check <file>` | parse, resolve and type-check, reporting every diagnostic; runs nothing |
+| `nvs check <path>` | parse, resolve and type-check a file or a directory, reporting every diagnostic; runs nothing |
 | `nvs test <paths>...` | run a program's `#[Test]` methods, or a tree of `.nvst` cases |
 | `nvs build --compile <file>` | write a single-file executable holding the program's source |
 | `nvs build --openapi <file>` | write the program's OpenAPI 3.1 document to standard output |
@@ -121,11 +121,17 @@ before
 
 # nvs check
 
-    nvs check <file> [--autoload-map]
+    nvs check <path> [--autoload-map]
 
 Prints `no errors` and exits `0` when the file and everything it reaches through `require` and
 `autoload` type-checks; otherwise prints every diagnostic found and exits `1`. Nothing runs, so it
-is the command for an editor, a pre-commit hook or CI. Each diagnostic has one shape:
+is the command for an editor, a pre-commit hook or CI.
+
+The path can also be a directory. Then `nvs check` checks all the `.nvs` files under it as one
+program. This is the same program `nvs test` runs for that directory. A class that one file declares
+can be used in another file.
+
+Each diagnostic has one shape:
 
 ```text
 error[E0401]: expected `int`, found `string`
