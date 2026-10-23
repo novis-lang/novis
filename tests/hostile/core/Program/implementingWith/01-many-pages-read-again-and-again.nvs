@@ -13,7 +13,7 @@ interface Page
 // 1. Many pages, most with a route and some without, so both kinds of row are built.
 class P01 implements Page
 {
-    #[Route(path: "/p01")] public function render(): string
+    #[Route(path: '/p01')] public function render(): string
     {
         return 'p01';
     }
@@ -27,14 +27,14 @@ class P02 implements Page
 }
 class P03 implements Page
 {
-    #[Route(path: "/p03")] public function render(): string
+    #[Route(path: '/p03')] public function render(): string
     {
         return 'p03';
     }
 }
 class P04 implements Page
 {
-    #[Route(path: "/p04")] public function render(): string
+    #[Route(path: '/p04')] public function render(): string
     {
         return 'p04';
     }
@@ -48,21 +48,21 @@ class P05 implements Page
 }
 class P06 implements Page
 {
-    #[Route(path: "/p06")] public function render(): string
+    #[Route(path: '/p06')] public function render(): string
     {
         return 'p06';
     }
 }
 class P07 implements Page
 {
-    #[Route(path: "/p07")] public function render(): string
+    #[Route(path: '/p07')] public function render(): string
     {
         return 'p07';
     }
 }
 class P08 implements Page
 {
-    #[Route(path: "/p08")] public function render(): string
+    #[Route(path: '/p08')] public function render(): string
     {
         return 'p08';
     }
@@ -76,21 +76,21 @@ class P09 implements Page
 }
 class P10 implements Page
 {
-    #[Route(path: "/p10")] public function render(): string
+    #[Route(path: '/p10')] public function render(): string
     {
         return 'p10';
     }
 }
 class P11 implements Page
 {
-    #[Route(path: "/p11")] public function render(): string
+    #[Route(path: '/p11')] public function render(): string
     {
         return 'p11';
     }
 }
 class P12 implements Page
 {
-    #[Route(path: "/p12")] public function render(): string
+    #[Route(path: '/p12')] public function render(): string
     {
         return 'p12';
     }
@@ -104,21 +104,21 @@ class P13 implements Page
 }
 class P14 implements Page
 {
-    #[Route(path: "/p14")] public function render(): string
+    #[Route(path: '/p14')] public function render(): string
     {
         return 'p14';
     }
 }
 class P15 implements Page
 {
-    #[Route(path: "/p15")] public function render(): string
+    #[Route(path: '/p15')] public function render(): string
     {
         return 'p15';
     }
 }
 class P16 implements Page
 {
-    #[Route(path: "/p16")] public function render(): string
+    #[Route(path: '/p16')] public function render(): string
     {
         return 'p16';
     }
@@ -132,21 +132,21 @@ class P17 implements Page
 }
 class P18 implements Page
 {
-    #[Route(path: "/p18")] public function render(): string
+    #[Route(path: '/p18')] public function render(): string
     {
         return 'p18';
     }
 }
 class P19 implements Page
 {
-    #[Route(path: "/p19")] public function render(): string
+    #[Route(path: '/p19')] public function render(): string
     {
         return 'p19';
     }
 }
 class P20 implements Page
 {
-    #[Route(path: "/p20")] public function render(): string
+    #[Route(path: '/p20')] public function render(): string
     {
         return 'p20';
     }

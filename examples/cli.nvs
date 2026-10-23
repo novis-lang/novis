@@ -27,7 +27,7 @@
 // — one sentence, with no inference from defaults or types.
 class Greeter
 {
-    #[Core\Command(name: "greet", about: "Greet somebody by name")]
+    #[Core\Command(name: 'greet', about: 'Greet somebody by name')]
     public static function greet(string $name, #[Core\Option] bool $loud = false): uint
     {
         string $greeting = 'Hello, ' . $name . '!';

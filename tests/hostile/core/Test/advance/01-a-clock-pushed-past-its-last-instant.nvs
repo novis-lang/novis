@@ -11,7 +11,7 @@ class ClockAttack
 {
     // 1. The clock starts one second before its last instant. The first two
     //    moves reach that instant. The third move is one nanosecond too far.
-    #[Test(at: "9999-12-30T22:00:00Z")]
+    #[Test(at: '9999-12-30T22:00:00Z')]
     public function itStopsOneNanosecondPastTheEnd(): void
     {
         Test::advance(Duration::nanoseconds(999999998));
@@ -28,7 +28,7 @@ class ClockAttack
 
     // 2. The largest duration, again and again, until the clock runs out.
     //    One move is about 292 years, so this stops after a few dozen moves.
-    #[Test(at: "2026-01-01T00:00:00Z")]
+    #[Test(at: '2026-01-01T00:00:00Z')]
     public function itStopsAfterManyOfTheLargestMoves(): void
     {
         Duration $largest = Duration::nanoseconds(9223372036854775807);
@@ -45,7 +45,7 @@ class ClockAttack
     }
 
     // 3. The smallest duration, the same way, towards the first instant.
-    #[Test(at: "2026-01-01T00:00:00Z")]
+    #[Test(at: '2026-01-01T00:00:00Z')]
     public function itStopsAfterManyOfTheSmallestMoves(): void
     {
         Duration $smallest = Duration::nanoseconds(-9223372036854775807);

@@ -42,6 +42,60 @@ echo $greeting;
     assert_eq!(formatted(mangled), canonical);
 }
 
+/// An attribute is a node and its values are nodes under it, so a literal in a
+/// payload takes the same quote as one in an argument list, at every place an
+/// attribute is written. A broken payload is a list, and gains its comma.
+#[test]
+fn a_literal_inside_an_attribute_is_rewritten_to_single_quotes() {
+    let mangled = "\
+<?nvs
+
+#[Core\\Command(name: \"greet\")]
+final class Greet
+{
+    #[Doc(text: \"a\", kept: \"it's\")]
+    public string $name = \"novis\";
+
+    #[Doc(
+        text: \"b\"
+    )]
+    public function run(#[Doc(text: \"c\")] int $count): void
+    {
+    }
+}
+
+enum Mood
+{
+    #[Doc(text: \"d\")]
+    Calm,
+}
+";
+    let canonical = "\
+<?nvs
+
+#[Core\\Command(name: 'greet')]
+final class Greet
+{
+    #[Doc(text: 'a', kept: \"it's\")]
+    public string $name = 'novis';
+
+    #[Doc(
+        text: 'b',
+    )]
+    public function run(#[Doc(text: 'c')] int $count): void
+    {
+    }
+}
+
+enum Mood
+{
+    #[Doc(text: 'd')]
+    Calm,
+}
+";
+    assert_eq!(formatted(mangled), canonical);
+}
+
 #[test]
 fn a_heredoc_body_and_a_comment_are_never_touched() {
     let source = "\

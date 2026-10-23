@@ -197,12 +197,13 @@ impl Concealing<'_> {
     /// inside one is a byte of the program — concealing it would be the
     /// over-redaction `rule:ide/redaction-covers-bytes-only` refuses.
     fn property(&mut self, node: &Node) {
-        // A shape type the declaration writes is a node in front of the
-        // initializer, and holds no value.
+        // An attribute and a shape type the declaration writes are nodes in
+        // front of the initializer, and neither is a value written into the
+        // property.
         let mut children = node
             .children
             .iter()
-            .filter(|child| child.kind != "ShapeType");
+            .filter(|child| !matches!(child.kind, "Attribute" | "ShapeType"));
         if let Some(first) = children.next() {
             let secret = self
                 .exprs

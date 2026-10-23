@@ -281,6 +281,7 @@ productions![
     "AnonObject",
     "ArrayLiteral",
     "Assign",
+    "Attribute",
     "AutoloadDecl",
     "Await",
     "Binary",

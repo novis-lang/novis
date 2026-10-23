@@ -64,7 +64,7 @@ class Posts
     // (`rule:routing/a-query-parameter-is-declared-like-a-capture`), and that
     // list's last entry is now "a class implementing `Parses`" rather than
     // `Core\Uuid` written out by name.
-    #[Core\Route(path: "/posts/{slug}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Route(path: '/posts/{slug}', method: Core\Http\Method::Get, name: 'Posts::show')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(Slug $slug, #[Core\Query] Slug $tag): string
     {
@@ -74,7 +74,7 @@ class Posts
     // The engine's own class built from text, at the same site, for the
     // contrast this program's last line pins: `Core\Uuid` is one of the
     // conversions the matcher performs itself.
-    #[Core\Route(path: "/posts/by-id/{id}", method: Core\Http\Method::Get, name: "Posts::byId")]
+    #[Core\Route(path: '/posts/by-id/{id}', method: Core\Http\Method::Get, name: 'Posts::byId')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function byId(Core\Uuid $id): string
     {

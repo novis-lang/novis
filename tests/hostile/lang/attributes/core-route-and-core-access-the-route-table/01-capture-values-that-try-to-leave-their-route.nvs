@@ -6,21 +6,21 @@
 
 class Files
 {
-    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "file")]
+    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get, name: 'file')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function one(string $name): string
     {
         return $name;
     }
 
-    #[Core\Route(path: "/admin/{area}/{page}", method: Core\Http\Method::Get, name: "admin")]
+    #[Core\Route(path: '/admin/{area}/{page}', method: Core\Http\Method::Get, name: 'admin')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function admin(string $area, uint $page): string
     {
         return $area;
     }
 
-    #[Core\Route(path: "/search", method: Core\Http\Method::Get, name: "search")]
+    #[Core\Route(path: '/search', method: Core\Http\Method::Get, name: 'search')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function search(#[Core\Query] string $q = ''): string
     {

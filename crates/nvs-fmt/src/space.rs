@@ -40,10 +40,9 @@
 //! brace and one before the closing one. Only an object its author wrote on one
 //! line is this rule's — across lines it is one field per line, which is
 //! [`crate::indent`]'s depth and [`crate::tokens`]'s trailing comma rather than
-//! a space. An empty literal has no inside to space, and a literal written
-//! inside an attribute is outside every node
-//! `crates/nvs-syntax/src/walk.rs` builds, which is a known gap in
-//! [`the crate's own doc`](crate).
+//! a space. An empty literal has no inside to space. An attribute written in
+//! its bare form, `#[{a: 1}]`, is an `Attribute` node and no anonymous object,
+//! so its braces keep the spacing they were written with.
 //!
 //! A shape type's braces are the same layout in the same rule: `{a: string}`
 //! goes out as `{ a: string }`. Its node starts at a qualifier written in front

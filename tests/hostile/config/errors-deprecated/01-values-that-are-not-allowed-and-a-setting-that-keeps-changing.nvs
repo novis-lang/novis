@@ -6,7 +6,7 @@
 
 final class Old
 {
-    #[Core\Deprecated(since: "1.0")]
+    #[Core\Deprecated(since: '1.0')]
     public static function value(int $n): int
     {
         return $n;

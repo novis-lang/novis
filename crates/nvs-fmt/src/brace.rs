@@ -17,9 +17,9 @@
 //! node containing a `{` is the production that wrote it, because every
 //! construct that could hold a brace of its own — a nested block, an
 //! expression, a member — is a node in its own right. That is also what keeps a
-//! brace inside a string literal or an attribute's payload object out of this:
-//! either one is an expression node, so the innermost node at its `{` is never a
-//! declaration. The kinds below are the ones
+//! brace inside a string literal or an attribute out of this: each one is a
+//! node of its own, so the innermost node at its `{` is never a declaration.
+//! The kinds below are the ones
 //! `crates/nvs-syntax/src/walk.rs` spells, never a match on
 //! [`nvs_syntax::ast`], for the reason [`crate::indent`]'s doc gives.
 //!
@@ -124,12 +124,11 @@ pub(crate) fn placements(
 /// Reads `text[from..to]`, which is code and nothing else, and records what
 /// each brace and each continuation keyword in it wants written before it.
 ///
-/// A declaration's body opener is collected apart from the rest: an attribute's
-/// payload object is written inside the declaration it decorates and outside
-/// every node the walk builds, so it lands here as a candidate too, and the one
-/// that opens the body is the last of them — the members that follow it are
-/// nodes of their own. A declaration whose last byte is not `}` has no body at
-/// all, and then none of its candidates is one.
+/// A declaration's body opener is collected apart from the rest: every `{` the
+/// declaration writes itself is a candidate, and the one that opens the body is
+/// the last of them, because the members that follow it are nodes of their
+/// own. A declaration whose last byte is not `}` has no body at all, and then
+/// none of its candidates is one.
 fn scan(
     wanted: &mut Vec<(usize, String)>,
     bodies: &mut Vec<(IndexNode, usize)>,

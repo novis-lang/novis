@@ -23,7 +23,7 @@ final class EdgeTest
 {
     public static int $attempts = 0;
 
-    #[TestWith(stock: 18446744073709551615, floor: 9223372036854775807, ratio: 1.0e308, label: "")]
+    #[TestWith(stock: 18446744073709551615, floor: 9223372036854775807, ratio: 1.0e308, label: '')]
     #[TestWith(stock: 0, floor: -9223372036854775807, ratio: -1.0e308, label: "\u{0301}\u{0301}")]
     #[Test]
     public function rowsAtTheEndOfTheirRange(uint $stock, int $floor, float $ratio, string $label): void
@@ -34,14 +34,14 @@ final class EdgeTest
         Test::assertSame($stock + 1, 1);
     }
 
-    #[Test(retries: 9223372036854775807, because: "the largest number of retries an int can state")]
+    #[Test(retries: 9223372036854775807, because: 'the largest number of retries an int can state')]
     public function itNeverPasses(): void
     {
         EdgeTest::$attempts = EdgeTest::$attempts + 1;
         Test::assertSame(EdgeTest::$attempts, 0);
     }
 
-    #[Test(skip: "x")]
+    #[Test(skip: 'x')]
     public function theReasonIsOneLetter(): void
     {
         int $big = 9223372036854775807;

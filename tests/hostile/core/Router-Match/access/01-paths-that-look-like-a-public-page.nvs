@@ -9,14 +9,14 @@ enum Role { Admin }
 
 class Site
 {
-    #[Core\Route(path: "/pages/{slug}", method: Core\Http\Method::Get, name: "Site::page")]
+    #[Core\Route(path: '/pages/{slug}', method: Core\Http\Method::Get, name: 'Site::page')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(string $slug): string
     {
         return 'a page';
     }
 
-    #[Core\Route(path: "/pages/admin/settings", method: Core\Http\Method::Get, name: "Site::settings")]
+    #[Core\Route(path: '/pages/admin/settings', method: Core\Http\Method::Get, name: 'Site::settings')]
     #[Core\Access(allow: Role::Admin)]
     public function settings(): string
     {

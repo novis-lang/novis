@@ -5,14 +5,14 @@
 
 class Files
 {
-    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::show")]
+    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get, name: 'Files::show')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $name, #[Core\Query] string $q = ''): string
     {
         return 'one file';
     }
 
-    #[Core\Route(path: "/docs/{rest...}", method: Core\Http\Method::Get, name: "Files::docs")]
+    #[Core\Route(path: '/docs/{rest...}', method: Core\Http\Method::Get, name: 'Files::docs')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function docs(string $rest): string
     {

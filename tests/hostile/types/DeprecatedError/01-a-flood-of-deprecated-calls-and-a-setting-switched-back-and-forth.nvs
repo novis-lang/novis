@@ -6,7 +6,7 @@
 
 final class Old
 {
-    #[Core\Deprecated(since: "1.0", replace: 'Old::now($n)')]
+    #[Core\Deprecated(since: '1.0', replace: 'Old::now($n)')]
     public static function then(int $n): int
     {
         return $n;

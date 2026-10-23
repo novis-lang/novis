@@ -15,7 +15,7 @@ class Tool
     )]
     public static function deploy(
         string $target,
-        #[Core\Option(short: "n", about: "a'b\"c ] $(id) `pwd`")] bool $dryRun = false,
+        #[Core\Option(short: 'n', about: "a'b\"c ] $(id) `pwd`")] bool $dryRun = false,
     ): uint
     {
         return 0;
@@ -23,7 +23,7 @@ class Tool
 
     // A colon ends the command word of a `zsh` entry. A newline ends a line of
     // every script written here, and the description has one.
-    #[Core\Command(name: "db:migrate;id", about: "Apply pending migrations\nrm -rf /")]
+    #[Core\Command(name: 'db:migrate;id', about: "Apply pending migrations\nrm -rf /")]
     public static function migrate(): uint
     {
         return 0;
@@ -31,9 +31,9 @@ class Tool
 
     // A name and an option spelling that each try to run a command. `bash`
     // expands every word of a completion list.
-    #[Core\Command(name: "list$(id)", about: "A name that tries to run")]
+    #[Core\Command(name: 'list$(id)', about: 'A name that tries to run')]
     public static function list(
-        #[Core\Option(long: "all`pwd`", about: "An option that tries to run")] bool $all = false,
+        #[Core\Option(long: 'all`pwd`', about: 'An option that tries to run')] bool $all = false,
     ): uint
     {
         return 0;
@@ -41,7 +41,7 @@ class Tool
 
     // One ordinary command, so a generator that stopped at the first strange
     // name is still asked for a second entry after it.
-    #[Core\Command(name: "version", about: "Print the version and stop")]
+    #[Core\Command(name: 'version', about: 'Print the version and stop')]
     public static function version(): uint
     {
         return 0;

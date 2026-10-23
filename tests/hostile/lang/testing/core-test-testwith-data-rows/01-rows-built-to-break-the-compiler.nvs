@@ -20,7 +20,7 @@ class Rows
     // 2. One row holds a long text with characters outside the English
     //    alphabet, and one row holds no text at all.
     #[TestWith(text: "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijünïcödé 🙂 gr\u{0308}oss")]
-    #[TestWith(text: "")]
+    #[TestWith(text: '')]
     #[Test]
     public function itTakesATextOfAnyLength(string $text): void
     {

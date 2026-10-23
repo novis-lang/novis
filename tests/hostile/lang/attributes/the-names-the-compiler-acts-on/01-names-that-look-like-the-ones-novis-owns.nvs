@@ -18,7 +18,7 @@ type Api = { summary: string };
 //    stops the program from compiling, so every step below claims that word.
 class Jobs
 {
-    #[Core\Command(name: "import", about: "Read rows from a file")]
+    #[Core\Command(name: 'import', about: 'Read rows from a file')]
     public static function import(): void
     {}
 }
@@ -26,74 +26,74 @@ class Jobs
 // 3. Eight classes carrying the look-alike names at a class, a property, a
 //    method and a parameter, each claiming `import` again.
 #[Derive]
-#[Command(name: "import", about: "one")]
-#[Route(path: "/import", method: "GET")]
-#[Access(allow: "everyone")]
+#[Command(name: 'import', about: 'one')]
+#[Route(path: '/import', method: 'GET')]
+#[Access(allow: 'everyone')]
 class Spoof01
 {
-    #[Field(name: "import")]
+    #[Field(name: 'import')]
     public int $rows = 0;
 
-    #[Api(summary: "import")]
-    public function run(#[Option(long: "import")] int $id): int
+    #[Api(summary: 'import')]
+    public function run(#[Option(long: 'import')] int $id): int
     {
         return $id;
     }
 }
 
 #[Derive]
-#[Command(name: "import", about: "two")]
+#[Command(name: 'import', about: 'two')]
 class Spoof02
 {
-    #[Field(name: "import")]
+    #[Field(name: 'import')]
     public int $rows = 0;
 }
 
 #[Derive]
-#[Command(name: "import", about: "three")]
+#[Command(name: 'import', about: 'three')]
 class Spoof03
 {
-    #[Field(name: "import")]
+    #[Field(name: 'import')]
     public int $rows = 0;
 }
 
 #[Derive]
-#[Command(name: "import", about: "four")]
+#[Command(name: 'import', about: 'four')]
 class Spoof04
 {
-    #[Field(name: "import")]
+    #[Field(name: 'import')]
     public int $rows = 0;
 }
 
 #[Derive]
-#[Command(name: "import", about: "five")]
+#[Command(name: 'import', about: 'five')]
 class Spoof05
 {
-    #[Field(name: "import")]
+    #[Field(name: 'import')]
     public int $rows = 0;
 }
 
 #[Derive]
-#[Command(name: "import", about: "six")]
+#[Command(name: 'import', about: 'six')]
 class Spoof06
 {
-    #[Field(name: "import")]
+    #[Field(name: 'import')]
     public int $rows = 0;
 }
 
 #[Derive]
-#[Command(name: "import", about: "seven")]
+#[Command(name: 'import', about: 'seven')]
 class Spoof07
 {
-    #[Field(name: "import")]
+    #[Field(name: 'import')]
     public int $rows = 0;
 }
 
 #[Derive]
-#[Command(name: "import", about: "eight")]
+#[Command(name: 'import', about: 'eight')]
 class Spoof08
 {
-    #[Field(name: "import")]
+    #[Field(name: 'import')]
     public int $rows = 0;
 }
 
@@ -101,7 +101,7 @@ class Spoof08
 //    payload has. It tries to be read as a command by its shape.
 class Nameless
 {
-    #[{name: "import", about: "nine"}]
+    #[{name: 'import', about: 'nine'}]
     public static function run(): void
     {}
 }
@@ -110,8 +110,8 @@ class Nameless
 class Bulky
 {
     #[Command(
-        name: "import",
-        about: "00000000001111111111222222222233333333334444444444555555555566666666667777777777888888888899999999990000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999",
+        name: 'import',
+        about: '00000000001111111111222222222233333333334444444444555555555566666666667777777777888888888899999999990000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999',
     )]
     public static function run(): void
     {}

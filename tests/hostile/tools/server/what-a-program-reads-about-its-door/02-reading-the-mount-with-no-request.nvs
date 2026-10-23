@@ -5,7 +5,7 @@
 
 class Files
 {
-    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::show")]
+    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get, name: 'Files::show')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $name): string
     {

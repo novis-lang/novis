@@ -117,7 +117,7 @@ use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 use crate::card::{core_member_hover, core_type_hover, namespace_card};
 use crate::completion_files::CompletionFiles;
 use crate::definition::{
-    Target, attribute_at, clause_at, import_at, payload_path, site, target_of, type_member_at,
+    Target, attribute_at, clause_at, import_at, site, target_of, type_member_at,
     type_name_at, written_class_name_at,
 };
 use crate::document::Analysed;
@@ -150,7 +150,6 @@ pub fn at(
         .or_else(|| name(analysed, type_member_at(analysed, offset)?, offset))
         .or_else(|| name(analysed, type_name_at(analysed, offset)?, offset))
         .or_else(|| answer_in(analysed, &nodes, offset))
-        .or_else(|| answer_in(analysed, &payload_path(analysed, offset), offset))
         .or_else(|| name(analysed, clause_at(analysed, offset)?, offset))
         .or_else(|| name(analysed, attribute_at(analysed, offset)?, offset))
         .or_else(|| name(analysed, import_at(analysed, offset)?, offset))?;
@@ -402,9 +401,8 @@ fn declared(analysed: &Analysed, info: &ExprInfo) -> Option<String> {
 /// The nearest of `nodes` — innermost first — that documents or types
 /// anything, and the span to underline.
 ///
-/// The one walk [`at`] makes, over whichever spans hold the cursor: the
-/// index's own path, or the attribute payload path the index does not hold
-/// (`crate::definition::payload_path`).
+/// The one walk [`at`] makes over the nodes, the index's own path, which
+/// reaches inside an attribute's payload as it reaches inside a body.
 fn answer_in(analysed: &Analysed, nodes: &[Span], offset: BytePos) -> Option<(String, Span)> {
     let text = analysed.map.file(analysed.entry).text();
     // The cursor is on the receiver's own name when the innermost span is a
