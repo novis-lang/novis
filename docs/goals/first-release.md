@@ -268,6 +268,14 @@ The website stale guard is green locally. `aecce6733` restamped the pages that C
 named. The sweep's nightly reds ran at `7b6ef53ee`, and later commits fixed those cases: `ba8930b80`,
 `342675093` and `dc3a2ed29`. `env-secret-proofs` exits 0.
 
+The first DONE was refused because `floor-debt` left two LDAP attacks owed, with 0 red: the
+`changes` and `search` attacks under `tests/hostile/core/Ldap-Connection/`. Samba's LDAP workers were
+crashing with signal 11, and Samba waited up to 120 s before it restarted one. So a `changes` call
+timed out on every run. `tests/db/compose.yaml` now sets Samba's restart back-off to one second.
+With the container recreated, both attacks pass alone in about 2 s, and both atoms are recorded
+green. The next `floor-debt` pays the owed tests and steps that are left. The last run paid such a
+round in 78 s.
+
 Expected red: none.
 
 ### Next

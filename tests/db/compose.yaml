@@ -362,6 +362,12 @@ services:
   # and appending needs no edit of the provisioned file. The key is copied because Samba refuses a key
   # file it does not own, and `server.key` is uid 999's.
   #
+  # The same script sets Samba's restart back-off for a crashed LDAP worker to one second. Some LDAP
+  # attacks under `tests/hostile/` crash a worker with signal 11. Samba's default waits 10 s more after
+  # each crash, up to 120 s, so once every worker is down the next proof's call waits past its
+  # deadline. It ended a `changes` attack in a `Timeout` on every run. Each line has its own guard, so a
+  # container that already has the TLS lines gains these on its next restart.
+  #
   # The second script, `20-novis-seed`, writes one fixed directory into the provisioned domain, so a
   # proof program's output is the same on every boot. `samba-tool` writes the database files directly,
   # so the seed is done before Samba starts and healthy already means seeded. A marker file makes it
@@ -408,6 +414,9 @@ services:
           'tls keyfile = /var/lib/samba/private/novis-tls.key' \
           'tls certfile = /certs/server.crt' \
           'tls cafile = /certs/ca.crt' >> /etc/samba/smb.conf
+        grep -q 'prefork maximum backoff' /etc/samba/smb.conf || printf '%s\n' '[global]' \
+          'prefork backoff increment = 1' \
+          'prefork maximum backoff = 1' >> /etc/samba/smb.conf
         EOF
         chmod 755 /entrypoint.d/10-novis-tls
         cat > /entrypoint.d/20-novis-seed <<'EOF'
