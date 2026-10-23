@@ -13,7 +13,7 @@ stages:
         rules: [packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape, packaging/eviction-rides-the-cold-miss-at-a-probability]
   - id: 2
     title: "the endpoints are configuration, and `nvs update-check` reads GitHub's latest release"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/endpoints.rs, crates/nvs-cli/src/update_check.rs, crates/nvs-stdlib/src/http/transport.rs, docs/rules/config/telemetry-and-update-endpoints-are-configuration.md, docs/rules/tooling/update-check-states-the-whole-picture.md]
     extra:
       context:
@@ -213,12 +213,12 @@ path. A dynamic `require` that compiled before and always threw now fails to com
 **Does:** `NVS_UPDATE_URL` and `NVS_TELEMETRY_URL` are read, and `nvs update-check` prints the
 whole picture its rule names.
 
-- [ ] Both variables are read, with GitHub's latest-release endpoint as the update default and no telemetry default (`rule:config/telemetry-and-update-endpoints-are-configuration`). `crates/nvs-cli/src/endpoints.rs:1`
-- [ ] `nvs update-check` streams one line per step, reports the telemetry switch, the local version and the latest version, and has a `--json` form with a schema version (`rule:tooling/update-check-states-the-whole-picture`). `crates/nvs-cli/src/update_check.rs:1`
-- [ ] It exits `0` whether or not an update exists and whether or not the request succeeded. `crates/nvs-cli/src/update_check.rs:1`
-- [ ] The `UpdateCheck` variant and its dispatch arm. `crates/nvs-cli/src/main.rs:373`, `crates/nvs-cli/src/main.rs:566`
-- [ ] Tests against a local listener that serves a Releases API document: newer, same, unreachable. `crates/nvs-cli/src/update_check.rs:1`
-- [ ] Both rules `shipped` (`rule:config/telemetry-and-update-endpoints-are-configuration`, `rule:tooling/update-check-states-the-whole-picture`). `data/rules/config/telemetry-and-update-endpoints-are-configuration.json:3`, `data/rules/tooling/update-check-states-the-whole-picture.json:3`
+- [x] Both variables are read, with GitHub's latest-release endpoint as the update default and no telemetry default (`rule:config/telemetry-and-update-endpoints-are-configuration`). `crates/nvs-cli/src/endpoints.rs:1`
+- [x] `nvs update-check` streams one line per step, reports the telemetry switch, the local version and the latest version, and has a `--json` form with a schema version (`rule:tooling/update-check-states-the-whole-picture`). `crates/nvs-cli/src/update_check.rs:1`
+- [x] It exits `0` whether or not an update exists and whether or not the request succeeded. `crates/nvs-cli/src/update_check.rs:1`
+- [x] The `UpdateCheck` variant and its dispatch arm. `crates/nvs-cli/src/main.rs:373`, `crates/nvs-cli/src/main.rs:566`
+- [x] Tests against a local listener that serves a Releases API document: newer, same, unreachable. `crates/nvs-cli/src/update_check.rs:1`
+- [x] Both rules `shipped` (`rule:config/telemetry-and-update-endpoints-are-configuration`, `rule:tooling/update-check-states-the-whole-picture`). `data/rules/config/telemetry-and-update-endpoints-are-configuration.json:3`, `data/rules/tooling/update-check-states-the-whole-picture.json:3`
 
 ### 3. `nvs telemetry` records a closed set of counters locally
 
@@ -301,33 +301,49 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done (`7f5e568d0`, `ac4b1dcf2`). `nvs cache gc` and `nvs cache clear` are
-`crates/nvs-cli/src/cache_cmd.rs` over `Cache::gc` and the new `Cache::clear`, which share one walk
-and return `Swept { removed, freed, skipped }`. The rule is shipped. The cache-help check passes.
-`nvs agent find` lists, after the name matches, each section that has an inline code span equal to
-the query. A span matches whole, so `length` and `strlen` give the same output as before. The agents
-chapter's `find autoload` transcript and `website/public/llms-full.txt` show the nine new section
-lines. The gap record is deleted.
+Stages 1 and 2 are done. Stage 2 is `60dad5de8`. `crates/nvs-cli/src/endpoints.rs` reads
+`NVS_UPDATE_URL` (default: the GitHub Releases API's latest release) and `NVS_TELEMETRY_URL` (no
+default), and `nvs --help` lists both. `nvs update-check` is `crates/nvs-cli/src/update_check.rs`
+over the new `nvs_stdlib::tool_get` (`crates/nvs-stdlib/src/http.rs`, beside `extension_send`). That
+function is a Ctx-free `GET` over `transport::send`: system resolver, strict TLS, three redirects, no
+plaintext hop, one attempt, no pooled connection, and a 1 MiB reply cap. Both rules are shipped. The
+switch always prints `off` and the JSON's `"telemetry"` is the literal `"off"`, because telemetry
+does not exist yet. A real run against GitHub prints `status 404, so no release is published`,
+because the repository has no published release yet.
 
-The tests written this session ran once and pass: `cache_cmd::tests` (5) and `tests/agent.rs` (65).
-No test is expected to go red. `formatter-complete` is retired, so stage 5's gate holds.
+The tests written this session ran once and pass: `update_check::tests` (4). No test is expected to
+go red.
 
-`crates/nvs-runtime/src/capability.rs` has the uncommitted rustfmt join the operator asked for at
-line 2259. The guard refused to stage it, because the live interactive `formatter-complete` session
-6884de4b still claims the file. Commit it once that claim is released (`looper claims`).
+The acceptance sweep's items are green at HEAD. `env-secret-proofs` passes. Of the nightly reds on
+`7b6ef53ee`, these are fixed by later commits:
+
+- the property-observer cost guard passes locally in release
+- the proofs gate owes nothing
+- `render --website --check` is current
+- the shared-worker extension budget is `dc3a2ed29`
+- the UNC alias is `93919e633`
+- the macOS loopback is `342675093`
+- the Windows `BUILTIN\Users` E0607 is `ba8930b80` and `8ea16803f`
+
+Two memory-growth checks were not chased: `serve.rs`'s live-bytes guard on macOS, which
+`config-follows-links` already names, and `serve_isolation.rs:614`'s flood on linux-aarch64. The next
+nightly says whether either holds.
+
+`crates/nvs-runtime/src/capability.rs` still has the uncommitted rustfmt join at line 2259. The guard
+still refuses to stage it while interactive session 6884de4b claims the file.
 
 ### Next
 
-**Stage 2: the endpoints, and `nvs update-check`**, one file set: `crates/nvs-cli/src/endpoints.rs`
-and `crates/nvs-cli/src/update_check.rs` (both new), the subcommand table in
-`crates/nvs-cli/src/main.rs`, and a public entry point in `nvs-stdlib`. No gate.
+**Stage 3: `nvs telemetry`**, one file set: `crates/nvs-cli/src/telemetry.rs` (new), the subcommand
+table and the panic hook in `crates/nvs-cli/src/main.rs`, and the CLI reference. No gate.
 
-- [ ] Both URL variables read, GitHub's latest release as the update default, no telemetry default. `crates/nvs-cli/src/endpoints.rs:1`, `docs/rules/config/telemetry-and-update-endpoints-are-configuration.md:1`
-- [ ] A public HTTPS GET for the CLI over the client's transport. `nvs_stdlib`'s `http` module is private (`crates/nvs-stdlib/src/lib.rs:163`) and `transport::send` is `pub(crate)` (`crates/nvs-stdlib/src/http/transport.rs:1290`), so `nvs-cli` needs one small `pub` function in `nvs-stdlib`. Add no dependency. `crates/nvs-stdlib/src/http/transport.rs:1290`
-- [ ] `nvs update-check`: one line per step, telemetry switch, local and latest version, `--json` with a schema version, exit `0` always. `crates/nvs-cli/src/update_check.rs:1`, `docs/rules/tooling/update-check-states-the-whole-picture.md:1`
-- [ ] The `UpdateCheck` variant and its dispatch arm, beside `Cache`. `crates/nvs-cli/src/main.rs:386`, `crates/nvs-cli/src/main.rs:596`
-- [ ] Tests against a local listener with a Releases API document: newer, same, unreachable. `crates/nvs-cli/src/update_check.rs:1`
-- [ ] Both rules `shipped`. `data/rules/config/telemetry-and-update-endpoints-are-configuration.json:3`, `data/rules/tooling/update-check-states-the-whole-picture.json:3`
+- [ ] The rule states the paths and the `DO_NOT_TRACK`/`CI` switch. `docs/rules/tooling/telemetry-is-two-opt-ins.md:1`, `crates/nvs-config/src/data.rs:467`
+- [ ] The five verbs, and `on` says nothing is uploaded while `endpoints::telemetry_url` is `None`. `crates/nvs-cli/src/telemetry.rs:1`, `crates/nvs-cli/src/endpoints.rs:28`
+- [ ] One counter per invocation from the command table, with `invocation.unknown`. `crates/nvs-cli/src/main.rs:394`, `crates/nvs-cli/src/main.rs:606`
+- [ ] The payload, `nvs telemetry show`, and the panic hook's `internal-error.<subcommand>`. `crates/nvs-cli/src/telemetry.rs:1`
+- [ ] `nvs update-check` reads the real switch: replace the literal `off` in `check`, `upload_line` and `document`, and update its rule's **Not on disk.** line. `crates/nvs-cli/src/update_check.rs:67`, `crates/nvs-cli/src/update_check.rs:108`, `docs/rules/tooling/update-check-states-the-whole-picture.md:1`
+- [ ] `# nvs telemetry` after `# nvs info`. `docs/reference/tools/10-cli.md:509`
+- [ ] Tests over a temporary data folder as stage 3's last item lists, and the three rules shipped. `crates/nvs-cli/src/telemetry.rs:1`
 
 ### Backlog
 
