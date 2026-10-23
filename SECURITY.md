@@ -8,11 +8,12 @@ a vulnerability in the language, not a bug in the program that hit it. That is w
 
 | Version | Supported |
 |---|---|
-| `main` | yes — fixes land here |
+| the latest Pre-Alpha release | yes |
+| `main` | yes — fixes land here first |
 | everything else | no |
 
-**Novis is pre-alpha and has no release.** Nothing is stable, nothing is supported in production, and there
-is no backport branch. Do not run it anywhere that matters yet.
+**Novis is Pre-Alpha.** Any release can change the language, and Novis is not ready for production use.
+There is no backport branch. A fix ships in the next release.
 
 ## Reporting a vulnerability
 

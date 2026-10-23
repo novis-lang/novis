@@ -1,15 +1,15 @@
 # Contributing to Novis
 
-Novis is pre-alpha. It runs, but nothing about it is released or settled and much of the language is still
-being decided, which makes this the point where an opinion is worth more than a patch — and, for now, the
-point where a patch is the one thing we cannot take. **Ideas, reports and questions are open to anyone at any time; pull requests are not open
+Novis is Pre-Alpha, and its first release is `0.0.1`. Any release can change the language, and Novis is
+not ready for production use. Much of the language is still being decided, which makes this the point
+where an opinion is worth more than a patch — and, for now, the point where a patch is the one thing we
+cannot take. **Ideas, reports and questions are open to anyone at any time; pull requests are not open
 yet.** This file routes the first, explains the second, and its second half is the developer's map of the
 tree.
 
-> **Status: pre-alpha.** The language runs: `nvs run` compiles and executes a `.nvs` file, `nvs test`
-> runs the conformance trees, `nvs serve` answers HTTP. Nothing is released — the version is `0.0.1`
-> with no tag behind it — and nothing is stable. Work runs as a chain of goals, each named by its slug,
-> and `looper orient --full` prints the live one.
+> **Status: Pre-Alpha, released at `0.0.1`.** The language runs: `nvs run` compiles and executes a `.nvs`
+> file, `nvs test` runs the conformance trees, `nvs serve` answers HTTP. Nothing is stable yet. Work runs
+> as a chain of goals, each named by its slug, and `looper orient --full` prints the live one.
 
 ## Where to take what you have
 
@@ -135,9 +135,9 @@ bun nv rules --check     # every rule fragment is well formed, and every `rule:`
 true: it fails if a row names something that is not there, if a crate or a tracked top-level directory
 has no row, or if an `[audited unsafe]` marker disagrees with the crate's own lint policy — that marker
 means the crate overrides the workspace's `unsafe_code = "forbid"` with its own audited `deny`. What the
-workspace has *not* built yet, such as the package manager, is a goal under
-[docs/goals/](docs/goals/README.md) and named nowhere else, because a second copy of a schedule goes
-stale.
+workspace has *not* built yet, such as the debugger or the package registry, is a goal under
+[docs/goals/](docs/goals/README.md). The public roadmap, `website/src/data/roadmap.json`, groups those
+goals into themes, and `bun nv site --check roadmap` fails when the two disagree.
 
 <!-- layout:begin  bun nv layout --check gates this listing; see tools/nv/cmd/layout.ts -->
 ```
