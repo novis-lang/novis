@@ -16,7 +16,9 @@ consents, the counter schema and the two endpoints' contracts are the tooling ch
 
 - **Memory:** none on the request path. The update check reads one small JSON document per run.
 
-**Not on disk.** Nothing in `crates/` reads either variable.
+The default is `https://api.github.com/repos/novis-lang/novis/releases/latest`. A variable that is
+empty or only whitespace counts as unset. Each is read when a command needs it and never kept, and
+`nvs --help` lists both.
 
 **Declined:**
 - **A default telemetry upload URL before a collector exists.** It sends opted-in data to a host nobody
