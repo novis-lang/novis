@@ -68,6 +68,11 @@ path, whoever can write the directory that holds the link chooses which file the
 `trust::check` also checks the parent of the path as given, with the same owner test, mode test and
 read-only waiver. A root reached with no link is checked exactly as today.
 
+**`d8`, the user's answer: a link's directory skips the mode test only when root owns it on a
+read-only mount.** That is the kubelet's ConfigMap volume, measured on `kind` as `0777 root:root` on
+a read-only `ext4` mount. Every other check stays as the 2026-10-22 call says, the file's own
+directory included. Built as `trust::platform::check_link_holder` (`crates/nvs-config/src/trust.rs`).
+
 **The check notices a swap.** The stamp gains the file's identity: device and inode on Unix, the file
 index on Windows (`crates/nvs-cli/src/reload.rs:561`). Then a swap to a file with the same time and size
 still moves the stamp. The check stats each root as given beside `files` and `probed`, so a stat that

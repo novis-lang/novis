@@ -11,6 +11,7 @@
     "crates/nvs-config/tests/trust.rs",
     "crates/nvs-config/src/trust.rs",
     "crates/nvs-config/tests/resolve.rs",
-    "crates/nvs-config/src/data.rs"
+    "crates/nvs-config/src/data.rs",
+    "crates/nvs-cli/tests/reload_follows_links.rs"
   ]
 }

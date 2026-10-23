@@ -77,6 +77,19 @@ impl Untrusted {
             unreadable => unreadable,
         }
     }
+
+    /// [`about`](Self::about) for the directory `holder`, naming the `link` in it the path goes
+    /// through, so the operator sees why a directory off the file's own path was examined.
+    fn holding(self, holder: &Path, link: &Path) -> Self {
+        match self {
+            Self::Breach(message) => Self::Breach(format!(
+                "`{}`, which holds the link `{}`, {message}",
+                holder.display(),
+                link.display()
+            )),
+            unreadable => unreadable,
+        }
+    }
 }
 
 /// What a [`Untrusted::Breach`] asks the operator to do, in the platform's own spelling.
@@ -106,14 +119,33 @@ pub fn canonical(path: &Path) -> std::io::Result<PathBuf> {
 /// The directory gets the same check as the file rather than only the mode half of it: an entry can
 /// be replaced by anyone who can write the directory, whatever the file's own bits say.
 ///
+/// **So does the directory that holds each link on `path` as given.** A reload reads `path` through
+/// its links again, so whoever can write the directory a link sits in chooses the file the next
+/// reload reads. Every prefix of `path` that is a link has its parent checked: a `current` link
+/// above the file as well as the file's own link. A path with no link is checked exactly as
+/// before. A link's directory has one waiver more than the file's ([`platform::check_link_holder`]):
+/// a root-owned directory on a read-only mount skips the mode test, because that is how the
+/// kubelet mounts a ConfigMap, at `0777`.
+///
+/// Cost: one `lstat` per component of `path`, and one check per link found.
+///
 /// # Errors
 ///
 /// [`Untrusted`], which [`resolve`](crate::resolve) turns into `E0605` when the path could not be
 /// examined and `E0607` when it was and failed.
 pub fn check(path: &Path) -> Result<PathBuf, Untrusted> {
     let canonical = check_alone(path)?;
-    if let Some(parent) = canonical.parent() {
+    let parent = canonical.parent();
+    if let Some(parent) = parent {
         platform::check(parent).map_err(|why| why.about(parent))?;
+    }
+    for link in path.ancestors().filter(|prefix| {
+        std::fs::symlink_metadata(prefix).is_ok_and(|meta| meta.file_type().is_symlink())
+    }) {
+        let Some(holder) = link.parent().filter(|holder| Some(*holder) != parent) else {
+            continue;
+        };
+        platform::check_link_holder(holder).map_err(|why| why.holding(holder, link))?;
     }
     Ok(canonical)
 }
@@ -199,6 +231,47 @@ mod platform {
             mode: meta.mode() & 0o7777,
         };
         judged(&stat, me, || read_only_mount(path))
+    }
+
+    /// [`check`] on a directory that holds a link the configuration's path goes through, with one
+    /// waiver more: **a root-owned directory on a read-only mount skips the mode test too.**
+    ///
+    /// That is the kubelet's ConfigMap volume. It mounts the directory `0777 root:root` on a
+    /// read-only file system, with each key a link into a timestamped folder it swaps. No account
+    /// in the pod can write it, and only the kubelet, as root on the node, changes it. A directory
+    /// another account owns, or one on a writable mount, gets [`check`] unchanged.
+    #[expect(
+        unsafe_code,
+        reason = "`geteuid` has no safe spelling in `std`; it takes no argument, cannot fail, and \
+                  returns a plain `uid_t`, so the call is unsafe only because it is `extern`"
+    )]
+    pub(super) fn check_link_holder(path: &Path) -> Result<(), Untrusted> {
+        use std::os::unix::fs::MetadataExt;
+
+        let meta = std::fs::metadata(path).map_err(|err| Untrusted::Unreadable(err.to_string()))?;
+        let me = unsafe { libc::geteuid() };
+        let stat = Stat {
+            owner: meta.uid(),
+            gid: meta.gid(),
+            mode: meta.mode() & 0o7777,
+        };
+        judged_link_holder(&stat, me, || read_only_mount(path))
+    }
+
+    /// [`check_link_holder`]'s verdict on `stat` for the account `me`. `read_only` is asked only of
+    /// a directory root owns, or, as [`judged`] asks it, of one another account owns.
+    pub(super) fn judged_link_holder(
+        stat: &Stat,
+        me: u32,
+        read_only: impl FnOnce() -> bool,
+    ) -> Result<(), Untrusted> {
+        if stat.owner != 0 {
+            return judged(stat, me, read_only);
+        }
+        if read_only() {
+            return Ok(());
+        }
+        judged(stat, me, || false)
     }
 
     /// What [`check`] reads of a path: its owner, its group and its permission bits.
@@ -355,6 +428,12 @@ mod platform {
             return path;
         }
         PathBuf::from(rest)
+    }
+
+    /// [`check`] alone: Windows has no read-only mount, so a directory that holds a link has no
+    /// waiver the file's own directory lacks.
+    pub(super) fn check_link_holder(path: &Path) -> Result<(), Untrusted> {
+        check(path)
     }
 
     /// The owner is trusted and no untrusted principal has an effective write right.
@@ -699,7 +778,7 @@ mod platform {
 #[cfg(all(test, unix))]
 mod tests {
     use super::Untrusted;
-    use super::platform::{Stat, judged, read_only_mount};
+    use super::platform::{Stat, judged, judged_link_holder, read_only_mount};
 
     /// The account a container runs as, and the host account whose checkout it mounts.
     const SERVER: u32 = 65532;
@@ -753,6 +832,30 @@ mod tests {
             panic!("the mount is asked only of another account's file")
         })
         .expect("this account's own private file");
+    }
+
+    /// A ConfigMap volume's directory, `0777 root:root` on a read-only mount, passes as the holder
+    /// of a link. The same mode on a writable mount is a breach, and so is another account's
+    /// `0777` directory on a read-only mount.
+    #[test]
+    fn a_root_owned_link_holder_on_a_read_only_mount_skips_the_mode_test() {
+        let volume = Stat {
+            owner: 0,
+            gid: 0,
+            mode: 0o777,
+        };
+        judged_link_holder(&volume, SERVER, || true).expect("the kubelet's ConfigMap volume");
+        let why = judged_link_holder(&volume, SERVER, || false)
+            .expect_err("anyone on this host could swap the link");
+        assert!(why.message().contains("group- and world-writable"), "{why:?}");
+        let hosts = Stat {
+            owner: HOST,
+            ..volume
+        };
+        let why = judged_link_holder(&hosts, SERVER, || true)
+            .expect_err("the waiver is root's alone");
+        assert!(why.message().contains("mode 0777"), "{why:?}");
+        judged(&volume, SERVER, || true).expect_err("the file's own directory keeps the mode test");
     }
 
     /// A scratch directory under `target/` is on a writable file system, and a path that is not
