@@ -553,6 +553,24 @@ file content into the tree*). **A patch cannot carry a patch**: a block whose te
 markers themselves ends at the first `=======` inside it, so an edit to prose *about* this format is one
 the `Edit` tool has to make.
 
+## The README and the status
+
+**`README.md` is a short version of the website's home page, in its order and its words.** Its H1 is
+the project's title, and the `nvs --help` banner and the extension's `displayName` are tested against
+it. The feature list follows `website/src/content/docs/index.mdx`'s sections in their order. Each
+item takes the component's sentence for the same point and links to its page on
+`https://novis-lang.org/`, never to `docs/rules/` or into `website/src/`. A heading the website also
+has (*Sponsoring*, the roadmap, the status) takes the website's text, shortened. The README copies no
+measured number and names no version, so a recorded run or a release leaves it current. The whole
+file is held to AGENTS.md § *Text an end user reads*: it is the first page most readers see. A change
+to the home page's order or sentences changes the README in the same commit.
+
+**The status is "Pre-Alpha", always with that capitalization.** `website/src/data/release.ts`'s
+`status` is what every page says. Each place that names the status says that Novis is released and
+what Pre-Alpha means, in one plain sentence: any release can change the language, and Novis is not
+ready for production use. The README, `CONTRIBUTING.md` and `SECURITY.md` say the same. `SECURITY.md`
+names the latest Pre-Alpha release and `main` as the ones that get security fixes.
+
 ## A playbook bullet
 
 ```
