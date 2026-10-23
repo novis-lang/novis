@@ -345,7 +345,9 @@ fn find_matches_a_backslashed_class_name_written_literally() {
         lines.contains(&r"Core\IO::read(string $path): string  [fs.read]"),
         "the exact member is among {lines:?}"
     );
-    for line in &lines {
+    // A section is found by the code its text writes, so only the other lines
+    // are matched by their symbol.
+    for line in lines.iter().filter(|line| !line.contains("  section: ")) {
         assert!(
             symbol_of(line).contains(r"Core\IO::read"),
             "{line} matched the query literally"
@@ -985,6 +987,24 @@ fn every_syntactic_form_is_reachable_through_a_heading() {
         }
     }
     assert!(missing.is_empty(), "forms with no heading: {missing:?}");
+}
+
+/// A form that a section writes only as code in its text is found through that
+/// section. `??=` cannot be in any heading's symbol, because a symbol keeps
+/// only letters and digits.
+#[test]
+fn a_form_no_heading_names_is_found_by_the_code_its_section_writes() {
+    let (out, _, ok) = agent(&["find", "??="]);
+    assert!(ok, "`nvs agent find ??=` succeeds");
+    let section = out
+        .lines()
+        .find(|line| line.starts_with("expressions#") && line.contains("  section: "))
+        .unwrap_or_else(|| panic!("a section of `expressions` is among: {out}"));
+    assert!(!symbol_of(section).contains("??="), "{section}");
+
+    let (card, _, ok) = agent(&["show", symbol_of(section)]);
+    assert!(ok, "the section's symbol resolves");
+    assert!(card.contains("`??=`"), "the section writes the form: {card}");
 }
 
 /// The lines one section of the agents chapter shows as lines the binary

@@ -56721,14 +56721,24 @@ echo Core\Str::length($name), "\n";
 3
 ```
 
-Asked next whether classes load themselves, it looks for the word it already knows, which is a keyword here and
-no member's name. Two lines come back: a heading, and a flag of `nvs check` that has the word in
-its name. The heading is the one it wants, and the same `show` prints the section:
+Asked next whether classes load themselves, it looks for the word it already knows. Here the word
+is a keyword, and no member has that name. The first two lines have the word in their name: a
+heading, and a flag of `nvs check`. The lines after them are sections that write the keyword as code
+in their text. The heading is the one it wants, and the same `show` prints the section:
 
 ```text
 $ nvs agent find autoload
 programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
 flag: nvs check --autoload-map
+programs#require-run-another-file-in-this-frame  section: `require`: run another file in this frame
+statements#statement-forms-that-do-not-parse  section: Statement forms that do not parse
+attributes#core-program-implementing-i-every-class-that-is-an-i  section: `Core\Program::implementing<I>()`: every class that is an `I`
+testing#running-tests-nvs-test  section: Running tests: `nvs test`
+cli#nvs-check  section: nvs check
+cli#nvs-test  section: nvs test
+cli#nvs-build-compile  section: nvs build --compile
+editor#what-it-answers  section: What it answers
+agents#nvs-agent  section: nvs agent
 $ nvs agent show 'programs#autoload-find-a-class-by-its-namespace'
 programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
 
