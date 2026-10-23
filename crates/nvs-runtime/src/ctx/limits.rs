@@ -32,12 +32,14 @@ impl Ctx {
     /// adds nothing and reads its own thread, which already holds every context
     /// beneath it there — [`Self::on_root_core`]'s field doc owns the division.
     #[must_use]
+    #[inline]
     pub fn memory_used(&self) -> usize {
         self.memory_share(crate::budget::live_bytes())
     }
 
     /// This request's share of the thread's absolute balance `live`, read the
     /// way [`Self::memory_used`] reads the balance now.
+    #[inline]
     fn memory_share(&self, live: isize) -> usize {
         let own = live.saturating_sub(self.memory_base);
         let tree = if self.on_root_core {
@@ -65,10 +67,17 @@ impl Ctx {
     /// such a member is as fresh as that member's last poll, and
     /// [`Self::memory_breach`] — the question `crate::run_helper` asks ahead of
     /// every `Core` member — is where the poll happens.
+    #[inline]
     pub fn publish_off_core(&self) {
-        let Some(share) = &self.tree_share else {
-            return;
-        };
+        if let Some(share) = &self.tree_share {
+            self.publish_share(share);
+        }
+    }
+
+    /// [`Self::publish_off_core`]'s work, out of line so the test in front of it
+    /// is all an ordinary request's poll inlines.
+    #[inline(never)]
+    fn publish_share(&self, share: &TreeShare) {
         let memory = crate::budget::live_bytes().saturating_sub(self.memory_base);
         let moved = memory.saturating_sub(share.memory.get());
         if moved != 0 {
@@ -371,6 +380,7 @@ impl Ctx {
     /// the server's memory ran out while it grew, which stops a capped request
     /// too and is recorded as a refusal.
     #[must_use]
+    #[inline]
     pub fn over_memory_limit(&self) -> bool {
         if self.memory_limit == 0 {
             return crate::budget::server_full();
@@ -501,7 +511,16 @@ impl Ctx {
     /// allocation was refused, followed by what it asked for
     /// ([`crate::budget::Refusal`] owns why): by the poll, a refused
     /// concatenation has already given back the text it was growing.
+    ///
+    /// **Under the ceiling this is a few loads and branches, and it is inlined
+    /// into each member's frame.** `crate::run_helper` is generic, so it is
+    /// built in the crate that defines the member, and a call here was a call
+    /// across crates into a frame sized for the message below. The message is
+    /// [`Self::memory_fault`], out of line and cold. What is left is
+    /// [`Self::publish_off_core`]'s one test, [`Self::over_memory_limit`]'s
+    /// reads, the root-core test and one comparison.
     #[must_use]
+    #[inline]
     pub fn memory_breach(&self) -> Option<crate::Fault> {
         // A member off its tree's root core publishes here and nowhere else —
         // [`Self::publish_off_core`] owns why the poll is the cadence, and this
@@ -510,14 +529,22 @@ impl Ctx {
         if !self.over_memory_limit() {
             return None;
         }
+        Some(self.memory_fault())
+    }
+
+    /// The fault [`Self::memory_breach`] reports, once the poll has found the
+    /// request past its ceiling.
+    #[cold]
+    #[inline(never)]
+    fn memory_fault(&self) -> crate::Fault {
         // The server's memory ran out while this request grew: its own ceiling
         // was not reached, so the message names neither the ceiling nor a
         // refused size.
         if let Some(refusal) = crate::budget::refusal().filter(|refusal| refusal.full) {
-            return Some(crate::Fault::fatal(format!(
+            return crate::Fault::fatal(format!(
                 "the server's memory is full, so the request was stopped while it held {} bytes",
                 self.memory_share(refusal.live),
-            )));
+            ));
         }
         // The ceiling named is the request's **whole** budget, not the reduced
         // one it was measured against: `[limits] memory` is the number the
@@ -541,10 +568,7 @@ impl Ctx {
                 self.memory_used(),
             ),
         };
-        Some(crate::Fault::fatal(format!(
-            "{reading}\n{}",
-            self.memory_help(ceiling)
-        )))
+        crate::Fault::fatal(format!("{reading}\n{}", self.memory_help(ceiling)))
     }
 
     /// What [`Self::memory_breach`] calls the run: "program" on a CLI run, "request" in server

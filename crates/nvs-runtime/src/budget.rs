@@ -429,6 +429,7 @@ impl OffCore {
 
     /// How many bytes this tree holds on cores other than its root's.
     #[must_use]
+    #[inline]
     pub fn memory(&self) -> isize {
         self.memory.load(std::sync::atomic::Ordering::Relaxed)
     }
@@ -878,12 +879,14 @@ pub(crate) struct Refusal {
 /// brings it back under a ceiling it never held the bytes against.
 /// [`take_refusal`] is the only way back, and its two callers are the context
 /// that ends and the handler that is lent a slice to report with.
+#[inline]
 pub(crate) fn refused() -> bool {
     REFUSED.with(Cell::get).is_some()
 }
 
 /// Whether the running request was stopped because the server's memory is
 /// full — the verdict [`Refusal::full`] names. Sticky as [`refused`] is.
+#[inline]
 pub(crate) fn server_full() -> bool {
     REFUSED.with(Cell::get).is_some_and(|refusal| refusal.full)
 }
@@ -921,6 +924,7 @@ pub(crate) fn restore_refusal(refused: Option<Refusal>) {
 /// is left out, so on a stack that never parked this is the thread's whole
 /// balance.
 #[must_use]
+#[inline]
 pub fn live_bytes() -> isize {
     LIVE.with(Cell::get).wrapping_sub(FOREIGN.with(Cell::get))
 }
