@@ -13,6 +13,7 @@
 //                                          example-apps/` from what its server returns now, and add each
 //                                          named `APP/FILE`
 //     bun nv site --build                  the Astro build, and `site: built` when it succeeds
+//     bun nv site --roadmap                write README.md's roadmap list from website/src/data/roadmap.json
 //     bun nv site --questions --status     `questions <area>: <n> owed, <n> stale` per area, exit 0
 //     bun nv site --questions --owed [AREA] [--limit N]
 //                                          each owed or stale page, with what its questions are written
@@ -158,7 +159,8 @@
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and has the files § *A snippet*
 // names, each matching), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `questions` (see `questionProblems`),`reference` (see
 // `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `in-depth`
-// (see `inDepthProblems`), `apps` (see `appsProblems`) and `prose` (the countable bounds of AGENTS.md
+// (see `inDepthProblems`), `apps` (see `appsProblems`), `roadmap` (the roadmap is in step with the goal
+// chain and the README: `lib/site-roadmap.ts`) and `prose` (the countable bounds of AGENTS.md
 // § *Text an end user reads* over every handwritten page's prose: no sentence over 25 words, no dash
 // joining two sentences, and no paragraph over six sentences). The legal pages are kept out of `prose`,
 // since their wording is the law's.
@@ -178,13 +180,14 @@ import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
 import { styleProblems } from "../lib/site-css.ts";
 import { diagramProblems } from "../lib/site-diagrams.ts";
+import { roadmapProblems, writeRoadmap } from "../lib/site-roadmap.ts";
 import { commentProblems } from "../proofs/collect.ts";
 import { dockerAbsent, servicesFor } from "../proofs/run.ts";
 import { ABOUT, EXAMPLES, examplesDir, metaJson, roster, RosterError, type Entry, type Meta } from "../proofs/roster.ts";
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
 
-export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp PAGE... | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --build | --questions --status | --owed [AREA] | --stamp URL...";
+export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp PAGE... | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --build | --roadmap | --questions --status | --owed [AREA] | --stamp URL...";
 
 export const DOCS = "website/src/content/docs";
 export const SNIPPETS = "website/snippets";
@@ -194,7 +197,7 @@ const GENERATED = ["reference/core/"];
 /** Pages whose wording is fixed by law, and which `prose` does not judge. */
 const LEGAL = ["impressum.mdx", "datenschutz.mdx"];
 
-export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "in-depth", "apps", "prose"] as const;
+export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "in-depth", "apps", "roadmap", "prose"] as const;
 type Part = (typeof PARTS)[number];
 /** Where `--build` writes the site, which `reference` reads. */
 const DIST = "website/dist";
@@ -1657,6 +1660,7 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
     if (part === "structure") problems = structureProblems().concat(styleProblems(ROOT));
     else if (part === "guides") problems = guidesProblems();
     else if (part === "in-depth") problems = inDepthProblems();
+    else if (part === "roadmap") problems = roadmapProblems(ROOT);
     else if (part === "prose") {
       problems = pages()
         .filter((p) => !LEGAL.includes(p.key))
@@ -1748,6 +1752,11 @@ export async function run(args: string[]): Promise<number> {
     return mode === undefined ? 2 : 0;
   }
   if (mode === "--build") return build();
+  if (mode === "--roadmap") {
+    const problem = writeRoadmap(ROOT);
+    console.log(problem === null ? "nv site: wrote the roadmap into README.md" : `nv site: ${problem}`);
+    return problem === null ? 0 : 1;
+  }
   const nvs = binary(explicit);
   try {
     if (mode === "--bless") {

@@ -45,20 +45,19 @@ Coming from PHP? [How Novis is different, and how to port a program](website/src
 
 ## Roadmap
 
-**Built:**
+This is the work that is planned, in the order it is planned. The order can change, and there are no
+dates. The [roadmap page](https://novis-lang.org/in-depth/roadmap/) has the same list.
 
-- The language: parser, type checker, the Cranelift backend, and the test runner.
-- The `Core` library, concurrency (coroutines, channels, workers and script isolates), and `nvs.toml`
-  with its capabilities, limits and artifact cache.
-- The built-in HTTP server.
-- The standard library, five SQL database drivers, and LDAP.
-- The extension system, with the built-in image, intl, PDF and spreadsheet components.
-- The language server and the VS Code extension.
-
-**Planned** ([docs/goals/](docs/goals/README.md) lists the work in the order it is done):
-
-- Developer tooling: the debugger, the profiler, property tests and the rest of the editor features.
-- Packages, the registry and the supply chain.
+<!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
+1. **Formatter and command line.** *Working on it now.* `nvs fmt` formats every part of the language. New commands clear the cache and check for a newer version. You can choose to send anonymous usage counts, and the totals are public.
+2. **Editor.** The editor can rename, find, import and generate code, and it has more quick fixes. It can also show what your program did for a recorded request.
+3. **Web APIs.** The API document that Novis writes for your server passes a strict OpenAPI check. A parameter can read its value from the query string. A wrong value gives a `400` error.
+4. **Testing.** `nvs test` gets the features a team expects, and tests stay out of your builds. `nvs test --mutate` checks if your tests notice a wrong line. Benchmarks report counted work that CI can check.
+5. **Debugging and profiling.** A debugger stops your program at a line and shows its variables, in VS Code too. Novis records requests, and a viewer shows each one with its timeline, logs and errors. The profiler shows where the time goes.
+6. **Images.** AVIF and JPEG XL images open the right way up and with the right colours. `Image::info` reads EXIF data, and an animated image keeps every frame.
+7. **Packages and the registry.** `nvs` installs and locks the packages your program uses, and the registry builds every package from its source code. `nvs pkg audit` lists the known security problems in your packages, and the version that fixes each one.
+8. **Passkeys and Web Push.** `Core\Passkey` lets a user sign in with a passkey. `Core\WebPush` sends a notification to a browser.
+<!-- roadmap:end -->
 
 ## Contributing
 
