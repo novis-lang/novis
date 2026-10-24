@@ -99,20 +99,24 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `d7386c1f5`. Its Website run is green. Its CI push run,
-https://github.com/novis-lang/novis/actions/runs/40098404099, has ended, and the watch exited 4.
-Every job but the four below is green, including `five-driver matrix` and the LDAP login attack.
+`origin/main` is at `d7386c1f5`. Its CI push run,
+https://github.com/novis-lang/novis/actions/runs/40098404099, ended red in the website job and in
+`proofs`, and every other job was green. `api-document` is reached, so its reds are this goal's
+now. Each is fixed at `HEAD` and not pushed yet:
 
-- `the chapter examples run and the website matches the binary`: `llms-full.txt` was not rendered
-  after `aa446902f` rendered the attributes reference. `a7acf70c1` renders it, and is not pushed yet.
-  The same job's stale guard comes next, and it still fails on `syntax/attributes/routes.mdx`.
-- `proofs` on all three platforms: these are `api-document`'s open work, and both reds were told to
-  it with `loop say`. The seven `Core\Router\Match` perf figures are stale. `Core\Api\SchemeType`
-  and `Core\Api\KeyIn` came in with `81e061748`, with no about.md, example or test case.
+- `a7acf70c1` renders `llms-full.txt` from the current attributes reference.
+- `c4cfda22d` stamps the questions of `/syntax/attributes/routes/`, `/reference/types/api-keyin/`
+  and `/reference/types/api-schemetype/`. Each was reread, and its questions still fit the page.
+- `3e19818f4` records the seven `Core\Router\Match` perf figures. `3fe655cb6`, the main loop's,
+  gives `Core\Api\SchemeType` and `Core\Api\KeyIn` their proofs.
 
-Also at `HEAD`, and told to the main loop: `bun nv proofs --gate` names
-`docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md` at 222 words, more than
-the 200 allowed. It also owes the `Core\Router` and `lang:attributes` perf figures.
+`3e19818f4` also took eight `lang:testing` perf lines that the main loop had just recorded in the
+root at `c4cfda22d`. They are valid, and the main loop was told. A commit by pathspec takes the
+whole file, so a ledger the main loop is writing to can carry its lines into yours.
+
+In the root, with the main loop's uncommitted edits, `bun nv site --check stale questions` and
+`bun nv proofs --gate --limit 0` pass. The main loop restamped the two `syntax/testing/` pages
+after it was told they were stale. Those edits go out at its goal end too.
 
 `.agent-tmp/wt-perf`, `.agent-tmp/wt-csv` and `.agent-tmp/wt-render` are scratch folders that git
 no longer lists as worktrees. Each contains a `.looper` directory, which Windows will not delete
@@ -124,8 +128,9 @@ while looper runs. `wt-csv` also has an ignored `target/`, warm at `d2a782d60`, 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch the next push with `bun nv ci --watch --next`. `tools/nv/cmd/ci.ts:265`
-  Run 40098404099 has ended, so `--next` passes over it. A push of a goal end that has not closed
-  `api-document`'s reds needs `--past proofs`.
+  Run 40098404099 has ended, so `--next` passes over it. The next push is `test-surface`'s goal
+  end, and it carries every fix above. Watch with no `--past`: a red there is either new, or the
+  testing pages the main loop did not restamp.
   `bun nv ci --rerun` reruns every failed job of the run, so a rerun for one flaky job reruns
   the known reds too. An exit of 3 with a run still going means the push came late: watch again.
   Before you watch, run `bun nv site --check stale questions` and `bun nv proofs --gate --limit 0`
