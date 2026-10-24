@@ -349,10 +349,37 @@ async function bringUp(services: string[]): Promise<void> {
     timeoutMs: UP_TIMEOUT_S * 1000,
   });
   if (code !== 0) {
+    await sayFailedLogs(services);
     throw new Fail(
       "`docker compose up -d --wait` failed -- the daemon may be unreachable, or a service " +
         "never became healthy. `docker compose -f tests/db/compose.yaml ps` says which.",
     );
+  }
+}
+
+/** The lines of a failed service's own log `sayFailedLogs` prints. */
+const LOG_TAIL = 60;
+
+/**
+ * Prints the end of the log of each service in `services` that exited with an error or is not healthy.
+ * On a CI runner the container is gone once the job ends, so this is the only record of why it stopped.
+ */
+async function sayFailedLogs(services: string[]): Promise<void> {
+  const format = "{{.Service}} {{.State}} {{.ExitCode}} {{.Health}}";
+  const psArgv = ["docker", "compose", "-f", COMPOSE, "ps", "-a", "--format", format, ...services];
+  const ps = await spawn(psArgv, baseEnv(), 60);
+  const failed = ps.stdout
+    .split(/\r?\n/)
+    .map((l) => l.trim().split(/\s+/))
+    .filter(([service, state, exit, health]) =>
+      service && (state === "running" ? health !== undefined && health !== "healthy" : exit !== "0"),
+    )
+    .map(([service]) => service!);
+  for (const service of failed) {
+    const logsArgv = ["docker", "compose", "-f", COMPOSE, "logs", "--no-color", "--tail", String(LOG_TAIL), service];
+    const r = await spawn(logsArgv, baseEnv(), 60);
+    say(`db-matrix: the last ${LOG_TAIL} lines of \`${service}\`'s log:`);
+    say(`${r.stdout}${r.stderr}`.trimEnd());
   }
 }
 
