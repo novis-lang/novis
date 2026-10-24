@@ -1,0 +1,15 @@
+--TEST--
+a cursor on the `return` keyword is in the statement and outside its value, so the first step is the whole statement and each later one an enclosing construct, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Counter {
+    public function next(int $n): int {
+        retu<|>rn $n + 1;
+    }
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+4:9-4:23
+3:5-5:6
+2:1-6:2

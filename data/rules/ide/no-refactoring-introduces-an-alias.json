@@ -7,6 +7,8 @@
     "ide/every-feature-is-staged-behind-its-dependency",
     "ide/five-features-are-one-reference-index"
   ],
-  "guardedBy": [],
-  "goal": "editor-refactors"
+  "guardedBy": [
+    "tests/lsp/rename/a-clash-is-refused.lspt",
+    "tests/lsp/actions/organize-imports-sorts-and-removes-unused-lines.lspt"
+  ]
 }

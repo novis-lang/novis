@@ -1,0 +1,14 @@
+--TEST--
+a cursor on the `return` keyword is in the statement and outside the value it returns, which is a position, and the method's parameters and `$this` are in scope there, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Counter {
+    public function next(int $n): int {
+        retu<|>rn $n + 1;
+    }
+}
+--REQUEST--
+completion prefix=$
+--EXPECT--
+$n      variable  int
+$this   variable  Counter

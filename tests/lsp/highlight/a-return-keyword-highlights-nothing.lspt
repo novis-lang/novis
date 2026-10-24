@@ -1,0 +1,13 @@
+--TEST--
+a cursor on the `return` keyword is on a statement rather than a name, so the answer is empty and not a refusal, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Counter {
+    public function next(int $n): int {
+        retu<|>rn $n + 1;
+    }
+}
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

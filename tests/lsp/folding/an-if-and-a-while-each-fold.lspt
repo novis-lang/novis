@@ -1,0 +1,16 @@
+--TEST--
+an `if` body and a `while` body each fold from the line they open on through the line before their closing brace, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+int $n = 0;
+if ($n > 0) {
+    echo "positive";
+}
+while ($n < 3) {
+    $n = $n + 1;
+}
+--REQUEST--
+foldingRange
+--EXPECT--
+3-4 -
+6-7 -
