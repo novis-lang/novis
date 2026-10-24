@@ -48,7 +48,7 @@ stages:
         rules: [core-api/reference-card]
   - id: 7
     title: "the older `Core` reference cards are in the plain voice: the next thirteen modules"
-    status: open
+    status: done
     context: [data/gaps/nvs-stdlib/reference-cards-are-not-held-to-the-plain-voice.json, docs/rules/core-api/reference-card.md]
     extra:
       context:
@@ -273,11 +273,11 @@ rewrites the ones in the old voice. The session reads each diff before the next 
 
 **Split:** as stage 6, one writing subagent per item.
 
-- [ ] `str.rs` and `math.rs`, 83 cards. `crates/nvs-stdlib/src/str.rs:1`, `crates/nvs-stdlib/src/math.rs:623`
-- [ ] `test.rs` and `request.rs`, 76 cards. `crates/nvs-stdlib/src/test.rs:1`, `crates/nvs-stdlib/src/request.rs:1`
-- [ ] `http.rs` and `cli.rs`, 69 cards. `crates/nvs-stdlib/src/http.rs:1`, `crates/nvs-stdlib/src/cli.rs:1`
-- [ ] `xml.rs`, `bigint.rs` and `uri.rs`, 76 cards. `crates/nvs-stdlib/src/xml.rs:1`, `crates/nvs-stdlib/src/bigint.rs:1`, `crates/nvs-stdlib/src/uri.rs:1`
-- [ ] `router.rs`, `net.rs`, `crypto.rs` and `response.rs`, 86 cards. `crates/nvs-stdlib/src/router.rs:1`, `crates/nvs-stdlib/src/net.rs:1`, `crates/nvs-stdlib/src/crypto.rs:1`, `crates/nvs-stdlib/src/response.rs:1`
+- [x] `str.rs` and `math.rs`, 83 cards. `crates/nvs-stdlib/src/str.rs:1`, `crates/nvs-stdlib/src/math.rs:623`
+- [x] `test.rs` and `request.rs`, 76 cards. `crates/nvs-stdlib/src/test.rs:1`, `crates/nvs-stdlib/src/request.rs:1`
+- [x] `http.rs` and `cli.rs`, 69 cards. `crates/nvs-stdlib/src/http.rs:1`, `crates/nvs-stdlib/src/cli.rs:1`
+- [x] `xml.rs`, `bigint.rs` and `uri.rs`, 76 cards. `crates/nvs-stdlib/src/xml.rs:1`, `crates/nvs-stdlib/src/bigint.rs:1`, `crates/nvs-stdlib/src/uri.rs:1`
+- [x] `router.rs`, `net.rs`, `crypto.rs` and `response.rs`, 86 cards. `crates/nvs-stdlib/src/router.rs:1`, `crates/nvs-stdlib/src/net.rs:1`, `crates/nvs-stdlib/src/crypto.rs:1`, `crates/nvs-stdlib/src/response.rs:1`
 
 ### 8. the older `Core` reference cards are in the plain voice: every other module
 
@@ -324,7 +324,25 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 6 are done. Stage 6: the cards of `ldap/registry.rs`, `time.rs`, `db/registry.rs`,
+Stages 1 to 7 are done. Stage 7: the cards of `str.rs`, `math.rs`, `test.rs`, `request.rs`,
+`http.rs`, `cli.rs`, `xml.rs`, `bigint.rs`, `uri.rs`, `router.rs`, `net.rs`, `crypto.rs` and
+`response.rs` are in the plain voice, one commit. The five writing subagents ran side by side,
+since their files are disjoint, and none built. `uri.rs` was already plain, and `str.rs` and
+`math.rs` needed eleven strings. The session read each diff and fixed the sentences the subagents
+flagged. Two facts changed on purpose: `Core\Xml\Kind::Element` no longer says it is the only kind
+with children of more than one kind (a document node has them too), and `Core\Crypto\KeyKind`'s
+card says `P256` signs as well as agrees, as its case line already said. `Core\BigInt::abs` no
+longer claims what `abs` on `int` does. The tests that quote a card were updated: the
+`Core\Str::length` card in `crates/nvs-cli/tests/meta.rs`,
+`tests/lsp/hover/a-core-member-answers-its-registry-row.lspt` and
+`docs/reference/tools/50-agents.md`, stage 6's stale `Core\Arr::Order` golden in `meta.rs`, and
+the `Core\Http\Method` card in four `tests/lsp/hover/` cases and `stubs.rs`'s
+`the_method_enum_is_spelled_exactly_so` (`cargo test --test meta`: 19 passed; `tests/lsp/hover/`:
+53 passed; the stub test passed). The hand-written intro pages under `docs/reference/core/` and the
+runtime error messages still use some old wording. They are not cards, so this goal leaves them. Build and clippy green, and
+`bun nv render --website` rewrote the two website files in the same commit.
+
+Stage 6: the cards of `ldap/registry.rs`, `time.rs`, `db/registry.rs`,
 `arr.rs`, `reflect.rs` and `io.rs` are in the plain voice, one commit. Six writing subagents ran one
 after another, and the session read each diff. Cards already plain are unchanged; no error class,
 parameter name or fact moved. The six briefs are the template for stages 7 and 8: name the one
@@ -409,6 +427,9 @@ Stage 6's: a test or `.lspt`/`.nvst` case that quotes a rewritten card's old wor
 case on a `Core\Time`, `Core\Arr` or `Core\IO` method, or a `nvs help` snapshot. A grep for six of
 the old phrases found none outside the cards. `bun nv render --website --check` should be current.
 
+Stage 7's: a `nvs help` or hover snapshot that quotes an old card of the thirteen modules. The
+three known quotes are updated, and a search for the old phrases ran before the commit.
+
 **The nightly run's red is not owed by this tree.** Run 39922764699 ran at `7b6ef53ee`. Its
 `cost guards / macos-aarch64` soak leak was 2280 bytes per connection, and commit `071663316`
 (`fix(runtime): a spawned tree's start-up bytes leave the tree that spawned it`) fixes it. That
@@ -419,21 +440,21 @@ so both reds are stale. Another session committed the `capability.rs` rustfmt ch
 
 ### Next
 
-**Stage 7: the older `Core` reference cards are in the plain voice, the next thirteen modules.**
-Same method as stage 6 (see *State*): one writing subagent per item, one after another, the session
-reads each diff and fixes any vague sentence, then builds once with `cargo build` and
-`cargo clippy --all-targets -- -D warnings`, runs `bun nv render --website`, and commits the cards
-and the two website files together. Each subagent took about 70k to 130k tokens of its own, and
-this session spent about 70k across all six.
+**Stage 8: the older `Core` reference cards are in the plain voice, every other module.** Same
+method as stage 7 (see *State*): one writing subagent per item, all side by side since the files
+are disjoint, each told to edit only its files and never build. The session reads each diff, fixes
+every flagged card, greps the tree for the old words of each rewritten card (a `.lspt`, a
+`meta.rs` golden, `docs/reference/`), builds once, runs `bun nv render --website`, and commits the
+cards, the updated tests and the two website files together. Stage 7's subagents took 80k to 165k
+tokens each, and this session spent about 90k. Then the gap record is deleted.
 
-- [ ] `str.rs` and `math.rs`, 83 cards. `crates/nvs-stdlib/src/str.rs:1`, `crates/nvs-stdlib/src/math.rs:623`
-- [ ] `test.rs` and `request.rs`, 76 cards. `crates/nvs-stdlib/src/test.rs:1`, `crates/nvs-stdlib/src/request.rs:1`
-- [ ] `http.rs` and `cli.rs`, 69 cards. `crates/nvs-stdlib/src/http.rs:1`, `crates/nvs-stdlib/src/cli.rs:1`
-- [ ] `xml.rs`, `bigint.rs` and `uri.rs`, 76 cards. `crates/nvs-stdlib/src/xml.rs:1`, `crates/nvs-stdlib/src/bigint.rs:1`, `crates/nvs-stdlib/src/uri.rs:1`
-- [ ] `router.rs`, `net.rs`, `crypto.rs` and `response.rs`, 86 cards. `crates/nvs-stdlib/src/router.rs:1`, `crates/nvs-stdlib/src/net.rs:1`, `crates/nvs-stdlib/src/crypto.rs:1`, `crates/nvs-stdlib/src/response.rs:1`
+- [ ] `random.rs`, `queue.rs`, `regex.rs`, `http/stream.rs`, `process.rs`, `bytes.rs`, `test/hooks.rs`, `path.rs`. `crates/nvs-stdlib/src/random.rs:1`, `crates/nvs-stdlib/src/queue.rs:1`
+- [ ] `encoding.rs`, `compress.rs`, `socket.rs`, `script.rs`, `objset.rs`, `objmap.rs`, `cache.rs`, `sse.rs`, `session.rs`. `crates/nvs-stdlib/src/objset.rs:157`, `crates/nvs-stdlib/src/objset.rs:185`
+- [ ] `hash.rs`, `decimal.rs`, `ast.rs`, `uuid.rs`, `ratelimit.rs`, `jwe.rs`, `html.rs`, `env.rs`, `validate.rs`, `jwt.rs`, `heap.rs`, `storage.rs`, `os.rs`, `http/socket.rs`. `crates/nvs-stdlib/src/hash.rs:1`
+- [ ] `program.rs` and the 31 small modules stage 8 lists. `crates/nvs-stdlib/src/program.rs:1`
+- [ ] The record deleted. `data/gaps/nvs-stdlib/reference-cards-are-not-held-to-the-plain-voice.json:1`
 
-Stage 9 (`crates/nvs-lsp/src/document.rs`) touches its own files and can run instead if stage 7
-does not fit a session.
+Stage 9 (`crates/nvs-lsp/src/document.rs`) touches its own files and can run instead.
 
 ### Backlog
 
