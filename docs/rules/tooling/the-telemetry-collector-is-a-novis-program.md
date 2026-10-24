@@ -28,8 +28,7 @@ process with the registry, so a fault in one never reaches the other.
 - **Memory:** per request, one report of at most 4 KiB and one transaction. The rate limit's table is
   per process (`rule:tooling/the-collector-never-stores-an-address`).
 
-**Not on disk.** `apps/telemetry/` has no deploy guide, and no end-to-end test runs the client
-against it. The footer reads `REVISION`, and nothing writes that file yet.
+**Not on disk.** No end-to-end test runs the client against `apps/telemetry/`.
 
 **Declined:**
 - **A hosted analytics product or a third-party collector.** It moves the promise to a company whose
