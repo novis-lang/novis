@@ -420,10 +420,16 @@ impl Outcome {
     /// left a transaction open, and an `exit(n)` ended the program rather than
     /// the test.
     fn and_failed(self, named: String) -> Self {
+        self.and_record(failure(&named))
+    }
+
+    /// [`Self::and_failed`] with a record already built, for a failure that carries fields
+    /// beside its line.
+    fn and_record(self, record: Record) -> Self {
         match self {
-            Self::Passed => Self::failed(named),
+            Self::Passed => Self::Failed(vec![record]),
             Self::Failed(mut failures) | Self::Flaky { mut failures, .. } => {
-                failures.push(failure(&named));
+                failures.push(record);
                 Self::Failed(failures)
             }
             settled @ (Self::Skipped(_) | Self::Exited(_)) => settled,
@@ -1988,12 +1994,15 @@ fn run_attempts(
 /// `rule:testing/property-testing`'s run of one `#[Property]` method: `runs` calls, each on a
 /// fresh instance with inputs generated from `seed` and the call's index.
 ///
-/// The first call that does not pass ends the run, and its outcome is the test's. A failure
-/// gets one more record naming the call, its inputs and the seed, so `#[Property(seed: n)]`
-/// runs the same inputs again. There is no retry: `retries:` is not a property's option.
+/// The first call that does not pass ends the run. A failing call's inputs are shrunk
+/// ([`shrink_failure`]), and the outcome is the last failing call's. It gets one more record
+/// naming the call, the shrunk and the generated inputs and the seed, so `#[Property(seed: n)]`
+/// runs the same inputs again ([`counterexample_record`]). There is no retry: `retries:` is not
+/// a property's option.
 ///
 /// **What it spends:** one call's inputs at a time, as generated values and then as runtime
-/// values, both freed before the next call is generated.
+/// values, both freed before the next call is generated. A failure also keeps its generated
+/// inputs while they shrink.
 fn run_property(
     unit: &Arc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
@@ -2015,35 +2024,180 @@ fn run_property(
                 nvs_types::property::generate::MAX_INPUT_UNITS
             ));
         };
-        let rendered = inputs
-            .iter()
-            .map(render_input)
-            .collect::<Vec<_>>()
-            .join(", ");
-        let reproduce = format!(
-            "call {call} of {} failed with the inputs ({rendered}). Write \
-             `#[Property(seed: {written})]` to run the same inputs again.",
-            property.runs
-        );
-        // Dropped after the call has returned: it has the one reference each input carries,
-        // and the call only borrows them.
-        let mut values = nvs_runtime::InputValues::new();
-        let mut args = Vec::with_capacity(inputs.len());
-        for (generator, input) in property.params.iter().zip(&inputs) {
-            match build_input(ctx, &mut values, property, generator, input) {
-                Ok(built) => args.push(values.get(built)),
-                Err(outcome) => return outcome.and_failed(reproduce),
-            }
-        }
-        match run_case(unit, ctx, test, &args, 1) {
-            Outcome::Passed => {}
-            failed @ (Outcome::Failed(_) | Outcome::Flaky { .. }) => {
-                return failed.and_failed(reproduce);
-            }
-            settled @ (Outcome::Skipped(_) | Outcome::Exited(_)) => return settled,
-        }
+        let found = Counterexample {
+            call,
+            runs: property.runs,
+            seed: written,
+            generated: inputs.iter().map(render_input).collect(),
+            shrunk: None,
+        };
+        let outcome = match call_property(unit, ctx, test, property, &inputs) {
+            Ok(Outcome::Passed) => continue,
+            Ok(failed @ (Outcome::Failed(_) | Outcome::Flaky { .. })) => failed,
+            Ok(settled @ (Outcome::Skipped(_) | Outcome::Exited(_))) => return settled,
+            // An input that could not be built never reached the method, so there is no
+            // failing call to shrink.
+            Err(outcome) => return outcome.and_record(counterexample_record(&found)),
+        };
+        let (shrunk, outcome) = shrink_failure(unit, ctx, test, property, inputs, outcome);
+        let found = Counterexample {
+            shrunk: shrunk.map(|inputs| inputs.iter().map(render_input).collect()),
+            ..found
+        };
+        return outcome.and_record(counterexample_record(&found));
     }
     Outcome::Passed
+}
+
+/// One call of a `#[Property]` method with `inputs`, on a fresh instance.
+///
+/// # Errors
+///
+/// The outcome of an input that could not be built: [`build_input`]'s.
+fn call_property(
+    unit: &Arc<nvs_codegen::Unit>,
+    ctx: &mut nvs_runtime::Ctx,
+    test: &Attempted,
+    property: &nvs_types::property::PropertyCase,
+    inputs: &[nvs_types::property::Generated],
+) -> Result<Outcome, Outcome> {
+    // Dropped after the call has returned: it has the one reference each input carries, and
+    // the call only borrows them.
+    let mut values = nvs_runtime::InputValues::new();
+    let mut args = Vec::with_capacity(inputs.len());
+    for (generator, input) in property.params.iter().zip(inputs) {
+        let built = build_input(ctx, &mut values, property, generator, input)?;
+        args.push(values.get(built));
+    }
+    Ok(run_case(unit, ctx, test, &args, 1))
+}
+
+/// `inputs`, which failed with `failed`, shrunk by `nvs_types::property::shrink` in the
+/// test's own isolate: each candidate is built and the method called once on a fresh
+/// instance, at most [`MAX_SHRINK_CALLS`](nvs_types::property::shrink::MAX_SHRINK_CALLS)
+/// times. Returns the shrunk inputs, or `None` when no simpler input failed, and the outcome
+/// of the last call that failed.
+///
+/// **Only the last failing call's records are kept.** [`judge`] takes the ledger at every
+/// call, so a passing candidate leaves nothing behind, and each failing one replaces the
+/// outcome before it. A candidate that could not be built, or that passed, is not a failure.
+///
+/// **A stop ends the shrinking.** Once the test is past its wall-time limit, or a candidate
+/// called `exit()`, no other candidate runs, and the last real failure is reported. A call the
+/// limit stopped would otherwise count as a failure of every candidate after it.
+fn shrink_failure(
+    unit: &Arc<nvs_codegen::Unit>,
+    ctx: &mut nvs_runtime::Ctx,
+    test: &Attempted,
+    property: &nvs_types::property::PropertyCase,
+    inputs: Vec<nvs_types::property::Generated>,
+    failed: Outcome,
+) -> (Option<Vec<nvs_types::property::Generated>>, Outcome) {
+    use nvs_types::property::shrink;
+    let mut last = failed;
+    let mut shrank = false;
+    let mut stopped = false;
+    let (shrunk, _calls) = shrink::shrink(
+        inputs,
+        &property.params,
+        &property.classes,
+        |candidate| {
+            if stopped || ctx.safepoint_view().deadline_expired() {
+                stopped = true;
+                return false;
+            }
+            let outcome = call_property(unit, ctx, test, property, candidate);
+            if ctx.safepoint_view().deadline_expired() {
+                stopped = true;
+                return false;
+            }
+            match outcome {
+                Ok(failed @ (Outcome::Failed(_) | Outcome::Flaky { .. })) => {
+                    last = failed;
+                    shrank = true;
+                    true
+                }
+                Ok(Outcome::Exited(_)) | Err(Outcome::Exited(_)) => {
+                    stopped = true;
+                    false
+                }
+                Ok(_) | Err(_) => false,
+            }
+        },
+        shrink::MAX_SHRINK_CALLS,
+    );
+    (shrank.then_some(shrunk), last)
+}
+
+/// A property's failing call, as a report prints it: which call of how many, the seed, and
+/// its inputs as the generator made them and as they shrank.
+struct Counterexample {
+    call: u32,
+    runs: u32,
+    seed: i64,
+    generated: Vec<String>,
+    /// `None` when no simpler input failed.
+    shrunk: Option<Vec<String>>,
+}
+
+/// The field of the record that names a property's failing call
+/// (`rule:testing/report-formats`'s counterexample). [`json_document`] writes it as the
+/// test's `counterexample` key.
+const COUNTEREXAMPLE: &str = "counterexample";
+
+/// The failure record of a property's failing call: its line, and the [`COUNTEREXAMPLE`]
+/// field the JSON report reads.
+fn counterexample_record(found: &Counterexample) -> Record {
+    let Counterexample {
+        call,
+        runs,
+        seed,
+        generated,
+        shrunk,
+    } = found;
+    let generated_line = generated.join(", ");
+    let line = match shrunk {
+        Some(shrunk) => format!(
+            "call {call} of {runs} failed. The smallest inputs that still fail are ({}). The \
+             generated inputs were ({generated_line}). Write `#[Property(seed: {seed})]` to run \
+             the same inputs again.",
+            shrunk.join(", ")
+        ),
+        None => format!(
+            "call {call} of {runs} failed with the inputs ({generated_line}). Write \
+             `#[Property(seed: {seed})]` to run the same inputs again."
+        ),
+    };
+    let texts = |items: &[String]| {
+        Node::Sequence(
+            items
+                .iter()
+                .map(|text| {
+                    Node::Scalar(Scalar::Str {
+                        text: Rendered::new(text),
+                        bytes: text.len(),
+                    })
+                })
+                .collect(),
+        )
+    };
+    let mut record = failure(&line);
+    record.envelope.fields.push((
+        COUNTEREXAMPLE.to_owned(),
+        Node::Map(vec![
+            (Rendered::new("seed"), Node::Scalar(Scalar::Int(*seed))),
+            (
+                Rendered::new("call"),
+                Node::Scalar(Scalar::Uint(u64::from(*call))),
+            ),
+            (
+                Rendered::new("inputs"),
+                texts(shrunk.as_deref().unwrap_or(generated)),
+            ),
+            (Rendered::new("generatedInputs"), texts(generated)),
+        ]),
+    ));
+    record
 }
 
 /// `input` built as the value a call takes, owned by `values`. `generator` is what generated
@@ -3490,10 +3644,13 @@ fn report(ctx: &mut nvs_runtime::Ctx, method: &str, outcome: &Outcome, elapsed: 
 ///
 /// The version is at the root because that section promises a *versioned*
 /// schema, and a consumer that reads it knows what the rest of the keys mean.
-/// What `rule:testing/report-formats` additionally names — a structured diff, `#[Bench]`'s counters, a
-/// shrunk property counterexample and per-data-row results — is absent
-/// because nothing produces any of it yet; each arrives as a new
-/// key beside these, which is the whole of what the version number buys.
+/// What `rule:testing/report-formats` additionally names — a structured diff, `#[Bench]`'s counters
+/// and per-data-row results — is absent because nothing produces any of it yet; each arrives as
+/// a new key beside these, which is the whole of what the version number buys.
+///
+/// **A failed `#[Property]` has `counterexample`**: `{seed, call, inputs, generatedInputs}`,
+/// each input as the report prints it, `inputs` shrunk. It is a new key, not a new version: a
+/// consumer that does not read it reads the rest unchanged.
 ///
 /// **Version 2 is where a record says where its test is written.** `file`,
 /// `line` and `column` are what a Test Explorer needs to place a test in a
@@ -3561,6 +3718,17 @@ fn json_document(
                     json_string(message_of(reason), &mut out);
                 }
                 out.push(']');
+                let found = reasons.iter().rev().find_map(|reason| {
+                    reason
+                        .envelope
+                        .fields
+                        .iter()
+                        .find(|(name, _)| name == COUNTEREXAMPLE)
+                });
+                if let Some((_, found)) = found {
+                    out.push_str(", \"counterexample\": ");
+                    json_node(found, &mut out);
+                }
             }
             Outcome::Exited(code) => out.push_str(&format!(", \"exitCode\": {code}")),
         }
@@ -3779,6 +3947,39 @@ fn junit_document(cases: &[Case], counts: Counts, total: Duration) -> String {
 /// A duration as the milliseconds every report quotes.
 fn millis(elapsed: Duration) -> f64 {
     elapsed.as_secs_f64() * 1000.0
+}
+
+/// `node` as JSON, for the nodes [`counterexample_record`] builds: a map, a sequence, a string
+/// and a number. Any other node is `null`.
+fn json_node(node: &Node, out: &mut String) {
+    match node {
+        Node::Map(entries) => {
+            out.push('{');
+            for (nth, (key, value)) in entries.iter().enumerate() {
+                if nth > 0 {
+                    out.push_str(", ");
+                }
+                json_string(key.as_str(), out);
+                out.push_str(": ");
+                json_node(value, out);
+            }
+            out.push('}');
+        }
+        Node::Sequence(items) => {
+            out.push('[');
+            for (nth, item) in items.iter().enumerate() {
+                if nth > 0 {
+                    out.push_str(", ");
+                }
+                json_node(item, out);
+            }
+            out.push(']');
+        }
+        Node::Scalar(Scalar::Str { text, .. }) => json_string(text.as_str(), out),
+        Node::Scalar(Scalar::Int(number)) => out.push_str(&number.to_string()),
+        Node::Scalar(Scalar::Uint(number)) => out.push_str(&number.to_string()),
+        _ => out.push_str("null"),
+    }
 }
 
 /// `text` as a JSON string literal, quotes included.
@@ -4813,10 +5014,11 @@ mod tests {
     #[test]
     fn a_property_runs_as_one_test_over_its_generated_inputs() {
         // `rule:testing/property-testing`: a property that holds for every input passes, one
-        // that does not fails with a record naming the call's inputs and the seed that
-        // reproduces them, and one whose inputs are a list of shapes, a class built through its
-        // constructor, a `?decimal` and `bytes` is called with each of them. `--list` lists each
-        // property under its own name.
+        // that does not fails, shrinks to the smallest input that still fails, and is reported
+        // with that input, the generated one and the seed that reproduces them. One whose
+        // inputs are a list of shapes, a class built through its constructor, a `?decimal` and
+        // `bytes` is called with each of them, and a subclass runs the property it inherits
+        // (`rule:testing/hook-inheritance`). `--list` lists each property under its own name.
         let verdicts = verdicts("property.nvs");
         let named: Vec<(&str, &str)> = verdicts
             .iter()
@@ -4825,19 +5027,39 @@ mod tests {
         assert_eq!(
             named,
             vec![
+                ("itAddsZero", "passed"),
                 ("itAddsInEitherOrder", "passed"),
                 ("itFailsForANumberAboveTen", "failed"),
                 ("itBuildsEveryKindOfInput", "passed"),
             ],
             "{verdicts:?}"
         );
-        let failures = &verdicts[1].2;
+        let failures = &verdicts[2].2;
         assert!(
-            failures
-                .iter()
-                .any(|failure| failure.contains("failed with the inputs (")
-                    && failure.contains("#[Property(seed: ")),
-            "the failure names the inputs and the seed: {failures:?}"
+            failures.iter().any(|failure| failure
+                .contains("The smallest inputs that still fail are (11).")
+                && failure.contains("#[Property(seed: ")),
+            "the failure names the shrunk input and the seed: {failures:?}"
+        );
+        // Only the last failing call's assertion is reported, beside the counterexample.
+        assert_eq!(failures.len(), 2, "{failures:?}");
+        let report = json_report("property.nvs");
+        let failed = report["tests"]
+            .as_array()
+            .expect("the report lists its tests")
+            .iter()
+            .find(|test| test["method"] == "itFailsForANumberAboveTen")
+            .expect("the failing property is reported");
+        let found = &failed["counterexample"];
+        assert_eq!(found["inputs"], serde_json::json!(["11"]), "{failed}");
+        assert!(found["seed"].is_i64(), "{failed}");
+        assert!(found["call"].is_u64(), "{failed}");
+        assert_eq!(
+            found["generatedInputs"]
+                .as_array()
+                .map(Vec::len),
+            Some(1),
+            "{failed}"
         );
         let checked = crate::front_end(&fixture("property.nvs")).expect("the fixture is a program");
         let listed: Vec<String> = super::listing(&checked, &Selection::default())
@@ -4847,6 +5069,7 @@ mod tests {
         assert_eq!(
             listed,
             [
+                "itAddsZero",
                 "itAddsInEitherOrder",
                 "itFailsForANumberAboveTen",
                 "itBuildsEveryKindOfInput"

@@ -2255,21 +2255,26 @@ impl ExprTypeTable {
         std::mem::take(&mut self.test_lineages)
     }
 
-    /// Replaces the class labelled `label`'s three test tables with the ones
+    /// Replaces the class labelled `label`'s four test tables with the ones
     /// [`crate::test_inherit::merge`] built from it and its ancestors. An
     /// empty table leaves no entry.
     pub(crate) fn replace_test_tables(
         &mut self,
         label: &str,
         tests: Vec<crate::testing::TestCase>,
+        properties: Vec<crate::property::PropertyCase>,
         fixtures: Vec<crate::testing::Fixture>,
         hooks: crate::test_hooks::TestHooks,
     ) {
         self.tests.remove(label);
+        self.properties.remove(label);
         self.fixtures.remove(label);
         self.test_hooks.remove(label);
         if !tests.is_empty() {
             self.tests.insert(label.to_owned(), tests);
+        }
+        if !properties.is_empty() {
+            self.properties.insert(label.to_owned(), properties);
         }
         if !fixtures.is_empty() {
             self.fixtures.insert(label.to_owned(), fixtures);
