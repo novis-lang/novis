@@ -99,37 +99,33 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `b7df13c4b`, the end of `editor-fixes`. Its Website run is green. Its CI push
-run, https://github.com/novis-lang/novis/actions/runs/40085245322, has ended, and the watch exited 4.
-Every job but the five below is green, including `five-driver matrix`. The five red jobs are
-all fixed in commits that are not pushed yet:
+`origin/main` is at `d7386c1f5`. Its Website run is green. Its CI push run,
+https://github.com/novis-lang/novis/actions/runs/40098404099, has ended, and the watch exited 4.
+Every job but the four below is green, including `five-driver matrix` and the LDAP login attack.
 
-- `third-party attribution`: `c7a505981` regenerates `THIRD-PARTY-LICENSES.txt` for the
-  `crypto-bigint` bump that this session pushed in `10c402b57`.
-- `proofs` on all three platforms: 43 perf figures were stale after the plain-voice card rewrite
-  (`d42f1dd5c`) of `path.rs`, `http.rs` and `metrics.rs`. `81e061748` carries the Path and Http
-  figures, because the main loop's commit took the ledger lines this session had staged.
-  `cdbb18c13` carries Metrics.
-- `the chapter examples run and the website matches the binary`: `30e9a4e60` renders `core.json`,
-  `reference.json` and `llms-full.txt` from `HEAD`. That render moved 606 question hashes and the
-  31 Core enums on `syntax/values/enums.mdx`. `07390a401` rereads and stamps all of them.
+- `the chapter examples run and the website matches the binary`: `llms-full.txt` was not rendered
+  after `aa446902f` rendered the attributes reference. `a7acf70c1` renders it, and is not pushed yet.
+  The same job's stale guard comes next, and it still fails on `syntax/attributes/routes.mdx`.
+- `proofs` on all three platforms: these are `api-document`'s open work, and both reds were told to
+  it with `loop say`. The seven `Core\Router\Match` perf figures are stale. `Core\Api\SchemeType`
+  and `Core\Api\KeyIn` came in with `81e061748`, with no about.md, example or test case.
 
-`a5f50b907` runs the stream retry test under Miri again, which the next nightly run checks.
+Also at `HEAD`, and told to the main loop: `bun nv proofs --gate` names
+`docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md` at 222 words, more than
+the 200 allowed. It also owes the `Core\Router` and `lang:attributes` perf figures.
 
-Still red at `HEAD`, and the open stages of `api-document`, already told with `loop say`:
-`syntax/attributes/routes.mdx` is stale in the Website stale guard, and `bun nv proofs --gate`
-owes the Router and `lang:attributes` perf figures.
-
-`.agent-tmp/wt-perf` and `.agent-tmp/wt-csv` are scratch folders that git no longer lists as
-worktrees. Each contains a `.looper` directory, which Windows will not delete while looper runs.
-`wt-csv` also has an ignored `target/` and `node_modules/`. Delete both when looper is stopped.
+`.agent-tmp/wt-perf`, `.agent-tmp/wt-csv` and `.agent-tmp/wt-render` are scratch folders that git
+no longer lists as worktrees. Each contains a `.looper` directory, which Windows will not delete
+while looper runs. `wt-csv` also has an ignored `target/`, warm at `d2a782d60`, and a
+`node_modules/`. Delete all three when looper is stopped.
 
 ### Next
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch the next push with `bun nv ci --watch --next`. `tools/nv/cmd/ci.ts:265`
-  Run 40085245322 has ended, so `--next` passes over it, and no `--past` is needed.
+  Run 40098404099 has ended, so `--next` passes over it. A push of a goal end that has not closed
+  `api-document`'s reds needs `--past proofs`.
   `bun nv ci --rerun` reruns every failed job of the run, so a rerun for one flaky job reruns
   the known reds too. An exit of 3 with a run still going means the push came late: watch again.
   Before you watch, run `bun nv site --check stale questions` and `bun nv proofs --gate --limit 0`
@@ -151,7 +147,8 @@ worktrees. Each contains a `.looper` directory, which Windows will not delete wh
 - [ ] Fix and commit each other red job. `.github/workflows/ci.yml:1`
   A render red needs a binary built at `HEAD`: the root's `target/debug/nvs.exe` carries the main
   loop's uncommitted edits. Build one with `cargo build --bin nvs` in the scratch worktree.
-  It takes about 15 minutes cold. Then render with `NVS_BIN` pointing at it.
+  It takes about 15 minutes cold. Set `CARGO_TARGET_DIR=E:/mwl/.agent-tmp/wt-csv/target`, which is
+  warm, and it takes a few minutes. Then render with `NVS_BIN` pointing at the `nvs.exe` it built.
   A stale guard red is fixed by `bun nv site --stale` and `bun nv site --questions --owed`, then a
   reread and a `--stamp`. Under Git Bash, a URL argument needs `MSYS_NO_PATHCONV=1`. Check a site or
   render red against committed `HEAD` in a scratch worktree. `bun nv render` takes no `--nvs`, so
