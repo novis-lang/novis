@@ -170,14 +170,14 @@ and `tests/lsp/actions/`.
 
 The unused-`use` warning, which reads the index organize imports also reads:
 
-- [ ] The rule fragment and its `designed` record, with the source the session picked and why (`statements/an-unused-use-is-a-warning`). `docs/rules/statements/an-unused-use-is-a-warning.md:1`, `data/rules/statements/an-unused-use-is-a-warning.json:1`
-- [ ] The next free `W10xx` code, with its card and its help text, which follows AGENTS.md § *Text an end user reads*. `crates/nvs-diagnostics/src/code/warnings.rs:1`
-- [ ] `nvs check` reports it for each unused `use`, from the index or from name resolution. `crates/nvs-cli/src/check.rs:1`, `crates/nvs-lsp/src/index.rs:498`
-- [ ] It carries a safe fix that deletes the line, and `nvs check --fix` applies it. `crates/nvs-cli/src/check.rs:94`, `crates/nvs-diagnostics/src/diagnostic.rs:115`
-- [ ] The editor shows the warning with the `Unnecessary` tag, and the separate import dimming goes. `crates/nvs-lsp/src/diagnostics.rs:316`
-- [ ] Tests: an unused `use` warns, a used one does not, `--fix` removes the line and the program still compiles, and `nvs fmt` keeps it. `crates/nvs-cli/tests/check_flags.rs:1`
-- [ ] The three sentences that say Novis has no warning tier say what is true. `docs/rules/core-api/casing-has-no-suppression.md:1`, `docs/rules/core-api/written-visibility.md:1`, `docs/rules/types/no-legacy-cast.md:1`
-- [ ] The rule `shipped` with the tests in `guardedBy`. `data/rules/statements/an-unused-use-is-a-warning.json:1`
+- [x] The rule fragment and its `designed` record, with the source the session picked and why (`statements/an-unused-use-is-a-warning`). `docs/rules/statements/an-unused-use-is-a-warning.md:1`, `data/rules/statements/an-unused-use-is-a-warning.json:1`
+- [x] The next free `W10xx` code, with its card and its help text, which follows AGENTS.md § *Text an end user reads*. `crates/nvs-diagnostics/src/code/warnings.rs:1`
+- [x] `nvs check` reports it for each unused `use`, from the index or from name resolution. `crates/nvs-cli/src/check.rs:1`, `crates/nvs-lsp/src/index.rs:498`
+- [x] It carries a safe fix that deletes the line, and `nvs check --fix` applies it. `crates/nvs-cli/src/check.rs:94`, `crates/nvs-diagnostics/src/diagnostic.rs:115`
+- [x] The editor shows the warning with the `Unnecessary` tag, and the separate import dimming goes. `crates/nvs-lsp/src/diagnostics.rs:316`
+- [x] Tests: an unused `use` warns, a used one does not, `--fix` removes the line and the program still compiles, and `nvs fmt` keeps it. `crates/nvs-cli/tests/check_flags.rs:1`
+- [x] The three sentences that say Novis has no warning tier say what is true. `docs/rules/core-api/casing-has-no-suppression.md:1`, `docs/rules/core-api/written-visibility.md:1`, `docs/rules/types/no-legacy-cast.md:1`
+- [x] The rule `shipped` with the tests in `guardedBy`. `data/rules/statements/an-unused-use-is-a-warning.json:1`
 
 Workspace symbol search and organize imports:
 
@@ -244,6 +244,26 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
+Stage 2's unused-`use` warning is done (`c91e6c6c4`). `W1026` (`W_UNUSED_USE`) is raised by
+`nvs_lsp::diagnostics::unused_uses`, over the import reading `index::reads` that the index's
+`Import::read` also comes from. `nvs check` adds it for every loaded file outside `vendor`, for
+`Sink::Check` and `Sink::Fix` only (`crates/nvs-cli/src/main.rs`, after the front end's loop), so
+`nvs run` prints nothing. `analyse_file` adds it for the entry (`crates/nvs-lsp/src/document.rs`),
+and `to_wire` tags it `Unnecessary`. `dimming` lost its `imports` argument. The safe fix deletes
+the whole line when only space or a `//` comment shares it. A `--fix` that rewrites a deprecated use
+now also deletes the import it left unused, so `check_flags.rs` counts 5 and 4 edits. Rule
+`statements/an-unused-use-is-a-warning` is shipped, and the three no-warning-tier sentences are
+rewritten. Ran green: `cargo test --test check_flags` (10), the two new unit tests in
+`diagnostics.rs`, and the whole `.lspt` suite (464, with
+`tests/lsp/diagnostics/an-import-nothing-reads-is-dimmed.lspt` now expecting the warning).
+
+**Expected red:** `crates/nvs-lsp/tests/index.rs`'s `all_six_readers_query_the_one_index`, because
+nothing outside `index.rs` calls `SymbolIndex::unused_imports` now. Organize imports reads it, so the
+fix is in the next slice: move `unused_imports` from the dimming row to an organize-imports row (and
+add `workspace/symbol`'s query), raise the array's length, and add both readers to
+`rule:ide/five-features-are-one-reference-index`. `cargo test --test check` may show a `W1026` where
+a fixture has an unused `use` (`crates/nvs-cli/tests/check.rs:412` counts warnings).
+
 Stage 1 is done. Rename answers a type, a member and a local, and `workspace/willRenameFiles`
 rewrites `require` paths (`crates/nvs-lsp/src/rename.rs`). A type declared alone in a file named
 after it moves the file too (`7af502c7e`): `rename::named_after` finds it, `rename::types` adds
@@ -270,19 +290,16 @@ already found green on the later push CI. `env-secret-proofs` passes at HEAD (`b
 
 ### Next
 
-**Stage 2, the unused-`use` warning first**, one file set: `crates/nvs-diagnostics/src/code/warnings.rs`
-(the last code is `W1025`, so take `W1026` after rereading the file), `crates/nvs-cli/src/check.rs`,
-`crates/nvs-lsp/src/diagnostics.rs`, `crates/nvs-lsp/src/index.rs`, and the new rule fragment.
-No gate.
+**Stage 2, `workspace/symbol` and organize imports**, one file set: `capabilities.rs`, `index.rs`,
+`server.rs`, `imports.rs`, `actions.rs`, `case.rs`, `tests/handshake.rs`, `tests/index.rs`. No gate.
 
-- [ ] Rule fragment `statements/an-unused-use-is-a-warning` and its `designed` record, source picked (the index, per the standing decision). `docs/rules/statements/an-unused-use-is-a-warning.md:1`
-- [ ] The `W10xx` code, card and help text. `crates/nvs-diagnostics/src/code/warnings.rs:1`
-- [ ] `nvs check` reports it from `SymbolIndex::unused_imports`. `crates/nvs-lsp/src/index.rs:507`, `crates/nvs-cli/src/check.rs:1`
-- [ ] Its safe fix and `--fix`. `crates/nvs-cli/src/check.rs:94`
-- [ ] The editor shows the warning with `Unnecessary`, and import dimming goes. `crates/nvs-lsp/src/diagnostics.rs:337`
+- [ ] `workspace/symbol` answers from the index's declarations, case-insensitive substring of the name. `crates/nvs-lsp/src/capabilities.rs:162`, `crates/nvs-lsp/src/index.rs:664`, `crates/nvs-lsp/src/server.rs:569`
+- [ ] Organize imports as `source.organizeImports`: delete each `W1026` line (`diagnostics::unused_uses`) and sort the rest in `nvs-fmt`'s order. `crates/nvs-lsp/src/imports.rs:188`, `crates/nvs-fmt/src/imports.rs:87`
+- [ ] `tests/index.rs`'s readers table names both new readers, and it goes green by name. `crates/nvs-lsp/tests/index.rs:233`
+- [ ] The `.lspt` runner learns `workspaceSymbol`; the handshake test holds the provider. `crates/nvs-lsp/src/case.rs:59`, `crates/nvs-lsp/tests/handshake.rs:109`
+- [ ] `rule:ide/the-request-set-is-closed` and `rule:ide/five-features-are-one-reference-index` list them. `docs/rules/ide/the-request-set-is-closed.md:1`
 
-Then `workspace/symbol` and organize imports (`crates/nvs-lsp/src/imports.rs:188`), then the
-subagent that writes `tests/lsp/symbols/` and `tests/lsp/actions/` cases.
+Then the subagent that writes `tests/lsp/symbols/` and `tests/lsp/actions/` cases.
 
 ### Backlog
 
