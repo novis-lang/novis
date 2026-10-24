@@ -1090,6 +1090,12 @@ mutant lowers and compiles with no second check:
 | boolean literal | `true` ↔ `false` |
 | branch condition negated | an `if`'s or a loop's condition is inverted |
 
+A swap is made only where it keeps the result type, so `*` and `/` swap over `float` and `decimal`
+alone. A condition the checker narrows a type on (an `is` test, or an `==` against a literal, `null`
+or a class constant) keeps its direction, its connectors and that test. A `true` or `false` that is a
+condition, a `match` subject or an `==` operand keeps its value. A mutant that took a narrowed edge
+with the test false would read a value at a type it does not have.
+
 The set is enumerated where it is implemented, so adding an operator changes no rule.
 
 `--mutate` runs on a program's `#[Test]` methods only. On a `.nvst` tree it exits with an error, as
@@ -1106,7 +1112,8 @@ tests that reach the mutant's line. Memory is O(`--jobs`): the mutants in flight
 - *Recompiling only the mutated function.* It needs a partial-recompile mechanism kept correct beside
   the whole-program one, for a cost the per-mutant test run already outweighs.
 
-**Not on disk.** Nothing generates or runs a mutant.
+**Not on disk.** `nvs_ir::lower::mutants` lists the mutants and `lower_mutant` lowers one, but
+nothing runs a mutant: `nvs test` has no `--mutate` flag.
 
 <sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/feature-proofs`](testing.md#testing-feature-proofs).</sub>
 

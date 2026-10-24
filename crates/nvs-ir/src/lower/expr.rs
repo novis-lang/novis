@@ -158,16 +158,15 @@ impl<'a> Lowering<'a> {
             // `cur` is redirected to whichever block the expression's own
             // control flow ends in, so every caller composes with them for
             // free.
+            // A mutant may swap the two (`rule:testing/mutation-testing`).
             ExprKind::Binary {
-                op: BinaryOp::And,
+                op: op @ (BinaryOp::And | BinaryOp::Or),
                 lhs,
                 rhs,
-            } => (self.lower_and(lhs, rhs, env, cur), Ty::Bool),
-            ExprKind::Binary {
-                op: BinaryOp::Or,
-                lhs,
-                rhs,
-            } => (self.lower_or(lhs, rhs, env, cur), Ty::Bool),
+            } => match self.mutated_connector(expr, *op) {
+                BinaryOp::And => (self.lower_and(lhs, rhs, env, cur), Ty::Bool),
+                _ => (self.lower_or(lhs, rhs, env, cur), Ty::Bool),
+            },
             ExprKind::Binary {
                 op: BinaryOp::Coalesce,
                 lhs,
@@ -186,7 +185,10 @@ impl<'a> Lowering<'a> {
             ExprKind::Catch { guarded, arms } => {
                 self.lower_catch(guarded, arms, expected, env, cur)
             }
-            ExprKind::Bool(b) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(*b)),
+            ExprKind::Bool(b) => {
+                let b = self.mutated_bool(expr.span, *b);
+                self.emit(*cur, Ty::Bool, InstKind::ConstBool(b))
+            }
             // The literal `null`. Its own type, not a tagged one -- see
             // `Ty::Null`; `Self::coerce` widens it wherever the position it
             // lands in declares `?T`.
@@ -2027,6 +2029,7 @@ impl<'a> Lowering<'a> {
              `E0476` refuses one where it is written precisely so that this crate never \
              has to invent a value for a merge phi with no incoming edge"
         );
+        self.shield_literal(subject);
         let (subj_v, subj_ty) = self.lower_expr(subject, None, env, cur);
         // A fresh subject is this expression's to free; an aliasing one stays
         // the slot's, exactly the split `Self::lower_ternary` applies to its
