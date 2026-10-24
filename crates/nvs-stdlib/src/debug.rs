@@ -1183,6 +1183,45 @@ mod tests {
         assert!(!ctx.debug_flags().contains(DebugFlags::PROFILE));
     }
 
+    /// `rule:testing/debug-surface`: a profile's start names its sink and turns the timing probe
+    /// on, a second start throws until the stop, and the stop turns both off.
+    // covers: Core\Debug::startProfile
+    // covers: Core\Debug::stopProfile
+    #[cfg_attr(
+        miri,
+        ignore = "canonicalises a scratch directory, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_profile_starts_and_stops_its_probe_and_sink() {
+        let dir = nvs_repo::scratch("debug-profile");
+        let mut ctx = probing(&format!(
+            "[debug]\nmode = [\"profile\"]\n\n[capabilities.debug]\nprofile = ['{}']\n",
+            dir.display()
+        ));
+        nvs_runtime::call(nvs_core_debug_stop_profile, &mut ctx, &[]).expect("a stop never throws");
+        assert!(!ctx.debug_flags().contains(DebugFlags::PROFILE));
+        let path = dir.join("profile.speedscope.json");
+        let start = |ctx: &mut nvs_runtime::Ctx| {
+            let args = [Value::text(&path.to_string_lossy())];
+            let answered = nvs_runtime::call(nvs_core_debug_start_profile, ctx, &args);
+            #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+            unsafe {
+                args[0].release();
+            }
+            answered
+                .err()
+                .map(|_| ctx.take_pending().unwrap_or_default().into_owned())
+        };
+        assert_eq!(start(&mut ctx), None, "the mode allows `profile`");
+        assert!(ctx.debug_flags().contains(DebugFlags::PROFILE));
+        assert_eq!(ctx.profile_sink(), Some(path.as_path()));
+        let again = start(&mut ctx).expect("one profile at a time");
+        assert!(again.contains("stopProfile"), "{again}");
+        nvs_runtime::call(nvs_core_debug_stop_profile, &mut ctx, &[]).expect("a stop never throws");
+        assert!(!ctx.debug_flags().contains(DebugFlags::PROFILE));
+        assert_eq!(ctx.profile_sink(), None);
+    }
+
     /// `rule:testing/debug-surface`: `coverage()` reads the host's table back as path, line and
     /// count. A line is its largest statement's count, and a line that did not run is not listed.
     // covers: Core\Debug::coverage
