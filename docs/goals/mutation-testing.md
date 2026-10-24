@@ -20,7 +20,7 @@ stages:
         rules: [testing/mutation-testing, testing/coverage-report, testing/report-formats, testing/a-test-has-a-wall-time-limit, testing/tests-run-across-every-core]
   - id: 3
     title: a bench of its cost, and its feature proofs
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, docs/rules/testing/mutation-testing.md, docs/rules/testing/feature-proofs.md, docs/reference/tools/10-cli.md, benches/members/README.md, tools/nv/proofs/roster.ts]
     extra:
       context:
@@ -153,12 +153,12 @@ another: the three examples and `about.md`; then the attack and the Novis test. 
 Rust tests and the rule flip. Each subagent's brief names the paths `bun nv proofs --id
 'tools:cli/nvs-test-mutate'` prints and § *Text an end user reads*.
 
-- [ ] A `# nvs test --mutate` heading in the CLI chapter puts the feature on the roster. `docs/reference/tools/10-cli.md:302`
-- [ ] A bench counts mutants and test runs on a fixture of growing size, and shows the covering-test filter keeps runs per mutant flat while the suite grows (`rule:testing/member-perf-ledger`). `benches/members/tools/cli/nvs-test-mutate.nvs:1`
-- [ ] `about.md` and three examples (`rule:testing/feature-proofs`). `docs/examples/tools/cli/nvs-test-mutate/about.md:1`
-- [ ] An attack where a mutant loops or allocates without end and is stopped, and a Novis test (`rule:testing/feature-proofs`). `tests/hostile/tools/cli/nvs-test-mutate/01-a-mutant-that-never-ends.nvs:1`
-- [ ] `bun nv proofs --id 'tools:cli/nvs-test-mutate'` prints nothing owed. `tools/nv/proofs/roster.ts:209`
-- [ ] The rule `shipped`, its `**Not on disk.**` paragraph gone, and `bun nv owners --closes mutation-testing` passes (`rule:testing/mutation-testing`). `data/rules/testing/mutation-testing.json:3`, `docs/rules/testing/mutation-testing.md:15`
+- [x] A `# nvs test --mutate` heading in the CLI chapter puts the feature on the roster. `docs/reference/tools/10-cli.md:310`
+- [x] A bench counts mutants and test runs on a fixture of growing size, and shows the covering-test filter keeps runs per mutant flat while the suite grows (`rule:testing/member-perf-ledger`). `benches/scaling/testing/mutate.nvs:1`, `tools/nv/cmd/scaling.ts:runsPerMutantGrow`
+- [x] `about.md` and three examples (`rule:testing/feature-proofs`). `docs/examples/tools/cli/nvs-test-mutate/about.md:1`
+- [x] An attack where a mutant loops or allocates without end and is stopped, and a Novis test (`rule:testing/feature-proofs`). `tests/hostile/tools/cli/nvs-test-mutate/01-a-mutant-that-never-ends.nvs:1`, `crates/nvs-cli/tests/test_command.rs:nvs_test_mutate_reports_each_mutant_and_fails_only_on_a_failing_test`
+- [x] `bun nv proofs --id 'tools:cli/nvs-test-mutate'` prints nothing owed. `tools/nv/proofs/roster.ts:209`
+- [x] The rule `shipped`, its `**Not on disk.**` paragraph gone, and `bun nv owners --closes mutation-testing` passes (`rule:testing/mutation-testing`). `data/rules/testing/mutation-testing.json:3`, `docs/rules/testing/mutation-testing.md:15`
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -177,40 +177,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `nvs test --mutate` runs the selected tests once with coverage, then each
-mutant against the tests that reached it, and reports `killed`, `survived`, `timed out` or `not
-reached` (`crates/nvs-cli/src/runner/mutation.rs`, wired in `runner::run`). A mutant's tests are
-those that reached the innermost statement holding its span (`mutation::innermost`, over
-`coverage::Probes::stmt_spans`). Each mutant compiles with `cache::unit_for(.., None)` and runs
-through `run_suite_in_a_task`, which now takes `Rc<Checked>` so the run keeps the checked program.
-A mutant's run is `Format::Json` into a buffer, `fail_fast: true`, and `Shape::wall`, the fallback
-limit `wall_limit` applies to a test with none (10 × the slowest coverage-run test + 1 s). Timed out
-is read off `PAST_WALL_TIME`, the start of `Outcome::past_wall_time`'s line. JSON is version 4 with a
-`mutants` array; `--format junit` with `--mutate`, and `--mutate` on a `.nvst` tree, exit with an
-error. The rule, `report-formats` and `docs/reference/tools/10-cli.md` (one bullet under `nvs
-test`) say so. The rule's `**Not on disk.**` paragraph is gone; its status is still `designed`.
+Stages 1, 2 and 3 are done. `nvs test --mutate` runs the tests once with coverage, then each mutant
+against the tests that reached its line (`crates/nvs-cli/src/runner/mutation.rs`), and reports
+`killed`, `survived`, `timed out` or `not reached`. JSON version 4's `mutants` records now carry
+`tests`, how many tests reached the mutant's line. The feature has its own section,
+`docs/reference/tools/10-cli.md:310`, and owes nothing: `about.md`, three examples, an attack, and a
+Rust test through the binary (`crates/nvs-cli/tests/test_command.rs`).
 
-Checked: `cargo build`, `cargo clippy --all-targets -- -D warnings`, and the two new tests ran once
-and pass (`runner::mutation::tests`). By hand, `nvs test crates/nvs-cli/tests/fixtures/runner/mutate.nvs
---mutate` reports 3 killed, 1 survived, 1 timed out, 1 not reached, score 80.0%.
+The bench is a `bun nv scaling` ladder of a new `mutate` kind (`tools/nv/cmd/scaling.ts`, `MUTATE`):
+`benches/scaling/testing/mutate.nvs` grows the suite from 16 to 128 tests around a fixed program, and
+on the debug binary it ramps `flat` (mutants and runs constant, clock slope 1.10). `testing` is a
+new area in `AREAS`. A proof program declares `// proof: test --mutate` to run under `--mutate`
+(`tools/nv/proofs/run.ts`, `proofArgv`). The rule is `shipped`, states the quadratic compile cost of
+a growing program, and `bun nv owners --closes mutation-testing` passes.
 
-The sweep's `env-secret-proofs` is green on disk (its log shows exit 0). The nightly's five red jobs
-tested `3ea6f1550`, and each has a fix on main since `10c402b57`; the next nightly is their check.
+Checked: `cargo build`, `cargo clippy --all-targets -- -D warnings`; run once by name:
+`runner::mutation::tests`, `test_command nvs_test_mutate…`, `tools/nv/test/scaling.test.ts`,
+`tools/nv/test/proof-command.test.ts`; `bun nv proofs --run --id 'tools:cli/nvs-test-mutate'` green
+with no divergence; `bun nv rules --render` and `bun nv render --website` written.
 
-Expected red in stage 4: none known. Every `Shape` literal gained `wall: None`, every
-`json_document` call a fifth `None`, and `Flags` a `mutate` field (`crates/nvs-cli/src/ext.rs` too).
+The sweep's `env-secret-proofs` log shows exit 0; the nightly's five reds tested `3ea6f1550`, and each
+has a fix on main (`10c402b57`, `a5f50b907`, `220cb82b7`, `c4842ec8f`). Expected red: none known.
 
 ### Next
 
-**Stage 3: a bench of its cost, and its feature proofs.** Follow the stage's `**Split:**` line. The
-feature id is `tools:cli/nvs-test-mutate`; start with `bun nv proofs --id 'tools:cli/nvs-test-mutate'`
-once the heading exists.
+**Stage 4: the goal is verified once.** Follow the stage's `**Split:**` line: start `bun nv affected
+--run` with `run_in_background`, group failures by cause, fix in one pass, run it again. Then the
+goal-end gates in AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes
+mutation-testing`, `bun nv proofs --gate`, `bun nv render --website --check`.
 
-- [ ] A `# nvs test --mutate` heading in the CLI chapter; move the `--mutate` bullet under it. `docs/reference/tools/10-cli.md:276`
-- [ ] The bench over a growing fixture: mutants and test runs per mutant. `benches/members/README.md:1`
-- [ ] `about.md` and three examples, by a writing subagent. `docs/examples/tools/cli/nvs-test-mutate/about.md:1`
-- [ ] The attack (a mutant that never ends is stopped by `Shape::wall`) and a Novis test. `crates/nvs-cli/src/runner/mutation.rs:253`
-- [ ] The rule `shipped` and `bun nv owners --closes mutation-testing` passes. `data/rules/testing/mutation-testing.json:3`
+- [ ] `bun nv affected --run` over the whole goal, failures grouped. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure fixed in one pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second run green, then the goal-end gates. `docs/goals/mutation-testing.md:172`
 
 ### Backlog
 
