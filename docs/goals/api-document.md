@@ -231,6 +231,15 @@ The acceptance findings were stale. `env-secret-proofs`' log shows exit 0. The n
 The installed `looper` has no `verify` subcommand, so the gate ran as `bun nv affected --run` and
 `bun nv verify`.
 
+The first DONE was refused because `floor-debt` left one atom owed with 0 red. That atom was
+`tests/hostile/core/Ldap-Connection/changePassword/01-strange-old-and-new-passwords.nvs`. A Samba
+LDAP worker crashed with signal 11 during the debt run, which is the playbook's Samba back-off trap.
+`bun nv proofs --run --id 'Core\Ldap\Connection::changePassword'` ran it green, and the store now
+owes only the two Linux legs, which wait for a goal with a fixture. A later CI run, 40085245322 on
+`b7df13c4b`, failed `proofs` on three platforms, the chapter examples and the attribution check.
+That run is behind `main` and outside this goal's acceptance, so the next goal's first session
+reads its log.
+
 ### Next
 
 Nothing. looper retires the goal.
