@@ -12,15 +12,15 @@ stages:
       context:
         rules: [http-server/a-log-line-can-leave-out-the-client-address, http-server/the-access-log-is-a-mode-default]
   - id: 2
-    title: the application exists, checks a report and adds it to the weekly totals
+    title: "the application exists, checks a report and adds it to the weekly totals"
     status: done
     context: [apps/notes/src/App.nvs, apps/notes/src/Store.nvs, apps/notes/nvs.toml, apps/telemetry/src/Report.nvs, apps/telemetry/src/Totals.nvs, docs/rules/tooling/a-telemetry-report-is-checked-against-a-closed-schema.md, docs/rules/tooling/the-collector-keeps-weekly-totals-only.md]
     extra:
       context:
         rules: [tooling/the-telemetry-collector-is-a-novis-program, tooling/a-telemetry-report-is-checked-against-a-closed-schema, tooling/the-collector-keeps-weekly-totals-only, tooling/telemetry-counters-are-a-closed-set]
   - id: 3
-    title: the rate limit runs on a keyed hash in memory, and no address reaches disk
-    status: open
+    title: "the rate limit runs on a keyed hash in memory, and no address reaches disk"
+    status: done
     context: [apps/telemetry/src/Limit.nvs, apps/telemetry/nvs.toml, docs/rules/tooling/the-collector-never-stores-an-address.md, docs/rules/core-classes/ratelimit-two-members.md]
     extra:
       context:
@@ -33,21 +33,21 @@ stages:
       context:
         rules: [tooling/telemetry-totals-are-public, tooling/the-collector-keeps-weekly-totals-only]
   - id: 5
-    title: the deploy guide, the known list follows the binary, and the reference names the collector
+    title: "the deploy guide, the known list follows the binary, and the reference names the collector"
     status: open
     context: [apps/telemetry/README.md, apps/telemetry/known.toml, crates/nvs-cli/src/telemetry.rs, crates/nvs-cli/tests/telemetry_known.rs, docs/reference/tools/10-cli.md]
     extra:
       context:
         rules: [tooling/the-telemetry-collector-is-a-novis-program, tooling/a-telemetry-report-is-checked-against-a-closed-schema]
   - id: 6
-    title: the real client uploads to the collector end to end on one machine, and every rule is shipped
+    title: "the real client uploads to the collector end to end on one machine, and every rule is shipped"
     status: open
     context: [crates/nvs-cli/tests/telemetry_e2e.rs, crates/nvs-cli/src/telemetry.rs, crates/nvs-cli/src/endpoints.rs, apps/telemetry/README.md]
     extra:
       context:
         rules: [tooling/the-telemetry-collector-is-a-novis-program, tooling/a-failed-upload-never-fails-the-command, tooling/telemetry-show-prints-the-payload]
   - id: 7
-    title: the goal is verified once, and every failure is fixed
+    title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
 checks:
@@ -57,7 +57,7 @@ checks:
     run: [bun, nv, proofs, --gate, --only, "directive:log.client_ip"]
   - id: app-tests
     stage: 2
-    name: the collector's tests pass
+    name: "the collector's tests pass"
     run: [cargo, run, -q, --bin, nvs, --, --config, apps/telemetry/nvs.toml, test, apps/telemetry]
   - id: end-to-end
     stage: 6
@@ -125,6 +125,12 @@ of Novis and receives reports from many, so it cannot read the table at run time
 **The clock is Core's, so tests move it.** The week window and the daily salt read Core's clock,
 never SQLite's `now`, and tests set it with `#[Test(at: ...)]` and `Core\Test::advance`
 (`rule:testing/determinism-declared-on-the-test`).
+
+**The limit's key is a SHA-256 of the daily salt and the address, not an HMAC.** `Core\Hash::hmac`
+takes a `secret bytes` key, and `Core\Cache::memory()` returns the salt `tainted`. Sealing it with
+`putSecret` would need a key ring from the operator. The salt has a fixed length, so the hash is a
+keyed hash here (`rule:tooling/the-collector-never-stores-an-address`'s Declined list). `shed` reads
+a test's fixed clock (`73fadfe73`), so `Test::advance` refills an allowance.
 
 **Charts are SVG built by `Charts.nvs`, with no library.** Two shapes cover every chart on the pages:
 a line over weeks and a horizontal bar list. Why: the pages promise no script
@@ -209,13 +215,13 @@ added to the two tables in one transaction.
 
 ### 3. the rate limit runs on a keyed hash in memory, and no address reaches disk
 
-**Does:** `Core\RateLimit::shed` limits each address to ten reports an hour, keyed on an HMAC under a
-daily salt, and the application's configuration writes no address.
+**Does:** `Core\RateLimit::shed` limits each address to ten reports an hour, keyed on a SHA-256 of a
+daily salt and the address, and the application's configuration writes no address.
 
-- [ ] The salt in `Core\Cache::memory()` until the end of the UTC day, the HMAC key, `shed`, and `429` with `Retry-After` (`rule:tooling/the-collector-never-stores-an-address`). `apps/telemetry/src/Limit.nvs:1`
-- [ ] `nvs.toml` sets `[log] client_ip = false` and `[mode] production`. `apps/telemetry/nvs.toml:1`
-- [ ] Tests: the eleventh report in an hour gets `429`, a new hour accepts again, and a new day uses a new key. `apps/telemetry/src/LimitTest.nvs:1`
-- [ ] The test that sends reports from a known address, then reads every table and every log line, and finds the address in none (gated on stage 1). `apps/telemetry/src/LimitTest.nvs:1`
+- [x] The salt in `Core\Cache::memory()` until the end of the UTC day, the salted SHA-256 key, `shed`, and `429` with `Retry-After` (`rule:tooling/the-collector-never-stores-an-address`). `apps/telemetry/src/Limit.nvs:1`
+- [x] `nvs.toml` sets `[log] client_ip = false` and `[mode] production`. `apps/telemetry/nvs.toml:1`
+- [x] Tests: the eleventh report in an hour gets `429`, a new hour accepts again, and a new day uses a new key. `apps/telemetry/src/LimitTest.nvs:1`
+- [x] The test that gives `Limit` and the totals a known address and finds it in no table. `Core\Test::request` sends no address, so the log half is stage 6's end-to-end item. `apps/telemetry/src/LimitTest.nvs:1`
 
 ### 4. the public pages and the data downloads
 
@@ -270,48 +276,44 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-**Stages 1 and 2 are done.** Stage 1 is `f3161d434`: `[log] client_ip` is a `System`/`Reload` row
-(`crates/nvs-config/src/directive.rs:200`), and `trace::access` leaves `clientIp` out when it is
-`false`. Stage 2 is `3d9082e04`: `apps/telemetry/` exists in the shape of `apps/notes/`.
+**Stages 1, 2 and 3 are done.** Stage 3 is `73fadfe73` and `d8bcb6166`, with a stage-1 fix in
+`59451e437`.
 
-- `POST /v1/report` (`apps/telemetry/src/App.nvs:20`) calls `Report::check`
-  (`apps/telemetry/src/Report.nvs:44`). It throws `Rejected` with the status: `413` over 4096
-  bytes, `415` when the type before `;` is not `application/json`, and `400` for any wrong, missing
-  or extra field. The answer is `{"error": "..."}`. A command not in `known.toml` folds into
-  `<kind>.unknown`, and both the value and the folded sum are capped at 100 000.
-- `Core\Regex` takes no `tainted` subject, so the version, the week and the counter names are
-  checked with `Str::split` and `Report::only` (`Str::trim` with a character set). The week is
-  written back from the computed Monday with `YYYY-'W'ww` and compared with the input, which
-  refuses `W4`, `W00` and a week 53 that does not exist.
-- `Known::load` (`apps/telemetry/src/Known.nvs:16`) reads `../known.toml` on every report, with
-  two regular expressions over the file. It lists `unknown` beside the 27 commands.
-- `Totals::add` (`apps/telemetry/src/Totals.nvs:36`) upserts one `reports` row and one `counters`
-  row per counter above zero, in one transaction. The tests query the tables directly.
-  `Totals` has no read method yet.
-- `Gate` writes every refusal and failure as JSON.
-
-22 tests in `apps/telemetry` pass with `--config apps/telemetry/nvs.toml`. Without that flag,
-`nvs test` from the root reads the root's `nvs.toml`, and every database test fails on
-`db.connect` (`apps/notes` fails the same way). So the `app-tests` check now passes `--config`.
-No test sends an accepted report through `Test::request`, because it would write
-`telemetry.sqlite`. Stage 6's end-to-end test covers the `204`.
+- `Limit::wait` (`apps/telemetry/src/Limit.nvs:22`) calls `RateLimit::shed` at ten an hour on
+  `telemetry:<hex SHA-256 of salt . address>`. The salt is `Random::token(32)`, kept in
+  `Cache::memory()` under `telemetry:salt:<UTC date>` with a ttl to midnight UTC. `App::report`
+  (`apps/telemetry/src/App.nvs:22`) calls it first, and answers `429` with `retry-after` in whole
+  seconds, rounded up. Not an HMAC: see the standing decision.
+- `App::body` turns `Request::body()`'s `RuntimeError` (over `[limits] request_body`) into `413` and
+  its `ParseError` into `400`. `nvs.toml` sets `[mode] default = "production"`,
+  `[log] client_ip = false` and `[limits] request_body = "4K"`.
+- `Core\RateLimit::shed` now reads a test's fixed clock, in entries under a `fixed:` key prefix
+  (`crates/nvs-stdlib/src/ratelimit.rs`, test `shed_counts_on_a_tests_fixed_clock`).
+- `crates/nvs-config/src/default.toml` lacked `[log] client_ip`, so `nvs agent show` had no card for
+  it. `59451e437` adds the line and the stale rule renders.
+- `LimitTest` has four tests, each on its own day. 26 tests pass with
+  `--config apps/telemetry/nvs.toml`, five runs in a row.
+- `Test::request` sends no address, so every `POST /v1/report` in `AppTest` and `LimitTest` counts
+  against one key. `AppTest` runs at the real date and sends five. A sixth to tenth is fine, an
+  eleventh in one run gets `429`.
 
 The sweep's reds: `env-secret-proofs` passes at HEAD (its log says `exit 0`). Every nightly red is
-from `7b6ef53ee`, already triaged by the last session. On push CI `40042292726` at `95f8fc4a5`,
-both conformance jobs that have finished (linux and macOS) are green. So the `image-*`/`intl-*` reds
-are gone. `lint` is still red on `crates/nvs-runtime/src/capability.rs`, whose fix is in the
-tree uncommitted and belongs to interactive session `6884de4b`.
+from run `39922764699`, already triaged. `crates/nvs-runtime/src/capability.rs` is still modified
+in the tree, and it belongs to interactive session `6884de4b`.
 
 ### Next
 
-**Stage 3, the rate limit.** The stage-1 gate holds: the rule's JSON reads `"status": "shipped"`.
+**Stage 4, the public pages and the data downloads.** It shares `src/App.nvs` with stage 3, and
+`apps/notes/src/Pages.nvs` shows how pages are built.
 
-- [ ] `Limit.nvs`: a salt in `Core\Cache::memory()` until the end of the UTC day, an HMAC of `Core\Request::clientIp()` under it, `Core\RateLimit::shed` at ten an hour, and `429` with `Retry-After`. Call it at the top of `App::report`, before `Report::check`. `apps/telemetry/src/App.nvs:20`, `docs/rules/tooling/the-collector-never-stores-an-address.md:1`
-- [ ] `nvs.toml`: `[log] client_ip = false`, `[mode] production`, and `[limits] request_body` near 4 KiB, so the server does not read 8 MiB into memory for a report. Check what an over-limit body does to `Request::body()` (the reference says it throws `RuntimeError`, which would give `500`): catch it as `413`. `apps/telemetry/nvs.toml:1`
-- [ ] `LimitTest.nvs`: the eleventh report in an hour is `429`, the next hour accepts, and a new day uses a new key. `apps/telemetry/src/LimitTest.nvs:1`
-- [ ] The test that finds the address in no table and no log line. `apps/telemetry/src/LimitTest.nvs:1`
+- [ ] `Totals` read methods: every `reports` row and every `counters` row, and one week's rows. `apps/telemetry/src/Totals.nvs:36`
+- [ ] `Charts.nvs`: a line over weeks and a horizontal bar list, as inline SVG. `apps/telemetry/src/Charts.nvs:1`
+- [ ] `Pages.nvs`: `/`, `/collect` and `/data`, the footer from `REVISION` (`unknown` when it is missing), and the four newest weeks marked as still arriving. The CSP is `style-src 'self'`, so a stylesheet needs a route of its own. `docs/rules/tooling/telemetry-totals-are-public.md:1`, `apps/notes/src/Pages.nvs:1`
+- [ ] `Data.nvs`: `/data/totals.json`, `/data/totals.csv` and `/data/<week>.json`, with `404` for a week that has no rows. `apps/telemetry/src/Data.nvs:1`
+- [ ] The CSP header on every answer, and no `Set-Cookie`. `apps/telemetry/src/App.nvs:1`
+- [ ] `PagesTest` and `DataTest`, with the scratch database. The routes call `Db::connect("telemetry")`, so a test that fills rows needs the routes to take the connection from one place the test can change. `apps/telemetry/src/PagesTest.nvs:1`, `apps/telemetry/src/DataTest.nvs:1`
 
-Expected red: none. Stage 2 added no Rust and changed no shared file.
+Expected red: none. Stage 3's Rust is one test, and it passes by name. Clippy is clean.
 
 ### Backlog
 
@@ -320,3 +322,5 @@ Expected red: none. Stage 2 added no Rust and changed no shared file.
   `rule:config/telemetry-and-update-endpoints-are-configuration`.
 - Download counts from GitHub releases on the public pages would correct the opt-in undercount
   (`rule:tooling/telemetry-is-two-opt-ins`). They need an outbound job, and no goal owns it.
+- `[app.log]` in `crates/nvs-config/src/default.toml` does not list `client_ip`. It is a `System`
+  key, so check whether `[app.log]` accepts it before adding the line.
