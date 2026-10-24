@@ -6,9 +6,11 @@ at one instant, so a test of dates and times reads the same time on every run. `
 moves that fixed clock forward. `seed:` fixes the numbers `Core\Random` draws, so the test draws the
 same sequence on every run. `retries:` allows more attempts after a failure, and needs `because:`
 beside it to state why. A test that fails and then passes is reported as flaky, never as passed.
+`timeout:` gives one test its own time limit. `tags:` labels a test, and `nvs test --tag` runs only the
+tests with that label.
 
 **Good to know:** an option with a wrong name does not compile, so a typo is found before the tests
 run.
 
-**The examples below** show a skipped test, a fixed clock, and a test class that uses several options
-together.
+**The examples below** show a skipped test, a fixed clock, a test class that uses several options
+together, a time limit, and tags.

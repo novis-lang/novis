@@ -28,5 +28,7 @@ exact text a whole program prints.
 
 - Do use `at:` and `seed:` in a test that reads the time or random numbers.
 - Do give every `skip:` a reason that says when the test will run again.
+- Do give a slow test a `tags:` label, such as `"slow"`. `nvs test --skip-tag slow` then runs every
+  other test.
 - Don't use `retries:` to hide a bug. A flaky test is always shown in the report.
 - Don't share state between tests through a static property. Each test starts fresh.

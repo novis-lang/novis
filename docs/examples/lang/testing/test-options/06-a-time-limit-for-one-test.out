@@ -1,0 +1,6 @@
+  BasketTest
+    ✓ itAddsThePrices
+    ✗ itStopsALoopThatNeverEnds
+      the test ran past its wall-time limit of 50ms, set by `#[Test(timeout: "50ms")]`
+
+  1 failed, 1 passed, 0 skipped, 0 flaky

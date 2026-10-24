@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to give one test a time limit. `timeout:` sets the limit for that
+// test. A test that runs past it is stopped, and the report shows it as failed.
+// proof: test
+// proof: exit 1
+
+use Core\Test;
+
+class Basket {
+    public static function total(array<int> $prices): int {
+        int $sum = 0;
+        foreach ($prices as int $price) {
+            $sum = $sum + $price;
+        }
+        return $sum;
+    }
+}
+
+class BasketTest {
+    // This test finishes long before its limit of 2 seconds.
+    #[Test(timeout: "2s")]
+    public function itAddsThePrices(): void {
+        Test::assertSame(Basket::total([4, 8, 15]), 27);
+    }
+
+    // This loop never ends. The test is stopped after 50 milliseconds.
+    #[Test(timeout: "50ms")]
+    public function itStopsALoopThatNeverEnds(): void {
+        int $count = 0;
+        while (true) {
+            $count = $count + 1;
+        }
+    }
+}

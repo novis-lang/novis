@@ -230,7 +230,7 @@
   },
   "syntax/testing/fixtures-and-assertions.mdx": {
     "lang:testing/assertions": "ec2f23328e72af12",
-    "lang:testing/core-test-fixture-built-once-injected-by-type": "f236dfe21d0811be",
+    "lang:testing/core-test-fixture-built-once-injected-by-type": "b842b294d157fcc5",
     "lang:testing/core-test-testwith-data-rows": "5ecd6eb01482b1f3",
     "lang:testing/hooks-beforeclass-afterclass-and-aftereachtest": "bb5b4764e1d4ac1f"
   },
@@ -238,7 +238,7 @@
     "lang:testing/a-test-is-a-method-marked-test": "731d088faeddbce0",
     "lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup": "6bf09d50dafb3c47",
     "lang:testing/running-tests-nvs-test": "e561581eb653ccbc",
-    "lang:testing/test-options": "d5d300749ce5980a"
+    "lang:testing/test-options": "f1103e20dac466b3"
   },
   "syntax/values/arrays.mdx": {
     "lang:expressions/arrays-in-expressions": "03df4bc942f8347e",
