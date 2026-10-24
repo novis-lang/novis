@@ -1,8 +1,9 @@
 <?nvs
 // `rule:testing/property-testing`, from the language surface: each `#[Property]` method is one
 // test, called once per generated input set. One property holds for every input and passes.
-// One fails for most inputs and is reported with its inputs and its seed. The third builds a
-// list of shapes and a class through its constructor, so every kind of input is built once.
+// One fails for most inputs, shrinks to `11`, and is reported with its inputs and its seed. The
+// third builds a list of shapes and a class through its constructor, so every kind of input is
+// built once. `NumberTest` runs the property it inherits from an abstract class, under its own name.
 //
 // `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
 use Core\Test;
@@ -38,3 +39,12 @@ final class PropertyTest {
         Test::assertSame($point->x, $point->x);
     }
 }
+
+abstract class NumberContract {
+    #[Property(runs: 20, gen: {n: "-100..100"})]
+    public function itAddsZero(int $n): void {
+        Test::assertSame($n + 0, $n);
+    }
+}
+
+final class NumberTest extends NumberContract {}

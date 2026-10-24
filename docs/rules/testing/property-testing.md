@@ -35,10 +35,25 @@ eight. A float is finite. A string's pieces are ASCII, control characters, code 
 and four bytes, and clusters of several code points: combining marks, U+200D emoji sequences, flags,
 Hangul jamo and a Devanagari conjunct (`crates/nvs-types/src/property/generate.rs`).
 
-- **Memory:** one call's inputs hold at most 2^20 elements, bytes and string pieces together, per
-  property in flight. An input whose shortest form is over that is refused before it is built.
+**The run.** `nvs test` reports each `#[Property]` as one test, and calls it `runs:` times, each on a
+fresh instance in the test's own isolate. The seed is `seed:`, or a random one, and it also seeds the
+isolate's own random numbers. The first call that fails ends the run. A subclass runs every property
+it inherits, under its own name, as it does a `#[Test]` (`rule:testing/hook-inheritance`).
 
-**Not on disk.** The runner does not call a property yet, and nothing shrinks a counterexample.
+**The shrink.** A failing call's inputs shrink in the same isolate, one parameter at a time and
+simplest first, through candidates their own generator could have made, so a shrunk input still fits
+its declared type and its `gen:` range (`crates/nvs-types/src/property/shrink.rs`). Each candidate is
+one call on a fresh instance, at most 1000 of them. Only the last failing call's assertions are
+reported, beside one more failure naming the call, the shrunk inputs, the generated inputs and the
+`#[Property(seed: n)]` that runs them again. The JSON report carries the same as the test's
+`counterexample` (`rule:testing/report-formats`). A candidate that does not build, or that calls
+`exit()`, is not a failure, and the shrink stops at the test's wall-time limit
+(`rule:testing/a-test-has-a-wall-time-limit`) with the last real failure. Nothing in it is random, so
+one seed shrinks to one counterexample on every platform.
+
+- **Memory:** one call's inputs hold at most 2^20 elements, bytes and string pieces together, per
+  property in flight. An input whose shortest form is over that is refused before it is built. A
+  failure also keeps its generated inputs while it shrinks, and one step's candidate list.
 
 **Declined:**
 - **`retries:` on a property.** A failure is reproduced from its seed and shrunk, so a retry would
@@ -49,3 +64,6 @@ Hangul jamo and a Devanagari conjunct (`crates/nvs-types/src/property/generate.r
   over a `float` would first have to exclude them.
 - **A `gen:` that names a generator function.** A range is checked when the program compiles and says
   the domain where it is written; a function is a second place to read.
+- **A shrink that calls a test hook less, or runs candidates on other cores.** Each candidate is a call
+  of the test, so it runs exactly as the failing call did, `#[AfterEachTest]` included, and the
+  greedy walk needs each answer before it picks the next candidate.

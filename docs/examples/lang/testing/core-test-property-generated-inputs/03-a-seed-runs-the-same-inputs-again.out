@@ -1,0 +1,9 @@
+  SeedTest
+    ✗ itFailsOnce
+      Core\Test::assertTrue failed: `$actual` is false
+      call 4 of 100 failed. The smallest inputs that still fail are (500). The generated inputs were (827). Write `#[Property(seed: 42)]` to run the same inputs again.
+    ✗ itFailsTheSameWay
+      Core\Test::assertTrue failed: `$actual` is false
+      call 4 of 100 failed. The smallest inputs that still fail are (500). The generated inputs were (827). Write `#[Property(seed: 42)]` to run the same inputs again.
+
+  2 failed, 0 passed, 0 skipped, 0 flaky

@@ -1,6 +1,6 @@
 //! `rule:testing/hook-inheritance`: a subclass inherits each hook, each
-//! `#[Fixture]` and each `#[Test]` of its ancestors, the way it inherits any
-//! method.
+//! `#[Fixture]`, each `#[Test]` and each `#[Property]` of its ancestors, the way
+//! it inherits any method.
 //!
 //! # At check time
 //!
@@ -16,7 +16,7 @@
 //!
 //! # After every file is checked
 //!
-//! [`merge`] builds each subclass's three tables out of its ancestors'
+//! [`merge`] builds each subclass's four tables out of its ancestors'
 //! recorded ones and its own, once every class has recorded its own. The
 //! nearest declaration of a name wins, and keeps the place the first
 //! declaration of that name had, so an inherited test is reported where its
@@ -40,14 +40,16 @@ use nvs_syntax::ast::{ClassDecl, ClassMemberKind};
 use rustc_hash::FxHashSet;
 
 use crate::expr_table::ExprTypeTable;
+use crate::property::PropertyCase;
 use crate::test_hooks::TestHooks;
 use crate::testing::{Fixture, TestCase, attribute_named};
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
 
-/// The five test attributes, each with the way a diagnostic writes it.
-const MARKERS: [(&str, &str); 5] = [
+/// The six test attributes, each with the way a diagnostic writes it.
+const MARKERS: [(&str, &str); 6] = [
     (crate::derive::TEST, "`#[Test]`"),
+    (crate::derive::PROPERTY, "`#[Property]`"),
     (crate::derive::FIXTURE, "`#[Fixture]`"),
     (crate::derive::BEFORE_CLASS, "`#[BeforeClass]`"),
     (crate::derive::AFTER_CLASS, "`#[AfterClass]`"),
@@ -94,7 +96,7 @@ fn described(marker: &str) -> (&'static str, Code) {
         .iter()
         .find(|(name, _)| *name == marker)
         .map_or("", |(_, written)| *written);
-    let code = if marker == crate::derive::TEST {
+    let code = if marker == crate::derive::TEST || marker == crate::derive::PROPERTY {
         code::E_TEST_METHOD_SHAPE
     } else if marker == crate::derive::FIXTURE {
         code::E_FIXTURE_METHOD_SHAPE
@@ -106,7 +108,9 @@ fn described(marker: &str) -> (&'static str, Code) {
 
 /// Whether `marker` is one of the three hook attributes.
 fn is_hook(marker: &str) -> bool {
-    marker != crate::derive::TEST && marker != crate::derive::FIXTURE
+    marker != crate::derive::TEST
+        && marker != crate::derive::PROPERTY
+        && marker != crate::derive::FIXTURE
 }
 
 /// Every marked method `class` inherits that no nearer ancestor redeclares,
@@ -239,11 +243,15 @@ pub(crate) fn merge(graph: &ClassGraph, exprs: &mut ExprTypeTable) {
     let mut built = Vec::new();
     for (class, ancestors) in exprs.take_test_lineages() {
         let mut tests: Vec<TestCase> = Vec::new();
+        let mut properties: Vec<PropertyCase> = Vec::new();
         let mut fixtures: Vec<Fixture> = Vec::new();
         let mut hooks = TestHooks::default();
         for label in ancestors.iter().rev().chain(std::iter::once(&class)) {
             for case in exprs.tests(label).unwrap_or_default() {
                 place(&mut tests, case.clone(), |a, b| a.method == b.method);
+            }
+            for case in exprs.properties(label).unwrap_or_default() {
+                place(&mut properties, case.clone(), |a, b| a.method == b.method);
             }
             for fixture in exprs.fixtures(label).unwrap_or_default() {
                 place(&mut fixtures, fixture.clone(), |a, b| a.method == b.method);
@@ -255,10 +263,10 @@ pub(crate) fn merge(graph: &ClassGraph, exprs: &mut ExprTypeTable) {
                 hooks.after_each_test = own.after_each_test.or(hooks.after_each_test);
             }
         }
-        built.push((class, tests, fixtures, hooks));
+        built.push((class, tests, properties, fixtures, hooks));
     }
-    for (class, tests, fixtures, hooks) in built {
-        exprs.replace_test_tables(&class, tests, fixtures, hooks);
+    for (class, tests, properties, fixtures, hooks) in built {
+        exprs.replace_test_tables(&class, tests, properties, fixtures, hooks);
     }
     let abstract_classes: Vec<String> = exprs
         .test_classes()
