@@ -20,7 +20,7 @@ stages:
         rules: [routing/a-security-scheme-is-declared-in-code, testing/feature-proofs]
   - id: 2
     title: a response that is a class has its codec's schema
-    status: open
+    status: done
     context: [crates/nvs-cli/src/openapi.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/expr_table.rs, data/gaps/nvs-cli/response-body-that-is-an-object.json, data/gaps/nvs-cli/a-response-schema-for-a-nullable.json, docs/rules/core-classes/derive-attribute.md]
     extra:
       context:
@@ -152,12 +152,12 @@ and the document writes `components.securitySchemes`.
 fields, and so does an `errors` entry's class. A `?T`, `array<T>` or enum return gets its real
 schema.
 
-- [ ] `openapi::document` takes the checked program's expression table, and the emitter reads the class's `DerivedCodec` from it. `crates/nvs-cli/src/main.rs:1239`, `crates/nvs-types/src/expr_table.rs:1860`, `crates/nvs-types/src/derive.rs:749`
-- [ ] A class response renders as `components.schemas` entries referenced by `$ref`, with each field's type and required-ness, and a nested class is its own entry. `crates/nvs-cli/src/openapi.rs:197`
-- [ ] An `errors` entry's class gets the same schema under its status. `crates/nvs-cli/src/openapi.rs:222`
-- [ ] A `?T` return renders `T` with `null` allowed, an `array<T>` renders `type: array` with `T` as `items`, and an enum lists its cases. `crates/nvs-cli/src/openapi.rs:355`
-- [ ] Tests over a class with a skipped field and a private property, and one each for `?T`, `array<T>` and an enum. `crates/nvs-cli/tests/openapi.rs:50`
-- [ ] Both gap records deleted. `data/gaps/nvs-cli/response-body-that-is-an-object.json:1`, `data/gaps/nvs-cli/a-response-schema-for-a-nullable.json:1`
+- [x] `openapi::document` takes the checked program's expression table, and the emitter reads the class's `DerivedCodec` from it. `crates/nvs-cli/src/main.rs:1239`, `crates/nvs-types/src/expr_table.rs:1860`, `crates/nvs-types/src/derive.rs:749`
+- [x] A class response renders as `components.schemas` entries referenced by `$ref`, with each field's type and required-ness, and a nested class is its own entry. `crates/nvs-cli/src/openapi.rs:197`
+- [x] An `errors` entry's class gets the same schema under its status. `crates/nvs-cli/src/openapi.rs:222`
+- [x] A `?T` return renders `T` with `null` allowed, an `array<T>` renders `type: array` with `T` as `items`, and an enum lists its cases. `crates/nvs-cli/src/openapi.rs:355`
+- [x] Tests over a class with a skipped field and a private property, and one each for `?T`, `array<T>` and an enum. `crates/nvs-cli/tests/openapi.rs:50`
+- [x] Both gap records deleted.
 
 ### 3. a request body is read from the handler's call, and the document describes it
 
@@ -212,35 +212,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 5 are done. `about.md` says how a scheme is declared, the rule is `shipped` with
-`crates/nvs-cli/tests/openapi.rs` as its guard, and the rule chapters are rendered again. The card in
-`ATTRIBUTE_DOCS` is the help: the editor's hover and the attribute diagnostics read it.
+Stages 1, 5 and 2 are done.
 
-The run's acceptance findings: `env-secret-proofs` passes on disk. Of the nightly CI failures, the
-supply chain (crypto-bigint 0.7.6), the json and session Miri cases were fixed before this session;
-`cargo fmt` is fixed in `ca0df0b64`; the transport Miri case is covered by `c953c3456`'s longer idle
-under Miri, and `a5f50b907` reverts this session's skip of it.
+Stage 2: the row's `returns` is a structured `nvs_types::BodyTy` (`crates/nvs-types/src/routes.rs:525`),
+read by `body_ty` from the interner: `Void`, `Nullable`, `List`, `Class(label)`, `Enum(values)` and
+`Named(describe)`. `openapi::document` takes the whole `ExprTypeTable`, and its `Schemas` collector
+(`crates/nvs-cli/src/openapi.rs:114`) writes one `components.schemas` entry per class with a JSON
+codec. A component name is the label with `\` as `.`. A class without a codec is still `{}`. An enum
+is `{"type": "integer", "enum": [backing values]}`, because `Core\Json` writes a case as its
+backing value. A nullable `$ref` is an `anyOf` with `{"type": "null"}`. A private property the
+codec writes is in the schema, because the derive's field list is visibility-blind. A skipped one
+is not. Five new tests over `crates/nvs-cli/tests/fixtures/api/class-response.nvs` pass. The rule
+says where a class's schema comes from, and the chapters are rendered again.
 
-Stage 1: `#[Core\Api\Scheme]` is on the roster with its card, and `collect_scheme` holds it
-to the rule's field table. `Core\Api\SchemeType` and `Core\Api\KeyIn` are new `Core` enums in
-`crates/nvs-stdlib/src/router.rs`. `E0886`, `E0887` and `E0888` are the three errors. The
-emitter writes `components.securitySchemes`. Two new tests in `crates/nvs-cli/tests/openapi.rs`
-pass. The edited examples and the attack compile and pass `bun nv proofs --run`.
+The run's acceptance findings were all fixed before this session: the nightly run tested
+`3ea6f1550`, which predates `10c402b57`, `220cb82b7`, `c4842ec8f`, `c953c3456` and `ca0df0b64`.
+`env-secret-proofs` exits 0 on disk.
 
 A qualified name is absolute, so `use Core\Api;` does not place `Api\Scheme`. Write
-`#[Core\Api\Scheme]` or `use Core\Api\Scheme;`. The rule says so now.
+`#[Core\Api\Scheme]` or `use Core\Api\Scheme;`.
 
 Tests that may go red at the gate: `nvs-lsp`'s stubs tests (`every_line_lands_on_its_name`, and the
-test that every name has a line) for the new `Core\Api\*` names and card, and any `nvs-stdlib` test
-that counts `ENUMS` or checks enum cards.
+test that every name has a line) for the new `Core\Api\*` names and card, any `nvs-stdlib` test
+that counts `ENUMS` or checks enum cards, and any `nvs api diff` test whose fixture returns a
+class with a codec, because its document now has `components.schemas`.
 
 ### Next
 
-**Stage 2: a class response has its codec's schema**, as its section says.
+**Stage 3: a request body is read from the handler's call**, as its section says.
 
-- [ ] `openapi::document` takes the checked program's expression table. `crates/nvs-cli/src/main.rs:1239`, `crates/nvs-types/src/expr_table.rs:1860`
-- [ ] A class response renders as a `components.schemas` entry under `$ref`. `crates/nvs-cli/src/openapi.rs:197`
-- [ ] An `errors` class, a `?T`, an `array<T>` and an enum get their schemas. `crates/nvs-cli/src/openapi.rs:222`, `crates/nvs-cli/src/openapi.rs:355`
+- [ ] Record each `jsonAs<T>()` and `postAs<T>()` written directly in a route handler, beside the decode sites. `crates/nvs-types/src/check.rs:183`
+- [ ] The row carries the body as `BodyTy` with JSON or form, read by `body_ty`. `crates/nvs-types/src/routes.rs:471`, `crates/nvs-types/src/routes.rs:2301`
+- [ ] `requestBody` renders through `Schemas::body`, a `oneOf` for two of one kind. `crates/nvs-cli/src/openapi.rs:121`
 
 The perf figures for `Core\Router` and the `lang:attributes` sections are stale. Stage 7 records them
 once, after the last edit to `router.rs` and `90-attributes.md`.
