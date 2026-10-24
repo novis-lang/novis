@@ -13,7 +13,7 @@ stages:
         rules: [routing/a-security-scheme-is-declared-in-code, attributes/api-adds-and-cannot-contradict, routing/api-document-is-generated-from-the-route-table, core-api/no-mode-strings]
   - id: 5
     title: the security scheme joins its feature's proofs
-    status: open
+    status: done
     context: [docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md, docs/examples/lang/attributes/core-api-and-the-openapi-document/02-name-the-errors-and-the-security-scheme.nvs, crates/nvs-types/src/derive.rs, docs/rules/routing/a-security-scheme-is-declared-in-code.md]
     extra:
       context:
@@ -141,10 +141,10 @@ and the document writes `components.securitySchemes`.
 § *Text an end user reads*.
 
 - [x] Example 02 declares the scheme it names, and its `.out` is regenerated. `docs/examples/lang/attributes/core-api-and-the-openapi-document/02-name-the-errors-and-the-security-scheme.nvs:1`
-- [ ] `about.md` says how a scheme is declared. `docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md:1`
-- [ ] The help card of `Core\Api\Scheme` in the binary. `crates/nvs-types/src/derive.rs:191`
-- [ ] `bun nv proofs --id 'lang:attributes/core-api-and-the-openapi-document'` passes (`rule:testing/feature-proofs`). `docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md:1`
-- [ ] The rule `shipped`. `data/rules/routing/a-security-scheme-is-declared-in-code.json:3`
+- [x] `about.md` says how a scheme is declared. `docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md:1`
+- [x] The help card of `Core\Api\Scheme` in the binary. `crates/nvs-types/src/derive.rs:191`
+- [x] `bun nv proofs --id 'lang:attributes/core-api-and-the-openapi-document'` passes (`rule:testing/feature-proofs`). `docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md:1`
+- [x] The rule `shipped`. `data/rules/routing/a-security-scheme-is-declared-in-code.json:3`
 
 ### 2. a response that is a class has its codec's schema
 
@@ -206,12 +206,22 @@ subagent. Such subagents run side by side, and none of them builds.
 - [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
 - [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
 - [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [ ] The perf figures this goal made stale are recorded again: `Core\Router` (`router.rs`) and the `lang:attributes` sections (`90-attributes.md`). Otherwise the release gate's `proofs` job is red. `bun nv proofs --record-perf --group 'Core\Router'`, `docs/reference/lang/90-attributes.md:1369`
 
 ## Handoff
 
 ### State
 
-Stage 1 is done. `#[Core\Api\Scheme]` is on the roster with its card, and `collect_scheme` holds it
+Stages 1 and 5 are done. `about.md` says how a scheme is declared, the rule is `shipped` with
+`crates/nvs-cli/tests/openapi.rs` as its guard, and the rule chapters are rendered again. The card in
+`ATTRIBUTE_DOCS` is the help: the editor's hover and the attribute diagnostics read it.
+
+The run's acceptance findings: `env-secret-proofs` passes on disk. Of the nightly CI failures, the
+supply chain (crypto-bigint 0.7.6), the json and session Miri cases were fixed before this session;
+`cargo fmt` is fixed in `ca0df0b64`; the transport Miri case is covered by `c953c3456`'s longer idle
+under Miri, and `a5f50b907` reverts this session's skip of it.
+
+Stage 1: `#[Core\Api\Scheme]` is on the roster with its card, and `collect_scheme` holds it
 to the rule's field table. `Core\Api\SchemeType` and `Core\Api\KeyIn` are new `Core` enums in
 `crates/nvs-stdlib/src/router.rs`. `E0886`, `E0887` and `E0888` are the three errors. The
 emitter writes `components.securitySchemes`. Two new tests in `crates/nvs-cli/tests/openapi.rs`
@@ -226,14 +236,14 @@ that counts `ENUMS` or checks enum cards.
 
 ### Next
 
-**Stage 5: the proofs**, which needs stage 1 only. Example 02 already declares its scheme.
+**Stage 2: a class response has its codec's schema**, as its section says.
 
-- [ ] `about.md` says how a scheme is declared. `docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md:1`
-- [ ] The help card of `Core\Api\Scheme` in the binary. `crates/nvs-types/src/derive.rs:501`
-- [ ] `bun nv proofs --id 'lang:attributes/core-api-and-the-openapi-document'` passes. `docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md:1`
-- [ ] The rule `shipped`. `data/rules/routing/a-security-scheme-is-declared-in-code.json:3`
+- [ ] `openapi::document` takes the checked program's expression table. `crates/nvs-cli/src/main.rs:1239`, `crates/nvs-types/src/expr_table.rs:1860`
+- [ ] A class response renders as a `components.schemas` entry under `$ref`. `crates/nvs-cli/src/openapi.rs:197`
+- [ ] An `errors` class, a `?T`, an `array<T>` and an enum get their schemas. `crates/nvs-cli/src/openapi.rs:222`, `crates/nvs-cli/src/openapi.rs:355`
 
-Then **stage 2** as its section says. `crates/nvs-cli/src/main.rs:1239`, `crates/nvs-cli/src/openapi.rs:197`
+The perf figures for `Core\Router` and the `lang:attributes` sections are stale. Stage 7 records them
+once, after the last edit to `router.rs` and `90-attributes.md`.
 
 ### Backlog
 
