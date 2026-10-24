@@ -28,6 +28,18 @@ use std::time::{Duration, Instant};
 /// How long an edit has to reach a request before the case fails.
 const BOUND: Duration = Duration::from_secs(30);
 
+/// How long a swap has to reach a request when it waits for the rest of one
+/// compile of `heavy.nvs` and the whole of the next one. `first` is how long
+/// the server took to start and give its first answer, which includes one
+/// whole compile of the same program.
+///
+/// Beside every other test binary, that compile can take many times longer
+/// than it does alone. `first` is measured under the same load, so the bound
+/// grows with it.
+fn after_two_compiles(first: Duration) -> Duration {
+    BOUND + first * 2
+}
+
 /// How long `nvs serve` has to compile its program and bind its port.
 const BOOT: Duration = Duration::from_secs(60);
 
@@ -974,13 +986,15 @@ fn a_copy_that_pauses_less_than_settle_is_compiled_once_from_the_finished_tree()
 /// the compile has read every file. `file_cache` is off, so no earlier run can
 /// make the compile fast.
 ///
-/// Each of the two waits has [`BOUND`] of its own: the first from the write of
-/// `app.nvs` to its warning, and the second from the write of `lib.nvs` to its
-/// answer. The second wait covers the rest of the compile that is thrown away
-/// and the whole of the next one.
+/// Each of the two waits has a bound of its own. The first is [`BOUND`], from
+/// the write of `app.nvs` to its warning. The second is
+/// [`after_two_compiles`], from the write of `lib.nvs` to its answer, because
+/// it covers the rest of the compile that is thrown away and the whole of the
+/// next one.
 #[test]
 fn a_file_that_changes_during_a_compile_discards_that_compile() {
     let config = format!("{}file_cache = false\n", checking_every_100ms("100ms"));
+    let booting = Instant::now();
     let server = Server::start(
         "moved",
         &[
@@ -991,6 +1005,7 @@ fn a_file_that_changes_during_a_compile_discards_that_compile() {
         ],
     );
     server.awaits_body("/", "one first");
+    let bound = after_two_compiles(booting.elapsed());
 
     server.write("app.nvs", &requiring_lib("Compiled second.", "second"));
     let started = Instant::now();
@@ -1014,8 +1029,8 @@ fn a_file_that_changes_during_a_compile_discards_that_compile() {
             "a request got the compile that `lib.nvs` moved under"
         );
         assert!(
-            written.elapsed() <= BOUND,
-            "the edit was not swapped in within {BOUND:?}; the server wrote: {}",
+            written.elapsed() <= bound,
+            "the edit was not swapped in within {bound:?}; the server wrote: {}",
             server.said()
         );
         thread::sleep(POLL);
@@ -1038,10 +1053,15 @@ fn a_file_that_changes_during_a_compile_discards_that_compile() {
 /// modification time of `a/lib.nvs`. So through the link, no file looks
 /// different after the switch. Only the real path of `current/app.nvs` is
 /// different.
+///
+/// The wait after the switch has [`after_two_compiles`] as its bound, because
+/// it covers the rest of the compile that is thrown away and the whole of the
+/// next one.
 #[test]
 fn a_link_switch_during_a_compile_never_builds_a_program_from_both_releases() {
     let config = format!("{}file_cache = false\n", checking_every_100ms("100ms"));
     let edited = requiring_lib("Compiled second.", "second");
+    let booting = Instant::now();
     let server = Server::serving(
         "linked",
         &[
@@ -1065,6 +1085,7 @@ fn a_link_switch_during_a_compile_never_builds_a_program_from_both_releases() {
         .and_then(|file| file.set_modified(stamp))
         .expect("`b/lib.nvs` takes the modification time of `a/lib.nvs`");
     server.awaits_body("/", "one first");
+    let bound = after_two_compiles(booting.elapsed());
 
     server.write("a/app.nvs", &edited);
     server.awaits_said("Compiled second.");
@@ -1080,8 +1101,8 @@ fn a_link_switch_during_a_compile_never_builds_a_program_from_both_releases() {
             "a request got the compile that the link switch moved under"
         );
         assert!(
-            started.elapsed() <= BOUND,
-            "release `b` was not swapped in within {BOUND:?}; the server wrote: {}",
+            started.elapsed() <= bound,
+            "release `b` was not swapped in within {bound:?}; the server wrote: {}",
             server.said()
         );
         thread::sleep(POLL);

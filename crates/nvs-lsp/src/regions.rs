@@ -104,10 +104,6 @@
 //! outlives the reply. A request carrying a `text` carries that document once
 //! more on the wire and lexes it in place of the buffer, so it costs the one
 //! copy and no second walk.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-lsp/src/regions.rs` lists them.
 
 use lsp_types::TextDocumentIdentifier;
 use nvs_diagnostics::{BytePos, Diagnostics, PositionEncoding, SourceFile, SourceMap, Span};

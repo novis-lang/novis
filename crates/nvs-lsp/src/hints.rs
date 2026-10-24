@@ -68,10 +68,6 @@
 //! `mixed` receiver finds its method only when it runs
 //! (`rule:types/erased-member-access`). A name drawn at either would be one
 //! this server picked, which the first decision above refuses.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-lsp/src/hints.rs` lists them.
 
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel};
 use nvs_diagnostics::{BytePos, PositionEncoding, Span};
