@@ -1,4 +1,4 @@
-# These lines allow only the programs in the system folders `/bin` and `/usr/bin`.
+# These lines allow only the two programs the examples run, `/usr/bin/seq` and `/usr/bin/sort`.
 # Without them, a program run with `nvs run` may run any program.
 [capabilities.process]
-exec = ["/bin", "/usr/bin"]
+exec = ["/usr/bin/seq", "/usr/bin/sort"]
