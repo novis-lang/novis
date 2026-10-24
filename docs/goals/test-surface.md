@@ -157,6 +157,16 @@ A property's `seed:` seeds both the isolate's generator and the inputs. Why: a t
 crosses into the test's isolate the way a fixture does, and shrinking needs no runtime value.
 The rule fragment holds the rest, with its Declined list (`docs/rules/testing/property-testing.md`).
 
+**An inherited `#[Property]` runs in the subclass, as an inherited `#[Test]` does, and stage 7 does
+it.** `test_inherit` merges the property table the way it merges the test table. Why: a base class
+of shared properties is how a team writes one contract for many implementations, and two inheritance
+rules for two markers would be one more rule to learn.
+
+**A property's shrinker is pure, and runs over the `Generated` tree.** `nvs_types::property::shrink`
+takes a `fails` callback, so the runner rebuilds each candidate in the same isolate and calls the
+method once per candidate, at most `MAX_SHRINK_CALLS` times. Why: the tree is data, so the shrinker
+is tested with no runtime, and the same seed shrinks to the same counterexample everywhere.
+
 ## Stages
 
 ### 1. tests are absent from `nvs run` and `nvs build`
@@ -222,7 +232,7 @@ example with `timeout` and `tags`.
 
 **Does:** the runner runs a property, shrinks a failure, and reports it.
 
-- [ ] The runner runs each property over its generated inputs, as one test. `crates/nvs-cli/src/runner.rs:490`
+- [x] The runner runs each property over its generated inputs, as one test. `crates/nvs-cli/src/runner.rs:490`
 - [ ] A failure shrinks to a minimal counterexample and reports the seed that reproduces it (`rule:testing/property-testing`). `crates/nvs-cli/src/runner.rs:490`
 - [ ] The JSON report gains the counterexample key it is waiting for (`rule:testing/report-formats`). `crates/nvs-cli/src/runner.rs:2817`
 - [ ] Novis tests: a property that holds, one that fails and shrinks, a seed that reproduces it. `docs/examples/lang/testing/core-test-property-generated-inputs/01-a-property-holds-for-every-input.nvs:1`
@@ -288,40 +298,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2 and 3 are done. Stage 3 adds `crates/nvs-types/src/property.rs` and
-`property/generate.rs`. `#[Core\Test\Property]` is on the roster with a card. Its options are
-`#[Test]`'s less `retries:`/`because:`, plus `runs:` and `gen:`. It is a sixth test-code marker, and it
-is held to a test's shape (`check_method_shape` now names its marker). Its rows go to
-`ExprTypeTable::properties`, not to `tests`, so the runner does not see a property yet, and
-`test_classes()` does not list a class that only has properties. `Deriver::gen_of` derives a `Gen` per
-parameter. A user class becomes a `Gen::Class(label)` plus a `PropertyCase::classes` row of its
-constructor's arguments. `generate(case, seed, index)` returns a `Generated` tree per parameter,
-bounded by `MAX_INPUT_UNITS`. `E0890` covers a type with no generator and a bad `gen:` entry. The
-ten tests in `crates/nvs-types/tests/property.rs` pass, and clippy is clean. The sweep was stale.
+Stages 1, 5, 2 and 3 are done; stage 7 is half done. The sweep was stale (the nightly run tested
+`3ea6f1550`, whose failures each have a later fix). `nvs test` runs each `#[Property]` as one test
+under a stand-in `TestCase` (`run_property`, `crates/nvs-cli/src/runner.rs:1997`), listed by
+`class_calls` (`runner.rs:3296`) and `test_classes()`. `build_input` (`runner.rs:2057`) builds each
+tree through `nvs_runtime::InputValues` (`dispatch.rs`), objects with `new`. nvs-ir's
+`property_shapes` registers each inline shape's class. `Gen::Enum`/`Generated::Enum` carry `uint`.
+The seed is `seed:` or random, and arms `set_random_state` too. A failure names the call, the inputs
+(`render_input`) and `#[Property(seed: n)]`. The pure shrinker
+(`crates/nvs-types/src/property/shrink.rs`) and its nine tests pass, but the runner does not call it
+yet. `a_property_runs_as_one_test_over_its_generated_inputs` passes, and clippy is clean.
 
-May go red at the gate: a snapshot of `E0889`'s card, which now names `#[Property]`, and anything
-that counts `ATTRIBUTE_DOCS` or lists every attribute (`crates/nvs-lsp/src/stubs.rs:156`). Earlier
-stages' list: any `nvs-host` `group.rs` or `nvs-stdlib` `test.rs` unit test
-that reads `take_assertions` on a context no test owns (call `set_owned_by_test` first), and any
-`.nvst` whose non-test code calls a test, a fixture or a hook (now `E0889`). Every example, bench
-and attack outside `.nvst` already passes `nvs check` for it. A recorded editor listing or a
-help-text snapshot that prints `nvs test --help` gains `--tag`, `--skip-tag` and `--shard`. The
-site's rendered attributes reference may need re-rendering for the two new options. No
-conformance case that expects `E0471` (member not visible) has a test method, so stage 2 should
-turn none of them red.
+May go red at the gate: a `--dump-ir` snapshot of a program with a property (extra shape classes);
+`E0889`'s card snapshot and anything counting `ATTRIBUTE_DOCS` (`crates/nvs-lsp/src/stubs.rs:156`);
+an `nvs-host` `group.rs` or `nvs-stdlib` `test.rs` unit test reading `take_assertions` on an unowned
+context (call `set_owned_by_test`); a `.nvst` whose non-test code calls test code (`E0889`); a
+recorded editor listing or `nvs test --help` snapshot (`--tag`, `--skip-tag`, `--shard`); the
+site's attributes reference (two new options).
 
 ### Next
 
-**Stage 7: the runner runs a property, shrinks a failure, and reports it.** Its lane is
-`runner.rs`. § *Standing decisions* says the runner builds each `Generated` tree in the test's
-isolate, and that `seed:` seeds both the isolate's generator and the inputs.
+**Stage 7, second half: shrink a failure, report it, and inherit properties.** Its lane is
+`runner.rs`. § *Standing decisions* says how the shrinker is called and that properties inherit.
 
-- [ ] `test_classes()` and the runner's two walks also cover `properties(label)`. `crates/nvs-types/src/expr_table.rs:2358`, `crates/nvs-cli/src/runner.rs:1237`, `crates/nvs-cli/src/runner.rs:3245`
-- [ ] Build a `Generated` tree as runtime values in the child isolate. An `Object` calls the class's `constructor` with `new`. Argument building for a test is at `crates/nvs-cli/src/runner.rs:2213`. `crates/nvs-types/src/property/generate.rs:93`
-- [ ] Run `runs` calls as one test, and treat `TooLarge` as a failure with a message. Seed from `seed:` or a printed random seed. `crates/nvs-cli/src/runner.rs:2791`, `crates/nvs-cli/src/runner.rs:2114`
-- [ ] Shrink a failing tree: shorter lists and strings, numbers toward 0 or the range's low end, `null` for a `?T`. Report the counterexample and the seed. `crates/nvs-cli/src/runner.rs:1938`
-- [ ] The JSON counterexample key, and the Novis tests from the stage's last item. `crates/nvs-cli/src/runner.rs:2817`
-- [ ] Inherited `#[Property]` methods are not merged by `test_inherit` yet. Decide whether that is in this stage. `crates/nvs-types/src/test_inherit.rs:263`
+- [ ] In `run_property`, on the first failing call, call `shrink::shrink` with a `fails` callback that builds the candidate with `build_input` and runs `run_case` in the same isolate. Report the shrunk inputs, the original call and the seed. `crates/nvs-cli/src/runner.rs:1997`, `crates/nvs-types/src/property/shrink.rs:51`
+- [ ] A candidate call's failures must not leak into the verdict: `judge` takes the ledger per call, so keep only the last failing candidate's records. `crates/nvs-cli/src/runner.rs:2864`
+- [ ] The JSON report's counterexample key (`rule:testing/report-formats`). `crates/nvs-cli/src/runner.rs:3143`
+- [ ] `test_inherit` merges the property table as it merges tests. `crates/nvs-types/src/test_inherit.rs:263`
+- [ ] Novis tests: a property that holds, one that fails and shrinks, a seed that reproduces it. `docs/examples/lang/testing/core-test-property-generated-inputs/01-a-property-holds-for-every-input.nvs:1`
 
 ### Backlog
 
