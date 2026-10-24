@@ -1421,8 +1421,9 @@ must be a property of that class.
 A class in `errors` that does not exist is `E0303`. A built-in class such as `RuntimeError` works
 too. Each `errors` entry becomes a response under its status, and the response's `description` is the
 class name. An empty `tags` array writes no `tags`. Each name in `security` becomes its own entry in
-the operation's `security` list, with an empty list of scopes. Novis does not check a `security` name
-against anything. The `example` value is written into the `200` response beside its schema.
+the operation's `security` list, with an empty list of scopes. Each name in `security` must be the
+`name` of an `#[Core\Api\Scheme]` on a class of the program. Any other name is `E0886`. The
+`example` value is written into the `200` response beside its schema.
 
 ## Example 01: tag a route for the api document
 
@@ -1461,6 +1462,10 @@ invoice 1042
 // Shows how to say which errors an operation returns, and which security
 // scheme it needs. Each entry in `errors:` becomes one response in the
 // generated API document. Novis checks that the class you name exists.
+
+// `#[Core\Api\Scheme]` declares the scheme that `security:` names.
+#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer", format: "JWT")]
+class Auth {}
 
 class NotFound extends RuntimeError {}
 
@@ -1508,6 +1513,10 @@ not found: there is no payment 0
 // operation has a summary, a group and an example of what it returns. `nvs
 // build --openapi` writes one document holding all of it, and a code generator
 // turns that document into a client library.
+
+// The client sends a bearer token. The document describes it once, here.
+#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer")]
+class Auth {}
 
 class Order {
     public uint $id = 0;

@@ -262,7 +262,8 @@ class Bulky
 }
 
 // 4. Sixteen more annotated operations, so the table the compiler builds holds
-//    many rows rather than one large one.
+//    many rows rather than one large one. Each one names the `bearer` scheme.
+#[Core\Api\Scheme(name: 'bearer', type: Core\Api\SchemeType::Http, scheme: 'bearer')]
 class Many
 {
     #[Core\Route(path: '/many/01', method: Core\Http\Method::Get, name: 'Many::r01')]

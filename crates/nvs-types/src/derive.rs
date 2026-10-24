@@ -87,6 +87,7 @@ pub const ATTRIBUTES: &[&str] = [
     QUERY,
     ACCESS,
     API,
+    API_SCHEME,
     PATH,
     DEPRECATED,
 ]
@@ -141,7 +142,7 @@ impl Site {
 /// `#[Route]` beside `#[Api]` — stays with that pass.
 pub(crate) fn sites(name: &str) -> Option<&'static [Site]> {
     Some(match name {
-        DERIVE | DB_DERIVE => &[Site::Class],
+        DERIVE | DB_DERIVE | API_SCHEME => &[Site::Class],
         FIELD | DB_FIELD => &[Site::Property, Site::PromotedParam],
         TEST | FIXTURE | TEST_WITH | BEFORE_CLASS | AFTER_CLASS | AFTER_EACH_TEST | COMMAND
         | ROUTE | ACCESS | API => &[Site::Method],
@@ -497,6 +498,59 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
         site: "a method with a route",
     },
     AttributeDoc {
+        name: API_SCHEME,
+        fields: &[
+            AttributeField {
+                name: "name",
+                ty: "string",
+                required: true,
+            },
+            AttributeField {
+                name: "type",
+                ty: r"Core\Api\SchemeType",
+                required: true,
+            },
+            AttributeField {
+                name: "description",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "in",
+                ty: r"Core\Api\KeyIn",
+                required: false,
+            },
+            AttributeField {
+                name: "parameter",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "scheme",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "format",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "url",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "flows",
+                ty: "mixed",
+                required: false,
+            },
+        ],
+        short: "Declares a security scheme for the generated OpenAPI file. An `#[Api(security: \
+                [...])]` can use its `name`. Each `type` needs its own fields.",
+        site: "a class",
+    },
+    AttributeDoc {
         name: PATH,
         fields: &[],
         short: "Says that this parameter is a file path. A relative path written in quotes \
@@ -649,6 +703,13 @@ pub const ACCESS: &str = r"Core\Access";
 /// `use Core\Api;`. [`crate::routes`] owns the payload and the four
 /// contradictions.
 pub const API: &str = r"Core\Api";
+
+/// `#[Api\Scheme(name, type, …)]` — `rule:routing/a-security-scheme-is-declared-in-code`'s
+/// declaration of one security scheme, on a class and repeatable. It sits in
+/// [`API`]'s namespace, so the `use Core\Api;` that places `#[Api]` places it
+/// too. [`crate::routes`] owns the payload and collects every declaration
+/// into the route table.
+pub const API_SCHEME: &str = r"Core\Api\Scheme";
 
 /// `#[Core\Path]` — `rule:programs/relative-paths-resolve-from-their-file`'s
 /// per-parameter marker, on a `string` parameter of a method, and it carries

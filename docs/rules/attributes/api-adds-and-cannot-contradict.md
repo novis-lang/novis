@@ -26,7 +26,5 @@ not get one.
 It is compiler-recognized, matched by name rather than structurally, so a userland anonymous object that
 happens to look like one is not one (`rule:attributes/attach-sites-and-forms`).
 
-A `security` name is carried uninterpreted rather than compared: nothing in the compiler or in
-`nvs.toml` declares a scheme, so there is no roster to check against and the emitted document names
-schemes it does not define. `rule:routing/a-security-scheme-is-declared-in-code` gives a scheme its
-home and the comparison.
+A `security` name must be one the program declares with `#[Api\Scheme]`, and
+`rule:routing/a-security-scheme-is-declared-in-code` holds that comparison and its error.

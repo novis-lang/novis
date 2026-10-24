@@ -91,6 +91,12 @@
 //! the two strings it splits into. Here rather than at the emitter because the
 //! row is what crosses out of this crate.
 //!
+//! The same walk reads `rule:routing/a-security-scheme-is-declared-in-code`'s
+//! `#[Api\Scheme]` off the class itself. [`collect_scheme`] holds one
+//! declaration to its `type`'s fields, and [`check_security`] asks, once the
+//! table is complete, whether a name is declared twice and whether every
+//! `#[Api]` `security` entry names a declared scheme.
+//!
 //! A `#[Query]` written where no `#[Route]` reads it is [`check_stray_query`],
 //! and an `#[Access]` written there is [`check_stray_access`] — `rule:attributes/access-is-a-required-sibling`'s
 //! sibling rule asked from the other side. Those are the questions the per-class
@@ -131,6 +137,18 @@ const EXAMPLE: &str = "example";
 
 const STATUS: &str = "status";
 const TYPE: &str = "type";
+
+const DESCRIPTION: &str = "description";
+const KEY_IN: &str = "in";
+const PARAMETER: &str = "parameter";
+const HTTP_SCHEME: &str = "scheme";
+const FORMAT: &str = "format";
+const URL: &str = "url";
+const FLOWS: &str = "flows";
+const SCOPES: &str = "scopes";
+const AUTHORIZATION_URL: &str = "authorizationUrl";
+const TOKEN_URL: &str = "tokenUrl";
+const REFRESH_URL: &str = "refreshUrl";
 
 /// The four verbs `rule:security/csrf-is-on-by-default` turns CSRF on for, named once: [`CSRF`] is an
 /// opt-out from *these*, and [`check_csrf_opt_out`] is the only reader.
@@ -464,9 +482,9 @@ pub struct Route {
     /// serves ([`check_class_routes`] asks for it once, beside `#[Access]`), so
     /// every row a method produces carries the same four values.
     pub tags: Vec<String>,
-    /// `#[Api]`'s `security`: the scheme names, in written order and uninterpreted.
-    /// [`check_api`]'s docs own why a name is carried rather than compared
-    /// against a roster of configured schemes.
+    /// `#[Api]`'s `security`: the scheme names, in written order. In a program
+    /// that compiles, each names one of [`RouteTable::schemes`]
+    /// ([`check_security`]).
     pub security: Vec<String>,
     /// `#[Api]`'s `errors`, in written order: the responses the declared return type
     /// cannot state.
@@ -671,6 +689,90 @@ pub struct EnumCapture {
 pub struct RouteTable {
     rows: Vec<Route>,
     dispatches: Vec<DispatchSite>,
+    /// Every `#[Api\Scheme]` [`collect_scheme`] accepted, in load order.
+    schemes: Vec<ApiScheme>,
+    /// Every `#[Api\Scheme]` name written, accepted or not, with its
+    /// attribute: [`check_security`] holds `security` entries and repeats to
+    /// this list, so a scheme refused for a field is not reported a second time
+    /// at every route that names it.
+    scheme_names: Vec<(String, Span)>,
+    /// Every `#[Api(security: [...])]` entry, with the span that wrote it.
+    security_uses: Vec<(String, Span)>,
+}
+
+/// One `rule:routing/a-security-scheme-is-declared-in-code` declaration, as
+/// `components.securitySchemes` writes it. Every spelling here is already the
+/// specification's, so the emitter renders and decides nothing.
+#[derive(Clone, Debug)]
+pub struct ApiScheme {
+    /// The key the document files the scheme under.
+    pub name: String,
+    /// What the scheme's `type` takes.
+    pub kind: SchemeKind,
+    /// The optional `description`.
+    pub description: Option<String>,
+}
+
+/// One scheme `type` and the fields it took
+/// (`rule:routing/a-security-scheme-is-declared-in-code`'s field table).
+#[derive(Clone, Debug)]
+pub enum SchemeKind {
+    /// A key sent `in` a header, a query parameter or a cookie, under
+    /// `parameter`.
+    ApiKey {
+        /// `query`, `header` or `cookie`.
+        location: &'static str,
+        /// The header, query or cookie name.
+        parameter: String,
+    },
+    /// An HTTP `Authorization` scheme.
+    Http {
+        /// The IANA scheme name, such as `bearer`.
+        scheme: String,
+        /// The optional `bearerFormat`.
+        format: Option<String>,
+    },
+    /// A client certificate.
+    MutualTls,
+    /// OAuth 2.0, with at least one flow, in written order.
+    OAuth2 {
+        /// The declared flows.
+        flows: Vec<OAuthFlow>,
+    },
+    /// OpenID Connect.
+    OpenIdConnect {
+        /// `openIdConnectUrl`.
+        url: String,
+    },
+}
+
+impl SchemeKind {
+    /// The specification's spelling of the `type`.
+    #[must_use]
+    pub const fn type_name(&self) -> &'static str {
+        match self {
+            Self::ApiKey { .. } => "apiKey",
+            Self::Http { .. } => "http",
+            Self::MutualTls => "mutualTLS",
+            Self::OAuth2 { .. } => "oauth2",
+            Self::OpenIdConnect { .. } => "openIdConnect",
+        }
+    }
+}
+
+/// One OAuth2 flow, keyed as the specification keys it.
+#[derive(Clone, Debug)]
+pub struct OAuthFlow {
+    /// `implicit`, `password`, `clientCredentials` or `authorizationCode`.
+    pub kind: &'static str,
+    /// Present exactly where [`OAUTH_FLOWS`] says the kind needs it.
+    pub authorization_url: Option<String>,
+    /// Present exactly where [`OAUTH_FLOWS`] says the kind needs it.
+    pub token_url: Option<String>,
+    /// The optional `refreshUrl`.
+    pub refresh_url: Option<String>,
+    /// Each scope's name and description, in written order.
+    pub scopes: Vec<(String, String)>,
 }
 
 /// One `Core\Router::dispatch` call, as [`check_responders`] reads it.
@@ -702,6 +804,13 @@ impl RouteTable {
     #[must_use]
     pub fn rows(&self) -> &[Route] {
         &self.rows
+    }
+
+    /// Every declared security scheme, in load order. The emitter sorts them
+    /// by name.
+    #[must_use]
+    pub fn schemes(&self) -> &[ApiScheme] {
+        &self.schemes
     }
 
     /// The row § 1's `name` names, or `None` where no route claims it — § 4's
@@ -745,6 +854,11 @@ pub(crate) fn check_class_routes(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
+    for attr in decl.attributes.iter().flat_map(|group| &group.attributes) {
+        if crate::derive::attribute_is(attr, crate::derive::API_SCHEME, ctx, env) {
+            collect_scheme(attr, ctx, env);
+        }
+    }
     for member in &decl.members {
         let ClassMemberKind::Method(m) = &member.kind else {
             continue;
@@ -1012,6 +1126,43 @@ pub(crate) const API_OPTIONS: &[(&str, OptionTy)] = &[
     (EXAMPLE, OptionTy::Mixed),
 ];
 
+/// `#[Api\Scheme]`'s roster: every field some scheme `type` takes,
+/// `rule:routing/a-security-scheme-is-declared-in-code`'s field table read
+/// down its columns. Which of them one `type` takes is [`SCHEME_FIELDS`], asked
+/// by [`collect_scheme`] once the `type` is known. `flows` is
+/// [`OptionTy::Mixed`] for [`API_OPTIONS`]' reason, and [`fold_flows`] reads it.
+pub(crate) const SCHEME_OPTIONS: &[(&str, OptionTy)] = &[
+    (NAME, OptionTy::Str),
+    (TYPE, OptionTy::Enum(nvs_stdlib::router::SCHEME_TYPE_NAME)),
+    (DESCRIPTION, OptionTy::Str),
+    (KEY_IN, OptionTy::Enum(nvs_stdlib::router::KEY_IN_NAME)),
+    (PARAMETER, OptionTy::Str),
+    (HTTP_SCHEME, OptionTy::Str),
+    (FORMAT, OptionTy::Str),
+    (URL, OptionTy::Str),
+    (FLOWS, OptionTy::Mixed),
+];
+
+/// The field table's rows past its first: each `Core\Api\SchemeType` case by
+/// name, the fields it requires, and the fields it may take. `name`, `type` and
+/// `description` are every type's, so no row lists them.
+const SCHEME_FIELDS: [(&str, &[&str], &[&str]); 5] = [
+    ("ApiKey", &[KEY_IN, PARAMETER], &[]),
+    ("Http", &[HTTP_SCHEME], &[FORMAT]),
+    ("MutualTls", &[], &[]),
+    ("OAuth2", &[FLOWS], &[]),
+    ("OpenIdConnect", &[URL], &[]),
+];
+
+/// The four OAuth2 flows, as the specification keys them, and whether each
+/// needs an `authorizationUrl` and a `tokenUrl`.
+const OAUTH_FLOWS: [(&str, bool, bool); 4] = [
+    ("implicit", true, false),
+    ("password", false, true),
+    ("clientCredentials", false, true),
+    ("authorizationCode", true, true),
+];
+
 /// `rule:attributes/api-adds-and-cannot-contradict`'s fourth contradiction: an `#[Api]` on a method carrying no
 /// `#[Route]`.
 ///
@@ -1132,15 +1283,10 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 /// - a **`tags`** or **`security`** entry that is not a string, which is the
 ///   structural half the roster cannot state.
 ///
-/// **`#[Api]`'s `security` scheme check is written down to the point the tree can
-/// reach and no further, deliberately.** "A scheme name that no configured
-/// scheme defines" needs a configured scheme, and nothing in this compiler
-/// declares one yet — there is no configuration surface for a security scheme
-/// anywhere, which `crates/nvs-cli/src/openapi.rs`'s own gap list already
-/// records. Refusing every name against an empty roster would refuse `rule:attributes/api-adds-and-cannot-contradict`'s own example, so what stands here today is the shape and the name is
-/// carried uninterpreted, exactly as `rule:security/access-is-checked-for-presence-not-meaning` carries an access decision.
-/// The comparison lands in this function, unchanged, on the day a scheme has a
-/// home.
+/// Each `security` entry is also recorded with its span, because whether it
+/// names a declared scheme is a question about the whole program: an
+/// `#[Api\Scheme]` may sit in a file the walk has not reached yet, so
+/// [`check_security`] asks it once the table is complete.
 ///
 /// Each of the four walks hands back what it read, which is the whole of the
 /// recording half: a value only reaches [`Route`] once the walk that checks it
@@ -1153,9 +1299,12 @@ fn check_api(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> Api {
+    let tags = check_string_list(api, TAGS, env);
+    let security = check_string_list(api, SECURITY, env);
+    env.routes.security_uses.extend(security.iter().cloned());
     Api {
-        tags: check_string_list(api, TAGS, env),
-        security: check_string_list(api, SECURITY, env),
+        tags: tags.into_iter().map(|(name, _)| name).collect(),
+        security: security.into_iter().map(|(name, _)| name).collect(),
         errors: check_api_errors(api, ctx, env),
         example: check_api_example(api, m, class, ctx, env),
     }
@@ -1163,8 +1312,8 @@ fn check_api(
 
 /// One `#[Api]` option written as an array of `string`s — [`TAGS`] and
 /// [`SECURITY`], which have the same shape and differ only in what a later
-/// pass will do with the strings.
-fn check_string_list(api: &Attribute, option: &str, env: &mut Env<'_>) -> Vec<String> {
+/// pass will do with the strings. Each entry comes with the span that wrote it.
+fn check_string_list(api: &Attribute, option: &str, env: &mut Env<'_>) -> Vec<(String, Span)> {
     let Some(field) = written(api, option, env) else {
         return Vec::new();
     };
@@ -1185,7 +1334,7 @@ fn check_string_list(api: &Attribute, option: &str, env: &mut Env<'_>) -> Vec<St
         let entry = item.value.clone();
         let entry_span = entry.span;
         match crate::defaults::literal_default(&entry, declared, env) {
-            Some(ConstArg::Str(name)) => names.push(name),
+            Some(ConstArg::Str(name)) => names.push((name, entry_span)),
             _ => report_api(
                 format!("this `{option}` entry is not a string"),
                 entry_span,
@@ -1594,6 +1743,329 @@ fn report_api(
             .with_primary(span, label)
             .with_help(help.into()),
     );
+}
+
+/// One `#[Api\Scheme]`, held to `rule:routing/a-security-scheme-is-declared-in-code`'s
+/// field table, and pushed onto the table where it passes.
+///
+/// A field no `type` takes, and a field written at the wrong type, are
+/// [`crate::attributes::check_roster`]'s and are not reported again. Every
+/// other mistake is reported before the scheme is dropped, so an author sees
+/// all of them in one build. The name is recorded even for a scheme that is
+/// dropped, for [`RouteTable::scheme_names`]' reason.
+fn collect_scheme(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let name = folded_str(attr, NAME, env).map(|(name, _)| name);
+    if let Some(name) = &name {
+        env.routes.scheme_names.push((name.clone(), attr.span));
+    }
+    for (option, what) in [(NAME, "a `name`"), (TYPE, "a `type`")] {
+        if written(attr, option, env).is_none() {
+            report_scheme(
+                format!("this `#[Core\\Api\\Scheme]` has no {what}"),
+                attr.span,
+                "a required field is missing",
+                "every scheme needs a `name` and a `type`, such as `#[Core\\Api\\Scheme(name: \
+                 \"bearer\", type: Core\\Api\\SchemeType::Http, scheme: \"bearer\")]`",
+                env,
+            );
+        }
+    }
+    let Some(case) = written(attr, TYPE, env)
+        .and_then(|field| enum_case(field, nvs_stdlib::router::SCHEME_TYPE_NAME, ctx, env))
+    else {
+        return;
+    };
+    let Some(&(_, required, optional)) = SCHEME_FIELDS.iter().find(|(row, ..)| *row == case)
+    else {
+        return;
+    };
+    let mut complete = name.is_some();
+    let takes = scheme_fields_text(required, optional);
+    for field in &attr.fields {
+        let option = span_text(env.src, field.name);
+        let anywhere = SCHEME_OPTIONS.iter().any(|(known, _)| *known == option);
+        if !anywhere
+            || [NAME, TYPE, DESCRIPTION].contains(&option)
+            || required.contains(&option)
+            || optional.contains(&option)
+        {
+            continue;
+        }
+        let message = format!("this `{case}` scheme does not use `{option}`");
+        report_scheme(
+            message,
+            field.span,
+            "this type does not use this field",
+            format!(
+                "a scheme of type `{case}` takes {takes}. Delete this field, or change the `type`"
+            ),
+            env,
+        );
+        complete = false;
+    }
+    for option in required {
+        if written(attr, option, env).is_none() {
+            report_scheme(
+                format!("this `{case}` scheme needs `{option}`"),
+                attr.span,
+                "a required field is missing",
+                format!("a scheme of type `{case}` takes {takes}"),
+                env,
+            );
+            complete = false;
+        }
+    }
+    if !complete {
+        return;
+    }
+    let kind = match case.as_str() {
+        "ApiKey" => {
+            let location = written(attr, KEY_IN, env)
+                .and_then(|field| enum_case(field, nvs_stdlib::router::KEY_IN_NAME, ctx, env));
+            let parameter = folded_str(attr, PARAMETER, env);
+            let (Some(location), Some((parameter, _))) = (location, parameter) else {
+                return;
+            };
+            let location = match location.as_str() {
+                "Query" => "query",
+                "Header" => "header",
+                _ => "cookie",
+            };
+            SchemeKind::ApiKey {
+                location,
+                parameter,
+            }
+        }
+        "Http" => {
+            let Some((scheme, _)) = folded_str(attr, HTTP_SCHEME, env) else {
+                return;
+            };
+            let format = folded_str(attr, FORMAT, env).map(|(format, _)| format);
+            SchemeKind::Http { scheme, format }
+        }
+        "MutualTls" => SchemeKind::MutualTls,
+        "OAuth2" => {
+            let Some(flows) = fold_flows(attr, ctx, env) else {
+                return;
+            };
+            SchemeKind::OAuth2 { flows }
+        }
+        _ => {
+            let Some((url, _)) = folded_str(attr, URL, env) else {
+                return;
+            };
+            SchemeKind::OpenIdConnect { url }
+        }
+    };
+    let Some(name) = name else {
+        return;
+    };
+    let description = folded_str(attr, DESCRIPTION, env).map(|(text, _)| text);
+    env.routes.schemes.push(ApiScheme {
+        name,
+        kind,
+        description,
+    });
+}
+
+/// One row of [`SCHEME_FIELDS`] as a diagnostic's help lists it.
+fn scheme_fields_text(required: &[&str], optional: &[&str]) -> String {
+    let quoted = |fields: &[&str]| {
+        fields
+            .iter()
+            .map(|field| format!("`{field}`"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    match (required.is_empty(), optional.is_empty()) {
+        (true, true) => "no field but `name`, `type` and `description`".to_owned(),
+        (false, true) => quoted(required),
+        (true, false) => format!("the optional {}", quoted(optional)),
+        (false, false) => format!("{}, and the optional {}", quoted(required), quoted(optional)),
+    }
+}
+
+/// An `OAuth2` scheme's `flows`, folded and held to the four flows the
+/// specification lists. Every mistake is reported at the `flows` field,
+/// because the fold keeps no span for what is inside it.
+fn fold_flows(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<Vec<OAuthFlow>> {
+    let field = written(attr, FLOWS, env)?;
+    let (value, span) = (field.value.clone(), field.span);
+    let example = "write `flows: {clientCredentials: {tokenUrl: \"https://example.com/token\", \
+                   scopes: [\"orders:read\" => \"Read orders\"]}}`";
+    let Some(ConstArg::Shape(entries)) =
+        crate::defaults::fold_constant_value(&value, Some(ctx), env)
+    else {
+        report_scheme(
+            "`flows` is not an object".to_owned(),
+            span,
+            "not an object of flows",
+            example,
+            env,
+        );
+        return None;
+    };
+    if entries.is_empty() {
+        report_scheme(
+            "`flows` declares no flow".to_owned(),
+            span,
+            "an OAuth2 scheme needs at least one flow",
+            example,
+            env,
+        );
+        return None;
+    }
+    let mut flows = Vec::with_capacity(entries.len());
+    let mut problems = Vec::new();
+    for (key, flow) in entries {
+        let Some(&(kind, needs_authorization, needs_token)) =
+            OAUTH_FLOWS.iter().find(|(known, ..)| *known == key)
+        else {
+            problems.push(format!(
+                "`{key}` is not an OAuth2 flow. The flows are `implicit`, `password`, \
+                 `clientCredentials` and `authorizationCode`"
+            ));
+            continue;
+        };
+        let ConstArg::Shape(fields) = flow else {
+            problems.push(format!("the `{kind}` flow is not an object"));
+            continue;
+        };
+        let mut flow = OAuthFlow {
+            kind,
+            authorization_url: None,
+            token_url: None,
+            refresh_url: None,
+            scopes: Vec::new(),
+        };
+        let mut scopes = false;
+        for (option, value) in fields {
+            let slot = match option.as_str() {
+                AUTHORIZATION_URL if needs_authorization => &mut flow.authorization_url,
+                TOKEN_URL if needs_token => &mut flow.token_url,
+                REFRESH_URL => &mut flow.refresh_url,
+                SCOPES => {
+                    scopes = true;
+                    match fold_scopes(value) {
+                        Some(list) => flow.scopes = list,
+                        None => problems.push(format!(
+                            "the `scopes` of the `{kind}` flow is not an array from a scope \
+                             name to its description"
+                        )),
+                    }
+                    continue;
+                }
+                _ => {
+                    problems.push(format!("the `{kind}` flow does not use `{option}`"));
+                    continue;
+                }
+            };
+            match value {
+                ConstArg::Str(text) => *slot = Some(text),
+                _ => problems.push(format!("`{option}` of the `{kind}` flow is not a string")),
+            }
+        }
+        for (needed, option, present) in [
+            (
+                needs_authorization,
+                AUTHORIZATION_URL,
+                flow.authorization_url.is_some(),
+            ),
+            (needs_token, TOKEN_URL, flow.token_url.is_some()),
+            (true, SCOPES, scopes),
+        ] {
+            if needed && !present {
+                problems.push(format!("the `{kind}` flow needs `{option}`"));
+            }
+        }
+        flows.push(flow);
+    }
+    if problems.is_empty() {
+        return Some(flows);
+    }
+    for problem in problems {
+        report_scheme(problem, span, "in this `flows`", example, env);
+    }
+    None
+}
+
+/// A flow's `scopes`: an array from each scope's name to its description.
+fn fold_scopes(value: ConstArg) -> Option<Vec<(String, String)>> {
+    match value {
+        ConstArg::EmptyArray => Some(Vec::new()),
+        ConstArg::Array(entries) => entries
+            .into_iter()
+            .map(|(name, description)| match description {
+                ConstArg::Str(description) => Some((name, description)),
+                _ => None,
+            })
+            .collect(),
+        _ => None,
+    }
+}
+
+/// One `#[Api\Scheme]` field mistake, reported as
+/// [`code::E_API_SCHEME_FIELD`].
+fn report_scheme(
+    message: String,
+    span: Span,
+    label: &'static str,
+    help: impl Into<String>,
+    env: &mut Env<'_>,
+) {
+    env.diags.report(
+        Diagnostic::error(code::E_API_SCHEME_FIELD, message)
+            .with_primary(span, label)
+            .with_help(help.into()),
+    );
+}
+
+/// `rule:routing/a-security-scheme-is-declared-in-code`'s two questions about
+/// the whole program: a scheme name declared twice, and a `security` entry
+/// naming no declared scheme. Asked once the table is complete, because a
+/// declaration and a use may be in different files.
+fn check_security(table: &RouteTable, diags: &mut Diagnostics) {
+    let mut declared: FxHashMap<&str, Span> = FxHashMap::default();
+    for (name, span) in &table.scheme_names {
+        if let Some(&first) = declared.get(name.as_str()) {
+            diags.report(
+                Diagnostic::error(
+                    code::E_API_SCHEME_DECLARED_TWICE,
+                    format!("the security scheme `{name}` is declared twice"),
+                )
+                .with_primary(*span, "the second declaration")
+                .with_secondary(first, "the first declaration")
+                .with_help("each scheme needs its own `name`. Rename one, or delete one"),
+            );
+            continue;
+        }
+        declared.insert(name, *span);
+    }
+    for (name, span) in &table.security_uses {
+        if declared.contains_key(name.as_str()) {
+            continue;
+        }
+        let help = if declared.is_empty() {
+            format!(
+                "this program declares no security scheme. Declare it on a class, such as \
+                 `#[Core\\Api\\Scheme(name: \"{name}\", type: Core\\Api\\SchemeType::Http, \
+                 scheme: \"bearer\")]`"
+            )
+        } else {
+            let mut names: Vec<&str> = declared.keys().copied().collect();
+            names.sort_unstable();
+            let names: Vec<String> = names.iter().map(|name| format!("`{name}`")).collect();
+            format!("the declared schemes are: {}", names.join(", "))
+        };
+        diags.report(
+            Diagnostic::error(
+                code::E_API_SECURITY_UNDECLARED,
+                format!("`{name}` is not a declared security scheme"),
+            )
+            .with_primary(*span, "no `#[Core\\Api\\Scheme]` has this name")
+            .with_help(help),
+        );
+    }
 }
 
 /// One `#[Route]` payload as a row, or the refusal that it is not one.
@@ -2547,14 +3019,25 @@ fn folded_bool(attr: &Attribute, option: &str, env: &mut Env<'_>) -> Option<bool
 /// once: a value that is not a case of [`METHOD_ENUM`] is `None` here and has
 /// already been reported by the roster walk, which places it at that enum.
 fn verb_of(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<String> {
-    let field = written(attr, METHOD, env)?;
-    let ExprKind::ClassConstAccess { class, name } = &field.value.kind else {
+    enum_case(written(attr, METHOD, env)?, METHOD_ENUM, ctx, env)
+}
+
+/// The case `field` writes of the enum `name`, by the case's own name, or
+/// `None` where it writes anything else, which the roster walk has already
+/// reported.
+fn enum_case(
+    field: &nvs_syntax::ast::AnonObjectField,
+    name: &str,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<String> {
+    let ExprKind::ClassConstAccess { class, name: case } = &field.value.kind else {
         return None;
     };
     let class = class.clone();
-    let case = span_text(env.src, *name).to_owned();
+    let case = span_text(env.src, *case).to_owned();
     let qname = crate::expr::resolve_class_expr(&class, ctx, env)?;
-    if qname != QName::parse(METHOD_ENUM) {
+    if qname != QName::parse(name) {
         return None;
     }
     env.enums.case(&qname, &case)?;
@@ -2637,7 +3120,9 @@ pub(crate) fn check_responders(table: &RouteTable, diags: &mut Diagnostics) {
 }
 
 /// The two of § 1-§ 3's compile errors that are questions about the whole
-/// enumeration: one route declared twice, and one `name` claimed twice.
+/// enumeration: one route declared twice, and one `name` claimed twice. Then
+/// [`check_security`]'s two, which are the same kind of question about the
+/// security schemes.
 ///
 /// Run once, after every file has been walked, because a route in the entry
 /// file collides with one in a file § 5's scan found and neither declaration
@@ -2700,6 +3185,7 @@ pub(crate) fn check_table(table: &RouteTable, diags: &mut Diagnostics) {
             names.insert(name.as_str(), prior);
         }
     }
+    check_security(table, diags);
 }
 
 /// § 2's path *shape*: the path with every capture's name erased but its

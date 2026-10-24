@@ -32,7 +32,9 @@
 
 use std::collections::BTreeMap;
 
-use nvs_types::{ConstArg, ParamIn, Route, RouteParam, RouteTable};
+use nvs_types::{
+    ApiScheme, ConstArg, OAuthFlow, ParamIn, Route, RouteParam, RouteTable, SchemeKind,
+};
 use serde_json::{Map, Value, json};
 
 /// The OpenAPI version every document claims, and the only one:
@@ -72,14 +74,91 @@ pub(crate) fn document(routes: &RouteTable, title: &str) -> Value {
         })
         .collect();
 
-    json!({
+    let mut document = json!({
         "openapi": VERSION,
         "info": {
             "title": title,
             "version": "0.0.0",
         },
         "paths": Value::Object(paths),
-    })
+    });
+    if !routes.schemes().is_empty() {
+        document["components"] = json!({ "securitySchemes": security_schemes(routes) });
+    }
+    document
+}
+
+/// `components.securitySchemes`: every declared scheme under its name, sorted
+/// by name, as `rule:routing/a-security-scheme-is-declared-in-code` requires.
+/// Every spelling is already the specification's on the row.
+fn security_schemes(routes: &RouteTable) -> Value {
+    let sorted: BTreeMap<&str, &ApiScheme> = routes
+        .schemes()
+        .iter()
+        .map(|scheme| (scheme.name.as_str(), scheme))
+        .collect();
+    let schemes: Map<String, Value> = sorted
+        .into_iter()
+        .map(|(name, scheme)| (name.to_owned(), security_scheme(scheme)))
+        .collect();
+    Value::Object(schemes)
+}
+
+/// One Security Scheme Object.
+fn security_scheme(scheme: &ApiScheme) -> Value {
+    let mut object = Map::new();
+    object.insert("type".to_owned(), json!(scheme.kind.type_name()));
+    if let Some(description) = &scheme.description {
+        object.insert("description".to_owned(), json!(description));
+    }
+    match &scheme.kind {
+        SchemeKind::ApiKey {
+            location,
+            parameter,
+        } => {
+            object.insert("in".to_owned(), json!(location));
+            object.insert("name".to_owned(), json!(parameter));
+        }
+        SchemeKind::Http { scheme, format } => {
+            object.insert("scheme".to_owned(), json!(scheme));
+            if let Some(format) = format {
+                object.insert("bearerFormat".to_owned(), json!(format));
+            }
+        }
+        SchemeKind::MutualTls => {}
+        SchemeKind::OAuth2 { flows } => {
+            let flows: Map<String, Value> = flows
+                .iter()
+                .map(|flow| (flow.kind.to_owned(), oauth_flow(flow)))
+                .collect();
+            object.insert("flows".to_owned(), Value::Object(flows));
+        }
+        SchemeKind::OpenIdConnect { url } => {
+            object.insert("openIdConnectUrl".to_owned(), json!(url));
+        }
+    }
+    Value::Object(object)
+}
+
+/// One OAuth Flow Object.
+fn oauth_flow(flow: &OAuthFlow) -> Value {
+    let mut object = Map::new();
+    for (key, url) in [
+        ("authorizationUrl", &flow.authorization_url),
+        ("tokenUrl", &flow.token_url),
+        ("refreshUrl", &flow.refresh_url),
+    ] {
+        if let Some(url) = url {
+            object.insert(key.to_owned(), json!(url));
+        }
+    }
+    let scopes: Map<String, Value> = flow
+        .scopes
+        .iter()
+        .map(|(name, description)| (name.clone(), json!(description)))
+        .collect();
+    object.insert("scopes".to_owned(), Value::Object(scopes));
+    Value::Object(object)
 }
 
 /// Every row's `operationId`, by the row's position in the table.
@@ -147,11 +226,9 @@ fn operation(row: &Route, id: &str) -> Value {
         operation.insert("parameters".to_owned(), Value::Array(params));
     }
     // `#[Api]`'s `security`, as 3.1's Security Requirement Object: one object per
-    // scheme name, each holding the empty scope list. The scopes are empty
-    // because a scheme name is all the row carries and all the compiler ever
-    // saw — `nvs_types::routes`' `check_api` owns why a name is uninterpreted —
-    // and an OAuth2 scope list is a fact about a configured scheme, which is
-    // the same thing that is missing there.
+    // scheme name, each holding the empty scope list. Every name is one of
+    // `components.securitySchemes`, because the front end refuses any other.
+    // The scopes are empty because `#[Api]` has no field to name them yet.
     if !row.security.is_empty() {
         let schemes: Vec<Value> = row
             .security

@@ -175,6 +175,88 @@ const AUDIENCE_DOC: EnumDoc = EnumDoc {
     }],
 };
 
+/// `Core\Api\SchemeType`'s fully-qualified name, written once for
+/// [`SCHEME_TYPE`]'s row and for `nvs_types::routes`, which reads the case.
+pub const SCHEME_TYPE_NAME: &str = r"Core\Api\SchemeType";
+
+/// `rule:routing/a-security-scheme-is-declared-in-code`'s `type`: the five
+/// Security Scheme types OpenAPI 3.1 lists, as an enum rather than the
+/// specification's strings (`rule:core-api/no-mode-strings`). Like [`METHOD`],
+/// a program writes a case only in an attribute, `#[Api\Scheme(type: …)]`.
+pub(crate) const SCHEME_TYPE: CoreEnum = CoreEnum {
+    name: SCHEME_TYPE_NAME,
+    cases: &[
+        ("ApiKey", 0),
+        ("Http", 1),
+        ("MutualTls", 2),
+        ("OAuth2", 3),
+        ("OpenIdConnect", 4),
+    ],
+    doc: Some(&SCHEME_TYPE_DOC),
+};
+
+/// [`SCHEME_TYPE`]'s reference card — `rule:core-api/reference-card`.
+const SCHEME_TYPE_DOC: EnumDoc = EnumDoc {
+    short: "The kind of security scheme that an `#[Api\\Scheme]` declares. The generated OpenAPI \
+            file writes it as the scheme's `type`. Each kind needs its own fields.",
+    cases: &[
+        CaseDoc {
+            name: "ApiKey",
+            desc: "A key in a header, a query parameter or a cookie. It needs `in` and \
+                   `parameter`.",
+        },
+        CaseDoc {
+            name: "Http",
+            desc: "An HTTP `Authorization` scheme, such as `bearer` or `basic`. It needs \
+                   `scheme`, and `format` is optional.",
+        },
+        CaseDoc {
+            name: "MutualTls",
+            desc: "A client certificate. It needs no other field.",
+        },
+        CaseDoc {
+            name: "OAuth2",
+            desc: "OAuth 2.0. It needs `flows`.",
+        },
+        CaseDoc {
+            name: "OpenIdConnect",
+            desc: "OpenID Connect. It needs `url`, the address of the provider's configuration.",
+        },
+    ],
+};
+
+/// `Core\Api\KeyIn`'s fully-qualified name, written once for [`KEY_IN`]'s row
+/// and for `nvs_types::routes`, which reads the case.
+pub const KEY_IN_NAME: &str = r"Core\Api\KeyIn";
+
+/// Where an `ApiKey` scheme's key is sent: OpenAPI's `in`, as an enum for
+/// [`SCHEME_TYPE`]'s reason.
+pub(crate) const KEY_IN: CoreEnum = CoreEnum {
+    name: KEY_IN_NAME,
+    cases: &[("Query", 0), ("Header", 1), ("Cookie", 2)],
+    doc: Some(&KEY_IN_DOC),
+};
+
+/// [`KEY_IN`]'s reference card — `rule:core-api/reference-card`.
+const KEY_IN_DOC: EnumDoc = EnumDoc {
+    short: "Where the key of an `ApiKey` security scheme is sent. You write it as `in:` in an \
+            `#[Api\\Scheme]`.",
+    cases: &[
+        CaseDoc {
+            name: "Query",
+            desc: "In a query parameter of the URL.",
+        },
+        CaseDoc {
+            name: "Header",
+            desc: "In a request header.",
+        },
+        CaseDoc {
+            name: "Cookie",
+            desc: "In a cookie.",
+        },
+    ],
+};
+
 /// `Core\Router`'s fully-qualified name, in one place so the registry row and
 /// every message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Router";

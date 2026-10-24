@@ -4,6 +4,10 @@
 // build --openapi` writes one document holding all of it, and a code generator
 // turns that document into a client library.
 
+// The client sends a bearer token. The document describes it once, here.
+#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer")]
+class Auth {}
+
 class Order {
     public uint $id = 0;
     public string $customer = "";

@@ -5,7 +5,11 @@
 //
 // `RuntimeError` is one of the `Core\Error` tree's own classes, which `nvs_types::error_lib`
 // seeds — so the `errors` roster answers for a compiler-declared class exactly
-// as it does for an application's own.
+// as it does for an application's own. `bearer` is declared below, so the
+// `security` name resolves.
+
+#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer", format: "JWT")]
+class Auth {}
 
 class Item
 {

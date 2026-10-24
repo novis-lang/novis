@@ -1105,4 +1105,30 @@ codes! {
          `parent::constructor(...)` once. No other code can call a constructor. Create a new \
          object with `new` instead.",
     );
+
+    /// An `#[Api(security: [...])]` entry that no `#[Api\Scheme]` in the
+    /// program declares (`rule:routing/a-security-scheme-is-declared-in-code`).
+    /// The document would name a scheme it does not define.
+    pub const E_API_SECURITY_UNDECLARED: Code = Code::new("E0886").card(
+        "A `security` entry in `#[Api]` names a security scheme that the program does not \
+         declare. Declare it with `#[Api\\Scheme(name: ...)]` on a class, or use one of the \
+         names the message lists.",
+    );
+
+    /// Two `#[Api\Scheme]` declarations of one `name`
+    /// (`rule:routing/a-security-scheme-is-declared-in-code`):
+    /// `components.securitySchemes` is one map per document.
+    pub const E_API_SCHEME_DECLARED_TWICE: Code = Code::new("E0887").card(
+        "Two `#[Api\\Scheme]` attributes declare the same `name`. The OpenAPI file has one \
+         entry for each name. Rename one of the schemes, or delete one.",
+    );
+
+    /// An `#[Api\Scheme]` field its `type` does not take, a required field
+    /// left out, or an OAuth2 flow that is not one of the four or lacks the
+    /// URL its kind needs (`rule:routing/a-security-scheme-is-declared-in-code`).
+    pub const E_API_SCHEME_FIELD: Code = Code::new("E0888").card(
+        "This `#[Api\\Scheme]` has a field that its `type` does not use, or it is missing a \
+         field that its `type` needs. The message names the field. Each `type` has its own \
+         list of fields.",
+    );
 }

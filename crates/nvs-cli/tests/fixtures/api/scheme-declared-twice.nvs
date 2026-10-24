@@ -1,0 +1,11 @@
+<?nvs
+// Two classes each declare a scheme named `bearer`.
+
+use Core\Api\Scheme;
+use Core\Api\SchemeType;
+
+#[Scheme(name: "bearer", type: SchemeType::Http, scheme: "bearer")]
+class Auth {}
+
+#[Scheme(name: "bearer", type: SchemeType::Http, scheme: "basic")]
+class Admin {}
