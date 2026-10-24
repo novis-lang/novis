@@ -55,6 +55,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **A recursive walk over the repository root overflows the stack in `target/`, and takes half a
+  minute there.** A proof run leaves a folder thousands of levels deep under `target/proof/.nvsdata`,
+  and `target/` has links back up the tree. `nvs test --list .` died with "has overflowed its
+  stack" until both walks used a stack of their own and skipped linked and `CACHEDIR.TAG` folders
+  (`nvs_test::is_cache_dir`). A new walk of a user's folder does the same.
+  `until: gone crates/nvs-test/src/lib.rs:is_cache_dir`
 - **`bun nv site --check` and `bun nv proofs --run` pick `target/release/nvs` before the debug
   build, and the release binary is rebuilt only at a goal's end.** Mid-goal they judge the code of
   the last goal, so a red names a bug already fixed and a green proves nothing about the change.
