@@ -117,6 +117,7 @@ pub mod html_template;
 pub mod imports;
 pub mod index;
 pub mod links;
+pub mod narrow;
 pub mod organize;
 mod position;
 pub mod query;

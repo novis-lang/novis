@@ -1,0 +1,16 @@
+--TEST--
+a cursor on an `array<mixed>` annotation whose initializer is a constant declared in another file is offered nothing, because the action reads only an array literal written in the declaration, `rule:ide/the-action-answers-from-the-literal-or-not-at-all`
+--FILE--
+<?nvs
+require 'lib/config.nvs';
+
+array<mi<|>xed> $rows = Config::ROWS;
+--FILE lib/config.nvs--
+<?nvs
+class Config {
+    public const array<int> ROWS = [1, 2, 3];
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

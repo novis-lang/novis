@@ -1,0 +1,9 @@
+--TEST--
+a cursor on an `array<mixed>` annotation whose initializer is a nested array literal is offered Narrow the type, which writes the type of each level with its elements widened to their base, `rule:ide/narrow-an-annotation-to-its-literal`, `rule:ide/narrowest-means-narrowest-base-type`
+--FILE--
+<?nvs
+array<mi<|>xed> $grid = [[1.5, 2.5], [3.5]];
+--REQUEST--
+codeAction
+--EXPECT--
+2:1-2:13 refactor.rewrite Narrow the type to `array<array<float>>` -> "array<array<float>>"

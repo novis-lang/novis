@@ -1942,14 +1942,21 @@ fn var_array_literal(
 ) -> TypeId {
     let refusal =
         match crate::expr::synthesize_array_literal(items, literal.span, live, scope, ctx, env) {
-            Ok(ty) => return ty,
+            Ok(ty) => {
+                env.exprs.record_literal_type(literal.span, ty);
+                return ty;
+            }
             Err(crate::expr::NoArrayType::Untyped) => None,
-            Err(crate::expr::NoArrayType::Differ { distinct, .. }) => Some((
-                "`var` cannot infer an array whose elements have different types",
-                literal.span,
-                format!("the elements are {}", listed_types(&distinct, env)),
-                written_element_type(&distinct, env),
-            )),
+            Err(crate::expr::NoArrayType::Differ { union, distinct }) => {
+                let refused = env.interner.array(union);
+                env.exprs.record_literal_type(literal.span, refused);
+                Some((
+                    "`var` cannot infer an array whose elements have different types",
+                    literal.span,
+                    format!("the elements are {}", listed_types(&distinct, env)),
+                    written_element_type(&distinct, env),
+                ))
+            }
             Err(crate::expr::NoArrayType::Empty { at }) => Some((
                 "`var` cannot infer the type of an empty array",
                 at,

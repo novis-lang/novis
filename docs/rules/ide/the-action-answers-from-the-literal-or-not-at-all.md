@@ -22,4 +22,7 @@ reaching the declaration and a generator that picks between answers, which
 objection goes away if the reference index of `rule:ide/five-features-are-one-reference-index` comes
 to answer every write reaching a declaration; the choice half remains.
 
-**Missing:** the action these refusals bound (`rule:ide/narrow-an-annotation-to-its-literal`).
+**Built:** `narrowing_is_not_offered_without_a_literal_that_states_the_type` in
+`crates/nvs-lsp/tests/actions.rs` holds a decoded value, an empty literal at the top and nested, and a
+`mixed` element to no offer. An initializer that is not an array literal is never asked about, so a
+value from another file has no answer to give.

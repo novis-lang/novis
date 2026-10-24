@@ -1,0 +1,10 @@
+--TEST--
+a cursor on an `array<mixed>` annotation whose literal has a `mixed` element is offered nothing, because `mixed` is already the narrowest type the literal gives, `rule:ide/the-action-answers-from-the-literal-or-not-at-all`
+--FILE--
+<?nvs
+mixed $any = 1;
+array<mi<|>xed> $cells = [1, $any];
+--REQUEST--
+codeAction
+--EXPECT--
+none

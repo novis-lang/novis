@@ -1,0 +1,9 @@
+--TEST--
+a cursor on an `array<mixed>` annotation whose initializer is an array literal is offered Narrow the type, which writes the literal's element types widened to their base and replaces the annotation alone, `rule:ide/narrow-an-annotation-to-its-literal`, `rule:ide/narrowest-means-narrowest-base-type`
+--FILE--
+<?nvs
+array<mi<|>xed> $rows = [1, 2, 3];
+--REQUEST--
+codeAction
+--EXPECT--
+2:1-2:13 refactor.rewrite Narrow the type to `array<int>` -> "array<int>"

@@ -29,5 +29,5 @@ which changes only line breaks. Nothing is wrong in either case, so there is no 
 them, and the server computes each from the expression under the cursor alone, with no type or module
 question. Neither is ever under `source.fixAll.nvs` or `quickfix`. The server computes no other
 action for itself but the two extractions under `refactor.extract`, which
-`rule:ide/no-refactoring-introduces-an-alias` states; the ones that write a declaration are
-`rule:ide/a-code-action-writes-only-what-is-already-determined`'s.
+`rule:ide/no-refactoring-introduces-an-alias` states; the ones that write a declaration or narrow an
+annotation are `rule:ide/a-code-action-writes-only-what-is-already-determined`'s.

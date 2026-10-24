@@ -19,6 +19,8 @@ generic helper path for the typed one, and its element writes become compile err
 throws. Nothing is spent per request, and no memory beyond one more interned descriptor where the program
 did not already have that type.
 
-**Missing:** the action and the client test, with
-`rule:ide/narrow-an-annotation-to-its-literal`. The `source.fixAll.nvs` set on disk is the suggestions
-diagnostics carry, less the alternatives (`crates/nvs-lsp/src/actions.rs`).
+**Built:** the action is a `refactor.rewrite` appended only to a quick-fix answer
+(`crates/nvs-lsp/src/actions.rs`), and the round trip in `crates/nvs-lsp/tests/actions.rs` asks for
+`source.fixAll.nvs` and is answered nothing. The writes it cannot see from the declaration are seen by
+the analysis it runs before the offer: the document with the edit applied must report exactly the
+diagnostics it reports now, so a later `$a[] = "x"` that the narrower type refuses hides the action.

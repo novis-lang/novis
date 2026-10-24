@@ -199,22 +199,13 @@ fn the_html_template_refactor_has_its_own_kind_and_is_never_in_a_fix_all() {
     assert_eq!(offered(actions::Kind::FixAll), []);
 }
 
-/// The far side of the boundary, in both of its shapes.
-///
-/// `array<mixed>` narrowing (`rule:ide/narrow-an-annotation-to-its-literal`) is
-/// the worked example: the type is derivable, the checker walks every element
-/// already, and there is still nothing to offer here — no diagnostic carries
-/// it, so this module has nothing to translate. A type error is the other
-/// shape: it is published, the cursor is on it, and it names no replacement
-/// because choosing one would be the checker computing a fix. The string under
-/// the cursor is still offered the html-template refactor, which is no fix and
-/// is left out of what this test counts.
+/// The far side of the boundary: a type error is published, the cursor is on
+/// it, and it names no replacement because choosing one would be the checker
+/// computing a fix. The string under the cursor is still offered the
+/// html-template refactor, which is no fix and is left out of what this test
+/// counts.
 #[test]
 fn a_fix_the_checker_would_have_to_compute_is_offered_by_nothing() {
-    let narrowable = "<?nvs\narray<mixed> $rows = [1, 2, 3];\n";
-    assert_eq!(suggested(narrowable), Vec::new());
-    assert_eq!(offered(narrowable, "array<mixed>"), "none\n");
-
     let mistyped = "<?nvs\nint $n = \"text\";\n";
     assert!(
         !nvs_lsp::for_document(
@@ -241,4 +232,99 @@ fn a_fix_the_checker_would_have_to_compute_is_offered_by_nothing() {
     .map(|action| action.title)
     .collect();
     assert_eq!(fixes, Vec::<String>::new());
+}
+
+/// The narrowing action's replacement at the first `array<mixed>` of
+/// `source`, asked under `kind`, or `None` where it is not offered.
+fn narrowed(source: &str, kind: actions::Kind) -> Option<String> {
+    let at = cursor(source, "array<mixed>") + 1;
+    actions::at(
+        &analysed(source),
+        &Documents::new(),
+        &CompletionFiles::default(),
+        at,
+        at,
+        kind,
+        PositionEncoding::Utf8,
+    )
+    .into_iter()
+    .find(|action| action.title.starts_with("Narrow the type"))
+    .map(|action| action.replacement)
+}
+
+/// Each diagnostic of `source`, as its code and its message.
+fn reported(source: &str) -> Vec<String> {
+    analysed(source)
+        .diags
+        .iter()
+        .map(|diagnostic| format!("{:?} {}", diagnostic.code, diagnostic.message))
+        .collect()
+}
+
+/// `rule:ide/narrow-an-annotation-to-its-literal`'s round trip: the edit
+/// applied gives a document with the diagnostics it had before, and the
+/// action is not offered on the annotation it wrote. It is never part of a
+/// fix-all (`rule:ide/narrowing-is-a-diff-never-a-save-time-fix`).
+#[test]
+fn a_narrowed_annotation_checks_as_before_and_is_not_offered_again() {
+    let sources = [
+        (
+            "<?nvs\narray<mixed> $grid = [[[1.5]], [[2.5, 3.5]]];\necho $grid[0][0][0];\n",
+            Some("array<array<array<float>>>"),
+        ),
+        (
+            "<?nvs\narray<mixed> $limits = ['retry' => 1, 'depth' => 3];\n",
+            Some("array<int>"),
+        ),
+        (
+            "<?nvs\nenum Rank { case Ace; case King; }\nclass Hand {\n    public function cards(): void {\n        array<mixed> $cards = [Rank::Ace, Rank::King];\n    }\n}\n",
+            Some("array<Rank>"),
+        ),
+        ("<?nvs\narray<mixed> $row = [1, \"a\", null];\n", None),
+    ];
+    for (source, expected) in sources {
+        let replacement = narrowed(source, actions::Kind::QuickFix)
+            .unwrap_or_else(|| panic!("narrowing is offered in {source}"));
+        if let Some(expected) = expected {
+            assert_eq!(replacement, expected, "{source}");
+        }
+        assert_eq!(narrowed(source, actions::Kind::FixAll), None, "{source}");
+        let applied = source.replacen("array<mixed>", &replacement, 1);
+        assert_eq!(reported(&applied), reported(source), "{applied}");
+        assert!(
+            !applied.contains("array<mixed>"),
+            "the edit replaced the one annotation: {applied}"
+        );
+        let at = cursor(&applied, &replacement) + 1;
+        let again: Vec<String> = actions::at(
+            &analysed(&applied),
+            &Documents::new(),
+            &CompletionFiles::default(),
+            at,
+            at,
+            actions::Kind::QuickFix,
+            PositionEncoding::Utf8,
+        )
+        .into_iter()
+        .map(|action| action.title)
+        .filter(|title| title.starts_with("Narrow the type"))
+        .collect();
+        assert_eq!(again, Vec::<String>::new(), "{applied}");
+    }
+}
+
+/// `rule:ide/the-action-answers-from-the-literal-or-not-at-all`: a value from
+/// outside, an empty literal and a `mixed` element get nothing, and so does a
+/// literal whose narrowed type a later write would not fit.
+#[test]
+fn narrowing_is_not_offered_without_a_literal_that_states_the_type() {
+    for source in [
+        "<?nvs\narray<mixed> $body = Core\\Json::decode(\"[1]\") as array<mixed>;\n",
+        "<?nvs\narray<mixed> $none = [];\n",
+        "<?nvs\narray<mixed> $nested = [[1], []];\n",
+        "<?nvs\nmixed $any = 1;\narray<mixed> $rows = [$any, 2];\n",
+        "<?nvs\narray<mixed> $rows = [1, 2];\n$rows[] = \"x\";\n",
+    ] {
+        assert_eq!(narrowed(source, actions::Kind::QuickFix), None, "{source}");
+    }
 }

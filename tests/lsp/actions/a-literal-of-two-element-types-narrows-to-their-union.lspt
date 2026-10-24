@@ -1,0 +1,9 @@
+--TEST--
+a cursor on an `array<mixed>` annotation whose literal has elements of two types is offered Narrow the type, which writes the union of their base types, `rule:ide/narrow-an-annotation-to-its-literal`, `rule:ide/narrowest-means-narrowest-base-type`
+--FILE--
+<?nvs
+array<mi<|>xed> $cells = [1, "a"];
+--REQUEST--
+codeAction
+--EXPECT--
+2:1-2:13 refactor.rewrite Narrow the type to `array<int|string>` -> "array<int|string>"

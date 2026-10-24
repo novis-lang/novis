@@ -1,6 +1,6 @@
 {
   "title": "A code action that writes may write only text the type system has already fully determined, and never makes a choice",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/narrowing-is-a-diff-never-a-save-time-fix",
     "classes/property-observer",
@@ -8,6 +8,7 @@
     "routing/a-quick-fix-writes-a-derived-path",
     "ide/every-feature-is-staged-behind-its-dependency"
   ],
-  "guardedBy": [],
-  "goal": "editor-fixes"
+  "guardedBy": [
+    "crates/nvs-lsp/tests/actions.rs"
+  ]
 }

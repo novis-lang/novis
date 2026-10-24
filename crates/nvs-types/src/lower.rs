@@ -37,7 +37,7 @@ use rustc_hash::FxHashSet;
 use crate::ty::TypeId;
 use crate::{Ctx, Env, span_text};
 
-const MAX_ARRAY_DEPTH: u32 = 32;
+pub(crate) const MAX_ARRAY_DEPTH: u32 = 32;
 
 /// Lowers `ty` into an interned [`TypeId`], within the given class/namespace
 /// scope.
