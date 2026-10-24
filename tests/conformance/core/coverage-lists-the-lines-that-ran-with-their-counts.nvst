@@ -45,5 +45,5 @@ mode = ["coverage"]
 6
 8
 {"case.nvs":{"7":2,"15":1,"18":1,"19":1,"20":1}}
-Core\Debug::startCoverage cannot start the `branch` probe, because `[debug] mode` does not include it.
-help: add `"branch"` to `mode` under `[debug]` in nvs.toml. A server never runs a probe.
+Core\Debug::startCoverage cannot start, because `[debug] mode` does not include `"branch"`.
+help: add `"branch"` to `mode` under `[debug]` in nvs.toml.

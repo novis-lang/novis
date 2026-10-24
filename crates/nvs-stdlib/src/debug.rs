@@ -249,7 +249,7 @@ const RENDER_DOC: MethodDoc = MethodDoc {
 /// The error a start throws when `[debug] mode` does not include its probe.
 const NOT_IN_MODE: ErrorDoc = ErrorDoc {
     error: "RuntimeError",
-    desc: "`[debug] mode` in `nvs.toml` does not include this probe. A server never runs a probe.",
+    desc: "`[debug] mode` in `nvs.toml` does not include the name this method needs.",
 };
 
 /// `Core\Debug::startCoverage`'s reference card — `rule:core-api/reference-card`.
@@ -259,7 +259,8 @@ const START_COVERAGE_DOC: MethodDoc = MethodDoc {
     params: &[ParamDoc {
         name: "branches",
         desc: "When `true`, each side of every `if` and loop condition is counted too. \
-               `[debug] mode` must then also include `\"branch\"`.",
+               `coverage` does not return these counts. The coverage report of `nvs test` \
+               shows them. `[debug] mode` must then also include `\"branch\"`.",
         shape: &[],
     }],
     ret: "Nothing. Counting goes on until `stopCoverage`.",
@@ -279,8 +280,9 @@ const COVERAGE_DOC: MethodDoc = MethodDoc {
     short: "Returns how many times each line ran. The keys are file paths. Each value is an \
             array from a line number to its count.",
     params: &[],
-    ret: "Only lines that ran are listed. Lines are counted when `nvs test` runs with a \
-          coverage option. Otherwise the array is empty.",
+    ret: "Only lines that ran are listed. Lines are counted from the first line when \
+          `[debug] mode` includes `\"coverage\"`, and when `nvs test` runs with a coverage \
+          option. Otherwise the array is empty.",
     errors: &[],
 };
 
@@ -313,7 +315,10 @@ const STOP_TRACE_DOC: MethodDoc = MethodDoc {
     short: "Stops the trace and closes its file.",
     params: &[],
     ret: "Nothing. It does nothing when no trace is running.",
-    errors: &[],
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "Not every call could be written to the file. The trace is stopped anyway.",
+    }],
 };
 
 /// `Core\Debug::startProfile`'s reference card — `rule:core-api/reference-card`.
@@ -479,9 +484,8 @@ fn start(ctx: &mut Ctx, bits: DebugFlags, member: &str) -> Result<(), Fault> {
             .find(|(bit, _)| missing.contains(*bit))
             .map_or("coverage", |(_, name)| name);
         Fault::thrown(format!(
-            "Core\\Debug::{member} cannot start the `{name}` probe, because `[debug] mode` does \
-             not include it.\nhelp: add `\"{name}\"` to `mode` under `[debug]` in nvs.toml. A \
-             server never runs a probe."
+            "Core\\Debug::{member} cannot start, because `[debug] mode` does not include \
+             `\"{name}\"`.\nhelp: add `\"{name}\"` to `mode` under `[debug]` in nvs.toml."
         ))
     })
 }
