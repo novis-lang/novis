@@ -34,7 +34,7 @@ stages:
         rules: [testing/feature-proofs, core-api/reference-card, testing/debug-surface]
   - id: 3
     title: a spawned isolate's probe data comes back on its result
-    status: open
+    status: done
     context: [crates/nvs-host/src/group.rs, crates/nvs-host/src/placed.rs, crates/nvs-runtime/src/ctx/trace.rs, docs/rules/testing/debug-surface.md]
     extra:
       context:
@@ -170,6 +170,16 @@ fields in this goal: a `ScriptResult` property would be a `Core` API change with
 caller asks for one yet (simplicity). Spends: one `u64` per statement per child in flight that runs
 under coverage, freed at its join, so O(in-flight).
 
+**A task is not an isolate, so it shares its request's table.** Built: only `Ctx::isolate` and
+`PlacedIsolate` take a fresh table; `Ctx::child`, a `Core\Task` of the same request, keeps the
+handle, as it keeps the request's statics. Why: the rule's subject is a spawned isolate, and a
+request's `coverage()` that left out the lines its own tasks ran would be wrong (simplicity, no
+group join to change). The join is `nvs_host::isolate::hand_over`, every join's one exit, through
+`Ctx::join_coverage`, which skips a table that is the run table itself. `nvs test` sets the run
+table to each test's own table and to the suite's table, and `nvs run` sets none, since nothing
+reads it there. A trace is closed in `finish`, so after-response work a child runs past it writes
+no trace lines.
+
 ## Stages
 
 ### 1. every trace event has a time on one clock
@@ -225,8 +235,14 @@ come back on its result.
 - [x] A child inherits the parent's flag word at spawn and can only narrow it, under every spawn form (`rule:testing/debug-surface`). `crates/nvs-host/src/group.rs:561`, `crates/nvs-host/src/placed.rs:132`
   - [x] `Ctx::child`, `Ctx::isolate` and `PlacedIsolate::build` set the ceiling to the parent's word, and no host calls `set_config` on a child
   - [x] `ctx::trace::tests::every_child_form_inherits_the_flag_word_and_may_only_narrow_it`
-- [ ] Its coverage and its sink's events return as fields on the result, by the copy-out a usage figure uses (`rule:security/isolate-shares-nothing`). `crates/nvs-host/src/placed.rs:278`
-- [ ] Rust tests over a `spawn worker` child, and that the parent's live state is unchanged by the child's data (`rule:security/isolate-shares-nothing`). `crates/nvs-host/src/placed.rs:469`
+- [x] Its coverage and its sink's events return as fields on the result, by the copy-out a usage figure uses (`rule:security/isolate-shares-nothing`). `crates/nvs-host/src/placed.rs:278`
+  - [x] `StmtHits::fresh_like`, `Ctx::run_hits` and `Ctx::join_coverage`, and `Ctx::isolate` and `PlacedIsolate` give a fresh table
+  - [x] `Completion` and `Crossed` carry `coverage` and `trace_sink`, filled in `finish`, and `hand_over` adds the table into the run's
+  - [x] `nvs test` installs its run tables, and the lcov report still counts each test's lines
+  - [x] The rule's isolate paragraph and *Not on disk* say so
+- [x] Rust tests over a `spawn worker` child, and that the parent's live state is unchanged by the child's data (`rule:security/isolate-shares-nothing`). `crates/nvs-host/src/placed.rs:469`
+  - [x] `a_placed_childs_coverage_and_trace_come_back_on_its_result` (`crates/nvs-host/tests/placed_path.rs`)
+  - [x] `ctx::trace::tests::an_isolate_counts_into_its_own_table_and_a_task_into_its_requests`
 
 ### 4. the profiler times every call, and `--profile` writes Callgrind or speedscope
 
@@ -282,42 +298,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 6 and 7 are done, and stage 3's first item. The seven `Core\Debug` members exist, a
-trace and coverage work from source, and `bun nv proofs --gate --only` over the seven owes nothing.
-`target/release/nvs` was rebuilt this session and has the members.
+Stages 1, 2, 3, 6 and 7 are done. The seven `Core\Debug` members exist, a trace and coverage work
+from source, and a spawned isolate's probe data comes back on its result.
 
-- **The three `Core\Debug` texts are fixed** (`966494615`): `coverage`, `$branches` and `stopTrace`
-  cards, and the mode error, which reads ``Core\Debug::startCoverage cannot start, because `[debug]
-  mode` does not include `"branch"`.`` The nine perf figures are recorded again. `--bless` takes an
-  example and not a `.nvst`, so the two cases that pin the message were edited by hand and passed.
-- **Stage 3, item 1** was already true in code, and `85f3bb5c7` adds its test over all three child
-  forms. No change in `crates/nvs-host/` was needed.
-- **The sweep's reds were all fixed before this session.** `env-secret-proofs` passes when run
-  today, and its log is from Oct 22. The nightly run on `3ea6f15` predates `c31d0a21a` (rustfmt),
-  `10c402b57` (crypto-bigint 0.7.6), `d2a782d60` (deny.toml), `c953c3456` and `a5f50b907` (the HTTP
-  stream case), `220cb82b7` (the JSON case) and `c4842ec8f` (the session case).
-
+- **Stage 3** (this session): an isolate (`Ctx::isolate`, `PlacedIsolate`) counts into
+  `StmtHits::fresh_like` its parent's table. `Completion` and `Crossed` carry `coverage` and
+  `trace_sink` (`nvs_runtime::ClosedSink`), filled in `nvs_host::isolate::finish`, and
+  `hand_over` adds the table into `Ctx::run_hits`. A `Core\Task` (`Ctx::child`) still shares its
+  request's table; the standing decision *A task is not an isolate* records why. `nvs test` sets the
+  run table per test and per suite. Running `nvs test --coverage-lcov` on
+  `crates/nvs-cli/tests/fixtures/runner/parallel-coverage.nvs` still counts each test's line.
+- **The sweep's reds are stale.** `env-secret-proofs`'s log says `exit 0` and dates from Oct 22, and
+  the nightly run is on `3ea6f15`, which predates the fixes the last handoff listed.
 - **Found by running the members.** A trace's first line is `Core\Debug::startTrace` itself, and a
   throwing call's status is `thrown`. A sink path built at run time must be absolute.
   `Core\Config::set('debug.mode', …)` returns `false` for every value.
 
-The new tests passed once by name. Expected red at the gate: any `nvs meta --json` or reference-card
-snapshot that lists `Core\Debug`'s members, and `bun nv scaling --budget`, whose
+The two new tests passed once by name. Expected red at the gate: any `nvs meta --json` or
+reference-card snapshot that lists `Core\Debug`'s members, and `bun nv scaling --budget`, whose
 `data/perf/bench-budget.json` has no entry for the seven benches. It is red tree-wide already
-(`novis/Spreadsheet-*`). `startProfile`'s growth reads `unclear`, which the gate accepts.
+(`novis/Spreadsheet-*`). `startProfile`'s growth reads `unclear`, which the gate accepts. A test
+that counted a child's lines into its parent's own table would go red; the build found none.
 
 ### Next
 
-**Stage 3's last two items, built as the standing decision *A child counts into a table of its own*
-says.** It spans `crates/nvs-runtime/src/ctx/` and `crates/nvs-host/`. Stage 5 stays a side lane
-(`editors/vscode/`).
+**Stage 4: the profiler.** It spans `crates/nvs-runtime/src/ctx/trace.rs` and `crates/nvs-cli/`.
+Stage 5 stays a side lane (`editors/vscode/`). A profile sink is a path on `DebugSinks` today and
+nothing writes it; a child's profile sink should close in `finish` beside the trace's
+(`crates/nvs-host/src/isolate.rs`, `close_trace_sink`).
 
-- [ ] `StmtHits::fresh_like` (same counts length, same `StmtLines`), and a `run_hits` handle on `Ctx` that `nvs test` and `nvs run` install beside `stmt_hits`. `crates/nvs-runtime/src/ctx/trace.rs:712`, `crates/nvs-runtime/src/ctx/mod.rs:1393`
-- [ ] `Ctx::child`, `Ctx::isolate` and `PlacedIsolate` give a child `fresh_like` and share `run_hits`. `crates/nvs-runtime/src/ctx/isolate.rs:409`, `:541`, `:717`, `:1021`
-- [ ] `Completion` and `Crossed` gain `coverage` and the child's closed sink (path and failure); the join adds `coverage` into `run_hits`. `crates/nvs-runtime/src/host.rs:422`, `crates/nvs-host/src/placed.rs:202`, `crates/nvs-host/src/placed.rs:278`, `crates/nvs-host/src/group.rs:552`
-- [ ] Update `ctx::trace::tests::an_isolate_counts_into_the_table_its_parent_was_given`, which pins today's shared table, and the `StmtHits` doc's *One table* paragraph. `crates/nvs-runtime/src/ctx/trace.rs:1316`
-- [ ] Rust tests over a `spawn worker` child: its counts arrive on the result and in `run_hits`, and the parent's own table is unchanged. `crates/nvs-host/src/placed.rs:530`
-- [ ] Remove "a spawned isolate's probe data does not come back on its result" from the rule's *Not on disk*. `docs/rules/testing/debug-surface.md:66`
+- [ ] The rule says where each file goes: `callgrind.out.<pid>`, `profile.<pid>.speedscope.json` and `--profile-out`. `docs/rules/observability/speedscope-timeline-export.md:1`
+- [ ] The call probes read `PROFILE` and keep self and inclusive time per function, one entry per frame in flight and one name per function. `crates/nvs-runtime/src/ctx/trace.rs:1141`, `crates/nvs-runtime/src/ctx/trace.rs:1175`, `crates/nvs-runtime/src/ctx/trace.rs:532`
+- [ ] `--profile=callgrind|speedscope` and `--profile-out` on `nvs run` and `nvs test`, with help text that states the probe's cost. `crates/nvs-cli/src/run.rs:15`, `crates/nvs-cli/src/runner.rs:142`
+- [ ] Rust tests over a fixture, with the format checks the standing decision *Each export is checked by its own format* names. `crates/nvs-cli/src/runner.rs:3458`
+- [ ] Both rules `shipped`, and their *Not on disk* paragraphs rewritten. `data/rules/testing/debug-surface.json:3`, `data/rules/observability/speedscope-timeline-export.json:3`, `docs/rules/testing/debug-surface.md:64`
 
 ### Backlog
 
