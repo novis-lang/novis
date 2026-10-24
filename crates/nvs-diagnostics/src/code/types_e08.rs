@@ -1138,9 +1138,19 @@ codes! {
     /// Refused at compile time, under every command, so a program compiles the same way for
     /// `nvs run` and for `nvs test`.
     pub const E_CALL_INTO_TEST_CODE: Code = Code::new("E0889").card(
-        "A method with `#[Test]`, `#[Fixture]`, `#[BeforeClass]`, `#[AfterClass]` or \
-         `#[AfterEachTest]` is test code. Only `nvs test` compiles it, so only other test code \
+        "A method with `#[Test]`, `#[Property]`, `#[Fixture]`, `#[BeforeClass]`, \
+         `#[AfterClass]` or `#[AfterEachTest]` is test code. Only `nvs test` compiles it, so only other test code \
          can call it. Move the shared steps into a method without these attributes, and call \
          that method from both places.",
+    );
+
+    /// A `#[Property]` parameter whose declared type has no generator, a `gen:` entry that
+    /// names no parameter, or a `gen:` range that does not fit the parameter's type
+    /// (`rule:testing/property-testing`). The runner would have no values to call the method with.
+    pub const E_PROPERTY_PARAMETER: Code = Code::new("E0890").card(
+        "A `#[Property]` method gets random values for its parameters. Each value comes from \
+         the parameter's type. Some types have no random values, such as a function or an \
+         interface, so change the parameter's type. A `gen:` entry names a parameter and gives \
+         a range, such as `gen: {age: \"0..120\"}`. The message says which part does not fit.",
     );
 }

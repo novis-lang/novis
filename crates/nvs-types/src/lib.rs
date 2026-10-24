@@ -205,6 +205,7 @@ pub mod signatures;
 /// all depend on. The path stays `nvs_types::string_lit` because that is where
 /// a reader of a checker diagnostic about a `\u{...}` codepoint looks first.
 pub use nvs_syntax::string_lit;
+pub mod property;
 mod test_code;
 pub mod test_hooks;
 mod test_inherit;

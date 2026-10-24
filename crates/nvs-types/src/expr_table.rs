@@ -1549,6 +1549,7 @@ pub struct ExprTypeTable {
     shape_codecs: FxHashMap<Span, crate::derive::DerivedCodec>,
     tests: FxHashMap<String, Vec<crate::testing::TestCase>>,
     fixtures: FxHashMap<String, Vec<crate::testing::Fixture>>,
+    properties: FxHashMap<String, Vec<crate::property::PropertyCase>>,
     test_hooks: FxHashMap<String, crate::test_hooks::TestHooks>,
     test_code: FxHashSet<String>,
     test_lineages: Vec<(String, Vec<String>)>,
@@ -2192,6 +2193,24 @@ impl ExprTypeTable {
     #[must_use]
     pub fn fixtures(&self, label: &str) -> Option<&[crate::testing::Fixture]> {
         self.fixtures.get(label).map(Vec::as_slice)
+    }
+
+    /// Records `rule:testing/property-testing`'s `#[Property]` methods of the class labelled
+    /// `label`, in declaration order, read in the walk that read its `#[Test]` table.
+    pub(crate) fn record_properties(
+        &mut self,
+        label: String,
+        properties: Vec<crate::property::PropertyCase>,
+    ) {
+        self.properties.insert(label, properties);
+    }
+
+    /// The `#[Property]` methods of the class labelled `label`, or `None` when it declares
+    /// none. Separate from [`Self::tests`] because a property's parameters are generated,
+    /// and a test's are injected.
+    #[must_use]
+    pub fn properties(&self, label: &str) -> Option<&[crate::property::PropertyCase]> {
+        self.properties.get(label).map(Vec::as_slice)
     }
 
     /// Records the test hooks of the class labelled `label` —
