@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-lsp/src/document.rs",
-  "title": "`nvs lsp` grows close to quadratically with the size of the open document.",
-  "text": "The ladder `benches/scaling/lsp/classes.nvs` (a file of n small classes that all call one method) grows with a clock slope near 2 for the open, the edit, completion, hover and references alike, while `nvs check` on the same document is linear. So the extra cost is in the server's own analysis of the open document, and which pass is quadratic is not checked. It is closed when the ladder declares linear growth and `bun nv scaling` passes it.",
-  "goal": "editor-fixes"
-}

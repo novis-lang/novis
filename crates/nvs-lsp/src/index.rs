@@ -81,7 +81,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use lsp_types::Uri;
-use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, SourceId, Span, canonical_key};
+use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, Span, canonical_key};
 use nvs_hir::autoload::sole_declaration;
 use nvs_hir::{Loaded, QName, SymbolKind};
 use nvs_syntax::ast::{
@@ -93,8 +93,8 @@ use nvs_types::ExprInfo;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::definition::{
-    Target, body_of, covers, declared_type, named_at, owned_enum_decl, paired, supertype_names,
-    target_of, text_of, written_name_in, written_types_in,
+    FileScope, Target, body_of, covers, named_at, paired, supertype_names, target_of, text_of,
+    written_types_in,
 };
 use crate::document::{Analysed, Documents, analyse_file};
 
@@ -732,9 +732,10 @@ impl SymbolIndex {
             if self.files.contains_key(&key) {
                 continue;
             }
+            let scope = FileScope::of(&analysed, loaded.id);
             let indexed = Indexed {
-                decls: declarations(&analysed, loaded, &key),
-                occurrences: occurrences(&analysed, loaded, &key),
+                decls: declarations(&analysed, &scope, loaded, &key),
+                occurrences: occurrences(&analysed, &scope, loaded, &key),
                 imports: imports(&analysed, loaded, &key),
                 sole: sole_declaration(&loaded.stmts, analysed.map.file(loaded.id))
                     .map(|(_, kind)| DeclKind::of_symbol(kind)),
@@ -850,6 +851,7 @@ pub fn symbol_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
 /// name answered here is a name the index is keyed on rather than a second
 /// spelling of one.
 fn declared_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
+    let scope = FileScope::of(analysed, analysed.entry);
     analysed.module.symbols.iter().find_map(|symbol| {
         if symbol.decl_span.file != analysed.entry {
             return None;
@@ -857,7 +859,7 @@ fn declared_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
         if covers(symbol.decl_span, offset) {
             return Some(symbol.qname.to_string());
         }
-        let body = declared_body(analysed, &symbol.qname)?;
+        let body = declared_body(analysed, &scope, &symbol.qname)?;
         let class = symbol.qname.to_string();
         member_names(&body)
             .into_iter()
@@ -915,7 +917,12 @@ fn open_document<'a>(documents: &'a Documents, key: &Path) -> Option<&'a crate::
 /// because `nvs_hir::MemberTable` records which names a class declares and
 /// never where they were written — the same gap [`crate::definition`] closes
 /// the same way.
-fn declarations(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Declaration> {
+fn declarations<'a>(
+    analysed: &'a Analysed,
+    scope: &FileScope<'a>,
+    loaded: &Loaded,
+    path: &Path,
+) -> Vec<Declaration> {
     let mut found = Vec::new();
 
     for symbol in analysed.module.symbols.iter() {
@@ -923,7 +930,7 @@ fn declarations(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Declar
             continue;
         }
         let class = symbol.qname.to_string();
-        let declared = declared_type(analysed, &symbol.qname);
+        let declared = scope.declared_type(&symbol.qname);
         found.push(Declaration {
             symbol: class.clone(),
             kind: DeclKind::of_symbol(symbol.kind),
@@ -935,7 +942,7 @@ fn declarations(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Declar
             construction: declared.and_then(|(stmt, file)| construction_of(stmt, file)),
             parameters: Vec::new(),
         });
-        if let Some(body) = declared_body(analysed, &symbol.qname) {
+        if let Some(body) = declared_body(analysed, scope, &symbol.qname) {
             members(&body, &class, path, &mut found);
         }
     }
@@ -958,8 +965,12 @@ struct Body<'a> {
 /// [`declared_type`] does not find it and [`owned_enum_decl`] finds it through
 /// its owner (`rule:enums/class-scoped-enum`). Both spellings of its name are
 /// one symbol, so its cases are indexed once and found from either.
-fn declared_body<'a>(analysed: &'a Analysed, qname: &QName) -> Option<Body<'a>> {
-    if let Some((stmt, file)) = declared_type(analysed, qname) {
+fn declared_body<'a>(
+    analysed: &'a Analysed,
+    scope: &FileScope<'a>,
+    qname: &QName,
+) -> Option<Body<'a>> {
+    if let Some((stmt, file)) = scope.declared_type(qname) {
         let (cases, members) = body_of(stmt)?;
         return Some(Body {
             members,
@@ -967,7 +978,7 @@ fn declared_body<'a>(analysed: &'a Analysed, qname: &QName) -> Option<Body<'a>> 
             file,
         });
     }
-    let (_, decl) = owned_enum_decl(analysed, qname)?;
+    let (_, decl) = scope.owned_enum_decl(qname)?;
     let symbol = analysed.module.symbols.get(qname)?;
     Some(Body {
         members: &decl.members,
@@ -1186,7 +1197,7 @@ fn supertypes_of(analysed: &Analysed, qname: &QName) -> Vec<String> {
 ///
 /// The written types are the third walk: every class name in a type
 /// annotation, and every class written in front of `::`, resolved with the
-/// namespace and imports of the file that writes it ([`written_name_in`],
+/// namespace and imports of the file that writes it ([`FileScope::written_name`],
 /// the reading a cursor on it gets). Only a type the program declares is
 /// recorded, so a `Core` class in an annotation adds nothing. Rename reads
 /// these sites to rename a type.
@@ -1195,12 +1206,17 @@ fn supertypes_of(analysed: &Analysed, qname: &QName) -> Vec<String> {
 /// than off the expression around it: a highlight box is drawn on exactly the
 /// span answered here, and `$u->greet()` highlighted from `$u` is a box around
 /// the wrong word.
-fn occurrences(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Occurrence> {
+fn occurrences(
+    analysed: &Analysed,
+    scope: &FileScope<'_>,
+    loaded: &Loaded,
+    path: &Path,
+) -> Vec<Occurrence> {
     let mut found = Vec::new();
 
     for root in walk::of_stmts(&loaded.stmts) {
         for node in std::iter::once(&root).chain(root.descendants()) {
-            found.extend(class_qualifier(analysed, loaded.id, node, path));
+            found.extend(class_qualifier(analysed, scope, node, path));
             let Some(info) = analysed.exprs.lookup(node.span) else {
                 continue;
             };
@@ -1222,7 +1238,7 @@ fn occurrences(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Occurre
         let Some(links) = analysed.module.graph.get(&symbol.qname) else {
             continue;
         };
-        let Some((stmt, _)) = declared_type(analysed, &symbol.qname) else {
+        let Some((stmt, _)) = scope.declared_type(&symbol.qname) else {
             continue;
         };
         let (extends, implements) = supertype_names(stmt);
@@ -1235,7 +1251,7 @@ fn occurrences(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Occurre
         type_names(ty, &mut names);
     }
     for name in names {
-        if let Some(symbol) = declared_name(analysed, loaded.id, name) {
+        if let Some(symbol) = declared_name(analysed, scope, name) {
             found.push(Occurrence {
                 symbol,
                 site: site(path, name),
@@ -1298,12 +1314,12 @@ fn case_qualifier(info: &ExprInfo, node: &walk::Node, path: &Path) -> Option<Occ
 /// other node, and for a qualifier that names no type the program declares.
 ///
 /// The name is resolved as written, with the namespace and imports of its own
-/// file ([`written_name_in`]), so `Cart::LIMIT` records `Cart` even where the
+/// file ([`FileScope::written_name`]), so `Cart::LIMIT` records `Cart` even where the
 /// constant is declared on a parent. `self`, `static` and `parent` are no
 /// name, so they record nothing.
 fn class_qualifier(
     analysed: &Analysed,
-    file: SourceId,
+    scope: &FileScope<'_>,
     node: &walk::Node,
     path: &Path,
 ) -> Option<Occurrence> {
@@ -1319,15 +1335,15 @@ fn class_qualifier(
     }
     let name = written.name?;
     Some(Occurrence {
-        symbol: declared_name(analysed, file, name)?,
+        symbol: declared_name(analysed, scope, name)?,
         site: site(path, name),
     })
 }
 
-/// The type the name written at `name` in `file` resolves to, spelled the
-/// module doc's way, when the program declares it.
-fn declared_name(analysed: &Analysed, file: SourceId, name: Span) -> Option<String> {
-    let resolved = written_name_in(analysed, file, name)?;
+/// The type the name written at `name` in the file of `scope` resolves to,
+/// spelled the module doc's way, when the program declares it.
+fn declared_name(analysed: &Analysed, scope: &FileScope<'_>, name: Span) -> Option<String> {
+    let resolved = scope.written_name(name)?;
     let symbol = analysed.module.symbols.get(&resolved)?;
     Some(symbol.qname.to_string())
 }

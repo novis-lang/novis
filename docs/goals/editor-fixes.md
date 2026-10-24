@@ -62,8 +62,8 @@ stages:
         rules: [core-api/reference-card]
   - id: 9
     title: "the open document's analysis grows linearly"
-    status: open
-    context: [crates/nvs-lsp/src/document.rs, benches/scaling/lsp/classes.nvs, data/gaps/nvs-lsp/open-document-analysis-grows-quadratically.json]
+    status: done
+    context: [crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/index.rs, benches/scaling/lsp/classes.nvs]
   - id: 10
     title: the goal is verified once, and every failure is fixed
     status: open
@@ -301,11 +301,11 @@ is.
 **Split:** an `Explore` subagent first lists every pass `analyse_current` runs over an open document,
 as `file:line`, and which of them walks the whole document per declaration.
 
-- [ ] The quadratic pass found and named in the gap's place, with the ladder's slope before. `crates/nvs-lsp/src/document.rs:843`, `benches/scaling/lsp/classes.nvs:1`
-- [ ] The pass made linear. `crates/nvs-lsp/src/document.rs:647`
-- [ ] `bun nv scaling` passes `benches/scaling/lsp/classes.nvs`, which already declares `expect linear`. `benches/scaling/lsp/classes.nvs:6`
-- [ ] The record deleted. `data/gaps/nvs-lsp/open-document-analysis-grows-quadratically.json:1`
-- [ ] `bun nv owners --closes editor-fixes` passes. `data/rules/ide/a-quick-fix-is-a-diagnostics-own-suggestion.json:3`
+- [x] The quadratic pass found and named in the gap's place, with the ladder's slope before. `crates/nvs-lsp/src/definition.rs:1390`, `benches/scaling/lsp/classes.nvs:1`
+- [x] The pass made linear. `crates/nvs-lsp/src/index.rs:722`
+- [x] `bun nv scaling` passes `benches/scaling/lsp/classes.nvs`, which already declares `expect linear`. `benches/scaling/lsp/classes.nvs:6`
+- [x] The record deleted. `crates/nvs-lsp/src/document.rs:1`
+- [x] `bun nv owners --closes editor-fixes` passes. `data/rules/ide/a-quick-fix-is-a-diagnostics-own-suggestion.json:3`
 
 ### 10. the goal is verified once, and every failure is fixed
 
@@ -324,7 +324,22 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 8 are done. Stage 8: the cards of the last 63 modules are in the plain voice, one
+Stages 1 to 9 are done. Stage 9: the gap record
+`open-document-analysis-grows-quadratically` is deleted. The ladder `lsp/classes.nvs` already
+passed at `HEAD` before the change (release clock slope 1.17, debug 1.10), so the slope near 2 the
+record named was gone from some earlier commit. What still walked the file per name was the index:
+`occurrences` resolved every type name and `X::` qualifier with `written_name_in`, which scanned the
+file's top-level statements twice and rebuilt its import map each time, and `declarations`,
+`declared_at` and `clause_at` found each type's statement by a linear scan. `FileScope` in
+`crates/nvs-lsp/src/definition.rs` now reads a file's namespaces and imports once and its
+declarations on first ask, and `class_name_at` is a binary search. The one-name functions build a
+scope, so a cursor and the index share one reading. After: debug slope 0.98, `bun nv scaling`
+flat. `bun nv owners --closes editor-fixes` passes. The Explore pass named three more costs, none
+on this ladder: `parameters_of` in `index.rs` is quadratic in one class's members, `reads` in
+`index.rs` scans every token once per `use` line, and `arguments.rs`'s `visit` clones a call's
+children once per string literal argument (see the backlog).
+
+Stage 8: the cards of the last 63 modules are in the plain voice, one
 commit, and the gap record `reference-cards-are-not-held-to-the-plain-voice` is deleted. Eight
 writing subagents ran side by side on disjoint files (70k to 105k tokens each), and none built.
 `regex.rs`, `test/hooks.rs`, `uuid.rs`, `validate.rs`, `storage.rs`, `program.rs`, `topic.rs`,
@@ -461,24 +476,34 @@ has never run on Linux, so the next nightly is its first run there. `env-secret-
 `HEAD` (its log reads `exit 0` again this session), and the sweep still names the same nightly run,
 so both reds are stale. Another session committed the `capability.rs` rustfmt change.
 
+Stage 9's: any `.lspt` case under `tests/lsp/references/`, `rename/`, `highlight/`, `definition/`
+or `codeLens/`, and `crates/nvs-lsp/tests/references.rs`, if the scope answers a name differently
+from the old walk. It should not: `FileScope` keeps the old reading (a bracketed namespace wins,
+else the last `namespace Name;` ending before the offset, and the first declaration at a span).
+The one new assumption is that sibling statements do not overlap, which `class_name_at`'s binary
+search relies on. Nothing was run but the build, clippy and the ladder.
+
 ### Next
 
-**Stage 9: the open document's analysis grows linearly.** Follow the stage's `**Split:**` line:
-an `Explore` subagent lists every pass `analyse_current` runs over an open document, as
-`file:line`, and which of them walks the whole document once per declaration. Then make that
-pass linear, run `bun nv scaling` on the one bench, delete the record, and run
-`bun nv owners --closes editor-fixes` (the goal's acceptance check).
+**Stage 10: the gate.** Follow its `**Split:**` line: start `bun nv affected --run` with
+`run_in_background` and end the turn to wait. Group the failures by cause, using the list of
+tests likely to go red above, and fix every one in one pass. Then run it once more.
 
-- [ ] The quadratic pass found and named in the gap's place, with the ladder's slope before. `crates/nvs-lsp/src/document.rs:843`, `benches/scaling/lsp/classes.nvs:1`
-- [ ] The pass made linear. `crates/nvs-lsp/src/document.rs:647`
-- [ ] `bun nv scaling` passes `benches/scaling/lsp/classes.nvs`, which already declares `expect linear`. `benches/scaling/lsp/classes.nvs:6`
-- [ ] The record deleted. `data/gaps/nvs-lsp/open-document-analysis-grows-quadratically.json:1`
-- [ ] `bun nv owners --closes editor-fixes` passes. `data/rules/ide/a-quick-fix-is-a-diagnostics-own-suggestion.json:3`
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
-Stage 10, the gate, follows: `bun nv affected --run` once over the whole goal.
+Before `DONE`: `bun nv verify --doc` with every broken link fixed, and
+`bun nv owners --closes editor-fixes` (green this session). Move each standing decision only this
+file holds to a rule or a module doc before the file is deleted.
 
 ### Backlog
 
+- Three costs in `nvs lsp` grow faster than linear in one dimension, none of them in the ladder:
+  `parameters_of` in `crates/nvs-lsp/src/index.rs` re-finds each method among its class's members
+  (members squared per class), `reads` there scans every token once per `use` line (imports times
+  tokens, twice per edit), and `visit` in `crates/nvs-lsp/src/arguments.rs` clones a call's
+  children once per string literal argument (arguments squared per call).
 - The narrowing action covers local declarations only. A property's default, a parameter's and a
   declaration inside a closure are not offered (`crates/nvs-lsp/src/narrow.rs`, `stmt_at`).
 - An `E0747` fix on a parameter whose type does not resolve writes a capture for it, because
