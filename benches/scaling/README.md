@@ -29,7 +29,7 @@ echo Bench::run(1000), "\n";
 | `// scaling: start N` | the first size, and the literal in the closing line |
 | `// scaling: max N` | the largest size the ramp may reach; at least three doublings above `start` |
 | `// scaling: expect <class>` | the growth the work may have: `constant`, `linear`, `nlogn` or `karatsuba`. `quadratic` is never accepted |
-| `// scaling: kind <kind>` | what is measured: `run` (the default), `compile`, `lsp`, `fmt`, `serve` or `fetch` |
+| `// scaling: kind <kind>` | what is measured: `run` (the default), `compile`, `lsp`, `fmt`, `serve`, `fetch` or `mutate` |
 | `// scaling: size <what>` | a `serve` ladder's size: `requests` (the default), `headers`, `header-bytes`, `body-bytes`, `query`, `form`, `connections` or `routes` |
 | `// scaling: proposal` | the ladder grows past its bound and the fix waits for a decision; it is reported, and does not fail |
 
@@ -47,7 +47,9 @@ open connections — and the tool serves the file with `nvs serve` and sends tha
 routes` the ladder is written as a `compile` ladder is: it prints a program that declares that many
 routes, the last of them `/last`, and the tool serves the printed program and requests `/last`. A `fetch`
 ladder is a `run` ladder that downloads from a server: the tool serves `<name>/server.nvs` beside it
-and gives the program the server's address in the environment variable `NVS_SCALING_URL`. A ladder that needs Unix
+and gives the program the server's address in the environment variable `NVS_SCALING_URL`. A `mutate`
+ladder prints a program with its `#[Test]` methods, as a `compile` ladder does, and the tool runs
+`nvs test --mutate` on it. A ladder that needs Unix
 sockets declares `// requires: unix`, and one that needs a service of `tests/db/compose.yaml`
 declares `// requires: <service>`, as a bench does. A folder's
 `nvs.toml` applies to every ladder in it, as in the bench tree.

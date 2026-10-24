@@ -72,6 +72,9 @@ pub(super) struct Scored {
     /// [`Mutant::change`].
     pub(super) change: String,
     pub(super) verdict: Verdict,
+    /// How many tests reached the mutant's line, and so ran against it. `0`
+    /// for a mutant that is `not reached`.
+    pub(super) tests: usize,
 }
 
 /// What every mutant's run shares.
@@ -127,6 +130,7 @@ pub(super) fn score(
             })
             .unwrap_or_default();
         let file = crate::coverage::file_name(&checked.map, mutant.file);
+        let reached = tests.len();
         let verdict = if tests.is_empty() {
             Verdict::NotReached
         } else {
@@ -156,6 +160,7 @@ pub(super) fn score(
             line: mutant.line,
             change: mutant.change(),
             verdict,
+            tests: reached,
         });
     }
     Ok(scored)
@@ -426,12 +431,14 @@ mod tests {
                 line: 12,
                 change: "`<` to `<=`".to_owned(),
                 verdict: Verdict::Survived,
+                tests: 2,
             },
             Scored {
                 file: "src/Shop.nvs".to_owned(),
                 line: 20,
                 change: "`true` to `false`".to_owned(),
                 verdict: Verdict::TimedOut,
+                tests: 1,
             },
         ];
         let document = json_document(
@@ -445,7 +452,7 @@ mod tests {
             serde_json::from_str(&document).expect("the report is a JSON document");
         assert_eq!(read["schemaVersion"], 4);
         let mutants = read["mutants"].as_array().expect("`mutants` is an array");
-        let back: Vec<(String, u64, String, String)> = mutants
+        let back: Vec<(String, u64, String, String, u64)> = mutants
             .iter()
             .map(|record| {
                 (
@@ -453,10 +460,11 @@ mod tests {
                     record["line"].as_u64().unwrap_or_default(),
                     record["change"].as_str().unwrap_or_default().to_owned(),
                     record["outcome"].as_str().unwrap_or_default().to_owned(),
+                    record["tests"].as_u64().unwrap_or_default(),
                 )
             })
             .collect();
-        let written: Vec<(String, u64, String, String)> = scored
+        let written: Vec<(String, u64, String, String, u64)> = scored
             .iter()
             .map(|mutant| {
                 (
@@ -464,6 +472,7 @@ mod tests {
                     mutant.line as u64,
                     mutant.change.clone(),
                     mutant.verdict.name().to_owned(),
+                    mutant.tests as u64,
                 )
             })
             .collect();

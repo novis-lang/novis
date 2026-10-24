@@ -23,7 +23,7 @@ the reader the plaintext one is written for. Under a coverage flag (`rule:testin
 document is `schemaVersion: 3`, and every record also carries `coverage`: each file name mapped to the
 sorted lines that test reached in any attempt. A run without one writes version 2 unchanged. Under
 `--mutate` (`rule:testing/mutation-testing`) it is `schemaVersion: 4`: version 3's document plus a
-`mutants` array, one `{file, line, change, outcome}` record per mutant. A failed
+`mutants` array, one `{file, line, change, outcome, tests}` record per mutant. A failed
 `#[Property]` also carries `counterexample` (`rule:testing/property-testing`): `{seed, call, inputs,
 generatedInputs}`, each input as the report prints it and `inputs` shrunk. It is a new key and needs
 no new version, because a consumer that does not read it reads the rest unchanged.

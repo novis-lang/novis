@@ -61,8 +61,9 @@ Each mutant has one of four outcomes:
 The score is killed plus timed out over every mutant but the unreached ones. The human report prints
 the four counts and the score after the run's summary, then each survived mutant with its file, line
 and change. `--format json` writes `schemaVersion: 4` (`rule:testing/report-formats`): version 3's
-document, plus a `mutants` array with one record per mutant, `{file, line, change, outcome}`, in the
-order the program lowers its sites. A JUnit document has no place for a mutant, so `--mutate` with
+document, plus a `mutants` array with one record per mutant, `{file, line, change, outcome, tests}`,
+in the order the program lowers its sites. `tests` is how many tests reached the mutant's line, which
+is what the covering-test filter decides and what the bench of a mutation run counts. A JUnit document has no place for a mutant, so `--mutate` with
 `--format junit` exits with an error. The exit status is the coverage run's: a survived mutant does not
 fail the run.
 
@@ -71,6 +72,12 @@ run pays one coverage run, then one lowering and codegen of the whole program pe
 tests that reach the mutant's line. A mutant compiles with no artifact cache, since its key would be
 the unchanged program's. Memory is O(`--jobs`): one mutant runs at a time, with its tests in flight,
 and the run keeps one record per mutant for the report.
+
+Since the mutants grow with the program and each compiles all of it, a run's compile time grows with
+the square of the program's size; that is the price of the whole-program recompile, and a team runs
+`--mutate` on a schedule, such as a nightly CI job, not on every save. What the covering-test
+filter decides is measured: `benches/scaling/testing/mutate.nvs` grows the suite around a fixed
+program under test, and its ramp fails when the test runs per mutant grow with the suite.
 
 **Declined:**
 
