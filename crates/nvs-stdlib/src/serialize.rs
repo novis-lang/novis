@@ -97,8 +97,8 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "The bytes. They are `tainted` when `$value` can contain text from outside the program. \
-          That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it. Then \
-          `decode()` needs `Core\\Taint::assertTrustedBytes` first.",
+          That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it. In that case, \
+          call `Core\\Taint::assertTrustedBytes` on the bytes before `decode()`.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`$value` contains a callable, an open file or connection, or an object with a \
@@ -122,7 +122,7 @@ const DECODE_DOC: MethodDoc = MethodDoc {
           program, and its constructor does not run.",
     errors: &[ErrorDoc {
         error: "ParseError",
-        desc: "`$payload` was not written by `encode()`, is cut short, or has extra bytes at \
+        desc: "`$payload` was not written by `encode()`, is incomplete, or has extra bytes at \
                the end. It is also thrown when it names a class this program does not have, or \
                a class whose properties are different now.",
     }],

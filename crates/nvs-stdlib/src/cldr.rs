@@ -1669,72 +1669,73 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Cldr::pluralCategory`'s reference card — `rule:core-api/reference-card`.
 const PLURAL_CATEGORY_MEMBER_DOC: MethodDoc = MethodDoc {
-    short: "Answers which of CLDR's plural forms `$count` selects in `$locale`, so a message \
-            catalog keys its variants on the locale's own rule rather than on `== 1`.",
+    short: "Returns the CLDR plural form of `$count` in `$locale`. A message catalog can choose \
+            its text with the rule of each language. A test such as `== 1` is not enough for \
+            many languages.",
     params: &[
         ParamDoc {
             name: "count",
-            desc: "The number the message is about. A `decimal` carries its scale, so `1.0` and \
-                   `1` can select different forms where a locale reads the fraction; an `int` has \
-                   none, and a `float` is read at the digits it prints.",
+            desc: "The number the message is about. A `decimal` keeps its digits after the point. \
+                   So `1.0` and `1` can give different forms in a language whose rules read the \
+                   fraction. An `int` has no fraction. A `float` is read with the digits it prints.",
             shape: &[],
         },
         ParamDoc {
             name: "locale",
-            desc: "A BCP 47 tag. Only the language subtag is read and case is ignored, so `en-GB`, \
-                   `en_US` and `EN` all answer as `en`.",
+            desc: "A BCP 47 tag. Only the language part is read, and case is ignored. So `en-GB`, \
+                   `en_US` and `EN` all give the result for `en`.",
             shape: &[],
         },
     ],
-    ret: "The category the language's rules put `$count` in — `Other` for every count in a \
-          language that makes no plural distinction.",
+    ret: "The plural category of `$count` in this language. It is `Other` for every count in a \
+          language that has no plural forms.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The tag carries no language subtag, or names a language whose rules are not \
-                   among those compiled in — a locale is never given another language's rules.",
+            desc: "The tag has no language part, or Novis has no rules for its language. Novis \
+                   never uses the rules of another language instead.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$count` is a `float` that is not finite, or one that prints more digits than \
-                   the rules can be evaluated over.",
+            desc: "`$count` is a `float` that is not finite. It is also thrown for a `float` that \
+                   prints more digits than the rules can check.",
         },
     ],
 };
 
 /// `Core\Cldr::ordinalCategory`'s reference card — `rule:core-api/reference-card`.
 const ORDINAL_CATEGORY_MEMBER_DOC: MethodDoc = MethodDoc {
-    short: "Answers which form `$count` takes as a *place* rather than as an amount — English's \
-            `1st`, `2nd`, `3rd`, `4th` — so a template writes the suffix its locale marks.",
+    short: "Returns the form of `$count` as a position in a list, such as `1st`, `2nd`, `3rd` \
+            and `4th` in English. A template can use it to choose the right ending for the \
+            language.",
     params: &[
         ParamDoc {
             name: "count",
-            desc: "The place the message is about. CLDR states its ordinal rules over whole \
-                   numbers, so a count showing a fraction is outside all of them and answers \
-                   `Other` — except in the two languages whose rules read the integer part \
-                   alone, Macedonian and Georgian.",
+            desc: "The position the message is about. The CLDR rules for positions are for whole \
+                   numbers, so a count with a fraction gives `Other`. Macedonian and Georgian are \
+                   different, because their rules read only the whole-number part.",
             shape: &[],
         },
         ParamDoc {
             name: "locale",
-            desc: "A BCP 47 tag, read exactly as `pluralCategory` reads it: only the language \
-                   subtag, and case is ignored.",
+            desc: "A BCP 47 tag, read the same way as in `pluralCategory`. Only the language part \
+                   is read, and case is ignored.",
             shape: &[],
         },
     ],
-    ret: "The category the language's ordinal rules put `$count` in — `Other` for every count in \
-          a language that marks no ordinal form, which is most of them.",
+    ret: "The category of `$count` as a position in this language. It is `Other` for every \
+          count in a language with no special forms for positions, which is most languages.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The tag carries no language subtag, or names a language neither table carries \
-                   rules for. A language carried for cardinals but marking no ordinal form is not \
-                   this case: it answers `Other`.",
+            desc: "The tag has no language part, or Novis has no plural rules and no position \
+                   rules for its language. A language with plural rules but no position forms \
+                   does not throw. It returns `Other`.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$count` is a `float` that is not finite, or one that prints more digits than \
-                   the rules can be evaluated over.",
+            desc: "`$count` is a `float` that is not finite. It is also thrown for a `float` that \
+                   prints more digits than the rules can check.",
         },
     ],
 };
@@ -1760,38 +1761,38 @@ pub(crate) const PLURAL_CATEGORY: CoreEnum = CoreEnum {
 
 /// [`PLURAL_CATEGORY`]'s reference card — `rule:core-api/reference-card`.
 const PLURAL_CATEGORY_DOC: EnumDoc = EnumDoc {
-    short: "Which of CLDR's six plural forms a count selects. The names are CLDR's own labels for \
-            a language's forms, not counts: only `Other` means the same thing everywhere, and a \
-            language uses as few of the six as its grammar needs.",
+    short: "The six CLDR plural forms. The names are labels for the forms of a language, not \
+            numbers. Only `Other` means the same thing in every language. Most languages use only \
+            some of the six.",
     cases: &[
         CaseDoc {
             name: "Zero",
-            desc: "The form a language keeps for none of something — Arabic and Welsh have one; \
-                   most languages do not.",
+            desc: "The form for none of something. Arabic and Welsh have it, and most languages do \
+                   not.",
         },
         CaseDoc {
             name: "One",
-            desc: "The singular, as that language draws it: English's 1, Russian's 1, 21 and 31, \
-                   French's 0 and 1.",
+            desc: "The singular of the language. It is 1 in English, 1, 21 and 31 in Russian, and \
+                   0 and 1 in French.",
         },
         CaseDoc {
             name: "Two",
-            desc: "The dual — Arabic, Welsh, Slovenian and Irish among the languages carried.",
+            desc: "The form for two things. Arabic, Welsh, Slovenian and Irish have it.",
         },
         CaseDoc {
             name: "Few",
-            desc: "The paucal, for the small counts a language groups: Russian's 2 to 4, Arabic's \
-                   3 to 10, Welsh's 3 alone.",
+            desc: "The form for some small counts. It is 2 to 4 in Russian, 3 to 10 in Arabic, and \
+                   only 3 in Welsh.",
         },
         CaseDoc {
             name: "Many",
-            desc: "The form above `Few` where a language has both — Russian's 5 to 20, and the \
-                   whole millions in Romance languages that mark them.",
+            desc: "The form above `Few` in a language that has both. It is 5 to 20 in Russian. Some \
+                   Romance languages use it for whole millions.",
         },
         CaseDoc {
             name: "Other",
-            desc: "The form every language has, and in a language with no plural distinction the \
-                   only one any count selects.",
+            desc: "The form that every language has. In a language with no plural forms, every \
+                   count gives `Other`.",
         },
     ],
 };

@@ -198,7 +198,7 @@ const CHECK_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "code",
-            desc: "The code the user typed. A text that is not six digits returns `null` and \
+            desc: "The code the user typed. A string that is not six digits returns `null` and \
                    does not throw an error.",
             shape: &[],
         },

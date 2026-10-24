@@ -165,58 +165,55 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Command::help`'s reference card — `rule:core-api/reference-card`.
 const HELP_DOC: MethodDoc = MethodDoc {
-    short: "The usage page, generated from the table `#[Command]` built while compiling — one \
-            command's arguments, or the program's own list of commands. Nobody writes usage text \
-            and nobody lets it rot.",
+    short: "Returns the help page for one command, or the list of all commands. Novis creates \
+            the page from the `#[Command]` methods when it compiles the program. You do not write \
+            the help text yourself.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The command to describe, or `null` for the program's own page listing every \
-               command it declares.",
+        desc: "The command to describe. Pass `null` to get the page that lists every command of \
+               the program.",
         shape: &[],
     }],
-    ret: "The rendered page as a `Core\\Cli\\Text`, ending with a newline.",
+    ret: "The page as a `Core\\Cli\\Text`, ending with a newline.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The program declares no `#[Command]` under `$name` — a page for a command that \
-               does not exist is a mistake in the program rather than in its input, since the \
-               table is fixed at compile time.",
+        desc: "The program has no `#[Command]` with the name `$name`. The list of commands is \
+               fixed when the program compiles, so this is a mistake in the program.",
     }],
 };
 
 /// `Core\Command::run`'s reference card — `rule:core-api/reference-card`.
 const RUN_DOC: MethodDoc = MethodDoc {
-    short: "Matches this process's own command line against the table `#[Command]` built while \
-            compiling, calls the handler the first word names, and answers the status the process \
-            should exit with.",
+    short: "Reads the command line of this process and finds the `#[Command]` method that its \
+            first word names. It calls that method and returns the exit status for the process.",
     params: &[],
-    ret: "The handler's own `uint`, or `0` when it is declared `void`. A command line that matches \
-          no command of this program is a **usage error**. The help page goes to standard error, \
-          and the status is `2`.",
+    ret: "The `uint` that the method returns, or `0` when the method returns `void`. A command \
+          line that matches no command is a **usage error**. Then the help page is printed to \
+          standard error, and the status is `2`.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The named command's handler is not a method this program declares, or one of its \
-               parameters is declared at a type no argument's text is converted into yet — both \
-               are mistakes in the program rather than in the command line it was given.",
+        desc: "The method of the command is not a method of this program. It is also thrown when \
+               a parameter has a type that a command-line argument cannot be converted to yet. \
+               Both are mistakes in the program.",
     }],
 };
 
 /// `Core\Command::completions`'s reference card — `rule:core-api/reference-card`.
 const COMPLETIONS_DOC: MethodDoc = MethodDoc {
-    short: "A completion script for this program, in the named shell's own syntax, generated from \
-            the same table `help` reads: every command it declares, and every option each one \
-            takes.",
+    short: "Returns a tab-completion script for this program, in the syntax of the shell you \
+            choose. The script contains every command and every option of each command, the same \
+            as `help`.",
     params: &[ParamDoc {
         name: "shell",
-        desc: "Which shell to write the script for.",
+        desc: "The shell to write the script for.",
         shape: &[],
     }],
-    ret: "The script as plain text, ending with a newline — something to redirect into the shell's \
-          completion directory rather than something to print at a terminal.",
+    ret: "The script as plain text, ending with a newline. Save it in the completion directory \
+          of the shell.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This program has no name for the script to register against, which is every \
-               context but a command-line run: a served request is not something a shell \
-               completes.",
+        desc: "The program has no name to register the script for. This is the case everywhere \
+               except in a command-line run, such as in a web request.",
     }],
 };
 

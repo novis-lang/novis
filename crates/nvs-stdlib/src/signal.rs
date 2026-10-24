@@ -70,8 +70,8 @@ pub(crate) const NAME: &str = "Core\\Signal";
 
 /// `Core\Signal`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
-    short: "Runs a function of your program when the process is asked to stop, so the program can \
-            finish its work cleanly. `Core\\Server::isDraining()` tells whether a shutdown has \
+    short: "Runs a function of your program when the process gets a signal to stop. The program \
+            can then finish its work cleanly. `Core\\Server::isDraining()` tells whether a shutdown has \
             started.",
 };
 
@@ -104,8 +104,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Signal::onShutdown`'s reference card — `rule:core-api/reference-card`.
 const ON_SHUTDOWN_DOC: MethodDoc = MethodDoc {
-    short: "Registers a function that runs when the process is asked to stop, for example by \
-            Ctrl-C, `SIGTERM` or an operator who stops the server. The function runs once, \
+    short: "Registers a function that runs when the process gets a signal to stop. The signal \
+            can come from Ctrl-C, from `SIGTERM`, or from the person who stops the server. The function runs once, \
             between two statements. At that time `Core\\Server::isDraining()` already returns \
             `true`.",
     params: &[ParamDoc {

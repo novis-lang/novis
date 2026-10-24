@@ -42,21 +42,21 @@ stages:
   - id: 6
     title: "the older `Core` reference cards are in the plain voice: the six largest modules"
     status: done
-    context: [data/gaps/nvs-stdlib/reference-cards-are-not-held-to-the-plain-voice.json, docs/rules/core-api/reference-card.md]
+    context: [crates/nvs-stdlib/src/registry.rs, docs/rules/core-api/reference-card.md]
     extra:
       context:
         rules: [core-api/reference-card]
   - id: 7
     title: "the older `Core` reference cards are in the plain voice: the next thirteen modules"
     status: done
-    context: [data/gaps/nvs-stdlib/reference-cards-are-not-held-to-the-plain-voice.json, docs/rules/core-api/reference-card.md]
+    context: [crates/nvs-stdlib/src/registry.rs, docs/rules/core-api/reference-card.md]
     extra:
       context:
         rules: [core-api/reference-card]
   - id: 8
     title: "the older `Core` reference cards are in the plain voice: every other module"
-    status: open
-    context: [data/gaps/nvs-stdlib/reference-cards-are-not-held-to-the-plain-voice.json, docs/rules/core-api/reference-card.md]
+    status: done
+    context: [crates/nvs-stdlib/src/registry.rs, docs/rules/core-api/reference-card.md]
     extra:
       context:
         rules: [core-api/reference-card]
@@ -286,12 +286,12 @@ asks, and the gap record is deleted.
 
 **Split:** as stage 6, one writing subagent per item.
 
-- [ ] `random.rs`, `queue.rs`, `regex.rs`, `http/stream.rs`, `process.rs`, `bytes.rs`, `test/hooks.rs`, `path.rs`. `crates/nvs-stdlib/src/random.rs:1`, `crates/nvs-stdlib/src/queue.rs:1`
-- [ ] `encoding.rs`, `compress.rs`, `socket.rs`, `script.rs`, `objset.rs`, `objmap.rs`, `cache.rs`, `sse.rs`, `session.rs`. `crates/nvs-stdlib/src/objset.rs:157`, `crates/nvs-stdlib/src/objset.rs:185`
-- [ ] `hash.rs`, `decimal.rs`, `ast.rs`, `uuid.rs`, `ratelimit.rs`, `jwe.rs`, `html.rs`, `env.rs`, `validate.rs`, `jwt.rs`, `heap.rs`, `storage.rs`, `os.rs`, `http/socket.rs`. `crates/nvs-stdlib/src/hash.rs:1`
-- [ ] `program.rs`, `json.rs`, `csv.rs`, `config.rs`, `zip.rs`, `topic.rs`, `task.rs`, `password.rs`, `mime.rs`, `metrics.rs`, `command.rs`, `cldr.rs`, `channel.rs`, `budget.rs`, `totp.rs`, `taint.rs`, `signed_cookie.rs`, `signature.rs`, `server.rs`, `serialize.rs`, `secret.rs`, `log.rs`, `fatal.rs`, `debug.rs`, `csrf.rs`, `attributes.rs`, `signal.rs`, `out.rs`, `mail.rs`, `cap.rs`, `registry.rs`, `db/stream.rs`. `crates/nvs-stdlib/src/program.rs:1`
-- [ ] The stdlib's card tests still pass in the group's verify. `crates/nvs-stdlib/src/registry.rs:5105`
-- [ ] The record deleted. `data/gaps/nvs-stdlib/reference-cards-are-not-held-to-the-plain-voice.json:1`
+- [x] `random.rs`, `queue.rs`, `regex.rs`, `http/stream.rs`, `process.rs`, `bytes.rs`, `test/hooks.rs`, `path.rs`. `crates/nvs-stdlib/src/random.rs:1`, `crates/nvs-stdlib/src/queue.rs:1`
+- [x] `encoding.rs`, `compress.rs`, `socket.rs`, `script.rs`, `objset.rs`, `objmap.rs`, `cache.rs`, `sse.rs`, `session.rs`. `crates/nvs-stdlib/src/objset.rs:157`, `crates/nvs-stdlib/src/objset.rs:185`
+- [x] `hash.rs`, `decimal.rs`, `ast.rs`, `uuid.rs`, `ratelimit.rs`, `jwe.rs`, `html.rs`, `env.rs`, `validate.rs`, `jwt.rs`, `heap.rs`, `storage.rs`, `os.rs`, `http/socket.rs`. `crates/nvs-stdlib/src/hash.rs:1`
+- [x] `program.rs`, `json.rs`, `csv.rs`, `config.rs`, `zip.rs`, `topic.rs`, `task.rs`, `password.rs`, `mime.rs`, `metrics.rs`, `command.rs`, `cldr.rs`, `channel.rs`, `budget.rs`, `totp.rs`, `taint.rs`, `signed_cookie.rs`, `signature.rs`, `server.rs`, `serialize.rs`, `secret.rs`, `log.rs`, `fatal.rs`, `debug.rs`, `csrf.rs`, `attributes.rs`, `signal.rs`, `out.rs`, `mail.rs`, `cap.rs`, `registry.rs`, `db/stream.rs`. `crates/nvs-stdlib/src/program.rs:1`
+- [x] The stdlib's card tests still pass in the group's verify. `crates/nvs-stdlib/src/registry.rs:5105`
+- [x] The record deleted. `crates/nvs-stdlib/src/registry.rs:1`
 
 ### 9. the open document's analysis grows linearly
 
@@ -324,7 +324,27 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 7 are done. Stage 7: the cards of `str.rs`, `math.rs`, `test.rs`, `request.rs`,
+Stages 1 to 8 are done. Stage 8: the cards of the last 63 modules are in the plain voice, one
+commit, and the gap record `reference-cards-are-not-held-to-the-plain-voice` is deleted. Eight
+writing subagents ran side by side on disjoint files (70k to 105k tokens each), and none built.
+`regex.rs`, `test/hooks.rs`, `uuid.rs`, `validate.rs`, `storage.rs`, `program.rs`, `topic.rs`,
+`task.rs`, `taint.rs`, `secret.rs`, `out.rs` and `db/stream.rs` were already plain, and
+`registry.rs`'s only card literals are a test fixture. The session read the flagged cards and
+fixed two (`mail.rs` `send`'s `LogicError` again says a missing block throws, and `ast.rs`
+`parse`'s `source` says the code starts after `<?nvs`). It also made one word for a program with
+no request across stage 7's modules: "is not handling a request" in every `request.rs`,
+`router.rs`, `session.rs` and `sse.rs` card, and "responds to" in `response.rs` `sendFile`.
+`no_member_text_says_what_it_replaces_in_php` was red on two cards: `Core\Path::SEPARATOR` (this
+stage) and `Core\Db\Column::name` in `db/registry.rs` (stage 6). Both no longer name PHP, and
+`cargo test --lib registry::tests` is 67 passed. Two hover cases quoted old cards and are updated
+(`tests/lsp/hover/`: 53 passed). A grep of the tree for the first 35 characters of every removed
+card string found no other quote outside the stdlib, the website data and `about.md` pages. The
+`about.md` pages, the intro pages under `docs/reference/core/` and the runtime error messages
+still use some old wording ("is answering a request"); they are not cards, so this goal leaves
+them. "can hold" for a capacity stays: the hostile and example comments use it too. Build and
+clippy green, and `bun nv render --website` rewrote the two website files in the same commit.
+
+Stage 7: the cards of `str.rs`, `math.rs`, `test.rs`, `request.rs`,
 `http.rs`, `cli.rs`, `xml.rs`, `bigint.rs`, `uri.rs`, `router.rs`, `net.rs`, `crypto.rs` and
 `response.rs` are in the plain voice, one commit. The five writing subagents ran side by side,
 since their files are disjoint, and none built. `uri.rs` was already plain, and `str.rs` and
@@ -430,6 +450,9 @@ the old phrases found none outside the cards. `bun nv render --website --check` 
 Stage 7's: a `nvs help` or hover snapshot that quotes an old card of the thirteen modules. The
 three known quotes are updated, and a search for the old phrases ran before the commit.
 
+Stage 8's: a `nvs help` snapshot or an `.nvst` that quotes a card line past its first 35
+characters (the grep read only the first line of each string). The two hover cases are updated.
+
 **The nightly run's red is not owed by this tree.** Run 39922764699 ran at `7b6ef53ee`. Its
 `cost guards / macos-aarch64` soak leak was 2280 bytes per connection, and commit `071663316`
 (`fix(runtime): a spawned tree's start-up bytes leave the tree that spawned it`) fixes it. That
@@ -440,21 +463,19 @@ so both reds are stale. Another session committed the `capability.rs` rustfmt ch
 
 ### Next
 
-**Stage 8: the older `Core` reference cards are in the plain voice, every other module.** Same
-method as stage 7 (see *State*): one writing subagent per item, all side by side since the files
-are disjoint, each told to edit only its files and never build. The session reads each diff, fixes
-every flagged card, greps the tree for the old words of each rewritten card (a `.lspt`, a
-`meta.rs` golden, `docs/reference/`), builds once, runs `bun nv render --website`, and commits the
-cards, the updated tests and the two website files together. Stage 7's subagents took 80k to 165k
-tokens each, and this session spent about 90k. Then the gap record is deleted.
+**Stage 9: the open document's analysis grows linearly.** Follow the stage's `**Split:**` line:
+an `Explore` subagent lists every pass `analyse_current` runs over an open document, as
+`file:line`, and which of them walks the whole document once per declaration. Then make that
+pass linear, run `bun nv scaling` on the one bench, delete the record, and run
+`bun nv owners --closes editor-fixes` (the goal's acceptance check).
 
-- [ ] `random.rs`, `queue.rs`, `regex.rs`, `http/stream.rs`, `process.rs`, `bytes.rs`, `test/hooks.rs`, `path.rs`. `crates/nvs-stdlib/src/random.rs:1`, `crates/nvs-stdlib/src/queue.rs:1`
-- [ ] `encoding.rs`, `compress.rs`, `socket.rs`, `script.rs`, `objset.rs`, `objmap.rs`, `cache.rs`, `sse.rs`, `session.rs`. `crates/nvs-stdlib/src/objset.rs:157`, `crates/nvs-stdlib/src/objset.rs:185`
-- [ ] `hash.rs`, `decimal.rs`, `ast.rs`, `uuid.rs`, `ratelimit.rs`, `jwe.rs`, `html.rs`, `env.rs`, `validate.rs`, `jwt.rs`, `heap.rs`, `storage.rs`, `os.rs`, `http/socket.rs`. `crates/nvs-stdlib/src/hash.rs:1`
-- [ ] `program.rs` and the 31 small modules stage 8 lists. `crates/nvs-stdlib/src/program.rs:1`
-- [ ] The record deleted. `data/gaps/nvs-stdlib/reference-cards-are-not-held-to-the-plain-voice.json:1`
+- [ ] The quadratic pass found and named in the gap's place, with the ladder's slope before. `crates/nvs-lsp/src/document.rs:843`, `benches/scaling/lsp/classes.nvs:1`
+- [ ] The pass made linear. `crates/nvs-lsp/src/document.rs:647`
+- [ ] `bun nv scaling` passes `benches/scaling/lsp/classes.nvs`, which already declares `expect linear`. `benches/scaling/lsp/classes.nvs:6`
+- [ ] The record deleted. `data/gaps/nvs-lsp/open-document-analysis-grows-quadratically.json:1`
+- [ ] `bun nv owners --closes editor-fixes` passes. `data/rules/ide/a-quick-fix-is-a-diagnostics-own-suggestion.json:3`
 
-Stage 9 (`crates/nvs-lsp/src/document.rs`) touches its own files and can run instead.
+Stage 10, the gate, follows: `bun nv affected --run` once over the whole goal.
 
 ### Backlog
 

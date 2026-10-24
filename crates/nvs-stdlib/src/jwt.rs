@@ -522,185 +522,189 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Jwt::sign`'s reference card — `rule:core-api/reference-card`.
 const SIGN_DOC: MethodDoc = MethodDoc {
-    short: "Signs `$claims` into a JWT that expires `$lifetime` from now, under `$key` and the \
-            one algorithm that key has. The expiry is written here rather than passed in, so a \
-            token this member produces always carries one.",
+    short: "Signs `$claims` into a JWT that expires `$lifetime` from now. `$key` signs the token, \
+            and the key decides the algorithm. This method always writes the expiry, so every \
+            token it returns has one.",
     params: &[
         ParamDoc {
             name: "claims",
-            desc: "The application's own claims, by name. `exp` and `iat` are written by this \
-                   member and are refused here; every other name is carried through unchanged.",
+            desc: "The claims for the token, by name. This method writes `exp` and `iat`, so \
+                   `$claims` may not contain them. Every other claim goes into the token \
+                   unchanged.",
             shape: &[],
         },
         ParamDoc {
             name: "lifetime",
-            desc: "How long the token stays valid — `15m`, `1h`, `7d`. It must be positive: a \
-                   token that has already expired is a program bug, not a token.",
+            desc: "How long the token is valid, such as `15m`, `1h` or `7d`. It must be greater \
+                   than zero. A token that is already expired is a bug in the program.",
             shape: &[],
         },
         ParamDoc {
             name: "key",
-            desc: "A shared secret of at least 32 octets, which signs HS256 — \
-                   `Core\\Crypto::generateKey()` answers one, and a longer secret agreed with \
-                   another service is accepted as it stands. Or a `Core\\Crypto\\KeyPair`, which \
-                   signs ES256, EdDSA, RS256 or PS256 by its kind. There is no algorithm \
-                   argument: the key is the choice.",
+            desc: "A shared secret of at least 32 bytes, which signs with HS256. \
+                   `Core\\Crypto::generateKey()` returns one. A longer secret that you share with \
+                   another service also works. The key can also be a `Core\\Crypto\\KeyPair`. It \
+                   signs with ES256, EdDSA, RS256 or PS256, depending on its kind. There is no \
+                   algorithm parameter, because the key decides the algorithm.",
             shape: &[],
         },
         ParamDoc {
             name: "kid",
-            desc: "The key's name in the header, for a recipient holding several. Omitted by \
-                   default, and written verbatim — it names a key and selects nothing.",
+            desc: "The key's name, written into the header. Use it when the receiver has several \
+                   keys. By default there is no `kid`. The value is written exactly as given. It \
+                   does not choose which key signs the token.",
             shape: &[],
         },
         ParamDoc {
             name: "typ",
-            desc: "The header's `typ`, `JWT` when omitted. RFC 9068's access tokens spell it \
-                   `at+jwt`.",
+            desc: "The header's `typ`. It is `JWT` if you leave it out. RFC 9068's access tokens \
+                   use `at+jwt`.",
             shape: &[],
         },
         ParamDoc {
             name: "embedKey",
-            desc: "Writes the pair's public half into the header as RFC 7638's minimal JWK, \
-                   which is what a DPoP proof carries. Off by default, and a bug under a shared \
-                   secret, which has no public half.",
+            desc: "Writes the public key of the pair into the header, as a minimal JWK (RFC \
+                   7638). A DPoP proof needs this. It is off by default. With a shared secret it \
+                   throws an error, because a secret has no public key.",
             shape: &[],
         },
     ],
-    ret: "The three base64url parts and their two dots, as a header, a payload and a signature \
-          — a value a header, a query string and a JSON body all carry unescaped.",
+    ret: "The token as a string: a header, a payload and a signature in base64url, joined by two \
+          dots. You can put it in a header, a query string or a JSON body without escaping.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$key` is a secret shorter than 32 octets, or an `X25519` pair, which signs \
-                   nothing; `{embedKey: true}` was written under a shared secret; `$lifetime` \
-                   is zero or negative; or `$claims` names `exp` or `iat`, which this member \
-                   writes, or carries a positional entry, since a claim has a name.",
+            desc: "`$key` is a secret shorter than 32 bytes, or an `X25519` pair, which cannot \
+                   sign. `{embedKey: true}` is used with a shared secret. `$lifetime` is zero or \
+                   negative. `$claims` contains `exp` or `iat`, or an entry without a name.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This process cannot spare a buffer the size of the token.",
+            desc: "The process does not have enough memory for the token.",
         },
     ],
 };
 
 /// `Core\Jwt::signObject`'s reference card — `rule:core-api/reference-card`.
 const SIGN_OBJECT_DOC: MethodDoc = MethodDoc {
-    short: "Signs a structured `$claims` into a JWT that expires `$lifetime` from now, under a \
-            key pair and the one algorithm that pair has. The claims are written as \
-            `Core\\Json::encode` writes them, with `iat` and `exp` appended.",
+    short: "Signs a shape or an object `$claims` into a JWT that expires `$lifetime` from now. \
+            A key pair signs it, and the pair decides the algorithm. The claims are written the \
+            way `Core\\Json::encode` writes them, with `iat` and `exp` added at the end.",
     params: &[
         ParamDoc {
             name: "claims",
-            desc: "A shape or a class carrying `#[Core\\Json\\Derive]`, encoded as the JSON \
-                   object it is. `exp` and `iat` are written by this member and are refused \
-                   among its fields; a value with no JSON encoding is a bug in the program.",
+            desc: "A shape, or an object of a class with `#[Core\\Json\\Derive]`. It is encoded as \
+                   a JSON object. This method writes `exp` and `iat`, so `$claims` may not \
+                   contain them. A value that cannot be encoded as JSON is a bug in the program.",
             shape: &[],
         },
         ParamDoc {
             name: "lifetime",
-            desc: "How long the token stays valid — `15m`, `1h`, `7d`. It must be positive: a \
-                   token that has already expired is a program bug, not a token.",
+            desc: "How long the token is valid, such as `15m`, `1h` or `7d`. It must be greater \
+                   than zero. A token that is already expired is a bug in the program.",
             shape: &[],
         },
         ParamDoc {
             name: "key",
-            desc: "A `Core\\Crypto\\KeyPair`, which signs ES256, EdDSA, RS256 or PS256 by its \
-                   kind. A shared secret is not accepted here: a structured payload is a token \
-                   issued to another party, and `Core\\Jwt::verify` reads only the text claims \
-                   `sign` writes.",
+            desc: "A `Core\\Crypto\\KeyPair`. It signs with ES256, EdDSA, RS256 or PS256, \
+                   depending on its kind. A shared secret is not allowed here. A token with these \
+                   claims is for another service, and `Core\\Jwt::verify` reads only the string \
+                   claims that `sign` writes.",
             shape: &[],
         },
         ParamDoc {
             name: "kid",
-            desc: "The key's name in the header, for a recipient holding several. Omitted by \
-                   default, and written verbatim — it names a key and selects nothing.",
+            desc: "The key's name, written into the header. Use it when the receiver has several \
+                   keys. By default there is no `kid`. The value is written exactly as given. It \
+                   does not choose which key signs the token.",
             shape: &[],
         },
         ParamDoc {
             name: "typ",
-            desc: "The header's `typ`, `JWT` when omitted. RFC 9068's access tokens spell it \
-                   `at+jwt`.",
+            desc: "The header's `typ`. It is `JWT` if you leave it out. RFC 9068's access tokens \
+                   use `at+jwt`.",
             shape: &[],
         },
         ParamDoc {
             name: "embedKey",
-            desc: "Writes the pair's public half into the header as RFC 7638's minimal JWK, \
-                   which is what a DPoP proof carries. Off by default.",
+            desc: "Writes the public key of the pair into the header, as a minimal JWK (RFC \
+                   7638). A DPoP proof needs this. It is off by default.",
             shape: &[],
         },
     ],
-    ret: "The three base64url parts and their two dots, exactly as `sign` answers — the payload \
-          is the claims object with `iat` and `exp` as its last two members.",
+    ret: "The token as a string, in the same format that `sign` returns. The payload is the \
+          claims object, with `iat` and `exp` as its last two fields.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$claims` carries a field named `exp` or `iat`, which this member writes; or \
-                   it has no JSON encoding at all — a class that carries no \
-                   `#[Core\\Json\\Derive]`, a `secret` value, a `bytes`, or a cycle. `$key` is \
-                   an `X25519` pair, which signs nothing, or `$lifetime` is zero or negative.",
+            desc: "`$claims` contains `exp` or `iat`. `$claims` cannot be encoded as JSON, for \
+                   example a class without `#[Core\\Json\\Derive]`, a `secret` value, a `bytes` \
+                   value or a cycle. `$key` is an `X25519` pair, which cannot sign. `$lifetime` \
+                   is zero or negative.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This process cannot spare a buffer the size of the token.",
+            desc: "The process does not have enough memory for the token.",
         },
     ],
 };
 
 /// `Core\Jwt::verify`'s reference card — `rule:core-api/reference-card`.
 const VERIFY_DOC: MethodDoc = MethodDoc {
-    short: "Answers the claims `$token` carries, having checked that this key signed it and \
-            that it has not expired. It throws rather than answering an empty value, so there \
-            is no falsy result a comparison could mistake for a verified token.",
+    short: "Checks that `$key` signed `$token` and that the token has not expired. Then it \
+            returns the token's claims. If a check fails, it throws an error. It never returns \
+            an empty value that a comparison could take for a valid token.",
     params: &[
         ParamDoc {
             name: "token",
-            desc: "The token as the request carried it, in its three-part form.",
+            desc: "The token as the request sent it, in its three-part form.",
             shape: &[],
         },
         ParamDoc {
             name: "key",
-            desc: "The shared secret `sign` was given, or the issuer's. The token's own `alg` \
-                   is compared against this key's algorithm and never used to pick one.",
+            desc: "The shared secret that was given to `sign`, or the issuer's secret. The \
+                   method compares the token's `alg` with the key's algorithm. It never uses \
+                   `alg` to choose the algorithm.",
             shape: &[],
         },
     ],
-    ret: "Every claim in the payload, by name, each one `tainted`: a signature proves who wrote \
-          a value, not that it is safe for any sink. `exp` and `iat` are present in it, in their \
-          own decimal spelling.",
+    ret: "Every claim in the payload, by name, and each one is `tainted`. A signature shows who \
+          wrote a value, but not that the value is safe to use. The result includes `exp` and \
+          `iat` as strings of decimal digits.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$key` is shorter than 32 octets — a value that was never a signing key.",
+            desc: "`$key` is shorter than 32 bytes, so it cannot be a signing key.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The token is not one this key signed, which is one sentence for every way of \
-                   not being one; or it is, and has expired, carries no `exp`, or carries a \
-                   claim that is not text.",
+            desc: "The token was not signed with this key. The message is the same for every \
+                   reason the signature check fails. It also throws when the token has expired, \
+                   has no `exp`, or has a claim that is not a string.",
         },
     ],
 };
 
 /// `Core\Jwt::verifyIssued`'s reference card — `rule:core-api/reference-card`.
 const VERIFY_ISSUED_DOC: MethodDoc = MethodDoc {
-    short: "Verifies a token another party issued and answers its claims as the written type, \
-            having checked the header's policy, found the one key that may have signed it, \
-            checked the signature, and then the clock and the registered claims in that order. \
-            It throws rather than answering an empty value.",
+    short: "Checks a token from another service and returns its claims as the type you wrote. \
+            It checks the header, finds the one key that may have signed the token, and checks \
+            the signature. Then it checks the time and the registered claims, in that order. If \
+            a check fails, it throws an error. It never returns an empty value.",
     params: &[
         ParamDoc {
             name: "token",
-            desc: "The token as the request carried it, in its three-part form. It is refused \
-                   unread past 8 KiB.",
+            desc: "The token as the request sent it, in its three-part form. A token longer than \
+                   8 KiB throws an error and is not read.",
             shape: &[],
         },
         ParamDoc {
             name: "keys",
-            desc: "The issuer's key set, in which the header's `kid` names exactly one key, or \
-                   one public key on its own. There is no try-every-key: a token naming no \
-                   `kid` verifies only against a set holding exactly one. The token's `alg` is \
-                   compared against the key's algorithm and never used to pick one.",
+            desc: "The issuer's key set, in which the header's `kid` names exactly one key. It \
+                   can also be one public key. The method never tries every key. A token without \
+                   a `kid` is checked only against a set with exactly one key. The method \
+                   compares the token's `alg` with the key's algorithm. It never uses `alg` to \
+                   choose the algorithm.",
             shape: &[],
         },
         ParamDoc {
@@ -710,54 +714,55 @@ const VERIFY_ISSUED_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "audience",
-            desc: "What the token's `aud` must be, or must hold. A token listing more than one \
-                   audience must also carry an `azp` equal to this.",
+            desc: "What the token's `aud` must be, or must contain. A token with more than one \
+                   audience must also have an `azp` equal to this value.",
             shape: &[],
         },
         ParamDoc {
             name: "leeway",
-            desc: "How far the clock may disagree, at both ends of the window: 60 seconds when \
-                   omitted, and refused when negative or wider than 5 minutes. It widens the \
-                   expiry check and never removes it.",
+            desc: "How much the clocks may differ, at the start and at the end of the valid time. \
+                   It is 60 seconds if you leave it out. A negative value or more than 5 minutes \
+                   throws an error. It makes the expiry check less strict, but never turns it off.",
             shape: &[],
         },
         ParamDoc {
             name: "typ",
-            desc: "The `typ` the header must carry, compared case-insensitively with any \
-                   `application/` prefix removed — `at+jwt` for RFC 9068's access tokens. Any \
-                   `typ` is accepted when this is omitted.",
+            desc: "The `typ` the header must have. The comparison ignores case and an \
+                   `application/` prefix. RFC 9068's access tokens use `at+jwt`. If you leave it \
+                   out, any `typ` is allowed.",
             shape: &[],
         },
         ParamDoc {
             name: "nonce",
-            desc: "The value the token's `nonce` claim must equal, compared in constant time. A \
-                   token carrying none is refused when this is named.",
+            desc: "The value the token's `nonce` claim must equal. It is compared in constant \
+                   time. If you give it, a token without a `nonce` throws an error.",
             shape: &[],
         },
         ParamDoc {
             name: "maxAge",
-            desc: "How old the token's `auth_time` may be. A token carrying none is refused \
-                   when this is named.",
+            desc: "How old the token's `auth_time` may be. If you give it, a token without an \
+                   `auth_time` throws an error.",
             shape: &[],
         },
     ],
-    ret: "An instance of the written type, decoded from the payload as `Core\\Json::decodeAs` \
-          decodes a document. Its text properties must be declared `tainted`, which the call site is \
-          held to: a signature proves who wrote a claim, not that it is safe for any sink.",
+    ret: "An object of the type you wrote, decoded from the payload the way \
+          `Core\\Json::decodeAs` decodes a document. Its string properties must be declared \
+          `tainted`, or the call does not compile. A signature shows who wrote a claim, but not \
+          that the claim is safe to use.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`leeway` is negative or wider than 5 minutes; the written type is a list, \
-                   which no token's payload is; or the key is an `X25519` one, which verifies \
-                   nothing.",
+            desc: "`leeway` is negative or more than 5 minutes. The type you wrote is a list, \
+                   and a token's payload is never a list. The key is an `X25519` key, which \
+                   cannot verify a signature.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The token is not one this issuer's key signed, its header carries a \
-                   parameter a verifier may not honour, or no key was found for it — one \
-                   sentence for every way of not being verifiable; or it is authentic, and is \
-                   outside its validity window or carries a registered claim that is not what \
-                   was asked for, which names the claim.",
+            desc: "The token was not signed with this issuer's key. Its header has a parameter \
+                   that is not allowed, or no key matches it. The message is the same for all of \
+                   these. It also throws when a valid token is outside its valid time. A \
+                   registered claim with the wrong value throws too, and the message names the \
+                   claim.",
         },
     ],
 };
@@ -832,42 +837,41 @@ const KEY_SET_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Jwt\KeySet::read`'s reference card — `rule:core-api/reference-card`.
 const KEY_SET_READ_DOC: MethodDoc = MethodDoc {
-    short: "Admits the signing keys a JWKS document publishes, so a token can be checked against \
-            the one key its `kid` names. A key this roster has no use for is skipped and a \
-            document that is wrong is refused whole, which are different answers to different \
-            questions.",
+    short: "Reads the signing keys from a JWKS document. A token can then be checked with the \
+            one key its `kid` names. A key of a kind this class does not use is skipped. A \
+            document with an error throws an error, and no key from it is used.",
     params: &[
         ParamDoc {
             name: "jwks",
-            desc: "The document as the issuer served it. It is read here and nowhere else: \
-                   fetching it, caching it and rotating it are a package's job, and this member \
-                   is stateless over the text it is handed.",
+            desc: "The document as the issuer published it. This method only reads it. Fetching, \
+                   caching and replacing the keys is the job of a package. The method keeps no \
+                   state between calls.",
             shape: &[],
         },
         ParamDoc {
             name: "rsaScheme",
-            desc: "Which scheme an RSA key carrying no `alg` is read under — `RsaPkcs1` for \
-                   RS256 or `RsaPss` for PS256. A key's own `alg` always wins, and an RSA key \
-                   with neither is refused rather than guessed. Every other kind names its own \
-                   algorithm, so this reaches nothing else.",
+            desc: "The scheme for an RSA key that has no `alg`: `RsaPkcs1` for RS256 or `RsaPss` \
+                   for PS256. A key's own `alg` always wins. An RSA key with neither is not \
+                   allowed, and the method does not guess. Other kinds of key have their own \
+                   algorithm, so this option does not change them.",
             shape: &[],
         },
     ],
-    ret: "A set of at most 16 public keys, each under the name the document gave it, ready for a \
-          lookup by `kid` and never for a try of every key.",
+    ret: "A set of at most 16 public keys, each with the name the document gave it. A key is \
+          found in it by its `kid`. The set is never searched by trying every key.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`{rsaScheme: …}` names a kind that is not one of the two RSA ones, and no \
-                   other kind has two schemes to choose between.",
+            desc: "`{rsaScheme: …}` names a kind that is not one of the two RSA kinds. No other \
+                   kind has two schemes to choose from.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$jwks` is not a document to read keys from: it is not JSON, it carries no \
-                   `keys` array, one of its keys carries a private member or a `kid` that is not \
-                   text, a key is not a key of the kind it claims — an RSA modulus outside \
-                   2048–8192 bits included — an `alg` is one its key's kind cannot carry, two \
-                   keys share a `kid`, or more than 16 keys are admitted.",
+            desc: "`$jwks` is not a valid key document. It is not JSON, or it has no `keys` \
+                   array. A key has a private field, or a `kid` that is not a string. A key does \
+                   not match its kind, such as an RSA modulus outside 2048 to 8192 bits. An \
+                   `alg` does not fit its key's kind. Two keys have the same `kid`. The document \
+                   has more than 16 keys that can be used.",
         },
     ],
 };

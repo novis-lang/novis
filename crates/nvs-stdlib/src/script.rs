@@ -407,7 +407,7 @@ const MEMORY_PEAK_DOC: MethodDoc = MethodDoc {
     short: "Returns the most memory the script used while it ran, in bytes. This is the same \
             number `Core\\Budget::memoryPeak()` returns.",
     params: &[],
-    ret: "The highest number of bytes the script held at one time, read when the script ended. \
+    ret: "The highest number of bytes the script used at one time, read when the script ended. \
           It is read before the first function runs, so memory a function uses does not change it.",
     errors: &[],
 };

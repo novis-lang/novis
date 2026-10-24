@@ -117,7 +117,7 @@ const CARD: ClassDoc = ClassDoc {
     short: "Facts about the machine your program runs on and about the program itself. `pid` \
             returns the process number, `hostname` the machine's name and `cpuCount` how many \
             cores the program may use. `residentBytes` returns the memory of the whole process, \
-            and `loadAverage` how busy the machine is. No grant is needed.",
+            and `loadAverage` how busy the machine is. These methods need no capability.",
 };
 
 /// `Core\Os::pid`'s reference card — `rule:core-api/reference-card`.

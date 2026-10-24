@@ -151,15 +151,15 @@ const PARSE_DOC: MethodDoc = MethodDoc {
     short: "Parses `$source` with the compiler's own parser and returns the file's node tree.",
     params: &[ParamDoc {
         name: "source",
-        desc: "Novis source, starting outside `<?nvs` the way a file does.",
+        desc: "Novis source code. As in a file, the code starts after the `<?nvs` opening tag.",
         shape: &[],
     }],
-    ret: "The file's root node — `kind()` is `File`, and its children are the top-level \
-          statements. The tree is data: nothing on it runs what it describes.",
+    ret: "The root node of the file. Its `kind()` is `File`, and its children are the top-level \
+          statements. The tree is only data, and none of its code runs.",
     errors: &[ErrorDoc {
         error: "ParseError",
-        desc: "`$source` does not parse. The message carries the first error and its line and \
-               column, and a source the compiler refuses is refused here identically.",
+        desc: "`$source` does not parse. The message has the first error with its line and \
+               column. Any source that the compiler rejects throws this error here too.",
     }],
 };
 
@@ -387,11 +387,10 @@ fn class_of(kind: &str) -> &'static CoreClass {
 
 /// `Core\Ast\Node::kind`'s reference card — `rule:core-api/reference-card`.
 const KIND_DOC: MethodDoc = MethodDoc {
-    short: "Which production this node is, spelled as the grammar spells it — `Binary`, `Echo`, \
-            `Method`, `File`.",
+    short: "Returns the kind of this node, with the name the grammar uses, such as `Binary`, \
+            `Echo`, `Method` or `File`.",
     params: &[],
-    ret: "The production's name. One vocabulary, the grammar's own, so a walk that recognises a \
-          construct recognises it by the name the language documents.",
+    ret: "The name of the node kind. It is the same name the language documentation uses.",
     errors: &[],
 };
 
@@ -399,24 +398,24 @@ const KIND_DOC: MethodDoc = MethodDoc {
 const CHILDREN_DOC: MethodDoc = MethodDoc {
     short: "The nodes this one directly contains, in source order.",
     params: &[],
-    ret: "The direct children, empty for a leaf such as an `Int`.",
+    ret: "The direct children. The list is empty for a node with no children, such as an `Int`.",
     errors: &[],
 };
 
 /// `Core\Ast\Node::nodes`'s reference card — `rule:core-api/reference-card`.
 const NODES_DOC: MethodDoc = MethodDoc {
-    short: "Every node this one contains, however deeply — `children` closed transitively, which \
-            is the whole walk when the receiver is the file.",
+    short: "Returns every node inside this one, at any depth. Called on the `File` node, it \
+            returns every node in the file.",
     params: &[],
-    ret: "The subtree in source order, the receiver excluded: both this and `children` answer \
-          what the node *contains*, and a node does not contain itself.",
+    ret: "All nested nodes in source order. The node itself is not in the list, the same as \
+          with `children`.",
     errors: &[],
 };
 
 /// `Core\Ast\Node::line`'s reference card — `rule:core-api/reference-card`.
 const LINE_DOC: MethodDoc = MethodDoc {
-    short: "The 1-based line this production starts on, so a rule that walks the tree can report a \
-            `file:line` rather than only a verdict.",
+    short: "Returns the line where this node starts, counting from 1. You can use it to report \
+            a `file:line` position.",
     params: &[],
     ret: "The line of the node's first character, counting the file's first line as 1.",
     errors: &[],
@@ -424,19 +423,21 @@ const LINE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Ast\Node::column`'s reference card — `rule:core-api/reference-card`.
 const COLUMN_DOC: MethodDoc = MethodDoc {
-    short: "The 1-based column this production starts at, counted in characters rather than bytes.",
+    short: "Returns the column where this node starts, counting from 1. The column counts \
+            characters, not bytes.",
     params: &[],
-    ret: "The column of the node's first character, counting the line's first character as 1. \
-          Characters, so a line holding a `ß` before the node still points at it.",
+    ret: "The column of the node's first character. The first character of the line is 1. A \
+          character such as `ß` counts as one column.",
     errors: &[],
 };
 
 /// `Core\Ast\Node::offset`'s reference card — `rule:core-api/reference-card`.
 const OFFSET_DOC: MethodDoc = MethodDoc {
-    short: "The byte offset this production starts at, from the beginning of the parsed source.",
+    short: "Returns the byte offset where this node starts, from the beginning of the parsed \
+            source.",
     params: &[],
-    ret: "The 0-based offset into the string `parse` was given, which is what a caller holding \
-          that string slices with. The node never answers the slice itself.",
+    ret: "The offset into the string you gave to `parse`, counting from 0. Use it to cut the \
+          node's text out of that string. The node does not return its text itself.",
     errors: &[],
 };
 

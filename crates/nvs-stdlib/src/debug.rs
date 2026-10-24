@@ -153,28 +153,28 @@ const DUMP_DOC: MethodDoc = MethodDoc {
             the dump is also added to an HTML response.",
     params: &[ParamDoc {
         name: "values",
-        desc: "Any number of values, each rendered as a debug record: control bytes and bidi \
-               made visible, a deep or long structure elided, a cycle marked, and a `secret` \
-               property redacted.",
+        desc: "Any number of values. Control bytes and bidirectional text characters are shown \
+               as visible text. A deep or long structure is shortened, and a cycle is shown as \
+               a cycle. A `secret` property is hidden.",
         shape: &[],
     }],
-    ret: "Nothing; a call with no arguments writes nothing at all, and a dump is never \
-          captured by `Core\\Out::capture`.",
+    ret: "Nothing. A call with no arguments writes nothing. `Core\\Out::capture` never \
+          captures a dump.",
     errors: &[],
 };
 
 /// `Core\Debug::render`'s reference card — `rule:core-api/reference-card`.
 const RENDER_DOC: MethodDoc = MethodDoc {
-    short: "Renders `$value` exactly as `dump` would and answers it as a `Core\\Cli\\Text` \
-            instead of writing it, so a dump can be embedded in output and stays singly \
-            escaped.",
+    short: "Formats `$value` exactly as `dump` does, and returns it as a `Core\\Cli\\Text`. It \
+            writes nothing. You can put the result into your own output, and it is escaped \
+            only once.",
     params: &[ParamDoc {
         name: "value",
-        desc: "The value to render, walked as `dump` walks one.",
+        desc: "The value to format. It is formatted the same way as a value given to `dump`.",
         shape: &[],
     }],
-    ret: "The plaintext rendering as a `Core\\Cli\\Text` under every sink. It has no colour \
-          and no trailing newline.",
+    ret: "The plain text as a `Core\\Cli\\Text`, wherever the output goes. It has no colour \
+          and no newline at the end.",
     errors: &[],
 };
 

@@ -2775,8 +2775,7 @@ pub(super) const ROWS_COLUMNS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Column::name`'s reference card — `rule:core-api/reference-card`.
 pub(super) const COLUMN_LABEL_DOC: MethodDoc = MethodDoc {
-    short: "Returns the column's label as the server described it. This is the `name` that \
-            `getColumnMeta` gives in PHP. If the `select` list gives the column an alias, the \
+    short: "Returns the column's label as the server described it. If the `select` list gives the column an alias, the \
             label is the alias.",
     params: &[],
     ret: "The label. It is not a unique key: `select a, a` gives two columns with one label. So \

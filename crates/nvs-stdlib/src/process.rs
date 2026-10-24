@@ -310,8 +310,9 @@ const RUN_DOC: MethodDoc = MethodDoc {
                    `.ps1` file. Those are not allowed on any platform, because Windows starts \
                    them through a shell. The error is also thrown when the program writes more \
                    than `[limits] max_output` in total. Then the program is stopped and nothing \
-                   is returned. It is also thrown when `cwd` is a relative path, when an `env` \
-                   name is empty or has a `=` in it, or when `timeout` is zero or shorter.",
+                   is returned. It is also thrown when `cwd` is a relative path, or when \
+                   `timeout` is zero or shorter. An `env` name that is empty or has a `=` in it \
+                   throws it too.",
         },
         ErrorDoc {
             error: "TimeoutError",
@@ -357,8 +358,9 @@ const SPAWN_DOC: MethodDoc = MethodDoc {
             error: "RuntimeError",
             desc: "`process.exec` does not allow this program, or it is a `.bat`, `.cmd` or `.ps1` \
                    file. Those are not allowed on any platform, because Windows starts them \
-                   through a shell. It is also thrown when `cwd` is a relative path, when an \
-                   `env` name is empty or has a `=` in it, or when `timeout` is zero or shorter.",
+                   through a shell. It is also thrown when `cwd` is a relative path, or when \
+                   `timeout` is zero or shorter. An `env` name that is empty or has a `=` in it \
+                   throws it too.",
         },
         ErrorDoc {
             error: "IOError",

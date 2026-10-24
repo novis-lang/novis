@@ -2807,34 +2807,36 @@ pub(crate) const STATE: CoreEnum = CoreEnum {
 
 /// [`STATE`]'s reference card — `rule:core-api/reference-card`.
 const STATE_DOC: EnumDoc = EnumDoc {
-    short: "What has become of a background job, as `Core\\Queue::status` answers it. Five states \
-            and no `Failed`, because a failed attempt is retried: it returns the job to `Pending` \
-            rather than ending it.",
+    short: "The state of a background job, as `Core\\Queue::status` returns it. There are five \
+            states and no `Failed` state. A failed attempt is retried, so the job goes back to \
+            `Pending`.",
     cases: &[
         CaseDoc {
             name: "Pending",
-            desc: "Waiting for a worker to claim it — including while its `runAt` is still in the \
-                   future, and between attempts while its backoff elapses.",
+            desc: "The job waits for a worker. This includes jobs whose `runAt` time is still in \
+                   the future, and jobs that wait between two attempts.",
         },
         CaseDoc {
             name: "Claimed",
-            desc: "A worker holds it, under the visibility timeout that returns it to `Pending` if \
-                   that worker dies.",
+            desc: "A worker is running the job. If that worker stops, the job goes back to \
+                   `Pending` after the `[queue] visibility` time.",
         },
         CaseDoc {
             name: "Succeeded",
-            desc: "It ran to completion. Delivery is at-least-once, so this says the work happened \
-                   and not that it happened exactly once.",
+            desc: "The job ran to the end. A job can run more than once, so this means the work \
+                   happened at least once. It does not mean the work happened exactly once.",
         },
         CaseDoc {
             name: "Dead",
-            desc: "It exhausted its attempts and is in the dead-letter table, with its payload and \
-                   every attempt's error. Only `purge` and `delete` remove it from there.",
+            desc: "The job used all its attempts and is now in the dead-letter table. The table \
+                   keeps its data and the error of every attempt. Only `purge` and `delete` \
+                   delete it from there.",
         },
         CaseDoc {
             name: "Cancelled",
-            desc: "`cancel` reached it while it was still pending, so no worker ever will. A job \
-                   already claimed cannot arrive here — cancelling does not stop work in flight.",
+            desc: "`cancel` removed the job while it was still waiting, so no worker runs it. A job \
+                   that a worker already started never gets this state. `cancel` does not stop \
+                   work in progress.",
         },
     ],
 };

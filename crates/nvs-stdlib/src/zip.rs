@@ -210,19 +210,19 @@ const ENTRIES_DOC: MethodDoc = MethodDoc {
             path or a symlink, it throws an error and lists nothing.",
     params: &[ParamDoc {
         name: "archive",
-        desc: "The archive's octets. Only its central directory is read, so listing a large \
-               archive costs its entry count rather than its size.",
+        desc: "The bytes of the archive. Only its central directory is read. So the time to list \
+               an archive depends on the number of entries, not on the size of the archive.",
         shape: &[],
     }],
-    ret: "One `tainted string` per entry. A name is always tainted, whatever the archive's own \
-          type was. The name was written by whoever built the archive. An archive written \
+    ret: "One `tainted string` per entry. A name is always tainted, whatever the type of the \
+          archive was. The name was written by whoever built the archive. An archive written \
           directly in a test is no safer than a downloaded one.",
     errors: &[ErrorDoc {
         error: "ParseError",
-        desc: "`$archive` is not a well-formed zip archive, or it carries an entry naming an \
-               absolute path, traversing out of the archive with a `..` component, nesting more \
-               than 64 folders, repeating a name, or marked as a symlink. Never an `IOError`: a \
-               hostile archive and a failing disk are different questions.",
+        desc: "`$archive` is not a valid zip archive, or one of its entries is unsafe. An entry is \
+               unsafe when it has an absolute path or a `..` part, or is a symlink. It is also \
+               unsafe when it is nested in more than 64 folders, or repeats a name. A bad archive \
+               never throws an `IOError`. That error is for a failing disk.",
     }],
 };
 
@@ -233,39 +233,39 @@ const READ_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "archive",
-            desc: "The archive's octets, judged by the same reader `entries` uses: a hostile entry \
-                   anywhere in it refuses this call too, whichever entry was asked for.",
+            desc: "The bytes of the archive. It is checked the same way as in `entries`. An unsafe \
+                   entry anywhere in the archive makes this call throw too, whichever entry you \
+                   read.",
             shape: &[],
         },
         ParamDoc {
             name: "name",
-            desc: "The entry to read, compared whole against the archive's own names and never \
-                   resolved as a path. A name `entries` just answered is accepted as it stands.",
+            desc: "The entry to read. It is compared with the names in the archive exactly, and it \
+                   is never treated as a path. A name that `entries` returned works as it is.",
             shape: &[],
         },
         ParamDoc {
             name: "maxBytes",
-            desc: "The most output this call will produce, in octets. A call may ask for less than \
-                   `[limits] max_decompressed` and never for more; `0` is a bound of zero and not \
-                   a spelling for unbounded.",
+            desc: "The largest output this call may produce, in bytes. It can be lower than \
+                   `[limits] max_decompressed`, but not higher. `0` means zero bytes, not \
+                   unlimited.",
             shape: &[],
         },
         ParamDoc {
             name: "maxRatio",
-            desc: "The most output per octet of the entry's compressed size. The second half of \
-                   the same bound, because a bomb is small on the wire.",
+            desc: "The largest output per byte of the compressed entry. This is the second part of \
+                   the size limit, because a zip bomb is small before it is decompressed.",
             shape: &[],
         },
     ],
-    ret: "The entry's octets, never a truncation — an entry that would pass either half of the \
-          bound throws instead of answering the prefix it had reached. Tainted, for the reason the \
-          names are: octets out of an archive are somebody else's.",
+    ret: "All the bytes of the entry. The result is never cut short. An entry larger than either \
+          limit throws an error. The bytes are `tainted`, like the names, because somebody else \
+          wrote the archive.",
     errors: &[ErrorDoc {
         error: "ParseError",
-        desc: "Everything `entries` refuses, plus: no entry has that name, the entry is compressed \
-               by a method this class does not read, its stream is not well formed, its octets do \
-               not match the CRC-32 the archive recorded, or its output would pass either half of \
-               the bound.",
+        desc: "Every case where `entries` throws. It is also thrown when no entry has that name, \
+               or the entry uses a compression method this class cannot read. Other causes are a \
+               broken compressed stream, a wrong CRC-32, or output above either limit.",
     }],
 };
 
@@ -278,52 +278,50 @@ const EXTRACT_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "archive",
-            desc: "The archive's octets, judged by the same reader `entries` uses: a hostile entry \
-                   anywhere in it refuses this call before it writes anything at all.",
+            desc: "The bytes of the archive. It is checked the same way as in `entries`. An unsafe \
+                   entry anywhere in the archive makes this call throw before it writes anything.",
             shape: &[],
         },
         ParamDoc {
             name: "destination",
-            desc: "The directory to write under, created if it is not there. `fs.write` is shown \
-                   for it and `fs.read` as well, because resolving a name is reading the \
-                   directories above it.",
+            desc: "The directory to write the files to. It is created if it does not exist. The \
+                   call needs `fs.write` and also `fs.read` for it, because Novis reads the \
+                   directories above a name to find where it points.",
             shape: &[],
         },
         ParamDoc {
             name: "maxBytes",
-            desc: "The most output this call will produce **across the whole archive**, in octets, \
-                   and not a per-entry allowance: an archive whose entries are each within it and \
-                   whose total is not is the same attack one level up. A call may ask for less \
-                   than `[limits] max_decompressed` and never for more.",
+            desc: "The largest output this call may produce **for the whole archive**, in bytes. \
+                   It is not a limit per entry. Many small entries can add up to an attack too. \
+                   It can be lower than `[limits] max_decompressed`, but not higher.",
             shape: &[],
         },
         ParamDoc {
             name: "maxRatio",
-            desc: "The most output per octet of an entry's compressed size. This half is per \
-                   entry, because a ratio is a property of the stream being decoded.",
+            desc: "The largest output per byte of a compressed entry. This limit is per entry, \
+                   because each entry is decompressed on its own.",
             shape: &[],
         },
     ],
-    ret: "The number of files written. A directory entry is created and not counted, since what a \
-          caller compares against is the number of files it now has.",
+    ret: "The number of files written. A directory entry is created, but it is not counted. So \
+          the number is the number of new files.",
     errors: &[
         ErrorDoc {
             error: "ParseError",
-            desc: "Everything `entries` refuses, plus an entry whose octets do not match the \
-                   CRC-32 the archive recorded, or whose output would pass either half of the \
-                   bound — per entry or across the archive, which is one rule.",
+            desc: "Every case where `entries` throws. It is also thrown for a wrong CRC-32, or for \
+                   output above either limit, per entry or for the whole archive.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`fs.read` or `fs.write` is not granted for the destination, or a directory \
-                   under it resolved to somewhere outside it, which is a link that appeared while \
-                   the extraction was running.",
+            desc: "`fs.read` or `fs.write` is not granted for the destination. It is also thrown \
+                   when a directory inside it points outside it. This happens when somebody \
+                   creates a link while the files are written.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The creation or the write itself failed: a name an entry asked for is already \
-                   taken, since a file is created exclusively rather than overwritten, or the disk \
-                   refused. Never a refusal this class made — those name the rule.",
+            desc: "Creating or writing a file failed. A file with the name of an entry may already \
+                   exist, because `extract` never overwrites a file. Or the disk failed. The safety \
+                   checks of this class throw a `ParseError` or a `RuntimeError` instead.",
         },
     ],
 };

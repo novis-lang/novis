@@ -182,21 +182,21 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `new Core\ObjectMap`'s reference card — `rule:core-api/reference-card`.
 const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
-    short: "Builds an empty `Core\\ObjectMap<K, V>`. Its keys are objects, and two keys are the \
+    short: "Creates an empty `Core\\ObjectMap<K, V>`. Its keys are objects. Two keys are the \
             same only when they are the same object.",
     params: &[],
-    ret: "A fresh map holding nothing, whose iteration order is insertion order.",
+    ret: "A new, empty map. A loop over it gives the keys in the order they were added.",
     errors: &[],
 };
 
 /// `Core\ObjectMap::set`'s reference card — `rule:core-api/reference-card`.
 const SET_DOC: MethodDoc = MethodDoc {
-    short: "Associates `$value` with `$key`, replacing whatever `$key` held; a key is matched by \
-            identity, never by equality.",
+    short: "Stores `$value` under `$key`. If `$key` already has a value, the new value replaces \
+            it. A key matches only the same object, not an equal one.",
     params: &[
         ParamDoc {
             name: "key",
-            desc: "The key, matched by identity against the keys the map holds.",
+            desc: "The key. It matches a key in the map only if it is the same object.",
             shape: &[],
         },
         ParamDoc {
@@ -205,52 +205,51 @@ const SET_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Nothing; a key set again keeps its place in the insertion order.",
+    ret: "Nothing. A key that is set again keeps its first place in the order of the keys.",
     errors: &[],
 };
 
 /// `Core\ObjectMap::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
-    short: "Answers what `$key` holds — `?V` rather than a throwing read, because these types \
-            have no subscript and so no `$a[$k] ?? $d` to offer instead.",
+    short: "Returns the value stored under `$key`, as a `?V`. It does not throw for a missing \
+            key. This map has no `$map[$key]` syntax, so `get` is the way to read a value.",
     params: &[ParamDoc {
         name: "key",
-        desc: "The key to look up, matched by identity.",
+        desc: "The key to look up. It matches only the same object.",
         shape: &[],
     }],
-    ret: "The value stored under `$key`, or `null` where the map holds no key identical to it — \
-          which a stored `null` is indistinguishable from, so `has` is the question that tells \
-          the two apart.",
+    ret: "The value stored under `$key`, or `null` if the map has no such key. A stored `null` \
+          also returns `null`. Use `has` to tell the two cases apart.",
     errors: &[],
 };
 
 /// `Core\ObjectMap::has`'s reference card — `rule:core-api/reference-card`.
 const HAS_DOC: MethodDoc = MethodDoc {
-    short: "Whether the map holds a key identical to `$key`.",
+    short: "Checks whether the map has `$key`. Only the same object matches.",
     params: &[ParamDoc {
         name: "key",
-        desc: "The key to look for, matched by identity.",
+        desc: "The key to look for. It matches only the same object.",
         shape: &[],
     }],
-    ret: "`true` when the key is present — even where it holds `null` — and `false` otherwise.",
+    ret: "`true` if the key is in the map, also when its value is `null`. Otherwise `false`.",
     errors: &[],
 };
 
 /// `Core\ObjectMap::remove`'s reference card — `rule:core-api/reference-card`.
 const REMOVE_DOC: MethodDoc = MethodDoc {
-    short: "Drops `$key` and the value it held.",
+    short: "Deletes `$key` and its value from the map.",
     params: &[ParamDoc {
         name: "key",
-        desc: "The key to drop, matched by identity.",
+        desc: "The key to delete. It matches only the same object.",
         shape: &[],
     }],
-    ret: "Nothing; a key the map does not hold is left alone rather than reported.",
+    ret: "Nothing. If the map does not have the key, the call does nothing and does not throw.",
     errors: &[],
 };
 
 /// `Core\ObjectMap::count`'s reference card — `rule:core-api/reference-card`.
 const COUNT_DOC: MethodDoc = MethodDoc {
-    short: "Counts the pairs the map holds.",
+    short: "Counts the keys in the map.",
     params: &[],
     ret: "The number of keys; `0` for an empty map.",
     errors: &[],
@@ -258,7 +257,7 @@ const COUNT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\ObjectMap::isEmpty`'s reference card — `rule:core-api/reference-card`.
 const IS_EMPTY_DOC: MethodDoc = MethodDoc {
-    short: "Whether the map holds no pairs.",
+    short: "Checks whether the map is empty.",
     params: &[],
     ret: "`true` for a map with no keys, `false` otherwise.",
     errors: &[],
@@ -266,26 +265,28 @@ const IS_EMPTY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\ObjectMap::keys`'s reference card — `rule:core-api/reference-card`.
 const KEYS_DOC: MethodDoc = MethodDoc {
-    short: "Every key, as a list in insertion order — the same order a `foreach` over the map \
-            yields.",
+    short: "Returns every key as a list, in the order the keys were added. A `foreach` over the \
+            map uses the same order.",
     params: &[],
-    ret: "A fresh `array<K>` list, empty for an empty map, whose positions pair with `values()`.",
+    ret: "A new `array<K>` list. It is empty for an empty map. Each position matches the same \
+          position in `values()`.",
     errors: &[],
 };
 
 /// `Core\ObjectMap::values`'s reference card — `rule:core-api/reference-card`.
 const VALUES_DOC: MethodDoc = MethodDoc {
-    short: "Every value, as a list in the order `keys()` answers its keys.",
+    short: "Returns every value as a list, in the same order as `keys()` returns the keys.",
     params: &[],
-    ret: "A fresh `array<V>` list, empty for an empty map, whose positions pair with `keys()`.",
+    ret: "A new `array<V>` list. It is empty for an empty map. Each position matches the same \
+          position in `keys()`.",
     errors: &[],
 };
 
 /// `Core\ObjectMap::clear`'s reference card — `rule:core-api/reference-card`.
 const CLEAR_DOC: MethodDoc = MethodDoc {
-    short: "Drops every pair, leaving the map empty.",
+    short: "Deletes every key and value. The map is then empty.",
     params: &[],
-    ret: "Nothing; the map itself is kept and can be filled again.",
+    ret: "Nothing. You can add new keys to the same map afterwards.",
     errors: &[],
 };
 

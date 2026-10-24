@@ -104,14 +104,14 @@ pub(crate) const TYPE: CoreEnum = CoreEnum {
 
 /// [`TYPE`]'s reference card — `rule:core-api/reference-card`.
 const TYPE_DOC: EnumDoc = EnumDoc {
-    short: "What `Core\\Mime::detect` read out of a run of octets. Closed, so a program compares \
-            against a case rather than against a media-type spelling that may never occur, and \
-            `Unknown` is the answer for every format whose serialization is text.",
+    short: "The kind of file that `Core\\Mime::detect` found in some bytes. The list of cases is \
+            fixed, so your program compares the result with a case. Every text format gives \
+            `Unknown`.",
     cases: &[
         CaseDoc {
             name: "Unknown",
-            desc: "No signature matched. The ordinary answer for text — JSON, CSV, SVG, HTML — \
-                   and for octets that are nothing in particular.",
+            desc: "The bytes match no known file format. This is the usual result for text, such \
+                   as JSON, CSV, SVG and HTML.",
         },
         CaseDoc {
             name: "Png",
@@ -127,7 +127,7 @@ const TYPE_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Webp",
-            desc: "`image/webp` — a RIFF container whose form is `WEBP`.",
+            desc: "`image/webp`. This is a RIFF container of the form `WEBP`.",
         },
         CaseDoc {
             name: "Tiff",
@@ -139,7 +139,7 @@ const TYPE_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Heic",
-            desc: "`image/heic` — what a phone camera uploads.",
+            desc: "`image/heic`. Many phone cameras save photos in this format.",
         },
         CaseDoc {
             name: "Pdf",
@@ -151,17 +151,17 @@ const TYPE_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Ogg",
-            desc: "`application/ogg` — the container, which carries audio and video alike and \
-                   says which only inside.",
+            desc: "`application/ogg`. This container can contain audio or video, and only its \
+                   content says which one.",
         },
         CaseDoc {
             name: "Wav",
-            desc: "`audio/wav` — a RIFF container whose form is `WAVE`.",
+            desc: "`audio/wav`. This is a RIFF container of the form `WAVE`.",
         },
         CaseDoc {
             name: "Zip",
-            desc: "`application/zip`, including every format that *is* a zip archive: `.docx`, \
-                   `.xlsx`, `.odt`, `.jar`.",
+            desc: "`application/zip`. This includes every format that is a zip archive, such as \
+                   `.docx`, `.xlsx`, `.odt` and `.jar`.",
         },
         CaseDoc {
             name: "Gzip",
@@ -169,7 +169,7 @@ const TYPE_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Zstd",
-            desc: "`application/zstd`, `Core\\Compress::Codec::Zstd`'s frame.",
+            desc: "`application/zstd`, the format `Core\\Compress::Codec::Zstd` writes.",
         },
         CaseDoc {
             name: "Xz",
@@ -181,10 +181,9 @@ const TYPE_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Ebml",
-            desc: "`video/matroska`, the EBML container every `.mkv` and every `.webm` is — WebM \
-                   being a Matroska profile. Which of the two a file is lives in its `DocType` \
-                   element, which a signature cannot reach, so this case never narrows to \
-                   `video/webm`.",
+            desc: "`video/matroska`. This is the EBML container of every `.mkv` and every `.webm` \
+                   file. Only the `DocType` element inside the file says which of the two it is. \
+                   Detection does not read that far, so this case is never `video/webm`.",
         },
     ],
 };
@@ -239,29 +238,27 @@ const DETECT_DOC: MethodDoc = MethodDoc {
             a file name, because an attacker can choose a file name's extension.",
     params: &[ParamDoc {
         name: "data",
-        desc: "The octets to inspect. Only the first few are read — the widest signature in the \
-               table is sixteen — so a prefix of an upload answers what the whole of it would.",
+        desc: "The bytes to check. Only the first 16 bytes or fewer are read. So the start of an \
+               upload gives the same result as the whole upload.",
         shape: &[],
     }],
-    ret: "The case naming what the octets are, or `Core\\Mime::Type::Unknown` where no signature \
-          matched — which includes every format serialized as text. **Detection is not a \
-          laundering**: bytes that detect as `image/png` are still `tainted`, because a signature \
-          describes the first octets and says nothing about what the rest is safe for.",
+    ret: "The case for the kind of file. It is `Core\\Mime::Type::Unknown` when no format \
+          matches, and for every text format. **The result does not make the data safe.** Bytes \
+          detected as `image/png` are still `tainted`, because only the first bytes were checked.",
     errors: &[],
 };
 
 /// `Core\Mime::mediaType`'s reference card — `rule:core-api/reference-card`.
 const MEDIA_TYPE_DOC: MethodDoc = MethodDoc {
-    short: "The IANA media type `$type` is spelled with, for a `Content-Type` header or a stored \
-            record. One direction only: a case has a name, and a name never becomes a case.",
+    short: "Returns the IANA media type of `$type`, for a `Content-Type` header or a stored \
+            record. There is no method that turns a media type back into a case.",
     params: &[ParamDoc {
         name: "type",
-        desc: "The case to spell, usually one `detect` just answered.",
+        desc: "The case to convert, usually one that `detect` returned.",
         shape: &[],
     }],
-    ret: "The media type, as `image/png` — and `application/octet-stream` for \
-          `Core\\Mime::Type::Unknown`, which is what a program that must send something should \
-          send for octets it could not name.",
+    ret: "The media type as a string, such as `image/png`. For `Core\\Mime::Type::Unknown` it is \
+          `application/octet-stream`, the usual type for bytes of an unknown kind.",
     errors: &[],
 };
 

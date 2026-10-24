@@ -254,15 +254,15 @@ const SHARED_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The capability `cache.shared` is not granted; or no `[cache.shared] url` is \
-                   configured, or it is not a URL this client reads. Each is a deployment that \
-                   was not configured rather than a store that failed.",
+            desc: "The program does not have the capability `cache.shared`. Or no \
+                   `[cache.shared] url` is set, or the client cannot read that URL. Each of these \
+                   is a missing setting, not a failed store.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The configured store cannot be reached — it throws rather than answering as \
-                   though the entry were absent, since the two mean opposite things to whatever \
-                   asked.",
+            desc: "The configured store cannot be reached. The call throws this error. It does \
+                   not return `null`, because a missing entry and a failed store mean different \
+                   things.",
         },
     ],
 };
@@ -497,27 +497,27 @@ const DEFAULT_TIMEOUT: Duration = nvs_config::defaults::CACHE_SHARED_TIMEOUT;
 
 /// `Core\Cache\Store::put`'s reference card — `rule:core-api/reference-card`.
 const PUT_DOC: MethodDoc = MethodDoc {
-    short: "Copies `$value` into the store under `$key`, replacing whatever was there — a recursive \
-            graph copy, so the entry shares nothing with the request that wrote it.",
+    short: "Saves a copy of `$value` in the store under `$key`. It replaces any value already \
+            there. The copy is deep, so the entry shares nothing with the request that wrote it.",
     params: &[
         ParamDoc {
             name: "key",
-            desc: "The name to store under; `tainted` is admitted, since no byte of it reaches any \
-                   answer.",
+            desc: "The name to store under. A `tainted` string is allowed, because the key is \
+                   never part of a returned value.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "The value to copy in. It cannot be a callable or a `secret`, the same as for a \
-                   value sent to an isolate.",
+            desc: "The value to copy in. It cannot be a callable or a `secret`. The same rule \
+                   applies to a value sent to an isolate.",
             shape: &[],
         },
         ParamDoc {
             name: "ttl",
             desc: "How long the entry stays readable, counted from this call. Without it, the \
                    entry stays until the cache deletes it to stay under its size limit, or until \
-                   another `put` replaces it. A lifetime that has already run out deletes the \
-                   entry under the key and stores nothing.",
+                   another `put` replaces it. A `ttl` of zero or less deletes the entry under \
+                   the key and stores nothing.",
             shape: &[],
         },
     ],
@@ -526,8 +526,8 @@ const PUT_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The value cannot cross: it is or contains a callable, or an object with a `secret` \
-                   property that was not revealed.",
+            desc: "The value cannot be stored. It is or contains a callable, or an object with a \
+                   `secret` property that was not revealed.",
         },
         ErrorDoc {
             error: "IOError",
@@ -539,11 +539,11 @@ const PUT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cache\Store::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
-    short: "Copies the entry stored under `$key` back into this request, or answers `null` when \
-            there is none.",
+    short: "Returns a copy of the entry stored under `$key`. If there is no entry, it returns \
+            `null`.",
     params: &[ParamDoc {
         name: "key",
-        desc: "The name to read; `tainted` is admitted, as it is on `put`.",
+        desc: "The name to read. A `tainted` string is allowed, as on `put`.",
         shape: &[],
     }],
     ret: "The value as it was copied in, or `null` when there is no entry. An entry can be \
@@ -551,9 +551,9 @@ const GET_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "ParseError",
-            desc: "The entry names a class this program cannot resolve — the same refusal \
-                   `Core\\Serialize::decode` makes, and the ordinary consequence of a deployment \
-                   whose classes changed under a store that outlives them.",
+            desc: "The entry contains a class that this program does not have. \
+                   `Core\\Serialize::decode` throws the same error. This happens when a new \
+                   version of the program changes its classes but the store keeps old entries.",
         },
         ErrorDoc {
             error: "IOError",
@@ -565,10 +565,11 @@ const GET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cache\Store::forget`'s reference card — `rule:core-api/reference-card`.
 const FORGET_DOC: MethodDoc = MethodDoc {
-    short: "Takes the entry under `$key` out of this store, whether or not there was one there.",
+    short: "Deletes the entry under `$key` from this store. It works whether or not there is an \
+            entry.",
     params: &[ParamDoc {
         name: "key",
-        desc: "The name to forget; `tainted` is admitted, as it is on `put`.",
+        desc: "The name to delete. A `tainted` string is allowed, as on `put`.",
         shape: &[],
     }],
     ret: "Nothing. If there is no entry under the key, the call does nothing. An entry can be \
@@ -588,14 +589,15 @@ const PUT_SECRET_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "key",
-            desc: "The name to store under; `tainted` is admitted, as it is on `put`. It is bound \
-                   into the ciphertext, so the same entry moved to another name does not open.",
+            desc: "The name to store under. A `tainted` string is allowed, as on `put`. The name \
+                   is part of the encrypted entry. If the entry is moved to another name, it \
+                   cannot be decrypted.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "The secret to store. A plain `string` reaches this parameter too, and nothing is \
-                   laundered either way — what makes the value confidential is its own type.",
+            desc: "The secret to store. A plain `string` is also accepted. The call does not \
+                   change whether a value is secret. Only the type of the value decides that.",
             shape: &[],
         },
         ParamDoc {
@@ -607,19 +609,20 @@ const PUT_SECRET_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "keys",
-            desc: "The key ring, newest first, as `Core\\SignedCookie` takes one. The newest key \
-                   seals; every key opens, so a rotated ring reads what the retired one wrote.",
+            desc: "The list of keys, newest first, in the same format as for `Core\\SignedCookie`. \
+                   The newest key encrypts. Every key in the list can decrypt. After you add a \
+                   new key, entries written with an older key in the list can still be read.",
             shape: &[],
         },
     ],
-    ret: "Nothing. What sealing buys is that code which knows an entry's name but not the ring \
-          cannot read it, and that a tampered, moved or replayed entry is a miss — **it does not \
-          protect a secret from a compromised process**, which holds the ring in the same memory.",
+    ret: "Nothing. Code that knows the entry's name but not the keys cannot read it. A changed, \
+          moved or replayed entry reads as missing. **This does not protect a secret from a \
+          compromised process**, because the keys are in the same memory.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$keys` is empty, or an entry of it is not a key of the construction's length. \
-                   A ring that cannot key anything is the program's bug rather than a miss.",
+            desc: "`$keys` is empty, or one of its keys does not have the required length. This \
+                   is a bug in the program, so it throws an error and is not treated as missing.",
         },
         ErrorDoc {
             error: "IOError",
@@ -631,47 +634,48 @@ const PUT_SECRET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cache\Store::getSecret`'s reference card — `rule:core-api/reference-card`.
 const GET_SECRET_DOC: MethodDoc = MethodDoc {
-    short: "Opens the secret stored under `$key` against every key of `$keys`, or answers `null` \
-            when there is none that opens.",
+    short: "Decrypts the secret stored under `$key`, trying every key in `$keys`. If no key can \
+            decrypt it, the result is `null`.",
     params: &[
         ParamDoc {
             name: "key",
-            desc: "The name to read; the one `putSecret` wrote under, since the name is sealed in.",
+            desc: "The name to read. Use the same name as in `putSecret`, because the name is part \
+                   of the encrypted entry.",
             shape: &[],
         },
         ParamDoc {
             name: "keys",
-            desc: "The key ring, newest first. Every key is tried, so an entry sealed under a key \
-                   still in the ring opens after a rotation.",
+            desc: "The list of keys, newest first. Every key is tried. After you add a new key, \
+                   an entry encrypted with an older key in the list can still be read.",
             shape: &[],
         },
         ParamDoc {
             name: "fill",
-            desc: "What supplies a miss: a callable answering a \
-                   `Core\\Cache\\SecretEntry`, which carries both the secret it fetched and how \
-                   long that secret stays good. Exactly one caller in this process runs it, in \
-                   that caller's own request and under its own capabilities, while every other \
-                   waits; a `fill` that throws releases the waiters with nothing and the next \
-                   caller runs it again, so no failure crosses from one request into another.",
+            desc: "A callable that runs when the entry is missing. It returns a \
+                   `Core\\Cache\\SecretEntry` with the secret and how long it stays valid. Only \
+                   one caller in this process runs it, while the others wait. It runs in that \
+                   caller's request, with that caller's capabilities. If `fill` throws, the \
+                   waiting callers get no value, and the next caller runs `fill` again. An error \
+                   in one request never reaches another request.",
             shape: &[],
         },
         ParamDoc {
             name: "wait",
-            desc: "How long this caller waits for another's `fill`, defaulting to \
-                   `[cache.memory] fill_wait`. There is no spelling for waiting forever.",
+            desc: "How long this caller waits for another caller's `fill`. The default is \
+                   `[cache.memory] fill_wait`. You cannot wait forever.",
             shape: &[],
         },
     ],
-    ret: "The secret, or `null`. A sealed entry that opens under no key of this ring, or whose own \
-          expiry has passed, is a miss like any other — never an error, so a rotated ring re-fetches \
-          rather than failing. A plain `get` on the same name is a miss too: the sealed door is the \
-          only door.",
+    ret: "The secret, or `null`. An entry that no key in `$keys` can decrypt returns `null`. An \
+          expired entry also returns `null`. Neither is an error, so after a key change the \
+          secret is fetched again. A plain `get` on the same name also returns `null`, because \
+          `getSecret` is the only way to read a secret.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$keys` is empty, or an entry of it is not a key of the construction's length — \
-                   `putSecret`'s refusal, unchanged. Also a `fill` that asks for the key it is \
-                   filling, which would be a wait on itself.",
+            desc: "`$keys` is empty, or one of its keys does not have the required length, as on \
+                   `putSecret`. It is also thrown when `fill` reads the same key it is filling, \
+                   because that call would wait for itself.",
         },
         ErrorDoc {
             error: "TimeoutError",
@@ -737,24 +741,24 @@ pub(crate) const SECRET_ENTRY: CoreClass = CoreClass {
 
 /// `Core\Cache\SecretEntry::of`'s reference card — `rule:core-api/reference-card`.
 const SECRET_ENTRY_OF_DOC: MethodDoc = MethodDoc {
-    short: "Builds the entry a `getSecret` fill answers with: the secret the fill fetched, and how \
-            long that secret stays good.",
+    short: "Creates the entry that a `getSecret` fill returns. It contains the secret that the \
+            fill fetched, and how long that secret stays valid.",
     params: &[
         ParamDoc {
             name: "value",
-            desc: "The secret to store. A plain `string` reaches this parameter too, and nothing \
-                   is laundered either way — what makes the value confidential is its own type.",
+            desc: "The secret to store. A plain `string` is also accepted. The call does not \
+                   change whether a value is secret. Only the type of the value decides that.",
             shape: &[],
         },
         ParamDoc {
             name: "ttl",
-            desc: "How long the entry stays readable, counted from the write that stores it — \
-                   what the fetch itself said, rather than a lifetime the caller guessed at.",
+            desc: "How long the entry stays readable, counted from the moment it is stored. Use \
+                   the lifetime that the source of the secret gives, such as a token's expiry.",
             shape: &[],
         },
     ],
-    ret: "The entry. It answers nothing about either half: a program builds one for a fill to hand \
-          back, and reads a secret out of `getSecret` instead.",
+    ret: "The entry. It has no methods to read the secret or the lifetime. A fill returns it, \
+          and your program reads the secret with `getSecret`.",
     errors: &[],
 };
 

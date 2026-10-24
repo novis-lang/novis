@@ -273,19 +273,19 @@ const GET_DOC: MethodDoc = MethodDoc {
             so a program cannot change a variable.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The variable's name, exactly as the operator spelled it. A sink, so it may not be \
-               `tainted`: letting a request choose which variable to read hands out the whole \
-               environment one query at a time.",
+        desc: "The variable's name, with the same case as in the environment. It may not be \
+               `tainted`. A request that could choose the name could read every variable, one \
+               at a time.",
         shape: &[],
     }],
-    ret: "Its value as a `tainted string` — the environment is outside the program's own text, so \
-          every sink still has to be passed through its own launderer — or `null` where nothing \
-          set the variable.",
+    ret: "The value as a `tainted string`, or `null` if the variable is not set. The value is \
+          `tainted` because it comes from outside the program. Clean it before you use it in \
+          SQL, HTML or a shell command.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The variable is set to bytes that are not valid UTF-8, so its value is not a \
-               `string`. `null` is reserved for a variable nothing set, and a lossy repair would \
-               hand back text the operator did not write.",
+        desc: "The variable contains bytes that are not valid UTF-8, so its value is not a \
+               `string`. The method does not return `null` here, because `null` means the \
+               variable is not set. It does not repair the bytes either.",
     }],
 };
 
@@ -312,21 +312,20 @@ const SECRET_DOC: MethodDoc = MethodDoc {
 const ALL_DOC: MethodDoc = MethodDoc {
     short: "Returns every environment variable, with the variable names as keys.",
     params: &[],
-    ret: "An `array<string, tainted string>` in name order, so two calls in one run and two runs \
-          on two platforms agree. A variable whose name or value is not valid UTF-8 is omitted \
-          rather than allowed to fail the sweep; `get` on that name reports it.",
+    ret: "An `array<string, tainted string>`, sorted by name. Every call returns the same order, \
+          on every platform. A variable whose name or value is not valid UTF-8 is left out. \
+          `get` with that name throws an error for it.",
     errors: &[],
 };
 
 /// `Core\Env::mode`'s reference card — `rule:core-api/reference-card`.
 const MODE_MEMBER_DOC: MethodDoc = MethodDoc {
-    short: "Which deployment this program is running in. The mode is written in `nvs.toml` and \
-            read back through `Core\\Config` like every other directive: **no environment \
-            variable is consulted for it**, so there is no `APP_ENV` convention to get wrong and \
-            no way for a request to select one.",
+    short: "Returns the mode the program runs in: production or development. You set the mode \
+            in `nvs.toml`, and `Core\\Config` reads it like every other setting. No environment \
+            variable changes it, so a request cannot choose the mode.",
     params: &[],
-    ret: "The mode as a `Core\\Env::Mode` case. `Production` for a host that configured nothing, \
-          so a deployment is the restrictive one until an operator has said otherwise.",
+    ret: "The mode as a `Core\\Env::Mode` case. If the configuration does not set a mode, the \
+          result is `Production`, the stricter mode.",
     errors: &[],
 };
 
@@ -350,21 +349,20 @@ pub(crate) const MODE: CoreEnum = CoreEnum {
 
 /// [`MODE`]'s reference card — `rule:core-api/reference-card`.
 const MODE_DOC: EnumDoc = EnumDoc {
-    short: "Which deployment a program is running in — two modes, and there is no third. A mode \
-            is a shorthand for the defaults of five directives, each of which stays settable on \
-            its own.",
+    short: "The mode a program runs in. There are two modes. A mode sets the defaults of five \
+            settings, and you can still change each of those settings on its own.",
     cases: &[
         CaseDoc {
             name: "Production",
-            desc: "The restrictive end of the two, and what a host that wrote no configuration is \
-                   in — a deployment is the safe one before anyone has said so. Which defaults it \
-                   selects is fixed by the mode, and is not a table a program should re-derive.",
+            desc: "The stricter of the two modes. A server with no configuration runs in this \
+                   mode. The mode fixes which defaults it sets, so a program does not need to \
+                   compute them.",
         },
         CaseDoc {
             name: "Development",
-            desc: "The permissive end, selected in `nvs.toml` and never inferred from a variable, \
-                   a hostname or a build. A request may flip into it with `Core\\Config::set` only \
-                   where `[mode] ceiling` reaches this far.",
+            desc: "The less strict of the two modes. Only `nvs.toml` selects it. An environment \
+                   variable, a hostname or a build does not. A request can switch to it with \
+                   `Core\\Config::set` only if `[mode] ceiling` allows `Development`.",
         },
     ],
 };
@@ -462,7 +460,7 @@ const CONTEXT_DOC: EnumDoc = EnumDoc {
     cases: &[
         CaseDoc {
             name: "Request",
-            desc: "The code answers an HTTP request, under `nvs serve` or inside \
+            desc: "The code handles an HTTP request, under `nvs serve` or inside \
                    `Core\\Test::request`. `echo` writes to the response body.",
         },
         CaseDoc {

@@ -313,7 +313,7 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$hash` asks for too much work: more than 1 GiB of memory, too many passes \
+            desc: "`$hash` needs too much work: more than 1 GiB of memory, too many passes \
                    over that memory, or a bcrypt cost above 17. It is also thrown when the \
                    request cannot use the memory the hash needs.",
         },

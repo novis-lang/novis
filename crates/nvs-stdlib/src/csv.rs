@@ -340,41 +340,42 @@ const PARSE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "text",
-            desc: "The CSV document, whole.",
+            desc: "The whole CSV document.",
             shape: &[],
         },
         ParamDoc {
             name: "separator",
-            desc: "The single ASCII byte between fields; `,` by default.",
+            desc: "The one ASCII character between fields. The default is `,`.",
             shape: &[],
         },
         ParamDoc {
             name: "quote",
-            desc: "The single ASCII byte that quotes a field; `\"` by default.",
+            desc: "The one ASCII character that quotes a field. The default is `\"`.",
             shape: &[],
         },
         ParamDoc {
             name: "escape",
-            desc: "The single ASCII byte that escapes a quote inside a quoted field, or the \
-                   empty string for none, which is the default — a doubled quote is the RFC's \
-                   own escape.",
+            desc: "The one ASCII character that escapes a quote inside a quoted field. The \
+                   default is the empty string, which means no escape character. Then two quotes \
+                   are read as one quote, as RFC 4180 says.",
             shape: &[],
         },
         ParamDoc {
             name: "header",
-            desc: "Consume the first record as column names and key every returned row by \
-                   them; the default keys each field by its column index.",
+            desc: "When `true`, the first record is read as column names, and every returned row \
+                   uses them as keys. By default, each field has its column number as the key.",
             shape: &[],
         },
     ],
-    ret: "One array per record, every field a `string`, keyed by column index or — with \
-          `header` — by the header's names, a field past the header's last name keeping its \
-          index; the header row itself is not returned. The document itself never fails to \
-          parse, and an empty document is the empty array.",
+    ret: "One array per record, and every field is a `string`. The keys are the column numbers. \
+          With `header`, the keys are the names from the header. A field after the last header \
+          name keeps its column number. The header row is not in the result. The document never \
+          fails to parse, and an empty document gives an empty array.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A dialect option is empty, longer than one ASCII character, or `CR` or `LF`; or \
-               two of `separator`, `quote` and `escape` name the same byte.",
+        desc: "An option for the CSV format is empty, longer than one ASCII character, or `CR` \
+               or `LF`. It is also thrown when two of `separator`, `quote` and `escape` are the \
+               same character.",
     }],
 };
 
@@ -386,89 +387,89 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "rows",
-            desc: "The records to write, each an array of `string` fields taken in order; a \
-                   row's keys are ignored. A field can be a `tainted string`, such as a value \
-                   read from a database. Then the result is a `tainted string` too.",
+            desc: "The records to write. Each record is an array of `string` fields, written in \
+                   order, and its keys are ignored. A field can be a `tainted string`, such as a \
+                   value read from a database. Then the result is a `tainted string` too.",
             shape: &[],
         },
         ParamDoc {
             name: "separator",
-            desc: "The single ASCII byte written between fields; `,` by default.",
+            desc: "The one ASCII character written between fields. The default is `,`.",
             shape: &[],
         },
         ParamDoc {
             name: "quote",
-            desc: "The single ASCII byte that quotes a field; `\"` by default.",
+            desc: "The one ASCII character that quotes a field. The default is `\"`.",
             shape: &[],
         },
         ParamDoc {
             name: "header",
-            desc: "Column names written as the first record; `null`, the default, writes no \
-                   header row.",
+            desc: "Column names, written as the first record. The default is `null`, which writes \
+                   no header row.",
             shape: &[],
         },
     ],
-    ret: "The document; the empty string for no rows and no header.",
+    ret: "The CSV document. It is an empty string when there are no rows and no header.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A dialect option is empty, longer than one ASCII character, or `CR` or `LF`; or \
-               `separator` and `quote` name the same byte.",
+        desc: "An option for the CSV format is empty, longer than one ASCII character, or `CR` \
+               or `LF`. It is also thrown when `separator` and `quote` are the same character.",
     }],
 };
 
 /// `Core\Csv::rows`'s reference card — `rule:core-api/reference-card`.
 const ROWS_DOC: MethodDoc = MethodDoc {
-    short: "Walks an open file one record at a time, as `while ($r = fgetcsv($h))` does, by the \
-            same RFC 4180 grammar and the same dialect `parse` reads. The walk holds one record \
-            and never the document, so a file larger than memory reads fine; it reads forward \
-            from wherever the handle is and is taken once.",
+    short: "Reads an open file one record at a time, in a `foreach` loop. It uses the same RFC \
+            4180 rules and the same options as `parse`. Only one record is in memory at a time, \
+            so a file larger than memory works. It reads forward from the current position of \
+            the file, and you can loop over it only once.",
     params: &[
         ParamDoc {
             name: "file",
-            desc: "The open handle to read from, positioned where the walk should start.",
+            desc: "The open file to read from. Reading starts at its current position.",
             shape: &[],
         },
         ParamDoc {
             name: "separator",
-            desc: "The single ASCII byte between fields; `,` by default.",
+            desc: "The one ASCII character between fields. The default is `,`.",
             shape: &[],
         },
         ParamDoc {
             name: "quote",
-            desc: "The single ASCII byte that quotes a field; `\"` by default.",
+            desc: "The one ASCII character that quotes a field. The default is `\"`.",
             shape: &[],
         },
         ParamDoc {
             name: "escape",
-            desc: "The single ASCII byte that escapes a quote inside a quoted field, or the \
-                   empty string for none, which is the default — a doubled quote is the RFC's \
-                   own escape.",
+            desc: "The one ASCII character that escapes a quote inside a quoted field. The \
+                   default is the empty string, which means no escape character. Then two quotes \
+                   are read as one quote, as RFC 4180 says.",
             shape: &[],
         },
         ParamDoc {
             name: "header",
-            desc: "Consume the first record as column names and key every walked record by \
-                   them; the default keys each field by its column index.",
+            desc: "When `true`, the first record is read as column names, and every record uses \
+                   them as keys. By default, each field has its column number as the key.",
             shape: &[],
         },
     ],
-    ret: "A walk over the records, each an array of `string` fields keyed as `parse` keys one. \
-          Nothing is read until the walk is taken.",
+    ret: "The records, one at a time. Each record is an array of `string` fields with the same \
+          keys that `parse` gives. Nothing is read until the loop starts.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "A dialect option is empty, longer than one ASCII character, or `CR` or `LF`; \
-                   two of `separator`, `quote` and `escape` name the same byte; or the handle \
-                   was closed before or during the walk.",
+            desc: "An option for the CSV format is empty, longer than one ASCII character, or `CR` \
+                   or `LF`. It is also thrown when two of `separator`, `quote` and `escape` are the \
+                   same character, or the file was closed before or during the loop.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system refused a read part way through the walk.",
+            desc: "The operating system could not read the file during the loop.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "A field is not valid UTF-8. The message gives the line the field ends on, \
-                   and the walk ends there.",
+            desc: "A field is not valid UTF-8. The message gives the line where the field ends, \
+                   and the loop stops there.",
         },
     ],
 };

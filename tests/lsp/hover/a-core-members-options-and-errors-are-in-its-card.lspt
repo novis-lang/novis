@@ -11,11 +11,11 @@ hover
 Core\Json::encode(mixed $value, {pretty?: bool, escapeUnicode?: bool} $options): string
 ```
 
-Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous object or an instance of a class with `#[Json\Derive]`. The text is on one line unless `pretty` is set.
+Converts `$value` to JSON text. It can be a scalar, an array, an anonymous object or an instance of a class with `#[Json\Derive]`. The text is on one line unless `pretty` is set.
 
 **Parameters**
 
-- `$value` — The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, `string`, an array, a `{name: value}` shape, or an instance of a class carrying `#[Json\Derive]`.
+- `$value` — The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, `string`, an array, a `{name: value}` shape, or an instance of a class with `#[Json\Derive]`.
 - `pretty` — Writes the output across several lines, with indentation. By default, the output is on one line.
 - `escapeUnicode` — Writes every non-ASCII character as a `\uXXXX` escape. By default, UTF-8 text is written as it is.
 
@@ -23,4 +23,4 @@ Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous obj
 
 **Throws**
 
-- `LogicError` — `$value` holds something JSON cannot spell: a `NaN` or infinite `float`, a value of a type with no JSON encoding, an instance of a class without `#[Json\Derive]`, or nesting past 1024 levels.
+- `LogicError` — `$value` contains something that JSON cannot represent. This is a `NaN` or infinite `float`, a value of a type with no JSON form, an instance of a class without `#[Json\Derive]`, or more than 1024 levels of nesting.

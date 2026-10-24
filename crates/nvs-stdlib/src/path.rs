@@ -337,9 +337,8 @@ const WITH_EXTENSION_DOC: MethodDoc = MethodDoc {
 /// `Core\Path::join`'s reference card — `rule:core-api/reference-card`.
 const JOIN_DOC: MethodDoc = MethodDoc {
     short: "Adds each of `$segments` to the end of `$base`, with one separator between each \
-            part. Only `$base` decides where the result starts. A segment that starts with `/` \
-            or a drive is \
-            added after `$base` and does not replace it.",
+            part. The result always starts where `$base` starts. A segment that starts with \
+            `/` or a drive is added after `$base` and does not replace it.",
     params: &[
         ParamDoc {
             name: "base",
@@ -447,7 +446,7 @@ const FROM_CWD_DOC: MethodDoc = MethodDoc {
           `tainted`, so you can pass a path from `Core\\Cli::arguments` to `Core\\IO::read`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The program is answering a web request. A server has no working folder that \
+        desc: "The program is handling a web request. A server has no working folder that \
                belongs to the app.",
     }],
 };
@@ -513,9 +512,8 @@ const CONSTANTS: &[CoreConst] = &[CoreConst {
     name: "SEPARATOR",
     ty: CoreTy::Str,
     value: Const::Str(SEPARATOR),
-    desc: "The separator this platform's paths are rendered with — `\\` on Windows and `/` \
-           everywhere else, as `DIRECTORY_SEPARATOR` is; every member emits it and accepts \
-           both.",
+    desc: "The path separator of this platform. It is `\\` on Windows and `/` on every other \
+           platform. Every method writes it, and every method accepts both `/` and `\\`.",
 }];
 
 /// The separator this platform's paths are written with — `\` on Windows and

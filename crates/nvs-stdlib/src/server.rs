@@ -100,7 +100,8 @@ const TRACE_ID_DOC: MethodDoc = MethodDoc {
           the id is the one in that header.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The program is not answering a request, such as a command-line program or a test.",
+        desc: "The program is not handling a request. This is the case in a command-line program \
+               or a test.",
     }],
 };
 

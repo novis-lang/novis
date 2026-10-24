@@ -152,8 +152,8 @@ const CODEC_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Zlib",
-            desc: "RFC 1950: the same stream under a zlib header. This is what \
-                   `Content-Encoding: deflate` means on the wire.",
+            desc: "RFC 1950: the same stream under a zlib header. In HTTP, this is what \
+                   `Content-Encoding: deflate` means.",
         },
         CaseDoc {
             name: "Deflate",
@@ -277,18 +277,18 @@ const COMPRESS_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "data",
-            desc: "The octets to compress; a `string` is read as its UTF-8 bytes.",
+            desc: "The bytes to compress. A `string` is read as its UTF-8 bytes.",
             shape: &[],
         },
         ParamDoc {
             name: "codec",
-            desc: "The format to write. `Core\\Compress::Codec::Gzip` is the one to reach for when the \
-                   result crosses a wire.",
+            desc: "The format to write. Use `Core\\Compress::Codec::Gzip` when you send the result \
+                   over a network.",
             shape: &[],
         },
     ],
-    ret: "The compressed frame, as octets. Compressing is never refused for size: the output of a \
-          compressor is bounded by its input.",
+    ret: "The compressed data, as `bytes`. Compressing has no size limit, because the output is \
+          never much larger than the input.",
     errors: &[],
 };
 
@@ -299,38 +299,38 @@ const DECOMPRESS_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "data",
-            desc: "The compressed frame. Tainted in, tainted out: decompressing tells you nothing \
-                   about what the octets are safe for.",
+            desc: "The compressed data. If `$data` is `tainted`, the result is `tainted` too. \
+                   Decompressing does not make data safe to use.",
             shape: &[],
         },
         ParamDoc {
             name: "codec",
-            desc: "The format `$data` is in. Nothing is sniffed — a frame that is not this format \
-                   is refused rather than guessed at.",
+            desc: "The format `$data` is in. The method does not detect the format. Data in \
+                   another format throws an error.",
             shape: &[],
         },
         ParamDoc {
             name: "maxBytes",
-            desc: "The most output this call will produce, in octets. A call may ask for less than \
-                   `[limits] max_decompressed` and never for more; `0` is a bound of zero and not \
-                   a spelling for unbounded.",
+            desc: "The most output this call produces, in bytes. It can be lower than \
+                   `[limits] max_decompressed`, but not higher. `0` means zero bytes. It does \
+                   not mean no limit.",
             shape: &[],
         },
         ParamDoc {
             name: "maxRatio",
-            desc: "The most output per octet of input. The second half of the same bound: a bomb \
-                   is small on the wire, so a byte ceiling alone is a ceiling a small request can \
-                   still reach.",
+            desc: "The most bytes of output for each byte of input. This is the second part of \
+                   the size limit. A compression bomb is small data that decompresses to a huge \
+                   size. With a limit in bytes alone, a small request can still reach that limit.",
             shape: &[],
         },
     ],
-    ret: "The decompressed octets, never a truncation — a decompression that would pass either \
-          bound throws instead of answering the prefix it had reached.",
+    ret: "The decompressed bytes. The result is never cut short. If the output would go over \
+          either limit, the method throws an error and returns no partial result.",
     errors: &[ErrorDoc {
         error: "ParseError",
-        desc: "`$data` is not a well-formed frame of `$codec`, or the output would pass either \
-               half of the bound. Never an `IOError`: a hostile archive and a full disk are \
-               different questions.",
+        desc: "`$data` is not valid data in the format `$codec`, or the output would go over \
+               either limit. It is never an `IOError`. A hostile archive and a full disk are \
+               different problems.",
     }],
 };
 
@@ -340,11 +340,11 @@ const COMPRESSOR_DOC: MethodDoc = MethodDoc {
             `Core\\Compress\\Compressor`. Call `add` to add data and `finish` to get the result.",
     params: &[ParamDoc {
         name: "codec",
-        desc: "The format to write, any `Core\\Compress::Codec` case. Fixed for the stream's whole life: a \
-               frame is one format.",
+        desc: "The format to write, any `Core\\Compress::Codec` case. It cannot change while the \
+               stream is open, because one compressed result has one format.",
         shape: &[],
     }],
-    ret: "A fresh, open stream that has been fed nothing yet.",
+    ret: "A new, open stream with no data in it yet.",
     errors: &[],
 };
 
@@ -357,26 +357,25 @@ const DECOMPRESSOR_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "codec",
-            desc: "The format the chunks are in. Nothing is sniffed — a frame that is not this \
-                   format is refused rather than guessed at.",
+            desc: "The format the parts are in. The method does not detect the format. Data in \
+                   another format throws an error.",
             shape: &[],
         },
         ParamDoc {
             name: "maxBytes",
-            desc: "The most output this whole stream will produce, in octets — resolved against \
-                   `[limits] max_decompressed` here, at the opening, and charged once across every \
-                   chunk rather than once per `add`.",
+            desc: "The most output the whole stream produces, in bytes. It is checked against \
+                   `[limits] max_decompressed` when the stream starts. The limit counts all parts \
+                   together. It is not a limit for each `add`.",
             shape: &[],
         },
         ParamDoc {
             name: "maxRatio",
-            desc: "The most output per octet fed to the stream. The second half of the same bound, \
-                   measured against everything `add` was handed.",
+            desc: "The most bytes of output for each byte added to the stream. This is the second \
+                   part of the size limit. It is measured against all the data that `add` received.",
             shape: &[],
         },
     ],
-    ret: "A fresh, open stream that has been fed nothing yet, carrying the bound it will be \
-          measured against.",
+    ret: "A new, open stream with no data in it yet. It has the size limit it is checked against.",
     errors: &[],
 };
 
@@ -432,29 +431,28 @@ const COMPRESSOR_ADD_DOC: MethodDoc = MethodDoc {
             added.",
     params: &[ParamDoc {
         name: "data",
-        desc: "The next octets; a `string` is read as its UTF-8 bytes.",
+        desc: "The next bytes. A `string` is read as its UTF-8 bytes.",
         shape: &[],
     }],
-    ret: "Nothing. The compressed data is returned whole by `finish`.",
+    ret: "Nothing. `finish` returns all the compressed data at once.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The stream has already been finished — a frame is whole once it is written, so \
-               open a new stream.",
+        desc: "The stream is already finished. Its result is complete, so start a new stream.",
     }],
 };
 
 /// `$compressor->finish`'s reference card — `rule:core-api/reference-card`.
 const COMPRESSOR_FINISH_DOC: MethodDoc = MethodDoc {
-    short: "Closes the stream and answers the frame for everything `add` fed it — the same \
-            octets `Core\\Compress::compress` answers over the concatenation.",
+    short: "Closes the stream and returns all the data that `add` received, compressed. The \
+            result is the same bytes `Core\\Compress::compress` returns for all the parts joined.",
     params: &[],
-    ret: "The compressed frame, as `bytes`; the stream is finished afterwards and its chunks \
-          released. Not tainted by its input, for the reason this module's docs give: a frame is \
-          not a payload any sink reads as text.",
+    ret: "The compressed data, as `bytes`. After the call, the stream is finished and its parts \
+          are freed. The result is not `tainted`, even when the input is. Compressed data is not \
+          read as text anywhere.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The stream has already been finished — a second `finish` is refused rather than \
-               answering a second frame.",
+        desc: "The stream is already finished. A second `finish` throws this error and returns \
+               nothing.",
     }],
 };
 
@@ -502,37 +500,37 @@ const DECOMPRESSOR_ADD_DOC: MethodDoc = MethodDoc {
             added, with the size limit the stream started with.",
     params: &[ParamDoc {
         name: "data",
-        desc: "The next octets of the compressed frame. Nothing is decoded yet, so nothing here \
-               is refused for size — the bound is the whole stream's and `finish` applies it.",
+        desc: "The next bytes of the compressed data. Nothing is decompressed yet, so this call \
+               never throws a size error. `finish` checks the size limit for the whole stream.",
         shape: &[],
     }],
     ret: "Nothing. The size limit counts the whole stream, not each call.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The stream has already been finished — the octets are final, so open a new stream.",
+        desc: "The stream is already finished. Its data cannot change, so start a new stream.",
     }],
 };
 
 /// `$decompressor->finish`'s reference card — `rule:core-api/reference-card`. The result is
 /// `tainted` as `rule:security/tainted-sources` reads every other source of untrusted octets.
 const DECOMPRESSOR_FINISH_DOC: MethodDoc = MethodDoc {
-    short: "Closes the stream and answers everything `add` fed it, decompressed — the same octets \
-            `Core\\Compress::decompress` answers over the concatenation, under the same bound.",
+    short: "Closes the stream and returns all the data that `add` received, decompressed. The \
+            result is the same bytes `Core\\Compress::decompress` returns for all the parts \
+            joined, with the same size limit.",
     params: &[],
-    ret: "The decompressed octets as `tainted bytes`, never a truncation; the stream is finished \
-          afterwards and its chunks released. The bytes are `tainted` because they come from \
-          input the program does not control.",
+    ret: "The decompressed data as `tainted bytes`. The result is never cut short. After the \
+          call, the stream is finished and its parts are freed. The bytes are `tainted` because \
+          they come from input the program does not control.",
     errors: &[
         ErrorDoc {
             error: "ParseError",
-            desc: "The chunks are not a well-formed frame of the stream's codec, or the output \
-                   would pass either half of the bound the stream was opened under. The bound is \
-                   the whole stream's: every chunk is charged against one ceiling.",
+            desc: "The parts are not valid data in the stream's format, or the output would go \
+                   over either limit the stream started with. The limit counts all parts together.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The stream has already been finished — including by a `finish` that refused, \
-                   since a refused frame is over.",
+            desc: "The stream is already finished. This is also true after a `finish` that threw \
+                   an error.",
         },
     ],
 };

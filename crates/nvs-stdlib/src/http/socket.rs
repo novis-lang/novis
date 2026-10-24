@@ -294,19 +294,19 @@ const SOCKET_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Http\Socket::receive`'s reference card — `rule:core-api/reference-card`.
 const RECEIVE_DOC: MethodDoc = MethodDoc {
-    short: "Waits for the peer's next message and answers it, or answers `null` once the peer \
-            has closed.",
+    short: "Waits for the next message from the peer and returns it. When the connection is \
+            closed, it returns `null`.",
     params: &[],
-    ret: "A `Core\\Socket\\Message` whose `text()` or `bytes()` carries the payload — `tainted`, \
-          because it came off a wire — and whose `topic()` and `value()` are `null`, since those \
-          are what a delivery from another isolate fills. `null` means the conversation is over: \
-          the peer closed, or this end did.",
+    ret: "A `Core\\Socket\\Message`. Its `text()` or `bytes()` returns the content, which is \
+          `tainted` because it comes from the network. Its `topic()` and `value()` are `null`, \
+          because only a message from another isolate sets them. `null` means the connection is \
+          closed, by the peer or by your program.",
     errors: &[
         ErrorDoc {
             error: "TimeoutError",
-            desc: "The peer sent nothing for longer than `idle`, or the socket's `maxDuration` ran \
-                   out while this call was waiting. A peer whose only traffic is pings is not \
-                   silent and is bounded by `maxDuration` instead.",
+            desc: "The peer sent nothing for longer than `idle`, or the socket's `maxDuration` \
+                   ended while this call was waiting. A peer that sends only pings is not silent, \
+                   so only `maxDuration` limits it.",
         },
         ErrorDoc {
             error: "IOError",
@@ -314,14 +314,14 @@ const RECEIVE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The peer sent a message past `maxMessage`. The socket is closed with `1009` \
-                   before this is thrown, because a message nobody will read is memory the peer \
-                   chose to make this task hold.",
+            desc: "The peer sent a message larger than `maxMessage`. The socket is closed with \
+                   code `1009` before the error is thrown. This stops the peer from filling the \
+                   task's memory with a message that nobody reads.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "Another `receive()` is already waiting on this socket. One message has one \
-                   recipient, so a socket is read by the one task that holds it.",
+            desc: "Another `receive()` is already waiting on this socket. Each message goes to \
+                   one receiver, so only the task that owns the socket reads from it.",
         },
     ],
 };
@@ -331,9 +331,9 @@ const SEND_DOC: MethodDoc = MethodDoc {
     short: "Sends one text message to the peer.",
     params: &[ParamDoc {
         name: "frame",
-        desc: "The text to send, as one RFC 6455 text message however many frames it takes on \
-               the wire. A `tainted` value is accepted: what a program sends over a socket it \
-               opened is not an instruction on this side of the wire.",
+        desc: "The text to send, as one RFC 6455 text message, however many frames it needs. A \
+               `tainted` value is allowed. Text your program sends to another server cannot run \
+               as code on your side.",
         shape: &[],
     }],
     ret: "Nothing.",
@@ -345,8 +345,8 @@ const SEND_BYTES_DOC: MethodDoc = MethodDoc {
     short: "Sends one binary message to the peer. `send` sends a text message.",
     params: &[ParamDoc {
         name: "frame",
-        desc: "The bytes to send, as one binary message. A `tainted` value is accepted, as it \
-               is for `send`.",
+        desc: "The bytes to send, as one binary message. A `tainted` value is allowed, as it is \
+               for `send`.",
         shape: &[],
     }],
     ret: "Nothing.",
@@ -359,12 +359,13 @@ const SEND_BYTES_DOC: MethodDoc = MethodDoc {
 const SEND_ERRORS: &[ErrorDoc] = &[
     ErrorDoc {
         error: "LogicError",
-        desc: "The socket has been closed, so there is nobody left to send to.",
+        desc: "The socket is closed, so the message cannot be sent.",
     },
     ErrorDoc {
         error: "TimeoutError",
-        desc: "The frame was still waiting to be written when the send wait ran out — a peer that \
-               has stopped reading — or the socket's `maxDuration` ran out first.",
+        desc: "The frame was not written before `sendTimeout` ended. This usually means the \
+               peer has stopped reading. It is also thrown when the socket's `maxDuration` ends \
+               first.",
     },
     ErrorDoc {
         error: "IOError",
@@ -374,35 +375,35 @@ const SEND_ERRORS: &[ErrorDoc] = &[
 
 /// `Core\Http\Socket::close`'s reference card — `rule:core-api/reference-card`.
 const CLOSE_DOC: MethodDoc = MethodDoc {
-    short: "Ends the conversation: sends the close frame, waits for the peer's under the send \
-            wait, and lets the connection go.",
+    short: "Closes the connection. It sends the close frame and waits for the peer's close frame, \
+            up to `sendTimeout`. Then it frees the connection.",
     params: &[
         ParamDoc {
             name: "code",
-            desc: "The close code to send. Left out, it is `1000` — a normal ending.",
+            desc: "The close code to send. If you leave it out, it is `1000`, a normal close.",
             shape: &[],
         },
         ParamDoc {
             name: "reason",
-            desc: "The text to send beside the code, for a peer that logs it. Left out, none is \
-                   sent.",
+            desc: "Text to send with the code, for a peer that logs it. If you leave it out, no \
+                   text is sent.",
             shape: &[],
         },
     ],
-    ret: "Nothing. A peer that never answers its own close is closed anyway and that is not an \
-          error — the connection is gone either way, and a throw would put a `catch` around every \
-          normal ending. Closing a socket that is already closed does nothing.",
+    ret: "Nothing. If the peer never sends its close frame, the connection is closed anyway, \
+          without an error. So a normal close needs no `catch`. Closing a socket that is already \
+          closed does nothing.",
     errors: &[],
 };
 
 /// `Core\Http\Socket::protocol`'s reference card — `rule:core-api/reference-card`.
 const PROTOCOL_DOC: MethodDoc = MethodDoc {
-    short: "The subprotocol the opening handshake settled on, out of the ones `protocols` \
-            offered.",
+    short: "Returns the subprotocol that the opening handshake chose, from the ones in \
+            `protocols`.",
     params: &[],
-    ret: "The name the peer chose, or `null` where the call offered none or the peer chose none. \
-          A peer that chooses a name which was never offered does not get this far: the handshake \
-          is refused instead.",
+    ret: "The name the peer chose. It is `null` if the call offered no protocol or the peer chose \
+          none. If the peer chooses a name that was not offered, the handshake fails and no \
+          socket is returned.",
     errors: &[],
 };
 

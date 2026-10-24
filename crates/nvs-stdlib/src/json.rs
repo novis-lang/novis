@@ -404,7 +404,7 @@ const CARD: ClassDoc = ClassDoc {
 /// says a bag is documented. What is stated here is what
 /// [`nvs_core_json_encode`] and [`Encodable`] do, and nothing beyond them.
 const ENCODE_DOC: MethodDoc = MethodDoc {
-    short: "Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous object \
+    short: "Converts `$value` to JSON text. It can be a scalar, an array, an anonymous object \
             or an instance of a class with `#[Json\\Derive]`. The text is on one line unless \
             `pretty` is set.",
     params: &[
@@ -412,7 +412,7 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
             name: "value",
             desc: "The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, \
                    `string`, an array, a `{name: value}` shape, or an instance of a class \
-                   carrying `#[Json\\Derive]`.",
+                   with `#[Json\\Derive]`.",
             shape: &[],
         },
         ParamDoc {
@@ -433,9 +433,9 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
           inside it.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$value` holds something JSON cannot spell: a `NaN` or infinite `float`, a value \
-               of a type with no JSON encoding, an instance of a class without \
-               `#[Json\\Derive]`, or nesting past 1024 levels.",
+        desc: "`$value` contains something that JSON cannot represent. This is a `NaN` or \
+               infinite `float`, a value of a type with no JSON form, an instance of a class \
+               without `#[Json\\Derive]`, or more than 1024 levels of nesting.",
     }],
 };
 
@@ -457,14 +457,14 @@ const DECODE_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The decoded value: `null`, `bool`, `int`, `float`, `string`, or an array; a JSON object \
+    ret: "The decoded value: `null`, `bool`, `int`, `float`, `string`, or an array. A JSON object \
           is always a string-keyed array, never an object.",
     errors: &[
         ErrorDoc {
             error: "ParseError",
             desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, has an \
                    object with the same key twice, or contains a whole number too large for \
-                   `int`. The one issue it carries has an empty path.",
+                   `int`. The error has one issue, and its path is empty.",
         },
         ErrorDoc {
             error: "LogicError",
@@ -475,15 +475,15 @@ const DECODE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Json::decodeAs`'s reference card — `rule:core-api/reference-card`.
 const DECODE_AS_DOC: MethodDoc = MethodDoc {
-    short: "Parses the JSON object `$json` into an instance of `T`, a class carrying \
-            `#[Json\\Derive]`, reading every declared property and running the constructor only \
-            when all of them matched; write `array<T>` to read a JSON array as one instance \
-            per element instead. It replaces hand-written hydration.",
+    short: "Parses the JSON object `$json` into an instance of `T`, a class with \
+            `#[Json\\Derive]`. It reads every declared property, and it runs the constructor only \
+            when all of them match. Write `array<T>` to read a JSON array as one instance per \
+            element. You do not need to copy each field into the object yourself.",
     params: &[
         ParamDoc {
             name: "json",
-            desc: "The JSON text to parse, whose top level must be an object — or an array, \
-                   where `T` is written `array<C>`.",
+            desc: "The JSON text to parse. Its top level must be an object. When `T` is written \
+                   as `array<C>`, its top level must be an array.",
             shape: &[],
         },
         ParamDoc {
@@ -493,23 +493,23 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "A new `T` built from the document's fields, or — for an `array<C>` — one new `C` per \
-          element, in the document's own order.",
+    ret: "A new `T` created from the fields of the document. For an `array<C>`, it is one new \
+          `C` per element, in the order of the document.",
     errors: &[
         ErrorDoc {
             error: "ParseError",
             desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, has an \
-                   object with the same key twice, contains \
-                   a whole number too large for `int`, is not an object at the top level (an \
-                   array, for an `array<C>`), or has fields that are missing or of the wrong \
-                   type — every failed field is one issue on the error, at its own path, and the \
-                   message counts them. A list stops at its first bad element, and each of its \
-                   paths carries that element's position.",
+                   object with the same key twice, or contains a whole number too large for \
+                   `int`. It is also thrown when the top level is not an object, or not an array \
+                   for an `array<C>`. Fields that are missing or have the wrong type throw it too. \
+                   Each failed field is one issue on the error, with its own path. The message \
+                   gives the number of issues. A list stops at its first bad element, and each \
+                   path contains the position of that element.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`T` has no JSON codec because it does not carry `#[Json\\Derive]`, or \
-                   `maxDepth` is `0` or above `1024`.",
+            desc: "`T` cannot be read from JSON because it does not have `#[Json\\Derive]`. It is \
+                   also thrown when `maxDepth` is `0` or above `1024`.",
         },
         ErrorDoc {
             error: "RecursionError",
@@ -529,8 +529,8 @@ const IS_VALID_DOC: MethodDoc = MethodDoc {
         desc: "The JSON text to check.",
         shape: &[],
     }],
-    ret: "`true` when `$json` parses; `false` for malformed text, nesting past `512`, or \
-          a whole number too large for `int`.",
+    ret: "`true` when `$json` parses. `false` for text that is not valid JSON, nesting deeper \
+          than `512`, or a whole number too large for `int`.",
     errors: &[],
 };
 

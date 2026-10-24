@@ -246,10 +246,10 @@ pub(crate) const CHARSET: CoreEnum = CoreEnum {
 /// [`CHARSET`]'s reference card — `rule:core-api/reference-card`; a table rather than a card, so
 /// only `short` is written, as [`EnumDoc::cases`] allows.
 const CHARSET_DOC: EnumDoc = EnumDoc {
-    short: "The encoding a `Core\\Encoding` text conversion reads or writes — one case per \
-            encoding in the WHATWG Encoding Standard's index, in that document's order and in \
-            Novis's casing, with `Ascii` and `Latin1` kept apart from `Windows1252` and no \
-            `Replacement` case, since a conversion is exact or it throws.",
+    short: "The encoding that a `Core\\Encoding` text conversion reads or writes. There is one \
+            case for each encoding in the WHATWG Encoding Standard, in the same order. `Ascii` \
+            and `Latin1` are separate cases from `Windows1252`. There is no `Replacement` case, \
+            because a conversion is exact or it throws an error.",
     cases: &[],
 };
 
@@ -468,11 +468,11 @@ const ENCODE_TEXT_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The encoded octets.",
+    ret: "The encoded bytes.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$charset` has no spelling for a character of `$s`; the message names the \
-               character and its offset.",
+        desc: "`$charset` cannot represent a character of `$s`. The message gives the character \
+               and its offset.",
     }],
 };
 
@@ -483,19 +483,19 @@ const DECODE_TEXT_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "b",
-            desc: "The octets to decode.",
+            desc: "The bytes to decode.",
             shape: &[],
         },
         ParamDoc {
             name: "charset",
-            desc: "The encoding they are in.",
+            desc: "The encoding the bytes are in.",
             shape: &[],
         },
     ],
-    ret: "The decoded text; the empty string for the empty buffer.",
+    ret: "The decoded text. Empty bytes give the empty string.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A byte sequence of `$b` is not valid `$charset`; the message names its offset.",
+        desc: "A byte sequence in `$b` is not valid in `$charset`. The message gives its offset.",
     }],
 };
 
@@ -506,17 +506,17 @@ const IS_VALID_TEXT_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "b",
-            desc: "The octets to check.",
+            desc: "The bytes to check.",
             shape: &[],
         },
         ParamDoc {
             name: "charset",
-            desc: "The encoding they are checked against.",
+            desc: "The encoding to check the bytes against.",
             shape: &[],
         },
     ],
-    ret: "`true` when `decodeText` would succeed; always `true` under `Charset::Latin1`, \
-          which gives all 256 octets a meaning.",
+    ret: "`true` when `decodeText` would succeed, `false` otherwise. With `Charset::Latin1` \
+          the result is always `true`, because every one of the 256 byte values is valid.",
     errors: &[],
 };
 
@@ -525,10 +525,10 @@ const TO_BASE64_DOC: MethodDoc = MethodDoc {
     short: "Writes `$b` as base64 text, with the alphabet of RFC 4648 § 4 and with padding.",
     params: &[ParamDoc {
         name: "b",
-        desc: "The octets to encode.",
+        desc: "The bytes to encode.",
         shape: &[],
     }],
-    ret: "The base64 text; the empty string for the empty buffer.",
+    ret: "The base64 text. Empty bytes give the empty string.",
     errors: &[],
 };
 
@@ -542,12 +542,12 @@ const FROM_BASE64_DOC: MethodDoc = MethodDoc {
         desc: "The base64 text.",
         shape: &[],
     }],
-    ret: "The decoded octets; the empty buffer for the empty string.",
+    ret: "The decoded bytes. The empty string gives empty bytes.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$s` is not strict base64 — a symbol outside the alphabet, `-` and `_` \
-               included, missing or wrong padding, a truncated final group, or non-canonical \
-               trailing bits.",
+        desc: "`$s` is not strict base64. It has a symbol outside the alphabet, such as `-` or \
+               `_`, missing or wrong padding, an incomplete last group, or unused bits that are \
+               not zero.",
     }],
 };
 
@@ -557,27 +557,28 @@ const TO_BASE64_URL_DOC: MethodDoc = MethodDoc {
             padding. A JWT or a query string uses this form.",
     params: &[ParamDoc {
         name: "b",
-        desc: "The octets to encode.",
+        desc: "The bytes to encode.",
         shape: &[],
     }],
-    ret: "The URL-safe base64 text; the empty string for the empty buffer.",
+    ret: "The URL-safe base64 text. Empty bytes give the empty string.",
     errors: &[],
 };
 
 /// `Core\Encoding::fromBase64Url`'s reference card — `rule:core-api/reference-card`.
 const FROM_BASE64_URL_DOC: MethodDoc = MethodDoc {
-    short: "Reads URL-safe base64 text `$s` back to octets — `toBase64Url`'s other half, as \
-            strict as `fromBase64` and refusing padding rather than tolerating it.",
+    short: "Reads the URL-safe base64 text `$s` back to bytes. It reverses `toBase64Url`. It is \
+            as strict as `fromBase64`, and padding throws an error.",
     params: &[ParamDoc {
         name: "s",
-        desc: "The URL-safe base64 text, unpadded.",
+        desc: "The URL-safe base64 text, with no padding.",
         shape: &[],
     }],
-    ret: "The decoded octets; the empty buffer for the empty string.",
+    ret: "The decoded bytes. The empty string gives empty bytes.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$s` is not unpadded URL-safe base64 — a symbol outside the alphabet, `+`, \
-               `/` and `=` included, a truncated final group, or non-canonical trailing bits.",
+        desc: "`$s` is not URL-safe base64 without padding. It has a symbol outside the \
+               alphabet, such as `+`, `/` or `=`, an incomplete last group, or unused bits that \
+               are not zero.",
     }],
 };
 
@@ -587,29 +588,27 @@ const TO_BASE32_DOC: MethodDoc = MethodDoc {
             padding. An `otpauth:` secret is written this way.",
     params: &[ParamDoc {
         name: "b",
-        desc: "The octets to encode.",
+        desc: "The bytes to encode.",
         shape: &[],
     }],
-    ret: "The base32 text; the empty string for the empty buffer.",
+    ret: "The base32 text. Empty bytes give the empty string.",
     errors: &[],
 };
 
 /// `Core\Encoding::fromBase32`'s reference card — `rule:core-api/reference-card`.
 const FROM_BASE32_DOC: MethodDoc = MethodDoc {
-    short: "Reads base32 text `$s` back to octets — `toBase32`'s other half, taking either \
-            case and padding that is canonical or absent, since neither changes which octets \
-            come out.",
+    short: "Reads the base32 text `$s` back to bytes. It reverses `toBase32`. It accepts upper \
+            and lower case, and correct padding or no padding. Neither changes the result.",
     params: &[ParamDoc {
         name: "s",
         desc: "The base32 text.",
         shape: &[],
     }],
-    ret: "The decoded octets; the empty buffer for the empty string.",
+    ret: "The decoded bytes. The empty string gives empty bytes.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$s` holds a symbol outside the alphabet — a space between groups included — \
-               a truncated final group, non-canonical trailing bits, or padding that is \
-               present but wrong.",
+        desc: "`$s` has a symbol outside the alphabet, such as a space between groups. Or it has \
+               an incomplete last group, unused bits that are not zero, or wrong padding.",
     }],
 };
 
@@ -618,10 +617,10 @@ const TO_HEX_DOC: MethodDoc = MethodDoc {
     short: "Writes `$b` as lowercase hexadecimal text, two digits per byte.",
     params: &[ParamDoc {
         name: "b",
-        desc: "The octets to encode.",
+        desc: "The bytes to encode.",
         shape: &[],
     }],
-    ret: "The hex text, twice `$b`'s length; the empty string for the empty buffer.",
+    ret: "The hex text, twice as long as `$b`. Empty bytes give the empty string.",
     errors: &[],
 };
 
@@ -634,12 +633,12 @@ const FROM_HEX_DOC: MethodDoc = MethodDoc {
         desc: "The hexadecimal text.",
         shape: &[],
     }],
-    ret: "The decoded octets, half as many as `$s` has digits; the empty buffer for the empty \
-          string.",
+    ret: "The decoded bytes, one byte for every two digits of `$s`. The empty string gives empty \
+          bytes.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "`$s` has an odd number of digits, or a character that is not `0`-`9`, `a`-`f` \
-               or `A`-`F` — a space, a colon or a `0x` prefix included.",
+               or `A`-`F`. A space, a colon and a `0x` prefix all throw this error.",
     }],
 };
 

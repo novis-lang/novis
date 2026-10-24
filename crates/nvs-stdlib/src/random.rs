@@ -203,19 +203,19 @@ const INT_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "min",
-            desc: "The lowest value the draw may answer.",
+            desc: "The lowest value the result can be.",
             shape: &[],
         },
         ParamDoc {
             name: "max",
-            desc: "The highest value the draw may answer.",
+            desc: "The highest value the result can be.",
             shape: &[],
         },
     ],
-    ret: "An `int` in the range, without bias; `$min` itself when the two bounds are equal.",
+    ret: "An `int` from `$min` to `$max`. When the two are equal, the result is `$min`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$min` is above `$max` — the range is empty, and the bounds are not swapped.",
+        desc: "`$min` is greater than `$max`. The method does not swap the two values.",
     }],
 };
 
@@ -224,7 +224,7 @@ const FLOAT_DOC: MethodDoc = MethodDoc {
     short: "Returns a random float from `0.0` up to, but not including, `1.0`. Every value is \
             equally likely.",
     params: &[],
-    ret: "A `float` with 53 random bits; `0.0` is drawable and `1.0` is not.",
+    ret: "A `float` with 53 random bits. The result can be `0.0`, but never `1.0`.",
     errors: &[],
 };
 
@@ -234,11 +234,11 @@ const BYTES_DOC: MethodDoc = MethodDoc {
             key, a nonce or an IV.",
     params: &[ParamDoc {
         name: "count",
-        desc: "How many bytes to draw; at least one.",
+        desc: "How many bytes to return. It must be at least `1`.",
         shape: &[],
     }],
-    ret: "A `bytes` value of exactly `$count` octets, unrendered — `Core\\Random::token` is \
-          the hex spelling.",
+    ret: "A `bytes` value with exactly `$count` raw bytes. For random bytes as a hex string, \
+          use `Core\\Random::token`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "`$count` is `0`, or it is larger than a buffer this process can allocate.",
@@ -251,15 +251,15 @@ const TOKEN_DOC: MethodDoc = MethodDoc {
             as lower-case hex. Use it for a session identifier or a reset link.",
     params: &[ParamDoc {
         name: "bytes",
-        desc: "How many bytes of entropy to draw, `32` by default — the answer is twice as many \
+        desc: "How many random bytes to use, `32` by default. The string has twice as many \
                characters.",
         shape: &[],
     }],
     ret: "A `string` of `2 * $bytes` hex digits, `0`–`9` and `a`–`f`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$bytes` is `0` — the empty string is a token every other empty token equals — \
-               or the draw or its rendering is larger than a buffer this process can allocate.",
+        desc: "`$bytes` is `0`, because an empty token is equal to every other empty token. It \
+               is also thrown when the result is larger than a buffer this process can allocate.",
     }],
 };
 
@@ -268,11 +268,11 @@ const PICK_DOC: MethodDoc = MethodDoc {
     short: "Returns the value of one random entry of `$a`. Every entry is equally likely.",
     params: &[ParamDoc {
         name: "a",
-        desc: "The array to draw from.",
+        desc: "The array to choose from.",
         shape: &[],
     }],
-    ret: "One entry's value; `null` when `$a` is empty, which over an `array<?T>` is \
-          indistinguishable from drawing a `null` entry.",
+    ret: "The value of one entry. When `$a` is empty, the result is `null`. With an \
+          `array<?T>`, you cannot tell this apart from an entry that is `null`.",
     errors: &[],
 };
 
@@ -283,20 +283,20 @@ const SAMPLE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "a",
-            desc: "The array to draw from.",
+            desc: "The array to choose from.",
             shape: &[],
         },
         ParamDoc {
             name: "count",
-            desc: "How many distinct entries to draw; at most the array's size.",
+            desc: "How many different entries to return. It must not be more than the entries in `$a`.",
             shape: &[],
         },
     ],
-    ret: "A fresh list of the drawn values under `0, 1, …` keys, in random order; the \
-          subject's keys are discarded, and `$a` is unchanged.",
+    ret: "A new list of the chosen values, in random order, with the keys `0, 1, …`. The keys \
+          of `$a` are not kept, and `$a` is unchanged.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$count` is above the number of entries `$a` holds.",
+        desc: "`$count` is greater than the number of entries in `$a`.",
     }],
 };
 
@@ -450,132 +450,131 @@ const SEEDED_CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
             of values.",
     params: &[ParamDoc {
         name: "seed",
-        desc: "The seed the sequence is drawn from; every `int` is one, including `0`.",
+        desc: "The seed for the sequence. Every `int` is a valid seed, including `0`.",
         shape: &[],
     }],
-    ret: "A generator drawing the same sequence for the same seed, and nothing about it is \
-          unpredictable.",
+    ret: "A generator that gives the same sequence for the same seed. Its values are fully \
+          predictable.",
     errors: &[],
 };
 
 /// `Core\Random\Seeded::int`'s reference card — `rule:core-api/reference-card`.
 const SEEDED_INT_DOC: MethodDoc = MethodDoc {
-    short: "Draws an integer uniformly from `[$min, $max]`, inclusive at both ends, from this \
-            generator's own sequence — `Core\\Random::int`'s answer, reproducibly.",
+    short: "Returns a random integer from `$min` to `$max`, including both ends. It works like \
+            `Core\\Random::int`, but the same seed always gives the same result.",
     params: &[
         ParamDoc {
             name: "min",
-            desc: "The lowest value the draw may answer.",
+            desc: "The lowest value the result can be.",
             shape: &[],
         },
         ParamDoc {
             name: "max",
-            desc: "The highest value the draw may answer.",
+            desc: "The highest value the result can be.",
             shape: &[],
         },
     ],
-    ret: "An `int` in the range, without bias; `$min` itself when the two bounds are equal.",
+    ret: "An `int` from `$min` to `$max`. When the two are equal, the result is `$min`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$min` is above `$max` — the range is empty, and the bounds are not swapped.",
+        desc: "`$min` is greater than `$max`. The method does not swap the two values.",
     }],
 };
 
 /// `Core\Random\Seeded::float`'s reference card — `rule:core-api/reference-card`.
 const SEEDED_FLOAT_DOC: MethodDoc = MethodDoc {
-    short: "Draws a float uniformly from the half-open interval `[0, 1)` from this generator's own \
-            sequence — `Core\\Random::float`'s answer, reproducibly.",
+    short: "Returns a random float from `0.0` up to, but not including, `1.0`. It works like \
+            `Core\\Random::float`, but the same seed always gives the same result.",
     params: &[],
-    ret: "A `float` with 53 random bits; `0.0` is drawable and `1.0` is not.",
+    ret: "A `float` with 53 random bits. The result can be `0.0`, but never `1.0`.",
     errors: &[],
 };
 
 /// `Core\Random\Seeded::bytes`'s reference card — `rule:core-api/reference-card`.
 const SEEDED_BYTES_DOC: MethodDoc = MethodDoc {
-    short: "Draws `$count` bytes from this generator's own sequence as a raw buffer — a fixture, \
-            never a key, since a reproducible buffer is a secret anyone holding the seed has.",
+    short: "Returns `$count` random bytes from this generator's sequence. Use it for test data, \
+            never for a key. Anyone who knows the seed can compute the same bytes.",
     params: &[ParamDoc {
         name: "count",
-        desc: "How many bytes to draw; at least one.",
+        desc: "How many bytes to return. It must be at least `1`.",
         shape: &[],
     }],
-    ret: "A `tainted bytes` value of exactly `$count` octets, unrendered. It is `tainted`, so no \
-          key parameter accepts it.",
+    ret: "A `tainted bytes` value with exactly `$count` raw bytes. It is `tainted`, so a \
+          parameter that needs a key does not accept it.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$count` is `0`, as `Core\\Random::bytes`'s own draw of nothing is, or is larger \
-               than a buffer this process can allocate.",
+        desc: "`$count` is `0`, as with `Core\\Random::bytes`, or it is larger than a buffer \
+               this process can allocate.",
     }],
 };
 
 /// `Core\Random\Seeded::token`'s reference card — `rule:core-api/reference-card`.
 const SEEDED_TOKEN_DOC: MethodDoc = MethodDoc {
-    short: "Draws `$bytes` bytes from this generator's own sequence and renders them as lower-case \
-            hex — a stable identifier for a fixture, never a session token.",
+    short: "Takes `$bytes` random bytes from this generator's sequence and returns them as \
+            lower-case hex. Use it for a stable test identifier, never for a session token.",
     params: &[ParamDoc {
         name: "bytes",
-        desc: "How many bytes of entropy to draw, `32` by default — the answer is twice as many \
+        desc: "How many random bytes to use, `32` by default. The string has twice as many \
                characters.",
         shape: &[],
     }],
     ret: "A `tainted string` of `2 * $bytes` hex digits, `0`–`9` and `a`–`f`. It is `tainted`, \
-          so no key parameter accepts it.",
+          so a parameter that needs a key does not accept it.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$bytes` is `0`, or the draw or its rendering is larger than a buffer this process \
-               can allocate.",
+        desc: "`$bytes` is `0`, or the result is larger than a buffer this process can allocate.",
     }],
 };
 
 /// `Core\Random\Seeded::pick`'s reference card — `rule:core-api/reference-card`.
 const SEEDED_PICK_DOC: MethodDoc = MethodDoc {
-    short: "Draws one entry of `$a` uniformly from this generator's own sequence and answers its \
-            value — `Core\\Random::pick`'s answer, reproducibly.",
+    short: "Returns the value of one random entry of `$a`. It works like `Core\\Random::pick`, \
+            but the same seed always gives the same result.",
     params: &[ParamDoc {
         name: "a",
-        desc: "The array to draw from.",
+        desc: "The array to choose from.",
         shape: &[],
     }],
-    ret: "One entry's value; `null` when `$a` is empty, which over an `array<?T>` is \
-          indistinguishable from drawing a `null` entry.",
+    ret: "The value of one entry. When `$a` is empty, the result is `null`. With an \
+          `array<?T>`, you cannot tell this apart from an entry that is `null`.",
     errors: &[],
 };
 
 /// `Core\Random\Seeded::sample`'s reference card — `rule:core-api/reference-card`.
 const SEEDED_SAMPLE_DOC: MethodDoc = MethodDoc {
-    short: "Draws `$count` distinct entries of `$a` uniformly from this generator's own sequence — \
-            `Core\\Random::sample`'s answer, reproducibly.",
+    short: "Returns `$count` different random entries of `$a`. It works like \
+            `Core\\Random::sample`, but the same seed always gives the same result.",
     params: &[
         ParamDoc {
             name: "a",
-            desc: "The array to draw from.",
+            desc: "The array to choose from.",
             shape: &[],
         },
         ParamDoc {
             name: "count",
-            desc: "How many distinct entries to draw; at most the array's size.",
+            desc: "How many different entries to return. It must not be more than the entries in `$a`.",
             shape: &[],
         },
     ],
-    ret: "A fresh list of the drawn values under `0, 1, …` keys, in drawn order; the subject's \
-          keys are discarded, and `$a` is unchanged.",
+    ret: "A new list of the chosen values, in the order they were chosen, with the keys \
+          `0, 1, …`. The keys of `$a` are not kept, and `$a` is unchanged.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$count` is above the number of entries `$a` holds.",
+        desc: "`$count` is greater than the number of entries in `$a`.",
     }],
 };
 
 /// `Core\Random\Seeded::shuffle`'s reference card — `rule:core-api/reference-card`.
 const SEEDED_SHUFFLE_DOC: MethodDoc = MethodDoc {
-    short: "Answers every entry of `$a` in an order drawn from this generator's own sequence — \
-            `Core\\Random::shuffle`'s answer, reproducibly.",
+    short: "Returns every entry of `$a` in a random order. It works like `Core\\Random::shuffle`, \
+            but the same seed always gives the same order.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to reorder.",
         shape: &[],
     }],
-    ret: "A fresh list of all the values under `0, 1, …` keys — the subject's keys are discarded \
-          — and `$a` is unchanged.",
+    ret: "A new list of all the values, with the keys `0, 1, …`. The keys of `$a` are not kept, \
+          and `$a` is unchanged.",
     errors: &[],
 };
 

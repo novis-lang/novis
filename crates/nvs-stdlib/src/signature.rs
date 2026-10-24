@@ -308,8 +308,8 @@ const SIGN_DOC: MethodDoc = MethodDoc {
 const VERIFY_DOC: MethodDoc = MethodDoc {
     short: "Checks that `$token` was made by `Core\\Signature::sign` with a key in `$keys`, and \
             that it has not expired. It returns the signed payload, or throws an error. Every \
-            value in the payload is `tainted` (treated as input from outside), because a \
-            signature shows who made the data, not that the data is safe to use.",
+            value in the payload is `tainted` (treated as input from outside). A signature shows \
+            who made the data. It does not show that the data is safe to use.",
     params: &[
         ParamDoc {
             name: "token",

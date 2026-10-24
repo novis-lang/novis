@@ -321,7 +321,7 @@ const LENGTH_DOC: MethodDoc = MethodDoc {
         desc: "The buffer to measure.",
         shape: &[],
     }],
-    ret: "The byte count; `0` for the empty buffer.",
+    ret: "The number of bytes. It is `0` for an empty buffer.",
     errors: &[],
 };
 
@@ -337,14 +337,14 @@ const AT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "index",
-            desc: "The byte's position, negative to count from the end.",
+            desc: "The position of the byte. A negative index counts from the end.",
             shape: &[],
         },
     ],
-    ret: "The octet, `0` to `255`.",
+    ret: "The byte as a number from `0` to `255`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$index` addresses no byte of `$b`.",
+        desc: "`$index` is outside `$b`.",
     }],
 };
 
@@ -359,19 +359,19 @@ const SLICE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "offset",
-            desc: "Where the window starts; negative counts from the end, and one before the \
-                   start clamps to it.",
+            desc: "Where the part starts. A negative offset counts from the end. An offset \
+                   before the start is treated as the start.",
             shape: &[],
         },
         ParamDoc {
             name: "length",
-            desc: "How many bytes to take; negative stops that many short of the end, and \
-                   `null`, the default, runs to the end.",
+            desc: "How many bytes to take. A negative length stops that many bytes before \
+                   the end. The default is `null`, which takes everything to the end.",
             shape: &[],
         },
     ],
-    ret: "The window as a new buffer; the empty buffer for an offset past the end or a window \
-          that closes before it opens.",
+    ret: "The part as a new buffer. The result is empty when the offset is past the end, or \
+          when the part would end before it starts.",
     errors: &[],
 };
 
@@ -388,18 +388,18 @@ const INDEX_OF_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "needle",
-            desc: "The bytes looked for; an empty needle is found where the search starts.",
+            desc: "The bytes to find. An empty needle is found where the search starts.",
             shape: &[],
         },
         ParamDoc {
             name: "from",
-            desc: "The byte offset the search starts at; negative counts from the end, and \
-                   the default is `0`.",
+            desc: "The byte offset where the search starts. A negative offset counts from \
+                   the end. The default is `0`.",
             shape: &[],
         },
     ],
-    ret: "The byte offset of the first occurrence at or after `from`, or `null` when there is \
-          none — never `false`.",
+    ret: "The byte offset of the first match at or after `from`. When there is no match, \
+          the result is `null`.",
     errors: &[],
 };
 
@@ -419,7 +419,8 @@ const COMPARE_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "`-1`, `0` or `1`, and no other value.",
+    ret: "`-1` when `$a` sorts first, `0` when both are equal, and `1` when `$b` sorts \
+          first. No other value is returned.",
     errors: &[],
 };
 
@@ -434,12 +435,12 @@ const CONTAINS_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "needle",
-            desc: "The bytes looked for.",
+            desc: "The bytes to find.",
             shape: &[],
         },
     ],
-    ret: "`true` when it occurs; an empty needle is contained in every buffer, the empty one \
-          included.",
+    ret: "`true` when `$needle` occurs in `$haystack`. An empty needle is in every buffer, \
+          also in an empty one.",
     errors: &[],
 };
 
@@ -455,11 +456,11 @@ const STARTS_WITH_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "prefix",
-            desc: "The bytes it must begin with.",
+            desc: "The bytes `$b` must begin with.",
             shape: &[],
         },
     ],
-    ret: "`true` when it does; an empty prefix begins every buffer.",
+    ret: "`true` when `$b` begins with `$prefix`. An empty prefix matches every buffer.",
     errors: &[],
 };
 
@@ -474,11 +475,11 @@ const ENDS_WITH_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "suffix",
-            desc: "The bytes it must end with.",
+            desc: "The bytes `$b` must end with.",
             shape: &[],
         },
     ],
-    ret: "`true` when it does; an empty suffix ends every buffer.",
+    ret: "`true` when `$b` ends with `$suffix`. An empty suffix matches every buffer.",
     errors: &[],
 };
 
@@ -489,20 +490,20 @@ const FILL_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "length",
-            desc: "How many octets to write.",
+            desc: "How many bytes to write.",
             shape: &[],
         },
         ParamDoc {
             name: "byte",
-            desc: "The octet repeated, `0` to `255`.",
+            desc: "The byte to repeat, from `0` to `255`.",
             shape: &[],
         },
     ],
-    ret: "The new buffer; the empty buffer for a length of `0`.",
+    ret: "The new buffer. It is empty when `$length` is `0`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$byte` is above `255`, or `$length` is larger than any buffer this process \
-               could hold.",
+        desc: "`$byte` is above `255`, or `$length` is larger than the biggest buffer this \
+               process can have.",
     }],
 };
 
@@ -512,7 +513,7 @@ const REPEAT_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "b",
-            desc: "The buffer repeated.",
+            desc: "The buffer to repeat.",
             shape: &[],
         },
         ParamDoc {
@@ -521,10 +522,10 @@ const REPEAT_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The new buffer; the empty buffer for a count of `0` or an empty subject.",
+    ret: "The new buffer. It is empty when `$times` is `0` or `$b` is empty.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$times`, or the result, is larger than any buffer this process could hold.",
+        desc: "`$times` or the result is larger than the biggest buffer this process can have.",
     }],
 };
 
@@ -540,14 +541,14 @@ const JOIN_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "separator",
-            desc: "The bytes written between neighbours; the empty buffer by default.",
+            desc: "The bytes written between two parts. The default is an empty buffer.",
             shape: &[],
         },
     ],
-    ret: "The new buffer; the empty buffer for no parts.",
+    ret: "The new buffer. It is empty when `$parts` is empty.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The result is larger than any buffer this process could hold.",
+        desc: "The result is larger than the biggest buffer this process can have.",
     }],
 };
 
@@ -564,28 +565,28 @@ const PACK_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "format",
-            desc: "The format string. It must be written directly in the code. Each code \
-                   may be followed by a count or `*`: how many arguments a numeric field \
-                   takes, and how many octets wide a buffer field is.",
+            desc: "The format string. It must be written directly in the code. A code may \
+                   be followed by a count or `*`. For a number code, the count is how many \
+                   values it takes. For a buffer code, it is the width in bytes.",
             shape: &[],
         },
         ParamDoc {
             name: "values",
-            desc: "The values written, one per numeric field and one buffer per buffer field; \
-                   an integer field takes an `int` or a `uint`, a float field a `float`, and \
-                   nothing is converted.",
+            desc: "The values to write: one per number field, and one buffer per buffer \
+                   field. An integer field takes an `int` or a `uint`. A float field takes a \
+                   `float`. No value is converted.",
             shape: &[],
         },
     ],
     ret: "The packed buffer.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$format` holds a code outside the table — the machine-width codes `s`, `S`, \
-               `i`, `I`, `l`, `L`, `q`, `Q`, `f` and `d`, the hex codes `h` and `H`, and the \
-               cursor codes `X` and `@` are refused naming the replacement — or `x*`, or a \
-               count larger than any buffer; a field's value is missing, of the wrong type, \
-               outside its width's range, a `float` outside binary32's range, or a buffer \
-               wider than its field; or the format writes fewer values than the call passed.",
+        desc: "`$format` has a code that is not in the table, has `x*`, or has a count larger \
+               than the biggest buffer. The codes `s`, `S`, `i`, `I`, `l`, `L`, `q`, `Q`, `f`, \
+               `d`, `h`, `H`, `X` and `@` are not allowed. The error names what to use instead. \
+               A value is missing, has the wrong type, or does not fit the width of its field. \
+               A `float` is outside the binary32 range, or a buffer is wider than its field. \
+               Or the format uses fewer values than the call passes.",
     }],
 };
 
@@ -597,24 +598,24 @@ const UNPACK_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "b",
-            desc: "The buffer read.",
+            desc: "The buffer to read.",
             shape: &[],
         },
         ParamDoc {
             name: "format",
-            desc: "The same format string `pack` takes, an intrinsic and a sink; there is no \
-                   second grammar for field names.",
+            desc: "The same format string that `pack` takes. It must be written directly in \
+                   the code. Fields have no names, so the result is a list.",
             shape: &[],
         },
     ],
-    ret: "The fields as a list, in order: an `int` for `c`, a \
-          `uint` for every other integer code, a `float` for `G`/`g`/`E`/`e`, and a `bytes` \
-          for a buffer code with `A`'s and `Z`'s padding taken back off.",
+    ret: "The fields as a list, in order. A `c` field gives an `int`, and every other \
+          integer code gives a `uint`. `G`, `g`, `E` and `e` give a `float`. A buffer code \
+          gives `bytes`, with the padding of `A` and `Z` removed.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$format` holds a code outside the table or a count larger than any buffer, a \
-               field reads past the end of `$b`, or octets are left over after the last \
-               field.",
+        desc: "`$format` has a code that is not in the table, or a count larger than the \
+               biggest buffer. Or a field reads past the end of `$b`, or bytes are left after \
+               the last field.",
     }],
 };
 
