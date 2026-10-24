@@ -9,6 +9,8 @@ use Core\Request;
 use Core\Response;
 use Core\Route;
 use Core\Time;
+use ParseError;
+use RuntimeError;
 
 // The routes of the app. Each method with a `Route` handles one kind of request.
 // `Core\Router::dispatch` in `public/index.nvs` calls the method of the route that matches.
@@ -18,14 +20,40 @@ final class App {
     #[Route(path: "/v1/report", method: Method::Post, name: "App::report")]
     #[Access(allow: Audience::Public, csrf: false)]
     public static function report(): void {
+        // The limit is checked first, so a sender over the limit costs no work.
+        var $wait = Limit::wait(Request::clientIp());
+        if ($wait != null) {
+            // 429 means too many requests. `Retry-After` is the wait in whole seconds, rounded up.
+            var $seconds = $wait->toSeconds();
+            if ($wait->toMilliseconds() % 1000 != 0) {
+                $seconds = $seconds + 1;
+            }
+            Response::setStatus(429);
+            Response::setHeader("retry-after", "{$seconds}");
+            Response::json({error: "This address sent too many reports. Try again later."});
+            return;
+        }
         try {
-            var $report = Report::check(Request::body(), Request::header("content-type"), Time::now(), Known::load());
+            var $report = Report::check(App::body(), Request::header("content-type"), Time::now(), Known::load());
             App::totals()->add($report);
             // 204 means the report was added, and the answer has no body.
             Response::setStatus(204);
         } catch (Rejected $error) {
             Response::setStatus($error->status);
             Response::json({error: $error->message});
+        }
+    }
+
+    // Reads the body of the request.
+    // `Request::body` throws a `RuntimeError` when the body is larger than `[limits] request_body`
+    // in `nvs.toml`, and a `ParseError` when the body is not UTF-8 text.
+    private static function body(): tainted string {
+        try {
+            return Request::body();
+        } catch (ParseError $notText) {
+            throw new Rejected("The report is not valid JSON.", 400);
+        } catch (RuntimeError $tooLarge) {
+            throw new Rejected("The report can have at most 4096 bytes.", 413);
         }
     }
 
