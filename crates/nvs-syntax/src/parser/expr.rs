@@ -2514,7 +2514,11 @@ impl<'src, 'd> Parser<'src, 'd> {
             )
             // Not safe: a missing file now throws, and a `_once` file runs
             // every time it is reached.
-            .with_unsafe_fix(start, "require", format!("replace `{spelling}` with `require`")),
+            .with_unsafe_fix(
+                start,
+                "require",
+                format!("replace `{spelling}` with `require`"),
+            ),
         );
         Expr {
             span,
