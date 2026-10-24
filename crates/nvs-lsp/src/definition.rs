@@ -100,6 +100,7 @@
 //! [`crate::links`] spells a `require`'s target.
 
 use std::borrow::Cow;
+use std::cell::OnceCell;
 use std::path::PathBuf;
 
 use lsp_types::{Position, Range};
@@ -544,13 +545,36 @@ pub(crate) fn body_of(stmt: &Stmt) -> Option<(&[EnumCase], &[ClassMember])> {
 /// own.
 fn declaration(stmts: &[Stmt], name: Span) -> Option<&Stmt> {
     stmts.iter().find_map(|stmt| match &stmt.kind {
-        StmtKind::ClassDecl(decl) if decl.name.span == name => Some(stmt),
-        StmtKind::InterfaceDecl(decl) if decl.name.span == name => Some(stmt),
-        StmtKind::EnumDecl(decl) if decl.name.span == name => Some(stmt),
-        StmtKind::TypeAliasDecl(decl) if decl.name.span == name => Some(stmt),
         StmtKind::NamespaceDecl(decl) => declaration(&decl.body.as_ref()?.stmts, name),
-        _ => None,
+        _ => (declared_span(stmt) == Some(name)).then_some(stmt),
     })
+}
+
+/// The name span a type declaration writes, and nothing for any other
+/// statement.
+fn declared_span(stmt: &Stmt) -> Option<Span> {
+    match &stmt.kind {
+        StmtKind::ClassDecl(decl) => Some(decl.name.span),
+        StmtKind::InterfaceDecl(decl) => Some(decl.name.span),
+        StmtKind::EnumDecl(decl) => Some(decl.name.span),
+        StmtKind::TypeAliasDecl(decl) => Some(decl.name.span),
+        _ => None,
+    }
+}
+
+/// Every type declaration in `stmts` by its name span, read the way
+/// [`declaration`] reads them: a bracketed namespace's body is descended into,
+/// and the first of two declarations at one span is kept.
+fn declarations_into<'a>(stmts: &'a [Stmt], found: &mut FxHashMap<Span, &'a Stmt>) {
+    for stmt in stmts {
+        if let StmtKind::NamespaceDecl(decl) = &stmt.kind {
+            if let Some(body) = &decl.body {
+                declarations_into(&body.stmts, found);
+            }
+        } else if let Some(name) = declared_span(stmt) {
+            found.entry(name).or_insert(stmt);
+        }
+    }
 }
 
 /// The `///` run above a declaration.
@@ -773,12 +797,13 @@ pub(crate) fn import_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<
 /// the name the *clause resolved to* rather than the text in front of it: under
 /// `use App\Base;`, `extends Base` answers `App\Base`.
 pub(crate) fn clause_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
+    let scope = FileScope::of(analysed, analysed.entry);
     analysed.module.symbols.iter().find_map(|symbol| {
         if symbol.decl_span.file != analysed.entry {
             return None;
         }
         let links = analysed.module.graph.get(&symbol.qname)?;
-        let (stmt, _) = declared_type(analysed, &symbol.qname)?;
+        let (stmt, _) = scope.declared_type(&symbol.qname)?;
         let (extends, implements) = supertype_names(stmt);
         let (bases, resolved_bases) = paired(&extends, &links.extends);
         let (ifaces, resolved_ifaces) = paired(&implements, &links.implements);
@@ -1248,14 +1273,7 @@ pub(crate) fn type_name_at(analysed: &Analysed, offset: BytePos) -> Option<(Targ
 /// index reads every file of a graph with it, so a type annotation is
 /// recorded against the name a cursor on it would ask about.
 pub(crate) fn written_name_in(analysed: &Analysed, file: SourceId, name: Span) -> Option<QName> {
-    let text = text_of(analysed.map.file(file), name);
-    let owned = class_in(analysed, file, name.start).and_then(|owner| {
-        nvs_hir::owned_enum_in_scope(text, Some(&owner), &analysed.module.symbols)
-    });
-    match owned {
-        Some(owned) => Some(owned),
-        None => resolved_name_in(analysed, file, text, name.start),
-    }
+    FileScope::of(analysed, file).written_name(name)
 }
 
 /// What the name `text`, written at `at` in the entry document, means — and
@@ -1277,14 +1295,7 @@ pub(crate) fn resolved_name_in(
     text: &str,
     at: BytePos,
 ) -> Option<QName> {
-    if text.is_empty() {
-        return None;
-    }
-    Some(nvs_hir::resolve_ref(
-        text,
-        &namespace_in(analysed, file, at),
-        &imports_in(analysed, file),
-    ))
+    FileScope::of(analysed, file).resolved_name(text, at)
 }
 
 /// The namespace `offset` is written inside in the entry document, as its
@@ -1300,27 +1311,7 @@ pub(crate) fn namespace_at(analysed: &Analysed, offset: BytePos) -> Vec<String> 
 /// to one. The two forms are the ones its resolver reads: `namespace Name;`
 /// governs the rest of the file, and the bracketed form governs its block.
 fn namespace_in(analysed: &Analysed, file: SourceId, offset: BytePos) -> Vec<String> {
-    let Some(loaded) = analysed.loaded.iter().find(|loaded| loaded.id == file) else {
-        return Vec::new();
-    };
-    let file = analysed.map.file(file);
-    let mut current = Vec::new();
-    for stmt in &loaded.stmts {
-        let StmtKind::NamespaceDecl(decl) = &stmt.kind else {
-            continue;
-        };
-        let segments = decl.name.as_ref().map_or_else(Vec::new, |name| {
-            QName::parse(text_of(file, name.span)).segments().to_vec()
-        });
-        match &decl.body {
-            Some(block) if block.span.start <= offset && offset < block.span.end => {
-                return segments;
-            }
-            None if stmt.span.end <= offset => current = segments,
-            _ => {}
-        }
-    }
-    current
+    FileScope::of(analysed, file).namespace_at(offset).to_vec()
 }
 
 /// The class or interface whose declaration `offset` is written inside, by its
@@ -1335,20 +1326,21 @@ pub(crate) fn class_at(analysed: &Analysed, offset: BytePos) -> Option<QName> {
 
 /// [`class_at`] in any file of the graph.
 fn class_in(analysed: &Analysed, file: SourceId, offset: BytePos) -> Option<QName> {
-    let loaded = analysed.loaded.iter().find(|loaded| loaded.id == file)?;
-    let name = class_name_at(&loaded.stmts, offset)?;
-    Some(QName::join(
-        &namespace_in(analysed, file, offset),
-        text_of(analysed.map.file(file), name),
-    ))
+    FileScope::of(analysed, file).class_at(offset)
 }
 
 /// The name span of the class or interface in `stmts` whose span covers
 /// `offset`.
+///
+/// Sibling statements are written one after another and never overlap, so
+/// the one that can cover `offset` is the last that starts at or before it,
+/// found by a binary search.
 fn class_name_at(stmts: &[Stmt], offset: BytePos) -> Option<Span> {
-    let stmt = stmts
-        .iter()
-        .find(|stmt| stmt.span.start <= offset && offset < stmt.span.end)?;
+    let before = stmts.partition_point(|stmt| stmt.span.start <= offset);
+    let stmt = &stmts[before.checked_sub(1)?];
+    if offset >= stmt.span.end {
+        return None;
+    }
     match &stmt.kind {
         StmtKind::ClassDecl(decl) => Some(decl.name.span),
         StmtKind::InterfaceDecl(decl) => Some(decl.name.span),
@@ -1375,6 +1367,153 @@ fn imports_in(analysed: &Analysed, file: SourceId) -> FxHashMap<String, QName> {
         .filter(|import| import.span.file == file)
         .map(|import| (import.short_name.clone(), import.target.clone()))
         .collect()
+}
+
+/// One file of an analysis, read once, so each name written in it is answered
+/// without walking the file again.
+///
+/// The index resolves every type name and every `X::` qualifier a file writes,
+/// and finds the declaration of every type it declares. Done one name at a
+/// time, each answer walked the file's statements and filtered the graph's
+/// imports again, which made indexing a file quadratic in its size. A scope
+/// reads the namespaces and the imports once, and the declarations the first
+/// time one is asked for. Each answer is then a binary search or a hash lookup.
+///
+/// The one-name functions above build a scope for their one answer, so a
+/// cursor and the index read a name the same way.
+///
+/// # What it spends
+///
+/// One map of the file's imports, one entry per `namespace` statement, and,
+/// once a declaration is asked for, one entry per type the file declares. All
+/// of it is dropped with the scope.
+pub(crate) struct FileScope<'a> {
+    analysed: &'a Analysed,
+    file: SourceId,
+    stmts: &'a [Stmt],
+    /// Each bracketed namespace's block and its segments, in source order.
+    bracketed: Vec<(Span, Vec<String>)>,
+    /// Where each `namespace Name;` statement ends and its segments, in
+    /// source order.
+    stated: Vec<(BytePos, Vec<String>)>,
+    imports: FxHashMap<String, QName>,
+    declared: OnceCell<FxHashMap<Span, &'a Stmt>>,
+}
+
+impl<'a> FileScope<'a> {
+    /// The scope of `file`, which is empty for a file the analysis did not
+    /// load.
+    pub(crate) fn of(analysed: &'a Analysed, file: SourceId) -> Self {
+        let stmts = analysed
+            .loaded
+            .iter()
+            .find(|loaded| loaded.id == file)
+            .map_or(&[][..], |loaded| &loaded.stmts[..]);
+        let source = analysed.map.file(file);
+        let mut bracketed = Vec::new();
+        let mut stated = Vec::new();
+        for stmt in stmts {
+            let StmtKind::NamespaceDecl(decl) = &stmt.kind else {
+                continue;
+            };
+            let segments = decl.name.as_ref().map_or_else(Vec::new, |name| {
+                QName::parse(text_of(source, name.span)).segments().to_vec()
+            });
+            match &decl.body {
+                Some(block) => bracketed.push((block.span, segments)),
+                None => stated.push((stmt.span.end, segments)),
+            }
+        }
+        Self {
+            analysed,
+            file,
+            stmts,
+            bracketed,
+            stated,
+            imports: imports_in(analysed, file),
+            declared: OnceCell::new(),
+        }
+    }
+
+    /// The namespace `offset` is written inside, as its segments.
+    ///
+    /// A bracketed namespace governs its block, and a `namespace Name;`
+    /// statement governs the rest of the file after it, until the next one.
+    pub(crate) fn namespace_at(&self, offset: BytePos) -> &[String] {
+        let open = self
+            .bracketed
+            .partition_point(|(block, _)| block.start <= offset);
+        if let Some((block, segments)) = open.checked_sub(1).map(|at| &self.bracketed[at])
+            && offset < block.end
+        {
+            return segments;
+        }
+        let ended = self.stated.partition_point(|(end, _)| *end <= offset);
+        ended
+            .checked_sub(1)
+            .map_or(&[][..], |at| &self.stated[at].1[..])
+    }
+
+    /// The class or interface whose declaration `offset` is written inside, by
+    /// its fully-qualified name.
+    pub(crate) fn class_at(&self, offset: BytePos) -> Option<QName> {
+        let name = class_name_at(self.stmts, offset)?;
+        Some(QName::join(
+            self.namespace_at(offset),
+            text_of(self.analysed.map.file(self.file), name),
+        ))
+    }
+
+    /// [`written_name_in`] for a name this file writes.
+    pub(crate) fn written_name(&self, name: Span) -> Option<QName> {
+        let text = text_of(self.analysed.map.file(self.file), name);
+        let owned = self.class_at(name.start).and_then(|owner| {
+            nvs_hir::owned_enum_in_scope(text, Some(&owner), &self.analysed.module.symbols)
+        });
+        owned.or_else(|| self.resolved_name(text, name.start))
+    }
+
+    /// [`resolved_name_in`] for a name this file writes.
+    pub(crate) fn resolved_name(&self, text: &str, at: BytePos) -> Option<QName> {
+        if text.is_empty() {
+            return None;
+        }
+        Some(nvs_hir::resolve_ref(
+            text,
+            self.namespace_at(at),
+            &self.imports,
+        ))
+    }
+
+    /// [`declared_type`], found by a hash lookup when this file declares
+    /// `class`.
+    pub(crate) fn declared_type(&self, class: &QName) -> Option<(&'a Stmt, &'a SourceFile)> {
+        let symbol = self.analysed.module.symbols.get(class)?;
+        if symbol.decl_span.file != self.file {
+            return declared_type(self.analysed, class);
+        }
+        let declared = self.declared.get_or_init(|| {
+            let mut found = FxHashMap::default();
+            declarations_into(self.stmts, &mut found);
+            found
+        });
+        let stmt = declared.get(&symbol.decl_span)?;
+        Some((stmt, self.analysed.map.file(self.file)))
+    }
+
+    /// [`owned_enum_decl`], with its owner found by [`Self::declared_type`].
+    pub(crate) fn owned_enum_decl(&self, class: &QName) -> Option<(&'a ClassMember, &'a EnumDecl)> {
+        let (owner, _) = class.as_member()?;
+        let symbol = self.analysed.module.symbols.get(class)?;
+        let (stmt, _) = self.declared_type(&owner)?;
+        let (_, members) = body_of(stmt)?;
+        members.iter().find_map(|member| match &member.kind {
+            ClassMemberKind::Enum(decl) if decl.name.span == symbol.decl_span => {
+                Some((member, decl))
+            }
+            _ => None,
+        })
+    }
 }
 
 /// The written type the cursor at `offset` is inside, innermost first, and
