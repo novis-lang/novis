@@ -2298,7 +2298,8 @@ mod tests {
     /// None of them writes a row or sends a cookie, so the store grows with sessions somebody
     /// wrote, never with requests served. The first write then sends one cookie, and the
     /// write-back stores the record under the identifier that cookie carries. Under Miri there
-    /// are 200 requests, because each one is a full session start.
+    /// are 20 requests, because each one is a full session start and 200 outlast nextest's
+    /// five minutes.
     #[test]
     fn a_session_nobody_wrote_leaves_no_row_and_sends_no_cookie() {
         let (listener, address) = listening();
@@ -2318,7 +2319,7 @@ mod tests {
             ctx
         };
 
-        let requests = if cfg!(miri) { 200 } else { 20_000 };
+        let requests = if cfg!(miri) { 20 } else { 20_000 };
         for _ in 0..requests {
             let mut ctx = request();
             let read = [Value::text("user")];
