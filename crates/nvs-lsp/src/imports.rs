@@ -43,7 +43,7 @@
 //! nothing between the two.
 
 use lsp_types::{Position, Range, TextDocumentIdentifier, TextEdit};
-use nvs_diagnostics::{BytePos, PositionEncoding, Span};
+use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, Span};
 use nvs_hir::QName;
 use nvs_stdlib::registry;
 use nvs_syntax::ast::Stmt;
@@ -51,7 +51,9 @@ use nvs_syntax::walk;
 use rustc_hash::FxHashMap;
 
 use crate::completion::{taken_short_names, written_as};
-use crate::definition::{imports_of, namespace_at, resolved_name, type_names, written_types_in};
+use crate::definition::{
+    imports_of, namespace_at, resolved_name, resolved_name_in, type_names, written_types_in,
+};
 use crate::document::Analysed;
 use crate::index::SymbolIndex;
 use crate::position::range_at;
@@ -221,6 +223,53 @@ pub fn in_range(analysed: &Analysed, start: BytePos, end: BytePos) -> Vec<Import
     found.sort();
     found.dedup();
     found
+}
+
+/// `text`, a type, written the way the entry document writes it at `offset`.
+///
+/// `from` is where `text` was written: a file of the graph and an offset in
+/// it. Each name in `text` that resolves there to a declared type is written
+/// with [`written_as`], and every other word, such as `int` or a type
+/// parameter, is kept. With no `from`, `text` is a type as the checker prints
+/// it, and each qualified name in it is written with [`written_as`].
+pub(crate) fn written_at(
+    analysed: &Analysed,
+    text: &str,
+    from: Option<(SourceId, BytePos)>,
+    offset: BytePos,
+) -> String {
+    let short: FxHashMap<String, String> = imports_of(analysed)
+        .into_iter()
+        .map(|(name, target)| (target.to_string(), name))
+        .collect();
+    let here = namespace_at(analysed, offset);
+    let write = |word: &str| match from {
+        Some((file, at)) => resolved_name_in(analysed, file, word, at)
+            .filter(|symbol| declared(analysed, symbol))
+            .map_or_else(
+                || word.to_owned(),
+                |symbol| written_as(&symbol.to_string(), &here, &short),
+            ),
+        None if word.contains('\\') => written_as(word, &here, &short),
+        None => word.to_owned(),
+    };
+    let mut out = String::new();
+    let mut word = String::new();
+    for ch in text.chars() {
+        if ch.is_alphanumeric() || ch == '_' || ch == '\\' {
+            word.push(ch);
+        } else {
+            if !word.is_empty() {
+                out.push_str(&write(&word));
+                word.clear();
+            }
+            out.push(ch);
+        }
+    }
+    if !word.is_empty() {
+        out.push_str(&write(&word));
+    }
+    out
 }
 
 /// Whether `symbol` names a type somebody declares: one the analysis

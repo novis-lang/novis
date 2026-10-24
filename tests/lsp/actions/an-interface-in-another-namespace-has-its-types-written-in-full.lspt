@@ -1,0 +1,31 @@
+--TEST--
+an interface in another namespace has its types written as the class's file names them
+--FILE--
+<?nvs
+namespace Shop;
+
+require 'lib/Catalog.nvs';
+
+use Catalog\Priced;
+
+class <|>Pen implements Priced
+{
+}
+
+echo "ready";
+--FILE lib/Catalog.nvs--
+<?nvs
+namespace Catalog;
+
+class Price
+{
+}
+
+interface Priced
+{
+    public function price(int $count): Price;
+}
+--REQUEST--
+codeAction
+--EXPECT--
+9:2-9:2 quickfix Implement the missing methods -> "\n    public function price(int $count): Catalog\Price\n    {\n        throw new LogicError("Pen::price is not implemented");\n    }" + 6:20-6:20 -> "\nuse LogicError;"

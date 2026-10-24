@@ -27,7 +27,7 @@ stages:
         rules: [ide/no-refactoring-introduces-an-alias, ide/a-code-action-writes-only-what-is-already-determined]
   - id: 4
     title: "implement missing members, and override a method"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/actions.rs, crates/nvs-lsp/src/generate.rs, crates/nvs-lsp/src/completion.rs, docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md]
     extra:
       context:
@@ -221,10 +221,14 @@ each writing only what the type system already determined.
 
 **Split:** after both land, one writing subagent writes the `.lspt` cases under `tests/lsp/actions/`.
 
-- [ ] Implement missing members inserts every missing method and property with its declared signature, `inout` and qualifiers kept, and a body that throws. `crates/nvs-lsp/src/generate.rs:1`, `crates/nvs-lsp/src/actions.rs:150`, `crates/nvs-lsp/src/completion.rs:3078`
-- [ ] Override a method offers the hierarchy's overridable members and inserts the chosen signatures with a call to the base. `crates/nvs-lsp/src/generate.rs:1`, `crates/nvs-lsp/src/index.rs:548`
-- [ ] Each one applied twice is a no-op, and a class with the first one applied passes `nvs check`. `crates/nvs-lsp/src/generate.rs:1`
-- [ ] `.lspt` cases for each. `tests/lsp/actions/a-class-missing-an-interface-method-is-offered-its-signature.lspt:1`
+- [x] Implement missing members inserts every missing method and property with its declared signature, `inout` and qualifiers kept, and a body that throws. `crates/nvs-lsp/src/generate.rs:1`, `crates/nvs-lsp/src/actions.rs:150`, `crates/nvs-lsp/src/completion.rs:3078`
+  - [x] Offered on `E0449`, which covers an `abstract` parent's method too; the checker owes no property, so it writes methods. `crates/nvs-lsp/src/generate.rs:1`
+  - [x] Each type written as the class's file names it, through the shared `imports::written_at` that `extract` now calls too. `crates/nvs-lsp/src/imports.rs:1`
+  - [x] A `use LogicError;` line where the class is in a namespace. `crates/nvs-lsp/src/generate.rs:1`
+- [x] Override a method offers the hierarchy's overridable members and inserts the chosen signatures with a call to the base. `crates/nvs-lsp/src/generate.rs:1`, `crates/nvs-lsp/src/index.rs:548`
+  - [x] One `refactor.rewrite` action per method, at a cursor between members, every override analysed once together. `crates/nvs-lsp/src/generate.rs:1`
+- [x] Each one applied twice is a no-op, and a class with the first one applied passes `nvs check`. `crates/nvs-lsp/src/generate.rs:1`
+- [x] `.lspt` cases for each. `tests/lsp/actions/a-class-missing-an-interface-method-is-offered-its-signature.lspt:1`
 
 ### 5. declare the function you called
 

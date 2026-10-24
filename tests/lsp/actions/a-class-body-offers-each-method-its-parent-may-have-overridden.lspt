@@ -1,0 +1,41 @@
+--TEST--
+a class body offers each method its parent may have overridden
+--FILE--
+<?nvs
+class Base
+{
+    public function greet(string $name): string
+    {
+        return "hi " . $name;
+    }
+
+    public function log(int ...$codes): void
+    {
+        echo "log";
+    }
+
+    private function hidden(): void
+    {
+    }
+
+    final public function fixed(): int
+    {
+        return 1;
+    }
+}
+
+class Pen extends Base
+{
+    public function greet(string $name): string
+    {
+        return "pen";
+    }
+
+    <|>
+}
+
+echo new Pen()->greet("a");
+--REQUEST--
+codeAction
+--EXPECT--
+29:6-29:6 refactor.rewrite Override `log` from `Base` -> "\n\n    public function log(int ...$codes): void\n    {\n        parent::log(...$codes);\n    }"

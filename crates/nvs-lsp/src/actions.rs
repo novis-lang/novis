@@ -24,6 +24,15 @@
 //! prints, and the others change a layout or a structure that is the author's
 //! choice.
 //!
+//! [`crate::generate`]'s actions write declarations, under
+//! `rule:ide/a-code-action-writes-only-what-is-already-determined`: the methods
+//! an `E0449` says a class is missing, filed as a quick fix since that
+//! diagnostic is what it answers, and an override of a parent's method. They
+//! are not a diagnostic's suggestion, because each writes a whole signature the
+//! checker never formats. They are appended the same way and never to a
+//! fix-all, since a save that wrote methods with throwing bodies would hide the
+//! error that asked for them.
+//!
 //! # Decision: the gate an editor sees is the gate an action is offered behind
 //!
 //! [`crate::diagnostics::phase_gated`] is applied here too, so an action is
@@ -206,6 +215,9 @@ pub fn at(
         offered.extend(crate::html_template::at(analysed, start, end, encoding));
         offered.extend(crate::split_join::at(analysed, start, encoding));
         offered.extend(crate::extract::at(
+            analysed, documents, start, end, encoding,
+        ));
+        offered.extend(crate::generate::at(
             analysed, documents, start, end, encoding,
         ));
     }
