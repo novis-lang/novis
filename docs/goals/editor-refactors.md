@@ -6,7 +6,7 @@ context: [crates/nvs-lsp/src/capabilities.rs, crates/nvs-lsp/src/index.rs, docs/
 stages:
   - id: 1
     title: "rename across the workspace, and a file rename updates `require` paths"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/capabilities.rs, crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/rename.rs, crates/nvs-lsp/src/document.rs, crates/nvs-lsp/src/case.rs, docs/rules/ide/no-refactoring-introduces-an-alias.md, docs/rules/ide/five-features-are-one-reference-index.md]
     extra:
       context:
@@ -152,12 +152,12 @@ renamed file's `require`.
 - [x] The `.lspt` runner learns `rename` and `willRenameFiles`. `crates/nvs-lsp/src/case.rs:59`
 - [x] `.lspt` cases for each. `tests/lsp/rename/a-local-is-renamed-at-every-occurrence.lspt:1`
 - [x] `rule:ide/the-request-set-is-closed` lists the three new requests. `docs/rules/ide/the-request-set-is-closed.md:1`
-- [ ] `prepareRename` and `rename` each have a case at every construct `tests/coverage.rs` names, so `every_request_answers_every_construct` is green. `crates/nvs-lsp/tests/coverage.rs:63`, `tests/lsp/rename/a-local-is-renamed-at-every-occurrence.lspt:1`
-- [ ] A type is renamed: the index records each type annotation as an occurrence, and renaming an autoloaded class also renames its file. `crates/nvs-lsp/src/rename.rs:84`, `crates/nvs-lsp/src/index.rs:1189`
+- [x] `prepareRename` and `rename` each have a case at every construct `tests/coverage.rs` names, so `every_request_answers_every_construct` is green. `crates/nvs-lsp/tests/coverage.rs:63`, `tests/lsp/rename/a-local-is-renamed-at-every-occurrence.lspt:1`
+- [x] A type is renamed: the index records each type annotation as an occurrence, and renaming an autoloaded class also renames its file. `crates/nvs-lsp/src/rename.rs:84`, `crates/nvs-lsp/src/index.rs:1189`
   - [x] The index records each type annotation's class names and each `X::` qualifier, resolved per file. `crates/nvs-lsp/src/index.rs:1311`, `crates/nvs-lsp/src/definition.rs:1250`
   - [x] `rename` renames a type at every site and `use` line, with the clash and missed-site refusals. `crates/nvs-lsp/src/rename.rs:627`
   - [x] A `.lspt` case for a class across files, and the two type-test cases that gained a site. `tests/lsp/rename/a-class-is-renamed-at-every-place-its-name-is-written.lspt:1`
-  - [ ] Renaming an autoloaded class renames its file: a `RenameFile` operation in the `WorkspaceEdit`, the `.lspt` renderer showing it, and the `require` edits `moved` gives for it. `crates/nvs-lsp/src/rename.rs:188`, `crates/nvs-lsp/src/server.rs:569`
+  - [x] Renaming an autoloaded class renames its file: a `RenameFile` operation in the `WorkspaceEdit`, the `.lspt` renderer showing it, and the `require` edits `moved` gives for it. `crates/nvs-lsp/src/rename.rs:784`, `crates/nvs-lsp/src/server.rs:1155`, `tests/lsp/rename/an-autoloaded-class-renames-its-file.lspt:1`
 
 ### 2. workspace symbol search, organize imports, and a warning for an unused `use`
 
@@ -244,42 +244,45 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1's handlers are in: `prepareRename`, `rename` and `workspace/willRenameFiles`
-(`crates/nvs-lsp/src/rename.rs`). A type is renamed now (`d9a92c79a`): the index records every
-class name a type annotation writes and every class in front of `::`, each resolved with its own
-file's namespace and imports (`definition::written_name_in`), and `rename::types` changes the last
-segment at each site and `use` line. It refuses a built-in name, a name another workspace type
-has, a name a touched file already writes, and an old name written anywhere the index holds no
-site (a top-level `function`'s annotation is one, since the walk skips that refused construct).
-Ten cases under `tests/lsp/rename/`, and the whole `.lspt` suite at 410 passed. Two cases gained
-the `is Shape` site: `tests/lsp/references/a-type-test-answers-the-type-it-names.lspt` and
-`tests/lsp/highlight/a-type-test-highlights-the-type-it-names.lspt`.
+Stage 1 is done. Rename answers a type, a member and a local, and `workspace/willRenameFiles`
+rewrites `require` paths (`crates/nvs-lsp/src/rename.rs`). A type declared alone in a file named
+after it moves the file too (`7af502c7e`): `rename::named_after` finds it, `rename::types` adds
+the `require` edits `moved` gives, and `server::moving_edit` answers `documentChanges` with the
+text edits first and one `RenameFile` last. A client whose `workspace.workspaceEdit` has no
+`documentChanges` or no `rename` resource operation (`settings::Client::rename_files`) is refused
+that rename, since the autoload would stop finding the type. The `.lspt` renderer prints a
+`moves <from> to <to>` line after the edits. Refusal messages name a file without the `\\?\` prefix
+and count lines from 1 (`ca9f6ba12`). 53 coverage cases under `tests/lsp/rename/` (`f0a5f870f`):
+the whole `.lspt` suite is 464 passed, and `cargo test --test coverage` is green.
 
-Expected red, not run: `every_request_answers_every_construct` (`crates/nvs-lsp/tests/coverage.rs:63`).
-`cargo test --test coverage` lists 29 `prepareRename` cells and 24 `rename` cells (Attribute,
-AutoloadDecl, ClassConstAccess, ClassDecl, Const, ConstFetch, Echo, EnumCase, EnumDecl, Error,
-Foreach, Function, InlineHtml, InterfaceDecl, LocalDecl, Method, MethodCall, NamespaceDecl, New,
-Property, StaticCall, StaticPropertyAccess, Str, Switch, Try, TypeAliasDecl, TypeTest, UseDecl,
-Variable for `prepareRename`; `rename` owes the same list without LocalDecl, MethodCall, Property,
-StaticCall, StaticPropertyAccess and Variable, and with PropertyAccess).
-Built but not run: the unit tests in `rename.rs`, `render.rs` and `case.rs`, `tests/index.rs`, and
-CodeLens unit tests, whose type reference counts may grow by the annotation sites.
+Known and left as designed: a top-level `function` is a construct the language refuses, so its
+name is not renamable and a type written in its signature refuses a type rename as a missed site.
+A cursor on the class path of a `use` line is refused with "nothing to rename"; renaming from any
+other site rewrites that line. That is a small gap for stage 6 or the backlog.
 
-The nightly reds on `7b6ef53ee` are green on the later push CI at `95f8fc4a5` (tests, conformance,
-asan, cost guards). The push reds (rustfmt in `capability.rs`, stale perf) are goal `ci-green`'s;
-`capability.rs` is claimed by the `formatter-complete` session. `env-secret-proofs` passes at HEAD.
+Built but not run: the unit tests in `rename.rs`, `render.rs` (its one test ran green), `case.rs`,
+`tests/index.rs`, and CodeLens unit tests, whose type reference counts may grow by the annotation
+sites; `tests/handshake.rs` and `tests/completion_edits.rs` gained the `rename_files` field.
+
+The acceptance sweep's nightly reds are run `39922764699` on `7b6ef53ee`, the run the last handoff
+already found green on the later push CI. `env-secret-proofs` passes at HEAD (`bun nv proofs --gate
+--only 'Core\Env::secret'`, exit 0). `capability.rs` stays the `formatter-complete` session's.
 
 ### Next
 
-**Stage 1's last two items**, one file set: `tests/lsp/rename/`, `crates/nvs-lsp/src/rename.rs`,
-`server.rs`, `render.rs`. No gate.
+**Stage 2, the unused-`use` warning first**, one file set: `crates/nvs-diagnostics/src/code/warnings.rs`
+(the last code is `W1025`, so take `W1026` after rereading the file), `crates/nvs-cli/src/check.rs`,
+`crates/nvs-lsp/src/diagnostics.rs`, `crates/nvs-lsp/src/index.rs`, and the new rule fragment.
+No gate.
 
-- [ ] Autoloaded class file rename: the last checkpoint under stage 1's type item. Decide how the client's `resourceOperations` capability gates the `RenameFile`. `crates/nvs-lsp/src/rename.rs:188`
-- [ ] Coverage cases: one writing subagent writes a `prepareRename` and a `rename` case at each cell above, under `tests/lsp/rename/`, cursor on the construct, using neutral names. Then `cargo test --test coverage` once. `crates/nvs-lsp/tests/coverage.rs:63`
+- [ ] Rule fragment `statements/an-unused-use-is-a-warning` and its `designed` record, source picked (the index, per the standing decision). `docs/rules/statements/an-unused-use-is-a-warning.md:1`
+- [ ] The `W10xx` code, card and help text. `crates/nvs-diagnostics/src/code/warnings.rs:1`
+- [ ] `nvs check` reports it from `SymbolIndex::unused_imports`. `crates/nvs-lsp/src/index.rs:507`, `crates/nvs-cli/src/check.rs:1`
+- [ ] Its safe fix and `--fix`. `crates/nvs-cli/src/check.rs:94`
+- [ ] The editor shows the warning with `Unnecessary`, and import dimming goes. `crates/nvs-lsp/src/diagnostics.rs:337`
 
-Then stage 2 (`workspace/symbol`, organize imports, the unused-`use` warning).
-
-Then stage 2 (`workspace/symbol`, organize imports, the unused-`use` warning).
+Then `workspace/symbol` and organize imports (`crates/nvs-lsp/src/imports.rs:188`), then the
+subagent that writes `tests/lsp/symbols/` and `tests/lsp/actions/` cases.
 
 ### Backlog
 
