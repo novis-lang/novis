@@ -100,8 +100,8 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 ### State
 
 `origin/main` is at `95f8fc4a5`, the end of `cli-housekeeping`. Its Website run is green. Its CI
-run, https://github.com/novis-lang/novis/actions/runs/40042292726, is red in three jobs after one
-rerun of its failed jobs, and every other job is green:
+run, https://github.com/novis-lang/novis/actions/runs/40042292726, has ended. It is red in three
+jobs after one rerun of its failed jobs, and every other job is green. The rerun failed the same way:
 
 - `lint`, step `rustfmt`: `crates/nvs-runtime/src/capability.rs:2262` is still the four-line
   `#[cfg_attr(miri, ...)]`. The root's working tree has it formatted and uncommitted. The
@@ -111,18 +111,30 @@ rerun of its failed jobs, and every other job is green:
   `cli-housekeeping` changed `crates/nvs-stdlib/src/http.rs`. `81de89a72` records them, and
   `bun nv proofs --owed` names none of them now. The recorder also lowered
   `benches/members/core/Http-TlsInfo/cipher.nvs` to 512 iterations, in the same commit.
-- `five-driver matrix`: `container novis-db-mssql-1 exited (1)` during `up --wait`, twice in a row,
+- `five-driver matrix`: `container novis-db-mssql-1 exited (1)` during `up --wait`, three times,
   and the log says nothing more. Nothing the job reads changed since its green run on `a61973440`.
   The image digest is the same (`sha256:2b5b5816...`, built in August), and so is the runner image
   (`20261012.334.1`). A fresh container with the same command, image and certificates starts cleanly
   on this machine. So the cause is on the runner, and not yet known. `e171a8646` makes
   `bun nv db-matrix` print the last 60 lines of a failed service's log, so the next failure says why.
 
-`d1438356e` stamps the search questions of `/reference/cli/a-worked-session/`, whose page changed
-with `nvs agent find`. `/reference/cli/nvs-telemetry/` had no questions, and that went to the main
-loop. The Website run on `95f8fc4a5` is green, so check whether it now has them.
+Two reds the next push would have had are fixed too:
 
-All three fixes are committed and not yet pushed, and they go out with the next goal end.
+- `205e2e61b` rewrites and stamps the search questions of six pages that the main loop's
+  `[log] client_ip` and telemetry upload commits made stale: `/reference/config/log/`,
+  `/reference/config/the-blocks-the-binary-accepts/`, and `one-binary`, `nvs-check`,
+  `nvs-telemetry` and `nvs-update-check` under `/reference/cli/`. `bun nv site --check stale
+  questions` passes at `HEAD`.
+- `6a0cb9940` records the five `Core\RateLimit` and `Core\RateLimit\Decision` perf figures that
+  `73fadfe73` made stale. Their mean is `0` ns/op at 256 iterations, like the record of 2026-10-05,
+  and the median is beside it.
+
+The main loop holds an uncommitted `crates/nvs-stdlib/src/csv.rs`, and `Core\Csv::parse`,
+`::format` and `::rows` owe perf records because of it. That is its open work, and it was told with
+`loop say`. If it is committed without them, `proofs` goes red on the push.
+
+The fixes are committed and not yet pushed: `81de89a72`, `e171a8646`, `205e2e61b` and `6a0cb9940`.
+They go out with the next goal end.
 
 `.agent-tmp/wt-ci`, `.agent-tmp/wt-cig` and `.agent-tmp/wt-r` are empty scratch folders. Git no
 longer lists them as worktrees. Each contains only a `.looper` directory that Windows will not
@@ -144,6 +156,10 @@ delete while looper runs. Delete all three when looper is stopped.
   sweep in the main loop's work turns `Website stale guard` red again. Run `bun nv site --check
   stale questions` at `HEAD` before you watch, and fix what it names as the last item below says.
   Each page reread goes to a subagent that writes a scratch JSON, never `questions.json` itself.
+  Run `bun nv proofs --owed --limit 0` too, and record each stale perf figure that comes from a
+  committed change. A stale figure from a file the main loop has not committed yet, such as
+  `csv.rs`, is its open work. A record of `0` ns/op at 256 iterations is normal: the recorder
+  writes the median beside it.
 - [ ] If the LDAP login attack fails again, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
   It passed on `88fb690a3`. A second `whoami: Timeout` is not noise. Compare the socket deadline with the slice yield
   commits `13004e4f9` and `2b292f862`.
