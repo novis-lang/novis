@@ -1138,6 +1138,7 @@ fn lower_program_as(
             nested_shapes(codec, &mut shape_codecs, &mut classes);
         }
     }
+    property_shapes(exprs, &mut classes);
     // Sorted and deduped on the key for the reason the collection itself is not
     // ordered: the table is walked to publish one relocation symbol per entry,
     // and two sites writing one contract are one table.
@@ -4536,33 +4537,7 @@ fn nested_shapes(
             .iter()
             .map(|nested_field| nested_field.property.clone())
             .collect();
-        let field_count = names.len();
-        classes.push(crate::ir::Class {
-            label: shape_class_label(&names),
-            fields: names,
-            // `Ty::Tagged` on every slot, on [`Lowering::record_shape_class`]'s
-            // terms: what fills these is a native decoder rather than a lowered
-            // write, so there is no tag to promise, and a literal of the same
-            // field names merges onto that same answer.
-            field_reprs: vec![Ty::Tagged; field_count],
-            secret_fields: vec![false; field_count],
-            public_fields: vec![true; field_count],
-            protected_fields: vec![false; field_count],
-            readonly_fields: Vec::new(),
-            field_types: Vec::new(),
-            field_classes: Vec::new(),
-            field_checks: Vec::new(),
-            constants: Vec::new(),
-            attributes: Vec::new(),
-            conforms: Vec::new(),
-            methods: Vec::new(),
-            hooks: Vec::new(),
-            codec: Vec::new(),
-            db_codec: Vec::new(),
-            ctor_arity: 0,
-            defaults: Vec::new(),
-            is_callable: false,
-        });
+        classes.push(tagged_shape_class(names));
         codecs.push(crate::ir::ShapeCodec {
             key: shape_codec_key(&fields),
             fields,
@@ -4570,6 +4545,77 @@ fn nested_shapes(
         // A shape's own field may be a shape, and the contract it decodes
         // against is one more table to publish.
         nested_shapes(nested, codecs, classes);
+    }
+}
+
+/// The class of an inline shape whose slots something other than a lowered write fills: a
+/// native decoder, or `nvs test`'s generated inputs. Its label is [`shape_class_label`] over
+/// `sorted_names`.
+///
+/// `Ty::Tagged` on every slot, on [`Lowering::record_shape_class`]'s terms: there is no tag
+/// to promise, and a literal of the same field names merges onto that same answer.
+fn tagged_shape_class(sorted_names: Vec<String>) -> crate::ir::Class {
+    let field_count = sorted_names.len();
+    crate::ir::Class {
+        label: shape_class_label(&sorted_names),
+        fields: sorted_names,
+        field_reprs: vec![Ty::Tagged; field_count],
+        secret_fields: vec![false; field_count],
+        public_fields: vec![true; field_count],
+        protected_fields: vec![false; field_count],
+        readonly_fields: Vec::new(),
+        field_types: Vec::new(),
+        field_classes: Vec::new(),
+        field_checks: Vec::new(),
+        constants: Vec::new(),
+        attributes: Vec::new(),
+        conforms: Vec::new(),
+        methods: Vec::new(),
+        hooks: Vec::new(),
+        codec: Vec::new(),
+        db_codec: Vec::new(),
+        ctor_arity: 0,
+        defaults: Vec::new(),
+        is_callable: false,
+    }
+}
+
+/// The class of every inline shape a `#[Property]` method's generated inputs build
+/// (`rule:testing/property-testing`): each shape reached from a property's parameters and from
+/// the constructor arguments of each class they create. The runner builds those values with no
+/// literal of their own, and a program may write none, so nothing else registers the class.
+///
+/// **Memory:** one class per distinct field-name set, per compile, and only in a program that
+/// declares a property.
+fn property_shapes(exprs: &nvs_types::ExprTypeTable, classes: &mut Vec<crate::ir::Class>) {
+    fn walk(generator: &nvs_types::property::Gen, classes: &mut Vec<crate::ir::Class>) {
+        use nvs_types::property::Gen;
+        match generator {
+            Gen::Shape(fields) => {
+                let mut names: Vec<String> =
+                    fields.iter().map(|field| field.name.clone()).collect();
+                names.sort_unstable();
+                classes.push(tagged_shape_class(names));
+                for field in fields {
+                    walk(&field.generator, classes);
+                }
+            }
+            Gen::List { element, .. } | Gen::Nullable(element) => walk(element, classes),
+            Gen::OneOf(arms) => {
+                for arm in arms {
+                    walk(arm, classes);
+                }
+            }
+            _ => {}
+        }
+    }
+    for label in exprs.test_classes() {
+        for case in exprs.properties(label).unwrap_or_default() {
+            let rows = case.classes.iter().flat_map(|class| &class.args);
+            for generator in case.params.iter().chain(rows) {
+                walk(generator, classes);
+            }
+        }
     }
 }
 

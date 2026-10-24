@@ -121,6 +121,7 @@ use std::time::{Duration, Instant};
 
 use nvs_render::{Level, Node, Record, Rendered, Scalar};
 use nvs_types::defaults::ConstArg;
+use rand::RngExt;
 
 /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
 /// cases.
@@ -1177,9 +1178,12 @@ struct Attempted {
     label: String,
     /// `rule:testing/after-each-test`'s hook, called after every attempt.
     after_each: Option<nvs_types::test_hooks::HookMethod>,
+    /// The generators of a `#[Property]` method, which [`run_property`] calls once per
+    /// generated input set. `None` for a `#[Test]` method.
+    property: Option<Arc<nvs_types::property::PropertyCase>>,
 }
 
-/// Runs every `#[Test]` `checked` declares that `filter` selects, in `rule:testing/runner-is-strict`'s
+/// Runs every `#[Test]` and `#[Property]` `checked` declares that `filter` selects, in `rule:testing/runner-is-strict`'s
 /// order, as many at once as `--jobs` allows, reporting each in declaration
 /// order under [`Format::Human`] and only collecting under the other two.
 ///
@@ -1203,9 +1207,10 @@ fn run_suite(
         .into_iter()
         .map(|class| {
             let tests = checked.exprs.tests(class).unwrap_or_default();
-            tests
+            let properties = checked.exprs.properties(class).unwrap_or_default();
+            let stand_ins: Vec<_> = properties.iter().map(stand_in).collect();
+            class_calls(tests, properties, &stand_ins)
                 .iter()
-                .flat_map(invocations)
                 .filter(|call| !select.selects(class, call))
                 .count()
         })
@@ -1236,15 +1241,16 @@ fn run_suite(
     let mut queue = Queue::new(unit, ctx, shape.format, hits, cores);
     for class in checked.exprs.test_classes() {
         let tests = checked.exprs.tests(class).unwrap_or_default();
+        let properties = checked.exprs.properties(class).unwrap_or_default();
+        let stand_ins: Vec<_> = properties.iter().map(stand_in).collect();
         // The selection is made **before** the class is announced or its
         // fixtures are built: a `--filter` that reaches none of a class's
         // tests must cost that class's `#[Fixture]` nothing, or filtering down
         // to one fast test still pays for every expensive setup in the
         // program. A class with nothing selected is not reported either — the
         // header would name a class the run said nothing about.
-        let calls: Vec<Invocation<'_>> = tests
-            .iter()
-            .flat_map(invocations)
+        let calls: Vec<Invocation<'_>> = class_calls(tests, properties, &stand_ins)
+            .into_iter()
             .filter(|call| select.selects(class, call))
             .collect();
         if calls.is_empty() {
@@ -1295,6 +1301,7 @@ fn run_suite(
                 method: case.method.clone(),
                 label: label.clone(),
                 after_each: hooks.and_then(|hooks| hooks.after_each_test.clone()),
+                property: call.property.map(|property| Arc::new(property.clone())),
             };
             let decided = match setup.as_ref().or(unbuilt.as_ref()) {
                 Some(FixtureFailure::Threw(message)) if setup.is_some() => {
@@ -1961,6 +1968,306 @@ fn run_with_retries(
     Outcome::Failed(failures)
 }
 
+/// One test's calls on the isolate's stack: a `#[Test]` method's attempts
+/// ([`run_with_retries`]), or a `#[Property]` method's generated calls ([`run_property`]),
+/// which `property_seed` is the seed of.
+fn run_attempts(
+    unit: &Arc<nvs_codegen::Unit>,
+    ctx: &mut nvs_runtime::Ctx,
+    test: &Attempted,
+    args: &[nvs_runtime::Value],
+    allowance: usize,
+    property_seed: Option<u64>,
+) -> Outcome {
+    match (&test.property, property_seed) {
+        (Some(property), Some(seed)) => run_property(unit, ctx, test, property, seed),
+        _ => run_with_retries(unit, ctx, test, args, allowance),
+    }
+}
+
+/// `rule:testing/property-testing`'s run of one `#[Property]` method: `runs` calls, each on a
+/// fresh instance with inputs generated from `seed` and the call's index.
+///
+/// The first call that does not pass ends the run, and its outcome is the test's. A failure
+/// gets one more record naming the call, its inputs and the seed, so `#[Property(seed: n)]`
+/// runs the same inputs again. There is no retry: `retries:` is not a property's option.
+///
+/// **What it spends:** one call's inputs at a time, as generated values and then as runtime
+/// values, both freed before the next call is generated.
+fn run_property(
+    unit: &Arc<nvs_codegen::Unit>,
+    ctx: &mut nvs_runtime::Ctx,
+    test: &Attempted,
+    property: &nvs_types::property::PropertyCase,
+    seed: u64,
+) -> Outcome {
+    // `seed:` is an `int`, and `random_seed` takes its bits as they lie, so the seed is
+    // reported as the `int` with the same bits.
+    let written = seed.cast_signed();
+    for index in 0..property.runs {
+        let call = index + 1;
+        let Ok(inputs) = nvs_types::property::generate(property, seed, index) else {
+            return Outcome::failed(format!(
+                "call {call} of `{}`: the generated inputs are larger than one call may use \
+                 ({} elements, bytes and characters). Use `gen:` to make a length range \
+                 smaller.",
+                test.method,
+                nvs_types::property::generate::MAX_INPUT_UNITS
+            ));
+        };
+        let rendered = inputs
+            .iter()
+            .map(render_input)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let reproduce = format!(
+            "call {call} of {} failed with the inputs ({rendered}). Write \
+             `#[Property(seed: {written})]` to run the same inputs again.",
+            property.runs
+        );
+        // Dropped after the call has returned: it has the one reference each input carries,
+        // and the call only borrows them.
+        let mut values = nvs_runtime::InputValues::new();
+        let mut args = Vec::with_capacity(inputs.len());
+        for (generator, input) in property.params.iter().zip(&inputs) {
+            match build_input(ctx, &mut values, property, generator, input) {
+                Ok(built) => args.push(values.get(built)),
+                Err(outcome) => return outcome.and_failed(reproduce),
+            }
+        }
+        match run_case(unit, ctx, test, &args, 1) {
+            Outcome::Passed => {}
+            failed @ (Outcome::Failed(_) | Outcome::Flaky { .. }) => {
+                return failed.and_failed(reproduce);
+            }
+            settled @ (Outcome::Skipped(_) | Outcome::Exited(_)) => return settled,
+        }
+    }
+    Outcome::Passed
+}
+
+/// `input` built as the value a call takes, owned by `values`. `generator` is what generated
+/// it: it names the class of a shape, whose optional fields `input` may leave out, and the arm
+/// of a union a value came from.
+///
+/// # Errors
+///
+/// The outcome of a constructor that threw or called `exit()`, or an internal error for a
+/// value the compiled unit has no class for.
+fn build_input(
+    ctx: &mut nvs_runtime::Ctx,
+    values: &mut nvs_runtime::InputValues,
+    property: &nvs_types::property::PropertyCase,
+    generator: &nvs_types::property::Gen,
+    input: &nvs_types::property::Generated,
+) -> Result<nvs_runtime::Input, Outcome> {
+    use nvs_types::property::{Gen, Generated};
+    let internal = |what: String| Outcome::failed(format!("internal error: {what}"));
+    Ok(match (generator, input) {
+        (Gen::Nullable(inner), _) if *input != Generated::Null => {
+            build_input(ctx, values, property, inner, input)?
+        }
+        (Gen::OneOf(arms), _) => {
+            let arm = arms
+                .iter()
+                .find(|arm| input_fits(arm, input))
+                .ok_or_else(|| internal(format!("no type of the union generated {input:?}")))?;
+            build_input(ctx, values, property, arm, input)?
+        }
+        (Gen::List { element, .. }, Generated::List(items)) => {
+            let mut built = Vec::with_capacity(items.len());
+            for item in items {
+                built.push(build_input(ctx, values, property, element, item)?);
+            }
+            values.list(&built)
+        }
+        (Gen::Shape(fields), Generated::Shape(written)) => {
+            let mut names: Vec<String> = fields.iter().map(|field| field.name.clone()).collect();
+            names.sort_unstable();
+            let label = nvs_types::derive::shape_class_label(&names);
+            let mut built = Vec::with_capacity(written.len());
+            for (name, value) in written {
+                let field = fields
+                    .iter()
+                    .find(|field| field.name == *name)
+                    .ok_or_else(|| {
+                        internal(format!("the shape `{label}` has no field `{name}`"))
+                    })?;
+                built.push((
+                    name.as_str(),
+                    build_input(ctx, values, property, &field.generator, value)?,
+                ));
+            }
+            values
+                .shape(ctx, &label, &built)
+                .ok_or_else(|| internal(format!("the compiled unit has no class `{label}`")))?
+        }
+        (Gen::Class(_), Generated::Object { class, args }) => {
+            let generators = property
+                .class(class)
+                .map(|row| row.args.as_slice())
+                .unwrap_or_default();
+            let mut built = Vec::with_capacity(args.len());
+            for (generator, arg) in generators.iter().zip(args) {
+                built.push(build_input(ctx, values, property, generator, arg)?);
+            }
+            match values.object(ctx, class, &built) {
+                Ok(object) => object,
+                Err(None) => {
+                    return Err(internal(format!(
+                        "the compiled unit declares no class `{class}`"
+                    )));
+                }
+                Err(Some(status)) if status == nvs_runtime::EXITED => {
+                    return Err(Outcome::Exited(ctx.exit_code()));
+                }
+                Err(Some(_)) => {
+                    return Err(Outcome::failed(format!(
+                        "`{}` threw while creating a generated input: {}",
+                        render_input(input),
+                        ctx.take_thrown().message()
+                    )));
+                }
+            }
+        }
+        (_, Generated::Null) => values.null(),
+        (_, Generated::Bool(value)) => values.bool(*value),
+        (_, Generated::Int(value)) => values.int(*value),
+        (_, Generated::Uint(value)) => values.uint(*value),
+        (_, Generated::Float(value)) => values.float(*value),
+        (_, Generated::Decimal(digits)) => values
+            .decimal(digits)
+            .ok_or_else(|| internal(format!("`{digits}` is not a decimal")))?,
+        (_, Generated::Str(text)) => values.str(text),
+        (_, Generated::Bytes(raw)) => values.bytes(raw),
+        (_, Generated::Enum { value, uint: true }) => values.enum_uint(
+            u64::try_from(*value).map_err(|_| internal(format!("{value} is not a `uint`")))?,
+        ),
+        (_, Generated::Enum { value, uint: false }) => values.enum_int(
+            i64::try_from(*value).map_err(|_| internal(format!("{value} is not an `int`")))?,
+        ),
+        (_, Generated::List(_) | Generated::Shape(_) | Generated::Object { .. }) => {
+            return Err(internal(format!(
+                "{input:?} does not match the generator {generator:?}"
+            )));
+        }
+    })
+}
+
+/// Whether `generator` could have generated `input`: the test [`build_input`] uses to find the
+/// arm of a union a value came from.
+fn input_fits(
+    generator: &nvs_types::property::Gen,
+    input: &nvs_types::property::Generated,
+) -> bool {
+    use nvs_types::property::{Gen, Generated};
+    match (generator, input) {
+        (Gen::Literal(value), _) => value == input,
+        (Gen::Nullable(inner), _) => *input == Generated::Null || input_fits(inner, input),
+        (Gen::OneOf(arms), _) => arms.iter().any(|arm| input_fits(arm, input)),
+        (Gen::Bool, Generated::Bool(_))
+        | (Gen::Float { .. }, Generated::Float(_))
+        | (Gen::Decimal { .. }, Generated::Decimal(_))
+        | (Gen::Str { .. }, Generated::Str(_))
+        | (Gen::Bytes { .. }, Generated::Bytes(_)) => true,
+        (Gen::Int { min, max }, Generated::Int(value)) => (min..=max).contains(&value),
+        (Gen::Uint { min, max }, Generated::Uint(value)) => (min..=max).contains(&value),
+        (
+            Gen::Enum { values, uint },
+            Generated::Enum {
+                value,
+                uint: backed,
+            },
+        ) => uint == backed && values.contains(value),
+        (Gen::List { element, .. }, Generated::List(items)) => {
+            items.iter().all(|item| input_fits(element, item))
+        }
+        (Gen::Shape(fields), Generated::Shape(written)) => {
+            fields
+                .iter()
+                .all(|field| !field.required || written.iter().any(|(name, _)| *name == field.name))
+                && written.iter().all(|(name, value)| {
+                    fields
+                        .iter()
+                        .any(|field| field.name == *name && input_fits(&field.generator, value))
+                })
+        }
+        (Gen::Class(label), Generated::Object { class, .. }) => label == class,
+        _ => false,
+    }
+}
+
+/// One generated input written the way a program writes the value: `[1, 2]`, `{a: 1}`,
+/// `new Point(1, 2)`, and a string in double quotes with its escapes. An enum case is written as
+/// its backing value.
+fn render_input(input: &nvs_types::property::Generated) -> String {
+    use nvs_types::property::Generated;
+    let list = |items: &[Generated]| {
+        items
+            .iter()
+            .map(render_input)
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    match input {
+        Generated::Null => "null".to_owned(),
+        Generated::Bool(value) => value.to_string(),
+        Generated::Int(value) => value.to_string(),
+        Generated::Uint(value) => value.to_string(),
+        Generated::Float(value) => {
+            let text = value.to_string();
+            if text.contains(['.', 'e', 'i', 'N']) {
+                text
+            } else {
+                format!("{text}.0")
+            }
+        }
+        Generated::Decimal(digits) => format!("\"{digits}\" as decimal"),
+        Generated::Str(text) => {
+            let mut out = String::from("\"");
+            for ch in text.chars() {
+                match ch {
+                    '\\' => out.push_str("\\\\"),
+                    '"' => out.push_str("\\\""),
+                    '$' => out.push_str("\\$"),
+                    '\n' => out.push_str("\\n"),
+                    '\r' => out.push_str("\\r"),
+                    '\t' => out.push_str("\\t"),
+                    ch if ch.is_control() => out.push_str(&format!("\\u{{{:X}}}", u32::from(ch))),
+                    ch => out.push(ch),
+                }
+            }
+            out.push('"');
+            out
+        }
+        Generated::Bytes(raw) => {
+            let mut out = String::from("\"");
+            for byte in raw {
+                match byte {
+                    b'\\' => out.push_str("\\\\"),
+                    b'"' => out.push_str("\\\""),
+                    b'$' => out.push_str("\\$"),
+                    0x20..=0x7E => out.push(char::from(*byte)),
+                    _ => out.push_str(&format!("\\x{byte:02X}")),
+                }
+            }
+            out.push_str("\" as bytes");
+            out
+        }
+        Generated::Enum { value, .. } => value.to_string(),
+        Generated::List(items) => format!("[{}]", list(items)),
+        Generated::Shape(fields) => format!(
+            "{{{}}}",
+            fields
+                .iter()
+                .map(|(name, value)| format!("{name}: {}", render_input(value)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        Generated::Object { class, args } => format!("new {class}({})", list(args)),
+    }
+}
+
 /// Why a class's fixtures could not be built — reported against the tests
 /// that asked for one — or why one of its class hooks failed.
 enum FixtureFailure {
@@ -2253,6 +2560,14 @@ fn run_the_test(
         }
     };
     let seed = random_seed(case);
+    // `rule:testing/property-testing`'s seed, drawn here on the parent's side when `seed:` names
+    // none, so the failure the child reports can name the seed that reproduces it. It seeds the
+    // isolate's `Core\Random` too, as a written `seed:` does.
+    let property_seed = test
+        .property
+        .is_some()
+        .then(|| seed.unwrap_or_else(|| rand::rng().random::<u64>()));
+    let seed = seed.or(property_seed);
     // `rule:testing/db-transaction`'s block name, read on the parent's side with every other option and
     // owned because the Rust closure outlives this frame — but *opened* inside the
     // child, which is the one decision this mechanism makes. A connection is
@@ -2304,7 +2619,14 @@ fn run_the_test(
         // their values has returned.
         let (_crossed, _materialized) = (crossed, materialized);
         let outcome = match transacted.as_deref() {
-            None => run_with_retries(&child_unit, child, &attempted, &args, allowance),
+            None => run_attempts(
+                &child_unit,
+                child,
+                &attempted,
+                &args,
+                allowance,
+                property_seed,
+            ),
             // `rule:testing/db-transaction`, around the whole allowance rather than around one attempt:
             // `retries:` exists for a test that is flaky against something
             // outside the database, and a retry that started from a pristine
@@ -2318,8 +2640,14 @@ fn run_the_test(
                      could be opened on it: {refused}"
                 )),
                 Ok(key) => {
-                    let outcome =
-                        run_with_retries(&child_unit, child, &attempted, &args, allowance);
+                    let outcome = run_attempts(
+                        &child_unit,
+                        child,
+                        &attempted,
+                        &args,
+                        allowance,
+                        property_seed,
+                    );
                     match nvs_stdlib::db::roll_back_test_transaction(child, key) {
                         Ok(()) => outcome,
                         // Reported and never swallowed: a rollback that did not
@@ -2933,6 +3261,7 @@ fn invocations(case: &nvs_types::testing::TestCase) -> Vec<Invocation<'_>> {
             case,
             label: case.method.clone(),
             row: None,
+            property: None,
         }];
     }
     case.rows
@@ -2942,8 +3271,46 @@ fn invocations(case: &nvs_types::testing::TestCase) -> Vec<Invocation<'_>> {
             case,
             label: format!("{}#{index}", case.method),
             row: Some(row.as_slice()),
+            property: None,
         })
         .collect()
+}
+
+/// The `#[Test]` row a `#[Property]` method is run under: its name, span and options, and no
+/// injected parameter or data row. Every option reader below reads it as it reads a test's,
+/// which is what keeps `skip:`, `timeout:`, `tags:`, `server:`, `db:`, `at:` and `seed:` one
+/// reading each. `gen:` and `runs:` stay on the [`nvs_types::property::PropertyCase`].
+fn stand_in(property: &nvs_types::property::PropertyCase) -> nvs_types::testing::TestCase {
+    nvs_types::testing::TestCase {
+        method: property.method.clone(),
+        span: property.span,
+        options: property.options.clone(),
+        params: Vec::new(),
+        rows: Vec::new(),
+    }
+}
+
+/// Every call one class makes: each `#[Test]` method's [`invocations`], then one call per
+/// `#[Property]` method under its own name (`rule:testing/property-testing`: a property is one
+/// test). `stand_ins` is [`stand_in`] of each of `properties`, in the same order.
+fn class_calls<'a>(
+    tests: &'a [nvs_types::testing::TestCase],
+    properties: &'a [nvs_types::property::PropertyCase],
+    stand_ins: &'a [nvs_types::testing::TestCase],
+) -> Vec<Invocation<'a>> {
+    let mut calls: Vec<Invocation<'a>> = tests.iter().flat_map(invocations).collect();
+    calls.extend(
+        properties
+            .iter()
+            .zip(stand_ins)
+            .map(|(property, case)| Invocation {
+                case,
+                label: property.method.clone(),
+                row: None,
+                property: Some(property),
+            }),
+    );
+    calls
 }
 
 /// One call [`invocations`] hands back: the method to run, the label it is
@@ -2953,6 +3320,8 @@ struct Invocation<'a> {
     case: &'a nvs_types::testing::TestCase,
     label: String,
     row: Option<&'a [Option<ConstArg>]>,
+    /// The generators of a `#[Property]` method, whose `case` is its [`stand_in`].
+    property: Option<&'a nvs_types::property::PropertyCase>,
 }
 
 /// One folded row field as the value the call takes, owned by `row`.
@@ -3243,15 +3612,16 @@ struct Listed {
 fn listing(checked: &crate::Checked, select: &Selection) -> Vec<Listed> {
     let mut listed = Vec::new();
     for class in checked.exprs.test_classes() {
-        for case in checked.exprs.tests(class).unwrap_or_default() {
-            for call in invocations(case) {
-                if select.selects(class, &call) {
-                    listed.push(Listed {
-                        class: class.to_owned(),
-                        method: call.label,
-                        declared: declared_at(call.case.span, &checked.map),
-                    });
-                }
+        let tests = checked.exprs.tests(class).unwrap_or_default();
+        let properties = checked.exprs.properties(class).unwrap_or_default();
+        let stand_ins: Vec<_> = properties.iter().map(stand_in).collect();
+        for call in class_calls(tests, properties, &stand_ins) {
+            if select.selects(class, &call) {
+                listed.push(Listed {
+                    class: class.to_owned(),
+                    method: call.label,
+                    declared: declared_at(call.case.span, &checked.map),
+                });
             }
         }
     }
@@ -4437,6 +4807,50 @@ mod tests {
                 .iter()
                 .flat_map(|(_, _, failures)| failures.clone())
                 .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_property_runs_as_one_test_over_its_generated_inputs() {
+        // `rule:testing/property-testing`: a property that holds for every input passes, one
+        // that does not fails with a record naming the call's inputs and the seed that
+        // reproduces them, and one whose inputs are a list of shapes, a class built through its
+        // constructor, a `?decimal` and `bytes` is called with each of them. `--list` lists each
+        // property under its own name.
+        let verdicts = verdicts("property.nvs");
+        let named: Vec<(&str, &str)> = verdicts
+            .iter()
+            .map(|(method, verdict, _)| (method.as_str(), *verdict))
+            .collect();
+        assert_eq!(
+            named,
+            vec![
+                ("itAddsInEitherOrder", "passed"),
+                ("itFailsForANumberAboveTen", "failed"),
+                ("itBuildsEveryKindOfInput", "passed"),
+            ],
+            "{verdicts:?}"
+        );
+        let failures = &verdicts[1].2;
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.contains("failed with the inputs (")
+                    && failure.contains("#[Property(seed: ")),
+            "the failure names the inputs and the seed: {failures:?}"
+        );
+        let checked = crate::front_end(&fixture("property.nvs")).expect("the fixture is a program");
+        let listed: Vec<String> = super::listing(&checked, &Selection::default())
+            .into_iter()
+            .map(|test| test.method)
+            .collect();
+        assert_eq!(
+            listed,
+            [
+                "itAddsInEitherOrder",
+                "itFailsForANumberAboveTen",
+                "itBuildsEveryKindOfInput"
+            ]
         );
     }
 

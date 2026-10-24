@@ -2279,11 +2279,11 @@ impl ExprTypeTable {
         }
     }
 
-    /// Removes the `#[Test]` table of the class labelled `label`, which the
-    /// runner never constructs. Its fixtures and hooks stay for its subclasses
-    /// to read.
+    /// Removes the `#[Test]` and `#[Property]` tables of the class labelled `label`, which the
+    /// runner never constructs. Its fixtures and hooks stay for its subclasses to read.
     pub(crate) fn forget_tests(&mut self, label: &str) {
         self.tests.remove(label);
+        self.properties.remove(label);
     }
 
     /// Records `rule:routing/table-is-opt-in`'s finished route table — every `#[Route]` in the
@@ -2351,13 +2351,19 @@ impl ExprTypeTable {
         &self.commands
     }
 
-    /// Every class that declares at least one `#[Test]`, sorted, so that a
-    /// consumer walking the whole table does so reproducibly for an unchanged
+    /// Every class that declares at least one `#[Test]` or `#[Property]`, sorted and once each,
+    /// so that a consumer walking the whole table does so reproducibly for an unchanged
     /// program rather than in hash order.
     #[must_use]
     pub fn test_classes(&self) -> Vec<&str> {
-        let mut labels: Vec<&str> = self.tests.keys().map(String::as_str).collect();
+        let mut labels: Vec<&str> = self
+            .tests
+            .keys()
+            .chain(self.properties.keys())
+            .map(String::as_str)
+            .collect();
         labels.sort_unstable();
+        labels.dedup();
         labels
     }
 

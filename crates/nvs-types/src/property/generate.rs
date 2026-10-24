@@ -65,8 +65,13 @@ pub enum Generated {
     Str(String),
     /// A `bytes` value.
     Bytes(Vec<u8>),
-    /// An enum case, by its backing value.
-    Enum(i128),
+    /// An enum case, by its backing value, and whether the enum is `uint`-backed.
+    Enum {
+        /// The case's backing value.
+        value: i128,
+        /// Whether the enum's backing type is `uint`.
+        uint: bool,
+    },
     /// An `array<T>`'s elements, in order.
     List(Vec<Generated>),
     /// An inline shape's fields, in the shape's order. An optional field that was left out is
@@ -196,10 +201,13 @@ impl Walk<'_> {
                         .collect(),
                 )
             }
-            Gen::Enum(values) => {
+            Gen::Enum { values, uint } => {
                 let count = u64::try_from(values.len()).unwrap_or(1).max(1);
                 let pick = usize::try_from(self.rng.below(count)).unwrap_or(0);
-                Generated::Enum(values.get(pick).copied().unwrap_or(0))
+                Generated::Enum {
+                    value: values.get(pick).copied().unwrap_or(0),
+                    uint: *uint,
+                }
             }
             Gen::List { element, len } => {
                 let count = self.length(*len, deep)?;
