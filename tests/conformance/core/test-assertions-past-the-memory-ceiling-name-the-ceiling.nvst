@@ -1,21 +1,35 @@
 --TEST--
 A `Core\Test` assertion loop whose own ledger grows past `[limits] memory` stops with the limit report, not an empty `FATAL: ` — `rule:errors/on-limit`, `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`
+--RUN--
+test
 --FILE--
 <?nvs
 // Every assertion adds an entry to the ledger, so the ledger's own storage is
-// what crosses the ceiling. The request still holds those bytes when the run
-// reports the `FATAL`, and the report's text is built past the ceiling.
-int $i = 0;
-while ($i < 2000000) {
-    Core\Test::assertSame($i, $i);
-    $i = $i + 1;
+// what crosses the ceiling. The loop is in a `#[Test]`, because an assertion
+// outside a test records nothing. The test still holds those bytes when the
+// runner reports the limit, and the report's text is built past the ceiling.
+use Core\Test;
+
+final class LedgerTest {
+    #[Test]
+    public function aLongLoopOfAssertionsReachesTheCeiling(): void {
+        int $i = 0;
+        while ($i < 2000000) {
+            Test::assertSame($i, $i);
+            $i = $i + 1;
+        }
+        echo "finished\n";
+    }
 }
-echo "finished\n";
 --FILE nvs.toml--
 # The ceiling the ledger above crosses, and nothing else.
 [limits]
 memory = "16M"
---EXPECT--
---EXPECTF-ERROR--
-FATAL: the program exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler
+--EXPECTF--
+  LedgerTest
+    ✗ aLongLoopOfAssertionsReachesTheCeiling %f ms
+      the program exceeded its memory limit — %d bytes held against a ceiling of %d, of which 1048576 is reserved for the limit handler
 help: raise `memory` under `[limits]` in nvs.toml, or call `Core\Config::set('memory', '32M')` in the program
+
+  1 failed, 0 passed, 0 skipped, 0 flaky in %d ms
+--EXPECTF-ERROR--
