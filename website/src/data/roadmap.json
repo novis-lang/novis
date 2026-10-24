@@ -20,7 +20,6 @@
       "title": "Testing",
       "text": "`nvs test` gets the features a team expects, and tests stay out of your builds. `nvs test --mutate` checks if your tests notice a wrong line. Benchmarks report counted work that CI can check.",
       "goals": [
-        "test-surface",
         "mutation-testing",
         "bench-counters"
       ]
