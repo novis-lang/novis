@@ -19,7 +19,13 @@ The data is CC0: anyone may copy, chart or republish it without asking.
 
 - **Memory:** per request, the rows of the page it renders. The pages read the totals and write nothing.
 
-**Not on disk.** There is no `apps/telemetry/`.
+**How it is built.** The application's gate (`apps/telemetry/src/Gate.nvs`) sets the policy on every
+answer, an error answer included, so the header does not depend on `[http.headers]`. The stylesheet is
+`/style.css`, because the policy allows no style in the page. The week the home page details is the
+newest week with rows; the collector takes a report only for a finished week, so that is the last
+finished week whenever one arrived. `/data/totals.csv` is one file with a first column `table`, which
+is `reports` or `counters`, and the columns of both tables; a column the row's table lacks is empty.
+`/data/<week>.json` is `404` for a week with no `reports` row.
 
 **Declined:**
 - **A JavaScript chart library.** It is a script on a page that promises to run none, and SVG drawn

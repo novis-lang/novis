@@ -1,0 +1,92 @@
+<?nvs
+namespace Telemetry;
+
+use Core\Arr;
+use Core\Html\Markup;
+use Core\Math;
+
+// Draws the charts of the pages as SVG inside the HTML. The page needs no script and no image file.
+// The stylesheet `/style.css` sets the colors.
+final class Charts {
+    private const int WIDTH = 600;
+    private const int HEIGHT = 200;
+    private const int ROW = 24;
+    private const int LABEL_WIDTH = 160;
+    private const int BAR_WIDTH = 360;
+
+    // A line with one point for each week. The points of the weeks in `$arriving` are drawn hollow.
+    public static function line(string $title, array<Count> $weeks, array<string> $arriving): Markup {
+        int $count = Arr::count($weeks) as int;
+        if ($count == 0) {
+            return html`<p>No reports have arrived yet.</p>`;
+        }
+        int $max = Math::max(Charts::largest($weeks), 1);
+        // The line uses the space between y = 20 and y = 170. The labels go below it.
+        int $top = 20;
+        int $bottom = 170;
+        string $path = "";
+        var $dots = html``;
+        int $i = 0;
+        foreach ($weeks as Count $week) {
+            int $x = $count == 1 ? Math::intDiv(Charts::WIDTH, 2) : 20 + Math::intDiv($i * (Charts::WIDTH - 40), $count - 1);
+            int $y = $bottom - Math::intDiv($week->value * ($bottom - $top), $max);
+            $i = $i + 1;
+            $path = $path . "{$x},{$y} ";
+            string $class = Pages::isArriving($arriving, $week->label) ? "arriving" : "final";
+            tainted string $label = $week->label;
+            int $value = $week->value;
+            $dots = $dots + html`<circle class="{$class}" cx="{$x}" cy="{$y}" r="4"><title>{$label}: {$value}</title></circle>`;
+        }
+        tainted string $first = $weeks[0]->label;
+        tainted string $last = $weeks[$count - 1]->label;
+        int $width = Charts::WIDTH;
+        int $height = Charts::HEIGHT;
+        int $right = Charts::WIDTH - 20;
+        return html`<svg class="chart" viewBox="0 0 {$width} {$height}" role="img" aria-label="{$title}">
+<title>{$title}</title>
+<line class="axis" x1="20" y1="{$bottom}" x2="{$right}" y2="{$bottom}"/>
+<text x="20" y="14">{$max}</text>
+<polyline class="line" points="{$path}"/>
+{$dots}
+<text x="20" y="190">{$first}</text>
+<text x="{$right}" y="190" text-anchor="end">{$last}</text>
+</svg>`;
+    }
+
+    // A list of horizontal bars, one for each count. The longest bar is the largest count.
+    public static function bars(string $title, array<Count> $counts): Markup {
+        int $count = Arr::count($counts) as int;
+        if ($count == 0) {
+            return html`<p>None in this week.</p>`;
+        }
+        int $max = Math::max(Charts::largest($counts), 1);
+        int $width = Charts::WIDTH;
+        int $height = $count * Charts::ROW;
+        int $start = Charts::LABEL_WIDTH;
+        var $rows = html``;
+        int $y = 0;
+        foreach ($counts as Count $item) {
+            int $textY = $y + 16;
+            int $length = Math::max(Math::intDiv($item->value * Charts::BAR_WIDTH, $max), 1);
+            int $valueX = $start + $length + 6;
+            tainted string $label = $item->label;
+            int $value = $item->value;
+            $rows = $rows + html`<text x="0" y="{$textY}">{$label}</text>
+<rect class="bar" x="{$start}" y="{$y}" width="{$length}" height="18"/>
+<text x="{$valueX}" y="{$textY}">{$value}</text>
+`;
+            $y = $y + Charts::ROW;
+        }
+        return html`<svg class="chart" viewBox="0 0 {$width} {$height}" role="img" aria-label="{$title}">
+<title>{$title}</title>
+{$rows}</svg>`;
+    }
+
+    private static function largest(array<Count> $counts): int {
+        int $max = 0;
+        foreach ($counts as Count $item) {
+            $max = Math::max($max, $item->value);
+        }
+        return $max;
+    }
+}

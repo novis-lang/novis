@@ -1,0 +1,226 @@
+<?nvs
+namespace Telemetry;
+
+use Core\Arr;
+use Core\Html\Markup;
+use Core\IO;
+use Core\Str;
+use Core\Time\Instant;
+use Core\Time\Zone;
+use Core\Unit;
+use IOError;
+use RuntimeError;
+
+// Builds the HTML pages. Each `{$name}` in an `html` literal is escaped, so a `<` in a value prints as `&lt;`.
+// The pages load no script and no file from another website.
+final class Pages {
+    // The code of the app, on the website where the project keeps it.
+    public const string SOURCE = "https://github.com/novis-lang/novis/tree/main/apps/telemetry";
+    private const string TREE = "https://github.com/novis-lang/novis/tree/";
+    private const string HEX = "0123456789abcdef";
+
+    // The home page: the reports of every week, and the details of the newest week.
+    public static function home(Totals $totals, Instant $now): Markup {
+        array<string> $arriving = Pages::arriving($now);
+        var $perWeek = $totals->reportsPerWeek();
+        var $content = html`<h1>Novis usage</h1>
+<p>These numbers come from the reports that <code>nvs</code> sends when a user turns on telemetry.
+A report has no name, no address and nothing from your programs. <a href="/collect">See what a report contains.</a></p>
+<p>Reports for a week can arrive until four weeks after the week ends.
+The newest four weeks are marked <em>still arriving</em>, and their numbers can still grow.</p>
+<h2>Reports per week</h2>
+<?= Charts::line("Reports per week", $perWeek, $arriving) ?>
+<h2>First reports per week</h2>
+<p>A first report comes from an install that never sent a report before.</p>
+<?= Charts::line("First reports per week", $totals->firstReportsPerWeek(), $arriving) ?>
+<?= Pages::weekTable($perWeek, $totals->firstReportsPerWeek(), $arriving) ?>`;
+        if (Arr::count($perWeek) > 0) {
+            // The newest week with reports. The app accepts a report only for a week that has ended.
+            tainted string $week = $perWeek[Arr::count($perWeek) - 1]->label;
+            string $note = Pages::isArriving($arriving, $week) ? " (still arriving)" : "";
+            $content = $content + html`<h2>The week {$week}{$note}</h2>
+<h3>Versions</h3>
+<?= Charts::bars("Reports from each version", $totals->versions($week)) ?>
+<h3>Systems</h3>
+<?= Charts::bars("Reports from each operating system and processor", $totals->systems($week)) ?>
+<h3>Commands</h3>
+<p>How many installs used each command at least once.</p>
+<?= Charts::bars("Installs that used each command", $totals->commands($week)) ?>
+<h3>Days with use</h3>
+<p>On how many days of the week each install ran <code>nvs</code>.</p>
+<?= Charts::bars("Reports by the number of days with use", $totals->daysActive($week)) ?>
+<h3>Internal errors</h3>
+<p>An internal error is a crash of <code>nvs</code> itself. An error in a program is not counted.</p>
+<?= Charts::bars("Internal errors of each command", $totals->internalErrors($week)) ?>`;
+        }
+        return Pages::layout("Novis usage", $content);
+    }
+
+    // The page that says what a report contains, and how to turn telemetry on and off.
+    // `$origin` is the scheme and host of the request, such as `https://telemetry.example.com`.
+    public static function collect(tainted string $origin): Markup {
+        tainted string $endpoint = $origin . "/v1/report";
+        string $source = Pages::SOURCE;
+        var $content = html`<h1>What a report contains</h1>
+<p>Telemetry is off until you turn it on. When it is on, <code>nvs</code> counts the commands you run.
+Once a week it sends the counts of the last week to <code>{$endpoint}</code>.</p>
+<h2>The fields</h2>
+<dl>
+<dt><code>schema</code></dt><dd>The version of the report format. It is <code>1</code>.</dd>
+<dt><code>version</code></dt><dd>The version of <code>nvs</code>, such as <code>0.4.0</code>.</dd>
+<dt><code>os</code></dt><dd>The operating system: <code>linux</code>, <code>macos</code>, <code>windows</code> or <code>other</code>.</dd>
+<dt><code>arch</code></dt><dd>The processor: <code>x86_64</code>, <code>aarch64</code> or <code>other</code>.</dd>
+<dt><code>week</code></dt><dd>The week of the counts, such as <code>2026-W42</code>.</dd>
+<dt><code>first</code></dt><dd><code>true</code> if this install never sent a report before.</dd>
+<dt><code>days_active</code></dt><dd>On how many days of that week <code>nvs</code> ran, from 1 to 7.</dd>
+<dt><code>counters</code></dt><dd>How many times each command ran, such as <code>invocation.run</code>.
+<code>internal-error.run</code> counts the crashes of <code>nvs</code> itself in that command.</dd>
+</dl>
+<p>A report has no other field. It has no name, no machine number, no file path and nothing from your programs.</p>
+<h2>An example</h2>
+<pre><code>{"schema":1,"version":"0.4.0","os":"linux","arch":"x86_64","week":"2026-W42","first":false,"days_active":3,"counters":{"invocation.run":41,"invocation.serve":2,"internal-error.check":1}}</code></pre>
+<h2>What this service keeps</h2>
+<p>The service adds each report to the totals of its week, and then deletes the report.
+It does not save the address of the sender. Every total it keeps is on <a href="/">the home page</a> and in <a href="/data">the downloads</a>.</p>
+<h2>Turn telemetry on and off</h2>
+<pre><code>nvs telemetry on       # starts counting and sending
+nvs telemetry off      # stops counting and sending
+nvs telemetry status   # shows if telemetry is on, and when the last report was sent
+nvs telemetry show     # prints the next report before it is sent
+nvs telemetry reset    # deletes the counts on your computer and turns telemetry off</code></pre>
+<h2>The code</h2>
+<p>The code of this service is public. You can read it at <a href="{$source}">{$source}</a>.
+The bottom of each page names the version of the code that runs here.</p>`;
+        return Pages::layout("What a report contains", $content);
+    }
+
+    // The page with the list of downloads.
+    public static function data(): Markup {
+        var $content = html`<h1>Downloads</h1>
+<p>You can download every total that this service keeps.</p>
+<ul>
+<li><a href="/data/totals.json">totals.json</a>: both tables, as JSON.</li>
+<li><a href="/data/totals.csv">totals.csv</a>: both tables, as CSV. The column <code>table</code> is <code>reports</code> or <code>counters</code>.</li>
+<li><code>/data/2026-W42.json</code>: the rows of one week, as JSON. Replace <code>2026-W42</code> with the week you want.</li>
+</ul>
+<h2>The tables</h2>
+<p>The table <code>reports</code> has one row for each week, version, operating system and processor.
+<code>reports</code> is the number of reports, and <code>first_reports</code> the number of first reports.
+<code>active_1</code> to <code>active_7</code> count the reports by their <code>days_active</code>.</p>
+<p>The table <code>counters</code> has one row for each week, version, system and counter.
+<code>total</code> is the sum of the counter in all reports.
+<code>reports</code> is the number of reports where the counter is above 0.</p>
+<h2>License</h2>
+<p>The data is in the public domain under <a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0</a>.
+You can copy, change and publish it, also for a business, without asking.</p>`;
+        return Pages::layout("Downloads", $content);
+    }
+
+    // Returns the four newest weeks that have ended, such as `2026-W42`. Reports for these weeks can still arrive.
+    public static function arriving(Instant $now): array<string> {
+        var $monday = $now->in(Zone::of("UTC"))->startOf(Unit::Week);
+        array<string> $weeks = [];
+        foreach (Arr::range(1, Report::MAX_AGE_WEEKS) as int $back) {
+            $weeks[] = $monday->minus($back, Unit::Week)->format("YYYY-'W'ww");
+        }
+        return $weeks;
+    }
+
+    // Returns `true` when `$week` is one of the weeks in `$arriving`.
+    public static function isArriving(array<string> $arriving, tainted string $week): bool {
+        foreach ($arriving as string $item) {
+            if ($item == $week) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Returns the commit that the deploy step wrote to the file `REVISION`, or `unknown`.
+    // A commit is 7 to 40 characters from `0` to `9` and `a` to `f`. Any other text gives `unknown`.
+    public static function revision(): tainted string {
+        tainted string $text = "";
+        try {
+            $text = Str::trim(IO::readText("../REVISION"));
+        } catch (IOError $missing) {
+            return "unknown";
+        } catch (RuntimeError $notAllowed) {
+            return "unknown";
+        }
+        uint $length = Str::length($text);
+        if ($length < 7 || $length > 40) {
+            return "unknown";
+        }
+        foreach (Arr::range(0, ($length as int) - 1) as int $at) {
+            if (!Str::contains(Pages::HEX, Str::slice($text, $at, 1))) {
+                return "unknown";
+            }
+        }
+        return $text;
+    }
+
+    // The table of every week, with both numbers.
+    private static function weekTable(array<Count> $reports, array<Count> $first, array<string> $arriving): Markup {
+        if (Arr::count($reports) == 0) {
+            return html``;
+        }
+        var $rows = html``;
+        int $i = 0;
+        foreach ($reports as Count $week) {
+            tainted string $label = $week->label;
+            string $note = Pages::isArriving($arriving, $week->label) ? " (still arriving)" : "";
+            int $count = $week->value;
+            int $firstCount = $first[$i]->value;
+            $i = $i + 1;
+            $rows = $rows + html`<tr><td>{$label}{$note}</td><td>{$count}</td><td>{$firstCount}</td></tr>
+`;
+        }
+        return html`<table>
+<thead><tr><th>Week</th><th>Reports</th><th>First reports</th></tr></thead>
+<tbody>
+{$rows}</tbody>
+</table>`;
+    }
+
+    // The page for a path that has no route.
+    public static function notFound(): Markup {
+        return Pages::layout("Not found", html`<h1>Not found</h1><p>There is no page at this address.</p><p><a href="/">The home page</a></p>`);
+    }
+
+    private static function layout(string $title, Markup $content): Markup {
+        tainted string $revision = Pages::revision();
+        var $commit = html`<code>unknown</code>`;
+        if ($revision != "unknown") {
+            tainted string $link = Pages::TREE . $revision;
+            $commit = html`<a href="{$link}"><code>{$revision}</code></a>`;
+        }
+        return html`<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{$title}</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<nav><a href="/">Usage</a> <a href="/collect">What a report contains</a> <a href="/data">Downloads</a></nav>
+<main>
+{$content}
+</main>
+<footer><p>This site runs the code of commit {$commit}. The data is CC0.</p></footer>
+</body>
+</html>`;
+    }
+
+    // The stylesheet of every page. A page loads it from `/style.css`, because the pages allow no style inside the HTML.
+    public static function style(): string {
+        return "body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 0 auto; padding: 1rem; line-height: 1.5; color: #222; }\n"
+            . "nav a { margin-right: 1rem; }\n"
+            . "footer { margin-top: 3rem; font-size: 0.9rem; color: #555; }\n"
+            . "pre { overflow-x: auto; background: #f4f4f4; padding: 0.5rem; }\n"
+            . "table { border-collapse: collapse; margin: 1rem 0; }\n"
+            . "th, td { text-align: left; padding: 0.2rem 0.8rem; border-bottom: 1px solid #ddd; }\n"
+            . ".chart { width: 100%; height: auto; font-size: 12px; }\n"
+            . ".chart .axis { stroke: #999; }\n"
+            . ".chart .line { fill: none; stroke: #1f6feb; stroke-width: 2; }\n"
+            . ".chart .final { fill: #1f6feb; }\n"
+            . ".chart .arriving { fill: #fff; stroke: #1f6feb; stroke-width: 2; }\n"
+            . ".chart .bar { fill: #1f6feb; }\n";
+    }
+}

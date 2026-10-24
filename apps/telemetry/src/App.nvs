@@ -12,8 +12,8 @@ use Core\Time;
 use ParseError;
 use RuntimeError;
 
-// The routes of the app. Each method with a `Route` handles one kind of request.
-// `Core\Router::dispatch` in `public/index.nvs` calls the method of the route that matches.
+// The routes of the app. `Core\Router::dispatch` in `public/index.nvs` calls the method of the route that matches.
+// Every route except the report is `GET`, and no route sets a cookie.
 final class App {
     // Checks one report and adds it to the weekly totals.
     // The request has no cookie and no session, so the route does not need a CSRF token.
@@ -44,9 +44,67 @@ final class App {
         }
     }
 
-    // Reads the body of the request.
-    // `Request::body` throws a `RuntimeError` when the body is larger than `[limits] request_body`
-    // in `nvs.toml`, and a `ParseError` when the body is not UTF-8 text.
+    // The home page: the reports of every week, and the details of the newest week.
+    #[Route(path: "/", method: Method::Get, name: "App::home")]
+    #[Access(allow: Audience::Public)]
+    public static function home(): void {
+        Response::html(Pages::home(App::totals(), Time::now()));
+    }
+
+    // The page that says what a report contains. The address of the service is built from this request.
+    #[Route(path: "/collect", method: Method::Get, name: "App::collect")]
+    #[Access(allow: Audience::Public)]
+    public static function collect(): void {
+        tainted string $origin = Request::scheme() . "://" . (Request::host() ?? "localhost");
+        Response::html(Pages::collect($origin));
+    }
+
+    // The page with the list of downloads.
+    #[Route(path: "/data", method: Method::Get, name: "App::data")]
+    #[Access(allow: Audience::Public)]
+    public static function data(): void {
+        Response::html(Pages::data());
+    }
+
+    // The stylesheet of the pages.
+    #[Route(path: "/style.css", method: Method::Get, name: "App::style")]
+    #[Access(allow: Audience::Public)]
+    public static function style(): void {
+        Response::bytes(Pages::style() as bytes, "text/css; charset=utf-8");
+    }
+
+    // Both tables as JSON.
+    #[Route(path: "/data/totals.json", method: Method::Get, name: "App::totalsJson")]
+    #[Access(allow: Audience::Public)]
+    public static function totalsJson(): void {
+        Response::json(Data::json(App::totals()));
+    }
+
+    // Both tables as CSV.
+    #[Route(path: "/data/totals.csv", method: Method::Get, name: "App::totalsCsv")]
+    #[Access(allow: Audience::Public)]
+    public static function totalsCsv(): void {
+        Response::bytes(Data::csv(App::totals()) as bytes, "text/csv; charset=utf-8");
+    }
+
+    // The rows of one week as JSON, such as `/data/2026-W42.json`. A week with no rows gets 404.
+    #[Route(path: "/data/{file}", method: Method::Get, name: "App::week")]
+    #[Access(allow: Audience::Public)]
+    public static function week(tainted string $file): void {
+        ?tainted string $week = Data::weekOf($file);
+        if ($week != null) {
+            var $totals = App::totals();
+            if (Core\Arr::count($totals->reports($week)) > 0) {
+                Response::json(Data::json($totals, $week));
+                return;
+            }
+        }
+        Response::setStatus(404);
+        Response::json({error: "There are no totals for this week."});
+    }
+
+    // Reads the body of the request. A body larger than `[limits] request_body` in `nvs.toml` gets 413.
+    // A body that is not UTF-8 text gets 400.
     private static function body(): tainted string {
         try {
             return Request::body();

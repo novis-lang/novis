@@ -6,17 +6,22 @@ use Core\Response;
 use Core\Router\Refusal;
 use Throwable;
 
-// The gate of the app. `Core\Router::dispatch` calls it for every request.
-// It decides if a route method may run, and it writes the error answers.
+// The gate of the app. It decides if a route method may run, and it writes the error answers.
+// Each method sets the `Content-Security-Policy` header, so every answer has it.
 final class Gate implements Core\Router\Gate {
+    // A page may load styles and images from this website only, and nothing else. It cannot run a script.
+    public const string POLICY = "default-src 'none'; style-src 'self'; img-src 'self'";
+
     // Every route of this app is public, so this checks for `Audience::Public`.
     public function allows(Core\Router\Match $route): bool {
+        Response::setHeader("content-security-policy", Gate::POLICY);
         return $route->accessAs<Audience>() == Audience::Public;
     }
 
     // Writes the answer when no route method can handle the request.
     // `dispatch` has already set the status code, such as 404 or 405.
     public function refused(Refusal $reason, ?Core\Router\Match $route): void {
+        Response::setHeader("content-security-policy", Gate::POLICY);
         string $text = match ($reason) {
             Refusal::NotFound => "There is nothing at this address.",
             Refusal::MethodNotAllowed => "This address does not accept this kind of request.",
@@ -28,6 +33,7 @@ final class Gate implements Core\Router\Gate {
 
     // Writes the answer when a route method throws an error. The status code is 500.
     public function failed(?Core\Router\Match $route, ?Throwable $error): void {
-        Response::json({error: "Something went wrong. The report was not added."});
+        Response::setHeader("content-security-policy", Gate::POLICY);
+        Response::json({error: "Something went wrong."});
     }
 }
