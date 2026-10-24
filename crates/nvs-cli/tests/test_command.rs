@@ -349,7 +349,10 @@ fn nvs_test_mutate_reports_each_mutant_and_fails_only_on_a_failing_test() {
 
     fs::write(
         dir.join("stock_test.nvs"),
-        MUTATED.replace("assertSame(Stock::twice(3), 6)", "assertSame(Stock::twice(3), 7)"),
+        MUTATED.replace(
+            "assertSame(Stock::twice(3), 6)",
+            "assertSame(Stock::twice(3), 7)",
+        ),
     )
     .unwrap();
     let failing = test_in(&dir, &["stock_test.nvs", "--mutate"]);

@@ -23,7 +23,7 @@ final class Grow
         array<string> $items = [];
         var $i = 0;
         while ($i < $n) {
-            $items[] = Core\Str::repeat("x", 1048576);
+            $items[] = Core\Str::repeat('x', 1048576);
             $i = $i + 1;
         }
         return Core\Arr::count($items);
@@ -39,7 +39,7 @@ final class GrowTest
     }
 
     // The long time limit makes the memory limit stop this mutant first.
-    #[Test(timeout: "60s")]
+    #[Test(timeout: '60s')]
     public function fillsThree(): void
     {
         Test::assertSame(Grow::fill(3), 3 as uint);
