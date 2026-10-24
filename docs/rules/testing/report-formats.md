@@ -31,7 +31,18 @@ already built, so a program whose tests fail, hang or `exit` lists exactly as a 
 document carries one `{class, method, file, line, column}` per call under `listed` — no verdict and no
 summary, since a summary of zeros is a report of a run that did not happen and a `tests` array missing
 its verdicts would make a consumer tell the two documents apart by a key's absence. `--format junit`,
-`--update` and a `.nvst` tree are each refused beside it rather than ignored.
+`--update` and `--record` are each refused beside it rather than ignored.
+
+**`--list` over a `.nvst` tree lists its cases**, in the same document: one `{case, file, line, column}`
+per case, where `case` and `file` are the path a run's report names the case by and the location is
+line 1. `case` takes the place of `class` and `method`, because a case is a file, and it is the key a
+consumer tells the two kinds of record apart by. The selection is the run's own: `--filter`,
+`--shard` and `--cases` apply, and no case is read. Under `--list`, a directory with any `.nvst`
+file under it is a case tree even when it also holds programs, so an editor lists a workspace's cases
+by naming the workspace folder. A run of such a directory is still refused, because it would report
+two suites in one call (`rule:testing/nvst-is-separate`). Both directory walks, the case tree's and a
+directory program's, skip a linked directory and a directory that a `CACHEDIR.TAG` marks as a cache,
+and walk with a stack of their own, so no tree's depth can overflow the thread's stack.
 
 - **Memory:** the compiler holds one span per `#[Test]` row for the life of a compile, on a table that
   exists only for a program that declares tests. A run holds one resolved path, line and column per

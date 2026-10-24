@@ -2614,9 +2614,19 @@ fn run_test(
     // by a flag: a program is a `.nvs` file or a directory holding `.nvs` files
     // (`rule:testing/a-directory-of-programs-is-one-test-program`), a
     // conformance case is anything else, and nothing has to be spelled out at
-    // the call site.
+    // the call site. Under `--list`, a directory with any `.nvst` file in it is
+    // a case tree, so an editor can list a workspace's cases by naming the
+    // workspace folder. A run of such a directory stays refused, because it
+    // would have to report two suites in one call.
+    let named = |path: &PathBuf| {
+        if list && holds_cases(path) {
+            Ok(None)
+        } else {
+            Program::named_by(path)
+        }
+    };
     let programs: Vec<Option<Program>> =
-        match paths.iter().map(|path| Program::named_by(path)).collect() {
+        match paths.iter().map(named).collect() {
             Ok(programs) => programs,
             Err(error) => {
                 eprintln!("error: {error}");
@@ -2667,14 +2677,6 @@ fn run_test(
         );
         return ExitCode::FAILURE;
     }
-    if list {
-        // A `.nvst` tree is discovered by walking directories, which is what
-        // the caller already did to name it, and a case file has no `#[Test]`
-        // table to locate. Refused rather than ignored, for `--update`'s reason
-        // just below.
-        eprintln!("error: `--list` locates a program's `#[Test]` methods, not a `.nvst` tree");
-        return ExitCode::FAILURE;
-    }
     if update {
         // § 14's updater rewrites a `#[Test]` method's own snapshot literal,
         // and a `.nvst` case has none: its expectation is the `--EXPECT--`
@@ -2691,10 +2693,11 @@ fn run_test(
         );
         return ExitCode::FAILURE;
     }
-    if format != runner::Format::Human {
+    if format != runner::Format::Human && !(list && format == runner::Format::Json) {
         // § 22's formats report a `#[Test]` run, and § 23 keeps the two suites
         // from sharing a summary — so a machine format over a `.nvst` tree
-        // names a document this subcommand does not produce.
+        // names a document this subcommand does not produce. A listing has no
+        // summary, which is why its JSON document is the one exception.
         eprintln!("error: `--format` reports a program's `#[Test]` methods, not a `.nvst` tree");
         return ExitCode::FAILURE;
     }
@@ -2705,6 +2708,31 @@ fn run_test(
             "error: `--coverage-lcov`, `--coverage-clover` and `--coverage-cobertura` measure a program's `#[Test]` methods, not a `.nvst` tree"
         );
         return ExitCode::FAILURE;
+    }
+
+    let only = match &cases {
+        Some(named) => match std::fs::read_to_string(named) {
+            Ok(text) => Some(
+                text.lines()
+                    .map(str::trim)
+                    .filter(|line| !line.is_empty())
+                    .map(PathBuf::from)
+                    .collect::<Vec<_>>(),
+            ),
+            Err(error) => {
+                eprintln!(
+                    "error: could not read the case list {}: {error}",
+                    named.display()
+                );
+                return ExitCode::FAILURE;
+            }
+        },
+        None => None,
+    };
+    if list {
+        // Answered from the directory walk alone: no case is read, and no
+        // working directory is made.
+        return runner::list_cases(paths, only.as_deref(), &select, format);
     }
 
     let root = match tmp::runner_dir(config) {
@@ -2720,28 +2748,9 @@ fn run_test(
     };
     options.filter = select.filter;
     options.shard = select.shard;
+    options.only = only;
     if let Some(jobs) = jobs {
         options.jobs = jobs.get();
-    }
-    if let Some(list) = &cases {
-        match std::fs::read_to_string(list) {
-            Ok(text) => {
-                options.only = Some(
-                    text.lines()
-                        .map(str::trim)
-                        .filter(|line| !line.is_empty())
-                        .map(PathBuf::from)
-                        .collect(),
-                );
-            }
-            Err(error) => {
-                eprintln!(
-                    "error: could not read the case list {}: {error}",
-                    list.display()
-                );
-                return ExitCode::FAILURE;
-            }
-        }
     }
     if let Some(dir) = &record {
         // Absolute, because each case's processes run in a working directory of their own.
@@ -2944,13 +2953,27 @@ fn programs_under(
     into: &mut Vec<PathBuf>,
     cases: &mut bool,
 ) -> std::io::Result<()> {
-    let mut entries: Vec<PathBuf> = std::fs::read_dir(dir)?
-        .map(|entry| entry.map(|entry| entry.path()))
-        .collect::<std::io::Result<_>>()?;
-    entries.sort();
-    for entry in entries {
-        if entry.is_dir() {
-            programs_under(&entry, into, cases)?;
+    let sorted = |dir: &std::path::Path| -> std::io::Result<std::vec::IntoIter<PathBuf>> {
+        let mut entries: Vec<PathBuf> = std::fs::read_dir(dir)?
+            .map(|entry| entry.map(|entry| entry.path()))
+            .collect::<std::io::Result<_>>()?;
+        entries.sort();
+        Ok(entries.into_iter())
+    };
+    // One sorted listing per open directory, rather than recursion, so a
+    // tree of any depth walks in constant stack and in the same order.
+    let mut open = vec![sorted(dir)?];
+    while let Some(entries) = open.last_mut() {
+        let Some(entry) = entries.next() else {
+            open.pop();
+            continue;
+        };
+        // `nvs_test::discover`'s rules: a linked directory and a cache
+        // directory are not walked.
+        if std::fs::symlink_metadata(&entry).is_ok_and(|meta| meta.is_dir()) {
+            if !nvs_test::is_cache_dir(&entry) {
+                open.push(sorted(&entry)?);
+            }
         } else if is_program(&entry) {
             into.push(entry);
         } else if entry.extension().is_some_and(|ext| ext == "nvst") {
@@ -2958,6 +2981,15 @@ fn programs_under(
         }
     }
     Ok(())
+}
+
+/// Whether `path` is a directory with a `.nvst` file anywhere under it. A
+/// directory that cannot be read holds none, and [`Program::named_by`] then
+/// names the error.
+fn holds_cases(path: &std::path::Path) -> bool {
+    let mut files = Vec::new();
+    let mut cases = false;
+    path.is_dir() && programs_under(path, &mut files, &mut cases).is_ok() && cases
 }
 
 /// The files of a directory of programs that no other file in it requires, in

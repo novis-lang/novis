@@ -1,0 +1,7 @@
+--TEST--
+A greeting is printed
+--FILE--
+<?nvs
+echo "hello\n";
+--EXPECT--
+hello

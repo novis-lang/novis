@@ -11,7 +11,8 @@
 //
 // **Discovery never runs anything.** `nvs test --list --format=json` is the front end's answer off
 // the compiled test table (`crates/nvs-cli/src/runner.rs`, `listing`), so a program whose tests
-// fail, hang or `exit` lists exactly as one whose tests pass. It costs one compile per program and
+// fail, hang or `exit` lists exactly as one whose tests pass. The `.nvst` corpus is the same flag
+// over each workspace folder, which walks the folder and reads no case. It costs one compile per program and
 // is asked for lazily — when the Testing view is first opened, and again on its refresh button —
 // rather than on activation, because a workspace's programs are not the editor's business until
 // somebody asks what tests it holds.
@@ -55,6 +56,7 @@ import {
   Listed,
   Reported,
   Traced,
+  cases,
   filter,
   listed,
   messages,
@@ -72,9 +74,8 @@ export const CONTROLLER = "nvs";
 /** The item every `.nvst` case hangs under: the second suite, named as one. */
 export const CORPUS = "nvst";
 
-/** Where the two suites are found, and what is never walked looking for them. */
+/** Where a program is found, and what is never walked looking for one. */
 const PROGRAMS = "**/*.nvs";
-const CASES = "**/*.nvst";
 const EXCLUDED = "**/{node_modules,target,.git}/**";
 
 // A JSON report of a large suite is larger than the program that produced it, and Node caps a
@@ -140,10 +141,18 @@ async function discover(controller: TestController): Promise<void> {
     known.set(uri.toString(), declared);
     controller.items.add(populate(controller, uri, declared));
   }
-  const cases = await workspace.findFiles(CASES, EXCLUDED);
-  if (cases.length > 0) {
+  // The CLI walks each workspace folder for its cases. A folder with any `.nvst` file in it is a
+  // case tree under `--list` (`crates/nvs-cli/src/main.rs`, `run_test`), so the corpus is the
+  // listing's records and nothing this client searched for.
+  const found: Uri[] = [];
+  for (const folder of workspace.workspaceFolders ?? []) {
+    const document = await cli(["test", "--list", "--format=json", folder.uri.fsPath]);
+    const named = document === undefined ? undefined : cases(document.stdout);
+    found.push(...(named ?? []).map((path) => Uri.file(path)));
+  }
+  if (found.length > 0) {
     const corpus = controller.createTestItem(CORPUS, ".nvst cases");
-    for (const uri of cases) {
+    for (const uri of found) {
       corpus.children.add(controller.createTestItem(uri.toString(), basename(uri), uri));
     }
     controller.items.add(corpus);

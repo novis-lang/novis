@@ -48,7 +48,7 @@ stages:
         rules: [testing/property-testing, testing/feature-proofs]
   - id: 4
     title: "`nvs test --list` covers `.nvst` trees, and the editor stops searching for them"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, editors/vscode/src/tests.ts, editors/vscode/test/surfaces/tests.test.ts, docs/rules/ide/the-test-tree-is-discovered-and-run-through-the-cli.md]
     extra:
       context:
@@ -167,6 +167,12 @@ takes a `fails` callback, so the runner rebuilds each candidate in the same isol
 method once per candidate, at most `MAX_SHRINK_CALLS` times. Why: the tree is data, so the shrinker
 is tested with no runtime, and the same seed shrinks to the same counterexample everywhere.
 
+**Under `--list`, a folder with any `.nvst` file is a case tree, and the editor lists each workspace
+folder that way.** A run of a mixed folder is still refused. Why: the editor needs a root to name
+without searching, and a workspace folder usually holds programs too. A new flag that picks the kind
+was declined as one more flag for one client. The cost is one folder compile on discovery in a
+workspace folder with programs and no case. The rule says so (`docs/rules/testing/report-formats.md`).
+
 ## Stages
 
 ### 1. tests are absent from `nvs run` and `nvs build`
@@ -262,10 +268,10 @@ then the attack. Each is held to `AGENTS.md` § *Text an end user reads*.
 **Does:** `--list` over a case tree lists its cases, and the VS Code client fills its tree from that
 document alone.
 
-- [ ] `--list` accepts a `.nvst` tree and lists each case with its path, in the JSON form the program listing uses. `crates/nvs-cli/src/runner.rs:2935`, `crates/nvs-cli/src/runner.rs:2963`
-- [ ] The client drops its `findFiles` search for cases and reads the listing (`rule:ide/the-test-tree-is-discovered-and-run-through-the-cli`). `editors/vscode/src/tests.ts:77`, `editors/vscode/src/tests.ts:143`
-- [ ] A CLI test over a case tree. `crates/nvs-cli/src/runner.rs:2935`
-- [ ] The headless surface test and its recorded listing updated. `editors/vscode/test/surfaces/tests.test.ts:1`
+- [x] `--list` accepts a `.nvst` tree and lists each case with its path, in the JSON form the program listing uses. `crates/nvs-cli/src/runner.rs:3834`, `crates/nvs-cli/src/runner.rs:3865`
+- [x] The client drops its `findFiles` search for cases and reads the listing (`rule:ide/the-test-tree-is-discovered-and-run-through-the-cli`). `editors/vscode/src/tests.ts:143`
+- [x] A CLI test over a case tree. `crates/nvs-cli/src/runner.rs:4522`
+- [x] The headless surface test and its recorded listing updated. `editors/vscode/test/surfaces/tests.test.ts:1`
 
 ### 6. fail-fast, rerun-failed and shuffle
 
@@ -306,19 +312,21 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2, 3, 7 and 8 are done. The sweep was stale again: `env-secret-proofs` is green when
-run, and the nightly run tested `3ea6f1550`, whose failures each have a later fix.
+Stages 1, 5, 2, 3, 7, 8 and 4 are done. The sweep was stale again: `env-secret-proofs` is green
+when run, and the nightly run tested `3ea6f1550`, 88 commits back, whose failures each have a later
+fix (crypto-bigint 0.7.6, and the Miri transport and JSON cases).
 
-`#[Property]` owes nothing to `bun nv proofs`, and its rule is `shipped`. Perf was re-recorded for
-all nine Testing features, which the `95-testing.md` re-render made stale. The shrinker's
-`candidates` (`crates/nvs-types/src/property/shrink.rs:84`) is now an iterator in the same order,
-which the attack showed was needed. An attack with `// proof: test` runs under `nvs test`
-(`proofArgv`, `tools/nv/proofs/run.ts:561`). Two gaps this goal owns are now stage 6's last items.
+`nvs test --list` over a `.nvst` tree prints one `{case, file, line, column}` per case
+(`list_cases`, `crates/nvs-cli/src/runner.rs:3834`), selected by `nvs_test::selected`, which a run
+now uses too. Under `--list`, a folder with any `.nvst` file is a case tree (`holds_cases`,
+`crates/nvs-cli/src/main.rs:2989`). The VS Code client lists each workspace folder that way and
+searches for no case file. Both directory walks now use a stack, skip linked folders and skip
+`CACHEDIR.TAG` folders: `nvs test target/` overflowed the stack before, on a very deep folder a
+proof run left under `target/proof/.nvsdata`. The memory-ceiling `.nvst` case runs its loop in a
+`#[Test]`, and passes.
 
-Red now: `tests/conformance/core/test-assertions-past-the-memory-ceiling-name-the-ceiling.nvst`
-loops assertions under `nvs run`, where stage 1 records none. Move the loop into a `#[Test]`.
-
-May go red at the gate: a `--dump-ir` snapshot of a program with a property (extra shape classes);
+May go red at the gate: an `nvs test --help` snapshot (the `--list` text is new); a test expecting
+`--list` over a case tree to be refused; a `--dump-ir` snapshot of a program with a property (extra shape classes);
 `E0889`'s card snapshot and anything counting `ATTRIBUTE_DOCS` (`crates/nvs-lsp/src/stubs.rs:156`);
 an `nvs-host` `group.rs` or `nvs-stdlib` `test.rs` unit test reading `take_assertions` on an unowned
 context (call `set_owned_by_test`); a `.nvst` whose non-test code calls test code (`E0889`); a
@@ -329,13 +337,16 @@ that shrinks; a diagnostic snapshot naming `MARKERS`' five attributes (now six).
 
 ### Next
 
-**Stage 4: `nvs test --list` covers `.nvst` trees.** It shares `runner.rs` with stage 6, so it runs
-before it.
+**Stage 6: fail-fast, rerun-failed and shuffle.** It shares `runner.rs` with stage 9, so it runs
+first. The flags go beside `list` in `Args` (`crates/nvs-cli/src/runner.rs:261`). The queue is
+`run_suite` (`crates/nvs-cli/src/runner.rs:1200`), and the summary counts are `Counts`
+(`crates/nvs-cli/src/runner.rs:3598`). The data folder is `crates/nvs-config/src/data.rs:65`.
 
-- [ ] `--list` accepts a `.nvst` tree, and lists each case with its path in the JSON form `listing_document` writes. `crates/nvs-cli/src/runner.rs:3780`, `crates/nvs-cli/src/runner.rs:3809`
-- [ ] The client drops its `findFiles` search for cases and reads the listing. `editors/vscode/src/tests.ts:143`
-- [ ] A CLI test over a case tree, beside `the_listing_mode_discovers_without_executing`. `crates/nvs-cli/src/runner.rs:4467`
-- [ ] The headless surface test and its recorded listing, re-recorded from the binary. `editors/vscode/test/surfaces/tests.test.ts:1`
+- [ ] `--fail-fast` stops starting tests after the first failure, and the summary counts what did not run. `crates/nvs-cli/src/runner.rs:1200`, `crates/nvs-cli/src/runner.rs:3598`
+- [ ] Each run writes its failed tests to the data folder, and `--rerun-failed` runs them. `crates/nvs-config/src/data.rs:65`
+- [ ] `--shuffle` and `--shuffle=<seed>`, with the seed in the summary and the report order unchanged. `crates/nvs-cli/src/runner.rs:1200`
+- [ ] Tests for each, the help text and the `tools:cli/nvs-test` example. `docs/examples/tools/cli/nvs-test/about.md:1`
+- [ ] The two gaps of stage 6, and the rule `shipped`. `crates/nvs-cli/src/extensions.rs:1`, `crates/nvs-stdlib/src/test.rs:1`
 
 ### Backlog
 
@@ -343,4 +354,6 @@ before it.
 - Goals `mutation-testing` and `bench-counters` gate on stages 1 and 5 (`docs/goals/mutation-testing.md`, `docs/goals/bench-counters.md`).
 - A property's counterexample prints an enum case as its number, such as `new Item("", 1, 0)`. The case name would read better. `crates/nvs-cli/src/runner.rs:2357`
 - A long failing string or list spends the 1000-call shrink budget on one-item removals before it tries all `a`, so its counterexample stays long. Removing chunks first would shrink further. `crates/nvs-types/src/property/shrink.rs:362`
+- A workspace folder with programs and no `.nvst` case pays one compile of the folder as a program when the editor lists its cases, and the client reads none of those records. `editors/vscode/src/tests.ts:143`
+- A case label mixes separators on Windows, such as `tests/conformance/core\x.nvst`, in a run's report and in a listing. `crates/nvs-test/src/lib.rs:225`
 - The "it asserted nothing" report line names a rule id, and text a user reads names none (`AGENTS.md` § *Text an end user reads*). `crates/nvs-cli/src/runner.rs:3375`

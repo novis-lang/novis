@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 2,
+  "listed": [
+    {"case": "editors/vscode/test/surfaces/recorded/cases\\a-greeting-is-printed.nvst", "file": "editors/vscode/test/surfaces/recorded/cases\\a-greeting-is-printed.nvst", "line": 1, "column": 1},
+    {"case": "editors/vscode/test/surfaces/recorded/cases\\nested\\a-count-is-printed.nvst", "file": "editors/vscode/test/surfaces/recorded/cases\\nested\\a-count-is-printed.nvst", "line": 1, "column": 1}
+  ]
+}
