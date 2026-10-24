@@ -41,7 +41,7 @@ stages:
         rules: [ide/doc-comment-authoring-is-the-editors-own, ide/redaction-does-not-reach]
   - id: 6
     title: "the older `Core` reference cards are in the plain voice: the six largest modules"
-    status: open
+    status: done
     context: [data/gaps/nvs-stdlib/reference-cards-are-not-held-to-the-plain-voice.json, docs/rules/core-api/reference-card.md]
     extra:
       context:
@@ -260,12 +260,12 @@ running server without a restart.
 **Split:** one writing subagent per module, one after another. Each reads its module's cards and
 rewrites the ones in the old voice. The session reads each diff before the next subagent starts.
 
-- [ ] `ldap/registry.rs`, 101 cards. `crates/nvs-stdlib/src/ldap/registry.rs:1`
-- [ ] `time.rs`, 77 cards. `crates/nvs-stdlib/src/time.rs:1`
-- [ ] `db/registry.rs`, 69 cards. `crates/nvs-stdlib/src/db/registry.rs:1`
-- [ ] `arr.rs`, 59 cards. `crates/nvs-stdlib/src/arr.rs:1`
-- [ ] `reflect.rs`, 48 cards. `crates/nvs-stdlib/src/reflect.rs:1`
-- [ ] `io.rs`, 45 cards. `crates/nvs-stdlib/src/io.rs:1`
+- [x] `ldap/registry.rs`, 101 cards. `crates/nvs-stdlib/src/ldap/registry.rs:1`
+- [x] `time.rs`, 77 cards. `crates/nvs-stdlib/src/time.rs:1`
+- [x] `db/registry.rs`, 69 cards. `crates/nvs-stdlib/src/db/registry.rs:1`
+- [x] `arr.rs`, 59 cards. `crates/nvs-stdlib/src/arr.rs:1`
+- [x] `reflect.rs`, 48 cards. `crates/nvs-stdlib/src/reflect.rs:1`
+- [x] `io.rs`, 45 cards. `crates/nvs-stdlib/src/io.rs:1`
 
 ### 7. the older `Core` reference cards are in the plain voice: the next thirteen modules
 
@@ -324,7 +324,19 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done. Stage 5: `editors/vscode/src/docpaste.ts` (no `vscode` import) decides
+Stages 1 to 6 are done. Stage 6: the cards of `ldap/registry.rs`, `time.rs`, `db/registry.rs`,
+`arr.rs`, `reflect.rs` and `io.rs` are in the plain voice, one commit. Six writing subagents ran one
+after another, and the session read each diff. Cards already plain are unchanged; no error class,
+parameter name or fact moved. The six briefs are the template for stages 7 and 8: name the one
+file, `AGENTS.md` § *Text an end user reads* and the card rule, say that `///` comments are not
+cards, locate cards by Grep in a code-heavy file, forbid any build, and ask for before→after pairs
+and the cards whose meaning was unclear. Check those flagged cards in the diff: the session fixed
+two sentences the subagents left vague (`reflect.rs` `construct`'s `LogicError`, `io.rs`
+`File::lock`'s `IOError`). After the build, `bun nv render --website` rewrote
+`website/src/data/core.json` and `website/public/llms-full.txt` from the debug binary, in the same
+commit, so the website check stays in step. Build and clippy green.
+
+Stage 5: `editors/vscode/src/docpaste.ts` (no `vscode` import) decides
 *Paste as doc comment*: at one cursor after a line's `///` (not `////`), text of two lines or more
 gets the run's indentation and `/// ` on each later line, an empty line a bare `///`, and one line
 ending at the end of the text is dropped. `src/doccomments.ts` is the provider, registered from
@@ -393,6 +405,10 @@ not contributed; the suite as read only checks the other direction).
 Stage 5's: none expected. The contributions suite reads every file under `src/` as one text, and
 `doccomments.ts` registers no command and reads no setting.
 
+Stage 6's: a test or `.lspt`/`.nvst` case that quotes a rewritten card's old words, such as a hover
+case on a `Core\Time`, `Core\Arr` or `Core\IO` method, or a `nvs help` snapshot. A grep for six of
+the old phrases found none outside the cards. `bun nv render --website --check` should be current.
+
 **The nightly run's red is not owed by this tree.** Run 39922764699 ran at `7b6ef53ee`. Its
 `cost guards / macos-aarch64` soak leak was 2280 bytes per connection, and commit `071663316`
 (`fix(runtime): a spawned tree's start-up bytes leave the tree that spawned it`) fixes it. That
@@ -403,21 +419,20 @@ so both reds are stale. Another session committed the `capability.rs` rustfmt ch
 
 ### Next
 
-**Stage 6: the older `Core` reference cards are in the plain voice, the six largest modules.**
-Follow the stage's `**Split:**` line: one writing subagent per module, one after another, and the
-session reads each diff before the next starts. Each subagent's brief names
-`AGENTS.md` § *Text an end user reads* and `docs/rules/core-api/reference-card.md`, and rewrites
-only the cards in the old voice. The session builds once with `cargo build` and
-`cargo clippy --all-targets -- -D warnings` after all six.
+**Stage 7: the older `Core` reference cards are in the plain voice, the next thirteen modules.**
+Same method as stage 6 (see *State*): one writing subagent per item, one after another, the session
+reads each diff and fixes any vague sentence, then builds once with `cargo build` and
+`cargo clippy --all-targets -- -D warnings`, runs `bun nv render --website`, and commits the cards
+and the two website files together. Each subagent took about 70k to 130k tokens of its own, and
+this session spent about 70k across all six.
 
-- [ ] `ldap/registry.rs`, 101 cards. `crates/nvs-stdlib/src/ldap/registry.rs:1`
-- [ ] `time.rs`, 77 cards. `crates/nvs-stdlib/src/time.rs:1`
-- [ ] `db/registry.rs`, 69 cards. `crates/nvs-stdlib/src/db/registry.rs:1`
-- [ ] `arr.rs`, 59 cards. `crates/nvs-stdlib/src/arr.rs:1`
-- [ ] `reflect.rs`, 48 cards. `crates/nvs-stdlib/src/reflect.rs:1`
-- [ ] `io.rs`, 45 cards. `crates/nvs-stdlib/src/io.rs:1`
+- [ ] `str.rs` and `math.rs`, 83 cards. `crates/nvs-stdlib/src/str.rs:1`, `crates/nvs-stdlib/src/math.rs:623`
+- [ ] `test.rs` and `request.rs`, 76 cards. `crates/nvs-stdlib/src/test.rs:1`, `crates/nvs-stdlib/src/request.rs:1`
+- [ ] `http.rs` and `cli.rs`, 69 cards. `crates/nvs-stdlib/src/http.rs:1`, `crates/nvs-stdlib/src/cli.rs:1`
+- [ ] `xml.rs`, `bigint.rs` and `uri.rs`, 76 cards. `crates/nvs-stdlib/src/xml.rs:1`, `crates/nvs-stdlib/src/bigint.rs:1`, `crates/nvs-stdlib/src/uri.rs:1`
+- [ ] `router.rs`, `net.rs`, `crypto.rs` and `response.rs`, 86 cards. `crates/nvs-stdlib/src/router.rs:1`, `crates/nvs-stdlib/src/net.rs:1`, `crates/nvs-stdlib/src/crypto.rs:1`, `crates/nvs-stdlib/src/response.rs:1`
 
-Stage 9 (`crates/nvs-lsp/src/document.rs`) touches its own files and can run instead if stage 6
+Stage 9 (`crates/nvs-lsp/src/document.rs`) touches its own files and can run instead if stage 7
 does not fit a session.
 
 ### Backlog
