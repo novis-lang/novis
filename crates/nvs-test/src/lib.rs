@@ -178,6 +178,7 @@ pub mod expect;
 pub mod request;
 pub mod run;
 pub mod section;
+pub mod shard;
 
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
@@ -189,6 +190,7 @@ use std::thread;
 
 pub use case::{Case, Expectation, ParseError, Subcommand};
 pub use run::{Options, Outcome, SharedWorker, record_name, recording};
+pub use shard::Shard;
 
 /// The extension a case file carries.
 pub const EXTENSION: &str = "nvst";
@@ -314,14 +316,17 @@ pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result
         Some(only) => listed(found, only)?,
         None => found,
     };
+    let discovered = found.len();
     let parsed: Vec<(String, Result<Case, String>)> = found
         .into_iter()
-        .map(|path| (path.display().to_string(), read(&path)))
+        .map(|path| (path.display().to_string(), path))
         .filter(|(label, _)| {
             opts.filter
                 .as_ref()
                 .is_none_or(|filter| label.contains(filter.as_str()))
+                && opts.shard.is_none_or(|shard| shard.holds_path(label))
         })
+        .map(|(label, path)| (label, read(&path)))
         .collect();
 
     let root = &opts.root;
@@ -384,6 +389,12 @@ pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result
     })?;
     let _ = fs::remove_dir_all(root);
 
+    // `rule:testing/tags-and-shards-select-what-runs`: a selection that left everything out is
+    // visible as one. The line goes above the summary, which stays the last line.
+    let left_out = discovered - parsed.len();
+    if left_out > 0 {
+        writeln!(out, "{left_out} left out by --filter or --shard")?;
+    }
     writeln!(
         out,
         "{} passed, {} failed, {} skipped",

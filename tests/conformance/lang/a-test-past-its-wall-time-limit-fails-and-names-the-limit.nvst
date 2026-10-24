@@ -1,0 +1,43 @@
+--TEST--
+A test past its `timeout:` or past `[limits] wall_time` is stopped, and its failure names the limit and where it was written (`rule:testing/a-test-has-a-wall-time-limit`)
+--RUN--
+test
+--FILE nvs.toml--
+[limits]
+wall_time = "300ms"
+--FILE--
+<?nvs
+// covers: lang:testing/test-options
+use Core\Test;
+use Core\Time;
+
+final class LimitTest {
+    #[Test]
+    public function itFinishesInTime(): void {
+        Test::assertSame(1 + 1, 2);
+    }
+
+    #[Test(timeout: "100ms")]
+    public function itSpinsPastItsOwnTimeout(): void {
+        int $turns = 0;
+        while (true) {
+            $turns = $turns + 1;
+        }
+    }
+
+    #[Test]
+    public function itSleepsPastTheConfiguredLimit(): void {
+        Time::sleep(5s);
+        Test::assertTrue(true);
+    }
+}
+--EXPECTF--
+  LimitTest
+    ✓ itFinishesInTime %s
+    ✗ itSpinsPastItsOwnTimeout %s
+      the test ran past its wall-time limit of 100ms, set by `#[Test(timeout: "100ms")]`
+    ✗ itSleepsPastTheConfiguredLimit %s
+      the test ran past its wall-time limit of 300ms, set by `[limits] wall_time`
+
+  2 failed, 1 passed, 0 skipped, 0 flaky in %d ms
+--EXPECT-ERROR--

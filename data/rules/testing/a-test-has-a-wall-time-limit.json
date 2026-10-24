@@ -1,11 +1,13 @@
 {
   "title": "`[limits] wall_time` bounds each test on its own, and `#[Test(timeout: ...)]` replaces it for one test",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/test-attribute",
     "testing/runner-is-strict",
     "errors/on-limit"
   ],
-  "guardedBy": [],
-  "goal": "test-surface"
+  "guardedBy": [
+    "tests/conformance/lang/a-test-past-its-wall-time-limit-fails-and-names-the-limit.nvst",
+    "tests/conformance/reject/a-test-timeout-that-is-not-a-duration-or-an-empty-tag-does-not-compile.nvst"
+  ]
 }

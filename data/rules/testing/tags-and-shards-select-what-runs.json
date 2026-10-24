@@ -1,11 +1,14 @@
 {
   "title": "`#[Test(tags: [...])]` labels a test, `--tag`/`--skip-tag` select by label, and `--shard N/M` runs one of M stable disjoint parts",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/test-attribute",
     "testing/tests-run-across-every-core",
     "testing/report-formats"
   ],
-  "guardedBy": [],
-  "goal": "test-surface"
+  "guardedBy": [
+    "crates/nvs-test/src/shard.rs",
+    "crates/nvs-cli/src/runner.rs",
+    "tests/conformance/reject/a-test-timeout-that-is-not-a-duration-or-an-empty-tag-does-not-compile.nvst"
+  ]
 }

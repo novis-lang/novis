@@ -266,7 +266,7 @@ fn test(dir: &Path, config: &[PathBuf]) -> Result<ExitCode, String> {
         &program,
         &tree,
         crate::runner::Format::Human,
-        None,
+        &crate::runner::Selection::default(),
         crate::runner::Flags {
             update: false,
             list: false,

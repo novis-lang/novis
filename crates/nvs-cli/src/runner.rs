@@ -151,6 +151,29 @@ pub(crate) struct Args {
     /// path, or a `#[Test]` method's `Class::method`.
     #[arg(long, value_name = "TEXT")]
     filter: Option<String>,
+    /// Run only the tests that have this tag.
+    ///
+    /// A test gets tags with `#[Test(tags: ["slow", "db"])]`. You can give
+    /// `--tag` more than once. A test then runs when it has at least one of
+    /// the tags.
+    // `rule:testing/tags-and-shards-select-what-runs`.
+    #[arg(long, value_name = "TAG")]
+    tag: Vec<String>,
+    /// Do not run the tests that have this tag.
+    ///
+    /// You can give `--skip-tag` more than once. A test with any of these
+    /// tags does not run, even when it also has a `--tag` tag.
+    #[arg(long, value_name = "TAG")]
+    skip_tag: Vec<String>,
+    /// Run one part of the tests, such as `--shard 2/4` for the second of
+    /// four parts.
+    ///
+    /// Each test is in exactly one part. A test stays in the same part when
+    /// other tests are added or removed. Four machines that each run one of
+    /// `1/4` to `4/4` run every test once. A `.nvst` case is placed by its
+    /// path.
+    #[arg(long, value_name = "N/M")]
+    shard: Option<nvs_test::Shard>,
     /// How many tests or `.nvst` cases run at once.
     ///
     /// The default is the number of hardware threads on this machine.
@@ -263,7 +286,12 @@ impl Args {
     pub(crate) fn run(self, config: &[PathBuf], init: crate::config::Init) -> ExitCode {
         crate::run_test(
             &self.paths,
-            self.filter,
+            Selection {
+                filter: self.filter,
+                tags: self.tag,
+                skip_tags: self.skip_tag,
+                shard: self.shard,
+            },
             self.jobs,
             self.format,
             Flags {
@@ -398,6 +426,26 @@ impl Outcome {
                 Self::Failed(failures)
             }
             settled @ (Self::Skipped(_) | Self::Exited(_)) => settled,
+        }
+    }
+
+    /// `rule:testing/a-test-has-a-wall-time-limit`'s failure. The runtime's own line for the stop
+    /// names a request, so it is replaced by one that names the test's limit and where it was
+    /// written. A test stopped while it was being retried is a failure, never flaky.
+    fn past_wall_time(self, limit: &str) -> Self {
+        let named = format!("the test ran past its wall-time limit of {limit}");
+        match self {
+            Self::Failed(failures) | Self::Flaky { failures, .. } => {
+                let mut kept: Vec<Record> = failures
+                    .into_iter()
+                    .filter(|record| {
+                        !message_of(record).starts_with(nvs_runtime::Ctx::WALL_TIME_EXCEEDED)
+                    })
+                    .collect();
+                kept.push(failure(&named));
+                Self::Failed(kept)
+            }
+            other => other.and_failed(named),
         }
     }
 
@@ -544,7 +592,7 @@ pub(crate) fn run(
     snapshot: &nvs_config::Snapshot,
     extensions: Option<Arc<nvs_ext::load::Set>>,
     format: Format,
-    filter: Option<String>,
+    select: &Selection,
     flags: Flags,
     coverage: &crate::coverage::Requested,
 ) -> ExitCode {
@@ -559,7 +607,7 @@ pub(crate) fn run(
     // discovery reads is the checked program's own test table, so a listing
     // costs no lowering and can say nothing about how a test would come out.
     if list {
-        let listed = listing(&checked, filter.as_deref());
+        let listed = listing(&checked, select);
         return match format {
             Format::Human => {
                 for test in &listed {
@@ -658,7 +706,7 @@ pub(crate) fn run(
             jobs,
             show_output,
         },
-        filter.as_deref(),
+        select,
     ) {
         Ok(both) => both,
         Err(error) => {
@@ -669,6 +717,7 @@ pub(crate) fn run(
     let Suite {
         cases,
         counts,
+        left_out,
         exited,
         class_failures,
     } = suite;
@@ -688,11 +737,17 @@ pub(crate) fn run(
     }
     match format {
         Format::Human => println!(
-            "\n  {} failed, {} passed, {} skipped, {} flaky in {:.0} ms",
+            "\n  {} failed, {} passed, {} skipped, {} flaky{} in {:.0} ms",
             counts.failed,
             counts.passed,
             counts.skipped,
             counts.flaky,
+            // `rule:testing/tags-and-shards-select-what-runs`: a selection that left every test out
+            // is visible as one.
+            match left_out {
+                0 => String::new(),
+                n => format!(", {n} left out"),
+            },
             started.elapsed().as_secs_f64() * 1000.0
         ),
         Format::Json => print!(
@@ -764,7 +819,7 @@ fn run_suite_in_a_task(
     config: &nvs_config::Config,
     extensions: Option<Arc<nvs_ext::load::Set>>,
     shape: Shape,
-    filter: Option<&str>,
+    select: &Selection,
 ) -> Result<(Suite, nvs_runtime::Ctx), String> {
     let mut sched = nvs_host::Scheduler::new();
     // `rule:testing/in-process-request`'s unit under test, built before
@@ -816,15 +871,9 @@ fn run_suite_in_a_task(
     };
     // Owned for the same reason `checked` is: the body outlives this call as
     // far as the scheduler's signature is concerned.
-    let filter = filter.map(ToOwned::to_owned);
+    let select = select.clone();
     let root = sched.spawn(ctx, nvs_runtime::TaskRoot::Request, move |ctx| {
-        *collected.borrow_mut() = Some(run_suite(
-            &suite_unit,
-            ctx,
-            &checked,
-            seams,
-            filter.as_deref(),
-        ));
+        *collected.borrow_mut() = Some(run_suite(&suite_unit, ctx, &checked, seams, &select));
     });
 
     // The reactor is what a parked task is woken by, and a test that sleeps or
@@ -1019,6 +1068,44 @@ fn percent(hit: usize, of: usize) -> f64 {
     }
 }
 
+/// What `--filter`, `--tag`, `--skip-tag` and `--shard` select of a program's tests
+/// (`rule:testing/tags-and-shards-select-what-runs`). A test runs when every one of them selects it.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Selection {
+    pub(crate) filter: Option<String>,
+    /// `--tag`: a test runs when it has one of these, or when this is empty.
+    pub(crate) tags: Vec<String>,
+    /// `--skip-tag`: a test with any of these does not run.
+    pub(crate) skip_tags: Vec<String>,
+    pub(crate) shard: Option<nvs_test::Shard>,
+}
+
+impl Selection {
+    /// The selection `--filter` alone makes.
+    #[cfg(test)]
+    fn by_name(filter: Option<&str>) -> Self {
+        Self {
+            filter: filter.map(ToOwned::to_owned),
+            ..Self::default()
+        }
+    }
+
+    /// Whether `call`, of `class`, runs. Its shard is its method's, so every data row of a test
+    /// is in the part the test is in.
+    fn selects(&self, class: &str, call: &Invocation<'_>) -> bool {
+        let tags = tags_of(call.case);
+        selected(self.filter.as_deref(), class, &call.label)
+            && (self.tags.is_empty() || self.tags.iter().any(|tag| tags.contains(&tag.as_str())))
+            && !self
+                .skip_tags
+                .iter()
+                .any(|tag| tags.contains(&tag.as_str()))
+            && self
+                .shard
+                .is_none_or(|shard| shard.holds(&format!("{class}::{}", call.case.method)))
+    }
+}
+
 /// The switches of [`run`] that change what a run does rather than which
 /// format it reports in: `--update`, `--list`, `--jobs` and `--show-output`.
 #[derive(Clone, Copy)]
@@ -1070,6 +1157,8 @@ struct Seams {
 struct Suite {
     cases: Vec<Case>,
     counts: Counts,
+    /// How many tests the selection left out, which no field of [`Self::counts`] counts.
+    left_out: usize,
     /// The code an `exit(n)` in a test or a fixture ended the run with.
     exited: Option<i64>,
     /// Each `#[AfterClass]` that threw, as its class and the message. One
@@ -1104,9 +1193,23 @@ fn run_suite(
     ctx: &mut nvs_runtime::Ctx,
     checked: &crate::Checked,
     seams: Seams,
-    filter: Option<&str>,
+    select: &Selection,
 ) -> Suite {
     let Seams { shape, cores } = seams;
+    // Counted before anything runs, so an `exit(n)` that ends the run early does not change it.
+    let left_out = checked
+        .exprs
+        .test_classes()
+        .into_iter()
+        .map(|class| {
+            let tests = checked.exprs.tests(class).unwrap_or_default();
+            tests
+                .iter()
+                .flat_map(invocations)
+                .filter(|call| !select.selects(class, call))
+                .count()
+        })
+        .sum();
     // The run's coverage table, or `None` when no coverage flag was given. A
     // test counts into a table of its own, sized from this one, and the queue
     // adds it here when the test is reported. A fixture is built before its
@@ -1142,7 +1245,7 @@ fn run_suite(
         let calls: Vec<Invocation<'_>> = tests
             .iter()
             .flat_map(invocations)
-            .filter(|call| selected(filter, class, &call.label))
+            .filter(|call| select.selects(class, call))
             .collect();
         if calls.is_empty() {
             continue;
@@ -1235,7 +1338,10 @@ fn run_suite(
             break;
         }
     }
-    queue.finish()
+    Suite {
+        left_out,
+        ..queue.finish()
+    }
 }
 
 /// What every test of one run shares on whichever core it runs: read-only, and
@@ -1381,6 +1487,13 @@ impl Job {
         if let Some(folder) = &shared.folder {
             ctx.set_app_folder(Arc::clone(folder));
         }
+        // Armed here, on the context the test's class is constructed under, so the test's own
+        // fixtures and hooks count toward it and the tests before it do not.
+        let limit = match wall_limit(&case, &mut ctx) {
+            Ok(limit) => limit,
+            Err(outcome) => return Ran::decided(outcome),
+        };
+        let clock = crate::wall::start(ctx.safepoint_view());
         let hits = shared.coverage.map(|(stmts, edges)| {
             let hits = Arc::new(nvs_runtime::StmtHits::with_edges(stmts, edges));
             ctx.set_stmt_hits(Some(Arc::clone(&hits)));
@@ -1414,6 +1527,13 @@ impl Job {
                     Vec::new(),
                 ),
             };
+        drop(clock);
+        let outcome = match limit {
+            Some(limit) if ctx.safepoint_view().deadline_expired() => {
+                outcome.past_wall_time(&limit)
+            }
+            _ => outcome,
+        };
         // A sink that is the terminal is flushed here, on the thread whose
         // writes it holds, and a failure to flush is nothing a verdict can see.
         drop(ctx.flush_output());
@@ -1571,6 +1691,7 @@ impl<'a> Queue<'a> {
         Suite {
             cases: self.cases,
             counts: self.counts,
+            left_out: 0,
             exited: self.exited,
             class_failures: self.class_failures,
         }
@@ -2883,6 +3004,66 @@ fn fixtures_needed(case: &nvs_types::testing::TestCase) -> Vec<&str> {
 /// does not compile — so a `skip` that folded to anything but a string is one
 /// `nvs_types::testing` has already refused, and reading it back as absent
 /// here would be a second answer to a settled question.
+/// `rule:testing/a-test-has-a-wall-time-limit`'s limit for one test, written into `ctx`'s
+/// configuration, and the words a failure names it by. `Ok(None)` for a test under no limit.
+///
+/// A `timeout:` is set the way `Core\Config::set("wall_time", …)` sets it, so `[limits.hard]`
+/// bounds it as it bounds a request's own setting. `Err` is the failure of a test whose `timeout:`
+/// is above that bound, and nothing of it has run.
+///
+/// **What it spends:** one deadline per test in flight, the one a request carries, and a thread
+/// of [`crate::wall`]'s for each test that has a limit.
+fn wall_limit(
+    case: &nvs_types::testing::TestCase,
+    ctx: &mut nvs_runtime::Ctx,
+) -> Result<Option<String>, Outcome> {
+    let timeout = case.options.iter().find_map(|(name, value)| match value {
+        ConstArg::Str(text) if name == "timeout" => Some(text.as_str()),
+        _ => None,
+    });
+    if let Some(text) = timeout {
+        let accepted = ctx
+            .config_mut()
+            .is_some_and(|config| config.set("wall_time", text));
+        if !accepted {
+            return Err(Outcome::failed(format!(
+                "`timeout: \"{text}\"` is longer than `[limits.hard] wall_time` allows, so the \
+                 test did not run"
+            )));
+        }
+        ctx.refresh_limits();
+        return Ok(Some(format!(
+            "{text}, set by `#[Test(timeout: \"{text}\")]`"
+        )));
+    }
+    let nanos = ctx.safepoint_view().wall_time();
+    Ok((nanos != 0).then(|| {
+        format!(
+            "{:?}, set by `[limits] wall_time`",
+            Duration::from_nanos(nanos)
+        )
+    }))
+}
+
+/// `rule:testing/tags-and-shards-select-what-runs`'s tags of one test, as written.
+fn tags_of(case: &nvs_types::testing::TestCase) -> Vec<&str> {
+    case.options
+        .iter()
+        .find_map(|(name, value)| match value {
+            ConstArg::Array(entries) if name == "tags" => Some(
+                entries
+                    .iter()
+                    .filter_map(|(_, tag)| match tag {
+                        ConstArg::Str(tag) => Some(tag.as_str()),
+                        _ => None,
+                    })
+                    .collect(),
+            ),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
 fn skip_reason(case: &nvs_types::testing::TestCase) -> Option<String> {
     case.options.iter().find_map(|(name, value)| match value {
         ConstArg::Str(reason) if name == "skip" => Some(reason.clone()),
@@ -3059,12 +3240,12 @@ struct Listed {
 /// rather than per method, so a `#[TestWith]` row is listed under the label the
 /// report would give it and a consumer can match the two by `class` and
 /// `method`.
-fn listing(checked: &crate::Checked, filter: Option<&str>) -> Vec<Listed> {
+fn listing(checked: &crate::Checked, select: &Selection) -> Vec<Listed> {
     let mut listed = Vec::new();
     for class in checked.exprs.test_classes() {
         for case in checked.exprs.tests(class).unwrap_or_default() {
             for call in invocations(case) {
-                if selected(filter, class, &call.label) {
+                if select.selects(class, &call) {
                     listed.push(Listed {
                         class: class.to_owned(),
                         method: call.label,
@@ -3459,7 +3640,8 @@ fn novis_literal(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        Format, Outcome, Shape, compile, json_document, junit_document, run_suite_in_a_task,
+        Format, Outcome, Selection, Shape, compile, json_document, junit_document,
+        run_suite_in_a_task,
     };
 
     /// The shape every test here runs under: collected rather than printed, as
@@ -3535,7 +3717,7 @@ mod tests {
             &nvs_config::Config::default(),
             None,
             shape,
-            filter,
+            &Selection::by_name(filter),
         )
         .expect("the suite's own task runs");
         assert_eq!(
@@ -3563,6 +3745,11 @@ mod tests {
     /// One fixture's whole suite, collected rather than reported, for the tests
     /// that are about what a *document* says.
     fn ran(name: &str) -> super::Suite {
+        ran_selected(name, &Selection::default())
+    }
+
+    /// [`ran`] under a selection of the caller's.
+    fn ran_selected(name: &str, select: &Selection) -> super::Suite {
         let path = fixture(name);
         let checked = crate::front_end(&path).expect("the fixture is a program");
         let (unit, _) = compile(&checked, None, false).expect("the fixture compiles");
@@ -3575,10 +3762,70 @@ mod tests {
             &nvs_config::Config::default(),
             None,
             collected(),
-            None,
+            select,
         )
         .expect("the suite's own task runs");
         suite
+    }
+
+    /// Each reported case of `suite` as `Class::label`.
+    fn names(suite: &super::Suite) -> Vec<String> {
+        suite
+            .cases
+            .iter()
+            .map(|case| format!("{}::{}", case.class, case.method))
+            .collect()
+    }
+
+    /// `rule:testing/tags-and-shards-select-what-runs`: a test runs when it has one `--tag` tag
+    /// and no `--skip-tag` tag, a data row goes with its test, and the suite counts every test
+    /// the selection left out.
+    #[test]
+    fn tags_select_what_runs_and_the_suite_counts_what_they_left_out() {
+        let select = Selection {
+            tags: vec!["db".to_owned(), "mail".to_owned()],
+            skip_tags: vec!["slow".to_owned()],
+            ..Selection::default()
+        };
+        let suite = ran_selected("tags-and-shards.nvs", &select);
+        let ran = names(&suite);
+        assert_eq!(ran.len(), 4, "{ran:?}");
+        for name in ["ShopTest::itSavesAnOrder", "ShopTest::itSendsAReceipt"] {
+            assert!(ran.iter().any(|ran| ran == name), "{name} did not run: {ran:?}");
+        }
+        let rows = ran.iter().filter(|name| name.starts_with("BlogTest::itNamesALength"));
+        assert_eq!(rows.count(), 2, "{ran:?}");
+        assert_eq!(suite.left_out, 4, "two of ShopTest and two of BlogTest");
+    }
+
+    /// `rule:testing/tags-and-shards-select-what-runs`: the parts of a run are disjoint, together
+    /// they are the whole run, and every data row of a test is in the test's part.
+    #[test]
+    fn the_shards_of_a_run_are_disjoint_and_together_are_the_whole_run() {
+        let whole = names(&ran("tags-and-shards.nvs"));
+        let mut parts = Vec::new();
+        for n in 1..=3 {
+            let select = Selection {
+                shard: Some(format!("{n}/3").parse().expect("a well-formed shard")),
+                ..Selection::default()
+            };
+            let suite = ran_selected("tags-and-shards.nvs", &select);
+            let part = names(&suite);
+            assert_eq!(part.len() + suite.left_out, whole.len(), "part {n}/3");
+            let rows = part
+                .iter()
+                .filter(|name| name.contains("itNamesALength"))
+                .count();
+            assert!(
+                rows == 0 || rows == 2,
+                "part {n}/3 split the rows of one test: {part:?}"
+            );
+            parts.extend(part);
+        }
+        let mut whole = whole;
+        whole.sort();
+        parts.sort();
+        assert_eq!(parts, whole);
     }
 
     /// [`ran`] as `rule:testing/report-formats`'s JSON, parsed back.
@@ -3644,7 +3891,7 @@ mod tests {
     fn the_listing_mode_discovers_without_executing() {
         let path = fixture("statics-are-fresh.nvs");
         let checked = crate::front_end(&path).expect("the fixture is a program");
-        let listed = super::listing(&checked, None);
+        let listed = super::listing(&checked, &Selection::default());
         let names: Vec<&str> = listed.iter().map(|test| test.method.as_str()).collect();
         assert_eq!(
             names,
@@ -3682,7 +3929,10 @@ mod tests {
         );
         // `--filter` means the same thing here as it does in a run, which is
         // what lets an editor list and then run the same selection.
-        let one = super::listing(&checked, Some("StaticsTest::itReadsBack"));
+        let one = super::listing(
+            &checked,
+            &Selection::by_name(Some("StaticsTest::itReadsBack")),
+        );
         assert_eq!(
             one.len(),
             1,
@@ -4312,7 +4562,7 @@ mod tests {
             &uncached,
             None,
             Format::Json,
-            None,
+            &Selection::default(),
             super::Flags {
                 update: false,
                 list: false,
@@ -4335,7 +4585,7 @@ mod tests {
             &uncached,
             None,
             Format::Json,
-            None,
+            &Selection::default(),
             super::Flags {
                 update: true,
                 list: false,
@@ -4372,7 +4622,9 @@ mod tests {
 
     /// `rule:testing/tests-run-across-every-core`, one test per claim it makes.
     mod parallel {
-        use super::super::{Format, Outcome, Shape, Suite, compile, run_suite_in_a_task};
+        use super::super::{
+            Format, Outcome, Selection, Shape, Suite, compile, run_suite_in_a_task,
+        };
         use super::fixture;
 
         /// Runs one fixture's suite under `shape` and hands back the suite,
@@ -4407,7 +4659,7 @@ mod tests {
                 &nvs_config::Config::default(),
                 None,
                 shape,
-                None,
+                &Selection::default(),
             )
             .expect("the suite's own task runs");
             let took = began.elapsed();

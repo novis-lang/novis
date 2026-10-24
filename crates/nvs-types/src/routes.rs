@@ -1199,8 +1199,8 @@ fn check_csrf_opt_out(access: &Attribute, m: &MethodMember, ctx: &Ctx<'_>, env: 
 /// order that section writes it.
 ///
 /// Every row is [`OptionTy::Mixed`], and that is not this roster giving up. Of
-/// the five types [`OptionTy`] can place a value at, none is an array or a
-/// shape, and adding two rows for one attribute would put the *structure* of
+/// the types [`OptionTy`] can place a value at, one is a list of strings and
+/// none is a shape, and adding rows for one attribute would put the *structure* of
 /// `#[Api]`'s payload in a table shared by four other attributes that have no
 /// use for it — while leaving every question worth asking here unanswered
 /// anyway, because the `#[Api]` rule is not "this field is an array of strings" but
