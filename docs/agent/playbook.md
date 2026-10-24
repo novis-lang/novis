@@ -108,5 +108,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   hit the memory ceiling; only the goal-end `floor-debt` ran it. Keep anything a runner alone reads
   behind `Ctx::owned_by_test`. See `crates/nvs-runtime/src/ctx/error.rs`.
   `until: gone data/gaps/nvs-runtime/an-assertion-outside-a-test-grows-the-ledger.json:goal`
+- **`nvs test apps/<app>` from the repository root reads the root's `nvs.toml`, not the app's**, so
+  every `Core\Db::connect` fails with "`db.connect` ... is not granted" and the app's tests look
+  broken (`apps/notes` fails the same way). Pass `--config apps/<app>/nvs.toml`, as the
+  `telemetry-service` goal's `app-tests` check does. And `Core\Regex` takes no `tainted` subject, so
+  validate request text with `Core\Str::trim($text, {characters: ...}) == ""` and `Str::split`.
+  `until: gone apps/telemetry/src/Report.nvs:only`
 
 ## Divergences
