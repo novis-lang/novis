@@ -15834,7 +15834,7 @@
   },
   "/reference/types/api-keyin/": {
     "feature": "Core\\Api\\KeyIn",
-    "hash": "156819ca5ff419fd",
+    "hash": "d1c9bf4060e78ccc",
     "questions": [
       "Where can a client send an API key?",
       "Send the API key as a query parameter",
@@ -15844,7 +15844,7 @@
   },
   "/reference/types/api-schemetype/": {
     "feature": "Core\\Api\\SchemeType",
-    "hash": "1d621cdfc77b28a1",
+    "hash": "e0e98d23349e211b",
     "questions": [
       "Which kinds of security scheme can I declare for my API?",
       "Declare a bearer token login for an API route",
@@ -16948,7 +16948,7 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "79b9de344ccc759b",
+    "hash": "a6fa1b11e09e46e9",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
