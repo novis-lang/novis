@@ -141,6 +141,27 @@ impl Probes {
             branches,
         }
     }
+
+    /// Where each statement number is written, which a `--mutate` run reads
+    /// to find the statement that holds a mutant.
+    pub(crate) fn stmt_spans(&self) -> &[nvs_diagnostics::Span] {
+        &self.stmts
+    }
+}
+
+/// The name a report gives the file `id`: the name [`Sites`] gives a file on
+/// disk, and the source map's own name for any other.
+pub(crate) fn file_name(map: &nvs_diagnostics::SourceMap, id: nvs_diagnostics::SourceId) -> String {
+    let Some(file) = map.get(id) else {
+        return String::new();
+    };
+    match file.path().filter(|path| path.is_file()) {
+        Some(path) => {
+            let here = std::env::current_dir().ok().map(|dir| plain(&dir));
+            shown(path, here.as_deref())
+        }
+        None => file.name().to_owned(),
+    }
 }
 
 /// The statement numbers whose count in `counts` is above zero: the

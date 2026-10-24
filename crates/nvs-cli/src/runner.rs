@@ -123,6 +123,8 @@ use nvs_render::{Level, Node, Record, Rendered, Scalar};
 use nvs_types::defaults::ConstArg;
 use rand::RngExt;
 
+mod mutation;
+
 /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
 /// cases.
 ///
@@ -288,6 +290,18 @@ pub(crate) struct Args {
     /// GitLab and Azure DevOps read. One run can write all three files.
     #[arg(long, value_name = "FILE", conflicts_with = "list")]
     coverage_cobertura: Option<PathBuf>,
+    /// Check whether the tests notice small changes to the program.
+    ///
+    /// The tests run once. Then the program is changed in one place, such
+    /// as `<` to `<=`, and the tests that run that line run again. A test
+    /// should now fail. When every test still passes, the change survived,
+    /// and the report lists it with its file and line. Each change is
+    /// killed, survived, timed out or not reached. The score is the share
+    /// of reached changes that the tests noticed. Test code is never
+    /// changed. A survived change does not make the run fail.
+    // `rule:testing/mutation-testing`.
+    #[arg(long, conflicts_with_all = ["list", "update", "watch"])]
+    mutate: bool,
     /// Print each test and the file it is in, without running any test.
     ///
     /// For a program, each `#[Test]` method is printed with its line. The
@@ -350,6 +364,7 @@ impl Args {
                     .shuffle
                     .map(|seed| seed.unwrap_or_else(|| rand::rng().random::<u64>())),
                 record_failed: None,
+                mutate: self.mutate,
             },
             &crate::coverage::Requested {
                 lcov: self.coverage_lcov,
@@ -488,7 +503,7 @@ impl Outcome {
     /// names a request, so it is replaced by one that names the test's limit and where it was
     /// written. A test stopped while it was being retried is a failure, never flaky.
     fn past_wall_time(self, limit: &str) -> Self {
-        let named = format!("the test ran past its wall-time limit of {limit}");
+        let named = format!("{PAST_WALL_TIME} of {limit}");
         match self {
             Self::Failed(failures) | Self::Flaky { failures, .. } => {
                 let mut kept: Vec<Record> = failures
@@ -556,6 +571,10 @@ fn assertion_record(entry: nvs_runtime::AssertionOutcome) -> Option<Record> {
     Some(record)
 }
 
+/// How [`Outcome::past_wall_time`]'s failure starts, which is how a mutant's run tells a test
+/// stopped at its limit from one that failed ([`mutation`]).
+const PAST_WALL_TIME: &str = "the test ran past its wall-time limit";
+
 /// The field naming the `Core\Test` method a failed assertion called.
 const ASSERTION: &str = "assertion";
 
@@ -578,10 +597,9 @@ struct Case {
     /// still holds the source map.
     ///
     /// It is resolved here rather than rendered from a [`Span`](nvs_diagnostics::Span)
-    /// at the end, because `run_suite_in_a_task` **moves** the `Checked` into
-    /// the suite's own task: by the time a document is written the map that
-    /// turns a byte offset into a line is gone. `None` only for a span the map
-    /// does not hold, which a test the compiler collected cannot have.
+    /// at the end, so every format renders a location it already has, and none
+    /// of them needs the source map. `None` only for a span the map does not
+    /// hold, which a test the compiler collected cannot have.
     declared: Option<Declared>,
     outcome: Outcome,
     elapsed: Duration,
@@ -661,7 +679,15 @@ pub(crate) fn run(
         rerun_failed: _,
         shuffle,
         record_failed,
+        mutate,
     } = flags;
+    if mutate && format == Format::Junit {
+        // `rule:testing/mutation-testing`: JUnit has an element for a test and none for a mutant.
+        eprintln!(
+            "error: `--mutate` has no JUnit document. Use `--format json` or the default format"
+        );
+        return ExitCode::FAILURE;
+    }
     // Answered before the compile below, rather than beside the run: what
     // discovery reads is the checked program's own test table, so a listing
     // costs no lowering and can say nothing about how a test would come out.
@@ -699,15 +725,20 @@ pub(crate) fn run(
     // program lower the same `nvs_ir::Program` through the same entry label, so
     // they share an artifact and whichever ran first pays for it.
     let cache = crate::cache::from_config(&snapshot.config);
-    let (unit, probes) = match compile(&checked, cache.as_ref(), coverage.any()) {
+    // `--mutate` runs the suite with coverage first, to find the tests each mutant needs.
+    let measured = coverage.any() || mutate;
+    let (unit, probes) = match compile(&checked, cache.as_ref(), measured) {
         Ok(both) => both,
         Err(error) => {
             crate::report_internal(error);
             return ExitCode::FAILURE;
         }
     };
-    // Resolved to file lines here, because `checked` and its source map move
-    // into the suite's task below.
+    let stmts = match mutate {
+        true => probes.stmt_spans().to_vec(),
+        false => Vec::new(),
+    };
+    // Resolved to file lines once, before the suite runs.
     let sites = crate::coverage::Sites::of(probes, &checked.map);
 
     // The module doc owns why a machine format sends the suite's own output
@@ -720,7 +751,7 @@ pub(crate) fn run(
     // The run's table. The class hooks and fixtures count into it directly, and
     // each test's own table is added to it when the test is reported
     // ([`Queue`]), so it holds the whole run when the suite returns.
-    let hits = coverage.any().then(|| {
+    let hits = measured.then(|| {
         let hits = std::sync::Arc::new(nvs_runtime::StmtHits::with_edges(
             sites.len(),
             sites.edges(),
@@ -745,27 +776,28 @@ pub(crate) fn run(
         ctx.set_app_folder(folder.into());
     }
 
-    // Read out before `checked` is moved into the suite's task, which is where
-    // it is dropped: the rows are the compiler's and the run cannot produce
-    // them. Nothing is read at all for a run that was not asked to update, so
-    // an ordinary suite pays one `bool`.
+    // Read out before the suite runs: the rows are the compiler's and the run
+    // cannot produce them. Nothing is read at all for a run that was not asked
+    // to update, so an ordinary suite pays one `bool`.
     let snapshot_rows = match update {
         true => snapshot_sites(&checked),
         false => Vec::new(),
     };
+    let checked = Rc::new(checked);
     let started = Instant::now();
     let (suite, mut ctx) = match run_suite_in_a_task(
         &unit,
         ctx,
-        checked,
+        Rc::clone(&checked),
         &snapshot.config,
-        extensions,
+        extensions.clone(),
         Shape {
             format,
             jobs,
             show_output,
             fail_fast,
             shuffle,
+            wall: None,
         },
         select,
     ) {
@@ -775,6 +807,7 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     };
+    let took = started.elapsed();
     let Suite {
         cases,
         counts,
@@ -817,18 +850,11 @@ pub(crate) fn run(
                 0 => String::new(),
                 n => format!(", {n} not run"),
             },
-            started.elapsed().as_secs_f64() * 1000.0
+            took.as_secs_f64() * 1000.0
         ),
-        Format::Json => print!(
-            "{}",
-            json_document(
-                &cases,
-                counts,
-                started.elapsed(),
-                hits.is_some().then_some(&sites)
-            )
-        ),
-        Format::Junit => print!("{}", junit_document(&cases, counts, started.elapsed())),
+        // Written below, once a `--mutate` run's mutants are in.
+        Format::Json => {}
+        Format::Junit => print!("{}", junit_document(&cases, counts, took)),
     }
     // A machine format's documents keep their schema, so what they have no key for is said on
     // stderr, beside the rest of the suite's own output.
@@ -858,6 +884,65 @@ pub(crate) fn run(
                 return ExitCode::FAILURE;
             }
         }
+    }
+    let passed = exited.is_none() && counts.failed == 0 && class_failures.is_empty();
+    let mutants = match (mutate, passed) {
+        (false, _) => None,
+        (true, false) => {
+            eprintln!("  no mutant ran: a test failed before any change was made to the program");
+            Some(Vec::new())
+        }
+        (true, true) => {
+            let listed = mutation::list(&checked);
+            let note = format!(
+                "\n  {} mutants: each one runs the tests that reach its line",
+                listed.len()
+            );
+            match format {
+                Format::Human => println!("{note}"),
+                Format::Json | Format::Junit => eprintln!("{note}"),
+            }
+            let new_ctx = || {
+                let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
+                ctx.set_config(std::sync::Arc::new(snapshot.clone()));
+                if let Some(folder) = snapshot.folder() {
+                    ctx.set_app_folder(folder.into());
+                }
+                ctx
+            };
+            let runs = mutation::Runs {
+                ctx: &new_ctx,
+                config: &snapshot.config,
+                extensions,
+                jobs,
+                select,
+            };
+            match mutation::score(&checked, &listed, &cases, &stmts, &runs) {
+                Ok(scored) => Some(scored),
+                Err(error) => {
+                    crate::report_internal(error);
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+    };
+    match format {
+        Format::Human => {
+            if let Some(scored) = &mutants {
+                print!("{}", mutation::report(scored));
+            }
+        }
+        Format::Json => print!(
+            "{}",
+            json_document(
+                &cases,
+                counts,
+                took,
+                measured.then_some(&sites),
+                mutants.as_deref()
+            )
+        ),
+        Format::Junit => {}
     }
 
     if let Some(code) = exited {
@@ -935,9 +1020,10 @@ fn record_failed_tests(file: &std::path::Path, cases: &[Case]) {
 /// tree to read a leftover off. One task and not one per test: the tests are a
 /// *suite*, and each test's own isolate is a child of it.
 ///
-/// `checked` and the unit are moved in rather than borrowed, because a task's
+/// `checked` and the unit are shared rather than borrowed, because a task's
 /// body outlives the call that spawns it as far as the scheduler's signature
-/// is concerned. What comes back out comes back by the two routes `nvs run`
+/// is concerned. A `--mutate` run keeps its own reference, and runs a suite per
+/// mutant over the same checked program. What comes back out comes back by the two routes `nvs run`
 /// already uses: the [`Suite`] through a cell the body captured, the `Ctx`
 /// through the `Finished` the scheduler hands over, since it was moved into
 /// the task rather than lent to it.
@@ -947,7 +1033,7 @@ fn record_failed_tests(file: &std::path::Path, cases: &[Case]) {
 fn run_suite_in_a_task(
     unit: &Arc<nvs_codegen::Unit>,
     ctx: nvs_runtime::Ctx,
-    checked: crate::Checked,
+    checked: Rc<crate::Checked>,
     config: &nvs_config::Config,
     extensions: Option<Arc<nvs_ext::load::Set>>,
     shape: Shape,
@@ -1271,6 +1357,9 @@ pub(crate) struct Flags {
     /// The file the run writes its failed tests to ([`failed_tests_file`]), or `None` to write
     /// nothing.
     pub(crate) record_failed: Option<PathBuf>,
+    /// `--mutate` (`rule:testing/mutation-testing`): after the run, each mutant runs the tests
+    /// that reach it ([`mutation`]).
+    pub(crate) mutate: bool,
 }
 
 /// `--jobs`'s default: the machine's hardware threads, as `nvs_test` counts
@@ -1290,6 +1379,9 @@ struct Shape {
     fail_fast: bool,
     /// `--shuffle`'s seed ([`Flags::shuffle`]).
     shuffle: Option<u64>,
+    /// The wall-time limit a test with none of its own runs under, or `None` for no limit. Only
+    /// a mutant's run sets it ([`mutation`]).
+    wall: Option<Duration>,
 }
 
 /// What [`run_suite`] needs beside [`Shape`]: the cores it posts each test to.
@@ -1391,6 +1483,7 @@ fn run_suite(
             .map(|hits| (hits.counts().len(), hits.edge_counts().len())),
         format: shape.format,
         show_output: shape.show_output,
+        wall: shape.wall,
         watchdog: nvs_host::ThreadClock::current()
             .is_some()
             .then(nvs_host::Watchdog::new),
@@ -1678,6 +1771,8 @@ struct Shared {
     coverage: Option<(usize, usize)>,
     format: Format,
     show_output: bool,
+    /// [`Shape::wall`].
+    wall: Option<Duration>,
     /// The thread that charges each test's tree for the CPU time it runs and raises its
     /// `[limits] cpu_time` ceiling, as it does for `nvs run`. `None` on a platform with no
     /// per-thread clock, where nothing could be charged. Each [`Job`] registers the thread it
@@ -1817,7 +1912,7 @@ impl Job {
         }
         // Armed here, on the context the test's class is constructed under, so the test's own
         // fixtures and hooks count toward it and the tests before it do not.
-        let limit = match wall_limit(&case, &mut ctx) {
+        let limit = match wall_limit(&case, &mut ctx, shared.wall) {
             Ok(limit) => limit,
             Err(outcome) => return Ran::decided(outcome),
         };
@@ -3879,9 +3974,13 @@ fn fixtures_needed(case: &nvs_types::testing::TestCase) -> Vec<&str> {
 ///
 /// **What it spends:** one deadline per test in flight, the one a request carries, and a thread
 /// of [`crate::wall`]'s for each test that has a limit.
+///
+/// `fallback` is the limit of a test that has neither, which only a mutant's run gives
+/// (`rule:testing/mutation-testing`).
 fn wall_limit(
     case: &nvs_types::testing::TestCase,
     ctx: &mut nvs_runtime::Ctx,
+    fallback: Option<Duration>,
 ) -> Result<Option<String>, Outcome> {
     let timeout = case.options.iter().find_map(|(name, value)| match value {
         ConstArg::Str(text) if name == "timeout" => Some(text.as_str()),
@@ -3903,12 +4002,24 @@ fn wall_limit(
         )));
     }
     let nanos = ctx.safepoint_view().wall_time();
-    Ok((nanos != 0).then(|| {
-        format!(
+    if nanos != 0 {
+        return Ok(Some(format!(
             "{:?}, set by `[limits] wall_time`",
             Duration::from_nanos(nanos)
-        )
-    }))
+        )));
+    }
+    let Some(fallback) = fallback else {
+        return Ok(None);
+    };
+    let text = format!("{}ms", fallback.as_millis().max(1));
+    let accepted = ctx
+        .config_mut()
+        .is_some_and(|config| config.set("wall_time", &text));
+    if !accepted {
+        return Ok(None);
+    }
+    ctx.refresh_limits();
+    Ok(Some(format!("{fallback:?}, set by `--mutate`")))
 }
 
 /// `rule:testing/tags-and-shards-select-what-runs`'s tags of one test, as written.
@@ -3938,7 +4049,7 @@ fn skip_reason(case: &nvs_types::testing::TestCase) -> Option<String> {
 }
 
 /// How the run came out, in the counts every format's summary carries.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct Counts {
     passed: usize,
     failed: usize,
@@ -4009,13 +4120,22 @@ fn report(ctx: &mut nvs_runtime::Ctx, method: &str, outcome: &Outcome, elapsed: 
 /// record gains `coverage`, each file name mapped to the sorted lines the
 /// test reached in any attempt (`crate::coverage::Sites::reached`). A run
 /// without the flag writes version 2 unchanged.
+///
+/// **Version 4 adds `mutants`**, written only under `--mutate`
+/// (`rule:testing/mutation-testing`): one `{file, line, change, outcome}`
+/// record per mutant, after `tests`.
 fn json_document(
     cases: &[Case],
     counts: Counts,
     total: Duration,
     sites: Option<&crate::coverage::Sites>,
+    mutants: Option<&[mutation::Scored]>,
 ) -> String {
-    let version = if sites.is_some() { 3 } else { 2 };
+    let version = match (mutants.is_some(), sites.is_some()) {
+        (true, _) => 4,
+        (false, true) => 3,
+        (false, false) => 2,
+    };
     let mut out = format!("{{\n  \"schemaVersion\": {version},\n  \"summary\": {{");
     out.push_str(&format!(
         "\"total\": {}, \"passed\": {}, \"failed\": {}, \"skipped\": {}, \"flaky\": {}, \"durationMs\": {:.3}}},\n  \"tests\": [",
@@ -4092,11 +4212,22 @@ fn json_document(
         }
         out.push('}');
     }
-    out.push_str(if cases.is_empty() {
-        "]\n}\n"
-    } else {
-        "\n  ]\n}\n"
-    });
+    out.push_str(if cases.is_empty() { "]" } else { "\n  ]" });
+    if let Some(mutants) = mutants {
+        out.push_str(",\n  \"mutants\": [");
+        for (at, mutant) in mutants.iter().enumerate() {
+            out.push_str(if at == 0 { "\n    {" } else { ",\n    {" });
+            out.push_str("\"file\": ");
+            json_string(&mutant.file, &mut out);
+            out.push_str(&format!(", \"line\": {}, \"change\": ", mutant.line));
+            json_string(&mutant.change, &mut out);
+            out.push_str(", \"outcome\": ");
+            json_string(mutant.verdict.name(), &mut out);
+            out.push('}');
+        }
+        out.push_str(if mutants.is_empty() { "]" } else { "\n  ]" });
+    }
+    out.push_str("\n}\n");
     out
 }
 
@@ -4627,6 +4758,7 @@ mod tests {
             show_output: false,
             fail_fast: false,
             shuffle: None,
+            wall: None,
         }
     }
 
@@ -4685,7 +4817,7 @@ mod tests {
         let (suite, _ctx) = run_suite_in_a_task(
             &unit,
             ctx,
-            checked,
+            std::rc::Rc::new(checked),
             &nvs_config::Config::default(),
             None,
             shape,
@@ -4735,7 +4867,7 @@ mod tests {
         let (suite, _ctx) = run_suite_in_a_task(
             &unit,
             ctx,
-            checked,
+            std::rc::Rc::new(checked),
             &nvs_config::Config::default(),
             None,
             shape,
@@ -4929,7 +5061,13 @@ mod tests {
     /// below exists to catch.
     fn json_report(name: &str) -> serde_json::Value {
         let suite = ran(name);
-        let document = json_document(&suite.cases, suite.counts, std::time::Duration::ZERO, None);
+        let document = json_document(
+            &suite.cases,
+            suite.counts,
+            std::time::Duration::ZERO,
+            None,
+            None,
+        );
         serde_json::from_str(&document).expect("the report is a JSON document")
     }
 
@@ -5106,7 +5244,13 @@ mod tests {
     #[test]
     fn the_schema_version_is_two_and_junit_and_human_are_byte_identical() {
         let suite = ran("statics-are-fresh.nvs");
-        let json = json_document(&suite.cases, suite.counts, std::time::Duration::ZERO, None);
+        let json = json_document(
+            &suite.cases,
+            suite.counts,
+            std::time::Duration::ZERO,
+            None,
+            None,
+        );
         assert!(
             json.contains("\"schemaVersion\": 2,"),
             "the located record is version 2 of this document: {json}"
@@ -5157,7 +5301,13 @@ mod tests {
             vec![Node::Scalar(Scalar::Int(1)), Node::Scalar(Scalar::Int(2))],
             "actual first, expected second"
         );
-        let json = json_document(&suite.cases, suite.counts, std::time::Duration::ZERO, None);
+        let json = json_document(
+            &suite.cases,
+            suite.counts,
+            std::time::Duration::ZERO,
+            None,
+            None,
+        );
         assert!(
             json.contains(&format!(
                 "\"failures\": [\"{}",
@@ -5790,6 +5940,7 @@ mod tests {
                 rerun_failed: false,
                 shuffle: None,
                 record_failed: None,
+                mutate: false,
             },
             &crate::coverage::Requested::default(),
         );
@@ -5817,6 +5968,7 @@ mod tests {
                 rerun_failed: false,
                 shuffle: None,
                 record_failed: None,
+                mutate: false,
             },
             &crate::coverage::Requested::default(),
         );
@@ -5880,7 +6032,7 @@ mod tests {
             let (suite, mut ctx) = run_suite_in_a_task(
                 &unit,
                 ctx,
-                checked,
+                std::rc::Rc::new(checked),
                 &nvs_config::Config::default(),
                 None,
                 shape,
@@ -5901,6 +6053,7 @@ mod tests {
                 show_output: false,
                 fail_fast: false,
                 shuffle: None,
+                wall: None,
             }
         }
 

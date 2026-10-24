@@ -2592,6 +2592,7 @@ fn run_test(
         fail_fast,
         rerun_failed,
         shuffle,
+        mutate,
         ..
     } = flags;
     // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
@@ -2705,6 +2706,14 @@ fn run_test(
         // compiles, and a `.nvst` case runs as a process of its own.
         eprintln!(
             "error: `--coverage-lcov`, `--coverage-clover` and `--coverage-cobertura` measure a program's `#[Test]` methods, not a `.nvst` tree"
+        );
+        return ExitCode::FAILURE;
+    }
+    if mutate {
+        // `rule:testing/mutation-testing`: a mutant runs the tests that reached
+        // its line, and only a program's tests are measured per test.
+        eprintln!(
+            "error: `--mutate` changes a program and runs its `#[Test]` methods, not a `.nvst` tree"
         );
         return ExitCode::FAILURE;
     }

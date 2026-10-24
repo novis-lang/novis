@@ -40,9 +40,37 @@ The set is enumerated where it is implemented, so adding an operator changes no 
 `--mutate` runs on a program's `#[Test]` methods only. On a `.nvst` tree it exits with an error, as
 the coverage flags do, because per-test coverage exists only for program tests.
 
+**The run.** `nvs test --mutate` runs the selected tests once with coverage, as a coverage flag does
+(`rule:testing/coverage-report`), and reports that run as any run is reported. A test that fails there
+fails the run, and no mutant runs: a mutant is judged against a suite that passes without it. Then
+each mutant runs the selected tests that reached the statement it changes, the innermost statement
+whose span holds the changed expression, up to `--jobs` at once, and no further test starts once one
+has failed. A test with no wall-time limit gets one for a mutant run, ten times the slowest test of
+the coverage run plus one second, because a mutant can make a loop that never ends; a test with its
+own limit keeps it (`rule:testing/a-test-has-a-wall-time-limit`).
+
+Each mutant has one of four outcomes:
+
+| Outcome | When |
+|---|---|
+| `killed` | a test failed or called `exit` |
+| `timed out` | no test failed, and a test ran past its wall-time limit |
+| `survived` | every test it ran passed, a flaky one included |
+| `not reached` | no selected test reached its statement, so nothing ran |
+
+The score is killed plus timed out over every mutant but the unreached ones. The human report prints
+the four counts and the score after the run's summary, then each survived mutant with its file, line
+and change. `--format json` writes `schemaVersion: 4` (`rule:testing/report-formats`): version 3's
+document, plus a `mutants` array with one record per mutant, `{file, line, change, outcome}`, in the
+order the program lowers its sites. A JUnit document has no place for a mutant, so `--mutate` with
+`--format junit` exits with an error. The exit status is the coverage run's: a survived mutant does not
+fail the run.
+
 **What it costs:** nothing for a run without `--mutate`, and nothing on the request path. A mutation
 run pays one coverage run, then one lowering and codegen of the whole program per mutant, plus the
-tests that reach the mutant's line. Memory is O(`--jobs`): the mutants in flight.
+tests that reach the mutant's line. A mutant compiles with no artifact cache, since its key would be
+the unchanged program's. Memory is O(`--jobs`): one mutant runs at a time, with its tests in flight,
+and the run keeps one record per mutant for the report.
 
 **Declined:**
 
@@ -50,6 +78,7 @@ tests that reach the mutant's line. Memory is O(`--jobs`): the mutants in flight
   tree has no types for a swap to keep.
 - *Recompiling only the mutated function.* It needs a partial-recompile mechanism kept correct beside
   the whole-program one, for a cost the per-mutant test run already outweighs.
-
-**Not on disk.** `nvs_ir::lower::mutants` lists the mutants and `lower_mutant` lowers one, but
-nothing runs a mutant: `nvs test` has no `--mutate` flag.
+- *Running several mutants at once.* Each would hold a compiled unit and its tests' isolates, and
+  `--jobs` already fills the cores with one mutant's tests.
+- *A per-test limit from each test's own coverage-run time.* It is closer for a fast test, and it
+  needs a table carried into every test's run; one bound for the run is one number.
