@@ -206,15 +206,16 @@ const NAME_DESC: &str = "The series name, `[a-z][a-z0-9_]*`. A name written dire
                          does not compile either.";
 
 /// What every one of the three cards says about `labels`.
-const LABELS_DESC: &str = "The label values this series is written under, keyed by label name. A \
-                           `tainted` or `secret` value is refused: label by an enum case, an \
-                           `as`-converted scalar or a route name.";
+const LABELS_DESC: &str = "The label values of this series, with the label name as the key. A \
+                           `tainted` or `secret` value is not allowed. Use an enum case, a value \
+                           converted with `as`, or a route name.";
 
 /// What every one of the three cards says about a kind mismatch.
-const MISMATCH_DESC: &str = "The name is already fixed to another kind or to another set of label \
-                             names. The message gives both the call that fixed it and this one. \
-                             A new series past the core's `max_series` is **not** an error: it is \
-                             dropped and counted, and the call answers normally.";
+const MISMATCH_DESC: &str = "The name is already a different kind of metric, or it already has \
+                             other label names. The message shows the first call and this one. \
+                             A new series above the `max_series` limit is **not** an error. \
+                             Novis does not record it and counts it, and the call returns \
+                             normally.";
 
 /// `Core\Metrics::increment`'s reference card — `rule:core-api/reference-card`.
 const INCREMENT_DOC: MethodDoc = MethodDoc {
@@ -228,8 +229,8 @@ const INCREMENT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "by",
-            desc: "How much to add; one by default, and never negative, since a counter that went \
-                   backwards would read as a process restart.",
+            desc: "How much to add. The default is `1`. It cannot be negative, because a counter \
+                   that goes down looks like a restart of the process.",
             shape: &[],
         },
         ParamDoc {
@@ -238,8 +239,8 @@ const INCREMENT_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Nothing. No program can read a metric back: the values are per-core aggregates a scrape \
-          merges, and the only reader is outside every request.",
+    ret: "Nothing. A program cannot read a metric back. Only the monitoring system that collects \
+          the metrics can read them.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: MISMATCH_DESC,
@@ -248,8 +249,8 @@ const INCREMENT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Metrics::observe`'s reference card — `rule:core-api/reference-card`.
 const OBSERVE_DOC: MethodDoc = MethodDoc {
-    short: "Records one observation into a histogram, fixing `$name` to a histogram on its first \
-            use — a duration, a payload size, a queue depth at the moment it was measured.",
+    short: "Records one measurement in a histogram, such as a duration or a size. The first call \
+            with `$name` makes that name a histogram, and it stays a histogram.",
     params: &[
         ParamDoc {
             name: "name",
@@ -258,8 +259,8 @@ const OBSERVE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "value",
-            desc: "The observation, in the series' own unit — seconds for a `_seconds` name, bytes \
-                   for a `_bytes` one.",
+            desc: "The measurement, in the unit of the series. Use seconds for a name that ends in \
+                   `_seconds`, and bytes for a name that ends in `_bytes`.",
             shape: &[],
         },
         ParamDoc {
@@ -268,7 +269,7 @@ const OBSERVE_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Nothing, as `increment`.",
+    ret: "Nothing. A program cannot read a metric back, the same as with `increment`.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: MISMATCH_DESC,
@@ -277,8 +278,8 @@ const OBSERVE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Metrics::gauge`'s reference card — `rule:core-api/reference-card`.
 const GAUGE_DOC: MethodDoc = MethodDoc {
-    short: "Sets a gauge to `$value`, fixing `$name` to a gauge on its first use — a level that \
-            goes up and down, such as the number of items waiting or the bytes a pool holds.",
+    short: "Sets a gauge to `$value`. A gauge is a level that goes up and down, such as the number \
+            of items waiting. The first call with `$name` makes that name a gauge.",
     params: &[
         ParamDoc {
             name: "name",
@@ -287,7 +288,8 @@ const GAUGE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "value",
-            desc: "What the gauge now reads. The last write before a scrape is the one reported.",
+            desc: "The new value of the gauge. The monitoring system sees the last value set before \
+                   it collects.",
             shape: &[],
         },
         ParamDoc {
@@ -296,7 +298,7 @@ const GAUGE_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Nothing, as `increment`.",
+    ret: "Nothing. A program cannot read a metric back, the same as with `increment`.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: MISMATCH_DESC,

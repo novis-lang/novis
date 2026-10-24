@@ -111,8 +111,8 @@ const MEMORY_HELD_DOC: MethodDoc = MethodDoc {
             soon as nothing uses it. So the number goes down again when a request is done with a \
             large value.",
     params: &[],
-    ret: "This request's held bytes. Never the process's — that is \
-          `Core\\Os::residentBytes`, and it is a different question.",
+    ret: "The number of bytes this request uses. It does not count the rest of the server \
+          process. `Core\\Os::residentBytes` returns the memory of the whole process.",
     errors: &[],
 };
 
@@ -121,21 +121,18 @@ const MEMORY_PEAK_DOC: MethodDoc = MethodDoc {
     short: "Returns the highest value `memoryHeld()` has had during this request. The number is \
             recorded at every allocation, so it includes memory that was already freed again.",
     params: &[],
-    ret: "This request's high-water mark in bytes, never below what `memoryHeld()` answers. It \
-          cannot be reset: the number the request-level notices exist to surface is not one an \
-          application may put back.",
+    ret: "The highest number of bytes this request has used. It is never below what \
+          `memoryHeld()` returns. A program cannot reset it.",
     errors: &[],
 };
 
 /// `Core\Budget::memoryLimit`'s reference card — `rule:core-api/reference-card`.
 const MEMORY_LIMIT_DOC: MethodDoc = MethodDoc {
-    short: "The ceiling `memoryHeld()` and `memoryPeak()` are measured against — `[limits] memory` \
-            as a byte count, less whatever is reserved for the limit handler. It is here so that a \
-            peak has a scale without every call site parsing `Core\\Config::get('limits.memory')` \
-            and its suffix.",
+    short: "Returns the memory limit that `memoryHeld()` and `memoryPeak()` are measured against. \
+            It is the `[limits] memory` setting in bytes, minus the memory reserved for the limit \
+            handler. You do not need to parse `Core\\Config::get('limits.memory')` yourself.",
     params: &[],
-    ret: "The ceiling in bytes, or `0` for a request under no cap at all — the same reading of \
-          zero the runtime's own limit check uses, not a second spelling for it.",
+    ret: "The limit in bytes. It is `0` when the request has no memory limit.",
     errors: &[],
 };
 

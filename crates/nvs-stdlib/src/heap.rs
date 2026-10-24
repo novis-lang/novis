@@ -173,72 +173,72 @@ const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
             scalars.",
     params: &[ParamDoc {
         name: "comparator",
-        desc: "An optional `fn ($a, $b)` answering a negative number, zero or a positive number \
-               as `Core\\Arr::sort`'s comparator does; `null` for `compareTo` or the natural \
-               order.",
+        desc: "An optional `fn ($a, $b)` that returns a negative number, zero or a positive \
+               number, like the comparator of `Core\\Arr::sort`. With `null`, the heap uses \
+               `compareTo` or the natural order.",
         shape: &[],
     }],
-    ret: "A fresh heap holding nothing; `peek` and `pop` answer the *smallest* element under the \
-          ordering in force, so a max-heap is one comparator away — \
-          `fn ($a, $b) => $b->compareTo($a)`.",
+    ret: "A new, empty heap. `peek` and `pop` return the *smallest* element in the heap's order. \
+          For a max-heap, pass `fn ($a, $b) => $b->compareTo($a)`.",
     errors: &[],
 };
 
 /// `Core\Heap::push`'s reference card — `rule:core-api/reference-card`.
 const PUSH_DOC: MethodDoc = MethodDoc {
-    short: "Adds `$value`, keeping the heap ordered in O(log n); a duplicate is held rather than \
-            folded away, because this is a priority queue and not a set.",
+    short: "Adds `$value` to the heap in O(log n). The heap keeps duplicates, because it is a \
+            priority queue and not a set.",
     params: &[ParamDoc {
         name: "value",
         desc: "The element to add.",
         shape: &[],
     }],
-    ret: "Nothing; a comparator's own throw propagates unchanged.",
+    ret: "Nothing. If the comparator throws an error, `push` throws the same error.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When the ordering in force cannot place `$value`: no comparator or `compareTo` \
-               applies and the pair has no natural order (two numbers, two strings, two bools or \
-               two nulls have one), or a comparator answers `NaN`.",
+        desc: "The heap cannot compare `$value` with another element. There is no comparator \
+               or `compareTo`, and the two values have no natural order. Two numbers, two \
+               strings, two bools or two nulls have one. It also throws when the comparator \
+               returns `NaN`.",
     }],
 };
 
 /// `Core\Heap::peek`'s reference card — `rule:core-api/reference-card`.
 const PEEK_DOC: MethodDoc = MethodDoc {
-    short: "Answers the element `pop` would answer with — the smallest under the ordering in \
-            force — and leaves it where it is.",
+    short: "Returns the element that `pop` would return, which is the smallest in the heap's \
+            order. The element stays in the heap.",
     params: &[],
-    ret: "The first element; the heap is unchanged.",
+    ret: "The first element. The heap does not change.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When the heap is empty; `isEmpty` is the question to ask first.",
+        desc: "The heap is empty. Call `isEmpty` first to check.",
     }],
 };
 
 /// `Core\Heap::pop`'s reference card — `rule:core-api/reference-card`.
 const POP_DOC: MethodDoc = MethodDoc {
-    short: "Removes and answers the smallest element under the ordering in force, in O(log n).",
+    short: "Removes the smallest element in the heap's order and returns it, in O(log n).",
     params: &[],
-    ret: "The element that was first; the next one takes its place, and a comparator's own throw \
-          propagates unchanged.",
+    ret: "The element that was first. The next element becomes first. If the comparator throws \
+          an error, `pop` throws the same error.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When the heap is empty, or when re-ordering what remains meets a pair with no \
-               natural order or a comparator answering `NaN`.",
+        desc: "The heap is empty. It also throws when sorting the other elements meets two values \
+               with no natural order, or a comparator that returns `NaN`.",
     }],
 };
 
 /// `Core\Heap::count`'s reference card — `rule:core-api/reference-card`.
 const COUNT_DOC: MethodDoc = MethodDoc {
-    short: "Counts the elements the heap holds, duplicates included.",
+    short: "Counts the elements in the heap, duplicates included.",
     params: &[],
-    ret: "The element count; `0` for an empty heap.",
+    ret: "The number of elements. An empty heap gives `0`.",
     errors: &[],
 };
 
 /// `Core\Heap::isEmpty`'s reference card — `rule:core-api/reference-card`.
 const IS_EMPTY_DOC: MethodDoc = MethodDoc {
-    short: "Whether the heap holds nothing — the question to ask before `peek` or `pop`, which \
-            throw on an empty heap.",
+    short: "Checks whether the heap is empty. Call it before `peek` or `pop`, because they throw \
+            an error on an empty heap.",
     params: &[],
     ret: "`true` for an empty heap, `false` otherwise.",
     errors: &[],

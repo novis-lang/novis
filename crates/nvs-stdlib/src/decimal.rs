@@ -188,9 +188,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Decimal::divExact`'s reference card — `rule:core-api/reference-card`.
 const DIV_EXACT_DOC: MethodDoc = MethodDoc {
-    short: "`$value / $divisor` where the quotient is exact, and a throw where it is not — the \
-            division for a place that has assumed the split comes out even, so the assumption \
-            fails loudly instead of silently rounding.",
+    short: "Divides `$value` by `$divisor` and returns the exact result. If the result is not \
+            exact, it throws an error. Use it where you expect the division to come out even.",
     params: &[
         ParamDoc {
             name: "value",
@@ -203,20 +202,19 @@ const DIV_EXACT_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The quotient, at the scale it needs and no wider — `1.00 / 4` is `0.25`.",
+    ret: "The result, with only as many digits after the point as it needs. `1.00 / 4` is \
+          `0.25`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When `$divisor` is zero, when the quotient repeats, and when it is wider than a \
-               `decimal` holds — the last two say so in one sentence, because either way the \
-               exact answer is not available.",
+        desc: "When `$divisor` is zero, when the result has repeating digits, or when it does \
+               not fit in a `decimal`. The last two cases have the same message.",
     }],
 };
 
 /// `Core\Decimal::divRound`'s reference card — `rule:core-api/reference-card`.
 const DIV_ROUND_DOC: MethodDoc = MethodDoc {
-    short: "`$value / $divisor` rounded to `$scale` places under `$mode`, both named at the call \
-            — the spelling for rounding that is business logic, since the `/` operator's own \
-            half-even rule is fixed and takes no argument.",
+    short: "Divides `$value` by `$divisor` and rounds the result to `$scale` digits with `$mode`. \
+            The `/` operator always rounds half to even. Use this method to choose the rounding.",
     params: &[
         ParamDoc {
             name: "value",
@@ -230,68 +228,65 @@ const DIV_ROUND_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "scale",
-            desc: "How many digits after the point the answer keeps, at most 28. The answer \
-                   carries exactly this scale, so a rounded price renders with its trailing \
-                   zeros.",
+            desc: "The number of digits after the decimal point, at most 28. The result always \
+                   has exactly this many, so a rounded price keeps its trailing zeros.",
             shape: &[],
         },
         ParamDoc {
             name: "mode",
-            desc: "How a value between two neighbours settles — the same `Core\\RoundMode` \
-                   `Core\\Math::round` takes, applied to the exact quotient rather than to an \
-                   already-rounded one.",
+            desc: "How a value exactly between two results is rounded. It is the same \
+                   `Core\\RoundMode` that `Core\\Math::round` takes. It is applied to the exact \
+                   result of the division.",
             shape: &[],
         },
     ],
-    ret: "The quotient at exactly `$scale` places.",
+    ret: "The result, with exactly `$scale` digits after the point.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When `$divisor` is zero, when `$scale` is past 28, and when the quotient's \
-               mantissa would not fit at that scale.",
+        desc: "When `$divisor` is zero, when `$scale` is more than 28, or when the result does \
+               not fit in a `decimal` with that many digits after the point.",
     }],
 };
 
 /// `Core\Decimal::allocate`'s reference card — `rule:core-api/reference-card`.
 const ALLOCATE_DOC: MethodDoc = MethodDoc {
-    short: "Splits `$amount` into one part per ratio, at the amount's own scale and adding back to \
-            it exactly — the penny split, which dividing and rounding each share on its own \
-            loses or invents a smallest unit of.",
+    short: "Splits `$amount` into one part per ratio. The parts always add up to `$amount` \
+            exactly. If you divide and round each part yourself, a cent can be lost or added.",
     params: &[
         ParamDoc {
             name: "amount",
-            desc: "The sum to split. Its scale is the parts' scale, so a price at two places is \
-                   split into parts at two places.",
+            desc: "The sum to split. The parts have the same number of digits after the point, \
+                   so a price with two digits splits into parts with two digits.",
             shape: &[],
         },
         ParamDoc {
             name: "ratios",
-            desc: "One weight per part, each zero or more, at least one of them above zero. The \
-                   keys are kept, so a split written under the names of its parties answers \
-                   under those names.",
+            desc: "One weight per part. Each weight is zero or more, and at least one is above \
+                   zero. The keys are kept, so you can name each part.",
             shape: &[],
         },
     ],
-    ret: "One part per ratio, in the ratios' own order and under their own keys: each its share \
-          truncated towards zero, and then one more smallest unit for each of the earliest parts \
-          until what is left over is gone.",
+    ret: "One part per ratio, in the same order and with the same keys. Each part is its share, \
+          rounded towards zero. The first parts then get one smallest unit more each, until \
+          nothing is left over.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "When there are no ratios, when a ratio is negative, and when every ratio is \
-                   zero — three ways of asking for a split that has no parts to make.",
+            desc: "When there are no ratios, when a ratio is negative, or when every ratio is \
+                   zero. In each case there is no part to make.",
         },
         ErrorDoc {
             error: "ArithmeticError",
-            desc: "When a share is wider than a `decimal` holds: the amount and a ratio together \
-                   want more than 28 fractional digits or more than a 96-bit mantissa.",
+            desc: "When a part does not fit in a `decimal`. That happens when it needs more than \
+                   28 digits after the point, or more than a 96-bit mantissa.",
         },
     ],
 };
 
 /// `Core\Decimal::pow`'s reference card — `rule:core-api/reference-card`.
 const POW_DOC: MethodDoc = MethodDoc {
-    short: "`$base` multiplied by itself `$exponent` times, exactly — the power a `decimal` base \
-            takes, since `**` has no row for one and would have to round to get an answer.",
+    short: "Multiplies `$base` by itself `$exponent` times and returns the exact result. The `**` \
+            operator does not accept a `decimal` base, so use this method instead.",
     params: &[
         ParamDoc {
             name: "base",
@@ -300,18 +295,18 @@ const POW_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "exponent",
-            desc: "How many times to multiply it by itself. Zero answers `1`, and there is no \
-                   negative exponent: `Core\\Decimal::divRound(1, Core\\Decimal::pow($b, $n), \
-                   $scale, $mode)` is the reciprocal, with the rounding it needs written out.",
+            desc: "How many times to multiply it by itself. Zero gives `1`. A negative exponent \
+                   is not allowed. For the reciprocal, write `Core\\Decimal::divRound(1, \
+                   Core\\Decimal::pow($b, $n), $scale, $mode)`.",
             shape: &[],
         },
     ],
-    ret: "The exact power, at the scale repeated multiplication gives it — `2.50` squared is \
-          `6.2500`, since a product's scale is its operands' scales added.",
+    ret: "The exact power. The digits after the point add up with each multiplication, so \
+          `2.50` squared is `6.2500`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When the power is wider than a `decimal` holds: more than 28 fractional digits, \
-               which a scaled base reaches quickly, or more than a 96-bit mantissa.",
+        desc: "When the power does not fit in a `decimal`. That happens with more than 28 \
+               digits after the point, or more than a 96-bit mantissa.",
     }],
 };
 
@@ -327,18 +322,18 @@ const FLOOR_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "scale",
-            desc: "How many digits after the point the answer keeps, at most 28, and none at all \
-                   where it is left out. The answer carries exactly this scale, so it pads a \
-                   narrower value as well as cutting a wider one.",
+            desc: "The number of digits after the decimal point, at most 28. Without it, the \
+                   result has none. The result always has exactly this many, so a shorter value \
+                   is padded with zeros.",
             shape: &[],
         },
     ],
-    ret: "The largest `decimal` at `$scale` places that is not above `$value`: `floor(-1.5)` is \
-          `-2`, and `floor(1.005, 2)` is `1.00`.",
+    ret: "The largest `decimal` with `$scale` digits that is not above `$value`. `floor(-1.5)` \
+          is `-2`, and `floor(1.005, 2)` is `1.00`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When `$scale` is past 28, and when `$value` has too many digits before the point \
-               to carry that many after it.",
+        desc: "When `$scale` is more than 28. Also when `$value` has too many digits before the \
+               point to keep that many digits after it.",
     }],
 };
 
@@ -354,25 +349,25 @@ const CEIL_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "scale",
-            desc: "How many digits after the point the answer keeps, at most 28, and none at all \
-                   where it is left out. The answer carries exactly this scale, so it pads a \
-                   narrower value as well as cutting a wider one.",
+            desc: "The number of digits after the decimal point, at most 28. Without it, the \
+                   result has none. The result always has exactly this many, so a shorter value \
+                   is padded with zeros.",
             shape: &[],
         },
     ],
-    ret: "The smallest `decimal` at `$scale` places that is not below `$value`: `ceil(-1.5)` is \
-          `-1`, and `ceil(1.001, 2)` is `1.01`.",
+    ret: "The smallest `decimal` with `$scale` digits that is not below `$value`. `ceil(-1.5)` \
+          is `-1`, and `ceil(1.001, 2)` is `1.01`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When `$scale` is past 28, and when `$value` has too many digits before the point \
-               to carry that many after it.",
+        desc: "When `$scale` is more than 28. Also when `$value` has too many digits before the \
+               point to keep that many digits after it.",
     }],
 };
 
 /// `Core\Decimal::truncate`'s reference card — `rule:core-api/reference-card`.
 const TRUNCATE_DOC: MethodDoc = MethodDoc {
-    short: "`$value` cut to `$scale` places towards zero, which drops digits and never moves the \
-            ones it keeps — the cut a fixed-width column or a display wants.",
+    short: "Cuts `$value` to `$scale` digits after the point, towards zero. The digits it keeps \
+            never change. This is useful for display and fixed-width columns.",
     params: &[
         ParamDoc {
             name: "value",
@@ -381,25 +376,25 @@ const TRUNCATE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "scale",
-            desc: "How many digits after the point the answer keeps, at most 28, and none at all \
-                   where it is left out. The answer carries exactly this scale, so it pads a \
-                   narrower value as well as cutting a wider one.",
+            desc: "The number of digits after the decimal point, at most 28. Without it, the \
+                   result has none. The result always has exactly this many, so a shorter value \
+                   is padded with zeros.",
             shape: &[],
         },
     ],
-    ret: "`$value` with everything past `$scale` places dropped: `truncate(-1.9)` is `-1`, and \
+    ret: "`$value` without the digits after `$scale` places. `truncate(-1.9)` is `-1`, and \
           `truncate(1.999, 2)` is `1.99`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When `$scale` is past 28, and when `$value` has too many digits before the point \
-               to carry that many after it.",
+        desc: "When `$scale` is more than 28. Also when `$value` has too many digits before the \
+               point to keep that many digits after it.",
     }],
 };
 
 /// `Core\Decimal::round`'s reference card — `rule:core-api/reference-card`.
 const ROUND_DOC: MethodDoc = MethodDoc {
-    short: "`$value` at `$scale` places under `$mode`, which is the one rounding that settles a \
-            value between two neighbours and so the one that has to be named at the call.",
+    short: "Rounds `$value` to `$scale` digits after the point with `$mode`. You must always give \
+            the mode, because it decides a value exactly between two results.",
     params: &[
         ParamDoc {
             name: "value",
@@ -408,25 +403,25 @@ const ROUND_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "mode",
-            desc: "How a value between two neighbours settles — the same `Core\\RoundMode` \
-                   `Core\\Decimal::divRound` and `Core\\Math::round` take, and the reason it \
-                   comes before the optional scale rather than after it.",
+            desc: "How a value exactly between two results is rounded. It is the same \
+                   `Core\\RoundMode` that `Core\\Decimal::divRound` and `Core\\Math::round` take. \
+                   It is required, so it comes before the optional `$scale`.",
             shape: &[],
         },
         ParamDoc {
             name: "scale",
-            desc: "How many digits after the point the answer keeps, at most 28, and none at all \
-                   where it is left out. The answer carries exactly this scale, so it pads a \
-                   narrower value as well as cutting a wider one.",
+            desc: "The number of digits after the decimal point, at most 28. Without it, the \
+                   result has none. The result always has exactly this many, so a shorter value \
+                   is padded with zeros.",
             shape: &[],
         },
     ],
-    ret: "The neighbour at `$scale` places `$mode` names: `round(0.125, Core\\RoundMode::HalfEven, \
-          2)` is `0.12` and `round(0.125, Core\\RoundMode::HalfUp, 2)` is `0.13`.",
+    ret: "The rounded value with `$scale` digits. `round(0.125, Core\\RoundMode::HalfEven, 2)` \
+          is `0.12`, and `round(0.125, Core\\RoundMode::HalfUp, 2)` is `0.13`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When `$scale` is past 28, and when `$value` has too many digits before the point \
-               to carry that many after it.",
+        desc: "When `$scale` is more than 28. Also when `$value` has too many digits before the \
+               point to keep that many digits after it.",
     }],
 };
 

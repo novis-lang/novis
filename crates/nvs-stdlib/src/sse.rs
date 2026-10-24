@@ -276,29 +276,29 @@ const RETRY_SYMBOL: &str = "nvs_core_sse_retry";
 
 /// `Core\Sse::upgrade`'s reference card — `rule:core-api/reference-card`.
 const UPGRADE_DOC: MethodDoc = MethodDoc {
-    short: "Answers this request with an event stream running `$entry` as a root isolate — its \
-            own arena, its own budget and its own grants, sharing nothing with the request that \
-            opened it but the values `$args` copied in.",
+    short: "Responds to this request with an event stream that runs `$entry` in a new isolate. \
+            The isolate has its own memory, its own limits and its own capabilities. It shares \
+            nothing with the request except the values copied in from `$args`.",
     params: &[
         ParamDoc {
             name: "entry",
-            desc: "What the stream runs: a file path, resolved and root-checked exactly as \
-                   `spawn script`'s operand is, or a static method written `Feed::run(...)`. \
-                   It cannot be an anonymous function, because an anonymous function can \
-                   capture variables, and an isolate shares nothing but compiled code.",
+            desc: "What the stream runs. It is a file path, or a static method written \
+                   `Feed::run(...)`. A file path is resolved and checked the same way as for \
+                   `spawn script`. It cannot be an anonymous function. An anonymous function can \
+                   capture variables, and an isolate shares only compiled code.",
             shape: &[],
         },
         ParamDoc {
             name: "args",
-            desc: "The values the stream starts with, bound to the entry's parameters by name. \
-                   They cross by the graph copy an isolate boundary already uses, so what arrives \
-                   is a value and never a shared reference; a `secret` may not cross and a \
-                   `tainted` value stays `tainted` on the other side.",
+            desc: "The values the stream starts with. Each one goes to the entry's parameter of \
+                   the same name. They are deep-copied into the isolate, so they are never shared \
+                   references. A `secret` value is not allowed. A `tainted` value stays `tainted` \
+                   in the isolate.",
             shape: &[],
         },
         ParamDoc {
             name: "limits",
-            desc: "Lower limits for the stream, written as `spawn script` writes them: \
+            desc: "Lower limits for the stream, with the same syntax as for `spawn script`: \
                    `{memory: \"8M\", cpu_time: \"2s\"}`. The keys are `memory`, `cpu_time`, \
                    `wall_time`, `max_output` and `max_tasks`. A limit higher than the \
                    server's own has no effect. The stream stops when it reaches one.",
@@ -307,8 +307,8 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "grants",
             desc: "The capabilities the stream may use, such as `[\"fs.read\"]`. It gets only \
-                   the names in this list that the request itself holds. An empty list gives \
-                   it none. Without this option, it gets what the request holds.",
+                   the names in this list that the request itself has. An empty list gives \
+                   it none. Without this option, it gets the capabilities of the request.",
             shape: &[],
         },
         ParamDoc {
@@ -318,132 +318,126 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Nothing. Calling it opens the stream — this is not a response value a handler hands \
-          back, because nothing interprets a handler's return.",
+    ret: "Nothing. The call itself opens the stream. A handler does not return it, because the \
+          return value of a handler is not used.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "A request no server is answering, which is every command-line program and \
-                   every `spawn script` child; an `$entry` path `script.spawn` does not grant or \
-                   that does not compile; a second call on one request.",
+            desc: "The program is not handling a request. This is true for every command-line \
+                   program and every `spawn script` child. It is also thrown when `script.spawn` \
+                   does not allow the `$entry` path, or the file does not compile. A second call \
+                   in the same request also throws it.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "An `$args` value with no meaning on the other side of an isolate boundary — a \
-                   resource, or a `secret` the call site could not see through; and, for a static \
-                   method entry, an `$args` map that omits a parameter the method declares or \
-                   names one it does not.",
+            desc: "An `$args` value cannot be copied into an isolate. Examples are a resource, or \
+                   a `secret` that is not revealed. For a static method entry, it is also thrown \
+                   when `$args` is missing one of the method's parameters or has a name the \
+                   method does not have.",
         },
     ],
 };
 
 /// `Core\Sse::stream`'s reference card — `rule:core-api/reference-card`.
 const STREAM_DOC: MethodDoc = MethodDoc {
-    short: "Answers this request with an event stream that ends when the request does — the head \
-            goes out as soon as this is called, and every event written on the handle reaches the \
-            client as it is written.",
+    short: "Responds to this request with an event stream that ends when the request ends. The \
+            headers are sent as soon as you call it. Each event reaches the client when you send \
+            it.",
     params: &[],
-    ret: "The handle to write events on, which is the same `Core\\Sse` a connection-scoped stream \
-          holds — so a helper taking one works from either door. A browser's `EventSource` \
-          reconnects when this stream ends, because the request it belongs to has ended; the \
-          readers this door is for are `fetch` and a progress UI that closes itself.",
+    ret: "A `Core\\Sse` to send events on. It is the same class that `upgrade` uses, so a helper \
+          function works with both. A browser's `EventSource` reconnects when this stream ends. \
+          Use this stream with `fetch`, or with a progress display that closes itself.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "A status was set on this request before the stream was opened — an event stream is \
-               `200` by protocol; or this response already has a body being written over time, a \
-               response having one body.",
+        desc: "A status was set on this request before the stream was opened. An event stream \
+               always has status `200`. It is also thrown when this response is already \
+               streaming a body, because a response has only one body.",
     }],
 };
 
 /// `Core\Sse::current`'s reference card — `rule:core-api/reference-card`.
 const CURRENT_DOC: MethodDoc = MethodDoc {
-    short: "The event stream this program is writing, whichever door opened it — the one that \
-            outlives the request that upgraded it, or the one this request opened for itself.",
+    short: "Returns the event stream this program is writing. It works for a stream opened by \
+            `upgrade` and for a stream opened by `stream`.",
     params: &[],
-    ret: "The handle to write events on, which is the same `Core\\Sse` the member that opened the \
-          stream answered with — so a helper taking one is written once and called from either \
-          door.",
+    ret: "The same `Core\\Sse` that `upgrade` or `stream` returned. A helper function that takes \
+          one works with both kinds of stream.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "A program that is not writing an event stream, which is every command-line program, \
-               every `spawn script` child and every request answering with an ordinary body — \
-               including one streaming that body, a response body written over time not being an \
-               event stream.",
+        desc: "The program is not writing an event stream. This is true for every command-line \
+               program and every `spawn script` child. It is also true for a request with an \
+               ordinary body. A streamed response body is not an event stream either.",
     }],
 };
 
 /// `Core\Sse->receive`'s reference card — `rule:core-api/reference-card`.
 const RECEIVE_DOC: MethodDoc = MethodDoc {
-    short: "Waits for the next value published to a topic this stream subscribed to, and answers \
-            it as one message.",
+    short: "Waits for the next value published to a topic this stream subscribed to. It returns \
+            that value as one message.",
     params: &[],
-    ret: "The next message, or `null` once this stream is over — which is what ends the \
-          `while (var $msg = $sse->receive())` loop a stream's script is written as. A message \
-          carries the published value and the name of the topic it arrived on. `null` is also \
-          what a stream that fell too far behind its topics is answered: its queue overflowed, \
-          so this stream is closed rather than a publisher being made to wait for it.",
+    ret: "The next message, or `null` when the stream has ended. The `null` ends a \
+          `while (var $msg = $sse->receive())` loop. A message has the published value and the \
+          name of its topic. A stream that falls too far behind also gets `null`. Its queue is \
+          full, so the stream is closed and publishers do not wait for it.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This program is a streaming response rather than the isolate a stream outlives \
-               its request on — it ends with its own events, so nothing published could reach \
-               it, and there is no wait to be had.",
+        desc: "This stream was opened by `stream`, not by `upgrade`. It ends with the request, so \
+               no published value can reach it, and there is nothing to wait for.",
     }],
 };
 
 /// `Core\Sse->send`'s reference card — `rule:core-api/reference-card`.
 const SEND_DOC: MethodDoc = MethodDoc {
-    short: "Writes one event to the client: the payload, and the optional name it dispatches on \
-            and id it echoes back when it reconnects.",
+    short: "Sends one event to the client. The event has the data, an optional event name and an \
+            optional id. The client sends the id back when it reconnects.",
     params: &[
         ParamDoc {
             name: "data",
-            desc: "What the client's data buffer receives. A `string` goes out as it was written \
-                   and anything else is JSON-encoded by the encoder `Core\\Json::encode` is. A \
-                   `tainted` value is accepted: the payload is normalized and split into `data:` \
-                   lines here, so it cannot reach any other field.",
+            desc: "The data the client receives. A `string` is sent as it is. Any other value is \
+                   encoded as JSON, the same way as by `Core\\Json::encode`. A `tainted` value is \
+                   allowed. The data is cleaned and split into `data:` lines, so it cannot change \
+                   any other field.",
             shape: &[],
         },
         ParamDoc {
             name: "event",
-            desc: "The name the client dispatches this event on, or `null` for the default \
-                   `message`. A sink — an attacker-chosen name is an instruction to the reader — \
-                   so a `tainted` value is refused where it is written.",
+            desc: "The event name the client listens for, or `null` for the default `message`. \
+                   An attacker could use this name to control the client. So a `tainted` value \
+                   does not compile here.",
             shape: &[],
         },
         ParamDoc {
             name: "id",
-            desc: "The id the client echoes back in `Last-Event-ID` when it reconnects, or `null` \
-                   for an event that sets none. A sink for the same reason, and there is no replay \
-                   buffer behind it: resumption is the application's own event log, read off the \
-                   header by the handler.",
+            desc: "The id the client sends back in `Last-Event-ID` when it reconnects, or `null` \
+                   for no id. A `tainted` value does not compile here, for the same reason. The \
+                   server keeps no old events. To resume, your handler reads the header and uses \
+                   your own event log.",
             shape: &[],
         },
     ],
-    ret: "Nothing, once the event is framed and handed to the body being written.",
+    ret: "Nothing. The event is formatted and added to the response body.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "An `$event` or `$id` carrying a line break or a NUL, either of which would end the \
-               event early and change what the client acts on; or an empty `$data`, which a client \
-               provably does not dispatch.",
+        desc: "`$event` or `$id` contains a line break or a NUL byte. Either one would end the \
+               event early and change what the client does. It is also thrown for an empty \
+               `$data`, because a client ignores an event with no data.",
     }],
 };
 
 /// `Core\Sse->retry`'s reference card — `rule:core-api/reference-card`.
 const RETRY_DOC: MethodDoc = MethodDoc {
-    short: "Tells the client how long to wait before it reconnects, as a block of its own that \
-            dispatches no event.",
+    short: "Tells the client how long to wait before it reconnects. It is sent as a separate \
+            block, and the client sees no event.",
     params: &[ParamDoc {
         name: "after",
-        desc: "How long the client waits before it comes back. It reaches the wire in \
-               milliseconds, so a wait shorter than one arrives as `0` — the least the wire can \
-               say rather than a refusal.",
+        desc: "How long the client waits before it reconnects. It is sent in whole milliseconds. \
+               A wait shorter than one millisecond is sent as `0`, without an error.",
         shape: &[],
     }],
-    ret: "Nothing, once the block is handed to the body being written.",
+    ret: "Nothing. The block is added to the response body.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "A negative `$after`: a client waits this long before coming back, and there is no \
-               wait shorter than none.",
+        desc: "`$after` is negative. A wait cannot be shorter than zero.",
     }],
 };
 
@@ -530,22 +524,21 @@ const MESSAGE_VALUE_SYMBOL: &str = "nvs_core_sse_message_value";
 
 /// `Core\Sse\Message::topic`'s reference card — `rule:core-api/reference-card`.
 const MESSAGE_TOPIC_DOC: MethodDoc = MethodDoc {
-    short: "The topic this value was published to, which is one of the names this stream \
-            subscribed under.",
+    short: "Returns the topic this value was published to. It is one of the topics this stream \
+            subscribed to.",
     params: &[],
-    ret: "The topic's name. Never `null`: an event stream is handed no peer, so every message \
-          it receives is a delivery. It is the name this program subscribed under and not \
-          anything a client chose, so it is not `tainted`.",
+    ret: "The topic's name. It is never `null`, because every message on an event stream comes \
+          from a topic. Your program chose the name, not a client, so it is not `tainted`.",
     errors: &[],
 };
 
 /// `Core\Sse\Message::value`'s reference card — `rule:core-api/reference-card`.
 const MESSAGE_VALUE_DOC: MethodDoc = MethodDoc {
-    short: "What a publisher put on the topic, copied across the isolate boundary the way every \
-            other value crosses one.",
+    short: "Returns the value a publisher published to the topic. It is copied from the \
+            publisher's isolate, like every value sent between isolates.",
     params: &[],
-    ret: "The published value, with whatever qualifiers it already carried. It is a copy and \
-          never a shared reference, so writing to it changes nothing the publisher can see.",
+    ret: "The published value. If it was `tainted`, it is still `tainted`. It is a copy, so a \
+          change to it does not change anything the publisher sees.",
     errors: &[],
 };
 

@@ -232,7 +232,7 @@ const SEAL_DOC: MethodDoc = MethodDoc {
 const OPEN_DOC: MethodDoc = MethodDoc {
     short: "Checks that `$cookie` was made by `Core\\SignedCookie::seal` for the cookie `$name` \
             with a key in `$keys`, and returns the value stored in it. A changed cookie throws an error. The value is \
-            `tainted` (marked as input from outside), because your program may have stored \
+            `tainted` (it counts as input from outside the program), because your program may have stored \
             text that a visitor sent.",
     params: &[
         ParamDoc {

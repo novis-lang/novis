@@ -192,67 +192,70 @@ const DIGEST_DOC: EnumDoc = EnumDoc {
     cases: &[
         CaseDoc {
             name: "Crc32",
-            desc: "CRC-32/ISO-HDLC, a 4-octet checksum. It detects accidental corruption only.",
+            desc: "CRC-32/ISO-HDLC, a 4-byte checksum. It detects accidental corruption only.",
         },
         CaseDoc {
             name: "Md5",
-            desc: "MD5, 16 octets — collision-broken since 2004, for interop only.",
+            desc: "MD5, 16 bytes. It has been broken since 2004. Use it only to work with \
+                   other systems.",
         },
         CaseDoc {
             name: "Sha1",
-            desc: "SHA-1, 20 octets — collision-broken since 2017, for interop only.",
+            desc: "SHA-1, 20 bytes. It has been broken since 2017. Use it only to work with \
+                   other systems.",
         },
         CaseDoc {
             name: "Sha256",
-            desc: "SHA-256, 32 octets — the default to reach for; a `StrongDigest`.",
+            desc: "SHA-256, 32 bytes. This is the usual choice. It is a `StrongDigest`.",
         },
         CaseDoc {
             name: "Sha384",
-            desc: "SHA-384, 48 octets; a `StrongDigest`.",
+            desc: "SHA-384, 48 bytes. It is a `StrongDigest`.",
         },
         CaseDoc {
             name: "Sha512",
-            desc: "SHA-512, 64 octets — faster than SHA-256 on 64-bit hardware; a \
+            desc: "SHA-512, 64 bytes. It is faster than SHA-256 on 64-bit hardware. It is a \
                    `StrongDigest`.",
         },
         CaseDoc {
             name: "Sha224",
-            desc: "SHA-224, 28 octets; a `StrongDigest`.",
+            desc: "SHA-224, 28 bytes. It is a `StrongDigest`.",
         },
         CaseDoc {
             name: "Sha512_224",
-            desc: "SHA-512/224, 28 octets — SHA-512 truncated with its own IV (FIPS 180-4 \
-                   § 5.3.6). It is a `StrongDigest`.",
+            desc: "SHA-512/224, 28 bytes. It is SHA-512 cut to 28 bytes, with its own starting \
+                   values (FIPS 180-4 § 5.3.6). It is a `StrongDigest`.",
         },
         CaseDoc {
             name: "Sha512_256",
-            desc: "SHA-512/256, 32 octets — SHA-512's speed at SHA-256's width and \
-                   length-extension-proof. It is a `StrongDigest`.",
+            desc: "SHA-512/256, 32 bytes. It has the speed of SHA-512 and the length of SHA-256. \
+                   It is safe against length-extension attacks. It is a `StrongDigest`.",
         },
         CaseDoc {
             name: "Sha3_224",
-            desc: "SHA3-224, 28 octets — FIPS 202's Keccak sponge, an independent construction \
-                   rather than a wider SHA-2; a `StrongDigest`.",
+            desc: "SHA3-224, 28 bytes. SHA-3 (FIPS 202) uses the Keccak design, which is \
+                   different from SHA-2. It is a `StrongDigest`.",
         },
         CaseDoc {
             name: "Sha3_256",
-            desc: "SHA3-256, 32 octets; a `StrongDigest`.",
+            desc: "SHA3-256, 32 bytes. It is a `StrongDigest`.",
         },
         CaseDoc {
             name: "Sha3_384",
-            desc: "SHA3-384, 48 octets; a `StrongDigest`.",
+            desc: "SHA3-384, 48 bytes. It is a `StrongDigest`.",
         },
         CaseDoc {
             name: "Sha3_512",
-            desc: "SHA3-512, 64 octets; a `StrongDigest`.",
+            desc: "SHA3-512, 64 bytes. It is a `StrongDigest`.",
         },
         CaseDoc {
             name: "Crc32c",
-            desc: "CRC-32C/Castagnoli, 4 octets — the checksum S3 and GCS stamp objects with.",
+            desc: "CRC-32C/Castagnoli, 4 bytes. S3 and GCS use this checksum for stored \
+                   objects.",
         },
         CaseDoc {
             name: "Blake3",
-            desc: "BLAKE3, 32 octets, and the fastest here. It is not a `StrongDigest`, because \
+            desc: "BLAKE3, 32 bytes, and the fastest here. It is not a `StrongDigest`, because \
                    it has its own keyed mode and does not use HMAC.",
         },
     ],
@@ -382,18 +385,18 @@ const OF_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "data",
-            desc: "The octets to hash; a `string` is read as its UTF-8 bytes.",
+            desc: "The data to hash. A `string` is read as its UTF-8 bytes.",
             shape: &[],
         },
         ParamDoc {
             name: "digest",
-            desc: "The algorithm, any `Core\\Hash::Digest` case — the broken ones included, for \
-                   interop.",
+            desc: "The algorithm. Every `Core\\Hash::Digest` case is allowed, also the broken \
+                   ones.",
             shape: &[],
         },
     ],
-    ret: "The digest as `bytes`, as many octets as the case's width; every case accepts every \
-          input, the empty one included.",
+    ret: "The digest as `bytes`, with the length of the chosen algorithm. Every algorithm \
+          accepts any input, also an empty one.",
     errors: &[],
 };
 
@@ -405,13 +408,13 @@ const HMAC_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "data",
-            desc: "The octets to authenticate; a `string` is read as its UTF-8 bytes.",
+            desc: "The data to sign. A `string` is read as its UTF-8 bytes.",
             shape: &[],
         },
         ParamDoc {
             name: "key",
-            desc: "The secret key, of any length — a long one is hashed down and a short one \
-                   zero-padded, as RFC 2104 § 2 says.",
+            desc: "The secret key, of any length. A long key is hashed first, and a short key \
+                   is padded with zero bytes, as RFC 2104 § 2 says.",
             shape: &[],
         },
         ParamDoc {
@@ -420,7 +423,7 @@ const HMAC_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The MAC as `bytes`, as many octets as the case's width.",
+    ret: "The MAC as `bytes`, with the length of the chosen algorithm.",
     errors: &[],
 };
 
@@ -440,8 +443,8 @@ const EQUALS_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "`true` when the two hold the same octets; `false` at once for two lengths that differ, \
-          since a digest's length is the algorithm's and never a secret.",
+    ret: "`true` when the two have the same bytes, and `false` otherwise. Two values of \
+          different lengths return `false` at once. The length of a digest is not a secret.",
     errors: &[],
 };
 
@@ -454,7 +457,7 @@ const STREAM_DOC: MethodDoc = MethodDoc {
         desc: "The algorithm, any `Core\\Hash::Digest` case.",
         shape: &[],
     }],
-    ret: "A fresh, open stream that has been fed nothing yet.",
+    ret: "A new, open stream with no data in it yet.",
     errors: &[],
 };
 
@@ -504,13 +507,13 @@ const STREAM_UPDATE_DOC: MethodDoc = MethodDoc {
             they were added.",
     params: &[ParamDoc {
         name: "data",
-        desc: "The next octets; a `string` is read as its UTF-8 bytes.",
+        desc: "The next part of the data. A `string` is read as its UTF-8 bytes.",
         shape: &[],
     }],
-    ret: "Nothing; the stream holds a reference to `$data` until `finish`.",
+    ret: "Nothing. The stream keeps a reference to `$data` until `finish`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The stream has already been finished — a digest is final, so open a new \
+        desc: "The stream is already finished. A digest cannot change, so open a new \
                stream.",
     }],
 };
@@ -520,11 +523,11 @@ const STREAM_FINISH_DOC: MethodDoc = MethodDoc {
     short: "Closes the stream and returns the digest of everything added with `update`. The \
             result is the same as `Core\\Hash::of` on all the parts joined together.",
     params: &[],
-    ret: "The digest as `bytes`; the stream is finished afterwards and its chunks released.",
+    ret: "The digest as `bytes`. After this call the stream is finished, and its data is \
+          freed.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The stream has already been finished — a second `finish` is refused rather than \
-               continuing from the first.",
+        desc: "The stream is already finished. A second call to `finish` throws this error.",
     }],
 };
 

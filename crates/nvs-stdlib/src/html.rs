@@ -376,45 +376,44 @@ pub const MARKUP_TEXT_SYMBOL: &str = "nvs_core_html_markup_text";
 
 /// `Core\Html::escape`'s reference card — `rule:core-api/reference-card`.
 const ESCAPE_DOC: MethodDoc = MethodDoc {
-    short: "Writes `&`, `<`, `>`, `\"` and `'` in `$text` as character references, and replaces \
-            every unterminated bidirectional control with `\u{FFFD}` — the launderer for the HTML \
-            sink, so its result is accepted where a `tainted` string is not.",
+    short: "Escapes `&`, `<`, `>`, `\"` and `'` in `$text` as character references. It also \
+            replaces every unterminated bidirectional control character with `\u{FFFD}`. You can \
+            write the result into a page, where a `tainted` string is not allowed.",
     params: &[ParamDoc {
         name: "text",
-        desc: "The text to write into an HTML document, as text rather than as markup.",
+        desc: "The text to write into an HTML document. It is shown as text, not read as HTML.",
         shape: &[],
     }],
-    ret: "A `Core\\Html\\Markup` carrying the escaped text, safe in element content and in an \
-          attribute value quoted either way. It is not a `string`, which is what stops the sink \
-          escaping it a second time; `toSource` is the way back to the bytes. Text with none of \
-          the five characters and no unterminated control is carried through unchanged. The five \
-          are escaped \
-          unconditionally: there is no flag, and an input that already reads as a reference is \
-          escaped again, since `&amp;` in the input is text that said `&amp;`.",
+    ret: "A `Core\\Html\\Markup` with the escaped text. It is safe in element content and in an \
+          attribute value with either kind of quotes. It is not a `string`, so the page does not \
+          escape it a second time. `toSource` returns its text as a `string`. Text without the \
+          five characters and without an unterminated control character does not change. The \
+          five characters are always escaped, and no option turns this off. Input that already \
+          looks like a reference is escaped again, because `&amp;` in the input is the text \
+          `&amp;`.",
     errors: &[],
 };
 
 /// `Core\Html::join`'s reference card — `rule:core-api/reference-card`.
 const JOIN_DOC: MethodDoc = MethodDoc {
-    short: "Concatenates a list of `Core\\Html\\Markup` fragments in order, writing `$separator` \
-            between each pair — the list form of `Markup + Markup`, which is what a page composed \
-            from fragments writes instead of folding the operator over them.",
+    short: "Joins a list of `Core\\Html\\Markup` fragments in order, with `$separator` between \
+            each two. It does the same as `Markup + Markup` for a whole list.",
     params: &[
         ParamDoc {
             name: "parts",
-            desc: "The fragments to write out, in the order they are held.",
+            desc: "The fragments to join, in list order.",
             shape: &[],
         },
         ParamDoc {
             name: "separator",
-            desc: "The markup written between each pair of parts — never before the first or \
-                   after the last. An empty markup joins the parts with nothing between them.",
+            desc: "The markup written between each two parts. It is not written before the first \
+                   part or after the last. With empty markup, nothing is written between parts.",
             shape: &[],
         },
     ],
-    ret: "A `Core\\Html\\Markup` carrying every part's bytes in order, and empty markup for an \
-          empty list. Nothing is escaped on the way: each part and the separator are already \
-          carriers, so re-escaping one would corrupt the markup it was built for.",
+    ret: "A `Core\\Html\\Markup` with every part in order. An empty list gives empty markup. \
+          Nothing is escaped, because each part and the separator are already safe markup. \
+          Escaping them again would break that markup.",
     errors: &[],
 };
 
@@ -478,72 +477,69 @@ const LATER_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Html::toSource`'s reference card — `rule:core-api/reference-card`.
 const TO_SOURCE_DOC: MethodDoc = MethodDoc {
-    short: "Hands back the source text a `Core\\Html\\Markup` carries — the one way out of the \
-            carrier, since there is no `Markup as string` conversion. Rare, greppable, and it \
-            carries a written reason at the site.",
+    short: "Returns the source text of a `Core\\Html\\Markup`. There is no `Markup as string` \
+            cast, so this is the only way to get the text. Each call needs a written reason, so \
+            it is easy to find in code.",
     params: &[
         ParamDoc {
             name: "markup",
-            desc: "The markup whose bytes are wanted rather than its guarantee.",
+            desc: "The markup whose text you need.",
             shape: &[],
         },
         ParamDoc {
             name: "reason",
-            desc: "Why this call site needs the text and not the carrier, written for the next \
-                   reader. Nothing else reads it, and an empty one is refused.",
+            desc: "Why this code needs the text and not the markup, written for the next person \
+                   who reads it. Nothing else reads it. An empty reason is not allowed.",
             shape: &[],
         },
     ],
-    ret: "The markup's source text, as a plain `string`. Caching a rendered fragment, storing one \
-          in a column, writing one to a file and handing one to a sink that is not this one are \
-          the legitimate callers.",
+    ret: "The source text of the markup, as a plain `string`. Typical uses are caching a \
+          rendered fragment, storing it in a database column, or writing it to a file. Another \
+          use is passing it to an output that is not HTML.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$reason` is empty. A reason nobody had to write is a reason nobody wrote, so the \
-               hatch refuses to open without one.",
+        desc: "`$reason` is empty. Each call must say why it needs the text.",
     }],
 };
 
 /// `Core\Html::parse`'s reference card — `rule:core-api/reference-card`.
 const PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Parses `$document` as HTML by the WHATWG algorithm — the one browsers run — and answers \
-            the document node of the same tree `Core\\Xml::parse` builds.",
+    short: "Parses `$document` as HTML with the WHATWG algorithm, which browsers use. It returns \
+            the document node of the same kind of tree that `Core\\Xml::parse` builds.",
     params: &[ParamDoc {
         name: "document",
-        desc: "The document text. Any text at all is a document: this member has no way to refuse \
-               one.",
+        desc: "The document text. Any text is a valid document, so this method never throws an \
+               error.",
         shape: &[],
     }],
-    ret: "The `Core\\Xml\\Node` of kind `Document` whose children are what the algorithm put at the \
-          top level — for all but an empty input, one `html` element with `head` and `body` under \
-          it, whether or not the text wrote those tags. Implied tags, misnested tags and \
-          stray content are placed exactly where a browser places them, so what comes back is what \
-          a page would have rendered rather than a reading of what was written. A `<!DOCTYPE …>` \
-          leaves no node, since the tree has no kind for one. Names are lower-cased in the HTML \
-          namespace and case-corrected in the SVG and MathML ones, as the algorithm specifies. \
-          Nesting deeper than a thousand elements is flattened onto the thousandth rather than \
-          held, so no document can make the walk of the answer exhaust the stack.",
+    ret: "The `Core\\Xml\\Node` of kind `Document`. Its children are the top level of the parsed \
+          page. For any input that is not empty, this is one `html` element with `head` and \
+          `body` in it. That is true even when the text does not contain these tags. Missing \
+          tags, wrongly nested tags and stray content go exactly where a browser puts them. So \
+          the tree is the page a browser would show. A `<!DOCTYPE …>` gives no node, because \
+          the tree has no kind for it. Names are lower case in HTML. In SVG and MathML they get \
+          the correct case, as the algorithm says. Elements nested deeper than 1000 levels are \
+          placed at level 1000, so walking the tree can never run out of stack.",
     errors: &[],
 };
 
 /// `Core\Html::sanitize`'s reference card — `rule:core-api/reference-card`.
 const SANITIZE_DOC: MethodDoc = MethodDoc {
-    short: "Parses `$document` as HTML and answers a document rebuilt from the elements and \
-            attributes the allowlist holds — the launderer for untrusted markup, as opposed to \
-            untrusted text, which is `escape`'s.",
+    short: "Parses `$document` as HTML and builds a new document from only the allowed elements \
+            and attributes. Use it for untrusted HTML. For untrusted text, use `escape`.",
     params: &[ParamDoc {
         name: "document",
-        desc: "The markup to rebuild. Any text at all is a document, since the parse behind this \
-               has no way to refuse one.",
+        desc: "The HTML to rebuild. Any text is a valid document, so this method never throws \
+               an error.",
         shape: &[],
     }],
-    ret: "A `Core\\Html\\Markup` carrying the rebuilt document, which is why the result may be \
-          written into a page without being escaped again. Nothing is filtered and nothing is \
-          escaped in place: an element the allowlist does not hold contributes no tag, an \
-          attribute it does not hold is not written, and a `script`, `style` or other raw-text \
-          element is gone with its content. The allowlist is closed — there is no argument that \
-          extends it, because a policy the caller writes is a policy whose holes are the \
-          caller's. Text, and the order of what is kept, are the document's own.",
+    ret: "A `Core\\Html\\Markup` with the rebuilt document. You can write it into a page without \
+          escaping it again. The method builds a new document and does not edit the old one. An \
+          element that is not allowed loses its tag, but its content is kept. An attribute \
+          that is not allowed is not written. A `script`, `style` or other raw-text element is \
+          removed with its content. The list of allowed elements is fixed, and no argument can extend it. A list \
+          you write yourself could have security holes. The text and the order of the kept \
+          content stay as in the document.",
     errors: &[],
 };
 

@@ -107,33 +107,33 @@ pub(crate) const LEVEL: CoreEnum = CoreEnum {
 
 /// [`LEVEL`]'s reference card — `rule:core-api/reference-card`.
 const LEVEL_DOC: EnumDoc = EnumDoc {
-    short: "How loud a log record is — five cases, each valued by its own syslog severity so that \
-            a `syslog` target needs no second table. A smaller number is a louder record.",
+    short: "How serious a log record is. Each of the five cases has the number of its syslog \
+            severity, so a `syslog` target can use it directly. A smaller number is more serious.",
     cases: &[
         CaseDoc {
             name: "Debug",
-            desc: "Detail for whoever is debugging this run. `Core\\Debug::dump` writes at this \
-                   level inside a web request. In production, a `Debug` record is not kept unless \
-                   `[log] level` is `\"Debug\"`.",
+            desc: "Details for the person who is debugging this run. `Core\\Debug::dump` writes \
+                   at this level inside a web request. In production, a `Debug` record is kept \
+                   only when `[log] level` is `\"Debug\"`.",
         },
         CaseDoc {
             name: "Info",
-            desc: "Something the program did that an operator would want in the record.",
+            desc: "Something the program did that the person who runs the server wants to see \
+                   in the log.",
         },
         CaseDoc {
             name: "Warn",
-            desc: "Something recoverable that nobody chose — a retry, a fallback, a deprecated \
-                   path still in use.",
+            desc: "Something went wrong, and the program continued. Examples are a retry, a \
+                   fallback, or a deprecated path that is still in use.",
         },
         CaseDoc {
             name: "Error",
-            desc: "An operation failed. An uncaught `Throwable` is reported at this level.",
+            desc: "An operation failed. An uncaught `Throwable` is written at this level.",
         },
         CaseDoc {
             name: "Critical",
-            desc: "The escalation ladder's own level: a resource limit stopped the request, or \
-                   the engine floor is reporting for a program that can no longer report for \
-                   itself.",
+            desc: "The most serious level. It is used when a resource limit stops a request. It \
+                   is also used when a program has stopped and Novis writes the record for it.",
         },
     ],
 };
@@ -176,36 +176,34 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Log::write`'s reference card — `rule:core-api/reference-card`.
 const WRITE_DOC: MethodDoc = MethodDoc {
-    short: "Writes one log record — the same record, through the same writer, the engine itself \
-            uses when it reports for a program that has stopped, so a log pipeline never sees two \
-            shapes for one event. The rendering at a log target is JSON Lines: one object per \
-            line.",
+    short: "Writes one log record. Novis writes its own records about a stopped program in the \
+            same format, so every record in the log has the same shape. A log target gets JSON \
+            Lines: one JSON object per line.",
     params: &[
         ParamDoc {
             name: "level",
-            desc: "How loud the record is. `Core\\Log::Level`'s five cases carry their own syslog \
-                   severities.",
+            desc: "How serious the record is. Each case of `Core\\Log::Level` has the number of \
+                   its syslog severity.",
             shape: &[],
         },
         ParamDoc {
             name: "message",
-            desc: "What happened, as one plain sentence. A `tainted` value is accepted here — a \
-                   log record is data and recording untrusted input is the point — while a \
-                   `secret` one is refused, which is the rule for every message a human reads.",
+            desc: "What happened, as one plain sentence. A `tainted` value is allowed here, \
+                   because a log often records input from outside. A `secret` value does not \
+                   compile, as in every message a person reads.",
             shape: &[],
         },
         ParamDoc {
             name: "fields",
-            desc: "Structured context, written as a `fields` object beside the message rather \
-                   than pasted into it. Omitted from the record entirely when it is empty, so an \
-                   ordinary call costs no key. Nothing in `fields` makes a write fail. A \
-                   value the format cannot write, such as `bytes`, a callable or a cycle, is \
-                   written as text that says what it is.",
+            desc: "Extra data about the event. It is written as a `fields` object next to the \
+                   message. When it is empty, the record has no `fields` key. Nothing in \
+                   `fields` makes a write fail. A value the log format cannot contain, such as `bytes`, a \
+                   callable or a cycle, is written as text that describes it.",
             shape: &[],
         },
     ],
-    ret: "Nothing. A record that cannot be written is dropped rather than retried: the log is not \
-          the program's storage.",
+    ret: "Nothing. If a record cannot be written, it is lost and not written again. The log is \
+          not a place to store the program's data.",
     errors: &[],
 };
 

@@ -312,7 +312,7 @@ const START_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The program is not answering a request. A command-line program, a job and a \
+            desc: "The program is not handling a request. A command-line program, a job and a \
                    test have no session.",
         },
         ErrorDoc {

@@ -211,7 +211,7 @@ const TOKEN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Csrf::issue`'s reference card — `rule:core-api/reference-card`.
 const ISSUE_DOC: MethodDoc = MethodDoc {
-    short: "Returns a CSRF token bound to `$session` under `$key`. Send it in a form field \
+    short: "Returns a CSRF token for `$session`, made with `$key`. Send it in a form field \
             named `_csrf`, in the `x-csrf-token` header or in a `_csrf` query parameter. A form \
             that uploads files must use the header or the query parameter. With `[http] \
             csrf_key` set, the server checks the token before the handler runs. `verify` checks \
@@ -219,66 +219,67 @@ const ISSUE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "session",
-            desc: "What the token is bound to — a session identifier, or anything else stable \
-                   for as long as the token should be accepted. A token issued against one \
-                   value never verifies against another.",
+            desc: "The value the token belongs to. This is a session id, or any other value \
+                   that does not change while the token should be valid. A token made for one \
+                   value never passes `verify` for another value.",
             shape: &[],
         },
         ParamDoc {
             name: "key",
-            desc: "A 32-octet key, as `Core\\Crypto::generateKey()` answers. It never reaches \
-                   the token, so the same key serves every session.",
+            desc: "A 32-byte key, such as the one `Core\\Crypto::generateKey()` returns. The key \
+                   is not part of the token, so you can use the same key for every session.",
             shape: &[],
         },
     ],
-    ret: "Unpadded URL-safe base64 — `A-Za-z0-9-_`, which a hidden field, a header and a query \
-          string all carry unescaped. Different on every call for the same inputs, so two \
-          tokens for one session never compare equal and a caller cannot get anywhere with \
-          `==`.",
+    ret: "A URL-safe base64 string without padding. It uses only `A-Za-z0-9-_`, so a hidden \
+          field, a header and a query string can contain it without escaping. Each call returns \
+          a different string for the same inputs. Two tokens for one session are never equal, \
+          so `==` cannot check a token.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$key` is not 32 octets long — a `bytes` that was never a key.",
+            desc: "`$key` is not 32 bytes long. Such a value is not a key.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This process cannot spare a buffer the size of the token.",
+            desc: "The process does not have enough memory for the token.",
         },
     ],
 };
 
 /// `Core\Csrf::verify`'s reference card — `rule:core-api/reference-card`.
 const VERIFY_DOC: MethodDoc = MethodDoc {
-    short: "Reports whether `$token` is a token this application issued for `$session` under \
-            `$key`. This is the only comparison the class exposes: no member answers the token \
-            that was expected, so there is nothing to write `==` against.",
+    short: "Checks that `$token` was made by `issue` for `$session` with `$key`. This is the only \
+            way to check a token. No method returns the expected token, so you cannot compare \
+            tokens with `==`.",
     params: &[
         ParamDoc {
             name: "token",
-            desc: "The token as the request carried it. A `tainted` value is expected here — \
-                   that is where a token comes from.",
+            desc: "The token from the request. A `tainted` value is allowed here, because a \
+                   token always comes from a request.",
             shape: &[],
         },
         ParamDoc {
             name: "session",
-            desc: "The value `issue` was given. A token for a different session answers \
-                   `false`, which is what \"bound to the session\" means.",
+            desc: "The value you gave `issue`. A token made for a different session returns \
+                   `false`.",
             shape: &[],
         },
         ParamDoc {
             name: "key",
-            desc: "The key `issue` was given. Rotating it refuses every outstanding token.",
+            desc: "The key you gave `issue`. When you change the key, every token made with the \
+                   old key returns `false`.",
             shape: &[],
         },
     ],
-    ret: "`true` for a token this key issued against this session, `false` for every other \
-          text — altered, expired out of the key, issued for another session, or not base64 at \
-          all. The comparison is constant-time, and the four cases are one answer so that a \
-          forger learns nothing about which half landed.",
+    ret: "`true` for a token made with this key for this session. `false` for any other text: \
+          a changed token, a token made with an old key, a token for another session, or text \
+          that is not base64. The comparison takes the same time in every case. All four cases \
+          return the same `false`, so an attacker cannot learn which check failed.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$key` is not 32 octets long. A forged token is `false`, never a throw — \
-                   only a program bug throws here.",
+        desc: "`$key` is not 32 bytes long. A forged token returns `false` and never throws. \
+                   Only a bug in the program throws here.",
     }],
 };
 

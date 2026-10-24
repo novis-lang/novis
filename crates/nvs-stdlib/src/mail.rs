@@ -202,73 +202,75 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Mail::send`'s reference card — `rule:core-api/reference-card`.
 const SEND_DOC: MethodDoc = MethodDoc {
-    short: "Hands one message to the SMTP endpoint `[mail.$endpoint]` names, and returns once that \
-            endpoint has accepted it.",
+    short: "Sends one message to the SMTP server that `[mail.$endpoint]` names. It returns when \
+            that server has accepted the message.",
     params: &[
         ParamDoc {
             name: "endpoint",
-            desc: "Which `[mail.<name>]` block in `nvs.toml` to send through. Refuses a `tainted` \
-                   argument: it selects a deployment, so it is written at the call site and never \
-                   read from input.",
+            desc: "The name of the `[mail.<name>]` block in `nvs.toml` to send through. A \
+                   `tainted` value does not compile here. The name selects a server setting, so \
+                   you write it in the code and never read it from input.",
             shape: &[],
         },
         ParamDoc {
             name: "to",
-            desc: "The recipients, one address per entry. A list rather than a comma-separated \
-                   string, which has no unambiguous reading.",
+            desc: "The recipients, one address per array entry. It is a list because a \
+                   comma-separated string can be read in more than one way.",
             shape: &[],
         },
         ParamDoc {
             name: "subject",
-            desc: "The subject. RFC 2047 encoded where it holds anything a header line cannot \
-                   carry, so no value of it can add a header. A long subject is split over \
-                   several header lines, and a mail program joins them again.",
+            desc: "The subject. If it contains characters that a header line cannot contain, it \
+                   is encoded with RFC 2047. So no subject can add a header. A long subject is \
+                   split over several header lines, and a mail program joins them again.",
             shape: &[],
         },
         ParamDoc {
             name: "text",
-            desc: "The plain-text body, which every message has.",
+            desc: "The plain-text body. Every message has one.",
             shape: &[],
         },
         ParamDoc {
             name: "cc",
-            desc: "Further recipients, named in the message.",
+            desc: "More recipients. Their addresses are shown in the message.",
             shape: &[],
         },
         ParamDoc {
             name: "bcc",
-            desc: "Further recipients, not named in the message — they reach the envelope and no \
-                   header.",
+            desc: "More recipients. Their addresses are not shown in the message. They are sent \
+                   to the server only, and no header contains them.",
             shape: &[],
         },
         ParamDoc {
             name: "replyTo",
-            desc: "Where a reply should go, when that is not the configured sender.",
+            desc: "The address that replies go to, when it is not the sender in the settings.",
             shape: &[],
         },
         ParamDoc {
             name: "html",
-            desc: "An HTML alternative to `$text`. Given one, the message is \
-                   `multipart/alternative` and both parts are sent.",
+            desc: "An HTML version of `$text`. If you give it, the message is \
+                   `multipart/alternative` and both versions are sent.",
             shape: &[],
         },
     ],
-    ret: "Nothing. The endpoint accepted the message; delivery past it is the endpoint's.",
+    ret: "Nothing. The mail server accepted the message. Delivery after that is the mail \
+          server's job.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The capability `mail.send` does not grant `$endpoint`; or no `[mail.<name>]` \
-                   block of that name sets `host` or `from`; or that block sets one of `user` and \
-                   `password` without the other; or an address is not one. Each is a deployment or \
-                   a call that was written wrong, not a send that failed.",
+            desc: "The capability `mail.send` does not allow `$endpoint`. Or no `[mail.<name>]` \
+                   block with that name sets `host` or `from`. Or the block sets only one \
+                   of `user` and `password`. Or an address is not a valid address. Each of these \
+                   is a mistake in the settings or the call, not a failed send.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The configured endpoint could not be reached, closed the connection, or \
-                   refused a command — the last carrying the SMTP reply that said so. Also where \
-                   a block configures a credential and its endpoint cannot carry one: no \
-                   `STARTTLS`, no `AUTH PLAIN` over it, or a certificate that does not verify. \
-                   Nothing is sent in the clear on any of those paths.",
+            desc: "The mail server could not be reached, closed the connection, or rejected a \
+                   command. In the last case, the message contains the SMTP reply. It is also \
+                   thrown when a block sets a password and the server cannot receive it safely. \
+                   That is when the server has no `STARTTLS`, has no `AUTH PLAIN`, or has a \
+                   certificate that does not verify. In all these cases, nothing is sent \
+                   unencrypted.",
         },
     ],
 };

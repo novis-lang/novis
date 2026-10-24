@@ -226,77 +226,78 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Jwe::encrypt`'s reference card — `rule:core-api/reference-card`.
 const ENCRYPT_DOC: MethodDoc = MethodDoc {
-    short: "Seals `$payload` into a compact JWE token under `$key`, with `A256GCM` content \
-            encryption and the key-management algorithm the static that built `$key` names.",
+    short: "Encrypts `$payload` with `$key` and returns a compact JWE token. The content is \
+            encrypted with `A256GCM`. The method that made `$key` sets the key algorithm.",
     params: &[
         ParamDoc {
             name: "payload",
-            desc: "The text to seal. It comes back from `decrypt` exactly as it went in, \
-                   marked `tainted`.",
+            desc: "The text to encrypt. `decrypt` returns exactly this text, as a `tainted` \
+                   value.",
             shape: &[],
         },
         ParamDoc {
             name: "key",
-            desc: "The key, built by one of `Jwe\\Key`'s four statics — which is also what \
-                   picks `alg`. A key built by `Jwe\\Key::own` seals to its own public half.",
+            desc: "The key, made by one of the four static methods of `Jwe\\Key`. That method \
+                   also sets `alg`. A key made by `Jwe\\Key::own` encrypts to its own public key.",
             shape: &[],
         },
     ],
-    ret: "Five dot-separated unpadded base64url segments: the protected header, the encrypted \
-          key — empty under `dir` and `ECDH-ES` — the 12-octet IV, the ciphertext and the \
-          16-octet tag. Different on every call for the same inputs, because each draws its \
-          own IV.",
+    ret: "Five base64url parts without padding, joined by dots. They are the protected header, \
+          the encrypted key, the 12-byte IV, the ciphertext and the 16-byte tag. The encrypted \
+          key is empty for `dir` and `ECDH-ES`. Each call uses a new IV, so the token is \
+          different every time.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$key` was built from a public key or a pair whose point contributes \
-                   nothing to an agreement.",
+            desc: "The public key or key pair in `$key` has a point that gives no usable \
+                   shared secret.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This process cannot spare a buffer the size of the token.",
+            desc: "This process does not have enough memory for a buffer the size of the \
+                   token.",
         },
     ],
 };
 
 /// `Core\Jwe::decrypt`'s reference card — `rule:core-api/reference-card`.
 const DECRYPT_DOC: MethodDoc = MethodDoc {
-    short: "Opens `$token` against each key in `$keys` in order and answers the payload that \
-            was sealed, or throws. The answer is **`tainted`**: decrypting proves who wrote \
-            the payload, never that it is safe for a sink.",
+    short: "Decrypts `$token` with each key in `$keys`, in order, and returns the payload. If no \
+            key works, it throws an error. The result is **`tainted`**. Decrypting proves who \
+            wrote the payload, but not that its content is safe to use.",
     params: &[
         ParamDoc {
             name: "token",
-            desc: "The token text, as it arrived. A `tainted` value is accepted here — that \
-                   is the point of the member.",
+            desc: "The token text, as it arrived. A `tainted` value is allowed here, because \
+                   tokens usually come from outside.",
             shape: &[],
         },
         ParamDoc {
             name: "keys",
-            desc: "The key ring, tried in order, so a token sealed under any key still in it \
-                   opens. A ring holding a key built by `Jwe\\Key::password` holds exactly \
-                   that one key, because every try costs a full derivation. A key built by \
-                   `Jwe\\Key::recipient` is a public key and opens nothing.",
+            desc: "The keys to try, in order. A token encrypted with any of these keys can be \
+                   decrypted. A key made by `Jwe\\Key::password` must be the only key, because \
+                   each try is slow. A key made by `Jwe\\Key::recipient` is a public key and \
+                   decrypts nothing.",
             shape: &[],
         },
     ],
-    ret: "The payload, character for character, as `tainted string`.",
+    ret: "The payload, exactly as it was encrypted, as a `tainted string`.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$keys` is empty, or it holds a `Jwe\\Key::recipient` key, or it holds a \
-                   `Jwe\\Key::password` key beside anything else.",
+            desc: "`$keys` is empty, or it contains a `Jwe\\Key::recipient` key, or it contains \
+                   a `Jwe\\Key::password` key together with other keys.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$token` is not a token any key in `$keys` opens — it is not five \
-                   segments, its header is not the subset this class reads, its `alg` is not \
-                   the one `$keys` names, or it was altered. All of them are one sentence on \
-                   purpose: telling them apart tells a forger which half landed.",
+            desc: "No key in `$keys` can decrypt `$token`. The token may not have five parts, \
+                   or its header has fields this class does not read. Its `alg` may not match \
+                   `$keys`, or the token was changed. All cases have the same message, so an \
+                   attacker cannot learn which check failed.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "The token opened, and its payload is not valid UTF-8 text.",
+            desc: "The token was decrypted, but its payload is not valid UTF-8 text.",
         },
     ],
 };
@@ -372,69 +373,69 @@ const KEY_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Jwe\Key::shared`'s reference card — `rule:core-api/reference-card`.
 const KEY_SHARED_DOC: MethodDoc = MethodDoc {
-    short: "A key for `dir`, where the shared key is the content-encryption key itself and \
-            nothing is derived and nothing is wrapped.",
+    short: "Makes a key for `dir`. The shared key itself encrypts the content. No other key is \
+            derived or wrapped.",
     params: &[ParamDoc {
         name: "key",
-        desc: "32 octets both ends already hold — `Core\\Crypto::generateKey()` answers one.",
+        desc: "32 bytes that both sides already have. `Core\\Crypto::generateKey()` returns \
+               such a key.",
         shape: &[],
     }],
-    ret: "A key `encrypt` writes `\"alg\":\"dir\"` for, and `decrypt` accepts only that.",
+    ret: "A key for which `encrypt` writes `\"alg\":\"dir\"`. With this key, `decrypt` accepts \
+          only that `alg`.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$key` is not 32 octets — a `bytes` that was never a key.",
+        desc: "`$key` is not 32 bytes long, so it is not a valid key.",
     }],
 };
 
 /// `Core\Jwe\Key::password`'s reference card — `rule:core-api/reference-card`.
 const KEY_PASSWORD_DOC: MethodDoc = MethodDoc {
-    short: "A key for `PBES2-HS256+A128KW`, where a person's password is stretched to a \
-            key-encryption key and the content key is drawn and wrapped under it.",
+    short: "Makes a key for `PBES2-HS256+A128KW`. A key is derived from a person's password. A \
+            random content key is then encrypted with it.",
     params: &[ParamDoc {
         name: "password",
-        desc: "The password, of any length. `Core\\Cli::secret` and a form field both reach \
-               this parameter; nothing about it is hashed for storage, which is \
-               `Core\\Password`'s job and not this one's.",
+        desc: "The password, of any length. It can come from `Core\\Cli::secret` or a form \
+               field. It is not hashed for storage. Use `Core\\Password` for that.",
         shape: &[],
     }],
-    ret: "A key `encrypt` derives under at the iteration floor, writing the count and the \
-          salt into the header for the other end to repeat.",
+    ret: "A key that `encrypt` derives with the minimum iteration count. The count and the salt \
+          are written into the header, so the other side can derive the same key.",
     errors: &[],
 };
 
 /// `Core\Jwe\Key::recipient`'s reference card — `rule:core-api/reference-card`.
 const KEY_RECIPIENT_DOC: MethodDoc = MethodDoc {
-    short: "A key for `ECDH-ES` in the sending direction: the other party's public key, which \
-            seals a token only that party's pair opens.",
+    short: "Makes a key for sending with `ECDH-ES`. It is the public key of the other party. Only \
+            that party's key pair can decrypt the token.",
     params: &[ParamDoc {
         name: "key",
         desc: "A `P256` or `X25519` public key, already validated by \
                `Core\\Crypto\\PublicKey::read`.",
         shape: &[],
     }],
-    ret: "A key `encrypt` agrees against under a fresh ephemeral pair, writing that pair's \
-          public half into the header as `epk`. It opens nothing: a public key is not the \
-          half that decrypts.",
+    ret: "A key for `encrypt`. Each call makes a new temporary key pair and writes its public \
+          key into the header as `epk`. This key cannot decrypt, because it is a public key.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$key` is an `Ed25519` or RSA key, neither of which agrees on anything.",
+        desc: "`$key` is an `Ed25519` or RSA key. Neither can be used for key agreement.",
     }],
 };
 
 /// `Core\Jwe\Key::own`'s reference card — `rule:core-api/reference-card`.
 const KEY_OWN_DOC: MethodDoc = MethodDoc {
-    short: "A key for `ECDH-ES` in the receiving direction: this program's own key pair, \
-            which opens the tokens other parties sealed to its public half.",
+    short: "Makes a key for receiving with `ECDH-ES`. It is your program's own key pair. It \
+            decrypts tokens that other parties encrypted to its public key.",
     params: &[ParamDoc {
         name: "key",
-        desc: "A `P256` or `X25519` key pair, read back with `Core\\Crypto\\KeyPair::read`.",
+        desc: "A `P256` or `X25519` key pair, read with `Core\\Crypto\\KeyPair::read`.",
         shape: &[],
     }],
-    ret: "A key `decrypt` agrees with against the token's `epk`, and that `encrypt` seals to \
-          this pair's own public half.",
+    ret: "A key that `decrypt` uses with the `epk` of the token. With this key, `encrypt` \
+          encrypts to the pair's own public key.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$key` is an `Ed25519` or RSA pair, neither of which agrees on anything.",
+        desc: "`$key` is an `Ed25519` or RSA pair. Neither can be used for key agreement.",
     }],
 };
 

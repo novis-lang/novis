@@ -110,20 +110,20 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Cap::has`'s reference card — `rule:core-api/reference-card`.
 const HAS_DOC: MethodDoc = MethodDoc {
-    short: "Reports whether the code running here holds `$capability` at this point in the \
-            request — the deployment's grant table, narrowed by anything the request or an \
-            enclosing isolate already dropped. It grants nothing: the door the guarded branch \
-            reaches asks again for itself.",
+    short: "Checks whether the code running here has `$capability` at this point in the \
+            request. The check starts from the capabilities in `nvs.toml`. Any capability that \
+            the request or an enclosing isolate gave up is removed. This call grants nothing, \
+            and the guarded code is still checked when it runs.",
     params: &[ParamDoc {
         name: "capability",
-        desc: "A capability name as `nvs.toml` grants it under — `fs.read`, `net.connect`. A \
-               written name outside that roster is a compile error, and a computed one that is \
-               not a capability answers `false`.",
+        desc: "A capability name as `nvs.toml` writes it, such as `fs.read` or `net.connect`. \
+               A literal name that is not a capability does not compile. A computed name that is \
+               not a capability returns `false`.",
         shape: &[],
     }],
-    ret: "`true` where the capability is granted for something, `false` otherwise. A `true` is \
-          not a promise about a particular path or host: a scoped grant still refuses an \
-          argument outside it, at the door.",
+    ret: "`true` when the capability is granted for at least something, and `false` otherwise. \
+          A `true` does not mean every path or host is allowed. A grant limited to some paths \
+          still throws an error for a path outside them.",
     errors: &[],
 };
 

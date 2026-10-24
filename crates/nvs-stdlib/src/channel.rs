@@ -159,40 +159,40 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `new Core\Task\Channel`'s reference card — `rule:core-api/reference-card`.
 const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
-    short: "Builds a `Core\\Task\\Channel<T>` — a bounded queue between two tasks, whose `send` \
-            suspends at the bound instead of growing.",
+    short: "Creates a `Core\\Task\\Channel<T>`. This is a queue between two tasks with a fixed \
+            size. When the queue is full, `send` waits.",
     params: &[ParamDoc {
         name: "capacity",
-        desc: "How many values the channel holds before a `send` suspends; at least `1`, since \
-               a `0` is refused as a fatal error rather than raised to one.",
+        desc: "How many values the channel can contain before `send` waits. It must be at least \
+               `1`. A `0` is a fatal error.",
         shape: &[],
     }],
-    ret: "A fresh open, empty channel, which is its own iterator: a `foreach` over it takes each \
-          value out, suspending while the channel is empty and open, and ends once it is empty \
-          and closed.",
+    ret: "A new channel that is open and empty. A `foreach` loop over the channel takes out each \
+          value. The loop waits while the channel is empty and open. It ends when the channel is \
+          empty and closed.",
     errors: &[],
 };
 
 /// `Core\Task\Channel::send`'s reference card — `rule:core-api/reference-card`.
 const SEND_DOC: MethodDoc = MethodDoc {
-    short: "Queues `$value` for the consuming task, suspending the calling task for as long as \
-            the channel is full.",
+    short: "Adds `$value` to the queue for the task that receives it. While the channel is \
+            full, the calling task waits.",
     params: &[ParamDoc {
         name: "value",
-        desc: "The value to hand across.",
+        desc: "The value to send.",
         shape: &[],
     }],
-    ret: "Nothing, once the value is queued; a `send` on a closed channel is a fatal error, \
-          which no `catch` sees.",
+    ret: "Nothing. `send` returns when the value is in the queue. A `send` on a closed channel \
+          is a fatal error, and a `catch` block cannot catch it.",
     errors: &[],
 };
 
 /// `Core\Task\Channel::close`'s reference card — `rule:core-api/reference-card`.
 const CLOSE_DOC: MethodDoc = MethodDoc {
-    short: "Ends the stream, so that a consumer's `foreach` finishes once the queued values are \
-            drained.",
+    short: "Closes the channel. A `foreach` loop over the channel ends after it has received the \
+            values that are still in the queue.",
     params: &[],
-    ret: "Nothing; values sent before the close are still delivered, and closing twice changes \
+    ret: "Nothing. Values sent before `close` are still received. Calling `close` twice does \
           nothing.",
     errors: &[],
 };

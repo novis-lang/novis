@@ -359,8 +359,8 @@ const SEND_BYTES_SYMBOL: &str = "nvs_core_socket_send_bytes";
 /// `Core\Socket::upgrade`'s reference card — `rule:core-api/reference-card`.
 const UPGRADE_DOC: MethodDoc = MethodDoc {
     short: "Turns this request into a WebSocket connection that runs `$entry`. The connection \
-            starts when the request ends. It runs in its own isolate, which shares no memory \
-            with the request.",
+            starts when the request ends. It runs separately and shares no memory with the \
+            request.",
     params: &[
         ParamDoc {
             name: "entry",
@@ -387,8 +387,8 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "grants",
             desc: "The capabilities the connection may use, such as `[\"fs.read\"]`. It gets \
-                   only the names in this list that the request itself holds. An empty list \
-                   gives it none. Without this option, it gets what the request holds.",
+                   only the names in this list that the request itself has. An empty list \
+                   gives it none. Without this option, it gets what the request has.",
             shape: &[],
         },
         ParamDoc {
@@ -403,7 +403,7 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The request did not ask for a WebSocket. The `$entry` file is not granted by \
+            desc: "The request is not a WebSocket request. The `$entry` file is not granted by \
                    `script.spawn` or does not compile. Or this request already called `upgrade`.",
         },
         ErrorDoc {

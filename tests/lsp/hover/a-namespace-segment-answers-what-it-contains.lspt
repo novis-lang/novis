@@ -21,6 +21,6 @@ namespace Core\Http
 - `Part` — Describes a request body, or one field of a multipart body. A file part is read from disk while it is sent, so the whole file is never in memory.
 - `Response` — The reply to an outbound HTTP call: its status code, its headers, its body, and the TLS connection it came over. `Core\Http\Client::get()` returns one.
 - `Socket` — A WebSocket connection your program opened to another server: it sends and receives messages until one side closes it. `Core\Http\Client::openSocket()` returns one.
-- `Stream` — A reply whose body is read while it arrives. `status()` and the header readers work at any time. The body is read once, with one of `events()`, `lines()`, `chunks()` or `saveTo()`.
+- `Stream` — A reply whose body is read while it arrives. `status()` and the header methods work at any time. The body can be read once, with one of `events()`, `lines()`, `chunks()` or `saveTo()`.
 - `Target` — A URL that `Core\Http::allowUrl` checked, with the addresses it was approved for. A call connects only to those addresses, so a second name lookup cannot send it somewhere else.
 - `TlsInfo` — The details of the TLS connection a reply came over: the TLS version, the cipher, the server's certificates, and whether they were checked. `Core\Http\Response::tls()` returns one.

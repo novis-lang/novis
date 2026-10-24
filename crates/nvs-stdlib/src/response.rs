@@ -872,7 +872,7 @@ const SEND_FILE_DOC: MethodDoc = MethodDoc {
                name, set `Content-Disposition` with `Core\\Response::setHeader`.",
         shape: &[],
     }],
-    ret: "Nothing. The server also answers a browser that asks for only part of the file, so a \
+    ret: "Nothing. The server also responds to a browser that requests only part of the file, so a \
           browser can jump to any point in a video and resume a download that stopped. If the \
           file changed since the download started, the browser gets the whole new file. Using \
           this and `echo` in one response does not compile.",

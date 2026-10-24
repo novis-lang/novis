@@ -92,22 +92,23 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `$target`, documented once — both members take the same one.
 const TARGET_DOC: ParamDoc = ParamDoc {
     name: "target",
-    desc: "The declaration whose attributes are read — a class or function reference.",
+    desc: "The class or function whose attributes are read.",
     shape: &[],
 };
 
 /// See [`TARGET_DOC`].
 const MEMBER_DOC: ParamDoc = ParamDoc {
     name: "member",
-    desc: "The name of a member of `$target` to read instead of `$target` itself; the empty \
-           string, which is the default, means the target.",
+    desc: "The name of a method, property or parameter of `$target`. Its attributes are read \
+           instead of the attributes of `$target`. The default is the empty string, which \
+           reads `$target` itself.",
     shape: &[],
 };
 
 /// `Core\Attributes::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
-    short: "Returns the one attribute on `$target`, or on its member `$member`, whose payload \
-            object matches the shape `T` written at the call site. `nvs check` finds it and \
+    short: "Returns the one attribute on `$target`, or on the part of it named `$member`, whose \
+            payload object matches the shape `T` written at the call site. `nvs check` finds it and \
             replaces the call with the result, so nothing runs.",
     params: &[TARGET_DOC, MEMBER_DOC],
     ret: "The payload object of the matching attribute, as `T`. The result is `null` when no \
@@ -120,8 +121,8 @@ const GET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Attributes::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
-    short: "Returns every attribute on `$target`, or on its member `$member`, whose payload \
-            object matches the shape `T` written at the call site. `nvs check` finds them and \
+    short: "Returns every attribute on `$target`, or on the part of it named `$member`, whose \
+            payload object matches the shape `T` written at the call site. `nvs check` finds them and \
             replaces the call with the result, so nothing runs.",
     params: &[TARGET_DOC, MEMBER_DOC],
     ret: "An `array<T>` of the matching payload objects, in the order they are declared. It is \

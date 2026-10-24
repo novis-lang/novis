@@ -432,7 +432,7 @@ const URL_SIGNED_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Router::signedRoute`'s reference card — `rule:core-api/reference-card`.
 const SIGNED_ROUTE_DOC: MethodDoc = MethodDoc {
-    short: "Checks the `_sig` signature of the request that this program is answering. The \
+    short: "Checks the `_sig` signature of the request that this program is handling. The \
             signature must be one that `Core\\Router::urlSigned` made with `$keys` for the route \
             that the request matched. The check covers the route name and its values, not the \
             path.",
@@ -457,7 +457,7 @@ const SIGNED_ROUTE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "When the program is not answering a request, for example a command-line \
+            desc: "When the program is not handling a request, for example a command-line \
                    program, a job or a test. When `$keys` is empty. When its first key is not 32 \
                    bytes long.",
         },
@@ -528,7 +528,7 @@ const DISPATCH_DOC: MethodDoc = MethodDoc {
           `respond()` throws is thrown by `dispatch`.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "When the program has no `#[Route]`. When the program is not answering a request, \
+        desc: "When the program has no `#[Route]`. When the program is not handling a request, \
                for example a command-line program, a job or a test. When the route method has a \
                parameter that no value in the path fills, such as a `#[Query]` parameter or an \
                optional capture that the path does not have.",

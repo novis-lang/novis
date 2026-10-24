@@ -226,59 +226,58 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\RateLimit::consume`'s reference card — `rule:core-api/reference-card`.
 const CONSUME_DOC: MethodDoc = MethodDoc {
-    short: "Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in the shared \
-            store, and answers whether this arrival is inside the limit.",
+    short: "Charges `$cost` units against the allowance of `$key`, which is `$limit` per `$per`. \
+            The count is kept in the shared store. The result says if this call is inside the \
+            limit.",
     params: &[
         ParamDoc {
             name: "key",
-            desc: "What the allowance is per — an account, a tenant, an API key id. `tainted` is \
-                   admitted, since a key is one opaque value on the wire; a `secret` is refused, \
-                   since keying on one writes it into a store, and the fix is to key on \
-                   `Core\\Hash::of` of it.",
+            desc: "Who the limit is for, such as an account, a tenant or an API key id. A \
+                   `tainted` value is allowed. A `secret` value is not allowed, because the key \
+                   is written to the store. Use `Core\\Hash::of` of the secret instead.",
             shape: &[],
         },
         ParamDoc {
             name: "limit",
-            desc: "How many units `$per` admits — the drain rate, not a ceiling on any one \
-                   instant.",
+            desc: "How many units are allowed in each `$per`. This is the average rate. It is \
+                   not a limit on one single moment.",
             shape: &[],
         },
         ParamDoc {
             name: "per",
-            desc: "The period `$limit` units are admitted over.",
+            desc: "The period in which `$limit` units are allowed.",
             shape: &[],
         },
         ParamDoc {
             name: "burst",
-            desc: "How much may arrive at once; defaults to `$limit`, which admits a whole \
-                   period's worth in one instant.",
+            desc: "How many units may arrive at the same moment. The default is `$limit`, which \
+                   allows a whole period's units at once.",
             shape: &[],
         },
         ParamDoc {
             name: "cost",
-            desc: "What this one call weighs, so an expensive endpoint may charge five units of \
-                   the same quota; defaults to 1.",
+            desc: "How many units this call uses. The default is 1. An expensive endpoint can \
+                   use five units of the same limit, for example.",
             shape: &[],
         },
     ],
-    ret: "A `Core\\RateLimit\\Decision`. Its `retryAfter` is `null` exactly when it is allowed, \
-          and is the exact wait until the arrival would be admitted otherwise — never an \
-          estimate, and never rounded up to the next window.",
+    ret: "A `Core\\RateLimit\\Decision`. Its `retryAfter` is `null` when the call is allowed. \
+          Otherwise it is the exact time to wait until the call would be allowed. It is not \
+          an estimate, and it is not rounded up to the next period.",
     errors: &[
         ErrorDoc {
             error: "IOError",
-            desc: "The shared store cannot be reached or refused the command. It is never \
-                   answered as `allowed`: whether this limiter fails open or closed is knowledge \
-                   only the call site has, so the decision is thrown to it.",
+            desc: "The shared store cannot be reached, or it rejected the command. The call is \
+                   never treated as allowed. Your code catches this error and decides whether \
+                   to allow the call or not.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "No `[cache.shared] url` is configured, or `cache.shared` is not granted — a \
-                   deployment mistake rather than the world saying no, and \
-                   deliberately not the class the fail-open `catch` around this member holds. \
-                   Also `$limit`, `$per` or `$burst` at zero, a period too short to divide \
-                   into `$limit` units, and a `$cost` larger than `$burst`, which no wait could \
-                   admit.",
+            desc: "No `[cache.shared] url` is configured, or `cache.shared` is not granted. This \
+                   is a deployment mistake, so it is not an `IOError` that your `catch` for a \
+                   store failure handles. This error is also thrown when `$limit`, `$per` or \
+                   `$burst` is zero. It is also thrown when the period is too short to divide \
+                   into `$limit` units, or when `$cost` is larger than `$burst`.",
         },
     ],
 };
@@ -292,8 +291,8 @@ const SHED_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "key",
-            desc: "What the allowance is per. `tainted` is admitted and a `secret` refused, for \
-                   `consume`'s reasons.",
+            desc: "Who the limit is for. A `tainted` value is allowed. A `secret` value is not \
+                   allowed, the same as for `consume`.",
             shape: &[],
         },
         ParamDoc {
@@ -306,17 +305,17 @@ const SHED_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "per",
-            desc: "The period `$limit` units are admitted over.",
+            desc: "The period in which `$limit` units are allowed.",
             shape: &[],
         },
         ParamDoc {
             name: "burst",
-            desc: "How much may arrive at once; defaults to `$limit`.",
+            desc: "How many units may arrive at the same moment. The default is `$limit`.",
             shape: &[],
         },
         ParamDoc {
             name: "cost",
-            desc: "What this one call weighs; defaults to 1.",
+            desc: "How many units this call uses. The default is 1.",
             shape: &[],
         },
     ],
@@ -325,9 +324,9 @@ const SHED_DOC: MethodDoc = MethodDoc {
           forget an entry at any time. When a count is forgotten, the key allows a burst again.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$limit`, `$per` or `$burst` at zero, a period too short to divide into \
-               `$limit` units, and a `$cost` larger than `$burst`, which no wait could admit — \
-               the same refusals `consume` makes, since both derive one window.",
+        desc: "`$limit`, `$per` or `$burst` is zero, the period is too short to divide into \
+               `$limit` units, or `$cost` is larger than `$burst`. These are the same errors \
+               that `consume` throws.",
     }],
 };
 
@@ -404,17 +403,17 @@ const DECISION_CARD: ClassDoc = ClassDoc {
 
 /// `Core\RateLimit\Decision::allowed`'s reference card — `rule:core-api/reference-card`.
 const ALLOWED_DOC: MethodDoc = MethodDoc {
-    short: "Whether this arrival was inside the limit, and so whether its cost was charged.",
+    short: "Checks whether the call was inside the limit. Only an allowed call is charged.",
     params: &[],
-    ret: "`true` when the units were charged, `false` when nothing was charged and the arrival \
-          was refused.",
+    ret: "`true` when the units were charged. `false` when the call was over the limit and \
+          nothing was charged.",
     errors: &[],
 };
 
 /// `Core\RateLimit\Decision::limit`'s reference card — `rule:core-api/reference-card`.
 const LIMIT_DOC: MethodDoc = MethodDoc {
-    short: "The `$limit` the decision was made against, carried back so a `RateLimit` header can \
-            be written from the decision alone.",
+    short: "Returns the `$limit` that was used for the decision. You can write a `RateLimit` \
+            header from the decision alone.",
     params: &[],
     ret: "The limit as it was passed.",
     errors: &[],
@@ -422,22 +421,21 @@ const LIMIT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\RateLimit\Decision::remaining`'s reference card — `rule:core-api/reference-card`.
 const REMAINING_DOC: MethodDoc = MethodDoc {
-    short: "How many further units the store would admit at this instant.",
+    short: "Returns how many more units are allowed at this moment.",
     params: &[],
-    ret: "The units left in the burst allowance, counted after this arrival was charged; `0` \
-          when the next unit would have to wait.",
+    ret: "The units left in the burst, after this call was charged. It is `0` when the next \
+          unit has to wait.",
     errors: &[],
 };
 
 /// `Core\RateLimit\Decision::retryAfter`'s reference card — `rule:core-api/reference-card`.
 const RETRY_AFTER_DOC: MethodDoc = MethodDoc {
-    short: "How long until this arrival would be admitted — the exact wait, computed from the \
-            store's own clock rather than estimated.",
+    short: "Returns how long to wait until the call would be allowed. The time is exact, and it \
+            comes from the clock of the store.",
     params: &[],
-    ret: "`null` exactly when the decision is allowed, and otherwise the `Core\\Time\\Duration` \
-          until the theoretical arrival time; a `Retry-After` header built from it tells the \
-          client when to come back rather than when the window turns over, which is what stops \
-          every refused client retrying in the same instant.",
+    ret: "`null` when the call is allowed. Otherwise, the `Core\\Time\\Duration` until the call \
+          would be allowed. A `Retry-After` header with this value tells each client its own \
+          time to try again. So the rejected clients do not all retry at the same moment.",
     errors: &[],
 };
 

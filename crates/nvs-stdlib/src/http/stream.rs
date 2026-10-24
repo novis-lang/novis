@@ -168,8 +168,8 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
 
 /// `Core\Http\Stream`'s own card — `rule:core-api/reference-card`.
 const STREAM_CARD: ClassDoc = ClassDoc {
-    short: "A reply whose body is read while it arrives. `status()` and the header readers work \
-            at any time. The body is read once, with one of `events()`, `lines()`, `chunks()` or \
+    short: "A reply whose body is read while it arrives. `status()` and the header methods work \
+            at any time. The body can be read once, with one of `events()`, `lines()`, `chunks()` or \
             `saveTo()`.",
 };
 
@@ -256,139 +256,139 @@ pub(crate) const STREAM: CoreClass = CoreClass {
 
 /// `Core\Http\Stream::status`'s reference card — `rule:core-api/reference-card`.
 const STATUS_DOC: MethodDoc = MethodDoc {
-    short: "The status code of the reply whose head has arrived, read before the body is.",
+    short: "Returns the status code of the reply. It works before the body is read.",
     params: &[],
-    ret: "The three-digit code, as an `int`. A `4xx` or a `5xx` is an answer like any other and is \
-          reported here rather than thrown.",
+    ret: "The three-digit status code, as an `int`. A `4xx` or `5xx` code is returned like any \
+          other code. It does not throw an error.",
     errors: &[],
 };
 
 /// `Core\Http\Stream::header`'s reference card — `rule:core-api/reference-card`.
 const HEADER_DOC: MethodDoc = MethodDoc {
-    short: "One header field of the reply, by name, with a field the origin sent twice joined as \
-            RFC 9110 § 5.3 makes the two lines equivalent.",
+    short: "Returns one header of the reply, by name. When the server sent the header more \
+            than once, the values are joined into one, as RFC 9110 § 5.3 allows.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The field name, matched without regard to case.",
+        desc: "The header name. Upper and lower case do not matter.",
         shape: &[],
     }],
-    ret: "The field's value, `tainted` as every byte of a reply is, or `null` where the reply \
-          carried no such field.",
+    ret: "The header value, or `null` when the reply has no such header. The value is \
+          `tainted`, which means it came from outside your program, like every byte of a reply.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The name is `Set-Cookie`, which is not part of that equivalence — `headers` is the \
-               reading for it.",
+        desc: "The name is `Set-Cookie`. Its values cannot be joined, so use `headers` to read \
+               them.",
     }],
 };
 
 /// `Core\Http\Stream::headers`'s reference card — `rule:core-api/reference-card`.
 const HEADERS_DOC: MethodDoc = MethodDoc {
-    short: "Every line the reply carried under one field name, kept apart where `header` joins \
-            them.",
+    short: "Returns every value of one header of the reply, as separate items. `header` joins \
+            the same values into one string.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The field name, matched without regard to case.",
+        desc: "The header name. Upper and lower case do not matter.",
         shape: &[],
     }],
-    ret: "The lines in arrival order, each `tainted`. A field that arrived once answers a list of \
-          one and a field that never arrived an empty list.",
+    ret: "The values in the order they arrived, each `tainted`. A header that arrived once gives \
+          a list of one value. A header that never arrived gives an empty list.",
     errors: &[],
 };
 
 /// `Core\Http\Stream::events`'s reference card — `rule:core-api/reference-card`.
 const EVENTS_DOC: MethodDoc = MethodDoc {
-    short: "The body read as a walk over server-sent events, parsed as the WHATWG EventSource \
-            format defines them — the reading for a `text/event-stream` reply.",
+    short: "Reads the body as server-sent events, in the WHATWG EventSource format. Use it for \
+            a `text/event-stream` reply.",
     params: &[],
-    ret: "An `Iterable<Core\\Http\\Event>` a `foreach` walks once. An event is dispatched at the \
-          blank line that ends it; a comment line is skipped, and `retry` is read and ignored, \
-          because reconnecting is the program's decision.",
+    ret: "An `Iterable<Core\\Http\\Event>` that a `foreach` can loop over once. An event is \
+          complete at the blank line that ends it. A comment line is skipped. A `retry` line is \
+          read and ignored, because your program decides when to reconnect.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This stream's body has already been read. It is read one way and once, and the \
-                   refusal names the member that read it.",
+            desc: "The body of this stream has already been read. A body can be read only once, \
+                   in one way. The error message names the method that read it.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "A line of the reply is longer than a streamed line may be, or one event's \
-                   accumulated `data` is longer than one event may be. Both caps are constants: \
-                   the bytes are the origin's choice and the footprint is this process's.",
+            desc: "A line of the reply is longer than the line limit, or the `data` of one \
+                   event is longer than the event limit. Both limits are fixed, so a server \
+                   cannot make your program use unlimited memory.",
         },
     ],
 };
 
 /// `Core\Http\Stream::lines`'s reference card — `rule:core-api/reference-card`.
 const LINES_DOC: MethodDoc = MethodDoc {
-    short: "The body read as a walk over its lines — the reading for a reply that arrives as text \
-            a line at a time, such as JSON Lines.",
+    short: "Reads the body one line at a time. Use it for a reply that sends text line by line, \
+            such as JSON Lines.",
     params: &[],
-    ret: "An `Iterable<tainted string>` a `foreach` walks once. A line ends at `\\n` and a trailing \
-          `\\r` is stripped; the last line needs no terminator.",
+    ret: "An `Iterable<tainted string>` that a `foreach` can loop over once. A line ends at `\\n`, \
+          and a `\\r` at the end of a line is removed. The last line does not need a `\\n`.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This stream's body has already been read, and the refusal names the member \
-                   that read it.",
+            desc: "The body of this stream has already been read. The error message names the \
+                   method that read it.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "A line of the reply is longer than a streamed line may be.",
+            desc: "A line of the reply is longer than the line limit.",
         },
     ],
 };
 
 /// `Core\Http\Stream::chunks`'s reference card — `rule:core-api/reference-card`.
 const CHUNKS_DOC: MethodDoc = MethodDoc {
-    short: "The body read as a walk over its octets, framed by nothing — the reading for a reply \
-            whose bytes carry their own structure.",
+    short: "Reads the body as raw bytes, in pieces. Use it for a reply whose bytes have a \
+            format of their own.",
     params: &[],
-    ret: "An `Iterable<tainted bytes>` a `foreach` walks once. A chunk boundary is the \
-          transport's and carries no meaning, so there is no size to ask for: a reader that needs \
-          fixed blocks is doing its own framing and buffers for it.",
+    ret: "An `Iterable<tainted bytes>` that a `foreach` can loop over once. The size of each \
+          piece depends on the network and has no meaning, so you cannot choose a size. If you \
+          need blocks of a fixed size, collect the bytes yourself.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This stream's body has already been read, and the refusal names the member that \
-               read it.",
+        desc: "The body of this stream has already been read. The error message names the method \
+               that read it.",
     }],
 };
 
 /// `Core\Http\Stream::saveTo`'s reference card — `rule:core-api/reference-card`.
 const SAVE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Writes the body straight to `$path`, holding one chunk at a time. Needs the `fs.write` \
-            capability for the path, and delegates to `Core\\IO::writeStream`, which is where every \
-            stream in the language reaches disk.",
+    short: "Writes the body directly to the file at `$path`. Only one piece of the body is in \
+            memory at a time. Needs the `fs.write` capability for the path. It uses \
+            `Core\\IO::writeStream` to write the file.",
     params: &[
         ParamDoc {
             name: "path",
-            desc: "Where the body is to land. Nothing may already be there: replacing a file is \
-                   `Core\\IO::writeStream`'s `overwrite`, and this member does not take one.",
+            desc: "The file to write. Nothing may exist at the path yet. This method cannot \
+                   replace a file. The `overwrite` option of `Core\\IO::writeStream` can.",
             shape: &[],
         },
         ParamDoc {
             name: "max",
-            desc: "The most bytes to accept. It is required rather than optional, because the \
-                   length of a reply is the origin's choice and disk is what it would spend.",
+            desc: "The largest number of bytes to accept. It is required, because the server \
+                   chooses the length of the reply, and the bytes use disk space.",
             shape: &[],
         },
     ],
-    ret: "Nothing. A failure part-way through removes the partial file before it throws, so no \
-          later reader finds a truncated body the program believes it received whole.",
+    ret: "Nothing. When writing fails part of the way through, the partial file is deleted \
+          before the error is thrown. So nobody later finds an incomplete file.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This stream's body has already been read, and the refusal names the member \
-                   that read it.",
+            desc: "The body of this stream has already been read. The error message names the \
+                   method that read it.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.write` for this path, or the body ran \
-                   past `max` bytes.",
+            desc: "The configuration does not allow `fs.write` for this path, or the body is \
+                   longer than `max` bytes.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "Something is already at the path, or the operating system refused the create \
-                   or a write.",
+            desc: "Something is already at the path, or the operating system could not create \
+                   or write the file.",
         },
     ],
 };
@@ -445,30 +445,30 @@ const EVENT_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Http\Event::data`'s reference card — `rule:core-api/reference-card`.
 const DATA_DOC: MethodDoc = MethodDoc {
-    short: "This event's payload: every `data` line it carried, joined by a newline, with the \
-            trailing one removed.",
+    short: "Returns the data of this event. Every `data` line of the event is joined with a \
+            newline, and the last newline is removed.",
     params: &[],
-    ret: "The payload, `tainted` as every byte of a reply is. An event with no `data` is never \
-          dispatched, so this is never empty for a reason a program has to tell apart.",
+    ret: "The data, `tainted` like every byte of a reply. An event with no `data` line is not \
+          given to the loop at all.",
     errors: &[],
 };
 
 /// `Core\Http\Event::name`'s reference card — `rule:core-api/reference-card`.
 const NAME_DOC: MethodDoc = MethodDoc {
-    short: "The event type the origin named, which the format writes as an `event` line.",
+    short: "Returns the type of this event. The server sends it as an `event` line.",
     params: &[],
-    ret: "The name, `tainted`, or `null` where the event carried no `event` line — which the \
-          format calls a `message`.",
+    ret: "The name, `tainted`. It is `null` when the event has no `event` line. The format calls \
+          such an event a `message`.",
     errors: &[],
 };
 
 /// `Core\Http\Event::id`'s reference card — `rule:core-api/reference-card`.
 const ID_DOC: MethodDoc = MethodDoc {
-    short: "The last event id the origin set, which a program resuming a stream sends back as \
-            `Last-Event-ID`.",
+    short: "Returns the last event id the server set. A program that resumes a stream sends it \
+            back in the `Last-Event-ID` header.",
     params: &[],
-    ret: "The id, `tainted`, or `null` where none was set. An id containing a NUL is ignored by \
-          the format and answers `null` here.",
+    ret: "The id, `tainted`, or `null` when no id was set. The format ignores an id that \
+          contains a NUL byte, so the result is `null`.",
     errors: &[],
 };
 

@@ -197,7 +197,7 @@ pub(crate) const NAME: &str = r"Core\Request";
 
 /// `Core\Request`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
-    short: "The request your program is answering: its method, path, query, headers, cookies and \
+    short: "The request your program is handling: its method, path, query, headers, cookies and \
             body. Text the client sent, such as a header or the body, is `tainted`. A program \
             that answers no request, such as a command-line program, gets a `LogicError` from \
             every method.",
@@ -459,7 +459,7 @@ const METHOD_DOC: MethodDoc = MethodDoc {
     ret: "The `Core\\Http\\Method` case of the request. It is never `Head`.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The program is not answering a request, such as a command-line program or a \
+        desc: "The program is not handling a request, such as a command-line program or a \
                test. It is also thrown when the method is not one of the cases of \
                `Core\\Http\\Method`. The server answers such a request with `501` before your \
                program runs.",
@@ -476,7 +476,7 @@ const IS_HEAD_DOC: MethodDoc = MethodDoc {
           work of building one.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The program is not answering a request.",
+        desc: "The program is not handling a request.",
     }],
 };
 
@@ -489,7 +489,7 @@ const PATH_DOC: MethodDoc = MethodDoc {
           `tainted`. `mount()` returns the prefix that was removed.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This program is not answering a request.",
+        desc: "This program is not handling a request.",
     }],
 };
 
@@ -508,7 +508,7 @@ const QUERY_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request.",
+            desc: "This program is not handling a request.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -533,7 +533,7 @@ const QUERY_ARRAY_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request.",
+            desc: "This program is not handling a request.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -582,7 +582,7 @@ const QUERY_AS_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request. Or the query string has percent \
+            desc: "This program is not handling a request. Or the query string has percent \
                    escapes that decode to bytes that are not UTF-8. Or `T` is a class without \
                    `#[Json\\Derive]`.",
         },
@@ -612,7 +612,7 @@ const HEADER_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The program is not answering a request.",
+            desc: "The program is not handling a request.",
         },
         ErrorDoc {
             error: "ParseError",
@@ -631,7 +631,7 @@ const HEADERS_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The program is not answering a request.",
+            desc: "The program is not handling a request.",
         },
         ErrorDoc {
             error: "ParseError",
@@ -655,7 +655,7 @@ const COOKIE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The program is not answering a request.",
+            desc: "The program is not handling a request.",
         },
         ErrorDoc {
             error: "ParseError",
@@ -673,7 +673,7 @@ const BODY_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The program is not answering a request. Or `bodyStream` or `files` already \
+            desc: "The program is not handling a request. Or `bodyStream` or `files` already \
                    read the body, and those two do not keep it.",
         },
         ErrorDoc {
@@ -705,7 +705,7 @@ const BYTES_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The program is not answering a request. Or `bodyStream` or `files` already \
+            desc: "The program is not handling a request. Or `bodyStream` or `files` already \
                    read the body, and those two do not keep it.",
         },
         ErrorDoc {
@@ -736,7 +736,7 @@ const JSON_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The program is not answering a request. Or `bodyStream` or `files` already \
+            desc: "The program is not handling a request. Or `bodyStream` or `files` already \
                    read the body, and those two do not keep it. Or `maxDepth` is not from 1 to \
                    1024.",
         },
@@ -775,7 +775,7 @@ const JSON_AS_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The program is not answering a request. Or `bodyStream` or `files` already \
+            desc: "The program is not handling a request. Or `bodyStream` or `files` already \
                    read the body, and those two do not keep it. Or `T` has no \
                    `#[Core\\Json\\Derive]` attribute. Or `maxDepth` is not from 1 to 1024.",
         },
@@ -815,7 +815,7 @@ const BODY_STREAM_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The program is not answering a request. Or `body`, `bytes`, `json`, `files` \
+            desc: "The program is not handling a request. Or `body`, `bytes`, `json`, `files` \
                    or `bodyStream` already read the body. After this call, those methods throw \
                    this error too.",
         },
@@ -837,7 +837,7 @@ const FILES_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The program is not answering a request. Or `body`, `bodyStream` or `post` \
+            desc: "The program is not handling a request. Or `body`, `bodyStream` or `post` \
                    already read the body. After this call, `body`, `bytes`, `bodyStream` and \
                    `json` throw this error too. `post` still works after the loop.",
         },
@@ -874,7 +874,7 @@ const POST_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, or `body` or `bodyStream` already \
+            desc: "This program is not handling a request, or `body` or `bodyStream` already \
                    read the body of this request. Calling `post` after `files()` is allowed.",
         },
         ErrorDoc {
@@ -911,7 +911,7 @@ const POST_ARRAY_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, or `body` or `bodyStream` already \
+            desc: "This program is not handling a request, or `body` or `bodyStream` already \
                    read the body of this request.",
         },
         ErrorDoc {
@@ -952,7 +952,7 @@ const POST_AS_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request. Or `body` or `bodyStream` already \
+            desc: "This program is not handling a request. Or `body` or `bodyStream` already \
                    read the body of this request. Or `T` is a class without `#[Json\\Derive]`.",
         },
         ErrorDoc {
@@ -980,7 +980,7 @@ const CLIENT_IP_DOC: MethodDoc = MethodDoc {
           address, for example over a Unix socket.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The program is not answering a request. For example, it is a command-line \
+        desc: "The program is not handling a request. For example, it is a command-line \
                program, a job or a test.",
     }],
 };
@@ -995,7 +995,7 @@ const SCHEME_DOC: MethodDoc = MethodDoc {
           the scheme of the connection itself.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This program is not answering a request. For example, it is a command-line \
+        desc: "This program is not handling a request. For example, it is a command-line \
                program, a scheduled script, a job worker or a test.",
     }],
 };
@@ -1011,7 +1011,7 @@ const HOST_DOC: MethodDoc = MethodDoc {
           such as `X-Forwarded-Host` are never read.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The program is not answering a request.",
+        desc: "The program is not handling a request.",
     }],
 };
 
@@ -1028,7 +1028,7 @@ const ROUTE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request. For example, it is a command-line \
+            desc: "This program is not handling a request. For example, it is a command-line \
                    program, a scheduled script, a job worker or a test. The method throws this \
                    error and does not return `null`, because \"no request arrived\" and \"no \
                    route matched\" are different things.",
@@ -1054,7 +1054,7 @@ const MOUNT_DOC: MethodDoc = MethodDoc {
           and an empty array of captures.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This program is not answering a request. For example, it is a command-line \
+        desc: "This program is not handling a request. For example, it is a command-line \
                program, a scheduled script, a job worker or a test. None of these is mounted.",
     }],
 };
@@ -1507,7 +1507,7 @@ const CONTENT_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request. Or the `files()` loop has moved to a \
+            desc: "This program is not handling a request. Or the `files()` loop has moved to a \
                    later part, and the bytes of this part are gone.",
         },
         ErrorDoc {
@@ -1554,7 +1554,7 @@ const READ_ALL_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request. Or the `files()` loop has moved to a \
+            desc: "This program is not handling a request. Or the `files()` loop has moved to a \
                    later part. Or `max` is larger than this request may use at all.",
         },
         ErrorDoc {
@@ -1606,7 +1606,7 @@ const SAVE_TO_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request. Or the `files()` loop has moved to a \
+            desc: "This program is not handling a request. Or the `files()` loop has moved to a \
                    later part, and the bytes of this part are gone.",
         },
         ErrorDoc {

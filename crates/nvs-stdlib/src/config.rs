@@ -120,9 +120,9 @@ const GET_DOC: MethodDoc = MethodDoc {
             file, or its built-in default.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The directive's dotted name, `log.level`. A bare limit name — `memory`, \
-               `cpu_time`, `wall_time`, `max_tasks`, `max_output`, `max_regex_steps` — names the \
-               `[limits]` entry.",
+        desc: "The dotted name of the setting, such as `log.level`. A limit name alone is the \
+               setting of that name in `[limits]`. The limit names are `memory`, `cpu_time`, \
+               `wall_time`, `max_tasks`, `max_output` and `max_regex_steps`.",
         shape: &[],
     }],
     ret: "The value as text, written the way the configuration file writes it, such as `128M` or \
@@ -144,19 +144,19 @@ const SET_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "name",
-            desc: "The directive's name, read exactly as `get` reads it.",
+            desc: "The name of the setting, in the same form that `get` uses.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "The value, written the way the configuration file would write it — `512M`, \
-                   `30s`, `64`.",
+            desc: "The value, written the way the configuration file writes it, such as `512M`, \
+                   `30s` or `64`.",
             shape: &[],
         },
     ],
     ret: "`true` when the change was made. `false` when it is not allowed, and the previous value \
-          stays in place. It is not allowed for a directive only `nvs.toml` may set, or for a \
-          name that is not a directive. It is not allowed for a value that is not a valid size, \
+          stays in place. It is not allowed for a setting that only `nvs.toml` may set, or for a \
+          name that is not a setting. It is not allowed for a value that is not a valid size, \
           duration or count. It is not allowed for a value above the limit's ceiling. The \
           ceiling is `[limits.hard]`, or the value the program started with when \
           `[limits.hard]` does not set that limit. `set` never throws an error.",
@@ -170,7 +170,7 @@ const RESTORE_DOC: MethodDoc = MethodDoc {
             setting.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The directive's name, read exactly as `get` reads it.",
+        desc: "The name of the setting, in the same form that `get` uses.",
         shape: &[],
     }],
     ret: "Nothing. A name this request never changed is not an error. There is nothing to undo.",

@@ -88,41 +88,39 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Fatal::onLimit`'s reference card — `rule:core-api/reference-card`.
 const ON_LIMIT_DOC: MethodDoc = MethodDoc {
-    short: "Registers the callable this request runs when a resource limit stops it — memory, CPU \
-            time, output, wall time, script depth or call-stack depth. It runs out of a slice of the \
-            request's budget reserved for it, once and never twice, and it is the only thing that \
-            observes a `FATAL` a `catch` never sees.",
+    short: "Registers a function that runs when a resource limit stops this request. The limits \
+            are memory, CPU time, output, wall time, script depth and call-stack depth. The \
+            function runs once, with a small amount of memory and time kept aside for it. It is \
+            the only code that sees a `FATAL` error, because a `catch` never gets one.",
     params: &[ParamDoc {
         name: "handler",
-        desc: "What to run. It is handed one array whose `limit` key names the limit that stopped \
-               the request — `memory` or `cpu_time`, the directive's own spelling — and answers \
-               nothing; declaring no parameter is allowed. A handler that throws, or that \
-               exhausts the reserved slice itself, is abandoned where it stands.",
+        desc: "The function to run. It gets one array. Its `limit` key is the name of the limit \
+               that stopped the request, as the setting writes it, such as `memory` or \
+               `cpu_time`. The function returns nothing, and it may have no parameter. If it \
+               throws, or goes over the memory and time kept aside for it, it stops at once.",
         shape: &[],
     }],
-    ret: "Nothing. Registering is request-local and a second call replaces the first: the handler \
-          is gone when the request ends, and no other request on this core can see it.",
+    ret: "Nothing. The function belongs to this request only, and a second call replaces the \
+          first. It is deleted when the request ends, and no other request can see it.",
     errors: &[],
 };
 
 /// `Core\Fatal::onUncaughtThrow`'s reference card — `rule:core-api/reference-card`.
 const ON_UNCAUGHT_THROW_DOC: MethodDoc = MethodDoc {
-    short: "Registers the callable this request runs when a throw reaches the top of it with nothing \
-            left to catch it. It runs out of the request's ordinary remaining budget, once and \
-            never twice, and it is handed the exception itself.",
+    short: "Registers a function that runs when an exception is not caught anywhere in this \
+            request. The function runs once, with the memory and time the request has left. It \
+            gets the exception itself.",
     params: &[ParamDoc {
         name: "handler",
-        desc: "What to run. It is handed the `Throwable` that went uncaught — the object the \
-               program threw, with its own class, message and backtrace — and answers nothing; \
-               declaring no parameter is allowed. A handler that throws, or that exhausts what \
-               the request has left, is abandoned where it stands, and the failure reported is \
-               still the one that reached the root.",
+        desc: "The function to run. It gets the uncaught `Throwable`: the object the program \
+               threw, with its class, message and backtrace. The function returns nothing, and \
+               it may have no parameter. If it throws, or uses up what the request has left, it \
+               stops at once. The error that is reported is still the original uncaught one.",
         shape: &[],
     }],
-    ret: "Nothing. Registering is request-local and a second call replaces the first: the handler \
-          is gone when the request ends, and no other request on this core can see it. It does \
-          not stop the failure being reported — the engine still writes its own record — and it \
-          does not change the exit status.",
+    ret: "Nothing. The function belongs to this request only, and a second call replaces the \
+          first. It is deleted when the request ends, and no other request can see it. Novis \
+          still writes its own record of the error. The exit status does not change.",
     errors: &[],
 };
 

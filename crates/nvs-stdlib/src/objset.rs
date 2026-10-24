@@ -148,60 +148,60 @@ const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
     short: "Builds an empty `Core\\ObjectSet<T>`. Two entries are the same only when they are the \
             same object.",
     params: &[],
-    ret: "A fresh set holding nothing, whose iteration order is insertion order.",
+    ret: "A new empty set. A `foreach` over it gives its values in insertion order.",
     errors: &[],
 };
 
 /// `Core\ObjectSet::add`'s reference card — `rule:core-api/reference-card`.
 const ADD_DOC: MethodDoc = MethodDoc {
-    short: "Adds `$value` unless the set already holds something identical to it.",
+    short: "Adds `$value` to the set, unless the set already contains that same value.",
     params: &[ParamDoc {
         name: "value",
         desc: "The value to add, matched by identity.",
         shape: &[],
     }],
-    ret: "Nothing; adding a value the set already holds changes nothing, and `has` is the \
-          spelling for whether it was there.",
+    ret: "Nothing. If the set already contains the value, the set does not change. Use `has` \
+          to check whether a value is in the set.",
     errors: &[],
 };
 
 /// `Core\ObjectSet::has`'s reference card — `rule:core-api/reference-card`.
 const HAS_DOC: MethodDoc = MethodDoc {
-    short: "Whether the set holds something identical to `$value`.",
+    short: "Checks whether the set contains `$value`, matched by identity.",
     params: &[ParamDoc {
         name: "value",
         desc: "The value to look for, matched by identity.",
         shape: &[],
     }],
-    ret: "`true` when the value is a member, `false` otherwise.",
+    ret: "`true` when the value is in the set, `false` otherwise.",
     errors: &[],
 };
 
 /// `Core\ObjectSet::remove`'s reference card — `rule:core-api/reference-card`.
 const REMOVE_DOC: MethodDoc = MethodDoc {
-    short: "Drops `$value` from the set.",
+    short: "Removes `$value` from the set.",
     params: &[ParamDoc {
         name: "value",
-        desc: "The value to drop, matched by identity.",
+        desc: "The value to remove, matched by identity.",
         shape: &[],
     }],
-    ret: "Nothing; a value the set does not hold is left alone rather than reported.",
+    ret: "Nothing. If the set does not contain the value, the set does not change.",
     errors: &[],
 };
 
 /// `Core\ObjectSet::count`'s reference card — `rule:core-api/reference-card`.
 const COUNT_DOC: MethodDoc = MethodDoc {
-    short: "Counts the distinct values the set holds.",
+    short: "Counts the values in the set.",
     params: &[],
-    ret: "The number of members; `0` for an empty set.",
+    ret: "The number of values in the set. An empty set gives `0`.",
     errors: &[],
 };
 
 /// `Core\ObjectSet::isEmpty`'s reference card — `rule:core-api/reference-card`.
 const IS_EMPTY_DOC: MethodDoc = MethodDoc {
-    short: "Whether the set holds nothing.",
+    short: "Checks whether the set is empty.",
     params: &[],
-    ret: "`true` for a set with no members, `false` otherwise.",
+    ret: "`true` for a set with no values, `false` otherwise.",
     errors: &[],
 };
 
@@ -247,9 +247,9 @@ const DIFF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\ObjectSet::clear`'s reference card — `rule:core-api/reference-card`.
 const CLEAR_DOC: MethodDoc = MethodDoc {
-    short: "Drops every member, leaving the set empty.",
+    short: "Removes every value from the set. The set is then empty.",
     params: &[],
-    ret: "Nothing; the set itself is kept and can be filled again.",
+    ret: "Nothing. You can add values to the same set again.",
     errors: &[],
 };
 
