@@ -247,15 +247,14 @@ pub(crate) struct Args {
     /// GitLab and Azure DevOps read. One run can write all three files.
     #[arg(long, value_name = "FILE", conflicts_with = "list")]
     coverage_cobertura: Option<PathBuf>,
-    /// Report which `#[Test]` methods the program declares, and where each
-    /// one is written, without running any of them.
+    /// Print each test and the file it is in, without running any test.
     ///
-    /// This is what an editor's Test Explorer populates its tree from, and
-    /// it is answered from the table the compile already built — so a
-    /// program whose tests fail, hang or `exit` lists exactly as a passing
-    /// one does. It excludes `--update`, which rewrites what a run
-    /// produced, and a `.nvst` tree, which is discovered by walking a
-    /// directory rather than by compiling a program.
+    /// For a program, each `#[Test]` method is printed with its line. The
+    /// program is compiled, but no test runs. A test that fails or hangs
+    /// is listed like a test that passes. For `.nvst` cases, each case
+    /// file is printed. A folder with any `.nvst` file in it lists its
+    /// cases. `--filter`, `--shard` and `--cases` select what is listed.
+    /// Add `--format json` to get one JSON document.
     // `rule:testing/report-formats`, and `rule:ide/every-feature-is-staged-behind-its-dependency`
     // is why the CLI surface lands before the client that reads it.
     #[arg(long, conflicts_with = "update")]
@@ -277,7 +276,7 @@ pub(crate) struct Args {
     /// no artifact cache. `<name>` is the case's path with `/` and `\`
     /// as `~` and every other character that is not a letter, a digit,
     /// `.`, `_` or `-` as `@` and two hex digits.
-    #[arg(long, value_name = "DIR")]
+    #[arg(long, value_name = "DIR", conflicts_with = "list")]
     record: Option<PathBuf>,
 }
 
@@ -3825,6 +3824,66 @@ fn listing_document(listed: &[Listed]) -> String {
     out
 }
 
+/// `nvs test --list` over `.nvst` trees: each case `select` picks, by the
+/// path the run's report names it by.
+///
+/// The selection is `nvs_test::selected`, the one a run of the same trees
+/// makes, so a listing never names a case the run would leave out. Only the
+/// directories are walked: a case that does not parse is still listed, and a
+/// run reports it as a failure.
+pub(crate) fn list_cases(
+    paths: &[PathBuf],
+    only: Option<&[PathBuf]>,
+    select: &Selection,
+    format: Format,
+) -> ExitCode {
+    let chosen = nvs_test::selected(paths, only, select.filter.as_deref(), select.shard);
+    let labels: Vec<String> = match chosen {
+        Ok((_, chosen)) => chosen.into_iter().map(|(label, _)| label).collect(),
+        Err(error) => {
+            eprintln!("error: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match format {
+        Format::Json => print!("{}", case_listing_document(&labels)),
+        _ => {
+            for label in &labels {
+                println!("{label}");
+            }
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+/// The discovery document of a case tree, in [`listing_document`]'s schema.
+///
+/// **`case` in place of `class` and `method`**, because a case is a file and
+/// has neither: a consumer tells the two kinds of record apart by the key
+/// that names the test. The location is the file's first line, so an editor
+/// opens a case where it opens any other file.
+fn case_listing_document(labels: &[String]) -> String {
+    let mut out = String::from("{\n  \"schemaVersion\": 2,\n  \"listed\": [");
+    for (at, label) in labels.iter().enumerate() {
+        out.push_str(if at == 0 { "\n    {" } else { ",\n    {" });
+        out.push_str("\"case\": ");
+        json_string(label, &mut out);
+        let declared = Declared {
+            file: label.clone(),
+            line: 1,
+            column: 1,
+        };
+        location_keys(Some(&declared), &mut out);
+        out.push('}');
+    }
+    out.push_str(if labels.is_empty() {
+        "]\n}\n"
+    } else {
+        "\n  ]\n}\n"
+    });
+    out
+}
+
 /// The three keys that say where a test is written, or the three nulls that
 /// stand in for them.
 ///
@@ -4454,6 +4513,58 @@ mod tests {
                 "`{method}`'s column is one-based, like the `-->` header's"
             );
         }
+    }
+
+    /// `--list` over a case tree names each case by the path a run reports it
+    /// by, in the program listing's document. A folder with programs and
+    /// cases in it lists its cases, and a cache folder in the tree is skipped.
+    #[test]
+    fn the_listing_mode_lists_a_case_tree() {
+        let scratch = nvs_repo::scratch("runner-list-cases");
+        let tree = scratch.join("tree");
+        let write = |at: &str, text: &str| {
+            let path = tree.join(at);
+            std::fs::create_dir_all(path.parent().expect("a file has a folder"))
+                .expect("the folder is made");
+            std::fs::write(&path, text).expect("the file is written");
+        };
+        let case = "--FILE--\necho 1;\n--EXPECT--\n1\n";
+        write("first.nvst", case);
+        write("more/second.nvst", case);
+        write("app.nvs", "echo 1;\n");
+        write("cache/copied.nvst", case);
+        write(
+            "cache/CACHEDIR.TAG",
+            "Signature: 8a477f597d28d172789f06886806bc55\n",
+        );
+        assert!(
+            crate::holds_cases(&tree),
+            "a folder with a case in it is a case tree under `--list`"
+        );
+
+        let paths = [tree.clone()];
+        let (_, chosen) =
+            nvs_test::selected(&paths, None, None, None).expect("the tree is walked");
+        let labels: Vec<String> = chosen.into_iter().map(|(label, _)| label).collect();
+        assert_eq!(labels.len(), 2, "the cache folder's case is skipped: {labels:?}");
+        assert!(labels[0].ends_with("first.nvst") && labels[1].ends_with("second.nvst"));
+
+        let document: serde_json::Value =
+            serde_json::from_str(&super::case_listing_document(&labels))
+                .expect("the listing is a JSON document");
+        assert_eq!(document["schemaVersion"], 2);
+        let listed = document["listed"].as_array().expect("records under `listed`");
+        for (record, label) in listed.iter().zip(&labels) {
+            assert_eq!(record["case"], label.as_str());
+            assert_eq!(record["file"], label.as_str());
+            assert_eq!((record["line"].as_u64(), record["column"].as_u64()), (Some(1), Some(1)));
+            assert!(record["class"].is_null() && record["verdict"].is_null());
+        }
+
+        // `--filter` selects the same cases a run of the tree would.
+        let (_, one) = nvs_test::selected(&paths, None, Some("second"), None)
+            .expect("the tree is walked");
+        assert_eq!(one.len(), 1);
     }
 
     /// Discovery answers from the checked program alone.

@@ -5,7 +5,10 @@ fills the tree, and `nvs test --format=json --filter` runs a selection. A record
 
 Discovery must not run anything, which is why it is a flag on the runner rather than a run with every
 test skipped: `--list` answers from the table the compile already built, so a workspace whose tests
-fail, hang or `exit` populates a tree exactly as a passing one does.
+fail, hang or `exit` populates a tree exactly as a passing one does. The `.nvst` corpus is the same
+flag over each workspace folder: every `case` record is one leaf, and the client searches for no case
+file itself. A workspace folder with programs and no case pays one compile of the folder as a
+program for that listing, and the client reads none of its records.
 
 Coverage is a third document from the same run. A run profile of kind `Coverage` beside the Run one
 adds `--coverage-lcov` with a scratch file in the extension's storage directory and starts the run in

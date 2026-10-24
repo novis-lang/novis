@@ -238,18 +238,39 @@ fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
         into.push(path.to_path_buf());
         return Ok(());
     }
-    let mut entries: Vec<PathBuf> = fs::read_dir(path)?
-        .map(|entry| entry.map(|entry| entry.path()))
-        .collect::<io::Result<_>>()?;
-    entries.sort();
-    for entry in entries {
-        if entry.is_dir() {
-            collect(&entry, into)?;
-        } else if entry.extension().is_some_and(|ext| ext == EXTENSION) {
-            into.push(entry);
+    // A stack of directories rather than recursion, so a tree of any depth
+    // walks in constant stack. [`discover`] sorts what it finds, so the order
+    // the directories are taken in does not matter.
+    let mut pending = vec![path.to_path_buf()];
+    while let Some(dir) = pending.pop() {
+        for entry in fs::read_dir(&dir)? {
+            let entry = entry?.path();
+            // A linked directory is not walked: a link back up the tree would
+            // make the walk endless. A named path is followed, so a linked
+            // tree is still run by naming it.
+            if fs::symlink_metadata(&entry).is_ok_and(|meta| meta.is_dir()) {
+                if !is_cache_dir(&entry) {
+                    pending.push(entry);
+                }
+            } else if entry.extension().is_some_and(|ext| ext == EXTENSION) {
+                into.push(entry);
+            }
         }
     }
     Ok(())
+}
+
+/// Whether `dir` is a cache, by the Cache Directory Tagging Specification: it
+/// has a `CACHEDIR.TAG` file that starts with the specification's signature.
+///
+/// A walk skips such a directory below the path it was named, because what a
+/// cache holds is a copy of what a tool wrote, never a case or a program.
+/// Cargo tags its `target` folder this way, and a walk of a workspace with one
+/// otherwise spends most of its time inside it.
+#[must_use]
+pub fn is_cache_dir(dir: &Path) -> bool {
+    const SIGNATURE: &[u8] = b"Signature: 8a477f597d28d172789f06886806bc55";
+    fs::read(dir.join("CACHEDIR.TAG")).is_ok_and(|tag| tag.starts_with(SIGNATURE))
 }
 
 /// The cases of `found` that `only` lists, in discovery order. A path is compared with either
@@ -278,6 +299,40 @@ pub fn listed(found: Vec<PathBuf>, only: &[PathBuf]) -> io::Result<Vec<PathBuf>>
         .into_iter()
         .filter(|path| wanted.contains(&key(path)))
         .collect())
+}
+
+/// The cases of `paths` that `opts` selects, each with the label the report
+/// gives it, and how many the trees held before the selection.
+///
+/// `only`, `filter` and `shard` are [`Options::only`], [`Options::filter`] and
+/// [`Options::shard`], and nothing is read past the directory walk. `nvs test
+/// --list` lists exactly these cases, so a listing and a run of one tree name
+/// the same ones.
+///
+/// # Errors
+///
+/// Fails on a discovery error, or a listed case no tree holds.
+pub fn selected(
+    paths: &[PathBuf],
+    only: Option<&[PathBuf]>,
+    filter: Option<&str>,
+    shard: Option<Shard>,
+) -> io::Result<(usize, Vec<(String, PathBuf)>)> {
+    let found = discover(paths)?;
+    let found = match only {
+        Some(only) => listed(found, only)?,
+        None => found,
+    };
+    let discovered = found.len();
+    let chosen = found
+        .into_iter()
+        .map(|path| (path.display().to_string(), path))
+        .filter(|(label, _)| {
+            filter.is_none_or(|filter| label.contains(filter))
+                && shard.is_none_or(|shard| shard.holds_path(label))
+        })
+        .collect();
+    Ok((discovered, chosen))
 }
 
 /// Runs every case in `paths`, writing a report to `out`.
@@ -311,21 +366,14 @@ pub fn listed(found: Vec<PathBuf>, only: &[PathBuf]) -> io::Result<Vec<PathBuf>>
 pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result<Summary> {
     // Everything is parsed before anything runs, so a malformed case is
     // reported without having spawned a compiler.
-    let found = discover(paths)?;
-    let found = match &opts.only {
-        Some(only) => listed(found, only)?,
-        None => found,
-    };
-    let discovered = found.len();
-    let parsed: Vec<(String, Result<Case, String>)> = found
+    let (discovered, chosen) = selected(
+        paths,
+        opts.only.as_deref(),
+        opts.filter.as_deref(),
+        opts.shard,
+    )?;
+    let parsed: Vec<(String, Result<Case, String>)> = chosen
         .into_iter()
-        .map(|path| (path.display().to_string(), path))
-        .filter(|(label, _)| {
-            opts.filter
-                .as_ref()
-                .is_none_or(|filter| label.contains(filter.as_str()))
-                && opts.shard.is_none_or(|shard| shard.holds_path(label))
-        })
         .map(|(label, path)| (label, read(&path)))
         .collect();
 

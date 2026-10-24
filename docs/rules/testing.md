@@ -3,7 +3,7 @@
 
 # Testing
 
-*27 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*26 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -390,9 +390,9 @@ exits with a failure either way.
 `rule:testing/hook-inheritance`
 
 A test class has at most one `#[BeforeClass]`, one `#[AfterClass]` and one `#[AfterEachTest]`, and a
-subclass inherits each of them, each `#[Fixture]` and each `#[Test]` the way it inherits any method. A
-base class's hook is therefore a default: a subclass that declares nothing runs it, around its own
-tests.
+subclass inherits each of them, each `#[Fixture]`, each `#[Test]` and each `#[Property]` the way it
+inherits any method. A base class's hook is therefore a default: a subclass that declares nothing runs
+it, around its own tests.
 
 | The subclass | Result |
 |---|---|
@@ -407,13 +407,13 @@ around its tests. "Once per class" means once per test class: two subclasses of 
 inherited `#[BeforeClass]` once, around their own tests, and an abstract base with no tests runs
 nothing.
 
-Fixtures and tests follow the same table. A subclass's test receives an inherited fixture by its type,
-an override by name replaces it, and a second fixture of the same type under another name is the
-duplicate [`testing/fixtures`](testing.md#testing-fixtures) already refuses. Each subclass runs every `#[Test]` it inherits,
-around its own hooks and with its own fixtures, and reports it under its own name, so `ShopTest`
-running a test written in `DatabaseTest` reports `ShopTest::itConnects`. One contract test written once
-in a base class then runs against every implementation. A base class that is not abstract is a test
-class of its own as well, and runs its tests once for itself.
+Fixtures, tests and properties follow the same table. A subclass's test receives an inherited fixture
+by its type, an override by name replaces it, and a second fixture of the same type under another name
+is the duplicate [`testing/fixtures`](testing.md#testing-fixtures) already refuses. Each subclass runs every `#[Test]` and
+`#[Property]` it inherits, around its own hooks and with its own fixtures, and reports it under its own
+name, so `ShopTest` running a test written in `DatabaseTest` reports `ShopTest::itConnects`. One
+contract test written once in a base class then runs against every implementation. A base class that is
+not abstract is a test class of its own as well, and runs its tests once for itself.
 
 **Declined:**
 - **Several hooks of one kind, run in declaration order.** The order would be a rule every reader must
@@ -930,7 +930,7 @@ surface, and a table that pretended to them would be asserting its own implement
 
 <a id="testing-property-testing"></a>
 
-## `#[Property]` derives its generators from the parameters' declared types  *(designed — owned by goal test-surface)*
+## `#[Property]` derives its generators from the parameters' declared types
 
 `rule:testing/property-testing`
 
@@ -971,10 +971,27 @@ eight. A float is finite. A string's pieces are ASCII, control characters, code 
 and four bytes, and clusters of several code points: combining marks, U+200D emoji sequences, flags,
 Hangul jamo and a Devanagari conjunct (`crates/nvs-types/src/property/generate.rs`).
 
-- **Memory:** one call's inputs hold at most 2^20 elements, bytes and string pieces together, per
-  property in flight. An input whose shortest form is over that is refused before it is built.
+**The run.** `nvs test` reports each `#[Property]` as one test, and calls it `runs:` times, each on a
+fresh instance in the test's own isolate. The seed is `seed:`, or a random one, and it also seeds the
+isolate's own random numbers. The first call that fails ends the run. A subclass runs every property
+it inherits, under its own name, as it does a `#[Test]` ([`testing/hook-inheritance`](testing.md#testing-hook-inheritance)).
 
-**Not on disk.** The runner does not call a property yet, and nothing shrinks a counterexample.
+**The shrink.** A failing call's inputs shrink in the same isolate, one parameter at a time and
+simplest first, through candidates their own generator could have made, so a shrunk input still fits
+its declared type and its `gen:` range (`crates/nvs-types/src/property/shrink.rs`). Each candidate is
+one call on a fresh instance, at most 1000 of them. Only the last failing call's assertions are
+reported, beside one more failure naming the call, the shrunk inputs, the generated inputs and the
+`#[Property(seed: n)]` that runs them again. The JSON report carries the same as the test's
+`counterexample` ([`testing/report-formats`](testing.md#testing-report-formats)). A candidate that does not build, or that calls
+`exit()`, is not a failure, and the shrink stops at the test's wall-time limit
+([`testing/a-test-has-a-wall-time-limit`](testing.md#testing-a-test-has-a-wall-time-limit)) with the last real failure. Nothing in it is random, so
+one seed shrinks to one counterexample on every platform.
+
+- **Memory:** one call's inputs hold at most 2^20 elements, bytes and string pieces together, per
+  property in flight. An input whose shortest form is over that is refused before it is built. A
+  failure also keeps its generated inputs while it shrinks, and one candidate at a time: a candidate
+  is built when it is tried, so a step costs what it tries and never the square of an input's
+  length.
 
 **Declined:**
 - **`retries:` on a property.** A failure is reproduced from its seed and shrunk, so a retry would
@@ -985,6 +1002,9 @@ Hangul jamo and a Devanagari conjunct (`crates/nvs-types/src/property/generate.r
   over a `float` would first have to exclude them.
 - **A `gen:` that names a generator function.** A range is checked when the program compiles and says
   the domain where it is written; a function is a second place to read.
+- **A shrink that calls a test hook less, or runs candidates on other cores.** Each candidate is a call
+  of the test, so it runs exactly as the failing call did, `#[AfterEachTest]` included, and the
+  greedy walk needs each answer before it picks the next candidate.
 
 <sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
 
@@ -1099,14 +1119,28 @@ line and not enough to open a file, and nothing below the compiler can recover t
 plaintext renderings are unchanged: JUnit has no version to raise, and a path on every line is noise for
 the reader the plaintext one is written for. Under a coverage flag ([`testing/coverage-report`](testing.md#testing-coverage-report)) the
 document is `schemaVersion: 3`, and every record also carries `coverage`: each file name mapped to the
-sorted lines that test reached in any attempt. A run without one writes version 2 unchanged.
+sorted lines that test reached in any attempt. A run without one writes version 2 unchanged. A failed
+`#[Property]` also carries `counterexample` ([`testing/property-testing`](testing.md#testing-property-testing)): `{seed, call, inputs,
+generatedInputs}`, each input as the report prints it and `inputs` shrunk. It is a new key and needs
+no new version, because a consumer that does not read it reads the rest unchanged.
 
 **`--list` is the same run's table, without the run.** It answers from the `#[Test]` table the compile
 already built, so a program whose tests fail, hang or `exit` lists exactly as a passing one does, and its
 document carries one `{class, method, file, line, column}` per call under `listed` — no verdict and no
 summary, since a summary of zeros is a report of a run that did not happen and a `tests` array missing
 its verdicts would make a consumer tell the two documents apart by a key's absence. `--format junit`,
-`--update` and a `.nvst` tree are each refused beside it rather than ignored.
+`--update` and `--record` are each refused beside it rather than ignored.
+
+**`--list` over a `.nvst` tree lists its cases**, in the same document: one `{case, file, line, column}`
+per case, where `case` and `file` are the path a run's report names the case by and the location is
+line 1. `case` takes the place of `class` and `method`, because a case is a file, and it is the key a
+consumer tells the two kinds of record apart by. The selection is the run's own: `--filter`,
+`--shard` and `--cases` apply, and no case is read. Under `--list`, a directory with any `.nvst`
+file under it is a case tree even when it also holds programs, so an editor lists a workspace's cases
+by naming the workspace folder. A run of such a directory is still refused, because it would report
+two suites in one call ([`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate)). Both directory walks, the case tree's and a
+directory program's, skip a linked directory and a directory that a `CACHEDIR.TAG` marks as a cache,
+and walk with a stack of their own, so no tree's depth can overflow the thread's stack.
 
 - **Memory:** the compiler holds one span per `#[Test]` row for the life of a compile, on a table that
   exists only for a program that declares tests. A run holds one resolved path, line and column per

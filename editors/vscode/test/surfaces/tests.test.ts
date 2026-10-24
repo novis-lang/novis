@@ -7,7 +7,9 @@
 //
 // `recorded/list.json` and `recorded/report.json` are what `nvs test --list --format=json` and `nvs
 // test --format=json` printed for `recorded/suite.nvs`, byte for byte. Re-record both after any
-// edit to that program.
+// edit to that program. `recorded/cases.json` is what `nvs test --list --format=json
+// editors/vscode/test/surfaces/recorded/cases` printed from the repository root on Windows, which
+// is why its paths end in backslashes.
 //
 // Nothing here imports `vscode` — the headless tier has no such module (`scripts/headless.mjs`) —
 // so the decisions live in `src/report.ts`, which imports none either and is run directly.
@@ -19,6 +21,7 @@ import { join, resolve } from "node:path";
 import {
   Listed,
   Reported,
+  cases,
   filter,
   listed,
   messages,
@@ -35,6 +38,7 @@ const recorded = (file: string): string =>
 
 const LIST = recorded("list.json");
 const REPORT = recorded("report.json");
+const CASES = recorded("cases.json");
 
 // The client with its prose removed, for the same reason the AST suite strips it: a comment naming
 // a flag would otherwise answer an assertion about whether the flag is passed.
@@ -155,8 +159,20 @@ describe("the test explorer", () => {
     // `rule:testing/nvst-is-separate`: two suites, one controller. A second controller would be a
     // second "Novis" root in the Testing view for one binary's two ways of being asked.
     assert.equal(EVERY_MODULE.match(/createTestController\(/g)?.length, 1);
-    assert.ok(/"\*\*\/\*\.nvst"/.test(CLIENT), "the corpus is never discovered");
     assert.ok(/CORPUS = "nvst"/.test(CLIENT), "the corpus has no item of its own to hang under");
+
+    // The corpus is the CLI's listing of each workspace folder, and the client searches for no case
+    // file itself (`rule:ide/the-test-tree-is-discovered-and-run-through-the-cli`).
+    assert.equal(/\.nvst"/.test(CLIENT), false, "the client still searches for case files");
+    assert.ok(/workspaceFolders/.test(CLIENT), "the corpus is not listed per workspace folder");
+    assert.deepEqual(cases(CASES), [
+      "editors/vscode/test/surfaces/recorded/cases\\a-greeting-is-printed.nvst",
+      "editors/vscode/test/surfaces/recorded/cases\\nested\\a-count-is-printed.nvst",
+    ]);
+    // A program's listing and a case listing share a schema, and each reader takes only its own.
+    assert.equal(cases(LIST), undefined);
+    assert.equal(listed(CASES), undefined);
+    assert.equal(cases(REPORT), undefined);
 
     // The corpus leg asks for no document, because there is none: `nvs test` refuses `--format`
     // over a `.nvst` tree (`crates/nvs-cli/src/main.rs`), so the exit status is the verdict and

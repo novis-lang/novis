@@ -94,6 +94,26 @@ export function listed(text: string): Listed[] | undefined {
 }
 
 /**
+ * The case files a listing of a `.nvst` tree named, or nothing when it is not one.
+ *
+ * A case record has `case` where a program's record has `class` and `method`, because a case is a
+ * file. Its path is the one the CLI was given, so a listing of an absolute folder names absolute
+ * files. A listing of a program is refused here, as a run document is refused by `listed`.
+ */
+export function cases(text: string): string[] | undefined {
+  const document = parse(text, [SCHEMA]);
+  if (document === undefined || !Array.isArray(document.listed)) {
+    return undefined;
+  }
+  const named = document.listed.map((record) =>
+    typeof record === "object" && record !== null && typeof record.case === "string"
+      ? (record.case as string)
+      : undefined,
+  );
+  return named.every((path) => path !== undefined) ? (named as string[]) : undefined;
+}
+
+/**
  * The report `nvs test --format=json` printed, or nothing when it is not one.
  *
  * The summary is required rather than recomputed from the records: it is the runner's own count,
