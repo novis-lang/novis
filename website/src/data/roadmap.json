@@ -13,7 +13,6 @@
       "title": "Web APIs",
       "text": "The API document that Novis writes for your server passes a strict OpenAPI check. A parameter can read its value from the query string. A wrong value gives a `400` error.",
       "goals": [
-        "api-document",
         "query-binding"
       ]
     },
