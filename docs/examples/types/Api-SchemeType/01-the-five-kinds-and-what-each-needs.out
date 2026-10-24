@@ -1,0 +1,5 @@
+apiKey: in, parameter
+http: scheme (format is optional)
+mutualTLS: no other field
+oauth2: flows
+openIdConnect: url

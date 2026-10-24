@@ -1,0 +1,52 @@
+--TEST--
+`Core\Api\KeyIn` has the three places OpenAPI 3.1 lets an `apiKey` scheme send its key, each one compiles as `in:`, and a case is an ordinary value outside the attribute — `rule:routing/a-security-scheme-is-declared-in-code`
+--FILE--
+<?nvs
+// covers: Core\Api\KeyIn
+// One `ApiKey` scheme per case, so each case is accepted as `in:`.
+#[Core\Api\Scheme(name: "inQuery", type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Query, parameter: "api_key")]
+#[Core\Api\Scheme(name: "inHeader", type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Header, parameter: "X-Api-Key")]
+#[Core\Api\Scheme(name: "inCookie", type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Cookie, parameter: "session")]
+class Auth {}
+
+class Items
+{
+    #[Core\Route(path: "/items", method: Core\Http\Method::Get, name: "Items::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(security: ["inQuery", "inHeader", "inCookie"])]
+    public function list(): string
+    {
+        return "items";
+    }
+}
+
+class Places
+{
+    // Exhaustive with no default arm: a fourth case would not compile.
+    public static function label(Core\Api\KeyIn $in): string
+    {
+        return match ($in) {
+            Core\Api\KeyIn::Query => "query",
+            Core\Api\KeyIn::Header => "header",
+            Core\Api\KeyIn::Cookie => "cookie",
+        };
+    }
+}
+
+array<Core\Api\KeyIn> $all = [Core\Api\KeyIn::Query, Core\Api\KeyIn::Header, Core\Api\KeyIn::Cookie];
+foreach ($all as Core\Api\KeyIn $in) {
+    echo Places::label($in), "\n";
+}
+
+Core\Api\KeyIn $picked = Core\Api\KeyIn::Cookie;
+echo $picked == Core\Api\KeyIn::Cookie ? "same" : "different", "\n";
+echo $picked == Core\Api\KeyIn::Query ? "same" : "different", "\n";
+
+echo (new Items())->list(), "\n";
+--EXPECT--
+query
+header
+cookie
+same
+different
+items
