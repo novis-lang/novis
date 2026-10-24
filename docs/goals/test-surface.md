@@ -277,14 +277,14 @@ document alone.
 
 **Does:** three more flags, as their rule says.
 
-- [ ] `--fail-fast` stops starting tests after the first failure, and the summary counts what did not run (`rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`). `crates/nvs-cli/src/runner.rs:236`, `crates/nvs-cli/src/runner.rs:490`
-- [ ] Each run writes its failed tests to the data folder, and `--rerun-failed` runs them. `crates/nvs-config/src/data.rs:225`
-- [ ] `--shuffle` and `--shuffle=<seed>`, with the seed in the summary and the report order unchanged. `crates/nvs-cli/src/runner.rs:490`
-- [ ] Tests for each, and the help text. `crates/nvs-cli/src/runner.rs:236`
-- [ ] The `tools:cli/nvs-test` example shows the three flags. `docs/examples/tools/cli/nvs-test/about.md:1`
+- [x] `--fail-fast` stops starting tests after the first failure, and the summary counts what did not run (`rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`). `crates/nvs-cli/src/runner.rs:185`, `crates/nvs-cli/src/runner.rs:1336`
+- [x] Each run writes its failed tests to the data folder, and `--rerun-failed` runs them. `crates/nvs-cli/src/runner.rs:868`, `crates/nvs-cli/src/main.rs:2804`
+- [x] `--shuffle` and `--shuffle=<seed>`, with the seed in the summary and the report order unchanged. `crates/nvs-cli/src/runner.rs:1559`
+- [x] Tests for each, and the help text. `crates/nvs-cli/src/runner.rs:4718`
+- [x] The `tools:cli/nvs-test` example shows the three flags. `docs/examples/tools/cli/nvs-test/about.md:1`
 - [ ] The gap `an-extension-budget-per-test-has-no-test` closes: a test shows each test spends its own extension CPU budget, and the record is deleted. `crates/nvs-cli/src/extensions.rs:1`
 - [ ] The gap `a-test-response-has-no-bytes-reader` closes: `Core\Test\Response` reads a body that is not UTF-8, or the record is struck as a stated bound. `crates/nvs-stdlib/src/test.rs:1`
-- [ ] The rule `shipped`. `data/rules/testing/a-run-can-stop-early-rerun-failures-and-shuffle.json:3`
+- [x] The rule `shipped`. `data/rules/testing/a-run-can-stop-early-rerun-failures-and-shuffle.json:3`
 
 ### 9. `nvs test --watch`
 
@@ -312,41 +312,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2, 3, 7, 8 and 4 are done. The sweep was stale again: `env-secret-proofs` is green
-when run, and the nightly run tested `3ea6f1550`, 88 commits back, whose failures each have a later
-fix (crypto-bigint 0.7.6, and the Miri transport and JSON cases).
+Stages 1, 5, 2, 3, 7, 8 and 4 are done, and stage 6 has its three flags and its rule shipped; its
+two gaps are left. The sweep was stale again: `env-secret-proofs`'s log shows exit 0, and the
+nightly run tested `3ea6f1550`, whose failures each have a later fix.
 
-`nvs test --list` over a `.nvst` tree prints one `{case, file, line, column}` per case
-(`list_cases`, `crates/nvs-cli/src/runner.rs:3834`), selected by `nvs_test::selected`, which a run
-now uses too. Under `--list`, a folder with any `.nvst` file is a case tree (`holds_cases`,
-`crates/nvs-cli/src/main.rs:2989`). The VS Code client lists each workspace folder that way and
-searches for no case file. Both directory walks now use a stack, skip linked folders and skip
-`CACHEDIR.TAG` folders: `nvs test target/` overflowed the stack before, on a very deep folder a
-proof run left under `target/proof/.nvsdata`. The memory-ceiling `.nvst` case runs its loop in a
-`#[Test]`, and passes.
+`--fail-fast`, `--rerun-failed` and `--shuffle[=<seed>]` are on `nvs test` (`Args`,
+`crates/nvs-cli/src/runner.rs:185`). `Queue::stopped` reads a reported failure, and `run_suite` counts
+`Suite::not_run`. A shuffled class starts its tests in `Order`'s SplitMix64 order, and `Held`
+(`crates/nvs-cli/src/runner.rs:1559`) puts them back in declaration order before the queue, capping
+the tests in flight at `--jobs`. Every program run writes `failed-tests/<hash>.txt` in the data
+folder (`failed_tests_file`, `crates/nvs-cli/src/runner.rs:868`), and `run_program_tests` turns
+`--rerun-failed` into `Selection::only`. A `.nvst` tree refuses the three. Under a machine format the
+not-run count and the seed go to stderr. Four runner tests over `fail-fast.nvs` pass.
 
-May go red at the gate: an `nvs test --help` snapshot (the `--list` text is new); a test expecting
-`--list` over a case tree to be refused; a `--dump-ir` snapshot of a program with a property (extra shape classes);
-`E0889`'s card snapshot and anything counting `ATTRIBUTE_DOCS` (`crates/nvs-lsp/src/stubs.rs:156`);
-an `nvs-host` `group.rs` or `nvs-stdlib` `test.rs` unit test reading `take_assertions` on an unowned
-context (call `set_owned_by_test`); a `.nvst` whose non-test code calls test code (`E0889`); a
-recorded editor listing or `nvs test --help` snapshot (`--tag`, `--skip-tag`, `--shard`); the
-site's attributes reference (two new options); a JSON report snapshot of a failing property (new
-`counterexample` key); any test asserting the old line "failed with the inputs (" for a property
-that shrinks; a diagnostic snapshot naming `MARKERS`' five attributes (now six).
+May go red at the gate: an `nvs test --help` snapshot (`--list`, `--tag`, `--skip-tag`, `--shard`,
+`--fail-fast`, `--rerun-failed`, `--shuffle`); a test expecting `--list` over a case tree to be
+refused; a `--dump-ir` snapshot of a program with a property; `E0889`'s card snapshot and anything
+counting `ATTRIBUTE_DOCS` (`crates/nvs-lsp/src/stubs.rs:156`); a unit test reading `take_assertions`
+on an unowned context (call `set_owned_by_test`); a `.nvst` whose non-test code calls test code; a
+recorded editor listing; the site's attributes reference; a JSON report snapshot of a failing
+property (`counterexample`); a test asserting "failed with the inputs (" for a property that
+shrinks; a snapshot naming `MARKERS`' five attributes (now six); a test counting the data folder's
+entries (`failed-tests/` is new).
 
 ### Next
 
-**Stage 6: fail-fast, rerun-failed and shuffle.** It shares `runner.rs` with stage 9, so it runs
-first. The flags go beside `list` in `Args` (`crates/nvs-cli/src/runner.rs:261`). The queue is
-`run_suite` (`crates/nvs-cli/src/runner.rs:1200`), and the summary counts are `Counts`
-(`crates/nvs-cli/src/runner.rs:3598`). The data folder is `crates/nvs-config/src/data.rs:65`.
+**Stage 6's two gaps, then stage 9.** The gaps touch files stage 9 does not, so they may run beside
+it, but each is one slice.
 
-- [ ] `--fail-fast` stops starting tests after the first failure, and the summary counts what did not run. `crates/nvs-cli/src/runner.rs:1200`, `crates/nvs-cli/src/runner.rs:3598`
-- [ ] Each run writes its failed tests to the data folder, and `--rerun-failed` runs them. `crates/nvs-config/src/data.rs:65`
-- [ ] `--shuffle` and `--shuffle=<seed>`, with the seed in the summary and the report order unchanged. `crates/nvs-cli/src/runner.rs:1200`
-- [ ] Tests for each, the help text and the `tools:cli/nvs-test` example. `docs/examples/tools/cli/nvs-test/about.md:1`
-- [ ] The two gaps of stage 6, and the rule `shipped`. `crates/nvs-cli/src/extensions.rs:1`, `crates/nvs-stdlib/src/test.rs:1`
+- [ ] The extension budget: a fixture guest beside `tests/conformance/ext/fixtures/ledger` with a method that spins for a given time, and a test where two tests each spend most of one budget under `--jobs 1` and both pass. Then delete the record. `data/gaps/nvs-cli/an-extension-budget-per-test-has-no-test.json:1`, `crates/nvs-cli/src/extensions.rs:390`, `crates/nvs-cli/tests/test_command.rs:187`
+- [ ] The bytes reader: a `bytes` member on `Core\Test\Response`, and the conformance cases the record names comparing the whole body again. Then delete the record. `data/gaps/nvs-stdlib/a-test-response-has-no-bytes-reader.json:1`, `crates/nvs-stdlib/src/test.rs:439`
+- [ ] Stage 9, `--watch`, from the background check. `crates/nvs-cli/src/script.rs:1500`, `crates/nvs-cli/src/runner.rs:185`
 
 ### Backlog
 
