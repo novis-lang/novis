@@ -99,30 +99,17 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `056b30a4a`, the end of `telemetry-service`. Its Website run is green. Its CI
-run, https://github.com/novis-lang/novis/actions/runs/40056094406, has ended red in two jobs, and
-every other job is green. The `five-driver matrix` and the LDAP login attack passed this time.
+`origin/main` is at `3ea6f1550`, the end of `editor-refactors`. It carries the last session's fixes
+`1e42b1d85`, `bfee381e4` and `a47f0a853`. Its Website run is green. Its CI run,
+https://github.com/novis-lang/novis/actions/runs/40070016889, is green in 33 of 34 jobs. The
+`proofs` jobs, the `five-driver matrix` and the LDAP login attack all passed.
 
-- `lint`, step `rustfmt`: `crates/nvs-runtime/src/capability.rs:2259` is still unformatted at
-  `HEAD`, and it is the only file rustfmt names. The `formatter-complete` interactive session still
-  claims it, after 7 hours, so it stays theirs.
-- `proofs` on all three platforms: `docs/examples/tools/cli/nvs-info/01-print-the-build-and-the-host.cmd`
-  printed `Novis 0.0.1+dev`, because `85ba6a88b` adds `+dev` to every build but a release. Its
-  `.out` still had `Novis 0.0.1`. `bfee381e4` elides the banner and the version line. It does not
-  write `+dev`, because a build of a tagged release commit prints the plain version. Nothing else
-  failed: no perf was owed and no attack failed.
+- `lint`, step `rustfmt`, is the only red: `crates/nvs-runtime/src/capability.rs:2259` is still
+  unformatted at `HEAD`, the only file rustfmt names. The `formatter-complete` interactive session
+  still claims it, after 11 hours, so it stays theirs, and the watch passed it with `--past lint`.
 
-Two reds the next push would have had are fixed too:
-
-- `1e42b1d85` records the `Core\Csv::parse`, `::format` and `::rows` perf figures. `7beb15721`
-  committed `csv.rs` without them.
-- `a47f0a853` rewrites and stamps the search questions of `/reference/core/csv/format/` and
-  `/reference/cli/nvs-telemetry/`, which `7beb15721` and `bcc8ed73b` made stale. It also restamps
-  `/reference/cli/nvs-info/`, whose questions still fit after the example change.
-  `bun nv site --check stale questions` passes at `HEAD`.
-
-The fixes are committed and not yet pushed: `1e42b1d85`, `bfee381e4` and `a47f0a853`. They go out
-with the next goal end.
+Nothing is committed and not yet pushed. Before this watch, `bun nv site --check stale questions`
+passed and `bun nv proofs --owed --limit 0` owed nothing.
 
 `.agent-tmp/wt-cig`, `.agent-tmp/wt-r` and `.agent-tmp/wt-csv` are scratch folders. Git no longer
 lists them as worktrees. Each contains a `.looper` directory, which Windows will not delete while
