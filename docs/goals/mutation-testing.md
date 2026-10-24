@@ -13,7 +13,7 @@ stages:
         rules: [testing/mutation-testing, testing/tests-never-reach-a-build, testing/debug-probes]
   - id: 2
     title: each mutant runs against the tests that reach its line, and the run reports what survived
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, crates/nvs-cli/src/coverage.rs, crates/nvs-cli/src/main.rs, docs/rules/testing/mutation-testing.md, docs/rules/testing/a-test-has-a-wall-time-limit.md]
     extra:
       context:
@@ -93,6 +93,15 @@ the mutants in flight. Usability: one flag on `nvs test` gives a measurement tea
 with a separate tool. Simplicity: the operator set lives in the code that applies it, so adding one
 changes no rule.
 
+**How a mutant finds its tests, and what stops it (stage 2).** A mutant runs the tests that reached
+the innermost statement whose span holds its changed expression, read off the coverage run's
+statement numbers rather than its lines, so a change on a statement's second line is still reached.
+A test with no wall-time limit gets ten times the slowest coverage-run test plus one second, because
+otherwise a looping mutant hangs the run; one number for the run, not a per-test table (simplicity).
+A coverage run with a failing test runs no mutant. One mutant runs at a time, its tests spread over
+`--jobs`. `--format junit` is refused beside `--mutate`. A mutant whose run panics is killed. The
+rule states each, with the declined alternatives.
+
 **Lanes.** Stages run in order, 1 then 2 then 3: stage 2 consumes stage 1's mutant list from
 `crates/nvs-ir/src/lower/mutate.rs`, and stage 3 measures stage 2's command and shares
 `crates/nvs-cli/src/runner.rs` with it. Stage 1's rule item touches only
@@ -116,14 +125,14 @@ changes no rule.
 **Does:** `nvs test --mutate` runs the suite once with coverage, then each mutant against its covering
 tests, and reports each mutant as killed, survived, timed out or not reached.
 
-- [ ] The rule states the four outcomes, the score, the JSON version and the exit status (`rule:testing/mutation-testing`). `docs/rules/testing/mutation-testing.md:13`
-- [ ] `--mutate` joins `nvs test`'s flags with its help text, and on a `.nvst` tree it exits with the coverage flags' error. `crates/nvs-cli/src/runner.rs:142`, `crates/nvs-cli/src/main.rs:2433`
-- [ ] Every mutant of a fixture compiles through `nvs_codegen::compile`, which stage 1's tests stop short of: they lower each one. `crates/nvs-cli/src/runner.rs:1168`, `crates/nvs-ir/src/lower/mutate.rs:1`
-- [ ] One coverage run maps each line to the tests that reached it (`rule:testing/coverage-report`). `crates/nvs-cli/src/runner.rs:1580`, `crates/nvs-cli/src/coverage.rs:243`
-- [ ] Each mutant runs only its covering tests, in parallel up to `--jobs`, and stops at its first failing test (`rule:testing/tests-run-across-every-core`). `crates/nvs-cli/src/runner.rs:1462`
-- [ ] Gate: `test-surface` stage 5 `done`. A mutant that loops is stopped by the test's time limit and counted as timed out (`rule:testing/a-test-has-a-wall-time-limit`). `crates/nvs-cli/src/runner.rs:1567`
-- [ ] The human report lists every survived mutant with file, line and change, and the JSON report's new version adds the `mutants` array (`rule:testing/report-formats`). `crates/nvs-cli/src/runner.rs:2830`
-- [ ] Rust tests: a fixture with one killed, one survived, one timed-out and one unreached mutant reports each, and the JSON form round-trips (`rule:testing/mutation-testing`). `crates/nvs-cli/src/runner.rs:3458`
+- [x] The rule states the four outcomes, the score, the JSON version and the exit status (`rule:testing/mutation-testing`). `docs/rules/testing/mutation-testing.md:13`
+- [x] `--mutate` joins `nvs test`'s flags with its help text, and on a `.nvst` tree it exits with the coverage flags' error. `crates/nvs-cli/src/runner.rs:142`, `crates/nvs-cli/src/main.rs:2433`
+- [x] Every mutant of a fixture compiles through `nvs_codegen::compile`, which stage 1's tests stop short of: they lower each one. `crates/nvs-cli/src/runner.rs:1168`, `crates/nvs-ir/src/lower/mutate.rs:1`
+- [x] One coverage run maps each line to the tests that reached it (`rule:testing/coverage-report`). `crates/nvs-cli/src/runner.rs:1580`, `crates/nvs-cli/src/coverage.rs:243`
+- [x] Each mutant runs only its covering tests, in parallel up to `--jobs`, and stops at its first failing test (`rule:testing/tests-run-across-every-core`). `crates/nvs-cli/src/runner.rs:1462`
+- [x] Gate: `test-surface` stage 5 `done`. A mutant that loops is stopped by the test's time limit and counted as timed out (`rule:testing/a-test-has-a-wall-time-limit`). `crates/nvs-cli/src/runner.rs:1567`
+- [x] The human report lists every survived mutant with file, line and change, and the JSON report's new version adds the `mutants` array (`rule:testing/report-formats`). `crates/nvs-cli/src/runner.rs:2830`
+- [x] Rust tests: a fixture with one killed, one survived, one timed-out and one unreached mutant reports each, and the JSON form round-trips (`rule:testing/mutation-testing`). `crates/nvs-cli/src/runner.rs:3458`
 
 ### 3. a bench of its cost, and its feature proofs
 
@@ -158,40 +167,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `nvs_ir::lower::mutants` lowers the checked program once in survey mode and lists
-every site; `nvs_ir::lower::lower_mutant` lowers it with one site changed
-(`crates/nvs-ir/src/lower/mutate.rs`). The plan is a thread-local armed for one `lower_program_as`
-call. Sites: `lower_binary` after both operands (relational, equality, arithmetic), the `&&`/`||` arm
-and the `bool` literal arm in `lower_expr`, and `lower_branch_cond` at the four `if`/loop condition
-sites in `control.rs`. A condition `mutate::narrows` names keeps its direction and connectors, and a
-literal that is a condition, a `match`/`switch` subject or an `==` operand keeps its value; the rule
-states why. Test code is skipped through `mutate::within` around `lower_method`/`lower_generator`.
-Both gates hold: `test-surface` is retired, and neither of its rule fragments has a `**Not on
-disk.**` paragraph.
+Stages 1 and 2 are done. `nvs test --mutate` runs the selected tests once with coverage, then each
+mutant against the tests that reached it, and reports `killed`, `survived`, `timed out` or `not
+reached` (`crates/nvs-cli/src/runner/mutation.rs`, wired in `runner::run`). A mutant's tests are
+those that reached the innermost statement holding its span (`mutation::innermost`, over
+`coverage::Probes::stmt_spans`). Each mutant compiles with `cache::unit_for(.., None)` and runs
+through `run_suite_in_a_task`, which now takes `Rc<Checked>` so the run keeps the checked program.
+A mutant's run is `Format::Json` into a buffer, `fail_fast: true`, and `Shape::wall`, the fallback
+limit `wall_limit` applies to a test with none (10 × the slowest coverage-run test + 1 s). Timed out
+is read off `PAST_WALL_TIME`, the start of `Outcome::past_wall_time`'s line. JSON is version 4 with a
+`mutants` array; `--format junit` with `--mutate`, and `--mutate` on a `.nvst` tree, exit with an
+error. The rule, `report-formats` and `docs/reference/tools/10-cli.md` (one bullet under `nvs
+test`) say so. The rule's `**Not on disk.**` paragraph is gone; its status is still `designed`.
 
-The acceptance sweep's red `env-secret-proofs` is green on disk (`bun nv proofs --gate --only
-"Core\\Env::secret"` exits 0). The nightly run's five red jobs tested `3ea6f1550`, and main has a fix
-for each since: `10c402b57` (supply chain), `c31d0a21a` (rustfmt), `c953c3456` (http stream under
-Miri), `220cb82b7` (json under Miri), `c4842ec8f` (session under Miri). The next nightly run is their
-first check.
+Checked: `cargo build`, `cargo clippy --all-targets -- -D warnings`, and the two new tests ran once
+and pass (`runner::mutation::tests`). By hand, `nvs test crates/nvs-cli/tests/fixtures/runner/mutate.nvs
+--mutate` reports 3 killed, 1 survived, 1 timed out, 1 not reached, score 80.0%.
 
-Expected red in stage 4: none known. The three tests in `crates/nvs-ir/src/lower/mutate.rs` ran once
-and pass; a snapshot test that lowers an `if` or a loop is unchanged, because a lowering with no plan
-emits nothing more.
+The sweep's `env-secret-proofs` is green on disk (its log shows exit 0). The nightly's five red jobs
+tested `3ea6f1550`, and each has a fix on main since `10c402b57`; the next nightly is their check.
+
+Expected red in stage 4: none known. Every `Shape` literal gained `wall: None`, every
+`json_document` call a fifth `None`, and `Flags` a `mutate` field (`crates/nvs-cli/src/ext.rs` too).
 
 ### Next
 
-**Stage 2: each mutant runs against its covering tests**, file set `docs/rules/testing/mutation-testing.md`,
-`crates/nvs-cli/src/main.rs`, `crates/nvs-cli/src/runner.rs`, `crates/nvs-cli/src/coverage.rs`.
-`runner.rs:1168`'s `compile` is where a mutant's `lower_mutant` replaces `lower_program_with_tests`.
-Map a mutant to tests by `Mutant::file` and `Mutant::line` against `coverage::Sites::reached`.
+**Stage 3: a bench of its cost, and its feature proofs.** Follow the stage's `**Split:**` line. The
+feature id is `tools:cli/nvs-test-mutate`; start with `bun nv proofs --id 'tools:cli/nvs-test-mutate'`
+once the heading exists.
 
-- [ ] The rule states the four outcomes, the score, the JSON version and the exit status (`rule:testing/mutation-testing`). `docs/rules/testing/mutation-testing.md:54`
-- [ ] `--mutate` on `nvs test`, with help text, and the `.nvst` error. `crates/nvs-cli/src/main.rs:2433`
-- [ ] Every mutant of a fixture compiles through `nvs_codegen::compile`. `crates/nvs-cli/src/runner.rs:1168`
-- [ ] One coverage run maps each line to the tests that reached it. `crates/nvs-cli/src/coverage.rs:243`
-- [ ] Each mutant runs its covering tests up to `--jobs`, stops at its first failure, and a loop is stopped by the time limit. `crates/nvs-cli/src/runner.rs:1462`
-- [ ] The human and JSON reports, and the Rust tests for the four outcomes. `crates/nvs-cli/src/runner.rs:2830`
+- [ ] A `# nvs test --mutate` heading in the CLI chapter; move the `--mutate` bullet under it. `docs/reference/tools/10-cli.md:276`
+- [ ] The bench over a growing fixture: mutants and test runs per mutant. `benches/members/README.md:1`
+- [ ] `about.md` and three examples, by a writing subagent. `docs/examples/tools/cli/nvs-test-mutate/about.md:1`
+- [ ] The attack (a mutant that never ends is stopped by `Shape::wall`) and a Novis test. `crates/nvs-cli/src/runner/mutation.rs:253`
+- [ ] The rule `shipped` and `bun nv owners --closes mutation-testing` passes. `data/rules/testing/mutation-testing.json:3`
 
 ### Backlog
 
