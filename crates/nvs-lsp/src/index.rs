@@ -460,6 +460,15 @@ impl SymbolIndex {
         stale
     }
 
+    /// The entry points whose analysis read `path`, in path order.
+    ///
+    /// `crate::rename` reads it when a file moves: every `require` that names
+    /// the file is in a graph one of these entries loads.
+    #[must_use]
+    pub fn readers(&self, path: &Path) -> Vec<PathBuf> {
+        self.readers_of(&canonical_key(path))
+    }
+
     /// The entry points whose analysis read `key`, in path order.
     fn readers_of(&self, key: &Path) -> Vec<PathBuf> {
         self.reads

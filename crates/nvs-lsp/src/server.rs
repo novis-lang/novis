@@ -77,9 +77,10 @@ use lsp_types::notification::{
 use lsp_types::request::{
     CodeActionRequest, CodeLensRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
     DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, GotoImplementation,
-    GotoTypeDefinition, HoverRequest, InlayHintRequest, References, RegisterCapability,
-    Request as _, ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest,
-    SignatureHelpRequest, TypeHierarchyPrepare, TypeHierarchySubtypes, TypeHierarchySupertypes,
+    GotoTypeDefinition, HoverRequest, InlayHintRequest, PrepareRenameRequest, References,
+    RegisterCapability, Rename, Request as _, ResolveCompletionItem, SelectionRangeRequest,
+    SemanticTokensFullRequest, SignatureHelpRequest, TypeHierarchyPrepare, TypeHierarchySubtypes,
+    TypeHierarchySupertypes, WillRenameFiles,
 };
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens, CodeLensParams,
@@ -90,11 +91,12 @@ use lsp_types::{
     DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse,
     FileSystemWatcher, FoldingRange, FoldingRangeParams, GlobPattern, GotoDefinitionParams,
     GotoDefinitionResponse, HoverParams, InitializeParams, InlayHint, InlayHintParams, Location,
-    Position, PublishDiagnosticsParams, Range, ReferenceParams, Registration, RegistrationParams,
-    SelectionRange, SelectionRangeParams, SemanticTokens, SemanticTokensParams,
-    SemanticTokensResult, SignatureHelp, SignatureHelpParams, SymbolKind, TextDocumentIdentifier,
-    TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
-    TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
+    Position, PrepareRenameResponse, PublishDiagnosticsParams, Range, ReferenceParams,
+    Registration, RegistrationParams, RenameFilesParams, RenameParams, SelectionRange,
+    SelectionRangeParams, SemanticTokens, SemanticTokensParams, SemanticTokensResult,
+    SignatureHelp, SignatureHelpParams, SymbolKind, TextDocumentIdentifier,
+    TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
+    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
 };
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap};
 
@@ -118,6 +120,7 @@ use crate::position::{encoding_of, offset_at, range_of};
 use crate::query;
 use crate::redactions;
 use crate::regions;
+use crate::rename::{self, Rewrite};
 use crate::selection;
 use crate::semantic;
 use crate::settings::Settings;
@@ -684,6 +687,28 @@ fn answer(
             Ok(params) => Response::new_ok(id, references(documents, index, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
+        PrepareRenameRequest::METHOD => {
+            match serde_json::from_value::<TextDocumentPositionParams>(params) {
+                Ok(params) => match prepare_rename(documents, index, encoding, &params) {
+                    Ok(range) => Response::new_ok(id, range),
+                    Err(message) => refused(id, message),
+                },
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
+        Rename::METHOD => match serde_json::from_value::<RenameParams>(params) {
+            Ok(params) => match rename_symbol(documents, index, encoding, &params) {
+                Ok(edit) => Response::new_ok(id, edit),
+                Err(message) => refused(id, message),
+            },
+            Err(error) => unreadable(id, &method, &error),
+        },
+        WillRenameFiles::METHOD => match serde_json::from_value::<RenameFilesParams>(params) {
+            Ok(params) => {
+                Response::new_ok(id, will_rename_files(documents, index, encoding, &params))
+            }
+            Err(error) => unreadable(id, &method, &error),
+        },
         DocumentHighlightRequest::METHOD => {
             match serde_json::from_value::<DocumentHighlightParams>(params) {
                 Ok(params) => {
@@ -776,6 +801,16 @@ fn unreadable(id: RequestId, method: &str, error: &serde_json::Error) -> Respons
         ErrorCode::InvalidParams as i32,
         format!("`{method}` carried parameters this server could not read: {error}"),
     )
+}
+
+/// `RequestFailed`, for a request the server understood and will not carry
+/// out, with the message the editor shows the developer.
+///
+/// A rename that would break code is answered this way and never with an
+/// empty edit: an editor applies an empty edit silently, and the developer
+/// would not learn why nothing changed.
+fn refused(id: RequestId, message: String) -> Response {
+    Response::new_err(id, ErrorCode::RequestFailed as i32, message)
 }
 
 /// `textDocument/documentSymbol` — the outline of one open document.
@@ -1039,6 +1074,126 @@ fn overlaid<'a>(
         }
     }
     (map, loaded)
+}
+
+/// `textDocument/prepareRename` — the range of the name under the cursor that a
+/// rename would change, or the message that says why it cannot be renamed.
+///
+/// `null` for a document this server has nothing open for, on [`definition`]'s
+/// terms. [`rename::prepare`] decides, and the `.lspt` runner asks it too
+/// ([`prepare_rename_of_case`]).
+fn prepare_rename(
+    documents: &Documents,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    params: &TextDocumentPositionParams,
+) -> Result<Option<PrepareRenameResponse>, String> {
+    let Some(analysed) = documents.analysed(&params.text_document.uri) else {
+        return Ok(None);
+    };
+    let file = analysed.map.file(analysed.entry);
+    let offset = offset_at(file, params.position, encoding);
+    let site = rename::prepare(index, &analysed, offset)?;
+    Ok(Some(PrepareRenameResponse::Range(range_of(
+        file, site.start, site.end, encoding,
+    ))))
+}
+
+/// `textDocument/rename` — every edit that renames the name under the cursor,
+/// in every file the index reaches, or the message that says why it cannot be
+/// renamed.
+///
+/// `null` for a document this server has nothing open for. The edit is
+/// `changes`, keyed by each file's URI: every edit replaces a name, so the
+/// document versions `documentChanges` would carry add nothing a client
+/// needs.
+fn rename_symbol(
+    documents: &Documents,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    params: &RenameParams,
+) -> Result<Option<WorkspaceEdit>, String> {
+    let position = &params.text_document_position;
+    let Some(analysed) = documents.analysed(&position.text_document.uri) else {
+        return Ok(None);
+    };
+    let offset = offset_at(
+        analysed.map.file(analysed.entry),
+        position.position,
+        encoding,
+    );
+    let rewrites = rename::rename(documents, index, &analysed, offset, &params.new_name)?;
+    Ok(Some(workspace_edit(located(
+        documents, &rewrites, encoding,
+    ))))
+}
+
+/// `workspace/willRenameFiles` — every `require` literal that names a file the
+/// client is about to move, written again to name it at its new place.
+///
+/// `null` when the move changes no literal, which is what a client expects
+/// from a server with nothing to add. A URI that names no file is skipped.
+fn will_rename_files(
+    documents: &Documents,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    params: &RenameFilesParams,
+) -> Option<WorkspaceEdit> {
+    let moves: Vec<(PathBuf, PathBuf)> = params
+        .files
+        .iter()
+        .filter_map(|file| {
+            let old = path_of(&file.old_uri.parse().ok()?)?;
+            let new = path_of(&file.new_uri.parse().ok()?)?;
+            Some((old, new))
+        })
+        .collect();
+    let rewrites = rename::moved(documents, index, &moves);
+    (!rewrites.is_empty()).then(|| workspace_edit(located(documents, &rewrites, encoding)))
+}
+
+/// Every rewrite as a [`Location`] and its text, each file's positions counted
+/// in its own text, on [`locations`]' terms.
+fn located(
+    documents: &Documents,
+    rewrites: &[Rewrite],
+    encoding: PositionEncoding,
+) -> Vec<(Location, String)> {
+    let (map, loaded) = overlaid(
+        documents,
+        rewrites.iter().map(|rewrite| rewrite.site.path.as_path()),
+    );
+    rewrites
+        .iter()
+        .filter_map(|rewrite| {
+            let site = &rewrite.site;
+            let id = (*loaded.get(&site.path)?)?;
+            let at = Location {
+                uri: uri_of(&site.path)?,
+                range: range_of(map.file(id), site.start, site.end, encoding),
+            };
+            Some((at, rewrite.text.clone()))
+        })
+        .collect()
+}
+
+/// The edits as one `WorkspaceEdit`, grouped by file.
+#[expect(
+    clippy::mutable_key_type,
+    reason = "`WorkspaceEdit::changes` is keyed by `Uri`, and no key here is changed once inserted"
+)]
+fn workspace_edit(located: Vec<(Location, String)>) -> WorkspaceEdit {
+    let mut changes: HashMap<Uri, Vec<TextEdit>> = HashMap::new();
+    for (at, new_text) in located {
+        changes.entry(at.uri).or_default().push(TextEdit {
+            range: at.range,
+            new_text,
+        });
+    }
+    WorkspaceEdit {
+        changes: Some(changes),
+        ..WorkspaceEdit::default()
+    }
 }
 
 /// `textDocument/prepareTypeHierarchy` — the type under the cursor, as the item
@@ -1441,6 +1596,57 @@ pub(crate) fn highlights_of_case(
     let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
     let sites = uses_in(&index, analysed, entry, offset)?;
     Some(locations(documents, &sites, encoding))
+}
+
+/// [`prepare_rename`] for one `.lspt` case, over an index built for that case
+/// alone and for [`lenses_of_case`]'s reason.
+pub(crate) fn prepare_rename_of_case(
+    documents: &Documents,
+    analysed: &Analysed,
+    root: &Path,
+    offset: BytePos,
+    encoding: PositionEncoding,
+) -> Result<Range, String> {
+    let settings = case_settings(root);
+    let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
+    let site = rename::prepare(&index, analysed, offset)?;
+    Ok(range_of(
+        analysed.map.file(analysed.entry),
+        site.start,
+        site.end,
+        encoding,
+    ))
+}
+
+/// [`rename_symbol`] for one `.lspt` case, over an index built for that case
+/// alone and for [`lenses_of_case`]'s reason. Each edit is a [`Location`] so
+/// the runner spells its file as it spells a reference.
+pub(crate) fn rename_of_case(
+    documents: &Documents,
+    analysed: &Analysed,
+    root: &Path,
+    offset: BytePos,
+    new_name: &str,
+    encoding: PositionEncoding,
+) -> Result<Vec<(Location, String)>, String> {
+    let settings = case_settings(root);
+    let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
+    let rewrites = rename::rename(documents, &index, analysed, offset, new_name)?;
+    Ok(located(documents, &rewrites, encoding))
+}
+
+/// [`will_rename_files`] for one `.lspt` case, over an index built for that
+/// case alone and for [`lenses_of_case`]'s reason.
+pub(crate) fn file_renames_of_case(
+    documents: &Documents,
+    root: &Path,
+    moves: &[(PathBuf, PathBuf)],
+    encoding: PositionEncoding,
+) -> Vec<(Location, String)> {
+    let settings = case_settings(root);
+    let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
+    let rewrites = rename::moved(documents, &index, moves);
+    located(documents, &rewrites, encoding)
 }
 
 /// What a lens says above a declaration `count` things refer to.

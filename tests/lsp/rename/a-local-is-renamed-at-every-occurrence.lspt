@@ -1,0 +1,24 @@
+--TEST--
+a local is renamed at its declaration, at every read and write in its method and inside a string that interpolates it, and the loop variable beside it is left alone, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Cart
+{
+    public function total(array<int> $prices): int
+    {
+        var $sum = 0;
+        foreach ($prices as $price) {
+            $sum = $sum + $price;
+        }
+        echo "The sum is $sum\n";
+        return $s<|>um;
+    }
+}
+--REQUEST--
+rename to=amount
+--EXPECT--
+case.nvs:6:13 $amount
+case.nvs:8:13 $amount
+case.nvs:8:20 $amount
+case.nvs:10:26 $amount
+case.nvs:11:16 $amount

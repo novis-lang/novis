@@ -1,4 +1,4 @@
-`nvs lsp` answers seventeen standard requests, the code actions of
+`nvs lsp` answers twenty standard requests, the code actions of
 `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`, and seven requests of Novis's own,
 each one admitted on the same test: a data structure the compiler or the server already builds *is* the
 answer. `crates/nvs-lsp/tests/handshake.rs` holds the declared capabilities to exactly that list, and a
@@ -72,7 +72,7 @@ a cursor.
 `callHierarchy` is admitted on the same test and is not declared yet. The user decided to offer it. It
 reads the call-site edges that `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method` adds
 to the reference index, so the server declares it in the change that builds those edges, as the
-eighteenth standard request. It answers incoming and outgoing calls. A call through a `callable` value
+twenty-first standard request. It answers incoming and outgoing calls. A call through a `callable` value
 or a `mixed` receiver is not shown, because the checker resolved no single target for it.
 
 The second non-standard request is `nvs/regions`
@@ -89,6 +89,19 @@ are rows in the coverage matrix. The other four are answered on the wire and hel
 `nvs_lsp::render` has no canonical spelling for the shapes they answer and a case may not invent one
 (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`). Giving one of them a rendering makes it a case and
 changes nothing about the answer.
+
+The last three standard requests are the rename of `rule:ide/no-refactoring-introduces-an-alias`, and
+they pass the same test. `prepareRename` and `rename` read the reference index for a member, with a
+method's whole override family, and the type phase's record of each body's bindings for a local.
+`workspace/willRenameFiles` reads the `require` edges the graph walk recorded, the same edges
+`documentLink` underlines, and writes each literal that names a moved file again. A rename the server
+will not carry out is answered `RequestFailed` with a message the editor shows: a cursor on no symbol,
+`$this`, a type, a parameter, a name declared outside the workspace, and a new name that is no
+identifier or that clashes. All three carry `.lspt` vocabulary: `prepareRename` renders a range,
+`rename` and `willRenameFiles` one line per edit, and a refusal its message.
+
+- **Memory:** nothing held. Each request reads the index and the text of the files its sites are in,
+  and a file move analyses each entry point that read the moved file once.
 
 The third and fourth non-standard requests are `nvs/imports` and `nvs/importEdits`
 (`rule:ide/a-pasted-type-carries-its-use-line`), and they pass the same test: the first is the

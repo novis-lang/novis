@@ -1,0 +1,17 @@
+--TEST--
+a local is refused when an anonymous function inside its method declares a parameter of the same name, because the two would be renamed together, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Prices
+{
+    public function doubled(array<int> $prices): array<int>
+    {
+        var $pr<|>ice = 2;
+        var $twice = fn (int $price): int => $price * 2;
+        return [$twice($price)];
+    }
+}
+--REQUEST--
+rename to=factor
+--EXPECT--
+refused: An anonymous function in this code also declares `$price`, so `$price` cannot be renamed here.

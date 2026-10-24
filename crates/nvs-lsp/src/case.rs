@@ -85,6 +85,14 @@ pub enum Request {
     /// `textDocument/documentHighlight`, which is [`Self::References`]'s query
     /// narrowed to the file the cursor is in.
     DocumentHighlight,
+    /// `textDocument/prepareRename`: the range a rename at the cursor would
+    /// change, or why nothing there can be renamed.
+    PrepareRename,
+    /// `textDocument/rename`, to the name its `to=` argument writes.
+    Rename,
+    /// `workspace/willRenameFiles`, for the one move its `from=` and `to=`
+    /// arguments write, each relative to the case's own directory.
+    WillRenameFiles,
     /// `textDocument/inlayHint`, asked of the whole document: an editor asks it
     /// over the region it can show, and the narrowing to that region is
     /// `crate::server`'s rather than the answer's own shape.
@@ -111,6 +119,9 @@ impl Request {
         Self::CodeLens,
         Self::References,
         Self::DocumentHighlight,
+        Self::PrepareRename,
+        Self::Rename,
+        Self::WillRenameFiles,
         Self::InlayHint,
         Self::Redactions,
         Self::Regions,
@@ -133,6 +144,9 @@ impl Request {
             Self::CodeLens => "codeLens",
             Self::References => "references",
             Self::DocumentHighlight => "documentHighlight",
+            Self::PrepareRename => "prepareRename",
+            Self::Rename => "rename",
+            Self::WillRenameFiles => "willRenameFiles",
             Self::InlayHint => "inlayHint",
             Self::Redactions => "redactions",
             Self::Regions => "regions",
@@ -171,6 +185,8 @@ impl Request {
                 | Self::CodeAction
                 | Self::References
                 | Self::DocumentHighlight
+                | Self::PrepareRename
+                | Self::Rename
         )
     }
 }
@@ -201,6 +217,12 @@ pub struct RequestArgs {
     /// `semanticTokens types=`: render only these token types, so a case about
     /// one of them is not rewritten by every unrelated token added later.
     pub types: Vec<String>,
+    /// `rename to=`: the new name, which the request needs. `willRenameFiles
+    /// to=`: where the file or folder moves to.
+    pub to: Option<String>,
+    /// `willRenameFiles from=`: the file or folder that moves, which the
+    /// request needs as well as `to=`.
+    pub from: Option<String>,
 }
 
 /// One file a case puts on disk beside its own `--FILE--`.
@@ -347,6 +369,20 @@ fn request_line(body: &str, line: usize) -> Result<(Request, RequestArgs), Parse
         apply_argument(request, key, value, &mut args).map_err(|why| err(why, Some(line)))?;
     }
 
+    // A rename has no answer without the name it renames to, and a file move
+    // none without both of its ends, so the two refuse a line that leaves one
+    // out rather than answering a question nobody asked.
+    let missing = match request {
+        Request::Rename if args.to.is_none() => Some("`rename` needs `to=`, the new name"),
+        Request::WillRenameFiles if args.from.is_none() || args.to.is_none() => {
+            Some("`willRenameFiles` needs both `from=` and `to=`")
+        }
+        _ => None,
+    };
+    if let Some(missing) = missing {
+        return Err(err(missing, Some(line)));
+    }
+
     Ok((request, args))
 }
 
@@ -390,17 +426,35 @@ fn apply_argument(
                 args.types.push(wanted.to_owned());
             }
         }
+        (Request::Rename, "to") => args.to = Some(value.to_owned()),
+        (Request::WillRenameFiles, "from") => args.from = Some(moved_path(value)?),
+        (Request::WillRenameFiles, "to") => args.to = Some(moved_path(value)?),
         _ => {
             let takes = match request {
                 Request::Completion => "`prefix=` and `limit=`",
                 Request::Diagnostics => "`phase=all`",
                 Request::SemanticTokens => "`types=`",
+                Request::Rename => "`to=`",
+                Request::WillRenameFiles => "`from=` and `to=`",
                 _ => "no arguments",
             };
             return Err(format!("`{request}` takes {takes}, not `{key}=`"));
         }
     }
     Ok(())
+}
+
+/// Checks one end of a `willRenameFiles` move, returning it or the reason it
+/// is refused.
+///
+/// [`aux_path`]'s containment argument, for the same reason: the path is
+/// joined onto the case's directory. The case's own [`MAIN_PATH`] is allowed
+/// here, because moving the document under test is a question a case may ask.
+fn moved_path(raw: &str) -> Result<String, String> {
+    if raw == MAIN_PATH {
+        return Ok(raw.to_owned());
+    }
+    aux_path(raw)
 }
 
 /// Takes the cursor out of `document`, returning where it was.
@@ -740,7 +794,9 @@ lib/user.nvs:2:36
                 "selectionRange",
                 "codeAction",
                 "references",
-                "documentHighlight"
+                "documentHighlight",
+                "prepareRename",
+                "rename"
             ]
         );
     }
@@ -798,5 +854,22 @@ lib/user.nvs:2:36
         let refused = parse(&whole_document.replace("completion\n", "diagnostics phase=types\n"))
             .expect_err("a phase is not named one at a time");
         assert!(refused.to_string().contains("phase=all"), "{refused}");
+
+        // A rename needs its new name, and a file move both of its ends.
+        let case = parse(&MEMBER_COMPLETION.replace("completion\n", "rename to=total\n"))
+            .expect("`to=` is the new name");
+        assert_eq!(case.args.to.as_deref(), Some("total"));
+        let refused = parse(&MEMBER_COMPLETION.replace("completion\n", "rename\n"))
+            .expect_err("a rename names what it renames to");
+        assert!(refused.to_string().contains("to="), "{refused}");
+        let refused =
+            parse(&whole_document.replace("completion\n", "willRenameFiles from=a.nvs\n"))
+                .expect_err("a move has two ends");
+        assert!(refused.to_string().contains("from=` and `to="), "{refused}");
+        let refused = parse(
+            &whole_document.replace("completion\n", "willRenameFiles from=../a.nvs to=b.nvs\n"),
+        )
+        .expect_err("a move stays under the case's directory");
+        assert!(refused.to_string().contains(".."), "{refused}");
     }
 }

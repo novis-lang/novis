@@ -1,0 +1,18 @@
+--TEST--
+moving a required file rewrites the `require` literal that names it, relative to the requiring file and in the same quotes, `rule:statements/require-is-the-only-inclusion-construct`
+--FILE--
+<?nvs
+require 'lib/user.nvs';
+
+var $u = new User();
+echo $u->name;
+--FILE lib/user.nvs--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+--REQUEST--
+willRenameFiles from=lib/user.nvs to=model/account.nvs
+--EXPECT--
+case.nvs:2:9 'model/account.nvs'

@@ -11,5 +11,10 @@ much a second name as one typed by hand.
 **Built:** signature help, inlay hints, and the three places the server writes a `use` line: an
 accepted completion, a pasted type (`rule:ide/a-pasted-type-carries-its-use-line`) and an undeclared
 name's fix. Each writes the fully-qualified name at `nvs_hir::import_site` and never an alias
-(`crates/nvs-lsp/src/imports.rs`). **Missing:** rename, extract to method or variable, organize-imports
-and cross-file symbol search.
+(`crates/nvs-lsp/src/imports.rs`). Rename of a member or a local, and the `require` paths a moved file
+changes (`crates/nvs-lsp/src/rename.rs`): a method is renamed with every method that overrides it or
+that it overrides, and a new name that some class of that family, above it or below it, already
+declares is refused with a message. A local's new name may not be bound already in its body. Neither
+is ever resolved with an alias. **Missing:** rename of a type, which needs the sites where a type
+annotation writes one and the index does not record them; extract to method or variable;
+organize-imports; and cross-file symbol search.

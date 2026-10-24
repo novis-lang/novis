@@ -124,6 +124,15 @@ grows by the requests named here and no others. Stage 5 adds the argument types 
 a few words per unresolved call, only while the checker reports it. The unused-`use` warning adds
 one diagnostic per unused line to `nvs check`, and nothing to a program that compiles and runs.
 
+**What rename renames.** A method, a property, a class constant and an enum case, workspace-wide,
+and a method with its whole override family so an override never breaks. A local, inside the body
+that declares it. Refused, each with a message: a parameter, because a call may pass it by name; a
+local that an anonymous function inside the same body also declares; `$this`, `global` and
+`constructor`; a name declared outside the workspace, so every `Core` name; a method whose class
+extends a type outside the workspace that has a method of that name. A type is refused until the
+index records type-annotation sites, which is stage 1's last item. Why: a rename writes only edits
+the index proves, and a missed site is a broken program, never a silent change.
+
 ## Stages
 
 ### 1. rename across the workspace, and a file rename updates `require` paths
@@ -135,14 +144,16 @@ holds, and `workspace/willRenameFiles` rewrites each `require` path that names a
 `tests/lsp/rename/`: a local, a method across files, a `Core` name refused, a clash refused, a
 renamed file's `require`.
 
-- [ ] `prepareRename` refuses a position that is no renamable symbol, a `Core` name among them. `crates/nvs-lsp/src/rename.rs:1`, `crates/nvs-lsp/src/index.rs:833`
-- [ ] `rename` edits every occurrence from the index, and refuses a new name that clashes in any file it touches (`rule:ide/no-refactoring-introduces-an-alias`). `crates/nvs-lsp/src/rename.rs:1`, `crates/nvs-lsp/src/index.rs:629`
-- [ ] `willRenameFiles` returns the `require` path edits, from the require graph and each `require`'s recorded target (`rule:statements/require-is-the-only-inclusion-construct`). `crates/nvs-lsp/src/rename.rs:1`, `crates/nvs-lsp/src/document.rs:366`, `crates/nvs-types/src/expr_table.rs:2324`
-- [ ] The three providers declared, and their requests routed. `crates/nvs-lsp/src/capabilities.rs:162`, `crates/nvs-lsp/src/server.rs:569`
-- [ ] The handshake test holds the new capability list. `crates/nvs-lsp/tests/handshake.rs:109`
-- [ ] The `.lspt` runner learns `rename` and `willRenameFiles`. `crates/nvs-lsp/src/case.rs:59`
-- [ ] `.lspt` cases for each. `tests/lsp/rename/a-local-is-renamed-at-every-occurrence.lspt:1`
-- [ ] `rule:ide/the-request-set-is-closed` lists the three new requests. `docs/rules/ide/the-request-set-is-closed.md:1`
+- [x] `prepareRename` refuses a position that is no renamable symbol, a `Core` name among them. `crates/nvs-lsp/src/rename.rs:1`, `crates/nvs-lsp/src/index.rs:833`
+- [x] `rename` edits every occurrence from the index, and refuses a new name that clashes in any file it touches (`rule:ide/no-refactoring-introduces-an-alias`). `crates/nvs-lsp/src/rename.rs:1`, `crates/nvs-lsp/src/index.rs:629`
+- [x] `willRenameFiles` returns the `require` path edits, from the require graph and each `require`'s recorded target (`rule:statements/require-is-the-only-inclusion-construct`). `crates/nvs-lsp/src/rename.rs:1`, `crates/nvs-lsp/src/document.rs:366`, `crates/nvs-types/src/expr_table.rs:2324`
+- [x] The three providers declared, and their requests routed. `crates/nvs-lsp/src/capabilities.rs:162`, `crates/nvs-lsp/src/server.rs:569`
+- [x] The handshake test holds the new capability list. `crates/nvs-lsp/tests/handshake.rs:109`
+- [x] The `.lspt` runner learns `rename` and `willRenameFiles`. `crates/nvs-lsp/src/case.rs:59`
+- [x] `.lspt` cases for each. `tests/lsp/rename/a-local-is-renamed-at-every-occurrence.lspt:1`
+- [x] `rule:ide/the-request-set-is-closed` lists the three new requests. `docs/rules/ide/the-request-set-is-closed.md:1`
+- [ ] `prepareRename` and `rename` each have a case at every construct `tests/coverage.rs` names, so `every_request_answers_every_construct` is green. `crates/nvs-lsp/tests/coverage.rs:63`, `tests/lsp/rename/a-local-is-renamed-at-every-occurrence.lspt:1`
+- [ ] A type is renamed: the index records each type annotation as an occurrence, and renaming an autoloaded class also renames its file. `crates/nvs-lsp/src/rename.rs:84`, `crates/nvs-lsp/src/index.rs:1189`
 
 ### 2. workspace symbol search, organize imports, and a warning for an unused `use`
 
@@ -229,22 +240,24 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. The anchors above were checked against the tree. The member walk stage 4
-reads exists, and the extract-to-method boundary is settled in § *Standing decisions*.
+Stage 1's handlers are in: `prepareRename`, `rename` and `workspace/willRenameFiles`
+(`crates/nvs-lsp/src/rename.rs`), declared, routed, in the handshake test and the `.lspt` runner,
+with nine cases under `tests/lsp/rename/` (9 passed) and the whole `.lspt` suite at 409 passed.
+§ *Standing decisions* § *What rename renames* is the scope. Not run, and expected red until the
+next items land: `every_request_answers_every_construct` (`crates/nvs-lsp/tests/coverage.rs:63`),
+which needs a `prepareRename` and a `rename` case at every construct (about 29 and 24). Built but
+not run: the unit tests added in `rename.rs`, `render.rs` and `case.rs`, and `tests/index.rs`,
+whose `BOOKKEEPING` list gained `SymbolIndex::readers`.
 
 ### Next
 
-**Stage 1: rename**, one file set: `crates/nvs-lsp/src/rename.rs`, `capabilities.rs`, `index.rs`,
-`server.rs`, `document.rs`, `case.rs`, `tests/lsp/rename/`. No gate.
+**Stage 1's last two items**, one file set: `tests/lsp/rename/`, `crates/nvs-lsp/src/rename.rs`,
+`index.rs`. No gate.
 
-- [ ] `prepareRename` refuses a non-symbol and a `Core` name (`rule:ide/no-refactoring-introduces-an-alias`). `crates/nvs-lsp/src/rename.rs:1`, `crates/nvs-lsp/src/index.rs:833`
-- [ ] `rename` from the index, refusing a clash. `crates/nvs-lsp/src/index.rs:629`
-- [ ] `willRenameFiles` rewrites `require` paths (`rule:statements/require-is-the-only-inclusion-construct`). `crates/nvs-lsp/src/document.rs:366`, `crates/nvs-types/src/expr_table.rs:2324`
-- [ ] Providers declared and routed. `crates/nvs-lsp/src/capabilities.rs:162`, `crates/nvs-lsp/src/server.rs:569`
-- [ ] Handshake test. `crates/nvs-lsp/tests/handshake.rs:109`
-- [ ] The `.lspt` runner learns both requests. `crates/nvs-lsp/src/case.rs:59`
-- [ ] `.lspt` cases. `tests/lsp/rename/a-local-is-renamed-at-every-occurrence.lspt:1`
-- [ ] `rule:ide/the-request-set-is-closed` lists the new requests. `docs/rules/ide/the-request-set-is-closed.md:1`
+- [ ] Coverage cases: `cargo test --test coverage` once lists what each request owes, then one writing subagent writes them. `crates/nvs-lsp/tests/coverage.rs:63`
+- [ ] Type rename: type-annotation occurrences in the index (references and CodeLens cases change), the refusal lifted, an autoloaded class's file renamed. `crates/nvs-lsp/src/rename.rs:84`, `crates/nvs-lsp/src/index.rs:1189`
+
+Then stage 2 (`workspace/symbol`, organize imports, the unused-`use` warning).
 
 ### Backlog
 

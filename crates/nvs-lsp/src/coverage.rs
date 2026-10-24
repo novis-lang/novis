@@ -136,7 +136,8 @@ fn kind_at(analysed: &Analysed, offset: BytePos) -> Option<&'static str> {
 /// file, a `completion` item carries no range at all, and a `documentHighlight`
 /// answers places in this document that are every one of them a use of the name
 /// the cursor is already on — each of the four is asked at a cursor, so its
-/// coverage comes from the cursor and this is never read for it.
+/// coverage comes from the cursor and this is never read for it. The same is
+/// true of `prepareRename` and `rename`.
 fn named(response: &Response) -> Vec<Position> {
     match response {
         Response::Diagnostics(items) => items.iter().map(|item| item.range.start).collect(),
@@ -147,7 +148,16 @@ fn named(response: &Response) -> Vec<Position> {
         Response::Definition(_)
         | Response::Completion(_)
         | Response::References(_)
-        | Response::DocumentHighlight(_) => Vec::new(),
+        | Response::DocumentHighlight(_)
+        | Response::PrepareRename(_)
+        | Response::Rename(_) => Vec::new(),
+        // A move is asked of no cursor, so it covers each `require` it
+        // rewrites in the case's own document.
+        Response::WillRenameFiles(items) => items
+            .iter()
+            .filter(|item| item.place.path == crate::MAIN_PATH)
+            .map(|item| item.place.position)
+            .collect(),
         Response::SemanticTokens(tokens) => render::absolute(tokens),
         Response::DocumentSymbol(symbols) => {
             let mut out = Vec::new();

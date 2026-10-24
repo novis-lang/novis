@@ -120,6 +120,7 @@ pub mod query;
 pub mod redactions;
 pub mod regions;
 mod render;
+pub mod rename;
 pub mod selection;
 pub mod semantic;
 mod server;
@@ -144,6 +145,6 @@ pub use index::{
     Site, SymbolIndex, Visibility, symbol_at,
 };
 pub use position::{encoding_of, offset_at, position_at, range_at, range_of};
-pub use render::{Action, Edit, Link, Place, Redaction, Region, Response};
+pub use render::{Action, Change, Edit, Link, Place, Redaction, Region, Renamable, Response};
 pub use server::{ServerError, Workspace, run, serve, workspace};
 pub use settings::{Client, Settings};
