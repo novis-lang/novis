@@ -1,0 +1,10 @@
+--TEST--
+a `Core` method is declared outside the workspace, so renaming it is refused with a message the editor shows, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+var $count = Core\Str::len<|>gth("hello");
+echo $count;
+--REQUEST--
+rename to=size
+--EXPECT--
+refused: `Core\Str::length` is declared outside this workspace, so it cannot be renamed.

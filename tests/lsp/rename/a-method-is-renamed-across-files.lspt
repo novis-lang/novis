@@ -1,0 +1,41 @@
+--TEST--
+a method is renamed at its declaration, at every call in every file, and in the subclass that overrides it, so the override still overrides, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+require 'lib/user.nvs';
+
+class Admin extends User
+{
+    public function greet(): string
+    {
+        return "Hello, admin";
+    }
+}
+
+var $u = new User();
+echo $u->gr<|>eet();
+var $a = new Admin();
+echo $a->greet();
+--FILE lib/user.nvs--
+<?nvs
+class User
+{
+    public function greet(): string
+    {
+        return "Hello";
+    }
+
+    public function twice(): string
+    {
+        return $this->greet() . $this->greet();
+    }
+}
+--REQUEST--
+rename to=welcome
+--EXPECT--
+case.nvs:6:21 welcome
+case.nvs:13:10 welcome
+case.nvs:15:10 welcome
+lib/user.nvs:4:21 welcome
+lib/user.nvs:11:23 welcome
+lib/user.nvs:11:40 welcome

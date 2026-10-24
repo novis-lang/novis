@@ -47,7 +47,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use lsp_types::Uri;
+use lsp_types::{Location, Uri};
 use nvs_diagnostics::{BytePos, PositionEncoding};
 
 use crate::actions;
@@ -63,7 +63,7 @@ use crate::document::{Analysed, Documents, analyse, path_of, uri_of};
 use crate::folding;
 use crate::hover;
 use crate::links;
-use crate::render::{Link, Place, Response};
+use crate::render::{Change, Link, Place, Renamable, Response};
 use crate::selection;
 use crate::semantic;
 use crate::stubs::{self, Stubs};
@@ -312,6 +312,9 @@ pub(crate) fn answer(case: &Case, root: &Path) -> Result<Answered, String> {
         Request::DocumentHighlight => {
             document_highlight(&analysed, &documents, &files, &entry, at(case))
         }
+        Request::PrepareRename => prepare_rename(&analysed, &documents, &files, at(case)),
+        Request::Rename => rename(&analysed, &documents, &files, case, at(case)),
+        Request::WillRenameFiles => will_rename_files(&documents, &files, case),
         Request::InlayHint => inlay_hints(&analysed),
         Request::Redactions => redactions(&analysed),
         Request::Regions => regions(&analysed),
@@ -757,6 +760,75 @@ fn document_highlight(
             })
             .collect(),
     )
+}
+
+/// `textDocument/prepareRename` — the range a rename at the case's cursor
+/// would change, or the message the server refuses with.
+///
+/// The range is in the case's own document, which is the only file a cursor
+/// is in, so its path is always [`MAIN_PATH`].
+fn prepare_rename(
+    analysed: &Analysed,
+    documents: &Documents,
+    files: &Materialised,
+    offset: BytePos,
+) -> Response {
+    Response::PrepareRename(
+        crate::server::prepare_rename_of_case(documents, analysed, &files.dir, offset, COLUMNS)
+            .map(|range| {
+                Some(Renamable {
+                    path: MAIN_PATH.to_owned(),
+                    range,
+                })
+            }),
+    )
+}
+
+/// `textDocument/rename` — every edit that renames the name at the case's
+/// cursor to its `to=`, each place spelled the way [`references`] spells one.
+fn rename(
+    analysed: &Analysed,
+    documents: &Documents,
+    files: &Materialised,
+    case: &Case,
+    offset: BytePos,
+) -> Response {
+    let to = case.args.to.as_deref().unwrap_or_default();
+    Response::Rename(
+        crate::server::rename_of_case(documents, analysed, &files.dir, offset, to, COLUMNS)
+            .map(|edits| changes(files, &edits)),
+    )
+}
+
+/// `workspace/willRenameFiles` — every `require` literal the case's one move
+/// rewrites, its two ends joined onto the case's directory.
+///
+/// [`Case::parse`] refuses a line without both ends, so neither is defaulted
+/// to anything a case could have meant.
+fn will_rename_files(documents: &Documents, files: &Materialised, case: &Case) -> Response {
+    let (Some(from), Some(to)) = (&case.args.from, &case.args.to) else {
+        return Response::WillRenameFiles(Vec::new());
+    };
+    let moves = [(files.dir.join(from), files.dir.join(to))];
+    let edits = crate::server::file_renames_of_case(documents, &files.dir, &moves, COLUMNS);
+    Response::WillRenameFiles(changes(files, &edits))
+}
+
+/// Each located edit as a [`Change`], its file spelled the way the case wrote
+/// it.
+fn changes(files: &Materialised, edits: &[(Location, String)]) -> Vec<Change> {
+    edits
+        .iter()
+        .filter_map(|(at, text)| {
+            Some(Change {
+                place: Place {
+                    path: files.spelling(&path_of(&at.uri)?),
+                    position: at.range.start,
+                },
+                text: text.clone(),
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]

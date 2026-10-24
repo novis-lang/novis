@@ -1,0 +1,15 @@
+--TEST--
+`prepareRename` on a property read answers the range of the name alone, without the receiver or the arrow in front of it, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+var $u = new User();
+echo $u->na<|>me;
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:8:10-8:14

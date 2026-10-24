@@ -1,0 +1,21 @@
+--TEST--
+a static property is renamed with the `$` its declaration and each `Counter::$made` read write, and the instance property beside it is left alone, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Counter
+{
+    public static int $made = 0;
+    public int $count = 0;
+
+    public function bump(): void
+    {
+        $this->count = $this->count + 1;
+        Counter::$made = Counter::$ma<|>de + 1;
+    }
+}
+--REQUEST--
+rename to=total
+--EXPECT--
+case.nvs:4:23 $total
+case.nvs:10:18 $total
+case.nvs:10:35 $total

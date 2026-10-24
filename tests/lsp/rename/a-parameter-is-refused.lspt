@@ -1,0 +1,17 @@
+--TEST--
+a parameter is refused, because a call can pass it by name and renaming it would break that call, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Greeter
+{
+    public function greet(string $name): string
+    {
+        return "Hello, " . $na<|>me;
+    }
+}
+
+echo new Greeter()->greet(name: "Ada");
+--REQUEST--
+rename to=person
+--EXPECT--
+refused: `$name` is a parameter, and a call can pass it by name. Renaming a parameter is not available.

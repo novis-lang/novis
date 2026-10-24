@@ -17,13 +17,15 @@
 
 use lsp_types::{
     ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
-    CodeLensOptions, CompletionOptions, DocumentLinkOptions, FoldingRangeProviderCapability,
-    HoverProviderCapability, ImplementationProviderCapability, InitializeParams, OneOf,
-    PositionEncodingKind, SelectionRangeProviderCapability, SemanticTokenModifier,
-    SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelpOptions,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TypeDefinitionProviderCapability,
-    WorkDoneProgressOptions,
+    CodeLensOptions, CompletionOptions, DocumentLinkOptions, FileOperationFilter,
+    FileOperationPattern, FileOperationPatternKind, FileOperationRegistrationOptions,
+    FoldingRangeProviderCapability, HoverProviderCapability, ImplementationProviderCapability,
+    InitializeParams, OneOf, PositionEncodingKind, RenameOptions, SelectionRangeProviderCapability,
+    SemanticTokenModifier, SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo,
+    SignatureHelpOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TypeDefinitionProviderCapability, WorkDoneProgressOptions,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities,
 };
 
 /// The name this server reports in `serverInfo`.
@@ -155,9 +157,9 @@ pub fn negotiate_encoding(client: &ClientCapabilities) -> PositionEncodingKind {
 ///
 /// Every `Some` here is one entry of `rule:ide/the-request-set-is-closed`'s
 /// list or of `rule:ide/five-features-are-one-reference-index`'s, and every
-/// other provider field is `None` on purpose: `rename` and `workspaceSymbol`
-/// each still need something no store this server holds can answer from, and
-/// declaring one before then is a promise answered with an error.
+/// other provider field is `None` on purpose: `workspaceSymbol` still needs a
+/// query the index does not answer, and declaring it before then is a promise
+/// answered with an error.
 #[must_use]
 pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities {
     ServerCapabilities {
@@ -204,6 +206,43 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
         // capability the client cached at `initialize` is never re-read anyway.
         code_lens_provider: Some(CodeLensOptions {
             resolve_provider: Some(false),
+        }),
+        // The same index's members, and a body's locals, renamed by
+        // `crate::rename`. `prepareRename` is declared so a cursor on
+        // something that cannot be renamed is told why before the developer
+        // types a new name.
+        rename_provider: Some(OneOf::Right(RenameOptions {
+            prepare_provider: Some(true),
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        })),
+        // A moved `.nvs` file or folder, so each `require` naming it is
+        // written again before the move. Nothing else about a file operation
+        // changes what this server answers.
+        workspace: Some(WorkspaceServerCapabilities {
+            workspace_folders: None,
+            file_operations: Some(WorkspaceFileOperationsServerCapabilities {
+                will_rename: Some(FileOperationRegistrationOptions {
+                    filters: vec![
+                        FileOperationFilter {
+                            scheme: Some("file".to_owned()),
+                            pattern: FileOperationPattern {
+                                glob: "**/*.nvs".to_owned(),
+                                matches: Some(FileOperationPatternKind::File),
+                                options: None,
+                            },
+                        },
+                        FileOperationFilter {
+                            scheme: Some("file".to_owned()),
+                            pattern: FileOperationPattern {
+                                glob: "**".to_owned(),
+                                matches: Some(FileOperationPatternKind::Folder),
+                                options: None,
+                            },
+                        },
+                    ],
+                }),
+                ..WorkspaceFileOperationsServerCapabilities::default()
+            }),
         }),
         completion_provider: Some(CompletionOptions {
             // What a row shows is on the row — its label, what is written

@@ -157,6 +157,28 @@ pub struct Edit {
     pub replacement: String,
 }
 
+/// The range a rename would change, with its file named as the case wrote it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Renamable {
+    /// The file, on [`Place`]'s terms.
+    pub path: String,
+    /// The bytes of the name.
+    pub range: Range,
+}
+
+/// One edit a rename or a file move makes, at a place named as the case wrote
+/// it.
+///
+/// A place and not a range, on [`Response::References`]' terms: the end is the
+/// old name's own length, which the document already shows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Change {
+    /// Where the edit starts.
+    pub place: Place,
+    /// What the edit writes there.
+    pub text: String,
+}
+
 /// One answer, in the shape the request that produced it answers.
 ///
 /// One variant per request in `rule:ide/the-request-set-is-closed`'s list, and
@@ -210,6 +232,16 @@ pub enum Response {
     /// no end anywhere else here — it is the name's own length, which the
     /// document already shows.
     DocumentHighlight(Vec<Place>),
+    /// `textDocument/prepareRename`: the range, or the message the server
+    /// refused with. `None` is the `null` the wire answers for a document the
+    /// server has nothing open for, which no case's own document can be.
+    PrepareRename(Result<Option<Renamable>, String>),
+    /// `textDocument/rename`: every edit, or the message the server refused
+    /// with.
+    Rename(Result<Vec<Change>, String>),
+    /// `workspace/willRenameFiles`: every edit to a `require` literal. A move
+    /// that changes none is `none`, which is the `null` the wire answers.
+    WillRenameFiles(Vec<Change>),
     /// `textDocument/inlayHint`, as the walk produced it over the whole
     /// document.
     ///
@@ -241,6 +273,9 @@ impl Response {
             Self::CodeLens(_) => Request::CodeLens,
             Self::References(_) => Request::References,
             Self::DocumentHighlight(_) => Request::DocumentHighlight,
+            Self::PrepareRename(_) => Request::PrepareRename,
+            Self::Rename(_) => Request::Rename,
+            Self::WillRenameFiles(_) => Request::WillRenameFiles,
             Self::Hints(_) => Request::InlayHint,
             Self::Redactions(_) => Request::Redactions,
             Self::Regions(_) => Request::Regions,
@@ -268,6 +303,16 @@ impl Response {
             Self::CodeLens(items) => lines(sorted(items.iter().map(lens))),
             Self::References(items) => lines(sorted(items.iter().map(reference))),
             Self::DocumentHighlight(items) => lines(sorted(items.iter().map(reference))),
+            Self::PrepareRename(answer) => match answer {
+                Ok(Some(at)) => format!("{}:{}\n", at.path, range(at.range)),
+                Ok(None) => text_of_none(),
+                Err(message) => refused(message),
+            },
+            Self::Rename(answer) => match answer {
+                Ok(items) => lines(sorted(items.iter().map(change))),
+                Err(message) => refused(message),
+            },
+            Self::WillRenameFiles(items) => lines(sorted(items.iter().map(change))),
             Self::Hints(items) => lines(sorted(items.iter().map(hint))),
             Self::Redactions(items) => lines(items.iter().map(redaction).collect()),
             Self::Regions(items) => lines(items.iter().map(region).collect()),
@@ -416,6 +461,21 @@ fn reference(at: &Place) -> ((&str, u32, u32), String) {
         (at.path.as_str(), at.position.line, at.position.character),
         place(at),
     )
+}
+
+/// `file:L:C text`, keyed as [`reference`] keys a place, so a rename's edits
+/// read in the order a reference list does.
+fn change(edit: &Change) -> ((&str, u32, u32), String) {
+    let (key, at) = reference(&edit.place);
+    (key, format!("{at} {}", edit.text))
+}
+
+/// `refused: message`, for a request the server answered with an error.
+///
+/// One line, with the message the editor shows verbatim, so a case freezes
+/// the words a developer reads.
+fn refused(message: &str) -> String {
+    format!("refused: {}\n", message.replace('\n', "\\n"))
 }
 
 /// The row as an editor shows it, keyed by label: the label with what is
@@ -794,6 +854,12 @@ mod tests {
                     position: at(1, 6),
                 },
             ]),
+            Response::PrepareRename(Ok(Some(Renamable {
+                path: "case.nvs".to_owned(),
+                range: span(3, 4, 10),
+            }))),
+            Response::Rename(Ok(vec![changed("lib/user.nvs", at(3, 20), "hello")])),
+            Response::WillRenameFiles(vec![changed("case.nvs", at(1, 8), "'lib/account.nvs'")]),
             Response::Hints(vec![
                 hinted(at(1, 10), ": int", InlayHintKind::TYPE),
                 hinted(at(2, 15), "count:", InlayHintKind::PARAMETER),
@@ -807,6 +873,17 @@ mod tests {
                 language: "html".to_owned(),
             }]),
         ]
+    }
+
+    /// One edit at `position` in `path`.
+    fn changed(path: &str, position: Position, text: &str) -> Change {
+        Change {
+            place: Place {
+                path: path.to_owned(),
+                position,
+            },
+            text: text.to_owned(),
+        }
     }
 
     /// One hint, with every field a case cannot see left unset.
@@ -839,6 +916,9 @@ mod tests {
             Response::CodeLens(Vec::new()),
             Response::References(Vec::new()),
             Response::DocumentHighlight(Vec::new()),
+            Response::PrepareRename(Ok(None)),
+            Response::Rename(Ok(Vec::new())),
+            Response::WillRenameFiles(Vec::new()),
             Response::Hints(Vec::new()),
             Response::Redactions(Vec::new()),
             Response::Regions(Vec::new()),
@@ -981,6 +1061,29 @@ mod tests {
             ])
             .render(),
             "case.nvs:2:7\ncase.nvs:7:14\n"
+        );
+
+        // A rename's range, its edits sorted as a reference list is, and a
+        // refusal as the one line of the message the editor shows.
+        assert_eq!(
+            Response::PrepareRename(Ok(Some(Renamable {
+                path: "case.nvs".to_owned(),
+                range: span(3, 4, 10),
+            })))
+            .render(),
+            "case.nvs:4:5-4:11\n"
+        );
+        assert_eq!(
+            Response::Rename(Ok(vec![
+                changed("lib/user.nvs", at(3, 20), "hello"),
+                changed("case.nvs", at(6, 9), "hello"),
+            ]))
+            .render(),
+            "case.nvs:7:10 hello\nlib/user.nvs:4:21 hello\n"
+        );
+        assert_eq!(
+            Response::Rename(Err("`$this` cannot be renamed.".to_owned())).render(),
+            "refused: `$this` cannot be renamed.\n"
         );
 
         // A hint says where it is drawn, which kind it is and the text itself,

@@ -113,9 +113,9 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
     // field that serializes under a different name than the one the
     // specification gives is a capability nothing ever uses.
     //
-    // The absences are the load-bearing half. `rename` and `workspaceSymbol`
-    // each look one line away from being free and are not: both need an edit
-    // and a query the symbol index does not hold.
+    // The absences are the load-bearing half. `workspaceSymbol` looks one
+    // line away from being free and is not: it needs a query the symbol index
+    // does not answer yet.
     // `rule:ide/the-request-set-is-closed` writes down the test a request must
     // pass before the server declares it, and this assertion is what makes a
     // request declared without passing it visible.
@@ -159,6 +159,13 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
         // `nvs_lsp::declared_capabilities` is what puts it in the object, which
         // is why this test reads the object and not the struct.
         "typeHierarchyProvider",
+        // Rename reads the same index for a member, and a body's own
+        // bindings for a local. `prepareRename` is an option of this field
+        // rather than a field of its own.
+        "renameProvider",
+        // `workspace/willRenameFiles`, declared under `fileOperations`: a
+        // moved file rewrites each `require` that names it.
+        "workspace",
         // The one request `rule:ide/the-request-set-is-closed` admits only in
         // part, bounded to the two idioms `nvs_lsp::hints` answers.
         "inlayHintProvider",
