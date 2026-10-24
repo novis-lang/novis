@@ -2,8 +2,8 @@
 //! changed.
 //!
 //! `rule:ide/five-features-are-one-reference-index` asks for four things a
-//! test can hold: exactly one construction site, the six readers it names and
-//! no seventh, an invalidation that stops at the file that changed and the files
+//! test can hold: exactly one construction site, the seven readers it names and
+//! no eighth, an invalidation that stops at the file that changed and the files
 //! that read it, and a scope that selects which files are indexed rather than
 //! which code does the indexing. The bound the index has to stay under with
 //! all of that warm is `tests/latency.rs`'s, beside the cold one it already
@@ -200,7 +200,7 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
 ///
 /// The refresh path, `nvs code`, a file move's `require` rewrite and this
 /// suite ask these; a feature asks the queries beside them, which is what
-/// [`all_six_readers_query_the_one_index`] counts. None of them looks a name
+/// [`every_reader_queries_the_one_index`] counts. None of them looks a name
 /// up.
 const BOOKKEEPING: [&str; 6] = [
     "files",
@@ -211,27 +211,28 @@ const BOOKKEEPING: [&str; 6] = [
     "readers",
 ];
 
-/// Six features, and each one of them is a query against the one index.
+/// Seven features, and each one of them is a query against the one index.
 ///
 /// The count is half of `rule:ide/five-features-are-one-reference-index`,
-/// which names the five reference features and the one file-kind reader, and
-/// excludes call hierarchy with a reason — so a seventh is a decision and not a
-/// slice. The other half is that each of the six *reads* the index: a feature
+/// which names the five reference features, the file-kind reader and the
+/// workspace symbol search, and excludes call hierarchy with a reason — so an
+/// eighth is a decision and not a slice. The other half is that each of the
+/// seven *reads* the index: a feature
 /// that walks the front end for names of its own is what the rule refuses, and
 /// the construction-site test above cannot see one, because such a feature
 /// builds no index at all.
 ///
 /// The two sets have to match in both directions. A query nothing outside
 /// `index.rs` calls is a reader that was quietly dropped; a read-only method
-/// the table below does not name is a seventh reader that arrived without the
-/// decision. A seventh feature answered from a query one of these six already
+/// the table below does not name is an eighth reader that arrived without the
+/// decision. An eighth feature answered from a query one of these seven already
 /// makes is the one case this cannot see, and `tests/handshake.rs`'s closed
 /// capability set is what catches that one.
 #[test]
-fn all_six_readers_query_the_one_index() {
-    // Each reader, and what it answers from. Five of them answer a request and
+fn every_reader_queries_the_one_index() {
+    // Each reader, and what it answers from. Six of them answer a request and
     // the dimming is published unasked, which is why it names no method.
-    let readers: [(&str, &[&str]); 6] = [
+    let readers: [(&str, &[&str]); 7] = [
         (
             "textDocument/references",
             &["occurrences", "declaration", "imports_of"],
@@ -251,11 +252,9 @@ fn all_six_readers_query_the_one_index() {
             "textDocument/prepareTypeHierarchy",
             &["supertypes", "subtypes"],
         ),
-        (
-            "unused-member dimming",
-            &["unused_private", "unused_imports"],
-        ),
+        ("unused-member dimming", &["unused_private"]),
         ("nvs/fileKinds", &["sole_kinds"]),
+        ("workspace/symbol", &["matching"]),
     ];
 
     let mut queried: BTreeSet<&str> = BTreeSet::new();
@@ -267,7 +266,7 @@ fn all_six_readers_query_the_one_index() {
                 .collect();
             assert!(
                 !callers.is_empty(),
-                "{reader} is one of the six readers and nothing outside \
+                "{reader} is one of the seven readers and nothing outside \
                  index.rs calls `{query}`"
             );
             queried.insert(query);
@@ -293,15 +292,15 @@ fn all_six_readers_query_the_one_index() {
 
     assert_eq!(
         offered, queried,
-        "the index's read side and the six readers' queries are not the same \
-         set, so a reader was dropped or a seventh one was added"
+        "the index's read side and the seven readers' queries are not the same \
+         set, so a reader was dropped or an eighth one was added"
     );
 }
 
 /// Call hierarchy is not answered, and nothing here is keeping the edges that
 /// would answer it.
 ///
-/// `rule:ide/five-features-are-one-reference-index` names six readers and
+/// `rule:ide/five-features-are-one-reference-index` names seven readers and
 /// excludes this one with a reason rather than by omission:
 /// `textDocument/callHierarchy` wants call-site edges kept incrementally, which
 /// is a different index from the one this crate builds, and nothing else needs

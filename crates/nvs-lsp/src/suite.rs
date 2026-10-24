@@ -63,7 +63,7 @@ use crate::document::{Analysed, Documents, analyse, path_of, uri_of};
 use crate::folding;
 use crate::hover;
 use crate::links;
-use crate::render::{Change, Link, Moved, Place, Renamable, Response};
+use crate::render::{Change, Found, Link, Moved, Place, Renamable, Response};
 use crate::selection;
 use crate::semantic;
 use crate::stubs::{self, Stubs};
@@ -306,7 +306,7 @@ pub(crate) fn answer(case: &Case, root: &Path) -> Result<Answered, String> {
         Request::SelectionRange => selection_range(&analysed, at(case)),
         Request::FoldingRange => folding_range(&analysed),
         Request::DocumentLink => document_link(&analysed, &files),
-        Request::CodeAction => code_action(&analysed, at(case)),
+        Request::CodeAction => code_action(&analysed, case, at(case)),
         Request::CodeLens => code_lens(&documents, &files, &entry),
         Request::References => references(&analysed, &documents, &files, at(case)),
         Request::DocumentHighlight => {
@@ -318,6 +318,7 @@ pub(crate) fn answer(case: &Case, root: &Path) -> Result<Answered, String> {
         Request::InlayHint => inlay_hints(&analysed),
         Request::Redactions => redactions(&analysed),
         Request::Regions => regions(&analysed),
+        Request::WorkspaceSymbol => workspace_symbol(&documents, &files, case),
     };
     let covered = coverage::of(&analysed, cursor(case), &response, COLUMNS);
     Ok(Answered { response, covered })
@@ -633,17 +634,52 @@ fn document_link(analysed: &Analysed, files: &Materialised) -> Response {
 /// both of the fixes that ship are reached
 /// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`).
 /// [`crate::actions::Kind::QuickFix`] is what a person's client asks for, so it
-/// is the kind a case freezes; the other kind is a client's own request and is
-/// answered from the same translation.
-fn code_action(analysed: &Analysed, offset: BytePos) -> Response {
+/// is the kind a case freezes unless its `only=` names another, as a client's
+/// own request does.
+fn code_action(analysed: &Analysed, case: &Case, offset: BytePos) -> Response {
+    let only: Vec<lsp_types::CodeActionKind> = case
+        .args
+        .only
+        .iter()
+        .map(|kind| lsp_types::CodeActionKind::from(kind.clone()))
+        .collect();
     Response::CodeAction(actions::at(
         analysed,
         &crate::completion_files::CompletionFiles::default(),
         offset,
         offset,
-        actions::Kind::QuickFix,
+        actions::Kind::asked_for(case.args.only.as_ref().map(|_| only.as_slice())),
         COLUMNS,
     ))
+}
+
+/// `workspace/symbol` — every declaration across the case's files whose name
+/// contains the case's `query=`.
+///
+/// Over an index built for the case alone, as [`references`]' is, and each
+/// file spelled the way [`references`] spells it.
+fn workspace_symbol(documents: &Documents, files: &Materialised, case: &Case) -> Response {
+    let query = case.args.query.as_deref().unwrap_or_default();
+    let found = crate::server::workspace_symbols_of_case(documents, &files.dir, query, COLUMNS);
+    Response::WorkspaceSymbol(
+        found
+            .into_iter()
+            .filter_map(|symbol| {
+                let lsp_types::OneOf::Left(at) = symbol.location else {
+                    return None;
+                };
+                Some(Found {
+                    place: Place {
+                        path: files.spelling(&path_of(&at.uri)?),
+                        position: at.range.start,
+                    },
+                    kind: symbol.kind,
+                    name: symbol.name,
+                    container: symbol.container_name,
+                })
+            })
+            .collect(),
+    )
 }
 
 /// `nvs/redactions` — which bytes of the entry document the client conceals.

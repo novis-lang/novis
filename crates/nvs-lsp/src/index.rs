@@ -281,24 +281,13 @@ pub struct Occurrence {
     pub site: Site,
 }
 
-/// One `use` import, and whether any name in its file reads it.
+/// One `use` import a file writes.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Import {
     /// The name it imports, fully qualified.
     pub symbol: String,
     /// Where its path was written.
     pub site: Site,
-    /// Whether a short name written in the same namespace scope spells the
-    /// name this import binds.
-    ///
-    /// Read off the file's tokens rather than off [`Occurrence`]s, because an
-    /// occurrence is recorded for an expression or a clause and a type
-    /// annotation is neither: an import only a parameter type names has no
-    /// occurrence and is still read. The token reading errs one way only. A
-    /// method or a property spelled like the import counts as a read, so an
-    /// import can stay undimmed while unused, and an import a name needs is
-    /// never dimmed.
-    pub read: bool,
 }
 
 /// One file, as the analysis that reached it read it.
@@ -498,19 +487,23 @@ impl SymbolIndex {
             .collect()
     }
 
-    /// The `use` imports in `path` that no name in their scope reads.
+    /// Every declaration in the index whose own name contains `query`, upper
+    /// and lower case alike, sorted by symbol and then by where it was written.
     ///
-    /// A file's own question, unlike [`Self::unused_private`]'s: an import
-    /// binds a short name for the namespace scope it is written in, and
-    /// nothing outside that file can read it.
+    /// The own name is the last segment of a type and the member of a member,
+    /// without a property's `$`, which is the name a person types to find one.
+    /// An empty `query` matches every declaration.
     #[must_use]
-    pub fn unused_imports(&self, path: &Path) -> Vec<&Import> {
-        self.files
-            .get(&canonical_key(path))
-            .map_or(&[][..], |indexed| indexed.imports.as_slice())
-            .iter()
-            .filter(|import| !import.read)
-            .collect()
+    pub fn matching(&self, query: &str) -> Vec<&Declaration> {
+        let query = query.to_lowercase();
+        let mut found: Vec<&Declaration> = self
+            .files
+            .values()
+            .flat_map(|indexed| &indexed.decls)
+            .filter(|declared| own_name(&declared.symbol).to_lowercase().contains(&query))
+            .collect();
+        found.sort_by(|left, right| (&left.symbol, &left.site).cmp(&(&right.symbol, &right.site)));
+        found
     }
 
     /// What `symbol` directly extends or implements, in the order it was
@@ -1402,14 +1395,7 @@ fn named(node: &walk::Node) -> Span {
     written.name.unwrap_or(written.span)
 }
 
-/// Every `use` import one file of an analysis writes, each with whether a name
-/// in its scope reads it.
-///
-/// A name reads an import when it is an identifier spelled as the import's last
-/// segment, in the same namespace scope, outside every `use` statement. An
-/// identifier beside a `\` is part of a qualified name, and
-/// `rule:statements/a-qualified-name-is-absolute` makes that one consult no
-/// import at all. [`Import::read`] says which way this reading errs.
+/// Every `use` import one file of an analysis writes.
 fn imports(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Import> {
     reads(
         analysed.map.file(loaded.id),
@@ -1420,9 +1406,17 @@ fn imports(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Import> {
     .map(|found| Import {
         symbol: found.import.target.to_string(),
         site: site(path, found.import.span),
-        read: found.read,
     })
     .collect()
+}
+
+/// The name a person types to find `symbol`: what follows its `::`, without a
+/// property's `$`, or else the last segment of its namespace path.
+pub(crate) fn own_name(symbol: &str) -> &str {
+    match symbol.rsplit_once("::") {
+        Some((_, member)) => member.trim_start_matches('$'),
+        None => symbol.rsplit('\\').next().unwrap_or(symbol),
+    }
 }
 
 /// One `use` import of a file, as [`reads`] found it.
@@ -1431,7 +1425,22 @@ pub(crate) struct Read<'a> {
     pub(crate) import: &'a nvs_hir::Import,
     /// The whole `use` statement that writes it.
     pub(crate) statement: Span,
-    /// [`Import::read`].
+    /// Whether a short name written in the same namespace scope spells the
+    /// name this import binds.
+    ///
+    /// A name reads an import when it is an identifier spelled as the import's
+    /// last segment, in the same namespace scope, outside every `use`
+    /// statement. An identifier beside a `\` is part of a qualified name, and
+    /// `rule:statements/a-qualified-name-is-absolute` makes that one consult no
+    /// import at all.
+    ///
+    /// Read off the file's tokens rather than off [`Occurrence`]s, because an
+    /// occurrence is recorded for an expression or a clause and a type
+    /// annotation is neither: an import only a parameter type names has no
+    /// occurrence and is still read. The token reading errs one way only. A
+    /// method or a property spelled like the import counts as a read, so an
+    /// unused import can go unreported, and an import a name needs is never
+    /// reported.
     pub(crate) read: bool,
 }
 
@@ -1440,7 +1449,8 @@ pub(crate) struct Read<'a> {
 ///
 /// The one reading of an import's use: [`imports`] keeps it in the index, and
 /// the unused-`use` warning of [`crate::diagnostics::unused_uses`] reports it,
-/// so the editor and `nvs check` cannot disagree about a line.
+/// so the editor, organize imports and `nvs check` cannot disagree about a
+/// line.
 pub(crate) fn reads<'a>(
     file: &SourceFile,
     loaded: &Loaded,

@@ -1,0 +1,24 @@
+--TEST--
+a workspace search finds a class and a member in another file by part of the name, upper and lower case alike, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+require 'lib/shop.nvs';
+
+class Basket {
+    public function order(): void {}
+}
+--FILE lib/shop.nvs--
+<?nvs
+namespace Shop;
+
+class Order {
+    public int $orderId = 0;
+}
+
+class Item {}
+--REQUEST--
+workspaceSymbol query=ORD
+--EXPECT--
+case.nvs:5:21 method order in Basket
+lib/shop.nvs:4:7 class Order in Shop
+lib/shop.nvs:5:16 property $orderId in Shop\Order

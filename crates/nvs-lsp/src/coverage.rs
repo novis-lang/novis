@@ -151,6 +151,13 @@ fn named(response: &Response) -> Vec<Position> {
         | Response::DocumentHighlight(_)
         | Response::PrepareRename(_)
         | Response::Rename(_) => Vec::new(),
+        // A search is asked of no cursor, so it covers each declaration it
+        // finds in the case's own document.
+        Response::WorkspaceSymbol(items) => items
+            .iter()
+            .filter(|item| item.place.path == crate::MAIN_PATH)
+            .map(|item| item.place.position)
+            .collect(),
         // A move is asked of no cursor, so it covers each `require` it
         // rewrites in the case's own document.
         Response::WillRenameFiles(items) => items

@@ -182,6 +182,30 @@ pub fn format(file: &SourceFile) -> Result<String, Refusal> {
     Ok(print::print(file, &parsed, &diagnostics))
 }
 
+/// The text of `file` with every run of `use` declarations in the order
+/// `rule:tooling/fmt-sorts-the-use-block` gives, and nothing else changed.
+///
+/// `Ok(None)` where every run is already in order. Organize imports in the
+/// editor calls this, so a format after it moves no import.
+///
+/// # Errors
+///
+/// A file that does not parse is refused, on [`format()`]'s terms.
+pub fn sorted_imports(file: &SourceFile) -> Result<Option<String>, Refusal> {
+    let mut diagnostics = Diagnostics::new();
+    let parsed = nvs_syntax::parse(file, &mut diagnostics);
+    if diagnostics
+        .iter()
+        .any(nvs_diagnostics::Diagnostic::is_error)
+    {
+        return Err(Refusal {
+            name: file.name().to_owned(),
+            diagnostics,
+        });
+    }
+    Ok(imports::sorted(&parsed, file.text()))
+}
+
 /// The edit that puts the list around byte `offset` of `file` on separate
 /// lines, or joins it onto one, written as `nvs fmt` lays it out
 /// (`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`).

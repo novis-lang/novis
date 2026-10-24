@@ -85,12 +85,14 @@ pub const TOKEN_MODIFIERS: &[SemanticTokenModifier] = &[
 /// The third kind is the html-template refactor's ([`crate::html_template::KIND`]),
 /// narrow enough that a client asking for it by kind gets that action alone.
 /// The fourth is `refactor.rewrite`, which *Put on separate lines* and *Join
-/// onto one line* are filed under ([`crate::split_join::KIND`]).
+/// onto one line* are filed under ([`crate::split_join::KIND`]). The fifth is
+/// organize imports ([`crate::organize::KIND`]).
 pub const CODE_ACTION_KINDS: &[CodeActionKind] = &[
     CodeActionKind::QUICKFIX,
     CodeActionKind::new("source.fixAll.nvs"),
     CodeActionKind::new(crate::html_template::KIND),
     CodeActionKind::new(crate::split_join::KIND),
+    CodeActionKind::new(crate::organize::KIND),
 ];
 
 /// The version this server reports in `serverInfo`.
@@ -157,9 +159,8 @@ pub fn negotiate_encoding(client: &ClientCapabilities) -> PositionEncodingKind {
 ///
 /// Every `Some` here is one entry of `rule:ide/the-request-set-is-closed`'s
 /// list or of `rule:ide/five-features-are-one-reference-index`'s, and every
-/// other provider field is `None` on purpose: `workspaceSymbol` still needs a
-/// query the index does not answer, and declaring it before then is a promise
-/// answered with an error.
+/// other provider field is `None` on purpose: a capability is a promise, and
+/// one declared before its request is answered is answered with an error.
 #[must_use]
 pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities {
     ServerCapabilities {
@@ -197,6 +198,9 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
         // to report work-done progress over.
         references_provider: Some(OneOf::Left(true)),
         document_highlight_provider: Some(OneOf::Left(true)),
+        // The index's declarations, searched by name across the workspace.
+        // No `resolveProvider`: every symbol is sent with its location.
+        workspace_symbol_provider: Some(OneOf::Left(true)),
         // The same index's third reader, and the one that answers a document
         // rather than a cursor. Nothing is resolved lazily: the count a lens
         // shows is two lookups in a map the index already holds, so a second

@@ -34,6 +34,7 @@ use std::fmt;
 use lsp_types::{
     CodeLens, CompletionItem, Diagnostic, DocumentSymbol, FoldingRange, Hover, HoverContents,
     InlayHint, InlayHintLabel, MarkedString, Position, Range, SelectionRange, SemanticToken,
+    SymbolKind,
 };
 
 use crate::case::Request;
@@ -179,6 +180,20 @@ pub struct Change {
     pub text: String,
 }
 
+/// One declaration a workspace search found, its file spelled as the case
+/// wrote it, on [`Place`]'s terms.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Found {
+    /// Where its name was written.
+    pub place: Place,
+    /// What it declares.
+    pub kind: SymbolKind,
+    /// Its name, as the server sends it.
+    pub name: String,
+    /// The class or namespace it is declared in, if any.
+    pub container: Option<String>,
+}
+
 /// A file a rename moves, each path spelled as the case wrote it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Moved {
@@ -262,6 +277,8 @@ pub enum Response {
     Redactions(Vec<Redaction>),
     /// `nvs/regions`.
     Regions(Vec<Region>),
+    /// `workspace/symbol`, sorted by place on [`Response::References`]' terms.
+    WorkspaceSymbol(Vec<Found>),
 }
 
 impl Response {
@@ -288,6 +305,7 @@ impl Response {
             Self::Hints(_) => Request::InlayHint,
             Self::Redactions(_) => Request::Redactions,
             Self::Regions(_) => Request::Regions,
+            Self::WorkspaceSymbol(_) => Request::WorkspaceSymbol,
         }
     }
 
@@ -333,8 +351,21 @@ impl Response {
             Self::Hints(items) => lines(sorted(items.iter().map(hint))),
             Self::Redactions(items) => lines(items.iter().map(redaction).collect()),
             Self::Regions(items) => lines(items.iter().map(region).collect()),
+            Self::WorkspaceSymbol(items) => lines(sorted(items.iter().map(found))),
         }
     }
+}
+
+/// `file:L:C kind name`, then `in container` where there is one, keyed by the
+/// place on [`reference`]'s terms.
+fn found(item: &Found) -> ((&str, u32, u32), String) {
+    let (key, at) = reference(&item.place);
+    let mut row = format!("{at} {} {}", spelled(&item.kind), item.name);
+    if let Some(container) = &item.container {
+        row.push_str(" in ");
+        row.push_str(container);
+    }
+    (key, row)
 }
 
 /// Joins rendered entries, or says the answer was empty.
@@ -892,6 +923,15 @@ mod tests {
                 range: span(4, 0, 12),
                 language: "html".to_owned(),
             }]),
+            Response::WorkspaceSymbol(vec![Found {
+                place: Place {
+                    path: "lib/shop.nvs".to_owned(),
+                    position: at(3, 6),
+                },
+                kind: SymbolKind::CLASS,
+                name: "Order".to_owned(),
+                container: Some("Shop".to_owned()),
+            }]),
         ]
     }
 
@@ -942,6 +982,7 @@ mod tests {
             Response::Hints(Vec::new()),
             Response::Redactions(Vec::new()),
             Response::Regions(Vec::new()),
+            Response::WorkspaceSymbol(Vec::new()),
         ]
     }
 
@@ -1063,6 +1104,32 @@ mod tests {
             }])
             .render(),
             "5:1-5:13 html\n"
+        );
+        // A declaration in the global namespace has no container, and its row
+        // has no `in`. Rows sort by place, on a reference list's terms.
+        assert_eq!(
+            Response::WorkspaceSymbol(vec![
+                Found {
+                    place: Place {
+                        path: "lib/shop.nvs".to_owned(),
+                        position: at(4, 15),
+                    },
+                    kind: SymbolKind::PROPERTY,
+                    name: "$orderId".to_owned(),
+                    container: Some("Shop\\Order".to_owned()),
+                },
+                Found {
+                    place: Place {
+                        path: "case.nvs".to_owned(),
+                        position: at(2, 6),
+                    },
+                    kind: SymbolKind::CLASS,
+                    name: "Basket".to_owned(),
+                    container: None,
+                },
+            ])
+            .render(),
+            "case.nvs:3:7 class Basket\nlib/shop.nvs:5:16 property $orderId in Shop\\Order\n"
         );
 
         // A highlight list is spelled and sorted exactly as a reference list
