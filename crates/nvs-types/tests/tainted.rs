@@ -652,6 +652,29 @@ fn join_over_plain_parts_and_a_plain_separator_answers_a_plain_string() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
+// `Core\Csv::format`'s rows are contagious on the inner element, as `join`'s
+// parts are: every field's bytes are in the document.
+
+#[test]
+fn csv_format_over_tainted_fields_answers_a_tainted_string_and_does_not_launder_them() {
+    let rows = "tainted string $t = \"a\" as tainted string;\n\
+                array<array<tainted string>> $rows = [[$t, \"b\"]];\n";
+    let tainted = check_in_method(&format!(
+        "{rows}tainted string $s = Core\\Csv::format($rows, {{header: [\"x\", \"y\"]}});\n"
+    ));
+    assert!(!tainted.has_errors(), "{tainted:?}");
+    let plain = check_in_method(&format!("{rows}string $s = Core\\Csv::format($rows);\n"));
+    assert!(
+        plain.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{plain:?}"
+    );
+    let untouched = check_in_method(
+        "array<array<string>> $rows = [[\"a\"]];\n\
+         string $s = Core\\Csv::format($rows);\n",
+    );
+    assert!(!untouched.has_errors(), "{untouched:?}");
+}
+
 #[test]
 fn an_encoded_value_carries_the_outside_text_it_contains() {
     // `rule:security/taint-propagation`: `Core\Json::encode` writes every

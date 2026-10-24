@@ -38,6 +38,9 @@
 //! `rule:security/unclassified-parameter-refuses-tainted`, as
 //! `Core\Json::decode`'s is: every cell is a slice of the document, so a
 //! tainted upload parses and each cell comes back `tainted string`.
+//! `format`'s rows are `Contagious` the same way, as `Core\Str::join`'s
+//! parts are: a tainted field, such as a row read from a database, writes a
+//! `tainted string` document.
 //!
 //! # The dialect: three bytes, and each one is the caller's
 //!
@@ -236,8 +239,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "format",
             names: &["rows"],
+            // Every field's bytes are in the document, so a tainted field is
+            // admitted and taints the answer, as `Core\Str::join`'s parts do.
             params: &[
-                CoreTy::Array(&CoreTy::Array(&CoreTy::Str)),
+                CoreTy::Array(&CoreTy::Array(&CoreTy::Text(Qual::Contagious))),
                 CoreTy::Options(FORMAT_OPTIONS),
             ],
             defaults: &[],
@@ -382,7 +387,8 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "rows",
             desc: "The records to write, each an array of `string` fields taken in order; a \
-                   row's keys are ignored.",
+                   row's keys are ignored. A field can be a `tainted string`, such as a value \
+                   read from a database. Then the result is a `tainted string` too.",
             shape: &[],
         },
         ParamDoc {

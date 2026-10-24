@@ -37629,7 +37629,9 @@ Keywords: CSV, comma-separated, parse CSV, write CSV, RFC 4180, header row, deli
 quoted fields and embedded newlines included. With `{header: true}` the first record is consumed
 as column names and every row is keyed by them; without it a row's keys are `"0"`, `"1"`, ….
 `format` writes each row by its values in order (its keys are ignored), quotes a field only where a
-byte would change the parse, and `{header: [...]}` writes a first record. The dialect options
+byte would change the parse, and `{header: [...]}` writes a first record. A field can be a
+`tainted string`, such as a value read from a database, and then the document is a
+`tainted string` too. The dialect options
 `separator`, `quote` and `escape` are single ASCII bytes.
 
 ```nvs
@@ -37695,7 +37697,7 @@ Writes `$rows` as a CSV document. A field is quoted only when it contains the se
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$rows` | `array<array<string>>` | The records to write, each an array of `string` fields taken in order; a row's keys are ignored. |
+| `$rows` | `array<array<string>>` | The records to write, each an array of `string` fields taken in order; a row's keys are ignored. A field can be a `tainted string`, such as a value read from a database. Then the result is a `tainted string` too. |
 | `{separator: …}` | `string` (default `","`) | The single ASCII byte written between fields; `,` by default. |
 | `{quote: …}` | `string` (default `"\""`) | The single ASCII byte that quotes a field; `"` by default. |
 | `{header: …}` | `array<string>` (default `null`) | Column names written as the first record; `null`, the default, writes no header row. |
