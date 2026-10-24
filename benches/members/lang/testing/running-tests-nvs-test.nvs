@@ -1,7 +1,7 @@
 <?nvs
-// Measures what one test costs a run: the test class is built, the test is
-// called, and the assertion it makes is recorded. A run pays this for every
-// test in the program.
+// Measures what one test costs a run: the test class is built, the test's check
+// runs, and the assertion it makes is recorded. A run pays this for every test
+// in the program.
 // bench: iterations 256
 // bench: complexity constant
 
@@ -9,10 +9,16 @@ use Core\Test;
 
 class Meter {
     public static uint $checked = 0;
+
+    public static function checkOne(uint $started): void {
+        // Chained: the count checked here is the one the round before wrote.
+        Test::assertSame($started, Meter::$checked);
+        Meter::$checked = Meter::$checked + 1;
+    }
 }
 
 class RunTest {
-    private uint $started;
+    public uint $started;
 
     public function constructor() {
         $this->started = Meter::$checked;
@@ -20,9 +26,7 @@ class RunTest {
 
     #[Test]
     public function itChecksOneThing(): void {
-        // Chained: the count checked here is the one the round before wrote.
-        Test::assertSame($this->started, Meter::$checked);
-        Meter::$checked = Meter::$checked + 1;
+        Meter::checkOne($this->started);
     }
 }
 
@@ -31,7 +35,8 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             var $test = new RunTest();
-            $test->itChecksOneThing();
+            // The body of `itChecksOneThing`. Only a test can call a test method.
+            Meter::checkOne($test->started);
             $i = $i + 1;
         }
         return Meter::$checked;

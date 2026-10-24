@@ -4,11 +4,10 @@
 use Core\Test;
 use Geo\Atlas;
 
-final class AtlasAttackTest
+final class AtlasAttack
 {
     // 1. Read 500 files in a row. Each read throws.
-    #[Test]
-    public function readsAfterEveryError(): void
+    public static function readAfterEveryError(): void
     {
         uint $failed = 0;
         uint $i = 0;
@@ -25,8 +24,7 @@ final class AtlasAttackTest
     }
 
     // 2. Connect to a host 100 times. Each call throws the same error.
-    #[Test]
-    public function connectsAfterEveryError(): void
+    public static function connectAfterEveryError(): void
     {
         uint $i = 0;
         while ($i < 100) {
@@ -37,7 +35,21 @@ final class AtlasAttackTest
     }
 }
 
-// 3. The code outside the class calls both tests one after the other.
-AtlasAttackTest $tests = new AtlasAttackTest();
-$tests->readsAfterEveryError();
-$tests->connectsAfterEveryError();
+final class AtlasAttackTest
+{
+    #[Test]
+    public function readsAfterEveryError(): void
+    {
+        AtlasAttack::readAfterEveryError();
+    }
+
+    #[Test]
+    public function connectsAfterEveryError(): void
+    {
+        AtlasAttack::connectAfterEveryError();
+    }
+}
+
+// 3. The code outside the test class runs both attacks one after the other.
+AtlasAttack::readAfterEveryError();
+AtlasAttack::connectAfterEveryError();
