@@ -1,0 +1,76 @@
+--TEST--
+a `#[Property]` parameter needs a type that has random values, and each `gen:` range names a parameter, parses, and fits that parameter's type (`rule:testing/property-testing`)
+--FILE--
+<?nvs
+// covers: lang:testing/core-test-property-generated-inputs
+use Core\Test;
+use Core\Test\Property;
+
+interface Shape {}
+
+abstract class Base {}
+
+final class AcceptedTest {
+    // Accepted: a range on a number, on a string's length and on a nullable list's length.
+    #[Property(runs: 10, gen: {n: "1..9", s: "0..3", xs: "0..2"})]
+    public function itTakesRanges(int $n, string $s, ?array<int> $xs): void {
+        Test::assertTrue($n > 0);
+    }
+}
+
+final class RefusedTest {
+    // Refused: an interface has no constructor to build a value from.
+    #[Property]
+    public function itTakesAnInterface(Shape $shape): void {}
+
+    // Refused: an abstract class cannot be built.
+    #[Property]
+    public function itTakesAnAbstractClass(Base $base): void {}
+
+    // Refused: a secret value would be printed when the property fails.
+    #[Property]
+    public function itTakesASecret(secret string $key): void {}
+
+    // Refused: the range names no parameter.
+    #[Property(gen: {m: "1..9"})]
+    public function itNamesNoParameter(int $n): void {}
+
+    // Refused: the range does not parse.
+    #[Property(gen: {n: "nine"})]
+    public function itHasABadRange(int $n): void {}
+
+    // Refused: a `bool` has no range.
+    #[Property(gen: {b: "0..1"})]
+    public function itHasARangeOnABool(bool $b): void {}
+
+    // Refused: a property has no `retries:`, because its seed reproduces a failure.
+    #[Property(retries: 2, because: "it fails at random")]
+    public function itRetries(int $n): void {}
+}
+--EXPECTF-ERROR--
+error[E0890]: `$shape` of the `#[Property]` method `itTakesAnInterface` is declared as `Shape`, and `Shape` is not a class of this program, so it has no random values
+   --> case.nvs:21:21
+%A
+error[E0890]: `$base` of the `#[Property]` method `itTakesAnAbstractClass` is declared as `Base`, and `Base` is `abstract`, so it has no instances
+   --> case.nvs:25:21
+%A
+error[E0890]: `$key` of the `#[Property]` method `itTakesASecret` is declared as `secret string`, and a `secret` value has no random values, because a failing value is printed
+   --> case.nvs:29:21
+%A
+error[E0890]: `gen:` names `m`, and the method declares no parameter `$m`
+   --> case.nvs:32:22
+%A
+error[E0890]: the range `nine` for `n` is not two numbers with `..` between them
+   --> case.nvs:36:25
+%A
+error[E0890]: the range `0..1` for `b` is for a number, a string, `bytes` or an array
+   --> case.nvs:40:25
+%A
+error[E0454]: `retries` is not an option of `#[Property]`
+   --> case.nvs:44:16
+%A
+error[E0454]: `because` is not an option of `#[Property]`
+   --> case.nvs:44:28
+%A
+error: aborting due to 8 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,68 @@
+<?nvs
+// Attack: properties ask for the longest inputs a `gen:` range allows, and for more
+// than one call may use. Each test should pass or fail with an error, and the report should end.
+// proof: test
+
+use Core\Test;
+use Core\Test\Property;
+
+final class HugeInputTest {
+    // 1. Every call gets a string of 10000 characters, the longest a range allows.
+    #[Property(gen: {text: "10000..10000"})]
+    public function itTakesTheLongestString(string $text): void {
+        Test::assertTrue(Core\Str::length($text) > 0);
+    }
+
+    // 2. A list of 10000 lists of strings. The inner lists share what is left of the limit.
+    #[Property(runs: 10, gen: {rows: "10000..10000"})]
+    public function itTakesAListOfLists(array<array<string>> $rows): void {
+        Test::assertCount($rows, 10000);
+    }
+
+    // 3. 105 strings of 10000 characters each. That is more than one call may use,
+    //    so this test fails with an error before any input is built.
+    #[Property(gen: {
+        s1: "10000..10000", s2: "10000..10000", s3: "10000..10000", s4: "10000..10000", s5: "10000..10000", s6: "10000..10000",
+        s7: "10000..10000", s8: "10000..10000", s9: "10000..10000", s10: "10000..10000", s11: "10000..10000", s12: "10000..10000",
+        s13: "10000..10000", s14: "10000..10000", s15: "10000..10000", s16: "10000..10000", s17: "10000..10000", s18: "10000..10000",
+        s19: "10000..10000", s20: "10000..10000", s21: "10000..10000", s22: "10000..10000", s23: "10000..10000", s24: "10000..10000",
+        s25: "10000..10000", s26: "10000..10000", s27: "10000..10000", s28: "10000..10000", s29: "10000..10000", s30: "10000..10000",
+        s31: "10000..10000", s32: "10000..10000", s33: "10000..10000", s34: "10000..10000", s35: "10000..10000", s36: "10000..10000",
+        s37: "10000..10000", s38: "10000..10000", s39: "10000..10000", s40: "10000..10000", s41: "10000..10000", s42: "10000..10000",
+        s43: "10000..10000", s44: "10000..10000", s45: "10000..10000", s46: "10000..10000", s47: "10000..10000", s48: "10000..10000",
+        s49: "10000..10000", s50: "10000..10000", s51: "10000..10000", s52: "10000..10000", s53: "10000..10000", s54: "10000..10000",
+        s55: "10000..10000", s56: "10000..10000", s57: "10000..10000", s58: "10000..10000", s59: "10000..10000", s60: "10000..10000",
+        s61: "10000..10000", s62: "10000..10000", s63: "10000..10000", s64: "10000..10000", s65: "10000..10000", s66: "10000..10000",
+        s67: "10000..10000", s68: "10000..10000", s69: "10000..10000", s70: "10000..10000", s71: "10000..10000", s72: "10000..10000",
+        s73: "10000..10000", s74: "10000..10000", s75: "10000..10000", s76: "10000..10000", s77: "10000..10000", s78: "10000..10000",
+        s79: "10000..10000", s80: "10000..10000", s81: "10000..10000", s82: "10000..10000", s83: "10000..10000", s84: "10000..10000",
+        s85: "10000..10000", s86: "10000..10000", s87: "10000..10000", s88: "10000..10000", s89: "10000..10000", s90: "10000..10000",
+        s91: "10000..10000", s92: "10000..10000", s93: "10000..10000", s94: "10000..10000", s95: "10000..10000", s96: "10000..10000",
+        s97: "10000..10000", s98: "10000..10000", s99: "10000..10000", s100: "10000..10000", s101: "10000..10000", s102: "10000..10000",
+        s103: "10000..10000", s104: "10000..10000", s105: "10000..10000"
+    })]
+    public function itAsksForTooMuch(
+        string $s1, string $s2, string $s3, string $s4, string $s5, string $s6, string $s7, string $s8,
+        string $s9, string $s10, string $s11, string $s12, string $s13, string $s14, string $s15, string $s16,
+        string $s17, string $s18, string $s19, string $s20, string $s21, string $s22, string $s23, string $s24,
+        string $s25, string $s26, string $s27, string $s28, string $s29, string $s30, string $s31, string $s32,
+        string $s33, string $s34, string $s35, string $s36, string $s37, string $s38, string $s39, string $s40,
+        string $s41, string $s42, string $s43, string $s44, string $s45, string $s46, string $s47, string $s48,
+        string $s49, string $s50, string $s51, string $s52, string $s53, string $s54, string $s55, string $s56,
+        string $s57, string $s58, string $s59, string $s60, string $s61, string $s62, string $s63, string $s64,
+        string $s65, string $s66, string $s67, string $s68, string $s69, string $s70, string $s71, string $s72,
+        string $s73, string $s74, string $s75, string $s76, string $s77, string $s78, string $s79, string $s80,
+        string $s81, string $s82, string $s83, string $s84, string $s85, string $s86, string $s87, string $s88,
+        string $s89, string $s90, string $s91, string $s92, string $s93, string $s94, string $s95, string $s96,
+        string $s97, string $s98, string $s99, string $s100, string $s101, string $s102, string $s103, string $s104,
+        string $s105
+    ): void {
+        Test::assertTrue(false);
+    }
+
+    // 4. Every long string fails, so the runner makes the input smaller, many times over.
+    #[Property(seed: 3, gen: {text: "5000..10000"})]
+    public function itShrinksALongString(string $text): void {
+        Test::assertTrue(Core\Str::length($text) < 5000);
+    }
+}
