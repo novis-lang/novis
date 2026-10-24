@@ -1677,15 +1677,17 @@ fn a_body_read_in_a_helper_warns_at_the_route() {
 
 #[test]
 fn a_body_read_two_calls_deep_warns_and_names_the_reading_method() {
-    let members = format!(
-        "{CREATE}  private function decode(): void {{\n    Reader::read();\n  }}\n"
-    );
+    let members =
+        format!("{CREATE}  private function decode(): void {{\n    Reader::read();\n  }}\n");
     let helpers = "class Reader {\n  public static function read(): void {\n    \
                    var $draft = Core\\Request::postAs<Draft>();\n  }\n}\n";
     let warned = helper_reads(&body_src(&members, helpers));
     assert_eq!(warned.len(), 1, "{warned:?}");
     let label = warned[0].labels.first().map(|l| l.message.clone());
-    assert_eq!(label.as_deref(), Some("`Reader::read` reads the request body"));
+    assert_eq!(
+        label.as_deref(),
+        Some("`Reader::read` reads the request body")
+    );
 }
 
 #[test]
