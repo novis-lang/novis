@@ -13,7 +13,7 @@ stages:
         rules: [ide/no-refactoring-introduces-an-alias, ide/five-features-are-one-reference-index, statements/require-is-the-only-inclusion-construct, ide/the-request-set-is-closed]
   - id: 2
     title: "workspace symbol search, organize imports, and a warning for an unused `use`"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/capabilities.rs, crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/imports.rs, crates/nvs-fmt/src/imports.rs, crates/nvs-lsp/src/diagnostics.rs, crates/nvs-diagnostics/src/code/warnings.rs, crates/nvs-cli/src/check.rs, docs/rules/ide/no-refactoring-introduces-an-alias.md, docs/rules/tooling/fmt-sorts-the-use-block.md, docs/rules/tooling/fmt-is-never-a-diagnostic.md]
     extra:
       context:
@@ -181,12 +181,12 @@ The unused-`use` warning, which reads the index organize imports also reads:
 
 Workspace symbol search and organize imports:
 
-- [ ] `workspace/symbol` answers from the index. `crates/nvs-lsp/src/capabilities.rs:162`, `crates/nvs-lsp/src/index.rs:655`, `crates/nvs-lsp/src/server.rs:569`
-- [ ] Organize imports is a `source.organizeImports` action built on the edit machinery of `nvs/importEdits`. It only reorders and removes (`rule:ide/no-refactoring-introduces-an-alias`). `crates/nvs-lsp/src/imports.rs:188`, `crates/nvs-lsp/src/imports.rs:241`, `crates/nvs-lsp/src/index.rs:498`
-- [ ] Its order is the order `rule:tooling/fmt-sorts-the-use-block` gives, so a format after it changes nothing. `crates/nvs-fmt/src/imports.rs:87`
-- [ ] The `.lspt` runner learns `workspaceSymbol`, and the handshake test holds the provider. `crates/nvs-lsp/src/case.rs:59`, `crates/nvs-lsp/tests/handshake.rs:109`
-- [ ] `.lspt` cases for each. `tests/lsp/symbols/a-workspace-search-finds-a-class-in-another-file.lspt:1`, `tests/lsp/actions/organize-imports-sorts-and-removes-unused-lines.lspt:1`
-- [ ] `rule:ide/the-request-set-is-closed` lists `workspace/symbol` and the action. `docs/rules/ide/the-request-set-is-closed.md:1`
+- [x] `workspace/symbol` answers from the index. `crates/nvs-lsp/src/capabilities.rs:162`, `crates/nvs-lsp/src/index.rs:655`, `crates/nvs-lsp/src/server.rs:569`
+- [x] Organize imports is a `source.organizeImports` action built on the edits the `W1026` warnings carry. It only reorders and removes (`rule:ide/no-refactoring-introduces-an-alias`). `crates/nvs-lsp/src/organize.rs:1`
+- [x] Its order is the order `rule:tooling/fmt-sorts-the-use-block` gives, so a format after it changes nothing. `crates/nvs-fmt/src/lib.rs:194`
+- [x] The `.lspt` runner learns `workspaceSymbol`, and the handshake test holds the provider. `crates/nvs-lsp/src/case.rs:59`, `crates/nvs-lsp/tests/handshake.rs:109`
+- [x] `.lspt` cases for each. `tests/lsp/symbols/a-workspace-search-finds-a-class-in-another-file.lspt:1`, `tests/lsp/actions/organize-imports-sorts-and-removes-unused-lines.lspt:1`
+- [x] `rule:ide/the-request-set-is-closed` lists `workspace/symbol` and the action. `docs/rules/ide/the-request-set-is-closed.md:1`
 
 ### 3. extract to variable and extract to method
 
@@ -244,25 +244,25 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 2's unused-`use` warning is done (`c91e6c6c4`). `W1026` (`W_UNUSED_USE`) is raised by
-`nvs_lsp::diagnostics::unused_uses`, over the import reading `index::reads` that the index's
-`Import::read` also comes from. `nvs check` adds it for every loaded file outside `vendor`, for
-`Sink::Check` and `Sink::Fix` only (`crates/nvs-cli/src/main.rs`, after the front end's loop), so
-`nvs run` prints nothing. `analyse_file` adds it for the entry (`crates/nvs-lsp/src/document.rs`),
-and `to_wire` tags it `Unnecessary`. `dimming` lost its `imports` argument. The safe fix deletes
-the whole line when only space or a `//` comment shares it. A `--fix` that rewrites a deprecated use
-now also deletes the import it left unused, so `check_flags.rs` counts 5 and 4 edits. Rule
-`statements/an-unused-use-is-a-warning` is shipped, and the three no-warning-tier sentences are
-rewritten. Ran green: `cargo test --test check_flags` (10), the two new unit tests in
-`diagnostics.rs`, and the whole `.lspt` suite (464, with
-`tests/lsp/diagnostics/an-import-nothing-reads-is-dimmed.lspt` now expecting the warning).
+Stage 2 is done. `workspace/symbol` (`184e27a9c`) answers from `SymbolIndex::matching`: every
+declaration whose own name (`index::own_name`: a type's last segment, a member without `$`)
+contains the query, case-insensitive, sorted by symbol. `server::workspace_symbols` answers
+`WorkspaceSymbolResponse::Nested`, the name as written and the class or namespace as container.
+It is the index's seventh reader: the readers test is now `every_reader_queries_the_one_index`.
 
-**Expected red:** `crates/nvs-lsp/tests/index.rs`'s `all_six_readers_query_the_one_index`, because
-nothing outside `index.rs` calls `SymbolIndex::unused_imports` now. Organize imports reads it, so the
-fix is in the next slice: move `unused_imports` from the dimming row to an organize-imports row (and
-add `workspace/symbol`'s query), raise the array's length, and add both readers to
-`rule:ide/five-features-are-one-reference-index`. `cargo test --test check` may show a `W1026` where
-a fixture has an unused `use` (`crates/nvs-cli/tests/check.rs:412` counts warnings).
+Organize imports is `crates/nvs-lsp/src/organize.rs`, kind `source.organizeImports`, answered only
+when `only` names it or `source` (`actions::Kind::OrganizeImports`). It applies the edit of each
+`W1026` in `analysed.diags`, sorts with the new `nvs_fmt::sorted_imports`, and answers one edit
+over the changed bytes. A file that does not parse gets nothing. Organize imports reads no index
+query, so `SymbolIndex::unused_imports` and `Import::read` were deleted (the reading lives on in
+`index::Read::read`). The `.lspt` runner takes `workspaceSymbol query=` and `codeAction only=`
+(`rule:ide/a-request-line-is-closed` lists both). Six cases under `tests/lsp/symbols/` and
+`tests/lsp/actions/` (`b0f43ab9d`). The three rules name both features.
+
+Ran green: `cargo test --test index --test handshake --test coverage`, the `render::`, `case::`,
+`actions::` and `organize::` unit tests, and `nvs lsp-test tests/lsp/symbols tests/lsp/actions` (55).
+The stage-2 warning slice is `c91e6c6c4`. `cargo test --test check` may show a `W1026` where a
+fixture has an unused `use` (`crates/nvs-cli/tests/check.rs:412` counts warnings); not run.
 
 Stage 1 is done. Rename answers a type, a member and a local, and `workspace/willRenameFiles`
 rewrites `require` paths (`crates/nvs-lsp/src/rename.rs`). A type declared alone in a file named
@@ -284,22 +284,27 @@ Built but not run: the unit tests in `rename.rs`, `render.rs` (its one test ran 
 `tests/index.rs`, and CodeLens unit tests, whose type reference counts may grow by the annotation
 sites; `tests/handshake.rs` and `tests/completion_edits.rs` gained the `rename_files` field.
 
-The acceptance sweep's nightly reds are run `39922764699` on `7b6ef53ee`, the run the last handoff
-already found green on the later push CI. `env-secret-proofs` passes at HEAD (`bun nv proofs --gate
---only 'Core\Env::secret'`, exit 0). `capability.rs` stays the `formatter-complete` session's.
+The acceptance sweep's nightly reds are run `39922764699` on `7b6ef53ee`, an old commit.
+`env-secret-proofs`' log shows exit 0. The newest push CI (`40056094406` on `056b30a4a`) failed
+twice. The `nvs info` example's `.out` is fixed by `bfee381e4`. The rustfmt failure is the
+`#[cfg_attr(miri, ...)]` in `crates/nvs-runtime/src/capability.rs:2262`. Its fix sits uncommitted in
+the tree, and the guard refuses to stage it because session `6884de4b` (goal `formatter-complete`)
+claims the file. That session, or the user, commits it.
 
 ### Next
 
-**Stage 2, `workspace/symbol` and organize imports**, one file set: `capabilities.rs`, `index.rs`,
-`server.rs`, `imports.rs`, `actions.rs`, `case.rs`, `tests/handshake.rs`, `tests/index.rs`. No gate.
+**Stage 3, extract to variable and extract to method**, one new module `crates/nvs-lsp/src/extract.rs`,
+called from `actions::at` beside `html_template::at` and `split_join::at`. Its kind is
+`refactor.extract`, added to `CODE_ACTION_KINDS`, and `tests/handshake.rs` may hold the kinds list.
+No gate.
 
-- [ ] `workspace/symbol` answers from the index's declarations, case-insensitive substring of the name. `crates/nvs-lsp/src/capabilities.rs:162`, `crates/nvs-lsp/src/index.rs:664`, `crates/nvs-lsp/src/server.rs:569`
-- [ ] Organize imports as `source.organizeImports`: delete each `W1026` line (`diagnostics::unused_uses`) and sort the rest in `nvs-fmt`'s order. `crates/nvs-lsp/src/imports.rs:188`, `crates/nvs-fmt/src/imports.rs:87`
-- [ ] `tests/index.rs`'s readers table names both new readers, and it goes green by name. `crates/nvs-lsp/tests/index.rs:233`
-- [ ] The `.lspt` runner learns `workspaceSymbol`; the handshake test holds the provider. `crates/nvs-lsp/src/case.rs:59`, `crates/nvs-lsp/tests/handshake.rs:109`
-- [ ] `rule:ide/the-request-set-is-closed` and `rule:ide/five-features-are-one-reference-index` list them. `docs/rules/ide/the-request-set-is-closed.md:1`
+- [ ] Extract to variable: a typed `var` declaration above the statement, from the type the checker recorded for the selected expression, and the selection replaced by the variable. `crates/nvs-lsp/src/actions.rs:201`, `crates/nvs-lsp/src/document.rs:629`
+- [ ] Extract to method: parameters are the locals the selection reads, typed as recorded, and the return type is the selection's. Refused for an escaping write or an early exit (§ *Standing decisions*). `crates/nvs-lsp/src/extract.rs:1`
+- [ ] Neither is offered where a type is not fully known (`rule:ide/a-code-action-writes-only-what-is-already-determined`). `crates/nvs-lsp/src/extract.rs:1`
+- [ ] A `.lspt` case writes a selection, not a cursor: `case.rs`'s `takes_cursor` asks for one `<|>`, so the runner needs a second marker or a `to=`-style argument for the range's end. `crates/nvs-lsp/src/case.rs:178`
+- [ ] The rule states the extract-to-method boundary. `docs/rules/ide/no-refactoring-introduces-an-alias.md:1`
 
-Then the subagent that writes `tests/lsp/symbols/` and `tests/lsp/actions/` cases.
+Then the subagent that writes the `tests/lsp/actions/` cases, each refused shape among them.
 
 ### Backlog
 
