@@ -9,6 +9,7 @@
     "statements/a-leading-separator-does-not-parse",
     "statements/one-function-resolves-every-name",
     "statements/nothing-gets-a-second-name",
+    "statements/an-unused-use-is-a-warning",
     "statements/an-enum-name-is-a-type-everywhere",
     "statements/require-is-the-only-inclusion-construct",
     "statements/a-required-file-shares-declarations-not-locals",

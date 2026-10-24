@@ -266,4 +266,14 @@ codes! {
          `respond` method receives the value and writes the response. If a route method writes \
          its own response, declare its return type `void`.",
     );
+    /// A `use` line that no name in its namespace scope reads
+    /// (`rule:statements/an-unused-use-is-a-warning`). A warning and never an
+    /// error: the program runs as written, and the line is only noise. It
+    /// carries one safe edit that deletes the line, so `nvs check --fix`
+    /// removes it. `nvs_lsp::diagnostics::unused_uses` raises it, for `nvs
+    /// check` and for the editor, which shows it faded.
+    pub const W_UNUSED_USE: Code = Code::new("W1026").card(
+        "This `use` line imports a name that the file never uses. The line has no effect, so \
+         you can delete it. `nvs check --fix` deletes it for you.",
+    );
 }

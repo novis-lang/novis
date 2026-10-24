@@ -1,5 +1,5 @@
 --TEST--
-an import only a parameter type reads is kept, and one nothing reads is dimmed, `rule:ide/five-features-are-one-reference-index`
+an import only a parameter type reads is kept, and one nothing reads is the faded warning, `rule:statements/an-unused-use-is-a-warning`
 --FILE--
 <?nvs
 require 'lib/shop.nvs';
@@ -24,4 +24,4 @@ class Order {}
 --REQUEST--
 diagnostics
 --EXPECT--
-5:5-5:15 hint - `Shop\Order` is imported and nothing in this file uses it
+5:5-5:15 warning W1026 `Shop\Order` is imported, but this file never uses it

@@ -1581,7 +1581,6 @@ pub(crate) fn dimming_of_case(
     let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
     dimming(
         &index.unused_private(&path),
-        &index.unused_imports(&path),
         settings.scope,
         analysed,
         encoding,
@@ -2434,7 +2433,6 @@ fn publish(
         if let Some(path) = path_of(&uri).filter(|_| !stub) {
             diagnostics.extend(dimming(
                 &index.unused_private(&path),
-                &index.unused_imports(&path),
                 scope,
                 &analysed,
                 encoding,

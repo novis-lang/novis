@@ -1,0 +1,14 @@
+{
+  "title": "A use line that no name reads is a warning, and its safe fix deletes the line",
+  "status": "shipped",
+  "seeAlso": [
+    "tooling/fmt-is-never-a-diagnostic",
+    "tooling/fmt-sorts-the-use-block",
+    "ide/no-refactoring-introduces-an-alias",
+    "statements/a-qualified-name-is-absolute"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/check_flags.rs",
+    "crates/nvs-lsp/src/diagnostics.rs"
+  ]
+}

@@ -1845,8 +1845,9 @@ syntax.
 
 **Declined:**
 - **`(int)$x` as a permanent alias for `$x as int`.** It is the second spelling above.
-- **A warning first and the error later.** Every refused PHP construct is a hard error with no warning
-  tier ([`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression)), and a staged removal would be the one exception.
+- **A warning first and the error later.** Every refused PHP construct is a hard error from the start,
+  since a warning is only for code that runs as written ([`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression)), and
+  a staged removal would be the one exception.
 - **The cast kept for `array` and `object` only.** Every target has the same `as` spelling, and
   keeping two of seven has no principled line.
 
