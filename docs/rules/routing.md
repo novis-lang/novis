@@ -1037,6 +1037,13 @@ the declaration's doc comment — first sentence, then the rest. What the types 
 from `#[Api]` ([`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict)), which may add and may not
 contradict.
 
+**A path is written as an OpenAPI path template, and the document is valid 3.1.** A `{name...}` is
+written `{name}`, because 3.1 has no rest template. A path parameter is always required in 3.1, so a
+route with a `{name?}` is two paths: one with `{name}` required, and one that ends before that
+segment, whose `operationId` takes a `.without-<name>` suffix. A test holds every fixture's document
+to the official 3.1 schema and its Schema Object dialect, and checks that every `$ref`, `security`
+name, `operationId` and template name resolves.
+
 **A program with no `#[Route]` generates nothing and runs no pass**, and a program the front end
 refuses emits no document at all rather than a partial one. A handler returning `mixed` produces a
 useless schema, visibly, which is the correct incentive.

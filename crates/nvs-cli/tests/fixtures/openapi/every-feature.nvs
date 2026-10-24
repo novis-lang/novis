@@ -1,0 +1,230 @@
+<?nvs
+// A small shop server whose routes use every part of the API document.
+// It declares path captures, query parameters, security schemes and request bodies.
+// It also has typed responses, `#[Core\Api]` fields and doc comments.
+
+enum OrderStatus: uint { Open = 1, Shipped = 2 }
+
+enum Region { North, South }
+
+class Sku implements Parses
+{
+    public static function parse(tainted string $s): static
+    {
+        return new static();
+    }
+}
+
+#[Core\Api\Scheme(name: "openid", type: Core\Api\SchemeType::OpenIdConnect, url: "https://example.com/.well-known/openid-configuration")]
+#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer", format: "JWT", description: "A token from the login route.")]
+#[Core\Api\Scheme(name: "key", type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Header, parameter: "X-Api-Key")]
+#[Core\Api\Scheme(name: "mtls", type: Core\Api\SchemeType::MutualTls)]
+#[Core\Api\Scheme(
+    name: "oauth",
+    type: Core\Api\SchemeType::OAuth2,
+    flows: {
+        authorizationCode: {
+            authorizationUrl: "https://example.com/authorize",
+            tokenUrl: "https://example.com/token",
+            scopes: ["orders:read" => "Read orders", "orders:write" => "Change orders"],
+        },
+        clientCredentials: {tokenUrl: "https://example.com/token", scopes: []},
+    },
+)]
+class Auth {}
+
+#[Core\Json\Derive]
+class Customer
+{
+    public string $name;
+
+    public function constructor(string $name)
+    {
+        $this->name = $name;
+    }
+}
+
+#[Core\Json\Derive]
+class Order
+{
+    public string $title;
+    #[Core\Json\Field(name: "item_count")]
+    public uint $count;
+    public ?string $note;
+    public array<string> $labels;
+    public OrderStatus $status;
+    public Customer $customer;
+
+    public function constructor(
+        string $title,
+        uint $count,
+        ?string $note,
+        array<string> $labels,
+        OrderStatus $status,
+        Customer $customer,
+    ) {
+        $this->title = $title;
+        $this->count = $count;
+        $this->note = $note;
+        $this->labels = $labels;
+        $this->status = $status;
+        $this->customer = $customer;
+    }
+}
+
+#[Core\Json\Derive]
+class NotFound extends RuntimeError
+{
+    public string $reason;
+
+    public function constructor(string $reason)
+    {
+        $this->reason = $reason;
+        parent::constructor($reason);
+    }
+}
+
+#[Core\Json\Derive]
+class NewOrder
+{
+    public tainted string $title;
+
+    public function constructor(tainted string $title)
+    {
+        $this->title = $title;
+    }
+}
+
+#[Core\Json\Derive]
+class OrderSearch
+{
+    public tainted string $term;
+
+    public function constructor(tainted string $term = "")
+    {
+        $this->term = $term;
+    }
+}
+
+class Orders
+{
+    /// Returns one order.
+    ///
+    /// The order is found by its number. A missing order gives a `404` error.
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(
+        tags: ["Orders"],
+        errors: [{status: 404, type: NotFound::class}],
+        security: ["bearer", "oauth"],
+        example: {title: "Blue mug", count: 2},
+    )]
+    public function show(uint $id): Order
+    {
+        return new Order("Blue mug", 2, null, [], OrderStatus::Open, new Customer("Ada"));
+    }
+
+    /// Lists the orders, sorted by one field.
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["Orders"], security: ["key"])]
+    public function index(#[Core\Query] int $page, #[Core\Query] string $sort = "title"): array<Order>
+    {
+        return [];
+    }
+
+    /// Returns the number of open orders for one customer, if the customer exists.
+    #[Core\Route(path: "/customers/{name}/open", method: Core\Http\Method::Get, name: "Orders::open")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(security: ["mtls"])]
+    public function open(string $name): ?int
+    {
+        return null;
+    }
+
+    /// Returns the status of one order.
+    #[Core\Route(path: "/orders/{id}/status", method: Core\Http\Method::Get, name: "Orders::status")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(security: ["openid"])]
+    public function status(int $id): OrderStatus
+    {
+        return OrderStatus::Open;
+    }
+
+    /// Creates an order from a JSON body.
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Post, name: "Orders::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["Orders"], security: ["bearer"])]
+    public function create(): void
+    {
+        var $order = Core\Request::jsonAs<NewOrder>();
+    }
+
+    /// Creates an order from a form.
+    #[Core\Route(path: "/orders/form", method: Core\Http\Method::Post, name: "Orders::form")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function form(): void
+    {
+        var $order = Core\Request::postAs<NewOrder>();
+    }
+
+    /// Creates an order from a JSON body or from a form.
+    #[Core\Route(path: "/orders/either", method: Core\Http\Method::Post, name: "Orders::either")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function either(): void
+    {
+        var $order = Core\Request::jsonAs<NewOrder>();
+        var $search = Core\Request::postAs<OrderSearch>();
+    }
+}
+
+class Catalog
+{
+    /// Returns a file from the catalog.
+    #[Core\Route(path: "/files/{path...}", method: Core\Http\Method::Get, name: "Catalog::file")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function file(string $path): string
+    {
+        return "file";
+    }
+
+    /// Lists the products, one page at a time. Without a page number, it lists page 1.
+    #[Core\Route(path: "/products/page/{page?}", method: Core\Http\Method::Get, name: "Catalog::page")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(uint $page = 1): string
+    {
+        return "products";
+    }
+
+    /// Lists the shops in one region.
+    #[Core\Route(path: "/regions/{region}", method: Core\Http\Method::Get, name: "Catalog::region")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function region(Region $region): string
+    {
+        return "shops";
+    }
+
+    /// Lists the orders with one status.
+    #[Core\Route(path: "/statuses/{status}", method: Core\Http\Method::Get, name: "Catalog::byStatus")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function byStatus(OrderStatus $status): string
+    {
+        return "orders";
+    }
+
+    /// Returns one product by its id.
+    #[Core\Route(path: "/products/by-id/{id}", method: Core\Http\Method::Get, name: "Catalog::byId")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function byId(Core\Uuid $id): string
+    {
+        return "product";
+    }
+
+    /// Returns one product by its stock code.
+    #[Core\Route(path: "/products/{sku}", method: Core\Http\Method::Get, name: "Catalog::bySku")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function bySku(Sku $sku, #[Core\Query] Sku $related): string
+    {
+        return "product";
+    }
+}

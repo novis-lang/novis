@@ -139,6 +139,9 @@ wat.workspace = true
 # `cache.rs`'s test that a loaded payload's pages are executable and not
 # writable, read back from the OS.
 region.workspace = true
+# `tests/openapi.rs`'s strict check of the generated document against the
+# vendored OpenAPI 3.1 schema.
+jsonschema.workspace = true
 
 # What tells a long-running `nvs serve` that it has been asked to stop, which
 # `src/stop.rs` turns into `rule:concurrency/a-drain-closes-a-connection-cleanly`'s

@@ -64,20 +64,26 @@ pub(crate) fn document(exprs: &ExprTypeTable, title: &str) -> Value {
     // the duplicate-route error is exactly that pair. `or_insert_with` is
     // written rather than asserted because this is a renderer and the
     // diagnostic is the front end's.
-    let mut paths: BTreeMap<&str, BTreeMap<String, Value>> = BTreeMap::new();
+    let mut paths: BTreeMap<String, BTreeMap<String, Value>> = BTreeMap::new();
     for (row, id) in routes.rows().iter().zip(&ids) {
-        paths
-            .entry(row.path.as_str())
-            .or_default()
-            .entry(row.verb.to_lowercase())
-            .or_insert_with(|| operation(row, id, &mut schemas));
+        for (path, left_out) in templates(&row.path) {
+            let id = match left_out {
+                Some(name) => format!("{id}.without-{name}"),
+                None => id.clone(),
+            };
+            paths
+                .entry(path)
+                .or_default()
+                .entry(row.verb.to_lowercase())
+                .or_insert_with(|| operation(row, &id, left_out, &mut schemas));
+        }
     }
 
     let paths: Map<String, Value> = paths
         .into_iter()
         .map(|(path, operations)| {
             let object = operations.into_iter().collect::<Map<String, Value>>();
-            ((*path).to_owned(), Value::Object(object))
+            (path, Value::Object(object))
         })
         .collect();
 
@@ -376,6 +382,44 @@ fn operation_ids(routes: &RouteTable) -> Vec<String> {
         .collect()
 }
 
+/// The OpenAPI path templates one route is written under, each with the name
+/// of the capture it leaves out.
+///
+/// 3.1's template is `{name}` alone, and a path parameter is always required.
+/// So a `{name...}` is written `{name}`, and a route with a `{name?}` is two
+/// paths: one with `{name}`, and one that ends before that segment and has no
+/// such parameter. The grammar writes a `{name?}` last and at most once, so
+/// there are never more than two.
+fn templates(path: &str) -> Vec<(String, Option<&str>)> {
+    let mut full = String::with_capacity(path.len());
+    let mut optional = None;
+    let mut rest = path;
+    while let Some(open) = rest.find('{') {
+        let Some(close) = rest[open..].find('}').map(|at| open + at) else {
+            break;
+        };
+        let inner = &rest[open + 1..close];
+        let name = if let Some(name) = inner.strip_suffix('?') {
+            optional = Some((full.len() + open, name));
+            name
+        } else {
+            inner.strip_suffix("...").unwrap_or(inner)
+        };
+        full.push_str(&rest[..open]);
+        full.push('{');
+        full.push_str(name);
+        full.push('}');
+        rest = &rest[close + 1..];
+    }
+    full.push_str(rest);
+    let Some((at, name)) = optional else {
+        return vec![(full, None)];
+    };
+    let bare = full[..at].trim_end_matches('/');
+    let bare = if bare.is_empty() { "/" } else { bare };
+    vec![(bare.to_owned(), Some(name)), (full, None)]
+}
+
 /// The id a row would carry if no other row shared it.
 fn base_id(row: &Route) -> &str {
     row.name
@@ -388,7 +432,10 @@ fn base_id(row: &Route) -> &str {
 /// `parameters` is omitted rather than written empty where the route declares
 /// none: an empty array and an absent member mean the same thing to a reader,
 /// and the shorter one is what a hand-written document would carry.
-fn operation(row: &Route, id: &str, schemas: &mut Schemas<'_>) -> Value {
+///
+/// `left_out` is the `{name?}` capture this path does not have, which
+/// [`templates`] owns.
+fn operation(row: &Route, id: &str, left_out: Option<&str>, schemas: &mut Schemas<'_>) -> Value {
     let mut operation = Map::new();
     operation.insert("operationId".to_owned(), json!(id));
     // `#[Api]`'s `tags`, in the order they were written: the row carries them
@@ -406,8 +453,13 @@ fn operation(row: &Route, id: &str, schemas: &mut Schemas<'_>) -> Value {
     if let Some(description) = &row.description {
         operation.insert("description".to_owned(), json!(description));
     }
-    if !row.params.is_empty() {
-        let params: Vec<Value> = row.params.iter().map(parameter).collect();
+    let params: Vec<Value> = row
+        .params
+        .iter()
+        .filter(|param| !(param.source == ParamIn::Path && Some(param.name.as_str()) == left_out))
+        .map(parameter)
+        .collect();
+    if !params.is_empty() {
         operation.insert("parameters".to_owned(), Value::Array(params));
     }
     // `#[Api]`'s `security`, as 3.1's Security Requirement Object: one object per
@@ -599,6 +651,9 @@ fn members(fields: &[(String, ConstArg)]) -> Option<Map<String, Value>> {
 }
 
 /// One parameter object, in declaration order within its route.
+///
+/// A path parameter is always `required`, because 3.1 allows nothing else. A
+/// `{name?}` that may be absent is the second path [`templates`] writes.
 fn parameter(param: &RouteParam) -> Value {
     json!({
         "name": param.name,
@@ -606,7 +661,7 @@ fn parameter(param: &RouteParam) -> Value {
             ParamIn::Path => "path",
             ParamIn::Query => "query",
         },
-        "required": param.required,
+        "required": param.required || param.source == ParamIn::Path,
         "schema": schema(param.ty.as_deref(), param.admits().as_deref(), param.parses),
     })
 }

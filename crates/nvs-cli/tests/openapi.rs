@@ -1023,3 +1023,199 @@ fn a_scheme_that_is_undeclared_repeated_or_misfit_does_not_compile() {
         "a refused scheme is still a declared name:\n{err}"
     );
 }
+
+/// The official OpenAPI 3.1 schema, with the dialect that checks every Schema
+/// Object in a document, built offline from the copies under
+/// `tests/fixtures/openapi`. The 2020-12 meta-schemas the dialect names are
+/// the validator's own. The copies are the OpenAPI Initiative's, under
+/// Apache-2.0, as `spec.openapis.org/oas/3.1/` publishes them: `schema` and
+/// `schema-base` of 2025-09-15, and `dialect` and `meta` of 2024-11-10.
+fn strict_validator() -> jsonschema::Validator {
+    let vendored = |name: &str| -> serde_json::Value {
+        let path = format!(
+            "{}/tests/fixtures/openapi/{name}.json",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let text = std::fs::read_to_string(&path).expect("the vendored schema is readable");
+        serde_json::from_str(&text).expect("the vendored schema is JSON")
+    };
+    let [schema, base, dialect, meta] =
+        ["schema-3.1", "schema-base-3.1", "dialect-3.1", "meta-3.1"].map(vendored);
+    let id = |value: &serde_json::Value| {
+        value["$id"]
+            .as_str()
+            .expect("every schema has an `$id`")
+            .to_owned()
+    };
+    let registry = jsonschema::Registry::new()
+        .add(id(&schema), schema)
+        .and_then(|registry| registry.add(id(&dialect), dialect))
+        .and_then(|registry| registry.add(id(&meta), meta))
+        .and_then(|registry| registry.prepare())
+        .expect("the vendored schemas register");
+    jsonschema::options()
+        .offline()
+        .with_registry(&registry)
+        .build(&base)
+        .expect("the OpenAPI 3.1 schema builds")
+}
+
+/// What the schema cannot check, because it is a question about two places in
+/// one document: every `$ref` points at a member that exists, every `security`
+/// name is a declared scheme, every `operationId` is unique, and every path
+/// template's `{name}` is exactly one `path` parameter of each operation under
+/// it. The problems found, one line each.
+fn cross_references(document: &serde_json::Value) -> Vec<String> {
+    fn refs<'a>(value: &'a serde_json::Value, found: &mut Vec<&'a str>) {
+        match value {
+            serde_json::Value::Object(object) => {
+                if let Some(serde_json::Value::String(target)) = object.get("$ref") {
+                    found.push(target);
+                }
+                object.values().for_each(|member| refs(member, found));
+            }
+            serde_json::Value::Array(items) => items.iter().for_each(|item| refs(item, found)),
+            _ => {}
+        }
+    }
+    let mut problems = Vec::new();
+    let mut found = Vec::new();
+    refs(document, &mut found);
+    for target in found {
+        let resolves = target
+            .strip_prefix('#')
+            .is_some_and(|pointer| document.pointer(pointer).is_some());
+        if !resolves {
+            problems.push(format!("`$ref` {target} points at nothing"));
+        }
+    }
+    let schemes = &document["components"]["securitySchemes"];
+    let mut ids = std::collections::BTreeSet::new();
+    let paths = document["paths"].as_object().expect("`paths` is an object");
+    for (path, operations) in paths {
+        let templated: std::collections::BTreeSet<&str> = path
+            .split('{')
+            .skip(1)
+            .filter_map(|part| part.split_once('}').map(|(name, _)| name))
+            .collect();
+        for (verb, operation) in operations.as_object().expect("a path item is an object") {
+            let id = operation["operationId"].as_str().unwrap_or_default();
+            if !ids.insert(id.to_owned()) {
+                problems.push(format!("`operationId` {id} is used twice"));
+            }
+            for requirement in operation["security"].as_array().into_iter().flatten() {
+                for name in requirement
+                    .as_object()
+                    .into_iter()
+                    .flat_map(|names| names.keys())
+                {
+                    if schemes.get(name).is_none() {
+                        problems.push(format!(
+                            "{verb} {path} names the undeclared scheme `{name}`"
+                        ));
+                    }
+                }
+            }
+            let params: Vec<&str> = operation["parameters"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|param| param["in"] == "path")
+                .filter_map(|param| param["name"].as_str())
+                .collect();
+            let declared: std::collections::BTreeSet<&str> = params.iter().copied().collect();
+            if declared != templated || declared.len() != params.len() {
+                problems.push(format!(
+                    "{verb} {path} has the path parameters {params:?}, and its template names {templated:?}"
+                ));
+            }
+        }
+    }
+    problems
+}
+
+/// A document is valid OpenAPI 3.1 when the official schema accepts it, with
+/// every Schema Object held to the OpenAPI dialect, and when every reference
+/// inside it resolves. Checked over the fixture that uses every feature the
+/// document renders, and over every other fixture that compiles.
+// covers: tools:cli/nvs-build-openapi
+#[test]
+fn a_strict_openapi_31_validator_accepts_every_document_the_fixtures_build() {
+    let validator = strict_validator();
+    let wrong = |parameter: serde_json::Value| {
+        serde_json::json!({
+            "openapi": "3.1.0",
+            "info": {"title": "Shop", "version": "0.0.0"},
+            "paths": {"/a/{id}": {"get": {"parameters": [parameter], "responses": {}}}},
+        })
+    };
+    let optional_path = wrong(serde_json::json!(
+        {"name": "id", "in": "path", "required": false, "schema": {"type": "string"}}
+    ));
+    let misspelled_type = wrong(serde_json::json!(
+        {"name": "id", "in": "path", "required": true, "schema": {"type": "strng"}}
+    ));
+    assert!(
+        !validator.is_valid(&optional_path) && !validator.is_valid(&misspelled_type),
+        "the validator rejects a path parameter that is not required, and a schema the dialect rejects"
+    );
+    let every_feature = format!(
+        "{}/tests/fixtures/openapi/every-feature.nvs",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (doc, err, ok) = build(&every_feature);
+    assert!(
+        ok && err.is_empty(),
+        "the every-feature fixture builds cleanly:\n{err}"
+    );
+    let mut programs = vec![(every_feature, doc)];
+    let dir = format!("{}/tests/fixtures/api", env!("CARGO_MANIFEST_DIR"));
+    let mut others: Vec<_> = std::fs::read_dir(&dir)
+        .expect("the fixtures folder is readable")
+        .map(|entry| entry.expect("a folder entry").path())
+        .collect();
+    others.sort();
+    for path in others {
+        let file = path.display().to_string();
+        let (doc, _, ok) = build(&file);
+        if ok && !doc.trim().is_empty() {
+            programs.push((file, doc));
+        }
+    }
+    assert!(programs.len() > 5, "most fixtures build a document");
+
+    let mut problems = Vec::new();
+    for (file, doc) in &programs {
+        let document: serde_json::Value = serde_json::from_str(doc).expect("the document is JSON");
+        for error in validator.iter_errors(&document) {
+            problems.push(format!("{file}: {} at {}", error, error.instance_path()));
+        }
+        for problem in cross_references(&document) {
+            problems.push(format!("{file}: {problem}"));
+        }
+    }
+    assert!(
+        problems.is_empty(),
+        "every document is valid:\n{}",
+        problems.join("\n")
+    );
+
+    let every: serde_json::Value =
+        serde_json::from_str(&programs[0].1).expect("the document is JSON");
+    assert_eq!(
+        every["components"]["securitySchemes"]
+            .as_object()
+            .map(serde_json::Map::len),
+        Some(5),
+        "the fixture declares a scheme of each type"
+    );
+    assert!(
+        every["paths"]["/products/page"]["get"]["operationId"] == "Catalog::page.without-page"
+            && every["paths"]["/products/page/{page}"]["get"]["parameters"][0]["required"] == true,
+        "an optional capture is two paths, and the one that has it requires it:\n{every:#}"
+    );
+    assert!(
+        every["paths"]["/files/{path}"]["get"].is_object(),
+        "a rest capture is a plain template:\n{every:#}"
+    );
+}
