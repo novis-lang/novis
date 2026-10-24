@@ -1,0 +1,32 @@
+<?nvs
+// Runs n `Core\Test` assertions outside a test, as a long-running program that checks its own state does. Its memory must stay the same.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect linear
+
+use Core\Test;
+use Core\Test\Failure;
+
+class Bench {
+    public static function run(uint $count): uint {
+        uint $start = Core\Budget::memoryHeld();
+        uint $failed = 0;
+        uint $i = 0;
+        while ($i < $count) {
+            Test::assertSame($i % 4, ($i + 4) % 4);
+            try {
+                Test::assertSame(0, 1);
+            } catch (Failure $e) {
+                $failed = $failed + 1;
+            }
+            $i = $i + 1;
+        }
+        // An assertion outside a test keeps nothing, so memory does not grow with the count.
+        if (Core\Budget::memoryHeld() > $start + 4096) {
+            throw new LogicError("memory grew with the number of assertions");
+        }
+        return $failed;
+    }
+}
+
+echo Bench::run(1000), "\n";

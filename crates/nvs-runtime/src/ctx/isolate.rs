@@ -400,6 +400,9 @@ impl Ctx {
         // copied as the parent reads it, so a task of a request or of a
         // connection is that run too, though it has no inbound and no peer.
         child.run_kind = self.run_kind();
+        // A task a test starts belongs to that test, so its assertions are
+        // kept for the test's ledger.
+        child.owned_by_test = self.owned_by_test;
         child.statics = self.statics;
         child.debug = self.debug;
         child.stmt_hits = self.stmt_hits.clone();
