@@ -123,6 +123,9 @@ weakened to go green is worse than no case: it reports that a thing was tried an
     // hostile: comment-payload     the comment block directly under it is the payload, not prose,
                                     so `bun nv proofs --comments` does not judge it
     // proof: gap <gap id>          it breaks something; the gap record says what, not this file
+    // proof: test                  it runs under `nvs test`, because the attack is in its tests;
+                                    a test may fail, and the case passes when the report reaches
+                                    its summary line
     // requires: unimplemented      skip: the feature does not run yet
     // requires: unix               skip on Windows: it opens a Unix-domain socket
     // requires: <service>          it talks to that service of tests/db/compose.yaml, such as

@@ -97,3 +97,25 @@ describe("an attack that ends early", () => {
     expect(wrong).toEqual([]);
   });
 });
+
+describe("an attack that runs under nvs test", () => {
+  const tested = "<?nvs\n// Attack: a test is given a very large input.\n// proof: test\n";
+  const judgeTest = (out: Ran) => judgeHostile(PATH, tested, out, 10_000, false);
+  const summary = "  Big\n    ✗ itTakesIt\n\n  1 failed, 2 passed, 0 skipped, 0 flaky in 12 ms\n";
+
+  test("a report that reaches its summary passes, whether or not a test failed", () => {
+    expect(judgeTest(ran(1, summary, ""))).toEqual(["ok", ""]);
+    expect(judgeTest(ran(0, summary.replace("1 failed", "0 failed"), ""))).toEqual(["ok", ""]);
+  });
+
+  test("a report that stops before its summary fails", () => {
+    const [verdict, why] = judgeTest(ran(1, "  Big\n", "FATAL: the run exceeded its memory limit\n"));
+    expect(verdict).toBe("fail");
+    expect(why).toContain("ended before its summary line (exit 1): FATAL");
+    expect(judgeTest(ran(2, summary, ""))[0]).toBe("fail");
+  });
+
+  test("a panic under nvs test still fails", () => {
+    expect(judgeTest(ran(101, summary, "thread 'main' panicked at src/runner.rs:1:1\n"))[0]).toBe("fail");
+  });
+});
