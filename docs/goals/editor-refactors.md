@@ -260,22 +260,31 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 3 is built (`f0fb03156`). `crates/nvs-lsp/src/extract.rs` answers *Extract to variable* and
-*Extract to method* under `refactor.extract`, called from `actions::at` under `Kind::QuickFix`.
-`actions::at` now takes `&Documents` second, because each extraction analyses the text it writes
-(`document::analyse_rewritten`, § *Standing decisions*); the test callers pass `Documents::new()`,
-since a cursor selects nothing. A selection is the whole-node span of one expression (`EXTRACTABLE`)
-or a run of statements of one list (`OWNERS`), found on `nvs_syntax::walk::of_stmts`. A class type
-is written through `completion::written_as`, so `Item` in its own namespace. A `codeAction` case
-writes a selection as a second `<|>` (`Case::selection_end`). The rule is `shipped`, and its
-fragment, `an-lsp-answer-is-frozen-as-an-lspt-case` and `a-code-action-ships-only-…` name it.
+Stage 4 is done (`606ee30b0`). `crates/nvs-lsp/src/generate.rs` is called from `actions::at`
+beside `extract::at`. *Implement the missing methods* is a `quickfix` on `E0449`, which the checker
+reports for an interface method and for an `abstract` parent's method alike
+(`conformance::check_class_conformance`); `E_ABSTRACT_METHOD_IN_CONCRETE_CLASS` is a class's own
+bodiless method, so it is not an entry point. `generate::missing` walks `completion::lineage` (now
+`pub(crate)`) over the declarations, writes each signature from the declaration's text with each type
+put through the new `imports::written_at`, and a body `throw new LogicError("Pen::name is not
+implemented");`, adding `use LogicError;` in a namespace (a root class needs it there). *Override
+`x` from `Base`* is `refactor.rewrite` at a cursor between a class's members, over the `extends`
+chain, skipping `private`, `final`, `static`, the constructor and `inout`. Both analyse their text
+with `analyse_rewritten` and are offered only with no error; overrides are analysed once together.
+`imports::written_at` replaced `extract`'s `Context::written`, and `definition::resolved_name_in`
+is now `pub(crate)`. The rule fragment `a-code-action-writes-only-what-is-already-determined` has a
+**Built:** paragraph and says it writes methods, since the checker owes no property; its status
+stays `designed` for goal `editor-fixes`' narrowing action. No new code action kind, so
+`tests/handshake.rs` is unchanged by stage 4.
 
-Known and left as designed: a local narrowed at the selection (`?Item` tested non-null) is passed
-as its declared type, so its method does not compile and is not offered.
+Stage 3 is done (`f0fb03156`, cases `005af9b84`). `crates/nvs-lsp/src/extract.rs` answers *Extract
+to variable* and *Extract to method* under `refactor.extract`. `actions::at` takes `&Documents`
+second. 14 cases under `tests/lsp/actions/`, one per shape and refusal. A method the extraction
+writes puts `{` on the signature's line, where the generators and the corpus put it on the next one.
 
-Ran green: `cargo clippy --all-targets -- -D warnings`, `cargo test --lib extract::tests`, and six
-trial cases by hand. Not run: `case.rs`' unit tests (the two-cursor branch is new) and
-`tests/handshake.rs`, which reads `CODE_ACTION_KINDS` and gained a sixth kind.
+Ran green: `cargo clippy --all-targets -- -D warnings` and `nvs lsp-test tests/lsp/` (489 passed).
+Not run: `case.rs`' unit tests (the two-cursor branch), `tests/handshake.rs` (stage 3 added a sixth
+kind), and `extract::tests` since `written` moved.
 
 Stage 2 is done. `workspace/symbol` (`184e27a9c`) answers from `SymbolIndex::matching`: every
 declaration whose own name (`index::own_name`: a type's last segment, a member without `$`)
@@ -326,27 +335,19 @@ claims the file. That session, or the user, commits it.
 
 ### Next
 
-**First, stage 3's last item: the `.lspt` cases.** The case-writing subagent was stopped at the
-context budget before it wrote into `tests/lsp/`. Its drafts are under `.agent-tmp/extract/`, one
-`.lspt` per shape, with `x` as a placeholder `--EXPECT--`. Run `target/debug/nvs.exe lsp-test
-.agent-tmp/extract`, check each answer against `extract.rs`' module doc, and move each into
-`tests/lsp/actions/` under a sentence name (the first is
-`a-typed-expression-extracts-to-a-variable.lspt`). Novis has no `===`, so a draft that uses it
-reports an error and is offered nothing. Then run `lsp-test --coverage tests/lsp/` for a new column,
-delete `.agent-tmp/extract/`, tick the item, and set stage 3 `done`.
+**Stage 5, declare the function you called.** It adds a third generator to
+`crates/nvs-lsp/src/generate.rs`, reusing `Place` (where a class's new methods go and how they are
+indented), `signature`'s typed writing through `imports::written_at`, and `compiles`. Write the
+items' checkpoints first.
 
-- [ ] The extract cases, each refused shape among them. `tests/lsp/actions/a-typed-expression-extracts-to-a-variable.lspt:1`, `crates/nvs-lsp/src/extract.rs:1`
+- [ ] The rule says it declares a method on the receiver's class, since Novis has no free function. `docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md:1`, `crates/nvs-diagnostics/src/code/rejected_php.rs:87`, `crates/nvs-diagnostics/src/code/names.rs:148`
+- [ ] The unresolved-method diagnostic carries the argument types and the expected return type. Read how `calls.rs` reports it and what the context expectation is there. A payload on the diagnostic is the design call (§ *Trade-offs* allows a few words per unresolved call). `crates/nvs-types/src/expr/calls.rs:1819`, `crates/nvs-diagnostics/src/code/types.rs:40`, `crates/nvs-diagnostics/src/diagnostic.rs:1`
+- [ ] The action writes that method on the receiver's class when that class is declared in the entry document. A `LogicError` body, as implement writes. `crates/nvs-lsp/src/generate.rs:1`
+- [ ] `.lspt` cases, among them a receiver outside the entry and an argument with no known type. `tests/lsp/actions/an-unknown-method-call-is-offered-its-declaration.lspt:1`
+- [ ] `bun nv owners --closes editor-refactors` passes. `data/rules/ide/no-refactoring-introduces-an-alias.json:3`
 
-**Then stage 4, implement missing members and override a method**, one new module
-`crates/nvs-lsp/src/generate.rs`, called from `actions::at` beside `crate::extract::at`
-(`crates/nvs-lsp/src/actions.rs:208`). No gate.
-
-- [ ] Implement missing members, offered on `E0449` (`E_INTERFACE_METHOD_MISSING`) and on the code for an abstract method a concrete class leaves without a body. Read the members off the parent walk completion already does (`declared_members`), and write each signature as declared with a body that throws. `crates/nvs-lsp/src/completion.rs:3078`, `crates/nvs-diagnostics/src/code/types.rs:410`
-- [ ] Override a method: the overridable members of the parents, each written with a call to the base. `SymbolIndex::overridden` is the reverse question. `crates/nvs-lsp/src/index.rs:550`
-- [ ] A text it writes can be checked the way `extract.rs` checks its own: `document::analyse_rewritten`, and offered only with no error. `crates/nvs-lsp/src/document.rs:659`
-- [ ] A type is written with `extract`'s `Context::written`, which may move to a shared place once a second module needs it. `crates/nvs-lsp/src/extract.rs:524`
-
-Then the subagent that writes the `tests/lsp/actions/` cases.
+Then stage 6, the gate. Expect `tests/handshake.rs` and `case.rs`' unit tests to need a look (see
+*Not run* above).
 
 ### Backlog
 
