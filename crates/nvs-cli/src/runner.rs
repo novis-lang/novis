@@ -4445,20 +4445,36 @@ mod tests {
 
         #[test]
         fn parallel_tests_overlap_on_more_than_one_core() {
-            // Four tests of 400 ms each. One after another they cannot finish
-            // under 1.6 s, so a run under 1.2 s had them running at once.
-            let (suite, _, took) = run("parallel-overlap.nvs", spread(Format::Json), None);
+            // Four tests of 400 ms each, read from the instants they print
+            // rather than from the run's wall time, which a loaded machine
+            // stretches. Sorted, the starts and the ends of tests run one after
+            // another alternate: each test starts after the one before it ended.
+            // A start before the previous end is two tests running at once.
+            let (suite, printed, _) = run("parallel-overlap.nvs", spread(Format::Json), None);
             assert!(
                 verdicts(&suite)
                     .iter()
-                    .all(|(_, verdict)| *verdict == "passed"),
-                "{:?}",
+                    .all(|(_, verdict)| *verdict == "failed"),
+                "every test fails on purpose, so its output is printed: {:?}",
                 verdicts(&suite)
             );
             assert_eq!(suite.cases.len(), 4);
+            let mut started = instants(&printed, "test-started ");
+            let mut ended = instants(&printed, "test-ended ");
+            assert_eq!(
+                (started.len(), ended.len()),
+                (4, 4),
+                "every test printed its instants: {printed}"
+            );
+            started.sort_unstable();
+            ended.sort_unstable();
             assert!(
-                took < std::time::Duration::from_millis(1200),
-                "four 400 ms tests took {took:?}, so they ran one after another"
+                started
+                    .iter()
+                    .skip(1)
+                    .zip(&ended)
+                    .any(|(next, end)| next < end),
+                "the four tests ran one after another: {printed}"
             );
         }
 

@@ -3132,7 +3132,9 @@ mod tests {
         assert_eq!(notes.len(), 1, "and it is named once: {notes:?}");
 
         let key = format!("serve-arms-{}", std::process::id());
-        let held = std::time::Duration::from_secs(1);
+        // Long enough that the renewal below cannot find the key expired on a
+        // loaded machine: this case is about who holds the key, not its expiry.
+        let held = std::time::Duration::from_secs(30);
         assert!(
             nvs_server::Leases::take(&lease, &key, held),
             "the lease this command built reaches the store and takes a key"
@@ -5624,6 +5626,12 @@ echo Core\Router::{member}("Docs::here", []);
             runaway
                 .set_nonblocking(false)
                 .expect("the socket refused blocking mode");
+            // The runaway answers once it has spent five seconds of CPU, and
+            // on a loaded machine that is many more seconds of wall time than
+            // `CLIENT_PATIENCE`. A ceiling that never stops it still fails here.
+            runaway
+                .set_read_timeout(Some(CLIENT_PATIENCE * 6))
+                .expect("the socket refused a read timeout");
             first.extend(head_from(&mut runaway).into_bytes());
             (
                 first_was_waiting,
