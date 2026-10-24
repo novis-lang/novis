@@ -1,0 +1,10 @@
+package shop:meter;
+
+/// The fixture extension `Shop\Meter`. It spends CPU time for as long as it
+/// is asked, so a case can measure a request's budget against a guest.
+interface api {
+    use nvs:ext/types@1.0.0.{error};
+
+    /// Runs a busy loop until the monotonic clock has moved `milliseconds`.
+    spin: func(milliseconds: s64) -> result<_, error>;
+}

@@ -1,0 +1,10 @@
+{
+  "manifest": 1,
+  "world": "1.0.0",
+  "class": "Shop\\Meter",
+  "interface": "shop:meter/api",
+  "methods": [
+    {"name": "spin", "params": [{"name": "milliseconds", "type": "int"}],
+     "help": "Uses the CPU for `milliseconds` milliseconds, and then returns."}
+  ]
+}

@@ -1378,6 +1378,9 @@ fn run_suite(
             .map(|hits| (hits.counts().len(), hits.edge_counts().len())),
         format: shape.format,
         show_output: shape.show_output,
+        watchdog: nvs_host::ThreadClock::current()
+            .is_some()
+            .then(nvs_host::Watchdog::new),
     });
     let mut queue = Queue::new(unit, ctx, shape, hits, cores);
     let mut order = shape.shuffle.map(Order);
@@ -1662,6 +1665,15 @@ struct Shared {
     coverage: Option<(usize, usize)>,
     format: Format,
     show_output: bool,
+    /// The thread that charges each test's tree for the CPU time it runs and raises its
+    /// `[limits] cpu_time` ceiling, as it does for `nvs run`. `None` on a platform with no
+    /// per-thread clock, where nothing could be charged. Each [`Job`] registers the thread it
+    /// runs on and publishes its own tree, so a test's CPU time, its extension calls' included,
+    /// is its own and never the test's before it.
+    ///
+    /// **What it spends:** one thread for the run, which starts at the first registration, and
+    /// one entry in its watched set per test in flight.
+    watchdog: Option<nvs_host::Watchdog>,
 }
 
 /// One test on its way to the core that runs it: everything [`run_in_isolate`]
@@ -1797,6 +1809,14 @@ impl Job {
             Err(outcome) => return Ran::decided(outcome),
         };
         let clock = crate::wall::start(ctx.safepoint_view());
+        // `[limits] cpu_time`'s half, charged against this thread's clock from here until the
+        // test is judged. A registration belongs to the thread that made it, so it is made here,
+        // on the core the test runs on.
+        let watched = shared.watchdog.as_ref().map(|watchdog| {
+            let watched = watchdog.register_requests();
+            watched.publish(ctx.safepoint_view());
+            watched
+        });
         let hits = shared.coverage.map(|(stmts, edges)| {
             let hits = Arc::new(nvs_runtime::StmtHits::with_edges(stmts, edges));
             ctx.set_stmt_hits(Some(Arc::clone(&hits)));
@@ -1830,6 +1850,7 @@ impl Job {
                     Vec::new(),
                 ),
             };
+        drop(watched);
         drop(clock);
         let outcome = match limit {
             Some(limit) if ctx.safepoint_view().deadline_expired() => {

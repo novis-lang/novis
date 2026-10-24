@@ -282,7 +282,7 @@ document alone.
 - [x] `--shuffle` and `--shuffle=<seed>`, with the seed in the summary and the report order unchanged. `crates/nvs-cli/src/runner.rs:1559`
 - [x] Tests for each, and the help text. `crates/nvs-cli/src/runner.rs:4718`
 - [x] The `tools:cli/nvs-test` example shows the three flags. `docs/examples/tools/cli/nvs-test/about.md:1`
-- [ ] The gap `an-extension-budget-per-test-has-no-test` closes: a test shows each test spends its own extension CPU budget, and the record is deleted. `crates/nvs-cli/src/extensions.rs:1`
+- [x] The gap `an-extension-budget-per-test-has-no-test` closes: a test shows each test spends its own extension CPU budget, and the record is deleted. `crates/nvs-cli/src/extensions.rs:1`
 - [ ] The gap `a-test-response-has-no-bytes-reader` closes: `Core\Test\Response` reads a body that is not UTF-8, or the record is struck as a stated bound. `crates/nvs-stdlib/src/test.rs:1`
 - [x] The rule `shipped`. `data/rules/testing/a-run-can-stop-early-rerun-failures-and-shuffle.json:3`
 
