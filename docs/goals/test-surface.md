@@ -143,6 +143,12 @@ run`, an assertion stops allocating. Usability: the features a CI pipeline uses,
 Simplicity: four new flags on `nvs test` and two new `#[Test]` options, each one named the way the
 common runners name it.
 
+**One wall-time limit covers every attempt of a test.** The attempts share the test's isolate, so a
+retry after a stop would start past the deadline. A stopped test is a failure, and `retries:` gives it
+no new time. Why: a deadline per attempt would need the tree's stop flag and start instant reset
+inside one isolate, and a test that timed out once mostly times out again. The rule says so
+(`docs/rules/testing/a-test-has-a-wall-time-limit.md`).
+
 ## Stages
 
 ### 1. tests are absent from `nvs run` and `nvs build`
@@ -170,12 +176,15 @@ The assertion ledger, the one gap record this goal owns:
 **Split:** after the flags land, one writing subagent extends the `lang:testing/test-options`
 example with `timeout` and `tags`.
 
-- [ ] `timeout` and `tags` join `#[Test]`'s option roster, and `timeout` is checked as a duration while compiling. `crates/nvs-types/src/testing.rs:231`
-- [ ] Each test runs under `[limits] wall_time` or its own `timeout`, and a test past it fails with a message naming the limit (`rule:testing/a-test-has-a-wall-time-limit`). `crates/nvs-cli/src/runner.rs:490`
-- [ ] `--tag`, `--skip-tag` and `--shard N/M`, and the summary counts what the selection left out (`rule:testing/tags-and-shards-select-what-runs`). `crates/nvs-cli/src/runner.rs:236`
-- [ ] Tests for each, and the help text in the binary. `crates/nvs-cli/src/runner.rs:236`
+- [x] `timeout` and `tags` join `#[Test]`'s option roster, and `timeout` is checked as a duration while compiling. `crates/nvs-types/src/testing.rs:231`
+- [x] Each test runs under `[limits] wall_time` or its own `timeout`, and a test past it fails with a message naming the limit (`rule:testing/a-test-has-a-wall-time-limit`). `crates/nvs-cli/src/runner.rs:490`
+- [x] `--tag`, `--skip-tag` and `--shard N/M`, and the summary counts what the selection left out (`rule:testing/tags-and-shards-select-what-runs`). `crates/nvs-cli/src/runner.rs:236`
+- [x] Tests for each, and the help text in the binary. `crates/nvs-cli/src/runner.rs:236`
 - [ ] The example. `docs/examples/lang/testing/test-options/about.md:1`
-- [ ] Both rules `shipped`. `data/rules/testing/a-test-has-a-wall-time-limit.json:3`, `data/rules/testing/tags-and-shards-select-what-runs.json:3`
+  - [ ] `06-a-time-limit-for-one-test.nvs` and its `.out`
+  - [ ] `07-tags-select-which-tests-run.nvs` and its `.out`
+  - [ ] `about.md` names `timeout:` and `tags:`, and `bun nv proofs --comments` passes on both files
+- [x] Both rules `shipped`. `data/rules/testing/a-test-has-a-wall-time-limit.json:3`, `data/rules/testing/tags-and-shards-select-what-runs.json:3`
 
 ### 2. a test reaches `private` members of classes in its own file
 
@@ -265,26 +274,29 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done (`a7a52e3d8`, `f3ff5d37f`). Test code is a method with one of the five testing
-markers (`crates/nvs-types/src/test_code.rs`); a call into it from other code is `E0889`.
-`lower_program` omits it, and the runner uses `lower_program_with_tests` under
-`crate::cache::test_program_digest`. Outside a test the ledger keeps only a failure count, and
-`Ctx::child` copies `owned_by_test`. Stages 1 and 5 keep their ids for `mutation-testing` and
-`bench-counters`.
+Stage 1 is done (`a7a52e3d8`, `f3ff5d37f`). Stage 5's code is done (`bbfc5762b`), and only its
+example is left. `timeout` and `tags` are in `OPTIONS` (`crates/nvs-types/src/testing.rs`), with
+`timeout_nanos` reading a duration through `nvs_config::Quantity::parse`. `Job::run` arms each test's
+own context with `wall_limit` and times it with `crate::wall::start`; `Outcome::past_wall_time`
+replaces the runtime's `Ctx::WALL_TIME_EXCEEDED` line. `runner::Selection` carries `--filter`,
+`--tag`, `--skip-tag` and `--shard`, and `nvs_test::Shard` (`crates/nvs-test/src/shard.rs`) is the
+one shard type both suites read. The run's acceptance sweep findings were already fixed on HEAD:
+`env-secret-proofs` passes when rerun, and the five nightly CI jobs were fixed by `10c402b57`,
+`c31d0a21a`, `220cb82b7`, `c4842ec8f` and `a5f50b907`.
 
 Tests that may go red at the gate: any `nvs-host` `group.rs` or `nvs-stdlib` `test.rs` unit test
 that reads `take_assertions` on a context no test owns (call `set_owned_by_test` first), and any
-`.nvst` or example whose non-test code calls a fixture or a hook (now `E0889`).
+`.nvst` or example whose non-test code calls a fixture or a hook (now `E0889`). A recorded editor
+listing or a help-text snapshot that prints `nvs test --help` gains `--tag`, `--skip-tag` and
+`--shard`. The site's rendered attributes reference may need re-rendering for the two new options.
 
 ### Next
 
-**Stage 5: time limit, tags and shards**, file set `crates/nvs-types/src/testing.rs` and
-`crates/nvs-cli/src/runner.rs`. No gate.
+**Stage 5's example, then stage 2.** One writing subagent, as stage 5's `**Split:**` line says.
 
-- [ ] `timeout` and `tags` in the option roster, `timeout` checked as a duration. `crates/nvs-types/src/testing.rs:231`
-- [ ] Each test under `[limits] wall_time` or its `timeout`. `crates/nvs-cli/src/runner.rs:490`
-- [ ] `--tag`, `--skip-tag`, `--shard N/M`, and the summary counts. `crates/nvs-cli/src/runner.rs:236`
-- [ ] Tests, help text, the example, both rules `shipped`. `docs/examples/lang/testing/test-options/about.md:1`
+- [ ] `06-a-time-limit-for-one-test.nvs` and `07-tags-select-which-tests-run.nvs`, each with its `.out`. `docs/examples/lang/testing/test-options/about.md:1`
+- [ ] `about.md` names both options, `bun nv proofs --comments` and `bun nv proofs --id 'lang:testing/test-options'` pass, then stage 5 is `done`. `docs/examples/lang/testing/test-options/about.md:13`
+- [ ] Stage 2: a test reaches `private` members in its own file. `crates/nvs-types/src/signatures.rs:1741`
 
 ### Backlog
 
