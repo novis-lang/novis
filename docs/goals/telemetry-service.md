@@ -287,7 +287,7 @@ The sweep's reds: `env-secret-proofs` is green at HEAD. Of the nightly run on `7
 `test /`, cost-guard and website red was already fixed at HEAD, each checked by name here (the
 property-observer guard's IR slope is 0 in a debug `--ignored` run). Still red on push CI
 `40042292726`: `proofs` (28 `Core\Http` perf figures stale after `crates/nvs-stdlib/src/http.rs`
-changed; this session ran `bun nv proofs --record-perf`, see the status line), `lint` (`cargo fmt`
+changed; `81de89a72` recorded them, and the gate is green locally), `lint` (`cargo fmt`
 on `crates/nvs-runtime/src/capability.rs:2259`, whose fix is in the tree, uncommitted, claimed by
 interactive session `6884de4b`, so the guard keeps it out of this loop's commits), and
 `five-driver matrix` (the `mssql` container exited at start, infrastructure). The nightly's 59
