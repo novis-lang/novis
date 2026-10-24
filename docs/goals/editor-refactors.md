@@ -85,6 +85,13 @@ leaving it, is offered no extract to method. Extract to variable is unaffected. 
 writes only what is determined, and guessing `inout` or a result tuple is the simplicity cost the
 rule exists to refuse.
 
+**An extraction reads its types by analysing the text it writes.** The checker records no type for
+an arbitrary expression, so stage 3 writes `var $name = <selection>;` above the statement, analyses
+that text with `document::analyse_rewritten`, and reads the binding's type. Each action's own text is
+analysed too, and an action whose text reports an error is not offered. Why: it adds no table to the
+checker, which runs for every program, and an edit that would not compile is never offered. The cost
+is up to three analyses per `codeAction` whose selection is exactly one expression, in the editor only.
+
 **Each refactoring is its own module.** Rename is `crates/nvs-lsp/src/rename.rs`, the extractions
 `extract.rs`, the three generators `generate.rs`. `actions.rs:150` gains one call per module. Why:
 stages 3 to 5 then share one line of `actions.rs`, not its body.
@@ -195,12 +202,17 @@ Workspace symbol search and organize imports:
 **Split:** after both land, one writing subagent writes the `.lspt` cases under `tests/lsp/actions/`,
 among them each refused shape § *Standing decisions* names.
 
-- [ ] Extract to variable writes a typed local declaration from the type the checker recorded for the selection, and replaces the selection with the variable. `crates/nvs-lsp/src/extract.rs:1`, `crates/nvs-lsp/src/actions.rs:150`
-- [ ] Extract to method writes a method whose parameters are the locals the selection reads, typed as the checker recorded them, and whose return type is the selection's. A selection with an escaping write or an early exit is offered nothing. `crates/nvs-lsp/src/extract.rs:1`, `crates/nvs-lsp/src/document.rs:619`
-- [ ] Neither action is offered where a type is not fully known (`rule:ide/a-code-action-writes-only-what-is-already-determined`). `crates/nvs-lsp/src/extract.rs:1`
-- [ ] The rule states the extract-to-method boundary. `docs/rules/ide/no-refactoring-introduces-an-alias.md:1`
+- [x] Extract to variable writes a typed local declaration from the type the checker recorded for the selection, and replaces the selection with the variable. `crates/nvs-lsp/src/extract.rs:1`, `crates/nvs-lsp/src/actions.rs:150`
+  - [x] The probe: `var $name = <selection>;` above the statement, analysed by `document::analyse_rewritten`, and the binding's type read back. `crates/nvs-lsp/src/extract.rs:1`, `crates/nvs-lsp/src/document.rs:648`
+  - [x] The typed text analysed again before it is offered, and the moves that change evaluation refused by shape. `crates/nvs-lsp/src/extract.rs:1`
+  - [x] A `codeAction` case writes a selection as a second `<|>` (`Case::selection_end`). `crates/nvs-lsp/src/case.rs:492`
+- [x] Extract to method writes a method whose parameters are the locals the selection reads, typed as the checker recorded them, and whose return type is the selection's. A selection with an escaping write or an early exit is offered nothing. `crates/nvs-lsp/src/extract.rs:1`, `crates/nvs-lsp/src/document.rs:619`
+  - [x] An expression returns the probe's type, and a run of statements returns `void`. `crates/nvs-lsp/src/extract.rs:1`
+  - [x] `Uses::walk` refuses an exit and an outer write, and `self::` is called from a static method. `crates/nvs-lsp/src/extract.rs:1`
+- [x] Neither action is offered where a type is not fully known (`rule:ide/a-code-action-writes-only-what-is-already-determined`). `crates/nvs-lsp/src/extract.rs:1`
+- [x] The rule states the extract-to-method boundary. `docs/rules/ide/no-refactoring-introduces-an-alias.md:1`
 - [ ] `.lspt` cases for each. `tests/lsp/actions/a-typed-expression-extracts-to-a-variable.lspt:1`
-- [ ] `rule:ide/no-refactoring-introduces-an-alias` `shipped`, once stages 1 to 3 are done. `data/rules/ide/no-refactoring-introduces-an-alias.json:3`
+- [x] `rule:ide/no-refactoring-introduces-an-alias` `shipped`, once stages 1 to 3 are done. `data/rules/ide/no-refactoring-introduces-an-alias.json:3`
 
 ### 4. implement missing members, and override a method
 
@@ -243,6 +255,23 @@ subagent. Such subagents run side by side, and none of them builds.
 ## Handoff
 
 ### State
+
+Stage 3 is built (`f0fb03156`). `crates/nvs-lsp/src/extract.rs` answers *Extract to variable* and
+*Extract to method* under `refactor.extract`, called from `actions::at` under `Kind::QuickFix`.
+`actions::at` now takes `&Documents` second, because each extraction analyses the text it writes
+(`document::analyse_rewritten`, § *Standing decisions*); the test callers pass `Documents::new()`,
+since a cursor selects nothing. A selection is the whole-node span of one expression (`EXTRACTABLE`)
+or a run of statements of one list (`OWNERS`), found on `nvs_syntax::walk::of_stmts`. A class type
+is written through `completion::written_as`, so `Item` in its own namespace. A `codeAction` case
+writes a selection as a second `<|>` (`Case::selection_end`). The rule is `shipped`, and its
+fragment, `an-lsp-answer-is-frozen-as-an-lspt-case` and `a-code-action-ships-only-…` name it.
+
+Known and left as designed: a local narrowed at the selection (`?Item` tested non-null) is passed
+as its declared type, so its method does not compile and is not offered.
+
+Ran green: `cargo clippy --all-targets -- -D warnings`, `cargo test --lib extract::tests`, and six
+trial cases by hand. Not run: `case.rs`' unit tests (the two-cursor branch is new) and
+`tests/handshake.rs`, which reads `CODE_ACTION_KINDS` and gained a sixth kind.
 
 Stage 2 is done. `workspace/symbol` (`184e27a9c`) answers from `SymbolIndex::matching`: every
 declaration whose own name (`index::own_name`: a type's last segment, a member without `$`)
@@ -293,18 +322,27 @@ claims the file. That session, or the user, commits it.
 
 ### Next
 
-**Stage 3, extract to variable and extract to method**, one new module `crates/nvs-lsp/src/extract.rs`,
-called from `actions::at` beside `html_template::at` and `split_join::at`. Its kind is
-`refactor.extract`, added to `CODE_ACTION_KINDS`, and `tests/handshake.rs` may hold the kinds list.
-No gate.
+**First, stage 3's last item: the `.lspt` cases.** The case-writing subagent was stopped at the
+context budget before it wrote into `tests/lsp/`. Its drafts are under `.agent-tmp/extract/`, one
+`.lspt` per shape, with `x` as a placeholder `--EXPECT--`. Run `target/debug/nvs.exe lsp-test
+.agent-tmp/extract`, check each answer against `extract.rs`' module doc, and move each into
+`tests/lsp/actions/` under a sentence name (the first is
+`a-typed-expression-extracts-to-a-variable.lspt`). Novis has no `===`, so a draft that uses it
+reports an error and is offered nothing. Then run `lsp-test --coverage tests/lsp/` for a new column,
+delete `.agent-tmp/extract/`, tick the item, and set stage 3 `done`.
 
-- [ ] Extract to variable: a typed `var` declaration above the statement, from the type the checker recorded for the selected expression, and the selection replaced by the variable. `crates/nvs-lsp/src/actions.rs:201`, `crates/nvs-lsp/src/document.rs:629`
-- [ ] Extract to method: parameters are the locals the selection reads, typed as recorded, and the return type is the selection's. Refused for an escaping write or an early exit (§ *Standing decisions*). `crates/nvs-lsp/src/extract.rs:1`
-- [ ] Neither is offered where a type is not fully known (`rule:ide/a-code-action-writes-only-what-is-already-determined`). `crates/nvs-lsp/src/extract.rs:1`
-- [ ] A `.lspt` case writes a selection, not a cursor: `case.rs`'s `takes_cursor` asks for one `<|>`, so the runner needs a second marker or a `to=`-style argument for the range's end. `crates/nvs-lsp/src/case.rs:178`
-- [ ] The rule states the extract-to-method boundary. `docs/rules/ide/no-refactoring-introduces-an-alias.md:1`
+- [ ] The extract cases, each refused shape among them. `tests/lsp/actions/a-typed-expression-extracts-to-a-variable.lspt:1`, `crates/nvs-lsp/src/extract.rs:1`
 
-Then the subagent that writes the `tests/lsp/actions/` cases, each refused shape among them.
+**Then stage 4, implement missing members and override a method**, one new module
+`crates/nvs-lsp/src/generate.rs`, called from `actions::at` beside `crate::extract::at`
+(`crates/nvs-lsp/src/actions.rs:208`). No gate.
+
+- [ ] Implement missing members, offered on `E0449` (`E_INTERFACE_METHOD_MISSING`) and on the code for an abstract method a concrete class leaves without a body. Read the members off the parent walk completion already does (`declared_members`), and write each signature as declared with a body that throws. `crates/nvs-lsp/src/completion.rs:3078`, `crates/nvs-diagnostics/src/code/types.rs:410`
+- [ ] Override a method: the overridable members of the parents, each written with a call to the base. `SymbolIndex::overridden` is the reverse question. `crates/nvs-lsp/src/index.rs:550`
+- [ ] A text it writes can be checked the way `extract.rs` checks its own: `document::analyse_rewritten`, and offered only with no error. `crates/nvs-lsp/src/document.rs:659`
+- [ ] A type is written with `extract`'s `Context::written`, which may move to a shared place once a second module needs it. `crates/nvs-lsp/src/extract.rs:524`
+
+Then the subagent that writes the `tests/lsp/actions/` cases.
 
 ### Backlog
 
