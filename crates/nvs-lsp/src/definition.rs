@@ -103,7 +103,7 @@ use std::borrow::Cow;
 use std::path::PathBuf;
 
 use lsp_types::{Position, Range};
-use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
+use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, SourceId, Span};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
     ClassMember, ClassMemberKind, DocComment, EnumCase, EnumDecl, Expr, ExprKind, FnBody, ForInit,
@@ -1231,17 +1231,7 @@ pub(crate) fn type_name_at(analysed: &Analysed, offset: BytePos) -> Option<(Targ
     if !covers(name.span, offset) {
         return None;
     }
-    let file = analysed.map.file(analysed.entry);
-    let text = text_of(file, name.span);
-    // A bare name inside a class's body is that class's own enum first
-    // (`rule:enums/class-scoped-enum`).
-    let owned = class_at(analysed, name.span.start).and_then(|owner| {
-        nvs_hir::owned_enum_in_scope(text, Some(&owner), &analysed.module.symbols)
-    });
-    let resolved = match owned {
-        Some(owned) => owned,
-        None => resolved_name(analysed, text, name.span.start)?,
-    };
+    let resolved = written_name_in(analysed, analysed.entry, name.span)?;
     let target = match analysed.module.symbols.get(&resolved) {
         Some(symbol) => Target::Type(Cow::Borrowed(&symbol.qname)),
         None => Target::Type(Cow::Owned(resolved)),
@@ -1249,40 +1239,66 @@ pub(crate) fn type_name_at(analysed: &Analysed, offset: BytePos) -> Option<(Targ
     Some((target, name.span))
 }
 
+/// What the type name written at `name` in `file` resolves to, by the same
+/// reading [`type_name_at`] gives a cursor, and `None` for an empty spelling.
+///
+/// A bare name inside a class's body is that class's own enum first
+/// (`rule:enums/class-scoped-enum`), and every other name goes through
+/// `nvs_hir::resolve_ref` with the namespace and the imports of `file`. The
+/// index reads every file of a graph with it, so a type annotation is
+/// recorded against the name a cursor on it would ask about.
+pub(crate) fn written_name_in(analysed: &Analysed, file: SourceId, name: Span) -> Option<QName> {
+    let text = text_of(analysed.map.file(file), name);
+    let owned = class_in(analysed, file, name.start).and_then(|owner| {
+        nvs_hir::owned_enum_in_scope(text, Some(&owner), &analysed.module.symbols)
+    });
+    match owned {
+        Some(owned) => Some(owned),
+        None => resolved_name_in(analysed, file, text, name.start),
+    }
+}
+
 /// What the name `text`, written at `at` in the entry document, means — and
 /// `None` for an empty spelling, which is a cursor that has written no name at
 /// all rather than one that named the root.
+pub(crate) fn resolved_name(analysed: &Analysed, text: &str, at: BytePos) -> Option<QName> {
+    resolved_name_in(analysed, analysed.entry, text, at)
+}
+
+/// What the name `text`, written at `at` in `file`, means.
 ///
 /// `nvs_hir::resolve_ref` is the whole of the decision
 /// (`rule:statements/one-function-resolves-every-name`); what is added here is
 /// the two things it takes and a cursor answer has to find for itself, which
-/// are [`namespace_at`] and [`imports_of`].
-pub(crate) fn resolved_name(analysed: &Analysed, text: &str, at: BytePos) -> Option<QName> {
+/// are [`namespace_in`] and [`imports_in`].
+fn resolved_name_in(analysed: &Analysed, file: SourceId, text: &str, at: BytePos) -> Option<QName> {
     if text.is_empty() {
         return None;
     }
     Some(nvs_hir::resolve_ref(
         text,
-        &namespace_at(analysed, at),
-        &imports_of(analysed),
+        &namespace_in(analysed, file, at),
+        &imports_in(analysed, file),
     ))
 }
 
-/// The namespace `offset` is written inside, as its segments.
+/// The namespace `offset` is written inside in the entry document, as its
+/// segments.
+pub(crate) fn namespace_at(analysed: &Analysed, offset: BytePos) -> Vec<String> {
+    namespace_in(analysed, analysed.entry, offset)
+}
+
+/// The namespace `offset` is written inside in `file`, as its segments.
 ///
-/// Walked off the entry document's own statements because `nvs-hir` applies a
+/// Walked off the file's own statements because `nvs-hir` applies a
 /// namespace as it collects declarations and keeps no map from a position back
 /// to one. The two forms are the ones its resolver reads: `namespace Name;`
 /// governs the rest of the file, and the bracketed form governs its block.
-pub(crate) fn namespace_at(analysed: &Analysed, offset: BytePos) -> Vec<String> {
-    let Some(loaded) = analysed
-        .loaded
-        .iter()
-        .find(|loaded| loaded.id == analysed.entry)
-    else {
+fn namespace_in(analysed: &Analysed, file: SourceId, offset: BytePos) -> Vec<String> {
+    let Some(loaded) = analysed.loaded.iter().find(|loaded| loaded.id == file) else {
         return Vec::new();
     };
-    let file = analysed.map.file(analysed.entry);
+    let file = analysed.map.file(file);
     let mut current = Vec::new();
     for stmt in &loaded.stmts {
         let StmtKind::NamespaceDecl(decl) = &stmt.kind else {
@@ -1309,15 +1325,16 @@ pub(crate) fn namespace_at(analysed: &Analysed, offset: BytePos) -> Vec<String> 
 /// bracketed namespace body is descended into, because its declarations are
 /// written one level in.
 pub(crate) fn class_at(analysed: &Analysed, offset: BytePos) -> Option<QName> {
-    let loaded = analysed
-        .loaded
-        .iter()
-        .find(|loaded| loaded.id == analysed.entry)?;
-    let file = analysed.map.file(analysed.entry);
+    class_in(analysed, analysed.entry, offset)
+}
+
+/// [`class_at`] in any file of the graph.
+fn class_in(analysed: &Analysed, file: SourceId, offset: BytePos) -> Option<QName> {
+    let loaded = analysed.loaded.iter().find(|loaded| loaded.id == file)?;
     let name = class_name_at(&loaded.stmts, offset)?;
     Some(QName::join(
-        &namespace_at(analysed, offset),
-        text_of(file, name),
+        &namespace_in(analysed, file, offset),
+        text_of(analysed.map.file(file), name),
     ))
 }
 
@@ -1341,11 +1358,16 @@ fn class_name_at(stmts: &[Stmt], offset: BytePos) -> Option<Span> {
 /// file that wrote it — a required file's import must not resolve a name
 /// written here.
 pub(crate) fn imports_of(analysed: &Analysed) -> FxHashMap<String, QName> {
+    imports_in(analysed, analysed.entry)
+}
+
+/// [`imports_of`] for any file of the graph.
+fn imports_in(analysed: &Analysed, file: SourceId) -> FxHashMap<String, QName> {
     analysed
         .module
         .imports
         .iter()
-        .filter(|import| import.span.file == analysed.entry)
+        .filter(|import| import.span.file == file)
         .map(|import| (import.short_name.clone(), import.target.clone()))
         .collect()
 }

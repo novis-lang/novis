@@ -1,5 +1,5 @@
 --TEST--
-The cursor anywhere in a type test resolves to the type the test names, so it answers that interface's declaration and the `implements` clause that uses it, `rule:ide/the-index-answers-the-cursor`
+The cursor anywhere in a type test resolves to the type the test names, so it answers that interface's declaration, the `implements` clause that uses it and the test itself, `rule:ide/the-index-answers-the-cursor`
 --FILE--
 <?nvs
 interface Shape
@@ -21,3 +21,4 @@ references
 --EXPECT--
 case.nvs:2:11
 case.nvs:7:25
+case.nvs:13:11
