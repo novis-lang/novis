@@ -6,7 +6,11 @@ is the same query narrowed to the open file, which is why it reads the index rat
 document alone: it needs resolution applied to every occurrence, not to one. CodeLens above a declaration shows
 the reference count, a type's implementors, and the methods a method overrides and is overridden by; it is
 gated on `nvs.codeLens.enable` (default `true`), because a lens is a request per visible declaration and a
-large file is where it is least welcome. `textDocument/typeHierarchy` shows supertypes and subtypes,
+large file is where it is least welcome. A click on a lens lists the places it counts. The lens carries
+`nvs.showLocations` with the document, its position and those places, and only for a client that names
+that id in `capabilities.experimental.commands`; every other client gets a label. The VS Code client
+registers the id and opens the editor's reference view. The id is frozen like a contributed command, and
+the places cost one file load per file that holds one, per lens request. `textDocument/typeHierarchy` shows supertypes and subtypes,
 including `rule:classes/interface-default-methods` and `rule:classes/delegation-by-property`, which is
 where a reader most needs to see the shape rather than reconstruct it.
 

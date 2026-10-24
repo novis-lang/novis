@@ -39,6 +39,8 @@ const EDITOR: Client = Client {
     snippets: true,
     suggest: true,
     parameter_hints: true,
+    show_locations: false,
+    refresh_lenses: false,
     rename_files: false,
 };
 

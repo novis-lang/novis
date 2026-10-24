@@ -1,15 +1,23 @@
 //! The `nvs.*` settings the client configured, and what they mean when it
 //! configured nothing.
 //!
-//! A setting reaches this server exactly once, in `initialize`'s
-//! `initializationOptions`, and is read here into one value [`crate::serve`]
-//! holds beside its stores. There is no `workspace/configuration` round trip
-//! and no `didChangeConfiguration` arm: either would make a setting something
-//! that changes under a reader mid-session, and two of these decide what the
-//! server *built* — the tree the symbol index was constructed over, and whether
-//! a lens is offered at all — which is not a thing the next request can simply
-//! be answered differently for. A client that changes one restarts the server,
-//! which is what the roster's `nvs.restartServer` is for.
+//! A setting reaches this server in `initialize`'s `initializationOptions`, and
+//! again in each `workspace/didChangeConfiguration` the client sends after a
+//! setting changed. Both are read here into one value [`crate::serve`] holds
+//! beside its stores. There is no `workspace/configuration` round trip: the
+//! client sends the section, and the server never asks for it.
+//!
+//! **A change is applied between two messages, never under a reader.**
+//! [`Settings::change`] runs on the thread that answers every request, so a
+//! request sees the settings before the change or after it. It says which
+//! settings are different, because two of them decide what the server *built*.
+//! A new `nvs.check.scope` rebuilds the symbol index over the new tree and
+//! publishes every open document again, since the unused-member dimming
+//! depends on it. A new `nvs.codeLens.enable` asks the client to fetch its
+//! lenses again. `nvs.lsp.debounce` applies to the next edit. `nvs.stubs.dir`
+//! and the workspace root keep the values `initialize` gave them: the client
+//! fills in the first itself, and the second is not a setting. Keeping the
+//! server running keeps its index warm, which a restart would throw away.
 //!
 //! **The shape on the wire is the `nvs` section as the client already holds
 //! it.** VS Code's `workspace.getConfiguration("nvs")` is a nested object, so
@@ -25,7 +33,10 @@
 //! each takes what `rule:ide/check-scope-defaults-to-the-workspace` and the
 //! roster say the default is. The alternative is refusing `initialize` over a
 //! typo in a `settings.json`, which leaves a developer with no server at all
-//! and nothing on screen saying why.
+//! and nothing on screen saying why. A change carries the whole section, so a
+//! setting it leaves out is one the user removed, and it takes the default
+//! too. A change whose `settings` is not an object names no section at all, as
+//! a client that expects to be asked for its settings sends, and is ignored.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -106,6 +117,11 @@ pub struct Client {
     pub suggest: bool,
     /// The client runs [`Client::PARAMETER_HINTS`], which opens signature help.
     pub parameter_hints: bool,
+    /// The client runs [`Client::SHOW_LOCATIONS`], so a lens may be clicked.
+    pub show_locations: bool,
+    /// `workspace.codeLens.refreshSupport`: the server may ask the client to
+    /// fetch its lenses again, which a changed setting does.
+    pub refresh_lenses: bool,
     /// `workspace.workspaceEdit`: the client reads `documentChanges` and its
     /// `resourceOperations` include `rename`, so an edit may move a file.
     pub rename_files: bool,
@@ -116,6 +132,12 @@ impl Client {
     pub const SUGGEST: &'static str = "editor.action.triggerSuggest";
     /// The command that opens signature help at the cursor.
     pub const PARAMETER_HINTS: &'static str = "editor.action.triggerParameterHints";
+    /// The command that lists places in the editor's reference view. A lens
+    /// carries it with the places it counts ([`crate::serve`]'s `code_lens`).
+    /// The VS Code client registers it and passes the places to its own
+    /// `editor.action.showReferences`, which takes editor objects rather than
+    /// the JSON a lens can carry.
+    pub const SHOW_LOCATIONS: &'static str = "nvs.showLocations";
 
     /// What `params` declared.
     fn from_initialize(params: &InitializeParams) -> Self {
@@ -135,6 +157,13 @@ impl Client {
                 .unwrap_or(false),
             suggest: names(Self::SUGGEST),
             parameter_hints: names(Self::PARAMETER_HINTS),
+            show_locations: names(Self::SHOW_LOCATIONS),
+            refresh_lenses: capabilities
+                .workspace
+                .as_ref()
+                .and_then(|workspace| workspace.code_lens.as_ref())
+                .and_then(|lens| lens.refresh_support)
+                .unwrap_or(false),
             rename_files: capabilities
                 .workspace
                 .as_ref()
@@ -174,27 +203,62 @@ impl Settings {
     #[must_use]
     pub fn from_initialize(params: &InitializeParams) -> Self {
         let options = params.initialization_options.as_ref();
-        let defaults = Self::default();
-        Self {
-            scope: at(options, &["check", "scope"])
-                .and_then(Value::as_str)
-                .and_then(scope_named)
-                .unwrap_or(defaults.scope),
-            code_lens: at(options, &["codeLens", "enable"])
-                .and_then(Value::as_bool)
-                .unwrap_or(defaults.code_lens),
-            debounce: at(options, &["lsp", "debounce"])
-                .and_then(Value::as_u64)
-                .map(Duration::from_millis)
-                .unwrap_or(defaults.debounce),
+        let mut settings = Self {
             client: Client::from_initialize(params),
             root: root_of(params),
             stubs: at(options, &["stubs", "dir"])
                 .and_then(Value::as_str)
                 .filter(|dir| !dir.trim().is_empty())
                 .map(PathBuf::from),
+            ..Self::default()
+        };
+        settings.read(options);
+        settings
+    }
+
+    /// Applies one `workspace/didChangeConfiguration`'s `settings`, and says
+    /// which of the settings that decide what the server built are different.
+    ///
+    /// `section` is the whole `nvs` section, in the shape `initialize` sends.
+    /// Anything that is not an object changes nothing.
+    pub fn change(&mut self, section: &Value) -> Changed {
+        if !section.is_object() {
+            return Changed::default();
+        }
+        let before = (self.scope, self.code_lens);
+        self.read(Some(section));
+        Changed {
+            scope: self.scope != before.0,
+            code_lens: self.code_lens != before.1,
         }
     }
+
+    /// Reads the three settings a change may carry out of `options`, each at
+    /// its default where `options` does not say.
+    fn read(&mut self, options: Option<&Value>) {
+        let defaults = Self::default();
+        self.scope = at(options, &["check", "scope"])
+            .and_then(Value::as_str)
+            .and_then(scope_named)
+            .unwrap_or(defaults.scope);
+        self.code_lens = at(options, &["codeLens", "enable"])
+            .and_then(Value::as_bool)
+            .unwrap_or(defaults.code_lens);
+        self.debounce = at(options, &["lsp", "debounce"])
+            .and_then(Value::as_u64)
+            .map(Duration::from_millis)
+            .unwrap_or(defaults.debounce);
+    }
+}
+
+/// Which settings one change made different, of the two that decide what the
+/// server built rather than how it answers.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Changed {
+    /// `nvs.check.scope`: the index is rebuilt over the new tree.
+    pub scope: bool,
+    /// `nvs.codeLens.enable`: the client fetches its lenses again.
+    pub code_lens: bool,
 }
 
 /// The value `path` names under the `nvs` section, if the client sent one.

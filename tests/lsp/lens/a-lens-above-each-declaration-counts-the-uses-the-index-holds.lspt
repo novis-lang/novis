@@ -11,6 +11,6 @@ echo $u->greet();
 --REQUEST--
 codeLens
 --EXPECT--
-2:7 1 reference
+2:7 1 reference -> case.nvs:6:14
 3:19 no references
-4:21 1 reference
+4:21 1 reference -> case.nvs:7:10

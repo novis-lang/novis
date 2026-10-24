@@ -32,9 +32,8 @@
 use std::fmt;
 
 use lsp_types::{
-    CodeLens, CompletionItem, Diagnostic, DocumentSymbol, FoldingRange, Hover, HoverContents,
-    InlayHint, InlayHintLabel, MarkedString, Position, Range, SelectionRange, SemanticToken,
-    SymbolKind,
+    CompletionItem, Diagnostic, DocumentSymbol, FoldingRange, Hover, HoverContents, InlayHint,
+    InlayHintLabel, MarkedString, Position, Range, SelectionRange, SemanticToken, SymbolKind,
 };
 
 use crate::case::Request;
@@ -114,6 +113,21 @@ pub struct Region {
     pub range: Range,
     /// Which service that is, as `crate::regions::HTML` spells it.
     pub language: String,
+}
+
+/// One lens above a declaration, with the places a click on it lists.
+///
+/// The places are named as the case wrote them, for [`Place`]'s reason. An
+/// empty list is a lens with no command, which renders its title and runs
+/// nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Lens {
+    /// The declaration's own name.
+    pub range: Range,
+    /// What the editor shows. `None` is a lens whose command nobody set.
+    pub title: Option<String>,
+    /// What the lens's command lists.
+    pub places: Vec<Place>,
 }
 
 /// One fix an editor may offer, with the edits it would apply.
@@ -236,7 +250,7 @@ pub enum Response {
     /// `nvs.codeLens.enable` on. The refusal that setting buys is a `None`
     /// answer and not an empty list, and it is nothing this renders: no case
     /// can write a setting.
-    CodeLens(Vec<CodeLens>),
+    CodeLens(Vec<Lens>),
     /// `textDocument/references`, with the declaration among the uses.
     ///
     /// A list and not an option, so the two answers the server tells apart on
@@ -694,12 +708,17 @@ fn hint(item: &InlayHint) -> ((u32, u32), String) {
 /// two lenses above two members written on one line have to be two entries a
 /// reader can tell apart. A lens whose command nobody set renders [`ABSENT`],
 /// which is also what an editor shows above one.
-fn lens(item: &CodeLens) -> ((u32, u32, u32, u32), String) {
-    let title = or_absent(item.command.as_ref(), |command| command.title.clone());
-    (
-        span_key(item.range),
-        format!("{} {title}", position(item.range.start)),
-    )
+///
+/// A lens a click opens a list from is followed by ` -> ` and the places, in
+/// [`reference`]'s order and spelling, so a case freezes what the click lists.
+fn lens(item: &Lens) -> ((u32, u32, u32, u32), String) {
+    let title = or_absent(item.title.as_ref(), Clone::clone);
+    let mut line = format!("{} {title}", position(item.range.start));
+    if !item.places.is_empty() {
+        let places = sorted(item.places.iter().map(reference));
+        line = format!("{line} -> {}", places.join(", "));
+    }
+    (span_key(item.range), line)
 }
 
 /// `L:C-L:C kind title -> "replacement"`.
@@ -869,14 +888,10 @@ mod tests {
                 replacement: "UserAccount".to_owned(),
                 also: Vec::new(),
             }]),
-            Response::CodeLens(vec![CodeLens {
+            Response::CodeLens(vec![Lens {
                 range: span(1, 6, 10),
-                command: Some(lsp_types::Command {
-                    title: "2 references".to_owned(),
-                    command: String::new(),
-                    arguments: None,
-                }),
-                data: None,
+                title: Some("2 references".to_owned()),
+                places: Vec::new(),
             }]),
             // Out of order and across two files, so the sort the rendering
             // applies is visible in what it produces.

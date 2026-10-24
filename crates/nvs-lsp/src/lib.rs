@@ -149,6 +149,6 @@ pub use index::{
     Site, SymbolIndex, Visibility, symbol_at,
 };
 pub use position::{encoding_of, offset_at, position_at, range_at, range_of};
-pub use render::{Action, Change, Edit, Link, Place, Redaction, Region, Renamable, Response};
+pub use render::{Action, Change, Edit, Lens, Link, Place, Redaction, Region, Renamable, Response};
 pub use server::{ServerError, Workspace, run, serve, workspace};
 pub use settings::{Client, Settings};

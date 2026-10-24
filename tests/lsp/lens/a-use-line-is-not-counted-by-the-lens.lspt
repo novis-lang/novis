@@ -14,4 +14,4 @@ var $u = new User();
 --REQUEST--
 codeLens
 --EXPECT--
-6:7 1 reference
+6:7 1 reference -> case.nvs:10:14

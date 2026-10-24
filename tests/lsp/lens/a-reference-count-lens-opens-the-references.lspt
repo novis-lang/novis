@@ -1,0 +1,23 @@
+--TEST--
+a lens carries the command that lists what it counts: the uses for a reference count, the subclasses for a subclass count and the methods for an override lens, and a lens that counts nothing runs nothing, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Animal {
+    public function speak(): string { return ""; }
+}
+class Dog extends Animal {
+    public function speak(): string { return "woof"; }
+}
+var $a = new Animal();
+var $d = new Dog();
+echo $d->speak();
+--REQUEST--
+codeLens
+--EXPECT--
+2:7 1 subclass -> case.nvs:5:7
+2:7 2 references -> case.nvs:5:19, case.nvs:8:14
+3:21 1 override -> case.nvs:6:21
+3:21 no references
+5:7 1 reference -> case.nvs:9:14
+6:21 1 reference -> case.nvs:10:10
+6:21 overrides Animal::speak -> case.nvs:3:21
