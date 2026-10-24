@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/runner.rs, crates/nvs-types/src/testing.rs]
 stages:
   - id: 1
     title: tests are absent from `nvs run` and `nvs build`
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/mod.rs, crates/nvs-cli/src/main.rs, crates/nvs-cli/src/script.rs, crates/nvs-types/src/testing.rs, crates/nvs-types/src/check.rs, crates/nvs-runtime/src/ctx/error.rs, docs/rules/testing/tests-never-reach-a-build.md]
     extra:
       context:
@@ -150,18 +150,18 @@ common runners name it.
 **Does:** the lowering leaves out every declaration that is test code, `nvs check` still checks it,
 and an assertion outside a test keeps no ledger.
 
-- [ ] The rule names what is test code, and that a reference into it is a compile error (`rule:testing/tests-never-reach-a-build`). `docs/rules/testing/tests-never-reach-a-build.md:1`
-- [ ] The checker marks test code from its `#[Test]` table and the hooks. `crates/nvs-types/src/testing.rs:350`, `crates/nvs-types/src/check.rs:413`
-- [ ] A reference from other code into test code is the compile error, with its code and card. `crates/nvs-types/src/testing.rs:350`
-- [ ] `nvs run`, its reload and `nvs build` lower none of it, and `nvs test` lowers it as today. `crates/nvs-ir/src/lower/mod.rs:735`, `crates/nvs-ir/src/lower/mod.rs:776`, `crates/nvs-cli/src/main.rs:1626`, `crates/nvs-cli/src/script.rs:1407`, `crates/nvs-cli/src/runner.rs:932`
-- [ ] Tests: a run's lowered program has no test label, and `nvs check` still reports an error in a test method. `crates/nvs-ir/src/lower/mod.rs:735`
-- [ ] The rule `shipped`. `data/rules/testing/tests-never-reach-a-build.json:3`
+- [x] The rule names what is test code, and that a reference into it is a compile error (`rule:testing/tests-never-reach-a-build`). `docs/rules/testing/tests-never-reach-a-build.md:1`
+- [x] The checker marks test code from its `#[Test]` table and the hooks. `crates/nvs-types/src/testing.rs:350`, `crates/nvs-types/src/check.rs:413`
+- [x] A reference from other code into test code is the compile error, with its code and card. `crates/nvs-types/src/testing.rs:350`
+- [x] `nvs run`, its reload and `nvs build` lower none of it, and `nvs test` lowers it as today. `crates/nvs-ir/src/lower/mod.rs:735`, `crates/nvs-ir/src/lower/mod.rs:776`, `crates/nvs-cli/src/main.rs:1626`, `crates/nvs-cli/src/script.rs:1407`, `crates/nvs-cli/src/runner.rs:932`
+- [x] Tests: a run's lowered program has no test label, and `nvs check` still reports an error in a test method. `crates/nvs-ir/src/lower/mod.rs:735`
+- [x] The rule `shipped`. `data/rules/testing/tests-never-reach-a-build.json:3`
 
 The assertion ledger, the one gap record this goal owns:
 
-- [ ] `Ctx::record_assertion` keeps no entry when no test owns the context. `crates/nvs-runtime/src/ctx/error.rs:782`
-- [ ] A ladder ramps the assertion count under `nvs run` and pins flat memory. `benches/scaling/values/assertions-outside-a-test.nvs:1`
-- [ ] The gap record deleted. `data/gaps/nvs-runtime/an-assertion-outside-a-test-grows-the-ledger.json:1`
+- [x] `Ctx::record_assertion` keeps no entry when no test owns the context. `crates/nvs-runtime/src/ctx/error.rs:782`
+- [x] A ladder ramps the assertion count under `nvs run` and pins flat memory. `benches/scaling/values/assertions-outside-a-test.nvs:1`
+- [x] The gap record deleted. `data/gaps/nvs-runtime/an-assertion-outside-a-test-grows-the-ledger.json:1`
 
 ### 5. a test has a time limit, and tags and shards select what runs
 
@@ -265,24 +265,26 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. The anchors above were checked against the tree. Goals `mutation-testing` and
-`bench-counters` gate on stages 1 and 5 by id, so those ids never change.
+Stage 1 is done (`a7a52e3d8`, `f3ff5d37f`). Test code is a method with one of the five testing
+markers (`crates/nvs-types/src/test_code.rs`); a call into it from other code is `E0889`.
+`lower_program` omits it, and the runner uses `lower_program_with_tests` under
+`crate::cache::test_program_digest`. Outside a test the ledger keeps only a failure count, and
+`Ctx::child` copies `owned_by_test`. Stages 1 and 5 keep their ids for `mutation-testing` and
+`bench-counters`.
+
+Tests that may go red at the gate: any `nvs-host` `group.rs` or `nvs-stdlib` `test.rs` unit test
+that reads `take_assertions` on a context no test owns (call `set_owned_by_test` first), and any
+`.nvst` or example whose non-test code calls a fixture or a hook (now `E0889`).
 
 ### Next
 
-**Stage 1: tests out of builds**, one file set: `crates/nvs-ir/src/lower/mod.rs`,
-`crates/nvs-types/src/testing.rs`, `crates/nvs-types/src/check.rs`, `crates/nvs-cli/src/main.rs`,
-`crates/nvs-cli/src/script.rs`, and `crates/nvs-runtime/src/ctx/error.rs` for the gap. No gate.
+**Stage 5: time limit, tags and shards**, file set `crates/nvs-types/src/testing.rs` and
+`crates/nvs-cli/src/runner.rs`. No gate.
 
-- [ ] What is test code, in the rule (`rule:testing/tests-never-reach-a-build`). `docs/rules/testing/tests-never-reach-a-build.md:1`
-- [ ] The checker marks it. `crates/nvs-types/src/testing.rs:350`, `crates/nvs-types/src/check.rs:413`
-- [ ] A reference into test code is a compile error. `crates/nvs-types/src/testing.rs:350`
-- [ ] `nvs run`, its reload and `nvs build` lower none of it. `crates/nvs-ir/src/lower/mod.rs:776`, `crates/nvs-cli/src/main.rs:1626`, `crates/nvs-cli/src/script.rs:1407`
-- [ ] Tests: no test label in a run's program, `nvs check` still checks tests. `crates/nvs-ir/src/lower/mod.rs:735`
-- [ ] The rule `shipped`. `data/rules/testing/tests-never-reach-a-build.json:3`
-- [ ] `record_assertion` keeps nothing outside a test. `crates/nvs-runtime/src/ctx/error.rs:782`
-- [ ] The flat-memory ladder. `benches/scaling/values/assertions-outside-a-test.nvs:1`
-- [ ] The gap record deleted. `data/gaps/nvs-runtime/an-assertion-outside-a-test-grows-the-ledger.json:1`
+- [ ] `timeout` and `tags` in the option roster, `timeout` checked as a duration. `crates/nvs-types/src/testing.rs:231`
+- [ ] Each test under `[limits] wall_time` or its `timeout`. `crates/nvs-cli/src/runner.rs:490`
+- [ ] `--tag`, `--skip-tag`, `--shard N/M`, and the summary counts. `crates/nvs-cli/src/runner.rs:236`
+- [ ] Tests, help text, the example, both rules `shipped`. `docs/examples/lang/testing/test-options/about.md:1`
 
 ### Backlog
 
