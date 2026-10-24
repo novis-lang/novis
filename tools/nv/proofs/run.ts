@@ -232,8 +232,13 @@ const EXAMPLE_EXIT_RE = /(?:\/\/|#)\s*proof:\s*exit\s+([0-9]+)/;
  * with `nvs`'s compile-error status and a diagnostic, and its `.out` is that diagnostic. */
 const EXAMPLE_COMPILE_ERROR_RE = /(?:\/\/|#)\s*proof:\s*compile-error\b/;
 /** `// proof: test` in an example: it shows the report `nvs test` prints for it, so it runs under
- * `nvs test`, and its `.out` is that report with every duration removed (`testReport`). */
+ * `nvs test`, and its `.out` is that report with every duration removed (`testReport`). An attack
+ * that declares it runs under `nvs test` as well, because `nvs run` calls no test (`judgeHostile`). */
 const EXAMPLE_TEST_RE = /(?:\/\/|#)\s*proof:\s*test\b/;
+/** The last line of an `nvs test` report, which is written once every test has run. */
+const TEST_SUMMARY_RE = /^\s*[0-9]+ failed, [0-9]+ passed, [0-9]+ skipped, [0-9]+ flaky\b/m;
+/** The status `nvs test` ends with when a test failed. */
+const TEST_FAILED_EXIT = 1;
 /** The status `nvs run` ends with when the program does not compile. */
 const COMPILE_ERROR_EXIT = 1;
 /** A compile diagnostic. An uncaught throw is a log line and does not look like this. */
@@ -552,8 +557,9 @@ export function testReport(stdout: string): string {
     .replace(/^(\s+[0-9]+ failed, .* flaky) in [0-9]+ ms(\r?)$/gm, "$1$2");
 }
 
-/** The command line an example runs with: `nvs test` for a `proof: test` example, `nvs run` otherwise. */
-function exampleArgv(nvs: string, path: string, source: string): string[] {
+/** The command line an example or an attack runs with: `nvs test` for a `proof: test` program, `nvs run`
+ * otherwise. */
+function proofArgv(nvs: string, path: string, source: string): string[] {
   return [nvs, EXAMPLE_TEST_RE.test(source) ? "test" : "run", path];
 }
 
@@ -576,7 +582,7 @@ async function runExample(nvs: string, path: string, unlogged = false): Promise<
   if (skip) return ["skip", skip];
   let out: Ran;
   try {
-    out = await spawnProof(exampleArgv(nvs, path, source), path, EXAMPLE_TIMEOUT_MS, unlogged ? { unlogged } : undefined);
+    out = await spawnProof(proofArgv(nvs, path, source), path, EXAMPLE_TIMEOUT_MS, unlogged ? { unlogged } : undefined);
   } catch (e) {
     return ["fail", `could not run: ${e instanceof Error ? e.message : String(e)}`];
   }
@@ -622,7 +628,7 @@ export async function bless(nvs: string, paths: string[]): Promise<{ lines: stri
       continue;
     }
     const source = read(path);
-    const out = await spawnProof(exampleArgv(nvs, path, source), path, 120_000);
+    const out = await spawnProof(proofArgv(nvs, path, source), path, 120_000);
     if (out.code !== declaredExit(source) || (EXAMPLE_COMPILE_ERROR_RE.test(source) && !REFUSED_RE.test(out.stderr))) {
       lines.push(`  FAIL  ${path} exited ${out.code}:`, "        " + out.stderr.trim().replace(/\r?\n/g, "\n        "));
       failed = true;
@@ -730,13 +736,14 @@ function stepAt(source: string, line: number): number | null {
  * A panic, a hang, a crash-shaped status and a definite leak do not. Two failures look like a pass, and
  * each is an attack that was never delivered: a compile diagnostic, unless the file declares
  * `expect-refusal`, and a program that ends before its last line, unless the file declares `ends-early`.
+ * An attack that declares `proof: test` runs under `nvs test`, and its last line is the report's summary.
  */
 async function runHostile(nvs: string, path: string, valgrind: boolean, unlogged = false): Promise<Judged> {
   const source = read(path);
   const skip = skipReason(source) ?? (await serviceSkipReason(source));
   if (skip) return ["skip", skip];
   let limit = hostileLimitMs(source);
-  let argv = [nvs, "run", path];
+  let argv = proofArgv(nvs, path, source);
   if (valgrind) {
     argv = ["valgrind", "--quiet", "--error-exitcode=97", "--leak-check=full", "--errors-for-leak-kinds=definite", ...argv];
     limit *= HANG_FACTOR;
@@ -771,6 +778,12 @@ export function judgeHostile(path: string, source: string, out: Ran, limit: numb
   if (valgrind && out.code === 97) return ["fail", "valgrind reports a definite leak or an invalid access"];
   // A negative status is a signal; anything past 255 on Windows is a structured exception.
   if (out.code < 0 || out.code > 255) return ["fail", `crash-shaped exit status ${out.code}`];
+  // Under `nvs test` every test runs in its own isolate, so a test that fails stops nothing after it.
+  // The attack was delivered when the report reached its summary line.
+  if (EXAMPLE_TEST_RE.test(source) && !declared) {
+    if ((out.code === 0 || out.code === TEST_FAILED_EXIT) && TEST_SUMMARY_RE.test(out.stdout)) return ["ok", ""];
+    return ["fail", `the test report ended before its summary line (exit ${out.code}): ${[...stoppedBy(out.stderr)].slice(0, 120).join("")}`];
+  }
   if (out.code !== 0 && !declared) {
     const first = stoppedBy(out.stderr);
     return [
@@ -934,16 +947,15 @@ export function recordingLimitMs(what: What, path: string, judged?: Ran): number
 }
 
 /** The recording run of one program on `nvs`, the covws debug build, recorded into `dir` with `env`
- * beside it. It has a hang limit and no verdict. An example runs with the command its judged run used. */
+ * beside it. It has a hang limit and no verdict. It runs with the command its judged run used. */
 export function recordingRun(nvs: string, what: What, path: string, dir: string, env: Record<string, string> = {}, judged?: Ran): Promise<Ran> {
-  const argv = what === "examples" ? exampleArgv(nvs, path, read(path)) : [nvs, "run", path];
-  return spawnProof(argv, path, recordingLimitMs(what, path, judged), { dir, env });
+  return spawnProof(proofArgv(nvs, path, read(path)), path, recordingLimitMs(what, path, judged), { dir, env });
 }
 
-/** `ran` the way two runs of `path` are compared: a `proof: test` example's report loses its timings
+/** `ran` the way two runs of `path` are compared: a `proof: test` program's report loses its timings
  * (`testReport`), which differ on every run, and any other program's run is unchanged. */
-export function comparableRun(what: What, path: string, ran: Ran): Ran {
-  return what === "examples" && EXAMPLE_TEST_RE.test(read(path)) ? { ...ran, stdout: testReport(ran.stdout) } : ran;
+export function comparableRun(_what: What, path: string, ran: Ran): Ran {
+  return EXAMPLE_TEST_RE.test(read(path)) ? { ...ran, stdout: testReport(ran.stdout) } : ran;
 }
 
 /**
@@ -988,7 +1000,7 @@ export function ownDataFolder(ran: Ran): string {
  * time. An attack's time is shown against its limit. Nothing is judged here and nothing is remembered. */
 export async function showProgram(nvs: string, path: string, kind: What | "bench"): Promise<string> {
   const limit = kind === "hostile" ? hostileLimitMs(read(path)) : EXAMPLE_TIMEOUT_MS;
-  const out = await spawnProof([nvs, "run", path], path, limit);
+  const out = await spawnProof(kind === "bench" ? [nvs, "run", path] : proofArgv(nvs, path, read(path)), path, limit);
   const lines = [`== ${path}`];
   const printed = (out.stdout + out.stderr).replace(/\r\n/g, "\n").trimEnd();
   if (printed) lines.push(printed);
