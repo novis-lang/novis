@@ -27,7 +27,7 @@ stages:
         rules: [testing/debug-surface, testing/debug-probes]
   - id: 7
     title: "the new `Core\\Debug` members have their feature proofs"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/debug.rs, docs/rules/testing/feature-proofs.md, docs/rules/core-api/reference-card.md, docs/examples/core/Debug/dump/about.md]
     extra:
       context:
@@ -195,10 +195,10 @@ window.
 below. Writing subagents, one after another: the `about.md` files and three examples per member; then
 the Novis tests and the attacks; then the benches. The session checks each batch and ticks it.
 
-- [ ] `about.md` and three examples for each new member (`rule:testing/feature-proofs`). `docs/examples/core/Debug/startTrace/about.md:1`
-- [ ] A Novis test and an attack for each: a request that writes a trace or profile without the grant fails (`rule:testing/feature-proofs`). `tests/hostile/core/Debug/startTrace/01-without-the-grant.nvs:1`
-- [ ] A bench for each, with its growth (`rule:testing/member-perf-ledger`). `benches/members/core/Debug/startTrace.nvs:1`
-- [ ] `bun nv proofs --id 'core/Debug'` prints nothing owed. `tools/nv/proofs/roster.ts:1`
+- [x] `about.md` and three examples for each new member (`rule:testing/feature-proofs`). `docs/examples/core/Debug/startTrace/about.md:1`
+- [x] A Novis test and an attack for each: a request that writes a trace or profile without the grant fails (`rule:testing/feature-proofs`). `tests/hostile/core/Debug/startTrace/01-without-the-grant.nvs:1`
+- [x] A bench for each, with its growth (`rule:testing/member-perf-ledger`). `benches/members/core/Debug/startTrace.nvs:1`
+- [x] `bun nv proofs --id 'core/Debug'` prints nothing owed. `tools/nv/proofs/roster.ts:1`
 
 ### 3. a spawned isolate's probe data comes back on its result
 
@@ -265,38 +265,46 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 6 are done: the seven `Core\Debug` members exist, and a trace and coverage work from
-source. The sweep's nightly reds ran on `3ea6f15`, before the commits that fixed each.
+Stages 1, 2, 6 and 7 are done. The seven `Core\Debug` members exist, a trace and coverage work from
+source, and `bun nv proofs --gate --only` over the seven owes nothing. Pass `--nvs
+target/debug/nvs.exe` while `target/release/nvs` predates the members, or the roster lacks them.
+The nightly run on `3ea6f15` was red before later commits fixed it. Its `lint` red was rustfmt drift
+from the trace commits, fixed in `e422d8206`.
 
-- **The trace streams.** `startTrace` creates a `nvs_runtime::TraceSink`
-  (`crates/nvs-runtime/src/ctx/trace.rs:783`); `stopTrace` closes it and throws on a failed write. One
-  line per call as it returns, `{"kind":"call","callee":…,"status":"ok","start":…,"end":…}` in
-  trace-clock nanoseconds. A call still open at the stop has no line.
-- **No `call` is in `Ctx::trace`** (`:381`), and `records_spans` holds a `TRACE` run to
-  `SPAN_EVENT_CEILING` too (`:294`).
-- **Coverage is located.** `coverage::Sites::table` (`crates/nvs-cli/src/coverage.rs:278`) shares one
-  `StmtLines` across `nvs test`'s run and per-test tables, and `nvs run` installs a table under a
-  `coverage` ceiling (`crates/nvs-cli/src/main.rs:2093`). Both checked by a scratch run.
+- **Stage 7's proofs.** About pages and examples are in `docs/examples/core/Debug/<member>/`, with an
+  `nvs.toml` each. Five cases are in `tests/conformance/core/` (`a-debug-*`, `a-trace-file-*`,
+  `a-profile-runs-*`, `coverage-lists-*`). One attack each is in `tests/hostile/core/Debug/<member>/`.
+  The benches are in `benches/members/core/Debug/`. Their shared `nvs.toml` grants `debug.trace` and
+  `debug.profile` as `true`, because a bench writes under `Core\IO::temporaryDir()`.
+  `debug::tests::a_profile_starts_and_stops_its_probe_and_sink` covers `stopProfile` from Rust.
+- **Found by running the members.** A trace's first line is `Core\Debug::startTrace` itself, and a
+  throwing call's status is `thrown`. A sink path built at run time must be absolute.
+  `Core\Config::set('debug.mode', …)` returns `false` for every value.
 
-The rewritten trace tests passed once by name (`ctx::trace::tests::`, codegen `calls` and `probes`,
-`debug::tests::a_trace_*`). Expected red at the gate: `bun nv proofs --gate` for the seven members
-(stage 7's), and any `nvs meta --json` or reference-card snapshot listing `Core\Debug`'s members.
+The new tests passed once by name. Expected red at the gate: any `nvs meta --json` or reference-card
+snapshot that lists `Core\Debug`'s members, and `bun nv scaling --budget`, whose
+`data/perf/bench-budget.json` has no entry for the seven benches. It is red tree-wide already
+(`novis/Spreadsheet-*`). `startProfile`'s growth reads `unclear`, which the gate accepts.
 
 ### Next
 
-**Stage 7: the new `Core\Debug` members have their feature proofs.** Follow its `**Split:**` line. Run
-`bun nv proofs --id 'core/Debug'` first, and paste the owed paths under the stage's items. Then send out
-writing subagents one after another, each with a brief that names its ceiling. The first writes the
-`about.md` files and three examples per member. The second writes the Novis tests and attacks, and the
-third the benches. An example or test that traces needs `[debug] mode` and a `[capabilities.debug]
-trace` grant in its configuration, the way `crates/nvs-stdlib/src/debug.rs:1060` writes them. Every
-comment follows AGENTS.md § *Text an end user reads*. Stage 5 stays a side lane (`editors/vscode/`), and
-stage 3 (`crates/nvs-host/`) can follow.
+**First, one slice: three `Core\Debug` texts a user reads are wrong.** Each fix edits
+`crates/nvs-stdlib/src/debug.rs`, so all nine `Core\Debug` perf figures go stale. Make all three fixes
+in one commit. Then run `bun nv proofs --record-perf --only` over the nine ids once, and commit the
+records with the fix. Re-bless `docs/examples/core/Debug/startCoverage/02-*.out` and any `.nvst` that
+pins the message, with `bun nv proofs --nvs target/debug/nvs.exe --bless <path>`.
 
-- [ ] `about.md` and three examples for each new member. `docs/examples/core/Debug/startTrace/about.md:1`
-- [ ] A Novis test and an attack for each: a request that writes a trace or profile without the grant fails. `tests/hostile/core/Debug/startTrace/01-without-the-grant.nvs:1`
-- [ ] A bench for each, with its growth. `benches/members/core/Debug/startTrace.nvs:1`
-- [ ] `bun nv proofs --id 'core/Debug'` prints nothing owed. `tools/nv/proofs/roster.ts:1`
+- [ ] `COVERAGE_DOC` names only `nvs test`, and `[debug] mode` with `"coverage"` counts under `nvs run` and `.nvst` from the first line. `crates/nvs-stdlib/src/debug.rs:278`
+- [ ] `START_COVERAGE_DOC` says `$branches` counts each side of a condition, and no member returns those counts. `crates/nvs-stdlib/src/debug.rs:256`
+- [ ] `STOP_TRACE_DOC` lists no error, and `stopTrace` throws when it could not write every call. `crates/nvs-stdlib/src/debug.rs:312`
+- [ ] The mode error says "the `branch` probe" and "A server never runs a probe", and a diagnostic never says "probe". `crates/nvs-stdlib/src/debug.rs:481`
+
+**Then stage 3: a spawned isolate's probe data comes back on its result** (`crates/nvs-host/`). Stage 5
+stays a side lane (`editors/vscode/`).
+
+- [ ] A child inherits the parent's flag word at spawn and can only narrow it. `crates/nvs-host/src/group.rs:561`, `crates/nvs-host/src/placed.rs:132`
+- [ ] Its coverage and its sink's events return as fields on the result. `crates/nvs-host/src/placed.rs:278`
+- [ ] Rust tests over a `spawn worker` child. `crates/nvs-host/src/placed.rs:469`
 
 ### Backlog
 
