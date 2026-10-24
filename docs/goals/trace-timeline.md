@@ -155,6 +155,21 @@ share `crates/nvs-runtime/src/ctx/trace.rs` and run in that order. Stage 6 also 
 stage 7 needs stage 6, stage 3 needs stage 6's sink (`crates/nvs-host/` is its own), and stage 8 needs
 stage 4's flags.
 
+**A child counts into a table of its own, and the host adds it to the run's.** Today every child
+copies its parent's `StmtHits` handle, so a child's lines show up in the parent's
+`Core\Debug::coverage()`, which `rule:testing/debug-surface` declines as a merge into live state. A
+child given a table gets a fresh one of the same shape (`StmtHits` with the same `StmtLines`), never
+the parent's handle. Its table comes back as a `coverage` field on `Completion` and `Crossed`, moved
+as an `Arc` like the other plain fields, so a placed child's counts need no encode. The parent's own
+table is never written. A context also carries the host's run table (`run_hits`), which Novis code
+cannot read, and the join adds a finished child's table into it with `StmtHits::add`, so `nvs test`'s
+report still counts the lines a child ran. A trace or profile sink is the child's own (`DebugSinks`
+is not shared): a child that leaves one running has it closed at its end, and the result carries the
+path and the write failure, never the events, which stay in the file. No new `Core` member reads these
+fields in this goal: a `ScriptResult` property would be a `Core` API change with its own proofs, and no
+caller asks for one yet (simplicity). Spends: one `u64` per statement per child in flight that runs
+under coverage, freed at its join, so O(in-flight).
+
 ## Stages
 
 ### 1. every trace event has a time on one clock
@@ -207,7 +222,9 @@ come back on its result.
 
 **Gate:** stage 6's sink exists (`crates/nvs-runtime/src/ctx/trace.rs` writes `call` events to a sink).
 
-- [ ] A child inherits the parent's flag word at spawn and can only narrow it, under every spawn form (`rule:testing/debug-surface`). `crates/nvs-host/src/group.rs:561`, `crates/nvs-host/src/placed.rs:132`
+- [x] A child inherits the parent's flag word at spawn and can only narrow it, under every spawn form (`rule:testing/debug-surface`). `crates/nvs-host/src/group.rs:561`, `crates/nvs-host/src/placed.rs:132`
+  - [x] `Ctx::child`, `Ctx::isolate` and `PlacedIsolate::build` set the ceiling to the parent's word, and no host calls `set_config` on a child
+  - [x] `ctx::trace::tests::every_child_form_inherits_the_flag_word_and_may_only_narrow_it`
 - [ ] Its coverage and its sink's events return as fields on the result, by the copy-out a usage figure uses (`rule:security/isolate-shares-nothing`). `crates/nvs-host/src/placed.rs:278`
 - [ ] Rust tests over a `spawn worker` child, and that the parent's live state is unchanged by the child's data (`rule:security/isolate-shares-nothing`). `crates/nvs-host/src/placed.rs:469`
 
@@ -265,18 +282,21 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 6 and 7 are done. The seven `Core\Debug` members exist, a trace and coverage work from
-source, and `bun nv proofs --gate --only` over the seven owes nothing. Pass `--nvs
-target/debug/nvs.exe` while `target/release/nvs` predates the members, or the roster lacks them.
-The nightly run on `3ea6f15` was red before later commits fixed it. Its `lint` red was rustfmt drift
-from the trace commits, fixed in `e422d8206`.
+Stages 1, 2, 6 and 7 are done, and stage 3's first item. The seven `Core\Debug` members exist, a
+trace and coverage work from source, and `bun nv proofs --gate --only` over the seven owes nothing.
+`target/release/nvs` was rebuilt this session and has the members.
 
-- **Stage 7's proofs.** About pages and examples are in `docs/examples/core/Debug/<member>/`, with an
-  `nvs.toml` each. Five cases are in `tests/conformance/core/` (`a-debug-*`, `a-trace-file-*`,
-  `a-profile-runs-*`, `coverage-lists-*`). One attack each is in `tests/hostile/core/Debug/<member>/`.
-  The benches are in `benches/members/core/Debug/`. Their shared `nvs.toml` grants `debug.trace` and
-  `debug.profile` as `true`, because a bench writes under `Core\IO::temporaryDir()`.
-  `debug::tests::a_profile_starts_and_stops_its_probe_and_sink` covers `stopProfile` from Rust.
+- **The three `Core\Debug` texts are fixed** (`966494615`): `coverage`, `$branches` and `stopTrace`
+  cards, and the mode error, which reads ``Core\Debug::startCoverage cannot start, because `[debug]
+  mode` does not include `"branch"`.`` The nine perf figures are recorded again. `--bless` takes an
+  example and not a `.nvst`, so the two cases that pin the message were edited by hand and passed.
+- **Stage 3, item 1** was already true in code, and `85f3bb5c7` adds its test over all three child
+  forms. No change in `crates/nvs-host/` was needed.
+- **The sweep's reds were all fixed before this session.** `env-secret-proofs` passes when run
+  today, and its log is from Oct 22. The nightly run on `3ea6f15` predates `c31d0a21a` (rustfmt),
+  `10c402b57` (crypto-bigint 0.7.6), `d2a782d60` (deny.toml), `c953c3456` and `a5f50b907` (the HTTP
+  stream case), `220cb82b7` (the JSON case) and `c4842ec8f` (the session case).
+
 - **Found by running the members.** A trace's first line is `Core\Debug::startTrace` itself, and a
   throwing call's status is `thrown`. A sink path built at run time must be absolute.
   `Core\Config::set('debug.mode', …)` returns `false` for every value.
@@ -288,23 +308,16 @@ snapshot that lists `Core\Debug`'s members, and `bun nv scaling --budget`, whose
 
 ### Next
 
-**First, one slice: three `Core\Debug` texts a user reads are wrong.** Each fix edits
-`crates/nvs-stdlib/src/debug.rs`, so all nine `Core\Debug` perf figures go stale. Make all three fixes
-in one commit. Then run `bun nv proofs --record-perf --only` over the nine ids once, and commit the
-records with the fix. Re-bless `docs/examples/core/Debug/startCoverage/02-*.out` and any `.nvst` that
-pins the message, with `bun nv proofs --nvs target/debug/nvs.exe --bless <path>`.
+**Stage 3's last two items, built as the standing decision *A child counts into a table of its own*
+says.** It spans `crates/nvs-runtime/src/ctx/` and `crates/nvs-host/`. Stage 5 stays a side lane
+(`editors/vscode/`).
 
-- [ ] `COVERAGE_DOC` names only `nvs test`, and `[debug] mode` with `"coverage"` counts under `nvs run` and `.nvst` from the first line. `crates/nvs-stdlib/src/debug.rs:278`
-- [ ] `START_COVERAGE_DOC` says `$branches` counts each side of a condition, and no member returns those counts. `crates/nvs-stdlib/src/debug.rs:256`
-- [ ] `STOP_TRACE_DOC` lists no error, and `stopTrace` throws when it could not write every call. `crates/nvs-stdlib/src/debug.rs:312`
-- [ ] The mode error says "the `branch` probe" and "A server never runs a probe", and a diagnostic never says "probe". `crates/nvs-stdlib/src/debug.rs:481`
-
-**Then stage 3: a spawned isolate's probe data comes back on its result** (`crates/nvs-host/`). Stage 5
-stays a side lane (`editors/vscode/`).
-
-- [ ] A child inherits the parent's flag word at spawn and can only narrow it. `crates/nvs-host/src/group.rs:561`, `crates/nvs-host/src/placed.rs:132`
-- [ ] Its coverage and its sink's events return as fields on the result. `crates/nvs-host/src/placed.rs:278`
-- [ ] Rust tests over a `spawn worker` child. `crates/nvs-host/src/placed.rs:469`
+- [ ] `StmtHits::fresh_like` (same counts length, same `StmtLines`), and a `run_hits` handle on `Ctx` that `nvs test` and `nvs run` install beside `stmt_hits`. `crates/nvs-runtime/src/ctx/trace.rs:712`, `crates/nvs-runtime/src/ctx/mod.rs:1393`
+- [ ] `Ctx::child`, `Ctx::isolate` and `PlacedIsolate` give a child `fresh_like` and share `run_hits`. `crates/nvs-runtime/src/ctx/isolate.rs:409`, `:541`, `:717`, `:1021`
+- [ ] `Completion` and `Crossed` gain `coverage` and the child's closed sink (path and failure); the join adds `coverage` into `run_hits`. `crates/nvs-runtime/src/host.rs:422`, `crates/nvs-host/src/placed.rs:202`, `crates/nvs-host/src/placed.rs:278`, `crates/nvs-host/src/group.rs:552`
+- [ ] Update `ctx::trace::tests::an_isolate_counts_into_the_table_its_parent_was_given`, which pins today's shared table, and the `StmtHits` doc's *One table* paragraph. `crates/nvs-runtime/src/ctx/trace.rs:1316`
+- [ ] Rust tests over a `spawn worker` child: its counts arrive on the result and in `run_hits`, and the parent's own table is unchanged. `crates/nvs-host/src/placed.rs:530`
+- [ ] Remove "a spawned isolate's probe data does not come back on its result" from the rule's *Not on disk*. `docs/rules/testing/debug-surface.md:66`
 
 ### Backlog
 

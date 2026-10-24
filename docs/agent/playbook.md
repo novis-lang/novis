@@ -105,6 +105,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **`bun nv proofs --bless` rewrites an example's `.out` and not a `.nvst`'s `--EXPECT--`.** Handed a
+  case, it runs the case as a program and fails with `'--events <FILE>' cannot be used with '--peer
+  <FILE>'`, which reads like a CLI bug. When a message changes, bless the examples with it, edit each
+  case's `--EXPECT--` with Edit, and run the cases once with `target/debug/nvs.exe test <paths>`.
+  `until: gone tools/nv/cmd/proofs.ts:--bless`
+
 ## Splitting a file
 
 ## Writing Novis
