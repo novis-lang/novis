@@ -126,6 +126,9 @@ weakened to go green is worse than no case: it reports that a thing was tried an
     // proof: test                  it runs under `nvs test`, because the attack is in its tests;
                                     a test may fail, and the case passes when the report reaches
                                     its summary line
+    // proof: test --mutate         the same, under `nvs test --mutate`: the attack is in the
+                                    mutants, and the case passes when the mutation report is
+                                    written after the summary line
     // requires: unimplemented      skip: the feature does not run yet
     // requires: unix               skip on Windows: it opens a Unix-domain socket
     // requires: <service>          it talks to that service of tests/db/compose.yaml, such as

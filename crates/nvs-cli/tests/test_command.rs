@@ -280,3 +280,85 @@ fn nvs_test_refuses_the_php_flag() {
     );
     assert!(!stdout.contains("ZetaTest"), "no test ran: {stdout}");
 }
+
+/// A program for `--mutate`: `atLeast` is tested far from its boundary, so
+/// its `>=` to `>` mutant survives, and `twice` is tested exactly.
+const MUTATED: &str = r#"<?nvs
+use Core\Test;
+
+final class Stock {
+    public static function atLeast(int $count, int $floor): bool {
+        return $count >= $floor;
+    }
+
+    public static function twice(int $count): int {
+        return $count + $count;
+    }
+}
+
+final class StockTest {
+    #[Test]
+    public function comparesFarFromTheFloor(): void {
+        Test::assertTrue(Stock::atLeast(10, 2));
+    }
+
+    #[Test]
+    public function doubles(): void {
+        Test::assertSame(Stock::twice(3), 6);
+    }
+}
+"#;
+
+/// `nvs test --mutate` runs the tests, then each mutant: the human report
+/// names the survivor and its change, a survivor does not fail the run, and
+/// the JSON document's `mutants` records say how many tests ran each one. A
+/// test that fails before any change runs no mutant and fails the run.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_reports_each_mutant_and_fails_only_on_a_failing_test() {
+    let dir = scratch("mutate");
+    fs::write(dir.join("stock_test.nvs"), MUTATED).unwrap();
+
+    let human = test_in(&dir, &["stock_test.nvs", "--mutate"]);
+    let stdout = String::from_utf8_lossy(&human.stdout);
+    let stderr = String::from_utf8_lossy(&human.stderr);
+    assert_eq!(
+        human.status.code(),
+        Some(0),
+        "a survived mutant does not fail the run: {stdout}{stderr}"
+    );
+    assert!(
+        stdout.contains("mutants: 1 killed, 1 survived, 0 timed out, 0 not reached"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("survived  stock_test.nvs:6  `>=` to `>`"),
+        "the survivor is named with its line and change: {stdout}"
+    );
+
+    let json = test_in(&dir, &["stock_test.nvs", "--mutate", "--format", "json"]);
+    let document: serde_json::Value = serde_json::from_slice(&json.stdout)
+        .unwrap_or_else(|e| panic!("`--format json` writes one document: {e}"));
+    assert_eq!(document["schemaVersion"], 4);
+    let mutants = document["mutants"].as_array().expect("a `mutants` array");
+    assert_eq!(mutants.len(), 2, "{mutants:?}");
+    assert!(
+        mutants.iter().all(|m| m["tests"] == 1),
+        "each mutant runs the one test that reached its line: {mutants:?}"
+    );
+
+    fs::write(
+        dir.join("stock_test.nvs"),
+        MUTATED.replace("assertSame(Stock::twice(3), 6)", "assertSame(Stock::twice(3), 7)"),
+    )
+    .unwrap();
+    let failing = test_in(&dir, &["stock_test.nvs", "--mutate"]);
+    let stdout = String::from_utf8_lossy(&failing.stdout);
+    let stderr = String::from_utf8_lossy(&failing.stderr);
+    assert_eq!(failing.status.code(), Some(1), "{stdout}");
+    assert!(
+        stderr.contains("no mutant ran: a test failed")
+            && stdout.contains("mutants: 0 killed, 0 survived, 0 timed out, 0 not reached"),
+        "no mutant runs after a failing test: {stdout}{stderr}"
+    );
+}

@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 import { binary } from "../cmd/proofs.ts";
 import { ROOT } from "../lib/paths.ts";
 import { detailsProblems, skippedOf } from "../proofs/collect.ts";
-import { commandArgs, commandLine, exampleOutput, firstDifference, matchesOut, spawnProof, testReport } from "../proofs/run.ts";
+import { commandArgs, commandLine, exampleOutput, firstDifference, matchesOut, proofArgv, spawnProof, testReport } from "../proofs/run.ts";
 import { scratch } from "./scratch.ts";
 
 describe("a `.cmd` example", () => {
@@ -95,6 +95,12 @@ describe("a `proof: test` example", () => {
 
   test("a line the tests print keeps its text", () => {
     expect(testReport("  T\ncreate 2 ms\n    ✓ a  1.5 ms\n")).toBe("  T\ncreate 2 ms\n    ✓ a\n");
+  });
+
+  test("it runs under `nvs test`, and under `nvs test --mutate` when it says so", () => {
+    expect(proofArgv("nvs", "a.nvs", "<?nvs\n// proof: test\n")).toEqual(["nvs", "test", "a.nvs"]);
+    expect(proofArgv("nvs", "a.nvs", "<?nvs\n// proof: test --mutate\n")).toEqual(["nvs", "test", "a.nvs", "--mutate"]);
+    expect(proofArgv("nvs", "a.nvs", "<?nvs\n")).toEqual(["nvs", "run", "a.nvs"]);
   });
 });
 

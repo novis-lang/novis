@@ -300,6 +300,9 @@ with each test's duration and the summary's ` in N ms` removed, since they diffe
 `--bless` writes it the same way. An example whose tests fail also declares `// proof: exit 1`,
 the status `nvs test` ends with when a test failed.
 
+An example about a mutation run declares `// proof: test --mutate`, and the runner adds `--mutate`
+to the command. The `.out` then ends with the mutants' counts, the score and each survived mutant.
+
 ## `// requires: unimplemented`
 
 An example for a feature that does not run yet carries that line and is skipped rather than failed.
