@@ -99,21 +99,30 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `a61973440`, the end of `formatter-complete`. Its Website run is green. Its CI
-run, https://github.com/novis-lang/novis/actions/runs/40023075871, is red in two jobs, and
-every other job is green:
+`origin/main` is at `95f8fc4a5`, the end of `cli-housekeeping`. Its Website run is green. Its CI
+run, https://github.com/novis-lang/novis/actions/runs/40042292726, is red in three jobs after one
+rerun of its failed jobs, and every other job is green:
 
-- `lint`, step `rustfmt`: rustfmt 1.10 joins a `#[cfg_attr(miri, ignore = "...")]` that was split
-  over four lines. `crates/nvs-stdlib/src/session/sqlite.rs` is fixed in `608953a3f`. The same red in
-  `crates/nvs-runtime/src/capability.rs:2259` went to the main loop with `loop say`, because the
-  `formatter-complete` interactive session claimed that file. The root's working tree has it
-  formatted, but no commit had it when this session ended.
-- `proofs` on all three platforms: the perf records of `Core\Ast` and `Core\Ast\Node` were stale
-  after the formatter's changes to `crates/nvs-stdlib/src/ast.rs`. `870f3e7aa` records all seven,
-  and `bun nv proofs --owed` names none of them now.
+- `lint`, step `rustfmt`: `crates/nvs-runtime/src/capability.rs:2262` is still the four-line
+  `#[cfg_attr(miri, ...)]`. The root's working tree has it formatted and uncommitted. The
+  `formatter-complete` interactive session still claims the file, after 4 hours, so it stays theirs.
+  The main loop was told again with `loop say`.
+- `proofs / linux-x86_64`: 28 perf records of `Core\Http` and its classes were stale after
+  `cli-housekeeping` changed `crates/nvs-stdlib/src/http.rs`. `81de89a72` records them, and
+  `bun nv proofs --owed` names none of them now. The recorder also lowered
+  `benches/members/core/Http-TlsInfo/cipher.nvs` to 512 iterations, in the same commit.
+- `five-driver matrix`: `container novis-db-mssql-1 exited (1)` during `up --wait`, twice in a row,
+  and the log says nothing more. Nothing the job reads changed since its green run on `a61973440`.
+  The image digest is the same (`sha256:2b5b5816...`, built in August), and so is the runner image
+  (`20261012.334.1`). A fresh container with the same command, image and certificates starts cleanly
+  on this machine. So the cause is on the runner, and not yet known. `e171a8646` makes
+  `bun nv db-matrix` print the last 60 lines of a failed service's log, so the next failure says why.
 
-Both fixes are committed and not yet pushed, and they go out with the next goal end.
-`bun nv site --check stale questions` passed before the watch.
+`d1438356e` stamps the search questions of `/reference/cli/a-worked-session/`, whose page changed
+with `nvs agent find`. `/reference/cli/nvs-telemetry/` had no questions, and that went to the main
+loop. The Website run on `95f8fc4a5` is green, so check whether it now has them.
+
+All three fixes are committed and not yet pushed, and they go out with the next goal end.
 
 `.agent-tmp/wt-ci`, `.agent-tmp/wt-cig` and `.agent-tmp/wt-r` are empty scratch folders. Git no
 longer lists them as worktrees. Each contains only a `.looper` directory that Windows will not
@@ -124,10 +133,13 @@ delete while looper runs. Delete all three when looper is stopped.
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch for the next push. `tools/nv/cmd/ci.ts:265`
-  Run `bun nv ci --watch --next`, so the red run on `a61973440` does not end the watch at once.
-  First run `git log origin/main..HEAD -- crates/nvs-runtime/src/capability.rs` and `cargo fmt --all
-  --check`. If the formatted `capability.rs` is still not committed and no session claims it, commit
-  it, or `lint` goes red again.
+  Run `bun nv ci --watch --next`, so the red run on `95f8fc4a5` does not end the watch at once.
+  First run `git log origin/main..HEAD -- crates/nvs-runtime/src/capability.rs` and
+  `bun tools/looper/main.ts claims`. If the formatted `capability.rs` is still not committed and no
+  session claims it, commit it, or `lint` goes red again. If it is still claimed, watch with
+  `--past lint`.
+  `bun nv ci --rerun` reruns every failed job of the run, so a rerun for one flaky job reruns
+  `lint` and `proofs` too.
   An exit of 3 with a run still going means the push came late: watch again. The questions check counts as stale every page whose feature's examples changed. So an example
   sweep in the main loop's work turns `Website stale guard` red again. Run `bun nv site --check
   stale questions` at `HEAD` before you watch, and fix what it names as the last item below says.
@@ -135,6 +147,9 @@ delete while looper runs. Delete all three when looper is stopped.
 - [ ] If the LDAP login attack fails again, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
   It passed on `88fb690a3`. A second `whoami: Timeout` is not noise. Compare the socket deadline with the slice yield
   commits `13004e4f9` and `2b292f862`.
+- [ ] If `five-driver matrix` fails again, read SQL Server's own log. `tools/nv/cmd/db-matrix.ts:367`
+  The step now prints `db-matrix: the last 60 lines of `mssql`'s log:` above its error. Fix what
+  that log names, in `tests/db/compose.yaml`'s `mssql` service.
 - [ ] Fix and commit each other red job. `.github/workflows/ci.yml:1`
   A render red needs a binary built at `HEAD`: the root's `target/debug/nvs.exe` carries the main
   loop's uncommitted edits. Build one with `cargo build --bin nvs` in the scratch worktree.
