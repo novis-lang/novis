@@ -6,7 +6,7 @@ context: [apps/telemetry/README.md, apps/telemetry/src/App.nvs, apps/notes/src/A
 stages:
   - id: 1
     title: "`[log] client_ip = false` keeps the address out of every record the server writes"
-    status: open
+    status: done
     context: [crates/nvs-config/src/tree.rs, crates/nvs-config/src/directive.rs, crates/nvs-server/src/trace.rs, crates/nvs-config/tests/directives.rs, docs/reference/tools/20-config.md, docs/rules/http-server/a-log-line-can-leave-out-the-client-address.md]
     extra:
       context:
@@ -188,13 +188,13 @@ whose gate holds, and ends `BLOCKED` naming the missing file when none does.
 
 **Does:** a new `System` directive leaves `clientIp` out of the access line and the `5xx` line.
 
-- [ ] The `client_ip` key in `Log`, and its row in the directive table. `crates/nvs-config/src/tree.rs:575`, `crates/nvs-config/src/directive.rs:175`
-- [ ] `access` leaves the field out when the key is `false` (`rule:http-server/a-log-line-can-leave-out-the-client-address`). `crates/nvs-server/src/trace.rs:371`, `crates/nvs-server/src/trace.rs:410`
-- [ ] Tests: a `5xx` line with the key `false` has no `clientIp`, and with it unwritten it has one. `crates/nvs-server/src/trace.rs:909`
-- [ ] The directive's Rust test, beside `log.handler`'s. `crates/nvs-config/tests/directives.rs:1`
-- [ ] The key in the `[log]` row of the config reference. `docs/reference/tools/20-config.md:65`
-- [ ] The directive's feature proofs: `docs/examples/config/log-client_ip/about.md`, one example and one attack, whose step tries to turn the key back on with `Core\Config::set`. `bun nv proofs --id directive:log.client_ip` prints the paths. `docs/examples/config/log-client_ip/about.md:1`, `tests/hostile/config/log-client_ip/01-turning-the-address-back-on.nvs:1`
-- [ ] The rule `shipped`, with its tests in `guardedBy`. `data/rules/http-server/a-log-line-can-leave-out-the-client-address.json:3`
+- [x] The `client_ip` key in `Log`, and its row in the directive table. `crates/nvs-config/src/tree.rs:575`, `crates/nvs-config/src/directive.rs:175`
+- [x] `access` leaves the field out when the key is `false` (`rule:http-server/a-log-line-can-leave-out-the-client-address`). `crates/nvs-server/src/trace.rs:371`, `crates/nvs-server/src/trace.rs:410`
+- [x] Tests: a `5xx` line with the key `false` has no `clientIp`, and with it unwritten it has one. `crates/nvs-server/src/trace.rs:909`
+- [x] The directive's Rust test, beside `log.handler`'s. `crates/nvs-config/tests/directives.rs:1`
+- [x] The key in the `[log]` row of the config reference. `docs/reference/tools/20-config.md:65`
+- [x] The directive's feature proofs: `docs/examples/config/log-client_ip/about.md`, one example and one attack, whose step tries to turn the key back on with `Core\Config::set`. `bun nv proofs --id directive:log.client_ip` prints the paths. `docs/examples/config/log-client_ip/about.md:1`, `tests/hostile/config/log-client_ip/01-turning-the-address-back-on.nvs:1`
+- [x] The rule `shipped`, with its tests in `guardedBy`. `data/rules/http-server/a-log-line-can-leave-out-the-client-address.json:3`
 
 ### 2. the application exists, checks a report and adds it to the weekly totals
 
@@ -270,18 +270,43 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. The user settled the payload, the address setting, the totals' shape and the
-place in the chain, and the rules are written as `designed`. The anchors above were
-checked against the tree.
+**Stage 1 is done** (`f3161d434`). `[log] client_ip` is a `System`/`Reload` row
+(`crates/nvs-config/src/directive.rs:200`), resolved once per snapshot beside `access`
+(`crates/nvs-config/src/limits.rs`, `Snapshot::client_ip_logged`), and `trace::access` leaves
+`clientIp` out when it is `false`. Its tests are
+`client_ip_false_leaves_the_address_out_of_the_5xx_and_the_access_line` and
+`the_client_address_setting_is_the_operators_and_reloads`, both run once and green. The key is also
+in `live_config.rs`'s `REQUEST_READ`, which has not run. The rule is `shipped`. The forwarded-header
+`Warn` the rule names is written nowhere yet (`crates/nvs-server/src/serve.rs:1799`), so `access`
+is the only line that names the address.
+
+`client-ip-proofs` passes against `target/debug/nvs.exe`. The acceptance run reads the release
+binary, which the goal-end relink rebuilds.
+
+The sweep's reds: `env-secret-proofs` is green at HEAD. Of the nightly run on `7b6ef53ee`, every
+`test /`, cost-guard and website red was already fixed at HEAD, each checked by name here (the
+property-observer guard's IR slope is 0 in a debug `--ignored` run). Still red on push CI
+`40042292726`: `proofs` (28 `Core\Http` perf figures stale after `crates/nvs-stdlib/src/http.rs`
+changed; this session ran `bun nv proofs --record-perf`, see the status line), `lint` (`cargo fmt`
+on `crates/nvs-runtime/src/capability.rs:2259`, whose fix is in the tree, uncommitted, claimed by
+interactive session `6884de4b`, so the guard keeps it out of this loop's commits), and
+`five-driver matrix` (the `mssql` container exited at start, infrastructure). The nightly's 59
+`image-*`/`intl-*` conformance reds ("the extension used all of the request's CPU time") were not
+yet reported on HEAD when this session ended.
 
 ### Next
 
-**Stage 1, `[log] client_ip = false`**, beside **stage 2, the application**: disjoint files, no gate
-on either.
+**Stage 2, the application.** No gate. Read `apps/notes/` first (`nvs.toml`, `src/Store.nvs`,
+`src/StoreTest.nvs`): the database, its schema made on first open and its test database are the
+pattern.
 
-- [ ] The key, its directive row, and `access` leaving the field out. `crates/nvs-config/src/tree.rs:575`, `crates/nvs-config/src/directive.rs:175`, `crates/nvs-server/src/trace.rs:371`
-- [ ] Its tests, its reference row and its feature proofs. `crates/nvs-config/tests/directives.rs:1`, `docs/reference/tools/20-config.md:65`
-- [ ] `apps/telemetry/` with the check and the totals, and their tests. `apps/telemetry/src/Report.nvs:1`, `apps/telemetry/src/Totals.nvs:1`
+- [ ] `apps/telemetry/` with `README.md`, `nvs.toml`, `known.toml`, `public/index.nvs` and `src/App.nvs`. `apps/notes/src/App.nvs:1`, `apps/notes/nvs.toml:1`
+- [ ] The check and its tests. `apps/telemetry/src/Report.nvs:1`, `apps/telemetry/src/ReportTest.nvs:1`
+- [ ] The two tables and their tests. `apps/telemetry/src/Totals.nvs:1`, `apps/telemetry/src/TotalsTest.nvs:1`
+- [ ] If the HEAD CI's conformance job is red on `image-*`/`intl-*`, it leads before stage 2. `tests/conformance/novis/image-info-answers-with-no-configuration.nvst:1`
+
+Expected red: none from stage 1. `every_request_read_directive_takes_the_reloaded_value_in_the_next_request`
+now also reloads `log.client_ip` from `true` to `false`, and goes red if a reload does not reach it.
 
 ### Backlog
 
