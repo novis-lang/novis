@@ -3,7 +3,7 @@
 
 # Testing
 
-*26 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -557,35 +557,44 @@ machine of one CI run computes the same parts (`crates/nvs-test/src/shard.rs`).
 
 <a id="testing-a-run-can-stop-early-rerun-failures-and-shuffle"></a>
 
-## `--fail-fast` stops starting tests after a failure, `--rerun-failed` runs the last run's failures, and `--shuffle` randomises start order with a printed seed  *(designed — owned by goal test-surface)*
+## `--fail-fast` stops starting tests after a failure, `--rerun-failed` runs the last run's failures, and `--shuffle` randomises start order with a printed seed
 
 `rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`
 
 `nvs test --fail-fast` stops starting tests after the first failure, `--rerun-failed` runs only the
 tests the last run failed, and `--shuffle` starts tests in a random order and prints the seed.
 
-**`--fail-fast`.** After the first test fails, no new test starts. Tests already running finish and
-are reported, and the summary counts the tests that never started as not run. A flaky test is not a
-failure ([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)), so it does not stop the run. The exit status is the failed
-run's.
+**`--fail-fast`.** Once a failed test is reported, no new test starts, and no later class's
+`#[BeforeClass]` runs. Tests already running finish and are reported, and the class whose test failed
+still runs its `#[AfterClass]`. The summary counts the tests that never started as not run. Under
+`--jobs 1` the run stops right after the first failure. With more jobs a failure is seen when it is
+reported in declaration order, so a few more tests may start first. A flaky test is not a failure
+([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)), so it does not stop the run. The exit status is the failed run's.
 
-**`--rerun-failed`.** Every run of a program writes the names of its failed tests to a small file in the
-data folder, keyed by the program's entry path. `--rerun-failed` runs exactly those tests, and a later
-run overwrites the file. When the last run failed nothing, or no run was recorded, it runs the whole
-selection and says so in its first line. It combines with `--filter` and the tag flags
-([`testing/tags-and-shards-select-what-runs`](testing.md#testing-tags-and-shards-select-what-runs)), which narrow it further.
+**`--rerun-failed`.** Every run of a program writes the `Class::label` of each failed test, a data
+row's `#N` included, to `failed-tests/<hash>.txt` in the data folder, where the hash is of the
+program's canonical entry path. `--rerun-failed` runs exactly those tests, and a later run overwrites
+the file, with an empty one when nothing failed. When the last run failed nothing, or no run was
+recorded, it runs the whole selection and says so in its first line. It combines with `--filter` and
+the tag flags ([`testing/tags-and-shards-select-what-runs`](testing.md#testing-tags-and-shards-select-what-runs)), which narrow it further.
 
-**`--shuffle`.** Tests start in an order drawn from a seed, and the summary prints the seed.
-`--shuffle=<seed>` repeats that order. Report order stays declaration order
+**`--shuffle`.** The tests of each class start in an order drawn from a seed, and the summary prints
+the seed. `--shuffle=<seed>` repeats that order: the draw is a SplitMix64 stream, so a seed gives one
+order on every platform. Classes keep their order, because a class's `#[BeforeClass]` and
+`#[AfterClass]` bracket its tests in the report. Report order stays declaration order
 ([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)), so a shuffled run and a plain one print the same report when both
 pass. Every test runs in its own isolate ([`testing/isolate-per-test`](testing.md#testing-isolate-per-test)), so a random order finds
 nothing inside the program. It finds what two tests share outside it, a database or a file, which
 [`testing/tests-run-across-every-core`](testing.md#testing-tests-run-across-every-core) leaves to the program to keep apart. `--shuffle` is off by
 default.
 
-- **Memory:** the failed-test file is one line per failed test, on disk. Nothing per test in flight.
+Under `--format json` and `--format junit` the documents keep their schema, and the not-run count and
+the seed are printed on stderr. A `.nvst` tree refuses all three flags: a case is a process of its
+own, judged on its whole output, and has no class or seed to shuffle by.
 
-**Not on disk.** `nvs test` has none of the three flags (`crates/nvs-cli/src/main.rs:574`).
+- **Memory:** the failed-test file is one line per failed test, on disk. A shuffled run holds, per
+  class, one slot per selected test and the result of each finished test that waits for one written
+  above it to start. A run without `--shuffle` holds nothing more.
 
 **Declined:**
 - **Shuffling by default.** A run that changes order on its own makes a shared-state failure look like
@@ -599,7 +608,7 @@ default.
 
 <a id="testing-watch-reruns-on-an-edit"></a>
 
-## `nvs test --watch` reruns the selection each time a file the program requires changes  *(designed — owned by goal test-surface)*
+## `nvs test --watch` reruns the selection each time a file the program requires changes
 
 `rule:testing/watch-reruns-on-an-edit`
 
@@ -617,11 +626,16 @@ a pass runs starts the next pass when this one ends, never in the middle of it.
 thing and stop, and with a machine format, whose one document per run a consumer reads once. A `.nvst`
 tree is not a program and has no require graph to watch, so naming one with `--watch` is refused.
 
-- **Memory:** the compiled program between passes, which the background check already holds for
-  `nvs run`. Each pass's tests are released when the pass is reported.
+The check is the background check's thread with one more step: it compares the trace of the last
+pass's compile (every file read or missed, every `autoload` probe, every listed directory) with the
+disk, under the same `[opcache]` `validate`, `revalidate_freq` and `settle`. A folder of programs also
+has the folders its files are in listed, so a new file starts a pass. A changed trace is reported once
+and disarmed, and the next pass arms the trace of its own compile, which holds what that compile read.
+So an edit made while a pass runs is found as soon as that pass ends. The configuration is read once,
+when the command starts, and is not watched.
 
-**Not on disk.** `nvs test` has no `--watch` (`crates/nvs-cli/src/main.rs:574`). The background check
-is `crates/nvs-cli/src/script.rs:1501`.
+- **Memory:** the background check's one thread, and between passes the trace of the last compile.
+  Each pass's program and tests are released when the pass is reported.
 
 **Declined:**
 - **Running only the tests a change reaches.** It needs a map from every line to the tests that reach

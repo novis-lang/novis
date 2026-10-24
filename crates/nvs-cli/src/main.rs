@@ -960,7 +960,7 @@ fn front_end_looking(
 /// `rule:config/an-edit-reaches-the-next-request-without-a-restart` checks all
 /// of these, so an edit to any of them reaches the next compile.
 #[derive(Debug, Default)]
-struct Looked {
+pub(crate) struct Looked {
     /// Each file the run read, with the digest of the text it read. The entry
     /// file is the first.
     read: Vec<(std::path::PathBuf, nvs_config::cache::Digest)>,
@@ -993,35 +993,9 @@ impl Looked {
     }
 }
 
-/// [`front_end`] for an entry that exists only as `text`: the program a
-/// directory of test files makes, which `nvs test` writes as one `require` per
-/// file and never puts on disk
-/// (`rule:testing/a-directory-of-programs-is-one-test-program`).
-///
-/// `path` is where the entry would sit, so every `require` in `text` resolves
-/// against that directory exactly as a written entry's would.
-fn front_end_synthesized(
-    path: &std::path::Path,
-    text: &str,
-    extensions: Vec<nvs_ext::manifest::Manifest>,
-) -> Result<Checked, ExitCode> {
-    let mut map = SourceMap::new();
-    map.overlay(path, text);
-    front_end_in(
-        map,
-        path,
-        None,
-        extensions,
-        false,
-        Sink::Text,
-        config::Init::Never,
-        None,
-        None,
-    )
-}
-
 /// [`front_end_granted`] over a map the caller prepared — empty for a file on
-/// disk, or holding the one overlay [`front_end_synthesized`] registers.
+/// disk, or holding the one overlay [`Program::front_end`] registers for a
+/// directory of programs.
 ///
 /// `looked` is [`front_end_looking`]'s, filled at every way out after the entry
 /// file was asked for.
@@ -2600,9 +2574,16 @@ fn run_test(
     coverage: &coverage::Requested,
     cases: Option<PathBuf>,
     record: Option<PathBuf>,
+    watch: bool,
     config: &[PathBuf],
     init: config::Init,
 ) -> ExitCode {
+    if watch && format != runner::Format::Human {
+        // `rule:testing/watch-reruns-on-an-edit`: a consumer reads a machine
+        // format's one document once, and a watched run writes one per pass.
+        eprintln!("error: `--watch` reports in the human format only");
+        return ExitCode::FAILURE;
+    }
     let runner::Flags {
         update,
         list,
@@ -2669,7 +2650,15 @@ fn run_test(
             Ok(tree) => tree,
             Err(code) => return code,
         };
+        if watch {
+            return watch_program_tests(program.configured(), &tree, &select, &flags, coverage);
+        }
         return run_program_tests(program, &tree, format, &select, flags, coverage);
+    }
+    if watch {
+        // A case tree has no `require` graph for the background check to read.
+        eprintln!("error: `--watch` runs a program's `#[Test]` methods, not a `.nvst` tree");
+        return ExitCode::FAILURE;
     }
     if !select.tags.is_empty() || !select.skip_tags.is_empty() {
         // A `.nvst` case has no `#[Test]` attribute to carry a tag, so every
@@ -2798,6 +2787,64 @@ fn run_test(
     }
 }
 
+/// `rule:testing/watch-reruns-on-an-edit`: runs the tests of the program at `path`, then runs
+/// them again each time a file the last pass's compile looked at changes, until the process is
+/// interrupted.
+///
+/// Each pass names the program again, so a file added to a folder of programs is in the next
+/// one. The change is [`script::Rerun`]'s, which is the background check `nvs run` has.
+///
+/// **What it spends:** that check's one thread, and between passes the trace of the last
+/// compile. Each pass's program and tests are freed when the pass is reported.
+fn watch_program_tests(
+    path: &std::path::Path,
+    tree: &config::Tree,
+    select: &runner::Selection,
+    flags: &runner::Flags,
+    coverage: &coverage::Requested,
+) -> ExitCode {
+    let setup = match TestSetup::of(tree) {
+        Ok(setup) => setup,
+        Err(code) => return code,
+    };
+    let rerun = script::Rerun::start(&tree.snapshot.config);
+    loop {
+        let program = match Program::named_by(path) {
+            Ok(Some(program)) => program,
+            Ok(None) => {
+                eprintln!("error: {} has no `.nvs` program to test", path.display());
+                return ExitCode::FAILURE;
+            }
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::FAILURE;
+            }
+        };
+        let started = std::time::SystemTime::now();
+        let mut looked = Looked::default();
+        let code = run_program_pass(
+            &program,
+            tree,
+            &setup,
+            runner::Format::Human,
+            select,
+            flags.clone(),
+            coverage,
+            Some(&mut looked),
+        );
+        // A pass whose compile read nothing has nothing to watch.
+        if looked.read.is_empty() && looked.missed.is_empty() {
+            return code;
+        }
+        rerun.arm(program.watched(looked, started));
+        println!("\nWaiting for a file to change. Press Ctrl+C to stop.");
+        if !rerun.wait() {
+            return code;
+        }
+        println!("\nA file changed, so the tests run again.\n");
+    }
+}
+
 /// Runs `program`'s `#[Test]` methods under `tree`, which `nvs test` resolves from the run's
 /// configuration and `nvs ext test` from the extension under test.
 fn run_program_tests(
@@ -2808,34 +2855,69 @@ fn run_program_tests(
     flags: runner::Flags,
     coverage: &coverage::Requested,
 ) -> ExitCode {
-    let refuse = |diagnostic| {
-        let mut diags = Diagnostics::new();
-        diags.report(diagnostic);
-        render_diagnostics(&mut diags, &tree.sources);
-        ExitCode::FAILURE
-    };
-    // The same install `run_run` does, for the same reason: a suite runs the program, and a
-    // `#[Test]` method reaching an origin asks the anchors the tree named rather than whichever
-    // set a first call happened to settle.
-    if let Err(diagnostic) = config::install_tls_client(&tree.snapshot) {
-        return refuse(diagnostic);
+    match TestSetup::of(tree) {
+        Ok(setup) => run_program_pass(program, tree, &setup, format, select, flags, coverage, None),
+        Err(code) => code,
     }
-    // The suite is typed against the tree's extension set, as `nvs run` types a program, and a
-    // call into one reaches the loaded set through `nvs_runtime::extension` while the suite runs.
-    // The whole suite is one request to the set: its tests share the instances.
-    let config = &tree.snapshot.config;
-    let manifests = match extensions::manifests(config, &tree.origins, &tree.sources) {
-        Ok(manifests) => manifests,
-        Err(diagnostic) => return refuse(diagnostic),
-    };
-    let checked = match program.front_end(manifests) {
+}
+
+/// What every pass of a program's tests runs under, made once per process: the tree's outbound
+/// TLS client, installed, and its extension set, loaded.
+struct TestSetup {
+    manifests: Vec<nvs_ext::manifest::Manifest>,
+    set: std::sync::Arc<nvs_ext::load::Set>,
+}
+
+impl TestSetup {
+    /// The setup `tree` names. A diagnostic is rendered here, and the `Err` is the exit code.
+    fn of(tree: &config::Tree) -> Result<Self, ExitCode> {
+        let refuse = |diagnostic| {
+            let mut diags = Diagnostics::new();
+            diags.report(diagnostic);
+            render_diagnostics(&mut diags, &tree.sources);
+            ExitCode::FAILURE
+        };
+        // The same install `run_run` does, for the same reason: a suite runs the program, and a
+        // `#[Test]` method reaching an origin asks the anchors the tree named rather than
+        // whichever set a first call happened to settle. A process installs it once.
+        config::install_tls_client(&tree.snapshot).map_err(refuse)?;
+        // The suite is typed against the tree's extension set, as `nvs run` types a program, and
+        // a call into one reaches the loaded set through `nvs_runtime::extension` while the suite
+        // runs. The whole suite is one request to the set: its tests share the instances.
+        let config = &tree.snapshot.config;
+        let manifests =
+            extensions::manifests(config, &tree.origins, &tree.sources).map_err(refuse)?;
+        let set = extensions::loaded(config, &tree.origins, &tree.sources).map_err(refuse)?;
+        Ok(Self {
+            manifests,
+            set: std::sync::Arc::new(set),
+        })
+    }
+}
+
+/// One run of `program`'s `#[Test]` methods under `setup`: the compile, the tests and the report.
+///
+/// `looked`, where there is one, is filled with every path the compile looked at
+/// ([`front_end_looking`]), which is what `--watch` checks.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "run_program_tests' six, with the setup its caller made once and the paths --watch reads"
+)]
+fn run_program_pass(
+    program: &Program,
+    tree: &config::Tree,
+    setup: &TestSetup,
+    format: runner::Format,
+    select: &runner::Selection,
+    flags: runner::Flags,
+    coverage: &coverage::Requested,
+    looked: Option<&mut Looked>,
+) -> ExitCode {
+    let checked = match program.front_end(setup.manifests.clone(), looked) {
         Ok(checked) => checked,
         Err(code) => return code,
     };
-    let set = match extensions::loaded(config, &tree.origins, &tree.sources) {
-        Ok(set) => std::sync::Arc::new(set),
-        Err(diagnostic) => return refuse(diagnostic),
-    };
+    let set = std::sync::Arc::clone(&setup.set);
     // Each test's calls run in its own request tree, so its budget and its
     // instances are its own and end with it. The host is this thread's, so
     // each core the run starts installs one of its own over the same set.
@@ -2939,22 +3021,64 @@ impl Program {
     }
 
     /// The checked program, typed against the extension set `extensions`.
-    fn front_end(&self, extensions: Vec<nvs_ext::manifest::Manifest>) -> Result<Checked, ExitCode> {
-        match self {
-            Self::File(path) => front_end_extended(path, extensions),
+    /// `looked`, where there is one, is filled with every path the compile
+    /// looked at.
+    ///
+    /// A directory's entry exists only in memory, and sits where
+    /// [`Self::entry_path`] puts it, so every `require` in it resolves against
+    /// that directory exactly as a written entry's would
+    /// (`rule:testing/a-directory-of-programs-is-one-test-program`).
+    fn front_end(
+        &self,
+        extensions: Vec<nvs_ext::manifest::Manifest>,
+        looked: Option<&mut Looked>,
+    ) -> Result<Checked, ExitCode> {
+        let (map, entry) = match self {
+            Self::File(path) => (SourceMap::new(), path.clone()),
             Self::Directory { dir, files } => {
                 let (entry, text) = Self::entry(dir, files);
-                front_end_synthesized(&entry, &text, extensions)
+                let mut map = SourceMap::new();
+                map.overlay(&entry, &text);
+                (map, entry)
+            }
+        };
+        front_end_in(
+            map,
+            &entry,
+            None,
+            extensions,
+            false,
+            Sink::Text,
+            config::Init::Never,
+            looked,
+            None,
+        )
+    }
+
+    /// What `--watch` checks after a pass whose compile began at `started`
+    /// and looked at `looked`. A folder of programs also has the folders its
+    /// files are in checked, so a new file starts a pass too.
+    fn watched(&self, looked: Looked, started: std::time::SystemTime) -> script::Watched {
+        match self {
+            Self::File(path) => script::Watched::new(path, looked, started, false, &[]),
+            Self::Directory { dir, files } => {
+                let dirs: std::collections::BTreeSet<PathBuf> = std::iter::once(dir.clone())
+                    .chain(
+                        files
+                            .iter()
+                            .filter_map(|file| file.parent().map(PathBuf::from)),
+                    )
+                    .collect();
+                let dirs: Vec<PathBuf> = dirs.into_iter().collect();
+                script::Watched::new(&Self::entry_path(dir, files), looked, started, true, &dirs)
             }
         }
     }
 
-    /// The entry a directory of programs runs from: where it would sit, and
-    /// its text, one `require` per file of `files` that no other one requires.
-    /// It never exists on disk, and `nvs test` and `nvs check` both read it.
-    fn entry(dir: &std::path::Path, files: &[PathBuf]) -> (PathBuf, String) {
-        // A name no file under the directory carries, so the overlay never
-        // stands in front of a real file's bytes.
+    /// Where the entry of a directory of programs would sit: under a name no
+    /// file under the directory carries, so the overlay never replaces a real
+    /// file's bytes.
+    fn entry_path(dir: &std::path::Path, files: &[PathBuf]) -> PathBuf {
         let mut name = String::from("#tests.nvs");
         while files
             .iter()
@@ -2962,7 +3086,14 @@ impl Program {
         {
             name.insert(0, '#');
         }
-        let entry = dir.join(name);
+        dir.join(name)
+    }
+
+    /// The entry a directory of programs runs from: where it would sit, and
+    /// its text, one `require` per file of `files` that no other one requires.
+    /// It never exists on disk, and `nvs test` and `nvs check` both read it.
+    fn entry(dir: &std::path::Path, files: &[PathBuf]) -> (PathBuf, String) {
+        let entry = Self::entry_path(dir, files);
         let roots = unrequired(&entry, dir, files);
         let text = directory_entry(dir, &roots);
         (entry, text)

@@ -12,11 +12,16 @@ a pass runs starts the next pass when this one ends, never in the middle of it.
 thing and stop, and with a machine format, whose one document per run a consumer reads once. A `.nvst`
 tree is not a program and has no require graph to watch, so naming one with `--watch` is refused.
 
-- **Memory:** the compiled program between passes, which the background check already holds for
-  `nvs run`. Each pass's tests are released when the pass is reported.
+The check is the background check's thread with one more step: it compares the trace of the last
+pass's compile (every file read or missed, every `autoload` probe, every listed directory) with the
+disk, under the same `[opcache]` `validate`, `revalidate_freq` and `settle`. A folder of programs also
+has the folders its files are in listed, so a new file starts a pass. A changed trace is reported once
+and disarmed, and the next pass arms the trace of its own compile, which holds what that compile read.
+So an edit made while a pass runs is found as soon as that pass ends. The configuration is read once,
+when the command starts, and is not watched.
 
-**Not on disk.** `nvs test` has no `--watch` (`crates/nvs-cli/src/main.rs:574`). The background check
-is `crates/nvs-cli/src/script.rs:1501`.
+- **Memory:** the background check's one thread, and between passes the trace of the last compile.
+  Each pass's program and tests are released when the pass is reported.
 
 **Declined:**
 - **Running only the tests a change reaches.** It needs a map from every line to the tests that reach
