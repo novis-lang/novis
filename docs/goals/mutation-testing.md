@@ -27,7 +27,7 @@ stages:
         rules: [testing/mutation-testing, testing/feature-proofs, testing/member-perf-ledger]
   - id: 4
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-closes
@@ -169,15 +169,15 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1, 2 and 3 are done. `nvs test --mutate` runs the tests once with coverage, then each mutant
+Every stage is done, and the gate is green. `nvs test --mutate` runs the tests once with coverage, then each mutant
 against the tests that reached its line (`crates/nvs-cli/src/runner/mutation.rs`), and reports
 `killed`, `survived`, `timed out` or `not reached`. JSON version 4's `mutants` records now carry
 `tests`, how many tests reached the mutant's line. The feature has its own section,
@@ -191,33 +191,17 @@ new area in `AREAS`. A proof program declares `// proof: test --mutate` to run u
 (`tools/nv/proofs/run.ts`, `proofArgv`). The rule is `shipped`, states the quadratic compile cost of
 a growing program, and `bun nv owners --closes mutation-testing` passes.
 
-Checked: `cargo build`, `cargo clippy --all-targets -- -D warnings`; run once by name:
-`runner::mutation::tests`, `test_command nvs_test_mutate…`, `tools/nv/test/scaling.test.ts`,
-`tools/nv/test/proof-command.test.ts`; `bun nv proofs --run --id 'tools:cli/nvs-test-mutate'` green
-with no divergence; `bun nv rules --render` and `bun nv render --website` written.
-
-The sweep's `env-secret-proofs` log shows exit 0; the nightly's five reds tested `3ea6f1550`, and each
-has a fix on main (`10c402b57`, `a5f50b907`, `220cb82b7`, `c4842ec8f`). Expected red: none known.
+The gate: the first `bun nv affected --run` failed one test, `nvs-fmt`'s identity test, on the
+attack's double-quoted strings, and `cargo fmt` wrapped a call in `test_command.rs`; both are fixed
+(`4dffe0d95`). The second run is green: 22 of 22, 7626 tests, 3117 cases. `bun nv verify --doc`,
+`bun nv owners --closes mutation-testing`, `bun nv proofs --gate`, `bun nv render --website --check`
+and `bun nv site --check questions` are green; the `nvs test` and `--mutate` pages' questions are
+stamped (`8e92c0ae3`). Expected red: none known.
 
 ### Next
 
-**Stage 4: the goal is verified once.** Follow the stage's `**Split:**` line: start `bun nv affected
---run` with `run_in_background`, group failures by cause, fix in one pass, run it again. Then the
-goal-end gates in AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes
-mutation-testing`, `bun nv proofs --gate`, `bun nv render --website --check`.
-
-- [ ] `bun nv affected --run` over the whole goal, failures grouped. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure fixed in one pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second run green, then the goal-end gates. `docs/goals/mutation-testing.md:172`
+The goal is reached. looper retires it and the chain moves to `trace-timeline`.
 
 ### Backlog
 
-- A threshold flag that fails the run below a mutation score (`docs/rules/testing/mutation-testing.md`).
-- More operators, such as a removed call statement, added in `crates/nvs-ir/src/lower/mutate.rs`.
-- From `test-surface`: a test past its `[limits] cpu_time` reports the runtime's line, which names a request. A line naming the test and its limit would match `Outcome::past_wall_time`. `crates/nvs-cli/src/runner.rs:477`
-- From `test-surface`: a property's counterexample prints an enum case as its number, such as `new Item("", 1, 0)`. The case name would read better. `crates/nvs-cli/src/runner.rs:2357`
-- From `test-surface`: a long failing string or list spends the 1000-call shrink budget on one-item removals, so its counterexample stays long. Removing chunks first would shrink further. `crates/nvs-types/src/property/shrink.rs:362`
-- From `test-surface`: a workspace folder with programs and no `.nvst` case pays one compile of the folder when the editor lists its cases, and the client reads none of those records. `editors/vscode/src/tests.ts:143`
-- From `test-surface`: a case label mixes separators on Windows, such as `tests/conformance/core\x.nvst`, in a report and a listing. `crates/nvs-test/src/lib.rs:225`
-- From `test-surface`: the "it asserted nothing" report line names a rule id, and text a user reads names none. `crates/nvs-cli/src/runner.rs:3375`
-- `bun nv scaling --budget` names 45 benches over their stored share, among them `core/Metrics/*`, `novis/Spreadsheet-*` and `the-pipeline-operator`, none of them a `Core\Test` bench. `data/perf/bench-budget.json:1`
+Moved to `docs/goals/trace-timeline.md` § *Backlog*, each marked `From mutation-testing`.
