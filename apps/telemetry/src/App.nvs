@@ -1,0 +1,38 @@
+<?nvs
+namespace Telemetry;
+
+use Core\Access;
+use Core\Audience;
+use Core\Db;
+use Core\Http\Method;
+use Core\Request;
+use Core\Response;
+use Core\Route;
+use Core\Time;
+
+// The routes of the app. Each method with a `Route` handles one kind of request.
+// `Core\Router::dispatch` in `public/index.nvs` calls the method of the route that matches.
+final class App {
+    // Checks one report and adds it to the weekly totals.
+    // The request has no cookie and no session, so the route does not need a CSRF token.
+    #[Route(path: "/v1/report", method: Method::Post, name: "App::report")]
+    #[Access(allow: Audience::Public, csrf: false)]
+    public static function report(): void {
+        try {
+            var $report = Report::check(Request::body(), Request::header("content-type"), Time::now(), Known::load());
+            App::totals()->add($report);
+            // 204 means the report was added, and the answer has no body.
+            Response::setStatus(204);
+        } catch (Rejected $error) {
+            Response::setStatus($error->status);
+            Response::json({error: $error->message});
+        }
+    }
+
+    // Opens the database `telemetry` from `nvs.toml` and creates the tables when they are missing.
+    private static function totals(): Totals {
+        var $totals = new Totals(Db::connect("telemetry"));
+        $totals->setUp();
+        return $totals;
+    }
+}

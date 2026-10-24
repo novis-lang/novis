@@ -1,0 +1,8 @@
+<?nvs
+// This is the entry file. `nvs serve public/index.nvs` runs it once for each request.
+// The `autoload` line reads each class `Telemetry\...` from the folder `src`.
+autoload 'Telemetry' from '../src';
+
+// `dispatch` finds the route for the request and calls its method.
+// `Telemetry\Gate` decides if the method may run, and it writes the error answers.
+Core\Router::dispatch(new Telemetry\Gate());
