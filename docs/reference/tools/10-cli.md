@@ -199,7 +199,7 @@ E0401
 
     nvs test <paths>... [--filter <text>] [--format human|json|junit] [--update]
                         [--coverage-lcov <file>] [--coverage-clover <file>]
-                        [--coverage-cobertura <file>]
+                        [--coverage-cobertura <file>] [--mutate]
 
 One subcommand runs two kinds of test, and which one is meant is read off the path:
 
@@ -273,6 +273,17 @@ skipped: not written yet
   prints one more line, `N of N lines run (N%)`. The top-level statements of a file do not run
   under `nvs test`, so they have the count `0`. Naming any of these flags beside a `.nvst` tree
   or `--list` is an error.
+- `--mutate` checks whether your tests notice a wrong line. The tests run once with coverage. Then
+  one place in the program is changed, such as `<` to `<=` or `true` to `false`. The tests that ran
+  that line run again. This changed program is called a mutant. Each mutant is `killed` (a
+  test failed), `survived` (every test passed), `timed out` or `not reached` (no test ran its
+  line). The score is the killed and timed-out mutants as a share of the reached ones. Under
+  `human`, the run prints the four counts, the score and each survived mutant with its file, line
+  and change. Under `json`, `schemaVersion` is `4`, and a `mutants` array has one `{file, line,
+  change, outcome}` per mutant. Test code is never changed. A survived mutant does not make the run
+  fail. When a test fails before any change, no mutant runs. A test with no time limit gets ten
+  times the slowest test's time, plus one second. `--format junit`, `--list`, `--update`, `--watch`
+  and a `.nvst` tree are each refused beside it.
 - `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source that
   wrote it, and is **the only spelling under which `nvs test` writes to a source file**. It
   replaces the `$expected` string and nothing else: a passing snapshot is untouched, and so is
