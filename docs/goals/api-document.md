@@ -48,7 +48,7 @@ stages:
         rules: [routing/api-document-is-generated-from-the-route-table, routing/api-diff-fails-a-breaking-change, ide/completion-offers-only-what-the-compiler-derived]
   - id: 7
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-closes
@@ -203,50 +203,41 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
-- [ ] The perf figures this goal made stale are recorded again: `Core\Router` (`router.rs`) and the `lang:attributes` sections (`90-attributes.md`). Otherwise the release gate's `proofs` job is red. `bun nv proofs --record-perf --group 'Core\Router'`, `docs/reference/lang/90-attributes.md:1369`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] The perf figures this goal made stale are recorded again: `Core\Router` (`router.rs`) and the `lang:attributes` sections (`90-attributes.md`). Otherwise the release gate's `proofs` job is red. `bun nv proofs --record-perf --group 'Core\Router'`, `docs/reference/lang/90-attributes.md:1369`
 
 ## Handoff
 
 ### State
 
-Stages 1, 5, 2, 3, 6 and 4 are done. Only stage 7, the gate, is left.
+Every stage is done, and the goal is reached.
 
-Stage 4 ended with `64d0182bd`. Inside `#[...](`, a field name is offered the fields of the
-attribute's `AttributeDoc` (`attribute_key_at`, `crates/nvs-lsp/src/completion.rs:1377`). This works
-for every compiler attribute, and the name is resolved as the checker resolves it. A string in
-`#[Core\Api]`'s `security` list is offered the route table's `schemes()` (`scheme_at`, `:1438`).
-`SOURCED` has the two new rows. Both `.lspt` cases pass, and so does
-`every_completion_source_names_a_compiler_table`. The completion rule names both sources.
-`bun nv owners --closes api-document` passes.
+The gate's first runs found two causes. The first was two rendered pages that had not been rendered
+again after stage 5 and stage 4 changed their sources: `docs/reference/lang/90-attributes.md`
+(from the `#[Core\Api]` `about.md`) and `docs/rules/ide.md` (from the completion rule). The second
+was four timing tests outside this goal's code that failed under the gate's load and passed alone:
+`net.rs`'s accept herd, `runner.rs`'s parallel overlap, and `serve.rs`'s fleet lease and served
+`while (true)`. Each now waits on what it depends on, not on an idle machine (`73d4db2a9`).
 
-The acceptance findings were stale again. `env-secret-proofs`' log shows exit 0. The nightly run
-40075586234 ran on `3ea6f1550`, 52 commits behind `main`. Its `supply chain` red is RUSTSEC-2026-0387
-in `crypto-bigint` 0.7.5, and `Cargo.lock` has 0.7.6 (`c7a505981`).
+The second `bun nv verify` was 22 of 22 green, with 7588 tests and 3110 conformance cases. The second
+`bun nv affected --run` was green. `bun nv verify --doc` and `bun nv owners --closes api-document`
+pass. The `Core\Router` and `lang:attributes` perf figures are recorded again.
 
-Tests that may go red at the gate: `nvs-lsp`'s `.lspt` coverage matrix
-(`crates/nvs-lsp/tests/coverage.rs`), if it counts completion cases. Also: `nvs-lsp`'s stubs tests (`every_line_lands_on_its_name`, and the
-test that every name has a line) for the new `Core\Api\*` names and card. Any `nvs-stdlib` test that
-counts `ENUMS` or checks enum cards. Any `nvs api diff` or document test whose fixture returns a
-class with a codec (`components.schemas`), reads a body (`requestBody`), or has a `{name?}` or
-`{name...}` path, whose keys and `operationId`s changed. Any test that asserts empty stderr over a
-route that reads its body in a helper (`W1027`): `crates/nvs-cli/tests/fixtures/api/request-body.nvs`
-has one. A test that counts the warning codes or checks each card's prose, for `W1027`. A test
-counting `Cargo.lock` packages or dev-dependencies, for `jsonschema`.
+The acceptance findings were stale. `env-secret-proofs`' log shows exit 0. The nightly run
+40075586234 ran on `3ea6f1550`, behind `main`, and its `supply chain` red is fixed by `c7a505981`.
+
+The installed `looper` has no `verify` subcommand, so the gate ran as `bun nv affected --run` and
+`bun nv verify`.
 
 ### Next
 
-**Stage 7, the gate.** Its `**Split:**` line is the plan.
-
-- [ ] Start `bun nv affected --run` (in the loop, `looper verify`) with `run_in_background`, and end the turn to wait. `tools/nv/cmd/verify.ts:1`
-- [ ] Group the failures by cause, and fix them all in one pass. `tools/nv/cmd/verify.ts:1`
-- [ ] Record the stale perf figures once: `bun nv proofs --record-perf --group 'Core\Router'`, and the `lang:attributes` sections. `docs/reference/lang/90-attributes.md:1369`
-- [ ] Run verify a second time, then run the goal-end gates: `bun nv verify --doc` and `bun nv owners --closes api-document`. `docs/goals/api-document.md:1`
+Nothing. looper retires the goal.
 
 ### Backlog
 
-- OAuth2 scopes per operation: `#[Api(security:)]` writes an empty scope list today (`crates/nvs-cli/src/openapi.rs`, the `security` arm of `operation`). Scopes need a field on `#[Api]` and a check against the scheme's declared flows (`docs/rules/routing/a-security-scheme-is-declared-in-code.md`).
-- Two routes of one verb that write the same template are written once, and the first row wins (`crates/nvs-cli/src/openapi.rs`'s `or_insert_with`). Examples are `/files/{path}` beside `/files/{path...}`, `/a` beside `/a/{x?}`, or `/a/{id}` beside `/a/{key}`. 3.1 also forbids two templated paths that differ only in their names. Whether the router admits such pairs decides whether `nvs build --openapi` needs a diagnostic.
-- `#[Api]`'s card gives every field the type `mixed` (`crates/nvs-types/src/derive.rs:473`), so hover and completion show `mixed (optional)`. `tags` and `security` are `array<string>`. Changing the card changes the rendered reference, so it needs a `bun nv render --website` in the same slice.
+The three Backlog items are gap records now, so none lives only in this file:
+`data/gaps/nvs-cli/oauth2-scopes-per-operation.json` and
+`data/gaps/nvs-cli/two-routes-that-write-one-template.json` for `api-compat`, and
+`data/gaps/nvs-types/api-card-types-every-field-mixed.json` for `request-aware-editor`.
