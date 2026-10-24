@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Formatter and command line",
-      "text": "`nvs fmt` formats every part of the language. New commands clear the cache and check for a newer version. You can choose to send anonymous usage counts, and the totals are public.",
-      "goals": [
-        "telemetry-service"
-      ]
-    },
-    {
       "title": "Editor",
       "text": "The editor can rename, find, import and generate code, and it has more quick fixes. It can also show what your program did for a recorded request.",
       "goals": [
