@@ -1352,7 +1352,8 @@ mod tests {
         let dir = nvs_repo::scratch(name);
         let mut ctx = Ctx::buffered();
         ctx.set_debug_flags(DebugFlags::TRACE);
-        let sink = TraceSink::create(&dir.join("calls.jsonl")).expect("the scratch directory exists");
+        let sink =
+            TraceSink::create(&dir.join("calls.jsonl")).expect("the scratch directory exists");
         assert!(ctx.set_trace_sink(Some(sink)).is_none());
         (ctx, dir)
     }
@@ -1377,7 +1378,9 @@ mod tests {
         let callee = head
             .strip_prefix(r#"{"kind":"call","callee":""#)
             .expect("a call line starts with its kind and callee");
-        let (status, times) = times.split_once(r#"","start":"#).expect("a status is followed by the start");
+        let (status, times) = times
+            .split_once(r#"","start":"#)
+            .expect("a status is followed by the start");
         let (start, end) = times
             .strip_suffix('}')
             .and_then(|times| times.split_once(r#","end":"#))
@@ -1426,7 +1429,11 @@ mod tests {
             panic!("one line per call: {lines:?}");
         };
         assert_eq!((inner, thrown), ("Boom::inner", "thrown"));
-        assert_eq!((map, ok), (r"Core\\Arr::map", "ok"), "a backslash is escaped");
+        assert_eq!(
+            (map, ok),
+            (r"Core\\Arr::map", "ok"),
+            "a backslash is escaped"
+        );
         assert!(entered <= left, "the exit is not before the entry");
         assert!(ctx.trace().is_empty(), "a call is never filed in memory");
     }

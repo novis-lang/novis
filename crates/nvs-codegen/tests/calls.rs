@@ -226,7 +226,10 @@ fn traced(name: &str, source: &str, flags: DebugFlags) -> (Ctx, Vec<(String, Str
 #[test]
 fn the_call_probe_costs_nothing_observable_with_every_bit_off() {
     let (ctx, calls) = traced("calls-off", CALLS, DebugFlags::empty());
-    assert!(calls.is_empty(), "a call was written with the bit off: {calls:?}");
+    assert!(
+        calls.is_empty(),
+        "a call was written with the bit off: {calls:?}"
+    );
     assert!(ctx.trace().is_empty());
 }
 
@@ -236,7 +239,10 @@ fn turning_tracing_on_writes_a_line_per_call_as_it_returns() {
     // sink. Both `double` calls nest inside `quadruple`, so they return first, and every line
     // carries the status the call site is about to branch on.
     let (ctx, calls) = traced("calls-on", CALLS, DebugFlags::TRACE);
-    let calls: Vec<(&str, &str)> = calls.iter().map(|(c, s)| (c.as_str(), s.as_str())).collect();
+    let calls: Vec<(&str, &str)> = calls
+        .iter()
+        .map(|(c, s)| (c.as_str(), s.as_str()))
+        .collect();
     assert_eq!(
         calls,
         [
@@ -258,7 +264,11 @@ fn a_trace_records_a_core_call_and_every_callback_it_makes() {
                   var $double = fn(int $n): int => $n * 2;\n\
                   array<int> $all = Core\\Arr::map([1, 2, 3], $double);\n\
                   echo $double(4);\n";
-    let (mut ctx, calls) = traced("calls-callable", source, DebugFlags::TRACE | DebugFlags::COUNT);
+    let (mut ctx, calls) = traced(
+        "calls-callable",
+        source,
+        DebugFlags::TRACE | DebugFlags::COUNT,
+    );
     assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b"8"[..]));
 
     let calls: Vec<(&str, &str)> = calls
