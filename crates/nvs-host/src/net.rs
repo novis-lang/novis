@@ -3115,9 +3115,19 @@ mod tests {
         }
         std::thread::sleep(Duration::from_millis(200));
         let _client = std::net::TcpStream::connect(addr).expect("a connection");
-        std::thread::sleep(Duration::from_millis(500));
+        // Polled against a deadline rather than slept for: sixteen spinning
+        // threads beside a loaded machine's other work can take seconds to
+        // reach the connection, and a core stuck in the kernel stays stuck
+        // however long the wait is.
+        let settled = |done: &dyn Fn() -> bool| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(10);
+            while !done() && std::time::Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+        settled(&|| won.load(Ordering::SeqCst) > 0);
         stop.store(true, Ordering::Relaxed);
-        std::thread::sleep(Duration::from_millis(500));
+        settled(&|| inside.load(Ordering::SeqCst) == 0);
         assert_eq!(
             won.load(Ordering::SeqCst),
             1,

@@ -1,7 +1,9 @@
 <?nvs
-// `rule:testing/tests-run-across-every-core`: four tests that each wait 400 ms.
-// One after another they take 1.6 s; run at once they take a little over 0.4 s,
-// which is the whole of what the runner's test measures.
+// `rule:testing/tests-run-across-every-core`: four tests that each wait 400 ms
+// and print the microsecond they started and ended. One after another, no two
+// of them overlap, which is the whole of what the runner's test reads. Each
+// fails on purpose, because a failing test's output is the output the report
+// prints.
 //
 // `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
 use Core\Test;
@@ -10,25 +12,33 @@ use Core\Time;
 final class OverlapTest {
     #[Test]
     public function itWaitsFirst(): void {
+        echo "test-started ", Time::now()->toEpochMicros(), "\n";
         Time::sleep(400ms);
-        Test::assertTrue(true);
+        echo "test-ended ", Time::now()->toEpochMicros(), "\n";
+        Test::assertSame(1, 2);
     }
 
     #[Test]
     public function itWaitsSecond(): void {
+        echo "test-started ", Time::now()->toEpochMicros(), "\n";
         Time::sleep(400ms);
-        Test::assertTrue(true);
+        echo "test-ended ", Time::now()->toEpochMicros(), "\n";
+        Test::assertSame(1, 2);
     }
 
     #[Test]
     public function itWaitsThird(): void {
+        echo "test-started ", Time::now()->toEpochMicros(), "\n";
         Time::sleep(400ms);
-        Test::assertTrue(true);
+        echo "test-ended ", Time::now()->toEpochMicros(), "\n";
+        Test::assertSame(1, 2);
     }
 
     #[Test]
     public function itWaitsFourth(): void {
+        echo "test-started ", Time::now()->toEpochMicros(), "\n";
         Time::sleep(400ms);
-        Test::assertTrue(true);
+        echo "test-ended ", Time::now()->toEpochMicros(), "\n";
+        Test::assertSame(1, 2);
     }
 }
