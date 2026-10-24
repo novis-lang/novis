@@ -20,7 +20,7 @@ stages:
         rules: [ide/narrow-an-annotation-to-its-literal, ide/narrowest-means-narrowest-base-type, ide/narrowing-is-a-diff-never-a-save-time-fix, ide/the-action-answers-from-the-literal-or-not-at-all, ide/no-compile-path-calls-the-synthesis, ide/a-code-action-writes-only-what-is-already-determined]
   - id: 3
     title: "parameter hints on every call, hover on a narrowed read, and an html template is a region"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/hints.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/regions.rs, data/gaps/nvs-lsp/call-the-checker-recorded-as-anything.json, data/gaps/nvs-lsp/hover-on-a-narrowed-property-read.json, data/gaps/nvs-lsp/html-templates-body-is-not-a.json]
     extra:
       context:
@@ -153,6 +153,14 @@ value as its only argument. `Core\Ldap\Dn::of` needs an attribute name, and `Cor
 no fix. The plain sink mismatch names no launderer on purpose (`crates/nvs-types/src/expr/args.rs`,
 `check_shape_field`'s doc), so it gets none either.
 
+**A call names its parameters only where the program does.** A method call, a static call,
+`$cls::f(...)`, `new` and `new $cls(...)` read the resolved target's `param_names`, a constructor's
+for a `new`. A call through a `callable` and a call on a `mixed` receiver get no parameter hint:
+`rule:types/callable-signature` forbids names in a callable type, and a `mixed` receiver's method is
+found only when it runs (`rule:types/erased-member-access`). A name drawn there would be one the
+server picked, which `crates/nvs-lsp/src/hints.rs`'s first decision refuses, so no field was added to
+`ExprInfo::CallThroughSignature` or `ExprInfo::ErasedCall`. The module doc of `hints.rs` is the home.
+
 ## Stages
 
 ### 1. five diagnostics carry their fix
@@ -203,11 +211,12 @@ type.
 **Split:** after the three fixes land, one writing subagent writes the three `.lspt` cases under
 `tests/lsp/hints/`, `tests/lsp/hover/` and `tests/lsp/regions/`.
 
-- [ ] A `new`, a call through a `callable` and a call on a `mixed` receiver get parameter hints. The widening is in the table the checker records, not in the walk. `crates/nvs-lsp/src/hints.rs:455`
-- [ ] Hover on a narrowed `readonly` property read shows the narrowed type (`rule:types/narrowing`). `crates/nvs-lsp/src/hover.rs:390`
-- [ ] An html template's body is an HTML region, with its two kinds of hole cut out (`rule:core-classes/html-template`). `crates/nvs-lsp/src/regions.rs:268`
-- [ ] An `.lspt` case for each. `tests/lsp/hints/a-constructor-call-gets-parameter-hints.lspt:1`
-- [ ] The three records deleted. `data/gaps/nvs-lsp/call-the-checker-recorded-as-anything.json:1`, `data/gaps/nvs-lsp/hover-on-a-narrowed-property-read.json:1`, `data/gaps/nvs-lsp/html-templates-body-is-not-a.json:1`
+- [x] A `new`, a call through a `callable` and a call on a `mixed` receiver get parameter hints. The widening is in the table the checker records, not in the walk. A `callable` call and a `mixed` receiver get none, by the standing decision *A call names its parameters only where the program does*. `crates/nvs-lsp/src/hints.rs:455`
+- [x] Hover on a narrowed `readonly` property read shows the narrowed type (`rule:types/narrowing`). `crates/nvs-lsp/src/hover.rs:390`
+- [x] An html template's body is an HTML region, with its two kinds of hole cut out (`rule:core-classes/html-template`). `crates/nvs-lsp/src/regions.rs:268`
+- [x] An `.lspt` case for each. `tests/lsp/hints/a-constructor-call-gets-parameter-hints.lspt:1`
+  - [x] The three cases, and nine more so `HtmlTemplate` is reached by every cursor-taking request.
+- [x] The three records deleted. `data/gaps/nvs-lsp/call-the-checker-recorded-as-anything.json:1`, `data/gaps/nvs-lsp/hover-on-a-narrowed-property-read.json:1`, `data/gaps/nvs-lsp/html-templates-body-is-not-a.json:1`
 
 ### 4. a lens runs a command, and a changed setting reaches the running server
 
@@ -300,7 +309,18 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. Stage 1: five diagnostics carry their fix as a suggestion, each frozen by
+Stages 1, 2 and 3 are done. Stage 3: `hints.rs`'s `resolved_call` reads the parameter names of a
+`new` (`ExprInfo::New`/`NewDynamic`'s `ctor`) and a `$cls::f(...)` (`ClassRefCall`) as well as a
+method call. A `callable` call and a `mixed` receiver get none, by the new standing decision. Hover
+on a `readonly` property read shows `ExprInfo::Property`'s `narrowed` type. `regions.rs`'s
+`for_source` reports an html template's body runs as HTML regions, with a stack of open delimiters
+so a string inside a hole is not one. The three gap records are deleted. Twelve new `.lspt` cases
+(suite: 550 passed): one each under `hints/`, `hover/` and `regions/`, and nine that reach the new
+`HtmlTemplate` coverage column from every cursor-taking request, so
+`every_request_answers_every_construct` stays green. The hints case passes strings only, so no
+`Int` column under `inlayHint` was added.
+
+Stage 1: five diagnostics carry their fix as a suggestion, each frozen by
 an `.lspt` case under `tests/lsp/actions/` (`E0409`, `E0221`, `E0116`, `E0747`, a `tainted` URL's
 `E0401`). Stage 2: *Narrow the type* is a `refactor.rewrite` action in
 `crates/nvs-lsp/src/narrow.rs`, appended to quick-fix answers only (`crates/nvs-lsp/src/actions.rs`).
@@ -328,20 +348,23 @@ printing the new `= suggestion` line or checking a diagnostic's suggestions:
 (`fix(runtime): a spawned tree's start-up bytes leave the tree that spawned it`) fixes it. That
 commit is in `HEAD` and not in the run. The soak passes at `HEAD` on Windows under `--release`. It
 has never run on Linux, so the next nightly is its first run there. `env-secret-proofs` exits 0 at
-`HEAD`. The uncommitted rustfmt change in `crates/nvs-runtime/src/capability.rs` is not this goal's,
+`HEAD` (`76ff1b68d`, run again this session, and its log reads `exit 0`), so the sweep's red is
+stale. The uncommitted rustfmt change in `crates/nvs-runtime/src/capability.rs` is not this goal's,
 and is left in the tree.
 
 ### Next
 
-**Stage 3: parameter hints on every call, hover on a narrowed read, and an html template is a
-region.** Its files are its own: `crates/nvs-lsp/src/hints.rs`, `crates/nvs-lsp/src/hover.rs` and
-`crates/nvs-lsp/src/regions.rs`.
+**Stage 4: a lens runs a command, and a changed setting reaches the running server.** Its files are
+`crates/nvs-lsp/src/server.rs`, `crates/nvs-lsp/src/settings.rs` and
+`editors/vscode/src/extension.ts`. Nothing handles `didChangeConfiguration` yet.
 
-- [ ] A `new`, a call through a `callable` and a call on a `mixed` receiver get parameter hints. `crates/nvs-lsp/src/hints.rs:455`
-- [ ] Hover on a narrowed `readonly` property read shows the narrowed type. `crates/nvs-lsp/src/hover.rs:390`
-- [ ] An html template's body is an HTML region, with its two kinds of hole cut out. `crates/nvs-lsp/src/regions.rs:268`
-- [ ] An `.lspt` case for each, by one writing subagent. `tests/lsp/hints/a-constructor-call-gets-parameter-hints.lspt:1`
-- [ ] The three gap records deleted. `data/gaps/nvs-lsp/call-the-checker-recorded-as-anything.json:1`
+- [ ] Each lens carries the command that shows what it counts. `crates/nvs-lsp/src/server.rs:1461` (`code_lens`, the `CodeLens` at 1488), `crates/nvs-lsp/src/render.rs:697`
+- [ ] The server handles `workspace/didChangeConfiguration` and applies `scope`, `codeLens` and `debounce`. `crates/nvs-lsp/src/server.rs:194`, `crates/nvs-lsp/src/settings.rs:159`
+- [ ] The client sends the changed section, and restarts only for `nvs.path` and `nvs.lsp.enable`. `editors/vscode/src/extension.ts:110`, `editors/vscode/src/extension.ts:159`
+- [ ] An `.lspt` case for the lens command. `tests/lsp/lens/a-reference-count-lens-opens-the-references.lspt:1`
+- [ ] A headless client test for the setting change. `editors/vscode/test/client/settings.test.ts:1`
+
+A new capability or handled notification changes what `crates/nvs-lsp/tests/handshake.rs` holds.
 
 ### Backlog
 
@@ -350,6 +373,10 @@ region.** Its files are its own: `crates/nvs-lsp/src/hints.rs`, `crates/nvs-lsp/
 - An `E0747` fix on a parameter whose type does not resolve writes a capture for it, because
   `converts_from_segment` accepts an unresolved type (`derived_path` in
   `crates/nvs-types/src/routes.rs`). The `E0303` beside it is the real error.
+- References and document highlight answer `none` on a local variable, and so does a variable in
+  a template hole, while rename and prepareRename on the same variable work
+  (`tests/lsp/rename/a-variable-inside-an-html-template-hole-is-renamed-with-its-declaration.lspt`).
+  The existing `definition/a-plain-variable-read-answers-none.lspt` freezes that as intended.
 - There is no `Core\Http\Request` class. A route case that wants a service parameter declares its own class.
 
 - The copy half of the import-carrying paste has no proof in a real editor, because nothing makes the editor fire a real copy (`editors/vscode/src/imports.ts`, § *Known gaps*).
