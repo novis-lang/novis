@@ -3,7 +3,7 @@
 
 # Testing
 
-*30 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*27 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -25,7 +25,8 @@ about that test already points — because that is the one fact about a test not
 recompute, and it is what locates a test in a report and in an editor's test tree.
 
 `#[Test]`'s payload is an options bag — `skip`, `at`, `seed`, `db`, `server`, `retries`,
-`because` — every field optional and every field checked at its own type. An option the roster does
+`because`, `timeout` ([`testing/a-test-has-a-wall-time-limit`](testing.md#testing-a-test-has-a-wall-time-limit)) and `tags`
+([`testing/tags-and-shards-select-what-runs`](testing.md#testing-tags-and-shards-select-what-runs)) — every field optional and every field checked at its own type. An option the roster does
 not name is refused, one written twice is refused, and `skip: true` is a `bool` where a `string` is
 declared.
 
@@ -117,7 +118,7 @@ machine.
 
 <a id="testing-private-in-the-same-file"></a>
 
-## A test reaches `private` members of classes declared in its own file, and nowhere else  *(designed — owned by goal test-surface)*
+## A test reaches `private` members of classes declared in its own file, and nowhere else
 
 `rule:testing/private-in-the-same-file`
 
@@ -128,9 +129,22 @@ This is the narrowest rule that avoids the failure it exists to prevent: a `publ
 exists only because a test needed to reach it. White-box testing stays possible where the author has
 already chosen to put the test next to the code; everything at a distance tests behaviour.
 
-**Not on disk.** Member visibility is checked against the accessing class alone
-(`crates/nvs-types/src/signatures.rs:1733`), so a test in the same file is held to the public contract
-too.
+**A test method is test code** in [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build)'s sense: a method that
+carries `#[Test]`, `#[Fixture]`, `#[BeforeClass]`, `#[AfterClass]` or `#[AfterEachTest]`, and every
+anonymous function written inside one. A fixture builds what a test reaches, so it is admitted on the
+same terms. Any other method of a test class is held to the ordinary levels, so a helper that reads a
+`private` member has to be test code itself.
+
+**The file is the one that declares the member's class**, read off that class's declaration. A test
+class that `extends` the class from another file reaches its `protected` members the ordinary way and
+nothing more.
+
+**It costs nothing on the request path.** The admission is decided at compile time, in
+`crates/nvs-types/src/signatures.rs`'s `is_visible_here`, and test code never reaches a build, so no
+request can call a method that used it.
+
+**Declined:** an attribute such as `#[VisibleForTesting]` on the member. It moves the decision to
+the class under test, and the member is then reachable from every test anywhere.
 
 <sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build).</sub>
 
@@ -466,7 +480,7 @@ lines. A test that reads the terminal reads end of input, so no test stops the r
 
 <a id="testing-a-test-has-a-wall-time-limit"></a>
 
-## `[limits] wall_time` bounds each test on its own, and `#[Test(timeout: ...)]` replaces it for one test  *(designed — owned by goal test-surface)*
+## `[limits] wall_time` bounds each test on its own, and `#[Test(timeout: ...)]` replaces it for one test
 
 `rule:testing/a-test-has-a-wall-time-limit`
 
@@ -477,21 +491,22 @@ The limit is counted from the moment the test's class is constructed to the mome
 returns, so a test's fixtures and hooks count toward it and the tests that ran before it do not. A test
 that passes its limit is stopped the way a request past its wall time is stopped
 ([`errors/on-limit`](errors.md#errors-on-limit)), and it fails with a message that names the limit and where it came from: the
-configuration or the attribute. A stopped test is a failure like any other, so `retries:` applies to it
-([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)).
+configuration or the attribute. One limit covers every attempt of a test together, since the attempts
+share the test's isolate ([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)): a test stopped at its limit is a failure,
+and a retry gives it no new time.
 
 `timeout` is written in the duration syntax `nvs.toml` uses, and a value that does not parse does not
-compile. It may be longer or shorter than `[limits] wall_time`, and `[limits.hard]`'s `wall_time` bounds
-it as it bounds a request's own setting. Where neither is written, a test has no wall-time limit, which
-is what `[limits] wall_time` already means when it is absent.
+compile, and neither does a zero. It may be longer or shorter than `[limits] wall_time`, and
+`[limits.hard]`'s `wall_time` bounds it as it bounds a request's own `Core\Config::set`: a test whose
+`timeout` is above that bound fails without running. Where neither is written, a test has no wall-time
+limit, which is what `[limits] wall_time` already means when it is absent.
 
 Reusing the request's key is the point: a test of a handler is held to the time the handler gets in
 production, and one setting says it for both. The override is per test because a slow test is a fact
 about that test, not about the run.
 
-- **Memory:** one deadline per test in flight, the same one a request carries.
-
-**Not on disk.** `#[Test]`'s option roster has no `timeout` (`crates/nvs-types/src/testing.rs:231`).
+- **Memory:** one deadline per test in flight, the same one a request carries, and the thread `nvs run`
+  times its own wall time with, for each test in flight that has a limit.
 
 **Declined:**
 - **A run-wide `--timeout` flag.** It is a second setting for what `[limits] wall_time` already says,
@@ -503,7 +518,7 @@ about that test, not about the run.
 
 <a id="testing-tags-and-shards-select-what-runs"></a>
 
-## `#[Test(tags: [...])]` labels a test, `--tag`/`--skip-tag` select by label, and `--shard N/M` runs one of M stable disjoint parts  *(designed — owned by goal test-surface)*
+## `#[Test(tags: [...])]` labels a test, `--tag`/`--skip-tag` select by label, and `--shard N/M` runs one of M stable disjoint parts
 
 `rule:testing/tags-and-shards-select-what-runs`
 
@@ -513,8 +528,9 @@ about that test, not about the run.
 A tag is a string, and a test may carry any number of them. `--tag slow` runs only the tests that carry
 `slow`, and `--skip-tag slow` leaves them out. Both flags may be repeated: a test runs when it carries
 at least one `--tag` label, or when no `--tag` is given, and when it carries no `--skip-tag` label. They
-combine with `--filter`, and a test must pass every one. The compiler checks that each tag is a string
-literal, and nothing more: the set of tags is the program's own.
+combine with `--filter`, and a test must pass every one. The compiler checks that each tag is a
+non-empty string literal, and nothing more: the set of tags is the program's own. A `.nvst` case has no
+tags, so `--tag` and `--skip-tag` beside a case tree are an error.
 
 `--shard 2/4` splits the selected tests into four parts and runs the second. A test's part is a hash of
 its `Class::method` name, a data row going with its test, so the parts do not change when another test
@@ -523,12 +539,11 @@ is added or removed, and four machines that each run one part run every selected
 selection. They are not balanced by run time.
 
 The summary says how many tests the selection left out, so a run that selected nothing is visible as
-one.
+one. A `.nvst` run writes that count on its own line above the summary line, which stays the last.
+The hash is FNV-1a over the name's bytes, with `/` between a path's parts on every platform, so every
+machine of one CI run computes the same parts (`crates/nvs-test/src/shard.rs`).
 
 - **Memory:** nothing per test beyond its list of tags, held in the test table while compiling.
-
-**Not on disk.** `#[Test]`'s option roster has no `tags` (`crates/nvs-types/src/testing.rs:231`), and
-`nvs test` has no `--tag`, `--skip-tag` or `--shard` (`crates/nvs-cli/src/main.rs:574`).
 
 **Declined:**
 - **Shards balanced by recorded run time.** It needs a timing file every machine reads, and a part
@@ -930,8 +945,46 @@ A failure shrinks to a minimal counterexample and reports the seed that reproduc
 `string` is valid UTF-8 including combining marks and grapheme clusters, because that is what a
 `string` is — a property that only holds for ASCII is a property that is not true.
 
-**Not on disk.** `#[Property]` is not a recognised attribute (`crates/nvs-types/src/derive.rs:73`), and
-nothing derives a generator or shrinks a counterexample.
+**The attribute.** `#[Core\Test\Property]` goes on a method with a `#[Test]`'s shape: `public`, not
+`static`, `: void`, with a body. Its options are `#[Test]`'s less `retries:` and `because:`, plus
+`runs:` (1 to 100000, 100 by default) and `gen:`. It is test code
+([`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build)). **Every parameter is generated**: a `#[TestWith]` row, a
+second marker, and a fixture are never asked. Its rows ride in their own table, beside the `#[Test]`
+one (`crates/nvs-types/src/property.rs`).
+
+**What has a generator.** Every scalar, `decimal`, `bytes`, a `string` and either `tainted` form, an
+enum and a single case, a single-value type, `mixed`, `?T`, `array<T>`, an inline shape, a union, and a
+concrete, non-generic class of the program with a `public` constructor, built from its constructor's
+parameters. A class may reach itself through `?T`, a list or a union. Anything else is `E0890` at the
+method: a function, an interface, an abstract or `Core` class, a class that contains itself with
+nothing between, and a `secret` value, because a failing input is printed.
+
+**`gen:`** is `{<parameter>: "<low>..<high>"}`, both ends inclusive. A number's range bounds the
+value; a `string`'s, `bytes`' or `array<T>`'s bounds the length, in grapheme clusters for a string, up
+to 10000. A `?T` parameter narrows its `T`. An entry naming no parameter, a range that does not parse,
+and a range on a type with no range are `E0890`.
+
+**The values.** A SplitMix64 stream seeded from the run's seed and the call's index, and nothing
+else, so one seed gives one sequence of inputs. Call `i` of `n` has a size rising from 0 to 100, which
+caps every length's share of its range, and a number takes one of its range's edges about one call in
+eight. A float is finite. A string's pieces are ASCII, control characters, code points of two, three
+and four bytes, and clusters of several code points: combining marks, U+200D emoji sequences, flags,
+Hangul jamo and a Devanagari conjunct (`crates/nvs-types/src/property/generate.rs`).
+
+- **Memory:** one call's inputs hold at most 2^20 elements, bytes and string pieces together, per
+  property in flight. An input whose shortest form is over that is refused before it is built.
+
+**Not on disk.** The runner does not call a property yet, and nothing shrinks a counterexample.
+
+**Declined:**
+- **`retries:` on a property.** A failure is reproduced from its seed and shrunk, so a retry would
+  only hide the input that broke it.
+- **A fixture filling a property's parameter.** A parameter is generated or it is not, and a fixture's
+  value cannot be shrunk.
+- **NaN and the infinities by default.** Most numeric code is not written for them, so every property
+  over a `float` would first have to exclude them.
+- **A `gen:` that names a generator function.** A range is checked when the program compiles and says
+  the domain where it is written; a function is a second place to read.
 
 <sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
 

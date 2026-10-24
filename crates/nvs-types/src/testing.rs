@@ -362,6 +362,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
     let mut case_rows: Vec<Vec<RawRow>> = Vec::new();
     let mut fixtures: Vec<Fixture> = Vec::new();
     let mut fixture_spans: Vec<Span> = Vec::new();
+    let mut properties: Vec<crate::property::PropertyCase> = Vec::new();
     let inherited = crate::test_inherit::check_class(decl, class, ctx, env);
     for member in &decl.members {
         let ClassMemberKind::Method(m) = &member.kind else {
@@ -369,11 +370,49 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         };
         let test = attribute_named(&m.attributes, crate::derive::TEST, ctx, env);
         let fixture = attribute_named(&m.attributes, crate::derive::FIXTURE, ctx, env);
+        let property = attribute_named(&m.attributes, crate::derive::PROPERTY, ctx, env);
         let rows = rows_attached(&m.attributes, ctx, env);
         if crate::test_hooks::is_hook(m, ctx, env) {
             // `crate::test_hooks` checks a hook, and refuses one that is also a
             // test or a fixture, so it is in neither roster here.
             report_stray_rows(&rows, "is a hook rather than a `#[Test]`", env);
+            continue;
+        }
+        if let Some(attr) = property {
+            // `rule:testing/property-testing`'s property is a test whose arguments are
+            // generated, so a second marker on it is one method claiming two shapes, and
+            // a data row would fill a parameter the generator already fills.
+            let method = span_text(env.src, m.name).to_owned();
+            report_stray_rows(&rows, "is a `#[Property]` rather than a `#[Test]`", env);
+            let other = if test.is_some() {
+                Some("#[Test]")
+            } else if fixture.is_some() {
+                Some("#[Fixture]")
+            } else {
+                None
+            };
+            if let Some(other) = other {
+                report_shape(
+                    m,
+                    "#[Property]",
+                    &method,
+                    &format!("is also a `{other}`"),
+                    "a property test is called with generated values, so a method is a \
+                     `#[Property]` or a `#[Test]`. Keep one of the two attributes",
+                    env,
+                );
+                continue;
+            }
+            check_method_shape(m, &method, "#[Property]", class, env);
+            if properties
+                .iter()
+                .any(|case: &crate::property::PropertyCase| case.method == method)
+            {
+                continue;
+            }
+            if let Some(case) = crate::property::collect(m, &method, attr, class, env) {
+                properties.push(case);
+            }
             continue;
         }
         if test.is_none() && fixture.is_none() {
@@ -446,13 +485,13 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
             continue;
         }
         let Some(attr) = test else { continue };
-        check_method_shape(m, &method, class, env);
+        check_method_shape(m, &method, "#[Test]", class, env);
         // A second method of one name is already `E0304` from
         // `crate::signatures`, so it is skipped here with no second report.
         if cases.iter().any(|case| case.method == method) {
             continue;
         }
-        let options = fold_options(&attr.fields.clone(), env);
+        let options = fold_options(&attr.fields.clone(), OPTIONS, env);
         cases.push(TestCase {
             method,
             span: m.name,
@@ -480,6 +519,9 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
     }
     if !fixtures.is_empty() {
         env.exprs.record_fixtures(class.to_string(), fixtures);
+    }
+    if !properties.is_empty() {
+        env.exprs.record_properties(class.to_string(), properties);
     }
 }
 
@@ -1025,7 +1067,13 @@ fn check_fixture_payload(attr: &Attribute, env: &mut Env<'_>) {
 /// A method the signature table has no row for is left alone: it is either
 /// a name `nvs_syntax` is already refusing or a duplicate of one, and there is
 /// nothing here that a second diagnostic about its shape would add.
-fn check_method_shape(m: &MethodMember, method: &str, class: &QName, env: &mut Env<'_>) {
+fn check_method_shape(
+    m: &MethodMember,
+    method: &str,
+    marker: &str,
+    class: &QName,
+    env: &mut Env<'_>,
+) {
     let signatures = env.signatures;
     let Some(sig) = signatures
         .get(class)
@@ -1036,6 +1084,7 @@ fn check_method_shape(m: &MethodMember, method: &str, class: &QName, env: &mut E
     if sig.is_static {
         report_shape(
             m,
+            marker,
             method,
             "is `static`",
             "a test is run against a fresh instance, so drop the `static`",
@@ -1045,6 +1094,7 @@ fn check_method_shape(m: &MethodMember, method: &str, class: &QName, env: &mut E
     if sig.visibility != Visibility::Public {
         report_shape(
             m,
+            marker,
             method,
             "is not `public`",
             "the runner calls a test from outside its class, so declare it `public`",
@@ -1055,6 +1105,7 @@ fn check_method_shape(m: &MethodMember, method: &str, class: &QName, env: &mut E
         let returned = env.interner.describe(sig.return_ty);
         report_shape(
             m,
+            marker,
             method,
             &format!("returns `{returned}`"),
             "a test reports by asserting rather than by returning, so declare `: void`",
@@ -1064,13 +1115,20 @@ fn check_method_shape(m: &MethodMember, method: &str, class: &QName, env: &mut E
     if !sig.has_body {
         report_shape(
             m,
+            marker,
             method,
             "has no body",
             "the runner calls a test, so drop the `abstract` and write its body",
             env,
         );
     }
-    reject_uninjectable_parameters(m, method, sig, &report_shape, env);
+    reject_uninjectable_parameters(
+        m,
+        method,
+        sig,
+        &|m, method, did, help, env| report_shape(m, marker, method, did, help, env),
+        env,
+    );
 }
 
 /// The two parameter *shapes* `rule:testing/fixtures` and `rule:testing/data-rows`'s injection cannot fill, for a `#[Test]`
@@ -1113,12 +1171,20 @@ fn reject_uninjectable_parameters(
     }
 }
 
-/// One [`code::E_TEST_METHOD_SHAPE`], worded from what the declaration did.
-fn report_shape(m: &MethodMember, method: &str, did: &str, help: &str, env: &mut Env<'_>) {
+/// One [`code::E_TEST_METHOD_SHAPE`], worded from what the declaration did and
+/// naming the marker it carries, `#[Test]` or `#[Property]`.
+fn report_shape(
+    m: &MethodMember,
+    marker: &str,
+    method: &str,
+    did: &str,
+    help: &str,
+    env: &mut Env<'_>,
+) {
     env.diags.report(
         Diagnostic::error(
             code::E_TEST_METHOD_SHAPE,
-            format!("the `#[Test]` method `{method}` {did}"),
+            format!("the `{marker}` method `{method}` {did}"),
         )
         .with_primary(m.name, did)
         .with_help(help.to_owned()),
@@ -1131,11 +1197,15 @@ fn report_shape(m: &MethodMember, method: &str, did: &str, help: &str, env: &mut
 /// cannot fold — an unknown option, a value of the wrong type, a value that
 /// is not constant at all — so a second diagnostic here would name one
 /// mistake twice. What it cannot fold it simply omits.
-fn fold_options(fields: &[AnonObjectField], env: &mut Env<'_>) -> Vec<(String, ConstArg)> {
+pub(crate) fn fold_options(
+    fields: &[AnonObjectField],
+    roster: &[(&str, OptionTy)],
+    env: &mut Env<'_>,
+) -> Vec<(String, ConstArg)> {
     let mut folded = Vec::with_capacity(fields.len());
     for field in fields {
         let name = span_text(env.src, field.name).to_owned();
-        let Some((_, ty)) = OPTIONS.iter().find(|(option, _)| *option == name) else {
+        let Some((_, ty)) = roster.iter().find(|(option, _)| *option == name) else {
             continue;
         };
         let Some(declared) = ty.intern(env) else {
@@ -1171,7 +1241,7 @@ pub(crate) fn check_payload(fields: &[AnonObjectField], ctx: &Ctx<'_>, env: &mut
 /// The roster checks each value's type and not its value, so this reads the
 /// folded constants. A value of the wrong type is the roster's error already,
 /// and folds to nothing here.
-fn check_option_values(fields: &[AnonObjectField], env: &mut Env<'_>) {
+pub(crate) fn check_option_values(fields: &[AnonObjectField], env: &mut Env<'_>) {
     let string = env.interner.string();
     let int = env.interner.int();
     let tags = env.interner.array(string);

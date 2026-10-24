@@ -64,7 +64,8 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 ///
 /// A name on this roster names no shape, so [`crate::attributes`]'s `rule:attributes/attach-sites-and-forms` rule does not apply to it and what its payload may hold is the
 /// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
-/// module's, `#[Test]` is [`crate::testing`]'s, `#[BeforeClass]`,
+/// module's, `#[Test]` is [`crate::testing`]'s, `#[Property]` is
+/// [`crate::property`]'s, `#[BeforeClass]`,
 /// `#[AfterClass]` and `#[AfterEachTest]` are [`crate::test_hooks`]',
 /// `#[Command]`/`#[Option]` are
 /// [`crate::commands`]', `#[Route]`/`#[Query]`/`#[Access]` are
@@ -78,6 +79,7 @@ pub const ATTRIBUTES: &[&str] = [
     TEST,
     FIXTURE,
     TEST_WITH,
+    PROPERTY,
     BEFORE_CLASS,
     AFTER_CLASS,
     AFTER_EACH_TEST,
@@ -144,8 +146,8 @@ pub(crate) fn sites(name: &str) -> Option<&'static [Site]> {
     Some(match name {
         DERIVE | DB_DERIVE | API_SCHEME => &[Site::Class],
         FIELD | DB_FIELD => &[Site::Property, Site::PromotedParam],
-        TEST | FIXTURE | TEST_WITH | BEFORE_CLASS | AFTER_CLASS | AFTER_EACH_TEST | COMMAND
-        | ROUTE | ACCESS | API => &[Site::Method],
+        TEST | FIXTURE | TEST_WITH | PROPERTY | BEFORE_CLASS | AFTER_CLASS | AFTER_EACH_TEST
+        | COMMAND | ROUTE | ACCESS | API => &[Site::Method],
         OPTION | QUERY => &[Site::Param, Site::PromotedParam],
         _ => return None,
     })
@@ -352,6 +354,58 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
         short: "Gives one row of arguments to the test method below it. The fields are the \
                 method's own parameters, and the method runs once per row.",
         site: "a test method",
+    },
+    AttributeDoc {
+        name: PROPERTY,
+        fields: &[
+            AttributeField {
+                name: "skip",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "at",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "seed",
+                ty: "int",
+                required: false,
+            },
+            AttributeField {
+                name: "db",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "server",
+                ty: "bool",
+                required: false,
+            },
+            AttributeField {
+                name: "timeout",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "tags",
+                ty: "array<string>",
+                required: false,
+            },
+            AttributeField {
+                name: "runs",
+                ty: "int",
+                required: false,
+            },
+            AttributeField {
+                name: "gen",
+                ty: "mixed",
+                required: false,
+            },
+        ],
+        short: "Says that this method is a property test. `nvs test` calls it many times, and                 each call gets new random values for its parameters.",
+        site: "a method",
     },
     AttributeDoc {
         name: BEFORE_CLASS,
@@ -635,6 +689,12 @@ pub const FIXTURE: &str = r"Core\Test\Fixture";
 /// [`crate::testing::check_class_tests`] holds. That module owns what a row
 /// may carry.
 pub const TEST_WITH: &str = r"Core\Test\TestWith";
+
+/// `#[Property(runs?: int, gen?: mixed, …)]` — `rule:testing/property-testing`'s marker, on a
+/// method whose parameters are generated from their declared types. It sits in the `Core\Test`
+/// namespace beside [`FIXTURE`] and for that entry's reason, and [`crate::property`] owns what
+/// it may carry and how each parameter's generator is derived.
+pub const PROPERTY: &str = r"Core\Test\Property";
 
 /// `#[BeforeClass]` — `rule:testing/class-hooks`' setup, on a `public static`
 /// method that runs once before a class's tests. It sits in the `Core\Test`
