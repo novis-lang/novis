@@ -7839,6 +7839,7 @@ mod tests {
         }
 
         let mut ctx = Ctx::buffered();
+        ctx.set_owned_by_test();
         asserted(&mut ctx, true, None).expect("true holds");
         let why = asserted(&mut ctx, false, None).expect_err("false fails");
         assert_eq!(why, "Core\\Test::assertTrue failed: `$actual` is false");

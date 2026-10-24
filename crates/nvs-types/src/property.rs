@@ -31,7 +31,7 @@
 //! `gen: {age: "0..120"}` names a parameter and an inclusive range. For a number the range bounds
 //! the value; for a `string`, `bytes` or `array<T>` it bounds the length, in grapheme clusters for
 //! a string. A `?T` parameter narrows its `T`. A length range ends at [`MAX_LENGTH`], and
-//! [`generate`]'s budget bounds the input as a whole, so no range a program writes makes the
+//! [`generate()`]'s budget bounds the input as a whole, so no range a program writes makes the
 //! generator allocate more than [`generate::MAX_INPUT_UNITS`] units for one call.
 //!
 //! **Memory:** one [`PropertyCase`] per property, built once per compile. At run time, one call's
