@@ -260,6 +260,7 @@ pub(crate) fn infer_method_call(
     // a signature past it.
     if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
         let outside = converts_outside_text(qname, args, &slots, &arg_types, scope, env);
+        crate::routes::note_call(qname, name, env);
         let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
         // `Core\Db\Queryable::queryAs<T>` is the *instance* half of
         // `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS`, and it needs the class
@@ -908,12 +909,14 @@ pub(crate) fn infer_static_call(
         && let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
         && through_class_ref
     {
+        crate::routes::note_call(qname, name, env);
         let call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
         env.exprs.record(expr.span, ExprInfo::ClassRefCall(call));
     } else if is_written_class_side(class)
         && let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
     {
         let outside = converts_outside_text(qname, args, &slots, &arg_types, scope, env);
+        crate::routes::note_call(qname, name, env);
         let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
         // Late static binding: which spellings set the called class and which
         // forward the caller's is [`called_class_set_at`]'s.
