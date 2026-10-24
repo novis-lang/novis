@@ -3791,9 +3791,14 @@ mod tests {
         let ran = names(&suite);
         assert_eq!(ran.len(), 4, "{ran:?}");
         for name in ["ShopTest::itSavesAnOrder", "ShopTest::itSendsAReceipt"] {
-            assert!(ran.iter().any(|ran| ran == name), "{name} did not run: {ran:?}");
+            assert!(
+                ran.iter().any(|ran| ran == name),
+                "{name} did not run: {ran:?}"
+            );
         }
-        let rows = ran.iter().filter(|name| name.starts_with("BlogTest::itNamesALength"));
+        let rows = ran
+            .iter()
+            .filter(|name| name.starts_with("BlogTest::itNamesALength"));
         assert_eq!(rows.count(), 2, "{ran:?}");
         assert_eq!(suite.left_out, 4, "two of ShopTest and two of BlogTest");
     }
