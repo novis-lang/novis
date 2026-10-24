@@ -3432,7 +3432,9 @@ pub(crate) mod tests {
             addresses: vec![at.ip()],
             deadline: Instant::now() + Duration::from_secs(10),
             connect_timeout: Duration::from_secs(5),
-            idle: Duration::from_secs(30),
+            // Longer than [`ORIGIN_READ_WAIT`], which is how long an origin
+            // waits before it closes the connection that ends a body.
+            idle: Duration::from_secs(if cfg!(miri) { 120 } else { 30 }),
             max_duration: Duration::from_secs(300),
             headers: Vec::new(),
             redirects: 0,
