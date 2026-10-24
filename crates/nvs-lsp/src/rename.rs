@@ -623,7 +623,7 @@ fn members(
     for site in sites {
         let written = texts
             .text(site)
-            .ok_or_else(|| format!("`{}` could not be read.", site.path.display()))?;
+            .ok_or_else(|| format!("`{}` could not be read.", plain(&site.path).display()))?;
         let text = if written == old {
             new.to_owned()
         } else if written.strip_prefix('$') == Some(old) {
@@ -632,7 +632,7 @@ fn members(
             return Err(format!(
                 "`{}` is written in `{}` in a way that rename cannot change, so it cannot be renamed.",
                 family.first().map_or(old, String::as_str),
-                site.path.display()
+                plain(&site.path).display()
             ));
         };
         rewrites.push(Rewrite {
@@ -688,7 +688,7 @@ fn types(
     for path in &touched {
         let file = texts
             .file(path)
-            .ok_or_else(|| format!("`{}` could not be read.", path.display()))?;
+            .ok_or_else(|| format!("`{}` could not be read.", plain(path).display()))?;
         let tokens = tokenize(file, &mut Diagnostics::new());
         if tokens
             .iter()
@@ -696,7 +696,7 @@ fn types(
         {
             return Err(format!(
                 "`{}` already uses the name `{new}`, so `{symbol}` cannot be renamed to it.",
-                path.display()
+                plain(path).display()
             ));
         }
     }
@@ -723,11 +723,13 @@ fn types(
                 })
         });
         if let Some(missed) = missed {
+            // `line_col` counts from 0, and an editor shows lines from 1.
             let (line, _) = file.line_col(missed.span.start);
             return Err(format!(
-                "`{old}` is written in `{}` on line {line} in a place rename cannot change, so \
+                "`{old}` is written in `{}` on line {} in a place rename cannot change, so \
                  `{symbol}` cannot be renamed.",
-                path.display()
+                plain(path).display(),
+                line + 1
             ));
         }
     }
@@ -736,7 +738,7 @@ fn types(
     for site in sites {
         let written = texts
             .text(site)
-            .ok_or_else(|| format!("`{}` could not be read.", site.path.display()))?;
+            .ok_or_else(|| format!("`{}` could not be read.", plain(&site.path).display()))?;
         let text = if written == old {
             new.to_owned()
         } else if let Some(prefix) = written.strip_suffix(old).filter(|it| it.ends_with('\\')) {
@@ -745,7 +747,7 @@ fn types(
             return Err(format!(
                 "`{symbol}` is written in `{}` in a way that rename cannot change, so it cannot be \
                  renamed.",
-                site.path.display()
+                plain(&site.path).display()
             ));
         };
         rewrites.push(Rewrite {
@@ -768,7 +770,7 @@ fn types(
         if to.exists() && !same_file {
             return Err(format!(
                 "`{}` already exists, so `{symbol}` cannot be renamed to `{new}`.",
-                to.display()
+                plain(to).display()
             ));
         }
         rewrites.extend(moved(documents, index, &[(from.clone(), to.clone())]));
