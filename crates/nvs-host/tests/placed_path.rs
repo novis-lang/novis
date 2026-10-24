@@ -18,13 +18,17 @@
 //! publication from being withdrawn under a placement in flight.
 
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::ThreadId;
 
 use nvs_runtime::host::{Completion, Entry, Narrowing, Output, Placement};
 use nvs_runtime::script::{Prepared, Program, Resolver, SharedResolver, publish};
-use nvs_runtime::{ClassTable, Ctx, ErrorClass, FieldDefault, OutputSink, TaskRoot, Value};
+use nvs_runtime::{
+    ClassTable, Ctx, DebugFlags, ErrorClass, FieldDefault, OutputSink, StmtHits, TaskRoot,
+    TraceSink, Value,
+};
 
 /// The one path [`Scripts`] compiles. Absolute, because `script::resolve`
 /// refuses a relative path before any resolver is asked.
@@ -33,6 +37,13 @@ const CHILD: &str = "/srv/child.nvs";
 /// A path it does not, which is what a resolver refusing one looks like from the
 /// far core: the program never exists, so no line of the child runs.
 const MISSING: &str = "/srv/gone.nvs";
+
+/// A path whose program counts statement `1` and leaves a trace running at [`TRACE_AT`], which is
+/// what a child's probe data looks like to the far core.
+const COUNTED: &str = "/srv/counted.nvs";
+
+/// The file [`COUNTED`]'s program opens its trace at, set by the test that spawns it.
+static TRACE_AT: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 /// One test at a time, because what they arrange is process-wide: the published
 /// resolver is one slot for the process, and a guard dropped while another
@@ -57,6 +68,22 @@ struct Scripts;
 
 impl Resolver for Scripts {
     fn resolve(&self, path: &str) -> Result<Prepared, String> {
+        if path == COUNTED {
+            let program: Program = Box::new(|ctx: &mut Ctx, _args: Value| {
+                ran_on().push(std::thread::current().id());
+                ctx.record_stmt_hit(1);
+                let at = TRACE_AT
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .clone();
+                if let Some(at) = at {
+                    let sink = TraceSink::create(&at).expect("the scratch folder takes a file");
+                    ctx.set_trace_sink(Some(sink));
+                }
+                Value::null()
+            });
+            return Ok(program.into());
+        }
         if path != CHILD {
             return Err(format!("`{path}` names no script this test compiled"));
         }
@@ -119,17 +146,23 @@ fn spawning() -> Ctx {
 /// running now compiles through. A child left `on: "here"` is compiled by the
 /// second, and answers `ResolveError::NoResolver` without it.
 fn spawn_script(entry: Entry, placement: Placement, argument: i64) -> Completion {
-    SharedResolver::new(Arc::new(Scripts)).scoped(|| placed_or_here(entry, placement, argument))
+    spawn_from(spawning(), entry, placement, argument)
+}
+
+/// [`spawn_script`] from a parent the caller built.
+fn spawn_from(parent: Ctx, entry: Entry, placement: Placement, argument: i64) -> Completion {
+    SharedResolver::new(Arc::new(Scripts))
+        .scoped(|| placed_or_here(parent, entry, placement, argument))
 }
 
 /// [`spawn_script`]'s body, under the resolver it installed.
-fn placed_or_here(entry: Entry, placement: Placement, argument: i64) -> Completion {
+fn placed_or_here(parent: Ctx, entry: Entry, placement: Placement, argument: i64) -> Completion {
     let mut sched = nvs_host::Scheduler::new();
     let _installed =
         nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
     let answered: Rc<RefCell<Option<Completion>>> = Rc::new(RefCell::new(None));
     let collected = Rc::clone(&answered);
-    sched.spawn(spawning(), TaskRoot::Request, move |ctx| {
+    sched.spawn(parent, TaskRoot::Request, move |ctx| {
         let started = nvs_runtime::host::with_current(|host| {
             host.start_isolate(
                 ctx,
@@ -260,4 +293,64 @@ fn a_placed_path_no_resolver_can_compile_fails_as_a_value() {
         ran_on().is_empty(),
         "no line of the child runs when its program was never built",
     );
+}
+
+/// A placed child counts into a table of its own and its trace is closed at its end, and both
+/// come back on its result: `rule:testing/debug-surface`'s copy-out across a thread. The join adds
+/// the child's table into the run table, and the parent's own table is unchanged
+/// (`rule:security/isolate-shares-nothing`).
+#[cfg_attr(miri, ignore = "writes a trace file to a scratch folder")]
+#[test]
+fn a_placed_childs_coverage_and_trace_come_back_on_its_result() {
+    let _serial = serially();
+    let _published = publish(SharedResolver::new(Arc::new(Scripts)));
+    ran_on().clear();
+    let dir = nvs_repo::scratch("placed-probes");
+    let trace = dir.join("child.jsonl");
+    *TRACE_AT.lock().unwrap_or_else(PoisonError::into_inner) = Some(trace.clone());
+    let own = Arc::new(StmtHits::new(2));
+    let run = Arc::new(StmtHits::new(2));
+    let mut parent = spawning();
+    parent.set_stmt_hits(Some(Arc::clone(&own)));
+    parent.set_run_hits(Some(Arc::clone(&run)));
+    parent.set_debug_flags(DebugFlags::COVERAGE);
+
+    let completion = spawn_from(
+        parent,
+        Entry::Path(COUNTED.to_owned()),
+        Placement::Worker,
+        0,
+    );
+    TRACE_AT
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take();
+
+    assert!(completion.ok, "the child failed: {:?}", completion.error);
+    let ran = std::mem::take(&mut *ran_on());
+    assert_ne!(
+        ran,
+        [std::thread::current().id()],
+        "the child was not placed on another core"
+    );
+    let table = completion
+        .coverage
+        .expect("a counted child's table is on its result");
+    assert!(
+        !Arc::ptr_eq(&table, &own),
+        "the child counted into its parent's table"
+    );
+    assert_eq!(table.counts(), [0, 1]);
+    assert_eq!(
+        run.counts(),
+        [0, 1],
+        "the join did not add the child's table into the run's"
+    );
+    assert_eq!(own.counts(), [0, 0], "the parent's own table was written");
+    let sink = completion
+        .trace_sink
+        .expect("the trace the child left running is on its result");
+    assert_eq!(sink.path, trace);
+    assert!(sink.failed.is_none(), "the trace failed: {:?}", sink.failed);
+    assert!(trace.is_file(), "the closed trace is not on disk");
 }

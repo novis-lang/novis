@@ -54,7 +54,13 @@ profile than it runs, and the profiler's docs say so. Novis builds no sampling p
 
 A spawned isolate starts from its parent's current flag word and may only narrow it. Its own data
 never merges into the parent's live state; it comes back as fields on the result, by the same
-copy-out rule a value, an error and a usage figure already use.
+copy-out rule a value, an error and a usage figure already use. Under coverage an isolate counts
+into a fresh table of its parent's shape, so the parent's `coverage()` never lists a line only the
+child ran; the host adds the child's table into a run table Novis code cannot read, which is what
+`nvs test`'s report counts. A trace the child leaves running is closed at its end, and the result
+carries its path and any write failure. A task of the same request is not an isolate and counts
+into its request's table. No `Core` member reads these fields yet. Spends one counter per statement
+per isolate in flight under coverage, freed at its join.
 
 **Not on disk.** The probe bits exist (`crates/nvs-runtime/src/ctx/mod.rs:287`), and `nvs test` writes
 lcov, Clover and Cobertura coverage (`crates/nvs-cli/src/main.rs:617`,
@@ -62,9 +68,9 @@ lcov, Clover and Cobertura coverage (`crates/nvs-cli/src/main.rs:617`,
 (`crates/nvs-stdlib/src/debug.rs`), and a trace streams one line per returned call to its file
 (`nvs_runtime::TraceSink`). A named profile sink is recorded and nothing writes to it yet. `nvs test` locates
 its coverage tables, and `nvs run` installs a located table when `[debug] mode` has `coverage`, so
-`coverage()` names the files and lines that ran. There is no
-Callgrind or speedscope exporter, `nvs run` has no probe flags, and a spawned isolate's probe data does
-not come back on its result.
+`coverage()` names the files and lines that ran. A spawned isolate's coverage table and closed
+trace come back on its `Completion` (`nvs_runtime::host::Completion::coverage`). There is no
+Callgrind or speedscope exporter, and `nvs run` has no probe flags.
 
 **Declined:**
 - **A sampling profiler.** It would interrupt compiled code on a timer and walk native frames on every

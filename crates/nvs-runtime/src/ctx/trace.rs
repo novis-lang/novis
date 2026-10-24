@@ -691,23 +691,25 @@ pub struct Counted {
 /// [`nvs_probe_edge`] (`nvs_ir::Program::stmt_spans` and
 /// `nvs_ir::Program::edge_spans` say which source span each number is).
 ///
-/// **One table for every context a run makes from the one that holds it.**
-/// `nvs test` is the exception: each test gets a table of its own, added to the
-/// run's with [`StmtHits::add`] when the test finishes. A child copies its parent's
-/// handle the way it copies [`DebugFlags`] ([`Ctx::isolate`], [`Ctx::child`],
-/// [`Ctx::placed_isolate`]), so a statement a test's isolate ran is still
-/// counted after that isolate is gone, and the host that installed the table
-/// reads the whole run from it. Novis code has no way to read it, so sharing it
-/// across an isolate boundary gives the program nothing it could observe
-/// (`rule:security/isolate-shares-nothing`). The counters are atomic because a
-/// placed isolate runs on another core.
+/// **One table per isolate, and one more for the run.** A task ([`Ctx::child`])
+/// is part of its request and counts into the request's table. An isolate
+/// ([`Ctx::isolate`], [`Ctx::placed_isolate`]) is given a table of its own,
+/// [`Self::fresh_like`] its parent's, so `Core\Debug::coverage` in a parent
+/// never lists a line only its child ran (`rule:security/isolate-shares-nothing`).
+/// The child's table leaves on its `Completion`, and the join adds it into the
+/// context's run table ([`Ctx::run_hits`]), which the host installs and Novis
+/// code cannot read. So `nvs test`'s report still counts what a test's isolates
+/// ran: each test gets a table of its own as its run table, added to the
+/// suite's with [`StmtHits::add`] when the test finishes. The counters are
+/// atomic because a placed isolate runs on another core.
 ///
 /// The edge counters ride in the same handle, so every place that hands a
 /// child the statement table hands it the edge table too.
 ///
 /// **What it spends:** one `u64` per statement in the program, and one per
 /// edge when the run asks for branches, once per run that asks for coverage,
-/// allocated by whoever installs it. A run that does not ask allocates nothing.
+/// allocated by whoever installs it, and once more per isolate in flight under
+/// coverage, freed at its join. A run that does not ask allocates nothing.
 #[derive(Debug)]
 pub struct StmtHits {
     stmts: Box<[std::sync::atomic::AtomicU64]>,
@@ -763,6 +765,16 @@ impl StmtLines {
 pub(crate) struct DebugSinks {
     trace: Option<Box<TraceSink>>,
     profile: Option<std::path::PathBuf>,
+}
+
+/// A trace an isolate left running, closed at its end: what its result carries in place of the
+/// events, which stay in the file.
+#[derive(Debug)]
+pub struct ClosedSink {
+    /// The file the trace wrote.
+    pub path: std::path::PathBuf,
+    /// The first write that failed, or the final flush's failure.
+    pub failed: Option<std::io::Error>,
 }
 
 /// An open trace file: `rule:testing/debug-surface`'s newline-delimited JSON, one line per call,
@@ -902,6 +914,46 @@ impl Ctx {
     pub fn set_profile_sink(&mut self, path: Option<std::path::PathBuf>) {
         self.debug_sinks.profile = path;
     }
+
+    /// Closes the trace this context left running, for an isolate's result. A sink is never
+    /// shared, so a child's trace ends with the child and its parent's goes on.
+    pub fn close_trace_sink(&mut self) -> Option<ClosedSink> {
+        let sink = self.set_trace_sink(None)?;
+        let path = sink.path().to_path_buf();
+        Some(ClosedSink {
+            path,
+            failed: sink.finish().err(),
+        })
+    }
+
+    /// The host's run table, which a joined isolate's table is added into. `None` unless the host
+    /// installed one; every child context gets a clone of the handle.
+    #[must_use]
+    pub fn run_hits(&self) -> Option<&Arc<StmtHits>> {
+        self.run_hits.as_ref()
+    }
+
+    /// Installs (or with `None`, removes) the run table.
+    pub fn set_run_hits(&mut self, hits: Option<Arc<StmtHits>>) {
+        self.run_hits = hits;
+    }
+
+    /// Adds a joined isolate's table into the run table. A table that is the run table itself is
+    /// not added, so a host that gave an isolate the run's own table counts it once.
+    pub fn join_coverage(&self, child: &StmtHits) {
+        if let Some(run) = &self.run_hits
+            && !std::ptr::eq(Arc::as_ptr(run), child)
+        {
+            run.add(&child.counts(), &child.edge_counts());
+        }
+    }
+
+    /// A table of this context's shape for an isolate it starts, or `None` when it counts nothing.
+    pub(crate) fn fresh_hits(&self) -> Option<Arc<StmtHits>> {
+        self.stmt_hits
+            .as_deref()
+            .map(|hits| Arc::new(hits.fresh_like()))
+    }
 }
 
 /// `len` counters, all zero.
@@ -942,6 +994,16 @@ impl StmtHits {
             stmts: zeroed(statements),
             edges: zeroed(edges),
             lines: None,
+        }
+    }
+
+    /// A table of the same shape, all zero, located as this one is: what an isolate counts into.
+    #[must_use]
+    pub fn fresh_like(&self) -> Self {
+        Self {
+            stmts: zeroed(self.stmts.len()),
+            edges: zeroed(self.edges.len()),
+            lines: self.lines.clone(),
         }
     }
 
@@ -1313,21 +1375,42 @@ mod tests {
         assert!(ctx.stmt_hits().is_none());
     }
 
-    /// A child context counts into its parent's table, so what an isolate ran
-    /// is still in the table after the isolate is gone.
+    /// An isolate counts into a table of its own, and a task into its request's. Joining the
+    /// isolate adds its table into the run table and leaves the parent's own unchanged.
     #[test]
-    fn an_isolate_counts_into_the_table_its_parent_was_given() {
+    fn an_isolate_counts_into_its_own_table_and_a_task_into_its_requests() {
         let mut parent = Ctx::buffered();
-        let hits = Arc::new(StmtHits::new(2));
-        parent.set_stmt_hits(Some(Arc::clone(&hits)));
+        let own = Arc::new(StmtHits::new(2));
+        let run = Arc::new(StmtHits::new(2));
+        parent.set_stmt_hits(Some(Arc::clone(&own)));
+        parent.set_run_hits(Some(Arc::clone(&run)));
         parent.set_debug_flags(DebugFlags::COVERAGE);
         let mut child = parent.isolate(OutputSink::Sink);
+        let mut placed = parent.placed_isolate().build(OutputSink::Sink);
+        #[expect(unsafe_code, reason = "the task is dropped before its parent")]
+        let mut task = unsafe { parent.child() };
         #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
         unsafe {
             nvs_probe_stmt(&raw mut child, 1);
+            nvs_probe_stmt(&raw mut placed, 1);
+            nvs_probe_stmt(&raw mut task, 0);
         }
-        drop(child);
-        assert_eq!(hits.counts(), [0, 1]);
+        assert_eq!(own.counts(), [1, 0]);
+        for isolate in [&child, &placed] {
+            let table = isolate
+                .stmt_hits()
+                .expect("an isolate of a counted run has a table");
+            assert!(!Arc::ptr_eq(table, &own));
+            assert_eq!(table.counts(), [0, 1]);
+            assert!(Arc::ptr_eq(
+                isolate.run_hits().expect("the run table"),
+                &run
+            ));
+            parent.join_coverage(table);
+        }
+        drop((task, child, placed));
+        assert_eq!(own.counts(), [1, 0]);
+        assert_eq!(run.counts(), [0, 2]);
     }
 
     /// Every child form starts from its parent's flag word at the spawn, and that word is its

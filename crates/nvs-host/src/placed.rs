@@ -210,6 +210,10 @@ struct Crossed {
     headers: Vec<DeclaredHeader>,
     error: Option<Failure>,
     wall: Option<Duration>,
+    /// Moved as the handle, since the counters are atomic: a placed child's
+    /// counts need no encode.
+    coverage: Option<std::sync::Arc<nvs_runtime::StmtHits>>,
+    trace_sink: Option<nvs_runtime::ClosedSink>,
 }
 
 /// The far core's whole half: build the context, prepare the program, decode the
@@ -289,11 +293,15 @@ fn crossed(mut completion: Completion) -> Crossed {
             headers: completion.headers,
             error: completion.error,
             wall: completion.wall,
+            coverage: completion.coverage,
+            trace_sink: completion.trace_sink,
         },
         Err(refusal) => {
             let mut refused = crossed_failure(&refusal.to_string());
             refused.output = completion.output;
             refused.wall = completion.wall;
+            refused.coverage = completion.coverage;
+            refused.trace_sink = completion.trace_sink;
             refused
         }
     }
@@ -317,6 +325,8 @@ fn crossed_failure(message: &str) -> Crossed {
             limit: None,
         }),
         wall: None,
+        coverage: None,
+        trace_sink: None,
     }
 }
 
@@ -356,6 +366,8 @@ fn received(crossed: Crossed, receiving: Option<&ErrorClass>) -> Completion {
         // itself (`rule:observability/spawn-is-its-own-event`), and that event
         // is already on the parent's own context.
         trace: Vec::new(),
+        coverage: crossed.coverage,
+        trace_sink: crossed.trace_sink,
     }
 }
 

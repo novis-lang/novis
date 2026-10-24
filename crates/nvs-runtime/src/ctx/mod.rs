@@ -1386,11 +1386,14 @@ pub struct Ctx {
     /// allocation holding an [`Inbound`] — itself a few short allocations — for
     /// one that does.
     inbound: Option<Box<Inbound>>,
-    /// The run's shared [`StmtHits`] table, which [`DebugFlags::COVERAGE`]
-    /// and [`DebugFlags::BRANCH`] count into. `None` unless the host installed
-    /// one, which only `nvs test`'s coverage flags do; a child context
-    /// gets a clone of the handle together with the flags.
+    /// This isolate's [`StmtHits`] table, which [`DebugFlags::COVERAGE`]
+    /// and [`DebugFlags::BRANCH`] count into and `Core\Debug::coverage` reads.
+    /// `None` unless the host installed one; a task gets a clone of the
+    /// handle, and an isolate a fresh table of the same shape.
     stmt_hits: Option<std::sync::Arc<StmtHits>>,
+    /// The host's run table, which a joined isolate's table is added into
+    /// ([`Ctx::join_coverage`]). Every child context gets a clone of the handle.
+    run_hits: Option<std::sync::Arc<StmtHits>>,
     /// `rule:testing/debug-mode-directive`'s ceiling: the probes `Core\Debug` may turn on in this
     /// context ([`Ctx::start_probes`]). `[debug] mode` and every bit the host turns on raise it, and
     /// a child starts with its parent's current [`DebugFlags`] as its own, so a child only narrows.

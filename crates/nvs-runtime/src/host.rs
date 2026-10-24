@@ -524,6 +524,17 @@ pub struct Completion {
     /// somebody asked to record. [`Ctx::take_sampled_trace`] is where the
     /// question is asked.
     pub trace: Vec<TraceEvent>,
+    /// The child's own coverage table, or `None` where its run counts nothing.
+    /// `rule:testing/debug-surface`'s copy-out: the child counted into a table
+    /// of its own ([`crate::StmtHits::fresh_like`]), never its parent's, and
+    /// the join adds it into the run's ([`Ctx::join_coverage`]).
+    ///
+    /// **What it spends:** a pointer. The table is moved, not copied, and it is
+    /// freed with the completion.
+    pub coverage: Option<std::sync::Arc<crate::StmtHits>>,
+    /// The trace the child left running, closed at its end: the file's path and
+    /// whether a write failed. The events stay in the file.
+    pub trace_sink: Option<crate::ClosedSink>,
 }
 
 impl Completion {
@@ -923,6 +934,8 @@ mod tests {
                 error: None,
                 wall: None,
                 trace: Vec::new(),
+                coverage: None,
+                trace_sink: None,
             }
         }
 

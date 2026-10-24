@@ -1322,6 +1322,11 @@ fn result_of(ctx: &nvs_runtime::Ctx, completion: Completion) -> Result<Value, Fa
         // collector reading them here would be a second consumer of one
         // request's trace.
         trace: _,
+        // And the child's coverage table and closed trace, which no `Core`
+        // member reads: the join already added the table into the run's, and
+        // the trace's events are in its file (`rule:testing/debug-surface`).
+        coverage: _,
+        trace_sink: _,
         error,
     } = completion;
     let error = error.map_or_else(Value::null, |failure| {

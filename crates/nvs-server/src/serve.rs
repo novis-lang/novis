@@ -3480,6 +3480,8 @@ pub(crate) mod tests {
             error: None,
             wall: None,
             trace: Vec::new(),
+            coverage: None,
+            trace_sink: None,
         }
     }
 
@@ -6672,6 +6674,8 @@ pub(crate) mod tests {
                 error: None,
                 wall: None,
                 trace: Vec::new(),
+                coverage: None,
+                trace_sink: None,
             }
         }
 

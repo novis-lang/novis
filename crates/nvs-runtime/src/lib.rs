@@ -299,18 +299,18 @@ pub use callable::{
 };
 pub use ctx::{
     AnswerTable, AnsweredTls, AssertionOutcome, BodyNeed, BodySource, CARRIER_CLI_TEXT,
-    CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, Compared, CoreClasses, Counted, Ctx, CurrentStack,
-    DEADLINE_OFFSET, DEBUG_FLAGS_OFFSET, DEPRECATED_OFFSET, DebugFlags, DeclaredHeader, ErrorClass,
-    EventStreamDoor, ExtensionHost, FaultSite, HOLD_PIECE, HOT_LINE_BYTES, HeldChild,
-    HeldConnection, HeldReader, HeldSocket, HeldValue, HttpAnswer, HttpSent, Inbound, InboundSpec,
-    LateInit, LateInitCall, Limit, LogChannel, LogWriter, OnDeprecated, OpenSpawn, OutputSink,
-    PlacedIsolate, RequestBody, RunKind, SAFEPOINT_OFFSET, SPAN_EVENT_CEILING, STACK_CEILING,
-    STACK_LIMIT_OFFSET, STACK_RESERVE, STATICS_OFFSET, SafepointFlags, SafepointView, Scheme,
-    Session, Settled, SnapshotMismatch, SocketAnswer, SocketFrame, SpawnForm, SpecBody, SpecPart,
-    SseSlot, StmtHits, StmtLines, TaskSlot, TraceEvent, TraceKind, TraceSink, TreeState, Upgrade,
-    UpgradeSlot, WeakSafepointView, is_carrier, nvs_deprecated_use, nvs_probe_call_enter,
-    nvs_probe_call_exit, nvs_probe_edge, nvs_probe_stmt, nvs_safepoint, nvs_stack_check,
-    stack_pointer, trace_clock, unix_nanos,
+    CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, ClosedSink, Compared, CoreClasses, Counted, Ctx,
+    CurrentStack, DEADLINE_OFFSET, DEBUG_FLAGS_OFFSET, DEPRECATED_OFFSET, DebugFlags,
+    DeclaredHeader, ErrorClass, EventStreamDoor, ExtensionHost, FaultSite, HOLD_PIECE,
+    HOT_LINE_BYTES, HeldChild, HeldConnection, HeldReader, HeldSocket, HeldValue, HttpAnswer,
+    HttpSent, Inbound, InboundSpec, LateInit, LateInitCall, Limit, LogChannel, LogWriter,
+    OnDeprecated, OpenSpawn, OutputSink, PlacedIsolate, RequestBody, RunKind, SAFEPOINT_OFFSET,
+    SPAN_EVENT_CEILING, STACK_CEILING, STACK_LIMIT_OFFSET, STACK_RESERVE, STATICS_OFFSET,
+    SafepointFlags, SafepointView, Scheme, Session, Settled, SnapshotMismatch, SocketAnswer,
+    SocketFrame, SpawnForm, SpecBody, SpecPart, SseSlot, StmtHits, StmtLines, TaskSlot, TraceEvent,
+    TraceKind, TraceSink, TreeState, Upgrade, UpgradeSlot, WeakSafepointView, is_carrier,
+    nvs_deprecated_use, nvs_probe_call_enter, nvs_probe_call_exit, nvs_probe_edge, nvs_probe_stmt,
+    nvs_safepoint, nvs_stack_check, stack_pointer, trace_clock, unix_nanos,
 };
 pub use decimal::{Decimal, NotDecimal};
 pub use dispatch::{

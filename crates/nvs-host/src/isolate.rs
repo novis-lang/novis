@@ -1024,8 +1024,11 @@ pub(crate) fn close_spawn(open: Option<OpenSpawn>, completion: &Completion, ctx:
 }
 
 /// Gives an [`Output::Inherit`] child's bytes to the parent's own stream, at the
-/// await and nowhere else.
+/// await and nowhere else, and adds the child's coverage table into the run's.
 pub(crate) fn hand_over(mut completion: Completion, output: Output, ctx: &mut Ctx) -> Completion {
+    if let Some(table) = &completion.coverage {
+        ctx.join_coverage(table);
+    }
     if output == Output::Inherit {
         let bytes = std::mem::take(&mut completion.output);
         let _ = ctx.write_output(&bytes);
@@ -1411,6 +1414,11 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // nobody is recording pays a load and a branch for the whole of it
     // (`Ctx::take_sampled_trace`).
     let trace = isolate_ctx.take_sampled_trace();
+    // `rule:testing/debug-surface`'s copy-out, on every ending for the same
+    // reason: the child's own coverage table and the trace it left running,
+    // closed here so its last lines are on disk before the parent reads them.
+    let coverage = isolate_ctx.stmt_hits().cloned();
+    let trace_sink = isolate_ctx.close_trace_sink();
 
     if let Some(thrown) = thrown {
         // `rule:security/isolate-shares-nothing`'s second row: the class name and the message as copied data.
@@ -1438,6 +1446,8 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             // rather than a reason not to have timed it.
             wall: None,
             trace,
+            coverage,
+            trace_sink,
         };
     }
     if cancelled {
@@ -1451,6 +1461,8 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         completion.status = status;
         completion.headers = headers;
         completion.trace = trace;
+        completion.coverage = coverage;
+        completion.trace_sink = trace_sink;
         return completion;
     }
     // Out, at the await. A refusal here is the child's, so it is a failure
@@ -1474,6 +1486,8 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             error: None,
             wall: None,
             trace,
+            coverage,
+            trace_sink,
         },
         Err(refused) => Completion {
             ok: false,
@@ -1491,6 +1505,8 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             }),
             wall: None,
             trace,
+            coverage,
+            trace_sink,
         },
     }
 }
@@ -1556,6 +1572,8 @@ pub(crate) fn refused_completion(message: &str) -> Completion {
         // nothing filed an event for a trace to be derived from.
         wall: None,
         trace: Vec::new(),
+        coverage: None,
+        trace_sink: None,
     }
 }
 
@@ -1582,6 +1600,8 @@ pub(crate) fn cancelled_completion() -> Completion {
         // Written over by [`finish`] for a cancellation it saw, which is the
         // one path here that has a context to take events off.
         trace: Vec::new(),
+        coverage: None,
+        trace_sink: None,
     }
 }
 

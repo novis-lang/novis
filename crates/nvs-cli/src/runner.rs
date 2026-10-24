@@ -1461,8 +1461,10 @@ fn run_suite(
     // The run's coverage table, or `None` when no coverage flag was given. A
     // test counts into a table of its own, sized from this one, and the queue
     // adds it here when the test is reported. A fixture is built before its
-    // class's first test, so it is no test's.
+    // class's first test, so it is no test's. It is also the run table, which
+    // the isolates a hook or a fixture spawns are added into at their join.
     let hits = ctx.stmt_hits().cloned();
+    ctx.set_run_hits(hits.clone());
     let shared = Arc::new(Shared {
         // `rule:routing/matched-once-before-the-handler`'s table, crossed once for the whole suite rather than per
         // test: it is a product of the compile every isolate already shares, and
@@ -1933,7 +1935,10 @@ impl Job {
                 Some(lines) => table.located(Arc::clone(lines)),
                 None => table,
             });
+            // The test runs in an isolate of this context, which counts into a table of its own,
+            // so this table is also the run table its join adds that one into.
             ctx.set_stmt_hits(Some(Arc::clone(&hits)));
+            ctx.set_run_hits(Some(Arc::clone(&hits)));
             ctx.set_debug_flags(
                 ctx.debug_flags()
                     | nvs_runtime::DebugFlags::COVERAGE
