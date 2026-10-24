@@ -41,7 +41,7 @@ stages:
         rules: [tooling/the-telemetry-collector-is-a-novis-program, tooling/a-telemetry-report-is-checked-against-a-closed-schema]
   - id: 6
     title: "the real client uploads to the collector end to end on one machine, and every rule is shipped"
-    status: open
+    status: done
     context: [crates/nvs-cli/tests/telemetry_e2e.rs, crates/nvs-cli/src/telemetry.rs, crates/nvs-cli/src/endpoints.rs, apps/telemetry/README.md]
     extra:
       context:
@@ -192,6 +192,13 @@ whose gate holds, and ends `BLOCKED` naming the missing file when none does.
 - The cost is that a flood from many addresses can inflate the totals. The value cap bounds that, and
   the rules state it.
 
+**The gap on the three seeded metric series belongs to `trace-timeline`.**
+`data/gaps/nvs-runtime/three-seeded-series-are-never-written.json` was given to this goal, but it is
+about `nvs_tasks_in_flight`, `nvs_deferred_trees` and `nvs_memory_bytes` in
+`crates/nvs-runtime/src/metrics.rs`, which the collector never touches. `trace-timeline` is the
+observability goal on the chain and already owns an `nvs-server` gap. Why: building it here would
+put scheduler and cache work into a goal about one web app.
+
 ## Stages
 
 ### 1. `[log] client_ip = false` keeps the address out of every record the server writes
@@ -255,13 +262,13 @@ step with the command table.
 **Does:** one Rust test runs `nvs serve` on the application and the real `nvs telemetry upload`
 against it, on loopback, as § *Standing decisions* describes.
 
-- [ ] The test starts the server on a free port with a temporary database, and stops it at the end. `crates/nvs-cli/tests/telemetry_e2e.rs:1`
-- [ ] The upload of a finished week: `204`, the row in `/data/totals.json`, and the line on `/` (`rule:tooling/the-telemetry-collector-is-a-novis-program`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
-- [ ] A second upload in the same week refused by the client, and a report the collector refuses with `400` dropped (`rule:tooling/a-failed-upload-never-fails-the-command`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
-- [ ] The bytes `nvs telemetry show` printed are the bytes the server received (`rule:tooling/telemetry-show-prints-the-payload`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
-- [ ] `127.0.0.1` is in no table and no log line the server wrote (`rule:tooling/the-collector-never-stores-an-address`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
-- [ ] The five tooling rules `shipped`, each with its tests in `guardedBy`. `data/rules/tooling/the-telemetry-collector-is-a-novis-program.json:3`, `data/rules/tooling/a-telemetry-report-is-checked-against-a-closed-schema.json:3`, `data/rules/tooling/the-collector-keeps-weekly-totals-only.json:3`, `data/rules/tooling/the-collector-never-stores-an-address.json:3`, `data/rules/tooling/telemetry-totals-are-public.json:3`
-- [ ] `bun nv owners --closes telemetry-service` passes.
+- [x] The test starts the server on a free port with a temporary database, and stops it at the end. `crates/nvs-cli/tests/telemetry_e2e.rs:1`
+- [x] The upload of a finished week: `204`, the row in `/data/totals.json`, and the line on `/` (`rule:tooling/the-telemetry-collector-is-a-novis-program`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
+- [x] A second upload in the same week refused by the client, and a report the collector refuses with `400` dropped (`rule:tooling/a-failed-upload-never-fails-the-command`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
+- [x] The bytes `nvs telemetry show` printed are the bytes the server received (`rule:tooling/telemetry-show-prints-the-payload`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
+- [x] `127.0.0.1` is in no table and no log line the server wrote (`rule:tooling/the-collector-never-stores-an-address`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
+- [x] The five tooling rules `shipped`, each with its tests in `guardedBy`. `data/rules/tooling/the-telemetry-collector-is-a-novis-program.json:3`, `data/rules/tooling/a-telemetry-report-is-checked-against-a-closed-schema.json:3`, `data/rules/tooling/the-collector-keeps-weekly-totals-only.json:3`, `data/rules/tooling/the-collector-never-stores-an-address.json:3`, `data/rules/tooling/telemetry-totals-are-public.json:3`
+- [x] `bun nv owners --closes telemetry-service` passes.
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -280,23 +287,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-**Stages 1 to 5 are done.** Stage 5 is the commit after `695b4db63`.
+**Stages 1 to 6 are done.** Stage 6 is `c373a107a` and `a6553c301`.
 
-- **Stage 5.** `apps/telemetry/README.md` has *Send a report on your own machine* (a `try` data
-  folder with a hand-written `pending` week from seven days ago, since `Report::week` takes only an
-  ended week at most four weeks old) and *Deploy the collector* (Linux and systemd: a `telemetry`
-  account, the database in `/var/lib/telemetry-db` owned by it, the data folder's `nvs.toml` copied
-  from the app's with an absolute `[db.telemetry] path` and `[log] target = "stderr"`, `REVISION`,
-  `nvs service install --account`, the Caddyfile with no `log`, and the client constant).
-  `nvs config check` accepts both the app's file and the guide's copy.
-- `apps/telemetry/nvs.toml` now sets `[server] trusted_proxies = ["127.0.0.1"]`. No app test reads
-  `clientIp` through a forwarding header, so the 39 tests are not expected to change.
-- The known-list test is a unit test in `crates/nvs-cli/src/telemetry.rs`, not
-  `tests/telemetry_known.rs`: the crate has no library target (see the standing decision). It ran
-  once by name and passes.
-- `docs/reference/tools/10-cli.md` § *nvs telemetry* has **The collector**: where it lives, its
-  README, and a status table. `bun nv render --website` wrote `llms-full.txt`.
-- The rule's *Not on disk* now names only the end-to-end test.
+- **Stage 6.** `crates/nvs-cli/tests/telemetry_e2e.rs` copies `public/`, `src/`, `known.toml` and
+  `nvs.toml` into a scratch folder, adds `[log] target = "stderr"` and `access = true`, writes a
+  `REVISION`, and runs `nvs serve` on `127.0.0.1:0`. The client's counter file has a `due` line,
+  so last week is due at once. A relay in front of the server keeps the request's bytes. A second
+  week appended after the `204` gets `is sent from` (not due until next week). A data folder with
+  `2020-W01` gets `refused by the collector (400…); dropped`. It ran by name and passes in about 1 s.
+- **The test found two real faults, both fixed.**
+  - `c373a107a`: the HTTP transport read a `204` with no length until the connection closed, so
+    `nvs telemetry upload` timed out at 3 s against `nvs serve`, and `Core\Http\Client` waited
+    for its idle bound on the same reply. A reply to `HEAD`, a `204` and a `304` now end at their
+    head and are not pooled (`crates/nvs-stdlib/src/http/transport.rs`, in `exchange`). Test
+    `a_204_that_keeps_the_connection_ends_at_its_head` in `crates/nvs-stdlib/src/http.rs`.
+  - `a6553c301`: a request under `nvs serve` reads only `public/`, so `Known::load` failed and
+    every report got `500`, and the footer always said `unknown`. The app's `nvs.toml` now has
+    `[capabilities.fs] read = ["known.toml", "REVISION"]`. The deploy guide's copy writes both as
+    full paths, because a relative entry is read from the folder of the `nvs.toml` that has it.
+    The 39 app tests ran once after the change and pass.
+- The four designed tooling rules are `shipped` with their tests, and their *Not on disk* paragraphs
+  are gone. `bun nv rules --render` wrote `docs/rules/tooling.md` and `docs/ground-rules.md`.
+- `bun nv owners --closes telemetry-service` passes: the metrics gap moved to `trace-timeline`
+  (standing decision).
+
+Stage 5 is `bcc8ed73b`: the README's local run and deploy guide, `trusted_proxies`, the known-list
+unit test in `crates/nvs-cli/src/telemetry.rs`, and **The collector** in
+`docs/reference/tools/10-cli.md`.
 
 Stage 4 is `86e2e9129`, on top of `7beb15721` and `36efef207`.
 
@@ -341,23 +358,26 @@ Stages 1 to 3: `73fadfe73` and `d8bcb6166`, with a stage-1 fix in `59451e437`.
   against one key. `AppTest` runs at the real date and sends five. A sixth to tenth is fine, an
   eleventh in one run gets `429`.
 
-The sweep's reds: `env-secret-proofs` passes at HEAD, rerun this session with exit 0. Every nightly
-red is from run `39922764699`, already triaged. `crates/nvs-runtime/src/capability.rs` is still modified
-in the tree, and it belongs to interactive session `6884de4b`.
+The sweep's reds: `env-secret-proofs`'s log reads exit 0 at HEAD. Every nightly red is from run
+`39922764699`, already triaged. `crates/nvs-runtime/src/capability.rs` is still modified in the
+tree, and it belongs to interactive session `6884de4b`. Do not stage it.
 
 ### Next
 
-**Stage 6, the end-to-end test and every rule shipped.** Its gate holds. One new file,
-`crates/nvs-cli/tests/telemetry_e2e.rs`, in the shape of `crates/nvs-cli/tests/telemetry.rs`
-(its `nvs` helper at `:37`, `BOOT`, `WAITING` and the removal of `CI` and `DO_NOT_TRACK`).
+**Stage 7, the gate.** Start `looper verify` (or `bun nv affected --run`) with `run_in_background`,
+group the failures by cause, fix them in one pass, and run it once more.
 
-- [ ] Start `nvs serve` on `apps/telemetry/public/index.nvs` with a temporary copy of `apps/telemetry/nvs.toml` whose `[db.telemetry] path` is a temporary file, on a free loopback port. Check how `telemetry.rs` picks the port and listens. `crates/nvs-cli/tests/telemetry.rs:1`
-- [ ] Upload a finished week (last week's ISO week, since the collector takes only an ended week at most four weeks old, `apps/telemetry/src/Report.nvs:121`): `204`, the row in `/data/totals.json`, the line on `/`.
-- [ ] A second upload in the same week refused by the client, and a malformed report dropped on `400`. `crates/nvs-cli/src/telemetry.rs:27`
-- [ ] The bytes `nvs telemetry show` printed equal the bytes the server received, and `127.0.0.1` is in no table and no log line the server wrote. `crates/nvs-cli/tests/telemetry.rs:1`
-- [ ] The five tooling rules `shipped` with their tests in `guardedBy`, and `bun nv owners --closes telemetry-service`. `data/rules/tooling/the-telemetry-collector-is-a-novis-program.json:3`
+- [ ] `bun nv affected --run` once over the goal. `tools/nv/cmd/verify.ts:1`
+- [ ] Fix each group. The likely ones are below. `crates/nvs-stdlib/src/http/transport.rs:2354`
+- [ ] The second run green, then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes telemetry-service`, and the goal's prose decisions moved to rules before the file is deleted. `docs/goals/telemetry-service.md:84`
 
-Expected red: none. The stage-5 unit test ran once by name, and clippy is clean.
+Expected red, if any:
+- A perf figure for a `Core\Http` member, since `crates/nvs-stdlib/src/http.rs` changed (its change
+  is a test only, and the logic change is in `http/transport.rs`). `bun nv proofs --record-perf
+  --id '<member>'` records one.
+- A transport test that pinned a `HEAD`, `204` or `304` reply as pooled. None was found by name, and
+  `reusable`'s own test at `crates/nvs-stdlib/src/http/transport.rs:5402` does not use a status.
+- Clippy is clean, and `bun nv rules --check` is clean.
 
 ### Backlog
 

@@ -114,5 +114,13 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `telemetry-service` goal's `app-tests` check does. And `Core\Regex` takes no `tainted` subject, so
   validate request text with `Core\Str::trim($text, {characters: ...}) == ""` and `Str::split`.
   `until: gone apps/telemetry/src/Report.nvs:only`
+- **An app's tests pass while every request under `nvs serve` is refused a read.** With no
+  `[capabilities.fs] read`, `nvs test` reads any file and a request reads only the entry's folder,
+  so `IO::read("../known.toml")` in `apps/telemetry` gave `500` on every report, and a
+  `catch (RuntimeError)` around a read hides the refusal completely. Name each file a request reads
+  outside `public/` in `read`, and run the app once under `nvs serve`, as
+  `crates/nvs-cli/tests/telemetry_e2e.rs` does. A relative `read` entry is read from the folder of
+  the `nvs.toml` that has it, so a copy elsewhere needs full paths.
+  `until: gone crates/nvs-config/src/capability.rs:fn default_of`
 
 ## Divergences
