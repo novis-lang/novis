@@ -4627,14 +4627,10 @@ mod tests {
         }
     }
 
-    /// A program under `tests/fixtures/runner/`, which `cargo test` does not
-    /// run in — hence the manifest directory.
+    /// A program under `crates/nvs-cli/tests/fixtures/runner/`, reached
+    /// through `nvs_repo` so `cargo test`'s working directory does not matter.
     fn fixture(name: &str) -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests")
-            .join("fixtures")
-            .join("runner")
-            .join(name)
+        nvs_repo::path("crates/nvs-cli/tests/fixtures/runner").join(name)
     }
 
     /// Runs one fixture's whole suite and answers with a `(method, verdict)`
