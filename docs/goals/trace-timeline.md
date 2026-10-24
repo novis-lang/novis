@@ -265,40 +265,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `Core\Debug` has `startCoverage(bool $branches = false)`, `stopCoverage()`,
-`coverage(): array<array<int>>`, `startTrace(string $path)`, `stopTrace()`, `startProfile(string $path)`
-and `stopProfile()`, each with its reference card. The `map<…>` of the standing decision is spelled
-`array<array<int>>`, because the array is Novis's map type; the rule records it.
+Stages 1, 2 and 6 are done: the seven `Core\Debug` members exist, and a trace and coverage work from
+source. The sweep's nightly reds ran on `3ea6f15`, before the commits that fixed each.
 
-- `Ctx` has a `debug_ceiling` word: `set_config` raises it with `[debug] mode`, `set_debug_flags` (the
-  host's call) with every bit it sets, and a child context starts with its parent's current flags as its
-  ceiling (`crates/nvs-runtime/src/ctx/isolate.rs`). `Ctx::start_probes` turns bits on only inside it,
-  and `Ctx::stop_probes` always narrows (`crates/nvs-runtime/src/ctx/safepoint.rs:499`).
-- A start outside the ceiling throws a `RuntimeError` naming the line to add. A trace or profile path
-  goes through `capability::require` with `Cap::DebugTrace` or `Cap::DebugProfile` first, then the
-  ceiling, and a second start while a sink is named throws a `LogicError`
-  (`crates/nvs-stdlib/src/debug.rs:503`).
-- The admitted path is only recorded, in `DebugSinks` (`crates/nvs-runtime/src/ctx/trace.rs:760`).
-- `StmtHits::located(StmtLines)` and `StmtHits::line_counts` read coverage back, but no host locates its
-  table yet, so `coverage()` is empty from source.
+- **The trace streams.** `startTrace` creates a `nvs_runtime::TraceSink`
+  (`crates/nvs-runtime/src/ctx/trace.rs:783`); `stopTrace` closes it and throws on a failed write. One
+  line per call as it returns, `{"kind":"call","callee":…,"status":"ok","start":…,"end":…}` in
+  trace-clock nanoseconds. A call still open at the stop has no line.
+- **No `call` is in `Ctx::trace`** (`:381`), and `records_spans` holds a `TRACE` run to
+  `SPAN_EVENT_CEILING` too (`:294`).
+- **Coverage is located.** `coverage::Sites::table` (`crates/nvs-cli/src/coverage.rs:278`) shares one
+  `StmtLines` across `nvs test`'s run and per-test tables, and `nvs run` installs a table under a
+  `coverage` ceiling (`crates/nvs-cli/src/main.rs:2093`). Both checked by a scratch run.
 
-The four new tests passed once by name, under `debug::tests::`: `a_trace_starts_and_stops_around_the_calls_between`,
-`a_trace_path_outside_its_grant_throws`, `a_program_cannot_widen_debug_mode` and
-`coverage_reads_the_table_back_by_path_and_line`. Expected red at the gate: the `Core` proofs and
-roster checks for the seven new members (`bun nv proofs --gate`, stage 7's), and any `nvs meta --json`
-or reference-card snapshot that lists `Core\Debug`'s members.
+The rewritten trace tests passed once by name (`ctx::trace::tests::`, codegen `calls` and `probes`,
+`debug::tests::a_trace_*`). Expected red at the gate: `bun nv proofs --gate` for the seven members
+(stage 7's), and any `nvs meta --json` or reference-card snapshot listing `Core\Debug`'s members.
 
 ### Next
 
-**Stage 6: a trace streams to a named sink**, file set `crates/nvs-runtime/src/ctx/trace.rs`,
-`crates/nvs-runtime/src/ctx/mod.rs`, `crates/nvs-stdlib/src/debug.rs`, and `crates/nvs-cli/src/runner.rs`
-with `crates/nvs-cli/src/main.rs` for the located tables. No gate. Stage 5 stays a side lane
-(`editors/vscode/`).
+**Stage 7: the new `Core\Debug` members have their feature proofs.** Follow its `**Split:**` line. Run
+`bun nv proofs --id 'core/Debug'` first, and paste the owed paths under the stage's items. Then send out
+writing subagents one after another, each with a brief that names its ceiling. The first writes the
+`about.md` files and three examples per member. The second writes the Novis tests and attacks, and the
+third the benches. An example or test that traces needs `[debug] mode` and a `[capabilities.debug]
+trace` grant in its configuration, the way `crates/nvs-stdlib/src/debug.rs:1060` writes them. Every
+comment follows AGENTS.md § *Text an end user reads*. Stage 5 stays a side lane (`editors/vscode/`), and
+stage 3 (`crates/nvs-host/`) can follow.
 
-- [ ] A sink writes the `call` events as newline-delimited JSON as they close. `crates/nvs-runtime/src/ctx/trace.rs:384`
-- [ ] The vector keeps only the bounded span events, and `startTrace`'s path opens the sink; `stopTrace` closes it. `crates/nvs-runtime/src/ctx/trace.rs:760`, `crates/nvs-stdlib/src/debug.rs:594`
-- [ ] Rust tests: a traced loop of many calls holds no `call` event in the vector, and the sink file has one line per call. `crates/nvs-runtime/src/ctx/trace.rs:1324`
-- [ ] Every host that installs a statement table locates it, and `nvs run` installs one under a `coverage` ceiling. `crates/nvs-cli/src/runner.rs:755`, `crates/nvs-cli/src/main.rs:2163`
+- [ ] `about.md` and three examples for each new member. `docs/examples/core/Debug/startTrace/about.md:1`
+- [ ] A Novis test and an attack for each: a request that writes a trace or profile without the grant fails. `tests/hostile/core/Debug/startTrace/01-without-the-grant.nvs:1`
+- [ ] A bench for each, with its growth. `benches/members/core/Debug/startTrace.nvs:1`
+- [ ] `bun nv proofs --id 'core/Debug'` prints nothing owed. `tools/nv/proofs/roster.ts:1`
 
 ### Backlog
 
