@@ -27,7 +27,7 @@ stages:
         rules: [routing/api-document-is-generated-from-the-route-table, core-classes/derive-attribute, attributes/api-adds-and-cannot-contradict]
   - id: 3
     title: a request body is read from the handler's call, and the document describes it
-    status: open
+    status: done
     context: [crates/nvs-cli/src/openapi.rs, crates/nvs-types/src/routes.rs, crates/nvs-types/src/check.rs, data/gaps/nvs-cli/request-body-schemas.json, docs/rules/routing/a-request-body-is-read-from-the-handlers-own-call.md]
     extra:
       context:
@@ -164,10 +164,10 @@ schema.
 **Does:** the row records the type a handler decodes its body into, and the document writes
 `requestBody`.
 
-- [ ] The checker records each `Core\Request::jsonAs<T>()` and `postAs<T>()` written directly in a route handler, beside the decode sites it already gathers, and the row carries `T` with JSON or form (`rule:routing/a-request-body-is-read-from-the-handlers-own-call`). `crates/nvs-types/src/check.rs:183`, `crates/nvs-types/src/routes.rs:324`
-- [ ] The document writes `requestBody` with `T`'s schema from stage 2 under its media type, a `oneOf` for two types of one kind, and `required` as the rule says. `crates/nvs-cli/src/openapi.rs:127`
-- [ ] Tests for a JSON body, a form body, and both. `crates/nvs-cli/tests/openapi.rs:50`
-- [ ] The gap record deleted. `data/gaps/nvs-cli/request-body-schemas.json:1`
+- [x] The checker records each `Core\Request::jsonAs<T>()` and `postAs<T>()` written directly in a route handler, beside the decode sites it already gathers, and the row carries `T` with JSON or form (`rule:routing/a-request-body-is-read-from-the-handlers-own-call`). `crates/nvs-types/src/check.rs:183`, `crates/nvs-types/src/routes.rs:324`
+- [x] The document writes `requestBody` with `T`'s schema from stage 2 under its media type, a `oneOf` for two types of one kind, and `required` as the rule says. `crates/nvs-cli/src/openapi.rs:127`
+- [x] Tests for a JSON body, a form body, and both. `crates/nvs-cli/tests/openapi.rs:50`
+- [x] The gap record deleted. `data/gaps/nvs-cli/request-body-schemas.json:1`
 
 ### 6. `nvs check` warns at a route whose body is read in a helper
 
@@ -212,22 +212,18 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5 and 2 are done.
+Stages 1, 5, 2 and 3 are done. The `about.md` is under 200 words, and `routes.mdx` is restamped.
 
-Stage 2: the row's `returns` is a structured `nvs_types::BodyTy` (`crates/nvs-types/src/routes.rs:525`),
-read by `body_ty` from the interner: `Void`, `Nullable`, `List`, `Class(label)`, `Enum(values)` and
-`Named(describe)`. `openapi::document` takes the whole `ExprTypeTable`, and its `Schemas` collector
-(`crates/nvs-cli/src/openapi.rs:114`) writes one `components.schemas` entry per class with a JSON
-codec. A component name is the label with `\` as `.`. A class without a codec is still `{}`. An enum
-is `{"type": "integer", "enum": [backing values]}`, because `Core\Json` writes a case as its
-backing value. A nullable `$ref` is an `anyOf` with `{"type": "null"}`. A private property the
-codec writes is in the schema, because the derive's field list is visibility-blind. A skipped one
-is not. Five new tests over `crates/nvs-cli/tests/fixtures/api/class-response.nvs` pass. The rule
-says where a class's schema comes from, and the chapters are rendered again.
+`crate::routes::note_body_read` (`crates/nvs-types/src/routes.rs:2346`) runs in `infer_static_call`
+beside `written_class_of`. It records `Core\Request::jsonAs<T>()` and `postAs<T>()` only in an armed
+`BodyWriters`: a `#[Route]` method's own body, its anonymous functions included. `check_method`'s
+`keep_body_reads` hands the reads to `RouteTable::note_bodies`, and `check_class_routes` puts them
+on `Route::bodies` (`routes.rs:479`) as `RequestBody {kind, ty: BodyTy}`. A `postAs` with an argument
+reads one form field and is not recorded. The emitter's `request_body` writes one media type per kind,
+a `oneOf` for two schemas, and `required` for JSON or a form class with a required field. Four tests
+over `crates/nvs-cli/tests/fixtures/api/request-body.nvs` pass.
 
-The run's acceptance findings were all fixed before this session: the nightly run tested
-`3ea6f1550`, which predates `10c402b57`, `220cb82b7`, `c4842ec8f`, `c953c3456` and `ca0df0b64`.
-`env-secret-proofs` exits 0 on disk.
+The acceptance findings were fixed on HEAD already: the nightly run tested `3ea6f1550`.
 
 A qualified name is absolute, so `use Core\Api;` does not place `Api\Scheme`. Write
 `#[Core\Api\Scheme]` or `use Core\Api\Scheme;`.
@@ -235,15 +231,16 @@ A qualified name is absolute, so `use Core\Api;` does not place `Api\Scheme`. Wr
 Tests that may go red at the gate: `nvs-lsp`'s stubs tests (`every_line_lands_on_its_name`, and the
 test that every name has a line) for the new `Core\Api\*` names and card, any `nvs-stdlib` test
 that counts `ENUMS` or checks enum cards, and any `nvs api diff` test whose fixture returns a
-class with a codec, because its document now has `components.schemas`.
+class with a codec, because its document now has `components.schemas`. Any `nvs api diff` test
+whose fixture's handler calls `jsonAs` or `postAs`, because its document now has `requestBody`.
 
 ### Next
 
-**Stage 3: a request body is read from the handler's call**, as its section says.
+**Stage 6: `nvs check` warns at a route whose body is read in a helper**, as its section says.
 
-- [ ] Record each `jsonAs<T>()` and `postAs<T>()` written directly in a route handler, beside the decode sites. `crates/nvs-types/src/check.rs:183`
-- [ ] The row carries the body as `BodyTy` with JSON or form, read by `body_ty`. `crates/nvs-types/src/routes.rs:471`, `crates/nvs-types/src/routes.rs:2301`
-- [ ] `requestBody` renders through `Schemas::body`, a `oneOf` for two of one kind. `crates/nvs-cli/src/openapi.rs:121`
+- [ ] Record, per method label, the resolved callees its body calls (not through a `callable` or `mixed` receiver), and whether its body has a whole-body read. `note_body_read` returns early for an unarmed body today and needs a second, unarmed record. `crates/nvs-types/src/routes.rs:2346`, `crates/nvs-types/src/check.rs:919`
+- [ ] After the walk, for each row with empty `bodies`, walk the callees from its handler and warn at the `#[Route]` when one reaches a read. A handler with a `postAs` that writes `name` reads in its own body and does not warn. `crates/nvs-types/src/routes.rs:913`
+- [ ] A new warning code after `W1023`, with its card, and the tests the section names. `crates/nvs-diagnostics/src/code/warnings.rs:234`
 
 The perf figures for `Core\Router` and the `lang:attributes` sections are stale. Stage 7 records them
 once, after the last edit to `router.rs` and `90-attributes.md`.
