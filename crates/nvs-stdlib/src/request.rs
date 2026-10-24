@@ -482,11 +482,11 @@ const IS_HEAD_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::path`'s reference card — `rule:core-api/reference-card`.
 const PATH_DOC: MethodDoc = MethodDoc {
-    short: "The request path with the matched mount's prefix removed, so an application reads \
-            the same paths wherever it is mounted.",
+    short: "Returns the request path without the prefix of the mount that matched. An application \
+            reads the same paths wherever it is mounted.",
     params: &[],
-    ret: "The remainder of the path after the mount prefix, percent-encoded as it arrived and \
-          `tainted`. What was removed is `mount()`'s to report.",
+    ret: "The rest of the path after the mount prefix, percent-encoded as it arrived. It is \
+          `tainted`. `mount()` returns the prefix that was removed.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "This program is not answering a request.",
@@ -565,31 +565,33 @@ const SHAPE_NAME_OPTIONS: &[CoreOption] = &[CoreOption {
 
 /// `Core\Request::queryAs`'s reference card — `rule:core-api/reference-card`.
 const QUERY_AS_DOC: MethodDoc = MethodDoc {
-    short: "The query string read as the type `T` written at the call site — `Core\\Arr::shapeAs` \
-            over what `query` parses, converting each named field with `as`; with no `name` the \
-            whole parameter set is the subject, and with one it is the subtree that name reaches.",
+    short: "Reads the query string as the type `T` that you write at the call. It works like \
+            `Core\\Arr::shapeAs` on what `query` reads, and converts each field with `as`. \
+            Without `name`, it reads all parameters. With `name`, it reads the nested value under \
+            that name.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The parameter whose nested value is read, under `query`'s bracket convention and \
-               without brackets. Omitted, the whole query string is read instead.",
+        desc: "The parameter whose nested value is read, written without brackets. Brackets \
+               work the same way as in `query`. If you leave it out, the whole query string is \
+               read.",
         shape: &[],
     }],
-    ret: "A new `T` whose every field is the declared type, or — for an `array<T>` — one per \
-          entry. Nothing of it is kept: every call parses the query string again, so two callers \
-          are never handed the same object.",
+    ret: "A new `T` with every field of its declared type, or one `T` for each entry for an \
+          `array<T>`. Nothing is kept. Every call reads the query string again, so two callers \
+          never get the same object.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, the query string holds percent \
-                   escapes that decode to octets that are not UTF-8, or `T` is a class carrying \
-                   no `#[Json\\Derive]` codec to read it against.",
+            desc: "This program is not answering a request. Or the query string has percent \
+                   escapes that decode to bytes that are not UTF-8. Or `T` is a class without \
+                   `#[Json\\Derive]`.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "A field `T` requires is absent, or holds a value `as` refuses for its declared \
-                   type, or the named subtree is not a set of fields at all. Every field that \
-                   failed is one issue on the error, at its own dotted path, so a form shows the \
-                   whole list rather than the first item of it.",
+            desc: "A field that `T` needs is missing, or `as` cannot convert its value to the \
+                   declared type. It is also thrown when the value under `name` is not a set of \
+                   fields. The error has one issue for each wrong field, at its own dotted path, \
+                   so a form can show the whole list.",
         },
     ],
 };
@@ -933,37 +935,36 @@ const POST_ARRAY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::postAs`'s reference card — `rule:core-api/reference-card`.
 const POST_AS_DOC: MethodDoc = MethodDoc {
-    short: "The submitted form read as the type `T` written at the call site — `Core\\Arr::shapeAs` \
-            over what `post` parses, converting each named field with `as`; with no `name` the \
-            whole form is the subject, and with one it is the subtree that name reaches.",
+    short: "Reads the submitted form as the type `T` that you write at the call. It works like \
+            `Core\\Arr::shapeAs` on what `post` reads, and converts each field with `as`. Without \
+            `name`, it reads the whole form. With `name`, it reads the nested value under that \
+            name.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The field whose nested value is read, under `post`'s bracket convention and \
-               without brackets. Omitted, the whole form is read instead.",
+        desc: "The field whose nested value is read, written without brackets. Brackets work the \
+               same way as in `post`. If you leave it out, the whole form is read.",
         shape: &[],
     }],
-    ret: "A new `T` whose every field is the declared type, or — for an `array<T>` — one per \
-          entry. Reading the body to its end is what this member does, exactly as `post` does, so \
-          on a `multipart/form-data` request it is called **after** the `files()` walk. Nothing of \
-          it is kept: every call reads the form again, so two callers are never handed the same \
-          object.",
+    ret: "A new `T` with every field of its declared type, or one `T` for each entry for an \
+          `array<T>`. Like `post`, this method reads the body to its end. On a \
+          `multipart/form-data` request, call it **after** the `files()` loop. Nothing is kept. \
+          Every call reads the form again, so two callers never get the same object.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, or this request's body has already \
-                   been read by `body` or `bodyStream`, or `T` is a class carrying no \
-                   `#[Json\\Derive]` codec to read the form against.",
+            desc: "This program is not answering a request. Or `body` or `bodyStream` already \
+                   read the body of this request. Or `T` is a class without `#[Json\\Derive]`.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "The body is not the form it declared — `post`'s three refusals, unchanged — or \
-                   a field `T` requires is absent, or holds a value `as` refuses for its declared \
-                   type, or the named subtree is not a set of fields at all. Every field that \
-                   failed is one issue on the error, at its own dotted path.",
+            desc: "The body is not the form it says it is, for the same reasons as in `post`. Or \
+                   a field that `T` needs is missing, or `as` cannot convert its value to the \
+                   declared type. Or the value under `name` is not a set of fields. The error has \
+                   one issue for each wrong field, at its own dotted path.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed under the body, or the peer stopped short of the \
+            desc: "The connection failed while the body was read, or the body ended before the \
                    length it declared.",
         },
     ],
@@ -986,15 +987,16 @@ const CLIENT_IP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::scheme`'s reference card — `rule:core-api/reference-card`.
 const SCHEME_DOC: MethodDoc = MethodDoc {
-    short: "The scheme this request effectively arrived over, which only a trusted peer's \
-            `X-Forwarded-Proto` can make `https` for a connection that was not itself TLS.",
+    short: "Returns the scheme the request arrived over. A connection without TLS gives `https` \
+            only when a trusted proxy sends `X-Forwarded-Proto`.",
     params: &[],
-    ret: "`\"http\"` or `\"https\"`, `tainted`. Never `null`: every request arrived over one, and \
-          a deployment that trusts no proxy always reads the scheme of the connection itself.",
+    ret: "`\"http\"` or `\"https\"`, as a `tainted` string. The result is never `null`, because \
+          every request arrived over one of them. A server that trusts no proxy always returns \
+          the scheme of the connection itself.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This program is not answering a request — a CLI program, a scheduled script, a job \
-               worker or a test.",
+        desc: "This program is not answering a request. For example, it is a command-line \
+               program, a scheduled script, a job worker or a test.",
     }],
 };
 
@@ -1015,43 +1017,45 @@ const HOST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::route`'s reference card — `rule:core-api/reference-card`.
 const ROUTE_DOC: MethodDoc = MethodDoc {
-    short: "The route this request matched, which the server took once at the door before any of \
-            this program ran — the same match the CSRF check and the `route` metric label read, \
-            so a handler never matches its own path a second time.",
+    short: "Returns the route this request matched. The server matches the route once, before \
+            your program runs. The CSRF check and the `route` metric label use the same match, so \
+            a handler never needs to match its own path again.",
     params: &[],
-    ret: "A `Core\\Router\\Match` answering the declared name and the path's captures, or `null` \
-          where nothing in the table claimed this method and path — which is a served request \
-          like any other, since matching dispatches nothing. A program declaring no `#[Route]` \
-          builds no table and reads `null` here for the same reason.",
+    ret: "A `Core\\Router\\Match` with the declared name and the captures of the path. The result \
+          is `null` when no route matches this method and path. Such a request is still served \
+          like any other, because a match does not decide which code runs. A program with no \
+          `#[Route]` has no route table, so the result is also `null`.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, as a CLI program, a scheduled script, \
-                   a job worker and a test are not — refused rather than answered `null`, because \
-                   \"no request arrived\" and \"nothing matched\" are different facts.",
+            desc: "This program is not answering a request. For example, it is a command-line \
+                   program, a scheduled script, a job worker or a test. The method throws this \
+                   error and does not return `null`, because \"no request arrived\" and \"no \
+                   route matched\" are different things.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "A capture percent-decodes to octets that are not UTF-8, so it has no `tainted \
-                   string` to bind to; the throw names the capture and the offset of the first \
-                   byte a `string` cannot hold.",
+            desc: "A capture percent-decodes to bytes that are not UTF-8, so it cannot be a \
+                   `tainted string`. The error names the capture and the position of the first \
+                   byte that is not valid in a `string`.",
         },
     ],
 };
 
 /// `Core\Request::mount`'s reference card — `rule:core-api/reference-card`.
 const MOUNT_DOC: MethodDoc = MethodDoc {
-    short: "Which mount is serving this request: the prefix the server took off the path before \
-            `path()` answered it, and the glob captures of the mount row that took it — the pair a \
-            host-mounted deployment learns which tenant it is running for from.",
+    short: "Returns the mount that is serving this request. It gives the prefix the server \
+            removed from the path before `path()` returns it. It also gives the glob captures of \
+            that mount. A program served for many customers uses them to learn which customer \
+            this request is for.",
     params: &[],
-    ret: "A `Core\\Request\\Mount`, always — a request that reached this program reached it through \
-          some mount, and one that came in by a door with no prefix and no glob answers `\"\"` and \
-          an empty array rather than `null`.",
+    ret: "A `Core\\Request\\Mount`. The result is never `null`, because every request reaches \
+          the program through a mount. A mount with no prefix and no glob gives the prefix `\"\"` \
+          and an empty array of captures.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This program is not answering a request — a CLI program, a scheduled script, a job \
-               worker and a test are not, and none of them was mounted anywhere.",
+        desc: "This program is not answering a request. For example, it is a command-line \
+               program, a scheduled script, a job worker or a test. None of these is mounted.",
     }],
 };
 
@@ -1149,25 +1153,27 @@ const MOUNT_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Request\Mount::prefix`'s reference card — `rule:core-api/reference-card`.
 const MOUNT_PREFIX_DOC: MethodDoc = MethodDoc {
-    short: "What the server took off the front of the path before `Core\\Request::path()` answered \
-            it — so a program mounted at `/acme` sees `/orders` and learns the `/acme` here.",
+    short: "Returns the part the server removed from the start of the path before \
+            `Core\\Request::path()` returns it. A program mounted at `/acme` sees `/orders` in \
+            `path()`, and `/acme` here.",
     params: &[],
-    ret: "The prefix, with its leading slash and no trailing one, or `\"\"` where the request \
-          reached this program through a mount that strips nothing. Not `tainted`: every mount is \
-          a row of the table the boot expanded against the disk, so a prefix is the operator's \
-          text and not the peer's.",
+    ret: "The prefix, with a slash at the start and none at the end. The result is `\"\"` when \
+          the mount removes nothing. It is not `tainted`, because the server configuration sets \
+          every mount when the server starts. The prefix is the operator's text, and the client \
+          did not choose it.",
     errors: &[],
 };
 
 /// `Core\Request\Mount::captures`'s reference card — `rule:core-api/reference-card`.
 const MOUNT_CAPTURES_DOC: MethodDoc = MethodDoc {
-    short: "The glob captures of the mount serving this request, in order — `{1}` is `captures[0]` \
-            — which is how one compiled program running at many prefixes learns which tenant it is \
-            answering for.",
+    short: "Returns the glob captures of the mount serving this request, in order. `{1}` is \
+            `captures[0]`. One program that runs at many prefixes uses them to learn which \
+            customer the request is for.",
     params: &[],
-    ret: "The captures as `tainted string`s, and an empty array for a mount whose prefix holds no \
-          glob. They are marked because the peer chose which mount answers it, so one reaching a \
-          query or a path launders the way anything else off a request does.",
+    ret: "The captures as `tainted string` values. The array is empty for a mount whose prefix \
+          has no glob. They are `tainted` because the client chose which mount serves the \
+          request. Before you use one in a query or a path, check it as you check any other \
+          value from a request.",
     errors: &[],
 };
 
@@ -1459,56 +1465,59 @@ const PART_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Request\Part::name`'s reference card — `rule:core-api/reference-card`.
 const PART_FIELD_DOC: MethodDoc = MethodDoc {
-    short: "The form field this file arrived under — the `name` attribute of the `<input>`, as \
-            the peer sent it back.",
+    short: "Returns the name of the form field this file was sent under. This is the `name` \
+            attribute of the `<input>`, as the client sent it.",
     params: &[],
-    ret: "The field name, `tainted` because the peer chose it: a client is free to send a name \
-          the form never declared, so it is untrusted input like every other byte of the part.",
+    ret: "The field name. It is `tainted` because the client chose it. A client can send a name \
+          the form never declared, so the name is untrusted input like every other byte of the \
+          part.",
     errors: &[],
 };
 
 /// `Core\Request\Part::filename`'s reference card — `rule:core-api/reference-card`.
 const PART_FILENAME_DOC: MethodDoc = MethodDoc {
-    short: "The file name the client claimed — a claim about a file on someone else's machine, \
-            and never a path on this one.",
+    short: "Returns the file name the client sent. It names a file on the client's computer. It \
+            is never a path on this server.",
     params: &[],
-    ret: "The claimed name, `tainted`. It reaches no path sink without `Core\\IO::within` \
-          laundering it, which is what keeps a peer from choosing where its own upload lands.",
+    ret: "The name the client sent, `tainted`. It cannot be used as a file path until \
+          `Core\\IO::within` checks it. This stops a client from choosing where its upload is \
+          saved.",
     errors: &[],
 };
 
 /// `Core\Request\Part::contentType`'s reference card — `rule:core-api/reference-card`.
 const PART_CONTENT_TYPE_DOC: MethodDoc = MethodDoc {
-    short: "The media type this part declared, which is what the client said the bytes are and \
-            not what they turn out to be.",
+    short: "Returns the media type this part declared. This is what the client said the bytes \
+            are. The bytes may be something else.",
     params: &[],
-    ret: "The declared type, `tainted`, or `text/plain` where the part declared none — RFC 7578 \
-          § 4.4's default. A program that needs to know what the bytes *are* reads the bytes.",
+    ret: "The declared type, `tainted`. The result is `text/plain` when the part declared no \
+          type, which is the default that RFC 7578 sets. To know what the bytes really are, read the \
+          bytes.",
     errors: &[],
 };
 
 /// `Core\Request\Part::content`'s reference card — `rule:core-api/reference-card`.
 const CONTENT_DOC: MethodDoc = MethodDoc {
-    short: "This part's bytes, a chunk at a time — the reading for an upload that must never be \
-            resident whole, and what `saveTo` and `readAll` are both written over.",
+    short: "Returns the bytes of this part, one piece at a time. Use it for an upload that must \
+            never be in memory all at once. `saveTo` and `readAll` both read the part this way.",
     params: &[],
-    ret: "An `Iterable<tainted bytes>` over the part's chunks as they come off the wire, each one \
-          a value of its own. It walks empty for a part that carried no bytes, and it is valid \
-          only while this part is the one the `files()` walk is on.",
+    ret: "An `Iterable<tainted bytes>` over the pieces of the part as they arrive. Each piece is \
+          a value of its own. The loop runs zero times for a part with no bytes. It works only \
+          while the `files()` loop is still on this part.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, or the walk has moved on to a later \
-                   part and this one's bytes are gone.",
+            desc: "This program is not answering a request. Or the `files()` loop has moved to a \
+                   later part, and the bytes of this part are gone.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed under the body, or the peer stopped short of the \
+            desc: "The connection failed while the body was read, or the body ended before the \
                    closing boundary.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "What arrived is not the multipart body the request declared.",
+            desc: "The body is not the multipart body the request declared.",
         },
     ],
 };
@@ -1534,33 +1543,34 @@ const READ_ALL_DOC: MethodDoc = MethodDoc {
             enough to keep in memory.",
     params: &[ParamDoc {
         name: "max",
-        desc: "How many bytes this call is willing to hold. Omitted, the bound is `[limits] \
-               request_body`; named, it is this number, and a number larger than the \
-               request's own `[limits] memory` is refused rather than clamped.",
+        desc: "The most bytes this call reads into memory. If you leave it out, the limit is \
+               `[limits] request_body`. If you give it, the limit is this number. A number \
+               larger than the request's own `[limits] memory` throws an error. It is not \
+               lowered to fit.",
         shape: &[],
     }],
-    ret: "Every byte of this part, in order, `tainted` and decoded by nothing. Empty for a part \
-          that carried none, which is a part the peer sent and not an absent one.",
+    ret: "Every byte of this part, in order and not decoded. The value is `tainted`. It is empty \
+          for a part with no bytes. That part was still sent by the client.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, the walk has moved on to a later \
-                   part, or `max` is larger than this request may hold at all.",
+            desc: "This program is not answering a request. Or the `files()` loop has moved to a \
+                   later part. Or `max` is larger than this request may use at all.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The part is larger than the bound in force. The bytes over it are never \
-                   held: the refusal happens at the chunk that would cross it, and `content()` \
-                   is the reading for a part that does not fit.",
+            desc: "The part is larger than the limit. The bytes over the limit are never stored, \
+                   because the error is thrown at the piece that would pass it. Use `content()` \
+                   for a part that does not fit.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed under the body, or the peer stopped short of the \
+            desc: "The connection failed while the body was read, or the body ended before the \
                    closing boundary.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "What arrived is not the multipart body the request declared.",
+            desc: "The body is not the multipart body the request declared.",
         },
     ],
 };
@@ -1569,49 +1579,50 @@ const READ_ALL_DOC: MethodDoc = MethodDoc {
 const SAVE_TO_DOC: MethodDoc = MethodDoc {
     short: "Writes this part directly to `$path`, one chunk at a time. Use it to save an upload. It \
             needs the `fs.write` capability for the path. The part's own `filename()` is \
-            `tainted`, so it must pass through `Core\\IO::within` before it is used here.",
+            `tainted`, so `Core\\IO::within` must check it before it is used here.",
     params: &[
         ParamDoc {
             name: "path",
-            desc: "Where the part is to land. It must not already exist unless `overwrite` says \
-                   otherwise.",
+            desc: "The file to write the part to. It must not already exist, unless `overwrite` \
+                   is `true`.",
             shape: &[],
         },
         ParamDoc {
             name: "max",
-            desc: "The most bytes to accept from this part. Unbounded when it is not given, \
-                   because nothing else bounds a file on disk — unlike `readAll`, which is \
-                   holding what it reads and so inherits `[limits] request_body`.",
+            desc: "The most bytes to accept from this part. If you leave it out, there is no \
+                   limit, because no other limit applies to a file on disk. `readAll` keeps what \
+                   it reads in memory, so `[limits] request_body` limits it.",
             shape: &[],
         },
         ParamDoc {
             name: "overwrite",
-            desc: "Whether an existing file may be replaced. `false` by default, because the \
-                   destination is usually built from a name the client claimed.",
+            desc: "Whether an existing file may be replaced. The default is `false`, because the \
+                   path is usually built from a name the client sent.",
             shape: &[],
         },
     ],
-    ret: "Nothing. A failure part-way through removes the partial file before it throws, so no \
-          later reader finds a truncated upload the program believes it received whole.",
+    ret: "Nothing. If the write fails partway, the partial file is deleted before the error is \
+          thrown. No later reader finds a cut-off upload that the program thinks is complete.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, or the walk has moved on to a later \
-                   part and this one's bytes are gone.",
+            desc: "This program is not answering a request. Or the `files()` loop has moved to a \
+                   later part, and the bytes of this part are gone.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.write` for this path, or the part ran \
-                   past `max` bytes.",
+            desc: "The configuration does not grant `fs.write` for this path, or the part is \
+                   larger than `max` bytes.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "Something is already at the path and `overwrite` is `false`, the operating \
-                   system refused the create or a write, or the connection failed under the body.",
+            desc: "A file is already at the path and `overwrite` is `false`. Or the operating \
+                   system did not allow the file to be created or written. Or the connection \
+                   failed while the body was read.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "What arrived is not the multipart body the request declared.",
+            desc: "The body is not the multipart body the request declared.",
         },
     ],
 };

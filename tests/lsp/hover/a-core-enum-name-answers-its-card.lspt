@@ -11,15 +11,15 @@ hover
 enum Core\Http\Method
 ```
 
-The closed set of HTTP verbs a `#[Route]` may be declared under and a request may carry — eight of them, safe ones first so that the four the CSRF check covers are the contiguous tail from `Post` on; `CONNECT` is deliberately absent.
+The HTTP methods that a `#[Route]` can use and a request can have. There are eight, and `CONNECT` is not one of them. The safe methods come first. The four methods from `Post` on are the ones the CSRF check covers.
 
 **Cases**
 
-- `Get` — Reads a resource; safe, so no CSRF check applies.
-- `Head` — `Get` without a response body; safe.
-- `Options` — Asks what a resource supports; safe.
-- `Trace` — Echoes the request back; safe.
-- `Post` — Submits data and may change state; the first of the CSRF-covered tail.
-- `Put` — Replaces a resource; CSRF-covered.
-- `Patch` — Changes a resource in place; CSRF-covered.
-- `Delete` — Removes a resource; CSRF-covered.
+- `Get` — Reads a resource. It is safe, so there is no CSRF check.
+- `Head` — The same as `Get`, without a response body. It is safe.
+- `Options` — Checks what a resource supports. It is safe.
+- `Trace` — Sends the request back to the client. It is safe.
+- `Post` — Sends data and can change state. It is the first of the four methods the CSRF check covers.
+- `Put` — Replaces a resource. The CSRF check covers it.
+- `Patch` — Changes part of a resource. The CSRF check covers it.
+- `Delete` — Deletes a resource. The CSRF check covers it.

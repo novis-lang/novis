@@ -353,19 +353,19 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Cli::escape`'s reference card — `rule:core-api/reference-card`.
 const ESCAPE_DOC: MethodDoc = MethodDoc {
-    short: "Answers `$text` with every control byte replaced by a visible, inert glyph — `ESC` as \
-            `␛`, a bare `CR` as `␍`, `DEL` as `␡`, a C1 code point or an unterminated \
-            bidirectional control as `�` — while `LF` and `TAB` pass through. This is the terminal \
-            sink's own table as a value; `echo` already performs it, so a program needs this only \
-            to hold the neutralized form.",
+    short: "Returns `$text` with every control byte replaced by a visible symbol. `ESC` becomes \
+            `␛`, a bare `CR` becomes `␍` and `DEL` becomes `␡`. A C1 code point or an \
+            unterminated bidirectional control becomes `�`. `LF` and `TAB` stay unchanged. `echo` \
+            already makes these replacements, so you need this only to keep the safe text as a \
+            value.",
     params: &[ParamDoc {
         name: "text",
-        desc: "The text to neutralize. Its `tainted` qualifier is removed, because the terminal \
-               is the sink this launders for and nothing is left in the answer for it to act on.",
+        desc: "The text to make safe. The result is not `tainted`, because nothing is left in it \
+               that could control the terminal.",
         shape: &[],
     }],
-    ret: "The same text with the substitutions applied, and no other change — this is not an HTML \
-          escaper, so `<`, `&` and `\"` are returned as themselves.",
+    ret: "The same text with these replacements, and no other change. This is not an HTML \
+          escaper, so `<`, `&` and `\"` stay unchanged.",
     errors: &[],
 };
 
@@ -375,9 +375,8 @@ const IS_TTY_DOC: MethodDoc = MethodDoc {
             once for the process, so two calls in one run always give the same result.",
     params: &[ParamDoc {
         name: "stream",
-        desc: "Which stream to ask about. It is a parameter rather than a single process-wide \
-               answer because colour on standard output while standard input is a pipe is the \
-               common case, and one `isTty()` cannot express it.",
+        desc: "Which stream to check. Each stream is checked on its own. A common case is \
+               standard output on a terminal while standard input is a pipe.",
         shape: &[],
     }],
     ret: "`true` when that stream is a terminal, `false` when it is a pipe, a file or closed.",
@@ -386,8 +385,8 @@ const IS_TTY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cli::width`'s reference card — `rule:core-api/reference-card`.
 const WIDTH_DOC: MethodDoc = MethodDoc {
-    short: "The controlling terminal's width in columns — `tput cols`, without a child process. \
-            Resolved once for the process.",
+    short: "Returns the width of the terminal in columns. It works like `tput cols`, without \
+            starting a child process. It is read once for the process.",
     params: &[],
     ret: "The column count, or `80` when no standard stream is a terminal. Never `0`, so a \
           caller may subtract a margin from it without checking.",
@@ -396,24 +395,24 @@ const WIDTH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cli::height`'s reference card — `rule:core-api/reference-card`.
 const HEIGHT_DOC: MethodDoc = MethodDoc {
-    short: "The controlling terminal's height in rows — `tput lines`. Resolved once for the \
-            process, alongside the width it was read with.",
+    short: "Returns the height of the terminal in rows, like `tput lines`. It is read once for \
+            the process, together with the width.",
     params: &[],
-    ret: "The row count, or `24` when no standard stream is a terminal. Never `0`, for \
-          `width`'s reason.",
+    ret: "The row count, or `24` when no standard stream is a terminal. It is never `0`, as for \
+          `width`.",
     errors: &[],
 };
 
 /// `Core\Cli::colorDepth`'s reference card — `rule:core-api/reference-card`.
 const COLOR_DEPTH_MEMBER_DOC: MethodDoc = MethodDoc {
-    short: "How much colour standard output can show, honouring `NO_COLOR`, `CLICOLOR_FORCE`, \
-            `FORCE_COLOR`, `COLORTERM` and `TERM`. A program does not normally ask: it writes \
-            `Cli\\Text` and the sink degrades to what the terminal has. Resolved once for the \
-            process.",
+    short: "Returns how much colour standard output can show. It follows `NO_COLOR`, \
+            `CLICOLOR_FORCE`, `FORCE_COLOR`, `COLORTERM` and `TERM`. Most programs do not need \
+            it, because a `Cli\\Text` is always written with the colours the terminal has. It is \
+            read once for the process.",
     params: &[],
-    ret: "The depth as a `Core\\Cli::ColorDepth` case — `None` whenever standard output is not \
-          a terminal and nothing forced colour on, which is what makes `myprog | grep` and a CI \
-          log plain.",
+    ret: "The depth as a `Core\\Cli::ColorDepth` case. It is `None` when standard output is not \
+          a terminal and no setting forces colour on. So `myprog | grep` and a CI log get plain \
+          text.",
     errors: &[],
 };
 
@@ -425,13 +424,13 @@ const DISPLAY_WIDTH_DOC: MethodDoc = MethodDoc {
             none. A control byte uses the width of the visible symbol the terminal shows for it.",
     params: &[ParamDoc {
         name: "value",
-        desc: "The text to measure. A `tainted` one is accepted: a column count carries nothing \
-               back out of it.",
+        desc: "The text to measure. A `tainted` value is allowed, because a column count \
+               contains nothing from the text.",
         shape: &[],
     }],
-    ret: "The column count. A tab advances to the next multiple of eight, and a newline ends the \
-          row — so a value spanning several rows answers the width of its widest one, which is \
-          what a box is padded to.",
+    ret: "The column count. A tab moves to the next multiple of eight, and a newline ends the \
+          row. For text with several rows, the result is the width of the widest row. That is \
+          the width to pad a box to.",
     errors: &[],
 };
 
@@ -476,11 +475,11 @@ const ARGUMENTS_DOC: MethodDoc = MethodDoc {
             program that declares a `#[Command]` gets its arguments from `Core\\Command::run` \
             instead. This is the raw list, for a program that parses its own arguments.",
     params: &[],
-    ret: "An `array<tainted string>` in the order the shell wrote them, empty for a program \
-          started with none. Every element is `tainted`: the words came from outside the program's \
-          own text, so a path, a URL or a query built from one passes its own launderer first. The \
-          program's own name is not an element — nothing indexes it away, and `$argv[0]` has no \
-          spelling here.",
+    ret: "An `array<tainted string>`, in the order the shell passed them. It is empty if the \
+          program was started with no arguments. Every element is `tainted`, because the words \
+          come from outside the program. A path, a URL or a query built from one must pass the \
+          check for that use first. The program name is not in the array, so you do not need to \
+          skip it. There is no `$argv[0]`.",
     errors: &[],
 };
 
@@ -492,30 +491,31 @@ const WRITE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "value",
-            desc: "The text to write. A `tainted` one is written like any other — the \
-                   substitution is what makes the terminal safe, so nothing has to be laundered \
-                   first — while a `secret` one is refused at compile time.",
+            desc: "The text to write. A `tainted` value is written like any other. Replacing the \
+                   control bytes makes it safe for the terminal, so no other check is needed. A \
+                   `secret` value is a compile error.",
             shape: &[],
         },
         ParamDoc {
             name: "stream",
-            desc: "Which standard stream to write to. `Out` when omitted; `Err` writes to this \
-                   request's diagnostic channel, which a `Core\\Out::capture` does not take. \
-                   `In` throws.",
+            desc: "Which standard stream to write to. The default is `Out`. `Err` writes to this \
+                   request's diagnostic output, which `Core\\Out::capture` does not capture. \
+                   `In` throws an error.",
             shape: &[],
         },
         ParamDoc {
             name: "newline",
-            desc: "Whether to append one `LF` after the value. `false` when omitted, so the \
-                   member writes exactly what it was handed.",
+            desc: "Whether to add one `LF` after the value. The default is `false`, so the method \
+                   writes exactly the value it was given.",
             shape: &[],
         },
     ],
-    ret: "Nothing. The bytes are on the stream, or the write failed and the request is over.",
+    ret: "Nothing. The bytes are written to the stream. If the write fails, the request ends.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$stream` is `Core\\Cli::Stream::In`, which a program reads and never writes. The \
-               case exists for `Core\\Cli::isTty`, which asks its question about all three.",
+        desc: "`$stream` is `Core\\Cli::Stream::In`. A program reads standard input and never \
+               writes to it. The case exists for `Core\\Cli::isTty`, which can check all three \
+               streams.",
     }],
 };
 
@@ -582,93 +582,95 @@ const MULTI_SELECT_OPTIONS: &[CoreOption] = &[CoreOption {
 
 /// `Core\Cli::ask`'s reference card — `rule:core-api/reference-card`.
 const ASK_DOC: MethodDoc = MethodDoc {
-    short: "Asks `$question` at the controlling terminal and answers the line typed back — \
-            `readline`, without the GNU library and without reading standard input, so a program \
-            reading piped data can still ask. With no terminal it answers `default` if one was \
-            given and throws otherwise; it never blocks waiting for an answer nobody can give.",
+    short: "Shows `$question` on the terminal and returns the line the user types. It works like \
+            `readline`. It does not read standard input, so a program \
+            that reads piped data can still ask. With no terminal, it returns `default` if one \
+            was given, and throws an error otherwise. It never waits for an answer that nobody \
+            can give.",
     params: &[
         ParamDoc {
             name: "question",
-            desc: "What to write at the terminal. It goes through the same substitution `echo` \
-                   performs, so a question built from untrusted text cannot move the cursor or \
-                   repaint the screen around its own answer.",
+            desc: "The text to show on the terminal. Control bytes are replaced as `echo` \
+                   replaces them. So a question built from untrusted text cannot move the cursor \
+                   or redraw the screen around the answer.",
             shape: &[],
         },
         ParamDoc {
             name: "default",
-            desc: "What to answer when the terminal is not there, and what an empty line means \
-                   when it is. Absent makes both of those a `Core\\Cli\\NotInteractive`.",
+            desc: "The value returned when there is no terminal, or when the user types an empty \
+                   line. Without it, both cases throw `Core\\Cli\\NotInteractive`.",
             shape: &[],
         },
         ParamDoc {
             name: "validate",
-            desc: "Called with each answer; a falsy verdict asks again. It runs only where there \
-                   is a terminal to ask again at, so it never sees a `default`.",
+            desc: "A function called with each answer. If it returns a falsy value, the question \
+                   is asked again. It runs only when there is a terminal, so it is never called \
+                   with `default`.",
             shape: &[],
         },
     ],
-    ret: "The line typed, without its ending, and `tainted` whatever it says — it came from \
-          outside the program, exactly as a request body did.",
+    ret: "The line the user typed, without the line ending. It is always `tainted`, because it \
+          comes from outside the program, like a request body.",
     errors: &[ErrorDoc {
         error: "Core\\Cli\\NotInteractive",
-        desc: "There is no controlling terminal to ask, its input ended, or nobody answered within \
-               the prompt deadline — and the call named no `default`.",
+        desc: "The call has no `default`, and there is no terminal, its input ended, or nobody \
+               answered before the prompt deadline.",
     }],
 };
 
 /// `Core\Cli::confirm`'s reference card — `rule:core-api/reference-card`.
 const CONFIRM_DOC: MethodDoc = MethodDoc {
-    short: "Asks `$question` as a yes/no question, showing which way the `Enter` key goes, and \
-            answers what was typed. An answer that is neither is asked again rather than read as \
-            `false`.",
+    short: "Asks `$question` as a yes/no question and returns the answer. The prompt shows what \
+            the `Enter` key means. If the answer is neither yes nor no, the question is asked \
+            again.",
     params: &[
         ParamDoc {
             name: "question",
-            desc: "What to write at the terminal, substituted as `ask` substitutes it.",
+            desc: "The text to show on the terminal. Control bytes are replaced as in `ask`.",
             shape: &[],
         },
         ParamDoc {
             name: "default",
-            desc: "What an empty line means, and what an unattended run answers. Absent makes an \
-                   unattended run throw, and makes an empty line ask again.",
+            desc: "The answer for an empty line, and for a run with no terminal. Without it, a \
+                   run with no terminal throws an error, and an empty line asks again.",
             shape: &[],
         },
     ],
-    ret: "`true` for yes and `false` for no — a plain `bool` and never a `tainted` one, because \
-          nothing of what was typed survives into a closed two-case answer.",
+    ret: "`true` for yes and `false` for no. It is a plain `bool` and is never `tainted`, because \
+          only yes or no is kept from what was typed.",
     errors: &[ErrorDoc {
         error: "Core\\Cli\\NotInteractive",
-        desc: "There is no controlling terminal to ask, its input ended, or nobody answered within \
-               the prompt deadline — and the call named no `default`.",
+        desc: "The call has no `default`, and there is no terminal, its input ended, or nobody \
+               answered before the prompt deadline.",
     }],
 };
 
 /// `Core\Cli::select`'s reference card — `rule:core-api/reference-card`.
 const SELECT_DOC: MethodDoc = MethodDoc {
-    short: "Offers `$choices` as a numbered list and answers the one chosen — the value itself, \
-            never its position, so nothing at the call site indexes back into the array.",
+    short: "Shows `$choices` as a numbered list and returns the one the user chooses. It returns \
+            the value itself, not its position in the array.",
     params: &[
         ParamDoc {
             name: "question",
-            desc: "What to write above the list, substituted as `ask` substitutes it.",
+            desc: "The text to show above the list. Control bytes are replaced as in `ask`.",
             shape: &[],
         },
         ParamDoc {
             name: "choices",
-            desc: "The values to choose between, listed in their own order. An empty array is a \
-                   `LogicError`: there is no answer to hand back.",
+            desc: "The values to choose from, listed in their own order. An empty array throws a \
+                   `LogicError`, because there is nothing to return.",
             shape: &[],
         },
         ParamDoc {
             name: "labels",
-            desc: "Called with each option to produce the line shown for it. Absent renders each \
-                   option as text the way `echo` would.",
+            desc: "A function called with each option. It returns the line shown for that \
+                   option. Without it, each option is shown as text, as `echo` would show it.",
             shape: &[],
         },
         ParamDoc {
             name: "default",
-            desc: "What an empty line chooses, and what an unattended run answers. Typed as the \
-                   choices' own element type, so it cannot be a value that is not on offer.",
+            desc: "The choice for an empty line, and for a run with no terminal. It has the \
+                   element type of `$choices`, so it cannot be a value that is not offered.",
             shape: &[],
         },
     ],
@@ -676,8 +678,8 @@ const SELECT_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "Core\\Cli\\NotInteractive",
-            desc: "There is no controlling terminal to ask, its input ended, or nobody answered \
-                   within the prompt deadline — and the call named no `default`.",
+            desc: "The call has no `default`, and there is no terminal, its input ended, or \
+                   nobody answered before the prompt deadline.",
         },
         ErrorDoc {
             error: "LogicError",
@@ -688,39 +690,37 @@ const SELECT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cli::multiSelect`'s reference card — `rule:core-api/reference-card`.
 const MULTI_SELECT_DOC: MethodDoc = MethodDoc {
-    short: "Offers `$choices` as a numbered list and answers every one chosen, as the values \
-            themselves — `select` where the answer is a set, so the numbers are typed together \
-            on one line and an empty line names none of them.",
+    short: "Shows `$choices` as a numbered list and returns every value the user chooses. It \
+            works like `select`, but the user can choose several values. The numbers are typed \
+            together on one line, and an empty line chooses none.",
     params: &[
         ParamDoc {
             name: "question",
-            desc: "What to write above the list, substituted as `ask` substitutes it. The \
-                   accepted range and separator are appended to it, the way `confirm` appends \
-                   `[y/n]`.",
+            desc: "The text to show above the list. Control bytes are replaced as in `ask`. The \
+                   valid range and separator are added after it, as `confirm` adds `[y/n]`.",
             shape: &[],
         },
         ParamDoc {
             name: "choices",
-            desc: "The values to choose between, listed in their own order. An empty array is a \
-                   `LogicError`: there is nothing that could be chosen.",
+            desc: "The values to choose from, listed in their own order. An empty array throws a \
+                   `LogicError`, because there is nothing to choose.",
             shape: &[],
         },
         ParamDoc {
             name: "labels",
-            desc: "Called with each option to produce the line shown for it. Absent renders each \
-                   option as text the way `echo` would.",
+            desc: "A function called with each option. It returns the line shown for that \
+                   option. Without it, each option is shown as text, as `echo` would show it.",
             shape: &[],
         },
     ],
-    ret: "The chosen elements of `$choices`, in that array's own order and each at most once, \
-          whatever order they were typed in. An empty line answers an empty array; there is no \
-          `default`, so a run with no terminal throws instead.",
+    ret: "The chosen elements of `$choices`, in the array's own order and each at most once. The \
+          order they were typed in does not matter. An empty line returns an empty array. There \
+          is no `default`, so a run with no terminal throws an error.",
     errors: &[
         ErrorDoc {
             error: "Core\\Cli\\NotInteractive",
-            desc: "There is no controlling terminal to ask, its input ended, or nobody answered \
-                   within the prompt deadline. Unlike the other prompts this one has no \
-                   `default` to fall back on.",
+            desc: "There is no terminal, its input ended, or nobody answered before the prompt \
+                   deadline. This prompt has no `default` to use instead.",
         },
         ErrorDoc {
             error: "LogicError",
@@ -735,36 +735,35 @@ const SECRET_DOC: MethodDoc = MethodDoc {
             password typed here does not stay on the screen or in the scrollback buffer.",
     params: &[ParamDoc {
         name: "question",
-        desc: "What to write at the terminal, substituted as `ask` substitutes it.",
+        desc: "The text to show on the terminal. Control bytes are replaced as in `ask`.",
         shape: &[],
     }],
-    ret: "The line typed, `secret` and `tainted` at once: output, logs, dumps, `Throwable` \
-          messages and serialization all refuse it, and it still has to be laundered for any \
-          sink it reaches.",
+    ret: "The line typed, both `secret` and `tainted`. It cannot be used in output, logs, dumps, \
+          `Throwable` messages or serialization. Like any `tainted` value, it must still pass \
+          the check for each place where it is used.",
     errors: &[ErrorDoc {
         error: "Core\\Cli\\NotInteractive",
-        desc: "There is no controlling terminal to ask, its input ended, or nobody answered within \
-               the prompt deadline. `secret` takes no `default`, because a password nobody typed \
-               is not a password.",
+        desc: "There is no terminal, its input ended, or nobody answered before the prompt \
+               deadline. `secret` has no `default`, because a password that nobody typed is not a \
+               password.",
     }],
 };
 
 /// `Core\Cli::live`'s reference card — `rule:core-api/reference-card`.
 const LIVE_DOC: MethodDoc = MethodDoc {
-    short: "Runs `$body` with a live region open on the terminal, and answers whatever `$body` \
-            answered. `$body` receives a `Core\\Cli\\Live` whose `set` replaces the region's rows \
-            in place — the scoped replacement for `moveUp`/`clearLine` cursor primitives, which \
-            break the moment output is piped and leave a shell unusable when a program dies \
-            holding them.",
+    short: "Runs `$body` with a live area open on the terminal, and returns what `$body` returns. \
+            `$body` gets a `Core\\Cli\\Live`, whose `set` method replaces the area's rows in \
+            place. Use it in place of cursor commands like `moveUp` and `clearLine`. Those break \
+            when output is piped, and can leave the shell unusable if the program stops.",
     params: &[ParamDoc {
         name: "body",
-        desc: "The work to do while the region is open. Its own return value is this member's, so \
-               a region costs a call site nothing in what it can compute.",
+        desc: "The work to do while the area is open. Its return value is the return value of \
+               this method.",
         shape: &[],
     }],
-    ret: "Exactly what `$body` answered, at `$body`'s own type. The terminal is restored on every \
-          path out — a return, a throw, a fatal, an internal panic — and a run whose output is \
-          not a terminal renders nothing at all rather than a smear of escape sequences.",
+    ret: "Exactly what `$body` returned, with the same type. The terminal is restored however \
+          `$body` ends: a return, a throw, a fatal error or an internal panic. If the output is \
+          not a terminal, nothing is drawn, so no escape sequences are written.",
     errors: &[],
 };
 
@@ -816,47 +815,46 @@ pub(crate) const LIVE: CoreClass = CoreClass {
 
 /// `Core\Cli\Live::set`'s reference card — `rule:core-api/reference-card`.
 const SET_DOC: MethodDoc = MethodDoc {
-    short: "Replaces the region's rows with `$lines`. The runtime owns the cursor: it coalesces \
-            frames on a timer rather than repainting per call, diffs against what is on screen, \
-            and writes nothing at all where the run has no terminal.",
+    short: "Replaces the area's rows with `$lines`. The runtime controls the cursor. It redraws \
+            on a timer, not on every call, and writes only what changed on screen. It writes \
+            nothing if the run has no terminal.",
     params: &[ParamDoc {
         name: "lines",
-        desc: "The region's rows, one `Core\\Cli\\Text` each, replacing whatever it held. A row \
-               wider than the terminal is clamped rather than wrapped, because a wrapped row is \
-               a region that can no longer be repainted.",
+        desc: "The area's new rows, one `Core\\Cli\\Text` each. They replace the old rows. A row \
+               wider than the terminal is cut to the terminal width. It is not wrapped, because \
+               a wrapped row would stop the area from being redrawn.",
         shape: &[],
     }],
-    ret: "Nothing. What was drawn is on screen, or was coalesced into the next frame — a program \
-          cannot observe which, and the last frame handed in is always painted before the region \
-          closes.",
+    ret: "Nothing. The rows are drawn now, or together with the next update. A program cannot \
+          tell which. The last rows given are always drawn before the area closes.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The handle's own region is not the one holding the terminal — it has closed, or an \
-               inner `Core\\Cli::live` is open inside it. A `Cli\\Live` is scoped to the call that \
-               made it and escaping one is a program bug.",
+        desc: "This area is not the active one on the terminal. It has closed, or an inner \
+               `Core\\Cli::live` is open inside it. A `Cli\\Live` belongs to the call that made \
+               it. Using it outside that call is a bug in the program.",
     }],
 };
 
 /// `Core\Cli::progress`'s reference card — `rule:core-api/reference-card`.
 const PROGRESS_DOC: MethodDoc = MethodDoc {
-    short: "Runs `$body` with a progress bar open on the terminal, and answers whatever `$body` \
-            answered. A closed, named behaviour over `live`'s general one: the region is a bar \
-            the runtime draws, so counting toward `$total` is all a program says.",
+    short: "Runs `$body` with a progress bar open on the terminal, and returns what `$body` \
+            returns. It is a special case of `live`. The runtime draws the bar, and the program \
+            only counts up to `$total`.",
     params: &[
         ParamDoc {
             name: "total",
-            desc: "How many units of work the bar is scaled to. A total of `0` is work already \
-                   done, and draws a full bar rather than refusing.",
+            desc: "The number of units of work for a full bar. A total of `0` means the work is \
+                   already done, and it draws a full bar.",
             shape: &[],
         },
         ParamDoc {
             name: "body",
-            desc: "The work to do while the bar is open. Its own return value is this member's.",
+            desc: "The work to do while the bar is open. Its return value is the return value of \
+                   this method.",
             shape: &[],
         },
     ],
-    ret: "Exactly what `$body` answered, at `$body`'s own type — `live`'s contract, since this is \
-          that member with a frame the runtime writes.",
+    ret: "Exactly what `$body` returned, with the same type, as for `live`.",
     errors: &[],
 };
 
@@ -934,22 +932,22 @@ const ADVANCE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "by",
-            desc: "How many units this step finished; omitted, one.",
+            desc: "How many units this step finished. The default is `1`.",
             shape: &[],
         },
         ParamDoc {
             name: "label",
-            desc: "The caption beside the bar, substituted as every other terminal write is; \
-                   omitted, the caption is left as it was.",
+            desc: "The caption next to the bar. Control bytes are replaced, as in every other \
+                   terminal write. Without it, the caption does not change.",
             shape: &[],
         },
     ],
-    ret: "Nothing. A bar past its total reads as complete rather than as more than complete, so \
-          a loop that miscounts draws a finished bar instead of a wrong one.",
+    ret: "Nothing. A count past the total shows a full bar. So a loop that counts too far draws \
+          a finished bar, not a broken one.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The handle's own region is not the one holding the terminal — it has closed, or an \
-               inner region is open inside it, exactly as `Core\\Cli\\Live::set` refuses.",
+        desc: "This bar is not the active area on the terminal. It has closed, or an inner area \
+               is open inside it. `Core\\Cli\\Live::set` throws for the same reasons.",
     }],
 };
 
@@ -970,21 +968,21 @@ pub(crate) const STREAM: CoreEnum = CoreEnum {
 
 /// [`STREAM`]'s reference card — `rule:core-api/reference-card`.
 const STREAM_DOC: EnumDoc = EnumDoc {
-    short: "One of the three standard streams a process begins with. It exists because \"is a \
-            terminal\" is always a question about one of them and never about the process.",
+    short: "One of the three standard streams a process starts with. Whether output goes to a \
+            terminal is always checked for one stream, not for the whole process.",
     cases: &[
         CaseDoc {
             name: "In",
-            desc: "Standard input — what a prompt reads and what a pipeline feeds.",
+            desc: "Standard input. Prompts read from it, and piped data arrives on it.",
         },
         CaseDoc {
             name: "Out",
-            desc: "Standard output — what `echo` writes, and the stream the colour depth is \
-                   decided for.",
+            desc: "Standard output. `echo` writes to it, and the colour depth is checked for it.",
         },
         CaseDoc {
             name: "Err",
-            desc: "Standard error — diagnostics, which stay visible when output is redirected.",
+            desc: "Standard error. It is for diagnostic messages, which stay visible when output \
+                   is redirected.",
         },
     ],
 };
@@ -1004,13 +1002,13 @@ pub(crate) const COLOR_DEPTH: CoreEnum = CoreEnum {
 
 /// [`COLOR_DEPTH`]'s reference card — `rule:core-api/reference-card`.
 const COLOR_DEPTH_DOC: EnumDoc = EnumDoc {
-    short: "How much colour standard output can show. The cases ascend, so a sink degrading to \
-            what a terminal has is a comparison rather than a lookup.",
+    short: "How much colour standard output can show. The cases are in increasing order, so you \
+            can compare two depths.",
     cases: &[
         CaseDoc {
             name: "None",
-            desc: "No colour at all — a pipe, a file, `NO_COLOR`, or `TERM=dumb`. Styling is \
-                   dropped entirely rather than approximated.",
+            desc: "No colour at all. This is the case for a pipe, a file, `NO_COLOR` or \
+                   `TERM=dumb`. All styling is removed.",
         },
         CaseDoc {
             name: "Ansi16",
@@ -1049,9 +1047,9 @@ pub(crate) const SHELL: CoreEnum = CoreEnum {
 
 /// [`SHELL`]'s reference card — `rule:core-api/reference-card`.
 const SHELL_DOC: EnumDoc = EnumDoc {
-    short: "Which shell `Core\\Command::completions` writes a completion script for. Four cases \
-            and no catch-all: a script is generated in the named shell's own syntax, so a case \
-            with no generator behind it would complete nothing.",
+    short: "Which shell `Core\\Command::completions` writes a completion script for. There are \
+            four cases and no case for other shells. Each script uses the syntax of its own \
+            shell, so each case needs its own generator.",
     cases: &[
         CaseDoc {
             name: "Bash",
@@ -1067,7 +1065,7 @@ const SHELL_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Pwsh",
-            desc: "PowerShell — 7 and Windows PowerShell alike, whose script calls \
+            desc: "PowerShell 7 and Windows PowerShell. The script calls \
                    `Register-ArgumentCompleter`.",
         },
     ],
@@ -2025,56 +2023,54 @@ pub(crate) const TEXT: CoreClass = CoreClass {
 
 /// `Core\Cli\Text::plain`'s reference card — `rule:core-api/reference-card`.
 const PLAIN_DOC: MethodDoc = MethodDoc {
-    short: "Answers `$text` as a `Core\\Cli\\Text`, with every control byte already replaced by the \
-            visible glyph `Core\\Cli::escape` gives it. This is the terminal sink's own carrier: \
-            `echo` writes a `Text` through unchanged, which is why the substitution happens here \
-            instead.",
+    short: "Returns `$text` as a `Core\\Cli\\Text`, with every control byte replaced by the \
+            visible symbol that `Core\\Cli::escape` gives it. `echo` writes a `Text` unchanged, \
+            so the replacement is made here.",
     params: &[ParamDoc {
         name: "text",
-        desc: "The text to carry. Its `tainted` qualifier is removed, for the same reason \
-               `Core\\Cli::escape` removes it: the terminal is the sink this neutralizes for, and \
-               nothing is left in the answer for it to act on.",
+        desc: "The text to convert. The result is not `tainted`, for the same reason as in \
+               `Core\\Cli::escape`. Nothing is left in it that could control the terminal.",
         shape: &[],
     }],
-    ret: "A `Core\\Cli\\Text` carrying the neutralized form. It composes with another `Text` and \
-          is written by `echo`; it carries no styling, which is `styled`'s.",
+    ret: "A `Core\\Cli\\Text` with the safe text. You can join it with another `Text`, and `echo` \
+          writes it. It has no styling. Use `styled` for styling.",
     errors: &[],
 };
 
 /// `Core\Cli\Text::text`'s reference card — `rule:core-api/reference-card`.
 const TEXT_TEXT_DOC: MethodDoc = MethodDoc {
-    short: "Answers what this `Core\\Cli\\Text` says, as a `string`, leaving its styling out: the \
-            text of every run joined, already control-byte-substituted. This is what a \
-            `Core\\Out::capture` filter reads before it writes a new carrier.",
+    short: "Returns the text of this `Core\\Cli\\Text` as a `string`, without its styling. The \
+            text of every styled part is joined, and its control bytes are already replaced. A \
+            `Core\\Out::capture` filter reads this before it writes a new `Text`.",
     params: &[],
-    ret: "The runs' own text, with no escape sequence in it that a `Cli\\Style` put there. It is \
-          safe to hand straight back to `plain` or `styled`, the terminal sink's substitution \
-          being idempotent.",
+    ret: "The text alone, with no escape sequences from a `Cli\\Style`. You can pass it straight \
+          back to `plain` or `styled`. Replacing the control bytes a second time does not change \
+          the text.",
     errors: &[],
 };
 
 /// `Core\Cli\Text::styled`'s reference card — `rule:core-api/reference-card`.
 const STYLED_DOC: MethodDoc = MethodDoc {
-    short: "Answers `$text` as a `Core\\Cli\\Text` wearing `$style`, with the text itself \
-            neutralized exactly as `plain` neutralizes it — so the only control bytes in the \
-            answer are the ones the style put there.",
+    short: "Returns `$text` as a `Core\\Cli\\Text` with `$style`. Control bytes in the text are \
+            replaced as in `plain`. So the only control bytes in the result are the ones from \
+            the style.",
     params: &[
         ParamDoc {
             name: "text",
-            desc: "The text to carry. Its `tainted` qualifier is removed for `plain`'s reason, \
-                   and an escape sequence inside it is substituted rather than obeyed.",
+            desc: "The text to convert. The result is not `tainted`, for the same reason as in \
+                   `plain`. An escape sequence in the text is replaced, so the terminal does not \
+                   act on it.",
             shape: &[],
         },
         ParamDoc {
             name: "style",
-            desc: "The style to wear, as a value — Novis has no markup or escape grammar to write \
-                   one in.",
+            desc: "The style to use, as a value. Novis has no markup or escape syntax for styles.",
             shape: &[],
         },
     ],
-    ret: "A `Core\\Cli\\Text` carrying the neutralized text between the style's own escape \
-          sequence and a reset. The styling is rendered for the terminal this process actually \
-          has, so it is absent entirely when standard output is not one.",
+    ret: "A `Core\\Cli\\Text` with the safe text between the style's escape sequence and a \
+          reset. The style is drawn for the terminal this process has. When standard output is \
+          not a terminal, there is no styling.",
     errors: &[],
 };
 
@@ -2535,15 +2531,15 @@ pub(crate) const COLOR: CoreClass = CoreClass {
 
 /// `Core\Cli\Color::index`'s reference card — `rule:core-api/reference-card`.
 const INDEX_DOC: MethodDoc = MethodDoc {
-    short: "A colour from the terminal's 256-entry palette, whose first sixteen entries are the \
-            named constants on this class.",
+    short: "Returns a colour from the terminal's 256-entry palette. The first sixteen entries are \
+            the named constants of this class.",
     params: &[ParamDoc {
         name: "index",
         desc: "The palette entry, `0` to `255`.",
         shape: &[],
     }],
-    ret: "The colour that entry names, which a terminal with a smaller palette renders as the \
-          nearest of the sixteen it has.",
+    ret: "The colour of that entry. A terminal with a smaller palette shows the nearest of its \
+          sixteen colours.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "`$index` is above `255`, which no palette has an entry for.",
@@ -2552,8 +2548,8 @@ const INDEX_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cli\Color::rgb`'s reference card — `rule:core-api/reference-card`.
 const RGB_DOC: MethodDoc = MethodDoc {
-    short: "A 24-bit colour, for the terminals that have one — the sixteen million members that \
-            are why this class is a value type and not an enum.",
+    short: "Returns a 24-bit colour, for terminals that can show one. There are about sixteen \
+            million such colours, so this class is a value type and not an enum.",
     params: &[
         ParamDoc {
             name: "red",
@@ -2571,8 +2567,8 @@ const RGB_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The colour, which is written as itself on a true-colour terminal and as the nearest \
-          palette entry on one without.",
+    ret: "The colour. A true-colour terminal shows it exactly. Other terminals show the nearest \
+          palette entry.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "A channel is above `255`.",
@@ -2762,17 +2758,17 @@ pub(crate) const STYLE: CoreClass = CoreClass {
 
 /// `Core\Cli\Style::of`'s reference card — `rule:core-api/reference-card`.
 const STYLE_OF_DOC: MethodDoc = MethodDoc {
-    short: "A style, as a value — the replacement for the `\"\\e[1;31m\"` string and the \
-            `\"<bold><red>\"` markup, neither of which Novis has a grammar for.",
+    short: "Creates a style as a value. Novis has no syntax for escape strings like \
+            `\"\\e[1;31m\"` or markup like `\"<bold><red>\"`, so you use this method instead.",
     params: &[
         ParamDoc {
             name: "color",
-            desc: "The foreground colour. Absent leaves the terminal's own.",
+            desc: "The foreground colour. Without it, the terminal's own colour is used.",
             shape: &[],
         },
         ParamDoc {
             name: "background",
-            desc: "The background colour. Absent leaves the terminal's own.",
+            desc: "The background colour. Without it, the terminal's own background is used.",
             shape: &[],
         },
         ParamDoc {
@@ -2787,7 +2783,7 @@ const STYLE_OF_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "italic",
-            desc: "Whether the text is italic, which a minority of terminals render.",
+            desc: "Whether the text is italic. Only some terminals show italic text.",
             shape: &[],
         },
         ParamDoc {
@@ -2801,8 +2797,7 @@ const STYLE_OF_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The style, which `Core\\Cli\\Text::styled` renders for the terminal this process \
-          actually has.",
+    ret: "The style. `Core\\Cli\\Text::styled` draws it for the terminal this process has.",
     errors: &[],
 };
 

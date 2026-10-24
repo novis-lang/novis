@@ -80,11 +80,12 @@ fn the_golden_for_str_length_matches_the_contract() {
             "params": [ { "name": "s", "type": "string", "qualifier": "neutral" } ],
             "returns": "uint",
             "doc": {
-                "short": "Counts the graphemes in `$s` — user-perceived characters, the unit \
-                          every `Core\\Str` member counts in — so a combining sequence counts \
-                          once and this is never a byte count.",
+                "short": "Counts the graphemes in `$s`. A grapheme is what a person counts as \
+                          one character, so a letter with a combining accent counts once. Every \
+                          `Core\\Str` function counts in graphemes. The result is never a byte \
+                          count.",
                 "params": [ { "name": "s", "desc": "The string to measure." } ],
-                "return": "The grapheme count; `0` for the empty string."
+                "return": "The number of graphemes. The empty string gives `0`."
             }
         })
     );
@@ -164,7 +165,7 @@ fn the_golden_for_order_matches_the_contract() {
                 "short": "The direction `Core\\Arr::sort` and `sortByKey` put elements in. It is \
                           the `{order: …}` option, and it is `Asc` when you leave it out.",
                 "cases": [
-                    { "name": "Asc", "desc": "Smallest first — what an omitted `{order: …}` means." },
+                    { "name": "Asc", "desc": "Smallest first. This is the default when `{order: …}` is left out." },
                     { "name": "Desc", "desc": "Largest first." }
                 ]
             }

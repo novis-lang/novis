@@ -290,13 +290,13 @@ Two functions and an enum, and the card says which function is meant:
 $ nvs agent show 'Core\Str::length'
 Core\Str::length(string $s): uint
 
-Counts the graphemes in `$s` — user-perceived characters, the unit every `Core\Str` member counts in — so a combining sequence counts once and this is never a byte count.
+Counts the graphemes in `$s`. A grapheme is what a person counts as one character, so a letter with a combining accent counts once. Every `Core\Str` function counts in graphemes. The result is never a byte count.
 
 params:
   $s  The string to measure.
 
 returns:
-  The grapheme count; `0` for the empty string.
+  The number of graphemes. The empty string gives `0`.
 ```
 
 Had it written the program first, `nvs check` would have stopped at the call. The free function

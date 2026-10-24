@@ -104,41 +104,42 @@ pub(crate) const METHOD: CoreEnum = CoreEnum {
 
 /// [`METHOD`]'s reference card — `rule:core-api/reference-card`.
 const METHOD_DOC: EnumDoc = EnumDoc {
-    short: "The closed set of HTTP verbs a `#[Route]` may be declared under and a request may \
-            carry — eight of them, safe ones first so that the four the CSRF check covers are \
-            the contiguous tail from `Post` on; `CONNECT` is deliberately absent.",
+    short: "The HTTP methods that a `#[Route]` can use and a request can have. There are eight, \
+            and `CONNECT` is not one of them. The safe methods come first. The four methods from \
+            `Post` on are the ones the CSRF check covers.",
     cases: &[
         CaseDoc {
             name: "Get",
-            desc: "Reads a resource; safe, so no CSRF check applies.",
+            desc: "Reads a resource. It is safe, so there is no CSRF check.",
         },
         CaseDoc {
             name: "Head",
-            desc: "`Get` without a response body; safe.",
+            desc: "The same as `Get`, without a response body. It is safe.",
         },
         CaseDoc {
             name: "Options",
-            desc: "Asks what a resource supports; safe.",
+            desc: "Checks what a resource supports. It is safe.",
         },
         CaseDoc {
             name: "Trace",
-            desc: "Echoes the request back; safe.",
+            desc: "Sends the request back to the client. It is safe.",
         },
         CaseDoc {
             name: "Post",
-            desc: "Submits data and may change state; the first of the CSRF-covered tail.",
+            desc: "Sends data and can change state. It is the first of the four methods the CSRF \
+                   check covers.",
         },
         CaseDoc {
             name: "Put",
-            desc: "Replaces a resource; CSRF-covered.",
+            desc: "Replaces a resource. The CSRF check covers it.",
         },
         CaseDoc {
             name: "Patch",
-            desc: "Changes a resource in place; CSRF-covered.",
+            desc: "Changes part of a resource. The CSRF check covers it.",
         },
         CaseDoc {
             name: "Delete",
-            desc: "Removes a resource; CSRF-covered.",
+            desc: "Deletes a resource. The CSRF check covers it.",
         },
     ],
 };
@@ -163,14 +164,14 @@ pub(crate) const AUDIENCE: CoreEnum = CoreEnum {
 
 /// [`AUDIENCE`]'s reference card — `rule:core-api/reference-card`.
 const AUDIENCE_DOC: EnumDoc = EnumDoc {
-    short: "The one access decision `Core` names for `#[Access(allow: …)]`: a route open to \
-            everyone is a name that resolves rather than a magic string, and the enum will not \
-            grow a second case, because a roster of access levels is an interpretation `Core` \
-            does not hold.",
+    short: "The one access value that `Core` gives for `#[Access(allow: …)]`. `Public` is for a \
+            route that is open to everyone. The compiler checks this name, so it is not a magic \
+            string. The enum will not get a second case, because `Core` does not define access \
+            levels.",
     cases: &[CaseDoc {
         name: "Public",
-        desc: "The route is open to every caller; every other decision is the application's own \
-               enum case or class constant.",
+        desc: "The route is open to everyone. For any other access rule, use an enum case or a \
+               class constant of your own program.",
     }],
 };
 

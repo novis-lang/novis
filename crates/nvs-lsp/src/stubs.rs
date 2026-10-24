@@ -808,24 +808,24 @@ mod tests {
 \n\
 namespace Core\\Http;\n\
 \n\
-/// The closed set of HTTP verbs a `#[Route]` may be declared under and a request may carry — eight of them, safe ones first so that the four the CSRF check covers are the contiguous tail from `Post` on; `CONNECT` is deliberately absent.\n\
+/// The HTTP methods that a `#[Route]` can use and a request can have. There are eight, and `CONNECT` is not one of them. The safe methods come first. The four methods from `Post` on are the ones the CSRF check covers.\n\
 enum Method: int\n\
 {\n\
-\x20   /// Reads a resource; safe, so no CSRF check applies.\n\
+\x20   /// Reads a resource. It is safe, so there is no CSRF check.\n\
 \x20   Get = 0,\n\
-\x20   /// `Get` without a response body; safe.\n\
+\x20   /// The same as `Get`, without a response body. It is safe.\n\
 \x20   Head = 1,\n\
-\x20   /// Asks what a resource supports; safe.\n\
+\x20   /// Checks what a resource supports. It is safe.\n\
 \x20   Options = 2,\n\
-\x20   /// Echoes the request back; safe.\n\
+\x20   /// Sends the request back to the client. It is safe.\n\
 \x20   Trace = 3,\n\
-\x20   /// Submits data and may change state; the first of the CSRF-covered tail.\n\
+\x20   /// Sends data and can change state. It is the first of the four methods the CSRF check covers.\n\
 \x20   Post = 4,\n\
-\x20   /// Replaces a resource; CSRF-covered.\n\
+\x20   /// Replaces a resource. The CSRF check covers it.\n\
 \x20   Put = 5,\n\
-\x20   /// Changes a resource in place; CSRF-covered.\n\
+\x20   /// Changes part of a resource. The CSRF check covers it.\n\
 \x20   Patch = 6,\n\
-\x20   /// Removes a resource; CSRF-covered.\n\
+\x20   /// Deletes a resource. The CSRF check covers it.\n\
 \x20   Delete = 7,\n\
 }\n"
         .replace("{version}", env!("CARGO_PKG_VERSION"));

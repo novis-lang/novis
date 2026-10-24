@@ -11,4 +11,4 @@ hover
 Core\Http\Method::Post
 ```
 
-Submits data and may change state; the first of the CSRF-covered tail.
+Sends data and can change state. It is the first of the four methods the CSRF check covers.

@@ -628,7 +628,7 @@ const ROUND_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::intDiv`'s reference card — `rule:core-api/reference-card`.
 const INT_DIV_DOC: MethodDoc = MethodDoc {
-    short: "Divides `$a` by `$b` and drops the remainder, so the result moves toward zero.",
+    short: "Divides `$a` by `$b` and removes the remainder. The result moves toward zero.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1294,7 +1294,8 @@ const ROUND_MODE_DOC: EnumDoc = EnumDoc {
         CaseDoc {
             name: "HalfEven",
             desc: "A value exactly halfway rounds to the even neighbour. This is banker's \
-                   rounding, and it does not build up a bias over many values.",
+                   rounding. Over many values, the rounding errors do not add up in one \
+                   direction.",
         },
         CaseDoc {
             name: "HalfOdd",
@@ -1302,12 +1303,14 @@ const ROUND_MODE_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Up",
-            desc: "Every value goes away from zero, tie or not — `ceil` for a positive number \
-                   and `floor` for a negative one, at any precision.",
+            desc: "Every value rounds away from zero, whether or not it is exactly halfway. \
+                   This is `ceil` for a positive number and `floor` for a negative one, at any \
+                   precision.",
         },
         CaseDoc {
             name: "Down",
-            desc: "Every value goes toward zero, tie or not — truncation, at any precision.",
+            desc: "Every value rounds toward zero, whether or not it is exactly halfway. This \
+                   is truncation, at any precision.",
         },
     ],
 };

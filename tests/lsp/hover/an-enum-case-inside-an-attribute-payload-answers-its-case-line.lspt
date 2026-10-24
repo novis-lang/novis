@@ -18,4 +18,4 @@ hover
 Core\Http\Method::Get
 ```
 
-Reads a resource; safe, so no CSRF check applies.
+Reads a resource. It is safe, so there is no CSRF check.
