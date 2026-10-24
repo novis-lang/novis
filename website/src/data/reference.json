@@ -1191,6 +1191,32 @@
     },
     {
       "area": "types",
+      "slug": "api-keyin",
+      "url": "/reference/types/api-keyin/",
+      "title": "Core\\Api\\KeyIn",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Api\\KeyIn",
+        "title": "Core\\Api\\KeyIn",
+        "examples": "types/Api-KeyIn"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "api-schemetype",
+      "url": "/reference/types/api-schemetype/",
+      "title": "Core\\Api\\SchemeType",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Api\\SchemeType",
+        "title": "Core\\Api\\SchemeType",
+        "examples": "types/Api-SchemeType"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
       "slug": "arr-order",
       "url": "/reference/types/arr-order/",
       "title": "Core\\Arr::Order",
