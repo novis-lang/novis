@@ -1193,6 +1193,7 @@ mod tests {
         let consts = crate::consts::build_const_table(&files);
         let attributes = crate::retrieval::AttributeTable::default();
         let deprecations = crate::deprecated::Deprecations::default();
+        let test_code = crate::test_code::TestCode::default();
         let mut env = Env {
             symbols: &module.symbols,
             aliases: &module.aliases,
@@ -1202,6 +1203,7 @@ mod tests {
             consts: &consts,
             attributes: &attributes,
             deprecations: &deprecations,
+            test_code: &test_code,
             grants: None,
             src: map.file(file),
             stmts: &stmts,

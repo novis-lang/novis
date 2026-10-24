@@ -205,6 +205,7 @@ pub mod signatures;
 /// all depend on. The path stays `nvs_types::string_lit` because that is where
 /// a reader of a checker diagnostic about a `\u{...}` codepoint looks first.
 pub use nvs_syntax::string_lit;
+mod test_code;
 pub mod test_hooks;
 mod test_inherit;
 pub mod testing;
@@ -428,6 +429,9 @@ pub(crate) struct Env<'a> {
     /// whole before any body is checked, for [`Self::attributes`]' reason: a
     /// use may be written above the declaration it names.
     pub deprecations: &'a crate::deprecated::Deprecations,
+    /// Every method that is test code (`rule:testing/tests-never-reach-a-build`). Built whole
+    /// before any body is checked, for [`Self::deprecations`]' reason.
+    pub test_code: &'a crate::test_code::TestCode,
     /// The `[capabilities]` block of the configuration the *compiling* machine
     /// read, or `None` where nothing read one — `rule:core-classes/db-compile-time-query-checking`'s "`nvs.toml` is read at boot on the machine that compiles",
     /// which is the only thing in front of this pass that is not the program.

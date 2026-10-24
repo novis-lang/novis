@@ -1562,6 +1562,15 @@ pub(crate) fn program_digest(files: &[nvs_types::ProgramFile<'_>]) -> Digest {
     content_hash(&bytes)
 }
 
+/// [`program_digest`] for the unit `nvs test` compiles, which lowers the test code `nvs run` and
+/// `nvs build` leave out (`rule:testing/tests-never-reach-a-build`). One program is two units, so it
+/// has two keys, and neither command loads the other one's artifact.
+pub(crate) fn test_program_digest(files: &[nvs_types::ProgramFile<'_>]) -> Digest {
+    let mut bytes = b"nvs test\0".to_vec();
+    bytes.extend_from_slice(program_digest(files).as_bytes());
+    content_hash(&bytes)
+}
+
 /// Each file's own content hash, in the same order — what `rule:programs/no-runtime-autoload`'s program id combines, where
 /// [`program_digest`] folds the same graph into the one digest a cache key needs.
 ///

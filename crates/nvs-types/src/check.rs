@@ -149,6 +149,7 @@ pub fn check_program_loaded(
     // answer differently depending on source order.
     let attributes = crate::retrieval::build_attribute_table(files);
     let deprecations = crate::deprecated::build_table(files);
+    let test_code = crate::test_code::build_table(files);
     // Threaded across the files rather than restarted at each: an `rule:types/anonymous-function`
     // anonymous function at file scope is labelled `Script$fn<n>`, with no
     // declaring class to disambiguate it, so a counter that restarted per
@@ -191,6 +192,7 @@ pub fn check_program_loaded(
             consts: &consts,
             attributes: &attributes,
             deprecations: &deprecations,
+            test_code: &test_code,
             grants,
             src: file.src,
             stmts: file.stmts,
@@ -927,6 +929,11 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         .map(|class| format!("{class}::{}", span_text(env.src, m.name)));
     if let Some(label) = &label {
         env.exprs.record_method(m.name, label.clone());
+        if let Some(class) = ctx.current_class
+            && env.test_code.contains(class, span_text(env.src, m.name))
+        {
+            env.exprs.record_test_code(label.clone());
+        }
     }
     if let Some(class) = ctx.current_class {
         crate::deprecated::record_entry(class, span_text(env.src, m.name), m.name, env);

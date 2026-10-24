@@ -4962,3 +4962,104 @@ string $name = \"ci\" . \"ty\";
     assert_eq!(phis(&written), 0, "{written}");
     assert!(phis(&computed) > 0, "{computed}");
 }
+
+/// `rule:testing/tests-never-reach-a-build`: the program `nvs run` lowers has no function and no
+/// method-table row for a `#[Test]`, a `#[Fixture]` or a class hook, and keeps every other method
+/// of the class that declares them. The program `nvs test` lowers has all of them.
+#[test]
+fn a_run_lowers_no_test_code_and_a_test_run_lowers_all_of_it() {
+    let src = "<?nvs
+use Core\\Test;
+use Core\\Test\\Fixture;
+use Core\\Test\\AfterEachTest;
+
+final class Cart {
+    public function total(): int { return 0; }
+}
+
+final class CartTest {
+    #[Fixture]
+    public static function cart(): Cart { return new Cart(); }
+
+    #[Test]
+    public function anEmptyCartCostsNothing(Cart $cart): void {
+        Test::assertSame(0, $this->expected());
+    }
+
+    #[AfterEachTest]
+    public function clean(): void {}
+
+    private function expected(): int { return 0; }
+}
+";
+    let mut map = SourceMap::new();
+    let file = map.add("t.nvs", src);
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(file), &mut diags);
+    let module = nvs_hir::resolve_file(&stmts, map.file(file), &mut diags);
+    let mut checked_types = TypeInterner::new();
+    let mut exprs = ExprTypeTable::new();
+    let files = [nvs_types::ProgramFile {
+        src: map.file(file),
+        stmts: &stmts,
+    }];
+    let enums =
+        nvs_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
+    assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
+    let layouts = nvs_types::layout::build_class_layouts(&files, &module.graph);
+    let lower = |tests| {
+        lower_program_as(
+            "<script>",
+            &files,
+            &exprs,
+            &checked_types,
+            &enums,
+            &layouts,
+            tests,
+        )
+    };
+    let test_code = [
+        "CartTest::cart",
+        "CartTest::anEmptyCartCostsNothing",
+        "CartTest::clean",
+    ];
+    let kept = ["Cart::total", "CartTest::expected"];
+    let names = |program: &crate::ir::Program| -> Vec<String> {
+        program.functions.iter().map(|f| f.name.clone()).collect()
+    };
+    let rows = |program: &crate::ir::Program| -> Vec<String> {
+        let class = program
+            .classes
+            .iter()
+            .find(|c| c.label == "CartTest")
+            .expect("the test class has a layout");
+        class
+            .methods
+            .iter()
+            .map(|(name, owner, ..)| format!("{owner}::{name}"))
+            .collect()
+    };
+
+    let run = lower(Tests::Omit);
+    for label in test_code {
+        assert!(
+            !names(&run).iter().any(|n| n == label),
+            "{label} was lowered"
+        );
+        assert!(!rows(&run).iter().any(|n| n == label), "{label} has a row");
+    }
+    for label in kept {
+        assert!(names(&run).iter().any(|n| n == label), "{label} is missing");
+    }
+
+    let test = lower(Tests::Lower);
+    for label in test_code.iter().chain(&kept) {
+        assert!(
+            names(&test).iter().any(|n| n == label),
+            "{label} is missing"
+        );
+    }
+    for label in test_code {
+        assert!(rows(&test).iter().any(|n| n == label), "{label} has no row");
+    }
+}

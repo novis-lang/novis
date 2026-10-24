@@ -1550,6 +1550,7 @@ pub struct ExprTypeTable {
     tests: FxHashMap<String, Vec<crate::testing::TestCase>>,
     fixtures: FxHashMap<String, Vec<crate::testing::Fixture>>,
     test_hooks: FxHashMap<String, crate::test_hooks::TestHooks>,
+    test_code: FxHashSet<String>,
     test_lineages: Vec<(String, Vec<String>)>,
     inline_snapshots: Vec<crate::testing::InlineSnapshot>,
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
@@ -2205,6 +2206,21 @@ impl ExprTypeTable {
     #[must_use]
     pub fn test_hooks(&self, label: &str) -> Option<&crate::test_hooks::TestHooks> {
         self.test_hooks.get(label)
+    }
+
+    /// Records that the method labelled `label` is test code
+    /// (`rule:testing/tests-never-reach-a-build`): it carries `#[Test]`, `#[Fixture]` or one of
+    /// the class hooks.
+    pub(crate) fn record_test_code(&mut self, label: String) {
+        self.test_code.insert(label);
+    }
+
+    /// Whether the method labelled `label` is test code, which `nvs run` and `nvs build` do not
+    /// lower. Keyed by the method's `Class::method` label, the one
+    /// [`Self::method_label`] answers for its declaration.
+    #[must_use]
+    pub fn is_test_code(&self, label: &str) -> bool {
+        self.test_code.contains(label)
     }
 
     /// Records that the class labelled `label` inherits a marked method from

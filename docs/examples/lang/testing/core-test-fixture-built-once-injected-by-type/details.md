@@ -16,5 +16,5 @@ other tests of the class still run.
 
 A variadic or `inout` parameter on a test method is `E0733`.
 
-A fixture method is an ordinary `static` method. Other code may call it, and `nvs run` runs it like
-any other method.
+A fixture method is test code, like a test method. Only a test, a fixture or a class hook may call
+it. A call from other code is the compile error `E0889`. `nvs run` and `nvs build` do not compile it.

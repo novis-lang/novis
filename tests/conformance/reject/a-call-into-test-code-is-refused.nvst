@@ -1,0 +1,56 @@
+--TEST--
+code that is not a test cannot call a `#[Test]`, a `#[Fixture]` or a class hook, because `nvs run` and `nvs build` compile none of them (`rule:testing/tests-never-reach-a-build`), and a type error inside a test is still reported
+--FILE--
+<?nvs
+use Core\Test;
+use Core\Test\Fixture;
+use Core\Test\BeforeClass;
+
+final class Cart {
+    public function total(): int { return 0; }
+}
+
+final class CartTest {
+    #[Fixture]
+    public static function cart(): Cart { return new Cart(); }
+
+    #[BeforeClass]
+    public static function prepare(): void {}
+
+    // A test may call a fixture, a hook and another test, and so may a
+    // function written inside one.
+    #[Test]
+    public function anEmptyCartCostsNothing(Cart $cart): void {
+        self::prepare();
+        var $again = fn(): Cart => self::cart();
+        Test::assertSame(0, $again()->total());
+    }
+
+    // A test is still type-checked.
+    #[Test]
+    public function aTotalIsAnInt(Cart $cart): void {
+        string $total = $cart->total();
+        Test::assertSame("0", $total);
+    }
+
+    // The class's other methods are not test code, so they cannot call it.
+    public function helper(): Cart {
+        return self::cart();
+    }
+}
+
+// Neither can the program itself.
+CartTest::prepare();
+echo (new CartTest())->helper()->total();
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `int`
+   --> case.nvs:29:25
+%A
+error[E0889]: `CartTest::cart` is test code, so only a test can call it
+   --> case.nvs:35:16
+%A
+error[E0889]: `CartTest::prepare` is test code, so only a test can call it
+   --> case.nvs:40:1
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
