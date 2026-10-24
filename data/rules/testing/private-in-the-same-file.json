@@ -1,10 +1,11 @@
 {
   "title": "A test reaches `private` members of classes declared in its own file, and nowhere else",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/test-attribute",
     "testing/tests-never-reach-a-build"
   ],
-  "guardedBy": [],
-  "goal": "test-surface"
+  "guardedBy": [
+    "crates/nvs-types/tests/visibility.rs"
+  ]
 }

@@ -1138,6 +1138,7 @@ fn collect_stmts(
                     generator_elem: None,
                     in_constructor: false,
                     in_anon_fn: false,
+                    in_test_code: false,
                 };
                 // Before the members: `rule:iteration/concrete-generic-implements`'s type arguments are part
                 // of the declaration's own shape, not of any one member's.
@@ -1160,6 +1161,7 @@ fn collect_stmts(
                     generator_elem: None,
                     in_constructor: false,
                     in_anon_fn: false,
+                    in_test_code: false,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
@@ -1173,6 +1175,7 @@ fn collect_stmts(
                     generator_elem: None,
                     in_constructor: false,
                     in_anon_fn: false,
+                    in_test_code: false,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
@@ -2143,6 +2146,29 @@ pub fn is_visible_from(
         Visibility::Protected => accessing
             .is_some_and(|from| from == owner || nvs_hir::implements_interface(from, owner, graph)),
     }
+}
+
+/// [`is_visible_from`] for the body `ctx` is checking, which also admits test code reaching a
+/// `private` or `protected` member of a class declared in the file being checked
+/// (`rule:testing/private-in-the-same-file`).
+///
+/// The file is the one that declares `owner`, read off its symbol, so a test in another file is
+/// held to the public contract even where it extends the class. A non-test method in the same
+/// file is held to [`is_visible_from`] alone. Test code never reaches a build
+/// (`rule:testing/tests-never-reach-a-build`), so what it is admitted to here is never reachable
+/// from a request.
+pub(crate) fn is_visible_here(
+    level: Visibility,
+    owner: &QName,
+    ctx: &crate::Ctx<'_>,
+    env: &Env<'_>,
+) -> bool {
+    is_visible_from(level, owner, ctx.current_class, env.graph)
+        || (ctx.in_test_code
+            && env
+                .symbols
+                .get(owner)
+                .is_some_and(|symbol| symbol.decl_span.file == env.src.id()))
 }
 
 /// Which `rule:classes/property-hooks` hooks the property `owner::$name` declares — `owner`

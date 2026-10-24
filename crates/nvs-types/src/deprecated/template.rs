@@ -464,6 +464,7 @@ fn compile(
         in_constructor: false,
         generator_elem: None,
         in_anon_fn: false,
+        in_test_code: ctx.in_test_code,
     };
     let mut scope = LocalScope::new();
     let mut live = Live::default();

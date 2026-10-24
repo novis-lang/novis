@@ -136,6 +136,7 @@ fn site_ctx(scope: &Scope) -> Ctx<'_> {
         current_hook: None,
         in_constructor: false,
         in_anon_fn: false,
+        in_test_code: false,
         generator_elem: None,
     }
 }

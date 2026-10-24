@@ -108,6 +108,7 @@ pub(crate) fn in_alias_site<'e, R>(
         in_constructor: false,
         generator_elem: None,
         in_anon_fn: false,
+        in_test_code: false,
     };
     let files = env.files;
     let Some(file) = files.iter().find(|file| file.src.id() == span.file) else {
@@ -1182,6 +1183,7 @@ mod tests {
             generator_elem: None,
             in_constructor: false,
             in_anon_fn: false,
+            in_test_code: false,
         };
         let signatures = crate::signatures::SignatureTable::new();
         let mut exprs = crate::expr_table::ExprTypeTable::new();

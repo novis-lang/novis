@@ -2401,7 +2401,7 @@ fn check_union_property(
             return env.interner.error();
         };
         let level = crate::signatures::property_visibility(&owner, name, env.signatures);
-        if !crate::signatures::is_visible_from(level, &owner, ctx.current_class, env.graph) {
+        if !crate::signatures::is_visible_here(level, &owner, ctx, env) {
             let level = visibility_word(level);
             let message = format!("`{owner}::${name}` is {level}, so it is not visible here");
             report_union_member_not_shared(span, union, message, env);
@@ -2639,11 +2639,11 @@ pub(crate) fn check_member_visibility(
 ) {
     use nvs_syntax::ast::Visibility;
 
-    if crate::signatures::is_visible_from(level, owner, ctx.current_class, env.graph) {
+    if crate::signatures::is_visible_here(level, owner, ctx, env) {
         return;
     }
     let (word, reach) = match level {
-        // Unreachable — `is_visible_from` answered `true` above — but written
+        // Unreachable — `is_visible_here` answered `true` above — but written
         // as an arm rather than an `unreachable!` so adding a fourth level is
         // a compile error here instead of a panic in a request.
         Visibility::Public => return,

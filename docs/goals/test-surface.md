@@ -20,7 +20,7 @@ stages:
         rules: [testing/a-test-has-a-wall-time-limit, testing/tags-and-shards-select-what-runs, testing/test-attribute, errors/on-limit]
   - id: 2
     title: a test reaches `private` members of classes in its own file
-    status: open
+    status: done
     context: [crates/nvs-types/src/signatures.rs, crates/nvs-types/src/testing.rs, docs/rules/testing/private-in-the-same-file.md]
     extra:
       context:
@@ -190,11 +190,11 @@ example with `timeout` and `tags`.
 
 **Does:** visibility admits a test method that is declared in the same file as the member's class.
 
-- [ ] The visibility check knows whether the accessing method is a test and which file declares it. `crates/nvs-types/src/signatures.rs:1741`
-- [ ] A test in the same file reaches `private` and `protected` members, and a test in another file does not (`rule:testing/private-in-the-same-file`). `crates/nvs-types/src/signatures.rs:1741`
-- [ ] The same access from a non-test method in that file is still refused. `crates/nvs-types/src/signatures.rs:1741`
-- [ ] Tests for all three. `crates/nvs-types/src/signatures.rs:1741`
-- [ ] The rule `shipped`. `data/rules/testing/private-in-the-same-file.json:3`
+- [x] The visibility check knows whether the accessing method is a test and which file declares it. `crates/nvs-types/src/signatures.rs:2160`
+- [x] A test in the same file reaches `private` and `protected` members, and a test in another file does not (`rule:testing/private-in-the-same-file`). `crates/nvs-types/src/signatures.rs:2160`
+- [x] The same access from a non-test method in that file is still refused. `crates/nvs-types/src/signatures.rs:2160`
+- [x] Tests for all three. `crates/nvs-types/tests/visibility.rs:1`
+- [x] The rule `shipped`. `data/rules/testing/private-in-the-same-file.json:3`
 
 ### 3. `#[Property]` is recognized, and its inputs are generated from the declared types
 
@@ -274,30 +274,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 5 are done. Stage 5's example is `06-a-time-limit-for-one-test.nvs` and
-`07-tags-select-which-tests-run.nvs` under `docs/examples/lang/testing/test-options/`, written
-inline: two files did not need the subagent the split line names. `about.md` and `details.md` name
-`timeout:` and `tags:`, and the two `syntax/testing/` site pages are stamped. Stage 1's `E0889`
-broke six `lang:testing` benches and four attacks, which called a test method from non-test code.
-`063c70f8c` moves each test body into a plain method that both call. The eight `lang:testing` perf
-figures are measured, and `3e19818f4` committed them. The sweep's `env-secret-proofs` and nightly CI
-findings were stale: CI ran on `3ea6f1550`, before their fixes, and the check now exits 0.
+Stages 1, 5 and 2 are done. Stage 2 adds `Ctx::in_test_code`, set in `check_method` from
+`env.test_code` and inherited by an anonymous function. `signatures::is_visible_here` admits test
+code reaching a member of a class whose symbol is declared in the file being checked. Its three
+callers are `expr/members.rs`'s two checks and `expr/calls.rs`'s union-method check. "Test code" is
+all five markers, so a fixture is admitted too. The rule fragment says so and declines a
+`#[VisibleForTesting]` attribute. Four new cases in `crates/nvs-types/tests/visibility.rs` pass, and
+an end-to-end `nvs test` over a same-file test that reads and writes `private` members passed.
+`1ea5e92f8` commits a `cargo fmt` fix to `runner.rs` that stage 5 left, which CI's `lint` job
+would have failed on. The sweep's `env-secret-proofs` and nightly CI findings were stale. CI ran on
+`3ea6f1550`, before `10c402b57` (crypto-bigint 0.7.6) and the Miri fixes `a5f50b907` and
+`220cb82b7`, and the check log now shows exit 0.
 
 Tests that may go red at the gate: any `nvs-host` `group.rs` or `nvs-stdlib` `test.rs` unit test
 that reads `take_assertions` on a context no test owns (call `set_owned_by_test` first), and any
 `.nvst` whose non-test code calls a test, a fixture or a hook (now `E0889`). Every example, bench
 and attack outside `.nvst` already passes `nvs check` for it. A recorded editor listing or a
 help-text snapshot that prints `nvs test --help` gains `--tag`, `--skip-tag` and `--shard`. The
-site's rendered attributes reference may need re-rendering for the two new options.
+site's rendered attributes reference may need re-rendering for the two new options. No
+conformance case that expects `E0471` (member not visible) has a test method, so stage 2 should
+turn none of them red.
 
 ### Next
 
-**Stage 2: a test reaches `private` members in its own file.** Its lane is `signatures.rs`, apart
-from the runner's.
+**Stage 3: `#[Property]` is recognized, and its inputs are generated from the declared types.**
+Its lane is `derive.rs` and `testing.rs`, apart from the runner's. The feature id and folder are in
+§ *Standing decisions*.
 
-- [ ] Find where member visibility is judged and what it knows about the accessing method. `crates/nvs-types/src/signatures.rs:1741`
-- [ ] Admit a test method declared in the member's own file (`rule:testing/private-in-the-same-file`). `docs/rules/testing/private-in-the-same-file.md:1`
-- [ ] Tests: same file is admitted, another file and a non-test method in the same file are refused. `crates/nvs-types/src/signatures.rs:1741`
+- [ ] Read `rule:testing/property-testing` and the recognized roster's `#[Test]` row. `docs/rules/testing/property-testing.md:1`, `crates/nvs-types/src/derive.rs:73`
+- [ ] `#[Property]` joins the roster with its card and options, `gen:` among them. `crates/nvs-types/src/derive.rs:191`, `crates/nvs-types/src/testing.rs:231`
+- [ ] Generators from declared types by the codec's walk, with a `string` that includes grapheme clusters. `crates/nvs-types/src/derive.rs:749`
+- [ ] Rust tests: one generator per scalar, a user class, a grapheme-cluster `string`, a fixed seed giving the same inputs. `crates/nvs-types/src/derive.rs:749`
 
 ### Backlog
 

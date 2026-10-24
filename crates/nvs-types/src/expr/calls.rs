@@ -345,12 +345,7 @@ fn infer_union_method_call(
             break;
         };
         if sig.interface_private
-            || !crate::signatures::is_visible_from(
-                sig.visibility,
-                &owner,
-                ctx.current_class,
-                env.graph,
-            )
+            || !crate::signatures::is_visible_here(sig.visibility, &owner, ctx, env)
         {
             let level = visibility_word(sig.visibility);
             problem = Some(format!(
@@ -2798,6 +2793,7 @@ pub(crate) fn check_anon_fn(
         // holds is not proven to happen during construction (`rule:classes/lateinit-restrictions`).
         in_constructor: false,
         in_anon_fn: true,
+        in_test_code: ctx.in_test_code,
     };
     // An anonymous function's body is its own function: an enclosing loop's `break`
     // targets are not reachable from inside it, so the two counters

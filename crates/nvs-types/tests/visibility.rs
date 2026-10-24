@@ -250,3 +250,39 @@ fn a_private_interface_method_is_refused_once_by_its_own_diagnostic() {
         "{diags:?}"
     );
 }
+
+/// `rule:testing/private-in-the-same-file`'s class under test: one `private` and one
+/// `protected` member of each kind.
+const VAULT: &str = "class Vault {\n  private int $balance = 3;\n  protected int $limit = 9;\n  private function audit(): int { return $this->balance; }\n  protected static function cap(): int { return 9; }\n}\n";
+
+fn not_visible(diags: &nvs_diagnostics::Diagnostics) -> usize {
+    diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_MEMBER_NOT_VISIBLE))
+        .count()
+}
+
+#[test]
+fn a_test_reaches_private_and_protected_members_of_a_class_in_its_own_file() {
+    let diags = check_src(&format!(
+        "<?nvs\nuse Core\\Test;\n{VAULT}class VaultTest {{\n  #[Test]\n  public function reads(): void {{\n    Vault $v = new Vault();\n    int $sum = $v->balance + $v->limit + $v->audit() + Vault::cap();\n    var $later = fn(): int => $v->audit();\n  }}\n}}\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_method_that_is_not_a_test_is_refused_in_the_same_file() {
+    let diags = check_src(&format!(
+        "<?nvs\nuse Core\\Test;\n{VAULT}class VaultTest {{\n  #[Test]\n  public function reads(): void {{}}\n  public function helper(Vault $v): int {{\n    return $v->balance + $v->limit + $v->audit() + Vault::cap();\n  }}\n}}\n"
+    ));
+    assert_eq!(not_visible(&diags), 4, "{diags:?}");
+}
+
+#[test]
+fn a_test_in_another_file_is_held_to_the_public_contract() {
+    let vault = format!("<?nvs\nnamespace Shop;\n{VAULT}");
+    let test = "<?nvs\nnamespace Shop;\nrequire './vault.nvs';\nuse Core\\Test;\nclass VaultTest {\n  #[Test]\n  public function reads(): void {\n    Vault $v = new Vault();\n    int $sum = $v->balance + $v->limit + $v->audit() + Vault::cap();\n  }\n}\n";
+    let (diags, _) =
+        common::check_program_table(&[("vault_test.nvs", test), ("vault.nvs", &vault)]);
+    assert_eq!(not_visible(&diags), 4, "{diags:?}");
+}
