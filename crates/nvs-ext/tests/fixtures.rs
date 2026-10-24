@@ -23,6 +23,9 @@
 //! loader reads; `writeLine` takes a sink parameter, `fetch` returns a source, `fail` returns each
 //! `err` case and `crash` traps.
 //!
+//! `Shop\Meter` has one method, `spin`, which runs a busy loop until the monotonic clock has moved
+//! the milliseconds it is given. A test of a CPU budget calls it to spend a known time in a guest.
+//!
 //! A fixture whose directory has a `refused.txt` is one whose manifest must not load, and that file
 //! is the refusal the loader gives. The packer parses a manifest before it writes one, so such a
 //! fixture is packed with a stand-in naming only its world, class and interface, and its own

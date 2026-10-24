@@ -214,6 +214,54 @@ fn every_core_nvs_test_starts_calls_a_built_in_extension() {
     }
 }
 
+/// Each test's extension calls are charged to the test's own CPU budget. Two tests each spin the
+/// fixture guest `meter` for 600 ms under `[limits] cpu_time = "1s"` and `--jobs 1`, so together
+/// they spend more than one budget, and both pass. A budget the second test shared with the first
+/// would stop it at the limit.
+#[test]
+fn each_nvs_test_test_spends_its_own_extension_cpu_budget() {
+    let dir = scratch("extension-budget");
+    let fixtures = nvs_repo::path("tests/conformance/ext/fixtures");
+    fs::copy(fixtures.join("meter.nvsx"), dir.join("meter.nvsx")).expect("the fixture is copied");
+    let pin = fs::read_to_string(fixtures.join("meter.sha256")).expect("the fixture's pin");
+    fs::write(
+        dir.join("nvs.toml"),
+        format!(
+            "[limits]\ncpu_time = \"1s\"\n\n[[extension]]\npath = 'meter.nvsx'\nsha256 = \"{}\"\n",
+            pin.trim()
+        ),
+    )
+    .unwrap();
+    fs::write(
+        dir.join("meter_test.nvs"),
+        "<?nvs
+use Core\\Test;
+use Shop\\Meter;
+
+final class MeterTest {
+    #[Test]
+    public function spinsFirst(): void {
+        Meter::spin(600);
+        Test::assertTrue(true);
+    }
+
+    #[Test]
+    public function spinsSecond(): void {
+        Meter::spin(600);
+        Test::assertTrue(true);
+    }
+}
+",
+    )
+    .unwrap();
+
+    let out = test_in(&dir, &["--jobs", "1", "meter_test.nvs"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{stdout}{stderr}");
+    assert!(stdout.contains("0 failed, 2 passed"), "{stdout}{stderr}");
+}
+
 /// `nvs test` has no `--php` flag: no case is compared against another
 /// language, so the flag is refused like any other it does not know, and no
 /// case runs.
