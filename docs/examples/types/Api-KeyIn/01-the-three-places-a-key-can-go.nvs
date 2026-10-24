@@ -1,0 +1,27 @@
+<?nvs
+// Shows the three places where a client can send an API key.
+
+// This scheme says that a client sends its key in a header named `X-Api-Key`.
+#[Core\Api\Scheme(name: "key", type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Header, parameter: "X-Api-Key")]
+class Auth {}
+
+class Places {
+    // Returns one line that tells a client how to send a key named `$parameter`.
+    public static function howToSend(Core\Api\KeyIn $in, string $parameter): string {
+        return match ($in) {
+            Core\Api\KeyIn::Query => "add ?" . $parameter . "=... to the URL",
+            Core\Api\KeyIn::Header => "send the header " . $parameter . ": ...",
+            Core\Api\KeyIn::Cookie => "send the cookie " . $parameter . "=...",
+        };
+    }
+}
+
+array<Core\Api\KeyIn> $everywhere = [
+    Core\Api\KeyIn::Query,
+    Core\Api\KeyIn::Header,
+    Core\Api\KeyIn::Cookie,
+];
+
+foreach ($everywhere as Core\Api\KeyIn $in) {
+    echo Places::howToSend($in, "shop_key"), "\n";
+}

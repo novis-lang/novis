@@ -1,0 +1,72 @@
+--TEST--
+`Core\Api\SchemeType` has the five cases OpenAPI 3.1 lists, an `#[Api\Scheme]` of each kind compiles with the fields that kind needs, and a case is an ordinary value outside the attribute — `rule:routing/a-security-scheme-is-declared-in-code`
+--FILE--
+<?nvs
+// covers: Core\Api\SchemeType
+// One scheme of each kind, each with exactly the fields its kind needs. A
+// missing or extra field would be E0888, so this file compiling is the check.
+#[Core\Api\Scheme(name: "key", type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Header, parameter: "X-Api-Key")]
+#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer", format: "JWT")]
+#[Core\Api\Scheme(name: "basic", type: Core\Api\SchemeType::Http, scheme: "basic")]
+#[Core\Api\Scheme(name: "certificate", type: Core\Api\SchemeType::MutualTls)]
+#[Core\Api\Scheme(
+    name: "login",
+    type: Core\Api\SchemeType::OAuth2,
+    flows: {clientCredentials: {tokenUrl: "https://example.com/token", scopes: []}},
+)]
+#[Core\Api\Scheme(name: "openid", type: Core\Api\SchemeType::OpenIdConnect, url: "https://example.com/.well-known/openid-configuration")]
+class Auth {}
+
+class Orders
+{
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(security: ["key", "bearer", "basic", "certificate", "login", "openid"])]
+    public function list(): string
+    {
+        return "orders";
+    }
+}
+
+class Kinds
+{
+    // The match is exhaustive with no default arm, so a sixth case would not compile.
+    public static function label(Core\Api\SchemeType $type): string
+    {
+        return match ($type) {
+            Core\Api\SchemeType::ApiKey => "apiKey",
+            Core\Api\SchemeType::Http => "http",
+            Core\Api\SchemeType::MutualTls => "mutualTLS",
+            Core\Api\SchemeType::OAuth2 => "oauth2",
+            Core\Api\SchemeType::OpenIdConnect => "openIdConnect",
+        };
+    }
+}
+
+array<Core\Api\SchemeType> $all = [
+    Core\Api\SchemeType::ApiKey,
+    Core\Api\SchemeType::Http,
+    Core\Api\SchemeType::MutualTls,
+    Core\Api\SchemeType::OAuth2,
+    Core\Api\SchemeType::OpenIdConnect,
+];
+foreach ($all as Core\Api\SchemeType $type) {
+    echo Kinds::label($type), "\n";
+}
+
+// Cases compare by identity.
+Core\Api\SchemeType $picked = Core\Api\SchemeType::Http;
+echo $picked == Core\Api\SchemeType::Http ? "same" : "different", "\n";
+echo $picked == Core\Api\SchemeType::ApiKey ? "same" : "different", "\n";
+
+// The schemes describe; the route runs the same with them declared.
+echo (new Orders())->list(), "\n";
+--EXPECT--
+apiKey
+http
+mutualTLS
+oauth2
+openIdConnect
+same
+different
+orders
