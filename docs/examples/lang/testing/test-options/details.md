@@ -1,5 +1,5 @@
 The options are `skip: string`, `at: string`, `seed: int`, `retries: int`, `because: string`,
-`db: string` and `server: bool`. An option with another name is `E0454`, and its help lists them. A
+`db: string`, `server: bool`, `timeout: string` and `tags: array<string>`. An option with another name is `E0454`, and its help lists them. A
 value of the wrong type is `E0401`, so `skip: true` does not compile. An option given twice is
 `E0304`.
 

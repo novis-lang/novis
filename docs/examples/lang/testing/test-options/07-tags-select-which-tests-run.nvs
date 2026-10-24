@@ -1,0 +1,41 @@
+<?nvs
+// Shows how to label tests with `tags:`. `nvs test --tag db` runs only the tests
+// labelled `db`, and `nvs test --skip-tag slow` runs every test except the slow ones.
+// proof: test
+
+use Core\Test;
+
+class Order {
+    public static function withShipping(int $cents): int {
+        return $cents + 500;
+    }
+}
+
+class OrderTest {
+    // A test without `tags:` runs when no `--tag` is given.
+    #[Test]
+    public function itAddsTheShippingCost(): void {
+        Test::assertSame(Order::withShipping(1000), 1500);
+    }
+
+    // A test may have several tags. `--tag db` and `--tag slow` both select it.
+    #[Test(tags: ["db", "slow"])]
+    public function itAddsShippingToEveryStoredOrder(): void {
+        array<int> $stored = [500, 1000, 2500];
+        int $total = 0;
+        foreach ($stored as int $cents) {
+            $total = $total + Order::withShipping($cents);
+        }
+        Test::assertSame($total, 5500);
+    }
+
+    // `--skip-tag slow` leaves out this test.
+    #[Test(tags: ["slow"])]
+    public function itAddsShippingToAMillionOrders(): void {
+        int $total = 0;
+        for (int $i = 0; $i < 1000000; $i++) {
+            $total = $total + Order::withShipping(100);
+        }
+        Test::assertSame($total, 600000000);
+    }
+}
