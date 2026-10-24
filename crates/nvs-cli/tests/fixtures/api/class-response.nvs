@@ -1,0 +1,111 @@
+<?nvs
+// The response schemas the declared return type gives: a class with a JSON
+// codec, an `errors` entry's class, a `?T`, an `array<T>` and an enum.
+//
+// `Article`'s codec skips `cache` and `secret`, so neither reaches the
+// document. `owner` is private and is still a field, because the codec writes
+// it. `author` is another class with a codec, so it is an entry of its own.
+
+enum Status: uint { Draft = 1, Published = 2 }
+
+#[Core\Json\Derive]
+class Author
+{
+    public string $name;
+
+    public function constructor(string $name)
+    {
+        $this->name = $name;
+    }
+}
+
+#[Core\Json\Derive]
+class Article
+{
+    public string $title;
+    #[Core\Json\Field(name: "word_count")]
+    public uint $words;
+    public ?string $subtitle;
+    public array<string> $labels;
+    public Status $status;
+    public Author $author;
+    private string $owner;
+    public int $rank;
+    #[Core\Json\Field(skip: true)]
+    public int $cache;
+    #[Core\Json\Field(skip: true)]
+    private string $secret;
+
+    public function constructor(
+        string $title,
+        uint $words,
+        ?string $subtitle,
+        array<string> $labels,
+        Status $status,
+        Author $author,
+        string $owner,
+        int $rank = 0,
+    ) {
+        $this->title = $title;
+        $this->words = $words;
+        $this->subtitle = $subtitle;
+        $this->labels = $labels;
+        $this->status = $status;
+        $this->author = $author;
+        $this->owner = $owner;
+        $this->rank = $rank;
+        $this->cache = 0;
+        $this->secret = "";
+    }
+}
+
+#[Core\Json\Derive]
+class Missing extends RuntimeError
+{
+    public string $reason;
+
+    public function constructor(string $reason)
+    {
+        $this->reason = $reason;
+        parent::constructor($reason);
+    }
+}
+
+class Articles
+{
+    #[Core\Route(path: "/articles/first", method: Core\Http\Method::Get, name: "Articles::first")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(errors: [{status: 404, type: Missing::class}])]
+    public function first(): Article
+    {
+        return new Article("t", 1, null, [], Status::Draft, new Author("a"), "o");
+    }
+
+    #[Core\Route(path: "/articles/count", method: Core\Http\Method::Get, name: "Articles::count")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function count(): ?int
+    {
+        return null;
+    }
+
+    #[Core\Route(path: "/articles/ranks", method: Core\Http\Method::Get, name: "Articles::ranks")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function ranks(): array<int>
+    {
+        return [];
+    }
+
+    #[Core\Route(path: "/articles/status", method: Core\Http\Method::Get, name: "Articles::status")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function status(): Status
+    {
+        return Status::Draft;
+    }
+
+    #[Core\Route(path: "/articles/all", method: Core\Http\Method::Get, name: "Articles::all")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function all(): array<Article>
+    {
+        return [];
+    }
+}

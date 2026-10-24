@@ -459,18 +459,16 @@ pub struct Route {
     /// The remainder of the same doc comment, whitespace-trimmed and with its
     /// paragraphs intact, or `None` where the comment was one sentence.
     pub description: Option<String>,
-    /// The document's response body: the handler's **declared** return type as
-    /// [`crate::TypeInterner::describe`] renders it, the same spelling and for
-    /// the same reason [`RouteParam::ty`] is one — the interner is dropped with
-    /// the checking pass, and the emitter's whole use of a type is to choose a
-    /// JSON Schema for it.
+    /// The document's response body: the handler's **declared** return type,
+    /// read into the structure a JSON Schema is chosen by ([`BodyTy`]), because
+    /// the interner is dropped with the checking pass.
     ///
     /// `None` only where the signature table holds no row for the handler,
     /// which a program that compiles does not reach. Nothing is inferred from a
     /// `return` statement: the document's promise is that the document says what the
     /// *code declares*, and a body's inferred type is not something an author
     /// wrote.
-    pub returns: Option<String>,
+    pub returns: Option<BodyTy>,
     /// `rule:attributes/api-adds-and-cannot-contradict`'s `tags`, in the order the attribute wrote them.
     ///
     /// Empty where the method carries no `#[Api]`, and empty where it carries
@@ -512,6 +510,32 @@ pub struct ApiError {
     /// name depends on the declaring file's imports, and the row outlives the
     /// walk over that file.
     pub class: String,
+}
+
+/// A declared type as the API document reads it: the structure a JSON Schema
+/// is chosen by, with every name already resolved.
+///
+/// Not a rendered string, because [`crate::TypeInterner::describe`] spells a
+/// class and an enum alike, as the qualified name, and `?T` and `array<T>`
+/// would have to be parsed back out of their text. A class carries its label
+/// alone: its fields are its JSON codec's, which the emitter reads from
+/// [`crate::ExprTypeTable::codec`] rather than copying onto every row that
+/// returns it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BodyTy {
+    /// `void`: the response has no body.
+    Void,
+    /// `?T`, or a union of `null` and one other type.
+    Nullable(Box<BodyTy>),
+    /// `array<T>`.
+    List(Box<BodyTy>),
+    /// A class, by its label.
+    Class(String),
+    /// An enum, or a subset of its cases: every admitted case's backing value,
+    /// ascending, which is what `Core\Json` writes a case as.
+    Enum(Vec<crate::enums::EnumValue>),
+    /// Any other type, as [`crate::TypeInterner::describe`] renders it.
+    Named(String),
 }
 
 /// `#[Api]`'s four values, read off one `#[Api]`.
@@ -897,7 +921,7 @@ pub(crate) fn check_class_routes(
             class,
             label: &handler,
             doc: doc.as_ref(),
-            returns: returns.as_deref(),
+            returns: returns.as_ref(),
             returns_value: returns_value(m, class, env),
             api: api.as_ref(),
         };
@@ -2166,7 +2190,7 @@ fn collect_route(
         slotted,
         summary: doc.map(|doc| doc.summary.clone()),
         description: doc.and_then(|doc| doc.description.clone()),
-        returns: returns.map(str::to_owned),
+        returns: returns.cloned(),
         // `#[Api]`'s four, copied per row: one `#[Api]` describes the operation
         // however many verbs the method serves, and a row is per verb.
         tags: api.map(|api| api.tags.clone()).unwrap_or_default(),
@@ -2197,8 +2221,8 @@ struct Handler<'a> {
     /// `rule:routing/api-document-is-generated-from-the-route-table`'s summary and description, or `None` where the method
     /// carries no doc comment.
     doc: Option<&'a Doc>,
-    /// The document's response body: the declared return type, rendered.
-    returns: Option<&'a str>,
+    /// The document's response body: the declared return type, read.
+    returns: Option<&'a BodyTy>,
     /// [`Route::returns_value`], read once for the method.
     returns_value: bool,
     /// `#[Api]`'s four values as [`check_api`] read them, or `None` where the method
@@ -2258,14 +2282,56 @@ fn prose(line: &str) -> &str {
 /// the same lookup [`check_api_example`] makes for `#[Api]`'s `example`, and by the
 /// same three steps, so a method's return type is asked for once in this module
 /// however many questions are asked of it.
-fn declared_return(m: &MethodMember, class: &QName, env: &Env<'_>) -> Option<String> {
+fn declared_return(m: &MethodMember, class: &QName, env: &Env<'_>) -> Option<BodyTy> {
     let method = span_text(env.src, m.name);
     let ty = env
         .signatures
         .get(class)
         .and_then(|sig| sig.methods.get(method))
         .map(|sig| sig.return_ty)?;
-    Some(env.interner.describe(ty))
+    Some(body_ty(ty, env))
+}
+
+/// `ty` read as a [`BodyTy`].
+///
+/// An enum is asked first, through [`admitted_cases`], because a union of an
+/// enum's cases is a union and would otherwise read as [`BodyTy::Named`]. A
+/// union of `null` and two other types names no one schema to allow `null`
+/// beside, so it is [`BodyTy::Named`] too.
+fn body_ty(ty: crate::ty::TypeId, env: &Env<'_>) -> BodyTy {
+    if let Some((name, cases)) = admitted_cases(ty, env) {
+        let mut values: Vec<crate::enums::EnumValue> = env
+            .enums
+            .get(&name)
+            .map(|info| {
+                cases
+                    .iter()
+                    .filter_map(|case| info.cases.get(case).copied())
+                    .collect()
+            })
+            .unwrap_or_default();
+        values.sort_by_key(|value| ordinal(*value));
+        return BodyTy::Enum(values);
+    }
+    match env.interner.get(ty) {
+        crate::ty::Ty::Void => BodyTy::Void,
+        crate::ty::Ty::Array(element) => BodyTy::List(Box::new(body_ty(*element, env))),
+        crate::ty::Ty::Union(members) => {
+            let rest: Vec<crate::ty::TypeId> = members
+                .iter()
+                .copied()
+                .filter(|member| !matches!(env.interner.get(*member), crate::ty::Ty::Null))
+                .collect();
+            match rest.as_slice() {
+                [only] if rest.len() < members.len() => {
+                    BodyTy::Nullable(Box::new(body_ty(*only, env)))
+                }
+                _ => BodyTy::Named(env.interner.describe(ty)),
+            }
+        }
+        crate::ty::Ty::Class(name, args) if args.is_empty() => BodyTy::Class(name.to_string()),
+        _ => BodyTy::Named(env.interner.describe(ty)),
+    }
 }
 
 /// Whether the method's declared return type is neither `void` nor `never`,

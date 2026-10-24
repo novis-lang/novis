@@ -7,7 +7,9 @@ What supplies what: the path, verb and `operationId` come from `#[Route]`'s `pat
 `name` (a shared name takes the verb as a suffix — `rule:routing/a-shared-name-is-one-endpoint-everywhere`);
 path parameters from the handler's own parameters, by declared type, which is the binding matching
 already makes; query parameters from `#[Query]` parameters, a default making one optional; the
-response body from the declared return type; required-ness from definite initialization and
+response body from the declared return type, a class in it being a `components.schemas` entry of
+its JSON codec's fields (`rule:core-classes/derive-attribute`) and an enum its backing values, which
+is what that codec writes; required-ness from definite initialization and
 parameter defaults, decided rather than guessed; nullability from `?T` and nothing else; an
 enumeration from a closed enum's cases or a set of allowed values; the summary and description from
 the declaration's doc comment — first sentence, then the rest. What the types cannot say comes
