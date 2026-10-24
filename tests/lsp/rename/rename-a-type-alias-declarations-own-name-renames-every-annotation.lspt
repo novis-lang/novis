@@ -1,0 +1,15 @@
+--TEST--
+a type alias renamed at its own declaration is renamed in every local annotation that names it, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+type I<|>d = uint;
+
+Id $first = 1;
+Id $second = $first + 1;
+echo $second;
+--REQUEST--
+rename to=Key
+--EXPECT--
+case.nvs:2:6 Key
+case.nvs:4:1 Key
+case.nvs:5:1 Key

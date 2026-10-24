@@ -1,0 +1,22 @@
+--TEST--
+`prepareRename` on the `is` keyword of a type test is refused, because a keyword is no symbol, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+interface Shape
+{
+    public function area(): int;
+}
+
+class Square implements Shape
+{
+    public function area(): int { return 4; }
+}
+
+mixed $s = new Square();
+if ($s i<|>s Shape) {
+    echo $s->area();
+}
+--REQUEST--
+prepareRename
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.

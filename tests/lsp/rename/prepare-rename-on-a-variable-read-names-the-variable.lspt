@@ -1,0 +1,10 @@
+--TEST--
+`prepareRename` on a local's read answers the range of the variable with its `$`, because a local is renamed at every place its body writes it, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+var $total = 3;
+echo $to<|>tal;
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:3:6-3:12

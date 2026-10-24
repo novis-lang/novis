@@ -1,0 +1,15 @@
+--TEST--
+`prepareRename` on the enum qualifier of a case read answers the range of the enum's name, not the case beside it, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+enum Status: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+
+var $s = Sta<|>tus::Draft;
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:8:10-8:16

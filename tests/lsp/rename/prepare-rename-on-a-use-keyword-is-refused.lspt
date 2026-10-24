@@ -1,0 +1,11 @@
+--TEST--
+`prepareRename` on the `use` keyword of an import is refused, because a keyword is no symbol, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+us<|>e Shop\User;
+
+var $u = new User();
+--REQUEST--
+prepareRename
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.

@@ -1,0 +1,10 @@
+--TEST--
+a legacy cast does not parse, so the cursor is on no symbol and renaming there is refused, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+int $n = 3;
+int $m = (i<|>nt)$n;
+--REQUEST--
+rename to=count
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.

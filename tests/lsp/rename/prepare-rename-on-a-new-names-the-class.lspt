@@ -1,0 +1,14 @@
+--TEST--
+`prepareRename` on the class a `new` allocates answers the range of the class's name alone, without `new` or the parentheses, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+var $u = new Us<|>er();
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:7:14-7:18

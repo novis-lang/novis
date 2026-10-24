@@ -1,0 +1,13 @@
+--TEST--
+`prepareRename` on the `autoload` keyword is refused, because a keyword is no symbol, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+auto<|>load 'Shop' from 'src';
+--FILE src/User.nvs--
+<?nvs
+namespace Shop;
+class User { }
+--REQUEST--
+prepareRename
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.

@@ -1,0 +1,16 @@
+--TEST--
+the attribute names a `Core` class, which is declared outside the workspace, so renaming it is refused, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Blog
+{
+    #[Core\Ro<|>ute(path: "/", method: Core\Http\Method::Get)]
+    public static function index(): string
+    {
+        return "hello";
+    }
+}
+--REQUEST--
+rename to=Path
+--EXPECT--
+refused: `Core\Route` is declared outside this workspace, so it cannot be renamed.

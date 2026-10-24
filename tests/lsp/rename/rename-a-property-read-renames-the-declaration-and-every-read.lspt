@@ -1,0 +1,24 @@
+--TEST--
+a property renamed at a read is renamed at its declaration, at every other read and at `$this`, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+
+    public function label(): string
+    {
+        return "User " . $this->name;
+    }
+}
+
+var $u = new User();
+echo $u->na<|>me;
+$u->name = "Ada";
+--REQUEST--
+rename to=title
+--EXPECT--
+case.nvs:4:19 $title
+case.nvs:8:33 title
+case.nvs:13:10 title
+case.nvs:14:5 title

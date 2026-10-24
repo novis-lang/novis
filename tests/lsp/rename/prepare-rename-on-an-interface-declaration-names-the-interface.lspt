@@ -1,0 +1,20 @@
+--TEST--
+`prepareRename` on an interface's own declaration answers the range of its name, because a type declared in the workspace is renamed everywhere it is written, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+interface Gre<|>ets
+{
+    public function greet(): string;
+}
+
+class User implements Greets
+{
+    public function greet(): string
+    {
+        return "hi";
+    }
+}
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:2:11-2:17

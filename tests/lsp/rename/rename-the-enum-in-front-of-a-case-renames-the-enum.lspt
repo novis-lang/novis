@@ -1,0 +1,18 @@
+--TEST--
+the name in front of `::` is the enum, so renaming there renames the enum at its declaration and at every case read, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+enum Status: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+
+var $s = Sta<|>tus::Draft;
+var $t = Status::Live;
+--REQUEST--
+rename to=State
+--EXPECT--
+case.nvs:2:6 State
+case.nvs:8:10 State
+case.nvs:9:10 State

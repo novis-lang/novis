@@ -1,0 +1,17 @@
+--TEST--
+`prepareRename` on a static property read answers the range of its name with the `$` the read writes, without `self` and the `::`, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Cart
+{
+    public static int $count = 0;
+
+    public function total(): int
+    {
+        return self::$co<|>unt;
+    }
+}
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:8:22-8:28
