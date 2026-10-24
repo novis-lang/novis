@@ -34,7 +34,7 @@ stages:
         rules: [ide/five-features-are-one-reference-index, ide/contributions-are-frozen-and-only-ever-added]
   - id: 5
     title: "paste as doc comment, and the README says where concealment stops"
-    status: open
+    status: done
     context: [editors/vscode/src/imports.ts, editors/vscode/README.md, docs/rules/ide/doc-comment-authoring-is-the-editors-own.md, docs/rules/ide/redaction-does-not-reach.md]
     extra:
       context:
@@ -248,10 +248,10 @@ running server without a restart.
 
 **Does:** the two missing client items of their rules.
 
-- [ ] A `DocumentPasteEditProvider` offers *Paste as doc comment* inside a `///` run, with a frozen kind id (`rule:ide/doc-comment-authoring-is-the-editors-own`). `editors/vscode/src/imports.ts:95`
-- [ ] A headless test of the provider. `editors/vscode/test/client/docpaste.test.ts:1`
-- [ ] `editors/vscode/README.md` lists what the concealment cannot cover, as `rule:ide/redaction-does-not-reach` names it. `editors/vscode/README.md:50`
-- [ ] Both rules `shipped`. `data/rules/ide/doc-comment-authoring-is-the-editors-own.json:3`, `data/rules/ide/redaction-does-not-reach.json:3`
+- [x] A `DocumentPasteEditProvider` offers *Paste as doc comment* inside a `///` run, with a frozen kind id (`rule:ide/doc-comment-authoring-is-the-editors-own`). `editors/vscode/src/doccomments.ts:27`, `editors/vscode/src/docpaste.ts:15`
+- [x] A headless test of the provider. `editors/vscode/test/client/docpaste.test.ts:1`
+- [x] `editors/vscode/README.md` lists what the concealment cannot cover, as `rule:ide/redaction-does-not-reach` names it. `editors/vscode/README.md:12`
+- [x] Both rules `shipped`. `data/rules/ide/doc-comment-authoring-is-the-editors-own.json:3`, `data/rules/ide/redaction-does-not-reach.json:3`
 
 ### 6. the older `Core` reference cards are in the plain voice: the six largest modules
 
@@ -324,7 +324,19 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done. Stage 4: `code_lens` in `crates/nvs-lsp/src/server.rs` puts
+Stages 1 to 5 are done. Stage 5: `editors/vscode/src/docpaste.ts` (no `vscode` import) decides
+*Paste as doc comment*: at one cursor after a line's `///` (not `////`), text of two lines or more
+gets the run's indentation and `/// ` on each later line, an empty line a bare `///`, and one line
+ending at the end of the text is dropped. `src/doccomments.ts` is the provider, registered from
+`activate` beside `imports.install`, under the frozen kind `text.docComment.nvs`, which no
+contributed preference names, so it is offered in the paste widget and never applied on its own.
+The contributions roster lists no paste kinds, so the freeze is asserted in
+`test/client/docpaste.test.ts` (9 passing, run by name). The README's new section *Where hidden
+secrets are still visible* is the rule's list in the plain voice. Both rules are `shipped`, and
+`bun nv rules --render` rewrote `docs/rules/ide.md`, `routing.md` and `ground-rules.md`, which also
+caught up the flips of stages 1 and 2.
+
+Stage 4: `code_lens` in `crates/nvs-lsp/src/server.rs` puts
 `nvs.showLocations` with `[uri, position, locations]` on every lens with something to list, for a
 client that names the id (`Client::show_locations`). `hierarchy_lenses` returns each title with its
 sites. A `.lspt` lens renders `L:C title -> place, place` (`render::Lens`, built in `suite.rs`'s
@@ -378,6 +390,9 @@ client that names nothing, so its commands stay empty), and the extension's cont
 it checks every `registerCommand` id against `package.json` (`nvs.showLocations` is registered and
 not contributed; the suite as read only checks the other direction).
 
+Stage 5's: none expected. The contributions suite reads every file under `src/` as one text, and
+`doccomments.ts` registers no command and reads no setting.
+
 **The nightly run's red is not owed by this tree.** Run 39922764699 ran at `7b6ef53ee`. Its
 `cost guards / macos-aarch64` soak leak was 2280 bytes per connection, and commit `071663316`
 (`fix(runtime): a spawned tree's start-up bytes leave the tree that spawned it`) fixes it. That
@@ -388,18 +403,22 @@ so both reds are stale. Another session committed the `capability.rs` rustfmt ch
 
 ### Next
 
-**Stage 5: paste as doc comment, and the README says where concealment stops.** Its files are
-`editors/vscode/src/imports.ts`, `editors/vscode/README.md` and the two rules. The headless pattern
-is `src/settings.ts` with `test/client/settings.test.ts`: a module with no `vscode` import holds
-the decision, and the provider in the editor module only calls it.
+**Stage 6: the older `Core` reference cards are in the plain voice, the six largest modules.**
+Follow the stage's `**Split:**` line: one writing subagent per module, one after another, and the
+session reads each diff before the next starts. Each subagent's brief names
+`AGENTS.md` § *Text an end user reads* and `docs/rules/core-api/reference-card.md`, and rewrites
+only the cards in the old voice. The session builds once with `cargo build` and
+`cargo clippy --all-targets -- -D warnings` after all six.
 
-- [ ] A `DocumentPasteEditProvider` offers *Paste as doc comment* inside a `///` run, with a frozen kind id. `editors/vscode/src/imports.ts:95`, `docs/rules/ide/doc-comment-authoring-is-the-editors-own.md:1`
-- [ ] A headless test of the provider. `editors/vscode/test/client/docpaste.test.ts:1`
-- [ ] The README lists what the concealment cannot cover. `editors/vscode/README.md:50`, `docs/rules/ide/redaction-does-not-reach.md:1`
-- [ ] Both rules `shipped`. `data/rules/ide/doc-comment-authoring-is-the-editors-own.json:3`, `data/rules/ide/redaction-does-not-reach.json:3`
+- [ ] `ldap/registry.rs`, 101 cards. `crates/nvs-stdlib/src/ldap/registry.rs:1`
+- [ ] `time.rs`, 77 cards. `crates/nvs-stdlib/src/time.rs:1`
+- [ ] `db/registry.rs`, 69 cards. `crates/nvs-stdlib/src/db/registry.rs:1`
+- [ ] `arr.rs`, 59 cards. `crates/nvs-stdlib/src/arr.rs:1`
+- [ ] `reflect.rs`, 48 cards. `crates/nvs-stdlib/src/reflect.rs:1`
+- [ ] `io.rs`, 45 cards. `crates/nvs-stdlib/src/io.rs:1`
 
-A new paste kind id is frozen, so it goes into the contributions roster if that suite lists paste
-kinds (`editors/vscode/test/contributions/contributions.test.ts:88`).
+Stage 9 (`crates/nvs-lsp/src/document.rs`) touches its own files and can run instead if stage 6
+does not fit a session.
 
 ### Backlog
 
