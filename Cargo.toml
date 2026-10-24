@@ -1071,6 +1071,11 @@ insta = "1"
 # `benches/abi-probe` name criterion, so that C never reaches a shipped binary:
 # `bun nv gen-attribution --check-c-deps` does not list it.
 criterion = "0.8"
+# `crates/nvs-cli/tests/openapi.rs` checks the generated API document against
+# the official OpenAPI 3.1 schema, vendored beside the test. No default
+# features, so it carries no network or file resolver and reads only the
+# schemas the test registers. A dev-dependency of one crate, so no binary links it.
+jsonschema = { version = "0.60", default-features = false }
 
 # ---------------------------------------------------------------------------
 # Lint policy, and the one home for it. Most crates take it wholesale with
