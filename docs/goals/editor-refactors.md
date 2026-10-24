@@ -154,6 +154,10 @@ renamed file's `require`.
 - [x] `rule:ide/the-request-set-is-closed` lists the three new requests. `docs/rules/ide/the-request-set-is-closed.md:1`
 - [ ] `prepareRename` and `rename` each have a case at every construct `tests/coverage.rs` names, so `every_request_answers_every_construct` is green. `crates/nvs-lsp/tests/coverage.rs:63`, `tests/lsp/rename/a-local-is-renamed-at-every-occurrence.lspt:1`
 - [ ] A type is renamed: the index records each type annotation as an occurrence, and renaming an autoloaded class also renames its file. `crates/nvs-lsp/src/rename.rs:84`, `crates/nvs-lsp/src/index.rs:1189`
+  - [x] The index records each type annotation's class names and each `X::` qualifier, resolved per file. `crates/nvs-lsp/src/index.rs:1311`, `crates/nvs-lsp/src/definition.rs:1250`
+  - [x] `rename` renames a type at every site and `use` line, with the clash and missed-site refusals. `crates/nvs-lsp/src/rename.rs:627`
+  - [x] A `.lspt` case for a class across files, and the two type-test cases that gained a site. `tests/lsp/rename/a-class-is-renamed-at-every-place-its-name-is-written.lspt:1`
+  - [ ] Renaming an autoloaded class renames its file: a `RenameFile` operation in the `WorkspaceEdit`, the `.lspt` renderer showing it, and the `require` edits `moved` gives for it. `crates/nvs-lsp/src/rename.rs:188`, `crates/nvs-lsp/src/server.rs:569`
 
 ### 2. workspace symbol search, organize imports, and a warning for an unused `use`
 
@@ -241,21 +245,39 @@ subagent. Such subagents run side by side, and none of them builds.
 ### State
 
 Stage 1's handlers are in: `prepareRename`, `rename` and `workspace/willRenameFiles`
-(`crates/nvs-lsp/src/rename.rs`), declared, routed, in the handshake test and the `.lspt` runner,
-with nine cases under `tests/lsp/rename/` (9 passed) and the whole `.lspt` suite at 409 passed.
-§ *Standing decisions* § *What rename renames* is the scope. Not run, and expected red until the
-next items land: `every_request_answers_every_construct` (`crates/nvs-lsp/tests/coverage.rs:63`),
-which needs a `prepareRename` and a `rename` case at every construct (about 29 and 24). Built but
-not run: the unit tests added in `rename.rs`, `render.rs` and `case.rs`, and `tests/index.rs`,
-whose `BOOKKEEPING` list gained `SymbolIndex::readers`.
+(`crates/nvs-lsp/src/rename.rs`). A type is renamed now (`d9a92c79a`): the index records every
+class name a type annotation writes and every class in front of `::`, each resolved with its own
+file's namespace and imports (`definition::written_name_in`), and `rename::types` changes the last
+segment at each site and `use` line. It refuses a built-in name, a name another workspace type
+has, a name a touched file already writes, and an old name written anywhere the index holds no
+site (a top-level `function`'s annotation is one, since the walk skips that refused construct).
+Ten cases under `tests/lsp/rename/`, and the whole `.lspt` suite at 410 passed. Two cases gained
+the `is Shape` site: `tests/lsp/references/a-type-test-answers-the-type-it-names.lspt` and
+`tests/lsp/highlight/a-type-test-highlights-the-type-it-names.lspt`.
+
+Expected red, not run: `every_request_answers_every_construct` (`crates/nvs-lsp/tests/coverage.rs:63`).
+`cargo test --test coverage` lists 29 `prepareRename` cells and 24 `rename` cells (Attribute,
+AutoloadDecl, ClassConstAccess, ClassDecl, Const, ConstFetch, Echo, EnumCase, EnumDecl, Error,
+Foreach, Function, InlineHtml, InterfaceDecl, LocalDecl, Method, MethodCall, NamespaceDecl, New,
+Property, StaticCall, StaticPropertyAccess, Str, Switch, Try, TypeAliasDecl, TypeTest, UseDecl,
+Variable for `prepareRename`; `rename` owes the same list without LocalDecl, MethodCall, Property,
+StaticCall, StaticPropertyAccess and Variable, and with PropertyAccess).
+Built but not run: the unit tests in `rename.rs`, `render.rs` and `case.rs`, `tests/index.rs`, and
+CodeLens unit tests, whose type reference counts may grow by the annotation sites.
+
+The nightly reds on `7b6ef53ee` are green on the later push CI at `95f8fc4a5` (tests, conformance,
+asan, cost guards). The push reds (rustfmt in `capability.rs`, stale perf) are goal `ci-green`'s;
+`capability.rs` is claimed by the `formatter-complete` session. `env-secret-proofs` passes at HEAD.
 
 ### Next
 
 **Stage 1's last two items**, one file set: `tests/lsp/rename/`, `crates/nvs-lsp/src/rename.rs`,
-`index.rs`. No gate.
+`server.rs`, `render.rs`. No gate.
 
-- [ ] Coverage cases: `cargo test --test coverage` once lists what each request owes, then one writing subagent writes them. `crates/nvs-lsp/tests/coverage.rs:63`
-- [ ] Type rename: type-annotation occurrences in the index (references and CodeLens cases change), the refusal lifted, an autoloaded class's file renamed. `crates/nvs-lsp/src/rename.rs:84`, `crates/nvs-lsp/src/index.rs:1189`
+- [ ] Autoloaded class file rename: the last checkpoint under stage 1's type item. Decide how the client's `resourceOperations` capability gates the `RenameFile`. `crates/nvs-lsp/src/rename.rs:188`
+- [ ] Coverage cases: one writing subagent writes a `prepareRename` and a `rename` case at each cell above, under `tests/lsp/rename/`, cursor on the construct, using neutral names. Then `cargo test --test coverage` once. `crates/nvs-lsp/tests/coverage.rs:63`
+
+Then stage 2 (`workspace/symbol`, organize imports, the unused-`use` warning).
 
 Then stage 2 (`workspace/symbol`, organize imports, the unused-`use` warning).
 
