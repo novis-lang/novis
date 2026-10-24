@@ -505,7 +505,11 @@ impl<'src, 'd> Parser<'src, 'd> {
                             )
                             .with_primary(span, "wrong qualifier order")
                             .with_help("write `secret tainted string` or `secret tainted bytes`")
-                            .with_fix(span, reordered, format!("write `{reordered}`")),
+                            .with_fix(
+                                span,
+                                reordered,
+                                format!("write `{reordered}`"),
+                            ),
                         );
                         return Type { kind: other, span };
                     }

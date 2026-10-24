@@ -392,8 +392,7 @@ fn deprecation(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
 fn declared(analysed: &Analysed, info: &ExprInfo) -> Option<String> {
     let ty = match info {
         ExprInfo::Property { ty, narrowed, .. } => narrowed.unwrap_or(*ty),
-        ExprInfo::StaticProperty { ty, .. }
-        | ExprInfo::HookedProperty { ty, .. } => *ty,
+        ExprInfo::StaticProperty { ty, .. } | ExprInfo::HookedProperty { ty, .. } => *ty,
         ExprInfo::Index { elem_ty, .. } => *elem_ty,
         ExprInfo::NarrowedRead { to } => *to,
         _ => return None,
