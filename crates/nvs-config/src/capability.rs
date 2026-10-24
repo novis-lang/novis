@@ -150,9 +150,11 @@ pub enum Cap {
     TlsInsecure,
     /// `process.exec` — the programs a subprocess may be started from.
     ProcessExec,
-    /// `debug.trace` — where a trace may be written (`rule:testing/debug-probes`).
+    /// `debug.trace` — where a trace may be written (`rule:testing/debug-probes`): the paths
+    /// `Core\Debug::startTrace` may name. Separate from `fs.write`, which grants none of them.
     DebugTrace,
-    /// `debug.profile` — where a profile may be written (`rule:testing/debug-probes`).
+    /// `debug.profile` — where a profile may be written (`rule:testing/debug-probes`): the paths
+    /// `Core\Debug::startProfile` may name. Separate from `fs.write`, which grants none of them.
     DebugProfile,
     /// `db.connect` — which `[db.<name>]` blocks a program may open by name (`rule:core-classes/db-capabilities`).
     DbConnect,

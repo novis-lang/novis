@@ -1,6 +1,10 @@
 //! `Core\Debug` — `rule:errors/debug-dump`'s `dump` and `render`, and the walk that turns a runtime value into
 //! `rule:errors/diagnostic-record`'s record.
 //!
+//! The probes' start and stop pairs and the coverage read-back are here too.
+//! `rule:testing/debug-surface` is their whole contract, and [`start`] and
+//! [`start_sink`] are the two doors every start goes through.
+//!
 //! ```text
 //! Core\Debug::dump(mixed ...$values): void
 //! Core\Debug::render(mixed $value): Core\Cli\Text
@@ -95,11 +99,14 @@
 //! transformations the walk applies, what it still cannot see, and why one walk
 //! rather than two.
 
+use nvs_config::capability::{Cap, Scope};
 use nvs_render::plain::Colour;
 use nvs_render::{Level, Node, Record, Source};
-use nvs_runtime::{Ctx, Fault, LogChannel, Tag, Value};
+use nvs_runtime::{Ctx, DebugFlags, Fault, LogChannel, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// The class's fully-qualified name.
 pub(crate) const NAME: &str = r"Core\Debug";
@@ -110,10 +117,8 @@ const CARD: ClassDoc = ClassDoc {
             value to stderr or return it as a string.",
 };
 
-/// `Core\Debug`, as much of it as `rule:errors/debug-dump` declares.
-///
-/// The coverage, trace and profile members are not here: they are
-/// `rule:testing/debug-surface`'s, which goal `trace-timeline` builds.
+/// `Core\Debug`: `rule:errors/debug-dump`'s `dump` and `render`, then
+/// `rule:testing/debug-surface`'s start and stop pair per probe and the coverage read-back.
 // rank: 450
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -136,6 +141,69 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(crate::cli::NAME),
             symbol: "nvs_core_debug_render",
             doc: Some(&RENDER_DOC),
+        },
+        CoreMethod {
+            name: "startCoverage",
+            names: &["branches"],
+            params: &[CoreTy::Bool],
+            defaults: &[Const::Bool(false)],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_debug_start_coverage",
+            doc: Some(&START_COVERAGE_DOC),
+        },
+        CoreMethod {
+            name: "stopCoverage",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_debug_stop_coverage",
+            doc: Some(&STOP_COVERAGE_DOC),
+        },
+        CoreMethod {
+            name: "coverage",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Int)),
+            symbol: "nvs_core_debug_coverage",
+            doc: Some(&COVERAGE_DOC),
+        },
+        CoreMethod {
+            name: "startTrace",
+            names: &["path"],
+            params: &[CoreTy::Path(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_debug_start_trace",
+            doc: Some(&START_TRACE_DOC),
+        },
+        CoreMethod {
+            name: "stopTrace",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_debug_stop_trace",
+            doc: Some(&STOP_TRACE_DOC),
+        },
+        CoreMethod {
+            name: "startProfile",
+            names: &["path"],
+            params: &[CoreTy::Path(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_debug_start_profile",
+            doc: Some(&START_PROFILE_DOC),
+        },
+        CoreMethod {
+            name: "stopProfile",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_debug_stop_profile",
+            doc: Some(&STOP_PROFILE_DOC),
         },
     ],
     instance: &[],
@@ -178,12 +246,123 @@ const RENDER_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// The error a start throws when `[debug] mode` does not include its probe.
+const NOT_IN_MODE: ErrorDoc = ErrorDoc {
+    error: "RuntimeError",
+    desc: "`[debug] mode` in `nvs.toml` does not include this probe. A server never runs a probe.",
+};
+
+/// `Core\Debug::startCoverage`'s reference card — `rule:core-api/reference-card`.
+const START_COVERAGE_DOC: MethodDoc = MethodDoc {
+    short: "Starts counting how many times each line runs. Read the counts with `coverage`. \
+            `[debug] mode` must include `\"coverage\"`.",
+    params: &[ParamDoc {
+        name: "branches",
+        desc: "When `true`, each side of every `if` and loop condition is counted too. \
+               `[debug] mode` must then also include `\"branch\"`.",
+        shape: &[],
+    }],
+    ret: "Nothing. Counting goes on until `stopCoverage`.",
+    errors: &[NOT_IN_MODE],
+};
+
+/// `Core\Debug::stopCoverage`'s reference card — `rule:core-api/reference-card`.
+const STOP_COVERAGE_DOC: MethodDoc = MethodDoc {
+    short: "Stops counting lines and branches. The counts so far are kept.",
+    params: &[],
+    ret: "Nothing. It does nothing when coverage is not running.",
+    errors: &[],
+};
+
+/// `Core\Debug::coverage`'s reference card — `rule:core-api/reference-card`.
+const COVERAGE_DOC: MethodDoc = MethodDoc {
+    short: "Returns how many times each line ran. The keys are file paths. Each value is an \
+            array from a line number to its count.",
+    params: &[],
+    ret: "Only lines that ran are listed. Lines are counted when `nvs test` runs with a \
+          coverage option. Otherwise the array is empty.",
+    errors: &[],
+};
+
+/// `Core\Debug::startTrace`'s reference card — `rule:core-api/reference-card`.
+const START_TRACE_DOC: MethodDoc = MethodDoc {
+    short: "Starts writing a trace of every call to the file at `$path`. Each line of the file is \
+            one JSON object. `[debug] mode` must include `\"trace\"`.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The file to write. The capability `debug.trace` must grant this path. Permission \
+               to write files is not enough.",
+        shape: &[],
+    }],
+    ret: "Nothing. The trace goes on until `stopTrace`.",
+    errors: &[
+        NOT_IN_MODE,
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `debug.trace` for this path.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "A trace started by `startTrace` is already running.",
+        },
+    ],
+};
+
+/// `Core\Debug::stopTrace`'s reference card — `rule:core-api/reference-card`.
+const STOP_TRACE_DOC: MethodDoc = MethodDoc {
+    short: "Stops the trace and closes its file.",
+    params: &[],
+    ret: "Nothing. It does nothing when no trace is running.",
+    errors: &[],
+};
+
+/// `Core\Debug::startProfile`'s reference card — `rule:core-api/reference-card`.
+const START_PROFILE_DOC: MethodDoc = MethodDoc {
+    short: "Starts timing every call, and writes the result to the file at `$path` in the \
+            speedscope format. `[debug] mode` must include `\"profile\"`. Timing every call \
+            adds a small cost to each one. So code with many small calls looks slower in the \
+            profile than it is.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The file to write. The capability `debug.profile` must grant this path. \
+               Permission to write files is not enough.",
+        shape: &[],
+    }],
+    ret: "Nothing. The profile goes on until `stopProfile`.",
+    errors: &[
+        NOT_IN_MODE,
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `debug.profile` for this path.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "A profile started by `startProfile` is already running.",
+        },
+    ],
+};
+
+/// `Core\Debug::stopProfile`'s reference card — `rule:core-api/reference-card`.
+const STOP_PROFILE_DOC: MethodDoc = MethodDoc {
+    short: "Stops timing calls and closes the profile's file.",
+    params: &[],
+    ret: "Nothing. It does nothing when no profile is running.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_debug_dump" => (nvs_core_debug_dump as *const ()).cast(),
         "nvs_core_debug_render" => (nvs_core_debug_render as *const ()).cast(),
+        "nvs_core_debug_start_coverage" => (nvs_core_debug_start_coverage as *const ()).cast(),
+        "nvs_core_debug_stop_coverage" => (nvs_core_debug_stop_coverage as *const ()).cast(),
+        "nvs_core_debug_coverage" => (nvs_core_debug_coverage as *const ()).cast(),
+        "nvs_core_debug_start_trace" => (nvs_core_debug_start_trace as *const ()).cast(),
+        "nvs_core_debug_stop_trace" => (nvs_core_debug_stop_trace as *const ()).cast(),
+        "nvs_core_debug_start_profile" => (nvs_core_debug_start_profile as *const ()).cast(),
+        "nvs_core_debug_stop_profile" => (nvs_core_debug_stop_profile as *const ()).cast(),
         _ => return None,
     })
 }
@@ -284,6 +463,165 @@ nvs_runtime::nvs_helper! {
     /// have no spelling a program could tell apart.
     fn nvs_core_debug_render(_ctx, args: [1]) {
         Ok(crate::cli::built(Value::text(&rendered(args[0]))))
+    }
+}
+
+/// Turns `bits` on under the ceiling `[debug] mode` set, or throws the `RuntimeError` naming the
+/// first probe it lacks — `rule:testing/debug-mode-directive`'s *narrow and never widen*.
+///
+/// A `RuntimeError` and not a `LogicError`, for the reason a capability denial is one
+/// (`rule:security/denial-is-a-runtime-error`): the deployment said no, and a program that runs on
+/// without the probe is a reasonable program.
+fn start(ctx: &mut Ctx, bits: DebugFlags, member: &str) -> Result<(), Fault> {
+    ctx.start_probes(bits).map_err(|missing| {
+        let name = PROBES
+            .iter()
+            .find(|(bit, _)| missing.contains(*bit))
+            .map_or("coverage", |(_, name)| name);
+        Fault::thrown(format!(
+            "Core\\Debug::{member} cannot start the `{name}` probe, because `[debug] mode` does \
+             not include it.\nhelp: add `\"{name}\"` to `mode` under `[debug]` in nvs.toml. A \
+             server never runs a probe."
+        ))
+    })
+}
+
+/// Each probe bit a program starts, under the name `[debug] mode` writes it with
+/// (`nvs_config::debug::NAMES`).
+const PROBES: [(DebugFlags, &str); 4] = [
+    (DebugFlags::COVERAGE, "coverage"),
+    (DebugFlags::BRANCH, "branch"),
+    (DebugFlags::TRACE, "trace"),
+    (DebugFlags::PROFILE, "profile"),
+];
+
+/// `startTrace` and `startProfile`'s shared door: the probe under the ceiling, the path under its
+/// own grant, and no second start while a sink is named. The grant is asked first, so a path
+/// outside it throws whatever the mode says.
+///
+/// **What it spends:** one path per running sink, until its stop.
+fn start_sink(
+    ctx: &mut Ctx,
+    path: &Value,
+    probe: (DebugFlags, Cap),
+    member: &str,
+) -> Result<std::path::PathBuf, Fault> {
+    let (bit, cap) = probe;
+    // Unreachable from source: the parameter is `CoreTy::Path`, a `string`.
+    let text = path.as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Debug::{member} expected {:?} for its path, got tag {}",
+            Tag::Str,
+            path.tag_byte()
+        ))
+    })?;
+    let path = std::path::Path::new(text);
+    nvs_runtime::capability::require(
+        ctx,
+        cap,
+        Scope::Path(path),
+        &format!("Core\\Debug::{member}"),
+    )?;
+    let running = if bit == DebugFlags::TRACE {
+        ctx.trace_sink().is_some()
+    } else {
+        ctx.profile_sink().is_some()
+    };
+    if running {
+        let (what, stop) = if bit == DebugFlags::TRACE {
+            ("trace", "stopTrace")
+        } else {
+            ("profile", "stopProfile")
+        };
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "Core\\Debug::{member} cannot start a {what}, because one is already running. \
+                 Call `Core\\Debug::{stop}` first."
+            ),
+        ));
+    }
+    start(ctx, bit, member)?;
+    Ok(path.to_path_buf())
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Debug::startCoverage(bool $branches = false): void` — the line probe, and the edge
+    /// probe beside it when `$branches` is `true`, under the ceiling.
+    fn nvs_core_debug_start_coverage(ctx, args: [1]) {
+        let bits = if args[0].as_bool() == Some(true) {
+            DebugFlags::COVERAGE | DebugFlags::BRANCH
+        } else {
+            DebugFlags::COVERAGE
+        };
+        start(ctx, bits, "startCoverage")?;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Debug::stopCoverage(): void` — both coverage bits off, the table untouched.
+    fn nvs_core_debug_stop_coverage(ctx, args: [0]) {
+        ctx.stop_probes(DebugFlags::COVERAGE | DebugFlags::BRANCH);
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Debug::coverage(): array<array<int>>` — `nvs_runtime::StmtHits::line_counts` as a
+    /// value, path to line to count.
+    ///
+    /// The table is the host's, so this reads it whether or not a probe is on now. Lines a
+    /// statement ran on and none other, so the answer grows with the code a request touched and
+    /// never with the program's size.
+    fn nvs_core_debug_coverage(ctx, args: [0]) {
+        let mut files = NvsArray::new();
+        if let Some(hits) = ctx.stmt_hits() {
+            for (path, lines) in hits.line_counts() {
+                let mut counts = NvsArray::new();
+                for (line, count) in lines {
+                    counts.set_index(i64::from(line), Value::int(i64::try_from(count).unwrap_or(i64::MAX)));
+                }
+                files.set(NvsStr::new(path.as_bytes()), Value::array(counts));
+            }
+        }
+        Ok(Value::array(files))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Debug::startTrace(string $path): void` — the call probe on, its sink named.
+    fn nvs_core_debug_start_trace(ctx, args: [1]) {
+        let path = start_sink(ctx, &args[0], (DebugFlags::TRACE, Cap::DebugTrace), "startTrace")?;
+        ctx.set_trace_sink(Some(path));
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Debug::stopTrace(): void` — the call probe off and its sink closed.
+    fn nvs_core_debug_stop_trace(ctx, args: [0]) {
+        ctx.stop_probes(DebugFlags::TRACE);
+        ctx.set_trace_sink(None);
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Debug::startProfile(string $path): void` — the timing probe on, its sink named.
+    fn nvs_core_debug_start_profile(ctx, args: [1]) {
+        let path = start_sink(ctx, &args[0], (DebugFlags::PROFILE, Cap::DebugProfile), "startProfile")?;
+        ctx.set_profile_sink(Some(path));
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Debug::stopProfile(): void` — the timing probe off and its sink closed.
+    fn nvs_core_debug_stop_profile(ctx, args: [0]) {
+        ctx.stop_probes(DebugFlags::PROFILE);
+        ctx.set_profile_sink(None);
+        Ok(Value::null())
     }
 }
 
@@ -684,6 +1022,184 @@ mod tests {
         )]
         unsafe {
             tail.release();
+        }
+    }
+
+    /// A command-line context under `written`, whose `[debug] mode` is the ceiling.
+    fn probing(written: &str) -> nvs_runtime::Ctx {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_config(crate::tests::granting(written));
+        ctx
+    }
+
+    /// `startTrace($path)` in `ctx`: the message it threw, or `None` when it started.
+    fn start_trace_at(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Option<String> {
+        let args = [Value::text(&path.to_string_lossy())];
+        let answered = nvs_runtime::call(nvs_core_debug_start_trace, ctx, &args);
+        #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+        unsafe {
+            args[0].release();
+        }
+        answered
+            .err()
+            .map(|_| ctx.take_pending().unwrap_or_default().into_owned())
+    }
+
+    /// `rule:testing/debug-surface`: a start and its stop bracket the calls between them. The
+    /// probe is on and the sink named from `startTrace` to `stopTrace`, and both are gone after.
+    // covers: Core\Debug::startTrace
+    // covers: Core\Debug::stopTrace
+    #[cfg_attr(
+        miri,
+        ignore = "canonicalises a scratch directory, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_trace_starts_and_stops_around_the_calls_between() {
+        let dir = nvs_repo::scratch("debug-trace");
+        let mut ctx = probing(&format!(
+            "[debug]\nmode = []\n\n[capabilities.debug]\ntrace = ['{}']\n",
+            dir.display()
+        ));
+        assert!(
+            start_trace_at(&mut ctx, &dir.join("calls.jsonl")).is_some(),
+            "an empty mode has no `trace` to start"
+        );
+
+        let mut ctx = probing(&format!(
+            "[debug]\nmode = [\"trace\"]\n\n[capabilities.debug]\ntrace = ['{}']\n",
+            dir.display()
+        ));
+        nvs_runtime::call(nvs_core_debug_stop_trace, &mut ctx, &[]).expect("a stop never throws");
+        assert!(
+            !ctx.debug_flags().contains(DebugFlags::TRACE),
+            "a stop narrows the mode's default"
+        );
+        let path = dir.join("calls.jsonl");
+        assert_eq!(
+            start_trace_at(&mut ctx, &path),
+            None,
+            "the mode allows `trace`"
+        );
+        assert!(ctx.debug_flags().contains(DebugFlags::TRACE));
+        assert_eq!(ctx.trace_sink(), Some(path.as_path()));
+        let again = start_trace_at(&mut ctx, &path).expect("one trace at a time");
+        assert!(again.contains("stopTrace"), "{again}");
+        nvs_runtime::call(nvs_core_debug_stop_trace, &mut ctx, &[]).expect("a stop never throws");
+        assert!(!ctx.debug_flags().contains(DebugFlags::TRACE));
+        assert_eq!(ctx.trace_sink(), None);
+    }
+
+    /// `rule:testing/debug-probes`: writing a trace is its own grant, so a path outside
+    /// `debug.trace` throws even with `fs.write` granted everywhere, and the probe stays off.
+    // covers: Core\Debug::startTrace
+    #[cfg_attr(
+        miri,
+        ignore = "canonicalises a scratch directory, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_trace_path_outside_its_grant_throws() {
+        let dir = nvs_repo::scratch("debug-ungranted");
+        let mut ctx = probing("[debug]\nmode = [\"trace\"]\n\n[capabilities.fs]\nwrite = true\n");
+        nvs_runtime::call(nvs_core_debug_stop_trace, &mut ctx, &[]).expect("a stop never throws");
+        let refused = start_trace_at(&mut ctx, &dir.join("calls.jsonl"))
+            .expect("`fs.write` is not `debug.trace`");
+        assert!(refused.contains("debug.trace"), "{refused}");
+        assert!(!ctx.debug_flags().contains(DebugFlags::TRACE));
+        assert_eq!(ctx.trace_sink(), None);
+    }
+
+    /// `rule:testing/debug-mode-directive`: a program narrows `[debug] mode` and never widens it.
+    /// `coverage` alone in the mode lets coverage start, and neither its branch half nor a profile.
+    // covers: Core\Debug::startCoverage
+    // covers: Core\Debug::stopCoverage
+    // covers: Core\Debug::startProfile
+    #[test]
+    fn a_program_cannot_widen_debug_mode() {
+        let mut ctx = probing("[debug]\nmode = [\"coverage\"]\n");
+        nvs_runtime::call(nvs_core_debug_stop_coverage, &mut ctx, &[])
+            .expect("a stop never throws");
+        assert!(ctx.debug_flags().is_empty());
+        nvs_runtime::call(
+            nvs_core_debug_start_coverage,
+            &mut ctx,
+            &[Value::bool(false)],
+        )
+        .expect("the mode allows `coverage`");
+        assert_eq!(ctx.debug_flags(), DebugFlags::COVERAGE);
+
+        let branches = nvs_runtime::call(
+            nvs_core_debug_start_coverage,
+            &mut ctx,
+            &[Value::bool(true)],
+        );
+        assert!(branches.is_err(), "`branch` is not in the mode");
+        let refused = ctx.take_pending().unwrap_or_default();
+        assert!(
+            refused.contains("`branch`") && refused.contains("[debug]"),
+            "{refused}"
+        );
+        assert_eq!(
+            ctx.debug_flags(),
+            DebugFlags::COVERAGE,
+            "a refused start turns nothing on"
+        );
+
+        let path = Value::text("/profile.json");
+        let profile = nvs_runtime::call(nvs_core_debug_start_profile, &mut ctx, &[path]);
+        #[expect(
+            unsafe_code,
+            reason = "the call borrowed the one reference this frame built"
+        )]
+        unsafe {
+            path.release();
+        }
+        assert!(
+            profile.is_err(),
+            "`profile` is not in the mode, and nothing grants the path"
+        );
+        drop(ctx.take_pending());
+        assert!(!ctx.debug_flags().contains(DebugFlags::PROFILE));
+    }
+
+    /// `rule:testing/debug-surface`: `coverage()` reads the host's table back as path, line and
+    /// count. A line is its largest statement's count, and a line that did not run is not listed.
+    // covers: Core\Debug::coverage
+    #[test]
+    fn coverage_reads_the_table_back_by_path_and_line() {
+        let mut lines = nvs_runtime::StmtLines::new();
+        lines.push("app/Main.nvs", 3);
+        lines.push("app/Main.nvs", 3);
+        lines.push("app/Main.nvs", 4);
+        lines.push("app/Lib.nvs", 9);
+        let hits = std::sync::Arc::new(nvs_runtime::StmtHits::new(4).located(lines));
+        hits.record(0);
+        hits.record(1);
+        hits.record(1);
+        hits.record(3);
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_stmt_hits(Some(hits));
+
+        let answered = nvs_runtime::call(nvs_core_debug_coverage, &mut ctx, &[])
+            .expect("a read-back never throws");
+        let files = crate::arr::borrowed(answered.array_ptr().expect("an array"));
+        let main = files
+            .get(b"app/Main.nvs")
+            .expect("a file that ran is listed");
+        let main = crate::arr::borrowed(main.array_ptr().expect("an array of lines"));
+        assert_eq!(main.get_index(3).and_then(Value::as_int), Some(2));
+        assert!(
+            main.get_index(4).is_none(),
+            "a line that did not run is not listed"
+        );
+        let lib = files.get(b"app/Lib.nvs").expect("the second file");
+        let lib = crate::arr::borrowed(lib.array_ptr().expect("an array of lines"));
+        assert_eq!(lib.get_index(9).and_then(Value::as_int), Some(1));
+        #[expect(
+            unsafe_code,
+            reason = "the call returned the one reference to the array"
+        )]
+        unsafe {
+            answered.release();
         }
     }
 

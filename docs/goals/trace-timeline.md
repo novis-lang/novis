@@ -13,7 +13,7 @@ stages:
         rules: [observability/trace-events-carry-a-kind, observability/four-kinds-become-a-span, observability/gc-pause-is-its-own-event, observability/spawn-is-its-own-event]
   - id: 2
     title: "`Core\\Debug` starts and stops each probe"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/debug.rs, crates/nvs-config/src/capability.rs, crates/nvs-runtime/src/ctx/mod.rs, docs/rules/testing/debug-surface.md, docs/rules/core-api/no-mode-strings.md]
     extra:
       context:
@@ -173,10 +173,10 @@ window.
 
 **Does:** a program turns coverage, trace and profile on and off mid-request and reads coverage back.
 
-- [ ] The rule names the members, their parameters and the coverage map's shape, as the standing decision settles them (`rule:testing/debug-surface`, `rule:core-api/no-mode-strings`). `docs/rules/testing/debug-surface.md:1`
-- [ ] The members join `Core\Debug` with their reference cards, each narrowing within `[debug] mode` (`rule:testing/debug-mode-directive`, `rule:core-api/reference-card`). `crates/nvs-stdlib/src/debug.rs:117`
-- [ ] A trace or profile path is admitted only under the `debug.trace` or `debug.profile` grant (`rule:testing/debug-probes`). `crates/nvs-config/src/capability.rs:146`
-- [ ] Rust tests: a start and stop around one call, a coverage read-back, a path refused without its grant, and a request that cannot widen `[debug] mode` (`rule:testing/debug-surface`). `crates/nvs-stdlib/src/debug.rs:409`
+- [x] The rule names the members, their parameters and the coverage map's shape, as the standing decision settles them (`rule:testing/debug-surface`, `rule:core-api/no-mode-strings`). `docs/rules/testing/debug-surface.md:1`
+- [x] The members join `Core\Debug` with their reference cards, each narrowing within `[debug] mode` (`rule:testing/debug-mode-directive`, `rule:core-api/reference-card`). `crates/nvs-stdlib/src/debug.rs:117`
+- [x] A trace or profile path is admitted only under the `debug.trace` or `debug.profile` grant (`rule:testing/debug-probes`). `crates/nvs-config/src/capability.rs:146`
+- [x] Rust tests: a start and stop around one call, a coverage read-back, a path refused without its grant, and a request that cannot widen `[debug] mode` (`rule:testing/debug-surface`). `crates/nvs-stdlib/src/debug.rs:409`
 
 ### 6. a trace streams to a named sink
 
@@ -185,6 +185,7 @@ window.
 - [ ] A sink writes the `call` events as newline-delimited JSON as they close (`rule:testing/debug-surface`). `crates/nvs-runtime/src/ctx/trace.rs:329`
 - [ ] The vector keeps only the bounded span events, and `startTrace`'s path opens the sink. `crates/nvs-runtime/src/ctx/mod.rs:1381`, `crates/nvs-stdlib/src/debug.rs:117`
 - [ ] Rust tests: a traced loop of many calls holds no `call` event in the vector, and the sink file has one line per call (`rule:testing/debug-probes`). `crates/nvs-runtime/src/ctx/trace.rs:1324`
+- [ ] Every host that installs a statement table locates it with `StmtLines`, and `nvs run` installs one when its ceiling has `coverage`, so `Core\Debug::coverage` answers from source (`rule:testing/debug-surface`). `crates/nvs-cli/src/runner.rs:755`, `crates/nvs-cli/src/main.rs:2163`, `crates/nvs-runtime/src/ctx/trace.rs:832`
 
 ### 7. the new `Core\Debug` members have their feature proofs
 
@@ -264,31 +265,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. Every `TraceEvent` has `start` and `end` on `EPOCH`, read with
-`nvs_runtime::trace_clock`, and `nvs_runtime::unix_nanos` puts a reading on the wall clock. `record_query`
-and `record_http` take the span's own duration. `nvs_server::trace::spans` takes the root's window, and
-`record` takes the root's start, which both doors and the scheduler read before the run. The OTLP
-`Recorded` has no batch stamp: each span is encoded with its own window. The gap record is deleted. The
-two new tests passed once by name:
-`ctx::trace::tests::a_timed_event_ends_where_it_is_filed_and_began_its_duration_before` and
-`otlp::tests::a_spans_window_contains_its_childrens_on_the_wire`. No test is expected to go red: the two
-runtime cases that compared whole events now compare kind, callee and status.
+Stages 1 and 2 are done. `Core\Debug` has `startCoverage(bool $branches = false)`, `stopCoverage()`,
+`coverage(): array<array<int>>`, `startTrace(string $path)`, `stopTrace()`, `startProfile(string $path)`
+and `stopProfile()`, each with its reference card. The `map<…>` of the standing decision is spelled
+`array<array<int>>`, because the array is Novis's map type; the rule records it.
 
-The sweep's six findings were already fixed on main after the nightly run's commit `3ea6f1550`:
-`crypto-bigint` 0.7.6 (`10c402b57`), the stale `deny.toml` ignore (`d2a782d60`), the `capability.rs`
-format, the JSON case's Miri ignore (`220cb82b7`), the session case's 20 requests under Miri
-(`c4842ec8f`) and the transport's Miri idle bound (`c953c3456`). `env-secret-proofs` exits 0 when rerun.
+- `Ctx` has a `debug_ceiling` word: `set_config` raises it with `[debug] mode`, `set_debug_flags` (the
+  host's call) with every bit it sets, and a child context starts with its parent's current flags as its
+  ceiling (`crates/nvs-runtime/src/ctx/isolate.rs`). `Ctx::start_probes` turns bits on only inside it,
+  and `Ctx::stop_probes` always narrows (`crates/nvs-runtime/src/ctx/safepoint.rs:499`).
+- A start outside the ceiling throws a `RuntimeError` naming the line to add. A trace or profile path
+  goes through `capability::require` with `Cap::DebugTrace` or `Cap::DebugProfile` first, then the
+  ceiling, and a second start while a sink is named throws a `LogicError`
+  (`crates/nvs-stdlib/src/debug.rs:503`).
+- The admitted path is only recorded, in `DebugSinks` (`crates/nvs-runtime/src/ctx/trace.rs:760`).
+- `StmtHits::located(StmtLines)` and `StmtHits::line_counts` read coverage back, but no host locates its
+  table yet, so `coverage()` is empty from source.
+
+The four new tests passed once by name, under `debug::tests::`: `a_trace_starts_and_stops_around_the_calls_between`,
+`a_trace_path_outside_its_grant_throws`, `a_program_cannot_widen_debug_mode` and
+`coverage_reads_the_table_back_by_path_and_line`. Expected red at the gate: the `Core` proofs and
+roster checks for the seven new members (`bun nv proofs --gate`, stage 7's), and any `nvs meta --json`
+or reference-card snapshot that lists `Core\Debug`'s members.
 
 ### Next
 
-**Stage 2: `Core\Debug` starts and stops each probe**, file set `crates/nvs-stdlib/src/debug.rs`,
-`crates/nvs-config/src/capability.rs`, `docs/rules/testing/debug-surface.md`. No gate. Stage 5 is a
-side lane beside it (`editors/vscode/`).
+**Stage 6: a trace streams to a named sink**, file set `crates/nvs-runtime/src/ctx/trace.rs`,
+`crates/nvs-runtime/src/ctx/mod.rs`, `crates/nvs-stdlib/src/debug.rs`, and `crates/nvs-cli/src/runner.rs`
+with `crates/nvs-cli/src/main.rs` for the located tables. No gate. Stage 5 stays a side lane
+(`editors/vscode/`).
 
-- [ ] The rule names the members, their parameters and the coverage map's shape (`rule:testing/debug-surface`, `rule:core-api/no-mode-strings`). `docs/rules/testing/debug-surface.md:1`
-- [ ] The members join `Core\Debug` with their reference cards (`rule:testing/debug-mode-directive`, `rule:core-api/reference-card`). `crates/nvs-stdlib/src/debug.rs:117`
-- [ ] A path is admitted only under the `debug.trace` or `debug.profile` grant (`rule:testing/debug-probes`). `crates/nvs-config/src/capability.rs:146`
-- [ ] Rust tests: a start and stop around one call, a coverage read-back, a path refused without its grant, and a request that cannot widen `[debug] mode`. `crates/nvs-stdlib/src/debug.rs:409`
+- [ ] A sink writes the `call` events as newline-delimited JSON as they close. `crates/nvs-runtime/src/ctx/trace.rs:384`
+- [ ] The vector keeps only the bounded span events, and `startTrace`'s path opens the sink; `stopTrace` closes it. `crates/nvs-runtime/src/ctx/trace.rs:760`, `crates/nvs-stdlib/src/debug.rs:594`
+- [ ] Rust tests: a traced loop of many calls holds no `call` event in the vector, and the sink file has one line per call. `crates/nvs-runtime/src/ctx/trace.rs:1324`
+- [ ] Every host that installs a statement table locates it, and `nvs run` installs one under a `coverage` ceiling. `crates/nvs-cli/src/runner.rs:755`, `crates/nvs-cli/src/main.rs:2163`
 
 ### Backlog
 

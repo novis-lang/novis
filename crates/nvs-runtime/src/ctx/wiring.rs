@@ -207,6 +207,8 @@ impl Ctx {
             inbound: None,
             run_kind: RunKind::Command,
             stmt_hits: None,
+            debug_ceiling: DebugFlags::empty(),
+            debug_sinks: DebugSinks::default(),
             counted_stmts: 0,
             counted_calls: 0,
             trace: Vec::new(),
@@ -435,7 +437,8 @@ impl Ctx {
     ///
     /// The same answer decides the probes (`rule:testing/debug-mode-directive`). A context that is
     /// not server work arms the [`DebugFlags`] `[debug] mode` names, and drops the ones the
-    /// configuration it replaces armed; a bit its host turned on itself stays on. Server work arms
+    /// configuration it replaces armed; a bit its host turned on itself stays on. The ceiling
+    /// `Core\Debug` starts a probe under moves the same way ([`Self::start_probes`]). Server work arms
     /// none, because a server refuses a tree that names any (`nvs_config::debug`).
     pub fn set_config(&mut self, snapshot: std::sync::Arc<nvs_config::Snapshot>) {
         let serving = self.run_kind().is_server_work()
@@ -452,6 +455,7 @@ impl Ctx {
         }
         let replaced = self.config.as_ref().map_or(DebugFlags::empty(), armed_by);
         self.debug = (self.debug - replaced) | armed_by(&config);
+        self.debug_ceiling = (self.debug_ceiling - replaced) | armed_by(&config);
         self.config = Some(config);
         self.refresh_limits();
         // The log target is read out of the snapshot that just arrived, not out

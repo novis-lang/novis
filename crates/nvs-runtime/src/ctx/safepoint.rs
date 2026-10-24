@@ -475,8 +475,39 @@ impl Ctx {
     }
 
     /// Turns probes on or off for a request that may already be running.
+    ///
+    /// The host's call, never a program's: every bit it turns on also joins the ceiling
+    /// [`Self::start_probes`] reads, so `Core\Debug` may stop and start it again.
     pub fn set_debug_flags(&mut self, flags: DebugFlags) {
         self.debug = flags;
+        self.debug_ceiling |= flags;
+    }
+
+    /// The probes `Core\Debug` may turn on in this context —
+    /// `rule:testing/debug-mode-directive`'s ceiling.
+    #[must_use]
+    pub fn debug_ceiling(&self) -> DebugFlags {
+        self.debug_ceiling
+    }
+
+    /// Turns `bits` on when the ceiling has every one of them, which is the only way a program
+    /// starts a probe.
+    ///
+    /// # Errors
+    ///
+    /// The bits the ceiling does not have, and nothing is turned on.
+    pub fn start_probes(&mut self, bits: DebugFlags) -> Result<(), DebugFlags> {
+        let missing = bits - self.debug_ceiling;
+        if !missing.is_empty() {
+            return Err(missing);
+        }
+        self.debug |= bits;
+        Ok(())
+    }
+
+    /// Turns `bits` off. Stopping is always allowed, because it only narrows.
+    pub fn stop_probes(&mut self, bits: DebugFlags) {
+        self.debug -= bits;
     }
 }
 

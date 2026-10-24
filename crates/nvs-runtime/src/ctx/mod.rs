@@ -1391,6 +1391,12 @@ pub struct Ctx {
     /// one, which only `nvs test`'s coverage flags do; a child context
     /// gets a clone of the handle together with the flags.
     stmt_hits: Option<std::sync::Arc<StmtHits>>,
+    /// `rule:testing/debug-mode-directive`'s ceiling: the probes `Core\Debug` may turn on in this
+    /// context ([`Ctx::start_probes`]). `[debug] mode` and every bit the host turns on raise it, and
+    /// a child starts with its parent's current [`DebugFlags`] as its own, so a child only narrows.
+    debug_ceiling: DebugFlags,
+    /// The files `Core\Debug::startTrace` and `Core\Debug::startProfile` named, each while it runs.
+    debug_sinks: DebugSinks,
     /// `rule:testing/bench-counters`'s two counts, kept only under
     /// [`DebugFlags::COUNT`]: statements executed and compiled call sites
     /// entered. Two words rather than `stmt_hits` and `trace`, because a bench

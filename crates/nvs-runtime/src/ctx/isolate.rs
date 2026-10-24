@@ -405,6 +405,7 @@ impl Ctx {
         child.owned_by_test = self.owned_by_test;
         child.statics = self.statics;
         child.debug = self.debug;
+        child.debug_ceiling = self.debug;
         child.stmt_hits = self.stmt_hits.clone();
         child.origin = self.origin.clone();
         // The effective configuration, overlay included — see the doc above for
@@ -536,6 +537,7 @@ impl Ctx {
         // it stays null until this context is armed with the child unit's own
         // defaults, which is the difference this constructor exists for.
         isolate.debug = self.debug;
+        isolate.debug_ceiling = self.debug;
         isolate.stmt_hits = self.stmt_hits.clone();
         isolate.origin = self.origin.clone();
         // The configuration **including the parent's overlay**, so a child
@@ -1015,6 +1017,7 @@ impl PlacedIsolate {
         let mut child = Ctx::new(output);
         child.run_kind = RunKind::Isolate;
         child.debug = self.debug;
+        child.debug_ceiling = self.debug;
         child.stmt_hits = self.stmt_hits;
         child.origin = self.origin;
         child.config = self.config;

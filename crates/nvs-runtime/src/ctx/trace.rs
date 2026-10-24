@@ -718,6 +718,72 @@ pub struct Counted {
 pub struct StmtHits {
     stmts: Box<[std::sync::atomic::AtomicU64]>,
     edges: Box<[std::sync::atomic::AtomicU64]>,
+    lines: Option<StmtLines>,
+}
+
+/// Where each statement a [`StmtHits`] table counts is written: a file and a line per statement
+/// number, which is what `Core\Debug::coverage` reads the table back through.
+///
+/// **What it spends:** one pair of `u32`s per statement and one string per file, once per run
+/// whose host located its table ([`StmtHits::located`]).
+#[derive(Debug, Default)]
+pub struct StmtLines {
+    files: Vec<Box<str>>,
+    sites: Vec<(u32, u32)>,
+}
+
+impl StmtLines {
+    /// No statements yet.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Says where the next statement number is written. The numbers are given in order, from 0.
+    pub fn push(&mut self, file: &str, line: u32) {
+        let index = match self.files.iter().rposition(|known| &**known == file) {
+            Some(index) => index,
+            None => {
+                self.files.push(file.into());
+                self.files.len() - 1
+            }
+        };
+        self.sites
+            .push((u32::try_from(index).unwrap_or(u32::MAX), line));
+    }
+}
+
+/// The files `Core\Debug::startTrace` and `Core\Debug::startProfile` named
+/// (`rule:testing/debug-surface`), each from its start until its stop. A context that started
+/// neither has `None` for both. A child context does not share them.
+#[derive(Debug, Default)]
+pub(crate) struct DebugSinks {
+    trace: Option<std::path::PathBuf>,
+    profile: Option<std::path::PathBuf>,
+}
+
+impl Ctx {
+    /// The file the running trace writes to, while one runs.
+    #[must_use]
+    pub fn trace_sink(&self) -> Option<&std::path::Path> {
+        self.debug_sinks.trace.as_deref()
+    }
+
+    /// Names the file a trace writes to, or none with `None`.
+    pub fn set_trace_sink(&mut self, path: Option<std::path::PathBuf>) {
+        self.debug_sinks.trace = path;
+    }
+
+    /// The file the running profile writes to, while one runs.
+    #[must_use]
+    pub fn profile_sink(&self) -> Option<&std::path::Path> {
+        self.debug_sinks.profile.as_deref()
+    }
+
+    /// Names the file a profile writes to, or none with `None`.
+    pub fn set_profile_sink(&mut self, path: Option<std::path::PathBuf>) {
+        self.debug_sinks.profile = path;
+    }
 }
 
 /// `len` counters, all zero.
@@ -757,7 +823,43 @@ impl StmtHits {
         Self {
             stmts: zeroed(statements),
             edges: zeroed(edges),
+            lines: None,
         }
+    }
+
+    /// The same table, with where each statement is written, so [`Self::line_counts`] can read it.
+    #[must_use]
+    pub fn located(mut self, lines: StmtLines) -> Self {
+        self.lines = Some(lines);
+        self
+    }
+
+    /// Each line a statement ran on, by file, with its count — `Core\Debug::coverage`'s answer.
+    ///
+    /// A line's count is the largest count of a statement on it, the rule `nvs test`'s coverage
+    /// reports use, so a loop header is not counted twice. A line no statement ran on is not
+    /// listed. A table its host did not locate lists nothing.
+    #[must_use]
+    pub fn line_counts(
+        &self,
+    ) -> std::collections::BTreeMap<&str, std::collections::BTreeMap<u32, u64>> {
+        let mut by_file = std::collections::BTreeMap::new();
+        let Some(lines) = &self.lines else {
+            return by_file;
+        };
+        for (counter, &(file, line)) in self.stmts.iter().zip(&lines.sites) {
+            let count = counter.load(std::sync::atomic::Ordering::Relaxed);
+            let Some(path) = lines.files.get(file as usize) else {
+                continue;
+            };
+            if count == 0 {
+                continue;
+            }
+            let at: &mut std::collections::BTreeMap<u32, u64> = by_file.entry(&**path).or_default();
+            let kept = at.entry(line).or_insert(0);
+            *kept = (*kept).max(count);
+        }
+        by_file
     }
 
     /// Counts one hit for statement `stmt`.

@@ -3,6 +3,37 @@ half, a trace to a named sink, a profile to another — and reads coverage back 
 count map. `nvs test` and `nvs run` grow flags that wrap a whole run in those calls with no source
 change at all, which is the ergonomics CI uses day to day.
 
+**The members are one start and stop pair per probe and one read-back**, so no member takes a mode
+(`rule:core-api/no-mode-strings`):
+
+```text
+Core\Debug::startCoverage(bool $branches = false): void
+Core\Debug::stopCoverage(): void
+Core\Debug::coverage(): array<array<int>>
+Core\Debug::startTrace(string $path): void
+Core\Debug::stopTrace(): void
+Core\Debug::startProfile(string $path): void
+Core\Debug::stopProfile(): void
+```
+
+- **A start narrows within `[debug] mode` and never widens it** (`rule:testing/debug-mode-directive`).
+  The ceiling is the mode plus every probe the host itself turned on, such as `nvs test`'s coverage
+  flags. A start whose probe is outside it throws a `RuntimeError` naming the line to add, and turns
+  nothing on. `$branches` needs `branch` as well as `coverage`. A stop always succeeds, since it only
+  narrows, and it also turns off a probe the mode armed. A child context's ceiling is its parent's
+  flag word at the spawn.
+- **A trace or profile path is admitted under its own grant**, `debug.trace` or `debug.profile`
+  (`rule:testing/debug-probes`), through the same path door `fs.write` uses, and asked before the mode.
+  A second start while one sink is named throws a `LogicError`, so one probe writes one file at a time.
+- **`startProfile` writes speedscope**, the timeline format; Callgrind comes from the CLI flag. One
+  format per member keeps the surface small.
+- **`coverage()` is path to line to count**, an `array` keyed by file path whose values are arrays
+  keyed by line number. A line's count is the largest count of a statement on it, the rule the
+  `nvs test` reports use, and a line that did not run is not listed, so the answer grows with the
+  code that ran and not with the program. It reads the table the host installed, which holds where each
+  statement is written (`nvs_runtime::StmtLines`); with no table it is empty. The declared type is
+  `array<array<int>>` because Novis's array is its map type.
+
 What comes out is what existing tooling already reads: Clover and lcov for coverage, Callgrind and
 speedscope for the profile. The trace is newline-delimited JSON, because no third-party tooling widely
 consumes any trace format either. A coverage report opens in the CI dashboard a project already has
@@ -27,10 +58,11 @@ copy-out rule a value, an error and a usage figure already use.
 
 **Not on disk.** The probe bits exist (`crates/nvs-runtime/src/ctx/mod.rs:287`), and `nvs test` writes
 lcov, Clover and Cobertura coverage (`crates/nvs-cli/src/main.rs:617`,
-`crates/nvs-cli/src/coverage.rs`). `Core\Debug` has no start, stop or coverage read-back
-(`crates/nvs-stdlib/src/debug.rs:117`), there is no Callgrind or speedscope exporter and no streamed
-trace sink, `nvs run` has no probe flags, and a spawned isolate's probe data does not come back on its
-result.
+`crates/nvs-cli/src/coverage.rs`). `Core\Debug`'s seven members exist
+(`crates/nvs-stdlib/src/debug.rs`), but a named sink is recorded and nothing writes to it yet, and no
+host locates its statement table, so `coverage()` is empty everywhere a program runs. There is no
+Callgrind or speedscope exporter, `nvs run` has no probe flags, and a spawned isolate's probe data does
+not come back on its result.
 
 **Declined:**
 - **A sampling profiler.** It would interrupt compiled code on a timer and walk native frames on every
