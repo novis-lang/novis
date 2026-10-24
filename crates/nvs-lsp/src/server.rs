@@ -64,7 +64,7 @@
 //! the index ([`CompletionFiles::check`]), so they are published again when an
 //! edit changes the index and changes what the check finds.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -83,20 +83,22 @@ use lsp_types::request::{
     TypeHierarchySupertypes, WillRenameFiles,
 };
 use lsp_types::{
-    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens, CodeLensParams,
-    Command, CompletionItem, CompletionParams, CompletionResponse, CompletionTriggerKind,
-    DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
+    AnnotatedTextEdit, CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens,
+    CodeLensParams, Command, CompletionItem, CompletionParams, CompletionResponse,
+    CompletionTriggerKind, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
     DidChangeWatchedFilesRegistrationOptions, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
-    DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse,
-    FileSystemWatcher, FoldingRange, FoldingRangeParams, GlobPattern, GotoDefinitionParams,
-    GotoDefinitionResponse, HoverParams, InitializeParams, InlayHint, InlayHintParams, Location,
-    Position, PrepareRenameResponse, PublishDiagnosticsParams, Range, ReferenceParams,
-    Registration, RegistrationParams, RenameFilesParams, RenameParams, SelectionRange,
-    SelectionRangeParams, SemanticTokens, SemanticTokensParams, SemanticTokensResult,
-    SignatureHelp, SignatureHelpParams, SymbolKind, TextDocumentIdentifier,
-    TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
-    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
+    DidOpenTextDocumentParams, DocumentChangeOperation, DocumentChanges, DocumentHighlight,
+    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FileSystemWatcher, FoldingRange,
+    FoldingRangeParams, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
+    InitializeParams, InlayHint, InlayHintParams, Location, OneOf,
+    OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse,
+    PublishDiagnosticsParams, Range, ReferenceParams, Registration, RegistrationParams, RenameFile,
+    RenameFilesParams, RenameParams, ResourceOp, SelectionRange, SelectionRangeParams,
+    SemanticTokens, SemanticTokensParams, SemanticTokensResult, SignatureHelp, SignatureHelpParams,
+    SymbolKind, TextDocumentEdit, TextDocumentIdentifier, TextDocumentPositionParams, TextEdit,
+    TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
+    TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
 };
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap};
 
@@ -697,7 +699,7 @@ fn answer(
             }
         }
         Rename::METHOD => match serde_json::from_value::<RenameParams>(params) {
-            Ok(params) => match rename_symbol(documents, index, encoding, &params) {
+            Ok(params) => match rename_symbol(documents, index, settings, encoding, &params) {
                 Ok(edit) => Response::new_ok(id, edit),
                 Err(message) => refused(id, message),
             },
@@ -1106,10 +1108,15 @@ fn prepare_rename(
 /// `null` for a document this server has nothing open for. The edit is
 /// `changes`, keyed by each file's URI: every edit replaces a name, so the
 /// document versions `documentChanges` would carry add nothing a client
-/// needs.
+/// needs. A rename that moves a type's file is the one exception, because only
+/// `documentChanges` can carry a `RenameFile`. Its text edits come first, at
+/// the paths they have now, and the move last. A client that cannot move a
+/// file is refused that rename, since the `autoload` that finds the type by
+/// its file name would stop finding it.
 fn rename_symbol(
     documents: &Documents,
     index: &SymbolIndex,
+    settings: &Settings,
     encoding: PositionEncoding,
     params: &RenameParams,
 ) -> Result<Option<WorkspaceEdit>, String> {
@@ -1122,10 +1129,63 @@ fn rename_symbol(
         position.position,
         encoding,
     );
-    let rewrites = rename::rename(documents, index, &analysed, offset, &params.new_name)?;
-    Ok(Some(workspace_edit(located(
-        documents, &rewrites, encoding,
-    ))))
+    let renamed = rename::rename(documents, index, &analysed, offset, &params.new_name)?;
+    let edits = located(documents, &renamed.rewrites, encoding);
+    let Some((from, to)) = &renamed.file else {
+        return Ok(Some(workspace_edit(edits)));
+    };
+    if !settings.client.rename_files {
+        return Err(format!(
+            "The type is in `{}`, and the file must have the same name as the type. This editor \
+             cannot rename a file, so the type cannot be renamed here.",
+            from.file_name().unwrap_or_default().to_string_lossy()
+        ));
+    }
+    let (Some(old_uri), Some(new_uri)) = (uri_of(from), uri_of(to)) else {
+        return Err(format!("`{}` cannot be renamed.", from.display()));
+    };
+    Ok(Some(moving_edit(edits, old_uri, new_uri)))
+}
+
+/// The edits and then one file move, as `documentChanges`.
+///
+/// Each file's edits are one unversioned `TextDocumentEdit`, in path order,
+/// because the edits replace names and do not depend on the version the client
+/// has.
+fn moving_edit(located: Vec<(Location, String)>, old_uri: Uri, new_uri: Uri) -> WorkspaceEdit {
+    let mut by_file: BTreeMap<String, (Uri, Vec<OneOf<TextEdit, AnnotatedTextEdit>>)> =
+        BTreeMap::new();
+    for (at, new_text) in located {
+        by_file
+            .entry(at.uri.as_str().to_owned())
+            .or_insert_with(|| (at.uri.clone(), Vec::new()))
+            .1
+            .push(OneOf::Left(TextEdit {
+                range: at.range,
+                new_text,
+            }));
+    }
+    let mut operations: Vec<DocumentChangeOperation> = by_file
+        .into_values()
+        .map(|(uri, edits)| {
+            DocumentChangeOperation::Edit(TextDocumentEdit {
+                text_document: OptionalVersionedTextDocumentIdentifier { uri, version: None },
+                edits,
+            })
+        })
+        .collect();
+    operations.push(DocumentChangeOperation::Op(ResourceOp::Rename(
+        RenameFile {
+            old_uri,
+            new_uri,
+            options: None,
+            annotation_id: None,
+        },
+    )));
+    WorkspaceEdit {
+        document_changes: Some(DocumentChanges::Operations(operations)),
+        ..WorkspaceEdit::default()
+    }
 }
 
 /// `workspace/willRenameFiles` — every `require` literal that names a file the
@@ -1620,7 +1680,8 @@ pub(crate) fn prepare_rename_of_case(
 
 /// [`rename_symbol`] for one `.lspt` case, over an index built for that case
 /// alone and for [`lenses_of_case`]'s reason. Each edit is a [`Location`] so
-/// the runner spells its file as it spells a reference.
+/// the runner spells its file as it spells a reference, and a moved file is
+/// its two paths. A case is answered as a client that can move a file.
 pub(crate) fn rename_of_case(
     documents: &Documents,
     analysed: &Analysed,
@@ -1628,12 +1689,19 @@ pub(crate) fn rename_of_case(
     offset: BytePos,
     new_name: &str,
     encoding: PositionEncoding,
-) -> Result<Vec<(Location, String)>, String> {
+) -> Result<CaseRename, String> {
     let settings = case_settings(root);
     let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
-    let rewrites = rename::rename(documents, &index, analysed, offset, new_name)?;
-    Ok(located(documents, &rewrites, encoding))
+    let renamed = rename::rename(documents, &index, analysed, offset, new_name)?;
+    Ok((
+        located(documents, &renamed.rewrites, encoding),
+        renamed.file,
+    ))
 }
+
+/// What [`rename_of_case`] gives: each edit, and the file a type's rename
+/// moves.
+pub(crate) type CaseRename = (Vec<(Location, String)>, Option<(PathBuf, PathBuf)>);
 
 /// [`will_rename_files`] for one `.lspt` case, over an index built for that
 /// case alone and for [`lenses_of_case`]'s reason.

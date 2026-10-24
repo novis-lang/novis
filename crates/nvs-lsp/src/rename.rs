@@ -15,7 +15,11 @@
 //!   `\Shop\User` and `use Shop\User;` keep their namespace. Before any edit,
 //!   every file the index holds is read for the old name as a name or at the
 //!   end of a string, and a place the index holds no site at refuses the
-//!   rename: such a place is a site the edits would miss.
+//!   rename: such a place is a site the edits would miss. A type declared
+//!   alone in a file named after it, `User.nvs` for `User`, moves that file
+//!   to the new name too, because the name is how an `autoload` finds it.
+//!   Each `require` literal that names the file is written again as [`moved`]
+//!   writes it, and a file already at the new path refuses the rename.
 //! - **A member** — a method, a property, a class constant or an enum case —
 //!   at its declaration and at every occurrence the index holds
 //!   ([`SymbolIndex::declaration`], [`SymbolIndex::occurrences`]). A method
@@ -81,6 +85,17 @@ pub struct Rewrite {
     pub text: String,
 }
 
+/// What a rename changes.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Renamed {
+    /// Every edit, keyed by each file's current path.
+    pub rewrites: Vec<Rewrite>,
+    /// The file a renamed type is declared in and the path it moves to, for a
+    /// type whose file is named after it. A client moves it after it applies
+    /// [`rewrites`](Self::rewrites).
+    pub file: Option<(PathBuf, PathBuf)>,
+}
+
 /// The name a class gives its constructor, which `new` calls by that name.
 const CONSTRUCTOR: &str = "constructor";
 
@@ -120,7 +135,7 @@ pub fn rename(
     analysed: &Analysed,
     offset: BytePos,
     new_name: &str,
-) -> Result<Vec<Rewrite>, String> {
+) -> Result<Renamed, String> {
     let subject = subject(index, analysed, offset)?;
     let new = new_name.strip_prefix('$').unwrap_or(new_name);
     if !is_identifier(new) {
@@ -142,7 +157,10 @@ pub fn rename(
             if new == old {
                 return Err("The new name is the same as the old one.".to_owned());
             }
-            members(documents, index, &family, kind, &old, new, &sites)
+            members(documents, index, &family, kind, &old, new, &sites).map(|rewrites| Renamed {
+                rewrites,
+                file: None,
+            })
         }
         What::Local {
             path,
@@ -163,7 +181,7 @@ pub fn rename(
             if bindings.iter().any(|binding| binding.name == new) || nested.contains(new) {
                 return Err(format!("This code already has a variable named `${new}`."));
             }
-            Ok(sites
+            let rewrites = sites
                 .into_iter()
                 .map(|span| Rewrite {
                     site: Site {
@@ -173,7 +191,11 @@ pub fn rename(
                     },
                     text: format!("${new}"),
                 })
-                .collect())
+                .collect();
+            Ok(Renamed {
+                rewrites,
+                file: None,
+            })
         }
     }
 }
@@ -364,7 +386,12 @@ fn member(index: &SymbolIndex, symbol: &str, at: Site) -> Result<Subject, String
             return Err(AN_OWNED_ALIAS.to_owned());
         }
         let mut sites = sites_of(index, &[symbol.to_owned()]);
-        sites.extend(index.imports_of(symbol).into_iter().map(|it| it.site.clone()));
+        sites.extend(
+            index
+                .imports_of(symbol)
+                .into_iter()
+                .map(|it| it.site.clone()),
+        );
         sites.sort();
         sites.dedup();
         return Ok(Subject {
@@ -624,6 +651,9 @@ fn members(
 /// file may import a type of that name or read it as something else. And every
 /// place the workspace writes `old` as a name or as a string must be a site the
 /// index holds, because a place it does not hold is one the rename would miss.
+///
+/// A type whose file is named after it moves its file too ([`named_after`]),
+/// with the `require` edits that move makes, unless a file is already there.
 fn types(
     documents: &Documents,
     index: &SymbolIndex,
@@ -631,13 +661,19 @@ fn types(
     old: &str,
     new: &str,
     sites: &[Site],
-) -> Result<Vec<Rewrite>, String> {
+) -> Result<Renamed, String> {
     if BUILT_IN.iter().any(|it| it.eq_ignore_ascii_case(new)) {
-        return Err(format!("`{new}` is a built-in type, so a type cannot be renamed to it."));
+        return Err(format!(
+            "`{new}` is a built-in type, so a type cannot be renamed to it."
+        ));
     }
     for file in index.files() {
         for declared in index.declarations_in(file) {
-            let short = declared.symbol.rsplit('\\').next().unwrap_or(&declared.symbol);
+            let short = declared
+                .symbol
+                .rsplit('\\')
+                .next()
+                .unwrap_or(&declared.symbol);
             if !declared.symbol.contains("::") && short.eq_ignore_ascii_case(new) {
                 return Err(format!(
                     "`{}` already exists, so `{symbol}` cannot be renamed to `{new}`.",
@@ -681,7 +717,9 @@ fn types(
             };
             named
                 && !sites.iter().any(|site| {
-                    site.path == path && site.start <= token.span.start && token.span.end <= site.end
+                    site.path == path
+                        && site.start <= token.span.start
+                        && token.span.end <= site.end
                 })
         });
         if let Some(missed) = missed {
@@ -715,7 +753,39 @@ fn types(
             text,
         });
     }
-    Ok(rewrites)
+
+    let file = named_after(index, symbol, old).map(|from| {
+        let to = from.with_file_name(format!("{new}.nvs"));
+        (from, to)
+    });
+    if let Some((from, to)) = &file {
+        // `User.nvs` to `user.nvs` names the same file on a disk that ignores
+        // case, and that file is the one being moved.
+        let same_file = from
+            .file_name()
+            .zip(to.file_name())
+            .is_some_and(|(left, right)| left.eq_ignore_ascii_case(right));
+        if to.exists() && !same_file {
+            return Err(format!(
+                "`{}` already exists, so `{symbol}` cannot be renamed to `{new}`.",
+                to.display()
+            ));
+        }
+        rewrites.extend(moved(documents, index, &[(from.clone(), to.clone())]));
+        rewrites.sort();
+        rewrites.dedup();
+    }
+    Ok(Renamed { rewrites, file })
+}
+
+/// The file `symbol` is declared in, when that file declares nothing else and
+/// is named `old` plus `.nvs`. An `autoload` finds a type by that file name, so
+/// the file is renamed with the type.
+fn named_after(index: &SymbolIndex, symbol: &str, old: &str) -> Option<PathBuf> {
+    let path = &index.declaration(symbol)?.site.path;
+    let named = path.file_stem().is_some_and(|stem| stem == old)
+        && path.extension().is_some_and(|extension| extension == "nvs");
+    (named && index.sole_kinds().any(|(file, _)| file == path)).then(|| path.clone())
 }
 
 /// The text of the files sites are in, with the open buffers overlaid and each

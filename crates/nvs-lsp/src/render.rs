@@ -179,6 +179,15 @@ pub struct Change {
     pub text: String,
 }
 
+/// A file a rename moves, each path spelled as the case wrote it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Moved {
+    /// Where the file is.
+    pub from: String,
+    /// Where it goes.
+    pub to: String,
+}
+
 /// One answer, in the shape the request that produced it answers.
 ///
 /// One variant per request in `rule:ide/the-request-set-is-closed`'s list, and
@@ -236,9 +245,9 @@ pub enum Response {
     /// refused with. `None` is the `null` the wire answers for a document the
     /// server has nothing open for, which no case's own document can be.
     PrepareRename(Result<Option<Renamable>, String>),
-    /// `textDocument/rename`: every edit, or the message the server refused
-    /// with.
-    Rename(Result<Vec<Change>, String>),
+    /// `textDocument/rename`: every edit and the file a type's rename moves,
+    /// or the message the server refused with.
+    Rename(Result<(Vec<Change>, Option<Moved>), String>),
     /// `workspace/willRenameFiles`: every edit to a `require` literal. A move
     /// that changes none is `none`, which is the `null` the wire answers.
     WillRenameFiles(Vec<Change>),
@@ -309,7 +318,15 @@ impl Response {
                 Err(message) => refused(message),
             },
             Self::Rename(answer) => match answer {
-                Ok(items) => lines(sorted(items.iter().map(change))),
+                Ok((items, moved)) => {
+                    let mut out = sorted(items.iter().map(change));
+                    out.extend(
+                        moved
+                            .iter()
+                            .map(|moved| format!("moves {} to {}", moved.from, moved.to)),
+                    );
+                    lines(out)
+                }
                 Err(message) => refused(message),
             },
             Self::WillRenameFiles(items) => lines(sorted(items.iter().map(change))),
@@ -858,7 +875,10 @@ mod tests {
                 path: "case.nvs".to_owned(),
                 range: span(3, 4, 10),
             }))),
-            Response::Rename(Ok(vec![changed("lib/user.nvs", at(3, 20), "hello")])),
+            Response::Rename(Ok((
+                vec![changed("lib/user.nvs", at(3, 20), "hello")],
+                None,
+            ))),
             Response::WillRenameFiles(vec![changed("case.nvs", at(1, 8), "'lib/account.nvs'")]),
             Response::Hints(vec![
                 hinted(at(1, 10), ": int", InlayHintKind::TYPE),
@@ -917,7 +937,7 @@ mod tests {
             Response::References(Vec::new()),
             Response::DocumentHighlight(Vec::new()),
             Response::PrepareRename(Ok(None)),
-            Response::Rename(Ok(Vec::new())),
+            Response::Rename(Ok((Vec::new(), None))),
             Response::WillRenameFiles(Vec::new()),
             Response::Hints(Vec::new()),
             Response::Redactions(Vec::new()),
@@ -1074,12 +1094,27 @@ mod tests {
             "case.nvs:4:5-4:11\n"
         );
         assert_eq!(
-            Response::Rename(Ok(vec![
-                changed("lib/user.nvs", at(3, 20), "hello"),
-                changed("case.nvs", at(6, 9), "hello"),
-            ]))
+            Response::Rename(Ok((
+                vec![
+                    changed("lib/user.nvs", at(3, 20), "hello"),
+                    changed("case.nvs", at(6, 9), "hello"),
+                ],
+                None,
+            )))
             .render(),
             "case.nvs:7:10 hello\nlib/user.nvs:4:21 hello\n"
+        );
+        // A moved file is one line after the edits.
+        assert_eq!(
+            Response::Rename(Ok((
+                vec![changed("lib/User.nvs", at(2, 6), "Customer")],
+                Some(Moved {
+                    from: "lib/User.nvs".to_owned(),
+                    to: "lib/Customer.nvs".to_owned(),
+                }),
+            )))
+            .render(),
+            "lib/User.nvs:3:7 Customer\nmoves lib/User.nvs to lib/Customer.nvs\n"
         );
         assert_eq!(
             Response::Rename(Err("`$this` cannot be renamed.".to_owned())).render(),

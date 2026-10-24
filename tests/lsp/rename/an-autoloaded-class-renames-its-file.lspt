@@ -1,0 +1,28 @@
+--TEST--
+renaming an autoloaded class renames the file named after it, after the edits, because the `autoload` finds the class by that file name — `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+autoload 'Shop' from 'src';
+
+use Shop\Cart;
+
+var $cart = new Ca<|>rt();
+echo $cart->total();
+--FILE src/Cart.nvs--
+<?nvs
+namespace Shop;
+
+class Cart
+{
+    public function total(): int
+    {
+        return 0;
+    }
+}
+--REQUEST--
+rename to=Basket
+--EXPECT--
+case.nvs:4:5 Shop\Basket
+case.nvs:6:17 Basket
+src/Cart.nvs:4:7 Basket
+moves src/Cart.nvs to src/Basket.nvs

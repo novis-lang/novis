@@ -91,14 +91,18 @@ are rows in the coverage matrix. The other four are answered on the wire and hel
 changes nothing about the answer.
 
 The last three standard requests are the rename of `rule:ide/no-refactoring-introduces-an-alias`, and
-they pass the same test. `prepareRename` and `rename` read the reference index for a member, with a
-method's whole override family, and the type phase's record of each body's bindings for a local.
-`workspace/willRenameFiles` reads the `require` edges the graph walk recorded, the same edges
-`documentLink` underlines, and writes each literal that names a moved file again. A rename the server
-will not carry out is answered `RequestFailed` with a message the editor shows: a cursor on no symbol,
-`$this`, a type, a parameter, a name declared outside the workspace, and a new name that is no
-identifier or that clashes. All three carry `.lspt` vocabulary: `prepareRename` renders a range,
-`rename` and `willRenameFiles` one line per edit, and a refusal its message.
+they pass the same test. `prepareRename` and `rename` read the reference index for a type and for a
+member, with a method's whole override family, and the type phase's record of each body's bindings for
+a local. `workspace/willRenameFiles` reads the `require` edges the graph walk recorded, the same edges
+`documentLink` underlines, and writes each literal that names a moved file again. A type declared alone
+in a file named after it moves that file too, because an `autoload` finds it by that name: the edit is
+`documentChanges`, its text edits first and one `RenameFile` last, with the `require` edits that move
+makes. A rename the server will not carry out is answered `RequestFailed` with a message the editor
+shows: a cursor on no symbol, `$this`, a parameter, a name declared outside the workspace, a new name
+that is no identifier or that clashes, and a type whose file must move for a client whose
+`workspace.workspaceEdit` capability has no `documentChanges` or no `rename` resource operation. All
+three carry `.lspt` vocabulary: `prepareRename` renders a range, `rename` and `willRenameFiles` one line
+per edit, a moved file one `moves <from> to <to>` line after them, and a refusal its message.
 
 - **Memory:** nothing held. Each request reads the index and the text of the files its sites are in,
   and a file move analyses each entry point that read the moved file once.

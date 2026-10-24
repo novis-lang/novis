@@ -341,6 +341,7 @@ fn a_command_is_sent_only_to_a_client_that_named_it() {
             snippets: true,
             suggest: true,
             parameter_hints: false,
+            rename_files: false,
         }
     );
     assert_eq!(

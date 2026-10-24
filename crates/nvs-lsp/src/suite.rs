@@ -63,7 +63,7 @@ use crate::document::{Analysed, Documents, analyse, path_of, uri_of};
 use crate::folding;
 use crate::hover;
 use crate::links;
-use crate::render::{Change, Link, Place, Renamable, Response};
+use crate::render::{Change, Link, Moved, Place, Renamable, Response};
 use crate::selection;
 use crate::semantic;
 use crate::stubs::{self, Stubs};
@@ -795,8 +795,15 @@ fn rename(
 ) -> Response {
     let to = case.args.to.as_deref().unwrap_or_default();
     Response::Rename(
-        crate::server::rename_of_case(documents, analysed, &files.dir, offset, to, COLUMNS)
-            .map(|edits| changes(files, &edits)),
+        crate::server::rename_of_case(documents, analysed, &files.dir, offset, to, COLUMNS).map(
+            |(edits, moved)| {
+                let moved = moved.map(|(from, to)| Moved {
+                    from: files.spelling(&from),
+                    to: files.spelling(&to),
+                });
+                (changes(files, &edits), moved)
+            },
+        ),
     )
 }
 

@@ -39,6 +39,7 @@ const EDITOR: Client = Client {
     snippets: true,
     suggest: true,
     parameter_hints: true,
+    rename_files: false,
 };
 
 /// The mark a document below writes where its cursor is.
