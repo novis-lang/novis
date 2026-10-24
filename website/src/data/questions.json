@@ -1280,13 +1280,13 @@
   },
   "/reference/cli/nvs-test/": {
     "feature": "tools:cli/nvs-test",
-    "hash": "e2243c199c7b99b0",
+    "hash": "e2be8e143c68d42d",
     "questions": [
       "How do I run my unit tests?",
       "Run only the tests whose name matches some text",
       "Produce a JUnit report for my CI pipeline",
       "Generate a code coverage report in lcov or Cobertura format",
-      "Update failing inline snapshots automatically",
+      "Run my tests again every time I save a file",
       "List all tests without running them"
     ]
   },
@@ -14046,22 +14046,34 @@
   },
   "/reference/core/test-response/": {
     "feature": "Core\\Test\\Response",
-    "hash": "cfeb9d8589cf65b2",
+    "hash": "eb73ace0cd4447de",
     "questions": [
       "What does a test request return?",
       "The response object of a request in a test",
       "Which parts of my app's reply can a test read?",
-      "Read the status, headers, cookies and body in a test"
+      "Read the status, headers, cookies and body in a test",
+      "Can a test read a reply that is not text?"
     ]
   },
   "/reference/core/test-response/body/": {
     "feature": "Core\\Test\\Response::body",
-    "hash": "89e6ebf450a92148",
+    "hash": "f116610f1932d942",
     "questions": [
       "How do I read the page text my app returned in a test?",
       "Get the HTML output of a route in a test",
       "Why is the body empty when my request failed?",
-      "Check the echoed output of a request"
+      "Check the echoed output of a request",
+      "Why does body() throw an error for an image response?"
+    ]
+  },
+  "/reference/core/test-response/bytes/": {
+    "feature": "Core\\Test\\Response::bytes",
+    "hash": "99374ff30f625cb1",
+    "questions": [
+      "How do I test a route that returns a PDF?",
+      "Compare a downloaded file with the file I expect in a test",
+      "Read the raw bytes my app sent in a test",
+      "Test an endpoint that serves an image"
     ]
   },
   "/reference/core/test-response/cookies/": {
@@ -17498,12 +17510,13 @@
   },
   "/syntax/testing/writing-tests/": {
     "feature": "syntax/testing/writing-tests.mdx",
-    "hash": "68d715562d64a6ab",
+    "hash": "3bbbce8649ef188b",
     "questions": [
       "How do I write a unit test in Novis?",
       "How do I skip a test and give a reason?",
       "What is a flaky test in the test report?",
-      "Run only one test class from the command line"
+      "Run only one test class from the command line",
+      "How do I leave out slow tests when I run the suite?"
     ]
   },
   "/syntax/values/arrays/": {
