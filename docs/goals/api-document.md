@@ -214,31 +214,18 @@ subagent. Such subagents run side by side, and none of them builds.
 
 Every stage is done, and the goal is reached.
 
-The gate's first runs found two causes. The first was two rendered pages that had not been rendered
-again after stage 5 and stage 4 changed their sources: `docs/reference/lang/90-attributes.md`
-(from the `#[Core\Api]` `about.md`) and `docs/rules/ide.md` (from the completion rule). The second
-was four timing tests outside this goal's code that failed under the gate's load and passed alone:
-`net.rs`'s accept herd, `runner.rs`'s parallel overlap, and `serve.rs`'s fleet lease and served
-`while (true)`. Each now waits on what it depends on, not on an idle machine (`73d4db2a9`).
+`bun nv verify` is 22 of 22 green and `bun nv affected --run` is green, run as the gate because the
+installed `looper` has no `verify`. `bun nv verify --doc` and `bun nv owners --closes api-document`
+pass. The gate's fixes were two stale rendered pages and four timing tests (`73d4db2a9`).
 
-The second `bun nv verify` was 22 of 22 green, with 7588 tests and 3110 conformance cases. The second
-`bun nv affected --run` was green. `bun nv verify --doc` and `bun nv owners --closes api-document`
-pass. The `Core\Router` and `lang:attributes` perf figures are recorded again.
+`floor-debt` owes nothing but the two Linux legs, which wait for a goal with a fixture. Its one
+owed atom, the `Core\Ldap\Connection::changePassword` attack, stayed owed with 0 red after a Samba
+worker crashed during the run (the playbook's Samba back-off trap). `bun nv proofs --run --id` has
+recorded it green.
 
-The acceptance findings were stale. `env-secret-proofs`' log shows exit 0. The nightly run
-40075586234 ran on `3ea6f1550`, behind `main`, and its `supply chain` red is fixed by `c7a505981`.
-
-The installed `looper` has no `verify` subcommand, so the gate ran as `bun nv affected --run` and
-`bun nv verify`.
-
-The first DONE was refused because `floor-debt` left one atom owed with 0 red. That atom was
-`tests/hostile/core/Ldap-Connection/changePassword/01-strange-old-and-new-passwords.nvs`. A Samba
-LDAP worker crashed with signal 11 during the debt run, which is the playbook's Samba back-off trap.
-`bun nv proofs --run --id 'Core\Ldap\Connection::changePassword'` ran it green, and the store now
-owes only the two Linux legs, which wait for a goal with a fixture. A later CI run, 40085245322 on
-`b7df13c4b`, failed `proofs` on three platforms, the chapter examples and the attribution check.
-That run is behind `main` and outside this goal's acceptance, so the next goal's first session
-reads its log.
+`env-secret-proofs`' log shows exit 0. Nightly run 40075586234 ran on `3ea6f1550`, behind `main`.
+CI run 40085245322 on `b7df13c4b` failed `proofs`, the chapter examples and the attribution check.
+It is outside this goal's acceptance, so the next goal's first session reads its log.
 
 ### Next
 
