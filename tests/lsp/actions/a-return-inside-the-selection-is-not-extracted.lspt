@@ -1,0 +1,21 @@
+--TEST--
+a return inside the selection is not extracted
+--FILE--
+<?nvs
+class Cart
+{
+    public function check(int $count): int
+    {
+        <|>if ($count > 3) {
+            return 1;
+        }
+        echo $count;<|>
+        return 0;
+    }
+}
+
+echo new Cart()->check(2);
+--REQUEST--
+codeAction
+--EXPECT--
+none

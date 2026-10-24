@@ -1,0 +1,23 @@
+--TEST--
+an assignment target is not extracted
+--FILE--
+<?nvs
+class Item
+{
+    public string $name = "pen";
+}
+
+class Shop
+{
+    public function rename(Item $item): void
+    {
+        <|>$item->name<|> = "cup";
+        echo $item->name;
+    }
+}
+
+new Shop()->rename(new Item());
+--REQUEST--
+codeAction
+--EXPECT--
+none

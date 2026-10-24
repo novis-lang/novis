@@ -1,0 +1,32 @@
+--TEST--
+a loop condition extracts only to a method, with a class type written as the file writes it
+--FILE--
+<?nvs
+namespace Shop;
+
+class Item
+{
+    public string $name = "pen";
+
+    public static function make(): Item
+    {
+        return new Item();
+    }
+}
+
+class Printer
+{
+    public function first(Item $other): string
+    {
+        while (<|>$other->name == ""<|>) {
+            return "z";
+        }
+        return "y";
+    }
+}
+
+echo new Printer()->first(new Item());
+--REQUEST--
+codeAction
+--EXPECT--
+18:16-18:34 refactor.extract Extract to method -> "$this->extracted($other)" + 22:6-22:6 -> "\n\n    private function extracted(Item $other): bool {\n        return $other->name == "";\n    }"

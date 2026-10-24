@@ -20,7 +20,7 @@ stages:
         rules: [ide/no-refactoring-introduces-an-alias, statements/nothing-gets-a-second-name, tooling/fmt-sorts-the-use-block, ide/the-request-set-is-closed, statements/an-unused-use-is-a-warning, tooling/fmt-is-never-a-diagnostic, core-api/casing-has-no-suppression]
   - id: 3
     title: "extract to variable and extract to method"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/actions.rs, crates/nvs-lsp/src/extract.rs, crates/nvs-lsp/src/server.rs, docs/rules/ide/no-refactoring-introduces-an-alias.md]
     extra:
       context:
@@ -211,7 +211,7 @@ among them each refused shape § *Standing decisions* names.
   - [x] `Uses::walk` refuses an exit and an outer write, and `self::` is called from a static method. `crates/nvs-lsp/src/extract.rs:1`
 - [x] Neither action is offered where a type is not fully known (`rule:ide/a-code-action-writes-only-what-is-already-determined`). `crates/nvs-lsp/src/extract.rs:1`
 - [x] The rule states the extract-to-method boundary. `docs/rules/ide/no-refactoring-introduces-an-alias.md:1`
-- [ ] `.lspt` cases for each. `tests/lsp/actions/a-typed-expression-extracts-to-a-variable.lspt:1`
+- [x] `.lspt` cases for each. `tests/lsp/actions/a-typed-expression-extracts-to-a-variable.lspt:1`
 - [x] `rule:ide/no-refactoring-introduces-an-alias` `shipped`, once stages 1 to 3 are done. `data/rules/ide/no-refactoring-introduces-an-alias.json:3`
 
 ### 4. implement missing members, and override a method

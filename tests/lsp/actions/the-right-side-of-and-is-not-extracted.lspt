@@ -1,0 +1,27 @@
+--TEST--
+the right side of && is not extracted
+--FILE--
+<?nvs
+namespace Shop;
+
+class Item
+{
+    public string $name = "pen";
+}
+
+class Printer
+{
+    public function first(?Item $item, Item $other): string
+    {
+        if ($item != null && <|>$item->name<|> != "") {
+            return "x";
+        }
+        return "y";
+    }
+}
+
+echo new Printer()->first(new Item(), new Item());
+--REQUEST--
+codeAction
+--EXPECT--
+13:13-13:47 refactor.rewrite Put on separate lines -> "\n            $item != null\n            && $item->name != ""\n        "

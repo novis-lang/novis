@@ -1,0 +1,19 @@
+--TEST--
+a typed expression extracts to a variable or a method
+--FILE--
+<?nvs
+class Shop
+{
+    public function total(int $price, int $count): int
+    {
+        int $shipping = 5;
+        return <|>$price * $count<|> + $shipping;
+    }
+}
+
+echo new Shop()->total(2, 3);
+--REQUEST--
+codeAction
+--EXPECT--
+7:1-7:31 refactor.extract Extract to variable -> "        int $value = $price * $count;\n        return $value"
+7:16-7:31 refactor.extract Extract to method -> "$this->extracted($price, $count)" + 8:6-8:6 -> "\n\n    private function extracted(int $price, int $count): int {\n        return $price * $count;\n    }"

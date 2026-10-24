@@ -1,0 +1,23 @@
+--TEST--
+a loop with its own break extracts to a method
+--FILE--
+<?nvs
+class Cart
+{
+    public function scan(int $count): void
+    {
+        <|>while ($count > 0) {
+            if ($count == 2) {
+                break;
+            }
+            echo $count;
+        }<|>
+        echo "done";
+    }
+}
+
+new Cart()->scan(5);
+--REQUEST--
+codeAction
+--EXPECT--
+6:9-11:10 refactor.extract Extract to method -> "$this->extracted($count);" + 13:6-13:6 -> "\n\n    private function extracted(int $count): void {\n        while ($count > 0) {\n            if ($count == 2) {\n                break;\n            }\n            echo $count;\n        }\n    }"
