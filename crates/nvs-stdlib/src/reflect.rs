@@ -401,8 +401,8 @@ const FOR_CLASS_DOC: MethodDoc = MethodDoc {
     short: "Describes the class with the name `$name`. You do not need an object of that class.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The class's name as its declaration writes it, namespace included and with no \
-               leading separator — what `Core\\Reflect\\ClassInfo::name` answers.",
+        desc: "The class's name as its declaration writes it, with the namespace and with no \
+               `\\` at the start. `Core\\Reflect\\ClassInfo::name` returns this name.",
         shape: &[],
     }],
     ret: "A description of that class. The result is `null` if the running program declares no \
@@ -416,16 +416,16 @@ const FOR_OBJECT_DOC: MethodDoc = MethodDoc {
             class can see.",
     params: &[ParamDoc {
         name: "object",
-        desc: "The value to describe. Reflection is for the receiver whose class is not known \
-               while compiling, so the parameter is `mixed`.",
+        desc: "The value to describe. Reflection is for a value whose class is not known at \
+               compile time, so the parameter is `mixed`.",
         shape: &[],
     }],
-    ret: "A `Core\\Reflect\\ClassInfo` for the object's own class, carrying answers rather than a \
-          way back to the object.",
+    ret: "A `Core\\Reflect\\ClassInfo` for the object's own class. It describes the class and \
+          does not contain the object.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$object` is not an object — a `mixed` carries no promise that it is one, so the \
-               check is made here rather than by the caller.",
+        desc: "`$object` is not an object. A `mixed` value may be anything, so this method checks \
+               it and the caller does not need to.",
     }],
 };
 
@@ -453,8 +453,8 @@ const TYPE_OF_DOC: MethodDoc = MethodDoc {
     short: "Returns the kind of value `$value` is right now. Use it on a `mixed` value.",
     params: &[ParamDoc {
         name: "value",
-        desc: "The value to ask about. On anything but a `mixed` the checker already knows the \
-               answer, so the interesting receiver is the one whose type was erased.",
+        desc: "The value to check. For any type but `mixed`, the compiler already knows the \
+               result, so this is useful for a value whose type is `mixed`.",
         shape: &[],
     }],
     ret: "One `Core\\Reflect::TypeKind` case. Every value matches exactly one case, because the \
@@ -494,8 +494,8 @@ pub(crate) const TYPE_KIND: CoreEnum = CoreEnum {
 
 /// [`TYPE_KIND`]'s reference card — `rule:core-api/reference-card`.
 const TYPE_KIND_DOC: EnumDoc = EnumDoc {
-    short: "What a value is, once its static type is gone — ten cases, one per representation the \
-            runtime has, and every value is in exactly one of them.",
+    short: "The kind of a value while the program runs. There are ten cases, and every value \
+            matches exactly one of them.",
     cases: &[
         CaseDoc {
             name: "Null",
@@ -519,8 +519,8 @@ const TYPE_KIND_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Decimal",
-            desc: "A `decimal` — the exact scalar, and never a `float` that happens to be \
-                   round.",
+            desc: "A `decimal`, which is an exact number. A `float` with a round value is a \
+                   `Float`.",
         },
         CaseDoc {
             name: "Text",
@@ -703,10 +703,11 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
 
 /// `Core\Reflect\ClassInfo::name`'s reference card — `rule:core-api/reference-card`.
 const NAME_DOC: MethodDoc = MethodDoc {
-    short: "The described class's name, namespace included, spelled as the declaration writes it.",
+    short: "Returns the name of the described class, with its namespace, as the declaration \
+            writes it.",
     params: &[],
-    ret: "The class name — `App\\Model\\User` for a namespaced declaration, and never an alias \
-          the naming site happened to use.",
+    ret: "The class name, such as `App\\Model\\User` for a class in a namespace. It is never an \
+          alias that the calling code used.",
     errors: &[],
 };
 
@@ -715,10 +716,10 @@ const CONSTANTS_DOC: MethodDoc = MethodDoc {
     short: "Returns the constants of the described class, its own and every inherited one. Each \
             has its name and its visibility.",
     params: &[],
-    ret: "One `Core\\Reflect\\ConstantInfo` per constant the class answers, its own declarations \
-          first. A constant a subclass redeclares appears once, with the declaration that wins. \
-          The *values* are not here: naming a constant is metadata, reading one is acting, and \
-          `constant` is where that check is made.",
+    ret: "One `Core\\Reflect\\ConstantInfo` for each constant of the class, its own declarations \
+          first. A constant that a subclass declares again appears once, with the declaration \
+          the class uses. The values are not in the list. Use `constant` to read a value, which \
+          checks whether this code may read it.",
     errors: &[],
 };
 
@@ -728,27 +729,27 @@ const CONSTANT_DOC: MethodDoc = MethodDoc {
             for ordinary code at this call site, and nothing can turn them off.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The constant's name, as the declaration writes it — no class qualifier and no \
+        desc: "The constant's name, as the declaration writes it, with no class name and no \
                `::`.",
         shape: &[],
     }],
-    ret: "The folded value: a `string`, `int`, `bool` or `float`, whichever the declaration's \
-          right-hand side is.",
+    ret: "The value, computed at compile time. It is a `string`, `int`, `bool` or `float`, the \
+          same type as the value in the declaration.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$name` names a constant this call site may not reach — a reflective read has \
-                   the visibility ordinary code has; or one whose declared type carries `secret`, \
-                   which is refused at every site, because the `mixed` this answers with carries \
-                   no qualifier and the value would reach the next sink unmarked.",
+            desc: "Code at this call site may not read the constant `$name`. Reflection has the \
+                   same visibility rules as ordinary code. This error is also thrown everywhere \
+                   for a constant whose declared type is `secret`. The `mixed` result cannot be \
+                   `secret`, so the value would lose that protection.",
         },
         ErrorDoc {
             error: "LogicError",
             desc: "The class declares and inherits no constant of that name. Or the constant's \
                    value is not a `string`, `int`, `bool` or `float` written directly in the \
-                   code: `hasValue` checks this before the call. Both are mistakes in the \
-                   program, not permission problems, and that is how they differ from the \
-                   errors above.",
+                   code. `hasValue` checks this before the call. Both are mistakes in the \
+                   program, not permission problems. That is how they differ from the \
+                   `RuntimeError` above.",
         },
     ],
 };
@@ -758,10 +759,10 @@ const PROPERTIES_DOC: MethodDoc = MethodDoc {
     short: "Returns the properties of the described class, its own and every inherited one. Each \
             has its name, its visibility and its declared type.",
     params: &[],
-    ret: "One `Core\\Reflect\\PropertyInfo` per declared property, in slot order: every \
-          ancestor's first, then the class's own. A `private` or `protected` property is among \
-          them, carrying the bit that says so — naming a member is introspection of the \
-          program's shape, and reading one is `get`'s question, checked there.",
+    ret: "One `Core\\Reflect\\PropertyInfo` for each declared property. The properties of every \
+          parent class come first, then the class's own. A `private` or `protected` property is \
+          in the list, and its `isPublic` returns `false`. `get` checks whether this code may \
+          read it.",
     errors: &[],
 };
 
@@ -770,10 +771,10 @@ const READABLE_PROPERTIES_DOC: MethodDoc = MethodDoc {
     short: "Returns the names of the properties that code at this call site may read, in the \
             same order as `properties`. The result depends on where the call is written.",
     params: &[],
-    ret: "One name per property this site may read, `$`-sigil excluded: every declared property \
-          where the call is written inside the described class, and the `public` ones anywhere \
-          else. The complete list is `properties`, and the difference between the two answers is \
-          exactly what `get` would refuse here.",
+    ret: "One name for each property that code here may read, without the `$`. Inside the \
+          described class, that is every declared property. Anywhere else, it is the `public` \
+          ones. `properties` returns the complete list. `get` throws an error here for exactly \
+          the properties that are in that list and not in this one.",
     errors: &[],
 };
 
@@ -782,12 +783,12 @@ const HAS_PROPERTY_DOC: MethodDoc = MethodDoc {
     short: "Checks whether the described class declares a property called `$name`.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The property's name, `$`-sigil excluded, as the declaration writes it.",
+        desc: "The property's name without the `$`, as the declaration writes it.",
         shape: &[],
     }],
-    ret: "`true` for a `private` or `protected` property as well as a `public` one, which is what \
-          tells a refused read from a misspelled name. Whether this site may read it is \
-          `properties`' own bit.",
+    ret: "`true` for a `private` or `protected` property as well as a `public` one. So you can \
+          tell a property you may not read from a misspelled name. `properties` tells you \
+          whether this code may read it.",
     errors: &[],
 };
 
@@ -796,10 +797,10 @@ const METHODS_DOC: MethodDoc = MethodDoc {
     short: "Returns the methods of the described class, its own and every inherited one. Each has \
             its name, its visibility and the number of parameters it declares.",
     params: &[],
-    ret: "One `Core\\Reflect\\MethodInfo` per declared method, in name order, and a method the \
-          calling site could not call is among them carrying `isPublic() === false`. Naming a \
-          method is not calling it, which is why the roster is complete and \
-          `Core\\Reflect\\ClassInfo::call` is where the check is made.",
+    ret: "One `Core\\Reflect\\MethodInfo` for each declared method, sorted by name. A method that \
+          the calling code may not call is in the list, and its `isPublic()` returns `false`. \
+          Listing a method does not call it. `Core\\Reflect\\ClassInfo::call` checks whether \
+          this code may call it.",
     errors: &[],
 };
 
@@ -808,11 +809,12 @@ const HAS_METHOD_DOC: MethodDoc = MethodDoc {
     short: "Checks whether the described class declares or inherits a method named `$name`.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The method's name, as the declaration writes it and as `methods` spells it.",
+        desc: "The method's name, as the declaration writes it and as `methods` returns it.",
         shape: &[],
     }],
-    ret: "`true` for a method the class answers for at any visibility, `false` for a name it \
-          declares none of — so a refusal to call tells a `private` method from a misspelling.",
+    ret: "`true` for a method of the class at any visibility. `false` if the class has no method \
+          with that name. So when a call fails, you can tell a `private` method from a \
+          misspelled name.",
     errors: &[],
 };
 
@@ -823,77 +825,78 @@ const GET_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "object",
-            desc: "An instance of the described class — the description is of a class, so the \
-                   value to read is named here rather than held.",
+            desc: "An instance of the described class. The description is of a class and does \
+                   not contain an object, so you pass the object to read here.",
             shape: &[],
         },
         ParamDoc {
             name: "name",
-            desc: "The property's name, `$`-sigil excluded, as `properties` spells it.",
+            desc: "The property's name without the `$`, as `properties` returns it.",
             shape: &[],
         },
     ],
-    ret: "The property's value, with its own declared type erased to `mixed`.",
+    ret: "The property's value. Its type is `mixed`, whatever type the property declares.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$object` is not an object, or `$name` names a property that is not `public` \
-                   — a reflective read has the visibility ordinary code has, so the refusal is \
-                   the one an ordinary out-of-class read would meet.",
+            desc: "`$object` is not an object, or `$name` is a property that is not `public`. \
+                   Reflection has the same visibility rules as ordinary code. Ordinary code \
+                   outside the class gets the same error for this read.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`$object` is not an instance of the described class, or `$name` names no \
-                   property of it at all. Both are mistakes in the program rather than facts \
-                   about the value, which is what separates them from the refusal above.",
+            desc: "`$object` is not an instance of the described class, or the class has no \
+                   property called `$name`. Both are mistakes in the program, not facts about \
+                   the value. That is how they differ from the `RuntimeError` above.",
         },
     ],
 };
 
 /// `Core\Reflect\ClassInfo::set`'s reference card — `rule:core-api/reference-card`.
 const SET_DOC: MethodDoc = MethodDoc {
-    short: "Writes the `$name` property of `$object`, and then runs the `PropertyObserver` that an \
-            ordinary write runs. The visibility rules are the same as for ordinary code at this \
+    short: "Writes the `$name` property of `$object`, and then runs the `PropertyObserver`, as an \
+            ordinary write does. The visibility rules are the same as for ordinary code at this \
             call site, and nothing can turn them off.",
     params: &[
         ParamDoc {
             name: "object",
-            desc: "An instance of the described class — `get`'s own argument, for `get`'s reason.",
+            desc: "An instance of the described class. You pass it here for the same reason as \
+                   in `get`.",
             shape: &[],
         },
         ParamDoc {
             name: "name",
-            desc: "The property's name, `$`-sigil excluded, as `properties` spells it.",
+            desc: "The property's name without the `$`, as `properties` returns it.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "What to store. It is checked against what the concrete class declares the \
-                   property to hold, since the declared type is not knowable here.",
+            desc: "The value to store. It is checked against the type that the object's class \
+                   declares for the property, because that type is not known at compile time.",
             shape: &[],
         },
     ],
-    ret: "Nothing. What was stored is what a following `get` answers, and what the observer was \
-          told about.",
+    ret: "Nothing. A following `get` returns the stored value, and the observer is told about \
+          that value.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$object` is not an object, `$name` names a property that is not `public`, or \
-                   `$value` is not of the type that property declares — the first two being the \
-                   refusals an ordinary out-of-class write would meet, and the third the one a \
-                   write through an erased view meets.",
+            desc: "`$object` is not an object, `$name` is a property that is not `public`, or \
+                   `$value` does not have the type that the property declares. Ordinary code \
+                   outside the class gets the same errors for the first two. A write through a \
+                   `mixed` value gets the same error for the third.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`$object` is not an instance of the described class, or `$name` names no \
-                   property of it at all — `get`'s pair, told apart from the refusals above for \
-                   `get`'s reason.",
+            desc: "`$object` is not an instance of the described class, or the class has no \
+                   property called `$name`. As in `get`, these are mistakes in the program, so \
+                   they have a different error class.",
         },
         ErrorDoc {
             error: "Throwable",
-            desc: "Whatever the class's own `onPropertySet` observer throws. It is told of the \
-                   write once the value is stored, and a throw out of it still fails the write — \
-                   a reflective write is not the place that changes.",
+            desc: "Whatever the class's own `onPropertySet` observer throws. The observer runs \
+                   after the value is stored. If it throws, the write still fails, as an \
+                   ordinary write does.",
         },
     ],
 };
@@ -1002,32 +1005,31 @@ const CALL_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "object",
-            desc: "An instance of the described class — the description is of a class, so the \
-                   value to call on is named here rather than held.",
+            desc: "An instance of the described class. The description is of a class and does \
+                   not contain an object, so you pass the object to call here.",
             shape: &[],
         },
         ParamDoc {
             name: "name",
-            desc: "The method's name, `()` excluded, as the declaration writes it.",
+            desc: "The method's name without the `()`, as the declaration writes it.",
             shape: &[],
         },
         ParamDoc {
             name: "arguments",
-            desc: "One entry per declared parameter, in order, keys ignored. Entries after the \
-                   last parameter are ignored. Required even where the method takes none, which \
-                   is then `[]`.",
+            desc: "One entry for each declared parameter, in order. Keys are ignored. Entries \
+                   after the last parameter are ignored. This argument is required even when \
+                   the method has no parameters. In that case, pass `[]`.",
             shape: &[],
         },
     ],
-    ret: "Whatever the method returned, with its own declared type erased to `mixed`.",
+    ret: "Whatever the method returned. Its type is `mixed`, whatever type the method declares.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$name` is not `public`, names no method of the class, or names a `Core` \
-                   member; or `$arguments` has fewer entries than the method declares, or an \
-                   entry whose type the parameter does not accept. Every one of these is the \
-                   refusal an ordinary call through an erased receiver meets, raised by that same \
-                   check rather than by a second one written here.",
+            desc: "`$name` is not `public`, is not a method of the class, or is a `Core` method. \
+                   Or `$arguments` has fewer entries than the method's parameters, or an entry \
+                   has a type that its parameter does not accept. An ordinary call on a `mixed` \
+                   value throws the same error, from the same check.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -1044,19 +1046,19 @@ const CONSTRUCT_DOC: MethodDoc = MethodDoc {
             nothing can turn them off.",
     params: &[ParamDoc {
         name: "arguments",
-        desc: "One entry per declared constructor parameter, in order, keys ignored. Entries \
-               after the last parameter are ignored. Required even where the class declares no \
-               constructor, which is then `[]`.",
+        desc: "One entry for each declared constructor parameter, in order. Keys are ignored. \
+               Entries after the last parameter are ignored. This argument is required even \
+               when the class declares no constructor. In that case, pass `[]`.",
         shape: &[],
     }],
-    ret: "The new instance, with its own class erased to `mixed`. A class declaring no \
-          constructor answers with the allocation its declared defaults armed.",
+    ret: "The new instance. Its type is `mixed`. For a class with no constructor, the new \
+          instance has the default values that the class declares for its properties.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The constructor is not `public` and this call site is outside the class; or \
-               `$arguments` has fewer entries than it declares, or an entry whose type a \
-               parameter does not accept; or the described class is not one this program \
-               declares. Each is the refusal the ordinary door meets, raised by that same check.",
+        desc: "The constructor is not `public` and this call site is outside the class. Or \
+               `$arguments` has fewer entries than the constructor's parameters, or an entry has \
+               a type that its parameter does not accept. Or this program does not declare the \
+               described class. An ordinary `new` makes the same checks.",
     }],
 };
 
@@ -1554,25 +1556,25 @@ pub(crate) const CONSTANT_INFO: CoreClass = CoreClass {
 const CONSTANT_NAME_DOC: MethodDoc = MethodDoc {
     short: "The constant's name, as the declaring class writes it.",
     params: &[],
-    ret: "The name with no class qualifier and no `::` — what \
-          `Core\\Reflect\\ClassInfo::constant` takes.",
+    ret: "The name with no class name and no `::`. `Core\\Reflect\\ClassInfo::constant` takes \
+          this name.",
     errors: &[],
 };
 
 /// `Core\Reflect\ConstantInfo::isPublic`'s reference card — `rule:core-api/reference-card`.
 const CONSTANT_IS_PUBLIC_DOC: MethodDoc = MethodDoc {
-    short: "Whether code outside the declaring class may name the constant.",
+    short: "Checks whether code outside the declaring class may use the constant.",
     params: &[],
-    ret: "`false` for a `private` or `protected` constant, which is still listed, on \
-          `Core\\Reflect\\PropertyInfo::isPublic`'s terms exactly: knowing that a constant exists \
-          and may not be read from here is what tells a refusal from a misspelling.",
+    ret: "`false` for a `private` or `protected` constant. That constant is still in the list, \
+          as with `Core\\Reflect\\PropertyInfo::isPublic`. So you can tell a constant you may not \
+          read from a misspelled name.",
     errors: &[],
 };
 
 /// `Core\Reflect\ConstantInfo::hasValue`'s reference card — `rule:core-api/reference-card`.
 const CONSTANT_HAS_VALUE_DOC: MethodDoc = MethodDoc {
-    short: "Whether the constant's declared value is one Novis folds at compile time, and so one \
-            `Core\\Reflect\\ClassInfo::constant` can hand back.",
+    short: "Checks whether Novis computes the constant's value at compile time. Only then can \
+            `Core\\Reflect\\ClassInfo::constant` return it.",
     params: &[],
     ret: "`true` for a `string`, `int`, `bool` or `float` written directly in the code. `false` \
           for an `array` or object constant, and for an integer too large for `int`. Novis \
@@ -1665,42 +1667,44 @@ const CLASS_INFO_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Reflect\ClassInfo::attributes`'s reference card — `rule:core-api/reference-card`.
 const ATTRIBUTES_DOC: MethodDoc = MethodDoc {
-    short: "Every `#[...]` written on the class's own declaration or on one of its own members.",
+    short: "Returns every `#[...]` attribute written on the class's own declaration or on its own \
+            properties and methods.",
     params: &[],
-    ret: "One row per attach site, in source order — the declaration's own first, then each \
-          member's, and a method's parameters' after that method's. **Own-only**, where \
-          `constants` is flattened over the ancestors: an attribute is a fact about the \
-          declaration it is written on, so a base class's site is never reported as this \
-          class's. Asking for a payload by its *shape* is `Core\\Attributes::get`, which is \
-          checked where it is written and costs nothing at run time; this is the reflective \
-          question, for a class the caller does not name in source.",
+    ret: "One `Core\\Reflect\\AttributeInfo` for each place an attribute is written, in source \
+          order. The class declaration's attributes come first, then those of each property and \
+          method. A method's parameters come after that method. **Only the class's own** \
+          declarations are included. `constants` also includes the parent classes. An attribute \
+          belongs to the declaration it is written on, so a parent class's attributes are not \
+          listed. `Core\\Attributes::get` reads an attribute by the *shape* of its payload. It \
+          is checked at compile time and costs nothing at run time. Use `attributes` for a \
+          class whose name is not in your source code.",
     errors: &[],
 };
 
 /// `Core\Reflect\AttributeInfo`'s class card — `rule:core-api/reference-card`.
 const ATTRIBUTE_CARD: ClassDoc = ClassDoc {
-    short: "One `#[...]` attribute written on a class or on one of its members, as \
+    short: "One `#[...]` attribute written on a class or on one of its properties or methods, as \
             `Core\\Reflect\\ClassInfo::attributes` returns it. `target` and `parameter` say where \
             it is written. `fields` lists its payload's field names, and `field` returns one value.",
 };
 
 /// `Core\Reflect\AttributeInfo::name`'s reference card — `rule:core-api/reference-card`.
 const ATTRIBUTE_NAME_DOC: MethodDoc = MethodDoc {
-    short: "The `type` alias the named form gave the attribute, as it is written.",
+    short: "Returns the name of the `type` alias written in the attribute, as it is written.",
     params: &[],
-    ret: "The written name, or the **empty string** for the bare `#[{...}]` form. The name is \
-          not resolved. It is used to check the payload object where it is written, and a \
-          caller never uses it to find an attribute.",
+    ret: "The written name. For the form `#[{...}]`, which has no name, it is the **empty \
+          string**. The name is not resolved. The compiler uses it to check the payload object \
+          where the attribute is written. Your code never uses it to find an attribute.",
     errors: &[],
 };
 
 /// `Core\Reflect\AttributeInfo::target`'s reference card — `rule:core-api/reference-card`.
 const ATTRIBUTE_TARGET_DOC: MethodDoc = MethodDoc {
-    short: "The member the attribute is written on.",
+    short: "Returns the property or method that the attribute is written on.",
     params: &[],
-    ret: "A property's name with no `$` sigil, or a method's name — or the **empty string** for \
-          the class or interface declaration itself. A parameter's site names its method here \
-          and the parameter in `parameter`.",
+    ret: "A property's name without the `$`, or a method's name. For the class or interface \
+          declaration itself, it is the **empty string**. For an attribute on a parameter, this \
+          is the method's name, and `parameter` returns the parameter's name.",
     errors: &[],
 };
 
@@ -1708,9 +1712,10 @@ const ATTRIBUTE_TARGET_DOC: MethodDoc = MethodDoc {
 const ATTRIBUTE_PARAMETER_DOC: MethodDoc = MethodDoc {
     short: "The parameter of `target` the attribute is written on.",
     params: &[],
-    ret: "The parameter's name with no `$` sigil, or the **empty string** for every attach site \
-          that is not a parameter's. The pair is what tells `#[X] public function f(...)` from \
-          `public function f(#[X] int $n)`, which name one declaration each and not the same one.",
+    ret: "The parameter's name without the `$`. For an attribute that is not on a parameter, it \
+          is the **empty string**. With `target`, you can tell `#[X] public function f(...)` \
+          from `public function f(#[X] int $n)`. These two attributes are on different \
+          declarations.",
     errors: &[],
 };
 
@@ -1718,31 +1723,30 @@ const ATTRIBUTE_PARAMETER_DOC: MethodDoc = MethodDoc {
 const ATTRIBUTE_FIELDS_DOC: MethodDoc = MethodDoc {
     short: "The payload's field names, in the order the attribute writes them.",
     params: &[],
-    ret: "One string per field, including a field whose value Novis does not fold here — the \
-          name is as much a fact about the attach site as the value is, and `field` is what \
-          reports the difference.",
+    ret: "One string for each field. This includes a field whose value Novis does not compute \
+          here. `field` throws an error for such a field.",
     errors: &[],
 };
 
 /// `Core\Reflect\AttributeInfo::field`'s reference card — `rule:core-api/reference-card`.
 const ATTRIBUTE_FIELD_DOC: MethodDoc = MethodDoc {
-    short: "One payload field's value, folded at compile time.",
+    short: "Returns one payload field's value, computed at compile time.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The field's own name, as `fields` answers it.",
+        desc: "The field's name, as `fields` returns it.",
         shape: &[],
     }],
     ret: "The value as a `string`, `int`, `bool` or `float`. These are the four types a \
           payload field can have here.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The attribute's payload has no field of that name, so the ask is a mistake rather \
-               than an absence to report — `fields` is the list that cannot be wrong. Or the \
-               field's value is one Novis does not fold into a description: a class constant, an \
-               enum case or `Foo::class`, each of which resolves through the namespace the \
-               attribute was *written* in, plus the values that `Core\\Reflect\\ConstantInfo` \
-               also cannot read. `Core\\Attributes::get` reads all of those, at compile time \
-               and by shape.",
+        desc: "The attribute's payload has no field of that name. This is a mistake in the \
+               program, so the method throws an error and does not return an empty value. \
+               `fields` returns the names that exist. Or Novis does not compute the field's \
+               value here. That is a class constant, an enum case or `Foo::class`, which depend \
+               on the namespace the attribute is *written* in. It is also any value that \
+               `Core\\Reflect\\ConstantInfo` cannot read. `Core\\Attributes::get` reads all of \
+               these values at compile time, by shape.",
     }],
 };
 

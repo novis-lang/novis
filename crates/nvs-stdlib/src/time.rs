@@ -502,8 +502,8 @@ const DURATION_WEEKS_DOC: MethodDoc = MethodDoc {
 const DURATION_PARSE_DOC: MethodDoc = MethodDoc {
     short: "Reads a duration such as `30s`, `1h30m` or `7d` from text at run time. It uses the \
             same syntax as a duration written in the code. Use it for an exact offset that \
-            comes from a config value or a flag. It accepts nothing else, so a `tainted` value \
-            comes out laundered.",
+            comes from a config value or a flag. It accepts nothing else, so the result is not \
+            `tainted`, even when the text is.",
     params: &[ParamDoc {
         name: "text",
         desc: "The text to read, written the same way as a duration in the code.",
@@ -515,13 +515,13 @@ const DURATION_PARSE_DOC: MethodDoc = MethodDoc {
         desc: "`$text` is not a valid duration. It has an unknown or repeated unit, a missing \
                count or extra text, or it is longer than a `Duration` can hold. A `$text` \
                written directly in the code is checked when the program compiles, and an \
-               error there is `E0769`. Only a computed `$text` reaches this throw.",
+               error there is `E0769`. Only a computed `$text` can throw this error.",
     }],
 };
 
 /// `Core\Time\Duration::toNanoseconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_TO_NANOSECONDS_DOC: MethodDoc = MethodDoc {
-    short: "Answers the receiver as a count of nanoseconds, which is exactly what it holds.",
+    short: "Returns the duration as a count of nanoseconds. This is its exact value.",
     params: &[],
     ret: "The whole count of nanoseconds; negative for a duration that runs backwards.",
     errors: &[],
@@ -529,7 +529,7 @@ const DURATION_TO_NANOSECONDS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Duration::toMicroseconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_TO_MICROSECONDS_DOC: MethodDoc = MethodDoc {
-    short: "Answers the receiver as a count of whole microseconds.",
+    short: "Returns the duration as a count of whole microseconds.",
     params: &[],
     ret: "The nanosecond count divided by 1000, truncated toward zero.",
     errors: &[],
@@ -537,7 +537,7 @@ const DURATION_TO_MICROSECONDS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Duration::toMilliseconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_TO_MILLISECONDS_DOC: MethodDoc = MethodDoc {
-    short: "Answers the receiver as a count of whole milliseconds.",
+    short: "Returns the duration as a count of whole milliseconds.",
     params: &[],
     ret: "The nanosecond count divided by 1 000 000, truncated toward zero.",
     errors: &[],
@@ -545,7 +545,7 @@ const DURATION_TO_MILLISECONDS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Duration::toSeconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_TO_SECONDS_DOC: MethodDoc = MethodDoc {
-    short: "Answers the receiver as a count of whole seconds.",
+    short: "Returns the duration as a count of whole seconds.",
     params: &[],
     ret: "The nanosecond count divided by 1 000 000 000, truncated toward zero — `0` for \
           anything shorter than a second.",
@@ -588,7 +588,7 @@ const DURATION_MULTIPLIED_BY_DOC: MethodDoc = MethodDoc {
     short: "Scales the receiver by a whole factor.",
     params: &[ParamDoc {
         name: "factor",
-        desc: "The integer to multiply by; `0` answers an empty duration and a negative factor \
+        desc: "The integer to multiply by; `0` gives an empty duration and a negative factor \
                reverses the direction.",
         shape: &[],
     }],
@@ -607,8 +607,8 @@ const DURATION_NEGATED_DOC: MethodDoc = MethodDoc {
           unchanged.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The receiver is the one duration whose negation does not fit — exactly −2⁶³ \
-               nanoseconds.",
+        desc: "The receiver is exactly −2⁶³ nanoseconds. This is the one duration whose \
+               negation does not fit.",
     }],
 };
 
@@ -624,9 +624,9 @@ const DURATION_CARD: ClassDoc = ClassDoc {
 const DURATION_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Orders two durations by length and sign, as `Comparable` requires, so a \
             shorter duration compares below a longer one and a negative one below every \
-            positive one. This is also how two durations are compared by content: `==` on \
-            two objects is identity, so `90m == 1h30m` is `false` and \
-            `$a->compareTo($b) == 0` is the question it looks like it asks.",
+            positive one. Use it to compare two durations by value. `==` on two objects \
+            tests identity, so `90m == 1h30m` is `false`. To test that two durations are \
+            equal, write `$a->compareTo($b) == 0`.",
     params: &[ParamDoc {
         name: "other",
         desc: "The duration to compare against.",
@@ -1271,7 +1271,7 @@ const INSTANT_TO_EPOCH_SECONDS_DOC: MethodDoc = MethodDoc {
     short: "Returns the Unix timestamp of this instant: the whole seconds since 1 January 1970 \
             in UTC.",
     params: &[],
-    ret: "An `int`, negative before 1970. The part of a second is dropped, toward zero.",
+    ret: "An `int`, negative before 1970. The part of a second is cut off, toward zero.",
     errors: &[],
 };
 
@@ -1280,7 +1280,7 @@ const INSTANT_TO_EPOCH_MILLIS_DOC: MethodDoc = MethodDoc {
     short: "Returns the whole milliseconds since 1 January 1970 in UTC, as JavaScript counts \
             time.",
     params: &[],
-    ret: "An `int`, negative before 1970. The part of a millisecond is dropped, toward zero. \
+    ret: "An `int`, negative before 1970. The part of a millisecond is cut off, toward zero. \
           Every instant fits.",
     errors: &[],
 };
@@ -1289,7 +1289,7 @@ const INSTANT_TO_EPOCH_MILLIS_DOC: MethodDoc = MethodDoc {
 const INSTANT_TO_EPOCH_MICROS_DOC: MethodDoc = MethodDoc {
     short: "Returns the whole microseconds since 1 January 1970 in UTC.",
     params: &[],
-    ret: "An `int`, negative before 1970. The part of a microsecond is dropped, toward zero. \
+    ret: "An `int`, negative before 1970. The part of a microsecond is cut off, toward zero. \
           Every instant fits.",
     errors: &[],
 };
@@ -1443,12 +1443,12 @@ pub const UNIT: CoreEnum = CoreEnum {
 /// [`UNIT`]'s reference card — `rule:core-api/reference-card`.
 const UNIT_DOC: EnumDoc = EnumDoc {
     short: "The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit \
-            `startOf`, `endOf` and `difference` count in. A DST change or a short month can make \
-            one step longer or shorter. The cases are listed smallest first.",
+            `startOf`, `endOf` and `difference` count in. A change to or from summer time, or a \
+            short month, can make one step longer or shorter. The cases are listed smallest first.",
     cases: &[
         CaseDoc {
             name: "Nanosecond",
-            desc: "One nanosecond, the finest step any value here resolves.",
+            desc: "One nanosecond. This is the smallest step any of these values can have.",
         },
         CaseDoc {
             name: "Microsecond",
@@ -1472,7 +1472,8 @@ const UNIT_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Day",
-            desc: "One calendar day — 23 or 25 hours where the zone crosses a DST boundary.",
+            desc: "One calendar day. It is 23 or 25 hours on a day the zone changes to or from \
+                   summer time.",
         },
         CaseDoc {
             name: "Week",
@@ -1486,7 +1487,7 @@ const UNIT_DOC: EnumDoc = EnumDoc {
         CaseDoc {
             name: "Quarter",
             desc: "Three calendar months, so `plus(1, Unit::Quarter)` is `plus(3, Unit::Month)` \
-                   and `startOf` lands on January, April, July or October.",
+                   and `startOf` returns the start of January, April, July or October.",
         },
         CaseDoc {
             name: "Year",
@@ -1794,17 +1795,17 @@ const DATETIME_FORMAT_DOC: MethodDoc = MethodDoc {
             or `EEEE, d MMMM yyyy`. Day and month names always use CLDR's root locale.",
     params: &[ParamDoc {
         name: "pattern",
-        desc: "A CLDR pattern in the subset `crates/nvs-stdlib/src/cldr.rs` implements — a \
-               grammar, so a `tainted` one is refused before it runs.",
+        desc: "A CLDR pattern, using the pattern letters that Novis supports. A pattern is a \
+               small language, so a `tainted` pattern is not allowed.",
         shape: &[],
     }],
     ret: "The rendered text.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$pattern` does not compile — a field letter outside the implemented subset, or \
-               an unterminated quote. A `$pattern` written directly in the code is checked \
+        desc: "`$pattern` is not valid. It has a pattern letter that is not supported, or a \
+               quote that is not closed. A `$pattern` written directly in the code is checked \
                when the program compiles, and an error there is `E0769`. So only a computed \
-               `$pattern` reaches this throw. `Date::format` and `TimeOfDay::format` read the \
+               `$pattern` can throw this error. `Date::format` and `TimeOfDay::format` read the \
                same patterns but are not checked when the program compiles. There, a bad \
                pattern written in the code also throws.",
     }],
@@ -1813,8 +1814,9 @@ const DATETIME_FORMAT_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\DateTime::plus`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_PLUS_DOC: MethodDoc = MethodDoc {
     short: "Moves the value forward by `$count` calendar steps of `$unit`. `1, Unit::Month` gives \
-            the same day of the month, limited to the length of the new month. A day across a DST \
-            change is 23 or 25 hours long. For an exact step, use `$d->toInstant()->plus(24h)`.",
+            the same day of the month, limited to the length of the new month. A day across a \
+            change to or from summer time is 23 or 25 hours long. For an exact step, use \
+            `$d->toInstant()->plus(24h)`.",
     params: &[
         ParamDoc {
             name: "count",
@@ -1830,7 +1832,7 @@ const DATETIME_PLUS_DOC: MethodDoc = MethodDoc {
     ret: "A new `DateTime` in the same zone; the receiver is unchanged.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$count` is past what a calendar span can hold, or the result lies outside the \
+        desc: "`$count` is too large for a calendar step, or the result lies outside the \
                representable range, about ±9999 years.",
     }],
 };
@@ -1838,7 +1840,8 @@ const DATETIME_PLUS_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\DateTime::minus`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_MINUS_DOC: MethodDoc = MethodDoc {
     short: "Moves the value back by `$count` calendar steps of `$unit`. It is `plus` with the \
-            count negated, so the two give the same results at a month end and at a DST change.",
+            count negated. The two give the same results at the end of a month and at a change \
+            to or from summer time.",
     params: &[
         ParamDoc {
             name: "count",
@@ -1854,7 +1857,7 @@ const DATETIME_MINUS_DOC: MethodDoc = MethodDoc {
     ret: "A new `DateTime` in the same zone; the receiver is unchanged.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$count` is past what a calendar span can hold, or the result lies outside the \
+        desc: "`$count` is too large for a calendar step, or the result lies outside the \
                representable range, about ±9999 years.",
     }],
 };
@@ -1945,9 +1948,9 @@ const DATETIME_WITH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::withTime`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_WITH_TIME_DOC: MethodDoc = MethodDoc {
-    short: "Replaces all four clock fields from a `TimeOfDay` and keeps the date and the zone — \
-            the common half of `with`, spelled as the operation it is; a civil time the zone \
-            skips resolves forward past the gap.",
+    short: "Replaces the hour, minute, second and nanoseconds with those of a `TimeOfDay`, and \
+            keeps the date and the zone. It does the same as `with` for those four parts. If \
+            the zone skips the new time, the result moves forward past the gap.",
     params: &[ParamDoc {
         name: "t",
         desc: "The time of day to set, hour through nanosecond.",
@@ -1983,8 +1986,8 @@ const DATETIME_START_OF_DOC: MethodDoc = MethodDoc {
 const DATETIME_END_OF_DOC: MethodDoc = MethodDoc {
     short: "Moves the value to the last instant of the `$u` that contains it, one nanosecond before \
             the next one starts. `endOf(Unit::Month)` is the end of the month's last day. It is \
-            calculated separately from `startOf`. This matters on a day that a DST change makes \
-            longer or shorter.",
+            calculated separately from `startOf`. This matters on a day that is longer or \
+            shorter because of a change to or from summer time.",
     params: &[ParamDoc {
         name: "u",
         desc: "The unit whose last instant to find.",
@@ -2025,18 +2028,18 @@ const DATETIME_DIFFERENCE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::toInstant`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_TO_INSTANT_DOC: MethodDoc = MethodDoc {
-    short: "Answers the absolute point on the timeline this civil value names — free, since a \
-            `DateTime` already holds one.",
+    short: "Returns the exact point in time of this value. This is fast, because a `DateTime` \
+            already contains its `Instant`.",
     params: &[],
-    ret: "The `Instant`, with the zone dropped.",
+    ret: "The `Instant`. It has no zone.",
     errors: &[],
 };
 
 /// `Core\Time\DateTime::date`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_DATE_DOC: MethodDoc = MethodDoc {
-    short: "Answers the civil date this value reads as where it is, dropping the time and the \
-            zone — so a conversion first, `$d->toInstant()->in($z)->date()`, can answer a \
-            different day.",
+    short: "Returns the date of this value in its own zone, without the time and the zone. \
+            For the date in another zone, convert first. \
+            `$d->toInstant()->in($z)->date()` can return a different day.",
     params: &[],
     ret: "The `Date` component.",
     errors: &[],
@@ -2044,8 +2047,8 @@ const DATETIME_DATE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::timeOfDay`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_TIME_OF_DAY_DOC: MethodDoc = MethodDoc {
-    short: "Answers the wall-clock reading, dropping the date and the zone — two zones can \
-            read `09:00` at once, which is why it carries neither.",
+    short: "Returns the time on the clock, without the date and the zone. Two zones can show \
+            `09:00` at different moments, so a `TimeOfDay` has neither a date nor a zone.",
     params: &[],
     ret: "The `TimeOfDay` component, hour through nanosecond.",
     errors: &[],
@@ -2053,8 +2056,8 @@ const DATETIME_TIME_OF_DAY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::zone`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_ZONE_DOC: MethodDoc = MethodDoc {
-    short: "Answers the zone this civil value is in — always one the program named, since \
-            none is ever ambient.",
+    short: "Returns the zone of this value. It is always a zone the program named, because \
+            there is no default zone.",
     params: &[],
     ret: "The `Zone` component.",
     errors: &[],
@@ -2330,8 +2333,9 @@ const TIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
     ret: "The `Instant` the text names.",
     errors: &[ErrorDoc {
         error: "ParseError",
-        desc: "`$text` is not such a timestamp, with the component it stopped at named. It is \
-               also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
+        desc: "`$text` is not such a timestamp. The error names the part of the text where \
+               reading stopped. It is also thrown for a time outside \
+               `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
     }],
 };
 
@@ -2343,20 +2347,21 @@ const TIME_PARSE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "text",
-            desc: "The text to read; it stays data, so nothing of it carries a qualifier into \
-                   the answer.",
+            desc: "The text to read. The result does not keep a qualifier of the text, such \
+                   as `tainted`.",
             shape: &[],
         },
         ParamDoc {
             name: "format",
-            desc: "A CLDR pattern of civil fields only — `yyyy-MM-dd HH:mm` — since the zone is \
-                   `$zone`; a grammar, so a `tainted` one is refused.",
+            desc: "A CLDR pattern with date and time letters only, such as `yyyy-MM-dd HH:mm`. \
+                   `$zone` gives the zone. A pattern is a small language, so a `tainted` \
+                   pattern is not allowed.",
             shape: &[],
         },
         ParamDoc {
             name: "zone",
-            desc: "The zone the civil fields are read in; a time the zone skips resolves \
-                   forward past the gap.",
+            desc: "The zone the date and time are read in. If the zone skips the time, the \
+                   result moves forward past the gap.",
             shape: &[],
         },
     ],
@@ -2364,19 +2369,19 @@ const TIME_PARSE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$format` does not compile — a field letter outside the implemented subset, \
-                   an unterminated quote — or names a zone or offset field, which `$zone` \
-                   already answers. For a `$format` written directly in the code, only the \
-                   first half is `E0769`: a \
-                   zonal field is a pattern the grammar reads perfectly well and a rule of \
-                   this member's own, so it throws however `$format` arrived.",
+            desc: "`$format` is not valid. It has a pattern letter that is not supported or a \
+                   quote that is not closed. It is also thrown when `$format` has a zone or \
+                   offset letter, because `$zone` already gives the zone. For a `$format` \
+                   written directly in the code, only an invalid pattern is error `E0769`. A \
+                   zone or offset letter is a valid pattern that only this method does not \
+                   allow. So it throws this error however `$format` was written.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "`$text` does not match `$format`: fixed text that differs, a field with no \
-                   digits, trailing text, or fields that together are not a real civil time. It is \
-                     also thrown for a time outside \
-                     `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
+            desc: "`$text` does not match `$format`. Fixed text differs, a number has no digits, \
+                   there is extra text at the end, or the parts together are not a real date \
+                   and time. It is also thrown for a time outside \
+                   `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
         },
     ],
 };
@@ -2604,20 +2609,19 @@ const DATE_AT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Date::format`'s reference card — `rule:core-api/reference-card`.
 const DATE_FORMAT_DOC: MethodDoc = MethodDoc {
-    short: "Renders the date through a CLDR pattern of date fields — `yyyy-MM-dd`, `EEEE, d \
-            MMMM yyyy` — the same grammar `DateTime::format` takes, narrowed to what a date \
-            carries.",
+    short: "Turns the date into text with a CLDR pattern, such as `yyyy-MM-dd` or `EEEE, d \
+            MMMM yyyy`. It uses the same patterns as `DateTime::format`, with date letters only.",
     params: &[ParamDoc {
         name: "pattern",
-        desc: "A CLDR pattern naming only calendar fields; a grammar, so a `tainted` one is \
-               refused.",
+        desc: "A CLDR pattern with date letters only. A pattern is a small language, so a \
+               `tainted` pattern is not allowed.",
         shape: &[],
     }],
     ret: "The rendered text.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$pattern` does not compile, or names a time-of-day or zone field, which a date \
-               would have to invent.",
+        desc: "`$pattern` is not valid, or has a time-of-day or zone letter. A date has no time \
+               of day and no zone.",
     }],
 };
 
@@ -2646,7 +2650,7 @@ const DATE_PLUS_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$count` is past what a calendar span can hold, or the result lies outside \
+            desc: "`$count` is too large for a calendar step, or the result lies outside \
                    `-9999..=9999`.",
         },
     ],
@@ -2654,8 +2658,8 @@ const DATE_PLUS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Date::minus`'s reference card — `rule:core-api/reference-card`.
 const DATE_MINUS_DOC: MethodDoc = MethodDoc {
-    short: "Moves the date back by `$count` calendar steps of `$unit` — `plus` with the count \
-            negated.",
+    short: "Moves the date back by `$count` calendar steps of `$unit`. It is `plus` with the \
+            count negated.",
     params: &[
         ParamDoc {
             name: "count",
@@ -2676,7 +2680,7 @@ const DATE_MINUS_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$count` is past what a calendar span can hold, or the result lies outside \
+            desc: "`$count` is too large for a calendar step, or the result lies outside \
                    `-9999..=9999`.",
         },
     ],
@@ -2684,9 +2688,9 @@ const DATE_MINUS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Date::with`'s reference card — `rule:core-api/reference-card`.
 const DATE_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Replaces any of the three fields and leaves the rest; a combination that is not a \
-            date throws rather than clamps, since `2024-02-29` with `{year: 2023}` has no \
-            answer that is not a guess.",
+    short: "Replaces any of the three fields and keeps the others. A combination that is not \
+            a date throws an error. `2024-02-29` with `{year: 2023}` throws, because 29 February \
+            2023 does not exist.",
     params: &[
         ParamDoc {
             name: "year",

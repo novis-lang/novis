@@ -558,19 +558,19 @@ pub(crate) const QUERYABLE: CoreInterface = CoreInterface::new(
 
 /// `Core\Db\Connection::close`'s reference card — `rule:core-api/reference-card`.
 const CLOSE_DOC: MethodDoc = MethodDoc {
-    short: "Releases the connection to this core's pool, ahead of the request that opened it. \
-            Every other member of this connection then throws; `isOpen` answers `false`, and a \
-            second `close` does nothing.",
+    short: "Returns the connection to the pool before the request that opened it ends. After \
+            that, every other method of this connection throws an error. `isOpen` returns \
+            `false`, and a second `close` does nothing.",
     params: &[],
-    ret: "Nothing. A connection is released for its effect on the pool, and the pool is not \
-          something a program holds.",
+    ret: "Nothing. The only effect is that the connection goes back to the pool, and a program \
+          cannot use the pool directly.",
     errors: &[],
 };
 
 /// `Core\Db\Connection::driver`'s reference card — `rule:core-api/reference-card`.
 const DRIVER_MEMBER_DOC: MethodDoc = MethodDoc {
-    short: "Which backend this connection speaks to, as the `Core\\Db\\Driver` case the \
-            `[db.<name>]` block or the `open` settings named.",
+    short: "Returns the database this connection uses. This is the `Core\\Db\\Driver` case that \
+            the `[db.<name>]` block or the `open` settings named.",
     params: &[],
     ret: "The connection's own `Core\\Db\\Driver` case.",
     errors: &[ErrorDoc {
@@ -581,13 +581,14 @@ const DRIVER_MEMBER_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Connection::serverVersion`'s reference card — `rule:core-api/reference-card`.
 const SERVER_VERSION_DOC: MethodDoc = MethodDoc {
-    short: "The version the other end reported of itself, in its own words: PostgreSQL's \
-            `server_version`, MySQL's and MariaDB's greeting banner, `major.minor.build` from SQL \
-            Server's login answer, and SQLite's library version. The handshake delivered it, so \
-            reading it costs no statement — a `stream` may ask while it holds the connection.",
+    short: "Returns the version the database server reported, exactly as it reported it. This \
+            is PostgreSQL's `server_version`, the greeting banner of MySQL and MariaDB, \
+            `major.minor.build` from the SQL Server login reply, or SQLite's library version. \
+            The server sent it when the connection opened, so reading it runs no statement. \
+            You can call it while a `stream` is using the connection.",
     params: &[],
-    ret: "The version, never empty and never re-worded — a distribution's suffix is part of what \
-          is on the other end.",
+    ret: "The version. It is never empty and never changed. A suffix that a distribution adds \
+          is part of it.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "The connection has been closed.",
@@ -596,11 +597,12 @@ const SERVER_VERSION_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Connection::isOpen`'s reference card — `rule:core-api/reference-card`.
 const IS_OPEN_DOC: MethodDoc = MethodDoc {
-    short: "Whether this connection is still usable — `true` until `close`, and `false` after \
-            it. It is the one member a closed connection still answers.",
+    short: "Checks whether this connection can still be used. It returns `true` until `close` \
+            is called, and `false` after that. It is the only method that works on a closed \
+            connection.",
     params: &[],
-    ret: "`true` for a connection a statement may still run on, `false` for one `close` has \
-          released.",
+    ret: "`true` if statements can still run on the connection. `false` if `close` has \
+          returned it to the pool.",
     errors: &[],
 };
 
@@ -872,8 +874,8 @@ pub(crate) const DRIVER: CoreEnum = CoreEnum {
 /// [`DRIVER`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const DRIVER_DOC: EnumDoc = EnumDoc {
     short: "Which database a connection uses. It is the first field of the settings object that \
-            `Core\\Db::open` takes. It decides which of the two shapes the rest of that object \
-            has: a server needs a `host`, and SQLite needs a `path`.",
+            `Core\\Db::open` takes. The driver sets which of the two shapes the rest of that \
+            object has: a server needs a `host`, and SQLite needs a `path`.",
     cases: &[
         CaseDoc {
             name: "MySql",
@@ -881,8 +883,8 @@ pub(super) const DRIVER_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "MariaDb",
-            desc: "MariaDB, which is its own driver and not a MySQL flag — its authentication \
-                   roster and its error codes are its own.",
+            desc: "MariaDB. This is a separate driver, not a MySQL option. MariaDB has its own \
+                   authentication methods and its own error codes.",
         },
         CaseDoc {
             name: "Postgres",
@@ -890,7 +892,7 @@ pub(super) const DRIVER_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Sqlite",
-            desc: "SQLite, over a file named by `path` rather than a host.",
+            desc: "SQLite. It uses a file named by `path`, and no host.",
         },
         CaseDoc {
             name: "SqlServer",
@@ -934,29 +936,29 @@ pub(crate) const TLS: CoreEnum = CoreEnum {
 
 /// [`TLS`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const TLS_DOC: EnumDoc = EnumDoc {
-    short: "How much of a server's identity a TCP connection establishes before it sends a \
-            credential. `VerifyFull` is what every connection does and what a settings object \
-            that names nothing gets; the weaker three are refused rather than honoured, because \
-            a connection that verified less than it promised is the hole this enum exists to \
-            close.",
+    short: "How much a TCP connection checks the server's identity before it sends credentials. \
+            Every connection uses `VerifyFull`, and it is the default when the settings name no \
+            mode. The three weaker modes throw an error. A connection that checks less than it \
+            promises is a security hole.",
     cases: &[
         CaseDoc {
             name: "Disabled",
-            desc: "No TLS at all. Refused.",
+            desc: "No TLS at all. Not allowed: it throws an error.",
         },
         CaseDoc {
             name: "Required",
-            desc: "TLS, with the certificate unchecked. Refused.",
+            desc: "TLS, but the certificate is not checked. Not allowed: it throws an error.",
         },
         CaseDoc {
             name: "VerifyCa",
-            desc: "The certificate must chain to a trusted anchor, but its name is not checked. \
-                   Refused.",
+            desc: "The certificate must chain to a trusted root certificate, but its name is not \
+                   checked. Not allowed: it throws an error.",
         },
         CaseDoc {
             name: "VerifyFull",
-            desc: "The certificate must chain to a trusted anchor and must be issued for the \
-                   host that was written. The default, and the only mode a connection runs in.",
+            desc: "The certificate must chain to a trusted root certificate and must be issued \
+                   for the host in the settings. This is the default, and the only mode a \
+                   connection uses.",
         },
     ],
 };
@@ -996,15 +998,15 @@ pub(crate) const ISOLATION: CoreEnum = CoreEnum {
 
 /// [`ISOLATION`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const ISOLATION_DOC: EnumDoc = EnumDoc {
-    short: "What a transaction is allowed to see of the work running beside it — the `isolation` \
-            option `transaction` takes, and the connection's own level when it is absent. A driver \
-            that cannot offer the requested level throws an error. It does not run `$fn` at a \
-            weaker level.",
+    short: "How much a transaction can see of other transactions running at the same time. \
+            This is the `isolation` option of `transaction`. Without it, the connection's own \
+            level is used. A driver that cannot offer the requested level throws an error. It \
+            does not run `$fn` at a weaker level.",
     cases: &[
         CaseDoc {
             name: "ReadUncommitted",
-            desc: "A statement may read rows another transaction has written and not committed, \
-                   on a backend that implements the level at all.",
+            desc: "A statement may read rows another transaction has written and not committed. \
+                   This applies only on a database that supports this level.",
         },
         CaseDoc {
             name: "ReadCommitted",
@@ -1016,14 +1018,15 @@ pub(super) const ISOLATION_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Snapshot",
-            desc: "The transaction reads from one snapshot taken when it began, and writes \
-                   conflict rather than block — SQL Server's own level, and what the \
-                   row-versioning backends call `REPEATABLE READ`.",
+            desc: "The transaction reads from one snapshot taken when it began. Conflicting \
+                   writes fail and do not wait. This is SQL Server's own level. Databases that \
+                   keep row versions call it `REPEATABLE READ`.",
         },
         CaseDoc {
             name: "Serializable",
-            desc: "Concurrent transactions produce a result some serial order of them would have \
-                   produced, and a transaction that cannot is rolled back for the caller to retry.",
+            desc: "Transactions that run at the same time give the same result as if they ran \
+                   one after another in some order. A transaction that cannot do this is rolled \
+                   back, so the caller can retry it.",
         },
     ],
 };
@@ -1082,10 +1085,10 @@ pub(crate) const ERROR_KIND: CoreEnum = CoreEnum {
 
 /// [`ERROR_KIND`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const ERROR_KIND_DOC: EnumDoc = EnumDoc {
-    short: "Why the server refused a statement, normalised across the drivers so that a program \
-            branches on the condition rather than on a vendor code. `Core\\Db\\DbError::$kind` \
-            answers with one of these, and the raw `SQLSTATE` beside it covers what normalising \
-            does not reach.",
+    short: "Why the server rejected a statement. The cases are the same for every driver, so a \
+            program can check the condition without knowing each database's own error code. \
+            `Core\\Db\\DbError::$kind` returns one of these. For anything more specific, read \
+            the raw `SQLSTATE` beside it.",
     cases: &[
         CaseDoc {
             name: "UniqueViolation",
@@ -1101,18 +1104,19 @@ pub(super) const ERROR_KIND_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "CheckViolation",
-            desc: "A `CHECK` constraint refused the row.",
+            desc: "A `CHECK` constraint rejected the row.",
         },
         CaseDoc {
             name: "Deadlock",
-            desc: "Two transactions each hold what the other waits for, and the server aborted \
-                   this one to break it. SQLite's `SQLITE_BUSY` and `SQLITE_LOCKED` arrive here \
-                   too, so that a retry works there as well.",
+            desc: "Two transactions each wait for a lock the other has, so the server stopped \
+                   this one. SQLite's `SQLITE_BUSY` and `SQLITE_LOCKED` also give this kind, so \
+                   a retry works on SQLite too.",
         },
         CaseDoc {
             name: "SerializationFailure",
-            desc: "The transaction could not be serialised against a concurrent one and was \
-                   aborted — the ordinary outcome under `REPEATABLE READ` or stronger.",
+            desc: "The transaction conflicted with another transaction running at the same time, \
+                   and the server stopped it. This is normal under `REPEATABLE READ` or a \
+                   stronger level.",
         },
         CaseDoc {
             name: "ConnectionLost",
@@ -1120,22 +1124,22 @@ pub(super) const ERROR_KIND_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Timeout",
-            desc: "A statement or an idle transaction ran past a bound and was cancelled.",
+            desc: "A statement or an idle transaction ran past a time limit and was cancelled.",
         },
         CaseDoc {
             name: "Syntax",
-            desc: "The statement is not something the server will run: a syntax error, an \
-                   undefined table, a type it cannot resolve.",
+            desc: "The server cannot run the statement: a syntax error, an undefined table, or a \
+                   type it cannot resolve.",
         },
         CaseDoc {
             name: "Permission",
-            desc: "The role may not do this.",
+            desc: "The database role is not allowed to do this.",
         },
         CaseDoc {
             name: "Other",
-            desc: "Anything the driver's own table does not name, including a condition one \
-                   backend has and the others do not. It is also what a `Core\\Db\\DbError` \
-                   constructed by hand carries, no server having classified it.",
+            desc: "Any condition the driver does not map to a kind above, including one that only \
+                   one database has. A `Core\\Db\\DbError` that a program creates itself also \
+                   has this kind, because no server classified it.",
         },
     ],
 };
@@ -1186,15 +1190,15 @@ pub(crate) const COLUMN_TYPE: CoreEnum = CoreEnum {
 
 /// [`COLUMN_TYPE`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
-    short: "What a result column was declared as, which is a description of the column and not a \
-            summary of the value a read of it produces: a `JSON` column and a `TEXT` one both read \
-            back as `tainted string` and are told apart here, wherever the backend has a type of \
-            its own to tell them apart by.",
+    short: "The type a result column was declared with. It describes the column, not the value \
+            you get when you read it. For example, a `JSON` column and a `TEXT` column both \
+            read as `tainted string`. This type tells them apart, if the database has a \
+            separate type for each.",
     cases: &[
         CaseDoc {
             name: "Int",
-            desc: "A signed integer column — `SMALLINT`, `INTEGER` or `BIGINT`. MySQL's and \
-                   MariaDB's `TINYINT(1)` is one of these rather than a `Bool`.",
+            desc: "A signed integer column: `SMALLINT`, `INTEGER` or `BIGINT`. A `TINYINT(1)` on \
+                   MySQL and MariaDB is also `Int`, not `Bool`.",
         },
         CaseDoc {
             name: "Uint",
@@ -1207,17 +1211,17 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Decimal",
-            desc: "An exact numeric column — `DECIMAL`, `NUMERIC` or `MONEY`.",
+            desc: "An exact numeric column: `DECIMAL`, `NUMERIC` or `MONEY`.",
         },
         CaseDoc {
             name: "Text",
-            desc: "A text-family column: `CHAR`, `VARCHAR`, `TEXT` or `ENUM`, and a JSON column \
-                   on a backend where JSON is an aliased text type rather than a type of its own.",
+            desc: "A text column: `CHAR`, `VARCHAR`, `TEXT` or `ENUM`. A JSON column is also \
+                   `Text` on a database where JSON is only another name for a text type.",
         },
         CaseDoc {
             name: "Bytes",
-            desc: "A binary column — `BINARY`, `BLOB` or `BYTEA`, including the `BINARY(16)` a \
-                   MySQL schema stores a UUID in.",
+            desc: "A binary column: `BINARY`, `BLOB` or `BYTEA`. This includes the `BINARY(16)` \
+                   column that MySQL schemas use to store a UUID.",
         },
         CaseDoc {
             name: "Bool",
@@ -1225,37 +1229,37 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Date",
-            desc: "A `DATE`, which a read answers with a `Core\\Time\\Date`.",
+            desc: "A `DATE`. Reading it gives a `Core\\Time\\Date`.",
         },
         CaseDoc {
             name: "Time",
-            desc: "A `TIME`, which a read answers with a `Core\\Time\\TimeOfDay`.",
+            desc: "A `TIME`. Reading it gives a `Core\\Time\\TimeOfDay`.",
         },
         CaseDoc {
             name: "DateTime",
-            desc: "A zone-less `DATETIME` or `TIMESTAMP`, which a read answers with a \
-                   `Core\\Time\\DateTime` in the zone the connection declared.",
+            desc: "A `DATETIME` or `TIMESTAMP` without a time zone. Reading it gives a \
+                   `Core\\Time\\DateTime` in the time zone set for the connection.",
         },
         CaseDoc {
             name: "Instant",
-            desc: "A column carrying its own offset — `TIMESTAMPTZ`, or SQL Server's \
-                   `datetimeoffset` — which a read answers with a `Core\\Time\\Instant`.",
+            desc: "A column that stores its own offset: `TIMESTAMPTZ`, or SQL Server's \
+                   `datetimeoffset`. Reading it gives a `Core\\Time\\Instant`.",
         },
         CaseDoc {
             name: "Uuid",
-            desc: "A `UUID` or a `uniqueidentifier`, which a read answers with a `Core\\Uuid`.",
+            desc: "A `UUID` or a `uniqueidentifier`. Reading it gives a `Core\\Uuid`.",
         },
         CaseDoc {
             name: "Json",
-            desc: "A column the backend types as JSON. The value still reads back as a `tainted \
-                   string`, since JSON is never decoded for you; a backend that has no JSON type \
-                   of its own reports the column as `Text` instead.",
+            desc: "A column that the database declares as JSON. Reading it still gives a \
+                   `tainted string`, because JSON is never decoded for you. A database with no \
+                   JSON type of its own reports the column as `Text`.",
         },
         CaseDoc {
             name: "Other",
-            desc: "Every other column: one with no Novis type of its own, and every array. This \
-                   is the total case rather than a failure, so a column list describes every \
-                   column a server can send.",
+            desc: "Every other column: one with no matching Novis type, and every array. This \
+                   case is not an error. It means a column list can describe every column a \
+                   server can send.",
         },
     ],
 };
@@ -1792,81 +1796,82 @@ pub(crate) const SCHEMA: CoreClass = CoreClass {
 
 /// `Core\Db\Schema::fromArray`'s reference card — `rule:core-api/reference-card`.
 const SCHEMA_FROM_ARRAY_DOC: MethodDoc = MethodDoc {
-    short: "Reads a schema out of its canonical array form — the same form `toArray` writes, a \
-            file holds and `nvs schema dump` prints. Every rule the vocabulary has is checked \
-            here, so a schema value that exists is one all five backends can be asked for.",
+    short: "Creates a schema from its standard array form. This is the form that `toArray` \
+            returns, that a schema file contains and that `nvs schema dump` prints. Every rule \
+            is checked here, so any schema value works with all five databases.",
     params: &[ParamDoc {
         name: "array",
-        desc: "The schema, as `[\"tables\" => [...]]`. A table is `name`, `columns`, and \
-               optionally `primary_key`, `unique` and `indexes`; a column is `name` and `type`, \
-               with `null`, `identity` and a one-key `default` where it has them. A key that is \
-               left out is the empty list or `false`.",
+        desc: "The schema, as `[\"tables\" => [...]]`. A table has `name`, `columns`, and \
+               optionally `primary_key`, `unique` and `indexes`. A column has `name` and `type`, \
+               and optionally `null`, `identity` and a one-key `default`. A missing key means \
+               the empty list or `false`.",
         shape: &[],
     }],
-    ret: "A `Core\\Db\\Schema` holding the **normalized** form: tables in name order, columns in \
-          declaration order, every optional key filled in. So `toArray` answers the same array \
-          for every spelling of one schema, which is what makes two schemas comparable.",
+    ret: "A `Core\\Db\\Schema` in **normalized** form: tables in name order, columns in \
+          declaration order, and every optional key filled in. So `toArray` returns the same \
+          array for every way to write one schema. This is what makes two schemas comparable.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "A key is missing or holds the wrong kind of value, a type spelling is outside the \
-               vocabulary, an identifier is not a plain identifier, or the schema reads but is \
-               not coherent — a table with no columns, a second identity column, an identity \
-               column outside the primary key, or an index over a column that is not there.",
+        desc: "A key is missing or has the wrong type of value, a type name is not supported, or \
+               an identifier is not a plain identifier. It is also thrown when the schema is not \
+               consistent. Examples are a table with no columns, a second identity column, an \
+               identity column outside the primary key, or an index on a missing column.",
     }],
 };
 
 /// `Core\Db\Schema::toArray`'s reference card — `rule:core-api/reference-card`.
 const SCHEMA_TO_ARRAY_DOC: MethodDoc = MethodDoc {
-    short: "The schema in its canonical array form — what a program saves to a file, hands to \
-            `Core\\Json::encode`, or compares against another schema.",
+    short: "Returns the schema in its standard array form. You can save it to a file, pass it to \
+            `Core\\Json::encode`, or compare it with another schema.",
     params: &[],
-    ret: "The array `fromArray` would read back as the same schema. Tables come in name order and \
-          columns in the order they were declared, since a `create table` reproduces it; \
-          constraints and indexes come in name order, since nothing observable depends on the \
-          order they were added in.",
+    ret: "The array that `fromArray` reads back as the same schema. Tables are in name order. \
+          Columns are in the order they were declared, because `create table` keeps that order. \
+          Constraints and indexes are in name order, because the order they were added in has \
+          no effect.",
     errors: &[],
 };
 
 /// `Core\Db\Schema::planAgainst`'s reference card — `rule:core-api/reference-card`.
 const SCHEMA_PLAN_AGAINST_DOC: MethodDoc = MethodDoc {
-    short: "Reads the database this connection reaches and answers every difference between it and \
-            this schema, in the order the differences must be closed. A plan is a document: \
-            nothing is changed by computing one, and an empty plan is what convergence looks like.",
+    short: "Reads the database of this connection and returns every difference between it and \
+            this schema. The differences are in the order they must be fixed. Making a plan \
+            changes nothing. An empty plan means the database already matches the schema.",
     params: &[ParamDoc {
         name: "connection",
-        desc: "The database to compare against. Planning is an ordinary read and needs only the \
-               `db.connect` this connection was opened with.",
+        desc: "The database to compare with. Planning only reads, so it needs only the \
+               `db.connect` capability this connection was opened with.",
         shape: &[],
     }],
-    ret: "The plan, whose `steps()` are graded `Safe`, `Locking` or `Destructive` and each carry \
-          the complete SQL that makes them. A table or column the database has and this schema \
-          does not is a **report**: it is in the plan, with the SQL that would remove it, and no \
-          `apply` will ever run it.",
+    ret: "The plan. Each of its `steps()` has a grade, `Safe`, `Locking` or `Destructive`, and \
+          the complete SQL for the change. A table or column that the database has and this \
+          schema does not is a **report**. It is in the plan with the SQL that would remove it, \
+          but no `apply` ever runs it.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The database holds a type, a default or an identifier the schema vocabulary cannot \
-               name, so no plan against it would be total.",
+        desc: "The database has a type, a default or an identifier that a schema cannot \
+               describe, so a plan could not cover every difference.",
     }],
 };
 
 /// `Core\Db\Schema::applySafe`'s reference card — `rule:core-api/reference-card`.
 const SCHEMA_APPLY_SAFE_DOC: MethodDoc = MethodDoc {
-    short: "Plans against this connection and runs the plan, provided every step it would run is \
-            graded `Safe`. Needs the `db.schema` capability for the connection's block: issuing \
-            DDL is a privileged act and reaching the database is not enough on its own.",
+    short: "Makes a plan for this connection and runs it, but only if every step it would run \
+            is graded `Safe`. It needs the `db.schema` capability for the connection's block. \
+            Running DDL needs this extra permission, beyond access to the database.",
     params: &[ParamDoc {
         name: "connection",
-        desc: "The database to converge. Its `[db.<name>]` block is the name `db.schema` is \
-               granted for, so a connection from `Core\\Db::open` cannot be applied to.",
+        desc: "The database to change. `db.schema` is granted for the name of its \
+               `[db.<name>]` block. So you cannot use a connection from `Core\\Db::open` here.",
         shape: &[],
     }],
-    ret: "Nothing. The database matches the schema afterwards, apart from what the schema does \
-          not declare — which is reported and left alone.",
+    ret: "Nothing. Afterwards the database matches the schema. Only what the schema does not \
+          declare is different: it is reported and not changed.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The plan holds a step that is not `Safe`, named in the message; the connection \
-                   has no block to grant `db.schema` for; or `planAgainst`'s own refusal.",
+            desc: "The plan has a step that is not `Safe`, and the message names it. It is also \
+                   thrown when the connection has no block to grant `db.schema` for, and for \
+                   every error that `planAgainst` throws.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -1877,22 +1882,22 @@ const SCHEMA_APPLY_SAFE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Schema::applyIncludingRisky`'s reference card — `rule:core-api/reference-card`.
 const SCHEMA_APPLY_RISKY_DOC: MethodDoc = MethodDoc {
-    short: "`applySafe`, without the grade check: runs every step of the plan including the ones \
-            that can hold a long lock, rewrite a table or fail on rows that already exist. Named \
-            so that a reviewer reading the call site sees the claim being made.",
+    short: "Works like `applySafe`, without the grade check. It runs every step of the plan. \
+            This includes steps that can hold a long lock, rewrite a table or fail on rows that \
+            already exist. The long name shows a reviewer the risk at the call.",
     params: &[ParamDoc {
         name: "connection",
-        desc: "The database to converge, as `applySafe` takes it and under the same `db.schema` \
-               grant.",
+        desc: "The database to change. It works as in `applySafe`, and needs the same \
+               `db.schema` capability.",
         shape: &[],
     }],
-    ret: "Nothing. A reported drop is still not run — accepting risk is not accepting data loss, \
-          and the SQL for one is on the step for a program that wants it.",
+    ret: "Nothing. A reported drop still does not run, because a risky change is not the same \
+          as data loss. The step has the SQL for the drop if a program wants to run it.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The connection has no block to grant `db.schema` for, or `planAgainst`'s own \
-                   refusal.",
+            desc: "The connection has no block to grant `db.schema` for. It is also thrown for \
+                   every error that `planAgainst` throws.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -1934,10 +1939,10 @@ pub(crate) const PLAN: CoreClass = CoreClass {
 
 /// `Core\Db\Plan::steps`'s reference card — `rule:core-api/reference-card`.
 const PLAN_STEPS_DOC: MethodDoc = MethodDoc {
-    short: "Every step of the plan, in the order they must run, reports included.",
+    short: "Returns every step of the plan in the order they must run, including reports.",
     params: &[],
-    ret: "The steps. An empty array is convergence: the database already matches the schema. A \
-          step whose `isRefused()` is `true` is one no `apply` will run.",
+    ret: "The steps. An empty array means the database already matches the schema. No `apply` \
+          runs a step whose `isRefused()` is `true`.",
     errors: &[],
 };
 
@@ -2003,43 +2008,44 @@ pub(crate) const STEP: CoreClass = CoreClass {
 
 /// `Core\Db\Plan\Step::grade`'s reference card — `rule:core-api/reference-card`.
 const STEP_GRADE_DOC: MethodDoc = MethodDoc {
-    short: "What this step can cost, at worst.",
+    short: "Returns the worst risk of this step.",
     params: &[],
-    ret: "`Safe`, `Locking` or `Destructive`. A grade is the worst case rather than the likely \
-          one: an emitter with no rule for a case grades up, because over-reporting risk costs a \
-          confirmation and under-reporting it costs an outage.",
+    ret: "`Safe`, `Locking` or `Destructive`. The grade is the worst case, not the likely case. \
+          When there is no rule for a change, it gets the higher grade. Too high a grade costs \
+          one confirmation, and too low a grade can cost an outage.",
     errors: &[],
 };
 
 /// `Core\Db\Plan\Step::reason`'s reference card — `rule:core-api/reference-card`.
 const STEP_REASON_DOC: MethodDoc = MethodDoc {
-    short: "Why the step is graded the way it is, in one sentence an operator reads.",
+    short: "Returns one sentence for a person that says why the step has its grade.",
     params: &[],
-    ret: "The sentence, written by the emitter that produced the SQL — so it names the backend's \
-          own reason, such as a rewrite this server performs and another does not.",
+    ret: "The sentence. It is written for the same database as the SQL. So it gives the reason \
+          for that database, such as a table rewrite that this server does and another does not.",
     errors: &[],
 };
 
 /// `Core\Db\Plan\Step::sql`'s reference card — `rule:core-api/reference-card`.
 const STEP_SQL_DOC: MethodDoc = MethodDoc {
-    short: "The complete, terminated, dialect-correct SQL this step is. Never elided, including \
-            for a step no `apply` will run: a deployment whose application credentials cannot \
-            issue DDL hands the plan to a DBA, and a summary would be useless there.",
+    short: "Returns the complete SQL of this step, with terminators, in the right dialect for the \
+            database. It is never shortened, also for a step that no `apply` runs. Some \
+            applications cannot run DDL and give the plan to a database administrator. A summary \
+            does not help there.",
     params: &[],
-    ret: "The statements, newline-joined. Most steps are one statement and can be handed \
-          straight to `Core\\Db::execute`; SQLite's table rebuild is four, which is an operator's \
-          to paste rather than a program's to run.",
+    ret: "The statements, one per line. Most steps are one statement, and you can pass it \
+          directly to `Core\\Db::execute`. SQLite's table rebuild is four statements. A person \
+          pastes those, and a program does not run them.",
     errors: &[],
 };
 
 /// `Core\Db\Plan\Step::isRefused`'s reference card — `rule:core-api/reference-card`.
 const STEP_IS_REFUSED_DOC: MethodDoc = MethodDoc {
-    short: "Whether this step is a report — a table, column or key the database has and the \
-            schema does not name.",
+    short: "Checks whether this step is a report. A report is a table, column or key that the \
+            database has and the schema does not name.",
     params: &[],
-    ret: "`true` for a step no `apply` will ever run. Absence never destroys, because a database \
-          an application shares with a queue, a reporting view and whatever an operator put there \
-          is the ordinary case. A program that does want the drop runs this step's own `sql()`.",
+    ret: "`true` for a step that no `apply` ever runs. Something missing from the schema is \
+          never deleted. A database is often shared with a queue, a reporting view or tables \
+          an administrator added. A program that wants the drop runs this step's `sql()`.",
     errors: &[],
 };
 
@@ -2059,8 +2065,8 @@ pub(crate) const GRADE: CoreEnum = CoreEnum {
 
 /// [`GRADE`]'s reference card — `rule:core-api/reference-card`.
 const GRADE_DOC: EnumDoc = EnumDoc {
-    short: "What one step of a schema plan can cost at worst, so that a deployment can run the \
-            half it is willing to run unattended.",
+    short: "The worst risk of one step of a schema plan. A deployment can use it to run only \
+            the steps it is willing to run without a person watching.",
     cases: &[
         CaseDoc {
             name: "Safe",
@@ -2070,13 +2076,13 @@ const GRADE_DOC: EnumDoc = EnumDoc {
         CaseDoc {
             name: "Locking",
             desc: "Cannot lose data, but can fail on existing rows or block writes for a long \
-                   time — a unique key over data that already collides, `NOT NULL` on a populated \
-                   column, a type change that rewrites the table.",
+                   time. Examples are a unique key on data with duplicates, `NOT NULL` on a \
+                   column with data, or a type change that rewrites the table.",
         },
         CaseDoc {
             name: "Destructive",
-            desc: "Can lose data. Every drop is here, and so is SQLite's create-copy-drop-rename \
-                   rebuild, which is a data copy however it is spelled.",
+            desc: "Can lose data. Every drop has this grade. So does SQLite's table rebuild \
+                   (create, copy, drop, rename), because it always copies the data.",
         },
     ],
 };
@@ -2090,41 +2096,42 @@ pub(super) const CONNECT_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "name",
-            desc: "The block to open, matched exactly: `\"main\"` is `[db.main]`. Two blocks that \
-                   configure the same server are two connections, because an operator who wrote \
-                   two meant two.",
+            desc: "The block to open. It must match exactly: `\"main\"` is `[db.main]`. Two \
+                   blocks for the same server give two connections, because whoever wrote two \
+                   blocks wanted two.",
             shape: &[],
         },
         ParamDoc {
             name: "shared",
-            desc: "Whether this call may answer with the connection an earlier one already \
-                   opened. `false` opens a dedicated connection instead — what a write that must \
-                   survive a rollback, a session-scoped lock or a second statement alongside a \
-                   `stream` needs.",
+            desc: "Whether this call may return the connection that an earlier call opened. \
+                   `false` opens a separate connection. You need one for a write that must stay \
+                   after a rollback, for a session lock, or for a second statement during a \
+                   `stream`.",
             shape: &[],
         },
         ParamDoc {
             name: "timeout",
-            desc: "How long the handshake may take, including name resolution and TLS. Left out, \
-                   the connection is bounded by the server and the network alone.",
+            desc: "How long opening the connection may take, including the DNS lookup and TLS. \
+                   Without it, only the server and the network limit the time.",
             shape: &[],
         },
     ],
-    ret: "A `Core\\Db\\Connection`. The same call twice in one request answers the same object \
-          unless `shared` is `false`, and the connection is closed when the request ends.",
+    ret: "A `Core\\Db\\Connection`. The same call twice in one request returns the same object, \
+          unless `shared` is `false`. The connection is closed when the request ends.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`db.connect` does not grant `$name`, no `[db.<name>]` block of that name \
-                   exists, or the block cannot be read as a connection — a missing `driver`, a \
-                   field belonging to another driver, or a `time_zone` that is not an offset.",
+            desc: "`db.connect` does not grant `$name`, or there is no `[db.<name>]` block of that \
+                   name. It is also thrown when the block does not describe a valid connection. \
+                   Examples are a missing `driver`, a setting of another driver, or a `time_zone` \
+                   that is not an offset.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The host does not resolve, the connection, the TLS handshake or the login \
-                   itself failed, or this core already holds `[db.<name>.pool] max` connections \
-                   under that name and none came free within `acquire`. A refusal the server \
-                   worded carries its own message.",
+            desc: "The host name does not resolve, or the connection, the TLS handshake or the \
+                   login failed. It is also thrown when this CPU core already uses \
+                   `[db.<name>.pool] max` connections with that name and none is free within \
+                   `acquire`. When the server sends its own error message, the error includes it.",
         },
     ],
 };
@@ -2135,47 +2142,47 @@ pub(super) const CONNECT_DOC: MethodDoc = MethodDoc {
 /// because this is the one parameter that is a written shape rather than a
 /// value: [`SETTINGS`]' merged key list, in the order the ABI flattens it.
 pub(super) const OPEN_DOC: MethodDoc = MethodDoc {
-    short: "Opens a connection to a server the program itself names, for the case a `[db.<name>]` \
-            block cannot cover — a tenant whose database is a row in another one, or an \
-            administration tool a human types a host into. Needs the `db.open` capability for \
-            that host, and unlike `connect` the address is checked against the denied ranges in \
-            full.",
+    short: "Opens a connection to a server that the program names itself. Use it when a \
+            `[db.<name>]` block does not work. Examples are a customer whose database is stored \
+            as a row in another database, or an admin tool where a person types a host. It \
+            needs the `db.open` capability for that host. The address is fully checked against \
+            the blocked address ranges. This check is stricter than for `connect`.",
     params: &[
         ParamDoc {
             name: "settings",
-            desc: "Everything the connection is made of. It is one of two shapes and the \
-                   `driver` decides which: four of the five backends take a host, and SQLite \
-                   takes a file path instead.",
+            desc: "All settings of the connection. The object has one of two shapes, and \
+                   `driver` selects the shape. Four of the five databases need a host, and \
+                   SQLite needs a file path.",
             shape: &[
                 ShapeKeyDoc {
                     key: "driver",
                     ty: "Driver",
-                    desc: "Which backend this is, and so which of the two shapes the rest of \
-                           the object has to be.",
+                    desc: "Which database this is. It selects which of the two shapes the rest \
+                           of the object must have.",
                 },
                 ShapeKeyDoc {
                     key: "host",
                     ty: "string",
-                    desc: "The server to open, and the name its certificate is checked \
-                           against. It is a sink with no launderer: no check on a string can \
-                           establish that a host is safe to send a credential to.",
+                    desc: "The server to connect to. Its certificate is checked against this \
+                           name. It cannot be `tainted`, and no check can remove that, because \
+                           no check on a string proves that a host is safe for a password.",
                 },
                 ShapeKeyDoc {
                     key: "port",
                     ty: "uint",
-                    desc: "The port to open. Left out, the driver's own — 5432 for PostgreSQL, \
-                           3306 for MySQL and MariaDB.",
+                    desc: "The port to connect to. Without it, the driver's default is used: \
+                           5432 for PostgreSQL, and 3306 for MySQL and MariaDB.",
                 },
                 ShapeKeyDoc {
                     key: "database",
                     ty: "tainted string",
-                    desc: "The database or schema to attach to. `tainted` is accepted: it is a \
-                           length-prefixed protocol field and never parsed text.",
+                    desc: "The database or schema to use. It may be `tainted`, because it is \
+                           sent as a separate value and never read as SQL.",
                 },
                 ShapeKeyDoc {
                     key: "user",
                     ty: "tainted string",
-                    desc: "The role to log in as, accepted `tainted` for the same reason.",
+                    desc: "The role to log in as. It may be `tainted` for the same reason.",
                 },
                 ShapeKeyDoc {
                     key: "password",
@@ -2186,19 +2193,20 @@ pub(super) const OPEN_DOC: MethodDoc = MethodDoc {
                 ShapeKeyDoc {
                     key: "tls",
                     ty: "Tls",
-                    desc: "How much of the certificate is checked. Only `VerifyFull` runs, and \
-                           it is what an absent key means; the weaker three are refused.",
+                    desc: "How much of the certificate is checked. Only `VerifyFull` works, and \
+                           it is the default. The three weaker modes throw an error.",
                 },
                 ShapeKeyDoc {
                     key: "timeZone",
                     ty: "Core\\Time\\Zone",
-                    desc: "The zone a column with no zone of its own is read in, and the one \
-                           the server is told to use. UTC where it is absent.",
+                    desc: "The time zone for reading a column that has no time zone. The server \
+                           is also told to use it. The default is UTC.",
                 },
                 ShapeKeyDoc {
                     key: "timeout",
                     ty: "Core\\Time\\Duration",
-                    desc: "How long the handshake may take, resolution and TLS included.",
+                    desc: "How long opening the connection may take, including the DNS lookup \
+                           and TLS.",
                 },
                 ShapeKeyDoc {
                     key: "statementCache",
@@ -2209,33 +2217,33 @@ pub(super) const OPEN_DOC: MethodDoc = MethodDoc {
                 ShapeKeyDoc {
                     key: "path",
                     ty: "string",
-                    desc: "SQLite's file, in place of a host. It is a path sink, and reaching \
-                           it needs `fs.read` and `fs.write` as well.",
+                    desc: "The SQLite file, used in place of a host. It cannot be `tainted`, \
+                           and it also needs the `fs.read` and `fs.write` capabilities.",
                 },
             ],
         },
         ParamDoc {
             name: "shared",
-            desc: "Whether this call may answer with the connection an earlier one opened from \
-                   the same settings. `false` opens a dedicated connection instead.",
+            desc: "Whether this call may return the connection that an earlier call opened with \
+                   the same settings. `false` opens a separate connection.",
             shape: &[],
         },
     ],
-    ret: "A `Core\\Db\\Connection`, closed when the request ends. Two calls with settings that \
-          agree in every field answer the same object unless `shared` is `false`.",
+    ret: "A `Core\\Db\\Connection`. It is closed when the request ends. Two calls with the same \
+          value in every setting return the same object, unless `shared` is `false`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`db.open` does not grant the host, the address it resolves to is a private \
-                   range that `net.internal` does not except, the settings do not describe a \
-                   connection this build can open, or `tls` asks for a mode weaker than \
+            desc: "`db.open` does not grant the host, or the host's address is in a private range \
+                   that `net.internal` does not allow. It is also thrown when this build cannot \
+                   open a connection with these settings, or when `tls` names a mode weaker than \
                    `VerifyFull`.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The host does not resolve, the connection, the TLS handshake or the login \
-                   itself failed, or this core already holds its `max` of connections to those \
-                   settings and none came free while waiting.",
+            desc: "The host name does not resolve, or the connection, the TLS handshake or the \
+                   login failed. It is also thrown when this CPU core already uses its `max` \
+                   connections with these settings and none became free in time.",
         },
     ],
 };
@@ -2247,17 +2255,18 @@ pub(super) const IN_LIST_DOC: MethodDoc = MethodDoc {
             in a statement changes the SQL text.",
     params: &[ParamDoc {
         name: "values",
-        desc: "The values to bind, one placeholder each, in the array's own order. Keys are not \
-               read: a marker binds positions inside one placeholder, not names.",
+        desc: "The values to bind, one placeholder each, in the order of the array. Keys are \
+               ignored: the values fill positions inside one placeholder and have no names.",
         shape: &[],
     }],
-    ret: "A `Core\\Db\\InList` to bind to a single placeholder. It has no members and is accepted \
-          nowhere else; two lists of different lengths bound to the same SQL are two entries in \
-          the statement cache, because expansion changes the statement's arity.",
+    ret: "A `Core\\Db\\InList` to bind to a single placeholder. It has no methods, and you can \
+          use it only as a bound parameter. Two lists of different lengths with the same SQL \
+          are two entries in the statement cache. The expanded statement has a different \
+          number of placeholders.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$values` is empty, which means \"match nothing\" inside `IN` and \"match \
-               everything\" inside `NOT IN` — the caller branches instead.",
+        desc: "`$values` is empty. An empty list means \"match nothing\" inside `IN` and \"match \
+               everything\" inside `NOT IN`. Check for an empty list in your code instead.",
     }],
 };
 
@@ -2270,19 +2279,19 @@ pub(super) const QUOTE_IDENTIFIER_DOC: MethodDoc = MethodDoc {
             chooses the name, check it against a list of allowed names first.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The identifier to check. It is answered exactly as given: nothing is escaped, \
-               truncated or lower-cased, because a name this accepts needs none of it.",
+        desc: "The identifier to check. It is returned exactly as given. Nothing is escaped, \
+               shortened or lower-cased, because a name that passes the check needs none of it.",
         shape: &[],
     }],
-    ret: "The same text, without the `tainted` qualifier. It carries no delimiter — `Core\\Db` \
-          has no connection and so no dialect, and the five backends disagree on what a \
-          delimiter is.",
+    ret: "The same text, without the `tainted` qualifier. It has no quotes around it. \
+          This method has no connection, so it has no SQL dialect. The five databases use \
+          different quote characters.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$name` is empty, starts with a digit, or holds any character outside letters, \
-               digits and `_` — including a name that would need delimiting to be legal. Or \
-               `$name` is a name the database reads as a value when it has no quotes, such as \
-               `current_user`, `user` or `current_timestamp`, in any case.",
+        desc: "`$name` is empty, starts with a digit, or contains a character that is not a \
+               letter, a digit or `_`. This includes a name that is valid only inside quotes. \
+               It is also thrown when the database reads `$name` as a value without quotes, \
+               such as `current_user`, `user` or `current_timestamp`, in upper or lower case.",
     }],
 };
 
@@ -2294,41 +2303,42 @@ pub(super) const QUERY_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "sql",
-            desc: "The statement, with a `?` for each value or a `:name` for each — never a value \
-                   written into the text. It is a sink, so a `tainted` string is refused while \
-                   compiling and there is no escaper to launder one with.",
+            desc: "The statement, with a `?` or a `:name` for each value. Never write a value \
+                   into the text. A `tainted` string does not compile here, and no escape \
+                   function can make one allowed.",
             shape: &[],
         },
         ParamDoc {
             name: "params",
-            desc: "The values to bind: list-keyed for `?` and string-keyed for `:name`, one array \
-                   and never both spellings. A `Core\\Db::inList` element expands into a run of \
-                   placeholders at its own position, and nothing else expands.",
+            desc: "The values to bind. Use list keys for `?` and string keys for `:name`, and \
+                   never both in one array. A `Core\\Db::inList` element expands into several \
+                   placeholders at its position. Nothing else expands.",
             shape: &[],
         },
         TIMEOUT_PARAM_DOC,
     ],
-    ret: "A `Core\\Db\\Rows<Core\\Db\\Row>` holding every row the statement answered, in the \
-          server's order. A statement that answers none — an `update`, a `create table` — is an \
-          empty one rather than a refusal.",
+    ret: "A `Core\\Db\\Rows<Core\\Db\\Row>` with every row the statement returned, in the \
+          server's order. A statement that returns no rows, such as an `update` or a \
+          `create table`, gives an empty result. It is not an error.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The call is wrong rather than the database: the placeholders and the array \
-                   disagree in spelling or in number, a `:name` names no element, an element is a \
-                   value with no bound form — an array, an object that is not an `inList` — or a \
-                   statement is already streaming on this connection.",
+            desc: "The call is wrong, not the database. The placeholders and the array use \
+                   different styles or different counts, or a `:name` has no element. It is also \
+                   thrown for an element that cannot be bound, such as an array or an object \
+                   that is not an `inList`. A statement already streaming on this connection \
+                   throws it too.",
         },
         ErrorDoc {
             error: "Core\\Db\\DbError",
-            desc: "The server refused the statement — a syntax error, a constraint, a permission \
-                   — carrying its own `SQLSTATE` and message, or a column came back in a type \
-                   this driver does not read back yet.",
+            desc: "The server rejected the statement, for example for a syntax error, a \
+                   constraint or a permission. The error has the server's `SQLSTATE` and \
+                   message. It is also thrown for a column type this driver cannot read yet.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed while the statement was in flight — or `timeout` passed \
-                   with it still in flight — which leaves it unusable for the rest of the \
+            desc: "The connection failed while the statement was running, or `timeout` passed \
+                   before it finished. The connection cannot be used for the rest of the \
                    request.",
         },
     ],
@@ -2342,11 +2352,11 @@ pub(super) const QUERY_DOC: MethodDoc = MethodDoc {
 /// something different there — it covers the walk rather than the call.
 const TIMEOUT_PARAM_DOC: ParamDoc = ParamDoc {
     name: "timeout",
-    desc: "How long this statement may take. It bounds the whole exchange — the prepare, the \
-           execution and every row of the answer — and not one read of it: when it passes the \
-           statement gives up with an `IOError` and the connection is spent, since it was given \
-           up on part way through a message. Omitted, the statement waits as long as the server \
-           takes.",
+    desc: "How long this statement may take. The limit covers the whole statement: the \
+           prepare, the execution and every row of the result. When the time passes, the \
+           statement stops with an `IOError`. The connection cannot be used again, because it \
+           stopped in the middle of a message. Without it, the statement waits as long as the \
+           server takes.",
     shape: &[],
 };
 
@@ -2358,35 +2368,36 @@ pub(super) const QUERY_AS_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "sql",
-            desc: "The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, \
-                   never a value written into the text, and a sink either way.",
+            desc: "The statement, bound the same way as in `query`. Use a `?` or a `:name` for \
+                   each value, and never write a value into the text. A `tainted` string does \
+                   not compile here.",
             shape: &[],
         },
         ParamDoc {
             name: "params",
-            desc: "The values to bind, under `query`'s own rule — one array, list-keyed for `?` \
-                   and string-keyed for `:name`.",
+            desc: "The values to bind, with the same rule as `query`: one array, with list keys \
+                   for `?` and string keys for `:name`.",
             shape: &[],
         },
         TIMEOUT_PARAM_DOC,
     ],
-    ret: "A `Core\\Db\\Rows<T>` holding one `T` per row, in the server's order. A row is built \
-          when it is handed out — by `all`, by `first` or by a `foreach` — so a result that is \
-          only counted constructs nothing.",
+    ret: "A `Core\\Db\\Rows<T>` with one `T` per row, in the server's order. Each object is \
+          created when you read its row with `all`, `first` or a `foreach`. If you only count \
+          the rows, no object is created.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The type argument is an `array<...>`, which a result set already is one row \
-                   per row of; or `T` carries no `#[Db\\Derive]`, so there is no column mapping \
-                   to build it from. Both are properties of the call site and would be \
-                   compile-time diagnostics if either type band had a code left.",
+            desc: "The type argument is an `array<...>`. A result is already a list of arrays, \
+                   one per row. It is also thrown when `T` has no `#[Db\\Derive]`, so there is no \
+                   column mapping to create it from. Both errors come from the call itself, but \
+                   they are found when the program runs.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "A row did not match `T`: a column missing, a column of another type than the \
-                   property declares, a SQL NULL in a property that is not `?T`, or a property \
-                   whose declared type has no column mapping at all. Every bad column of the row is \
-                   reported at once, in `issues`, each `path` the column's name.",
+            desc: "A row did not match `T`. A column is missing, or has a different type than \
+                   the property. A SQL NULL is in a property that is not `?T`, or a property's \
+                   type has no column mapping. Every bad column of the row is reported at once \
+                   in `issues`, and each `path` is the column's name.",
         },
     ],
 };
@@ -2399,41 +2410,41 @@ pub(super) const EXECUTE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "sql",
-            desc: "The statement, with a `?` for each value or a `:name` for each — never a value \
-                   written into the text. It is a sink, so a `tainted` string is refused while \
-                   compiling and there is no escaper to launder one with.",
+            desc: "The statement, with a `?` or a `:name` for each value. Never write a value \
+                   into the text. A `tainted` string does not compile here, and no escape \
+                   function can make one allowed.",
             shape: &[],
         },
         ParamDoc {
             name: "params",
-            desc: "The values to bind: list-keyed for `?` and string-keyed for `:name`, one array \
-                   and never both spellings — `query`'s rule exactly, since both members bind \
-                   through the same rewriter.",
+            desc: "The values to bind. Use list keys for `?` and string keys for `:name`, and \
+                   never both in one array. This is the same rule as in `query`.",
             shape: &[],
         },
         TIMEOUT_PARAM_DOC,
     ],
-    ret: "A `Core\\Db\\Write` carrying how many rows were affected, that count as the server \
-          reported it, and the id a `RETURNING` clause handed back. Rows the statement did answer \
-          are read to the end and discarded, so the connection is free when this returns; `query` \
-          is the member that keeps them.",
+    ret: "A `Core\\Db\\Write` with the number of affected rows as the server reported it, and \
+          the id that a `RETURNING` clause returned. Any rows the statement returned are read \
+          and discarded, so the connection is free again. Use `query` to keep rows.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The call is wrong rather than the database: the placeholders and the array \
-                   disagree in spelling or in number, a `:name` names no element, an element is a \
-                   value with no bound form — an array, an object that is not an `inList` — or a \
-                   statement is already streaming on this connection.",
+            desc: "The call is wrong, not the database. The placeholders and the array use \
+                   different styles or different counts, or a `:name` has no element. It is also \
+                   thrown for an element that cannot be bound, such as an array or an object \
+                   that is not an `inList`. A statement already streaming on this connection \
+                   throws it too.",
         },
         ErrorDoc {
             error: "Core\\Db\\DbError",
-            desc: "The server refused the statement — a syntax error, a constraint, a permission \
-                   — carrying its own `SQLSTATE` and message.",
+            desc: "The server rejected the statement, for example for a syntax error, a \
+                   constraint or a permission. The error has the server's `SQLSTATE` and \
+                   message.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed while the statement was in flight — or `timeout` passed \
-                   with it still in flight — which leaves it unusable for the rest of the \
+            desc: "The connection failed while the statement was running, or `timeout` passed \
+                   before it finished. The connection cannot be used for the rest of the \
                    request.",
         },
     ],
@@ -2447,41 +2458,39 @@ pub(super) const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "sql",
-            desc: "The statement, written once and bound once per set. It is a sink exactly as \
-                   `execute`'s is, and the batch gives it no second spelling: there is one text \
-                   for every set.",
+            desc: "The statement, written once and bound once for each set. A `tainted` string \
+                   does not compile here, as in `execute`. All sets use this one text.",
             shape: &[],
         },
         ParamDoc {
             name: "sets",
-            desc: "One `$params` array per execution, each keyed the way `execute` requires and \
-                   all of them binding the same number of values — a set whose `inList` is a \
-                   different width is a different statement, not another row of this one.",
+            desc: "One `$params` array for each run, each with keys as `execute` needs them. All \
+                   sets must bind the same number of values. A set whose `inList` has a \
+                   different length is a different statement.",
             shape: &[],
         },
         TIMEOUT_PARAM_DOC,
     ],
-    ret: "The sum of what each execution reported, with a command whose tag carries no count \
-          contributing nothing. An empty `$sets` writes nothing and answers `0`. Rows a \
-          `RETURNING` clause produced are discarded, and there is no `lastId`: neither has one \
-          execution to belong to.",
+    ret: "The sum of the counts each run reported. A command that reports no count adds \
+          nothing. An empty `$sets` writes nothing and returns `0`. Rows from a `RETURNING` \
+          clause are discarded. There is no `lastId`, because no single run owns it.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The call is wrong rather than the database: a set is keyed both ways at once, \
-                   two sets do not agree on how many values the statement binds, an element has no \
-                   bound form, or a statement is already streaming on this connection.",
+            desc: "The call is wrong, not the database. A set uses both list keys and string \
+                   keys, two sets bind different numbers of values, or an element cannot be \
+                   bound. A statement already streaming on this connection throws it too.",
         },
         ErrorDoc {
             error: "Core\\Db\\DbError",
-            desc: "The server refused an execution — a syntax error, a constraint, a permission. \
-                   Each execution is its own transaction, so the writes before the failing one \
-                   stand; `transaction` is how a caller asks for all or nothing.",
+            desc: "The server rejected one run, for example for a syntax error, a constraint or \
+                   a permission. Each run is its own transaction, so the writes before the \
+                   failed run stay. Use `transaction` to save all or nothing.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed while the batch was in flight — or `timeout` passed with \
-                   it still in flight — which leaves it unusable for the rest of the request.",
+            desc: "The connection failed while the batch was running, or `timeout` passed before \
+                   it finished. The connection cannot be used for the rest of the request.",
         },
     ],
 };
@@ -2494,47 +2503,48 @@ pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "sql",
-            desc: "The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, \
-                   never a value written into the text, and a sink either way.",
+            desc: "The statement, bound the same way as in `query`. Use a `?` or a `:name` for \
+                   each value, and never write a value into the text. A `tainted` string does \
+                   not compile here.",
             shape: &[],
         },
         ParamDoc {
             name: "params",
-            desc: "The values to bind, read exactly as `query` reads them — list-keyed for `?`, \
-                   string-keyed for `:name`, one array and never both spellings.",
+            desc: "The values to bind, with the same rule as `query`. Use list keys for `?` and \
+                   string keys for `:name`, and never both in one array.",
             shape: &[],
         },
         ParamDoc {
             name: "timeout",
-            desc: "How long the whole walk may take. The bound stays on the connection while the \
-                   cursor is open, so it covers every row read and not just the call that opens \
-                   the walk; the statement gives up with an `IOError` when it passes, and the \
-                   connection is spent. Omitted, the walk waits as long as the server takes.",
+            desc: "How long reading all the rows may take. The limit applies while the rows are \
+                   being read, so it covers every row and not only the first call. When the time \
+                   passes, the statement stops with an `IOError`, and the connection cannot be \
+                   used again. Without it, the loop waits as long as the server takes.",
             shape: &[],
         },
     ],
-    ret: "A walk over the statement's rows, each one a `Core\\Db\\Row`, in the server's order. \
-          Nothing has been read when this returns and the connection is busy from here: no second \
-          statement runs on it until the walk reaches its end, so a loop that writes per row needs \
-          a second connection (`{shared: false}`) or `query`'s buffered read instead.",
+    ret: "The statement's rows for a `foreach` loop, each one a `Core\\Db\\Row`, in the server's \
+          order. No row has been read yet when this returns. The connection is busy until the \
+          loop reaches the last row, and no other statement can run on it. A loop that writes \
+          for each row needs a second connection (`{shared: false}`), or `query` instead.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The call is wrong rather than the database: the placeholders and the array \
-                   disagree in spelling or in number, a `:name` names no element, an element is a \
-                   value with no bound form, the connection has been closed, or a statement is \
-                   already streaming on it.",
+            desc: "The call is wrong, not the database. The placeholders and the array use \
+                   different styles or different counts, a `:name` has no element, or an element \
+                   cannot be bound. It is also thrown when the connection is closed, or when a \
+                   statement is already streaming on it.",
         },
         ErrorDoc {
             error: "Core\\Db\\DbError",
-            desc: "The server refused the statement, or refused it part way through the walk, \
-                   carrying its own `SQLSTATE` and message — or a column came back in a type this \
-                   driver does not read back yet.",
+            desc: "The server rejected the statement, at the start or while the rows were read. \
+                   The error has the server's `SQLSTATE` and message. It is also thrown for a \
+                   column type this driver cannot read yet.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed while the statement or one of its rows was in flight — \
-                   or `timeout` passed with the walk still open — which leaves it unusable for \
+            desc: "The connection failed while the statement or one of its rows was being sent, \
+                   or `timeout` passed before the loop ended. The connection cannot be used for \
                    the rest of the request.",
         },
     ],
@@ -2548,56 +2558,55 @@ pub(super) const STREAM_AS_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "sql",
-            desc: "The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, \
-                   never a value written into the text, and a sink either way.",
+            desc: "The statement, bound the same way as in `query`. Use a `?` or a `:name` for \
+                   each value, and never write a value into the text. A `tainted` string does \
+                   not compile here.",
             shape: &[],
         },
         ParamDoc {
             name: "params",
-            desc: "The values to bind, read exactly as `query` reads them — list-keyed for `?`, \
-                   string-keyed for `:name`, one array and never both spellings.",
+            desc: "The values to bind, with the same rule as `query`. Use list keys for `?` and \
+                   string keys for `:name`, and never both in one array.",
             shape: &[],
         },
         ParamDoc {
             name: "timeout",
-            desc: "How long the whole walk may take, under `stream`'s own rule: the bound stays on \
-                   the connection while the cursor is open, so it covers every row read and not \
-                   just the call that opens the walk. Omitted, the walk waits as long as the \
-                   server takes.",
+            desc: "How long reading all the rows may take, with the same rule as `stream`. The \
+                   limit applies while the rows are being read, so it covers every row and not \
+                   only the first call. Without it, the loop waits as long as the server takes.",
             shape: &[],
         },
     ],
-    ret: "A walk over the statement's rows, each one built into `T`, in the server's order. \
-          Nothing has been read when this returns and the connection is busy from here, exactly \
-          as `stream` leaves it — and one `T` is held at a time, which is the whole difference \
-          from `queryAs`.",
+    ret: "The statement's rows for a `foreach` loop, each one created as a `T`, in the server's \
+          order. No row has been read yet when this returns. The connection is busy, as with \
+          `stream`. Only one `T` exists at a time. That is the only difference from `queryAs`.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The call is wrong rather than the database: the placeholders and the array \
-                   disagree in spelling or in number, a `:name` names no element, an element is a \
-                   value with no bound form, the connection has been closed, or a statement is \
-                   already streaming on it. A `T` that carries no `#[Db\\Derive]` is refused here \
-                   too, as the backstop under the compile-time diagnostic that already names it.",
+            desc: "The call is wrong, not the database. The placeholders and the array use \
+                   different styles or different counts, a `:name` has no element, or an element \
+                   cannot be bound. It is also thrown when the connection is closed, or when a \
+                   statement is already streaming on it. A `T` without `#[Db\\Derive]` also \
+                   throws it here, although the compiler already reports that.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "A row did not match `T`: a column missing, a column of another type than the \
-                   property declares, a SQL NULL in a property that is not `?T`, or a property \
-                   whose declared type has no column mapping at all. Every bad column of that row is \
-                   reported at once, in `issues`, each `path` the column's name — and the walk \
-                   ends there, since the connection is left holding an unread portal.",
+            desc: "A row did not match `T`. A column is missing, or has a different type than \
+                   the property. A SQL NULL is in a property that is not `?T`, or a property's \
+                   type has no column mapping. Every bad column of that row is reported at once \
+                   in `issues`, and each `path` is the column's name. The loop stops there, \
+                   because the rest of the result is not read.",
         },
         ErrorDoc {
             error: "Core\\Db\\DbError",
-            desc: "The server refused the statement, or refused it part way through the walk, \
-                   carrying its own `SQLSTATE` and message — or a column came back in a type this \
-                   driver does not read back yet.",
+            desc: "The server rejected the statement, at the start or while the rows were read. \
+                   The error has the server's `SQLSTATE` and message. It is also thrown for a \
+                   column type this driver cannot read yet.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed while the statement or one of its rows was in flight — \
-                   or `timeout` passed with the walk still open — which leaves it unusable for \
+            desc: "The connection failed while the statement or one of its rows was being sent, \
+                   or `timeout` passed before the loop ended. The connection cannot be used for \
                    the rest of the request.",
         },
     ],
@@ -2611,90 +2620,88 @@ pub(super) const TRANSACTION_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "fn",
-            desc: "The work. It is handed a `Core\\Db\\Transaction`, which has the same query \
-                   surface the connection has, and may declare that parameter or no parameter at \
-                   all.",
+            desc: "The work to run. It gets a `Core\\Db\\Transaction`, which has the same query \
+                   methods as the connection. The function may declare that parameter or no \
+                   parameter.",
             shape: &[],
         },
         ParamDoc {
             name: "isolation",
-            desc: "What this transaction may see of the work running beside it. Left out, it runs \
-                   at the level the server was configured with. A nested call may not ask for one \
-                   at all — the level belongs to the whole transaction, not to a savepoint inside \
-                   it.",
+            desc: "How much this transaction can see of other transactions running at the same \
+                   time. Without it, the transaction uses the level set on the server. A nested \
+                   call cannot set it. The level is for the whole transaction, not for a \
+                   savepoint inside it.",
             shape: &[],
         },
         ParamDoc {
             name: "readOnly",
-            desc: "Refuses writes for the length of the transaction, which lets the server plan \
-                   for a reader. False by default, and a nested call may not ask for it for the \
-                   reason `isolation` may not.",
+            desc: "Writes are not allowed during the transaction, so the server can plan for \
+                   reads only. The default is `false`. A nested call cannot set it, for the same \
+                   reason as `isolation`.",
             shape: &[],
         },
         ParamDoc {
             name: "retries",
-            desc: "How many times a deadlock or a serialization failure the commit reports may \
-                   re-run `$fn`, outermost transactions only. Zero by default, because a callable \
-                   with side effects should run again only when you ask for it. Nothing else \
-                   is ever retried, there is no wait between attempts, and a conflict a statement \
-                   inside `$fn` raised is thrown rather than re-run.",
+            desc: "How many times `$fn` runs again when the commit reports a deadlock or a \
+                   serialization failure. This applies to the outermost transaction only. The \
+                   default is `0`, because a function with side effects should run again only \
+                   when you ask for it. Nothing else is retried, and there is no wait between \
+                   attempts. A conflict from a statement inside `$fn` is thrown and not retried.",
             shape: &[],
         },
     ],
     ret: "What `$fn` returned, after the commit. A nested call on the same connection is a \
-          savepoint, so a function that wraps its own writes stays callable from inside a \
-          caller's transaction.",
+          savepoint. So you can call a function that wraps its own writes in a transaction \
+          from inside another transaction.",
     errors: &[
         ErrorDoc {
             error: "Core\\Db\\RolledBack",
-            desc: "`$fn` called `rollBack`. It travels out of this call whether or not anything \
-                   inside caught it, because the decision is a flag on the transaction and not \
-                   the exception's own journey.",
+            desc: "`$fn` called `rollBack`. This call throws it even if code inside `$fn` caught \
+                   it, because the rollback is recorded on the transaction itself.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "A statement inside `$fn` was not allowed because of the way it was written, the \
-                   transaction was reached after the call that owned it returned, or a nested \
-                   call asked for its own `isolation` or `readOnly`.",
+            desc: "A statement inside `$fn` was not allowed because of the way it was written. It \
+                   is also thrown when the transaction is used after its `transaction()` call \
+                   returned, or when a nested call sets its own `isolation` or `readOnly`.",
         },
         ErrorDoc {
             error: "Core\\Db\\DbError",
-            desc: "The server refused the `BEGIN`, or refused the `COMMIT` after `$fn` \
-                   returned — a serialization failure or a deferred constraint. The work is not \
-                   committed either way.",
+            desc: "The server rejected the `BEGIN`, or rejected the `COMMIT` after `$fn` \
+                   returned, for example for a serialization failure or a deferred constraint. \
+                   In both cases nothing is committed.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed while the transaction was open, which leaves it unusable \
-                   for the rest of the request.",
+            desc: "The connection failed while the transaction was open. The connection cannot be \
+                   used for the rest of the request.",
         },
     ],
 };
 
 /// `Core\Db\Transaction::rollBack`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROLL_BACK_DOC: MethodDoc = MethodDoc {
-    short: "Gives up on this transaction: records `$reason`, and throws `Core\\Db\\RolledBack` \
-            carrying it. There is no way to ask for a rollback and carry on inside the same \
-            transaction, which is the difference from a `setRollbackOnly` every layer has to \
-            remember to check.",
+    short: "Rolls back this transaction. It records `$reason` and throws `Core\\Db\\RolledBack` \
+            with it. You cannot request a rollback and then continue in the same transaction. \
+            So no code has to remember to check a flag such as `setRollbackOnly`.",
     params: &[ParamDoc {
         name: "reason",
-        desc: "Why the work is being abandoned. It becomes the thrown `RolledBack`'s `reason` \
-               property and its message, so it is written for whoever reads the failure.",
+        desc: "Why the work is stopped. It becomes the `reason` property and the message of the \
+               thrown `RolledBack`, so write it for the person who reads the error.",
         shape: &[],
     }],
-    ret: "Nothing — this member always throws.",
+    ret: "Nothing. This method always throws.",
     errors: &[
         ErrorDoc {
             error: "Core\\Db\\RolledBack",
-            desc: "Always. It propagates out of the owning `transaction()` call even if something \
-                   between here and there catches it, because the owning frame acts on the \
-                   recorded reason rather than on seeing the throw.",
+            desc: "Always. The `transaction()` call throws it even if code between here and \
+                   there catches it, because that call checks the recorded reason, not the \
+                   thrown error.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "The transaction was reached after the `transaction()` call that owned it \
-                   returned, so there is no longer a scope to roll back.",
+            desc: "The transaction is used after its `transaction()` call returned, so there is \
+                   nothing left to roll back.",
         },
     ],
 };
@@ -2703,9 +2710,9 @@ pub(super) const ROLL_BACK_DOC: MethodDoc = MethodDoc {
 pub(super) const ROWS_ALL_DOC: MethodDoc = MethodDoc {
     short: "Returns every row of the result, in the order the server sent them.",
     params: &[],
-    ret: "An `array<T>`, empty for a statement that answered no rows. `T` is the result set's own \
-          type argument: a `Core\\Db\\Row` for `query`, and the hydrated class for `queryAs<T>`. \
-          The rows are the ones already read, so this costs one object each and no second decode.",
+    ret: "An `array<T>`. It is empty for a statement that returned no rows. `T` is a \
+          `Core\\Db\\Row` for `query`, and the class you named for `queryAs<T>`. The rows are \
+          already read, so this creates one object for each row and decodes nothing again.",
     errors: &[],
 };
 
@@ -2713,9 +2720,8 @@ pub(super) const ROWS_ALL_DOC: MethodDoc = MethodDoc {
 pub(super) const ROWS_FIRST_DOC: MethodDoc = MethodDoc {
     short: "Returns the first row, or `null` if there is none. A second call returns the same row.",
     params: &[],
-    ret: "A `T` — the result set's own type argument, as `all` describes — or `null` for an empty \
-          result. `?T` is the absence spelling everywhere in `Core`, and a query that matched \
-          nothing is an answer rather than a failure to throw about.",
+    ret: "A `T`, as `all` describes it, or `null` for an empty result. Everywhere in `Core`, \
+          `?T` means that a value can be missing. A query that matched nothing is not an error.",
     errors: &[],
 };
 
@@ -2724,9 +2730,9 @@ pub(super) const ROWS_VALUE_DOC: MethodDoc = MethodDoc {
     short: "Returns the first column of the first row. Use it to read the result of a `select \
             count(*)`.",
     params: &[],
-    ret: "That column's value, or `null` where the result has no rows at all — which is the same \
-          `null` a NULL column reads as, since the declared type is `mixed`. A caller that must \
-          tell the two apart asks `count()` first.",
+    ret: "That column's value, or `null` if the result has no rows. A NULL column also gives \
+          `null`, because the declared type is `mixed`. To tell the two apart, call `count()` \
+          first.",
     errors: &[],
 };
 
@@ -2735,16 +2741,15 @@ pub(super) const ROWS_COLUMN_DOC: MethodDoc = MethodDoc {
     short: "Returns the value of one column from every row, in the order the server sent them.",
     params: &[ParamDoc {
         name: "key",
-        desc: "The column: an `int` is its position in the server's own description, counted from \
-               zero, and a `string` is its label.",
+        desc: "The column. An `int` is its position in the server's column list, counted from \
+               zero. A `string` is its label.",
         shape: &[],
     }],
     ret: "An `array<mixed>` with one entry per row, empty for a result with no rows.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "No column has that name, or the position is negative or past the last column. An \
-               empty result answers an empty array instead, since it describes no columns to be \
-               wrong about.",
+               empty result returns an empty array and does not throw.",
     }],
 };
 
@@ -2753,8 +2758,8 @@ pub(super) const ROWS_COUNT_DOC: MethodDoc = MethodDoc {
     short: "Returns how many rows the statement returned. For the number of rows a write changed, \
             use `Core\\Db\\Write::affected`.",
     params: &[],
-    ret: "The number of rows held, which is exact because § 4's default read all of them before \
-          `query` returned.",
+    ret: "The number of rows in the result. It is exact, because `query` reads all rows before \
+          it returns.",
     errors: &[],
 };
 
@@ -2763,68 +2768,66 @@ pub(super) const ROWS_COLUMNS_DOC: MethodDoc = MethodDoc {
     short: "Returns a description of each column of the result, as one `Core\\Db\\Column` per \
             column. The columns are in the order the server sent them.",
     params: &[],
-    ret: "The columns. An empty result set has them too: a `select` that matched nothing still \
-          described what it would have answered, which is what makes this readable before the \
-          rows are.",
+    ret: "The columns. An empty result has them too. A `select` that matched nothing still \
+          describes the columns it would return, so you can read them before any row.",
     errors: &[],
 };
 
 /// `Core\Db\Column::name`'s reference card — `rule:core-api/reference-card`.
 pub(super) const COLUMN_LABEL_DOC: MethodDoc = MethodDoc {
-    short: "The column's label, as the server described it — `getColumnMeta`'s `name`. It is the \
-            alias wherever the `select` list wrote one, because an alias is what the server \
-            describes.",
+    short: "Returns the column's label as the server described it. This is the `name` that \
+            `getColumnMeta` gives in PHP. If the `select` list gives the column an alias, the \
+            label is the alias.",
     params: &[],
-    ret: "The label, and not a key: `select a, a` describes two columns under one label, so the \
-          answer is read by position in the array `columns()` handed back.",
+    ret: "The label. It is not a unique key: `select a, a` gives two columns with one label. So \
+          read a column by its position in the array that `columns()` returns.",
     errors: &[],
 };
 
 /// `Core\Db\Column::type`'s reference card — `rule:core-api/reference-card`.
 pub(super) const COLUMN_DECLARED_DOC: MethodDoc = MethodDoc {
-    short: "What the column was declared as, as a `Core\\Db\\Column::Type` case rather than the \
-            vendor type name `getColumnMeta` hands back — so a program branches on something the \
-            backends agree about.",
+    short: "Returns the type the column was declared with, as a `Core\\Db\\Column::Type` case. \
+            Each database has its own type names, but the cases are the same for every \
+            database.",
     params: &[],
-    ret: "The case. It describes the column rather than summarising the value a read of it \
-          produces — a `JSON` column and a `TEXT` one both read back as `tainted string` and are \
-          told apart here — and a type with no Novis type of its own is `Other`, which includes \
+    ret: "The case. It describes the column, not the value you get when you read it. For \
+          example, a `JSON` column and a `TEXT` column both read as `tainted string`, and this \
+          case tells them apart. A type with no matching Novis type is `Other`. This includes \
           every array and, on PostgreSQL, every `ENUM`.",
     errors: &[],
 };
 
 /// `Core\Db\Column::nullable`'s reference card — `rule:core-api/reference-card`.
 pub(super) const COLUMN_NULLABLE_DOC: MethodDoc = MethodDoc {
-    short: "Whether the column may hold NULL. On PostgreSQL this is always `true`, because a row \
-            description carries no NOT NULL flag: the only way to learn it is a catalog query per \
-            statement, and this driver makes none.",
+    short: "Checks whether the column can contain NULL. On PostgreSQL this is always `true`. The \
+            server does not send a NOT NULL flag with the result. Only an extra catalog query \
+            for each statement could find it, and this driver does not run one.",
     params: &[],
-    ret: "`true` on every column this driver describes, so a program reading it treats every \
-          column as nullable — which is what the typed readers of `Core\\Db\\Row` already do, \
-          each answering `?T`. A backend whose description carries the flag answers it here \
-          instead.",
+    ret: "`true` for every column this driver describes, so treat every column as nullable. \
+          The typed methods of `Core\\Db\\Row` already do this, and each returns `?T`. A \
+          database that sends the flag gives its value here.",
     errors: &[],
 };
 
 /// `Core\Db\Row::has`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_HAS_DOC: MethodDoc = MethodDoc {
-    short: "Reports whether the row has a column with this name, so that a reader that would throw \
-            on an unknown one can be asked first.",
+    short: "Checks whether the row has a column with this name. Call it first when a method \
+            would throw an error for an unknown column.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The column label, as the server described it. Accepted `tainted`, because this \
-               answers rather than throws.",
+        desc: "The column label, as the server described it. It may be `tainted`, because this \
+               method returns a result and does not throw.",
         shape: &[],
     }],
-    ret: "`true` for a column the row carries, whatever its value — a NULL column is present. \
+    ret: "`true` if the row has the column, whatever its value. A NULL column is present. \
           `false` otherwise.",
     errors: &[],
 };
 
 /// `Core\Db\Row::get`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_GET_DOC: MethodDoc = MethodDoc {
-    short: "One column's value, whatever the SQL-to-Novis type map made of it — the universal \
-            read, which a program narrows with `as` where the typed readers do not fit.",
+    short: "Returns one column's value, as whatever Novis type the SQL type maps to. It reads \
+            any column. Use `as` to narrow the value when no typed method fits.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",
@@ -2841,15 +2844,15 @@ pub(super) const ROW_GET_DOC: MethodDoc = MethodDoc {
 pub(super) const ROW_TO_ARRAY_DOC: MethodDoc = MethodDoc {
     short: "Returns the whole row as an array with string keys, in the server's column order.",
     params: &[],
-    ret: "An `array<mixed>` keyed by column label, a NULL column being a `null` entry that is \
-          present rather than absent.",
+    ret: "An `array<mixed>` with the column labels as keys. A NULL column is a `null` entry, \
+          and the key is present.",
     errors: &[],
 };
 
 /// `Core\Db\Row::string`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_STRING_DOC: MethodDoc = MethodDoc {
-    short: "One column as `string`, for the text family alone — `CHAR`, `VARCHAR`, `TEXT`, `ENUM` \
-            and `JSON`, each of which reads back as a `tainted string`.",
+    short: "Returns one column as `string`. It reads text columns only: `CHAR`, `VARCHAR`, \
+            `TEXT`, `ENUM` and `JSON`. Each gives a `tainted string`.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",
@@ -2858,32 +2861,32 @@ pub(super) const ROW_STRING_DOC: MethodDoc = MethodDoc {
     ret: "The text, or `null` for a NULL column.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The row has no column with that name, or the column is not text — a `BYTEA` is \
-               `bytes` and is read by `->bytes`, and a number is not re-rendered here.",
+        desc: "The row has no column with that name, or the column is not text. A `BYTEA` is \
+               `bytes`, so read it with `->bytes`. A number is not converted to text here.",
     }],
 };
 
 /// `Core\Db\Row::bytes`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_BYTES_DOC: MethodDoc = MethodDoc {
-    short: "One column as `bytes` — `BINARY`, `BLOB` and `BYTEA`, which have no text form at all \
-            and are a separate type from `string`.",
+    short: "Returns one column as `bytes`. It reads `BINARY`, `BLOB` and `BYTEA` columns. These \
+            have no text form, and `bytes` is a separate type from `string`.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",
         shape: &[],
     }],
-    ret: "The octets as `tainted bytes`, or `null` for a NULL column.",
+    ret: "The bytes as `tainted bytes`, or `null` for a NULL column.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The row has no column with that name, or the column is text rather than `bytes` — \
-               the two are separate types and this reader does not span them.",
+        desc: "The row has no column with that name, or the column is text. Text and `bytes` \
+               are separate types, and this method reads only `bytes`.",
     }],
 };
 
 /// `Core\Db\Row::int`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_INT_DOC: MethodDoc = MethodDoc {
-    short: "One column as `int` — `SMALLINT`, `INT` and `BIGINT`, and an unsigned column whose \
-            value fits.",
+    short: "Returns one column as `int`. It reads `SMALLINT`, `INT` and `BIGINT`, and an \
+            unsigned column whose value fits.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",
@@ -2899,8 +2902,8 @@ pub(super) const ROW_INT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Row::uint`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_UINT_DOC: MethodDoc = MethodDoc {
-    short: "One column as `uint` — MySQL's and MariaDB's `… UNSIGNED`, and a signed column that is \
-            not negative.",
+    short: "Returns one column as `uint`. It reads an `UNSIGNED` integer on MySQL and MariaDB, \
+            and a signed column that is not negative.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",
@@ -2909,14 +2912,14 @@ pub(super) const ROW_UINT_DOC: MethodDoc = MethodDoc {
     ret: "The integer, or `null` for a NULL column.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The row has no column with that name, the column is not an integer at all, or its \
-               value is negative — which would wrap rather than convert.",
+        desc: "The row has no column with that name, the column is not an integer, or its value \
+               is negative. A negative value cannot be converted to `uint`.",
     }],
 };
 
 /// `Core\Db\Row::float`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_FLOAT_DOC: MethodDoc = MethodDoc {
-    short: "One column as `float` — `FLOAT`, `REAL` and `DOUBLE`, and nothing else.",
+    short: "Returns one column as `float`. It reads only `FLOAT`, `REAL` and `DOUBLE`.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",
@@ -2925,17 +2928,17 @@ pub(super) const ROW_FLOAT_DOC: MethodDoc = MethodDoc {
     ret: "The number, or `null` for a NULL column.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The row has no column with that name, or the column is not a floating-point one — a \
-               `DECIMAL` is exact and is read by `->decimal`, since binary floating point is where \
-               money stops adding up.",
+        desc: "The row has no column with that name, or the column is not a floating-point \
+               column. A `DECIMAL` is exact, so read it with `->decimal`. Binary floating point \
+               gives wrong sums for money.",
     }],
 };
 
 /// `Core\Db\Row::bool`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_BOOL_DOC: MethodDoc = MethodDoc {
-    short: "One column as `bool` — `BOOLEAN` and `BIT(1)`, and an integer column holding `0` or \
-            `1`, which is how MySQL's and MariaDB's `TINYINT(1)` is read: it is naturally an \
-            `int`, and asking for a `bool` is what converts it.",
+    short: "Returns one column as `bool`. It reads `BOOLEAN`, `BIT(1)`, and an integer column \
+            that contains `0` or `1`. Use it to read a `TINYINT(1)` on MySQL and MariaDB. That \
+            column is an `int`, and this method converts it.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",
@@ -2944,9 +2947,9 @@ pub(super) const ROW_BOOL_DOC: MethodDoc = MethodDoc {
     ret: "The truth value, or `null` for a NULL column.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The row has no column with that name, the column is neither boolean nor an \
-               integer, or it is an integer holding something other than `0` or `1` — a stored \
-               `7` is a refusal here rather than `true`.",
+        desc: "The row has no column with that name, or the column is neither boolean nor an \
+               integer. It is also thrown for an integer other than `0` or `1`. A stored `7` \
+               throws this error.",
     }],
 };
 
@@ -2968,8 +2971,8 @@ pub(super) const ROW_DECIMAL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Row::instant`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_INSTANT_DOC: MethodDoc = MethodDoc {
-    short: "One column as a `Core\\Time\\Instant` — `TIMESTAMPTZ` and `datetimeoffset`, the two \
-            that carry their own zone.",
+    short: "Returns one column as a `Core\\Time\\Instant`. It reads `TIMESTAMPTZ` and \
+            `datetimeoffset`, the two types that store their own time zone.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",
@@ -2978,16 +2981,16 @@ pub(super) const ROW_INSTANT_DOC: MethodDoc = MethodDoc {
     ret: "The instant, or `null` for a NULL column.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The row has no column with that name, or the column is not a zone-carrying \
-               timestamp — a zone-less one is a `Core\\Time\\DateTime` in the connection's \
-               declared zone.",
+        desc: "The row has no column with that name, or the column is not a timestamp with a \
+               time zone. A timestamp without a time zone is a `Core\\Time\\DateTime` in the \
+               time zone set for the connection.",
     }],
 };
 
 /// `Core\Db\Row::date`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_DATE_DOC: MethodDoc = MethodDoc {
-    short: "One column as a `Core\\Time\\Date` — a `DATE`, which is a calendar day and carries no \
-            time at all.",
+    short: "Returns one column as a `Core\\Time\\Date`. It reads a `DATE`, which is a calendar \
+            day with no time.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",
@@ -3002,8 +3005,8 @@ pub(super) const ROW_DATE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Row::time`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_TIME_DOC: MethodDoc = MethodDoc {
-    short: "One column as a `Core\\Time\\TimeOfDay` — a `TIME`, which is a clock reading with no \
-            day behind it.",
+    short: "Returns one column as a `Core\\Time\\TimeOfDay`. It reads a `TIME`, which is a time \
+            of day with no date.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",
@@ -3018,8 +3021,9 @@ pub(super) const ROW_TIME_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Row::uuid`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_UUID_DOC: MethodDoc = MethodDoc {
-    short: "One column as a `Core\\Uuid` — PostgreSQL's `UUID`, SQL Server's `uniqueidentifier` \
-            and MariaDB 10.7+'s `UUID`. MySQL stores one as `BINARY(16)`, which stays `bytes`.",
+    short: "Returns one column as a `Core\\Uuid`. It reads PostgreSQL's `UUID`, SQL Server's \
+            `uniqueidentifier` and the `UUID` of MariaDB 10.7 and later. MySQL stores a UUID as \
+            `BINARY(16)`, and that column is `bytes`.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",
@@ -3028,8 +3032,8 @@ pub(super) const ROW_UUID_DOC: MethodDoc = MethodDoc {
     ret: "The identifier, or `null` for a NULL column.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The row has no column with that name, or the column is not a native UUID one — a \
-               `BINARY(16)` is `bytes` and a text rendering is a `string`.",
+        desc: "The row has no column with that name, or the column is not a UUID type. A \
+               `BINARY(16)` is `bytes`, and a UUID stored as text is a `string`.",
     }],
 };
 
@@ -3037,20 +3041,20 @@ pub(super) const ROW_UUID_DOC: MethodDoc = MethodDoc {
 pub(super) const WRITE_AFFECTED_DOC: MethodDoc = MethodDoc {
     short: "Returns how many rows the statement changed.",
     params: &[],
-    ret: "A `uint`, and `0` for a statement that affected none as well as for one whose kind has \
-          no count to report — a `create table`. `changed` is where those two are told apart.",
+    ret: "A `uint`. It is `0` for a statement that changed no rows. It is also `0` for a \
+          statement type that reports no count, such as `create table`. Use `changed` to tell \
+          the two apart.",
     errors: &[],
 };
 
 /// `Core\Db\Write::changed`'s reference card — `rule:core-api/reference-card`.
 pub(super) const WRITE_CHANGED_DOC: MethodDoc = MethodDoc {
-    short: "The same count as the server itself reported it, whose `null` is the one thing \
-            `affected` cannot say: this statement's kind carries no row count at all.",
+    short: "Returns the same count, exactly as the server reported it. It is `null` when this \
+            type of statement has no row count. `affected` cannot show that case.",
     params: &[],
-    ret: "A `?uint`, equal to `affected` wherever it is not `null`. On PostgreSQL the distinction \
-          MySQL draws between rows matched and rows altered has nothing in the protocol to read \
-          it out of, so inventing a second count that always equalled the first would be a \
-          difference callers wrote code against.",
+    ret: "A `?uint`. When it is not `null`, it is equal to `affected`. MySQL counts matched rows \
+          and changed rows separately. PostgreSQL does not send that difference, so there is no \
+          second count. A second count that always matched the first would mislead programs.",
     errors: &[],
 };
 
@@ -3059,12 +3063,12 @@ pub(super) const WRITE_LAST_ID_DOC: MethodDoc = MethodDoc {
     short: "Returns the key that this statement generated. The key belongs to this statement, so \
             another statement on the same connection cannot change it.",
     params: &[],
-    ret: "A `?uint`: the key this statement generated, and `null` where it generated none — a \
-          statement that inserted no row answers `null`. PostgreSQL reads the key out of a \
-          `RETURNING` clause, since that protocol has no last-insert-id of its own: the first \
-          column of the last row returned, where that column was declared an integer. MySQL \
-          reads the `AUTO_INCREMENT` value out of the write's own status packet, and SQLite the \
-          rowid of a row this statement inserted itself, which may be `0`. SQL Server answers \
-          `null` always, because its token stream carries no generated key.",
+    ret: "A `?uint`: the key this statement generated, or `null` if it generated none. A \
+          statement that inserted no row returns `null`. PostgreSQL has no last insert id, so \
+          the key comes from a `RETURNING` clause. It is the first column of the last row \
+          returned, if that column is declared as an integer. On MySQL it is the \
+          `AUTO_INCREMENT` value the server reports for this write. On SQLite it is the rowid \
+          of a row this statement inserted, which may be `0`. SQL Server always returns \
+          `null`, because the server does not send a generated key.",
     errors: &[],
 };
