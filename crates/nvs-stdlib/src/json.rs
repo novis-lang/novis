@@ -6337,13 +6337,14 @@ mod tests {
     /// peak the parse leaves on its context stays near that limit. The peak
     /// tells a parse stopped at the limit from one that built every entry first.
     // covers: Core\Json::decode
+    #[cfg_attr(
+        miri,
+        ignore = "a document this long parses on the spare stack, whose guard page needs \
+                  `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn documents_past_the_memory_limit_stop_the_parse_at_the_limit() {
-        let (count, limit) = if cfg!(miri) {
-            (5_000, 64 << 10)
-        } else {
-            (100_000, 1 << 20)
-        };
+        let (count, limit) = (100_000, 1 << 20);
         let list = format!("[{}\"a\"]", "\"a\",".repeat(count));
         let object = format!(
             "{{{}\"k\":0}}",
