@@ -14,8 +14,8 @@
     "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "766700383dcf52c1"
   },
   "syntax/attributes/routes.mdx": {
-    "Core\\Router::dispatch": "70a8f50d45e32dc4",
-    "lang:attributes/core-api-and-the-openapi-document": "2e4f7c61e1540361",
+    "Core\\Router::dispatch": "df8f4a8eabb63f6c",
+    "lang:attributes/core-api-and-the-openapi-document": "045d6d7b6ce47b95",
     "lang:attributes/core-route-and-core-access-the-route-table": "3eec894eda7abb0a"
   },
   "syntax/attributes/writing-and-reading.mdx": {

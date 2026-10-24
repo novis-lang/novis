@@ -73,6 +73,18 @@ For this file, `nvs build --openapi main.nvs` prints a document with this operat
 }
 ```
 
+More facts about the document:
+
+- Each name in `security:` needs a `#[Core\Api\Scheme]` on a class of your program, such as
+  `#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer")]`.
+  The document lists each scheme under `components.securitySchemes`. A name that no scheme declares
+  does not compile.
+- When the method returns a class with `#[Core\Json\Derive]`, the response schema lists the JSON
+  fields of that class.
+- When the method reads the body with `Core\Request::jsonAs<T>()` or `Core\Request::postAs<T>()`,
+  the document describes that body with the schema of `T`. The call must be in the route method
+  itself. A body that another method reads is not in the document.
+
 ## Do and don't
 
 - Do give every route a `name:`, and build links with `Core\Router::url`.
