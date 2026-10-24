@@ -280,3 +280,12 @@ says.
 
 - `rule:ide/the-extension-builds-no-ui-the-editor-already-has` also covers the debugger wiring, which is `debugger-adapter`'s (`docs/rules/ide/the-extension-builds-no-ui-the-editor-already-has.md`).
 - `debug-viewer` hands a profile to speedscope in this goal's format (`docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md`).
+- From `mutation-testing`: a threshold flag that fails the run below a mutation score (`docs/rules/testing/mutation-testing.md`).
+- From `mutation-testing`: more operators, such as a removed call statement, added in `crates/nvs-ir/src/lower/mutate.rs`.
+- From `mutation-testing`: a test past its `[limits] cpu_time` reports the runtime's line, which names a request. A line naming the test and its limit would match `Outcome::past_wall_time`. `crates/nvs-cli/src/runner.rs:477`
+- From `mutation-testing`: a property's counterexample prints an enum case as its number, such as `new Item("", 1, 0)`. The case name would read better. `crates/nvs-cli/src/runner.rs:2357`
+- From `mutation-testing`: a long failing string or list spends the 1000-call shrink budget on one-item removals, so its counterexample stays long. Removing chunks first would shrink further. `crates/nvs-types/src/property/shrink.rs:362`
+- From `mutation-testing`: a workspace folder with programs and no `.nvst` case pays one compile of the folder when the editor lists its cases, and the client reads none of those records. `editors/vscode/src/tests.ts:143`
+- From `mutation-testing`: a case label mixes separators on Windows, such as `tests/conformance/core\x.nvst`, in a report and a listing. `crates/nvs-test/src/lib.rs:225`
+- From `mutation-testing`: the "it asserted nothing" report line names a rule id, and text a user reads names none. `crates/nvs-cli/src/runner.rs:3375`
+- From `mutation-testing`: `bun nv scaling --budget` names 45 benches over their stored share, among them `core/Metrics/*`, `novis/Spreadsheet-*` and `the-pipeline-operator`, none of them a `Core\Test` bench. `data/perf/bench-budget.json:1`
