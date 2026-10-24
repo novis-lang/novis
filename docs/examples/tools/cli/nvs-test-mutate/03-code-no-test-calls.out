@@ -1,0 +1,11 @@
+  PasswordTest
+    ✓ twelveCharactersAreStrong
+    ✓ elevenCharactersAreNotStrong
+
+  0 failed, 2 passed, 0 skipped, 0 flaky
+  3 of 4 lines run (75.0%)
+
+  2 mutants: each one runs the tests that reach its line
+
+  mutants: 1 killed, 0 survived, 0 timed out, 1 not reached
+  mutation score: 100.0% (1 of 1 reached mutants made a test fail or time out)

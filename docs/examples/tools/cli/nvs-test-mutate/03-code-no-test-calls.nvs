@@ -1,0 +1,35 @@
+<?nvs
+// Shows the mutant in a function that no test calls.
+// The tests call `isStrong` only, so the mutant in `isTooShort` is `not reached`.
+// It does not lower the score. Add a test for `isTooShort` to check it.
+// proof: test --mutate
+use Core\Str;
+use Core\Test;
+
+class Password
+{
+    public static function isStrong(string $password): bool
+    {
+        return Str::length($password) >= 12;
+    }
+
+    public static function isTooShort(string $password): bool
+    {
+        return Str::length($password) < 8;
+    }
+}
+
+final class PasswordTest
+{
+    #[Test]
+    public function twelveCharactersAreStrong(): void
+    {
+        Test::assertSame(Password::isStrong("abcdefghijkl"), true);
+    }
+
+    #[Test]
+    public function elevenCharactersAreNotStrong(): void
+    {
+        Test::assertSame(Password::isStrong("abcdefghijk"), false);
+    }
+}

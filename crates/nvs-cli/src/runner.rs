@@ -894,10 +894,10 @@ pub(crate) fn run(
         }
         (true, true) => {
             let listed = mutation::list(&checked);
-            let note = format!(
-                "\n  {} mutants: each one runs the tests that reach its line",
-                listed.len()
-            );
+            let note = match listed.len() {
+                1 => "\n  1 mutant: it runs the tests that reach its line".to_owned(),
+                n => format!("\n  {n} mutants: each one runs the tests that reach its line"),
+            };
             match format {
                 Format::Human => println!("{note}"),
                 Format::Json | Format::Junit => eprintln!("{note}"),
