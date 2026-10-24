@@ -270,43 +270,48 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-**Stage 1 is done** (`f3161d434`). `[log] client_ip` is a `System`/`Reload` row
-(`crates/nvs-config/src/directive.rs:200`), resolved once per snapshot beside `access`
-(`crates/nvs-config/src/limits.rs`, `Snapshot::client_ip_logged`), and `trace::access` leaves
-`clientIp` out when it is `false`. Its tests are
-`client_ip_false_leaves_the_address_out_of_the_5xx_and_the_access_line` and
-`the_client_address_setting_is_the_operators_and_reloads`, both run once and green. The key is also
-in `live_config.rs`'s `REQUEST_READ`, which has not run. The rule is `shipped`. The forwarded-header
-`Warn` the rule names is written nowhere yet (`crates/nvs-server/src/serve.rs:1799`), so `access`
-is the only line that names the address.
+**Stages 1 and 2 are done.** Stage 1 is `f3161d434`: `[log] client_ip` is a `System`/`Reload` row
+(`crates/nvs-config/src/directive.rs:200`), and `trace::access` leaves `clientIp` out when it is
+`false`. Stage 2 is `3d9082e04`: `apps/telemetry/` exists in the shape of `apps/notes/`.
 
-`client-ip-proofs` passes against `target/debug/nvs.exe`. The acceptance run reads the release
-binary, which the goal-end relink rebuilds.
+- `POST /v1/report` (`apps/telemetry/src/App.nvs:20`) calls `Report::check`
+  (`apps/telemetry/src/Report.nvs:44`). It throws `Rejected` with the status: `413` over 4096
+  bytes, `415` when the type before `;` is not `application/json`, and `400` for any wrong, missing
+  or extra field. The answer is `{"error": "..."}`. A command not in `known.toml` folds into
+  `<kind>.unknown`, and both the value and the folded sum are capped at 100 000.
+- `Core\Regex` takes no `tainted` subject, so the version, the week and the counter names are
+  checked with `Str::split` and `Report::only` (`Str::trim` with a character set). The week is
+  written back from the computed Monday with `YYYY-'W'ww` and compared with the input, which
+  refuses `W4`, `W00` and a week 53 that does not exist.
+- `Known::load` (`apps/telemetry/src/Known.nvs:16`) reads `../known.toml` on every report, with
+  two regular expressions over the file. It lists `unknown` beside the 27 commands.
+- `Totals::add` (`apps/telemetry/src/Totals.nvs:36`) upserts one `reports` row and one `counters`
+  row per counter above zero, in one transaction. The tests query the tables directly.
+  `Totals` has no read method yet.
+- `Gate` writes every refusal and failure as JSON.
 
-The sweep's reds: `env-secret-proofs` is green at HEAD. Of the nightly run on `7b6ef53ee`, every
-`test /`, cost-guard and website red was already fixed at HEAD, each checked by name here (the
-property-observer guard's IR slope is 0 in a debug `--ignored` run). Still red on push CI
-`40042292726`: `proofs` (28 `Core\Http` perf figures stale after `crates/nvs-stdlib/src/http.rs`
-changed; `81de89a72` recorded them, and the gate is green locally), `lint` (`cargo fmt`
-on `crates/nvs-runtime/src/capability.rs:2259`, whose fix is in the tree, uncommitted, claimed by
-interactive session `6884de4b`, so the guard keeps it out of this loop's commits), and
-`five-driver matrix` (the `mssql` container exited at start, infrastructure). The nightly's 59
-`image-*`/`intl-*` conformance reds ("the extension used all of the request's CPU time") were not
-yet reported on HEAD when this session ended.
+22 tests in `apps/telemetry` pass with `--config apps/telemetry/nvs.toml`. Without that flag,
+`nvs test` from the root reads the root's `nvs.toml`, and every database test fails on
+`db.connect` (`apps/notes` fails the same way). So the `app-tests` check now passes `--config`.
+No test sends an accepted report through `Test::request`, because it would write
+`telemetry.sqlite`. Stage 6's end-to-end test covers the `204`.
+
+The sweep's reds: `env-secret-proofs` passes at HEAD (its log says `exit 0`). Every nightly red is
+from `7b6ef53ee`, already triaged by the last session. On push CI `40042292726` at `95f8fc4a5`,
+both conformance jobs that have finished (linux and macOS) are green. So the `image-*`/`intl-*` reds
+are gone. `lint` is still red on `crates/nvs-runtime/src/capability.rs`, whose fix is in the
+tree uncommitted and belongs to interactive session `6884de4b`.
 
 ### Next
 
-**Stage 2, the application.** No gate. Read `apps/notes/` first (`nvs.toml`, `src/Store.nvs`,
-`src/StoreTest.nvs`): the database, its schema made on first open and its test database are the
-pattern.
+**Stage 3, the rate limit.** The stage-1 gate holds: the rule's JSON reads `"status": "shipped"`.
 
-- [ ] `apps/telemetry/` with `README.md`, `nvs.toml`, `known.toml`, `public/index.nvs` and `src/App.nvs`. `apps/notes/src/App.nvs:1`, `apps/notes/nvs.toml:1`
-- [ ] The check and its tests. `apps/telemetry/src/Report.nvs:1`, `apps/telemetry/src/ReportTest.nvs:1`
-- [ ] The two tables and their tests. `apps/telemetry/src/Totals.nvs:1`, `apps/telemetry/src/TotalsTest.nvs:1`
-- [ ] If the HEAD CI's conformance job is red on `image-*`/`intl-*`, it leads before stage 2. `tests/conformance/novis/image-info-answers-with-no-configuration.nvst:1`
+- [ ] `Limit.nvs`: a salt in `Core\Cache::memory()` until the end of the UTC day, an HMAC of `Core\Request::clientIp()` under it, `Core\RateLimit::shed` at ten an hour, and `429` with `Retry-After`. Call it at the top of `App::report`, before `Report::check`. `apps/telemetry/src/App.nvs:20`, `docs/rules/tooling/the-collector-never-stores-an-address.md:1`
+- [ ] `nvs.toml`: `[log] client_ip = false`, `[mode] production`, and `[limits] request_body` near 4 KiB, so the server does not read 8 MiB into memory for a report. Check what an over-limit body does to `Request::body()` (the reference says it throws `RuntimeError`, which would give `500`): catch it as `413`. `apps/telemetry/nvs.toml:1`
+- [ ] `LimitTest.nvs`: the eleventh report in an hour is `429`, the next hour accepts, and a new day uses a new key. `apps/telemetry/src/LimitTest.nvs:1`
+- [ ] The test that finds the address in no table and no log line. `apps/telemetry/src/LimitTest.nvs:1`
 
-Expected red: none from stage 1. `every_request_read_directive_takes_the_reloaded_value_in_the_next_request`
-now also reloads `log.client_ip` from `true` to `false`, and goes red if a reload does not reach it.
+Expected red: none. Stage 2 added no Rust and changed no shared file.
 
 ### Backlog
 
