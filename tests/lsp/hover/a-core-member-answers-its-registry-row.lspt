@@ -11,10 +11,10 @@ hover
 Core\Str::length(string $s): uint
 ```
 
-Counts the graphemes in `$s` — user-perceived characters, the unit every `Core\Str` member counts in — so a combining sequence counts once and this is never a byte count.
+Counts the graphemes in `$s`. A grapheme is what a person counts as one character, so a letter with a combining accent counts once. Every `Core\Str` function counts in graphemes. The result is never a byte count.
 
 **Parameters**
 
 - `$s` — The string to measure.
 
-**Returns** The grapheme count; `0` for the empty string.
+**Returns** The number of graphemes. The empty string gives `0`.

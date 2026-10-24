@@ -508,33 +508,34 @@ pub(crate) const KIND: CoreEnum = CoreEnum {
 
 /// [`KIND`]'s reference card — `rule:core-api/reference-card`.
 const KIND_ENUM_DOC: EnumDoc = EnumDoc {
-    short: "What a node in a parsed document is. The set is closed at five and both parsers \
-            produce it, so a walk written against one door works unchanged through the other.",
+    short: "The kind of a node in a parsed document. There are exactly five kinds. \
+            `Core\\Xml::parse`, `Core\\Html::parse` and `Core\\Xml\\Reader` all return nodes of \
+            these kinds, so code that checks the kind works the same with each of them.",
     cases: &[
         CaseDoc {
             name: "Element",
-            desc: "A tag and its content — the only kind that carries attributes or children of \
-                   more than one kind.",
+            desc: "A tag and its content. It is the only kind that has attributes.",
         },
         CaseDoc {
             name: "Text",
-            desc: "Character data, including what a CDATA section spelled: the two are the same \
-                   characters written differently.",
+            desc: "Character data. A CDATA section also gives a text node, because it contains the \
+                   same characters written in another way.",
         },
         CaseDoc {
             name: "Comment",
-            desc: "A `<!-- … -->`, carried rather than dropped, because a document's comments are \
-                   part of what it says.",
+            desc: "A comment, such as `<!-- … -->`. Comments are kept in the tree, because they are \
+                   part of the document.",
         },
         CaseDoc {
             name: "ProcessingInstruction",
-            desc: "A `<?target data?>`, whose target is the node's name and whose data is its \
-                   text. The XML declaration is not one of these.",
+            desc: "A processing instruction, such as `<?target data?>`. Its target is the node's \
+                   name, and its data is the node's text. The XML declaration is not a processing \
+                   instruction.",
         },
         CaseDoc {
             name: "Document",
-            desc: "The root of what a parse answers with — never a child of anything, and the one \
-                   node a program is handed rather than reaching.",
+            desc: "The root of the tree that a parse returns. It is never a child of another node. \
+                   A parse returns it directly, and you reach every other node through it.",
         },
     ],
 };

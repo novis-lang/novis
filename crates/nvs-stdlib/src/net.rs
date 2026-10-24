@@ -292,14 +292,14 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Net::connect`'s reference card — `rule:core-api/reference-card`.
 const CONNECT_DOC: MethodDoc = MethodDoc {
-    short: "Opens a TCP connection to `$host` on `$port`, parking on the runtime's reactor while \
-            the handshake is in flight. Needs `net.connect` for the host, and the address it \
-            resolves to must not be one the address policy denies.",
+    short: "Opens a TCP connection to `$host` on `$port`. While the connection opens, other work \
+            keeps running. The configuration must allow the host in `net.connect`. The address \
+            of the host must not be in a range that the address policy denies.",
     params: &[
         ParamDoc {
             name: "host",
-            desc: "A hostname or an IP address. It is checked against the grant before it is \
-                   resolved, and the one address it resolves to is what the connection is made to.",
+            desc: "A host name or an IP address. It is checked against `net.connect` before its \
+                   address is looked up. The connection goes to the one address that is found.",
             shape: &[],
         },
         ParamDoc {
@@ -309,165 +309,173 @@ const CONNECT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "within",
-            desc: "How long the handshake may take. The bound is lifted once the connection is up, \
-                   so a later read takes whatever bound its own caller names.",
+            desc: "How long opening the connection may take. This limit ends when the connection \
+                   is open. A later read uses the time limit that you give to that read.",
             shape: &[],
         },
     ],
-    ret: "An open `Core\\Net\\Stream`, closed with this request if the program does not close it \
-          first.",
+    ret: "An open `Core\\Net\\Stream`. If your program does not close it, it is closed when the \
+          request ends.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `net.connect` for this host, the host resolves \
-                   to no address, the address it resolves to is in a denied range, `$port` is not \
-                   a port, or `$within` is not a positive length of time.",
+            desc: "The configuration does not allow this host in `net.connect`. It is also thrown \
+                   when the host has no address, or its address is in a denied range. It is also \
+                   thrown when `$port` is not a valid port, or `$within` is not a positive length \
+                   of time.",
         },
         ErrorDoc {
             error: "TimeoutError",
-            desc: "The handshake was still in flight when `$within` ran out.",
+            desc: "The connection was not open yet when the time in `$within` ended.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed — refused, unreachable, or reset while it was being \
-                   established.",
+            desc: "The connection failed. The other side refused it, it could not be reached, or \
+                   it was reset while it opened.",
         },
     ],
 };
 
 /// `Core\Net::listen`'s reference card — `rule:core-api/reference-card`.
 const LISTEN_DOC: MethodDoc = MethodDoc {
-    short: "Binds a listening TCP socket to `$address` on `$port`. Needs `net.listen` for that \
-            exact endpoint; the address policy `net.connect` carries does not apply, because its \
-            terms invert under a bind.",
+    short: "Opens a TCP socket that listens on `$address` and `$port`. The configuration must \
+            allow this exact address and port in `net.listen`. The address policy of \
+            `net.connect` does not apply, because its rules are for the hosts you connect to.",
     params: &[
         ParamDoc {
             name: "address",
-            desc: "An IP address, such as `127.0.0.1`, `::1` or `0.0.0.0`. Not a hostname: the grant \
-                   is matched against one endpoint, and a name resolving to two could not be the \
-                   one an operator named.",
+            desc: "An IP address, such as `127.0.0.1`, `::1` or `0.0.0.0`. A host name is not \
+                   allowed. The grant names one address and port, and a host name can have two \
+                   addresses.",
             shape: &[],
         },
         ParamDoc {
             name: "port",
-            desc: "The port to bind, or `0` to let the operating system pick one — which \
-                   `Core\\Net\\Listener::port` then reports.",
+            desc: "The port to listen on. With `0`, the operating system chooses a port, and \
+                   `Core\\Net\\Listener::port` returns it.",
             shape: &[],
         },
     ],
-    ret: "A bound `Core\\Net\\Listener`, closed with this request if the program does not close it \
-          first.",
+    ret: "A `Core\\Net\\Listener` that listens. If your program does not close it, it is closed \
+          when the request ends.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `net.listen` for this endpoint, `$address` is \
-                   not an IP address, or `$port` is not a port.",
+            desc: "The configuration does not allow this address and port in `net.listen`. It \
+                   is also thrown when `$address` is not an IP address, or `$port` is not a valid \
+                   port.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system refused the bind — the port is taken, or the address is \
-                   not one of this host's.",
+            desc: "The operating system did not allow the socket. The port is already in use, or \
+                   the address does not belong to this host.",
         },
     ],
 };
 
 /// `Core\Net::bindDatagram`'s reference card — `rule:core-api/reference-card`.
 const BIND_DATAGRAM_DOC: MethodDoc = MethodDoc {
-    short: "Binds a datagram socket to `$address` on `$port`. Needs `net.listen` for that exact \
-            endpoint, exactly as a TCP bind does; sending to anywhere is a separate grant asked at \
-            `Core\\Net\\Datagram::send`.",
+    short: "Opens a UDP socket on `$address` and `$port`. Like a TCP listener, it needs this \
+            exact address and port in `net.listen`. Sending to another host needs a separate \
+            grant, which `Core\\Net\\Datagram::send` checks.",
     params: &[
         ParamDoc {
             name: "address",
-            desc: "An IP address, such as `127.0.0.1`, `::1` or `0.0.0.0`. Not a hostname, for \
-                   `Core\\Net::listen`'s reason: a grant names one endpoint.",
+            desc: "An IP address, such as `127.0.0.1`, `::1` or `0.0.0.0`. A host name is not \
+                   allowed, for the same reason as in `Core\\Net::listen`: the grant names one \
+                   address and port.",
             shape: &[],
         },
         ParamDoc {
             name: "port",
-            desc: "The port to bind, or `0` to let the operating system pick one — which \
-                   `Core\\Net\\Datagram::port` then reports.",
+            desc: "The port to use. With `0`, the operating system chooses a port, and \
+                   `Core\\Net\\Datagram::port` returns it.",
             shape: &[],
         },
     ],
-    ret: "A bound `Core\\Net\\Datagram`, closed with this request if the program does not close it \
-          first.",
+    ret: "A `Core\\Net\\Datagram` on that address and port. If your program does not close it, it \
+          is closed when the request ends.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `net.listen` for this endpoint, `$address` is \
-                   not an IP address, or `$port` is not a port.",
+            desc: "The configuration does not allow this address and port in `net.listen`. It \
+                   is also thrown when `$address` is not an IP address, or `$port` is not a valid \
+                   port.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system refused the bind — the port is taken, or the address is \
-                   not one of this host's.",
+            desc: "The operating system did not allow the socket. The port is already in use, or \
+                   the address does not belong to this host.",
         },
     ],
 };
 
 /// `Core\Net::connectLocal`'s reference card — `rule:core-api/reference-card`.
 const CONNECT_LOCAL_DOC: MethodDoc = MethodDoc {
-    short: "Connects to the Unix-domain socket bound at `$path`, parking on the runtime's reactor \
-            while the connect is in flight. Needs `net.local` for that path, which is a grant of \
-            its own: `net.connect` never covers a path, and carries no policy that could read one.",
+    short: "Connects to the Unix-domain socket at `$path`. While the connection opens, other work \
+            keeps running. The configuration must allow the path in `net.local`, which is a \
+            separate grant. `net.connect` never allows a path, because it has no rules for paths.",
     params: &[
         ParamDoc {
             name: "path",
-            desc: "An absolute path to a bound socket. It is never read as a host and never as a \
-                   URL — this is the member that takes a path, and no other one does.",
+            desc: "The absolute path of a socket that listens. It is never read as a host or as a \
+                   URL. This is the only method that connects to a path.",
             shape: &[],
         },
         ParamDoc {
             name: "within",
-            desc: "How long to wait for the connect. It bounds this call alone, and a local \
-                   connect waits at all only when the listener's backlog is full.",
+            desc: "How long to wait for the connection. This limit is for this call only. A \
+                   local connection waits only when the listener's queue of waiting connections \
+                   is full.",
             shape: &[],
         },
     ],
-    ret: "A connected `Core\\Net\\Stream`, closed with this request if the program does not close \
-          it first.",
+    ret: "A connected `Core\\Net\\Stream`. If your program does not close it, it is closed when \
+          the request ends.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `net.local` for this path, this build has no \
-                   Unix-domain transport, or `$within` is not a positive length of time.",
+            desc: "The configuration does not allow this path in `net.local`. It is also thrown \
+                   when this build has no support for Unix-domain sockets, or `$within` is not a \
+                   positive length of time.",
         },
         ErrorDoc {
             error: "TimeoutError",
-            desc: "The connect was still in flight after `$within`.",
+            desc: "The connection was not open yet when the time in `$within` ended.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system refused the path — nothing is bound there, no permission, \
-                   or a name too long for the platform.",
+            desc: "The operating system did not allow the path. Nothing listens there, the \
+                   program has no permission, or the path is too long for the platform.",
         },
     ],
 };
 
 /// `Core\Net::listenLocal`'s reference card — `rule:core-api/reference-card`.
 const LISTEN_LOCAL_DOC: MethodDoc = MethodDoc {
-    short: "Binds a listening Unix-domain socket at `$path`, creating it. Needs `net.local` for \
-            that path: the grant governs both ends, because a socket a program creates is one \
-            whatever finds it on this host may speak to.",
+    short: "Creates a Unix-domain socket at `$path` and listens on it. The configuration must \
+            allow the path in `net.local`. Listening needs this grant too, because any program \
+            on this host that finds the socket can connect to it.",
     params: &[ParamDoc {
         name: "path",
-        desc: "An absolute path the socket is created at. It must not exist yet, and it is not \
-               removed when the socket closes — the name may by then be something else's.",
+        desc: "The absolute path where the socket is created. Nothing may exist at this path yet. \
+               The path is not deleted when the socket closes, because something else may be \
+               there by then.",
         shape: &[],
     }],
-    ret: "A bound `Core\\Net\\Listener`, closed with this request if the program does not close it \
-          first. Its `port` throws: a socket bound at a path has none.",
+    ret: "A `Core\\Net\\Listener` that listens. If your program does not close it, it is closed \
+          when the request ends. Its `port()` method throws an error, because a socket at a path \
+          has no port.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `net.local` for this path, or this build has \
-                   no Unix-domain transport.",
+            desc: "The configuration does not allow this path in `net.local`, or this build has \
+                   no support for Unix-domain sockets.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system refused the path — it exists already, the directory does \
-                   not, or there is no permission to create it.",
+            desc: "The operating system did not allow the path. Something already exists at the \
+                   path, its folder does not exist, or the program has no permission to create it.",
         },
     ],
 };
@@ -533,24 +541,25 @@ const STREAM_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Net\Stream::read`'s reference card — `rule:core-api/reference-card`.
 const STREAM_READ_DOC: MethodDoc = MethodDoc {
-    short: "Reads whatever has arrived, up to `$max` octets, waiting no longer than `$within`. A \
-            short answer is ordinary and not an error: a socket reports what arrived, never what \
-            was asked for.",
+    short: "Reads the bytes that have arrived, up to `$max` bytes. It waits no longer than \
+            `$within`. Fewer bytes than `$max` is normal and not an error, because a socket \
+            returns only what has arrived.",
     params: &[
         ParamDoc {
             name: "max",
-            desc: "The most octets to answer with. The buffer is capped below this where `$max` is \
-                   larger than one read can usefully be.",
+            desc: "The largest number of bytes to return. When `$max` is very large, one read \
+                   returns fewer bytes, because the buffer has a smaller limit.",
             shape: &[],
         },
         ParamDoc {
             name: "within",
-            desc: "How long to wait for the first octet. It bounds this call alone.",
+            desc: "How long to wait for the first byte. This limit is for this call only.",
             shape: &[],
         },
     ],
-    ret: "The octets that arrived, as `tainted bytes`, or an empty `bytes` once the peer has \
-          closed its half — which is how the end of a stream is spelled.",
+    ret: "The bytes that arrived, as `tainted bytes`. When the other side has closed its half of \
+          the connection, the result is an empty `bytes`. This is how you see the end of the \
+          stream.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -562,29 +571,31 @@ const STREAM_READ_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed — reset by the peer, or dropped by the network.",
+            desc: "The connection failed. The other side reset it, or the network lost it.",
         },
     ],
 };
 
 /// `Core\Net\Stream::write`'s reference card — `rule:core-api/reference-card`.
 const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
-    short: "Writes `$payload` to the peer, waiting no longer than `$within`, and answers how many \
-            octets the socket took. A write that took only some of them is ordinary: the caller \
-            sends the rest.",
+    short: "Writes `$payload` to the other side, and waits no longer than `$within`. It returns \
+            how many bytes the socket accepted. The socket may accept only some of the bytes. \
+            This is normal, and your program then sends the rest.",
     params: &[
         ParamDoc {
             name: "payload",
-            desc: "The octets to send.",
+            desc: "The bytes to send.",
             shape: &[],
         },
         ParamDoc {
             name: "within",
-            desc: "How long to wait for the socket to take octets. It bounds this call alone.",
+            desc: "How long to wait until the socket accepts bytes. This limit is for this call \
+                   only.",
             shape: &[],
         },
     ],
-    ret: "How many octets of `$payload` were written, which is between `0` and its length.",
+    ret: "How many bytes of `$payload` were written. It is between `0` and the length of \
+          `$payload`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -592,19 +603,20 @@ const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "TimeoutError",
-            desc: "The socket took nothing within `$within`.",
+            desc: "The socket accepted nothing within `$within`.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed — reset by the peer, or its reading half closed.",
+            desc: "The connection failed. The other side reset it, or closed its half for \
+                   reading.",
         },
     ],
 };
 
 /// `Core\Net\Stream::close`'s reference card — `rule:core-api/reference-card`.
 const STREAM_CLOSE_DOC: MethodDoc = MethodDoc {
-    short: "Closes this connection and gives its reactor registration back. A request that forgets \
-            closes every socket it opened when it ends.",
+    short: "Closes this connection and frees the resources it uses. When a request ends, it \
+            closes every socket that it opened and did not close.",
     params: &[],
     ret: "Nothing.",
     errors: &[ErrorDoc {
@@ -694,27 +706,27 @@ const LISTENER_ACCEPT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Net\Listener::port`'s reference card — `rule:core-api/reference-card`.
 const LISTENER_PORT_DOC: MethodDoc = MethodDoc {
-    short: "The port this listener is bound to, which is how a program that asked for `0` learns \
-            the one the operating system picked.",
+    short: "Returns the port this listener uses. If your program asked for port `0`, this is the \
+            port that the operating system chose.",
     params: &[],
-    ret: "The bound port, 1 to 65535.",
+    ret: "The port, from 1 to 65535.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This handle is closed, or it is a listener `Core\\Net::listenLocal` bound at a \
-                   path, which has no port at all.",
+            desc: "This handle is closed, or `Core\\Net::listenLocal` opened this listener at a \
+                   path. Such a listener has no port.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system would not answer for this socket.",
+            desc: "The operating system did not return the port of this socket.",
         },
     ],
 };
 
 /// `Core\Net\Listener::close`'s reference card — `rule:core-api/reference-card`.
 const LISTENER_CLOSE_DOC: MethodDoc = MethodDoc {
-    short: "Stops listening and gives the port back. Connections already accepted are unaffected: \
-            each is its own socket.",
+    short: "Stops listening and frees the port. Connections that were already accepted stay open, \
+            because each one is a separate socket.",
     params: &[],
     ret: "Nothing.",
     errors: &[ErrorDoc {
@@ -801,15 +813,15 @@ const DATAGRAM_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Net\Datagram::send`'s reference card — `rule:core-api/reference-card`.
 const DATAGRAM_SEND_DOC: MethodDoc = MethodDoc {
-    short: "Sends one datagram to `$host` on `$port` and answers how many octets went. Needs \
-            `net.connect` for the host, and the address it resolves to must not be one the address \
-            policy denies — the same question a TCP connect is asked, asked here because this is \
-            where the address is named.",
+    short: "Sends one message to `$host` on `$port`, and returns how many bytes were sent. The \
+            configuration must allow the host in `net.connect`. The address of the host must not \
+            be in a range that the address policy denies. These are the same checks as for a TCP \
+            connection.",
     params: &[
         ParamDoc {
             name: "host",
-            desc: "A hostname or an IP address. It is checked against the grant before it is \
-                   resolved, and the datagram goes to the one address it resolved to.",
+            desc: "A host name or an IP address. It is checked against `net.connect` before its \
+                   address is looked up. The message goes to the one address that is found.",
             shape: &[],
         },
         ParamDoc {
@@ -819,56 +831,61 @@ const DATAGRAM_SEND_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "payload",
-            desc: "The octets of one message. There is no partial send: a message too large for \
-                   the path is refused rather than split.",
+            desc: "The bytes of one message. A message is never sent in parts. A message that is \
+                   too large for the network throws an error and is not split.",
             shape: &[],
         },
         ParamDoc {
             name: "within",
-            desc: "How long to wait for the socket to take the message. It bounds this call alone.",
+            desc: "How long to wait until the socket accepts the message. This limit is for this \
+                   call only.",
             shape: &[],
         },
     ],
-    ret: "How many octets went, which is `$payload`'s length on every success.",
+    ret: "How many bytes were sent. When the call succeeds, this is always the length of \
+          `$payload`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `net.connect` for this host, the host resolves \
-                   to no address, the address it resolves to is in a denied range, `$port` is not \
-                   a port, this handle is closed, or `$within` is not a positive length of time.",
+            desc: "The configuration does not allow this host in `net.connect`. It is also thrown \
+                   when the host has no address, or its address is in a denied range. It is also \
+                   thrown when `$port` is not a valid port, this handle is closed, or `$within` is \
+                   not a positive length of time.",
         },
         ErrorDoc {
             error: "TimeoutError",
-            desc: "The socket would not take the message within `$within`.",
+            desc: "The socket did not accept the message within `$within`.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system refused the send — the message is over the maximum size, \
-                   or the network is unreachable.",
+            desc: "The operating system did not allow the send. The message is larger than the \
+                   maximum size, or the network cannot be reached.",
         },
     ],
 };
 
 /// `Core\Net\Datagram::receive`'s reference card — `rule:core-api/reference-card`.
 const DATAGRAM_RECEIVE_DOC: MethodDoc = MethodDoc {
-    short: "Waits for one datagram, no longer than `$within`, and answers it together with who \
-            sent it. It asks no capability: the bind was granted when this socket was opened, and \
-            who sent the message was not this program's choice.",
+    short: "Waits for one message, no longer than `$within`. It returns the message and the \
+            address that sent it. It needs no grant, because `net.listen` was checked when this \
+            socket was opened. Your program does not choose who sends to it.",
     params: &[
         ParamDoc {
             name: "max",
-            desc: "How many octets to keep, capped at 64 KiB because no datagram is larger. A \
-                   datagram arrives whole or not at all, so a message longer than this keeps what \
-                   fits and the rest are gone — there is no second call that answers the tail.",
+            desc: "How many bytes to keep. The limit is 64 KiB, because no message is larger. A \
+                   message arrives whole or not at all. If it is longer than `$max`, only the \
+                   first `$max` bytes are kept, and the rest is lost. No later call returns the \
+                   rest.",
             shape: &[],
         },
         ParamDoc {
             name: "within",
-            desc: "How long to wait for a message. It bounds this call alone.",
+            desc: "How long to wait for a message. This limit is for this call only.",
             shape: &[],
         },
     ],
-    ret: "A `Core\\Net\\Datagram\\Message` carrying the octets and the endpoint they came from.",
+    ret: "A `Core\\Net\\Datagram\\Message` with the bytes, and the address and port they came \
+          from.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -880,18 +897,18 @@ const DATAGRAM_RECEIVE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system failed the receive — on Windows, this is also how an \
-                   earlier send of this socket's is reported unreachable.",
+            desc: "The operating system could not receive. On Windows, this error also reports \
+                   that an earlier send from this socket could not reach its address.",
         },
     ],
 };
 
 /// `Core\Net\Datagram::port`'s reference card — `rule:core-api/reference-card`.
 const DATAGRAM_PORT_DOC: MethodDoc = MethodDoc {
-    short: "The port this socket is bound to, which is how a program that asked for `0` learns the \
-            one the operating system picked.",
+    short: "Returns the port this socket uses. If your program asked for port `0`, this is the \
+            port that the operating system chose.",
     params: &[],
-    ret: "The bound port, 1 to 65535.",
+    ret: "The port, from 1 to 65535.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -899,15 +916,15 @@ const DATAGRAM_PORT_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system would not answer for this socket.",
+            desc: "The operating system did not return the port of this socket.",
         },
     ],
 };
 
 /// `Core\Net\Datagram::close`'s reference card — `rule:core-api/reference-card`.
 const DATAGRAM_CLOSE_DOC: MethodDoc = MethodDoc {
-    short: "Closes this socket and gives its port and its reactor registration back. A request \
-            that forgets closes every socket it opened when it ends.",
+    short: "Closes this socket, and frees its port and the resources it uses. When a request \
+            ends, it closes every socket that it opened and did not close.",
     params: &[],
     ret: "Nothing.",
     errors: &[ErrorDoc {
@@ -978,22 +995,22 @@ const MESSAGE_CARD: ClassDoc = ClassDoc {
 /// `Core\Net\Datagram\Message::payload`'s reference card —
 /// `rule:core-api/reference-card`.
 const MESSAGE_PAYLOAD_DOC: MethodDoc = MethodDoc {
-    short: "The octets this datagram carried, as `tainted bytes`. Truncated to the `$max` the \
-            receive named, if the message was longer than that.",
+    short: "Returns the bytes of this message, as `tainted bytes`. If the message was longer \
+            than the `$max` of `receive()`, only the first `$max` bytes are here.",
     params: &[],
-    ret: "What arrived, which may be empty: a zero-length datagram is a message and not an \
-          absence.",
+    ret: "The bytes that arrived. They can be empty, because a message with no bytes is still a \
+          message.",
     errors: &[],
 };
 
 /// `Core\Net\Datagram\Message::host`'s reference card —
 /// `rule:core-api/reference-card`.
 const MESSAGE_HOST_DOC: MethodDoc = MethodDoc {
-    short: "The address this datagram came from, written out — `127.0.0.1`, `::1`. A plain \
-            `string`, so it can be handed straight back to `send`, which asks the grant and the \
-            address policy about it exactly as it would about any other address.",
+    short: "Returns the IP address that sent this message, such as `127.0.0.1` or `::1`. It is a \
+            plain `string`, so you can pass it to `send()` to reply. `send()` checks the grant \
+            and the address policy for it, the same as for any other address.",
     params: &[],
-    ret: "An IP address, never a hostname: nothing here is resolved backwards.",
+    ret: "An IP address, never a host name, because the address is not looked up in reverse.",
     errors: &[],
 };
 

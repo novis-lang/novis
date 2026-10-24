@@ -111,15 +111,15 @@ pub(crate) const NORMAL_FORM_NAME: &str = r"Core\Str::NormalForm";
 /// documented in the registry, and the simplest: one parameter, no options,
 /// nothing thrown.
 const LENGTH_DOC: MethodDoc = MethodDoc {
-    short: "Counts the graphemes in `$s` — user-perceived characters, the unit every \
-            `Core\\Str` member counts in — so a combining sequence counts once and this is \
-            never a byte count.",
+    short: "Counts the graphemes in `$s`. A grapheme is what a person counts as one character, \
+            so a letter with a combining accent counts once. Every `Core\\Str` function counts \
+            in graphemes. The result is never a byte count.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string to measure.",
         shape: &[],
     }],
-    ret: "The grapheme count; `0` for the empty string.",
+    ret: "The number of graphemes. The empty string gives `0`.",
     errors: &[],
 };
 
@@ -141,28 +141,29 @@ pub(crate) const NORMAL_FORM: CoreEnum = CoreEnum {
 
 /// [`NORMAL_FORM`]'s reference card — `rule:core-api/reference-card`.
 const NORMAL_FORM_DOC: EnumDoc = EnumDoc {
-    short: "Which of UAX #15's four normal forms `Core\\Str::normalize` rewrites into — composed \
-            or decomposed on one axis, canonical or compatibility on the other.",
+    short: "The four Unicode normal forms (UAX #15) that `Core\\Str::normalize` can change text \
+            into. A form is either composed or decomposed, and either canonical or compatibility.",
     cases: &[
         CaseDoc {
             name: "Nfc",
-            desc: "Canonical composition: `é` is one code point, and only canonical equivalents \
-                   are unified — the form to store and compare text in.",
+            desc: "Canonical composition. `é` is one code point. Only canonically equivalent \
+                   text becomes the same string. Use this form to store and compare text.",
         },
         CaseDoc {
             name: "Nfd",
-            desc: "Canonical decomposition: `é` is `e` plus a combining acute, and only canonical \
-                   equivalents are unified.",
+            desc: "Canonical decomposition. `é` is `e` followed by a combining acute accent. Only \
+                   canonically equivalent text becomes the same string.",
         },
         CaseDoc {
             name: "Nfkc",
-            desc: "Compatibility composition: `Nfc`, and a character that merely renders like \
-                   another — `ﬁ`, `①` — is unified with it too, which does not round-trip.",
+            desc: "Compatibility composition. This is `Nfc`, and it also changes a character \
+                   that only looks like another one into that character, such as `ﬁ` or `①`. \
+                   This change cannot be undone.",
         },
         CaseDoc {
             name: "Nfkd",
-            desc: "Compatibility decomposition: `Nfd`, plus the same compatibility unification \
-                   `Nfkc` applies.",
+            desc: "Compatibility decomposition. This is `Nfd`, and it also changes the same \
+                   look-alike characters that `Nfkc` changes.",
         },
     ],
 };

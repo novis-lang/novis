@@ -217,23 +217,24 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Http::allowUrl`'s reference card — `rule:core-api/reference-card`.
 const ALLOW_URL_DOC: MethodDoc = MethodDoc {
-    short: "Checks `$url` against the outbound policy and pins it: the scheme, the `net.connect` \
-            grant and the resolved address are all decided here, and the answer carries the \
-            address that was approved.",
+    short: "Checks `$url` against the outbound policy. It checks the scheme, the `net.connect` \
+            grant and the addresses the host resolves to. The result contains the approved \
+            addresses.",
     params: &[ParamDoc {
         name: "url",
-        desc: "The URL to approve; `tainted` is accepted here and nowhere else outbound.",
+        desc: "The URL to check. A `tainted` URL is allowed here. No other outbound call \
+               accepts one.",
         shape: &[],
     }],
-    ret: "A `Core\\Http\\Target` bound to every address the host resolved to that the policy \
-          approved — at most eight, in the resolver's order — which is the set the client connects \
-          across, so a second name lookup cannot answer differently.",
+    ret: "A `Core\\Http\\Target` with every address of the host that the policy approved. It has \
+          at most eight addresses, in the order the name lookup returned them. The client \
+          connects only to these addresses, so a second name lookup cannot change them.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The text is not a URL, its scheme is neither `http` nor `https`, it names no host, \
-               `net.connect` does not grant that host, the host resolves to no address, or it \
-               resolves to a loopback, private, link-local or unspecified address that \
-               `net.internal` does not name.",
+        desc: "The text is not a URL, its scheme is not `http` or `https`, or it has no host. \
+               Or `net.connect` does not grant the host, or the host resolves to no address. \
+               Or the host resolves to a loopback, private, link-local or unspecified address \
+               that `net.internal` does not list.",
     }],
 };
 
@@ -352,33 +353,34 @@ pub(crate) const IDENTITY: CoreClass = CoreClass {
 
 /// `Core\Http\Identity::read`'s reference card — `rule:core-api/reference-card`.
 const IDENTITY_READ_DOC: MethodDoc = MethodDoc {
-    short: "Reads the certificate chain a request presents when a server asks the client for \
-            one, over the key pair that goes with it. The leaf is checked against the key here, \
-            so a chain and a key that are not each other's are refused before any connection is \
+    short: "Reads a client certificate chain and its private key. A request sends them when a \
+            server asks the client for a certificate. The leaf certificate is checked against \
+            the key here. If they do not match, this throws an error before any connection is \
             opened.",
     params: &[
         ParamDoc {
             name: "chainPem",
-            desc: "The chain as PEM, the leaf first and then whatever intermediates the server \
-                   needs to build a path — the order every other client takes one in.",
+            desc: "The chain as PEM. The leaf certificate comes first, then the intermediate \
+                   certificates the server needs to check it. Other HTTP clients use the same \
+                   order.",
             shape: &[],
         },
         ParamDoc {
             name: "key",
-            desc: "The leaf's private key. Its kind is what the handshake is signed with, so a \
-                   key that only agrees — `X25519` — is refused here.",
+            desc: "The private key of the leaf certificate. The TLS handshake is signed with \
+                   this key. A key that can only do key agreement, such as `X25519`, throws an \
+                   error.",
             shape: &[],
         },
     ],
-    ret: "The identity, to name as a request's `identity` option. It is presented only when the \
-          server asks for it, and two identities never share a pooled connection.",
+    ret: "The identity. Pass it as a request's `identity` option. It is sent only when the \
+          server asks for it. Two different identities never share a pooled connection.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$chainPem` is not a PEM certificate chain or holds no certificate, `$key` is not \
-               a key a TLS handshake can be signed with, or the chain's leaf carries a different \
-               public key than `$key`. A client identity is the program's own deployment \
-               material, so every refusal is a mistake in what it was deployed with rather than \
-               a verdict on anyone.",
+        desc: "`$chainPem` is not a PEM certificate chain, or it contains no certificate. Or \
+               `$key` cannot sign a TLS handshake. Or the leaf certificate has a different \
+               public key from `$key`. A client identity is part of the program's own \
+               deployment, so this error always means a mistake in the deployed files.",
     }],
 };
 
@@ -1286,10 +1288,10 @@ pub(crate) const PART: CoreClass = CoreClass {
 
 /// `Core\Http\Part::file`'s reference card — `rule:core-api/reference-card`.
 const PART_FILE_DOC: MethodDoc = MethodDoc {
-    short: "A body, or one field of a multipart body, read from the file at `$path` while the \
-            request is being sent rather than held in memory first. Needs the `fs.read` \
-            capability, which is checked here so that an ungranted path is refused where it is \
-            written.",
+    short: "Creates a body, or one field of a multipart body, from the file at `$path`. The file \
+            is read while the request is sent, so it is not loaded into memory first. It needs \
+            the `fs.read` capability. The capability is checked at this call, so a path without \
+            access throws an error here.",
     params: &[
         ParamDoc {
             name: "path",
@@ -1299,18 +1301,18 @@ const PART_FILE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "filename",
-            desc: "The name the other end is told, defaulting to the path's last component.",
+            desc: "The file name sent to the server. By default, it is the last part of the path.",
             shape: &[],
         },
         ParamDoc {
             name: "contentType",
-            desc: "The media type this part is sent under. Omitted, a multipart field is sent \
-                   as `application/octet-stream` and a whole body under the call's own \
+            desc: "The media type of this part. If it is not given, a multipart field is sent \
+                   as `application/octet-stream`. A whole body uses the call's own \
                    `contentType`.",
             shape: &[],
         },
     ],
-    ret: "A part, to be written to `body` or to one key of `multipart`.",
+    ret: "A part. Pass it as `body` or as one key of `multipart`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1318,33 +1320,34 @@ const PART_FILE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "There is nothing at `$path`, or the operating system refused to describe it.",
+            desc: "Nothing exists at `$path`, or the operating system did not return its details.",
         },
     ],
 };
 
 /// `Core\Http\Part::bytes`' reference card — `rule:core-api/reference-card`.
 const PART_BYTES_DOC: MethodDoc = MethodDoc {
-    short: "A body, or one field of a multipart body, sent from octets the program is already \
-            holding, under the name it gives them.",
+    short: "Creates a body, or one field of a multipart body, from bytes that are already in \
+            memory. You give the data a file name.",
     params: &[
         ParamDoc {
             name: "data",
-            desc: "The octets to send, as a `string` or a `bytes`.",
+            desc: "The bytes to send, as a `string` or a `bytes`.",
             shape: &[],
         },
         ParamDoc {
             name: "filename",
-            desc: "The name the other end is told. Required, because octets carry none.",
+            desc: "The file name sent to the server. It is required, because the data has no \
+                   name of its own.",
             shape: &[],
         },
         ParamDoc {
             name: "contentType",
-            desc: "The media type this part is sent under, defaulting as `file`'s does.",
+            desc: "The media type of this part. The default is the same as for `file`.",
             shape: &[],
         },
     ],
-    ret: "A part, to be written to `body` or to one key of `multipart`.",
+    ret: "A part. Pass it as `body` or as one key of `multipart`.",
     errors: &[],
 };
 
@@ -1912,8 +1915,8 @@ const UNJOINABLE_FIELD: &str = "set-cookie";
 const STATUS_DOC: MethodDoc = MethodDoc {
     short: "Returns the reply's HTTP status code, exactly as the server sent it.",
     params: &[],
-    ret: "The status line's three-digit code. A `404` and a `500` are answers, so they arrive \
-          here rather than as a throw; only a request that got no reply at all throws.",
+    ret: "The three-digit code from the status line. A `404` or a `500` is a normal reply and is \
+          returned here. Only a request that gets no reply at all throws an error.",
     errors: &[],
 };
 
@@ -1921,33 +1924,33 @@ const STATUS_DOC: MethodDoc = MethodDoc {
 const TEXT_DOC: MethodDoc = MethodDoc {
     short: "Returns the reply's body as text.",
     params: &[],
-    ret: "The body, `tainted`: it is bytes another host chose, and a pinned address settles where \
-          they came from rather than what is in them. A sink's own launderer is the way out of \
-          it, and there is no generic one.",
+    ret: "The body, as a `tainted` string. Another server chose these bytes. The approved address \
+          tells you where they came from, but not what they contain. Each place that does not \
+          accept `tainted` text has its own check to clean it. There is no general one.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The body is not valid UTF-8, so it is not a `string`. It is not repaired: a \
-               replacement byte would hand a program a body that is not what the origin sent and \
-               no way to tell. `bytes` reads the same body without asking.",
+        desc: "The body is not valid UTF-8, so it cannot be a `string`. The body is not repaired. \
+               A replacement character would change the body, and the program could not tell. \
+               `bytes` reads the same body without this check.",
     }],
 };
 
 /// `Core\Http\Response::bytes`'s reference card — `rule:core-api/reference-card`.
 const BYTES_DOC: MethodDoc = MethodDoc {
-    short: "The reply's body as the octets that arrived, for the replies that are not text at all \
-            — an image, an archive, a signature.",
+    short: "Returns the reply's body as the bytes that arrived. Use it for replies that are not \
+            text, such as an image, an archive or a signature.",
     params: &[],
-    ret: "Every byte of the body, `tainted` for `text`'s reason and asking nothing of them: a \
-          reply that is not UTF-8 is read here and refused there, so which of the two a program \
-          calls is what decides whether the question is asked.",
+    ret: "Every byte of the body. It is `tainted`, for the same reason as `text`. The bytes are \
+          not checked. A reply that is not UTF-8 is returned here, but `text` throws an error \
+          for it.",
     errors: &[],
 };
 
 /// `Core\Http\Response::jsonAs`'s reference card — `rule:core-api/reference-card`.
 const JSON_AS_DOC: MethodDoc = MethodDoc {
-    short: "The reply's body hydrated into an instance of `T` — `Core\\Json::decodeAs` over the \
-            octets `bytes` answers, carrying the same `{maxDepth?}` bag; write `array<T>` to read \
-            a JSON array as one instance per element.",
+    short: "Decodes the reply's body as JSON into an instance of `T`. It works like \
+            `Core\\Json::decodeAs` on the bytes that `bytes` returns, with the same `{maxDepth?}` \
+            options. Write `array<T>` to read a JSON array as one instance per element.",
     params: &[ParamDoc {
         name: "maxDepth",
         desc: "How deep the document may nest. A deeper document throws an error. A scalar \
@@ -1955,21 +1958,20 @@ const JSON_AS_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "A new `T` built from the document's fields, or one `T` per element for an `array<T>`. \
-          Every text property of `T` has to declare `tainted`, because these are octets another \
-          host chose and the property is where they land.",
+          Every text property of `T` must be declared `tainted`, because another server chose \
+          these bytes.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`T` carries no `#[Json\\Derive]` codec to decode into, or a `maxDepth` outside \
-                   1..=1024 was asked for.",
+            desc: "`T` has no `#[Json\\Derive]` decoder. Or `maxDepth` is outside 1..=1024.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "The body is not one whole JSON document at that depth — which includes a reply \
-                   with no body at all and one that is not UTF-8 — or it is not the object `T` \
-                   decodes from, or its fields are missing or of the wrong type. Every failed \
-                   field is one issue on the error, at its own path. What the reply declared as \
-                   its `Content-Type` is not consulted either way.",
+            desc: "The body is not one complete JSON document within that depth. A reply with no \
+                   body, or a body that is not UTF-8, also throws this error. Or the document is \
+                   not the object `T` decodes from, or its fields are missing or have the wrong \
+                   type. Each failed field is one issue on the error, with its own path. The \
+                   reply's `Content-Type` header is not checked.",
         },
     ],
 };
@@ -1980,31 +1982,33 @@ const HEADER_DOC: MethodDoc = MethodDoc {
             the server used.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The field name, matched case-insensitively as RFC 9110 § 5.1 defines it.",
+        desc: "The header name. Upper and lower case are treated the same, as RFC 9110 § 5.1 \
+               defines.",
         shape: &[],
     }],
-    ret: "The field's value, `tainted` as every byte another host chose is, with a field the \
-          origin sent more than once joined by `, ` in arrival order; `null` where the reply \
-          carried no such field.",
+    ret: "The header's value, as a `tainted` string. If the server sent the header more than \
+          once, the values are joined with `, ` in the order they arrived. The result is `null` \
+          if the reply has no such header.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`Set-Cookie`, which is the one field that does not join — two cookies read as one \
-               are neither, so `headers` is what reads it.",
+        desc: "The name is `Set-Cookie`. Two cookies joined into one string are not valid \
+               cookies, so this method does not join them. Use `headers` to read `Set-Cookie`.",
     }],
 };
 
 /// `Core\Http\Response::headers`'s reference card — `rule:core-api/reference-card`.
 const HEADERS_DOC: MethodDoc = MethodDoc {
-    short: "Every line the reply carried under one name, kept apart — the reading a joined value \
-            cannot be recovered from, and the only way to read `Set-Cookie`.",
+    short: "Returns every value the reply sent under one header name, as separate entries. Use \
+            it when the joined value from `header` is not enough. It is the only way to read \
+            `Set-Cookie`.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The field name, matched case-insensitively exactly as `header` matches it.",
+        desc: "The header name. Upper and lower case are treated the same, as in `header`.",
         shape: &[],
     }],
-    ret: "One `tainted` entry per line, in arrival order, and an empty array where the reply \
-          carried no such field — so a field that arrived once answers a list of one rather than \
-          anything a caller has to tell apart.",
+    ret: "One `tainted` entry per header line, in the order they arrived. The result is an empty \
+          array if the reply has no such header. A header sent once gives an array with one \
+          entry.",
     errors: &[],
 };
 
@@ -2013,8 +2017,8 @@ const TLS_DOC: MethodDoc = MethodDoc {
     short: "Returns the details of the TLS connection this reply came over. They include the \
             settings both sides agreed on, and whether the server's certificate was checked.",
     params: &[],
-    ret: "The session, or `null` where the reply arrived over none at all — a plain `http` \
-          exchange, or a call a test's answer table served.",
+    ret: "The TLS details. The result is `null` if the reply did not use TLS. That is the case \
+          for a plain `http` call, or for a call that a test served from its table of replies.",
     errors: &[],
 };
 
@@ -2143,65 +2147,69 @@ const TLS_CHAIN_SLOT: usize = 3;
 
 /// `Core\Http\TlsInfo::version`'s reference card — `rule:core-api/reference-card`.
 const VERSION_DOC: MethodDoc = MethodDoc {
-    short: "The protocol version the handshake settled on.",
+    short: "Returns the TLS version that both sides agreed on.",
     params: &[],
-    ret: "`TLSv1.3` or `TLSv1.2`, spelled as every TLS tool prints it, or the registry's own \
-          `0x` code for a version this build negotiated and cannot name.",
+    ret: "`TLSv1.3` or `TLSv1.2`, the way TLS tools print it. For a version that this build \
+          cannot name, the result is the version's `0x` code from the registry.",
     errors: &[],
 };
 
 /// `Core\Http\TlsInfo::cipher`'s reference card — `rule:core-api/reference-card`.
 const CIPHER_DOC: MethodDoc = MethodDoc {
-    short: "The cipher suite the handshake settled on, under its IANA registry name.",
+    short: "Returns the cipher suite that both sides agreed on, by its IANA registry name.",
     params: &[],
-    ret: "A name such as `TLS_AES_128_GCM_SHA256`, or the suite's `0x` code where the registry \
-          has none for it.",
+    ret: "A name such as `TLS_AES_128_GCM_SHA256`. If the registry has no name for the suite, the \
+          result is its `0x` code.",
     errors: &[],
 };
 
 /// `Core\Http\TlsInfo::verified`'s reference card — `rule:core-api/reference-card`.
 const VERIFIED_DOC: MethodDoc = MethodDoc {
-    short: "Whether this session checked both the peer's certificate chain and the name on it.",
+    short: "Returns whether the connection checked both the server's certificate chain and the \
+            name on it.",
     params: &[],
-    ret: "`true` where the chain was built to a trust anchor — the configured `roots` or the \
-          call's own `tlsCa` — and the URL's host was matched against the certificate. `false` \
-          where the call dropped either check, which only a `[capabilities.tls]` grant naming \
-          the host makes possible.",
+    ret: "`true` if the chain was checked up to a trusted root, and the URL's host matched the \
+          certificate. The trusted roots are the configured `roots` or the call's own `tlsCa`. \
+          `false` if the call skipped either check. A call can skip a check only if a \
+          `[capabilities.tls]` grant lists the host.",
     errors: &[],
 };
 
 /// `Core\Http\TlsInfo::peerChain`'s reference card — `rule:core-api/reference-card`.
 const PEER_CHAIN_DOC: MethodDoc = MethodDoc {
-    short: "The certificate chain the peer presented, as PEM, leaf first.",
+    short: "Returns the certificate chain the server sent, as PEM, leaf first.",
     params: &[],
-    ret: "One PEM block per certificate, leaf first, and an empty array where the peer presented \
-          none. Every entry is `tainted`: a certificate is bytes the other end chose.",
+    ret: "One PEM block per certificate, leaf first. The result is an empty array if the server \
+          sent none. Every entry is `tainted`, because the server chose these bytes.",
     errors: &[],
 };
 
 /// `Core\Http\TlsInfo::subject`'s reference card — `rule:core-api/reference-card`.
 const SUBJECT_DOC: MethodDoc = MethodDoc {
-    short: "The leaf certificate's subject, as RFC 4514 writes a distinguished name.",
+    short: "Returns the subject of the leaf certificate, written as an RFC 4514 distinguished \
+            name.",
     params: &[],
-    ret: "The spelling `openssl x509 -subject` prints, such as `CN=api.example.com`. `tainted`, \
-          for `peerChain`'s reason.",
+    ret: "The same text that `openssl x509 -subject` prints, such as `CN=api.example.com`. It is \
+          `tainted`, for the same reason as `peerChain`.",
     errors: &[LEAF_ERROR],
 };
 
 /// `Core\Http\TlsInfo::issuer`'s reference card — `rule:core-api/reference-card`.
 const ISSUER_DOC: MethodDoc = MethodDoc {
-    short: "The leaf certificate's issuer, as RFC 4514 writes a distinguished name.",
+    short: "Returns the issuer of the leaf certificate, written as an RFC 4514 distinguished \
+            name.",
     params: &[],
-    ret: "Who signed the leaf, in `subject`'s spelling and `tainted` for its reason.",
+    ret: "Who signed the leaf certificate, in the same format as `subject`. It is `tainted` for \
+          the same reason.",
     errors: &[LEAF_ERROR],
 };
 
 /// `Core\Http\TlsInfo::expiry`'s reference card — `rule:core-api/reference-card`.
 const EXPIRY_DOC: MethodDoc = MethodDoc {
-    short: "When the leaf certificate stops being valid — its `notAfter` field.",
+    short: "Returns when the leaf certificate stops being valid. This is its `notAfter` field.",
     params: &[],
-    ret: "The instant the peer's certificate expires, which is the check an operator most wants \
-          a program to make about a partner it calls.",
+    ret: "The instant when the server's certificate expires. Operators often want a program to \
+          check this for the services it calls.",
     errors: &[LEAF_ERROR, NO_END_ERROR],
 };
 
@@ -2216,9 +2224,9 @@ const NO_END_ERROR: ErrorDoc = ErrorDoc {
 /// reading and they differ only in which field they take from it.
 const LEAF_ERROR: ErrorDoc = ErrorDoc {
     error: "RuntimeError",
-    desc: "The peer presented no certificate, or a leaf that is not X.509 this can read. \
-           `version`, `cipher`, `verified` and `peerChain` answer either way, since none of \
-           them reads inside a certificate.",
+    desc: "The server sent no certificate, or its leaf certificate is not X.509 that this method \
+           can read. `version`, `cipher`, `verified` and `peerChain` still work, because they do \
+           not read inside a certificate.",
 };
 
 /// The parameters every row of [`CLIENT`] documents — one bag, so the options
@@ -2239,66 +2247,68 @@ macro_rules! connection_params {
     $($leading,)*
     ParamDoc {
         name: "connectTimeout",
-        desc: "How long the connection alone may take, inside `deadline` rather than beside it.",
+        desc: "How long the connection alone may take. This time is part of `deadline`, and is \
+               not added to it.",
         shape: &[],
     },
     ParamDoc {
         name: "headers",
-        desc: "Extra request headers, by name. A `secret` is admitted here — a credential has to \
-               reach the API it authenticates to — and a `tainted` value is not. The runtime's \
-               own headers are added around these.",
+        desc: "Extra request headers, by name. A `secret` value is allowed here, because a \
+               credential must reach the API it is for. A `tainted` value is not allowed. The \
+               runtime adds its own headers as well.",
         shape: &[],
     },
     $($exchange,)*
     ParamDoc {
         name: "identity",
-        desc: "The client certificate to present when the server asks for one, read by \
-               `Core\\Http\\Identity::read`. Nothing is presented to a server that does not ask. \
-               Two identities never share a pooled connection, and neither does a call that \
-               names none.",
+        desc: "The client certificate to send when the server asks for one. Create it with \
+               `Core\\Http\\Identity::read`. Nothing is sent to a server that does not ask. Two \
+               different identities never share a pooled connection. A call without an identity \
+               does not share one with a call that has one.",
         shape: &[],
     },
     ParamDoc {
         name: "tlsCa",
-        desc: "The PEM certificates to trust for this call, in place of the runtime's own roots. \
-               Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose \
-               host is not in it throws before connecting.",
+        desc: "The PEM certificates to trust for this call. They replace the runtime's own root \
+               certificates. The URL's host must be in the `anchors` grant of \
+               `capabilities.tls`. If it is not, the call throws an error before it connects.",
         shape: &[],
     },
     ParamDoc {
         name: "tlsPin",
-        desc: "One `sha256//<base64>` public-key pin, or several: the peer is accepted when its \
-               SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a \
-               self-signed origin is reached. Needs the host in the `pin` grant.",
+        desc: "One `sha256//<base64>` public-key pin, or several. The server is accepted if the \
+               hash of its SubjectPublicKeyInfo matches one of them. No certificate chain is \
+               checked. Use this to reach a server with a self-signed certificate. The host must \
+               be in the `pin` grant.",
         shape: &[],
     },
     ParamDoc {
         name: "tlsVerifyHost",
-        desc: "Written as `false`, the chain is still built and checked and only the name is \
-               skipped. Needs the host in the `any_name` grant.",
+        desc: "If it is `false`, the chain is still checked, and only the name check is skipped. \
+               The host must be in the `any_name` grant.",
         shape: &[],
     },
     ParamDoc {
         name: "tlsVerify",
-        desc: "Written as `false`, neither the chain nor the name is checked — the handshake \
-               signature still is, so the peer holds the key it presented, but nothing says whose \
-               key it is. Needs the host in the `insecure` grant.",
+        desc: "If it is `false`, neither the chain nor the name is checked. The handshake \
+               signature is still checked, so the server has the key it sent. But nothing shows \
+               whose key it is. The host must be in the `insecure` grant.",
         shape: &[],
     },
     ParamDoc {
         name: "tlsMinVersion",
-        desc: "The version floor this call speaks over, `\"1.2\"` or `\"1.3\"`. It needs no grant \
-               because it can only tighten, and a value below the runtime's `[http.client.tls] \
-               min_version` throws.",
+        desc: "The lowest TLS version this call allows, `\"1.2\"` or `\"1.3\"`. It needs no \
+               grant, because it can only make the call stricter. A value below the runtime's \
+               `[http.client.tls] min_version` throws an error.",
         shape: &[],
     },
     ParamDoc {
         name: "connectTo",
-        desc: "The IP address to connect to, instead of resolving the URL's host — which is still \
-               the name the certificate is checked against. Needs that host in the \
-               `net.connect_to` grant, and the address is judged by the deployment's address \
-               policy exactly as a resolved one is. Beside a `Core\\Http\\Target`, which already \
-               carries the address its laundering approved, it throws.",
+        desc: "The IP address to connect to. The URL's host is not looked up, but the \
+               certificate is still checked against that host. The host must be in the \
+               `net.connect_to` grant. The deployment's address policy checks this address like \
+               a looked-up one. With a `Core\\Http\\Target` as the URL, this option throws an \
+               error, because the target already has its approved addresses.",
         shape: &[],
     },
     $($trailing,)*
@@ -2314,34 +2324,37 @@ macro_rules! request_params {
     $($leading,)* URL_PARAM, DEADLINE_PARAM ;
     ParamDoc {
         name: "followRedirects",
-        desc: "How many redirect hops to follow. Omitted, the runtime's `[http.client] \
-               max_redirects` applies, and that is `0` with nothing configured: each hop is \
-               re-checked and re-pinned against the outbound policy.",
+        desc: "How many redirects to follow. If it is not given, the runtime's `[http.client] \
+               max_redirects` is used, and its default is `0`. Each redirect is checked against \
+               the outbound policy again, and its address is approved again.",
         shape: &[],
     },
     ParamDoc {
         name: "retryAttempts",
-        desc: "The total number of attempts including the first, so `1` is the default behaviour \
-               written out and `0` is refused. Retries are jittered and share the one deadline.",
+        desc: "The total number of attempts, including the first. `1` is the same as the \
+               default, and `0` throws an error. Retries wait a random delay (jitter), and all \
+               attempts share one deadline.",
         shape: &[],
     },
     ParamDoc {
         name: "retryBackoff",
-        desc: "The base delay retries grow from, exponentially and with full jitter. Omitted, it \
-               is `100ms`; the jitter is not configurable.",
+        desc: "The base delay between retries. The delay grows exponentially, and each wait is a \
+               random time up to that delay (full jitter). If it is not given, it is `100ms`. You \
+               cannot configure the jitter.",
         shape: &[],
     },
     ParamDoc {
         name: "retryIdempotencyKey",
-        desc: "Sent as `Idempotency-Key`, identical across attempts. Required for `post` and \
-               `patch` when `retryAttempts` is given, and accepted by every other member.",
+        desc: "Sent as the `Idempotency-Key` header, with the same value on every attempt. It is \
+               required for `post` and `patch` when `retryAttempts` is given. Every other method \
+               also accepts it.",
         shape: &[],
     },
     ParamDoc {
         name: "json",
-        desc: "The value to send as `application/json`, encoded once for the whole call. A \
-               `secret` inside it is sent, as it is at a header, and a written `null` is the \
-               document `null` rather than no body.",
+        desc: "The value to send as `application/json`. It is encoded once for the whole call. \
+               A `secret` inside it is sent, as it is in a header. A `null` value sends the JSON \
+               document `null`, not an empty body.",
         shape: &[],
     },
     ParamDoc {
@@ -2351,15 +2364,15 @@ macro_rules! request_params {
     },
     ParamDoc {
         name: "body",
-        desc: "The octets to send exactly as given, under `contentType`. At most one of `json`, \
-               `form`, `body` and `multipart` may be written, and none of them on `get` or \
-               `head`; both refusals are made while compiling.",
+        desc: "The bytes to send exactly as given, with the media type in `contentType`. Only \
+               one of `json`, `form`, `body` and `multipart` may be given. None of them is \
+               allowed on `get` or `head`. Both mistakes are compile errors.",
         shape: &[],
     },
     ParamDoc {
         name: "contentType",
-        desc: "The media type `body`'s octets are sent under. It means nothing without `body`, \
-               and writing it alone is refused while compiling.",
+        desc: "The media type of `body`. It has no effect without `body`, so giving it alone is \
+               a compile error.",
         shape: &[],
     },
     ParamDoc {
@@ -2370,11 +2383,11 @@ macro_rules! request_params {
     ;
     ParamDoc {
         name: "redirectToHttp",
-        desc: "Written as `true`, a redirect out of `https` into plaintext may be followed — and \
-               only where the hop's host is in the `net.downgrade` grant as well. Left out, such \
-               a hop throws, because one `Location` header is otherwise all it takes for an \
-               origin to strip a call's TLS. A plain `http` URL asked for directly is untouched \
-               by this.",
+        desc: "If it is `true`, a redirect from `https` to plain `http` may be followed. The \
+               redirect's host must also be in the `net.downgrade` grant. If it is not given, \
+               such a redirect throws an error. Otherwise one `Location` header would be enough \
+               for a server to remove a call's TLS. This option does not affect a plain `http` \
+               URL that you request directly.",
         shape: &[],
     },
     $($trailing),*
@@ -2407,153 +2420,159 @@ const SOCKET_PARAMS: &[ParamDoc] = connection_params!(
 /// Where a request goes — see [`REQUEST_PARAMS`].
 const URL_PARAM: ParamDoc = ParamDoc {
     name: "url",
-    desc: "Where the request goes: a URL the program itself authored, or the \
-           `Core\\Http\\Target` that `Core\\Http::allowUrl` pinned. A `tainted` value is \
-           refused here and accepted only at that launderer.",
+    desc: "Where the request goes. It is a URL that the program wrote, or a `Core\\Http\\Target` \
+           from `Core\\Http::allowUrl`. A `tainted` URL is not allowed here. Check it with \
+           `Core\\Http::allowUrl` first.",
     shape: &[],
 };
 
 /// The budget a whole request runs under — see [`REQUEST_PARAMS`].
 const DEADLINE_PARAM: ParamDoc = ParamDoc {
     name: "deadline",
-    desc: "The whole call's budget, covering the connection, every redirect hop, every retry \
-           attempt and every backoff between them. Omitted, the runtime's `[http.client] \
-           deadline` applies; there is no spelling for no deadline at all.",
+    desc: "The time limit for the whole call. It covers the connection, every redirect, every \
+           retry and every wait between retries. If it is not given, the runtime's \
+           `[http.client] deadline` is used. There is no way to write a call with no deadline.",
     shape: &[],
 };
 
 /// Where a socket goes — see [`SOCKET_PARAMS`].
 const SOCKET_URL_PARAM: ParamDoc = ParamDoc {
     name: "url",
-    desc: "The peer to open the socket to, as a `ws` or `wss` URL the program itself authored, or \
-           the `Core\\Http\\Target` that `Core\\Http::allowUrl` pinned. An `http` or `https` URL \
-           is refused here and a `tainted` one is accepted only at that launderer.",
+    desc: "The server to open the socket to. It is a `ws` or `wss` URL that the program wrote, \
+           or a `Core\\Http\\Target` from `Core\\Http::allowUrl`. An `http` or `https` URL is not \
+           allowed here. A `tainted` URL must be checked with `Core\\Http::allowUrl` first.",
     shape: &[],
 };
 
 /// The budget the opening handshake runs under — see [`SOCKET_PARAMS`].
 const SOCKET_DEADLINE_PARAM: ParamDoc = ParamDoc {
     name: "deadline",
-    desc: "The opening handshake's budget, covering the connection and every address tried, and \
-           ending at the `101`. What bounds the conversation after it is `idle` and \
-           `maxDuration`. Omitted, the runtime's `[http.client] deadline` applies; there is no \
-           spelling for no deadline at all.",
+    desc: "The time limit for the opening handshake. It covers the connection and every address \
+           tried, and it ends when the `101` reply arrives. After that, `idle` and `maxDuration` \
+           limit the conversation. If it is not given, the runtime's `[http.client] deadline` is \
+           used. There is no way to write a socket with no deadline.",
     shape: &[],
 };
 
 /// The subprotocols a socket offers — see [`SOCKET_PARAMS`].
 const PROTOCOLS_PARAM: ParamDoc = ParamDoc {
     name: "protocols",
-    desc: "The subprotocols to offer as `Sec-WebSocket-Protocol`, most preferred first. Each \
+    desc: "The subprotocols to offer in `Sec-WebSocket-Protocol`, most preferred first. Each \
            name is one word of letters, digits and the punctuation an HTTP token allows, such as \
-           `.`, `-` and `_`. A space, a comma or a control character throws an error. A peer that chooses one of them is reported by \
-           `Core\\Http\\Socket::protocol`, and one that chooses a name that was never offered is \
-           refused.",
+           `.`, `-` and `_`. A space, a comma or a control character throws an error. \
+           `Core\\Http\\Socket::protocol` returns the one the server chooses. If the server \
+           chooses a name that was not offered, the call throws an error.",
     shape: &[],
 };
 
 /// The silence bound a socket carries — see [`SOCKET_PARAMS`].
 const SOCKET_IDLE_PARAM: ParamDoc = ParamDoc {
     name: "idle",
-    desc: "The longest the socket may go silent for in either direction. Omitted, the runtime's \
-           `[http.client] idle` applies; there is no spelling for no bound at all. A `ping` is \
-           what makes this end a dead peer rather than a quiet one.",
+    desc: "The longest time the socket may be silent in either direction. If it is not given, \
+           the runtime's `[http.client] idle` is used. There is no way to turn this limit off. \
+           With `ping` set, a live but quiet server answers the pings, so only a dead server \
+           reaches this limit.",
     shape: &[],
 };
 
 /// The lifetime bound a socket carries — see [`SOCKET_PARAMS`].
 const SOCKET_MAX_DURATION_PARAM: ParamDoc = ParamDoc {
     name: "maxDuration",
-    desc: "The longest the socket may live altogether, which is what ends a peer dribbling a \
-           frame at a time under every idle check. Omitted, the runtime's `[http.client] \
-           max_duration` applies.",
+    desc: "The longest time the socket may stay open in total. This limit stops a server that \
+           sends one frame at a time, just often enough to pass the `idle` check. If it is not \
+           given, the runtime's `[http.client] max_duration` is used.",
     shape: &[],
 };
 
 /// The message cap a socket carries — see [`SOCKET_PARAMS`].
 const MAX_MESSAGE_PARAM: ParamDoc = ParamDoc {
     name: "maxMessage",
-    desc: "The largest message, in bytes, this end reassembles a peer's fragments into. A message \
-           past it closes the socket with `1009` and the waiting `receive` throws naming the cap. \
-           Omitted, the runtime's `[http.client.socket] max_message` applies.",
+    desc: "The largest message, in bytes, that this side builds from the server's fragments. A \
+           larger message closes the socket with code `1009`. The waiting `receive` then throws \
+           an error that names the limit. If it is not given, the runtime's \
+           `[http.client.socket] max_message` is used.",
     shape: &[],
 };
 
 /// The send bound a socket carries — see [`SOCKET_PARAMS`].
 const SEND_TIMEOUT_PARAM: ParamDoc = ParamDoc {
     name: "sendTimeout",
-    desc: "The longest a frame may wait to be written to a peer that is not reading, and the \
-           wait `close` gives the peer's own close frame. Omitted, the runtime's \
-           `[http.client.socket] send_timeout` applies.",
+    desc: "The longest time a frame may wait to be sent to a server that is not reading. It is \
+           also how long `close` waits for the server's own close frame. If it is not given, the \
+           runtime's `[http.client.socket] send_timeout` is used.",
     shape: &[],
 };
 
 /// The ping knob — see [`SOCKET_PARAMS`].
 const PING_PARAM: ParamDoc = ParamDoc {
     name: "ping",
-    desc: "The silence after which this end sends a ping, so that `idle` ends a dead peer rather \
-           than a quiet one. Left out, none is sent — a ping is traffic the peer did not ask for. \
-           A peer's own ping is answered either way, which is the protocol rather than a policy.",
+    desc: "How long the socket stays silent before it sends a ping. A live server answers the \
+           ping, so `idle` closes only a dead connection. If it is not given, no ping is sent, \
+           because a ping is traffic the server did not ask for. A ping from the server is \
+           always answered, because the WebSocket protocol requires it.",
     shape: &[],
 };
 
 /// The silence bound `stream` carries — see [`STREAM_PARAMS`].
 const IDLE_PARAM: ParamDoc = ParamDoc {
     name: "idle",
-    desc: "The longest the body may go silent for once the head has arrived. Omitted, the \
-           runtime's `[http.client] idle` applies; there is no spelling for no bound at all.",
+    desc: "The longest time the body may be silent after the status and headers arrive. If it \
+           is not given, the runtime's `[http.client] idle` is used. There is no way to turn \
+           this limit off.",
     shape: &[],
 };
 
 /// The lifetime bound `stream` carries — see [`STREAM_PARAMS`].
 const MAX_DURATION_PARAM: ParamDoc = ParamDoc {
     name: "maxDuration",
-    desc: "The longest the body may take altogether, which is what ends an origin dribbling a \
-           byte at a time under every idle check. Omitted, the runtime's `[http.client] \
-           max_duration` applies. `deadline` covers the connection and the head and stops there.",
+    desc: "The longest time the whole body may take. This limit stops a server that sends one \
+           byte at a time, just often enough to pass the `idle` check. If it is not given, the \
+           runtime's `[http.client] max_duration` is used. `deadline` covers only the \
+           connection, the status and the headers.",
     shape: &[],
 };
 
 /// The verb `request` carries — see [`DYNAMIC_PARAMS`].
 const METHOD_PARAM: ParamDoc = ParamDoc {
     name: "method",
-    desc: "The verb to send, as a `Core\\Http\\Method` case. A `Post` or a `Patch` retried without \
-           `retryIdempotencyKey` throws before the first attempt, which the member whose verb is \
-           its own name refuses while compiling instead.",
+    desc: "The HTTP method to send, as a `Core\\Http\\Method` case. A `Post` or a `Patch` with \
+           retries but without `retryIdempotencyKey` throws an error before the first attempt. \
+           The methods `post` and `patch` give a compile error for the same mistake.",
     shape: &[],
 };
 
 /// What every request member answers, once — see [`REQUEST_PARAMS`].
-const REQUEST_RET: &str = "A `Core\\Http\\Response` carrying the status and the body of the reply. \
-                           A `404` and a `500` are answers and arrive here; only a request that \
-                           got no reply at all throws. An `https` URL is fetched over TLS, with \
-                           the certificate verified against the authorities Novis carries.";
+const REQUEST_RET: &str = "A `Core\\Http\\Response` with the status and the body of the reply. \
+                           A `404` or a `500` is a normal reply and is returned here. Only a \
+                           request that gets no reply at all throws an error. An `https` URL is \
+                           fetched over TLS. The certificate is checked against the certificate \
+                           authorities that Novis includes.";
 
 /// What every request member throws, once — see [`REQUEST_PARAMS`].
 const REQUEST_ERRORS: &[ErrorDoc] = &[
     ErrorDoc {
         error: "RuntimeError",
-        desc: "The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it \
-               names no host, `net.connect` does not grant that host, or it resolves to a \
-               loopback, private, link-local or unspecified address that `net.internal` does not \
-               name. An option is outside its \
-               bounds: a `deadline`, `connectTimeout` or `retryBackoff` — or, on the row that \
-               declares them, an `idle` or `maxDuration` — that is not a positive \
-               duration, or a `retryAttempts` of zero. A header name or value carries a control \
-               byte, which would end the line early. An `https` host presented a certificate that \
-               does not verify against the authorities Novis carries, or one that is not valid for \
-               that name. Or the reply is not HTTP or is larger than one request may hold — \
-               a body that is not text is not one of these, and is refused at \
-               `Core\\Http\\Response::text` rather than here. Where the verb is handed in rather than \
-               named — `request` — the two questions the other rows answer while compiling are \
-               asked before the first attempt instead: a `Get` or a `Head` given a body key, and \
-               a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.",
+        desc: "The URL is not allowed. It is not a URL, its scheme is not `http` or `https`, or \
+               it has no host. Or `net.connect` does not grant the host. Or the host resolves to \
+               a loopback, private, link-local or unspecified address that `net.internal` does \
+               not list. An option is out of range. A `deadline`, `connectTimeout` or \
+               `retryBackoff` is not a positive duration. On `stream`, the same is true for \
+               `idle` and `maxDuration`. Or `retryAttempts` is zero. A header name or value \
+               contains a control byte, which would end the line early. An `https` server sent a \
+               certificate that does not verify against the certificate authorities Novis \
+               includes. Or the certificate is not valid for that name. Or the reply is not \
+               HTTP, or it is larger than the limit for one request. A body that is not text does not \
+               cause this error. `Core\\Http\\Response::text` throws for it. `request` gets the \
+               method as a value, so it checks two things before the first attempt. The other \
+               methods check them at compile time. The first is a body option on a `Get` or a \
+               `Head`. The second is retries on a `Post` or a `Patch` without \
+               `retryIdempotencyKey`.",
     },
     ErrorDoc {
         error: "TimeoutError",
-        desc: "The `deadline` passed before there was an answer. It covers the connection, every \
-               redirect hop, every retry attempt and every backoff between them, and a backoff \
-               that would end past it throws at once rather than sleeping first.",
+        desc: "The `deadline` passed before a reply arrived. It covers the connection, every \
+               redirect, every retry and every wait between retries. If a wait would end after \
+               the deadline, the error is thrown at once, without waiting.",
     },
     ErrorDoc {
         error: "IOError",
@@ -2564,7 +2583,8 @@ const REQUEST_ERRORS: &[ErrorDoc] = &[
 
 /// `Core\Http\Client::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
-    short: "Fetches `$url` under a finite budget, over the address the outbound policy pinned.",
+    short: "Sends a `GET` request to `$url`, with a time limit. It connects only to an address \
+            that the outbound policy approved.",
     params: REQUEST_PARAMS,
     ret: REQUEST_RET,
     errors: REQUEST_ERRORS,
@@ -2572,9 +2592,8 @@ const GET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\Client::post`'s reference card — `rule:core-api/reference-card`.
 const POST_DOC: MethodDoc = MethodDoc {
-    short: "Sends a `POST` to `$url` under a finite budget. Its retries need \
-            `retryIdempotencyKey`, because a repeated `POST` is a second effect rather than a \
-            second question.",
+    short: "Sends a `POST` request to `$url`, with a time limit. Retries need \
+            `retryIdempotencyKey`, because a repeated `POST` can make the same change twice.",
     params: REQUEST_PARAMS,
     ret: REQUEST_RET,
     errors: REQUEST_ERRORS,
@@ -2582,8 +2601,8 @@ const POST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\Client::put`'s reference card — `rule:core-api/reference-card`.
 const PUT_DOC: MethodDoc = MethodDoc {
-    short: "Sends a `PUT` to `$url` under a finite budget. Idempotent by definition, so its \
-            retries need no key.",
+    short: "Sends a `PUT` request to `$url`, with a time limit. A `PUT` is idempotent (sending it \
+            twice has the same effect as once), so retries need no key.",
     params: REQUEST_PARAMS,
     ret: REQUEST_RET,
     errors: REQUEST_ERRORS,
@@ -2591,8 +2610,8 @@ const PUT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\Client::patch`'s reference card — `rule:core-api/reference-card`.
 const PATCH_DOC: MethodDoc = MethodDoc {
-    short: "Sends a `PATCH` to `$url` under a finite budget. A partial update repeated is a second \
-            effect, so its retries need `retryIdempotencyKey` exactly as `post`'s do.",
+    short: "Sends a `PATCH` request to `$url`, with a time limit. A repeated partial update can \
+            make the change twice, so retries need `retryIdempotencyKey`, as for `post`.",
     params: REQUEST_PARAMS,
     ret: REQUEST_RET,
     errors: REQUEST_ERRORS,
@@ -2600,7 +2619,7 @@ const PATCH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\Client::delete`'s reference card — `rule:core-api/reference-card`.
 const DELETE_DOC: MethodDoc = MethodDoc {
-    short: "Sends a `DELETE` to `$url` under a finite budget.",
+    short: "Sends a `DELETE` request to `$url`, with a time limit.",
     params: REQUEST_PARAMS,
     ret: REQUEST_RET,
     errors: REQUEST_ERRORS,
@@ -2608,7 +2627,8 @@ const DELETE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\Client::head`'s reference card — `rule:core-api/reference-card`.
 const HEAD_DOC: MethodDoc = MethodDoc {
-    short: "Asks `$url` for its headers alone, under the same budget a `get` would have.",
+    short: "Sends a `HEAD` request to `$url`. The reply has the headers only. It has the same \
+            time limit as `get`.",
     params: REQUEST_PARAMS,
     ret: REQUEST_RET,
     errors: REQUEST_ERRORS,
@@ -2616,9 +2636,9 @@ const HEAD_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\Client::request`'s reference card — `rule:core-api/reference-card`.
 const REQUEST_DOC: MethodDoc = MethodDoc {
-    short: "Sends `$method` to `$url` under a finite budget — the row for a verb chosen at run \
-            time, where every other one is a verb of its own. There is no request object: the \
-            same bag the named rows take is the whole of what a call says.",
+    short: "Sends a request with `$method` to `$url`, with a time limit. Use it when the HTTP \
+            method is chosen at run time. Every other method of this class sends one fixed HTTP \
+            method. There is no request object. This call takes the same options as the others.",
     params: DYNAMIC_PARAMS,
     ret: REQUEST_RET,
     errors: REQUEST_ERRORS,
@@ -2626,37 +2646,37 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\Client::stream`'s reference card — `rule:core-api/reference-card`.
 const STREAM_DOC: MethodDoc = MethodDoc {
-    short: "Sends `$method` to `$url` and answers once the head has arrived, leaving the body to \
-            be read as it comes — the row for a reply a program works through rather than holds, \
-            such as a server-sent event stream or a result set a line at a time.",
+    short: "Sends a request with `$method` to `$url`, and returns when the status and headers \
+            arrive. The program then reads the body as it comes. Use it for a reply that is read \
+            piece by piece, such as server-sent events or a result set one line at a time.",
     params: STREAM_PARAMS,
-    ret: "A `Core\\Http\\Stream` whose `status()`, `header()` and `headers()` answer the head, and \
-          whose body is read by exactly one of `events()`, `lines()`, `chunks()` and `saveTo()`.",
+    ret: "A `Core\\Http\\Stream`. Its `status()`, `header()` and `headers()` methods return the \
+          status and headers. Read the body with exactly one of `events()`, `lines()`, `chunks()` \
+          and `saveTo()`.",
     errors: REQUEST_ERRORS,
 };
 
 /// `Core\Http\Client::openSocket`'s reference card — `rule:core-api/reference-card`.
 const OPEN_SOCKET_DOC: MethodDoc = MethodDoc {
-    short: "Opens a WebSocket to `$url` and answers it once the peer's `101` has arrived — the \
-            row for a realtime API a program talks with, rather than a reply it reads and is \
-            done with.",
+    short: "Opens a WebSocket to `$url`, and returns it when the server's `101` reply arrives. \
+            Use it for a realtime API that the program keeps talking to.",
     params: SOCKET_PARAMS,
-    ret: "A `Core\\Http\\Socket` carrying the conversation: `receive()` answers the peer's next \
-          message as the `Core\\Socket\\Message` a server-side connection already answers with, \
-          `send()` and `sendBytes()` write the two payload kinds, and `close()` ends it. It \
-          belongs to the task that opened it and is closed with `1001` when that task ends, so a \
-          socket never outlives the request, command or job that holds it.",
+    ret: "A `Core\\Http\\Socket` for the conversation. `receive()` returns the server's next \
+          message as a `Core\\Socket\\Message`, the same class a server-side connection uses. \
+          `send()` and `sendBytes()` send the two kinds of message, and `close()` ends the \
+          conversation. The socket belongs to the task that opened it. It is closed with code \
+          `1001` when that task ends, so it never lives longer than its request, command or job.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The URL is refused: it is not a URL, its scheme is neither `ws` nor `wss` — this \
-               row refuses `http` and `https` exactly as every other row refuses `ws` and `wss` — \
-               it names no host, `net.connect` does not grant that host, or it resolves to an \
-               address the deployment's policy denies. An option is outside its bounds: a \
-               `deadline`, `connectTimeout`, `idle`, `maxDuration`, `sendTimeout` or `ping` that \
-               is not a positive duration, or a `protocols` entry that is not one word. Or the \
-               peer did not open a socket: it answered a \
-               redirect, which is never followed and names its `Location`; it answered any other \
-               status than `101`; or it chose a subprotocol that `protocols` never offered.",
+        desc: "The URL is not allowed. It is not a URL, its scheme is not `ws` or `wss`, or it \
+               has no host. This method does not accept `http` or `https`, and the other methods \
+               do not accept `ws` or `wss`. Or `net.connect` does not grant the host, or the host \
+               resolves to an address the deployment's policy denies. An option is out of range. \
+               A `deadline`, `connectTimeout`, `idle`, `maxDuration`, `sendTimeout` or `ping` is \
+               not a positive duration. Or a `protocols` entry is not one word. Or the server did \
+               not open a socket. It sent a redirect, which is never followed, and the message \
+               names its `Location`. Or it sent a status other than `101`. Or it chose a \
+               subprotocol that `protocols` did not offer.",
     }],
 };
 

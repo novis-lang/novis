@@ -1005,75 +1005,74 @@ const REDIRECT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Response::addCookie`'s reference card — `rule:core-api/reference-card`.
 const ADD_COOKIE_DOC: MethodDoc = MethodDoc {
-    short: "Adds one `Set-Cookie` to this response, every option it leaves out taken from \
-            `[http.cookies]` — so a cookie written with no options is `Secure; HttpOnly; \
-            SameSite=Lax; Path=/`.",
+    short: "Adds one `Set-Cookie` header to this response. Each option you leave out comes from \
+            `[http.cookies]`. With the default settings, a cookie without options is `Secure; \
+            HttpOnly; SameSite=Lax; Path=/`.",
     params: &[
         ParamDoc {
             name: "name",
-            desc: "The cookie's name, matched byte for byte on the way back with no substitution \
-                   anywhere. A `__Host-` or `__Secure-` prefix is enforced rather than \
-                   documented: the first requires `Secure` and `Path=/` and forbids `Domain`, \
-                   the second requires `Secure`, and a cookie that does not conform is refused on \
-                   write.",
+            desc: "The cookie name. When the cookie comes back, the name is compared byte for \
+                   byte, and nothing in it is changed. A `__Host-` prefix needs `Secure` and \
+                   `Path=/`, and does not allow `Domain`. A `__Secure-` prefix needs `Secure`. \
+                   A cookie that breaks these rules throws an error.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "The value, as the bytes RFC 6265 admits — printable ASCII without a space, a \
-                   comma, a semicolon, a backslash or a quote, since each of those ends the value \
-                   and begins something the program did not write.",
+            desc: "The cookie value. It can contain printable ASCII characters, as RFC 6265 \
+                   says. A space, a comma, a semicolon, a backslash and a quote are not allowed. \
+                   Each of them would end the value and start text your program did not write.",
             shape: &[],
         },
         ParamDoc {
             name: "secure",
-            desc: "Whether the cookie is sent over HTTPS alone. Defaults to `[http.cookies] \
-                   secure`, which is `true` with nothing configured.",
+            desc: "Whether the browser sends the cookie only over HTTPS. The default is \
+                   `[http.cookies] secure`, which is `true` if you do not set it.",
             shape: &[],
         },
         ParamDoc {
             name: "httpOnly",
-            desc: "Whether the cookie is hidden from script. Defaults to `[http.cookies] \
-                   http_only`, which is `true` with nothing configured — a cookie that genuinely \
-                   needs to be readable says so here, in one field, visibly.",
+            desc: "Whether the cookie is hidden from scripts in the page. The default is \
+                   `[http.cookies] http_only`, which is `true` if you do not set it. Set it to \
+                   `false` here for a cookie that a script must read.",
             shape: &[],
         },
         ParamDoc {
             name: "sameSite",
-            desc: "Which cross-site requests carry it. Defaults to `[http.cookies] same_site`, \
-                   which is `Lax` with nothing configured. `None` without `Secure` is refused, \
-                   for the reason the same pair is refused at boot: every browser drops it.",
+            desc: "Which requests from other sites send the cookie. The default is \
+                   `[http.cookies] same_site`, which is `Lax` if you do not set it. `None` \
+                   without `Secure` throws an error, because every browser ignores that cookie. \
+                   The same pair in the configuration stops the server from starting.",
             shape: &[],
         },
         ParamDoc {
             name: "path",
-            desc: "The path prefix the cookie is sent under. Defaults to `[http.cookies] path`, \
-                   which is `/` with nothing configured.",
+            desc: "The path prefix under which the browser sends the cookie. The default is \
+                   `[http.cookies] path`, which is `/` if you do not set it.",
             shape: &[],
         },
         ParamDoc {
             name: "domain",
-            desc: "The domain the cookie is sent to. Omitted by default, which is the narrower \
-                   of the two meanings — this host and no subdomain — and `[http.cookies]` \
-                   deliberately configures no default for it.",
+            desc: "The domain the browser sends the cookie to. By default the cookie has no \
+                   domain, so the browser sends it only to this host and not to its subdomains. \
+                   `[http.cookies]` has no setting for it.",
             shape: &[],
         },
         ParamDoc {
             name: "maxAge",
-            desc: "How long the cookie lives. Omitted by default, which is a session cookie. \
-                   `0s` is the spelling that deletes one; a negative duration is refused rather \
-                   than read as that second spelling.",
+            desc: "How long the cookie lives. By default it has no age, so it is a session \
+                   cookie. `0s` deletes the cookie. A negative duration throws an error.",
             shape: &[],
         },
     ],
-    ret: "Nothing. Each call adds a cookie — two calls write two `Set-Cookie` lines, and a name \
-          written twice is sent twice rather than collapsed.",
+    ret: "Nothing. Each call adds one cookie, so two calls send two `Set-Cookie` lines. If you \
+          add the same name twice, the response sends it twice.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$name` is not a cookie name, or does not conform to the `__Host-`/`__Secure-` \
-               prefix it carries; `$value`, `path` or `domain` holds a byte that would end the \
-               attribute and begin one the program never wrote; `sameSite` is `None` without \
-               `secure`; or `maxAge` is negative.",
+        desc: "`$name` is not a valid cookie name, or it breaks the rules of its `__Host-` or \
+               `__Secure-` prefix. It is also thrown when `$value`, `path` or `domain` contains a \
+               character that would end the attribute and start another one. It is also thrown \
+               when `sameSite` is `None` without `secure`, and when `maxAge` is negative.",
     }],
 };
 
@@ -1101,26 +1100,27 @@ pub(crate) const SAME_SITE: CoreEnum = CoreEnum {
 
 /// [`SAME_SITE`]'s reference card — `rule:core-api/reference-card`.
 const SAME_SITE_CASES_DOC: EnumDoc = EnumDoc {
-    short: "Which cross-site requests carry a cookie. The three cases are the attribute's own, \
-            and the default is `Lax` because a cookie that travels on a cross-site subrequest is \
-            what CSRF is made of.",
+    short: "Which requests from other sites send a cookie. The three cases are the values of the \
+            cookie's `SameSite` attribute. The default is `Lax`. A cookie that is sent with \
+            requests from other sites makes a CSRF attack possible.",
     cases: &[
         CaseDoc {
             name: "Lax",
-            desc: "Sent with a top-level navigation to this site and with nothing else — not \
-                   with an image, a form post or a `fetch` from somewhere else. The default, \
-                   configured or not.",
+            desc: "The browser sends the cookie when a person opens a page of this site, also \
+                   from another site. It does not send it with an image, a form post or a \
+                   `fetch` from another site. This is the default, with or without configuration.",
         },
         CaseDoc {
             name: "Strict",
-            desc: "Never sent cross-site at all, a navigation included. A visitor arriving from \
-                   a link therefore arrives logged out, which is the cost that makes this the \
-                   deliberate choice rather than the default.",
+            desc: "The browser never sends the cookie with a request from another site. This is \
+                   also true when a person opens a page. So a visitor who follows a link from \
+                   another site is logged out. For this reason, it is not the default.",
         },
         CaseDoc {
             name: "None",
-            desc: "Sent cross-site. Requires `Secure`, and is refused without it here and at \
-                   boot alike, because a browser drops the pair rather than honouring it.",
+            desc: "The browser sends the cookie with requests from other sites. It needs \
+                   `Secure`, because browsers ignore the cookie without it. Without `Secure`, it \
+                   throws an error, and in the configuration it stops the server from starting.",
         },
     ],
 };
@@ -1150,24 +1150,25 @@ pub(crate) const REDIRECT: CoreEnum = CoreEnum {
 /// Named for its cases rather than `REDIRECT_DOC`, which the member above it
 /// already is: the class and the enum share the one word `Redirect`.
 const REDIRECT_CASES_DOC: EnumDoc = EnumDoc {
-    short: "Which redirect a response is. The three cases are the redirect statuses whose \
-            meaning is defined without reference to what browsers historically did with them, \
-            so what a program writes is what every peer performs.",
+    short: "The kind of redirect a response sends. Every browser handles these three statuses \
+            in the same way, so the browser does exactly what your program says.",
     cases: &[
         CaseDoc {
             name: "SeeOther",
-            desc: "`303` — the other resource is fetched with a `GET`, whatever method asked. \
-                   The answer to a form post, and the default.",
+            desc: "`303`. The browser loads the new address with `GET`, whatever the method of \
+                   the request was. Use it after a form post. This is the default.",
         },
         CaseDoc {
             name: "Temporary",
-            desc: "`307` — repeat this request, method and body intact, at the new address \
-                   this time only. Nothing is cached and nothing is renamed.",
+            desc: "`307`. The browser sends the same request again to the new address, with the \
+                   same method and body. This is for this one time only. Nothing is cached, and \
+                   the old address stays valid.",
         },
         CaseDoc {
             name: "Permanent",
-            desc: "`308` — repeat this request, method and body intact, and the new address is \
-                   the one from now on. Caches and crawlers are entitled to remember it.",
+            desc: "`308`. The browser sends the same request again to the new address, with the \
+                   same method and body. The new address replaces the old one from now on. \
+                   Caches and search engines may remember it.",
         },
     ],
 };

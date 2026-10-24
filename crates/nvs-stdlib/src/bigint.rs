@@ -389,11 +389,12 @@ const RADIX_OPTIONS: &[CoreOption] = &[CoreOption {
 
 /// `Core\BigInt::of`'s reference card — `rule:core-api/reference-card`.
 const OF_DOC: MethodDoc = MethodDoc {
-    short: "Builds a `BigInt` holding exactly `$value` — the widening every program that grows \
-            past `int` starts from.",
+    short: "Creates a `BigInt` equal to `$value`. Use it to start a calculation that may grow \
+            larger than `int`.",
     params: &[ParamDoc {
         name: "value",
-        desc: "The `int` to widen; every one of them, including `int`'s own bounds, is exact.",
+        desc: "The `int` to convert. Every `int` converts exactly, including the smallest and the \
+               largest.",
         shape: &[],
     }],
     ret: "A `BigInt` equal to `$value`.",
@@ -402,11 +403,11 @@ const OF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::ofUint`'s reference card — `rule:core-api/reference-card`.
 const OF_UINT_DOC: MethodDoc = MethodDoc {
-    short: "Builds a `BigInt` holding exactly `$value` — `of` over the unsigned scalar, whose \
-            upper half no `int` can carry.",
+    short: "Creates a `BigInt` equal to `$value`. It works like `of` for a `uint`, which can be \
+            larger than any `int`.",
     params: &[ParamDoc {
         name: "value",
-        desc: "The `uint` to widen; the whole range is exact.",
+        desc: "The `uint` to convert. Every `uint` converts exactly.",
         shape: &[],
     }],
     ret: "A `BigInt` equal to `$value`.",
@@ -415,8 +416,8 @@ const OF_UINT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::parse`'s reference card — `rule:core-api/reference-card`.
 const PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Reads `$text` as an integer of any magnitude, in the radix asked for — the text \
-            `as int` reads, with no bound on how large it may be.",
+    short: "Reads `$text` as an integer in the given base. It accepts the same text as `as int`, \
+            and the number can be any size.",
     params: &[
         ParamDoc {
             name: "text",
@@ -427,17 +428,17 @@ const PARSE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "radix",
-            desc: "The base the digits are written in, 2 to 36 with `a`-`z` as the digits past \
-                   `9`; 10 when the option is omitted.",
+            desc: "The base the digits are written in, from 2 to 36. The letters `a` to `z` are \
+                   the digits after `9`. The default is 10.",
             shape: &[],
         },
     ],
-    ret: "A `BigInt` equal to the number `$text` spells.",
+    ret: "A `BigInt` equal to the number in `$text`.",
     errors: &[
         ErrorDoc {
             error: "ParseError",
-            desc: "`$text` is not an integer in that radix — it is empty, carries a separator, \
-                   or holds a digit the radix does not have.",
+            desc: "`$text` is not an integer in that base. It is empty, contains a separator, or \
+                   contains a digit the base does not have.",
         },
         ErrorDoc {
             error: "LogicError",
@@ -448,8 +449,8 @@ const PARSE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::add`'s reference card — `rule:core-api/reference-card`.
 const ADD_DOC: MethodDoc = MethodDoc {
-    short: "The sum of this value and `$other`, as a new `BigInt` — there is no magnitude at \
-            which it overflows.",
+    short: "Returns the sum of this value and `$other` as a new `BigInt`. The result never \
+            overflows.",
     params: &[ParamDoc {
         name: "other",
         desc: "The value to add.",
@@ -473,8 +474,8 @@ const SUB_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::mul`'s reference card — `rule:core-api/reference-card`.
 const MUL_DOC: MethodDoc = MethodDoc {
-    short: "The product of this value and `$other`, as a new `BigInt` — the member a factorial \
-            or a running power is written with.",
+    short: "Returns the product of this value and `$other` as a new `BigInt`. You can use it to \
+            compute a factorial or a growing power.",
     params: &[ParamDoc {
         name: "other",
         desc: "The value to multiply by.",
@@ -486,14 +487,14 @@ const MUL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::div`'s reference card — `rule:core-api/reference-card`.
 const DIV_DOC: MethodDoc = MethodDoc {
-    short: "The quotient of this value and `$divisor`, truncated toward zero exactly as \
-            `intdiv` truncates an `int` one.",
+    short: "Returns the quotient of this value and `$divisor`, rounded toward zero. `intdiv` \
+            rounds an `int` quotient the same way.",
     params: &[ParamDoc {
         name: "divisor",
         desc: "The value to divide by.",
         shape: &[],
     }],
-    ret: "A `BigInt` quotient; `-7 div 2` is `-3`, the answer `intdiv` gives.",
+    ret: "A `BigInt` quotient. `-7 div 2` is `-3`, the same result `intdiv` gives.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
         desc: "`$divisor` is zero.",
@@ -502,14 +503,15 @@ const DIV_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::mod`'s reference card — `rule:core-api/reference-card`.
 const MOD_DOC: MethodDoc = MethodDoc {
-    short: "The remainder of this value divided by `$divisor`, carrying the dividend's sign \
-            exactly as `%` on `int` does.",
+    short: "Returns the remainder of this value divided by `$divisor`. The remainder has the \
+            same sign as this value, like `%` on `int`.",
     params: &[ParamDoc {
         name: "divisor",
         desc: "The value to divide by.",
         shape: &[],
     }],
-    ret: "A `BigInt` remainder; `-7 mod 2` is `-1`, so `div` and `mod` rebuild the dividend.",
+    ret: "A `BigInt` remainder. `-7 mod 2` is `-1`. The quotient from `div` times `$divisor`, \
+          plus this remainder, is the original value.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
         desc: "`$divisor` is zero.",
@@ -521,14 +523,14 @@ const POW_DOC: MethodDoc = MethodDoc {
     short: "Returns this value raised to `$exponent`.",
     params: &[ParamDoc {
         name: "exponent",
-        desc: "The power to raise this value to; `0` answers `1` for every receiver.",
+        desc: "The power to raise this value to. If it is `0`, the result is `1` for every value.",
         shape: &[],
     }],
     ret: "A `BigInt` equal to the power.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "The answer would be wider than 1 048 576 bits, which this member refuses before \
-               computing rather than after allocating.",
+        desc: "The result would be wider than 1 048 576 bits. The method throws this error before \
+               it starts to compute.",
     }],
 };
 
@@ -539,17 +541,17 @@ const POW_MOD_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "exponent",
-            desc: "The power to raise this value to; it may not be negative.",
+            desc: "The power to raise this value to. It must not be negative.",
             shape: &[],
         },
         ParamDoc {
             name: "modulus",
-            desc: "The modulus the answer is reduced by.",
+            desc: "The modulus the result is reduced by.",
             shape: &[],
         },
     ],
-    ret: "A `BigInt` in `[0, |$modulus|)` for every receiver: a negative receiver gives the \
-          least non-negative residue, so `-3` to the power `3`, modulo `7`, is `1`.",
+    ret: "A `BigInt` in `[0, |$modulus|)`. This is also true when this value is negative. For \
+          example, `-3` to the power `3`, modulo `7`, is `1`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
         desc: "`$modulus` is zero, or `$exponent` is negative.",
@@ -558,23 +560,23 @@ const POW_MOD_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::sqrt`'s reference card — `rule:core-api/reference-card`.
 const SQRT_DOC: MethodDoc = MethodDoc {
-    short: "The integer square root of this value — the largest `BigInt` whose square does not \
-            exceed it.",
+    short: "Returns the integer square root of this value. That is the largest `BigInt` whose \
+            square is not larger than this value.",
     params: &[],
-    ret: "A `BigInt` floor of the square root; `8` answers `2`.",
+    ret: "A `BigInt`: the square root, rounded down. For `8`, the result is `2`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "This value is negative, which has no integer square root.",
+        desc: "This value is negative. A negative number has no integer square root.",
     }],
 };
 
 /// `Core\BigInt::gcd`'s reference card — `rule:core-api/reference-card`.
 const GCD_DOC: MethodDoc = MethodDoc {
-    short: "The greatest common divisor of this value and `$other`, never negative — \
-            `Core\\Math::gcd` at any magnitude.",
+    short: "Returns the greatest common divisor of this value and `$other`. The result is never \
+            negative. It works like `Core\\Math::gcd` for numbers of any size.",
     params: &[ParamDoc {
         name: "other",
-        desc: "The other value; `gcd(0, 0)` is `0`.",
+        desc: "The other value. If both values are `0`, the result is `0`.",
         shape: &[],
     }],
     ret: "A non-negative `BigInt`.",
@@ -583,11 +585,11 @@ const GCD_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::lcm`'s reference card — `rule:core-api/reference-card`.
 const LCM_DOC: MethodDoc = MethodDoc {
-    short: "The least common multiple of this value and `$other`, never negative — \
-            `Core\\Math::lcm` at any magnitude.",
+    short: "Returns the least common multiple of this value and `$other`. The result is never \
+            negative. It works like `Core\\Math::lcm` for numbers of any size.",
     params: &[ParamDoc {
         name: "other",
-        desc: "The other value; `lcm` with a zero operand is `0`.",
+        desc: "The other value. If either value is `0`, the result is `0`.",
         shape: &[],
     }],
     ret: "A non-negative `BigInt`.",
@@ -596,17 +598,18 @@ const LCM_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::neg`'s reference card — `rule:core-api/reference-card`.
 const NEG_DOC: MethodDoc = MethodDoc {
-    short: "This value with its sign flipped — the spelling unary `-` would be if this class \
-            had operators.",
+    short: "Returns this value with the opposite sign. Use it in place of unary `-`, which does \
+            not work on a `BigInt`.",
     params: &[],
-    ret: "A `BigInt` of the same magnitude and the opposite sign; zero answers zero.",
+    ret: "A `BigInt` with the same absolute value and the opposite sign. For zero, the result \
+          is zero.",
     errors: &[],
 };
 
 /// `Core\BigInt::abs`'s reference card — `rule:core-api/reference-card`.
 const ABS_DOC: MethodDoc = MethodDoc {
-    short: "This value's magnitude, with no bound to overflow at — unlike `abs` on `int`, whose \
-            most negative value has no positive twin.",
+    short: "Returns the absolute value of this value. The result never overflows, even for a \
+            value below the smallest `int`.",
     params: &[],
     ret: "A non-negative `BigInt`.",
     errors: &[],
@@ -614,48 +617,49 @@ const ABS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::shl`'s reference card — `rule:core-api/reference-card`.
 const SHL_DOC: MethodDoc = MethodDoc {
-    short: "This value multiplied by two to the `$bits` — the shift, written as a member \
-            because `<<` over an object does not parse.",
+    short: "Returns this value multiplied by 2 to the power `$bits`. This is a left shift. It is \
+            a method because `<<` does not work on an object.",
     params: &[ParamDoc {
         name: "bits",
         desc: "How many bits to shift by.",
         shape: &[],
     }],
-    ret: "A `BigInt` `$bits` wider than this one.",
+    ret: "A `BigInt` that is `$bits` bits wider than this value.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "The answer would be wider than 1 048 576 bits.",
+        desc: "The result would be wider than 1 048 576 bits.",
     }],
 };
 
 /// `Core\BigInt::shr`'s reference card — `rule:core-api/reference-card`.
 const SHR_DOC: MethodDoc = MethodDoc {
-    short: "This value divided by two to the `$bits`, rounding toward negative infinity as an \
-            arithmetic shift does.",
+    short: "Returns this value divided by 2 to the power `$bits`, rounded toward negative \
+            infinity. This is an arithmetic right shift.",
     params: &[ParamDoc {
         name: "bits",
-        desc: "How many bits to shift by; past this value's width the answer is `0` or `-1`.",
+        desc: "How many bits to shift by. If it is larger than the width of this value, the result \
+               is `0` or `-1`.",
         shape: &[],
     }],
-    ret: "A `BigInt` `$bits` narrower than this one.",
+    ret: "A `BigInt` that is `$bits` bits narrower than this value.",
     errors: &[],
 };
 
 /// `Core\BigInt::sign`'s reference card — `rule:core-api/reference-card`.
 const SIGN_DOC: MethodDoc = MethodDoc {
-    short: "This value's sign, as the three-way answer `compareTo` gives against zero.",
+    short: "Returns the sign of this value. The result is the same as `compareTo` with zero.",
     params: &[],
-    ret: "`-1` below zero, `0` at it, `1` above.",
+    ret: "`-1` if this value is below zero, `0` if it is zero, `1` if it is above zero.",
     errors: &[],
 };
 
 /// `Core\BigInt::compareTo`'s reference card — `rule:core-api/reference-card`.
 const COMPARE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Orders this value against `$other` — `Comparable`'s member, so `<`, `<=>` and \
-            `Core\\Arr::sort` answer through it.",
+    short: "Compares this value with `$other`. This is the method of `Comparable`, so `<`, `<=>` \
+            and `Core\\Arr::sort` use it.",
     params: &[ParamDoc {
         name: "other",
-        desc: "The value to order against.",
+        desc: "The value to compare with.",
         shape: &[],
     }],
     ret: "`-1` when this value is the smaller, `0` when they are equal, `1` when it is larger.",
@@ -664,8 +668,8 @@ const COMPARE_TO_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::toInt`'s reference card — `rule:core-api/reference-card`.
 const TO_INT_DOC: MethodDoc = MethodDoc {
-    short: "This value as an `int`, exactly or not at all — the narrowing back down, which is \
-            where a magnitude that outgrew `int` is discovered rather than truncated.",
+    short: "Converts this value to an `int`. If the value does not fit in an `int`, the method \
+            throws an error. It never truncates the value.",
     params: &[],
     ret: "The `int` equal to this value.",
     errors: &[ErrorDoc {
@@ -676,8 +680,8 @@ const TO_INT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::toUint`'s reference card — `rule:core-api/reference-card`.
 const TO_UINT_DOC: MethodDoc = MethodDoc {
-    short: "This value as a `uint`, exactly or not at all — `toInt` over the unsigned scalar, \
-            which reaches higher and refuses every negative value.",
+    short: "Converts this value to a `uint`. A `uint` can be larger than an `int`, but it cannot \
+            be negative. If the value does not fit, the method throws an error.",
     params: &[],
     ret: "The `uint` equal to this value.",
     errors: &[ErrorDoc {
@@ -688,32 +692,32 @@ const TO_UINT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::toDecimal`'s reference card — `rule:core-api/reference-card`.
 const TO_DECIMAL_DOC: MethodDoc = MethodDoc {
-    short: "This value as a `decimal` at scale zero, which is exact wherever the magnitude fits \
-            the scalar's 96-bit mantissa.",
+    short: "Converts this value to a `decimal` with scale zero. The result is exact when the \
+            value fits in 96 bits.",
     params: &[],
     ret: "A `decimal` equal to this value.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "This value needs more than 96 bits, which no `decimal` holds.",
+        desc: "This value needs more than 96 bits. A `decimal` cannot be that large.",
     }],
 };
 
 /// `Core\BigInt::toString`'s reference card — `rule:core-api/reference-card`.
 const TO_STRING_DOC: MethodDoc = MethodDoc {
-    short: "This value in radix 10, with a leading `-` when it is negative — `Stringable`'s \
-            member, so `echo` and string interpolation render through it.",
+    short: "Returns this value as base-10 digits, with a leading `-` when it is negative. This is \
+            the method of `Stringable`, so `echo` and string interpolation use it.",
     params: &[],
-    ret: "The decimal digits, which `parse` reads back to the same value.",
+    ret: "The decimal digits. `parse` reads them back to the same value.",
     errors: &[],
 };
 
 /// `Core\BigInt::format`'s reference card — `rule:core-api/reference-card`.
 const FORMAT_DOC: MethodDoc = MethodDoc {
-    short: "This value in the radix asked for, using `a`-`z` for the digits past `9` — \
-            `toString` in any base, and `parse`'s inverse at every one of them.",
+    short: "Returns this value written in the given base, with `a` to `z` as the digits after \
+            `9`. `parse` with the same base reads the result back to the same value.",
     params: &[ParamDoc {
         name: "radix",
-        desc: "The base to write in, 2 to 36; 10 when the option is omitted.",
+        desc: "The base to write in, from 2 to 36. The default is 10.",
         shape: &[],
     }],
     ret: "The digits, with a leading `-` when this value is negative.",

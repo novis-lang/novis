@@ -1389,46 +1389,43 @@ const RESPONSE_JSON_AS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::answerHttp`'s reference card — `rule:core-api/reference-card`.
 const ANSWER_HTTP_DOC: MethodDoc = MethodDoc {
-    short: "Says what one outbound URL answers with, and takes this test off the network — from \
-            the first answer registered, every `Core\\Http\\Client` call the test makes is served \
-            from the table and none of them connects.",
+    short: "Gives a fake reply for one outbound URL. After the first call to `answerHttp`, every \
+            `Core\\Http\\Client` call in this test gets a fake reply. No call connects to the \
+            network.",
     params: &[
         ParamDoc {
             name: "url",
-            desc: "The URL this answer serves: the whole of it, or a prefix ending in `*`. \
-                   Nothing is resolved and no host is looked up — this is the text a call's own \
-                   URL is compared against.",
+            desc: "The URL this reply is for: the whole URL, or a prefix that ends in `*`. \
+                   Nothing is resolved and no host is looked up. The URL of each call is \
+                   compared with this text.",
             shape: &[],
         },
         ParamDoc {
             name: "status",
-            desc: "The status the call answers with, as a wire status line can write it: three \
-                   digits, `100` to `999`.",
+            desc: "The status code of the reply. It has three digits, from `100` to `999`.",
             shape: &[],
         },
         ParamDoc {
             name: "json",
-            desc: "A value the answer carries as a JSON document, written exactly as \
-                   `Core\\Json::encode` would write it. The answer declares \
-                   `application/json` for it unless the `headers` bag names a content type \
-                   itself.",
+            desc: "A value that the reply sends as a JSON document. It is written exactly as \
+                   `Core\\Json::encode` writes it. The reply has the content type \
+                   `application/json`, unless `headers` sets a content type.",
             shape: &[],
         },
         ParamDoc {
             name: "body",
-            desc: "The body the answer carries, for a reply that is not a JSON document — text, \
-                   or the octets of a reply that is not text at all, which is what \
-                   `Core\\Http\\Response::bytes` reads back and `::text` refuses. An answer may \
-                   name this or `json` and not both.",
+            desc: "The body of a reply that is not JSON. It can be text, or the bytes of a reply \
+                   that is not text. `Core\\Http\\Response::bytes` reads such a body, and \
+                   `::text` throws an error for it. Give `body` or `json`, not both.",
             shape: &[],
         },
         ParamDoc {
             name: "headers",
-            desc: "The headers the answer carries, keyed by name — the same shape \
-                   `Core\\Http\\Options` writes a request's headers in, plus one arm it has no \
-                   use for: an array of strings under a name is a reply that carried that field \
-                   on that many lines, which is what `Core\\Http\\Response::headers` reads back. \
-                   A name is matched case-insensitively, as a header name is.",
+            desc: "The headers of the reply, with the name as the key. This is the shape \
+                   `Core\\Http\\Options` uses for the headers of a request, with one addition. \
+                   An array of strings under a name means the reply has that header on that \
+                   many lines. `Core\\Http\\Response::headers` returns it that way. Upper and \
+                   lower case do not matter in a name, as for any header name.",
             shape: &[],
         },
         ParamDoc {
@@ -1439,14 +1436,13 @@ const ANSWER_HTTP_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Nothing. Answers accumulate, so a test registers as many as it has calls; a URL \
-          answered exactly wins over one answered by a prefix, and the longest prefix wins among \
-          prefixes.",
+    ret: "Nothing. Each call adds one more reply, so a test can give a reply for each call it \
+          makes. An exact URL wins over a prefix, and the longest prefix wins among prefixes.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The answer names both `json` and `body`, which are two spellings of one body; the \
-               status is not one a status line can carry; or the answer gives a `tls` session to \
-               an `http://` URL, which has none.",
+        desc: "The call gives both `json` and `body`, which are two ways to write one body. Or \
+               the status is not from `100` to `999`. Or the call gives a `tls` session for an \
+               `http://` URL, which has no TLS.",
     }],
 };
 
@@ -1498,9 +1494,9 @@ const TLS_SESSION_DOC: MethodDoc = MethodDoc {
           report it.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The version is not `TLSv1.3` or `TLSv1.2`; the cipher is not one this build \
-               supports for that version; a subject or issuer is not written as `KEY=value` \
-               pairs with the keys above; or the expiry is before 1950 or after 9999.",
+        desc: "The version is not `TLSv1.3` or `TLSv1.2`. Or the cipher is not one this build \
+               supports for that version. Or a subject or issuer is not written as `KEY=value` \
+               pairs with the keys above. Or the expiry is before 1950 or after 9999.",
     }],
 };
 
@@ -1517,185 +1513,191 @@ const SENT_HTTP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::answerSocket`'s reference card — `rule:core-api/reference-card`.
 const ANSWER_SOCKET_DOC: MethodDoc = MethodDoc {
-    short: "Scripts the peer one outbound WebSocket URL answers with, and takes this test off the \
-            network — a socket opened to a matching URL completes its handshake without \
-            connecting, receives these frames in order and then a close.",
+    short: "Gives a fake peer for one outbound WebSocket URL, and this test does not use the \
+            network. A socket opened to a matching URL completes its handshake without \
+            connecting. It receives these frames in order, and then a close.",
     params: &[
         ParamDoc {
             name: "url",
-            desc: "The URL this peer answers: the whole of it, or a prefix ending in `*`. \
-                   Nothing is resolved and no host is looked up — this is the text \
-                   `Core\\Http\\Client::openSocket`'s own URL is compared against, and it is \
-                   still judged for its scheme, so a `https` URL scripted here is refused at the \
-                   row that opens it.",
+            desc: "The URL this peer is for: the whole URL, or a prefix that ends in `*`. \
+                   Nothing is resolved and no host is looked up. The URL given to \
+                   `Core\\Http\\Client::openSocket` is compared with this text. Its scheme is \
+                   still checked, so a `https` URL given here is not allowed when \
+                   `openSocket` runs.",
             shape: &[],
         },
         ParamDoc {
             name: "frames",
-            desc: "What the peer sends, in order: a `string` is a text message and `bytes` is a \
-                   binary one, which is the same pair `send` and `sendBytes` write. A socket that \
-                   has taken the last of them reads `null` from `receive`, which is the peer \
-                   having closed.",
+            desc: "What the peer sends, in order. A `string` is a text message and `bytes` is a \
+                   binary message, the same as `send` and `sendBytes` write. After the last \
+                   frame, `receive` returns `null`, which means the peer closed the socket.",
             shape: &[],
         },
         ParamDoc {
             name: "protocol",
-            desc: "The subprotocol this peer's `101` chooses. It has to be one the call offered \
-                   in `protocols`, and a peer choosing a name that was never offered makes \
-                   `openSocket` throw — which is the refusal a real peer would meet. Left out, \
-                   the handshake chooses none.",
+            desc: "The subprotocol the peer chooses in its `101` reply. It must be one that the \
+                   call offered in `protocols`. If the peer chooses a name that was never \
+                   offered, `openSocket` throws an error, as it does with a real peer. If you \
+                   leave it out, the handshake chooses no subprotocol.",
             shape: &[],
         },
     ],
-    ret: "Nothing. Peers accumulate, so a test scripts as many as it opens sockets; a URL \
-          answered exactly wins over one answered by a prefix, and the longest prefix wins among \
-          prefixes. Two sockets opened to one URL each read that peer's frames from their own \
-          position.",
+    ret: "Nothing. Each call adds one more peer, so a test can give a peer for each socket it \
+          opens. An exact URL wins over a prefix, and the longest prefix wins among prefixes. \
+          Two sockets opened to one URL read that peer's frames separately. Each socket keeps \
+          its own place in the list.",
     errors: &[],
 };
 
 /// `Core\Test::sentSocket`'s reference card — `rule:core-api/reference-card`.
 const SENT_SOCKET_DOC: MethodDoc = MethodDoc {
-    short: "Every frame the program under test has sent over a scripted socket, oldest first — \
-            what it said, rather than what it was told.",
+    short: "Returns every frame the program sent over a fake socket, oldest first. These are the \
+            frames the program sent, not the frames it received.",
     params: &[],
-    ret: "One `Core\\Socket\\Message` per frame, in the order the program sent them, with `text` \
-          filled for a `send` and `bytes` for a `sendBytes`. The frames of two sockets open at \
-          once arrive interleaved in the one order they were written in, so a test that needs \
-          them apart scripts one peer at a time.",
+    ret: "One `Core\\Socket\\Message` for each frame, in the order the program sent them. `text` \
+          is set for a `send`, and `bytes` for a `sendBytes`. When two sockets are open at once, \
+          their frames are mixed in the order they were written. To check them apart, a test \
+          uses one peer at a time.",
     errors: &[],
 };
 
 /// `Core\Test::double`'s reference card — `rule:core-api/reference-card`.
 const DOUBLE_DOC: MethodDoc = MethodDoc {
-    short: "A stand-in for `T` built from an object of functions, one per method. It **is** a \
-            `T` and may be passed wherever one is taken.",
+    short: "Creates a test double: a fake `T` built from an object of functions, one for each \
+            method. The double **is** a `T`, so you can pass it anywhere a `T` is needed.",
     params: &[ParamDoc {
         name: "answers",
         desc: "One field per method of `T`, with the same name as the method. Each field has the \
-               function that answers that method. A field for a method that `T` does not \
-               declare does not compile. A method of `T` that has no field does not compile \
-               either.",
+               function that runs when that method is called. A field for a method that `T` \
+               does not declare does not compile. A method of `T` that has no field does not \
+               compile either.",
         shape: &[],
     }],
-    ret: "The double, typed as `T`. It records every call made to it, which \
-          `Core\\Test::assertCalled` reads afterwards, and no class the author never wrote \
-          appears in a backtrace.",
+    ret: "The double, typed as `T`. It records every call made to it, and \
+          `Core\\Test::assertCalled` reads that record later. A backtrace shows no class that \
+          you did not write.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`T` declares more methods than one double can stand in for, which is a fixed \
-               ceiling set well above the interfaces a test doubles.",
+        desc: "`T` declares more methods than one double supports. This limit is fixed, and it \
+               is far above the size of the interfaces a test usually replaces.",
     }],
 };
 
 /// `Core\Test::partial`'s reference card — `rule:core-api/reference-card`.
 const PARTIAL_DOC: MethodDoc = MethodDoc {
-    short: "A stand-in for `T` that answers the methods `$answers` names and delegates every \
-            other one to `$real`.",
+    short: "Creates a test double for `T` that runs the functions in `$answers` for the methods \
+            they name. Every call to another method goes to `$real`.",
     params: &[
         ParamDoc {
             name: "real",
-            desc: "The implementation the un-overridden methods are forwarded to, receiver and \
-                   arguments unchanged.",
+            desc: "The object that gets the calls to the methods `$answers` does not replace. \
+                   Each call reaches `$real` with the same arguments.",
             shape: &[],
         },
         ParamDoc {
             name: "answers",
-            desc: "One field per method being overridden, named as the method is. A field `T` \
-                   declares no method for is refused where the call is written; unlike \
-                   `double`, a method left out is not, that being what `$real` is for.",
+            desc: "One field for each method you replace, with the same name as the method. A \
+                   field for a method that `T` does not declare does not compile. A method you \
+                   leave out is allowed, because `$real` handles it. This is not allowed in \
+                   `double`.",
             shape: &[],
         },
     ],
-    ret: "The partial, typed as `T`. Every call is recorded, whether the function in \
-          `$answers` or `$real` answered it.",
+    ret: "The partial double, typed as `T`. Every call is recorded, both the calls a function in \
+          `$answers` handles and the calls `$real` handles.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`double`'s ceiling, for the same reason and with the same two counts.",
+        desc: "`T` declares more methods than one double supports. The limit and the error \
+               message are the same as for `double`.",
     }],
 };
 
 /// `Core\Test::assertCalled`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_CALLED_DOC: MethodDoc = MethodDoc {
-    short: "Asserts that `$method` was called on `$double` — after the exercise, against the record \
-            the double kept, rather than as an expectation declared in advance.",
+    short: "Checks that `$method` was called on `$double`. The check runs after your code, on the \
+            record of calls that the double kept. You do not declare the expected calls in \
+            advance.",
     params: &[
         ParamDoc {
             name: "double",
-            desc: "The double or partial the call is being asserted about.",
+            desc: "The double or partial double to check.",
             shape: &[],
         },
         ParamDoc {
             name: "method",
-            desc: "The method, written as `Mailer::send` — a compile-checked reference, so \
+            desc: "The method, written as `Mailer::send`. The compiler checks this reference, so \
                    renaming the method updates or breaks the test.",
             shape: &[],
         },
         ParamDoc {
             name: "times",
-            desc: "The exact number of calls expected. Omitted, any number above zero holds.",
+            desc: "The exact number of calls you expect. If you leave it out, any number above \
+                   zero passes.",
             shape: &[],
         },
         ParamDoc {
             name: "with",
-            desc: "The arguments one of the recorded calls must have been made with, compared as \
-                   `Core\\Test::assertEquals` compares. Omitted, the arguments are not looked at.",
+            desc: "The arguments that one of the recorded calls must have. They are compared the \
+                   way `Core\\Test::assertEquals` compares. If you leave it out, the arguments \
+                   are not checked.",
             shape: &[],
         },
         ParamDoc {
             name: "message",
-            desc: "Prefixed to the failure, as on every other assertion.",
+            desc: "Your own text, added at the start of the failure message, as on every other \
+                   check.",
             shape: &[],
         },
     ],
-    ret: "Nothing. A call that was not made, or was made a different number of times or with \
-          different arguments, throws.",
+    ret: "Nothing. The call throws an error if the method was not called, or was called a \
+          different number of times or with different arguments.",
     errors: &[
         ErrorDoc {
             error: "Core\\Test\\Failure",
-            desc: "The record does not hold the call the options describe. The message names the \
-                   method, what was expected of it and every call the record does hold.",
+            desc: "The record does not contain the call that the options describe. The message \
+                   names the method, what you expected, and every call in the record.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`$double` is an ordinary object rather than something \
-                   `Core\\Test::double` or `Core\\Test::partial` built, so there is no record to \
-                   read.",
+            desc: "`$double` is an ordinary object. `Core\\Test::double` or \
+                   `Core\\Test::partial` did not create it, so it has no record of calls.",
         },
     ],
 };
 
 /// `Core\Test::assertNeverCalled`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_NEVER_CALLED_DOC: MethodDoc = MethodDoc {
-    short: "Asserts that `$method` was never called on `$double` — `assertCalled`'s other half, \
-            over the same record.",
+    short: "Checks that `$method` was never called on `$double`. It is the opposite of \
+            `assertCalled`, and it reads the same record of calls.",
     params: &[
         ParamDoc {
             name: "double",
-            desc: "The double or partial the absence is being asserted about.",
+            desc: "The double or partial double to check.",
             shape: &[],
         },
         ParamDoc {
             name: "method",
-            desc: "The method, written as `Mailer::purge` and checked as `assertCalled`'s is.",
+            desc: "The method, written as `Mailer::purge`. It is checked the same way as in \
+                   `assertCalled`.",
             shape: &[],
         },
         ParamDoc {
             name: "message",
-            desc: "Prefixed to the failure, as on every other assertion.",
+            desc: "Your own text, added at the start of the failure message, as on every other \
+                   check.",
             shape: &[],
         },
     ],
-    ret: "Nothing. One recorded call is enough to throw.",
+    ret: "Nothing. One recorded call is enough to throw an error.",
     errors: &[
         ErrorDoc {
             error: "Core\\Test\\Failure",
-            desc: "The method was called. The message names the first call the record holds and \
-                   how many it holds in all.",
+            desc: "The method was called. The message shows the first recorded call and the \
+                   total number of calls.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`assertCalled`'s, for the same reason: `$double` is not a double.",
+            desc: "`$double` is not a double. This is the same error as in `assertCalled`.",
         },
     ],
 };
@@ -1703,14 +1705,14 @@ const ASSERT_NEVER_CALLED_DOC: MethodDoc = MethodDoc {
 /// `Core\Test::assertCompletes`'s reference card — `rule:core-api/reference-card`. The budget
 /// is `rule:testing/task-tree-and-virtual-clock`'s.
 const ASSERT_COMPLETES_DOC: MethodDoc = MethodDoc {
-    short: "Runs `$body` with the test's clock advanced by `$settings.within`, and asserts that it \
-            left nothing still running. Wall-clock time is never read, so a budget written in \
-            seconds is spent in microseconds and two runs answer identically.",
+    short: "Moves the test's clock forward by `$settings.within`, runs `$body`, and checks that \
+            no task it started is still running. The real time is never read. A budget of many \
+            seconds takes microseconds, and every run gives the same result.",
     params: &[
         ParamDoc {
             name: "body",
-            desc: "The work to run. It is called once, on the test's own task, and whatever it \
-                   answers is dropped.",
+            desc: "The work to run. It is called once, on the test's own task. Its return value \
+                   is ignored.",
             shape: &[],
         },
         ParamDoc {
@@ -1720,35 +1722,36 @@ const ASSERT_COMPLETES_DOC: MethodDoc = MethodDoc {
             shape: &[ShapeKeyDoc {
                 key: "within",
                 ty: "Core\\Time\\Duration",
-                desc: "How far the virtual clock moves before `$body` runs, so a retry, a backoff \
-                       or a timeout inside it elapses at once. `Core\\Test::advance` moves the \
-                       same clock, and the move is permanent: the test reads the advanced clock \
-                       from here on.",
+                desc: "How far the test's clock moves before `$body` runs. A retry, a backoff \
+                       or a timeout inside `$body` then does not wait. `Core\\Test::advance` \
+                       moves the same clock. The move stays: after this call, the test reads \
+                       the moved clock.",
             }],
         },
         ParamDoc {
             name: "message",
-            desc: "Prefixed to the failure, as on every other assertion.",
+            desc: "Your own text, added at the start of the failure message, as on every other \
+                   check.",
             shape: &[],
         },
     ],
-    ret: "Nothing. A `$body` that returned having left a task of its own still running throws, \
-          naming the budget it overran. The check runs when `$body` returns.",
+    ret: "Nothing. If `$body` returns while a task it started is still running, the call throws \
+          an error that names the budget. The check runs when `$body` returns.",
     errors: &[
         ErrorDoc {
             error: "Core\\Test\\Failure",
-            desc: "`$body` returned with work of its own still running. The message names how \
-                   many tasks and the `within` they were given.",
+            desc: "`$body` returned while a task it started was still running. The message gives \
+                   the number of tasks and the `within` value they had.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "The test declared no `at:`, so there is no fixed clock to spend the budget \
-                   against — `Core\\Test::advance`'s refusal, for its reason.",
+            desc: "The test has no `at:`, so there is no fixed clock to move. \
+                   `Core\\Test::advance` throws the same error for the same reason.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The advanced clock lies outside the range an `Instant` can hold, as on \
-                   `Core\\Test::advance`.",
+            desc: "The moved clock is outside the range an `Instant` can have. \
+                   `Core\\Test::advance` throws the same error.",
         },
     ],
 };
@@ -1808,22 +1811,22 @@ const ASSERT_SAME_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "expected",
-            desc: "What it must be identical to; `T` is bound from `$actual`, so a type \
-                   mismatch between the two is a compile error.",
+            desc: "The value `$actual` must be identical to. `T` is the type of `$actual`, so \
+                   `$expected` must have the same type. Otherwise the call does not compile.",
             shape: &[],
         },
         ParamDoc {
             name: "message",
-            desc: "A prefix written in front of the failure's own diagnosis; the default is \
-                   none.",
+            desc: "Your own text, added at the start of the failure message. The default is no \
+                   text.",
             shape: &[],
         },
     ],
-    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    ret: "Nothing. The check is recorded as passed.",
     errors: &[ErrorDoc {
         error: "Core\\Test\\Failure",
-        desc: "The two are not identical; the failure is recorded in the ledger before it is \
-               thrown, so a `catch` cannot erase it.",
+        desc: "The two values are not identical. The failure is recorded before it is thrown, so \
+               a `catch` does not remove it from the test's result.",
     }],
 };
 
@@ -1839,23 +1842,23 @@ const ASSERT_EQUALS_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "expected",
-            desc: "What it must equal; `T` is bound from `$actual`, so a type mismatch between \
-                   the two is a compile error.",
+            desc: "The value `$actual` must equal. `T` is the type of `$actual`, so `$expected` \
+                   must have the same type. Otherwise the call does not compile.",
             shape: &[],
         },
         ParamDoc {
             name: "message",
-            desc: "A prefix written in front of the failure's own diagnosis; the default is \
-                   none.",
+            desc: "Your own text, added at the start of the failure message. The default is no \
+                   text.",
             shape: &[],
         },
     ],
-    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    ret: "Nothing. The check is recorded as passed.",
     errors: &[
         ErrorDoc {
             error: "Core\\Test\\Failure",
-            desc: "The two are not equal; the failure is recorded in the ledger before it is \
-                   thrown, so a `catch` cannot erase it.",
+            desc: "The two values are not equal. The failure is recorded before it is thrown, so \
+                   a `catch` does not remove it from the test's result.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -1866,9 +1869,9 @@ const ASSERT_EQUALS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::assertEqualsDeep`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_EQUALS_DEEP_DOC: MethodDoc = MethodDoc {
-    short: "Asserts `$actual` and `$expected` agree structurally — arrays entry by entry, \
-            objects property by property, everything else by identity — and reports where \
-            they first differ rather than only that they do.",
+    short: "Checks that `$actual` and `$expected` have the same structure and values. Arrays are \
+            compared entry by entry, and objects property by property. Other values are compared \
+            by identity. A failure shows where the two values first differ.",
     params: &[
         ParamDoc {
             name: "actual",
@@ -1877,28 +1880,28 @@ const ASSERT_EQUALS_DEEP_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "expected",
-            desc: "What it must agree with everywhere; `T` is bound from `$actual`, so a type \
-                   mismatch between the two is a compile error.",
+            desc: "The value `$actual` must match everywhere. `T` is the type of `$actual`, so \
+                   `$expected` must have the same type. Otherwise the call does not compile.",
             shape: &[],
         },
         ParamDoc {
             name: "message",
-            desc: "A prefix written in front of the failure's own diagnosis; the default is \
-                   none.",
+            desc: "Your own text, added at the start of the failure message. The default is no \
+                   text.",
             shape: &[],
         },
     ],
-    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    ret: "Nothing. The check is recorded as passed.",
     errors: &[
         ErrorDoc {
             error: "Core\\Test\\Failure",
-            desc: "The two differ somewhere; the diagnosis names the path, written as a \
-                   program would subscript `$actual`, and the failure is recorded in the \
-                   ledger before it is thrown.",
+            desc: "The two values differ. The message gives the path to the first difference, \
+                   written the way code indexes into `$actual`. The failure is recorded before \
+                   it is thrown.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The walk passed 64 levels of containment without reaching a scalar.",
+            desc: "The values are nested more than 64 levels deep.",
         },
     ],
 };
@@ -1940,16 +1943,16 @@ const ASSERT_NULL_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "message",
-            desc: "A prefix written in front of the failure's own diagnosis; the default is \
-                   none.",
+            desc: "Your own text, added at the start of the failure message. The default is no \
+                   text.",
             shape: &[],
         },
     ],
-    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    ret: "Nothing. The check is recorded as passed.",
     errors: &[ErrorDoc {
         error: "Core\\Test\\Failure",
-        desc: "`$actual` is not `null`; the failure is recorded in the ledger before it is \
-               thrown, so a `catch` cannot erase it.",
+        desc: "`$actual` is not `null`. The failure is recorded before it is thrown, so a \
+               `catch` does not remove it from the test's result.",
     }],
 };
 
@@ -1965,21 +1968,21 @@ const ASSERT_COUNT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "expected",
-            desc: "The number of entries it must hold.",
+            desc: "The number of entries the array must have.",
             shape: &[],
         },
         ParamDoc {
             name: "message",
-            desc: "A prefix written in front of the failure's own diagnosis; the default is \
-                   none.",
+            desc: "Your own text, added at the start of the failure message. The default is no \
+                   text.",
             shape: &[],
         },
     ],
-    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    ret: "Nothing. The check is recorded as passed.",
     errors: &[ErrorDoc {
         error: "Core\\Test\\Failure",
-        desc: "The array holds a different number of entries; the failure is recorded in the \
-               ledger before it is thrown, so a `catch` cannot erase it.",
+        desc: "The array has a different number of entries. The failure is recorded before it is \
+               thrown, so a `catch` does not remove it from the test's result.",
     }],
 };
 
@@ -1996,22 +1999,22 @@ const ASSERT_CONTAINS_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "expected",
-            desc: "The entry it must hold, compared by identity; `int`, `uint`, `float` and \
-                   `decimal` are one numeric domain, so `1` finds `1.0`.",
+            desc: "The entry the array must contain. It is compared by identity. `int`, `uint`, \
+                   `float` and `decimal` values compare as numbers, so `1` finds `1.0`.",
             shape: &[],
         },
         ParamDoc {
             name: "message",
-            desc: "A prefix written in front of the failure's own diagnosis; the default is \
-                   none.",
+            desc: "Your own text, added at the start of the failure message. The default is no \
+                   text.",
             shape: &[],
         },
     ],
-    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    ret: "Nothing. The check is recorded as passed.",
     errors: &[ErrorDoc {
         error: "Core\\Test\\Failure",
-        desc: "No entry of the array is identical to `$expected`; the failure is recorded in \
-               the ledger before it is thrown, so a `catch` cannot erase it.",
+        desc: "No entry of the array is identical to `$expected`. The failure is recorded before \
+               it is thrown, so a `catch` does not remove it from the test's result.",
     }],
 };
 
@@ -2023,29 +2026,29 @@ const ASSERT_MATCHES_INLINE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "actual",
-            desc: "The value to render; a `secret` property inside it renders redacted, so a \
-                   snapshot cannot become where a secret is committed.",
+            desc: "The value to render. A `secret` property inside it is shown redacted, so a \
+                   snapshot never puts a secret into your source code.",
             shape: &[],
         },
         ParamDoc {
             name: "expected",
-            desc: "The rendering this value is expected to have, written inline; `nvs test \
-                   --update` writes it here for you. It replaces this string and nothing else in \
-                   the file.",
+            desc: "The text you expect the rendering to be, written in the test. `nvs test \
+                   --update` writes it here for you. It changes only this string in the file.",
             shape: &[],
         },
         ParamDoc {
             name: "message",
-            desc: "A prefix written in front of the failure's own diagnosis; the default is \
-                   none.",
+            desc: "Your own text, added at the start of the failure message. The default is no \
+                   text.",
             shape: &[],
         },
     ],
-    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    ret: "Nothing. The check is recorded as passed.",
     errors: &[ErrorDoc {
         error: "Core\\Test\\Failure",
-        desc: "The rendering differs from `$expected`; the failure quotes both, and is recorded \
-               in the ledger before it is thrown, so a `catch` cannot erase it.",
+        desc: "The rendering is different from `$expected`. The failure message shows both. The \
+               failure is recorded before it is thrown, so a `catch` does not remove it from the \
+               test's result.",
     }],
 };
 
@@ -2056,58 +2059,58 @@ const ASSERT_THROWS_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "body",
-            desc: "The function to run; a value it returns is released.",
+            desc: "The function to run. A value it returns is ignored.",
             shape: &[],
         },
         ParamDoc {
             name: "expected",
-            desc: "The fully-qualified class name, as `ParseError::class` folds to; the thrown \
-                   class or any ancestor of it matches.",
+            desc: "The full class name, as `ParseError::class` gives it. The thrown class \
+                   matches if it is this class or extends it.",
             shape: &[],
         },
         ParamDoc {
             name: "message",
-            desc: "A prefix written in front of the failure's own diagnosis; the default is \
-                   none.",
+            desc: "Your own text, added at the start of the failure message. The default is no \
+                   text.",
             shape: &[],
         },
     ],
-    ret: "Nothing; the assertion is recorded as held in the test's ledger. A `FATAL` or an \
-          exit from the body is nobody's assertion to judge and propagates unchanged, and a \
-          failed assertion inside the body keeps its own ledger entry.",
+    ret: "Nothing. The check is recorded as passed. A `FATAL` error or an exit inside `$body` is \
+          not caught, and it is not changed. A check that fails inside `$body` still counts as \
+          a failure of its own.",
     errors: &[ErrorDoc {
         error: "Core\\Test\\Failure",
-        desc: "`$body` returned without throwing, or threw a class that is not `$expected` — \
-               reported with the class it did throw and that throw's message; the failure is \
-               recorded in the ledger before it is thrown.",
+        desc: "`$body` returned without throwing, or it threw a class that is not `$expected`. \
+               The message names the class it threw and the message of that error. The failure \
+               is recorded before it is thrown.",
     }],
 };
 
 /// `Core\Test::assertDoesNotThrow`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_DOES_NOT_THROW_DOC: MethodDoc = MethodDoc {
-    short: "Runs `$body` and asserts it returns without throwing — the way out of the rule \
-            that a test asserting nothing fails; the throw it judged is consumed, so only the \
-            assertion's own verdict propagates.",
+    short: "Runs `$body` and checks that it returns without throwing an error. A test with no \
+            check fails, and this call counts as a check. An error from `$body` is caught, so \
+            only the failure of this check reaches the caller.",
     params: &[
         ParamDoc {
             name: "body",
-            desc: "The function to run; a value it returns is released.",
+            desc: "The function to run. A value it returns is ignored.",
             shape: &[],
         },
         ParamDoc {
             name: "message",
-            desc: "A prefix written in front of the failure's own diagnosis; the default is \
-                   none.",
+            desc: "Your own text, added at the start of the failure message. The default is no \
+                   text.",
             shape: &[],
         },
     ],
-    ret: "Nothing; the assertion is recorded as held in the test's ledger. A `FATAL` or an \
-          exit from the body is nobody's assertion to judge and propagates unchanged.",
+    ret: "Nothing. The check is recorded as passed. A `FATAL` error or an exit inside `$body` is \
+          not caught, and it is not changed.",
     errors: &[ErrorDoc {
         error: "Core\\Test\\Failure",
-        desc: "`$body` threw — a failed assertion inside it included, which keeps its own \
-               ledger entry — reported with the throw's message; the failure is recorded in \
-               the ledger before it is thrown.",
+        desc: "`$body` threw an error. A check that failed inside `$body` counts too, and it \
+               still counts as a failure of its own. The failure message includes the error's message. \
+               The failure is recorded before it is thrown.",
     }],
 };
 

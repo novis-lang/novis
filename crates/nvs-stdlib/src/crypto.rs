@@ -501,24 +501,25 @@ pub(crate) const CIPHER: CoreEnum = CoreEnum {
 /// [`CIPHER`]'s reference card — `rule:core-api/reference-card`. The module
 /// doc owns why each construction is here; these are that argument condensed.
 const CIPHER_DOC: EnumDoc = EnumDoc {
-    short: "Which authenticated construction a `seal` or an `open` runs. There is no default: a \
-            call names its cipher, and both cases authenticate, so neither choice can produce a \
-            message an alteration would survive.",
+    short: "The authenticated encryption that `seal` and `open` use. There is no default, so \
+            each call names its cipher. Both cases are authenticated, so a message that was \
+            changed never opens.",
     cases: &[
         CaseDoc {
             name: "XChaCha20Poly1305",
-            desc: "ChaCha20-Poly1305 under a 192-bit nonce — the one to prefer when both ends \
-                   are Novis, because a nonce that wide is never drawn twice and the cipher is \
-                   fast on a host with no AES instructions. Seals as `nonce(24) ‖ ciphertext ‖ \
-                   tag(16)`.",
+            desc: "ChaCha20-Poly1305 with a 192-bit nonce (a random value used once). Prefer it \
+                   when both ends are Novis. A nonce this long is never chosen twice, and the \
+                   cipher is fast on a computer without AES instructions. The sealed message is \
+                   `nonce(24) ‖ ciphertext ‖ tag(16)`.",
         },
         CaseDoc {
             name: "Aes256Gcm",
-            desc: "AES-256-GCM, the interop cipher: what a browser's WebCrypto encrypts with, so \
-                   a sealed message crosses to the other end. Seals as `nonce(12) ‖ ciphertext ‖ \
-                   tag(16)`, which is WebCrypto's own output with its IV in front. Its 96-bit \
-                   nonce puts a birthday bound near 2^32 messages under one key; past that, seal \
-                   under the other case.",
+            desc: "AES-256-GCM, the cipher to use with other systems. A browser's WebCrypto \
+                   encrypts with it, so the other end can open a sealed message. The sealed \
+                   message is `nonce(12) ‖ ciphertext ‖ tag(16)`. This is the output of \
+                   WebCrypto with its IV in front. Its nonce has 96 bits, so a repeated nonce \
+                   becomes a risk at about 2^32 messages with one key. For more messages, use \
+                   `XChaCha20Poly1305`.",
         },
     ],
 };
@@ -561,39 +562,40 @@ pub(crate) const KEY_KIND: CoreEnum = CoreEnum {
 /// [`KEY_KIND`]'s reference card — `rule:core-api/reference-card`. The module
 /// doc owns why the roster stops where it does; these say what each case is for.
 const KEY_KIND_DOC: EnumDoc = EnumDoc {
-    short: "Which asymmetric key a member is naming — the curve or the RSA scheme. There is no \
-            default, and the kinds do not substitute for one another: agreement is the two \
-            Diffie-Hellman cases and signing is the other three.",
+    short: "The kind of an asymmetric key: its curve or its RSA scheme. There is no default, and \
+            one kind cannot replace another. `P256` and `X25519` agree on a shared secret \
+            (Diffie-Hellman). `P256`, `Ed25519` and the two RSA cases sign.",
     cases: &[
         CaseDoc {
             name: "P256",
-            desc: "NIST P-256, for agreement (ECDH) and for signing (ECDSA over SHA-256, as the \
-                   64-octet `r ‖ s` a browser and JWS both use). The one curve every WebCrypto \
-                   implementation has, so it is what an interop key pair is.",
+            desc: "NIST P-256. It agrees on a shared secret (ECDH) and signs (ECDSA with \
+                   SHA-256). A signature is the 64-byte `r ‖ s` that a browser and JWS both use. \
+                   Every WebCrypto implementation has this curve, so use it for a key pair that \
+                   you share with other systems.",
         },
         CaseDoc {
             name: "X25519",
-            desc: "Curve25519 key agreement, and agreement alone — a pair of this kind signs \
-                   nothing. Prefer it over `P256` when both ends choose the curve, because \
-                   nothing about it has to be checked at a call site to be safe.",
+            desc: "Curve25519 key agreement only. A key pair of this kind cannot sign. Prefer it \
+                   to `P256` when you choose the curve for both ends, because a call needs no \
+                   extra check to be safe.",
         },
         CaseDoc {
             name: "Ed25519",
-            desc: "Ed25519 signatures, and signatures alone — a pair of this kind agrees \
-                   nothing. The signing kind to prefer when both ends are Novis: short keys, \
-                   short signatures, and no scheme left to choose.",
+            desc: "Ed25519 signatures only. A key pair of this kind cannot agree on a shared \
+                   secret. Prefer it for signing when both ends are Novis. The keys and the \
+                   signatures are short, and there is no scheme to choose.",
         },
         CaseDoc {
             name: "RsaPkcs1",
-            desc: "An RSA key signing RSASSA-PKCS1-v1_5 over SHA-256 — JWS's `RS256`, and what \
-                   most identity providers still issue. An RSA key is read, never generated, and \
-                   this case is what fixes its scheme at the read.",
+            desc: "An RSA key that signs with RSASSA-PKCS1-v1_5 and SHA-256. This is `RS256` in \
+                   JWS, and most identity providers still issue it. An RSA key is read, never \
+                   generated. This case sets the scheme of the key when it is read.",
         },
         CaseDoc {
             name: "RsaPss",
-            desc: "The same RSA key under RSASSA-PSS with SHA-256 and a 32-octet salt — JWS's \
-                   `PS256`. It is a separate case rather than a separate key type because the \
-                   key cannot say which of the two it is for.",
+            desc: "The same RSA key with RSASSA-PSS, SHA-256 and a 32-byte salt. This is `PS256` \
+                   in JWS. It is a separate case and not a separate key type, because the key \
+                   does not say which of the two schemes it is for.",
         },
     ],
 };
@@ -625,29 +627,30 @@ pub(crate) const KEY_FORMAT: CoreEnum = CoreEnum {
 
 /// [`KEY_FORMAT`]'s reference card — `rule:core-api/reference-card`.
 const KEY_FORMAT_DOC: EnumDoc = EnumDoc {
-    short: "Which encoding a public key is read from or written to. They are WebCrypto's own three \
-            export formats under its own names, so a key crosses to a browser in whichever of them \
-            the other end asked for.",
+    short: "The encoding that a public key is read from or written to. The three cases are the \
+            export formats of WebCrypto, with the same names. So you can give a browser a key in \
+            the format it asks for.",
     cases: &[
         CaseDoc {
             name: "Raw",
-            desc: "The key material alone: the 65-octet uncompressed point for `P256`, the 32 \
-                   octets for `X25519` and `Ed25519`. An RSA key has no raw form, so this is a \
-                   `LogicError` under either RSA kind.",
+            desc: "The key alone: the 65-byte uncompressed point for `P256`, and 32 bytes for \
+                   `X25519` and `Ed25519`. An RSA key has no raw form, so `Raw` with either RSA \
+                   kind throws a `LogicError`.",
         },
         CaseDoc {
             name: "Spki",
-            desc: "DER `SubjectPublicKeyInfo`, the one form every kind has — the key material \
-                   under the algorithm identifier that names it. What a certificate and a `.pem` \
-                   public key carry, and the only format an RSA key reads from or writes to \
-                   besides `Jwk`.",
+            desc: "DER `SubjectPublicKeyInfo`: the key together with the identifier of its \
+                   algorithm. Every kind has this form. A certificate and a `.pem` public key use \
+                   it. An RSA key can be read and written in this format and in `Jwk`, and in no \
+                   other.",
         },
         CaseDoc {
             name: "Jwk",
-            desc: "The JSON Web Key as UTF-8 JSON octets. A read accepts what a browser exports, \
-                   `ext` and `key_ops` included, and refuses one carrying `d`, because a private \
-                   key handed over as a public one is a bug. A write answers RFC 7638's required \
-                   members, sorted — the form a thumbprint is taken over.",
+            desc: "A JSON Web Key, as UTF-8 JSON bytes. A read accepts what a browser exports, \
+                   including `ext` and `key_ops`. A key with `d` throws an error, because `d` \
+                   makes it a private key, and a private key given as a public key is a bug. A \
+                   write gives the fields that RFC 7638 requires, sorted. A thumbprint is \
+                   computed over this form.",
         },
     ],
 };
@@ -822,59 +825,65 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Crypto::generateKey`'s reference card — `rule:core-api/reference-card`.
 const GENERATE_KEY_DOC: MethodDoc = MethodDoc {
-    short: "Draws a fresh key for `seal` and `open` from the same CSPRNG `Core\\Random` uses. \
-            There is no key size argument: the construction has one key size.",
+    short: "Creates a new random key for `seal` and `open`. It uses the same secure random \
+            number generator as `Core\\Random`. There is no key size argument, because the \
+            cipher has one key size.",
     params: &[],
-    ret: "32 octets as a `secret bytes`. The qualifier is part of the type, so the key cannot \
-          be assigned to a plain `bytes`, echoed, logged or put in a `Throwable` message.",
+    ret: "32 bytes as `secret bytes`. `secret` is part of the type, so you cannot assign the key \
+          to a plain `bytes`. You also cannot print it with `echo`, log it or put it in a \
+          `Throwable` message.",
     errors: &[],
 };
 
 /// `Core\Crypto::seal`'s reference card — `rule:core-api/reference-card`.
 const SEAL_DOC: MethodDoc = MethodDoc {
-    short: "Encrypts and authenticates `$message` under `$key` with the construction `$cipher` \
-            names, drawing a fresh nonce per call. There is no mode, padding or IV argument, and \
-            no cipher name in a string — the only choice is a `Core\\Crypto::Cipher` case, and \
-            every case authenticates.",
+    short: "Encrypts and authenticates `$message` with `$key`, using the cipher `$cipher`. Each \
+            call uses a new random nonce. There is no argument for a mode, a padding or an IV, \
+            and no cipher name as a string. You choose a `Core\\Crypto::Cipher` case, and every \
+            case is authenticated.",
     params: &[
         ParamDoc {
             name: "message",
-            desc: "The plaintext. A `secret` is refused here: sealing one is a written \
-                   `Core\\Secret::revealBytes` call, which is what makes it greppable.",
+            desc: "The plaintext. A `secret` value is not allowed. To seal one, call \
+                   `Core\\Secret::revealBytes` first. Then a text search of your code finds \
+                   every such place.",
             shape: &[],
         },
         ParamDoc {
             name: "key",
-            desc: "A 32-octet key, as `generateKey` answers one. One width keys either cipher.",
+            desc: "A 32-byte key, such as `generateKey` returns. Both ciphers use a key of this \
+                   size.",
             shape: &[],
         },
         ParamDoc {
             name: "cipher",
-            desc: "Which construction to seal under. No default: `XChaCha20Poly1305` where both \
-                   ends are Novis, `Aes256Gcm` where a browser has to read the result.",
+            desc: "The cipher to use. There is no default. Use `XChaCha20Poly1305` when both ends \
+                   are Novis, and `Aes256Gcm` when a browser must read the result.",
             shape: &[],
         },
     ],
-    ret: "The sealed message — 40 octets longer than `$message` under `XChaCha20Poly1305` and 28 \
-          under `Aes256Gcm`, and different on every call for the same inputs, because each draws \
-          its own nonce.",
+    ret: "The sealed message. It is 40 bytes longer than `$message` with `XChaCha20Poly1305`, and \
+          28 bytes longer with `Aes256Gcm`. It is different on every call for the same inputs, \
+          because each call uses its own nonce.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$key` is not 32 octets long — a `bytes` that was never a key.",
+            desc: "`$key` is not 32 bytes long, so it is not a key.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This process cannot spare a buffer the size of the sealed message.",
+            desc: "This process does not have enough memory for a buffer the size of the sealed \
+                   message.",
         },
     ],
 };
 
 /// `Core\Crypto::open`'s reference card — `rule:core-api/reference-card`.
 const OPEN_DOC: MethodDoc = MethodDoc {
-    short: "Authenticates `$sealed` under `$key` and `$cipher` and answers the plaintext, or \
-            throws. A message altered by one octet is refused rather than decrypted into \
-            whatever is left of it, which is the whole reason the roster is AEAD only.",
+    short: "Checks that `$sealed` is authentic for `$key` and `$cipher`, and returns the \
+            plaintext. If it is not authentic, it throws an error. A message with even one \
+            changed byte is not decrypted. This is why `Core\\Crypto` has only authenticated \
+            ciphers.",
     params: &[
         ParamDoc {
             name: "sealed",
@@ -883,13 +892,13 @@ const OPEN_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "key",
-            desc: "The 32-octet key `$sealed` was sealed under.",
+            desc: "The 32-byte key that `$sealed` was sealed with.",
             shape: &[],
         },
         ParamDoc {
             name: "cipher",
-            desc: "The construction `$sealed` was sealed under. Naming the other one is a \
-                   forgery like any other, never plausible bytes.",
+            desc: "The cipher that `$sealed` was sealed with. With the other cipher, the message \
+                   throws the same error as a forged message. You never get wrong bytes.",
             shape: &[],
         },
     ],
@@ -897,192 +906,190 @@ const OPEN_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$key` is not 32 octets long — a `bytes` that was never a key.",
+            desc: "`$key` is not 32 bytes long, so it is not a key.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$sealed` is not an authentic message under `$key` and `$cipher` — it was \
-                   altered, it is too short to be one at all, or the key or the cipher is the \
-                   wrong one. They are one message on purpose: telling them apart tells a forger \
-                   which half landed.",
+            desc: "`$sealed` is not an authentic message for `$key` and `$cipher`. It was \
+                   changed, it is too short, or the key or the cipher is wrong. All these cases \
+                   have the same message. A different message would tell an attacker which part \
+                   of a forgery worked.",
         },
     ],
 };
 
 /// `Core\Crypto::deriveKey`'s reference card — `rule:core-api/reference-card`.
 const DERIVE_KEY_DOC: MethodDoc = MethodDoc {
-    short: "Derives a key from a password with PBKDF2-HMAC-SHA256, stretching `$password` and \
-            `$salt` over `$iterations` rounds. This is the member for a value a person typed; \
-            `expandKey` is the one for material that is already uniform, and handing a password \
-            to it is the mistake no type here can catch.",
+    short: "Derives a key from a password with PBKDF2-HMAC-SHA256. It computes `$iterations` \
+            rounds over `$password` and `$salt`. Use it for a value that a person typed. For \
+            material that is already uniformly random, use `expandKey`. The compiler does not \
+            stop you from passing a password to `expandKey`, so check which one you call.",
     params: &[
         ParamDoc {
             name: "password",
-            desc: "The password to stretch. A `secret` is accepted and nothing is revealed: the \
-                   answer is a `secret bytes` carrying no octet of it.",
+            desc: "The password. A `secret` value is allowed, and it is not revealed. The result \
+                   is `secret bytes` and contains no byte of the password.",
             shape: &[],
         },
         ParamDoc {
             name: "salt",
-            desc: "At least 16 octets, drawn once per password and stored beside the key it \
-                   derived. `Core\\Random::bytes(16)` answers one; it is not a secret.",
+            desc: "At least 16 bytes. Make a new salt for each password, and store it next to the \
+                   derived key. `Core\\Random::bytes(16)` makes one. The salt is not a secret.",
             shape: &[],
         },
         ParamDoc {
             name: "iterations",
-            desc: "How many rounds to stretch for, between 100,000 and 2,000,000. Required and \
-                   without a default, because a key derived to be read back has to be derived \
-                   under the count whoever wrote it chose.",
+            desc: "How many rounds to compute, from 100,000 to 2,000,000. It is required and has \
+                   no default. To derive the same key again later, you must use the same count \
+                   as before.",
             shape: &[],
         },
     ],
-    ret: "32 octets as a `secret bytes`, the width `seal` and `open` key under. The same three \
-          arguments always answer the same key — that is what makes it a derivation rather than \
-          a draw.",
+    ret: "32 bytes as `secret bytes`, the key size that `seal` and `open` use. The result is not \
+          random: the same three arguments always give the same key.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$iterations` is outside 100,000 to 2,000,000, or `$salt` is shorter than 16 \
-               octets. Under the floor the answer is cheap to attack, and over the ceiling one \
-               call is a denial of service against the process that made it.",
+        desc: "`$iterations` is less than 100,000 or more than 2,000,000, or `$salt` is shorter \
+               than 16 bytes. With fewer rounds, the key is easy to attack. With more rounds, one \
+               call uses so much CPU time that it blocks the process.",
     }],
 };
 
 /// `Core\Crypto::expandKey`'s reference card — `rule:core-api/reference-card`.
 const EXPAND_KEY_DOC: MethodDoc = MethodDoc {
-    short: "Derives a key from material that is already uniform with HKDF-SHA256 — a shared \
-            secret out of a key agreement, or a root key one service holds. `$info` is what \
-            separates two keys derived from one secret, so a program names the use rather than \
-            reusing the secret at two call sites.",
+    short: "Derives a key with HKDF-SHA256 from material that is already uniformly random. An \
+            example is a shared secret from a key agreement, or the root key of a service. \
+            `$info` names what the key is for. With a different `$info`, one secret gives a \
+            different key, so you never use the same secret in two places.",
     params: &[
         ParamDoc {
             name: "material",
-            desc: "The secret to expand. Uniform already: a password belongs at `deriveKey`, \
-                   which stretches it.",
+            desc: "The secret to expand. It must already be uniformly random. For a password, use \
+                   `deriveKey`.",
             shape: &[],
         },
         ParamDoc {
             name: "salt",
-            desc: "The extract step's salt, which is not a secret and may be empty — RFC 5869's \
-                   own default of a zero-filled one.",
+            desc: "The salt of the extract step. It is not a secret, and it can be empty. An empty \
+                   salt is the default of RFC 5869, a salt of zero bytes.",
             shape: &[],
         },
         ParamDoc {
             name: "info",
-            desc: "The context string. Two calls over one `$material` with different `$info` \
-                   answer unrelated keys, which is how one secret keys two things.",
+            desc: "The context string. Two calls with the same `$material` and a different \
+                   `$info` give unrelated keys. So one secret can give keys for two uses.",
             shape: &[],
         },
     ],
-    ret: "32 octets as a `secret bytes`, the width `seal` and `open` key under, and the same for \
-          the same three arguments.",
+    ret: "32 bytes as `secret bytes`, the key size that `seal` and `open` use. The same three \
+          arguments always give the same key.",
     errors: &[],
 };
 
 /// `Core\Crypto::generateKeyPair`'s reference card — `rule:core-api/reference-card`.
 const GENERATE_KEY_PAIR_DOC: MethodDoc = MethodDoc {
-    short: "Draws a fresh private key of the kind this call names and answers the pair it is, \
-            from the same CSPRNG `Core\\Random` uses. There is no key size argument: each kind \
-            has one size, and the kinds that would need one are the two this member refuses.",
+    short: "Creates a new random private key of the kind `$kind`, and returns it as a key pair. \
+            It uses the same secure random number generator as `Core\\Random`. There is no key \
+            size argument, because each kind has one size. Only the two RSA kinds would need a \
+            size, and this method does not create them.",
     params: &[ParamDoc {
         name: "kind",
-        desc: "Which key to draw. `P256` agrees and signs, `X25519` agrees only, `Ed25519` \
-               signs only, and the two RSA kinds are read rather than drawn.",
+        desc: "The kind of key to create. `P256` agrees and signs, `X25519` only agrees, and \
+               `Ed25519` only signs. The two RSA kinds are only read, never created.",
         shape: &[],
     }],
-    ret: "The pair, ready to sign or to agree with, and answering `write` with a PKCS#8 \
-          `Core\\Crypto\\KeyPair::read` takes back.",
+    ret: "The key pair, ready to sign or to agree. Its `write` method gives PKCS#8, which \
+          `Core\\Crypto\\KeyPair::read` reads back.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$kind` is `RsaPkcs1` or `RsaPss`. An RSA key is never generated here — a \
-               program is handed one by whoever issued it, and `Core\\Crypto\\KeyPair::read` \
-               is the member that takes it.",
+        desc: "`$kind` is `RsaPkcs1` or `RsaPss`. This method never creates an RSA key. You get \
+               an RSA key from whoever issued it, and `Core\\Crypto\\KeyPair::read` reads it.",
     }],
 };
 
 /// `Core\Crypto::agree`'s reference card — `rule:core-api/reference-card`.
 const AGREE_DOC: MethodDoc = MethodDoc {
-    short: "Agrees a shared secret with a peer over ECDH, from this program's own pair and the \
-            public key the peer sent. The answer is the raw agreed value and is not a key: run it \
-            through `expandKey` with a context string, which is what turns one agreement into the \
-            keys a protocol needs.",
+    short: "Computes a shared secret with ECDH, from your own key pair and the public key that \
+            the other side sent. The result is the raw shared value, and it is not a key. Pass it \
+            to `expandKey` with a context string to make the keys you need.",
     params: &[
         ParamDoc {
             name: "mine",
-            desc: "This program's pair, of kind `P256` or `X25519`. The other kinds sign rather \
-                   than agree.",
+            desc: "Your own key pair, of kind `P256` or `X25519`. The other kinds can only sign.",
             shape: &[],
         },
         ParamDoc {
             name: "theirs",
-            desc: "The peer's public key, which has to be of the same kind: two keys on \
-                   different curves are not two ends of one agreement.",
+            desc: "The public key of the other side. It must be of the same kind, because two \
+                   keys on different curves cannot agree.",
             shape: &[],
         },
     ],
-    ret: "32 octets as a `secret bytes` — the x-coordinate for P-256 and the u-coordinate for \
-          X25519, which is what WebCrypto's `deriveBits` answers over the same two keys.",
+    ret: "32 bytes as `secret bytes`. This is the x-coordinate for P-256 and the u-coordinate for \
+          X25519. WebCrypto's `deriveBits` returns the same value for the same two keys.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The two keys are not two ends of one agreement: a pair of a kind that agrees \
-                   nothing — `Ed25519` and both RSA kinds — or two keys on different curves.",
+            desc: "The two keys cannot agree. One key is of a kind that cannot agree: `Ed25519` \
+                   or an RSA kind. Or the two keys are on different curves.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The peer's X25519 point contributes nothing, so the secret would be all-zero \
-                   whatever this program's scalar is. That is a point chosen by whoever sent it, \
-                   so it is a verdict on them rather than a bug here.",
+            desc: "The X25519 point of the other side adds nothing, so the secret would be all \
+                   zeros for any private key. The sender chose that point. So the error is about \
+                   the sender, and it is not a bug in your program.",
         },
     ],
 };
 
 /// `Core\Crypto::sign`'s reference card — `rule:core-api/reference-card`.
 const SIGN_DOC: MethodDoc = MethodDoc {
-    short: "Signs `$message` under `$key`'s private half. There is no algorithm or digest \
-            argument: the scheme is the pair's own kind — `RsaPkcs1` and `RsaPss` over SHA-256, \
-            `P256` as ECDSA over SHA-256, `Ed25519` as itself — so a call cannot name one the key \
-            is not.",
+    short: "Signs `$message` with the private key of `$key`. There is no argument for the \
+            algorithm or the digest, because the kind of the key pair sets the scheme. \
+            `RsaPkcs1` and `RsaPss` use SHA-256, `P256` uses ECDSA with SHA-256, and `Ed25519` \
+            uses Ed25519. So a call cannot choose a scheme that does not match the key.",
     params: &[
         ParamDoc {
             name: "message",
-            desc: "The octets to sign, whole. There is no pre-hashed spelling: a digest handed in \
-                   as a message is a signature over a digest, which is a different statement.",
+            desc: "The whole bytes to sign. You cannot pass a hash of the message in its place. A \
+                   signature over a hash means something different.",
             shape: &[],
         },
         ParamDoc {
             name: "key",
-            desc: "The pair to sign with, of any kind but `X25519`, which agrees rather than \
-                   signs.",
+            desc: "The key pair to sign with. It can be of any kind except `X25519`, which can \
+                   only agree.",
             shape: &[],
         },
     ],
-    ret: "The signature: 64 octets for `P256` — the `r ‖ s` pair JWS and WebCrypto both use, never \
-          DER — 64 for `Ed25519`, and as many octets as the modulus is long for either RSA kind. \
-          `RsaPkcs1` and `Ed25519` sign a message the same way every time; `P256` and `RsaPss` \
-          draw randomness, so two signatures over one message differ and both verify.",
+    ret: "The signature. For `P256`, it is 64 bytes: the `r ‖ s` pair that JWS and WebCrypto use, \
+          never DER. For `Ed25519`, it is 64 bytes. For either RSA kind, it has as many bytes as \
+          the modulus. `RsaPkcs1` and `Ed25519` give the same signature for a message every \
+          time. `P256` and `RsaPss` use randomness, so two signatures of one message differ, and \
+          both verify.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$key` is an `X25519` pair, which signs nothing — the kind is chosen when the pair \
-               is generated or read, so this is the call to fix.",
+        desc: "`$key` is an `X25519` key pair, which cannot sign. The kind is set when the pair \
+               is generated or read, so this is a bug in your program.",
     }],
 };
 
 /// `Core\Crypto::verify`'s reference card — `rule:core-api/reference-card`.
 const VERIFY_DOC: MethodDoc = MethodDoc {
-    short: "Checks that `$signature` is `$key`'s over `$message`, and throws when it is not. The \
-            algorithm is the key's own, as `sign`'s is the pair's, so no part of what arrived \
-            chooses how it is checked.",
+    short: "Checks that `$signature` is a signature of `$message` by `$key`. If it is not, it \
+            throws an error. The algorithm comes from the key, as in `sign`. So nothing in the \
+            data you received chooses how it is checked.",
     params: &[
         ParamDoc {
             name: "message",
-            desc: "The octets the signature is supposed to cover. `tainted` is accepted and \
-                   stays: checking what a peer sent is the point, and a signature that held says \
-                   who sent the octets rather than what is in them.",
+            desc: "The bytes that the signature should cover. A `tainted` value is allowed, and \
+                   it stays `tainted`. A valid signature tells you who sent the bytes. It does \
+                   not tell you that their content is safe.",
             shape: &[],
         },
         ParamDoc {
             name: "signature",
-            desc: "The signature as `sign` answers one — `r ‖ s` for `P256`, never DER.",
+            desc: "The signature as `sign` returns it: `r ‖ s` for `P256`, never DER.",
             shape: &[],
         },
         ParamDoc {
@@ -1091,19 +1098,19 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Nothing. A check that held returns and a check that failed throws, so there is no \
-          falsy answer for a `==` to misread.",
+    ret: "Nothing. For a valid signature, it returns. For a wrong one, it throws an error. So \
+          there is no `false` result that a `==` check could read wrongly.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The signature is not this key's over this message — altered, the wrong length \
-                   for the key's algorithm, or made under another key. Every one of those is the \
-                   same sentence, so the refusal says nothing about which part was wrong.",
+            desc: "The signature is not by this key for this message. It was changed, it has the \
+                   wrong length for the algorithm of the key, or another key made it. All these \
+                   cases have the same message, so the error does not say which part was wrong.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`$key` is an `X25519` key, which verifies nothing. That is the program's own \
-                   key rather than anything that arrived, so it is a bug and not a verdict.",
+            desc: "`$key` is an `X25519` key, which cannot verify. It is your program's own key, \
+                   not data you received, so this is a bug in your program.",
         },
     ],
 };
@@ -1188,77 +1195,76 @@ pub(crate) const PUBLIC_KEY: CoreClass = CoreClass {
 
 /// `Core\Crypto\PublicKey::read`'s reference card — `rule:core-api/reference-card`.
 const PUBLIC_KEY_READ_DOC: MethodDoc = MethodDoc {
-    short: "Reads a public key out of `$encoded` and validates it: on the curve for `P256`, \
-            inside the roster's width for either RSA kind, and a JWK's members against the kind \
-            named. A key that does not check is refused here and nowhere later, so no member \
-            that takes one can be handed a key nobody looked at.",
+    short: "Reads a public key from `$encoded` and checks it. For `P256`, the point must be on \
+            the curve. For an RSA kind, the key size must be in the allowed range. For a JWK, its \
+            fields must match `$kind`. A key that fails the check throws an error here. So every \
+            method that takes a key gets a checked key.",
     params: &[
         ParamDoc {
             name: "encoded",
-            desc: "The key's octets, in `$format`.",
+            desc: "The bytes of the key, in `$format`.",
             shape: &[],
         },
         ParamDoc {
             name: "kind",
-            desc: "Which key this is. It is named rather than read out of the octets, because \
-                   an RSA `SubjectPublicKeyInfo` says `rsaEncryption` whichever of `RS256` and \
-                   `PS256` the key is for, so the program that was handed the key is the only \
-                   party that can say.",
+            desc: "The kind of the key. You must give it, because the bytes do not always say \
+                   it. An RSA `SubjectPublicKeyInfo` says `rsaEncryption` for both `RS256` and \
+                   `PS256` keys. Only your program knows which one the key is for.",
             shape: &[],
         },
         ParamDoc {
             name: "format",
-            desc: "Which of WebCrypto's three export encodings `$encoded` is in.",
+            desc: "The WebCrypto export format that `$encoded` is in.",
             shape: &[],
         },
     ],
-    ret: "The key, ready to verify a signature or to agree with, and answering `kind` with the \
-          case it was read as.",
+    ret: "The key, ready to verify a signature or to agree. Its `kind()` method returns the case \
+          it was read as.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The call names an encoding the kind does not have — `Raw` against either RSA \
-                   kind — or the JWK carries `d`, which is a private key handed over as a \
-                   public one.",
+            desc: "The kind has no such format, for example `Raw` with an RSA kind. It is also \
+                   thrown when the JWK has `d`, because that is a private key given as a public \
+                   key.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$encoded` is not a public key of that kind in that encoding: a point off \
-                   the curve, a coordinate of the wrong width, a modulus outside the roster's \
-                   range, a DER body that does not parse, or a JWK naming another key type. \
-                   They are one message, because the key came from whoever sent it and a \
-                   reason is a reply to them.",
+            desc: "`$encoded` is not a public key of that kind in that format. For example, the \
+                   point is not on the curve, or a coordinate has the wrong size. Or the modulus \
+                   is outside the allowed range, the DER does not parse, or the JWK names another \
+                   key type. All these cases have the same message. The key came from the \
+                   sender, and a reason would tell the sender what was wrong.",
         },
     ],
 };
 
 /// `Core\Crypto\PublicKey::write`'s reference card — `rule:core-api/reference-card`.
 const PUBLIC_KEY_WRITE_DOC: MethodDoc = MethodDoc {
-    short: "Answers this key in `$format` — the same encodings `read` accepts, so a key crosses \
-            to a browser in whichever one the other end asked for. It is written from the key \
-            rather than from the octets it arrived in, so one key has one spelling per \
-            encoding however it was read.",
+    short: "Returns this key in `$format`. The formats are the ones that `read` accepts, so you \
+            can give a browser the key in the format it asks for. The output is made from the \
+            key, not from the bytes it was read from. So one key always gives the same bytes in \
+            each format.",
     params: &[ParamDoc {
         name: "format",
-        desc: "Which encoding to write. `Jwk` answers RFC 7638's required members, sorted, \
-               which is the form a thumbprint is taken over.",
+        desc: "The format to write. `Jwk` gives the fields that RFC 7638 requires, sorted. A \
+               thumbprint is computed over this form.",
         shape: &[],
     }],
-    ret: "The key's octets, a JWK being its UTF-8 JSON.",
+    ret: "The bytes of the key. For a JWK, this is its UTF-8 JSON.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`Raw` against either RSA kind: an RSA key has no encoding with nothing around \
-               it, so there is nothing for this to answer.",
+        desc: "`$format` is `Raw` and the key has an RSA kind. An RSA key has no raw form, so \
+               there is nothing to return.",
     }],
 };
 
 /// `Core\Crypto\PublicKey::kind`'s reference card — `rule:core-api/reference-card`.
 const PUBLIC_KEY_KIND_DOC: MethodDoc = MethodDoc {
-    short: "Reports which of `Core\\Crypto\\KeyKind`'s cases this key is, which is the kind its \
-            read was given and never a second reading of the material.",
+    short: "Returns the `Core\\Crypto\\KeyKind` case of this key. This is the kind that `read` \
+            was given. It is not read again from the key.",
     params: &[],
-    ret: "The case the key was read as. For an RSA key that is `RsaPkcs1` or `RsaPss` — the \
-          scheme the key is bound to, settled at the read and not afterwards.",
+    ret: "The case the key was read as. For an RSA key, it is `RsaPkcs1` or `RsaPss`. This is \
+          the scheme of the key, and it is set when the key is read.",
     errors: &[],
 };
 
@@ -1336,54 +1342,55 @@ pub(crate) const KEY_PAIR: CoreClass = CoreClass {
 
 /// `Core\Crypto\KeyPair::read`'s reference card — `rule:core-api/reference-card`.
 const KEY_PAIR_READ_DOC: MethodDoc = MethodDoc {
-    short: "Reads a stored private key back, as DER PKCS#8 or as one PEM `PRIVATE KEY` block — \
-            which is what a service-account file carries. The key is parsed here, so a pair that \
-            was read is a pair every later member can use without looking at it again.",
+    short: "Reads a stored private key, as DER PKCS#8 or as one PEM `PRIVATE KEY` block. A \
+            service-account file has this form. The key is parsed here, so later methods can use \
+            the pair without parsing it again.",
     params: &[
         ParamDoc {
             name: "pkcs8",
-            desc: "The key's own octets, as `write` answered them or as whoever issued the key \
+            desc: "The bytes of the key, as `write` returned them, or as the issuer of the key \
                    wrote them.",
             shape: &[],
         },
         ParamDoc {
             name: "kind",
-            desc: "Which key this is. It is named for `Core\\Crypto\\PublicKey::read`'s reason: a \
-                   PKCS#8 says the key is RSA and never which of `RS256` and `PS256` it is for.",
+            desc: "The kind of the key. You must give it, for the same reason as in \
+                   `Core\\Crypto\\PublicKey::read`. A PKCS#8 key says that it is RSA, but not \
+                   whether it is for `RS256` or `PS256`.",
             shape: &[],
         },
     ],
-    ret: "The pair, ready to sign or to agree with, and answering `publicKey` with the half that \
-          is sent.",
+    ret: "The key pair, ready to sign or to agree. Its `publicKey()` method returns the public \
+          key, which you can send to others.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$pkcs8` is not a PKCS#8 private key of that kind: a key of another kind, a \
-               PKCS#1 body, an encrypted PKCS#8 — which has a password this member takes no \
-               argument for — an RSA key outside the roster's 2048 to 8192 bits, or anything \
-               malformed. A private key is the program's own and never a peer's, so there is no \
-               verdict here to pass on anyone and every refusal is a bug in what the program was \
-               handed.",
+        desc: "`$pkcs8` is not a PKCS#8 private key of that kind. For example, it is a key of \
+               another kind, or a PKCS#1 key. It can be an encrypted PKCS#8, which needs a \
+               password, and this method has no password argument. It can be an RSA key outside \
+               2048 to 8192 bits, or any malformed data. A private key belongs to your program, \
+               never to the other side. So this error always means that your program was given \
+               a wrong key.",
     }],
 };
 
 /// `Core\Crypto\KeyPair::write`'s reference card — `rule:core-api/reference-card`.
 const KEY_PAIR_WRITE_DOC: MethodDoc = MethodDoc {
-    short: "Answers this pair as DER PKCS#8, so a server can keep its key across requests and \
-            read it back with `read`. It is `secret bytes`, which is the only way a private key \
-            leaves a pair.",
+    short: "Returns this key pair as DER PKCS#8, as `secret bytes`. A server can store the key \
+            between requests and read it back with `read`. This is the only way to get the \
+            private key out of a pair.",
     params: &[],
-    ret: "The PKCS#8, as DER whichever of the two spellings the pair was read from.",
+    ret: "The PKCS#8 as DER. It is DER even when the pair was read from PEM.",
     errors: &[],
 };
 
 /// `Core\Crypto\KeyPair::publicKey`'s reference card — `rule:core-api/reference-card`.
 const KEY_PAIR_PUBLIC_KEY_DOC: MethodDoc = MethodDoc {
-    short: "Answers the half of this pair that is sent — derived from the private key rather \
-            than stored beside it, so it is this pair's public key and cannot be a different \
-            key that arrived with it.",
+    short: "Returns the public key of this pair, which you can send to others. It is computed \
+            from the private key and is not stored next to it. So it is always the public key \
+            of this pair, and never a different key that came with it.",
     params: &[],
-    ret: "The public key, of the same kind as the pair, and the same value \
-          `Core\\Crypto\\PublicKey::read` answers for the key material a peer would receive.",
+    ret: "The public key, of the same kind as the pair. It is the same value that \
+          `Core\\Crypto\\PublicKey::read` returns for the key that the other side receives.",
     errors: &[],
 };
 
