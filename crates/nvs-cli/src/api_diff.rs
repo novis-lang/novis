@@ -30,16 +30,15 @@
 //! `format` is breaking, because `{"type": "string"}` and
 //! `{"type": "string", "format": "decimal"}` accept different sets of strings.
 //!
-//! ## What has no producer yet
+//! ## What is compared
 //!
-//! [`crate::openapi`]'s module doc lists the document rows the route table does not
-//! supply, and among them are the reason the walk below reads members no
-//! document Novis writes today carries: `responses` and `requestBody`. They are
-//! implemented here rather than left for the session that lands them because
-//! the gate is defined over *documents*, not over this emitter's current
-//! output — the old side of a diff is whatever a team's last release wrote, and
-//! a gate that silently ignored a member it did not recognise would report
-//! "no change" over a document that removed every response in it.
+//! The walk reads every member [`crate::openapi`] writes: the paths and their
+//! operations, the parameters, `responses`, `requestBody`, and every
+//! `components.schemas` entry, by name. The gate is defined over
+//! *documents*, not over this emitter's output, because the old side of a diff
+//! is whatever a team's last release wrote. A gate that ignored a member it did
+//! not recognise would report "no change" over a document that removed every
+//! response in it.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
