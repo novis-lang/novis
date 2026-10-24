@@ -312,41 +312,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2, 3, 7, 8 and 4 are done, and stage 6 has its three flags and its rule shipped; its
-two gaps are left. The sweep was stale again: `env-secret-proofs`'s log shows exit 0, and the
-nightly run tested `3ea6f1550`, whose failures each have a later fix.
+Stages 1, 5, 2, 3, 7, 8 and 4 are done. Stage 6 has its flags, its rule and its extension-budget
+gap closed; the bytes-reader gap is left. The sweep was stale: `env-secret-proofs` exits 0, and the
+nightly run tested `3ea6f1550`, whose reds are fixed (`crypto-bigint` 0.7.6, `a5f50b907`, and
+rustfmt in `baf940219`).
 
-`--fail-fast`, `--rerun-failed` and `--shuffle[=<seed>]` are on `nvs test` (`Args`,
-`crates/nvs-cli/src/runner.rs:185`). `Queue::stopped` reads a reported failure, and `run_suite` counts
-`Suite::not_run`. A shuffled class starts its tests in `Order`'s SplitMix64 order, and `Held`
-(`crates/nvs-cli/src/runner.rs:1559`) puts them back in declaration order before the queue, capping
-the tests in flight at `--jobs`. Every program run writes `failed-tests/<hash>.txt` in the data
-folder (`failed_tests_file`, `crates/nvs-cli/src/runner.rs:868`), and `run_program_tests` turns
-`--rerun-failed` into `Selection::only`. A `.nvst` tree refuses the three. Under a machine format the
-not-run count and the seed go to stderr. Four runner tests over `fail-fast.nvs` pass.
+**`nvs test` now charges each test its written `[limits] cpu_time`.** It started no watchdog, so a
+written `cpu_time` reached no test. `Shared` holds one `nvs_host::Watchdog` per run
+(`crates/nvs-cli/src/runner.rs:1655`), and `Job::run` (`crates/nvs-cli/src/runner.rs:1782`)
+registers its thread and publishes the test's tree. An unwritten `cpu_time` is still no ceiling. The
+fixture guest `Shop\Meter` spins for given milliseconds, and
+`each_nvs_test_test_spends_its_own_extension_cpu_budget` (`crates/nvs-cli/tests/test_command.rs:222`)
+passes, and fails with one spin raised to 1200 ms.
 
-May go red at the gate: an `nvs test --help` snapshot (`--list`, `--tag`, `--skip-tag`, `--shard`,
-`--fail-fast`, `--rerun-failed`, `--shuffle`); a test expecting `--list` over a case tree to be
-refused; a `--dump-ir` snapshot of a program with a property; `E0889`'s card snapshot and anything
-counting `ATTRIBUTE_DOCS` (`crates/nvs-lsp/src/stubs.rs:156`); a unit test reading `take_assertions`
-on an unowned context (call `set_owned_by_test`); a `.nvst` whose non-test code calls test code; a
-recorded editor listing; the site's attributes reference; a JSON report snapshot of a failing
-property (`counterexample`); a test asserting "failed with the inputs (" for a property that
-shrinks; a snapshot naming `MARKERS`' five attributes (now six); a test counting the data folder's
-entries (`failed-tests/` is new).
+May go red at the gate: an `nvs test --help` snapshot (seven new flags); `--list` over a case tree
+expected refused; a `--dump-ir` snapshot with a property; `E0889`'s card and anything counting
+`ATTRIBUTE_DOCS` (`crates/nvs-lsp/src/stubs.rs:156`); `take_assertions` on an unowned context (call
+`set_owned_by_test`); a `.nvst` whose non-test code calls test code; a recorded editor listing; the
+attributes reference; a failing property's JSON snapshot; "failed with the inputs (" for a shrinking
+property; `MARKERS` now six; the data folder's entry count (`failed-tests/`); a test case past a
+written `cpu_time` (now failed); a count of conformance fixtures (`meter`).
 
 ### Next
 
-**Stage 6's two gaps, then stage 9.** The gaps touch files stage 9 does not, so they may run beside
-it, but each is one slice.
+**Stage 6's last gap, then stage 9.** The gap touches files stage 9 does not, so they may run
+beside each other, but each is one slice.
 
-- [ ] The extension budget: a fixture guest beside `tests/conformance/ext/fixtures/ledger` with a method that spins for a given time, and a test where two tests each spend most of one budget under `--jobs 1` and both pass. Then delete the record. `data/gaps/nvs-cli/an-extension-budget-per-test-has-no-test.json:1`, `crates/nvs-cli/src/extensions.rs:390`, `crates/nvs-cli/tests/test_command.rs:187`
-- [ ] The bytes reader: a `bytes` member on `Core\Test\Response`, and the conformance cases the record names comparing the whole body again. Then delete the record. `data/gaps/nvs-stdlib/a-test-response-has-no-bytes-reader.json:1`, `crates/nvs-stdlib/src/test.rs:439`
+- [ ] The bytes reader: a `bytes(): bytes` member on `Core\Test\Response`, beside `body` in `RESPONSE`'s `instance` list, which clones the `bytes` body slot. It is a feature of its own, so it owes what `bun nv proofs --id 'Core\Test\Response::body'` lists for `body`: a card beside `RESPONSE_CARD`, `about.md`, three examples, a bench and an attack under `Test-Response/bytes`. `body_text`'s message then names `bytes()` too. The conformance cases the record names compare the whole body again. Then delete the record. `data/gaps/nvs-stdlib/a-test-response-has-no-bytes-reader.json:1`, `crates/nvs-stdlib/src/test.rs:957`, `crates/nvs-stdlib/src/test.rs:1021`, `crates/nvs-stdlib/src/test.rs:3250`
 - [ ] Stage 9, `--watch`, from the background check. `crates/nvs-cli/src/script.rs:1500`, `crates/nvs-cli/src/runner.rs:185`
 
 ### Backlog
 
 - Shards balanced by recorded run time were declined (`docs/rules/testing/tags-and-shards-select-what-runs.md`).
+- A test past its `[limits] cpu_time` reports the runtime's line, which names a request. A line naming the test and its limit would match `Outcome::past_wall_time`. `crates/nvs-cli/src/runner.rs:477`
 - Goals `mutation-testing` and `bench-counters` gate on stages 1 and 5 (`docs/goals/mutation-testing.md`, `docs/goals/bench-counters.md`).
 - A property's counterexample prints an enum case as its number, such as `new Item("", 1, 0)`. The case name would read better. `crates/nvs-cli/src/runner.rs:2357`
 - A long failing string or list spends the 1000-call shrink budget on one-item removals before it tries all `a`, so its counterexample stays long. Removing chunks first would shrink further. `crates/nvs-types/src/property/shrink.rs:362`
