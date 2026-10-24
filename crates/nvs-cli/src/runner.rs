@@ -990,7 +990,7 @@ fn compile(
     coverage: bool,
 ) -> Result<(Arc<nvs_codegen::Unit>, crate::coverage::Probes), String> {
     let files = checked.program_files();
-    let program = nvs_ir::lower::lower_program(
+    let program = nvs_ir::lower::lower_program_with_tests(
         nvs_ir::lower::ENTRY_SCRIPT_LABEL,
         &files,
         &checked.exprs,
@@ -1002,7 +1002,7 @@ fn compile(
         true => crate::coverage::Probes::of(&program),
         false => crate::coverage::Probes::default(),
     };
-    crate::cache::unit_for(&program, crate::cache::program_digest(&files), cache)
+    crate::cache::unit_for(&program, crate::cache::test_program_digest(&files), cache)
         .map(|(unit, _)| (Arc::new(unit), probes))
         .map_err(|error| error.to_string())
 }

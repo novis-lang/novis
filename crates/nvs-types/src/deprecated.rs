@@ -208,7 +208,8 @@ pub(crate) struct Uses(FxHashSet<(Span, QName, Member)>);
 
 /// Checks one body with `W1003` switched on, unless `owner` is deprecated or
 /// `member` of it is: then nothing inside it warns. The table entries the body
-/// recorded are warned about when it is done.
+/// recorded are warned about when it is done. The same entries are where
+/// [`crate::test_code::refuse_calls`] finds a call into test code.
 pub(crate) fn window<'e, R>(
     owner: Option<&QName>,
     member: Option<Member>,
@@ -217,7 +218,9 @@ pub(crate) fn window<'e, R>(
 ) -> R {
     let quiet = owner.is_some_and(|owner| {
         env.deprecations.contains(owner, Member::Type)
-            || member.is_some_and(|member| env.deprecations.contains(owner, member))
+            || member
+                .clone()
+                .is_some_and(|member| env.deprecations.contains(owner, member))
     });
     let outer = std::mem::replace(&mut env.deprecated_uses, (!quiet).then(Uses::default));
     let mark = env.exprs.len();
@@ -225,6 +228,7 @@ pub(crate) fn window<'e, R>(
     if env.deprecated_uses.is_some() {
         warn_uses(mark, env);
     }
+    crate::test_code::refuse_calls(owner, member.as_ref(), mark, env);
     env.deprecated_uses = outer;
     out
 }

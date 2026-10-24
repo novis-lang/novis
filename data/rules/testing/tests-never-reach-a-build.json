@@ -1,10 +1,12 @@
 {
   "title": "`nvs run` and `nvs build` lower no test, and `nvs check` type-checks every one",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/test-attribute",
     "testing/determinism-declared-on-the-test"
   ],
-  "guardedBy": [],
-  "goal": "test-surface"
+  "guardedBy": [
+    "crates/nvs-ir/src/lower/tests.rs",
+    "tests/conformance/reject/a-call-into-test-code-is-refused.nvst"
+  ]
 }

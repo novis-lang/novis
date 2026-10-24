@@ -982,6 +982,7 @@ pub fn build_signatures(
     // checks none, so the table it reads is empty here rather than built twice.
     let empty_attributes = crate::retrieval::AttributeTable::default();
     let empty_deprecations = crate::deprecated::Deprecations::default();
+    let empty_test_code = crate::test_code::TestCode::default();
     for file in files {
         let mut env = Env {
             symbols,
@@ -992,6 +993,7 @@ pub fn build_signatures(
             consts,
             attributes: &empty_attributes,
             deprecations: &empty_deprecations,
+            test_code: &empty_test_code,
             // This pass checks no expression, so nothing in it can ask a
             // capability question — the placeholder tables beside it are here
             // for the same reason.

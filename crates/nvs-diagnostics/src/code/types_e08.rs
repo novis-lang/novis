@@ -1131,4 +1131,16 @@ codes! {
          field that its `type` needs. The message names the field. Each `type` has its own \
          list of fields.",
     );
+
+    /// A call into test code from code that is not a test
+    /// (`rule:testing/tests-never-reach-a-build`). `nvs run` and `nvs build` compile no test
+    /// code, so the same program would call a method that one build has and the other does not.
+    /// Refused at compile time, under every command, so a program compiles the same way for
+    /// `nvs run` and for `nvs test`.
+    pub const E_CALL_INTO_TEST_CODE: Code = Code::new("E0889").card(
+        "A method with `#[Test]`, `#[Fixture]`, `#[BeforeClass]`, `#[AfterClass]` or \
+         `#[AfterEachTest]` is test code. Only `nvs test` compiles it, so only other test code \
+         can call it. Move the shared steps into a method without these attributes, and call \
+         that method from both places.",
+    );
 }

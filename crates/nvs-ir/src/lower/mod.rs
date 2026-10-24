@@ -706,6 +706,13 @@ pub fn file_script_label(id: SourceId) -> String {
 /// any of `files`, plus each file's own top-level statements as its own
 /// script frame — the entry's named `script`, the rest [`file_script_label`].
 ///
+/// **Test code is left out.** A method `nvs_types` recorded as test code
+/// (`rule:testing/tests-never-reach-a-build`) is not lowered, and no class's method table
+/// names it, so nothing a run compiles can reach a test. This is what `nvs run`, its reload and
+/// `nvs build` lower. `nvs test` lowers through [`lower_program_with_tests`] instead. The
+/// checker refuses a call into test code from other code (`E0889`), so no lowered function
+/// calls one that is left out.
+///
 /// This is what a caller with a resolved `require`/`autoload` graph wants —
 /// [`lower_file`] is the one-file spelling, and [`lower_method`] and
 /// [`lower_script`] stay public for the narrower "lower exactly this one
@@ -754,12 +761,73 @@ pub fn lower_program(
     enums: &EnumTable,
     layouts: &ClassLayoutTable,
 ) -> crate::ir::Program {
+    lower_program_as(
+        script,
+        files,
+        exprs,
+        checked_types,
+        enums,
+        layouts,
+        Tests::Omit,
+    )
+}
+
+/// [`lower_program`] with every test method lowered too: what `nvs test` runs.
+///
+/// # Panics
+///
+/// The same way [`lower_program`] does.
+#[must_use]
+pub fn lower_program_with_tests(
+    script: &str,
+    files: &[nvs_types::ProgramFile<'_>],
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+    enums: &EnumTable,
+    layouts: &ClassLayoutTable,
+) -> crate::ir::Program {
+    lower_program_as(
+        script,
+        files,
+        exprs,
+        checked_types,
+        enums,
+        layouts,
+        Tests::Lower,
+    )
+}
+
+/// Whether a program's lowering includes its test code.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tests {
+    Omit,
+    Lower,
+}
+
+impl Tests {
+    /// Whether the method labelled `label` is lowered.
+    fn lowers(self, exprs: &ExprTypeTable, label: &str) -> bool {
+        self == Self::Lower || !exprs.is_test_code(label)
+    }
+}
+
+fn lower_program_as(
+    script: &str,
+    files: &[nvs_types::ProgramFile<'_>],
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+    enums: &EnumTable,
+    layouts: &ClassLayoutTable,
+    tests: Tests,
+) -> crate::ir::Program {
+    #[allow(clippy::too_many_arguments)]
     fn walk(
         stmts: &[Stmt],
         src: &SourceFile,
         exprs: &ExprTypeTable,
         checked_types: &TypeInterner,
         enums: &EnumTable,
+        tests: Tests,
         out: &mut Vec<Function>,
         synthesized: &mut Vec<crate::ir::Class>,
     ) {
@@ -777,6 +845,7 @@ pub fn lower_program(
                     exprs,
                     checked_types,
                     enums,
+                    tests,
                     out,
                     synthesized,
                 ),
@@ -798,6 +867,9 @@ pub fn lower_program(
                                 let Some(label) = exprs.method_label(m.name) else {
                                     continue;
                                 };
+                                if !tests.lowers(exprs, label) {
+                                    continue;
+                                }
                                 // `rule:iteration/generators`: a body containing `yield` is
                                 // a generator, and becomes a state class and
                                 // its own functions rather than one function
@@ -865,6 +937,7 @@ pub fn lower_program(
             exprs,
             checked_types,
             enums,
+            tests,
             &mut functions,
             &mut synthesized,
         );
@@ -949,7 +1022,14 @@ pub fn lower_program(
                 // still has the `#[...]` payload to fold.
                 attributes: layout.attributes.clone(),
                 conforms: layout.conforms.clone(),
-                methods: layout.methods.clone(),
+                // A test method left out of the lowering is left out of the table too, so a
+                // dynamic call names no function the unit does not have.
+                methods: layout
+                    .methods
+                    .iter()
+                    .filter(|(name, owner, ..)| tests.lowers(exprs, &format!("{owner}::{name}")))
+                    .cloned()
+                    .collect(),
                 // The accessors beside them, on the same terms: the front end
                 // is the only layer that ever saw the `{ get; set; }` block.
                 hooks: layout.hooks.clone(),
