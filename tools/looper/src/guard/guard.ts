@@ -13,6 +13,7 @@
 // | `Bash`, `PowerShell` | a kill by process name: `pkill`, `killall`, `taskkill /im`, `Stop-Process -Name`, and a `kill`, `Stop-Process` or `taskkill` in a pipeline that finds a process as above. The reason points at `TaskStop` and `looper exec kill` |
 // | `Bash`, `PowerShell` | a build or test piped into `head`, `tail`, or `Select-Object` with `-First` or `-Last`, since the harness keeps the whole output. A pipe into `grep` passes |
 // | `Bash`, `PowerShell` | an install or a build of looper in the session's job: `looper self-update` and `looper service install`, and their `cargo run … --` forms. `looper service update` passes, because the server runs it detached and refuses an agent's request |
+// | `Bash`, `PowerShell` | in a loop session, whose `LOOPER_LOOP` is set: `looper service stop`, `start` and `uninstall`, and their `cargo run … --` forms, since the service outlives every session. An interactive session runs them |
 // | `Bash`, `PowerShell` | a test run wider than `looper verify` (decision 0011): a `cargo test` without `--test`, `--lib`, `--bin`, `--example`, `--bench`, `--no-run` or a filter, and a `bun test` without a file or `-t` |
 // | `Read` | a read without `limit` of a text file with more than `WHOLE_READ_LINES` lines from its `offset` on |
 // | `Edit`, `Write`, `NotebookEdit` | an edit of a file in a git tree that another live session claims (`claims.ts`) |
@@ -107,7 +108,7 @@ export async function judge(input: string, env: Env = process.env): Promise<Verd
   } catch (e) {
     return { broken: `the hook's input is not JSON: ${(e as Error).message}` };
   }
-  let verdict = builtIn(hook);
+  let verdict = builtIn(hook, Boolean(env.LOOPER_LOOP));
   if ("pass" in verdict) verdict = claims(hook, env);
   if ("pass" in verdict) verdict = await rules(hook, input);
   if (!("deny" in verdict)) pend(hook);
@@ -156,15 +157,15 @@ function command(hook: Hook): string | undefined {
   return tool === "Bash" || tool === "PowerShell" ? str(hook.tool_input?.command) : undefined;
 }
 
-/** The built-in rules, unless the project has its own, then the project's `[[guard.deny]]`. */
-function builtIn(hook: Hook): Verdict {
+/** The built-in rules, unless the project has its own, then the project's `[[guard.deny]]`. `loop` is whether a loop runs the session. */
+function builtIn(hook: Hook, loop: boolean): Verdict {
   const cwd = hookCwd(hook);
   const root = projectRoot(cwd);
   const cfg = load(root);
   const scratch = join(root, cfg instanceof Error ? defaultConfig().project.scratch : cfg.project.scratch);
   const ownRules = !(cfg instanceof Error) && cfg.gates.guard.length > 0;
   if (!ownRules) {
-    const reason = rule(hook, cwd, scratch);
+    const reason = rule(hook, cwd, scratch, loop);
     if (reason !== undefined) return { deny: reason };
   }
   if (cfg instanceof Error) return { broken: cfg.message };
@@ -173,10 +174,10 @@ function builtIn(hook: Hook): Verdict {
   return reason === undefined ? PASS : { deny: reason };
 }
 
-/** The reason a built-in rule refuses the call made in `cwd`, if one does. A shell write into `scratch` passes. */
-function rule(hook: Hook, cwd: string, scratch: string): string | undefined {
+/** The reason a built-in rule refuses the call made in `cwd`, if one does. A shell write into `scratch` passes. `loop` is whether a loop runs the session. */
+function rule(hook: Hook, cwd: string, scratch: string, loop: boolean): string | undefined {
   const cmd = command(hook);
-  if (cmd !== undefined) return shell(cmd, (target) => inScratch(target, cwd, scratch));
+  if (cmd !== undefined) return shell(cmd, (target) => inScratch(target, cwd, scratch), loop);
   const input = hook.tool_input ?? {};
   const file = str(input.file_path);
   if (hook.tool_name !== "Read" || file === undefined || (input.limit !== undefined && input.limit !== null)) return undefined;

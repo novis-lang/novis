@@ -11,7 +11,8 @@
 //
 // A template's markers say how much of the written file is looper's (`Kind`):
 //
-// - **Whole**: one begin marker, on the first line or on the second after a `#!` line, and no end.
+// - **Whole**: one begin marker and no end. The marker is on the first line, or on the second after a
+//   `#!` line or the `---` that opens front matter, such as a Claude agent file's.
 // - **Block**: each block from a begin marker to the end marker of the same name.
 // - **Merged**: `.claude/settings.json`, whose entries are added to the project's.
 // - **Seed**: no marker. Sync never touches it.
@@ -71,7 +72,7 @@ export function markers(text: string): Marker[] {
  */
 export function blocks(text: string): Block[] {
   const all = lines(text);
-  const wholeLine = all[0]?.startsWith("#!") ? 2 : 1;
+  const wholeLine = all[0]?.startsWith("#!") || all[0] === "---" ? 2 : 1;
   const found = markers(text);
   const out: Block[] = [];
   let open: { line: number; name: string; version: number } | undefined;

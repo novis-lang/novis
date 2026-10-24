@@ -23,6 +23,8 @@
 // - `Tree.usage` reads the job's own accounting in one query: its CPU time, its bytes read and written,
 //   and how many processes it runs. `Tree.members` reads each process of the job, with its program and
 //   its CPU time. Both only read, for the hang watch (`../jobs/hang.ts`).
+// - `Tree.exitCode` keeps the first code it reads. A process reports its code while its last threads
+//   still end, and a `Tree.kill` in that gap would overwrite the code with the kill's own.
 // - `spawnDetached` starts a command that inherits no handle at all, out of this process's job when that
 //   job allows breakaway, and says when it could not. It holds none of its caller's pipes open.
 // - `ctrlBreak` sends Ctrl+Break to a process group that shares this process's console.
@@ -298,6 +300,8 @@ export class Tree {
   /** When the tree's first process started, in ms since the Unix epoch. */
   readonly started: number;
   private job: Pointer | null;
+  /** The first process's exit code, once `exitCode` has read one. */
+  private code: number | null = null;
 
   constructor(
     job: Pointer,
@@ -347,9 +351,13 @@ export class Tree {
     this.inPipe = null;
   }
 
-  /** The first process's exit code once it has exited, or null while it runs. */
+  /**
+   * The first process's exit code once it has exited, or null while it runs. The first code read is
+   * kept, because a process can report its code while it still ends, and a `kill` then overwrites it.
+   */
   exitCode(): number | null {
-    return exitOf(this.process);
+    this.code ??= exitOf(this.process);
+    return this.code;
   }
 
   /** Resolves with the first process's exit code once it exits, polling every `everyMs`. */
