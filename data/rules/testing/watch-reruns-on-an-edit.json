@@ -1,10 +1,12 @@
 {
   "title": "`nvs test --watch` reruns the selection each time a file the program requires changes",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "config/an-edit-reaches-the-next-request-without-a-restart",
     "testing/a-run-can-stop-early-rerun-failures-and-shuffle"
   ],
-  "guardedBy": [],
-  "goal": "test-surface"
+  "guardedBy": [
+    "crates/nvs-cli/src/script.rs",
+    "crates/nvs-cli/src/main.rs"
+  ]
 }

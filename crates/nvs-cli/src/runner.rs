@@ -204,6 +204,18 @@ pub(crate) struct Args {
         conflicts_with = "list"
     )]
     shuffle: Option<Option<u64>>,
+    /// Run the tests, then run them again each time a source file of the
+    /// program changes. Press Ctrl+C to stop.
+    ///
+    /// The files checked are the files the program reads: the file you name
+    /// and every file it requires or autoloads. A change while the tests
+    /// run starts the next run after this one ends. When the program does
+    /// not compile, the errors are printed, and the tests run again at the
+    /// next change. `--watch` needs the human format, and does not run
+    /// `.nvst` cases.
+    // `rule:testing/watch-reruns-on-an-edit`.
+    #[arg(long, conflicts_with_all = ["list", "update"])]
+    watch: bool,
     /// How many tests or `.nvst` cases run at once.
     ///
     /// The default is the number of hardware threads on this machine.
@@ -346,6 +358,7 @@ impl Args {
             },
             self.cases,
             self.record,
+            self.watch,
             config,
             init,
         )

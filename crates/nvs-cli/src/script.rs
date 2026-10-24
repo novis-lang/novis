@@ -163,7 +163,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{
-    Arc, Condvar, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak,
+    Arc, Condvar, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak, mpsc,
 };
 use std::time::{Duration, SystemTime};
 
@@ -1347,42 +1347,12 @@ impl Compiler {
         // the set its key will name.
         let checked =
             crate::front_end_looking(&real, crate::extensions::live_manifests(), &mut looked);
-        let answers: Vec<(PathBuf, bool)> = looked
-            .probed
-            .iter()
-            .map(|probed| (probed.clone(), probed.exists()))
-            .collect();
-        let reads: Vec<Read> = looked
-            .read
-            .iter()
-            .filter(|(read, _)| *read != real)
-            .map(|(read, digest)| Read {
-                path: read.clone(),
-                stamp: vouching(stamp_of(read), started),
-                digest: Some(*digest),
-            })
-            .chain(looked.missed.iter().map(|missed| Read {
-                path: missed.clone(),
-                stamp: None,
-                digest: None,
-            }))
-            .collect();
-        let listed: Vec<Listed> = looked
-            .listed
-            .into_iter()
-            .map(|listing| Listed {
-                stamp: vouching(stamp_of(&listing.dir), started),
-                dir: listing.dir,
-                names: listing.names,
-            })
-            .collect();
-        let probes = discovery_hash(
-            &looked.probed,
-            &listed
-                .iter()
-                .map(|listed| (listed.dir.clone(), listed.names.clone()))
-                .collect::<Vec<_>>(),
-        );
+        let Looks {
+            answers,
+            reads,
+            listed,
+            probes,
+        } = looks(looked, Some(&real), started);
         let Ok(checked) = checked else {
             let program = failed_program(content, &reads);
             return (
@@ -1440,6 +1410,61 @@ impl Compiler {
                 real,
             },
         )
+    }
+}
+
+/// What one front-end run looked at, in the shape a [`Trace`] keeps it.
+struct Looks {
+    answers: Vec<(PathBuf, bool)>,
+    reads: Vec<Read>,
+    listed: Vec<Listed>,
+    probes: ProbeHash,
+}
+
+/// `looked` as a [`Trace`]'s parts. A file read at `skip` is left out, and a
+/// stamp is kept only where it can vouch for a read that began at `started`.
+fn looks(looked: crate::Looked, skip: Option<&Path>, started: SystemTime) -> Looks {
+    let answers = looked
+        .probed
+        .iter()
+        .map(|probed| (probed.clone(), probed.exists()))
+        .collect();
+    let reads = looked
+        .read
+        .iter()
+        .filter(|(read, _)| Some(read.as_path()) != skip)
+        .map(|(read, digest)| Read {
+            path: read.clone(),
+            stamp: vouching(stamp_of(read), started),
+            digest: Some(*digest),
+        })
+        .chain(looked.missed.iter().map(|missed| Read {
+            path: missed.clone(),
+            stamp: None,
+            digest: None,
+        }))
+        .collect();
+    let listed: Vec<Listed> = looked
+        .listed
+        .into_iter()
+        .map(|listing| Listed {
+            stamp: vouching(stamp_of(&listing.dir), started),
+            dir: listing.dir,
+            names: listing.names,
+        })
+        .collect();
+    let probes = discovery_hash(
+        &looked.probed,
+        &listed
+            .iter()
+            .map(|listed| (listed.dir.clone(), listed.names.clone()))
+            .collect::<Vec<_>>(),
+    );
+    Looks {
+        answers,
+        reads,
+        listed,
+        probes,
     }
 }
 
@@ -1552,6 +1577,145 @@ pub(crate) fn watch(compiler: &Arc<Compiler>, mut also: Option<Also>) -> Watch {
         }
     };
     Watch { stop, thread }
+}
+
+/// What one pass of `nvs test --watch` compiled, as the trace [`Rerun`]
+/// checks: every file the front end read or missed, every path its `autoload`
+/// resolution probed, every directory a discovery scan listed, and the folders
+/// a folder of programs is read from.
+#[derive(Debug)]
+pub(crate) struct Watched {
+    written: PathBuf,
+    trace: Trace,
+}
+
+impl Watched {
+    /// What a compile of `written` that began at `started` looked at, and
+    /// `dirs` listed. An entry that exists only in memory is `synthesized`, and
+    /// is left out: no edit can reach it.
+    pub(crate) fn new(
+        written: &Path,
+        looked: crate::Looked,
+        started: SystemTime,
+        synthesized: bool,
+        dirs: &[PathBuf],
+    ) -> Self {
+        let Looks {
+            answers,
+            reads,
+            mut listed,
+            probes,
+        } = looks(looked, synthesized.then_some(written), started);
+        listed.extend(dirs.iter().map(|dir| Listed {
+            dir: dir.clone(),
+            stamp: vouching(stamp_of(dir), started),
+            names: nvs_hir::autoload::listed_names(dir),
+        }));
+        Self {
+            written: written.to_path_buf(),
+            trace: Trace {
+                // Nothing is keyed by this trace, so its program digest is
+                // never read.
+                program: content_hash(&[]),
+                probes,
+                answers,
+                files: reads,
+                listed,
+                real: real_path(written),
+            },
+        }
+    }
+
+    /// How long until the newest file this trace names has been quiet for
+    /// `settle`, or `None` where it already has.
+    fn unsettled(&self, settle: Duration, now: SystemTime) -> Option<Duration> {
+        let newest = self
+            .trace
+            .files
+            .iter()
+            .map(|read| read.path.as_path())
+            .chain(self.trace.listed.iter().map(|listed| listed.dir.as_path()))
+            .filter_map(stamp_of)
+            .map(|stamp| stamp.modified)
+            .filter(|modified| *modified <= now)
+            .max()?;
+        (newest + settle)
+            .duration_since(now)
+            .ok()
+            .filter(|wait| !wait.is_zero())
+    }
+}
+
+/// `rule:testing/watch-reruns-on-an-edit`'s change signal: [`watch`]'s thread,
+/// with an `also` that checks the last pass's [`Watched`] each time it runs.
+///
+/// The check is [`describes_the_disk`], the one a served program's trace gets,
+/// under the same `[opcache]` policy. A change is held back until the files
+/// have been quiet for `settle`, and is then reported once. The trace is
+/// disarmed when it is reported, so a change made while a pass runs is found
+/// when the next pass arms its own trace: that trace holds what its compile
+/// read.
+///
+/// **What it spends:** [`watch`]'s one thread, and one trace between passes.
+pub(crate) struct Rerun {
+    armed: Arc<Mutex<Option<Watched>>>,
+    changed: mpsc::Receiver<()>,
+    _watch: Watch,
+    _compiler: Arc<Compiler>,
+}
+
+impl Rerun {
+    /// Starts the check under `config`'s `[opcache]` policy, with nothing
+    /// armed.
+    pub(crate) fn start(config: &Config) -> Self {
+        let compiler = Arc::new(Compiler::new(config));
+        let armed: Arc<Mutex<Option<Watched>>> = Arc::new(Mutex::new(None));
+        let (sender, changed) = mpsc::channel();
+        let checked = Arc::clone(&armed);
+        let also: Also = Box::new(move |compiler: &Compiler| {
+            let mut armed = checked.lock().unwrap_or_else(PoisonError::into_inner);
+            let watched = armed.as_mut()?;
+            let policy = compiler.revalidation();
+            let now = SystemTime::now();
+            if let Some(stamps) =
+                describes_the_disk(&watched.written, &watched.trace, policy.validate, now)
+            {
+                if let Some((files, dirs)) = stamps {
+                    for (read, stamp) in watched.trace.files.iter_mut().zip(files) {
+                        read.stamp = stamp;
+                    }
+                    for (listed, stamp) in watched.trace.listed.iter_mut().zip(dirs) {
+                        listed.stamp = stamp;
+                    }
+                }
+                return None;
+            }
+            if let Some(wait) = watched.unsettled(policy.settle, now) {
+                return Some(wait);
+            }
+            *armed = None;
+            let _ = sender.send(());
+            None
+        });
+        let watch = watch(&compiler, Some(also));
+        Self {
+            armed,
+            changed,
+            _watch: watch,
+            _compiler: compiler,
+        }
+    }
+
+    /// Checks `watched` from now on, in place of what was armed before.
+    pub(crate) fn arm(&self, watched: Watched) {
+        *self.armed.lock().unwrap_or_else(PoisonError::into_inner) = Some(watched);
+    }
+
+    /// Blocks until the armed trace moves. `false` where no check is running,
+    /// so no change will ever be reported.
+    pub(crate) fn wait(&self) -> bool {
+        self.changed.recv().is_ok()
+    }
 }
 
 /// What the table holds under one key, as a caller's answer — and `None` for a
@@ -2049,6 +2213,67 @@ mod tests {
             }),
             ..Config::default()
         })
+    }
+
+    #[test]
+    fn an_edit_to_a_watched_file_starts_the_next_pass_and_only_one() {
+        use nvs_config::tree::{Config, Opcache, Setting};
+        use std::time::{Duration, SystemTime};
+        let dir = nvs_repo::scratch("watched");
+        let lib = dir.join("lib.nvs");
+        let looked_at = |text: &str| {
+            std::fs::write(&lib, text).expect("the watched file");
+            crate::Looked {
+                read: vec![(lib.clone(), super::content_hash(text.as_bytes()))],
+                ..crate::Looked::default()
+            }
+        };
+        let rerun = super::Rerun::start(&Config {
+            opcache: Some(Opcache {
+                validate: Some(Setting::Text("hash".to_owned())),
+                revalidate_freq: Some(Setting::Text("0s".to_owned())),
+                settle: Some(Setting::Text("0s".to_owned())),
+                ..Opcache::default()
+            }),
+            ..Config::default()
+        });
+        let entry = dir.join("entry.nvs");
+
+        let looked = looked_at("<?nvs\necho 1;\n");
+        rerun.arm(super::Watched::new(
+            &entry,
+            looked,
+            SystemTime::now(),
+            false,
+            &[],
+        ));
+        let quiet = rerun.changed.recv_timeout(Duration::from_millis(200));
+        std::fs::write(&lib, "<?nvs\necho 2;\n").expect("the first edit");
+        let first = rerun.changed.recv_timeout(Duration::from_secs(10));
+        // Nothing is armed until the next pass arms its own trace, so a second
+        // edit made during the pass reports nothing yet.
+        std::fs::write(&lib, "<?nvs\necho 3;\n").expect("an edit during the pass");
+        let during = rerun.changed.recv_timeout(Duration::from_millis(200));
+        let looked = crate::Looked {
+            read: vec![(lib.clone(), super::content_hash(b"<?nvs\necho 2;\n"))],
+            ..crate::Looked::default()
+        };
+        rerun.arm(super::Watched::new(
+            &entry,
+            looked,
+            SystemTime::now(),
+            false,
+            &[],
+        ));
+        let after = rerun.changed.recv_timeout(Duration::from_secs(10));
+
+        assert!(quiet.is_err(), "a file nobody edited started a pass");
+        assert!(first.is_ok(), "the edit did not start a pass");
+        assert!(during.is_err(), "a pass was started while one was running");
+        assert!(
+            after.is_ok(),
+            "the edit made during the pass did not start the pass after it"
+        );
     }
 
     /// What a resolved program prints — which is how a test reads *which* unit
