@@ -1187,7 +1187,7 @@
   },
   "/reference/cli/nvs-info/": {
     "feature": "tools:cli/nvs-info",
-    "hash": "f0fac13a7144c52c",
+    "hash": "5b51f594ffd0fd7c",
     "questions": [
       "Which version of Novis do I have installed?",
       "Show the build details and commit of my Novis binary",
@@ -1268,14 +1268,14 @@
   },
   "/reference/cli/nvs-telemetry/": {
     "feature": "tools:cli/nvs-telemetry",
-    "hash": "426540e2592e0ac5",
+    "hash": "2bd39131b67069de",
     "questions": [
       "How do I turn usage telemetry on or off?",
       "What data does Novis telemetry collect about my commands?",
       "See the exact JSON that the next telemetry upload sends",
       "Stop telemetry on CI machines with DO_NOT_TRACK",
       "Send my usage counters to a collector from a daily cron job",
-      "What happens when the collector is down or rejects a week?"
+      "Which collector status codes keep a week for the next upload?"
     ]
   },
   "/reference/cli/nvs-test/": {
@@ -3786,13 +3786,14 @@
   },
   "/reference/core/csv/format/": {
     "feature": "Core\\Csv::format",
-    "hash": "9914d92f4b116e46",
+    "hash": "6a95747144105789",
     "questions": [
       "How do I write an array of rows as CSV?",
       "Export data to a CSV string",
       "Create a CSV file with a header row",
       "Turn rows into text a spreadsheet can open",
-      "Quote fields with commas when writing CSV"
+      "Quote fields with commas when writing CSV",
+      "Export rows read from a database as CSV"
     ]
   },
   "/reference/core/csv/parse/": {
