@@ -1,0 +1,13 @@
+<?nvs
+// Three schemes whose fields do not fit their `type`: an `Http` scheme with
+// an `in`, an `ApiKey` scheme with no `parameter`, and an `OAuth2` flow that
+// needs a `tokenUrl` and does not have one.
+
+use Core\Api\KeyIn;
+use Core\Api\Scheme;
+use Core\Api\SchemeType;
+
+#[Scheme(name: "bearer", type: SchemeType::Http, scheme: "bearer", in: KeyIn::Header)]
+#[Scheme(name: "key", type: SchemeType::ApiKey, in: KeyIn::Header)]
+#[Scheme(name: "oauth", type: SchemeType::OAuth2, flows: {password: {scopes: []}})]
+class Auth {}

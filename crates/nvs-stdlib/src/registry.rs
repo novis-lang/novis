@@ -2499,6 +2499,10 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::router::REFUSAL,
     crate::router::METHOD,
     crate::router::AUDIENCE,
+    // The two an `#[Api\Scheme]` writes, beside the router's because they too
+    // pass through an attribute and through no member.
+    crate::router::SCHEME_TYPE,
+    crate::router::KEY_IN,
     // The one enum whose case values are not numbered from zero: they are the
     // HTTP status codes themselves, which [`crate::response::REDIRECT`]'s own
     // doc owns. It sits beside the router's two because all three are read off

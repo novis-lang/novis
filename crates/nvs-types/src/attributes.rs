@@ -368,6 +368,16 @@ fn check_recognized(
             // declares — so they are asked by the per-class walk that
             // holds those, exactly as `#[Route]`'s own path checks are.
             check_roster("Api", crate::routes::API_OPTIONS, &attr.fields, ctx, env);
+        } else if recognized(crate::derive::API_SCHEME) {
+            // The roster is every field some `type` takes. Which fields one
+            // `type` takes is `crate::routes::collect_schemes`' question.
+            check_roster(
+                r"Api\Scheme",
+                crate::routes::SCHEME_OPTIONS,
+                &attr.fields,
+                ctx,
+                env,
+            );
         } else if recognized(crate::derive::DEPRECATED) {
             // The roster admits `construct` everywhere, because it cannot see
             // the declaration; `crate::deprecated::check_sites` refuses it on

@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/openapi.rs, crates/nvs-types/src/routes.rs, crates/
 stages:
   - id: 1
     title: a security scheme is declared in code and checked
-    status: open
+    status: done
     context: [crates/nvs-types/src/routes.rs, crates/nvs-types/src/derive.rs, crates/nvs-cli/src/openapi.rs, data/gaps/nvs-cli/components-securityschemes.json, docs/rules/routing/a-security-scheme-is-declared-in-code.md, docs/rules/attributes/api-adds-and-cannot-contradict.md, docs/rules/core-api/no-mode-strings.md]
     extra:
       context:
@@ -127,11 +127,11 @@ way to declare a body. A dev-dependency adds to the lock file and to no binary.
 **Does:** `#[Api\Scheme]` declares a scheme, `security` names are checked against the declarations,
 and the document writes `components.securitySchemes`.
 
-- [ ] The rule's field table is written before the code: each OpenAPI scheme type, its required fields, and `type` as the enum `Core\Api\SchemeType` (`rule:core-api/no-mode-strings`). `docs/rules/routing/a-security-scheme-is-declared-in-code.md:1`
-- [ ] `Core\Api\Scheme` joins the recognized roster with its `ATTRIBUTE_DOCS` card, and the checker collects every declaration into the route table. `crates/nvs-types/src/derive.rs:593`, `crates/nvs-types/src/derive.rs:191`, `crates/nvs-types/src/routes.rs:625`
-- [ ] A `security` entry naming no declared scheme, a name declared twice, and a field the type does not take are compile errors, each with a code and a test (`rule:routing/a-security-scheme-is-declared-in-code`). `crates/nvs-types/src/routes.rs:1092`, `crates/nvs-types/src/routes.rs:425`
-- [ ] The document writes `components.securitySchemes`, sorted by name. `crates/nvs-cli/src/openapi.rs:47`, `crates/nvs-cli/src/openapi.rs:155`
-- [ ] The gap record deleted. `data/gaps/nvs-cli/components-securityschemes.json:1`
+- [x] The rule's field table is written before the code: each OpenAPI scheme type, its required fields, and `type` as the enum `Core\Api\SchemeType` (`rule:core-api/no-mode-strings`). `docs/rules/routing/a-security-scheme-is-declared-in-code.md:1`
+- [x] `Core\Api\Scheme` joins the recognized roster with its `ATTRIBUTE_DOCS` card, and the checker collects every declaration into the route table. `crates/nvs-types/src/derive.rs:593`, `crates/nvs-types/src/derive.rs:191`, `crates/nvs-types/src/routes.rs:625`
+- [x] A `security` entry naming no declared scheme, a name declared twice, and a field the type does not take are compile errors, each with a code and a test (`rule:routing/a-security-scheme-is-declared-in-code`). `crates/nvs-types/src/routes.rs:1092`, `crates/nvs-types/src/routes.rs:425`
+- [x] The document writes `components.securitySchemes`, sorted by name. `crates/nvs-cli/src/openapi.rs:47`, `crates/nvs-cli/src/openapi.rs:155`
+- [x] The gap record deleted. `data/gaps/nvs-cli/components-securityschemes.json:1`
 
 ### 5. the security scheme joins its feature's proofs
 
@@ -140,7 +140,7 @@ and the document writes `components.securitySchemes`.
 **Split:** one writing subagent updates the example and `about.md` together, held to `AGENTS.md`
 § *Text an end user reads*.
 
-- [ ] Example 02 declares the scheme it names, and its `.out` is regenerated. `docs/examples/lang/attributes/core-api-and-the-openapi-document/02-name-the-errors-and-the-security-scheme.nvs:1`
+- [x] Example 02 declares the scheme it names, and its `.out` is regenerated. `docs/examples/lang/attributes/core-api-and-the-openapi-document/02-name-the-errors-and-the-security-scheme.nvs:1`
 - [ ] `about.md` says how a scheme is declared. `docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md:1`
 - [ ] The help card of `Core\Api\Scheme` in the binary. `crates/nvs-types/src/derive.rs:191`
 - [ ] `bun nv proofs --id 'lang:attributes/core-api-and-the-openapi-document'` passes (`rule:testing/feature-proofs`). `docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md:1`
@@ -211,21 +211,30 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. The anchors above were checked against the tree. The emitter can reach the
-codec table at `crates/nvs-cli/src/main.rs:1239`, so stage 2 has no fallback. The validator is
-settled in § *Standing decisions*.
+Stage 1 is done. `#[Core\Api\Scheme]` is on the roster with its card, and `collect_scheme` holds it
+to the rule's field table. `Core\Api\SchemeType` and `Core\Api\KeyIn` are new `Core` enums in
+`crates/nvs-stdlib/src/router.rs`. `E0886`, `E0887` and `E0888` are the three errors. The
+emitter writes `components.securitySchemes`. Two new tests in `crates/nvs-cli/tests/openapi.rs`
+pass. The edited examples and the attack compile and pass `bun nv proofs --run`.
+
+A qualified name is absolute, so `use Core\Api;` does not place `Api\Scheme`. Write
+`#[Core\Api\Scheme]` or `use Core\Api\Scheme;`. The rule says so now.
+
+Tests that may go red at the gate: `nvs-lsp`'s stubs tests (`every_line_lands_on_its_name`, and the
+test that every name has a line) for the new `Core\Api\*` names and card, and any `nvs-stdlib` test
+that counts `ENUMS` or checks enum cards.
 
 ### Next
 
-**Stage 1: the security scheme**, one file set: `crates/nvs-types/src/routes.rs`,
-`crates/nvs-types/src/derive.rs`, `crates/nvs-cli/src/openapi.rs`. No gate.
+**Stage 5: the proofs**, which needs stage 1 only. Example 02 already declares its scheme.
 
-- [ ] The field table in the rule, `type` an enum (`rule:routing/a-security-scheme-is-declared-in-code`, `rule:core-api/no-mode-strings`). `docs/rules/routing/a-security-scheme-is-declared-in-code.md:1`
-- [ ] `Core\Api\Scheme` on the roster with its card, collected into the route table. `crates/nvs-types/src/derive.rs:593`, `crates/nvs-types/src/derive.rs:191`, `crates/nvs-types/src/routes.rs:625`
-- [ ] The three compile errors, each with a code and a test. `crates/nvs-types/src/routes.rs:1092`
-- [ ] `components.securitySchemes`. `crates/nvs-cli/src/openapi.rs:47`
-- [ ] The gap record deleted. `data/gaps/nvs-cli/components-securityschemes.json:1`
+- [ ] `about.md` says how a scheme is declared. `docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md:1`
+- [ ] The help card of `Core\Api\Scheme` in the binary. `crates/nvs-types/src/derive.rs:501`
+- [ ] `bun nv proofs --id 'lang:attributes/core-api-and-the-openapi-document'` passes. `docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md:1`
+- [ ] The rule `shipped`. `data/rules/routing/a-security-scheme-is-declared-in-code.json:3`
+
+Then **stage 2** as its section says. `crates/nvs-cli/src/main.rs:1239`, `crates/nvs-cli/src/openapi.rs:197`
 
 ### Backlog
 
-- OAuth2 scopes per operation: `#[Api(security:)]` writes an empty scope list today (`crates/nvs-cli/src/openapi.rs:155`). Scopes need a field on `#[Api]` and a check against the scheme's declared flows (`docs/rules/routing/a-security-scheme-is-declared-in-code.md`).
+- OAuth2 scopes per operation: `#[Api(security:)]` writes an empty scope list today (`crates/nvs-cli/src/openapi.rs:242`). Scopes need a field on `#[Api]` and a check against the scheme's declared flows (`docs/rules/routing/a-security-scheme-is-declared-in-code.md`).

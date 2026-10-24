@@ -693,3 +693,120 @@ fn core_uuid_keeps_its_named_format_over_that_schema() {
         "the engine's own class keeps its format over the bare string:\n{doc}"
     );
 }
+
+// -------------------------------------------------------------------------
+// `rule:routing/a-security-scheme-is-declared-in-code` -- `#[Api\Scheme]`.
+// -------------------------------------------------------------------------
+
+/// Every declared scheme reaches `components.securitySchemes` under its name,
+/// sorted, in the specification's spelling, whichever class declared it.
+#[test]
+fn every_declared_scheme_is_a_security_scheme_component_sorted_by_name() {
+    let (doc, err, ok) = build(&fixture("schemes-of-every-type"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let schemes = &document["components"]["securitySchemes"];
+    assert_eq!(
+        *schemes,
+        serde_json::json!({
+            "bearer": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": "A token from the login route.",
+            },
+            "key": {"type": "apiKey", "in": "header", "name": "X-Api-Key"},
+            "mtls": {"type": "mutualTLS"},
+            "oauth": {
+                "type": "oauth2",
+                "flows": {
+                    "authorizationCode": {
+                        "authorizationUrl": "https://example.com/authorize",
+                        "tokenUrl": "https://example.com/token",
+                        "scopes": {"orders:read": "Read orders", "orders:write": "Change orders"},
+                    },
+                    "clientCredentials": {"tokenUrl": "https://example.com/token", "scopes": {}},
+                },
+            },
+            "openid": {
+                "type": "openIdConnect",
+                "openIdConnectUrl": "https://example.com/.well-known/openid-configuration",
+            },
+        }),
+        "{doc}"
+    );
+    let names: Vec<&String> = schemes
+        .as_object()
+        .expect("an object")
+        .keys()
+        .collect();
+    let at = |name: &str| doc.find(&format!("\"{name}\": {{")).expect(name);
+    assert!(
+        at("bearer") < at("key") && at("key") < at("mtls") && at("oauth") < at("openid"),
+        "the written document lists {names:?} by name:\n{doc}"
+    );
+    assert_eq!(
+        document["paths"]["/items"]["get"]["security"],
+        serde_json::json!([{"bearer": []}, {"oauth": []}]),
+        "and the operation names two of them"
+    );
+
+    let (doc, err, ok) = build(&fixture("api-that-agrees"));
+    assert!(ok, "{err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    assert_eq!(
+        document["components"]["securitySchemes"]["bearer"]["type"], "http",
+        "{doc}"
+    );
+    let (doc, err, ok) = build(&in_repo(ROUTES));
+    assert!(ok, "{err}");
+    assert!(
+        !doc.contains("\"components\""),
+        "a program that declares no scheme writes no components:\n{doc}"
+    );
+}
+
+/// The three ways a scheme declaration and its uses disagree, each its own
+/// code, and no document for any of them.
+#[test]
+fn a_scheme_that_is_undeclared_repeated_or_misfit_does_not_compile() {
+    let cases: [(&str, &[&str]); 3] = [
+        (
+            "scheme-security-undeclared",
+            &[
+                "E0886",
+                "`beraer` is not a declared security scheme",
+                "the declared schemes are: `bearer`, `key`",
+            ],
+        ),
+        (
+            "scheme-declared-twice",
+            &["E0887", "the security scheme `bearer` is declared twice"],
+        ),
+        (
+            "scheme-fields-that-do-not-fit",
+            &[
+                "E0888",
+                "this `Http` scheme does not use `in`",
+                "this `ApiKey` scheme needs `parameter`",
+                "the `password` flow needs `tokenUrl`",
+            ],
+        ),
+    ];
+    for (stem, messages) in cases {
+        let (doc, err, ok) = build(&fixture(stem));
+        assert!(!ok, "`{stem}` does not build");
+        for message in messages {
+            assert!(err.contains(message), "`{stem}` reports `{message}`:\n{err}");
+        }
+        assert!(
+            doc.trim().is_empty(),
+            "and writes no document:\n{doc}"
+        );
+    }
+    let (_, err, _) = build(&fixture("scheme-fields-that-do-not-fit"));
+    assert!(
+        !err.contains("E0886"),
+        "a refused scheme is still a declared name:\n{err}"
+    );
+}

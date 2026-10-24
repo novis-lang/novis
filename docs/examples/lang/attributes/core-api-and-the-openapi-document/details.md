@@ -37,5 +37,6 @@ must be a property of that class.
 A class in `errors` that does not exist is `E0303`. A built-in class such as `RuntimeError` works
 too. Each `errors` entry becomes a response under its status, and the response's `description` is the
 class name. An empty `tags` array writes no `tags`. Each name in `security` becomes its own entry in
-the operation's `security` list, with an empty list of scopes. Novis does not check a `security` name
-against anything. The `example` value is written into the `200` response beside its schema.
+the operation's `security` list, with an empty list of scopes. Each name in `security` must be the
+`name` of an `#[Core\Api\Scheme]` on a class of the program. Any other name is `E0886`. The
+`example` value is written into the `200` response beside its schema.
