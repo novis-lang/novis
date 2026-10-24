@@ -13,7 +13,7 @@ stages:
         rules: [http-server/a-log-line-can-leave-out-the-client-address, http-server/the-access-log-is-a-mode-default]
   - id: 2
     title: the application exists, checks a report and adds it to the weekly totals
-    status: open
+    status: done
     context: [apps/notes/src/App.nvs, apps/notes/src/Store.nvs, apps/notes/nvs.toml, apps/telemetry/src/Report.nvs, apps/telemetry/src/Totals.nvs, docs/rules/tooling/a-telemetry-report-is-checked-against-a-closed-schema.md, docs/rules/tooling/the-collector-keeps-weekly-totals-only.md]
     extra:
       context:
@@ -58,7 +58,7 @@ checks:
   - id: app-tests
     stage: 2
     name: the collector's tests pass
-    run: [cargo, run, -q, --bin, nvs, --, test, apps/telemetry]
+    run: [cargo, run, -q, --bin, nvs, --, --config, apps/telemetry/nvs.toml, test, apps/telemetry]
   - id: end-to-end
     stage: 6
     name: the real client uploads to a local collector and the totals show it
@@ -201,11 +201,11 @@ whose gate holds, and ends `BLOCKED` naming the missing file when none does.
 **Does:** `POST /v1/report` checks the body against the closed schema, and an accepted report is
 added to the two tables in one transaction.
 
-- [ ] `apps/telemetry/` with `README.md`, `nvs.toml`, `known.toml`, `public/index.nvs` and `src/App.nvs`, in the shape of `apps/notes/` (`rule:tooling/the-telemetry-collector-is-a-novis-program`). `apps/notes/src/App.nvs:1`, `apps/telemetry/src/App.nvs:1`
-- [ ] The check: every field in the rule's table, the `unknown` folding, the value cap, and the status per refusal (`rule:tooling/a-telemetry-report-is-checked-against-a-closed-schema`). `apps/telemetry/src/Report.nvs:1`
-- [ ] The two tables, and the transaction that adds one report (`rule:tooling/the-collector-keeps-weekly-totals-only`). `apps/telemetry/src/Totals.nvs:1`
-- [ ] Tests for the check: each field wrong once, a name `known.toml` lacks, a value over the cap, a week in the future, a week five weeks old, 4 KiB plus one byte, a wrong content type. `apps/telemetry/src/ReportTest.nvs:1`
-- [ ] Tests for the totals: two reports in one cell, `first` and `days_active` counted, a counter's `reports` against its `total`, and a refused report changes nothing. `apps/telemetry/src/TotalsTest.nvs:1`
+- [x] `apps/telemetry/` with `README.md`, `nvs.toml`, `known.toml`, `public/index.nvs` and `src/App.nvs`, in the shape of `apps/notes/` (`rule:tooling/the-telemetry-collector-is-a-novis-program`). `apps/notes/src/App.nvs:1`, `apps/telemetry/src/App.nvs:1`
+- [x] The check: every field in the rule's table, the `unknown` folding, the value cap, and the status per refusal (`rule:tooling/a-telemetry-report-is-checked-against-a-closed-schema`). `apps/telemetry/src/Report.nvs:1`
+- [x] The two tables, and the transaction that adds one report (`rule:tooling/the-collector-keeps-weekly-totals-only`). `apps/telemetry/src/Totals.nvs:1`
+- [x] Tests for the check: each field wrong once, a name `known.toml` lacks, a value over the cap, a week in the future, a week five weeks old, 4 KiB plus one byte, a wrong content type. `apps/telemetry/src/ReportTest.nvs:1`
+- [x] Tests for the totals: two reports in one cell, `first` and `days_active` counted, a counter's `reports` against its `total`, and a refused report changes nothing. `apps/telemetry/src/TotalsTest.nvs:1`
 
 ### 3. the rate limit runs on a keyed hash in memory, and no address reaches disk
 

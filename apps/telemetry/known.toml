@@ -1,0 +1,38 @@
+# The values a report may name. A value that is not in these lists is refused,
+# except a command name: a command that is not listed counts as `unknown`.
+# A test in this repository checks that `commands` lists every `nvs` command.
+
+os = ["linux", "macos", "windows", "other"]
+
+arch = ["x86_64", "aarch64", "other"]
+
+commands = [
+    "agent",
+    "api",
+    "ast",
+    "build",
+    "cache",
+    "check",
+    "code",
+    "config",
+    "doc",
+    "ext",
+    "fmt",
+    "info",
+    "init",
+    "install-service",
+    "lsp",
+    "lsp-test",
+    "meta",
+    "queue",
+    "run",
+    "schema",
+    "serve",
+    "service",
+    "stubs",
+    "telemetry",
+    "test",
+    "tmp",
+    "unknown",
+    "update-check",
+]

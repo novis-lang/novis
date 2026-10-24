@@ -1,0 +1,14 @@
+# The weekly totals are kept in the SQLite file `telemetry.sqlite`, next to this file.
+# Novis creates the file when the first request opens the database.
+[db.telemetry]
+driver = "sqlite"
+path = "telemetry.sqlite"
+
+# The tests use this database. It is kept in memory and deleted when the tests end.
+[db.scratch]
+driver = "sqlite"
+path = ":memory:"
+
+# The program may open these two databases and no other.
+[capabilities.db]
+connect = ["telemetry", "scratch"]

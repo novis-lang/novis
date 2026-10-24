@@ -20,7 +20,7 @@ sees.
 - **Memory:** one transaction per request. The database grows by at most one row per week, version,
   system and counter, which is bounded by the closed lists and not by the number of reports.
 
-**Not on disk.** There is no `apps/telemetry/`.
+**Not on disk.** No page or download publishes the totals yet.
 
 **Declined:**
 - **Storing raw reports and computing totals later.** A raw report is one install's week. Not

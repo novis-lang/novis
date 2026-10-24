@@ -37,7 +37,8 @@ A report the client sent twice, because its three-second budget ran out after th
 already answered `204`, is counted twice. That case is rare, the cost is one report, and preventing it
 needs an identifier on every report.
 
-**Not on disk.** There is no `apps/telemetry/`.
+**Not on disk.** The collector never answers `429`, and no test holds `known.toml` to the binary's
+command table.
 
 **Declined:**
 - **Refusing a report over a value cap.** It loses an honest heavy week, and the cap already bounds

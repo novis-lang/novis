@@ -1,0 +1,33 @@
+<?nvs
+namespace Telemetry;
+
+use Core\Audience;
+use Core\Response;
+use Core\Router\Refusal;
+use Throwable;
+
+// The gate of the app. `Core\Router::dispatch` calls it for every request.
+// It decides if a route method may run, and it writes the error answers.
+final class Gate implements Core\Router\Gate {
+    // Every route of this app is public, so this checks for `Audience::Public`.
+    public function allows(Core\Router\Match $route): bool {
+        return $route->accessAs<Audience>() == Audience::Public;
+    }
+
+    // Writes the answer when no route method can handle the request.
+    // `dispatch` has already set the status code, such as 404 or 405.
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void {
+        string $text = match ($reason) {
+            Refusal::NotFound => "There is nothing at this address.",
+            Refusal::MethodNotAllowed => "This address does not accept this kind of request.",
+            Refusal::BodyTooLarge => "The report can have at most 4096 bytes.",
+            default => "This request is not allowed.",
+        };
+        Response::json({error: $text});
+    }
+
+    // Writes the answer when a route method throws an error. The status code is 500.
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        Response::json({error: "Something went wrong. The report was not added."});
+    }
+}
