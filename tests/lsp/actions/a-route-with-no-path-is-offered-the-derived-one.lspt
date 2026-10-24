@@ -1,0 +1,15 @@
+--TEST--
+a `#[Route]` with no `path` offers the path derived from its class and method, `Controller` removed, kebab-case, one capture per segment parameter and none for a service, `rule:routing/a-quick-fix-writes-a-derived-path`, `rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`
+--FILE--
+<?nvs
+class Mailer {}
+class AdminUserController {
+    #[Core\Ro<|>ute(method: Core\Http\Method::Get)]
+    public function listPending(Mailer $mailer, uint $page): string {
+        return "";
+    }
+}
+--REQUEST--
+codeAction
+--EXPECT--
+4:18-4:18 quickfix add the path `/admin-user/list-pending/{page}` -> "path: "/admin-user/list-pending/{page}", "

@@ -851,18 +851,16 @@ fn check_shape_field(
         return actual;
     };
     if qualifier_alone {
-        diag = diag.with_help(carrier_help(field.ty, env).map_or_else(
-            || {
-                format!(
-                    "`{}` is a sink and no `Core` member launders one for it: the only way \
-                     through is `Core\\Taint::assertTrusted($value, $reason)`, which is forbidden \
-                     by default, greppable, and carries in the source the reason the value can be \
-                     trusted",
-                    field.name
-                )
-            },
-            str::to_owned,
-        ));
+        diag = match carrier_help(field.ty, env) {
+            Some(carrier) => carrier.attach(diag, value, env),
+            None => diag.with_help(format!(
+                "`{}` is a sink and no `Core` member launders one for it: the only way \
+                 through is `Core\\Taint::assertTrusted($value, $reason)`, which is forbidden \
+                 by default, greppable, and carries in the source the reason the value can be \
+                 trusted",
+                field.name
+            )),
+        };
     }
     env.diags.report(diag);
     actual
@@ -876,24 +874,56 @@ fn check_shape_field(
 /// `Core\Http::allowUrl` returns, and `rule:core-classes/ldap-dn-is-the-launderer`'s
 /// `Core\Ldap\Dn`, which `of` and `child` build. Naming them cannot push the
 /// wrong fix.
-fn carrier_help(expected: TypeId, env: &mut Env<'_>) -> Option<&'static str> {
+fn carrier_help(expected: TypeId, env: &mut Env<'_>) -> Option<Carrier> {
     let mut admits = |class: &str| {
         let carrier = env.interner.class(QName::parse(class));
         is_assignable(carrier, expected, env.interner, env.graph, env.signatures)
     };
     if admits(r"Core\Http\Target") {
-        Some(
-            "a `tainted` URL is a sink: pass it through `Core\\Http::allowUrl($url)` first, \
-             which checks the address and returns the `Core\\Http\\Target` this parameter accepts",
-        )
+        Some(Carrier {
+            help: "a `tainted` URL is a sink: pass it through `Core\\Http::allowUrl($url)` first, \
+                   which checks the address and returns the `Core\\Http\\Target` this parameter \
+                   accepts",
+            launderer: Some(r"Core\Http::allowUrl"),
+        })
     } else if admits(r"Core\Ldap\Dn") {
-        Some(
-            "a `tainted` DN is a sink: build it with `Core\\Ldap\\Dn::of($attribute, $value)` or \
-             `$dn->child($attribute, $value)`, which escape the value and return the \
-             `Core\\Ldap\\Dn` this parameter accepts",
-        )
+        Some(Carrier {
+            help: "a `tainted` DN is a sink: build it with `Core\\Ldap\\Dn::of($attribute, \
+                   $value)` or `$dn->child($attribute, $value)`, which escape the value and \
+                   return the `Core\\Ldap\\Dn` this parameter accepts",
+            launderer: None,
+        })
     } else {
         None
+    }
+}
+
+/// The launderers of a sink's carrier, as [`carrier_help`] names them.
+struct Carrier {
+    help: &'static str,
+    /// The call that takes the refused value as its one argument and returns
+    /// the carrier, which is what makes it a fix
+    /// (`rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`). `Dn::of`
+    /// also needs an attribute name, which nothing here knows, so the DN has
+    /// none.
+    launderer: Option<&'static str>,
+}
+
+impl Carrier {
+    /// Adds the help to `diag`, and the call that wraps `value` in the
+    /// launderer. The wrap is an alternative: the launderer checks the value
+    /// at run time and may throw, and it is the author's choice over
+    /// declaring the value trusted another way.
+    fn attach(&self, diag: Diagnostic, value: &Expr, env: &Env<'_>) -> Diagnostic {
+        let diag = diag.with_help(self.help);
+        match self.launderer {
+            Some(call) => diag.with_alternative_fix(
+                value.span,
+                format!("{call}({})", span_text(env.src, value.span)),
+                format!("pass it through `{call}`"),
+            ),
+            None => diag,
+        }
     }
 }
 
@@ -931,8 +961,8 @@ fn check_carrier_arg(
     let Some(mut diag) = mismatch(value.span, expected, actual, env) else {
         return actual;
     };
-    if qualifier_alone && let Some(help) = carrier_help(expected, env) {
-        diag = diag.with_help(help);
+    if qualifier_alone && let Some(carrier) = carrier_help(expected, env) {
+        diag = carrier.attach(diag, value, env);
     }
     env.diags.report(diag);
     actual

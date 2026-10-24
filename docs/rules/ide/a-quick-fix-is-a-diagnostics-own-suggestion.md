@@ -1,12 +1,18 @@
 An inspection is an LSP code action, and every one is backed by a diagnostic the checker emits: a casing
 violation offers the `camelCase`/`PascalCase` rename (`rule:core-api/identifier-casing`); a legacy
 `(int)$x` offers `$x as int` (`rule:types/no-legacy-cast`); a missing constructor property assignment
-offers to add it (`rule:classes/definite-property-initialization`); `include` and `require_once` offer
-`require` (`rule:statements/require-is-the-only-inclusion-construct`); a `tainted` or `secret` value at
-a refusing sink offers the laundering call the diagnostic already names
-(`rule:security/tainted-qualifier`), a mis-ordered `tainted secret string` included; and a `#[Route]`
-missing its `path` offers the derived one (`rule:routing/a-quick-fix-writes-a-derived-path`). Each is a
-suggestion the developer applies deliberately.
+offers `$this->name = $name;` as the body's first statement where a parameter that is not promoted has
+the property's name (`rule:classes/definite-property-initialization`); `include`, `include_once` and
+`require_once` offer `require` (`rule:statements/require-is-the-only-inclusion-construct`); a `tainted`
+value at a refusing sink offers the laundering call the diagnostic already names, where that call takes
+the value as its one argument (`rule:security/tainted-qualifier`); a mis-ordered `tainted secret string`
+offers `secret tainted string`; and a `#[Route]` missing its `path` offers the derived one
+(`rule:routing/a-quick-fix-writes-a-derived-path`). Each is a suggestion the developer applies
+deliberately.
+
+A fix is offered only where the diagnostic knows every word of it. A property with no parameter of its
+name has no value to assign, `Core\Ldap\Dn::of` needs an attribute name, and `Core\Secret::reveal` and
+`Core\Taint::assertTrusted` need a reason only the author can give, so none of them is offered.
 
 They run against the resilient tree (`rule:ide/the-tree-survives-a-syntax-error`), not a successful
 parse: a mis-ordered qualifier, a legacy cast and a `var $x` property are parse or declaration errors,
@@ -35,9 +41,11 @@ changes what the line prints.
 `quickfix` and `source.fixAll.nvs`, and leaves an `alternative` out of the fix-all set. The suggestions
 on disk include the casing rename, the legacy cast, the `var` property's visibility and type, an
 undeclared name's import (`rule:ide/an-undeclared-name-offers-its-import`), a deprecated use's
-replacement, `W1022`'s two groupings and the regrouped bitwise comparison.
-
-**Missing:** the constructor assignment, `include` and `require_once` to `require`, the laundering
-call, the reordered qualifiers and the derived `#[Route]` path. Their diagnostics carry no suggestion.
-The laundering call is marked `alternative` when it lands: a sink usually accepts more than one
-launderer, the choice is the reader's, and so `source.fixAll.nvs` never applies it.
+replacement, `W1022`'s two groupings and the regrouped bitwise comparison. `E0409` carries the
+constructor assignment (`crates/nvs-types/src/ctor_init.rs`), `E0221` the `require` keyword
+(`crates/nvs-syntax/src/parser/expr.rs`), `E0116` the reordered qualifiers
+(`crates/nvs-syntax/src/parser/ty.rs`), `E0747` the derived path (`crates/nvs-types/src/routes.rs`),
+and the `E0401` of a `tainted` URL at an outbound call `Core\Http::allowUrl` around the argument
+(`crates/nvs-types/src/expr/args.rs`). That call is marked `alternative`: it checks the address at run
+time and may throw, the choice is the reader's, and so `source.fixAll.nvs` never applies it. Each has a
+case under `tests/lsp/actions/`.

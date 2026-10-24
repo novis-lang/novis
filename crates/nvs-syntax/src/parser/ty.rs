@@ -490,14 +490,22 @@ impl<'src, 'd> Parser<'src, 'd> {
                         // only `secret` first — `inner` already built a
                         // `Secret*` atom, meaning the source spelled `secret`
                         // before this `tainted`, i.e. wrote the rejected
-                        // order (`tainted secret string`).
+                        // order (`tainted secret string`). The fix writes the
+                        // one order that means the same type.
+                        let reordered = match other {
+                            TypeKind::Atom(
+                                TypeAtom::SecretString | TypeAtom::SecretTaintedString,
+                            ) => "secret tainted string",
+                            _ => "secret tainted bytes",
+                        };
                         self.diags.report(
                             Diagnostic::error(
                                 code::E_SECRET_TAINTED_ORDER,
                                 "`secret` must come before `tainted`",
                             )
                             .with_primary(span, "wrong qualifier order")
-                            .with_help("write `secret tainted string` or `secret tainted bytes`"),
+                            .with_help("write `secret tainted string` or `secret tainted bytes`")
+                            .with_fix(span, reordered, format!("write `{reordered}`")),
                         );
                         return Type { kind: other, span };
                     }

@@ -38,36 +38,43 @@ error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:16:32
 %A
    = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+   = suggestion (review): pass it through `Core\Http::allowUrl`: `Core\Http::allowUrl($outside)`
 
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:17:33
 %A
    = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+   = suggestion (review): pass it through `Core\Http::allowUrl`: `Core\Http::allowUrl($outside)`
 
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:18:32
 %A
    = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+   = suggestion (review): pass it through `Core\Http::allowUrl`: `Core\Http::allowUrl($outside)`
 
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:19:34
 %A
    = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+   = suggestion (review): pass it through `Core\Http::allowUrl`: `Core\Http::allowUrl($outside)`
 
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:20:35
 %A
    = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+   = suggestion (review): pass it through `Core\Http::allowUrl`: `Core\Http::allowUrl($outside)`
 
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:21:33
 %A
    = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+   = suggestion (review): pass it through `Core\Http::allowUrl`: `Core\Http::allowUrl($outside)`
 
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:22:59
 %A
    = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+   = suggestion (review): pass it through `Core\Http::allowUrl`: `Core\Http::allowUrl($outside)`
 
 error: aborting due to 7 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

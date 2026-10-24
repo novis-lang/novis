@@ -27,8 +27,11 @@ The fix is backed by a diagnostic the checker already emits, since `path` is a r
 `Core\Route` (`rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`).
 
 **Built:** no path is derived, and `E0747` reports a `#[Route]` with no `path`
-(`crates/nvs-types/src/routes.rs`, `crates/nvs-types/tests/routes.rs`). **Missing:** the fix. `E0747`
-carries no suggestion, so the editor offers nothing.
+(`crates/nvs-types/src/routes.rs`, `crates/nvs-types/tests/routes.rs`). Its suggestion writes `path:
+"…"` before the payload's first field, or as the whole payload where there is none (`derived_path` in
+`crates/nvs-types/src/routes.rs`), and
+`tests/lsp/actions/a-route-with-no-path-is-offered-the-derived-one.lspt` freezes the edit. The fix is
+not safe, since the URL it writes is a starting point.
 
 **Declined:**
 - **Convention routing**, a `path` or `name` the compiler derives from the class and method. It makes a

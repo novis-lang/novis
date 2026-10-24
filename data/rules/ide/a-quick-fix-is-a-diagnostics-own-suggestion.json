@@ -1,6 +1,6 @@
 {
   "title": "An inspection is a code action backed by a diagnostic the checker emits, runs on the resilient tree, and is off by default under `source.fixAll.nvs` so it composes with format-on-save while `nvs fmt` stays layout-only",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/the-tree-survives-a-syntax-error",
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
@@ -17,7 +17,10 @@
     "ide/a-string-converts-to-an-html-template"
   ],
   "guardedBy": [
-    "crates/nvs-lsp/tests/actions.rs"
-  ],
-  "goal": "editor-fixes"
+    "crates/nvs-lsp/tests/actions.rs",
+    "tests/lsp/actions/an-include-is-offered-require.lspt",
+    "tests/lsp/actions/a-tainted-secret-string-is-offered-the-reordered-qualifiers.lspt",
+    "tests/lsp/actions/a-tainted-url-is-offered-allow-url.lspt",
+    "tests/lsp/actions/an-unassigned-property-is-offered-its-assignment.lspt"
+  ]
 }

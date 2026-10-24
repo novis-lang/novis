@@ -1,0 +1,14 @@
+--TEST--
+a property the constructor never assigns offers `$this->name = $name;` as the body's first statement, because a parameter has its name, `rule:classes/definite-property-initialization`, `rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`
+--FILE--
+<?nvs
+class User {
+    public string $na<|>me;
+    public function constructor(string $name) {
+        echo "made";
+    }
+}
+--REQUEST--
+codeAction
+--EXPECT--
+5:9-5:9 quickfix assign `$this->name` from `$name` -> "$this->name = $name;\n        "

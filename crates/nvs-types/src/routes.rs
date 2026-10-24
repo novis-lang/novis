@@ -1634,17 +1634,21 @@ fn collect_route(
             (None, _) => "a `path`",
             _ => "a `method`",
         };
-        env.diags.report(
-            Diagnostic::error(
-                code::E_ROUTE_INCOMPLETE,
-                format!("this `#[Route]` on `{handler}` gives no {missing}"),
-            )
-            .with_primary(attr.span, "not enough to build a route")
-            .with_help(
-                "a route is a path and a verb together, and only `name` is optional — write \
-                 `#[Route(path: \"/users\", method: Core\\Http\\Method::Get)]`",
-            ),
+        let mut diag = Diagnostic::error(
+            code::E_ROUTE_INCOMPLETE,
+            format!("this `#[Route]` on `{handler}` gives no {missing}"),
+        )
+        .with_primary(attr.span, "not enough to build a route")
+        .with_help(
+            "a route is a path and a verb together, and only `name` is optional — write \
+             `#[Route(path: \"/users\", method: Core\\Http\\Method::Get)]`",
         );
+        if written(attr, PATH, env).is_none() {
+            let path = derived_path(m, class, ctx, env);
+            let (span, text) = path_insertion(attr, &path, env);
+            diag = diag.with_unsafe_fix(span, text, format!("add the path `{path}`"));
+        }
+        env.diags.report(diag);
         return;
     };
     let captures = match parse_path(&path) {
@@ -2161,6 +2165,86 @@ fn check_captures(
         );
     }
     params
+}
+
+/// `rule:routing/a-quick-fix-writes-a-derived-path`'s path for `m` on `class`:
+/// the class's short name less a trailing `Controller`, then the method's name
+/// unless it is `index`, then one `{name}` per parameter with no `#[Query]`
+/// whose declared type a segment converts to. Each name is kebab-case, and
+/// nothing is pluralized.
+///
+/// Only the quick fix on `E0747` reads it. No route ever gets this path
+/// without the author writing it.
+fn derived_path(m: &MethodMember, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) -> String {
+    let short = class.short_name();
+    let short = short.strip_suffix("Controller").unwrap_or(short);
+    let mut path = String::new();
+    if !short.is_empty() {
+        path.push('/');
+        path.push_str(&kebab(short));
+    }
+    let (src, signatures) = (env.src, env.signatures);
+    let method = span_text(src, m.name).to_owned();
+    if method != "index" {
+        path.push('/');
+        path.push_str(&kebab(&method));
+    }
+    let sig = signatures
+        .get(class)
+        .and_then(|class_sig| class_sig.methods.get(&method));
+    for (index, param) in m.params.iter().enumerate() {
+        let Some(ty) = sig.and_then(|sig| sig.params.get(index).copied()) else {
+            continue;
+        };
+        if !converts_from_segment(ty, env)
+            || crate::testing::attribute_named(&param.attributes, crate::derive::QUERY, ctx, env)
+                .is_some()
+        {
+            continue;
+        }
+        path.push_str("/{");
+        path.push_str(crate::strip_sigil(span_text(src, param.name)));
+        path.push('}');
+    }
+    if path.is_empty() {
+        path.push('/');
+    }
+    path
+}
+
+/// `PascalCase` or `camelCase` as kebab-case: `AdminUser` is `admin-user`, and
+/// `listPending` is `list-pending`.
+fn kebab(name: &str) -> String {
+    let mut out = String::with_capacity(name.len() + 4);
+    for (i, c) in name.chars().enumerate() {
+        if c.is_ascii_uppercase() {
+            if i > 0 {
+                out.push('-');
+            }
+            out.push(c.to_ascii_lowercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Where `path: "<path>"` goes in `attr`, and the text written there: before
+/// the first field the payload has, inside an empty `()` or `{}`, or as a new
+/// `(...)` after a name written with no payload at all.
+fn path_insertion(attr: &Attribute, path: &str, env: &Env<'_>) -> (Span, String) {
+    let field = format!("path: \"{path}\"");
+    if let Some(first) = attr.fields.first() {
+        return (first.span.shrink_to_start(), format!("{field}, "));
+    }
+    let payload = span_text(env.src, attr.payload);
+    match payload.chars().next() {
+        Some(open @ ('(' | '{')) if payload.len() >= 2 => {
+            let close = if open == '(' { ')' } else { '}' };
+            (attr.payload, format!("{open}{field}{close}"))
+        }
+        _ => (attr.payload.shrink_to_end(), format!("({field})")),
+    }
 }
 
 /// Whether a path segment or a query value converts to `ty`: the shared roster
