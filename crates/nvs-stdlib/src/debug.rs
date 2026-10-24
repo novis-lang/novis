@@ -1193,7 +1193,9 @@ mod tests {
         lines.push("app/Main.nvs", 3);
         lines.push("app/Main.nvs", 4);
         lines.push("app/Lib.nvs", 9);
-        let hits = std::sync::Arc::new(nvs_runtime::StmtHits::new(4).located(lines));
+        let hits = std::sync::Arc::new(
+            nvs_runtime::StmtHits::new(4).located(std::sync::Arc::new(lines)),
+        );
         hits.record(0);
         hits.record(1);
         hits.record(1);

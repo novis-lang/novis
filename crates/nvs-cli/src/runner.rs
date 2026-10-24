@@ -752,10 +752,7 @@ pub(crate) fn run(
     // each test's own table is added to it when the test is reported
     // ([`Queue`]), so it holds the whole run when the suite returns.
     let hits = measured.then(|| {
-        let hits = std::sync::Arc::new(nvs_runtime::StmtHits::with_edges(
-            sites.len(),
-            sites.edges(),
-        ));
+        let hits = std::sync::Arc::new(sites.table());
         ctx.set_stmt_hits(Some(std::sync::Arc::clone(&hits)));
         ctx.set_debug_flags(
             ctx.debug_flags() | nvs_runtime::DebugFlags::COVERAGE | nvs_runtime::DebugFlags::BRANCH,
@@ -1478,9 +1475,13 @@ fn run_suite(
             .config()
             .and_then(nvs_config::Request::folder)
             .map(Arc::clone),
-        coverage: hits
-            .as_ref()
-            .map(|hits| (hits.counts().len(), hits.edge_counts().len())),
+        coverage: hits.as_ref().map(|hits| {
+            (
+                hits.counts().len(),
+                hits.edge_counts().len(),
+                hits.lines().map(Arc::clone),
+            )
+        }),
         format: shape.format,
         show_output: shape.show_output,
         wall: shape.wall,
@@ -1766,9 +1767,10 @@ struct Shared {
     /// The suite's app folder, which each test's context is given beside
     /// [`Self::config`].
     folder: Option<Arc<std::path::Path>>,
-    /// The sizes of the run's coverage table, statements then edges, or `None`
-    /// for a run with no coverage flag.
-    coverage: Option<(usize, usize)>,
+    /// The sizes of the run's coverage table, statements then edges, and where
+    /// each statement is written, or `None` for a run with no coverage flag.
+    /// Each test's own table is located by the same lines.
+    coverage: Option<(usize, usize, Option<Arc<nvs_runtime::StmtLines>>)>,
     format: Format,
     show_output: bool,
     /// [`Shape::wall`].
@@ -1925,8 +1927,12 @@ impl Job {
             watched.publish(ctx.safepoint_view());
             watched
         });
-        let hits = shared.coverage.map(|(stmts, edges)| {
-            let hits = Arc::new(nvs_runtime::StmtHits::with_edges(stmts, edges));
+        let hits = shared.coverage.as_ref().map(|(stmts, edges, lines)| {
+            let table = nvs_runtime::StmtHits::with_edges(*stmts, *edges);
+            let hits = Arc::new(match lines {
+                Some(lines) => table.located(Arc::clone(lines)),
+                None => table,
+            });
             ctx.set_stmt_hits(Some(Arc::clone(&hits)));
             ctx.set_debug_flags(
                 ctx.debug_flags()

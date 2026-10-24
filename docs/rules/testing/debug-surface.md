@@ -60,8 +60,9 @@ copy-out rule a value, an error and a usage figure already use.
 lcov, Clover and Cobertura coverage (`crates/nvs-cli/src/main.rs:617`,
 `crates/nvs-cli/src/coverage.rs`). `Core\Debug`'s seven members exist
 (`crates/nvs-stdlib/src/debug.rs`), and a trace streams one line per returned call to its file
-(`nvs_runtime::TraceSink`). A named profile sink is recorded and nothing writes to it yet, and no
-host locates its statement table, so `coverage()` is empty everywhere a program runs. There is no
+(`nvs_runtime::TraceSink`). A named profile sink is recorded and nothing writes to it yet. `nvs test` locates
+its coverage tables, and `nvs run` installs a located table when `[debug] mode` has `coverage`, so
+`coverage()` names the files and lines that ran. There is no
 Callgrind or speedscope exporter, `nvs run` has no probe flags, and a spawned isolate's probe data does
 not come back on its result.
 

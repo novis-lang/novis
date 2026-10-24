@@ -2086,6 +2086,16 @@ fn run_run(
     if let Some(folder) = folder {
         ctx.set_app_folder(folder.into());
     }
+    // `rule:testing/debug-surface`: a program `[debug] mode` lets start coverage counts into a
+    // table located by file and line, so `Core\Debug::coverage` names what ran. Built only under
+    // that ceiling: one counter per statement and edge, and one line per statement, for the run.
+    if ctx
+        .debug_ceiling()
+        .contains(nvs_runtime::DebugFlags::COVERAGE)
+    {
+        let sites = coverage::Sites::of(coverage::Probes::of(&program), &checked.map);
+        ctx.set_stmt_hits(Some(std::sync::Arc::new(sites.table())));
+    }
     if let Some(mut inbound) = arrived {
         runner::refuse_a_forged_write(&ctx, &routes, &mut inbound);
         ctx.set_inbound(inbound);

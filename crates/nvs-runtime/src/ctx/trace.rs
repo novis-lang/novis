@@ -712,14 +712,15 @@ pub struct Counted {
 pub struct StmtHits {
     stmts: Box<[std::sync::atomic::AtomicU64]>,
     edges: Box<[std::sync::atomic::AtomicU64]>,
-    lines: Option<StmtLines>,
+    lines: Option<Arc<StmtLines>>,
 }
 
 /// Where each statement a [`StmtHits`] table counts is written: a file and a line per statement
 /// number, which is what `Core\Debug::coverage` reads the table back through.
 ///
 /// **What it spends:** one pair of `u32`s per statement and one string per file, once per run
-/// whose host located its table ([`StmtHits::located`]).
+/// whose host located its tables ([`StmtHits::located`]). The tables of one run share it, so
+/// `nvs test`'s table per test adds a pointer each.
 #[derive(Debug, Default)]
 pub struct StmtLines {
     files: Vec<Box<str>>,
@@ -744,6 +745,12 @@ impl StmtLines {
         };
         self.sites
             .push((u32::try_from(index).unwrap_or(u32::MAX), line));
+    }
+
+    /// Says the next statement number is in no file a coverage answer lists, such as a file
+    /// that is not on disk.
+    pub fn skip(&mut self) {
+        self.sites.push((u32::MAX, 0));
     }
 }
 
@@ -940,9 +947,15 @@ impl StmtHits {
 
     /// The same table, with where each statement is written, so [`Self::line_counts`] can read it.
     #[must_use]
-    pub fn located(mut self, lines: StmtLines) -> Self {
+    pub fn located(mut self, lines: Arc<StmtLines>) -> Self {
         self.lines = Some(lines);
         self
+    }
+
+    /// Where each statement is written, when the host located this table.
+    #[must_use]
+    pub fn lines(&self) -> Option<&Arc<StmtLines>> {
+        self.lines.as_ref()
     }
 
     /// Each line a statement ran on, by file, with its count — `Core\Debug::coverage`'s answer.

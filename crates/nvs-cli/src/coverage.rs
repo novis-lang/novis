@@ -257,6 +257,28 @@ impl Sites {
         self.edges
     }
 
+    /// Where each statement number is written, for `StmtHits::located`, so
+    /// `Core\Debug::coverage` names the files and lines these reports name. A
+    /// statement in a file the reports leave out is skipped there too.
+    pub(crate) fn located_lines(&self) -> std::sync::Arc<nvs_runtime::StmtLines> {
+        let mut lines = nvs_runtime::StmtLines::new();
+        for at in &self.at {
+            match at {
+                Some((file, line)) => lines.push(
+                    &self.files[*file].0,
+                    u32::try_from(*line).unwrap_or(u32::MAX),
+                ),
+                None => lines.skip(),
+            }
+        }
+        std::sync::Arc::new(lines)
+    }
+
+    /// A run's table, sized for these numbers and located by [`Self::located_lines`].
+    pub(crate) fn table(&self) -> nvs_runtime::StmtHits {
+        nvs_runtime::StmtHits::with_edges(self.len(), self.edges()).located(self.located_lines())
+    }
+
     /// The lines the statements numbered in `reached` start on, for one
     /// test's record in the JSON report. Files are in name order, and each
     /// file's lines are sorted and listed once. A statement in a file the
