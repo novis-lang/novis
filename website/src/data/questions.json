@@ -1120,10 +1120,10 @@
   },
   "/reference/cli/nvs-check/": {
     "feature": "tools:cli/nvs-check",
-    "hash": "a21fbb63e849f1a1",
+    "hash": "ae1a928451e3d86a",
     "questions": [
       "How do I check my code for errors without running it?",
-      "Type-check a program in a pre-commit hook or CI",
+      "Type-check every file in a folder from a pre-commit hook or CI",
       "Check a single class file that is loaded by autoload",
       "See which folders my autoload rules resolve to",
       "What do error codes like E0401 in compiler output mean?",
@@ -1268,14 +1268,14 @@
   },
   "/reference/cli/nvs-telemetry/": {
     "feature": "tools:cli/nvs-telemetry",
-    "hash": "e07ad740648e58e6",
+    "hash": "426540e2592e0ac5",
     "questions": [
       "How do I turn usage telemetry on or off?",
       "What data does Novis telemetry collect about my commands?",
       "See the exact JSON that the next telemetry upload sends",
-      "Does nvs serve send telemetry while it handles traffic?",
       "Stop telemetry on CI machines with DO_NOT_TRACK",
-      "What happens when the telemetry upload times out?"
+      "Send my usage counters to a collector from a daily cron job",
+      "What happens when the collector is down or rejects a week?"
     ]
   },
   "/reference/cli/nvs-test/": {
@@ -1292,23 +1292,26 @@
   },
   "/reference/cli/nvs-update-check/": {
     "feature": "tools:cli/nvs-update-check",
-    "hash": "aa360ff60c321c9b",
+    "hash": "d3cda83df0ccbeda",
     "questions": [
       "How do I check whether a newer Novis version exists?",
       "Check for updates from a cron job and read JSON",
       "Point the update check at my own release server",
-      "Why does the update check always exit with status 0?"
+      "Why does the update check always exit with status 0?",
+      "Does the update check also send my telemetry counters?",
+      "Why does the update check say the release could not be read?"
     ]
   },
   "/reference/cli/one-binary/": {
     "feature": "tools:cli/one-binary",
-    "hash": "e9400c1b2508a658",
+    "hash": "e76865f7ab00d188",
     "questions": [
       "What commands does the Novis command-line tool have?",
       "Overview of every command and its options",
       "How do I see the help for a command?",
       "Is there a short flag for running or checking a file?",
-      "What can I do with the nvs program?"
+      "What can I do with the nvs program?",
+      "Which option changes the folder where nvs keeps its own files?"
     ]
   },
   "/reference/cli/the-compile-cache/": {
@@ -1505,14 +1508,14 @@
   },
   "/reference/config/log/": {
     "feature": "directive:log",
-    "hash": "12dbb49ab9a186c9",
+    "hash": "730735df05969098",
     "questions": [
       "How do I write log records as JSON or plain text?",
       "Turn on debug logging for one request",
       "Run my own script when a request fails",
-      "Where are errors written when my error handler fails?",
       "Send the error log to a file or syslog",
-      "Limit log file size and keep old log files"
+      "Limit log file size and keep old log files",
+      "Stop writing visitor IP addresses to the access log"
     ]
   },
   "/reference/config/metrics/": {
@@ -1630,13 +1633,14 @@
   },
   "/reference/config/the-blocks-the-binary-accepts/": {
     "feature": "tools:config/the-blocks-the-binary-accepts",
-    "hash": "1dca411b3517d7a5",
+    "hash": "9945930997c576a2",
     "questions": [
       "Which sections can I write in the configuration file?",
       "Why do I get an unknown key error at startup?",
       "Configure a database connection or mail server",
       "What does error E0601 mean in my configuration?",
-      "What does warning W1024 mean for an empty unknown section?"
+      "What does warning W1024 mean for an empty unknown section?",
+      "Can I put a setting outside any section in nvs.toml?"
     ]
   },
   "/reference/config/the-file-and-where-it-is-read-from/": {
