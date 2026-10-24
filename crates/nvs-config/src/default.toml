@@ -1147,6 +1147,7 @@
 #format = "json"                      # default: "json" in production, "text" in development
 #level = "Info"                       # default: "Info" in production, "Debug" in development
 #access = false                       # default: false in production, true in development
+#client_ip = true                     # default
 
 
 # ----------------------------------------------------------------------------------------------
