@@ -34,8 +34,8 @@ stages:
         rules: [tooling/telemetry-totals-are-public, tooling/the-collector-keeps-weekly-totals-only]
   - id: 5
     title: "the deploy guide, the known list follows the binary, and the reference names the collector"
-    status: open
-    context: [apps/telemetry/README.md, apps/telemetry/known.toml, crates/nvs-cli/src/telemetry.rs, crates/nvs-cli/tests/telemetry_known.rs, docs/reference/tools/10-cli.md]
+    status: done
+    context: [apps/telemetry/README.md, apps/telemetry/known.toml, crates/nvs-cli/src/telemetry.rs, docs/reference/tools/10-cli.md]
     extra:
       context:
         rules: [tooling/the-telemetry-collector-is-a-novis-program, tooling/a-telemetry-report-is-checked-against-a-closed-schema]
@@ -118,8 +118,12 @@ cookie and no session, so a forged request has nothing to ride on, and `nvs.toml
 `csrf_key` (`rule:security/csrf-is-on-by-default`). Every other route is `GET`.
 
 **`known.toml` is the collector's copy of the closed lists.** It lists the commands, the `os` values
-and the `arch` values. A Rust test, `crates/nvs-cli/tests/telemetry_known.rs`, reads it and fails
-when the binary's command table names a command it does not list. Why: the collector runs one version
+and the `arch` values. The unit test
+`the_collectors_known_lists_name_everything_this_client_sends` in `crates/nvs-cli/src/telemetry.rs`
+reads it with `include_str!` and fails when the binary's command table, `unknown`, or an `os` or
+`arch` the client can send is not listed. The lists may name more, because a removed command still
+arrives from older clients. It is a unit test because `nvs-cli` has no library target, so an
+integration test cannot reach the private `COMMAND_NAMES`. Why: the collector runs one version
 of Novis and receives reports from many, so it cannot read the table at run time.
 
 **The clock is Core's, so tests move it.** The week window and the daily salt read Core's clock,
@@ -240,11 +244,11 @@ and as JSON and CSV.
 **Does:** a person can deploy the collector from its README alone, and a test keeps `known.toml` in
 step with the command table.
 
-- [ ] The local run: `nvs serve public/index.nvs`, then `NVS_TELEMETRY_URL=http://127.0.0.1:8000/v1/report nvs telemetry upload` from another terminal, and the totals on `http://127.0.0.1:8000/`. `apps/telemetry/README.md:1`
-- [ ] The deploy guide: Caddy and its Caddyfile with no `log` and `telemetry.example.com` as the site, `nvs.toml`, `REVISION`, how to run it as a service under its own operating-system account, so it shares a host with the registry and cannot read the registry's files, and the one constant to set for the client's default URL (`rule:tooling/the-telemetry-collector-is-a-novis-program`). `apps/telemetry/README.md:1`
+- [x] The local run: `nvs serve public/index.nvs`, then `NVS_TELEMETRY_URL=http://127.0.0.1:8000/v1/report nvs telemetry upload` from another terminal, and the totals on `http://127.0.0.1:8000/`. `apps/telemetry/README.md:1`
+- [x] The deploy guide: Caddy and its Caddyfile with no `log` and `telemetry.example.com` as the site, `nvs.toml`, `REVISION`, how to run it as a service under its own operating-system account, so it shares a host with the registry and cannot read the registry's files, and the one constant to set for the client's default URL (`rule:tooling/the-telemetry-collector-is-a-novis-program`). `apps/telemetry/README.md:1`
 - [x] `REVISION` in `.gitignore`. `apps/telemetry/.gitignore:1`
-- [ ] The test that every command in the binary's table is in `known.toml` (gated on `cli-housekeeping`). `crates/nvs-cli/tests/telemetry_known.rs:1`, `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] `# nvs telemetry` in the CLI reference says the collector is `apps/telemetry/` and how to run one, and lists the answers and what the client does with each (gated on `cli-housekeeping`). `docs/reference/tools/10-cli.md:509`
+- [x] The test that every command in the binary's table is in `known.toml` (gated on `cli-housekeeping`). `crates/nvs-cli/src/telemetry.rs:the_collectors_known_lists_name_everything_this_client_sends`
+- [x] `# nvs telemetry` in the CLI reference says the collector is `apps/telemetry/` and how to run one, and lists the answers and what the client does with each (gated on `cli-housekeeping`). `docs/reference/tools/10-cli.md:509`
 
 ### 6. the real client uploads to the collector end to end on one machine, and every rule is shipped
 
@@ -276,7 +280,25 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-**Stages 1 to 4 are done.** Stage 4 is `86e2e9129`, on top of `7beb15721` and `36efef207`.
+**Stages 1 to 5 are done.** Stage 5 is the commit after `695b4db63`.
+
+- **Stage 5.** `apps/telemetry/README.md` has *Send a report on your own machine* (a `try` data
+  folder with a hand-written `pending` week from seven days ago, since `Report::week` takes only an
+  ended week at most four weeks old) and *Deploy the collector* (Linux and systemd: a `telemetry`
+  account, the database in `/var/lib/telemetry-db` owned by it, the data folder's `nvs.toml` copied
+  from the app's with an absolute `[db.telemetry] path` and `[log] target = "stderr"`, `REVISION`,
+  `nvs service install --account`, the Caddyfile with no `log`, and the client constant).
+  `nvs config check` accepts both the app's file and the guide's copy.
+- `apps/telemetry/nvs.toml` now sets `[server] trusted_proxies = ["127.0.0.1"]`. No app test reads
+  `clientIp` through a forwarding header, so the 39 tests are not expected to change.
+- The known-list test is a unit test in `crates/nvs-cli/src/telemetry.rs`, not
+  `tests/telemetry_known.rs`: the crate has no library target (see the standing decision). It ran
+  once by name and passes.
+- `docs/reference/tools/10-cli.md` § *nvs telemetry* has **The collector**: where it lives, its
+  README, and a status table. `bun nv render --website` wrote `llms-full.txt`.
+- The rule's *Not on disk* now names only the end-to-end test.
+
+Stage 4 is `86e2e9129`, on top of `7beb15721` and `36efef207`.
 
 - **Stage 4.** `App.nvs` routes `/`, `/collect`, `/data`, `/style.css`, `/data/totals.json`,
   `/data/totals.csv` and `/data/{file}`. A capture must be a whole segment, so `/data/{file}`
@@ -299,8 +321,6 @@ subagent. Such subagents run side by side, and none of them builds.
   `POST /v1/report` in a new test pushed `LimitTest` over ten on the shared no-address key, so
   `PagesTest` sends `GET /v1/report` (`405`) instead.
 - `rule:tooling/telemetry-totals-are-public` is shipped, guarded by `PagesTest` and `DataTest`.
-  `rule:tooling/the-telemetry-collector-is-a-novis-program`'s *Not on disk* now names only the deploy
-  guide, the end-to-end test and `REVISION`.
 
 Stages 1 to 3: `73fadfe73` and `d8bcb6166`, with a stage-1 fix in `59451e437`.
 
@@ -321,27 +341,32 @@ Stages 1 to 3: `73fadfe73` and `d8bcb6166`, with a stage-1 fix in `59451e437`.
   against one key. `AppTest` runs at the real date and sends five. A sixth to tenth is fine, an
   eleventh in one run gets `429`.
 
-The sweep's reds: `env-secret-proofs` passes at HEAD (its log says `exit 0`). Every nightly red is
-from run `39922764699`, already triaged. `crates/nvs-runtime/src/capability.rs` is still modified
+The sweep's reds: `env-secret-proofs` passes at HEAD, rerun this session with exit 0. Every nightly
+red is from run `39922764699`, already triaged. `crates/nvs-runtime/src/capability.rs` is still modified
 in the tree, and it belongs to interactive session `6884de4b`.
 
 ### Next
 
-**Stage 5, the deploy guide, the known list and the reference.** Its gate holds:
-`docs/goals/cli-housekeeping.md` is gone. `REVISION` is in `.gitignore` already.
+**Stage 6, the end-to-end test and every rule shipped.** Its gate holds. One new file,
+`crates/nvs-cli/tests/telemetry_e2e.rs`, in the shape of `crates/nvs-cli/tests/telemetry.rs`
+(its `nvs` helper at `:37`, `BOOT`, `WAITING` and the removal of `CI` and `DO_NOT_TRACK`).
 
-- [ ] The local run in the README: `nvs serve public/index.nvs`, then `NVS_TELEMETRY_URL=http://127.0.0.1:8000/v1/report nvs telemetry upload`, and the totals on `/`. `apps/telemetry/README.md:1`
-- [ ] The deploy guide: the Caddyfile with no `log` and `telemetry.example.com`, `[server] trusted_proxies = ["127.0.0.1"]` in `nvs.toml`, the deploy step that writes `REVISION`, a service under its own account, and the one client constant. `apps/telemetry/README.md:1`, `crates/nvs-cli/src/endpoints.rs:1`
-- [ ] `crates/nvs-cli/tests/telemetry_known.rs`: every name in `COMMAND_NAMES` is in `known.toml`. The table is private to `main.rs`, so check how a test can read it first. `crates/nvs-cli/src/main.rs:471`, `apps/telemetry/known.toml:1`
-- [ ] `# nvs telemetry` in the CLI reference names `apps/telemetry/`, how to run one, and each answer and what the client does with it. Then `bun nv render --website`. `docs/reference/tools/10-cli.md:554`
+- [ ] Start `nvs serve` on `apps/telemetry/public/index.nvs` with a temporary copy of `apps/telemetry/nvs.toml` whose `[db.telemetry] path` is a temporary file, on a free loopback port. Check how `telemetry.rs` picks the port and listens. `crates/nvs-cli/tests/telemetry.rs:1`
+- [ ] Upload a finished week (last week's ISO week, since the collector takes only an ended week at most four weeks old, `apps/telemetry/src/Report.nvs:121`): `204`, the row in `/data/totals.json`, the line on `/`.
+- [ ] A second upload in the same week refused by the client, and a malformed report dropped on `400`. `crates/nvs-cli/src/telemetry.rs:27`
+- [ ] The bytes `nvs telemetry show` printed equal the bytes the server received, and `127.0.0.1` is in no table and no log line the server wrote. `crates/nvs-cli/tests/telemetry.rs:1`
+- [ ] The five tooling rules `shipped` with their tests in `guardedBy`, and `bun nv owners --closes telemetry-service`. `data/rules/tooling/the-telemetry-collector-is-a-novis-program.json:3`
 
-Expected red: none. The new Rust test ran once by name, and clippy is clean.
+Expected red: none. The stage-5 unit test ran once by name, and clippy is clean.
 
 ### Backlog
 
 - Deploying the collector and setting the client's default URL to it are not this goal's work. The
   default is one constant in `crates/nvs-cli/src/endpoints.rs`, set in the same change that updates
   `rule:config/telemetry-and-update-endpoints-are-configuration`.
+- `nvs service install --help` says a service needs a log file, while
+  `rule:packaging/the-installer-is-a-sink` accepts `[log] target = "stderr"`, which goes to the
+  journal. The deploy guide uses `stderr`. The help text may want a line about that.
 - Download counts from GitHub releases on the public pages would correct the opt-in undercount
   (`rule:tooling/telemetry-is-two-opt-ins`). They need an outbound job, and no goal owns it.
 - `[app.log]` in `crates/nvs-config/src/default.toml` does not list `client_ip`. It is a `System`

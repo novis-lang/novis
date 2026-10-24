@@ -54292,6 +54292,22 @@ one of these lines:
 
 The upload is one `POST` of the document as `application/json`. It follows no redirect.
 
+**The collector.** The collector is a Novis web app in the folder `apps/telemetry/` of the Novis
+repository. Its `README.md` shows how to run one on your own machine and how to deploy it. It returns
+one of these statuses, and the command does this with the week:
+
+| Status | Meaning | What happens to the week |
+|---|---|---|
+| `204` | The collector added the week to its totals. | It is removed from the file. |
+| `400` | A field of the document is not valid. | It is removed from the file. |
+| `413` | The document is larger than 4 KiB. | It is removed from the file. |
+| `415` | The document is not JSON. | It is removed from the file. |
+| `429` | This address sent too many reports in the last hour. | It stays in the file. |
+| any other | The collector did not handle the document. | It stays in the file. |
+
+The collector saves no report and no address. Every total it has is public on its pages, and as JSON
+and CSV.
+
 `nvs telemetry show` prints the document on standard output. If the week is not finished yet, a note
 on standard error says so. The counter file looks like this:
 

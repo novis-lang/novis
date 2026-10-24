@@ -1219,6 +1219,35 @@ mod tests {
         assert!(!table.contains(&UNKNOWN));
     }
 
+    /// The collector's copy of the closed lists, `apps/telemetry/known.toml`, names every command
+    /// in the table, `unknown`, and every `os` and `arch` this client can send. It may name more:
+    /// a command a later release removes still arrives from the older clients.
+    #[test]
+    fn the_collectors_known_lists_name_everything_this_client_sends() {
+        let known: toml::Table =
+            include_str!("../../../apps/telemetry/known.toml").parse().expect("known.toml parses");
+        let list = |key: &str| -> Vec<String> {
+            known[key]
+                .as_array()
+                .expect("a list")
+                .iter()
+                .map(|value| value.as_str().expect("a string").to_owned())
+                .collect()
+        };
+        let commands = list("commands");
+        for name in crate::COMMAND_NAMES.iter().chain([&UNKNOWN]) {
+            assert!(commands.iter().any(|known| known == name), "known.toml lacks command `{name}`");
+        }
+        let systems = list("os");
+        for name in ["linux", "macos", "windows", "freebsd"].map(os) {
+            assert!(systems.iter().any(|known| known == name), "known.toml lacks os `{name}`");
+        }
+        let processors = list("arch");
+        for name in ["x86_64", "aarch64", "riscv64"].map(arch) {
+            assert!(processors.iter().any(|known| known == name), "known.toml lacks arch `{name}`");
+        }
+    }
+
     #[test]
     fn days_active_counts_the_days_of_one_week() {
         let monday = friday() - 4;
