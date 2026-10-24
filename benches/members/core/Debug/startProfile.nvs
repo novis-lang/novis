@@ -1,0 +1,28 @@
+<?nvs
+// Starts timing calls and stops again, as a program does around the part it wants to make faster.
+// bench: iterations 256
+// bench: calls 2
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $dir = Core\IO::temporaryDir();
+        array<string> $paths = [
+            Core\Path::join($dir, "a.json"),
+            Core\Path::join($dir, "b.json"),
+            Core\Path::join($dir, "c.json"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The round before decides which file the profile is written to.
+            Core\Debug::startProfile($paths[(($total + $i) % 3) as int]);
+            Core\Debug::stopProfile();
+            $total = $total + 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

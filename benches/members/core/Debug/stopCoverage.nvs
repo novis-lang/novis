@@ -1,0 +1,22 @@
+<?nvs
+// Stops counting lines after a short check, as a test does when the code it checks has run.
+// bench: iterations 512
+// bench: calls 2
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Debug::startCoverage($total % 2 == 0);
+            // These lines are counted while coverage runs.
+            $total = $total + ($i % 7) + 1;
+            Core\Debug::stopCoverage();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(512), "\n";

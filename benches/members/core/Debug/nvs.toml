@@ -1,0 +1,8 @@
+# The benches start and stop every debug probe, so `mode` names all four.
+# A trace or a profile is written into a temporary folder, so both are granted everywhere.
+[debug]
+mode = ["coverage", "branch", "trace", "profile"]
+
+[capabilities.debug]
+trace = true
+profile = true

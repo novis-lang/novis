@@ -1,0 +1,29 @@
+<?nvs
+// Stops a trace and closes its file, as a program does when the part it debugs has run.
+// bench: iterations 64
+// bench: calls 3
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $dir = Core\IO::temporaryDir();
+        array<string> $paths = [
+            Core\Path::join($dir, "a.jsonl"),
+            Core\Path::join($dir, "b.jsonl"),
+            Core\Path::join($dir, "c.jsonl"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $path = $paths[(($total + $i) % 3) as int];
+            Core\Debug::startTrace($path);
+            // This call is written to the trace before it stops.
+            $total = $total + 3 * Core\Str::length($path);
+            Core\Debug::stopTrace();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

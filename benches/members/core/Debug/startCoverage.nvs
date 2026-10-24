@@ -1,0 +1,22 @@
+<?nvs
+// Starts counting lines and stops again, as a test does around the code it checks.
+// bench: iterations 512
+// bench: calls 2
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The round before decides whether branches are counted too.
+            Core\Debug::startCoverage($total % 2 == 0);
+            Core\Debug::stopCoverage();
+            $total = $total + ($i % 7) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(512), "\n";

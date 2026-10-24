@@ -1,0 +1,23 @@
+<?nvs
+// Reads the line counts of a short program, as a test does to check which lines ran.
+// bench: iterations 256
+// bench: calls 2
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Debug::startCoverage();
+        uint $total = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<array<int>> $files = Core\Debug::coverage();
+            // The number of files is added, so every round is needed for the result.
+            $total = $total + Core\Arr::count($files) + ($i % 7) + 1;
+            $i = $i + 1;
+        }
+        Core\Debug::stopCoverage();
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";
