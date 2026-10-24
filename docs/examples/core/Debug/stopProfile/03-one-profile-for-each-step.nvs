@@ -1,0 +1,37 @@
+<?nvs
+// Writes one profile for each step of a backup job, so you can compare the steps.
+
+class Backup {
+    public static function collect(): int {
+        return 40;
+    }
+
+    public static function compress(int $files): int {
+        return $files * 3;
+    }
+}
+
+string $collectFile = Core\Path::thisDir('collect.speedscope.json');
+string $compressFile = Core\Path::thisDir('compress.speedscope.json');
+
+// Each step has its own start and stop, and its own file.
+Core\Debug::startProfile($collectFile);
+int $files = Backup::collect();
+Core\Debug::stopProfile();
+
+Core\Debug::startProfile($compressFile);
+int $parts = Backup::compress($files);
+Core\Debug::stopProfile();
+
+// No profile is running now, so this stop does nothing.
+Core\Debug::stopProfile();
+
+echo "collected ", $files, " files into ", $parts, " parts\n";
+
+// This deletes the profile files, so the next run starts with an empty folder.
+array<string> $profiles = [$collectFile, $compressFile];
+foreach ($profiles as string $profile) {
+    if (Core\IO::exists($profile)) {
+        Core\IO::remove($profile);
+    }
+}

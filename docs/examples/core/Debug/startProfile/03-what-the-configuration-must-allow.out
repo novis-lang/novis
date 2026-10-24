@@ -1,0 +1,3 @@
+not allowed: the folder is not in [capabilities.debug] profile
+not allowed: [debug] mode does not include "trace"
+profile started

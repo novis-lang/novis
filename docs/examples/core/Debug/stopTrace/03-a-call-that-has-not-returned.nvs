@@ -1,0 +1,32 @@
+<?nvs
+// Shows which calls a trace has when it stops inside a method.
+
+class Signup {
+    public static function checkEmail(string $email): bool {
+        return Core\Str::contains($email, "@");
+    }
+
+    // The trace stops here, before `register` returns.
+    public static function register(string $email): string {
+        bool $valid = Signup::checkEmail($email);
+        Core\Debug::stopTrace();
+        return $valid ? "welcome" : "invalid email";
+    }
+}
+
+string $file = Core\Path::thisDir('signup.jsonl');
+
+Core\Debug::startTrace($file);
+echo Signup::register("ada@example.com"), "\n";
+
+// No trace is running now, so this second stop does nothing.
+Core\Debug::stopTrace();
+
+// `checkEmail` returned before the stop, so it has a line. `register` has none.
+foreach (Core\IO::lines($file) as string $line) {
+    var $call = Core\Json::decode($line) as array<mixed>;
+    echo "traced: ", $call["callee"] as string, "\n";
+}
+
+// This deletes the trace file, so the next run starts with an empty folder.
+Core\IO::remove($file);

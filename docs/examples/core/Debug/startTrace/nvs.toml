@@ -1,0 +1,9 @@
+# The examples write a trace of their calls to a file in this folder.
+# `mode` allows a program to start a trace.
+[debug]
+mode = ["trace"]
+
+# The program may write a trace file in this folder, and nowhere else.
+# A path in `[capabilities]` is relative to this file.
+[capabilities.debug]
+trace = ["."]

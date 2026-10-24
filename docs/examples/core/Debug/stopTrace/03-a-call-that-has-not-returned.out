@@ -1,0 +1,4 @@
+welcome
+traced: Core\Debug::startTrace
+traced: Core\Str::contains
+traced: Signup::checkEmail

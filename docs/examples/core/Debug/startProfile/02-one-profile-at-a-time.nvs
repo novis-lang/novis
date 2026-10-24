@@ -1,0 +1,29 @@
+<?nvs
+// Shows that only one profile can run at a time.
+
+string $first = Core\Path::thisDir('import.speedscope.json');
+string $second = Core\Path::thisDir('export.speedscope.json');
+
+Core\Debug::startProfile($first);
+echo "profile of the import started\n";
+
+// A profile is already running, so this start throws a `LogicError`.
+try {
+    Core\Debug::startProfile($second);
+} catch (LogicError $running) {
+    echo "not allowed: stop the first profile before you start another\n";
+}
+
+// After the stop, a new profile can start.
+Core\Debug::stopProfile();
+Core\Debug::startProfile($second);
+echo "profile of the export started\n";
+Core\Debug::stopProfile();
+
+// This deletes the profile files, so the next run starts with an empty folder.
+array<string> $files = [$first, $second];
+foreach ($files as string $file) {
+    if (Core\IO::exists($file)) {
+        Core\IO::remove($file);
+    }
+}

@@ -1,0 +1,5 @@
+total: 1700
+called: Core\Debug::startTrace
+called: Checkout::price
+called: Checkout::price
+called: Checkout::total

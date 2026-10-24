@@ -1,0 +1,36 @@
+<?nvs
+// Stops a profile in a `finally` block, so the profile ends even when a step throws an error.
+
+class Import {
+    public static function row(string $line): int {
+        if ($line == "") {
+            throw new RuntimeError("an empty row");
+        }
+        return 1;
+    }
+}
+
+string $file = Core\Path::thisDir('import.speedscope.json');
+int $imported = 0;
+
+Core\Debug::startProfile($file);
+try {
+    $imported = $imported + Import::row("ada,london");
+    $imported = $imported + Import::row("");
+} catch (RuntimeError $error) {
+    echo "failed: ", $error->message, "\n";
+} finally {
+    Core\Debug::stopProfile();
+}
+
+echo "imported: ", $imported, "\n";
+
+// The profile stopped in `finally`, so a new profile can start now.
+Core\Debug::startProfile($file);
+echo "a new profile started\n";
+Core\Debug::stopProfile();
+
+// This deletes the profile file, so the next run starts with an empty folder.
+if (Core\IO::exists($file)) {
+    Core\IO::remove($file);
+}

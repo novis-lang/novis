@@ -1,0 +1,36 @@
+<?nvs
+// Writes a trace of the methods a small checkout calls, and prints their names.
+
+class Checkout {
+    public static function price(int $cents, int $count): int {
+        return $cents * $count;
+    }
+
+    public static function total(array<int> $lines): int {
+        int $sum = 0;
+        foreach ($lines as int $line) {
+            $sum = $sum + $line;
+        }
+        return $sum;
+    }
+}
+
+// The trace file goes in the folder of this program. `nvs.toml` allows a trace there.
+string $file = Core\Path::thisDir('checkout.jsonl');
+
+// From here on, each call adds one line to the file when it returns.
+Core\Debug::startTrace($file);
+int $sum = Checkout::total([Checkout::price(250, 2), Checkout::price(1200, 1)]);
+Core\Debug::stopTrace();
+
+echo "total: ", $sum, "\n";
+
+// Each line of the file is one JSON object. `callee` is the method that ran.
+// The first line is `startTrace` itself, because it returns after the trace starts.
+foreach (Core\IO::lines($file) as string $line) {
+    var $call = Core\Json::decode($line) as array<mixed>;
+    echo "called: ", $call["callee"] as string, "\n";
+}
+
+// This deletes the trace file, so the next run starts with an empty folder.
+Core\IO::remove($file);

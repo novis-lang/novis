@@ -1,0 +1,9 @@
+# The examples write a profile of their calls to a file in this folder.
+# `mode` allows a program to start a profile.
+[debug]
+mode = ["profile"]
+
+# The program may write a profile file in this folder, and nowhere else.
+# A path in `[capabilities]` is relative to this file.
+[capabilities.debug]
+profile = ["."]

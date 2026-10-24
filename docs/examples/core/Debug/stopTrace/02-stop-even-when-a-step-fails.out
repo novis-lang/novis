@@ -1,0 +1,6 @@
+charged 1999
+failed: the amount must be more than zero
+Core\Debug::startTrace: ok
+Payments::charge: ok
+Throwable::constructor: ok
+Payments::charge: thrown

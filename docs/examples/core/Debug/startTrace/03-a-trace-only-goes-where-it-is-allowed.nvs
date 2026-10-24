@@ -1,0 +1,29 @@
+<?nvs
+// Shows that a trace file must be in a folder that `nvs.toml` allows for traces.
+
+// A temporary folder is not in `[capabilities.debug] trace`, so this start throws a `RuntimeError`.
+// A program run with `nvs run` may write files there, but that is not enough for a trace.
+string $outside = Core\Path::join(Core\IO::temporaryDir(), "calls.jsonl");
+try {
+    Core\Debug::startTrace($outside);
+    echo "trace started\n";
+} catch (RuntimeError $denied) {
+    echo "not allowed: the folder is not in [capabilities.debug] trace\n";
+}
+
+// The folder of this program is allowed, so this trace starts.
+string $inside = Core\Path::thisDir('calls.jsonl');
+Core\Debug::startTrace($inside);
+echo "trace started\n";
+
+// Only one trace can run at a time. A second start throws a `LogicError`.
+try {
+    Core\Debug::startTrace($inside);
+} catch (LogicError $running) {
+    echo "not allowed: a trace is already running\n";
+}
+
+Core\Debug::stopTrace();
+
+// This deletes the trace file, so the next run starts with an empty folder.
+Core\IO::remove($inside);

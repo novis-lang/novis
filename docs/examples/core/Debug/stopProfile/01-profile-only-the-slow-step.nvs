@@ -1,0 +1,33 @@
+<?nvs
+// Profiles only the step of an upload that resizes images, and stops before the rest.
+
+class Upload {
+    // A real upload makes each image wider than 800 pixels smaller here. This one only counts them.
+    public static function resize(array<int> $widths): int {
+        int $done = 0;
+        foreach ($widths as int $width) {
+            if ($width > 800) {
+                $done = $done + 1;
+            }
+        }
+        return $done;
+    }
+
+    public static function notify(int $count): string {
+        return $count . " images resized";
+    }
+}
+
+string $file = Core\Path::thisDir('resize.speedscope.json');
+
+// Only the calls between the start and the stop are timed. `notify` runs after the stop.
+Core\Debug::startProfile($file);
+int $resized = Upload::resize([1200, 640, 2048]);
+Core\Debug::stopProfile();
+
+echo Upload::notify($resized), "\n";
+
+// This deletes the profile file, so the next run starts with an empty folder.
+if (Core\IO::exists($file)) {
+    Core\IO::remove($file);
+}
