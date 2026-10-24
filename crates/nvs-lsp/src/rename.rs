@@ -9,6 +9,13 @@
 //!
 //! # What is renamed
 //!
+//! - **A type** — a class, an interface, an enum or a type alias declared
+//!   outside a class — at its declaration, at every occurrence the index holds
+//!   and in every `use` line that imports it. Only the last segment changes, so
+//!   `\Shop\User` and `use Shop\User;` keep their namespace. Before any edit,
+//!   every file the index holds is read for the old name as a name or at the
+//!   end of a string, and a place the index holds no site at refuses the
+//!   rename: such a place is a site the edits would miss.
 //! - **A member** — a method, a property, a class constant or an enum case —
 //!   at its declaration and at every occurrence the index holds
 //!   ([`SymbolIndex::declaration`], [`SymbolIndex::occurrences`]). A method
@@ -26,16 +33,18 @@
 //!
 //! # What is refused, each with a message the editor shows
 //!
-//! A cursor on no symbol; `$this`; a type, because the index records no
-//! site where a type annotation writes one; a parameter, because a call may
+//! A cursor on no symbol; `$this`; a type alias a class declares; a type
+//! whose name is written somewhere the index holds no site; a parameter, because a call may
 //! pass it by name; a local an anonymous function inside the body declares
 //! again; a symbol whose declaration the index does not hold, which is every
 //! `Core` name and every file outside the workspace; a method that overrides
 //! one declared outside the workspace; and a new name that is no identifier
 //! or that clashes. A clash is a refusal and never an alias
 //! (`rule:ide/no-refactoring-introduces-an-alias`): a member's new name may not
-//! be declared already on any class of the family, above it or below it, and
-//! a local's may not be bound already in its body.
+//! be declared already on any class of the family, above it or below it; a
+//! local's may not be bound already in its body; and a type's may not be a
+//! built-in type, the name of another type in the workspace, or a name any
+//! file with a site already writes.
 //!
 //! # A moved file
 //!
@@ -76,12 +85,18 @@ pub struct Rewrite {
 const CONSTRUCTOR: &str = "constructor";
 
 /// The message for a cursor on nothing this module renames.
-const NOTHING: &str = "There is nothing to rename here. Put the cursor on a variable, a method, \
-                       a property, a constant or an enum case.";
+const NOTHING: &str = "There is nothing to rename here. Put the cursor on a class, a variable, \
+                       a method, a property, a constant or an enum case.";
 
-/// The message for a cursor on a type.
-const A_TYPE: &str =
-    "Renaming a class, an interface, an enum or a type alias is not available yet.";
+/// The message for a cursor on a type alias a class declares.
+const AN_OWNED_ALIAS: &str = "Renaming a type alias that a class declares is not available yet.";
+
+/// The names a type may not take, because the language already uses each one
+/// for a type of its own.
+const BUILT_IN: [&str; 19] = [
+    "null", "bool", "int", "uint", "float", "decimal", "string", "array", "mixed", "void", "never",
+    "object", "callable", "iterable", "self", "static", "parent", "true", "false",
+];
 
 /// The span of the name at `offset` that a rename would change, or the
 /// message that says why nothing there can be renamed.
@@ -112,6 +127,12 @@ pub fn rename(
         return Err(format!("`{new_name}` is not a valid name."));
     }
     match subject.what {
+        What::Type { symbol, old, sites } => {
+            if new == old {
+                return Err("The new name is the same as the old one.".to_owned());
+            }
+            types(documents, index, &symbol, &old, new, &sites)
+        }
         What::Members {
             family,
             kind,
@@ -239,8 +260,18 @@ struct Subject {
     what: What,
 }
 
-/// The two things a rename changes.
+/// The three things a rename changes.
 enum What {
+    /// A class, an interface, an enum or a type alias declared outside a
+    /// class.
+    Type {
+        /// Its fully-qualified name, spelled as the index spells it.
+        symbol: String,
+        /// Its last segment, which is the name a rename changes.
+        old: String,
+        /// Its declaration, every occurrence and every `use` that imports it.
+        sites: Vec<Site>,
+    },
     /// One member, or a method with every method that overrides it or that it
     /// overrides.
     Members {
@@ -299,8 +330,11 @@ fn subject(index: &SymbolIndex, analysed: &Analysed, offset: BytePos) -> Result<
         return local(analysed, file, &tokens, &entry, token.span, &written[1..]);
     }
     match symbol {
-        // A type written in an annotation resolves with no occurrence there.
-        Some(symbol) if !symbol.contains("::") => Err(A_TYPE.to_owned()),
+        // A type whose name the index records nowhere under the cursor, such
+        // as a `Core` class written in an annotation.
+        Some(symbol) if !symbol.contains("::") && index.declaration(&symbol).is_none() => {
+            Err(outside(index, &symbol))
+        }
         _ => Err(NOTHING.to_owned()),
     }
 }
@@ -326,7 +360,21 @@ fn member(index: &SymbolIndex, symbol: &str, at: Site) -> Result<Subject, String
         kind,
         DeclKind::Class | DeclKind::Interface | DeclKind::Enum | DeclKind::TypeAlias
     ) {
-        return Err(A_TYPE.to_owned());
+        if symbol.contains("::") {
+            return Err(AN_OWNED_ALIAS.to_owned());
+        }
+        let mut sites = sites_of(index, &[symbol.to_owned()]);
+        sites.extend(index.imports_of(symbol).into_iter().map(|it| it.site.clone()));
+        sites.sort();
+        sites.dedup();
+        return Ok(Subject {
+            at,
+            what: What::Type {
+                symbol: symbol.to_owned(),
+                old: symbol.rsplit('\\').next().unwrap_or(symbol).to_owned(),
+                sites,
+            },
+        });
     }
     let Some((_, written)) = symbol.rsplit_once("::") else {
         return Err(NOTHING.to_owned());
@@ -568,6 +616,108 @@ fn members(
     Ok(rewrites)
 }
 
+/// The edits that rename the type `symbol` from `old` to `new`, after three
+/// checks.
+///
+/// The new name may not be a built-in type, and no type in the workspace may
+/// have it already. No file a site is in may write it already, because that
+/// file may import a type of that name or read it as something else. And every
+/// place the workspace writes `old` as a name or as a string must be a site the
+/// index holds, because a place it does not hold is one the rename would miss.
+fn types(
+    documents: &Documents,
+    index: &SymbolIndex,
+    symbol: &str,
+    old: &str,
+    new: &str,
+    sites: &[Site],
+) -> Result<Vec<Rewrite>, String> {
+    if BUILT_IN.iter().any(|it| it.eq_ignore_ascii_case(new)) {
+        return Err(format!("`{new}` is a built-in type, so a type cannot be renamed to it."));
+    }
+    for file in index.files() {
+        for declared in index.declarations_in(file) {
+            let short = declared.symbol.rsplit('\\').next().unwrap_or(&declared.symbol);
+            if !declared.symbol.contains("::") && short.eq_ignore_ascii_case(new) {
+                return Err(format!(
+                    "`{}` already exists, so `{symbol}` cannot be renamed to `{new}`.",
+                    declared.symbol
+                ));
+            }
+        }
+    }
+
+    let mut texts = Texts::new(documents);
+    let touched: BTreeSet<&Path> = sites.iter().map(|site| site.path.as_path()).collect();
+    for path in &touched {
+        let file = texts
+            .file(path)
+            .ok_or_else(|| format!("`{}` could not be read.", path.display()))?;
+        let tokens = tokenize(file, &mut Diagnostics::new());
+        if tokens
+            .iter()
+            .any(|token| token.kind == TokenKind::Ident && text_of(file, token.span) == new)
+        {
+            return Err(format!(
+                "`{}` already uses the name `{new}`, so `{symbol}` cannot be renamed to it.",
+                path.display()
+            ));
+        }
+    }
+    for path in index.files() {
+        let Some(file) = texts.file(path) else {
+            continue;
+        };
+        let tokens = tokenize(file, &mut Diagnostics::new());
+        let missed = tokens.iter().find(|token| {
+            let written = text_of(file, token.span);
+            let named = match token.kind {
+                TokenKind::Ident => written == old,
+                TokenKind::SingleQuotedString | TokenKind::StringPart => {
+                    let inner = written.trim_matches(['\'', '"']);
+                    inner == old || inner.ends_with(&format!("\\{old}"))
+                }
+                _ => false,
+            };
+            named
+                && !sites.iter().any(|site| {
+                    site.path == path && site.start <= token.span.start && token.span.end <= site.end
+                })
+        });
+        if let Some(missed) = missed {
+            let (line, _) = file.line_col(missed.span.start);
+            return Err(format!(
+                "`{old}` is written in `{}` on line {line} in a place rename cannot change, so \
+                 `{symbol}` cannot be renamed.",
+                path.display()
+            ));
+        }
+    }
+
+    let mut rewrites = Vec::new();
+    for site in sites {
+        let written = texts
+            .text(site)
+            .ok_or_else(|| format!("`{}` could not be read.", site.path.display()))?;
+        let text = if written == old {
+            new.to_owned()
+        } else if let Some(prefix) = written.strip_suffix(old).filter(|it| it.ends_with('\\')) {
+            format!("{prefix}{new}")
+        } else {
+            return Err(format!(
+                "`{symbol}` is written in `{}` in a way that rename cannot change, so it cannot be \
+                 renamed.",
+                site.path.display()
+            ));
+        };
+        rewrites.push(Rewrite {
+            site: site.clone(),
+            text,
+        });
+    }
+    Ok(rewrites)
+}
+
 /// The text of the files sites are in, with the open buffers overlaid and each
 /// file read once.
 struct Texts {
@@ -587,13 +737,18 @@ impl Texts {
 
     /// The bytes of `site`, or `None` for a file that cannot be read.
     fn text(&mut self, site: &Site) -> Option<String> {
+        let range = usize::try_from(site.start).ok()?..usize::try_from(site.end).ok()?;
+        self.file(&site.path)?.text().get(range).map(str::to_owned)
+    }
+
+    /// The whole file at `path`, or `None` for a file that cannot be read.
+    fn file(&mut self, path: &Path) -> Option<&SourceFile> {
         let map = &mut self.map;
         let id = (*self
             .loaded
-            .entry(site.path.clone())
-            .or_insert_with(|| map.load(&site.path).ok()))?;
-        let range = usize::try_from(site.start).ok()?..usize::try_from(site.end).ok()?;
-        self.map.file(id).text().get(range).map(str::to_owned)
+            .entry(path.to_path_buf())
+            .or_insert_with(|| map.load(path).ok()))?;
+        Some(self.map.file(id))
     }
 }
 

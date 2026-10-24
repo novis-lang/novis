@@ -81,7 +81,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use lsp_types::Uri;
-use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, Span, canonical_key};
+use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, SourceId, Span, canonical_key};
 use nvs_hir::autoload::sole_declaration;
 use nvs_hir::{Loaded, QName, SymbolKind};
 use nvs_syntax::ast::{
@@ -94,7 +94,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::definition::{
     Target, body_of, covers, declared_type, named_at, owned_enum_decl, paired, supertype_names,
-    target_of, text_of,
+    target_of, text_of, written_name_in, written_types_in,
 };
 use crate::document::{Analysed, Documents, analyse_file};
 
@@ -1191,6 +1191,13 @@ fn supertypes_of(analysed: &Analysed, qname: &QName) -> Vec<String> {
 /// interface counts the classes that implement it and the two sides of one
 /// inheritance edge come out of one resolution.
 ///
+/// The written types are the third walk: every class name in a type
+/// annotation, and every class written in front of `::`, resolved with the
+/// namespace and imports of the file that writes it ([`written_name_in`],
+/// the reading a cursor on it gets). Only a type the program declares is
+/// recorded, so a `Core` class in an annotation adds nothing. Rename reads
+/// these sites to rename a type.
+///
 /// A use is recorded at the **name**, which [`named`] reads off the node rather
 /// than off the expression around it: a highlight box is drawn on exactly the
 /// span answered here, and `$u->greet()` highlighted from `$u` is a box around
@@ -1200,6 +1207,7 @@ fn occurrences(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Occurre
 
     for root in walk::of_stmts(&loaded.stmts) {
         for node in std::iter::once(&root).chain(root.descendants()) {
+            found.extend(class_qualifier(analysed, loaded.id, node, path));
             let Some(info) = analysed.exprs.lookup(node.span) else {
                 continue;
             };
@@ -1227,6 +1235,19 @@ fn occurrences(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Occurre
         let (extends, implements) = supertype_names(stmt);
         clause_uses(&extends, &links.extends, path, &mut found);
         clause_uses(&implements, &links.implements, path, &mut found);
+    }
+
+    let mut names = Vec::new();
+    for ty in written_types_in(&loaded.stmts, 0, BytePos::MAX) {
+        type_names(ty, &mut names);
+    }
+    for name in names {
+        if let Some(symbol) = declared_name(analysed, loaded.id, name) {
+            found.push(Occurrence {
+                symbol,
+                site: site(path, name),
+            });
+        }
     }
 
     // Two nodes can cover the same bytes — a statement that is one expression —
@@ -1277,6 +1298,73 @@ fn case_qualifier(info: &ExprInfo, node: &walk::Node, path: &Path) -> Option<Occ
         symbol: enum_.to_string(),
         site: site(path, written.name.unwrap_or(written.span)),
     })
+}
+
+/// The class written in front of `::` in a static call, a static property, a
+/// class constant or `::class`, as a use of that class — and `None` for every
+/// other node, and for a qualifier that names no type the program declares.
+///
+/// The name is resolved as written, with the namespace and imports of its own
+/// file ([`written_name_in`]), so `Cart::LIMIT` records `Cart` even where the
+/// constant is declared on a parent. `self`, `static` and `parent` are no
+/// name, so they record nothing.
+fn class_qualifier(
+    analysed: &Analysed,
+    file: SourceId,
+    node: &walk::Node,
+    path: &Path,
+) -> Option<Occurrence> {
+    if !matches!(
+        node.kind,
+        "StaticCall" | "StaticPropertyAccess" | "ClassConstAccess" | "ClassNameConst"
+    ) {
+        return None;
+    }
+    let written = node.children.first()?;
+    if written.kind != "ConstFetch" {
+        return None;
+    }
+    let name = written.name?;
+    Some(Occurrence {
+        symbol: declared_name(analysed, file, name)?,
+        site: site(path, name),
+    })
+}
+
+/// The type the name written at `name` in `file` resolves to, spelled the
+/// module doc's way, when the program declares it.
+fn declared_name(analysed: &Analysed, file: SourceId, name: Span) -> Option<String> {
+    let resolved = written_name_in(analysed, file, name)?;
+    let symbol = analysed.module.symbols.get(&resolved)?;
+    Some(symbol.qname.to_string())
+}
+
+/// The span of every class name written in `ty`, its type arguments included.
+fn type_names(ty: &Type, found: &mut Vec<Span>) {
+    match &ty.kind {
+        TypeKind::Nullable(inner) | TypeKind::Paren(inner) => type_names(inner, found),
+        TypeKind::Union(members) | TypeKind::Intersection(members) => {
+            members.iter().for_each(|member| type_names(member, found));
+        }
+        TypeKind::Atom(atom) => match atom {
+            TypeAtom::Name(name, args) => {
+                found.push(name.span);
+                args.iter().for_each(|arg| type_names(arg, found));
+            }
+            TypeAtom::Array(Some(arg))
+            | TypeAtom::ClassRef(arg)
+            | TypeAtom::PropertyKey(arg)
+            | TypeAtom::PropertyPath(arg)
+            | TypeAtom::StringHoles { key: arg, .. } => type_names(arg, found),
+            TypeAtom::Shape(fields) => fields.iter().for_each(|field| type_names(&field.ty, found)),
+            TypeAtom::CallableSig { params, ret } => {
+                params.iter().for_each(|param| type_names(param, found));
+                type_names(ret, found);
+            }
+            _ => {}
+        },
+        _ => {}
+    }
 }
 
 /// What one resolved use names, spelled the module doc's way.

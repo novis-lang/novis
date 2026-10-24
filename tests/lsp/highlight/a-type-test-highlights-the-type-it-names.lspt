@@ -1,5 +1,5 @@
 --TEST--
-The cursor anywhere in a type test resolves to the type the test names, so the use it highlights in this file is the `implements` clause and not the declaration, `rule:ide/the-index-answers-the-cursor`
+The cursor anywhere in a type test resolves to the type the test names, so the uses it highlights in this file are the `implements` clause and the test itself and not the declaration, `rule:ide/the-index-answers-the-cursor`
 --FILE--
 <?nvs
 interface Shape
@@ -20,3 +20,4 @@ if ($s i<|>s Shape) {
 documentHighlight
 --EXPECT--
 case.nvs:7:25
+case.nvs:13:11

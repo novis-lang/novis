@@ -1,0 +1,43 @@
+--TEST--
+a class is renamed at its declaration, in a `use` line, in a type annotation, after `new`, in front of `::` and in an `extends` clause, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+require 'lib/user.nvs';
+
+use Shop\User;
+
+class Admin extends User
+{
+    public function welcome(User $u): string
+    {
+        return "Hello " . $u->name;
+    }
+}
+
+array<User> $all = [new Us<|>er(), User::guest()];
+echo count($all);
+--FILE lib/user.nvs--
+<?nvs
+namespace Shop;
+
+class User
+{
+    public string $name = "";
+
+    public static function guest(): User
+    {
+        return new User();
+    }
+}
+--REQUEST--
+rename to=Customer
+--EXPECT--
+case.nvs:4:5 Shop\Customer
+case.nvs:6:21 Customer
+case.nvs:8:29 Customer
+case.nvs:14:7 Customer
+case.nvs:14:25 Customer
+case.nvs:14:33 Customer
+lib/user.nvs:4:7 Customer
+lib/user.nvs:8:37 Customer
+lib/user.nvs:10:20 Customer

@@ -15,6 +15,9 @@ name's fix. Each writes the fully-qualified name at `nvs_hir::import_site` and n
 changes (`crates/nvs-lsp/src/rename.rs`): a method is renamed with every method that overrides it or
 that it overrides, and a new name that some class of that family, above it or below it, already
 declares is refused with a message. A local's new name may not be bound already in its body. Neither
-is ever resolved with an alias. **Missing:** rename of a type, which needs the sites where a type
-annotation writes one and the index does not record them; extract to method or variable;
+is ever resolved with an alias. Rename of a class, an interface, an enum or a type alias declared
+outside a class: the index records each type annotation and each class written in front of `::`, and
+the rename changes the last segment at every site and in every `use` line. A new name that another
+type in the workspace has, or that a file with a site already writes, is refused. **Missing:**
+renaming an autoloaded class's file with the class; extract to method or variable;
 organize-imports; and cross-file symbol search.
