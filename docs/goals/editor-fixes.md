@@ -27,7 +27,7 @@ stages:
         rules: [types/narrowing, core-classes/html-template, ide/a-template-region-gets-the-editors-services-and-formatter]
   - id: 4
     title: "a lens runs a command, and a changed setting reaches the running server"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/settings.rs, editors/vscode/src/extension.ts]
     extra:
       context:
@@ -161,6 +161,21 @@ found only when it runs (`rule:types/erased-member-access`). A name drawn there 
 server picked, which `crates/nvs-lsp/src/hints.rs`'s first decision refuses, so no field was added to
 `ExprInfo::CallThroughSignature` or `ExprInfo::ErasedCall`. The module doc of `hints.rs` is the home.
 
+**A lens click lists what it counts, through the server's own command id.** A lens carries
+`nvs.showLocations` with `[uri, position, locations]`, sent only to a client that names the id in
+`capabilities.experimental.commands` (the `Client::SUGGEST` pattern); every other client gets the
+empty command. The places are computed eagerly, one `SourceMap` per lens answer, and are the ones
+the title counts, so no `use` line. The VS Code client registers the id (not contributed in
+`package.json`) and passes converted objects to `editor.action.showReferences`. Why not
+`codeLens/resolve` or a click that asks `references`: resolve is a new request in the closed set,
+and `references` lists `use` lines the count leaves out.
+
+**A changed setting is a `didChangeConfiguration` carrying the whole `nvs` section.** The shape is
+the one `initialize` sends, so a setting the change leaves out takes its default, and a `settings`
+that is not an object is ignored. A new scope surveys, rebuilds the index and republishes every open
+document. A scope or lens change sends `workspace/codeLens/refresh` when the client supports it.
+`nvs.stubs.dir` still needs a restart.
+
 ## Stages
 
 ### 1. five diagnostics carry their fix
@@ -223,11 +238,11 @@ type.
 **Does:** clicking a lens does what its title says, and a changed `nvs.*` setting applies to the
 running server without a restart.
 
-- [ ] Each lens carries the command that shows what it counts: the references for a reference count, the hierarchy for a hierarchy lens (`rule:ide/five-features-are-one-reference-index`). `crates/nvs-lsp/src/server.rs:1200`
-- [ ] The server handles `workspace/didChangeConfiguration` and applies `scope`, `codeLens` and `debounce` from it. `crates/nvs-lsp/src/server.rs:194`, `crates/nvs-lsp/src/settings.rs:159`
-- [ ] The client sends the changed section, and restarts only for `nvs.path` and `nvs.lsp.enable`. `editors/vscode/src/extension.ts:110`, `editors/vscode/src/extension.ts:159`
-- [ ] An `.lspt` case for the lens command. `tests/lsp/lens/a-reference-count-lens-opens-the-references.lspt:1`
-- [ ] A headless client test for the setting change. `editors/vscode/test/client/settings.test.ts:1`
+- [x] Each lens carries the command that shows what it counts: the references for a reference count, the hierarchy for a hierarchy lens (`rule:ide/five-features-are-one-reference-index`). `crates/nvs-lsp/src/server.rs:1200`
+- [x] The server handles `workspace/didChangeConfiguration` and applies `scope`, `codeLens` and `debounce` from it. `crates/nvs-lsp/src/server.rs:194`, `crates/nvs-lsp/src/settings.rs:159`
+- [x] The client sends the changed section, and restarts only for `nvs.path` and `nvs.lsp.enable`. `editors/vscode/src/extension.ts:110`, `editors/vscode/src/extension.ts:159`
+- [x] An `.lspt` case for the lens command. `tests/lsp/lens/a-reference-count-lens-opens-the-references.lspt:1`
+- [x] A headless client test for the setting change. `editors/vscode/test/client/settings.test.ts:1`
 
 ### 5. paste as doc comment, and the README says where concealment stops
 
@@ -309,7 +324,21 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3: `hints.rs`'s `resolved_call` reads the parameter names of a
+Stages 1 to 4 are done. Stage 4: `code_lens` in `crates/nvs-lsp/src/server.rs` puts
+`nvs.showLocations` with `[uri, position, locations]` on every lens with something to list, for a
+client that names the id (`Client::show_locations`). `hierarchy_lenses` returns each title with its
+sites. A `.lspt` lens renders `L:C title -> place, place` (`render::Lens`, built in `suite.rs`'s
+`code_lens`), and `case_settings` names the command, so all eight lens cases freeze the places
+(8 passed). `Settings::change` in `crates/nvs-lsp/src/settings.rs` applies a section and returns
+`Changed`. `configure` in `server.rs` handles `workspace/didChangeConfiguration`. The client's
+`src/settings.ts` decides restart, send or nothing, and `extension.ts` registers
+`nvs.showLocations` and sends the section. Tests: `settings.test.ts` (7 passing, headless) and
+`a_changed_setting_applies_and_says_what_it_rebuilds` in `crates/nvs-lsp/tests/handshake.rs`
+(green). `docs/reference/tools/40-editor.md` no longer says a setting needs a restart or that the
+debounce is unread. A separate commit runs rustfmt over `hover.rs` and two parser files that
+earlier stages left unformatted.
+
+Stage 3: `hints.rs`'s `resolved_call` reads the parameter names of a
 `new` (`ExprInfo::New`/`NewDynamic`'s `ctor`) and a `$cls::f(...)` (`ClassRefCall`) as well as a
 method call. A `callable` call and a `mixed` receiver get none, by the new standing decision. Hover
 on a `readonly` property read shows `ExprInfo::Property`'s `narrowed` type. `regions.rs`'s
@@ -343,28 +372,34 @@ printing the new `= suggestion` line or checking a diagnostic's suggestions:
   is already updated, and the two `reject/*require*` cases pass.
 - A `nvs check --json` snapshot that holds one of these codes.
 
+Stage 4's: a test that builds `Client { .. }` without the two new fields (both fixed ones compile),
+a `crates/nvs-lsp/tests/references.rs` lens test if it now asserts on the command (it asked under a
+client that names nothing, so its commands stay empty), and the extension's contributions suite if
+it checks every `registerCommand` id against `package.json` (`nvs.showLocations` is registered and
+not contributed; the suite as read only checks the other direction).
+
 **The nightly run's red is not owed by this tree.** Run 39922764699 ran at `7b6ef53ee`. Its
 `cost guards / macos-aarch64` soak leak was 2280 bytes per connection, and commit `071663316`
 (`fix(runtime): a spawned tree's start-up bytes leave the tree that spawned it`) fixes it. That
 commit is in `HEAD` and not in the run. The soak passes at `HEAD` on Windows under `--release`. It
 has never run on Linux, so the next nightly is its first run there. `env-secret-proofs` exits 0 at
-`HEAD` (`76ff1b68d`, run again this session, and its log reads `exit 0`), so the sweep's red is
-stale. The uncommitted rustfmt change in `crates/nvs-runtime/src/capability.rs` is not this goal's,
-and is left in the tree.
+`HEAD` (its log reads `exit 0` again this session), and the sweep still names the same nightly run,
+so both reds are stale. Another session committed the `capability.rs` rustfmt change.
 
 ### Next
 
-**Stage 4: a lens runs a command, and a changed setting reaches the running server.** Its files are
-`crates/nvs-lsp/src/server.rs`, `crates/nvs-lsp/src/settings.rs` and
-`editors/vscode/src/extension.ts`. Nothing handles `didChangeConfiguration` yet.
+**Stage 5: paste as doc comment, and the README says where concealment stops.** Its files are
+`editors/vscode/src/imports.ts`, `editors/vscode/README.md` and the two rules. The headless pattern
+is `src/settings.ts` with `test/client/settings.test.ts`: a module with no `vscode` import holds
+the decision, and the provider in the editor module only calls it.
 
-- [ ] Each lens carries the command that shows what it counts. `crates/nvs-lsp/src/server.rs:1461` (`code_lens`, the `CodeLens` at 1488), `crates/nvs-lsp/src/render.rs:697`
-- [ ] The server handles `workspace/didChangeConfiguration` and applies `scope`, `codeLens` and `debounce`. `crates/nvs-lsp/src/server.rs:194`, `crates/nvs-lsp/src/settings.rs:159`
-- [ ] The client sends the changed section, and restarts only for `nvs.path` and `nvs.lsp.enable`. `editors/vscode/src/extension.ts:110`, `editors/vscode/src/extension.ts:159`
-- [ ] An `.lspt` case for the lens command. `tests/lsp/lens/a-reference-count-lens-opens-the-references.lspt:1`
-- [ ] A headless client test for the setting change. `editors/vscode/test/client/settings.test.ts:1`
+- [ ] A `DocumentPasteEditProvider` offers *Paste as doc comment* inside a `///` run, with a frozen kind id. `editors/vscode/src/imports.ts:95`, `docs/rules/ide/doc-comment-authoring-is-the-editors-own.md:1`
+- [ ] A headless test of the provider. `editors/vscode/test/client/docpaste.test.ts:1`
+- [ ] The README lists what the concealment cannot cover. `editors/vscode/README.md:50`, `docs/rules/ide/redaction-does-not-reach.md:1`
+- [ ] Both rules `shipped`. `data/rules/ide/doc-comment-authoring-is-the-editors-own.json:3`, `data/rules/ide/redaction-does-not-reach.json:3`
 
-A new capability or handled notification changes what `crates/nvs-lsp/tests/handshake.rs` holds.
+A new paste kind id is frozen, so it goes into the contributions roster if that suite lists paste
+kinds (`editors/vscode/test/contributions/contributions.test.ts:88`).
 
 ### Backlog
 
