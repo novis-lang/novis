@@ -1,0 +1,17 @@
+--TEST--
+a method declared in a file with a namespace also imports `LogicError`
+--FILE--
+<?nvs
+namespace Shop;
+
+class Cart
+{
+    public int $total = 0;
+}
+
+var $cart = new Cart();
+<|>$cart->clear();
+--REQUEST--
+codeAction
+--EXPECT--
+6:27-6:27 quickfix Declare `clear` in `Cart` -> "\n\n    public function clear(): void\n    {\n        throw new LogicError("Cart::clear is not implemented");\n    }" + 2:16-2:16 -> "\n\nuse LogicError;"

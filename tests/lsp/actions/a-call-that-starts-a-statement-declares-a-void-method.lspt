@@ -1,0 +1,15 @@
+--TEST--
+a call that starts a statement declares a method that returns `void`
+--FILE--
+<?nvs
+class Cart
+{
+    public int $total = 0;
+}
+
+var $cart = new Cart();
+<|>$cart->clear();
+--REQUEST--
+codeAction
+--EXPECT--
+4:27-4:27 quickfix Declare `clear` in `Cart` -> "\n\n    public function clear(): void\n    {\n        throw new LogicError("Cart::clear is not implemented");\n    }"
