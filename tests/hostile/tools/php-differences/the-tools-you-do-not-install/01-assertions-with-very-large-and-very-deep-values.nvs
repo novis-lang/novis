@@ -19,14 +19,11 @@ final class Deep
     }
 }
 
-final class EdgeTest
+final class Edge
 {
     public static int $attempts = 0;
 
-    #[TestWith(stock: 18446744073709551615, floor: 9223372036854775807, ratio: 1.0e308, label: '')]
-    #[TestWith(stock: 0, floor: -9223372036854775807, ratio: -1.0e308, label: "\u{0301}\u{0301}")]
-    #[Test]
-    public function rowsAtTheEndOfTheirRange(uint $stock, int $floor, float $ratio, string $label): void
+    public static function checkARow(uint $stock, int $floor, float $ratio, string $label): void
     {
         Test::assertTrue($floor != 0);
         Test::assertTrue($ratio != 0.0);
@@ -34,18 +31,39 @@ final class EdgeTest
         Test::assertSame($stock + 1, 1);
     }
 
+    public static function neverPass(): void
+    {
+        Edge::$attempts = Edge::$attempts + 1;
+        Test::assertSame(Edge::$attempts, 0);
+    }
+
+    public static function overflowAnInt(): void
+    {
+        int $big = 9223372036854775807;
+        Test::assertSame($big + 1, 0);
+    }
+}
+
+final class EdgeTest
+{
+    #[TestWith(stock: 18446744073709551615, floor: 9223372036854775807, ratio: 1.0e308, label: '')]
+    #[TestWith(stock: 0, floor: -9223372036854775807, ratio: -1.0e308, label: "\u{0301}\u{0301}")]
+    #[Test]
+    public function rowsAtTheEndOfTheirRange(uint $stock, int $floor, float $ratio, string $label): void
+    {
+        Edge::checkARow($stock, $floor, $ratio, $label);
+    }
+
     #[Test(retries: 9223372036854775807, because: 'the largest number of retries an int can state')]
     public function itNeverPasses(): void
     {
-        EdgeTest::$attempts = EdgeTest::$attempts + 1;
-        Test::assertSame(EdgeTest::$attempts, 0);
+        Edge::neverPass();
     }
 
     #[Test(skip: 'x')]
     public function theReasonIsOneLetter(): void
     {
-        int $big = 9223372036854775807;
-        Test::assertSame($big + 1, 0);
+        Edge::overflowAnInt();
     }
 }
 
@@ -141,20 +159,19 @@ try {
     echo 'count: ', Core\Str::slice($count->message, 0, 60), "\n";
 }
 
-// 9. The test methods are called as normal methods, with values at the end of their range.
-EdgeTest $direct = new EdgeTest();
+// 9. The bodies of the tests run outside a test, with values at the end of their range.
 try {
-    $direct->rowsAtTheEndOfTheirRange(18446744073709551615, 9223372036854775807, 1.0e308, '');
+    Edge::checkARow(18446744073709551615, 9223372036854775807, 1.0e308, '');
 } catch (Throwable $row) {
     echo 'row: ', Core\Str::slice($row->message, 0, 60), "\n";
 }
 try {
-    $direct->itNeverPasses();
+    Edge::neverPass();
 } catch (Throwable $never) {
     echo 'retry: ', Core\Str::slice($never->message, 0, 60), "\n";
 }
 try {
-    $direct->theReasonIsOneLetter();
+    Edge::overflowAnInt();
 } catch (Throwable $overflow) {
     echo 'skip: ', Core\Str::slice($overflow->message, 0, 60), "\n";
 }

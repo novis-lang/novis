@@ -1,6 +1,6 @@
 <?nvs
-// Measures what one data row costs: the test is called once per row, with the
-// values that row holds. A test runner pays this for every row you write.
+// Measures what one data row costs: the test runs once per row, with the values
+// of that row. A test runner pays this for every row you write.
 // bench: iterations 2048
 // bench: calls 1
 // bench: allocations 0
@@ -11,6 +11,11 @@ use Core\Test\TestWith;
 
 class Meter {
     public static uint $total = 0;
+
+    public static function add(string $label, uint $weight): void {
+        // Chained: the total counted here is the one the round before wrote.
+        Meter::$total = Meter::$total + $weight;
+    }
 }
 
 class RowsTest {
@@ -18,19 +23,18 @@ class RowsTest {
     #[TestWith(label: "customer", weight: 2)]
     #[Test]
     public function itAddsTheWeightOfARow(string $label, uint $weight): void {
-        // Chained: the total counted here is the one the round before wrote.
-        Meter::$total = Meter::$total + $weight;
+        Meter::add($label, $weight);
     }
 }
 
 class Bench {
     public static function run(uint $rounds): uint {
         array<string> $labels = ["order", "customer"];
-        var $test = new RowsTest();
         uint $i = 0;
         while ($i < $rounds) {
-            // The two values of a row, passed the way the runner passes them.
-            $test->itAddsTheWeightOfARow($labels[(Meter::$total % 2) as int], 1);
+            // The body of `itAddsTheWeightOfARow`, with the two values of a row.
+            // Only a test can call a test method.
+            Meter::add($labels[(Meter::$total % 2) as int], 1);
             $i = $i + 1;
         }
         return Meter::$total;
