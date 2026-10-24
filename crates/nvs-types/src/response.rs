@@ -138,6 +138,28 @@ pub(crate) struct BodyWriters {
     /// Whether a `Core\Task::afterResponse` call's arguments are being checked
     /// — see [`is_after_response`].
     pub(crate) in_after_response: bool,
+    /// The body reads this handler's body wrote — see
+    /// [`crate::routes::note_body_read`].
+    bodies: Vec<crate::routes::RequestBody>,
+}
+
+impl BodyWriters {
+    /// Whether this body is a `#[Route]` handler's.
+    pub(crate) const fn armed(&self) -> bool {
+        self.armed
+    }
+
+    /// Records one body read, once however often the body writes it.
+    pub(crate) fn note_body(&mut self, body: crate::routes::RequestBody) {
+        if !self.bodies.contains(&body) {
+            self.bodies.push(body);
+        }
+    }
+
+    /// The body reads recorded so far, taken out.
+    pub(crate) fn take_bodies(&mut self) -> Vec<crate::routes::RequestBody> {
+        std::mem::take(&mut self.bodies)
+    }
 }
 
 /// The members that change the response head, which a callable passed to

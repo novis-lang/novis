@@ -33,8 +33,8 @@
 use std::collections::BTreeMap;
 
 use nvs_types::{
-    ApiScheme, BodyTy, CodecElement, CodecTy, ConstArg, DerivedCodec, DerivedField, EnumValue,
-    ExprTypeTable, OAuthFlow, ParamIn, Route, RouteParam, RouteTable, SchemeKind,
+    ApiScheme, BodyKind, BodyTy, CodecElement, CodecTy, ConstArg, DerivedCodec, DerivedField,
+    EnumValue, ExprTypeTable, OAuthFlow, ParamIn, Route, RouteParam, RouteTable, SchemeKind,
 };
 use serde_json::{Map, Value, json};
 
@@ -104,7 +104,8 @@ pub(crate) fn document(exprs: &ExprTypeTable, title: &str) -> Value {
 }
 
 /// `components.schemas`, collected while the operations are rendered: one
-/// entry per class a response reaches, keyed by [`component_name`].
+/// entry per class a response or a request body reaches, keyed by
+/// [`component_name`].
 ///
 /// A class's schema is its `#[Json\Derive]` codec's field list, read from the
 /// checked program's [`ExprTypeTable::codec`]. That list is what the codec
@@ -131,6 +132,17 @@ impl Schemas<'_> {
             })),
             BodyTy::Named(name) => schema(Some(name), None, false),
         }
+    }
+
+    /// Whether a form read into `ty` throws when a field is missing: `ty` is a
+    /// class whose codec has a required field.
+    fn has_required_field(&self, ty: &BodyTy) -> bool {
+        let BodyTy::Class(label) = ty else {
+            return false;
+        };
+        self.codecs
+            .codec(label)
+            .is_some_and(|codec| codec.fields.iter().any(|field| field.required))
     }
 
     /// A `$ref` to the class's entry, which is written the first time a class
@@ -414,8 +426,46 @@ fn operation(row: &Route, id: &str, schemas: &mut Schemas<'_>) -> Value {
             .collect();
         operation.insert("security".to_owned(), Value::Array(schemes));
     }
+    if !row.bodies.is_empty() {
+        operation.insert("requestBody".to_owned(), request_body(row, schemas));
+    }
     operation.insert("responses".to_owned(), responses(row, schemas));
     Value::Object(operation)
+}
+
+/// The operation's `requestBody`, from the body reads the handler wrote
+/// (`rule:routing/a-request-body-is-read-from-the-handlers-own-call`).
+///
+/// Each kind is one media type, and two reads of one kind are a `oneOf` of
+/// their schemas. The body is `required` when a JSON read is there, because
+/// `jsonAs` throws on an empty body, or when a form read's class has a
+/// required field, because `postAs` throws when one is missing.
+fn request_body(row: &Route, schemas: &mut Schemas<'_>) -> Value {
+    let mut content = Map::new();
+    let mut required = false;
+    for (kind, media) in [
+        (BodyKind::Json, "application/json"),
+        (BodyKind::Form, "application/x-www-form-urlencoded"),
+    ] {
+        let mut found: Vec<Value> = Vec::new();
+        for body in row.bodies.iter().filter(|body| body.kind == kind) {
+            required |= match kind {
+                BodyKind::Json => true,
+                BodyKind::Form => schemas.has_required_field(&body.ty),
+            };
+            let schema = schemas.body(&body.ty);
+            if !found.contains(&schema) {
+                found.push(schema);
+            }
+        }
+        let schema = match found.len() {
+            0 => continue,
+            1 => found.remove(0),
+            _ => json!({"oneOf": found}),
+        };
+        content.insert(media.to_owned(), json!({"schema": schema}));
+    }
+    json!({"required": required, "content": Value::Object(content)})
 }
 
 /// The response body: the handler's declared return type, plus `#[Api]`'s

@@ -469,6 +469,14 @@ pub struct Route {
     /// *code declares*, and a body's inferred type is not something an author
     /// wrote.
     pub returns: Option<BodyTy>,
+    /// `rule:routing/a-request-body-is-read-from-the-handlers-own-call`'s
+    /// body: each `Core\Request::jsonAs<T>()` and `postAs<T>()` written in
+    /// the handler's own body, in the order the checker reached them, once
+    /// each.
+    ///
+    /// Empty where the handler reads no body in its own body. A read inside a
+    /// method the handler calls is not here.
+    pub bodies: Vec<RequestBody>,
     /// `rule:attributes/api-adds-and-cannot-contradict`'s `tags`, in the order the attribute wrote them.
     ///
     /// Empty where the method carries no `#[Api]`, and empty where it carries
@@ -536,6 +544,25 @@ pub enum BodyTy {
     Enum(Vec<crate::enums::EnumValue>),
     /// Any other type, as [`crate::TypeInterner::describe`] renders it.
     Named(String),
+}
+
+/// How a request body is encoded: `jsonAs` reads JSON and `postAs` a form.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BodyKind {
+    /// `Core\Request::jsonAs<T>()`, under `application/json`.
+    Json,
+    /// `Core\Request::postAs<T>()`, under `application/x-www-form-urlencoded`.
+    Form,
+}
+
+/// One body read a route handler writes: its encoding and the type `T` it
+/// decodes into.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RequestBody {
+    /// JSON or a form.
+    pub kind: BodyKind,
+    /// The written `T`, read as [`Route::returns`] reads a return type.
+    pub ty: BodyTy,
 }
 
 /// `#[Api]`'s four values, read off one `#[Api]`.
@@ -722,6 +749,10 @@ pub struct RouteTable {
     scheme_names: Vec<(String, Span)>,
     /// Every `#[Api(security: [...])]` entry, with the span that wrote it.
     security_uses: Vec<(String, Span)>,
+    /// The body reads each route handler's own body wrote, by handler label.
+    /// A method's body is checked before [`check_class_routes`] builds its
+    /// rows, which take their reads out of this map.
+    bodies: FxHashMap<String, Vec<RequestBody>>,
 }
 
 /// One `rule:routing/a-security-scheme-is-declared-in-code` declaration, as
@@ -837,6 +868,13 @@ impl RouteTable {
         &self.schemes
     }
 
+    /// Keeps the body reads a handler's body wrote until its rows are built.
+    pub(crate) fn note_bodies(&mut self, handler: String, bodies: Vec<RequestBody>) {
+        if !bodies.is_empty() {
+            self.bodies.insert(handler, bodies);
+        }
+    }
+
     /// The row § 1's `name` names, or `None` where no route claims it — § 4's
     /// `url`/`urlAbsolute` reverse the table by exactly this question.
     ///
@@ -916,12 +954,14 @@ pub(crate) fn check_class_routes(
         // is `#[Api]`'s arrangement two lines up and for its reason.
         let doc = doc_comment(member.doc.as_ref(), env.src);
         let returns = declared_return(m, class, env);
+        let bodies = env.routes.bodies.remove(&handler).unwrap_or_default();
         let handler = Handler {
             m,
             class,
             label: &handler,
             doc: doc.as_ref(),
             returns: returns.as_ref(),
+            bodies: &bodies,
             returns_value: returns_value(m, class, env),
             api: api.as_ref(),
         };
@@ -2116,6 +2156,7 @@ fn collect_route(
         label: handler,
         doc,
         returns,
+        bodies,
         returns_value,
         api,
     } = *handler;
@@ -2191,6 +2232,7 @@ fn collect_route(
         summary: doc.map(|doc| doc.summary.clone()),
         description: doc.and_then(|doc| doc.description.clone()),
         returns: returns.cloned(),
+        bodies: bodies.to_vec(),
         // `#[Api]`'s four, copied per row: one `#[Api]` describes the operation
         // however many verbs the method serves, and a row is per verb.
         tags: api.map(|api| api.tags.clone()).unwrap_or_default(),
@@ -2223,6 +2265,8 @@ struct Handler<'a> {
     doc: Option<&'a Doc>,
     /// The document's response body: the declared return type, read.
     returns: Option<&'a BodyTy>,
+    /// The body reads the handler's own body wrote.
+    bodies: &'a [RequestBody],
     /// [`Route::returns_value`], read once for the method.
     returns_value: bool,
     /// `#[Api]`'s four values as [`check_api`] read them, or `None` where the method
@@ -2290,6 +2334,42 @@ fn declared_return(m: &MethodMember, class: &QName, env: &Env<'_>) -> Option<Bod
         .and_then(|sig| sig.methods.get(method))
         .map(|sig| sig.return_ty)?;
     Some(body_ty(ty, env))
+}
+
+/// `rule:routing/a-request-body-is-read-from-the-handlers-own-call`'s
+/// record: a `Core\Request::jsonAs<T>()` or `postAs<T>()` call in a route
+/// handler's body, kept on [`crate::response::BodyWriters`] until the body
+/// ends.
+///
+/// A `postAs` call that writes its `name` option reads one field of the form
+/// and not the whole body, so it is not recorded.
+pub(crate) fn note_body_read(
+    owner: &QName,
+    method: &str,
+    written: &[crate::ty::TypeId],
+    args: &nvs_syntax::ast::CallArgs,
+    env: &mut Env<'_>,
+) {
+    if !env.body_writers.armed() || owner.to_string() != r"Core\Request" {
+        return;
+    }
+    let kind = match method {
+        "jsonAs" => BodyKind::Json,
+        "postAs" => BodyKind::Form,
+        _ => return,
+    };
+    let names_a_field = matches!(args, nvs_syntax::ast::CallArgs::List(list) if !list.is_empty());
+    if kind == BodyKind::Form && names_a_field {
+        return;
+    }
+    let Some(&ty) = written.first() else {
+        return;
+    };
+    let body = RequestBody {
+        kind,
+        ty: body_ty(ty, env),
+    };
+    env.body_writers.note_body(body);
 }
 
 /// `ty` read as a [`BodyTy`].
