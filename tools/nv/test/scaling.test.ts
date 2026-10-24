@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { join } from "node:path";
 import {
   agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, clockFlat, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspScript, missingAreas,
-  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, printedFiles, proposed, rebased, serveShape, SHAPED_REQUESTS, slopeOf, START, withBatch,
+  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, printedFiles, proposed, rebased, runsPerMutantGrow, serveShape, SHAPED_REQUESTS, slopeOf, START, withBatch,
 } from "../cmd/scaling.ts";
 import { lspFrame } from "../lib/lsp.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -97,6 +97,13 @@ test("a server's peak memory may wander under the slack, and one that rises with
   expect(peakGrows(served([20_900, 19_100, 19_700, 19_800]))).toBeNull();
   expect(peakGrows(served([20_000, 20_000, 20_000, 20_000 * (1 + PEAK_SLACK)]))).toBeNull();
   expect(peakGrows(served([20_000, 22_000, 26_000, 34_000]))).toBe("peak memory grows with requests served: 70% above its lowest at 512 requests");
+});
+
+test("a mutation run's test runs per mutant stay flat as the suite grows, and runs that follow the suite fail", () => {
+  const ramp = (runs: number[]): Batch[] => runs.map((r, i) => ({ size: 16 << i, counts: { mutants: 12, runs: r }, ns: 0 }));
+  expect(runsPerMutantGrow(ramp([12, 12, 12, 12]))).toBeNull();
+  expect(runsPerMutantGrow(ramp([12, 12, 13, 13]))).toBeNull();
+  expect(runsPerMutantGrow(ramp([24, 48, 96, 192]))).toBe("test runs per mutant grow with the suite: 2.00 at 16 and 16.00 at 128");
 });
 
 test("a serve ladder's size defaults to requests, belongs to serve alone, and shapes each load", () => {

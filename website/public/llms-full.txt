@@ -54165,7 +54165,7 @@ E0401
 
     nvs test <paths>... [--filter <text>] [--format human|json|junit] [--update]
                         [--coverage-lcov <file>] [--coverage-clover <file>]
-                        [--coverage-cobertura <file>]
+                        [--coverage-cobertura <file>] [--mutate]
 
 One subcommand runs two kinds of test, and which one is meant is read off the path:
 
@@ -54239,6 +54239,8 @@ skipped: not written yet
   prints one more line, `N of N lines run (N%)`. The top-level statements of a file do not run
   under `nvs test`, so they have the count `0`. Naming any of these flags beside a `.nvst` tree
   or `--list` is an error.
+- `--mutate` checks whether your tests notice a wrong line. See
+  *nvs test --mutate* below.
 - `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source that
   wrote it, and is **the only spelling under which `nvs test` writes to a source file**. It
   replaces the `$expected` string and nothing else: a passing snapshot is untouched, and so is
@@ -54270,6 +54272,67 @@ echo Core\IO::read("data/note.txt");
 --EXPECT--
 note
 ```
+
+### nvs test --mutate
+
+    nvs test <paths>... --mutate [--filter <text>] [--format human|json] [--jobs <n>]
+
+`--mutate` checks whether your tests notice a wrong line. A line can run in a test while no
+assertion checks its result. Coverage counts that line as tested. A mutation run finds it.
+
+The run has two steps:
+
+1. The tests run once, with coverage. If a test fails here, no mutant runs and the run fails.
+2. For each place in the program that can change, Novis builds a copy with that one change. This
+   copy is a **mutant**. The tests that ran the changed line run again against it.
+
+These are the changes Novis makes:
+
+| Change | Example |
+|---|---|
+| a comparison moves its boundary | `<` to `<=`, `>=` to `>` |
+| an equality test is reversed | `==` to `!=` |
+| an arithmetic operator is swapped | `+` to `-`, `*` to `/` |
+| a logical operator is swapped | `&&` to `\|\|` |
+| a boolean value is flipped | `true` to `false` |
+| an `if` or loop condition is reversed | `if ($ok)` runs as `if (!$ok)` |
+
+Each change keeps the types of the code, so every mutant compiles. A test method, and every line
+inside it, never changes. A change that would give a value the wrong type is not made: `*` and `/`
+swap only on `float` and `decimal` values.
+
+Each mutant has one of four results:
+
+| Result | Meaning |
+|---|---|
+| `killed` | a test failed, so the tests noticed the change |
+| `survived` | every test passed, so no test checks this line's result |
+| `timed out` | a test ran past its time limit, which also counts as noticed |
+| `not reached` | no test ran the line, so no test ran again |
+
+The **mutation score** is the `killed` and `timed out` mutants as a percentage of the reached
+ones. A changed loop condition can make a loop run forever. A test can have no time limit from
+`#[Test(timeout: ...)]` or `[limits] wall_time`. Under `--mutate`, such a test gets a limit of ten
+times the slowest test's time, plus one second.
+
+Under `human`, the run prints the normal test report, then the four counts, the score and each
+survived mutant with its file, line and change:
+
+```text
+  mutants: 3 killed, 1 survived, 1 timed out, 1 not reached
+  mutation score: 80.0% (4 of 5 reached mutants made a test fail or time out)
+  survived  counter.nvs:10  `>=` to `>`
+```
+
+Under `json`, `schemaVersion` is `4`. The document has a `mutants` array with one `{file, line,
+change, outcome, tests}` record for each mutant. `tests` is the number of tests that ran the
+mutant's line. A survived mutant does not make the run fail, so the exit
+status is the one of the first step.
+
+Each mutant compiles the program again, so a run costs one compile and a few tests per mutant. The
+mutants run one at a time, and each mutant's tests run across `--jobs` cores. `--mutate` runs a
+program's `#[Test]` methods only. `--format junit`, `--list`, `--update`, `--watch` and a `.nvst`
+tree are each an error beside it.
 
 ### nvs build --compile
 

@@ -892,6 +892,19 @@
     },
     {
       "area": "cli",
+      "slug": "nvs-test-mutate",
+      "url": "/reference/cli/nvs-test-mutate/",
+      "title": "nvs test --mutate",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-test-mutate",
+        "title": "nvs test --mutate",
+        "examples": "tools/cli/nvs-test-mutate"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
       "slug": "nvs-build-compile",
       "url": "/reference/cli/nvs-build-compile/",
       "title": "nvs build --compile",

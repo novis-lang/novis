@@ -4122,8 +4122,9 @@ fn report(ctx: &mut nvs_runtime::Ctx, method: &str, outcome: &Outcome, elapsed: 
 /// without the flag writes version 2 unchanged.
 ///
 /// **Version 4 adds `mutants`**, written only under `--mutate`
-/// (`rule:testing/mutation-testing`): one `{file, line, change, outcome}`
-/// record per mutant, after `tests`.
+/// (`rule:testing/mutation-testing`): one `{file, line, change, outcome,
+/// tests}` record per mutant, after `tests`. A record's `tests` is how many
+/// tests reached the mutant's line.
 fn json_document(
     cases: &[Case],
     counts: Counts,
@@ -4223,7 +4224,7 @@ fn json_document(
             json_string(&mutant.change, &mut out);
             out.push_str(", \"outcome\": ");
             json_string(mutant.verdict.name(), &mut out);
-            out.push('}');
+            out.push_str(&format!(", \"tests\": {}}}", mutant.tests));
         }
         out.push_str(if mutants.is_empty() { "]" } else { "\n  ]" });
     }

@@ -90,7 +90,12 @@
 // `nvs lsp` session over stdio (`lspScript`): open, an edit, then completion, hover and references at
 // the cursor and the document's code lenses, timed from the open to the last answer so the server's
 // start-up is outside it. Callgrind
-// runs the same session with its messages piped in from a file.
+// runs the same session with its messages piped in from a file. `mutate` prints a program with its
+// `#[Test]` methods and runs `nvs test --mutate --format json` on it: `mutants` is the length of the
+// document's `mutants` array and `runs` the sum of each record's `tests`, and the clock is the whole
+// run's. Beside the counts' bounds, runs per mutant must stay flat as the program grows
+// (`runsPerMutantGrow`), which is the covering-test filter of `rule:testing/mutation-testing`. A
+// mutation run is not run under callgrind.
 //
 // `serve` is the one kind whose copy is not rewritten but for one size: the ladder is the program every request runs,
 // and `// scaling: size` names what the size counts (`SERVE_SIZES`, `serveShape`). At each size the
@@ -368,7 +373,7 @@ const BENCH_BOUNDS: Bounds = { count: COUNT_BOUND, clock: CLOCK_BOUND };
 export const EXPECT: Record<string, number> = { constant: 0.15, linear: COUNT_BOUND, nlogn: 1.35, karatsuba: 1.7 };
 
 /** The kinds a ladder may declare. */
-export const KINDS = ["run", "compile", "lsp", "fmt", "serve", "fetch"] as const;
+export const KINDS = ["run", "compile", "lsp", "fmt", "serve", "fetch", "mutate"] as const;
 
 /** The variable a `fetch` ladder reads its server's address from. */
 export const FETCH_URL_ENV = "NVS_SCALING_URL";
@@ -380,6 +385,7 @@ export const PEAK_SLACK = 0.25;
 export const AREAS = [
   "compiler", "values", "arrays", "strings", "regex", "json", "markup", "formats", "templates", "numbers", "time",
   "database", "queue", "cache", "scheduler", "request", "connections", "traffic", "http-client", "lsp", "fmt", "app",
+  "testing",
 ] as const;
 
 /** What a `serve` ladder's size counts; the first is the default. */
@@ -604,6 +610,58 @@ const FMT: Measure = {
   take: async (copy, bench, opts) => ({ counts: {}, ns: await timeFmt(opts.nvs, await generate(copy, bench, opts), bench, opts.reps) }),
   clock: async (copy, bench, opts) => timeFmt(opts.nvs, await generate(copy, bench, opts), bench, opts.reps),
   callgrind: async (copy, bench, opts) => instructions(opts, "fmt", await generate(copy, bench, opts), bench),
+};
+
+/** How far a `mutate` ramp's test runs per mutant may rise above its smallest size's. */
+export const RUNS_PER_MUTANT_SLACK = 0.15;
+
+/** One `nvs test --mutate --format json` of `program`: its clock in nanoseconds, how many mutants it
+ * made, and how many test runs they took together. */
+async function mutateRun(nvs: string, program: string, bench: string): Promise<{ ns: number; mutants: number; runs: number }> {
+  const out = await spawnProof([nvs, "test", program, "--mutate", "--format", "json"], program, TIMEOUT_MS * 4, { unlogged: true });
+  if (out.code !== 0) throw new PerfError(`\`nvs test --mutate\` exited ${out.code} on the program ${bench} printed: ${out.stderr.trim().split(/\r?\n/)[0] ?? ""}`);
+  let mutants: { tests?: unknown }[];
+  try {
+    mutants = (JSON.parse(out.stdout) as { mutants?: { tests?: unknown }[] }).mutants ?? [];
+  } catch {
+    throw new PerfError(`\`nvs test --mutate --format json\` printed no JSON document for ${bench}`);
+  }
+  const runs = mutants.reduce((sum, m) => sum + (typeof m.tests === "number" ? m.tests : 0), 0);
+  return { ns: out.ms * 1e6, mutants: mutants.length, runs };
+}
+
+/** Why a `mutate` ramp's test runs per mutant grew past `RUNS_PER_MUTANT_SLACK`, or null when they
+ * stayed flat: a mutant runs the tests that reach its line, not the suite. */
+export function runsPerMutantGrow(batches: Batch[]): string | null {
+  const per = batches.map((b) => b.counts.runs! / Math.max(1, b.counts.mutants!));
+  const first = per[0]!;
+  const last = per.at(-1)!;
+  if (last <= first * (1 + RUNS_PER_MUTANT_SLACK)) return null;
+  return `test runs per mutant grow with the suite: ${fixed(first, 2)} at ${batches[0]!.size} and ${fixed(last, 2)} at ${batches.at(-1)!.size}`;
+}
+
+/** A program the ladder prints, mutation-tested: how many mutants `nvs test --mutate` made and how many
+ * test runs they took, the clock of the whole run, and `runsPerMutantGrow` holding runs per mutant flat. */
+const MUTATE: Measure = {
+  keys: ["mutants", "runs"],
+  rewrites: true,
+  take: async (copy, bench, opts) => {
+    const program = await generate(copy, bench, opts);
+    let best = await mutateRun(opts.nvs, program, bench);
+    for (let i = 1; i < opts.reps; i++) {
+      const next = await mutateRun(opts.nvs, program, bench);
+      if (next.ns < best.ns) best = next;
+    }
+    return { counts: { mutants: best.mutants, runs: best.runs }, ns: best.ns };
+  },
+  clock: async (copy, bench, opts) => {
+    const program = await generate(copy, bench, opts);
+    let best = Infinity;
+    for (let i = 0; i < opts.reps; i++) best = Math.min(best, (await mutateRun(opts.nvs, program, bench)).ns);
+    return best;
+  },
+  callgrind: (_copy, bench) => Promise.reject(new PerfError(`${bench} could not be judged, and a \`mutate\` ladder is not run under callgrind`)),
+  judge: runsPerMutantGrow,
 };
 
 /** The URI the `lsp` ladder's document is opened at. No file is behind it and no root is named, so the
@@ -865,7 +923,7 @@ const FETCH: Measure = {
   callgrind: (_copy, bench) => Promise.reject(new PerfError(`${bench} could not be judged, and a \`fetch\` ladder is not run under callgrind`)),
 };
 
-const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, lsp: LSP, fmt: FMT, fetch: FETCH };
+const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, lsp: LSP, fmt: FMT, fetch: FETCH, mutate: MUTATE };
 
 /** One bench, ramped over batches of its operation and judged. */
 export async function rampOne(bench: string, opts: Options, measure: Measure = RUN): Promise<Judged> {
