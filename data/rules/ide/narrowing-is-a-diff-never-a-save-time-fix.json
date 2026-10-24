@@ -1,6 +1,6 @@
 {
   "title": "The narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects, because it breaks writes it cannot see",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/narrow-an-annotation-to-its-literal",
     "ide/a-code-action-writes-only-what-is-already-determined",
@@ -9,6 +9,7 @@
     "tooling/fmt-is-never-a-diagnostic",
     "ide/every-feature-is-staged-behind-its-dependency"
   ],
-  "guardedBy": [],
-  "goal": "editor-fixes"
+  "guardedBy": [
+    "crates/nvs-lsp/tests/actions.rs"
+  ]
 }

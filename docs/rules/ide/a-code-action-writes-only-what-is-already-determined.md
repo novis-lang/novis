@@ -47,4 +47,7 @@ statement and `mixed` elsewhere. The body throws a `LogicError`, and the text is
 offered. A static call and a `...` spread get nothing. Applied once, the call resolves, so a second
 application finds no diagnostic.
 
-**Missing:** the narrowing action.
+Narrow an `array<mixed>` is a `refactor.rewrite` at the annotation (`crates/nvs-lsp/src/narrow.rs`). The
+type it writes is the one the checker recorded for the literal, and the document with the edit applied
+must report the diagnostics it reported before. Applied once, the annotation is no longer
+`array<mixed>`, so a second application finds nothing to offer.

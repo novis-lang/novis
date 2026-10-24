@@ -17,8 +17,10 @@ The unit tests are the list: a homogeneous nest at three levels, a heterogeneous
 canonical union, an integer literal widening to `int`, an enum case widening to its enum, `[]` yielding no
 offer, a `mixed` element yielding no offer, and a literal past depth 32 yielding no offer.
 
-**Missing:** the synthesis and its unit tests, with the action they serve
-(`rule:ide/narrow-an-annotation-to-its-literal`).
+**Built:** `nvs_types::narrow::narrowest` widens the type the synthesis gave the literal and declines the
+cases above, and `nvs_types::narrow::written` prints it, `?T` for a union of one type and `null`. A type
+no annotation is written as declines too: a shape, an intersection, a `property<T>` key, a `string<K>`
+and a callable signature. The unit tests are in `crates/nvs-types/src/narrow.rs`.
 
 **Declined:**
 - **The true narrowest type, literals included.** `array<1|3>` is narrower and correct, and it refuses

@@ -21,7 +21,13 @@ the far side of the boundary the first editor slice draws.
 A round trip asserts it: offered on a literal-initialized annotation, absent on a `Core\Json::decode`
 initializer, and the file it produces still checks clean.
 
-**Missing:** the action, its synthesis in `nvs-types` and the round trip. Nothing on disk offers it.
+**Built:** *Narrow the type*, a `refactor.rewrite` action (`crates/nvs-lsp/src/narrow.rs`). It is offered
+on the annotation of a local declaration, at any depth of statements and method bodies. A property's
+default, a parameter's and a declaration inside a closure are not offered. The type comes from the
+synthesis `var` runs: the document is analysed with `var` in place of the annotation, and the checker
+records the literal's type there (`ExprTypeTable::literal_type`), the union of a literal it refuses
+included. `nvs_types::narrow` widens and prints it. The round trip is
+`a_narrowed_annotation_checks_as_before_and_is_not_offered_again` in `crates/nvs-lsp/tests/actions.rs`.
 
 **Declined:**
 - **A hint-severity diagnostic saying an annotation could be narrower.** It makes the checker say

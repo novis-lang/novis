@@ -1,6 +1,6 @@
 {
   "title": "One editor action rewrites an `array<mixed>` annotation to the type of the array literal that initializes it, and rewrites nothing else",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/narrowest-means-narrowest-base-type",
     "ide/the-action-answers-from-the-literal-or-not-at-all",
@@ -10,6 +10,8 @@
     "types/var-inference",
     "ide/one-grammar-one-tree"
   ],
-  "guardedBy": [],
-  "goal": "editor-fixes"
+  "guardedBy": [
+    "crates/nvs-lsp/tests/actions.rs",
+    "tests/lsp/actions/an-array-annotation-narrows-to-its-literal.lspt"
+  ]
 }

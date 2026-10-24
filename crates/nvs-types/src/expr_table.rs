@@ -1577,6 +1577,7 @@ pub struct ExprTypeTable {
     deprecation_checks: FxHashMap<Span, Vec<DeprecationCheck>>,
     deprecated_entries: FxHashMap<Span, DeprecationCheck>,
     promoted_pipelines: FxHashMap<Span, PromotedPipeline>,
+    literal_types: FxHashMap<Span, TypeId>,
 }
 
 /// The guard and observer a promoted constructor parameter's store runs,
@@ -2843,6 +2844,28 @@ impl ExprTypeTable {
     #[must_use]
     pub(crate) fn is_never_stmt(&self, span: Span) -> bool {
         self.never_stmts.contains(&span)
+    }
+
+    /// Records the type the synthesis gave the array literal at `span`. See
+    /// [`Self::literal_type`].
+    pub(crate) fn record_literal_type(&mut self, span: Span, ty: TypeId) {
+        self.literal_types.insert(span, ty);
+    }
+
+    /// The type `rule:types/var-inference`'s synthesis gives the bare array
+    /// literal at `span`, where `var` declares it or loops over it:
+    /// `array<T>` when its elements have the one type `T`, and `array<U>`,
+    /// with `U` the elements' canonical union, when they have more. `None`
+    /// for an empty literal, one with an element that reported its own
+    /// error, and every literal `var` does not type.
+    ///
+    /// A refused union is recorded too, and is no binding's type. It is here
+    /// for the editor, whose narrowing action writes it into an annotation a
+    /// person approves (`rule:ide/narrow-an-annotation-to-its-literal`). One
+    /// entry per `var` array literal, held for the compile.
+    #[must_use]
+    pub fn literal_type(&self, span: Span) -> Option<TypeId> {
+        self.literal_types.get(&span).copied()
     }
 }
 

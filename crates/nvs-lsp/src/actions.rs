@@ -33,6 +33,11 @@
 //! fix-all, since a save that wrote methods with throwing bodies would hide the
 //! error that asked for them.
 //!
+//! [`crate::narrow`]'s action rewrites an `array<mixed>` annotation to its
+//! literal's type, under the same rule. It is appended the same way and never
+//! to a fix-all, since a narrower type can refuse a write on another line
+//! (`rule:ide/narrowing-is-a-diff-never-a-save-time-fix`).
+//!
 //! # Decision: the gate an editor sees is the gate an action is offered behind
 //!
 //! [`crate::diagnostics::phase_gated`] is applied here too, so an action is
@@ -220,6 +225,7 @@ pub fn at(
         offered.extend(crate::generate::at(
             analysed, documents, start, end, encoding,
         ));
+        offered.extend(crate::narrow::at(analysed, documents, start, encoding));
     }
     offered.sort_by(|left, right| order(left).cmp(&order(right)));
     if kind == Kind::FixAll {
