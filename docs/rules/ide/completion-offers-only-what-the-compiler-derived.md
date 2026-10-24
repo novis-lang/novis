@@ -25,8 +25,12 @@ whose declared type is a set of allowed string values (`rule:types/single-value-
 those values, read off the parameter types the checker records on the call it resolved; the string
 converted with `as property<T>`, and a string argument at a parameter whose type takes a `property<T>`
 beside a `string`, which complete as `T`'s public declared properties with their types, read off the set
-the checker tests that conversion against (`rule:types/property-key`); `#[Api]` fields and
-every attribute's anonymous object, whose shape is a declared type; and enum cases, members off a resolved receiver
+the checker tests that conversion against (`rule:types/property-key`); the field names of a compiler
+attribute's payload, such as `#[Api]`'s, from the attribute's card, which is held to the roster the
+checker reads the payload against; the security schemes the program declares with `#[Api\Scheme]`, at
+an entry of an `#[Api]` `security` list, from the route table the checker holds each such name against
+(`rule:routing/a-security-scheme-is-declared-in-code`); every attribute's anonymous object, whose shape
+is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 
 A path list is one directory: the text between the opening quote and the cursor is split at its last

@@ -15,9 +15,11 @@
 //! class<T>`, loaded or loadable, the classes the program loads at a
 //! class-name parameter, and the names the route table holds at the name
 //! argument of a `Core\Router` link and that route's parameters at a key of
-//! its `$params`. Outside a string, a field name in the `{…}` options bag a
-//! `Core` member takes last is offered that member's options
-//! ([`option_key_at`]).
+//! its `$params`, and the security schemes the program declares in an entry
+//! of a `#[Core\Api]` `security` list ([`scheme_at`]). Outside a string, a
+//! field name in the `{…}` options bag a `Core` member takes last is offered
+//! that member's options ([`option_key_at`]), and a field name in a compiler
+//! attribute's payload the fields its card lists ([`attribute_key_at`]).
 //!
 //! **`->` and `::` are one walk and two lookups.** Both are an access whose
 //! first child is its receiver, so which of the two the cursor is in decides
@@ -342,6 +344,7 @@ use nvs_syntax::ast::{
 };
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
 use nvs_types::deprecated::Member;
+use nvs_types::derive::{self, AttributeDoc};
 use nvs_types::{ExprInfo, ParamIn, Ty, TypeId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde_json::{Value, json};
@@ -431,7 +434,9 @@ pub fn at(
         Asked::Literal(Literal::RouteKey(text_start, name)) => {
             route_keys(&cursor, text_start, &name)
         }
+        Asked::Literal(Literal::Scheme(text_start)) => scheme_names(&cursor, text_start),
         Asked::OptionKey(written, options) => option_keys(&cursor, written, options),
+        Asked::AttributeKey(written, doc) => attribute_keys(&cursor, written, doc),
         Asked::Position => position(&cursor),
         Asked::Nothing => return Vec::new(),
     };
@@ -572,6 +577,9 @@ enum Asked {
     /// last, this many bytes of it written, and the options that member
     /// declares.
     OptionKey(usize, &'static [CoreOption]),
+    /// The name half of a field in a compiler attribute's payload, this many
+    /// bytes of it written, and the attribute's card.
+    AttributeKey(usize, &'static AttributeDoc),
     /// No access at all — what may be written where a statement or an
     /// expression goes.
     Position,
@@ -666,6 +674,9 @@ enum Literal {
     /// A key of a `Core\Router` link's `$params`, starting at this byte after
     /// its opening quote, and the route name the link writes.
     RouteKey(BytePos, String),
+    /// An entry of a `#[Core\Api]` `security` list, starting at this byte
+    /// after its opening quote.
+    Scheme(BytePos),
 }
 
 /// A written path the cursor is inside.
@@ -738,6 +749,9 @@ fn literal_at(
     }
     if let Some((literal, name)) = crate::arguments::route_key_at(analysed, offset) {
         return Some(Literal::RouteKey(literal.start + 1, name));
+    }
+    if let Some(text_start) = scheme_at(analysed, path, offset) {
+        return Some(Literal::Scheme(text_start));
     }
     if let Some(argument) = crate::arguments::at(analysed, offset)
         && argument.text == ParamText::Path
@@ -1351,6 +1365,126 @@ fn option_keys(cursor: &Cursor<'_>, written: usize, options: &[CoreOption]) -> V
         .collect()
 }
 
+/// The compiler attribute whose payload the cursor at `offset` is writing a
+/// field name in, as the length written so far and the attribute's card.
+///
+/// The attribute is the innermost node, so a cursor inside a field's value is
+/// not here, and the text between the payload's `(` or the last `,` and the
+/// cursor is a name or nothing. The name the attribute wrote is resolved the
+/// way the checker resolves it (`rule:core-classes/derive-attribute`), so a
+/// `use`d short name reaches the same card and a userland attribute reaches
+/// none.
+fn attribute_key_at(
+    analysed: &Analysed,
+    path: &NodePath,
+    offset: BytePos,
+) -> Option<(usize, &'static AttributeDoc)> {
+    let [attribute, ..] = path.nodes() else {
+        return None;
+    };
+    if attribute.kind != "Attribute" {
+        return None;
+    }
+    let text = analysed.map.file(analysed.entry).text();
+    let upto = text.get(attribute.span.start as usize..offset as usize)?;
+    let (_, inside) = upto.split_once('(')?;
+    let name = inside
+        .trim_end_matches(|ch: char| ch.is_ascii_alphanumeric() || ch == '_')
+        .len();
+    let before = inside[..name].trim_end();
+    if !(before.is_empty() || before.ends_with(',')) {
+        return None;
+    }
+    let doc = attribute_named(analysed, attribute.span, upto)?;
+    (!doc.fields.is_empty()).then_some((inside.len() - name, doc))
+}
+
+/// The card of the compiler attribute whose text starts `upto`, written at
+/// `span`, or `None` where its name resolves to no compiler attribute.
+fn attribute_named(analysed: &Analysed, span: Span, upto: &str) -> Option<&'static AttributeDoc> {
+    let (written, _) = upto.split_once('(')?;
+    let written = written.trim_start_matches("#[").trim();
+    let resolved = resolved_name(analysed, written, span.start)?;
+    derive::attribute_doc(&resolved.to_string())
+}
+
+/// The fields of a compiler attribute's payload, each replacing the `written`
+/// bytes of the name before the cursor with the name and its `: `. The detail
+/// is the field's type, and `optional` where a payload may leave it out.
+fn attribute_keys(cursor: &Cursor<'_>, written: usize, doc: &AttributeDoc) -> Vec<CompletionItem> {
+    doc.fields
+        .iter()
+        .map(|field| {
+            let detail = if field.required {
+                field.ty.to_owned()
+            } else {
+                format!("{} (optional)", field.ty)
+            };
+            CompletionItem {
+                text_edit: Some(cursor.replacing(written, format!("{}: ", field.name))),
+                ..item(field.name.to_owned(), CompletionItemKind::FIELD, detail)
+            }
+        })
+        .collect()
+}
+
+/// The first byte after the opening quote of the string the cursor at
+/// `offset` is writing, where that string is an entry of the `security` list
+/// of a `#[Core\Api]` (`rule:routing/a-security-scheme-is-declared-in-code`).
+///
+/// The payload's values are the attribute's children and its field names are
+/// not nodes, so the field is read off the text between the attribute's start
+/// and the list: what ends it is the name and its `:`.
+fn scheme_at(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Option<BytePos> {
+    let [string, list, attribute, ..] = path.nodes() else {
+        return None;
+    };
+    if string.kind != "Str" || list.kind != "ArrayLiteral" || attribute.kind != "Attribute" {
+        return None;
+    }
+    if !(string.span.start < offset && offset < string.span.end) {
+        return None;
+    }
+    let text = analysed.map.file(analysed.entry).text();
+    let upto = text.get(attribute.span.start as usize..list.span.start as usize)?;
+    let field = name_run(upto.trim_end().strip_suffix(':')?.trim_end());
+    if field != "security" {
+        return None;
+    }
+    let doc = attribute_named(analysed, attribute.span, upto)?;
+    (doc.name == derive::API).then_some(string.span.start + 1)
+}
+
+/// The security schemes the program declares with `#[Core\Api\Scheme]`, read
+/// off the route table the checker holds each `security` name against. Each
+/// item replaces the text written since the opening quote, escaped for that
+/// quote, and its detail is the scheme's type.
+fn scheme_names(cursor: &Cursor<'_>, text_start: BytePos) -> Vec<CompletionItem> {
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let Some(written) = file.text().get(text_start as usize..cursor.offset as usize) else {
+        return Vec::new();
+    };
+    let quote = file.text()[..text_start as usize]
+        .chars()
+        .next_back()
+        .unwrap_or('\'');
+    cursor
+        .analysed
+        .exprs
+        .routes()
+        .schemes()
+        .iter()
+        .map(|scheme| CompletionItem {
+            text_edit: Some(cursor.replacing(written.len(), escaped(&scheme.name, quote))),
+            ..item(
+                scheme.name.clone(),
+                CompletionItemKind::VALUE,
+                scheme.kind.type_name().to_owned(),
+            )
+        })
+        .collect()
+}
+
 /// What the directory a written path's text reaches holds, for the segment
 /// the cursor is writing.
 ///
@@ -1467,6 +1601,9 @@ fn asked(analysed: &Analysed, files: &CompletionFiles, path: &NodePath, offset: 
     }
     if let Some((written, options)) = option_key_at(analysed, path, offset) {
         return Asked::OptionKey(written, options);
+    }
+    if let Some((written, doc)) = attribute_key_at(analysed, path, offset) {
+        return Asked::AttributeKey(written, doc);
     }
     if let Some(prefix) = namespace_written(analysed, offset) {
         return Asked::Namespace(prefix);

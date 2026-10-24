@@ -1,0 +1,23 @@
+--TEST--
+a field name in a compiler attribute's payload is offered the fields its card lists, here `#[Core\Api]`'s reached through a `use`d short name, `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+use Core\Api;
+
+class Orders
+{
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Api(tags: ["Orders"], sec<|>)]
+    public function index(): string
+    {
+        return "";
+    }
+}
+--REQUEST--
+completion
+--EXPECT--
+errors  field     mixed (optional)
+example field     mixed (optional)
+security field     mixed (optional)
+tags    field     mixed (optional)
