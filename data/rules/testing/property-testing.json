@@ -1,10 +1,14 @@
 {
   "title": "`#[Property]` derives its generators from the parameters' declared types",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/data-rows",
     "testing/assertions-are-typed"
   ],
-  "guardedBy": [],
-  "goal": "test-surface"
+  "guardedBy": [
+    "tests/conformance/lang/a-property-runs-over-generated-inputs-and-shrinks-a-failure.nvst",
+    "tests/conformance/reject/a-property-parameter-needs-a-generator-and-a-range-that-fits-it.nvst",
+    "crates/nvs-types/tests/property.rs",
+    "crates/nvs-types/tests/property_shrink.rs"
+  ]
 }

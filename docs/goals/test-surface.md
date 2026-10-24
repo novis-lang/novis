@@ -41,7 +41,7 @@ stages:
         rules: [testing/property-testing, testing/data-rows, testing/report-formats, testing/determinism-declared-on-the-test]
   - id: 8
     title: "`#[Property]` has its feature proofs"
-    status: open
+    status: done
     context: [docs/examples/lang/testing/chapter.md, docs/rules/testing/property-testing.md, docs/rules/testing/feature-proofs.md]
     extra:
       context:
@@ -247,12 +247,15 @@ example with `timeout` and `tags`.
 **Split:** writing subagents, one after another: the three examples with `about.md`, then the bench,
 then the attack. Each is held to `AGENTS.md` § *Text an end user reads*.
 
-- [ ] `chapter.md` names the feature. `docs/examples/lang/testing/chapter.md:1`
-- [ ] `about.md` and three examples. `docs/examples/lang/testing/core-test-property-generated-inputs/about.md:1`
-- [ ] One bench with its growth. `benches/members/lang/testing/core-test-property-generated-inputs.nvs:1`
-- [ ] One attack: a generator asked for a huge input stays under the test's limits. `tests/hostile/lang/testing/property-generator-size.nvs:1`
-- [ ] `bun nv proofs --id 'lang:testing/core-test-property-generated-inputs'` passes (`rule:testing/feature-proofs`). `docs/examples/lang/testing/core-test-property-generated-inputs/about.md:1`
-- [ ] The rule `shipped`. `data/rules/testing/property-testing.json:3`
+- [x] `chapter.md` names the feature. `docs/examples/lang/testing/chapter.md:1`
+- [x] `about.md` and three examples. `docs/examples/lang/testing/core-test-property-generated-inputs/about.md:1`
+- [x] Two conformance cases, one run and one reject. `tests/conformance/lang/a-property-runs-over-generated-inputs-and-shrinks-a-failure.nvst:1`, `tests/conformance/reject/a-property-parameter-needs-a-generator-and-a-range-that-fits-it.nvst:1`
+- [x] One bench with its growth. `benches/members/lang/testing/core-test-property-generated-inputs.nvs:1`
+- [x] One attack: a generator asked for a huge input stays under the test's limits. `tests/hostile/lang/testing/core-test-property-generated-inputs/01-a-generator-asked-for-a-huge-input.nvs:1`
+- [x] An attack that declares `proof: test` runs under `nvs test`, so a property's attack reaches its generator. `tools/nv/proofs/run.ts:236`
+- [x] The shrinker builds each candidate when it tries it, so a long failing input shrinks in time linear in what it tries. `crates/nvs-types/src/property/shrink.rs:84`
+- [x] `bun nv proofs --id 'lang:testing/core-test-property-generated-inputs'` passes (`rule:testing/feature-proofs`). `docs/examples/lang/testing/core-test-property-generated-inputs/about.md:1`
+- [x] The rule `shipped`. `data/rules/testing/property-testing.json:3`
 
 ### 4. `nvs test --list` covers `.nvst` trees, and the editor stops searching for them
 
@@ -273,6 +276,8 @@ document alone.
 - [ ] `--shuffle` and `--shuffle=<seed>`, with the seed in the summary and the report order unchanged. `crates/nvs-cli/src/runner.rs:490`
 - [ ] Tests for each, and the help text. `crates/nvs-cli/src/runner.rs:236`
 - [ ] The `tools:cli/nvs-test` example shows the three flags. `docs/examples/tools/cli/nvs-test/about.md:1`
+- [ ] The gap `an-extension-budget-per-test-has-no-test` closes: a test shows each test spends its own extension CPU budget, and the record is deleted. `crates/nvs-cli/src/extensions.rs:1`
+- [ ] The gap `a-test-response-has-no-bytes-reader` closes: `Core\Test\Response` reads a body that is not UTF-8, or the record is struck as a stated bound. `crates/nvs-stdlib/src/test.rs:1`
 - [ ] The rule `shipped`. `data/rules/testing/a-run-can-stop-early-rerun-failures-and-shuffle.json:3`
 
 ### 9. `nvs test --watch`
@@ -301,19 +306,17 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2, 3 and 7 are done. The sweep was stale again: `env-secret-proofs` is green when run,
-and the nightly run tested `3ea6f1550`, whose failures each have a later fix.
+Stages 1, 5, 2, 3, 7 and 8 are done. The sweep was stale again: `env-secret-proofs` is green when
+run, and the nightly run tested `3ea6f1550`, whose failures each have a later fix.
 
-A failing property call now shrinks: `shrink_failure` (`crates/nvs-cli/src/runner.rs:2088`) runs
-each candidate through `call_property` in the test's isolate, keeps the last failing outcome, and
-stops at the wall-time deadline or an `exit()`. `counterexample_record` (`runner.rs:2150`) adds the
-report line and a `counterexample` field, which `json_document` writes as the test's
-`counterexample` key through `json_node` (`runner.rs:3954`). `Outcome::and_record` is
-`and_failed` with a built record. `test_inherit` merges the property table, and `#[Property]` is
-in its `MARKERS`. Three examples with blessed `.out` files are in
-`docs/examples/lang/testing/core-test-property-generated-inputs/`, and the property, report-formats
-and hook-inheritance rules say all of it. `a_property_runs_as_one_test_over_its_generated_inputs`
-(`cargo test --bin nvs`) passes, and clippy is clean.
+`#[Property]` owes nothing to `bun nv proofs`, and its rule is `shipped`. Perf was re-recorded for
+all nine Testing features, which the `95-testing.md` re-render made stale. The shrinker's
+`candidates` (`crates/nvs-types/src/property/shrink.rs:84`) is now an iterator in the same order,
+which the attack showed was needed. An attack with `// proof: test` runs under `nvs test`
+(`proofArgv`, `tools/nv/proofs/run.ts:561`). Two gaps this goal owns are now stage 6's last items.
+
+Red now: `tests/conformance/core/test-assertions-past-the-memory-ceiling-name-the-ceiling.nvst`
+loops assertions under `nvs run`, where stage 1 records none. Move the loop into a `#[Test]`.
 
 May go red at the gate: a `--dump-ir` snapshot of a program with a property (extra shape classes);
 `E0889`'s card snapshot and anything counting `ATTRIBUTE_DOCS` (`crates/nvs-lsp/src/stubs.rs:156`);
@@ -326,16 +329,18 @@ that shrinks; a diagnostic snapshot naming `MARKERS`' five attributes (now six).
 
 ### Next
 
-**Stage 8: `#[Property]`'s feature proofs.** Follow its `**Split:**` line. The three examples
-exist and are blessed, so the first subagent writes `about.md` and the chapter heading around them.
+**Stage 4: `nvs test --list` covers `.nvst` trees.** It shares `runner.rs` with stage 6, so it runs
+before it.
 
-- [ ] `chapter.md` gains a `# \`#[Core\Test\Property]\`: generated inputs` heading after the data-rows one, and `property` in its keywords. `docs/examples/lang/testing/chapter.md:12`
-- [ ] `about.md` for the three examples, modelled on the data-rows one. `docs/examples/lang/testing/core-test-testwith-data-rows/about.md:1`
-- [ ] One bench with its growth, modelled on the data-rows bench. `benches/members/lang/testing/core-test-testwith-data-rows.nvs:1`
-- [ ] One attack: a `gen:` length range asking for a huge input stays under the input budget. `tests/hostile/lang/testing/property-generator-size.nvs:1`
-- [ ] `bun nv proofs --id 'lang:testing/core-test-property-generated-inputs'` passes, then the rule's status is `shipped`. `data/rules/testing/property-testing.json:3`
+- [ ] `--list` accepts a `.nvst` tree, and lists each case with its path in the JSON form `listing_document` writes. `crates/nvs-cli/src/runner.rs:3780`, `crates/nvs-cli/src/runner.rs:3809`
+- [ ] The client drops its `findFiles` search for cases and reads the listing. `editors/vscode/src/tests.ts:143`
+- [ ] A CLI test over a case tree, beside `the_listing_mode_discovers_without_executing`. `crates/nvs-cli/src/runner.rs:4467`
+- [ ] The headless surface test and its recorded listing, re-recorded from the binary. `editors/vscode/test/surfaces/tests.test.ts:1`
 
 ### Backlog
 
 - Shards balanced by recorded run time were declined (`docs/rules/testing/tags-and-shards-select-what-runs.md`).
 - Goals `mutation-testing` and `bench-counters` gate on stages 1 and 5 (`docs/goals/mutation-testing.md`, `docs/goals/bench-counters.md`).
+- A property's counterexample prints an enum case as its number, such as `new Item("", 1, 0)`. The case name would read better. `crates/nvs-cli/src/runner.rs:2357`
+- A long failing string or list spends the 1000-call shrink budget on one-item removals before it tries all `a`, so its counterexample stays long. Removing chunks first would shrink further. `crates/nvs-types/src/property/shrink.rs:362`
+- The "it asserted nothing" report line names a rule id, and text a user reads names none (`AGENTS.md` § *Text an end user reads*). `crates/nvs-cli/src/runner.rs:3375`

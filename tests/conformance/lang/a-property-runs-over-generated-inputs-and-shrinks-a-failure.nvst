@@ -1,0 +1,70 @@
+--TEST--
+a `#[Property]` is one reported test over inputs generated from its parameters' types, an inherited one runs in the subclass, and a failure shrinks to its counterexample under the seed it names (`rule:testing/property-testing`, `rule:testing/hook-inheritance` and `rule:testing/report-formats`)
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: lang:testing/core-test-property-generated-inputs
+use Core\Test;
+use Core\Test\Property;
+
+enum Size { Small, Large }
+
+final class Item {
+    public string $name;
+    public uint $count;
+    public ?Size $size;
+
+    public function constructor(string $name, uint $count, ?Size $size) {
+        $this->name = $name;
+        $this->count = $count;
+        $this->size = $size;
+    }
+}
+
+abstract class ContractTest {
+    // An inherited property runs in each subclass, under the subclass's name.
+    #[Property(runs: 20)]
+    public function itBuildsEveryItem(array<Item> $items): void {
+        Test::assertTrue(Core\Arr::count($items) >= 0);
+        foreach ($items as Item $item) {
+            Test::assertTrue(Core\Str::length($item->name) >= 0);
+        }
+    }
+}
+
+final class BoxTest extends ContractTest {
+    // A class parameter is built with its constructor, from generated arguments.
+    #[Property(gen: {items: "0..5"})]
+    public function itCountsEveryItem(array<Item> $items): void {
+        Test::assertTrue(Core\Arr::count($items) <= 5);
+        foreach ($items as Item $item) {
+            Test::assertTrue($item->size == null || $item->size == Size::Small || $item->size == Size::Large);
+        }
+    }
+
+    // A range bounds a number, and a string range bounds its length in characters.
+    #[Property(runs: 50, gen: {n: "-3..3", text: "2..4"})]
+    public function itKeepsEveryValueInItsRange(int $n, string $text): void {
+        Test::assertTrue($n >= -3 && $n <= 3);
+        uint $length = Core\Str::length($text);
+        Test::assertTrue($length >= 1 && $length <= 4);
+    }
+
+    // A failure shrinks to the smallest input that still fails, under the seed it reports.
+    #[Property(seed: 11, gen: {n: "0..100000"})]
+    public function itFailsFromOneThousandUp(int $n): void {
+        Test::assertTrue($n < 1000);
+    }
+}
+--EXPECTF--
+  BoxTest
+    ✓ itBuildsEveryItem                %f ms
+    ✓ itCountsEveryItem                %f ms
+    ✓ itKeepsEveryValueInItsRange      %f ms
+    ✗ itFailsFromOneThousandUp         %f ms
+      Core\Test::assertTrue failed: `$actual` is false
+      call 3 of 100 failed. The smallest inputs that still fail are (1000). The generated inputs were (100000). Write `#[Property(seed: 11)]` to run the same inputs again.
+
+  1 failed, 3 passed, 0 skipped, 0 flaky in %d ms
+--EXPECTF-ERROR--

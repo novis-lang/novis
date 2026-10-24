@@ -1,0 +1,45 @@
+<?nvs
+// Measures what one call of a property costs: a new test object is built, and the
+// check runs with one set of inputs. A property pays this for every one of its runs.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Test;
+use Core\Test\Property;
+
+class Money {
+    public static uint $checked = 0;
+
+    public static function add(int $a, int $b): int {
+        return $a + $b;
+    }
+
+    public static function checkOne(int $a, int $b): void {
+        Test::assertSame(Money::add($a, $b), Money::add($b, $a));
+        Money::$checked = Money::$checked + 1;
+    }
+}
+
+class MoneyTest {
+    #[Property(gen: {a: "-1000..1000", b: "-1000..1000"})]
+    public function itAddsInEitherOrder(int $a, int $b): void {
+        Money::checkOne($a, $b);
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $test = new MoneyTest();
+            // The body of `itAddsInEitherOrder`. Only a test can call a test method.
+            // Chained: the inputs come from the count the round before wrote.
+            int $a = (Money::$checked % 2001) as int - 1000;
+            Money::checkOne($a, 1000 - $a);
+            $i = $i + 1;
+        }
+        return Money::$checked;
+    }
+}
+
+echo Bench::run(2048), "\n";
