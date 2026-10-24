@@ -646,8 +646,38 @@ pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
 /// (`rule:ide/an-open-document-is-its-own-entry-point`).
 #[must_use]
 pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<Analysed> {
+    analyse_over(documents, path, version, None)
+}
+
+/// [`analyse_file`] for the entry of `analysed`, with `text` in place of that
+/// entry's text.
+///
+/// [`crate::extract`] checks an edit by analysing the text the edit writes,
+/// before it offers the edit. Every other file of the graph is read exactly as
+/// the first analysis read it.
+#[must_use]
+pub(crate) fn analyse_rewritten(
+    documents: &Documents,
+    analysed: &Analysed,
+    text: String,
+) -> Option<Analysed> {
+    let path = analysed.map.file(analysed.entry).path()?.to_path_buf();
+    analyse_over(documents, &path, analysed.version, Some(text))
+}
+
+/// The walk behind [`analyse_file`] and [`analyse_rewritten`]: `entry_text`,
+/// when given, is overlaid on the entry after every open buffer is.
+fn analyse_over(
+    documents: &Documents,
+    path: &Path,
+    version: i32,
+    entry_text: Option<String>,
+) -> Option<Analysed> {
     let mut map = SourceMap::new();
     documents.overlay(&mut map);
+    if let Some(text) = entry_text {
+        map.overlay(path, text);
+    }
     // The entry is loaded rather than added, even though its text is right
     // here: a `require` resolves against the requiring file's own directory,
     // and a file added by name has no path to take one from. The overlay

@@ -86,13 +86,16 @@ pub const TOKEN_MODIFIERS: &[SemanticTokenModifier] = &[
 /// narrow enough that a client asking for it by kind gets that action alone.
 /// The fourth is `refactor.rewrite`, which *Put on separate lines* and *Join
 /// onto one line* are filed under ([`crate::split_join::KIND`]). The fifth is
-/// organize imports ([`crate::organize::KIND`]).
+/// organize imports ([`crate::organize::KIND`]), and the sixth is
+/// `refactor.extract`, which *Extract to variable* and *Extract to method* are
+/// filed under ([`crate::extract::KIND`]).
 pub const CODE_ACTION_KINDS: &[CodeActionKind] = &[
     CodeActionKind::QUICKFIX,
     CodeActionKind::new("source.fixAll.nvs"),
     CodeActionKind::new(crate::html_template::KIND),
     CodeActionKind::new(crate::split_join::KIND),
     CodeActionKind::new(crate::organize::KIND),
+    CodeActionKind::new(crate::extract::KIND),
 ];
 
 /// The version this server reports in `serverInfo`.

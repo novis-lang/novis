@@ -16,11 +16,13 @@
 //! so there is nothing here for it to be translated *from*, and it is offered
 //! by nothing rather than refused by a list.
 //!
-//! Two actions are not fixes. [`crate::html_template`]'s refactor rewrites a
-//! string as an html template, and [`crate::split_join`]'s puts a list on
-//! separate lines or joins it onto one. Each is appended to the quick fixes
+//! Three kinds of action are not fixes. [`crate::html_template`]'s refactor
+//! rewrites a string as an html template, [`crate::split_join`]'s puts a list
+//! on separate lines or joins it onto one, and [`crate::extract`]'s move a
+//! selection into a variable or a method. Each is appended to the quick fixes
 //! under its own kind and never to a fix-all: the first changes what the line
-//! prints, and the second changes a layout that is the author's choice.
+//! prints, and the others change a layout or a structure that is the author's
+//! choice.
 //!
 //! # Decision: the gate an editor sees is the gate an action is offered behind
 //!
@@ -78,7 +80,7 @@ use nvs_diagnostics::{BytePos, Diagnostic, PositionEncoding, SourceId, Suggestio
 
 use crate::completion_files::CompletionFiles;
 use crate::diagnostics::{from_completion_files, phase_gated};
-use crate::document::Analysed;
+use crate::document::{Analysed, Documents};
 use crate::position::range_at;
 use crate::render::{Action, Edit};
 
@@ -142,8 +144,10 @@ impl Kind {
 
 /// Every fix offered over `[start, end)` of the entry document of `analysed`,
 /// under `kind`, positioned in `encoding` — and, beside the quick fixes, the
-/// html-template refactor when the range is on a string ([`crate::html_template`])
-/// and the split or join when it is inside a list ([`crate::split_join`]).
+/// html-template refactor when the range is on a string ([`crate::html_template`]),
+/// the split or join when it is inside a list ([`crate::split_join`]), and the
+/// extractions when the range selects an expression or statements
+/// ([`crate::extract`], which analyses its edits over `documents`).
 ///
 /// The diagnostics read are the compiler's, phase-gated, and the ones `files`
 /// gives the entry document, which is where a deprecated value's replacement
@@ -160,6 +164,7 @@ impl Kind {
 #[must_use]
 pub fn at(
     analysed: &Analysed,
+    documents: &Documents,
     files: &CompletionFiles,
     start: BytePos,
     end: BytePos,
@@ -200,6 +205,9 @@ pub fn at(
     if kind == Kind::QuickFix {
         offered.extend(crate::html_template::at(analysed, start, end, encoding));
         offered.extend(crate::split_join::at(analysed, start, encoding));
+        offered.extend(crate::extract::at(
+            analysed, documents, start, end, encoding,
+        ));
     }
     offered.sort_by(|left, right| order(left).cmp(&order(right)));
     if kind == Kind::FixAll {

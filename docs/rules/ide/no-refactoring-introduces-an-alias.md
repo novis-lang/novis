@@ -24,4 +24,23 @@ Organize imports, a `source.organizeImports` code action (`crates/nvs-lsp/src/or
 each `use` line the `W1026` warning reports, with that warning's own edit, and sorts the rest with
 `nvs fmt`'s sort, so a format after it moves nothing. Cross-file symbol search: `workspace/symbol`
 reads the reference index's declarations.
-**Missing:** extract to method or variable.
+Extract to variable and extract to method, two `refactor.extract` code actions over a selection
+(`crates/nvs-lsp/src/extract.rs`). Extract to variable writes a typed local declaration on its own
+line above the statement, and replaces the selected expression with the variable. Extract to method
+writes a `private` method after the one the selection is in, and replaces the selection with a call to
+it. Its parameters are the locals the selection reads, with the types they were declared with. Its
+return type is the selected expression's, and `void` for a run of whole statements. An expression's
+type is the one the checker gives `var $name = <selection>;` written above its statement, and each
+action is offered only once the text it writes analyses with no error, so a document that already
+reports one is offered neither.
+
+The boundary of extract to method is one exit and no write that escapes. A selection holding a
+`return`, `yield` or `goto`, or a `break` or `continue` with no loop around it inside the selection, is
+offered nothing, and so is one that assigns or increments a local declared before it, or passes one as
+`inout` or `&`. Writing such a method would mean choosing an `inout` parameter or a result to unpack,
+which is a choice and not a fact. A selection inside an anonymous function, or holding one, is refused
+too. Extract to variable keeps its own boundary: it is refused where moving the expression above its
+statement changes when it runs — a loop condition, an `elseif`, the right side of `&&`, `||` or `??`, a
+branch of `?:` or `match`, and after `?->`. Both refuse an assignment's target, an increment's operand,
+the operand of `isset`, `empty` and `unset`, and a bare variable. Each analysis is of the editor's own
+graph and runs only while a selection covers exactly one expression or run of statements.

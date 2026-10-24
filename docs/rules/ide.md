@@ -3,7 +3,7 @@
 
 # The editor
 
-*17 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
+*16 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -457,8 +457,9 @@ server process's life after its first `Core` jump, and one copy on disk per serv
 
 `rule:ide/the-request-set-is-closed`
 
-`nvs lsp` answers twenty standard requests, the code actions of
-[`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), and seven requests of Novis's own,
+`nvs lsp` answers twenty-one standard requests, the code actions of
+[`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows) and organize imports, and seven
+requests of Novis's own,
 each one admitted on the same test: a data structure the compiler or the server already builds *is* the
 answer. `crates/nvs-lsp/tests/handshake.rs` holds the declared capabilities to exactly that list, and a
 method outside it is answered `MethodNotFound`. Each is named because "minimal" without a list is how
@@ -519,7 +520,10 @@ for the same reason the nine are. `references` and `documentHighlight` are the w
 and narrowed to the open file; `codeLens` counts that index's uses and walks its extends edge; and
 `typeHierarchy` — `prepare`, `supertypes` and `subtypes`, one request in three methods — walks the same
 edge both ways. Those four, with unused-member dimming, are
-[`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)'s five readers of the one index. `signatureHelp`,
+[`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)'s five readers of the one index. `workspace/symbol`,
+the twenty-first, is admitted the same way: it searches the same index's declarations by name, and is
+that rule's reader too. A `.lspt` case renders it one line per declaration, `file:L:C kind name`, then
+`in` and the class or namespace it is declared in. `signatureHelp`,
 `typeDefinition` and `implementation` read what `hover` and `definition` already resolve. `inlayHint` is the
 eighth, and it is admitted for two idioms that are settled and no others: a `var` declaration's
 inferred type and a bare literal argument's parameter name, both read out of the type phase's own tables
@@ -531,7 +535,7 @@ a cursor.
 `callHierarchy` is admitted on the same test and is not declared yet. The user decided to offer it. It
 reads the call-site edges that [`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method) adds
 to the reference index, so the server declares it in the change that builds those edges, as the
-twenty-first standard request. It answers incoming and outgoing calls. A call through a `callable` value
+twenty-second standard request. It answers incoming and outgoing calls. A call through a `callable` value
 or a `mixed` receiver is not shown, because the checker resolved no single target for it.
 
 The second non-standard request is `nvs/regions`
@@ -767,7 +771,8 @@ Two code actions are not fixes and have no diagnostic behind them. One is the re
 which changes only line breaks. Nothing is wrong in either case, so there is no diagnostic to carry
 them, and the server computes each from the expression under the cursor alone, with no type or module
 question. Neither is ever under `source.fixAll.nvs` or `quickfix`. The server computes no other
-action for itself; the ones that write a declaration are
+action for itself but the two extractions under `refactor.extract`, which
+[`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias) states; the ones that write a declaration are
 [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined)'s.
 
 <sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one).</sub>
@@ -1041,7 +1046,7 @@ the two rewrites [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows
 
 <a id="ide-no-refactoring-introduces-an-alias"></a>
 
-## Rename, organize-imports and auto-import never write a `use` alias: an import inserts the fully-qualified name, and organize-imports only reorders and removes  *(designed — owned by goal editor-refactors)*
+## Rename, organize-imports and auto-import never write a `use` alias: an import inserts the fully-qualified name, and organize-imports only reorders and removes
 
 `rule:ide/no-refactoring-introduces-an-alias`
 
@@ -1067,7 +1072,30 @@ outside a class: the index records each type annotation and each class written i
 the rename changes the last segment at every site and in every `use` line. A new name that another
 type in the workspace has, or that a file with a site already writes, is refused. A type declared
 alone in a file named after it renames that file with it, so an `autoload` still finds it.
-**Missing:** extract to method or variable; organize-imports; and cross-file symbol search.
+Organize imports, a `source.organizeImports` code action (`crates/nvs-lsp/src/organize.rs`): it deletes
+each `use` line the `W1026` warning reports, with that warning's own edit, and sorts the rest with
+`nvs fmt`'s sort, so a format after it moves nothing. Cross-file symbol search: `workspace/symbol`
+reads the reference index's declarations.
+Extract to variable and extract to method, two `refactor.extract` code actions over a selection
+(`crates/nvs-lsp/src/extract.rs`). Extract to variable writes a typed local declaration on its own
+line above the statement, and replaces the selected expression with the variable. Extract to method
+writes a `private` method after the one the selection is in, and replaces the selection with a call to
+it. Its parameters are the locals the selection reads, with the types they were declared with. Its
+return type is the selected expression's, and `void` for a run of whole statements. An expression's
+type is the one the checker gives `var $name = <selection>;` written above its statement, and each
+action is offered only once the text it writes analyses with no error, so a document that already
+reports one is offered neither.
+
+The boundary of extract to method is one exit and no write that escapes. A selection holding a
+`return`, `yield` or `goto`, or a `break` or `continue` with no loop around it inside the selection, is
+offered nothing, and so is one that assigns or increments a local declared before it, or passes one as
+`inout` or `&`. Writing such a method would mean choosing an `inout` parameter or a result to unpack,
+which is a choice and not a fact. A selection inside an anonymous function, or holding one, is refused
+too. Extract to variable keeps its own boundary: it is refused where moving the expression above its
+statement changes when it runs — a loop condition, an `elseif`, the right side of `&&`, `||` or `??`, a
+branch of `?:` or `match`, and after `?->`. Both refuse an assignment's target, an increment's operand,
+the operand of `isset`, `empty` and `unset`, and a bare variable. Each analysis is of the editor's own
+graph and runs only while a selection covers exactly one expression or run of statements.
 
 <sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/var-inference`](types.md#types-var-inference), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index).</sub>
 
@@ -1375,8 +1403,10 @@ large file is where it is least welcome. `textDocument/typeHierarchy` shows supe
 including [`classes/interface-default-methods`](classes.md#classes-interface-default-methods) and [`classes/delegation-by-property`](classes.md#classes-delegation-by-property), which is
 where a reader most needs to see the shape rather than reconstruct it.
 
-The fifth is **unused-member dimming**: a private member, constant or `use` with no reference anywhere in
+The fifth is **unused-member dimming**: a private member or constant with no reference anywhere in
 the index is a diagnostic carrying LSP's `Unnecessary` tag, rendered as dimming rather than a squiggle.
+An unused `use` line is not dimmed here: it is the `W1026` warning of
+[`statements/an-unused-use-is-a-warning`](statements.md#statements-an-unused-use-is-a-warning), which carries the same tag.
 It is only correct at workspace scope — a symbol unused in the open buffer is not unused — so it is
 silent under the default of [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace) rather than wrong.
 
@@ -1390,13 +1420,17 @@ One more reader reads the same index and is not a reference feature: `nvs/fileKi
 recorded as it read each file. It asks what a file declares rather than where a name is used, and it
 builds no walk of its own either.
 
+`workspace/symbol` reads it too: `SymbolIndex::matching` returns every declaration whose own name (a
+type's last segment, or a member without a property's `$`) contains the query, upper and lower case
+alike. It searches the declarations the index already holds, so it adds no store and no walk.
+
 The same index answers a question asked by name. `nvs_lsp::query` holds the readers that take a
 fully-qualified name instead of a cursor, and the editor feature that asks the same question calls the
 same function: `textDocument/references` and `textDocument/implementation` read the cursor's name and
 call `query`. A caller outside the server, such as `nvs code`, gets a `Workspace` from `server.rs`, which
 builds the index for one question and drops it with the answer.
 
-The structure is one constructor, `SymbolIndex::build` in `crates/nvs-lsp/src/index.rs`, and all six
+The structure is one constructor, `SymbolIndex::build` in `crates/nvs-lsp/src/index.rs`, and all seven
 readers read what it built. The server keeps one warm index; a `.lspt` case and `nvs code` call the
 same constructor for one question each. Five features that would each walk the workspace cost one walk between them, and the
 warm index is what keeps references and highlight inside [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound).
@@ -2203,7 +2237,9 @@ right; sharing the *suite* would make `nvs test`'s count mean two things and bre
 coverage guard ([`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate)). The section lexer is `nvs_test::section`, shared by both
 formats, so `--TEST--`, `--FILE--`, `--FILE <relative/path>--` and `--EXPECT--` mean exactly what they mean
 in a `.nvst` case, multi-file cases included. `<|>` is the cursor, removed before analysis and reported as
-an offset — exactly one per case, and none for a request that needs none.
+an offset — exactly one per case, and none for a request that needs none. A `codeAction` case may write
+a second `<|>`, and the request is then asked over the selection between the two, which is how an
+extraction is asked for.
 
 The runner is `nvs lsp-test <paths>` (`crates/nvs-lsp/src/suite.rs`), walking directories for `*.lspt` and printing `N passed, M failed`
 — the line the loop's `nvs-suite` check kind already parses, so editor behaviour is gated with no change
@@ -2227,7 +2263,9 @@ keyword list) and `limit=`; `diagnostics` takes `phase=all` to defeat [`ide/diag
 which is how the gating itself gets a case; `semanticTokens` takes `types=` to restrict the rendering to
 the token types under test; `rename` needs `to=`, the new name; `willRenameFiles` needs `from=` and
 `to=`, the file or folder that moves and where it moves to, each relative to the case's own directory;
-the rest take none. A line that leaves out an argument its request needs fails the case.
+`workspaceSymbol` takes `query=`, the text a name has to contain, and asks for every declaration
+without it; `codeAction` takes `only=`, a kind of `nvs_lsp::CODE_ACTION_KINDS`, which is how a case
+reaches organize imports; the rest take none. A line that leaves out an argument its request needs fails the case.
 
 An unknown request or argument fails the case loudly rather than being ignored. A silently-dropped argument
 is a case that passes while testing something else.

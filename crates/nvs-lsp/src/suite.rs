@@ -306,7 +306,7 @@ pub(crate) fn answer(case: &Case, root: &Path) -> Result<Answered, String> {
         Request::SelectionRange => selection_range(&analysed, at(case)),
         Request::FoldingRange => folding_range(&analysed),
         Request::DocumentLink => document_link(&analysed, &files),
-        Request::CodeAction => code_action(&analysed, case, at(case)),
+        Request::CodeAction => code_action(&analysed, &documents, case, at(case)),
         Request::CodeLens => code_lens(&documents, &files, &entry),
         Request::References => references(&analysed, &documents, &files, at(case)),
         Request::DocumentHighlight => {
@@ -636,7 +636,16 @@ fn document_link(analysed: &Analysed, files: &Materialised) -> Response {
 /// [`crate::actions::Kind::QuickFix`] is what a person's client asks for, so it
 /// is the kind a case freezes unless its `only=` names another, as a client's
 /// own request does.
-fn code_action(analysed: &Analysed, case: &Case, offset: BytePos) -> Response {
+fn code_action(
+    analysed: &Analysed,
+    documents: &Documents,
+    case: &Case,
+    offset: BytePos,
+) -> Response {
+    let end = case
+        .selection_end
+        .and_then(|end| BytePos::try_from(end).ok())
+        .unwrap_or(offset);
     let only: Vec<lsp_types::CodeActionKind> = case
         .args
         .only
@@ -645,9 +654,10 @@ fn code_action(analysed: &Analysed, case: &Case, offset: BytePos) -> Response {
         .collect();
     Response::CodeAction(actions::at(
         analysed,
+        documents,
         &crate::completion_files::CompletionFiles::default(),
         offset,
-        offset,
+        end,
         actions::Kind::asked_for(case.args.only.as_ref().map(|_| only.as_slice())),
         COLUMNS,
     ))
