@@ -4727,7 +4727,10 @@ mod tests {
             ["AlphaTest::itPassesFirst", "AlphaTest::itFails"]
         );
         assert_eq!(suite.counts.failed, 1);
-        assert_eq!(suite.not_run, 5, "two rows and one test of AlphaTest, and BetaTest's two");
+        assert_eq!(
+            suite.not_run, 5,
+            "two rows and one test of AlphaTest, and BetaTest's two"
+        );
 
         // Without the flag every test runs, and the run fails twice.
         let whole = ran_shaped(
@@ -4750,7 +4753,12 @@ mod tests {
             suite
                 .cases
                 .iter()
-                .map(|case| (format!("{}::{}", case.class, case.method), case.outcome.verdict()))
+                .map(|case| {
+                    (
+                        format!("{}::{}", case.class, case.method),
+                        case.outcome.verdict(),
+                    )
+                })
                 .collect()
         };
         let plain = report(&ran("fail-fast.nvs"));
@@ -4781,7 +4789,10 @@ mod tests {
         sorted.sort_unstable();
         assert_eq!(sorted, (0..8).collect::<Vec<_>>());
         let moved = (0..10).filter(|&seed| order(seed) != (0..8).collect::<Vec<_>>());
-        assert!(moved.count() >= 9, "nearly every seed changes the order of eight tests");
+        assert!(
+            moved.count() >= 9,
+            "nearly every seed changes the order of eight tests"
+        );
     }
 
     /// `rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`: a run's failed tests are
@@ -4957,27 +4968,35 @@ mod tests {
         );
 
         let paths = [tree.clone()];
-        let (_, chosen) =
-            nvs_test::selected(&paths, None, None, None).expect("the tree is walked");
+        let (_, chosen) = nvs_test::selected(&paths, None, None, None).expect("the tree is walked");
         let labels: Vec<String> = chosen.into_iter().map(|(label, _)| label).collect();
-        assert_eq!(labels.len(), 2, "the cache folder's case is skipped: {labels:?}");
+        assert_eq!(
+            labels.len(),
+            2,
+            "the cache folder's case is skipped: {labels:?}"
+        );
         assert!(labels[0].ends_with("first.nvst") && labels[1].ends_with("second.nvst"));
 
         let document: serde_json::Value =
             serde_json::from_str(&super::case_listing_document(&labels))
                 .expect("the listing is a JSON document");
         assert_eq!(document["schemaVersion"], 2);
-        let listed = document["listed"].as_array().expect("records under `listed`");
+        let listed = document["listed"]
+            .as_array()
+            .expect("records under `listed`");
         for (record, label) in listed.iter().zip(&labels) {
             assert_eq!(record["case"], label.as_str());
             assert_eq!(record["file"], label.as_str());
-            assert_eq!((record["line"].as_u64(), record["column"].as_u64()), (Some(1), Some(1)));
+            assert_eq!(
+                (record["line"].as_u64(), record["column"].as_u64()),
+                (Some(1), Some(1))
+            );
             assert!(record["class"].is_null() && record["verdict"].is_null());
         }
 
         // `--filter` selects the same cases a run of the tree would.
-        let (_, one) = nvs_test::selected(&paths, None, Some("second"), None)
-            .expect("the tree is walked");
+        let (_, one) =
+            nvs_test::selected(&paths, None, Some("second"), None).expect("the tree is walked");
         assert_eq!(one.len(), 1);
     }
 
@@ -5580,9 +5599,7 @@ mod tests {
         assert!(found["seed"].is_i64(), "{failed}");
         assert!(found["call"].is_u64(), "{failed}");
         assert_eq!(
-            found["generatedInputs"]
-                .as_array()
-                .map(Vec::len),
+            found["generatedInputs"].as_array().map(Vec::len),
             Some(1),
             "{failed}"
         );
