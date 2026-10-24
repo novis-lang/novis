@@ -17,8 +17,11 @@ nvs test .                   # runs the tests
 |---|---|
 | `known.toml` | The systems, processors and commands a report may name |
 | `src/App.nvs` | The routes |
+| `src/Limit.nvs` | Limits each address to ten reports in one hour |
 | `src/Report.nvs` | Checks one report |
 | `src/Totals.nvs` | Adds a report to the weekly totals |
 
 `POST /v1/report` takes one report as JSON, at most 4 KiB. It returns `204` when the report is added,
 `400` when a field is wrong, `413` when the body is too large and `415` when the body is not JSON.
+The eleventh report from one address in one hour gets `429`. Its `Retry-After` header is the number
+of seconds to wait.
