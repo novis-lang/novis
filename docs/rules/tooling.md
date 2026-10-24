@@ -2321,6 +2321,10 @@ and a report from a newer `nvs` still counts. A value above 100 000 is counted a
 honest week is kept, and one report cannot move a total by more than that. A test in the repository
 checks that `known.toml` lists every command in the binary's table, so the list cannot fall behind.
 
+The collector's clock is Core's: the week window and the rate limit's daily salt read
+`Core\Time::now()`, never SQLite's `now`. So a test sets the date with `#[Test(at: ...)]` and moves it
+with `Core\Test::advance` ([`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test)).
+
 The answers, and what the client does with each
 ([`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command)):
 

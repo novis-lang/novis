@@ -48,7 +48,7 @@ stages:
         rules: [tooling/the-telemetry-collector-is-a-novis-program, tooling/a-failed-upload-never-fails-the-command, tooling/telemetry-show-prints-the-payload]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: client-ip-proofs
@@ -279,15 +279,34 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-**Stages 1 to 6 are done.** Stage 6 is `c373a107a` and `a6553c301`.
+**Every stage is done, and the goal is reached.** Stage 7, the gate, is `1c69b9556` and `a7b1a1b10`.
+
+- **Stage 7.** The first `looper verify` failed at `bun nv directives --check-template`.
+  `[app.log]` in `crates/nvs-config/src/default.toml` did not spell `client_ip`, which `Log` parses
+  there as it parses `target`. `a7b1a1b10` adds the line. The same run's `cargo fmt` reformatted five
+  files stages 1 to 6 had committed, and `1c69b9556` commits them.
+- The second run went red in `nvs-cli`'s tests alone, and the tool reran each red binary alone and
+  it passed. The four tests were `parallel_tests_overlap_on_more_than_one_core` (four 400 ms tests
+  took 2.9 s), `serve_arms_a_fleet_entry_when_the_shared_tier_can_take_a_lease` and
+  `every_example_ends_with_the_status_it_is_written_to_end_with` (Redis on 16379 and Postgres on
+  15432 missed their connect deadline), and `a_served_while_true_does_not_stall_a_second_connection_on_its_core`
+  (a raw `TcpStream` read past 20 s). No change of this goal reaches them, and the containers were
+  healthy. The third run was green, so none was changed. If one of them goes red again under load,
+  it needs its own fix, as the playbook's *failed beside the other test binaries* bullet says.
+- `bun nv verify --doc` resolves every link. `bun nv owners --closes telemetry-service` names no gap.
+- The one standing decision only this file held, *the clock is Core's*, is now a paragraph of
+  `rule:tooling/a-telemetry-report-is-checked-against-a-closed-schema`. Every other decision is in
+  a rule, the deploy guide in `apps/telemetry/README.md`, or the comment of the route it governs.
+
+Stage 6 is `c373a107a` and `a6553c301`.
 
 - **Stage 6.** `crates/nvs-cli/tests/telemetry_e2e.rs` copies `public/`, `src/`, `known.toml` and
   `nvs.toml` into a scratch folder, adds `[log] target = "stderr"` and `access = true`, writes a
@@ -358,26 +377,17 @@ Stages 1 to 3: `73fadfe73` and `d8bcb6166`, with a stage-1 fix in `59451e437`.
   against one key. `AppTest` runs at the real date and sends five. A sixth to tenth is fine, an
   eleventh in one run gets `429`.
 
-The sweep's reds: `env-secret-proofs`'s log reads exit 0 at HEAD. Every nightly red is from run
-`39922764699`, already triaged. `crates/nvs-runtime/src/capability.rs` is still modified in the
-tree, and it belongs to interactive session `6884de4b`. Do not stage it.
+The sweep's reds: `bun nv proofs --gate --only 'Core\Env::secret'` exits 0 at HEAD. Every nightly
+red is from run `39922764699`, already triaged. `crates/nvs-runtime/src/capability.rs` is still
+modified in the tree, and it belongs to interactive session `6884de4b`. Do not stage it.
 
 ### Next
 
-**Stage 7, the gate.** Start `looper verify` (or `bun nv affected --run`) with `run_in_background`,
-group the failures by cause, fix them in one pass, and run it once more.
+**Nothing.** The goal is reached. The driver runs the acceptance checks and retires this file.
 
-- [ ] `bun nv affected --run` once over the goal. `tools/nv/cmd/verify.ts:1`
-- [ ] Fix each group. The likely ones are below. `crates/nvs-stdlib/src/http/transport.rs:2354`
-- [ ] The second run green, then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes telemetry-service`, and the goal's prose decisions moved to rules before the file is deleted. `docs/goals/telemetry-service.md:84`
+- [x] The gate green, then `bun nv verify --doc` and `bun nv owners --closes telemetry-service`. `tools/nv/cmd/verify.ts:1`
 
-Expected red, if any:
-- A perf figure for a `Core\Http` member, since `crates/nvs-stdlib/src/http.rs` changed (its change
-  is a test only, and the logic change is in `http/transport.rs`). `bun nv proofs --record-perf
-  --id '<member>'` records one.
-- A transport test that pinned a `HEAD`, `204` or `304` reply as pooled. None was found by name, and
-  `reusable`'s own test at `crates/nvs-stdlib/src/http/transport.rs:5402` does not use a status.
-- Clippy is clean, and `bun nv rules --check` is clean.
+Expected red: none.
 
 ### Backlog
 
@@ -389,5 +399,3 @@ Expected red, if any:
   journal. The deploy guide uses `stderr`. The help text may want a line about that.
 - Download counts from GitHub releases on the public pages would correct the opt-in undercount
   (`rule:tooling/telemetry-is-two-opt-ins`). They need an outbound job, and no goal owns it.
-- `[app.log]` in `crates/nvs-config/src/default.toml` does not list `client_ip`. It is a `System`
-  key, so check whether `[app.log]` accepts it before adding the line.
