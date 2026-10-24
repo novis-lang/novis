@@ -177,9 +177,10 @@ impl Request {
     ///
     /// `codeAction` is asked over a *range* and is still on this side of the
     /// split: the range a case asks over is the empty one at its cursor, which
-    /// is where a light bulb appears when nothing is selected. A format that
-    /// could write a selection would be freezing a claim about the editor
-    /// rather than about the server.
+    /// is where a light bulb appears when nothing is selected. A `codeAction`
+    /// case may write a second `<|>`, and the range is then the selection from
+    /// the first to the second, which is what an extraction is asked over
+    /// ([`Case::selection_end`]).
     #[must_use]
     pub fn takes_cursor(self) -> bool {
         matches!(
@@ -265,6 +266,10 @@ pub struct Case {
     /// `None` for a request asked of the whole document, and never `None` for
     /// one asked at a position.
     pub cursor: Option<usize>,
+    /// Where a second `<|>` was, as a byte offset into [`Case::document`]:
+    /// the end of the selection a `codeAction` case asks over. `None` for a
+    /// case with one cursor or none.
+    pub selection_end: Option<usize>,
     /// Every `--FILE <path>--`, in the order they were written.
     pub aux: Vec<AuxFile>,
     /// `--REQUEST--`, the question.
@@ -483,7 +488,8 @@ fn moved_path(raw: &str) -> Result<String, String> {
     aux_path(raw)
 }
 
-/// Takes the cursor out of `document`, returning where it was.
+/// Takes the cursor out of `document`, returning where it was, and where a
+/// `codeAction` case's second `<|>` was.
 ///
 /// The count is checked against what the request needs before anything is
 /// removed, so the two ways a case can be wrong about its cursor — none where
@@ -493,8 +499,15 @@ fn take_cursor(
     document: &mut String,
     request: Request,
     line: usize,
-) -> Result<Option<usize>, ParseError> {
+) -> Result<(Option<usize>, Option<usize>), ParseError> {
     let count = document.matches(CURSOR).count();
+    if count == 2 && request == Request::CodeAction {
+        let start = document.find(CURSOR).expect("two matches were counted");
+        document.replace_range(start..start + CURSOR.len(), "");
+        let end = document.find(CURSOR).expect("one match is left");
+        document.replace_range(end..end + CURSOR.len(), "");
+        return Ok((Some(start), Some(end)));
+    }
     if count > 1 {
         return Err(err(
             format!("`{CURSOR}` appears {count} times; a case has exactly one cursor or none"),
@@ -512,11 +525,11 @@ fn take_cursor(
             ),
             Some(line),
         )),
-        (_, 0) => Ok(None),
+        (_, 0) => Ok((None, None)),
         (_, _) => {
             let at = document.find(CURSOR).expect("one match was counted");
             document.replace_range(at..at + CURSOR.len(), "");
-            Ok(Some(at))
+            Ok((Some(at), None))
         }
     }
 }
@@ -645,13 +658,14 @@ impl Case {
 
         // An auxiliary file is a document the request is not asked about, so
         // the cursor is the main document's alone.
-        let cursor = take_cursor(&mut document, request, file_line)?;
+        let (cursor, selection_end) = take_cursor(&mut document, request, file_line)?;
 
         Ok(Self {
             path: path.to_path_buf(),
             title,
             document,
             cursor,
+            selection_end,
             aux,
             request,
             args,

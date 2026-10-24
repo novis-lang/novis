@@ -47,6 +47,7 @@ fn offered(source: &str, needle: &str) -> String {
     let analysed = analysed(source);
     Response::CodeAction(actions::at(
         &analysed,
+        &Documents::new(),
         &CompletionFiles::default(),
         at,
         at,
@@ -85,6 +86,7 @@ fn a_code_action_comes_from_a_suggestion_the_diagnostic_already_carried() {
     let at = cursor(source, "user_account");
     let offered: Vec<(String, String)> = actions::at(
         &analysed(source),
+        &Documents::new(),
         &CompletionFiles::default(),
         at,
         at,
@@ -134,6 +136,7 @@ fn a_fix_all_applies_the_grouping_that_keeps_the_meaning_and_never_the_alternati
     let titles = |kind| -> Vec<String> {
         actions::at(
             &analysed(source),
+            &Documents::new(),
             &CompletionFiles::default(),
             at,
             at,
@@ -169,6 +172,7 @@ fn the_html_template_refactor_has_its_own_kind_and_is_never_in_a_fix_all() {
     let offered = |kind| -> Vec<(String, String)> {
         actions::at(
             &analysed(source),
+            &Documents::new(),
             &CompletionFiles::default(),
             at,
             at,
@@ -225,6 +229,7 @@ fn a_fix_the_checker_would_have_to_compute_is_offered_by_nothing() {
     let at = cursor(mistyped, "\"text\"");
     let fixes: Vec<String> = actions::at(
         &analysed(mistyped),
+        &Documents::new(),
         &CompletionFiles::default(),
         at,
         at,

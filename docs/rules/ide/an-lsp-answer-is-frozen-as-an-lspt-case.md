@@ -22,7 +22,9 @@ right; sharing the *suite* would make `nvs test`'s count mean two things and bre
 coverage guard (`rule:testing/nvst-is-separate`). The section lexer is `nvs_test::section`, shared by both
 formats, so `--TEST--`, `--FILE--`, `--FILE <relative/path>--` and `--EXPECT--` mean exactly what they mean
 in a `.nvst` case, multi-file cases included. `<|>` is the cursor, removed before analysis and reported as
-an offset — exactly one per case, and none for a request that needs none.
+an offset — exactly one per case, and none for a request that needs none. A `codeAction` case may write
+a second `<|>`, and the request is then asked over the selection between the two, which is how an
+extraction is asked for.
 
 The runner is `nvs lsp-test <paths>` (`crates/nvs-lsp/src/suite.rs`), walking directories for `*.lspt` and printing `N passed, M failed`
 — the line the loop's `nvs-suite` check kind already parses, so editor behaviour is gated with no change

@@ -2086,7 +2086,7 @@ fn code_actions(
     let start = offset_at(file, params.range.start, encoding);
     let end = offset_at(file, params.range.end, encoding);
     let kind = actions::Kind::asked_for(params.context.only.as_deref());
-    actions::at(&analysed, completion_files, start, end, kind, encoding)
+    actions::at(&analysed, documents, completion_files, start, end, kind, encoding)
         .into_iter()
         .map(|action| {
             let edits = std::iter::once(TextEdit {

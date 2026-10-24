@@ -646,6 +646,7 @@ fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote(
         let (_, analysis, at) = opened(&workspace, call);
         let offered: Vec<(String, String, Range)> = actions::at(
             &analysis,
+            &Documents::new(),
             &files,
             at,
             at,
@@ -669,6 +670,7 @@ fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote(
     let (_, analysis, at) = opened(&workspace, "Icon::render('arrow-<|>left', 16);");
     let offered: Vec<_> = actions::at(
         &analysis,
+        &Documents::new(),
         &CompletionFiles::default(),
         at,
         at,

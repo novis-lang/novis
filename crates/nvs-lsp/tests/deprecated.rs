@@ -77,6 +77,7 @@ fn offered(analysed: &Analysed, start: usize, end: usize, kind: actions::Kind) -
     let at = |offset: usize| u32::try_from(offset).expect("the document is short");
     Response::CodeAction(actions::at(
         analysed,
+        &Documents::new(),
         &CompletionFiles::default(),
         at(start),
         at(end),
