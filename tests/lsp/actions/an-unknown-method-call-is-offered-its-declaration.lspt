@@ -1,0 +1,17 @@
+--TEST--
+a call to a method the class does not declare is offered its declaration
+--FILE--
+<?nvs
+class Cart
+{
+    public int $total = 0;
+}
+
+var $cart = new Cart();
+var $count = 2;
+int $sum = <|>$cart->add($count, "pen", 4.5);
+echo $sum;
+--REQUEST--
+codeAction
+--EXPECT--
+4:27-4:27 quickfix Declare `add` in `Cart` -> "\n\n    public function add(int $count, string $arg2, float $arg3): int\n    {\n        throw new LogicError("Cart::add is not implemented");\n    }"

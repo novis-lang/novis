@@ -37,6 +37,7 @@
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
+use crate::expr_table::{CallArg, UnresolvedCall};
 
 /// `$obj->method(...)` / `$obj?->method(...)` — [`super::infer`]'s
 /// `ExprKind::MethodCall` arm.
@@ -47,11 +48,12 @@ use super::*;
 #[expect(
     clippy::too_many_arguments,
     reason = "the four-part checking context every function in this module \
-              threads — live set, scope, ctx, env — plus the call expression \
-              and the four parts of the syntax it destructures"
+              threads — live set, scope, ctx, env — plus the call expression, \
+              its expectation and the four parts of the syntax it destructures"
 )]
 pub(crate) fn infer_method_call(
     expr: &Expr,
+    expected: Option<TypeId>,
     object: &Expr,
     method: &MemberName,
     nullsafe: bool,
@@ -97,6 +99,9 @@ pub(crate) fn infer_method_call(
         let ty = infer_union_method_call(expr, &call, type_args, args, live, scope, ctx, env);
         return nullsafe_result(nullsafe, object_ty, ty, env);
     }
+    // An unknown method's call is recorded once its arguments are typed
+    // ([`unresolved_call`]).
+    let mut unknown: Option<(QName, String)> = None;
     let resolved = match (class_qname_of(receiver_ty, env.interner), method) {
         (Some(qname), MemberName::Ident(name_span)) => {
             let name = span_text(env.src, *name_span).to_owned();
@@ -114,6 +119,7 @@ pub(crate) fn infer_method_call(
                     report_exception_accessor(object.span, &qname, &name, env);
                 } else {
                     report_unknown_member(object.span, &qname, &name, "method", env);
+                    unknown = Some((qname.clone(), name.clone()));
                 }
             }
             if let Some((owner, sig)) = &found {
@@ -158,6 +164,11 @@ pub(crate) fn infer_method_call(
     let (sig, written) =
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    if let Some((qname, name)) = unknown
+        && let Some(call) = unresolved_call(&qname, &name, args, &arg_types, expected, env)
+    {
+        env.exprs.record_unresolved_call(object.span, call);
+    }
     // `rule:security/unclassified-parameter-refuses-tainted`'s contagion, decided here because `resolved_call` below
     // takes `slots` by value and it is the slots that say which parameter each
     // tainted argument filled. See [`carries_contagion`].
@@ -2144,6 +2155,68 @@ fn report_exception_accessor(span: Span, qname: &QName, name: &str, env: &mut En
         .with_primary(span, "referenced here")
         .with_help(help),
     );
+}
+
+/// What `$obj->name(args)` needs from a method `qname` does not declare: the
+/// argument types and the type `expected` names, for the editor to declare the
+/// method from (`rule:ide/a-code-action-writes-only-what-is-already-determined`).
+///
+/// A literal argument is written as its plain type, so `5` is `int`. `None`
+/// where a type is not known or not a written one: a `...` spread, an
+/// argument whose own check failed, and a method reference.
+fn unresolved_call(
+    qname: &QName,
+    name: &str,
+    args: &CallArgs,
+    arg_types: &[TypeId],
+    expected: Option<TypeId>,
+    env: &Env<'_>,
+) -> Option<UnresolvedCall> {
+    let CallArgs::List(list) = args else {
+        return None;
+    };
+    let written = |ty: TypeId| -> Option<String> {
+        Some(match env.interner.get(ty) {
+            Ty::Error => return None,
+            Ty::SingleValueInt(_) => "int".to_owned(),
+            Ty::SingleValueString(_) => "string".to_owned(),
+            Ty::True | Ty::False => "bool".to_owned(),
+            Ty::EnumCase(enum_name, ..) => enum_name.to_string(),
+            _ => env.interner.describe(ty),
+        })
+    };
+    let mut call_args = Vec::with_capacity(list.len());
+    for (arg, &ty) in list.iter().zip(arg_types) {
+        if arg.spread {
+            return None;
+        }
+        let name = match (&arg.name, &arg.value.kind) {
+            (Some(label), _) => Some(span_text(env.src, *label).to_owned()),
+            (None, ExprKind::Variable(var)) => Some(span_text(env.src, *var))
+                .map(|text| text.trim_start_matches('$'))
+                .filter(|text| *text != "this")
+                .map(str::to_owned),
+            (None, _) => None,
+        };
+        call_args.push(CallArg {
+            ty: written(ty)?,
+            name,
+            inout: arg.inout,
+        });
+    }
+    if call_args.len() != list.len() {
+        return None;
+    }
+    let returns = match expected {
+        Some(ty) => Some(written(ty)?),
+        None => None,
+    };
+    Some(UnresolvedCall {
+        class: qname.to_string(),
+        method: name.to_owned(),
+        args: call_args,
+        returns,
+    })
 }
 
 /// Checks the expression a computed member name is written as, and hands its

@@ -1,6 +1,7 @@
-//! *Implement the missing methods* and *Override a method*, two of the
-//! generators `rule:ide/a-code-action-writes-only-what-is-already-determined`
-//! names.
+//! *Implement the missing methods*, *Override a method* and *Declare the
+//! method you called*, the three generators
+//! `rule:ide/a-code-action-writes-only-what-is-already-determined` names that
+//! write a declaration.
 //!
 //! Implement the missing methods is a quick fix on `E0449`, which the checker
 //! reports at a class that does not declare a method one of its interfaces or
@@ -9,7 +10,25 @@
 //! body that throws a `LogicError`. Override a method is offered at a cursor in
 //! a class body between two members, once per method a parent class gives a
 //! body that the class may override and does not, and writes it with a call to
-//! `parent::`.
+//! `parent::`. Declare the method you called is a quick fix on the `E0405` of
+//! `$obj->name(...)`. The checker records that call's argument types and the
+//! type its context expects ([`nvs_types::expr_table::UnresolvedCall`]),
+//! keyed by the diagnostic's span. It writes that
+//! method after the last member of the receiver's class, when the entry
+//! document declares that class, with a body that throws a `LogicError`.
+//!
+//! # Decision: what declare writes
+//!
+//! A method, since Novis has no function outside a class. It is `private`
+//! when the call is inside the class's own declaration, and `public`
+//! otherwise. Each parameter has the argument's type, and `inout` where the
+//! call writes it. Its name is the argument's own name at a named argument,
+//! the variable at an argument that is one variable, and `$argN` for the Nth
+//! argument otherwise or where a name repeats. The return type is the one the
+//! context expects. With no expectation, it is `void` where the call starts a
+//! statement and `mixed` anywhere else. A static call `C::name()` gets
+//! nothing, since its diagnostic carries no call, and so does a call on an
+//! interface, an enum or a class another file declares.
 //!
 //! # Decision: the signature is the declaration's own text, and the edit is checked
 //!
@@ -41,8 +60,9 @@
 //!
 //! Nothing at runtime, since it only edits source. Per
 //! `textDocument/codeAction`, one analysis of the entry's graph where an
-//! `E0449` meets the range, and one where the cursor is between the members of
-//! a class that may override something. Everything is dropped with the answer.
+//! `E0449` or an `E0405` with its call meets the range, and one where the
+//! cursor is between the members of a class that may override something.
+//! Everything is dropped with the answer.
 
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span, code};
 use nvs_hir::QName;
@@ -59,6 +79,10 @@ use crate::render::{Action, Edit};
 
 /// The title of the quick fix that writes every missing method.
 pub const IMPLEMENT: &str = "Implement the missing methods";
+
+/// The parameter name an argument with no name of its own is given, before
+/// its position counted from 1.
+const UNNAMED: &str = "arg";
 
 /// The kind implement is filed under, LSP's `CodeActionKind::QUICKFIX`.
 const QUICK_FIX: &str = "quickfix";
@@ -83,7 +107,7 @@ struct Offer {
     edits: Vec<Change>,
 }
 
-/// Both generators offered over `[start, end)` of the entry document.
+/// The three generators offered over `[start, end)` of the entry document.
 #[must_use]
 pub fn at(
     analysed: &Analysed,
@@ -95,6 +119,7 @@ pub fn at(
     let file = analysed.map.file(analysed.entry);
     let mut offered: Vec<Offer> = implement(analysed, documents, start, end)
         .into_iter()
+        .chain(declare(analysed, documents, start, end))
         .collect();
     if analysed.diags.error_count() == 0 {
         offered.extend(overrides(analysed, documents, start));
@@ -127,12 +152,14 @@ fn implement(
     start: BytePos,
     end: BytePos,
 ) -> Option<Offer> {
-    let diagnostic = phase_gated(&analysed.diags).into_iter().find(|diagnostic| {
-        diagnostic.code == Some(code::E_INTERFACE_METHOD_MISSING)
-            && diagnostic.primary_span().is_some_and(|span| {
-                span.file == analysed.entry && span.start <= end && start <= span.end
-            })
-    })?;
+    let diagnostic = phase_gated(&analysed.diags)
+        .into_iter()
+        .find(|diagnostic| {
+            diagnostic.code == Some(code::E_INTERFACE_METHOD_MISSING)
+                && diagnostic.primary_span().is_some_and(|span| {
+                    span.file == analysed.entry && span.start <= end && start <= span.end
+                })
+        })?;
     let (class, decl) = class_named(analysed, diagnostic.primary_span()?.start)?;
     let methods = missing(analysed, &class);
     if methods.is_empty() {
@@ -151,8 +178,97 @@ fn implement(
             )
         })
         .collect();
-    let mut edits = vec![(place.span(analysed), place.joined(&written))];
+    let edits = with_not_written(analysed, &place, place.joined(&written))?;
+    compiles(analysed, documents, &edits)?;
+    Some(Offer {
+        title: IMPLEMENT.to_owned(),
+        kind: QUICK_FIX,
+        edits,
+    })
+}
+
+/// *Declare the method you called*, where the `E0405` of a call meets the
+/// range.
+fn declare(
+    analysed: &Analysed,
+    documents: &Documents,
+    start: BytePos,
+    end: BytePos,
+) -> Option<Offer> {
+    let (site, call) = phase_gated(&analysed.diags)
+        .into_iter()
+        .filter(|diagnostic| diagnostic.code == Some(code::E_UNKNOWN_MEMBER))
+        .filter_map(|diagnostic| diagnostic.primary_span())
+        .filter(|span| span.file == analysed.entry && span.start <= end && start <= span.end)
+        .find_map(|span| Some((span, analysed.exprs.unresolved_call(span)?)))?;
+    let (stmt, file) = declared_type(analysed, &QName::parse(&call.class))?;
+    let StmtKind::ClassDecl(decl) = &stmt.kind else {
+        return None;
+    };
+    if file.id() != analysed.entry {
+        return None;
+    }
+    let entry = analysed.map.file(analysed.entry);
+    let place = Place::of(entry.text(), decl)?;
+    let typed = |ty: &str| written_at(analysed, ty, None, place.at);
+    let mut taken: FxHashSet<String> = FxHashSet::default();
+    let params: Vec<String> = call
+        .args
+        .iter()
+        .enumerate()
+        .map(|(index, arg)| {
+            let name = arg
+                .name
+                .clone()
+                .filter(|name| taken.insert(name.clone()))
+                .unwrap_or_else(|| format!("{UNNAMED}{}", index + 1));
+            let inout = if arg.inout { "inout " } else { "" };
+            format!("{inout}{} ${name}", typed(&arg.ty))
+        })
+        .collect();
+    let returns = match &call.returns {
+        Some(ty) => typed(ty),
+        None if starts_statement(entry.text(), site.start) => "void".to_owned(),
+        None => "mixed".to_owned(),
+    };
+    let visibility = if decl.span.start <= site.start && site.end <= decl.span.end {
+        "private"
+    } else {
+        "public"
+    };
+    let method = &call.method;
+    let short = text_of(entry, decl.name.span);
+    let text = place.method(
+        &format!(
+            "{visibility} function {method}({}): {returns}",
+            params.join(", ")
+        ),
+        &format!("throw new {NOT_WRITTEN}(\"{short}::{method} is not implemented\");"),
+    );
+    let edits = with_not_written(analysed, &place, place.joined(&[text]))?;
+    compiles(analysed, documents, &edits)?;
+    Some(Offer {
+        title: format!("Declare `{method}` in `{short}`"),
+        kind: QUICK_FIX,
+        edits,
+    })
+}
+
+/// Whether `offset` is where a statement starts in `source`: the text before
+/// it, past whitespace, ends a statement, opens a block or is nothing.
+fn starts_statement(source: &str, offset: BytePos) -> bool {
+    source
+        .get(..offset as usize)
+        .and_then(|before| before.trim_end().chars().last())
+        .is_none_or(|ch| matches!(ch, ';' | '{' | '}'))
+}
+
+/// The edit that writes `methods` at `place`, and the `use` line for
+/// `LogicError` where the entry document does not name it already.
+fn with_not_written(analysed: &Analysed, place: &Place, methods: String) -> Option<Vec<Change>> {
+    let mut edits = vec![(place.span(analysed), methods)];
     if resolved_name(analysed, NOT_WRITTEN, place.at) != Some(QName::parse(NOT_WRITTEN)) {
+        let entry = analysed.map.file(analysed.entry);
         let stmts = crate::imports::entry_stmts(analysed)?;
         let site = nvs_hir::import_site(stmts, entry, place.at)?;
         edits.push((
@@ -160,12 +276,7 @@ fn implement(
             site.use_line(&QName::parse(NOT_WRITTEN)),
         ));
     }
-    compiles(analysed, documents, &edits)?;
-    Some(Offer {
-        title: IMPLEMENT.to_owned(),
-        kind: QUICK_FIX,
-        edits,
-    })
+    Some(edits)
 }
 
 /// *Override a method*, once per method the class may override, where
@@ -333,8 +444,20 @@ fn parents<'a>(analysed: &'a Analysed, class: &QName) -> Vec<(QName, &'a Stmt, &
 
 /// `method`'s signature as its declaration writes it, without `abstract`, and
 /// with each type written the way the entry document writes it at `offset`.
-fn signature(analysed: &Analysed, file: &SourceFile, method: &MethodMember, offset: BytePos) -> String {
-    let typed = |span: Span| written_at(analysed, text_of(file, span), Some((file.id(), span.start)), offset);
+fn signature(
+    analysed: &Analysed,
+    file: &SourceFile,
+    method: &MethodMember,
+    offset: BytePos,
+) -> String {
+    let typed = |span: Span| {
+        written_at(
+            analysed,
+            text_of(file, span),
+            Some((file.id(), span.start)),
+            offset,
+        )
+    };
     let visibility = if method.modifiers.contains(&Modifier::Protected) {
         "protected"
     } else {
@@ -397,7 +520,17 @@ impl Place {
             return None;
         }
         let (at, lead, tail) = match decl.members.last() {
-            Some(last) => (last.span.end, "\n\n", String::new()),
+            // A property's or a constant's span ends before its `;`.
+            Some(last) => {
+                let end = last.span.end as usize;
+                let rest = source.get(end..)?;
+                let skipped = rest.trim_start();
+                let at = match skipped.strip_prefix(';') {
+                    Some(_) => end + (rest.len() - skipped.len()) + 1,
+                    None => end,
+                };
+                (BytePos::try_from(at).ok()?, "\n\n", String::new())
+            }
             None => {
                 let after = source.get(open + 1..)?.trim_start_matches([' ', '\t']);
                 let tail = if after.starts_with('}') {
