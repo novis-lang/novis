@@ -1,0 +1,20 @@
+<?nvs
+// Shows what `bytes()` returns when the program throws an error while it answers.
+
+use Core\Http\Method;
+use Core\Test;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // The program writes some text, and then throws an error it does not catch.
+    echo "The first half of the file";
+    throw new RuntimeError("the disk is full");
+} else {
+    var $response = Test::request(Method::Get, "/export");
+
+    // The server sends no body for a failed request, so `bytes()` returns
+    // empty `bytes`. This prints `0`.
+    echo Core\Bytes::length($response->bytes()), "\n";
+
+    // The status of a failed request is 500. This prints `500`.
+    echo $response->status(), "\n";
+}

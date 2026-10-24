@@ -6,7 +6,8 @@
 // The `bytes` arm of the one parameter, asked the question `text` cannot be
 // asked: a chunk holding a NUL, control bytes and a byte that is not valid
 // UTF-8 goes out unchanged. The parent reads each body back with
-// `Core\Test::request`, whose response keeps the body as bytes. A capture
+// `Core\Test::request`, whose response keeps the body as bytes, and compares
+// the whole body with `bytes()`. A capture
 // cannot read it: it throws for bytes that are not UTF-8, and it replaces
 // control bytes.
 if (Core\Env::context() == Core\Env::Context::Request) {
@@ -39,11 +40,13 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     var $chunks = Core\Test::request(Core\Http\Method::Get, "/chunks");
     echo $chunks->header("Content-Type") ?? "none", " ", Core\Encoding::toHex($chunks->body() as bytes), "\n";
 
-    // The same octets and then `FF`. `body()` throws at byte 8, so the first
-    // eight octets arrived unchanged and `FF` arrived as itself.
+    // The same octets and then `FF`. `bytes()` returns all nine, and `body()`
+    // throws at byte 8, so `FF` arrived as itself.
+    var $chunksFf = Core\Test::request(Core\Http\Method::Get, "/chunks-ff");
+    echo Core\Encoding::toHex($chunksFf->bytes()), "\n";
     string $streamed = "";
     try {
-        Core\Test::request(Core\Http\Method::Get, "/chunks-ff")->body();
+        $chunksFf->body();
     } catch (RuntimeError $notText) {
         $streamed = $notText->message;
     }
@@ -51,18 +54,21 @@ if (Core\Env::context() == Core\Env::Context::Request) {
 
     // Agreement, which is the claim a member answering plausibly on its own
     // line would still fail: the same body written whole and written in pieces
-    // is the same bytes. For the octets the two errors name the same byte, and
-    // for text the two bodies are equal. A stream that dropped, reordered or
-    // padded a chunk fails here while each half still reads correctly alone.
+    // is the same bytes. For the octets the two bodies are equal bytes and the
+    // two errors name the same byte, and for text the two bodies are equal. A
+    // stream that dropped, reordered or padded a chunk fails here while each
+    // half still reads correctly alone.
+    var $wholeFf = Core\Test::request(Core\Http\Method::Get, "/whole-ff");
     string $whole = "";
     try {
-        Core\Test::request(Core\Http\Method::Get, "/whole-ff")->body();
+        $wholeFf->body();
     } catch (RuntimeError $wholeNotText) {
         $whole = $wholeNotText->message;
     }
     string $rowsWhole = Core\Test::request(Core\Http\Method::Get, "/rows-whole")->body();
     string $rowsChunked = Core\Test::request(Core\Http\Method::Get, "/rows-chunked")->body();
-    if ($streamed == $whole && $rowsWhole == $rowsChunked && $rowsWhole == "id,name\n1,ada\n2,alan\n") {
+    if ($chunksFf->bytes() == $wholeFf->bytes() && $streamed == $whole && $rowsWhole == $rowsChunked
+        && $rowsWhole == "id,name\n1,ada\n2,alan\n") {
         echo "agree\n";
     } else {
         echo "differ\n";
@@ -70,5 +76,6 @@ if (Core\Env::context() == Core\Env::Context::Request) {
 }
 --EXPECT--
 image/png 504e470d0a1a0a00
-Core\Test\Response::body(): the response body is not valid UTF-8 at byte 8, so it is not a string. Use `status()` and `header()` to test this response.
+504e470d0a1a0a00ff
+Core\Test\Response::body(): the response body is not valid UTF-8 at byte 8, so it is not a string. Use `bytes()` to read it.
 agree

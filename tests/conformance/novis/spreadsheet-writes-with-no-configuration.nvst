@@ -49,7 +49,8 @@ foreach ($cells as string $cell) {
 echo Core\Str::contains($xml, "r=\"E1\"") ? "has E1" : "no E1", "\n";
 
 // A download sends an xlsx file with its media type and its file name.
-// The file is not text, so `body()` throws an error.
+// The file is not text, so `body()` throws an error. `bytes()` returns the
+// file, and its sheet has the row the request wrote.
 var $sent = Core\Test::request(Core\Http\Method::Get, "/orders");
 echo $sent->status(), " ", $sent->header("Content-Type") ?? "none", "\n";
 echo $sent->header("Content-Disposition") ?? "none", "\n";
@@ -59,6 +60,8 @@ try {
 } catch (RuntimeError $notText) {
     echo "the body is a workbook\n";
 }
+var $sentXml = Core\Zip::read($sent->bytes(), "xl/worksheets/sheet1.xml") as string;
+echo Core\Str::contains($sentXml, "<c r=\"B1\"><v>3</v></c>") ? "the sheet has the row\n" : "the sheet lacks the row\n";
 --EXPECT--
 4 rows
 the size is the length of the file
@@ -72,3 +75,4 @@ no E1
 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 attachment; filename="Orders M_rz.xlsx"; filename*=UTF-8''Orders%20M%C3%A4rz.xlsx
 the body is a workbook
+the sheet has the row

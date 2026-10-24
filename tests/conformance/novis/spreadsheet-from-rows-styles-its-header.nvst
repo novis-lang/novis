@@ -80,7 +80,8 @@ try {
 }
 
 // `download` sends an xlsx file with its media type and its file name.
-// The file is not text, so `body()` throws an error.
+// The file is not text, so `body()` throws an error. `bytes()` returns the
+// file, and it is the file `bytes` writes for the same rows.
 echo "== download\n";
 var $sent = Core\Test::request(Core\Http\Method::Get, "/prices");
 echo $sent->status(), " ", $sent->header("Content-Type") ?? "none", "\n";
@@ -91,6 +92,7 @@ try {
 } catch (RuntimeError $notText) {
     echo "the body is a workbook\n";
 }
+echo $sent->bytes() == $file ? "the same file\n" : "a different file\n";
 --EXPECT--
 == the defaults
 has <row r="1" s="1" customFormat="1"><c r="A1" s="1" t="inlineStr"><is><t>name</t></is></c>
@@ -123,3 +125,4 @@ A row of the sheet `Sheet1` has the key `colour`, and the sheet has no column fo
 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 attachment; filename="Prices.xlsx"; filename*=UTF-8''Prices.xlsx
 the body is a workbook
+the same file

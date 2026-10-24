@@ -6,8 +6,9 @@
 // edge worth pinning is the one `text` cannot reach: a buffer holding a NUL,
 // control bytes and a byte that is not valid UTF-8 goes out unchanged. The
 // parent reads each body back with `Core\Test::request`, whose response keeps
-// the body as bytes. A capture cannot read it: it throws for bytes that are
-// not UTF-8, and it replaces control bytes.
+// the body as bytes, and compares the whole body with `bytes()`. A capture
+// cannot read it: it throws for bytes that are not UTF-8, and it replaces
+// control bytes.
 if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == "/signature") {
@@ -28,10 +29,12 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     var $signature = Core\Test::request(Core\Http\Method::Get, "/signature");
     echo Core\Encoding::toHex($signature->body() as bytes), "\n";
 
-    // The same octets and then `FF`. `body()` throws at byte 8, so the first
-    // eight octets arrived unchanged and `FF` arrived as itself. A replacement
-    // character in its place is valid UTF-8, and `body()` would return it.
+    // The same octets and then `FF`. `bytes()` returns all nine, and the hex is
+    // the hex that was sent. `body()` throws at byte 8, so `FF` arrived as
+    // itself. A replacement character in its place is valid UTF-8, and
+    // `body()` would return it.
     var $octets = Core\Test::request(Core\Http\Method::Get, "/octets");
+    echo Core\Encoding::toHex($octets->bytes()), "\n";
     try {
         echo $octets->body(), "\n";
     } catch (RuntimeError $notText) {
@@ -40,7 +43,8 @@ if (Core\Env::context() == Core\Env::Context::Request) {
 
     // An empty body is a body: nothing is written, and nothing throws.
     var $empty = Core\Test::request(Core\Http\Method::Get, "/empty");
-    echo "[", $empty->body(), "] ", $empty->header("Content-Type") ?? "none", "\n";
+    echo "[", $empty->body(), "] ", Core\Bytes::length($empty->bytes()), " ",
+        $empty->header("Content-Type") ?? "none", "\n";
 
     // A media type with parameters is one string, and it is declared as given.
     var $csv = Core\Test::request(Core\Http\Method::Get, "/csv");
@@ -48,6 +52,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
 }
 --EXPECT--
 504e470d0a1a0a00
-200 Core\Test\Response::body(): the response body is not valid UTF-8 at byte 8, so it is not a string. Use `status()` and `header()` to test this response.
-[] application/octet-stream
+504e470d0a1a0a00ff
+200 Core\Test\Response::body(): the response body is not valid UTF-8 at byte 8, so it is not a string. Use `bytes()` to read it.
+[] 0 application/octet-stream
 text/csv; charset=utf-8; header=present id,name

@@ -43271,7 +43271,7 @@
     {
       "id": "Test.Response",
       "name": "Core\\Test\\Response",
-      "summary": "The answer to one request that `Core\\Test::request` sent to your own program. `status()` returns the status code, `header()` and `headers()` return the headers, `cookies()` returns the cookies the program set, and `body()`, `json()` and `jsonAs()` return the body. You cannot create one yourself.",
+      "summary": "The answer to one request that `Core\\Test::request` sent to your own program. `status()` returns the status code, `header()` and `headers()` return the headers, `cookies()` returns the cookies the program set, and `body()`, `bytes()`, `json()` and `jsonAs()` return the body. You cannot create one yourself.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -43310,13 +43310,31 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The body is not valid UTF-8, so it is not a string. <code>Core\\Response::bytes</code> and <code>Core\\Response::sendFile</code> can write such a body. Test it with <code>status()</code> and <code>header()</code>."
+                "descHtml": "The body is not valid UTF-8, so it is not a string. <code>Core\\Response::bytes</code> and <code>Core\\Response::sendFile</code> can write such a body. Read it with <code>bytes()</code>."
               }
             ]
           },
           "slug": "body",
           "url": "/reference/core/test-response/body/",
           "examples": "core/Test-Response/body"
+        },
+        {
+          "id": "Test.Response.bytes",
+          "name": "bytes",
+          "static": false,
+          "receiver": "response",
+          "generics": null,
+          "signature": "bytes(): bytes",
+          "params": [],
+          "options": [],
+          "returnType": "bytes",
+          "doc": {
+            "shortHtml": "Returns the body the program wrote while it answered this request, as <code>bytes</code>.",
+            "returnHtml": "Every byte of the body, in order. The bytes do not have to be valid UTF-8, so this works for a PDF, an image or a file sent with <code>Core\\Response::sendFile</code>. If the program wrote nothing, or threw an error it did not catch, the result is empty <code>bytes</code>."
+          },
+          "slug": "bytes",
+          "url": "/reference/core/test-response/bytes/",
+          "examples": "core/Test-Response/bytes"
         },
         {
           "id": "Test.Response.header",
@@ -43486,7 +43504,7 @@
       ],
       "slug": "test-response",
       "url": "/reference/core/test-response/",
-      "summaryHtml": "<p>The answer to one request that <code>Core\\Test::request</code> sent to your own program. <code>status()</code> returns the status code, <code>header()</code> and <code>headers()</code> return the headers, <code>cookies()</code> returns the cookies the program set, and <code>body()</code>, <code>json()</code> and <code>jsonAs()</code> return the body. You cannot create one yourself.</p>\n<p><code>Core\\Test\\Response</code> is the value <code>Core\\Test::request(...)</code> answers: what the program under test wrote while answering one synthetic request. <code>status()</code> is the status, <code>header()</code> and <code>headers()</code> the headers, <code>cookies()</code> the cookies it set, and <code>body()</code>, <code>json()</code> and <code>jsonAs&lt;T&gt;()</code> the body. It has no constructor — the only way to obtain one is to make a request.</p>\n<p>The readers are <code>Core\\Request</code>'s, read from the answer's side: <code>header</code> matches any case and joins repeated lines with <code>, </code>, <code>headers</code> keys lower-cased names to lists of lines, and <code>json</code> and <code>jsonAs</code> take the same <code>{maxDepth?}</code> option and throw the same errors. The headers are the ones a visitor is sent by the program — its <code>Content-Type</code>, which is HTML for a page that only echoed, a redirect's <code>Location</code>, the <code>Set-Cookie</code> of each <code>addCookie</code>, and every <code>setHeader</code> — and not the ones the server adds for itself. <code>header(&quot;Set-Cookie&quot;)</code> throws a <code>LogicError</code>, because two cookies joined are not a cookie; <code>cookies()</code> reads them by name.</p>\n<p>The request runs in this process. There is no socket and no port: the program's own entry is run as an isolate with the compiled route table's match already on it, so <code>Core\\Request::route()</code> inside the program reads the same match a served request would, and the handler chain that answers is the real one rather than a mock of it. What comes back is the status the program declared — <code>200</code> where it declared none — and every byte it echoed. A program that throws an error it does not catch answers <code>500</code>, an empty body and no headers of its own, which is what the server sends for a failed request.</p>\n<pre><code class=\"language-nvs\">#[Test]\npublic function itReturnsTheUser(): void {\n    var $rs = Core\\Test::request(Core\\Http\\Method::Get, &quot;/users/1&quot;);\n\n    Core\\Test::assertEquals($rs-&gt;status(), 200);\n    Core\\Test::assertEquals($rs-&gt;body(), &quot;ada&quot;);\n}</code></pre>\n<p><strong>A request may not be made from inside one.</strong> The program answering an in-process request is the same program that asked for it, so a second one would answer its own request forever; the call throws <code>RuntimeError</code> instead, naming why. The same throw is what a call outside <code>nvs test</code> or <code>nvs run</code> gets, there being no program under test to answer it.</p>"
+      "summaryHtml": "<p>The answer to one request that <code>Core\\Test::request</code> sent to your own program. <code>status()</code> returns the status code, <code>header()</code> and <code>headers()</code> return the headers, <code>cookies()</code> returns the cookies the program set, and <code>body()</code>, <code>bytes()</code>, <code>json()</code> and <code>jsonAs()</code> return the body. You cannot create one yourself.</p>\n<p><code>Core\\Test\\Response</code> is the value <code>Core\\Test::request(...)</code> answers: what the program under test wrote while answering one synthetic request. <code>status()</code> is the status, <code>header()</code> and <code>headers()</code> the headers, <code>cookies()</code> the cookies it set, and <code>body()</code>, <code>json()</code> and <code>jsonAs&lt;T&gt;()</code> the body. It has no constructor — the only way to obtain one is to make a request.</p>\n<p>The readers are <code>Core\\Request</code>'s, read from the answer's side: <code>header</code> matches any case and joins repeated lines with <code>, </code>, <code>headers</code> keys lower-cased names to lists of lines, and <code>json</code> and <code>jsonAs</code> take the same <code>{maxDepth?}</code> option and throw the same errors. The headers are the ones a visitor is sent by the program — its <code>Content-Type</code>, which is HTML for a page that only echoed, a redirect's <code>Location</code>, the <code>Set-Cookie</code> of each <code>addCookie</code>, and every <code>setHeader</code> — and not the ones the server adds for itself. <code>header(&quot;Set-Cookie&quot;)</code> throws a <code>LogicError</code>, because two cookies joined are not a cookie; <code>cookies()</code> reads them by name.</p>\n<p>The request runs in this process. There is no socket and no port: the program's own entry is run as an isolate with the compiled route table's match already on it, so <code>Core\\Request::route()</code> inside the program reads the same match a served request would, and the handler chain that answers is the real one rather than a mock of it. What comes back is the status the program declared — <code>200</code> where it declared none — and every byte it echoed. A program that throws an error it does not catch answers <code>500</code>, an empty body and no headers of its own, which is what the server sends for a failed request.</p>\n<pre><code class=\"language-nvs\">#[Test]\npublic function itReturnsTheUser(): void {\n    var $rs = Core\\Test::request(Core\\Http\\Method::Get, &quot;/users/1&quot;);\n\n    Core\\Test::assertEquals($rs-&gt;status(), 200);\n    Core\\Test::assertEquals($rs-&gt;body(), &quot;ada&quot;);\n}</code></pre>\n<p><strong>A request may not be made from inside one.</strong> The program answering an in-process request is the same program that asked for it, so a second one would answer its own request forever; the call throws <code>RuntimeError</code> instead, naming why. The same throw is what a call outside <code>nvs test</code> or <code>nvs run</code> gets, there being no program under test to answer it.</p>"
     },
     {
       "id": "Test.SentRequest",
