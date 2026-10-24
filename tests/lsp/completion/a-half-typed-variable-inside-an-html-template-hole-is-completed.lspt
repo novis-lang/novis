@@ -1,0 +1,10 @@
+--TEST--
+a half-typed variable inside a hole of an html template is completed from the variables in scope
+--FILE--
+<?nvs
+string $name = "Ada";
+echo html`<p>Hello {$na<|>}</p>`;
+--REQUEST--
+completion prefix=$na
+--EXPECT--
+$name   variable  string

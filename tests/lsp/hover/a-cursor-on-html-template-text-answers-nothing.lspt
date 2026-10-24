@@ -1,0 +1,10 @@
+--TEST--
+a cursor on the html text of an html template, outside its holes, answers nothing
+--FILE--
+<?nvs
+string $name = "Ada";
+echo html`<p>Hel<|>lo {$name}</p>`;
+--REQUEST--
+hover
+--EXPECT--
+none

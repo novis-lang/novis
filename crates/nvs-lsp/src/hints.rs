@@ -59,6 +59,16 @@
 //! would repeat most of itself per frame to save a filter. `crate::server`'s
 //! `inlay_hints` is where the answer is narrowed.
 //!
+//! # Decision: a call gets hints where its target names its parameters
+//!
+//! A method call, a static call, `$cls::f(...)` and a `new` read the names of
+//! the target the checker resolved, a constructor for a `new`. Two calls get
+//! none, because the program names no parameter there. A `callable` type has
+//! no parameter names (`rule:types/callable-signature`), and a call on a
+//! `mixed` receiver finds its method only when it runs
+//! (`rule:types/erased-member-access`). A name drawn at either would be one
+//! this server picked, which the first decision above refuses.
+//!
 //! # Known gaps
 //!
 //! Each gap is a record, and `bun nv gaps --module crates/nvs-lsp/src/hints.rs` lists them.
@@ -70,8 +80,8 @@ use nvs_syntax::ast::{
     ForInit, ForeachBinding, ForeachBindingTy, Param, PropertyHook, PropertyHookBody, Stmt,
     StmtKind, TestOperand, Type,
 };
-use nvs_types::ExprInfo;
 use nvs_types::expr_table::ArgSlot;
+use nvs_types::{ExprInfo, ResolvedCall};
 
 use crate::document::Analysed;
 use crate::position::position_at;
@@ -457,7 +467,7 @@ impl Hinting<'_> {
             return;
         };
         let analysed = self.analysed;
-        let Some(ExprInfo::Call(call)) = analysed.exprs.lookup(span) else {
+        let Some(call) = analysed.exprs.lookup(span).and_then(resolved_call) else {
             return;
         };
         for (written, arg) in list.iter().enumerate() {
@@ -493,6 +503,20 @@ impl Hinting<'_> {
             padding_right: padded.then_some(true),
             data: None,
         });
+    }
+}
+
+/// The resolved target whose parameter names a call's arguments fill.
+///
+/// A method call, a `$cls::f(...)` over a `class<T>` and a `new` with a
+/// declared constructor each carry one. A call through a `callable` and a call
+/// on a `mixed` receiver carry none, and the module doc's last decision says
+/// why that is no gap.
+fn resolved_call(info: &ExprInfo) -> Option<&ResolvedCall> {
+    match info {
+        ExprInfo::Call(call) | ExprInfo::ClassRefCall(call) => Some(call),
+        ExprInfo::New { ctor, .. } | ExprInfo::NewDynamic { ctor, .. } => ctor.as_ref(),
+        _ => None,
     }
 }
 

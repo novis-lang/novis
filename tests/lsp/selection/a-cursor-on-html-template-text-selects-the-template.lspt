@@ -1,0 +1,11 @@
+--TEST--
+a cursor on the html text of an html template selects the whole template first and then the statement around it
+--FILE--
+<?nvs
+string $name = "Ada";
+echo html`<p>Hel<|>lo {$name}</p>`;
+--REQUEST--
+selectionRange
+--EXPECT--
+3:6-3:32
+3:1-3:33

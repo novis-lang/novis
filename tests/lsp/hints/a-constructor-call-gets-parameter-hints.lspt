@@ -1,0 +1,15 @@
+--TEST--
+A literal argument to a constructor carries the name of the constructor parameter it filled, and a literal passed to a callable variable carries no name because the callable type names no parameter
+--FILE--
+<?nvs
+class Person {
+    public function constructor(public string $name, public string $city) {}
+}
+new Person("Ada", "London");
+callable(string): void $say = function (string $text): void { echo $text; };
+$say("hi");
+--REQUEST--
+inlayHint
+--EXPECT--
+5:12 parameter name:
+5:19 parameter city:
