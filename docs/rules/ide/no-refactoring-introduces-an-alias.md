@@ -18,6 +18,6 @@ declares is refused with a message. A local's new name may not be bound already 
 is ever resolved with an alias. Rename of a class, an interface, an enum or a type alias declared
 outside a class: the index records each type annotation and each class written in front of `::`, and
 the rename changes the last segment at every site and in every `use` line. A new name that another
-type in the workspace has, or that a file with a site already writes, is refused. **Missing:**
-renaming an autoloaded class's file with the class; extract to method or variable;
-organize-imports; and cross-file symbol search.
+type in the workspace has, or that a file with a site already writes, is refused. A type declared
+alone in a file named after it renames that file with it, so an `autoload` still finds it.
+**Missing:** extract to method or variable; organize-imports; and cross-file symbol search.

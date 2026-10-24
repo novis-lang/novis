@@ -30,7 +30,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use lsp_types::InitializeParams;
+use lsp_types::{InitializeParams, ResourceOperationKind};
 use serde_json::Value;
 
 use crate::document::path_of;
@@ -85,11 +85,13 @@ pub struct Settings {
     pub stubs: Option<PathBuf>,
 }
 
-/// What a client does with a completion item beyond inserting its text.
+/// What a client does with a completion item beyond inserting its text, and
+/// whether it moves a file a `WorkspaceEdit` names.
 ///
-/// Every field is `false` for a client that said nothing, and an item for that
+/// Every field is `false` for a client that said nothing. An item for that
 /// client is plain text and carries no command
-/// (`rule:ide/an-accepted-type-writes-what-follows-it`).
+/// (`rule:ide/an-accepted-type-writes-what-follows-it`), and a rename that
+/// would move a file is refused for it.
 ///
 /// The two commands are the editor's own and not this server's, so they are
 /// never in `executeCommandProvider`. A client names the ones it runs in
@@ -104,6 +106,9 @@ pub struct Client {
     pub suggest: bool,
     /// The client runs [`Client::PARAMETER_HINTS`], which opens signature help.
     pub parameter_hints: bool,
+    /// `workspace.workspaceEdit`: the client reads `documentChanges` and its
+    /// `resourceOperations` include `rename`, so an edit may move a file.
+    pub rename_files: bool,
 }
 
 impl Client {
@@ -130,6 +135,17 @@ impl Client {
                 .unwrap_or(false),
             suggest: names(Self::SUGGEST),
             parameter_hints: names(Self::PARAMETER_HINTS),
+            rename_files: capabilities
+                .workspace
+                .as_ref()
+                .and_then(|workspace| workspace.workspace_edit.as_ref())
+                .is_some_and(|edit| {
+                    edit.document_changes == Some(true)
+                        && edit
+                            .resource_operations
+                            .as_ref()
+                            .is_some_and(|kinds| kinds.contains(&ResourceOperationKind::Rename))
+                }),
         }
     }
 }
