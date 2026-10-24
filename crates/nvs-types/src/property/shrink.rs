@@ -22,10 +22,15 @@
 //! [`MAX_SHRINK_CALLS`] is the budget a runner uses when nothing else is said. Nothing is random,
 //! so one failing input always shrinks to the same counterexample.
 //!
-//! **Memory:** one candidate list per step, per property in flight. A list's candidates copy the
-//! list once per shorter form and once per element candidate, so one step is at most a few times
-//! the input's length copies of it, and the input is at most
-//! [`super::generate::MAX_INPUT_UNITS`] units.
+//! **A candidate is built when it is tried.** [`candidates`] is an iterator, so a step that
+//! keeps its first candidate builds one, and a shrink builds at most `budget` candidates. A list
+//! of `n` items has about `n` shorter forms of `n` items each, so a list of them would cost `n²`
+//! units of time and memory in every step.
+//!
+//! **Memory:** one candidate and one copy of the parameter it replaces, per property in flight,
+//! and each is at most [`super::generate::MAX_INPUT_UNITS`] units.
+
+use std::iter;
 
 use super::generate::{CLUSTERS, Generated};
 use super::{ClassGen, Gen, Len, ShapeGen};
@@ -58,10 +63,11 @@ pub fn shrink(
     let mut calls = 0;
     'step: loop {
         for (at, generator) in params.iter().enumerate() {
-            let Some(value) = inputs.get(at) else {
+            // A copy, because the candidates are built from it while `inputs[at]` changes.
+            let Some(value) = inputs.get(at).cloned() else {
                 break;
             };
-            for candidate in candidates(value, generator, classes) {
+            for candidate in candidates(&value, generator, classes) {
                 if calls >= budget {
                     break 'step;
                 }
@@ -80,66 +86,75 @@ pub fn shrink(
 
 /// The values simpler than `value` that `generator` could have made, simplest first. `value`
 /// itself is never among them.
-#[must_use]
-pub fn candidates(value: &Generated, generator: &Gen, classes: &[ClassGen]) -> Vec<Generated> {
-    let mut out = match (generator, value) {
-        (Gen::Nullable(_), Generated::Null) => Vec::new(),
+///
+/// Each candidate is built when the walk reaches it, so the walk holds one candidate at a time.
+pub fn candidates<'a>(
+    value: &'a Generated,
+    generator: &'a Gen,
+    classes: &'a [ClassGen],
+) -> Candidates<'a> {
+    let out: Candidates<'a> = match (generator, value) {
+        (Gen::Nullable(_), Generated::Null) => Box::new(iter::empty()),
         (Gen::Nullable(inner), value) => {
-            let mut out = vec![Generated::Null];
-            out.extend(candidates(value, inner, classes));
-            out
+            Box::new(iter::once(Generated::Null).chain(candidates(value, inner, classes)))
         }
-        (Gen::Bool, Generated::Bool(true)) => vec![Generated::Bool(false)],
-        (Gen::Int { min, max }, Generated::Int(number)) => toward(
-            i128::from(*number),
-            target(i128::from(*min), i128::from(*max)),
-        )
-        .into_iter()
-        .filter_map(|next| i64::try_from(next).ok())
-        .map(Generated::Int)
-        .collect(),
-        (Gen::Uint { min, max }, Generated::Uint(number)) => toward(
-            i128::from(*number),
-            target(i128::from(*min), i128::from(*max)),
-        )
-        .into_iter()
-        .filter_map(|next| u64::try_from(next).ok())
-        .map(Generated::Uint)
-        .collect(),
-        (Gen::Float { min, max }, Generated::Float(number)) => floats(*number, *min, *max)
+        (Gen::Bool, Generated::Bool(true)) => Box::new(iter::once(Generated::Bool(false))),
+        (Gen::Int { min, max }, Generated::Int(number)) => Box::new(
+            toward(
+                i128::from(*number),
+                target(i128::from(*min), i128::from(*max)),
+            )
             .into_iter()
-            .map(Generated::Float)
-            .collect(),
-        (Gen::Decimal { min, max }, Generated::Decimal(text)) => decimals(text, *min, *max)
+            .filter_map(|next| i64::try_from(next).ok())
+            .map(Generated::Int),
+        ),
+        (Gen::Uint { min, max }, Generated::Uint(number)) => Box::new(
+            toward(
+                i128::from(*number),
+                target(i128::from(*min), i128::from(*max)),
+            )
             .into_iter()
-            .map(Generated::Decimal)
-            .collect(),
-        (Gen::Str { len, .. }, Generated::Str(text)) => strings(text, *len)
-            .into_iter()
-            .map(Generated::Str)
-            .collect(),
-        (Gen::Bytes { len, .. }, Generated::Bytes(raw)) => bytes(raw, *len),
-        (Gen::Enum { values, uint }, Generated::Enum { .. }) => values
-            .first()
-            .map(|first| Generated::Enum {
-                value: *first,
-                uint: *uint,
-            })
-            .into_iter()
-            .collect(),
+            .filter_map(|next| u64::try_from(next).ok())
+            .map(Generated::Uint),
+        ),
+        (Gen::Float { min, max }, Generated::Float(number)) => Box::new(
+            floats(*number, *min, *max)
+                .into_iter()
+                .map(Generated::Float),
+        ),
+        (Gen::Decimal { min, max }, Generated::Decimal(text)) => Box::new(
+            decimals(text, *min, *max)
+                .into_iter()
+                .map(Generated::Decimal),
+        ),
+        (Gen::Str { len, .. }, Generated::Str(text)) => {
+            Box::new(strings(text, *len).map(Generated::Str))
+        }
+        (Gen::Bytes { len, .. }, Generated::Bytes(raw)) => Box::new(bytes(raw, *len)),
+        (Gen::Enum { values, uint }, Generated::Enum { .. }) => Box::new(
+            values
+                .first()
+                .map(|first| Generated::Enum {
+                    value: *first,
+                    uint: *uint,
+                })
+                .into_iter(),
+        ),
         (Gen::List { element, len }, Generated::List(items)) => {
-            lists(items, element, *len, classes)
+            Box::new(lists(items, element, *len, classes))
         }
-        (Gen::Shape(fields), Generated::Shape(values)) => shapes(values, fields, classes),
+        (Gen::Shape(fields), Generated::Shape(values)) => Box::new(shapes(values, fields, classes)),
         (Gen::OneOf(arms), value) => unions(value, arms, classes),
         (Gen::Class(label), Generated::Object { class, args }) if class == label => {
             objects(label, args, classes)
         }
-        _ => Vec::new(),
+        _ => Box::new(iter::empty()),
     };
-    out.retain(|candidate| candidate != value);
-    out
+    Box::new(out.filter(move |candidate| candidate != value))
 }
+
+/// The candidates of one value, in [`candidates`]' order.
+pub type Candidates<'a> = Box<dyn Iterator<Item = Generated> + 'a>;
 
 /// Whether `generator` could have made `value`: the same kind, every number in its range,
 /// every length in its range, and the same for each value it contains.
@@ -320,145 +335,165 @@ fn decimals(text: &str, min: i64, max: i64) -> Vec<String> {
     out
 }
 
-/// The shorter forms of `items`, shortest first, none below `min`: the shortest prefix, the
-/// first half, and `items` with one item left out at each position.
-fn shorter<T: Clone>(items: &[T], min: usize) -> Vec<Vec<T>> {
-    let count = items.len();
-    if count <= min {
-        return Vec::new();
-    }
-    let mut out = vec![items[..min].to_vec()];
-    let half = count / 2;
-    if half > min {
-        out.push(items[..half].to_vec());
-    }
-    for at in 0..count {
-        // Leaving out the last item gives a prefix, and that one is already in `out`.
-        if at == count - 1 && (count - 1 == min || count - 1 == half) {
-            continue;
-        }
-        let mut kept = items.to_vec();
-        kept.remove(at);
-        out.push(kept);
-    }
-    out
+/// One shorter form of a list of `count` items: a prefix of that length, or the list with the
+/// item at that position left out.
+#[derive(Clone, Copy)]
+enum Cut {
+    Prefix(usize),
+    Without(usize),
 }
 
-fn strings(text: &str, len: Len) -> Vec<String> {
-    let parts = pieces(text);
-    let min = shortest(len);
-    let mut out: Vec<String> = shorter(&parts, min)
-        .into_iter()
-        .map(|kept| kept.concat())
-        .collect();
-    let other = parts.iter().filter(|part| **part != "a").count();
-    if other > 0 {
-        out.push("a".repeat(parts.len()));
-    }
-    if other > 1 {
-        for (at, part) in parts.iter().enumerate() {
-            if *part != "a" {
-                let mut next = parts.clone();
-                next[at] = "a";
-                out.push(next.concat());
+impl Cut {
+    fn apply<T: Clone>(self, items: &[T]) -> Vec<T> {
+        match self {
+            Self::Prefix(end) => items[..end].to_vec(),
+            Self::Without(at) => {
+                let mut kept = Vec::with_capacity(items.len() - 1);
+                kept.extend_from_slice(&items[..at]);
+                kept.extend_from_slice(&items[at + 1..]);
+                kept
             }
         }
     }
-    // A new `a` beside a lone combining mark may join it into one piece, and so shorten it.
-    out.retain(|candidate| pieces(candidate).len() >= min);
-    out
 }
 
-fn bytes(raw: &[u8], len: Len) -> Vec<Generated> {
-    let mut out: Vec<Generated> = shorter(raw, shortest(len))
+/// The shorter forms of a list of `count` items, shortest first, none below `min`: the shortest
+/// prefix, the first half, and the list with one item left out at each position.
+fn cuts(count: usize, min: usize) -> impl Iterator<Item = Cut> {
+    let half = count / 2;
+    let some = count > min;
+    let prefixes = [Some(min), (half > min).then_some(half)]
         .into_iter()
-        .map(Generated::Bytes)
-        .collect();
-    if raw.iter().any(|byte| *byte != 0) {
-        out.push(Generated::Bytes(vec![0; raw.len()]));
-    }
-    for (at, byte) in raw.iter().enumerate() {
-        for next in toward(i128::from(*byte), 0) {
+        .flatten()
+        .filter(move |_| some)
+        .map(Cut::Prefix);
+    // Leaving out the last item gives a prefix, and that one is already among `prefixes`.
+    let without = (0..count)
+        .filter(move |at| some && !(*at == count - 1 && (count - 1 == min || count - 1 == half)))
+        .map(Cut::Without);
+    prefixes.chain(without)
+}
+
+fn strings(text: &str, len: Len) -> impl Iterator<Item = String> + '_ {
+    let parts = pieces(text);
+    let min = shortest(len);
+    let count = parts.len();
+    let other = parts.iter().filter(|part| **part != "a").count();
+    let shorter = {
+        let parts = parts.clone();
+        cuts(count, min).map(move |cut| cut.apply(&parts).concat())
+    };
+    let all_a = (other > 0).then(|| "a".repeat(count));
+    let one_a = (0..count).filter(move |_| other > 1).filter_map(move |at| {
+        if parts[at] == "a" {
+            return None;
+        }
+        let mut next = parts.clone();
+        next[at] = "a";
+        Some(next.concat())
+    });
+    // A new `a` beside a lone combining mark may join it into one piece, and so shorten it.
+    shorter
+        .chain(all_a)
+        .chain(one_a)
+        .filter(move |candidate| pieces(candidate).len() >= min)
+}
+
+fn bytes(raw: &[u8], len: Len) -> impl Iterator<Item = Generated> + '_ {
+    let shorter = cuts(raw.len(), shortest(len)).map(|cut| Generated::Bytes(cut.apply(raw)));
+    let zeros = raw
+        .iter()
+        .any(|byte| *byte != 0)
+        .then(|| Generated::Bytes(vec![0; raw.len()]));
+    let smaller = raw.iter().enumerate().flat_map(move |(at, byte)| {
+        toward(i128::from(*byte), 0).into_iter().map(move |next| {
             let mut changed = raw.to_vec();
             changed[at] = u8::try_from(next).unwrap_or(0);
-            out.push(Generated::Bytes(changed));
-        }
-    }
-    out
+            Generated::Bytes(changed)
+        })
+    });
+    shorter.chain(zeros).chain(smaller)
 }
 
-fn lists(items: &[Generated], element: &Gen, len: Len, classes: &[ClassGen]) -> Vec<Generated> {
-    let mut out: Vec<Generated> = shorter(items, shortest(len))
-        .into_iter()
-        .map(Generated::List)
-        .collect();
-    for (at, item) in items.iter().enumerate() {
-        for next in candidates(item, element, classes) {
+fn lists<'a>(
+    items: &'a [Generated],
+    element: &'a Gen,
+    len: Len,
+    classes: &'a [ClassGen],
+) -> impl Iterator<Item = Generated> + 'a {
+    let shorter = cuts(items.len(), shortest(len)).map(|cut| Generated::List(cut.apply(items)));
+    let simpler = items.iter().enumerate().flat_map(move |(at, item)| {
+        candidates(item, element, classes).map(move |next| {
             let mut changed = items.to_vec();
             changed[at] = next;
-            out.push(Generated::List(changed));
-        }
-    }
-    out
+            Generated::List(changed)
+        })
+    });
+    shorter.chain(simpler)
 }
 
-fn shapes(
-    values: &[(String, Generated)],
-    fields: &[ShapeGen],
-    classes: &[ClassGen],
-) -> Vec<Generated> {
-    let field = |name: &str| fields.iter().find(|field| field.name == name);
-    let mut out = Vec::new();
-    for (at, (name, _)) in values.iter().enumerate() {
-        if field(name).is_some_and(|field| !field.required) {
+fn shapes<'a>(
+    values: &'a [(String, Generated)],
+    fields: &'a [ShapeGen],
+    classes: &'a [ClassGen],
+) -> impl Iterator<Item = Generated> + 'a {
+    let field = move |name: &str| fields.iter().find(|field| field.name == name);
+    let dropped = values
+        .iter()
+        .enumerate()
+        .filter(move |(_, (name, _))| field(name).is_some_and(|field| !field.required))
+        .map(move |(at, _)| {
             let mut kept = values.to_vec();
             kept.remove(at);
-            out.push(Generated::Shape(kept));
-        }
-    }
-    for (at, (name, value)) in values.iter().enumerate() {
-        let Some(field) = field(name) else {
-            continue;
-        };
-        for next in candidates(value, &field.generator, classes) {
-            let mut changed = values.to_vec();
-            changed[at].1 = next;
-            out.push(Generated::Shape(changed));
-        }
-    }
-    out
+            Generated::Shape(kept)
+        });
+    let simpler = values
+        .iter()
+        .enumerate()
+        .filter_map(move |(at, (name, value))| field(name).map(|field| (at, value, field)))
+        .flat_map(move |(at, value, field)| {
+            candidates(value, &field.generator, classes).map(move |next| {
+                let mut changed = values.to_vec();
+                changed[at].1 = next;
+                Generated::Shape(changed)
+            })
+        });
+    dropped.chain(simpler)
 }
 
-fn objects(label: &str, args: &[Generated], classes: &[ClassGen]) -> Vec<Generated> {
+fn objects<'a>(label: &'a str, args: &'a [Generated], classes: &'a [ClassGen]) -> Candidates<'a> {
     let Some(row) = classes.iter().find(|row| row.label == label) else {
-        return Vec::new();
+        return Box::new(iter::empty());
     };
-    let mut out = Vec::new();
-    for (at, (arg, generator)) in args.iter().zip(&row.args).enumerate() {
-        for next in candidates(arg, generator, classes) {
-            let mut changed = args.to_vec();
-            changed[at] = next;
-            out.push(Generated::Object {
-                class: label.to_owned(),
-                args: changed,
-            });
-        }
-    }
-    out
+    Box::new(
+        args.iter()
+            .zip(&row.args)
+            .enumerate()
+            .flat_map(move |(at, (arg, generator))| {
+                candidates(arg, generator, classes).map(move |next| {
+                    let mut changed = args.to_vec();
+                    changed[at] = next;
+                    Generated::Object {
+                        class: label.to_owned(),
+                        args: changed,
+                    }
+                })
+            }),
+    )
 }
 
 /// A union's candidates: the simplest value of each arm before the first one `value` fits,
 /// then the candidates within that arm.
-fn unions(value: &Generated, arms: &[Gen], classes: &[ClassGen]) -> Vec<Generated> {
+fn unions<'a>(value: &'a Generated, arms: &'a [Gen], classes: &'a [ClassGen]) -> Candidates<'a> {
     let Some(at) = arms.iter().position(|arm| fits(value, arm, classes)) else {
-        return Vec::new();
+        return Box::new(iter::empty());
     };
-    let mut out: Vec<Generated> = arms[..at]
-        .iter()
-        .filter_map(|arm| simplest(arm, classes, 0))
-        .collect();
-    out.extend(candidates(value, &arms[at], classes));
-    out
+    Box::new(
+        arms[..at]
+            .iter()
+            .filter_map(move |arm| simplest(arm, classes, 0))
+            .chain(candidates(value, &arms[at], classes)),
+    )
 }
 
 /// The simplest value `generator` makes, where one is quick to build. A list that may not be
