@@ -1,0 +1,26 @@
+--TEST--
+a run of statements in a static method extracts to a static void method
+--FILE--
+<?nvs
+namespace Shop;
+
+class Item
+{
+    public string $name = "pen";
+}
+
+class Printer
+{
+    public static function show(Item $item, int $count): void
+    {
+        <|>echo $item->name;
+        echo $count;<|>
+        echo "done";
+    }
+}
+
+Printer::show(new Item(), 2);
+--REQUEST--
+codeAction
+--EXPECT--
+13:9-14:21 refactor.extract Extract to method -> "self::extracted($item, $count);" + 16:6-16:6 -> "\n\n    private static function extracted(Item $item, int $count): void {\n        echo $item->name;\n        echo $count;\n    }"

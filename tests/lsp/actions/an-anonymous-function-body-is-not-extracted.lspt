@@ -1,0 +1,18 @@
+--TEST--
+an expression in an anonymous function's body is not extracted
+--FILE--
+<?nvs
+class Shop
+{
+    public function double(): int
+    {
+        var $twice = fn(int $x): int => <|>$x * 2<|>;
+        return $twice(4);
+    }
+}
+
+echo new Shop()->double();
+--REQUEST--
+codeAction
+--EXPECT--
+none

@@ -1,0 +1,23 @@
+--TEST--
+a break that leaves the selection is not extracted
+--FILE--
+<?nvs
+class Cart
+{
+    public function scan(int $count): void
+    {
+        while ($count > 0) {
+            <|>if ($count == 2) {
+                break;
+            }
+            echo $count;<|>
+            $count = $count - 1;
+        }
+    }
+}
+
+new Cart()->scan(5);
+--REQUEST--
+codeAction
+--EXPECT--
+none

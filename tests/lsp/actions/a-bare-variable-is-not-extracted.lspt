@@ -1,0 +1,17 @@
+--TEST--
+a bare variable is not extracted
+--FILE--
+<?nvs
+class Shop
+{
+    public function total(int $price): int
+    {
+        return <|>$price<|> + 1;
+    }
+}
+
+echo new Shop()->total(2);
+--REQUEST--
+codeAction
+--EXPECT--
+none

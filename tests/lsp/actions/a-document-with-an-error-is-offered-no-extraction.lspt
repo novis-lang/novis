@@ -1,0 +1,22 @@
+--TEST--
+a document that reports an error is offered no extraction
+--FILE--
+<?nvs
+class Shop
+{
+    public function total(int $price, int $count): int
+    {
+        return <|>$price * $count<|> + 5;
+    }
+
+    public function label(): string
+    {
+        return 5;
+    }
+}
+
+echo new Shop()->total(2, 3);
+--REQUEST--
+codeAction
+--EXPECT--
+none

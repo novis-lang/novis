@@ -1,0 +1,19 @@
+--TEST--
+a write to a local declared before the selection is not extracted
+--FILE--
+<?nvs
+class Cart
+{
+    public function add(int $count): int
+    {
+        int $total = 0;
+        <|>$total = $total + $count;<|>
+        return $total;
+    }
+}
+
+echo new Cart()->add(2);
+--REQUEST--
+codeAction
+--EXPECT--
+none

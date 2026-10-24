@@ -1,0 +1,21 @@
+--TEST--
+an expression at file scope extracts only to a variable
+--FILE--
+<?nvs
+namespace Shop;
+
+class Item
+{
+    public string $name = "pen";
+
+    public static function make(): Item
+    {
+        return new Item();
+    }
+}
+
+echo <|>Item::make()<|>->name;
+--REQUEST--
+codeAction
+--EXPECT--
+14:1-14:18 refactor.extract Extract to variable -> "Item $make = Item::make();\necho $make"

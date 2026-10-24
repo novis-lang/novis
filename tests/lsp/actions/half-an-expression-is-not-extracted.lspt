@@ -1,0 +1,17 @@
+--TEST--
+a selection that is half an expression is not extracted
+--FILE--
+<?nvs
+class Shop
+{
+    public function total(int $a, int $b): int
+    {
+        return <|>$a + $<|>b * 2;
+    }
+}
+
+echo new Shop()->total(2, 3);
+--REQUEST--
+codeAction
+--EXPECT--
+none
