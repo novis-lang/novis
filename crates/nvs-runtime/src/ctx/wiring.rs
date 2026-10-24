@@ -217,6 +217,7 @@ impl Ctx {
             unit_statics: None,
             isolate_argument: Value::null(),
             assertions: Vec::new(),
+            unowned_failures: 0,
             snapshot_mismatches: Vec::new(),
             started_scripts: Vec::new(),
             open_files: Vec::new(),

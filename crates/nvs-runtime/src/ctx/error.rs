@@ -795,16 +795,24 @@ impl Ctx {
     /// cannot answer it.
     ///
     /// A `#[Test]` method owns an isolate that ends with it, so the vector is
-    /// O(assertions in that test). Outside a test it grows by one entry per
-    /// assertion, which the record
-    /// `data/gaps/nvs-runtime/an-assertion-outside-a-test-grows-the-ledger.json`
-    /// keeps.
+    /// O(assertions in that test). **A context no test owns keeps no entry**:
+    /// it counts a failure and nothing else, so an assertion in a loop under
+    /// `nvs run` allocates nothing (`Self::unowned_failures`).
     pub fn record_assertion(&mut self, member: &'static str, failure: Option<String>) {
+        if !self.owned_by_test {
+            self.count_unowned(failure.is_some());
+            return;
+        }
         self.assertions.push(AssertionOutcome {
             member,
             failure,
             compared: None,
         });
+    }
+
+    /// The one entry a context no test owns keeps: a failure counted.
+    fn count_unowned(&mut self, failed: bool) {
+        self.unowned_failures += usize::from(failed);
     }
 
     /// [`Self::record_assertion`] for a failed comparison, with the two values
@@ -816,6 +824,10 @@ impl Ctx {
         failure: String,
         compared: Compared,
     ) {
+        if !self.owned_by_test {
+            self.count_unowned(true);
+            return;
+        }
         self.assertions.push(AssertionOutcome {
             member,
             failure: Some(failure),
@@ -826,13 +838,21 @@ impl Ctx {
     /// Appends an entry another context recorded — a child task's ledger
     /// joining its parent's.
     pub fn record_entry(&mut self, entry: AssertionOutcome) {
+        if !self.owned_by_test {
+            self.count_unowned(entry.failure.is_some());
+            return;
+        }
         self.assertions.push(entry);
     }
 
     /// How many entries the ledger holds — the mark
-    /// [`Self::discharge_failures_from`] is given.
+    /// [`Self::discharge_failures_from`] is given. On a context no test owns,
+    /// how many failures it has counted.
     #[must_use]
     pub fn assertion_count(&self) -> usize {
+        if !self.owned_by_test {
+            return self.unowned_failures;
+        }
         self.assertions.len()
     }
 
@@ -848,6 +868,12 @@ impl Ctx {
     /// cost is linear in what `$body` recorded: many failures inside one body,
     /// or many calls in one test, stay linear rather than quadratic.
     pub fn discharge_failures_from(&mut self, mark: usize) -> usize {
+        if !self.owned_by_test {
+            let start = mark.min(self.unowned_failures);
+            let discharged = self.unowned_failures - start;
+            self.unowned_failures = start;
+            return discharged;
+        }
         let len = self.assertions.len();
         let start = mark.min(len);
         let mut kept = start;
@@ -1176,6 +1202,7 @@ mod tests {
         // *before* the mark is another test's problem and stays, and a passing
         // assertion inside the body really ran, so § 20 still counts it.
         let mut ctx = Ctx::buffered();
+        ctx.set_owned_by_test();
         ctx.record_assertion("assertSame", Some("an earlier failure".to_owned()));
         let mark = ctx.assertion_count();
         ctx.record_assertion("assertSame", None);
@@ -1191,6 +1218,22 @@ mod tests {
         // Taken rather than borrowed: the next test starts empty.
         assert_eq!(ctx.assertion_count(), 0);
         assert_eq!(ctx.discharge_failures_from(mark), 0);
+    }
+
+    #[test]
+    fn an_assertion_no_test_owns_keeps_no_entry_and_still_counts_its_failure() {
+        // `rule:programs/memory-priority`: under `nvs run` nothing reads the ledger, so an
+        // assertion keeps no entry. `Core\Test::expectFailure` still sees a failure discharged.
+        let mut ctx = Ctx::buffered();
+        let mark = ctx.assertion_count();
+        for _ in 0..1000 {
+            ctx.record_assertion("assertSame", None);
+        }
+        ctx.record_assertion("assertSame", Some("the expected one".to_owned()));
+        assert_eq!(ctx.discharge_failures_from(mark), 1);
+        assert_eq!(ctx.discharge_failures_from(mark), 0);
+        assert!(ctx.take_assertions().is_empty());
+        assert_eq!(ctx.take_assertions().capacity(), 0);
     }
 
     /// Serialises the two tests below against each other. The installed tier 3

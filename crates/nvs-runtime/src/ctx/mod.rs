@@ -1095,14 +1095,20 @@ pub struct Ctx {
     /// **What it spends:** two words per request, and nothing at all on the
     /// `Core\Time::now` path beyond one predictable not-taken branch.
     fixed_clock: Option<i128>,
-    /// Whether a `#[Test]` method owns this context: `true` only on the
-    /// isolate `nvs_cli::runner` builds for one test. A failed `Core\Test`
-    /// comparison walks its two values into the ledger only here, because the
-    /// runner is their one reader and outside a test nothing empties the
-    /// ledger (`data/gaps/nvs-runtime/an-assertion-outside-a-test-grows-the-ledger.json`).
+    /// Whether a `#[Test]` method owns this context: `true` on the isolate
+    /// `nvs_cli::runner` builds for one test, and on every task context
+    /// [`Ctx::child`] opens under it. Only such a context keeps
+    /// [`Self::assertions`]' ledger, because the runner is its one reader.
     ///
     /// **What it spends:** one byte per request.
     owned_by_test: bool,
+    /// How many `Core\Test` assertions failed on a context no test owns, and
+    /// were not discharged by `Core\Test::expectFailure`. That member is the one
+    /// reader outside a test, and a count is all it reads, so an assertion
+    /// outside a test keeps no ledger entry (`rule:programs/memory-priority`).
+    ///
+    /// **What it spends:** one word per request, whatever the traffic.
+    unowned_failures: usize,
     /// `rule:testing/determinism-declared-on-the-test`'s seeded generator, as its **live state** rather than as the seed
     /// it started from, or `None` for a context whose draws come from the
     /// operating system.

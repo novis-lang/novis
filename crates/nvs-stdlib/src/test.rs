@@ -3912,9 +3912,9 @@ fn failed(ctx: &mut Ctx, member: &'static str, detail: &str, message: Value) -> 
 /// the failure has `actual` and `expected` beside its message
 /// (`rule:errors/record-producers`).
 ///
-/// Outside a test it is [`failed`]: nothing reads the two values there, and
-/// a ledger that is never emptied would keep both trees of every failure a
-/// loop catches.
+/// Outside a test it is [`failed`]: nothing reads the two values there, so
+/// neither is walked, and the context keeps a count and no entry
+/// (`nvs_runtime::Ctx::record_assertion`).
 fn failed_comparison(
     ctx: &mut Ctx,
     member: &'static str,
