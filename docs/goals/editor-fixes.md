@@ -6,7 +6,7 @@ context: [crates/nvs-lsp/src/actions.rs, docs/rules/ide/the-request-set-is-close
 stages:
   - id: 1
     title: "five diagnostics carry their fix"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/actions.rs, crates/nvs-diagnostics/src/diagnostic.rs, crates/nvs-types/src/ctor_init.rs, crates/nvs-syntax/src/parser/expr.rs, crates/nvs-syntax/src/parser/ty.rs, crates/nvs-types/src/expr/args.rs, crates/nvs-types/src/routes.rs, docs/rules/ide/a-quick-fix-is-a-diagnostics-own-suggestion.md, docs/rules/routing/a-quick-fix-writes-a-derived-path.md]
     extra:
       context:
@@ -133,6 +133,14 @@ diagnostic is reported. The narrowing synthesis runs only in `nvs-lsp`
 (`rule:ide/no-compile-path-calls-the-synthesis`). A setting applied without a restart keeps the
 server's index warm, which usability gains from.
 
+**A fix is offered only where the diagnostic knows every word of it.** The constructor assignment is
+`$this->name = $name;`, offered only where a parameter that is not promoted has the property's name.
+The laundering call is `Core\Http::allowUrl(<argument>)`, the one launderer that takes the refused
+value as its only argument. `Core\Ldap\Dn::of` needs an attribute name, and `Core\Secret::reveal` and
+`Core\Taint::assertTrusted` need a reason only the author can give, so a `secret` value and a DN get
+no fix. The plain sink mismatch names no launderer on purpose (`crates/nvs-types/src/expr/args.rs`,
+`check_shape_field`'s doc), so it gets none either.
+
 ## Stages
 
 ### 1. five diagnostics carry their fix
@@ -145,14 +153,14 @@ argument at a refusing parameter and names the laundering call, starting from `a
 the five suggestions land, one writing subagent writes the five `.lspt` cases under
 `tests/lsp/actions/`.
 
-- [ ] A missing constructor property assignment (`E0409`) offers to add it (`rule:classes/definite-property-initialization`). `crates/nvs-types/src/ctor_init.rs:286`, `crates/nvs-types/src/ctor_init.rs:375`
-- [ ] `include`, `include_once` and `require_once` (`E0221`) offer `require` (`rule:statements/require-is-the-only-inclusion-construct`). `crates/nvs-syntax/src/parser/expr.rs:2462`
-- [ ] A `tainted` or `secret` value at a refusing sink offers the laundering call, marked `alternative` (`rule:security/tainted-qualifier`). `crates/nvs-types/src/expr/args.rs:113`
-- [ ] A mis-ordered `tainted secret string` (`E0116`) offers the reordered qualifiers (`rule:security/tainted-qualifier`). `crates/nvs-syntax/src/parser/ty.rs:460`
-- [ ] A `#[Route]` with no `path` (`E0747`) offers the derived one (`rule:routing/a-quick-fix-writes-a-derived-path`). `crates/nvs-types/src/routes.rs:1472`
-- [ ] The fixes flow through the existing translation, and the laundering call stays out of `source.fixAll.nvs`. `crates/nvs-lsp/src/actions.rs:150`, `crates/nvs-lsp/src/actions.rs:169`
-- [ ] An `.lspt` case for each fix. `tests/lsp/actions/an-include-is-offered-require.lspt:1`
-- [ ] Both rules `shipped`. `data/rules/ide/a-quick-fix-is-a-diagnostics-own-suggestion.json:3`, `data/rules/routing/a-quick-fix-writes-a-derived-path.json:3`
+- [x] A missing constructor property assignment (`E0409`) offers to add it (`rule:classes/definite-property-initialization`). `crates/nvs-types/src/ctor_init.rs:286`, `crates/nvs-types/src/ctor_init.rs:375`
+- [x] `include`, `include_once` and `require_once` (`E0221`) offer `require` (`rule:statements/require-is-the-only-inclusion-construct`). `crates/nvs-syntax/src/parser/expr.rs:2462`
+- [x] A `tainted` or `secret` value at a refusing sink offers the laundering call, marked `alternative` (`rule:security/tainted-qualifier`). `crates/nvs-types/src/expr/args.rs:113`
+- [x] A mis-ordered `tainted secret string` (`E0116`) offers the reordered qualifiers (`rule:security/tainted-qualifier`). `crates/nvs-syntax/src/parser/ty.rs:460`
+- [x] A `#[Route]` with no `path` (`E0747`) offers the derived one (`rule:routing/a-quick-fix-writes-a-derived-path`). `crates/nvs-types/src/routes.rs:1472`
+- [x] The fixes flow through the existing translation, and the laundering call stays out of `source.fixAll.nvs`. `crates/nvs-lsp/src/actions.rs:150`, `crates/nvs-lsp/src/actions.rs:169`
+- [x] An `.lspt` case for each fix. `tests/lsp/actions/an-include-is-offered-require.lspt:1`
+- [x] Both rules `shipped`. `data/rules/ide/a-quick-fix-is-a-diagnostics-own-suggestion.json:3`, `data/rules/routing/a-quick-fix-writes-a-derived-path.json:3`
 
 ### 2. the narrowing action writes an array's literal type
 
@@ -276,26 +284,52 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. The anchors above were checked against the tree. Stage 2's last rule flip
-waits on goal `editor-refactors` (`crates/nvs-lsp/src/generate.rs`). Every other stage has no gate.
+Stage 1 is done. Five diagnostics carry their fix as a suggestion, each frozen by an `.lspt` case
+under `tests/lsp/actions/`: `E0409` (`AssignFix` in `crates/nvs-types/src/ctor_init.rs`), `E0221`
+(`crates/nvs-syntax/src/parser/expr.rs`, `parse_rejected_include_family`), `E0116`
+(`crates/nvs-syntax/src/parser/ty.rs`), `E0747` (`derived_path` and `path_insertion` in
+`crates/nvs-types/src/routes.rs`), and a `tainted` URL's `E0401` (`Carrier::attach` in
+`crates/nvs-types/src/expr/args.rs`, `alternative`). Both rules are `shipped`. The new standing
+decision says why a `secret` value and a DN get no fix. Stage 2's gate is met: goal
+`editor-refactors` is retired, and `crates/nvs-lsp/src/generate.rs` has its three generators.
+
+Tests likely to go red in the gate stage. Each prints the new `= suggestion` line, or checks a
+diagnostic's suggestions:
+- `crates/nvs-syntax/src/parser/tests/ty.rs` (the `E0116` case) and any parser test that counts
+  suggestions.
+- `crates/nvs-types/tests/routes.rs` (`E0747`) and the `E0409` unit tests in `ctor_init.rs`.
+- Any `.nvst` whose `--EXPECTF-ERROR--` writes an `E0409`, `E0221`, `E0116` or `E0747` block
+  without a `%A` after it. `tests/conformance/core/every-client-member-refuses-a-tainted-url.nvst`
+  is already updated, and the two `reject/*require*` cases pass.
+- A `nvs check --json` snapshot that holds one of these codes.
+
+**Fix first, outside this goal:** the nightly run's `cost guards / macos-aarch64` failed
+`serve::tests::live_bytes_stay_flat_while_one_core_serves_thousands_of_requests`
+(`crates/nvs-cli/src/serve.rs:4298`): the serving thread held 180120 bytes more after request 4475
+than after request 525, about 45 bytes per request. No commit since the run names it. The run's
+other twelve failures each have a later commit that names them. `env-secret-proofs` is green
+again.
 
 ### Next
 
-**Stage 1: five diagnostics carry their fix**, one file set: `crates/nvs-types/src/ctor_init.rs`,
-`crates/nvs-syntax/src/parser/expr.rs`, `crates/nvs-syntax/src/parser/ty.rs`,
-`crates/nvs-types/src/expr/args.rs`, `crates/nvs-types/src/routes.rs`, `crates/nvs-lsp/src/actions.rs`,
-`tests/lsp/actions/`. No gate.
+**Stage 2: the narrowing action writes an array's literal type**, one file set:
+`crates/nvs-types/src/narrow.rs` (new), `crates/nvs-lsp/src/actions.rs`, `tests/lsp/actions/`.
+The gate is met.
 
-- [ ] The constructor assignment (`rule:classes/definite-property-initialization`). `crates/nvs-types/src/ctor_init.rs:286`, `crates/nvs-types/src/ctor_init.rs:375`
-- [ ] `include` to `require` (`rule:statements/require-is-the-only-inclusion-construct`). `crates/nvs-syntax/src/parser/expr.rs:2462`
-- [ ] The laundering call, `alternative` (`rule:security/tainted-qualifier`). `crates/nvs-types/src/expr/args.rs:113`
-- [ ] The reordered qualifiers (`rule:security/tainted-qualifier`). `crates/nvs-syntax/src/parser/ty.rs:460`
-- [ ] The derived `#[Route]` path (`rule:routing/a-quick-fix-writes-a-derived-path`). `crates/nvs-types/src/routes.rs:1472`
-- [ ] The translation, the laundering call out of fix-all. `crates/nvs-lsp/src/actions.rs:150`, `crates/nvs-lsp/src/actions.rs:169`
-- [ ] An `.lspt` case each. `tests/lsp/actions/an-include-is-offered-require.lspt:1`
-- [ ] Both rules `shipped`. `data/rules/ide/a-quick-fix-is-a-diagnostics-own-suggestion.json:3`, `data/rules/routing/a-quick-fix-writes-a-derived-path.json:3`
+- [ ] The synthesis function, with its unit tests (`rule:ide/narrowest-means-narrowest-base-type`). `crates/nvs-types/src/narrow.rs:1`
+- [ ] The guard test that no compile path calls it (`rule:ide/no-compile-path-calls-the-synthesis`). `crates/nvs-types/src/narrow.rs:1`
+- [ ] Answers from a literal in the same file or is not offered (`rule:ide/the-action-answers-from-the-literal-or-not-at-all`). `crates/nvs-lsp/src/actions.rs:150`
+- [ ] Never under `source.fixAll.nvs` (`rule:ide/narrowing-is-a-diff-never-a-save-time-fix`). `crates/nvs-lsp/src/actions.rs:169`
+- [ ] The round trip as a unit test. `crates/nvs-types/src/narrow.rs:1`
+- [ ] `.lspt` cases. `tests/lsp/actions/an-array-annotation-narrows-to-its-literal.lspt:1`
+- [ ] The four narrowing rules and `rule:ide/a-code-action-writes-only-what-is-already-determined` `shipped`. `data/rules/ide/narrow-an-annotation-to-its-literal.json:3`, `data/rules/ide/a-code-action-writes-only-what-is-already-determined.json:3`
 
 ### Backlog
+
+- An `E0747` fix on a parameter whose type does not resolve writes a capture for it, because
+  `converts_from_segment` accepts an unresolved type (`derived_path` in
+  `crates/nvs-types/src/routes.rs`). The `E0303` beside it is the real error.
+- There is no `Core\Http\Request` class. A route case that wants a service parameter declares its own class.
 
 - The copy half of the import-carrying paste has no proof in a real editor, because nothing makes the editor fire a real copy (`editors/vscode/src/imports.ts`, § *Known gaps*).
 - A cursor on an attribute's name, as in `#[Core\Ro<|>ute(...)]`, is offered every `Core` type rather than the attributes the site allows. No `.lspt` case freezes that answer yet; the payload case is `tests/lsp/completion/an-enum-name-inside-an-attribute-payload-offers-its-cases.lspt`.
