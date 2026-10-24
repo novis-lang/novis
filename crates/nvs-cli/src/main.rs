@@ -2628,14 +2628,13 @@ fn run_test(
             Program::named_by(path)
         }
     };
-    let programs: Vec<Option<Program>> =
-        match paths.iter().map(named).collect() {
-            Ok(programs) => programs,
-            Err(error) => {
-                eprintln!("error: {error}");
-                return ExitCode::FAILURE;
-            }
-        };
+    let programs: Vec<Option<Program>> = match paths.iter().map(named).collect() {
+        Ok(programs) => programs,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
     if programs.iter().any(Option::is_some) {
         let [Some(program)] = programs.as_slice() else {
             eprintln!(
@@ -2854,7 +2853,8 @@ fn run_program_tests(
             .as_deref()
             .and_then(runner::read_failed_tests);
         if select.only.is_none() {
-            let line = "No failed tests are recorded for this program, so every selected test runs.";
+            let line =
+                "No failed tests are recorded for this program, so every selected test runs.";
             match format {
                 runner::Format::Human => println!("{line}"),
                 runner::Format::Json | runner::Format::Junit => eprintln!("{line}"),
