@@ -1,6 +1,6 @@
 {
   "title": "Writing a `///` run is the editor's job: `onEnterRules` continues one, a paste provider prefixes one, and neither contributes a name",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/language-configuration-is-content",
     "tooling/doc-comment-is-three-slashes",
@@ -10,7 +10,7 @@
     "ide/one-server-two-thin-clients"
   ],
   "guardedBy": [
-    "editors/vscode/test/contributions/contributions.test.ts"
-  ],
-  "goal": "editor-fixes"
+    "editors/vscode/test/contributions/contributions.test.ts",
+    "editors/vscode/test/client/docpaste.test.ts"
+  ]
 }

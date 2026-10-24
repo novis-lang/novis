@@ -55,6 +55,7 @@ import * as ast from "./ast";
 import * as badges from "./badges";
 import { Origin, Runnable, install as installCopies, installDirectory, installed, runnable } from "./binary";
 import * as directives from "./directives";
+import * as doccomments from "./doccomments";
 import * as format from "./format";
 import * as imports from "./imports";
 import { RELEASE_PAGE, currentTarget, downloadVerified, installBinary, overHttps, releaseFor } from "./install";
@@ -206,6 +207,8 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
   // The paste provider, registered from activation for the same reason: a copy made before the
   // server answers carries no imports, and the editor pastes it as it always did.
   imports.install(context);
+  // *Paste as doc comment*, which needs no server at all.
+  doccomments.install(context);
   // The `nvs.toml` completion provider, registered from activation because the workspace holding
   // that file is one of the two things that activate the extension.
   directives.install(context);

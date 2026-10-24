@@ -26,9 +26,12 @@ produce anything that is not a comment, so the worst case is a badly worded one.
 
 - **Memory:** none. Both affordances run in the editor and touch no compile and no request.
 
-**Built:** the `onEnterRules` continuation, in `editors/vscode/language-configuration.json`.
-**Missing:** *Paste as doc comment*. The extension's one `DocumentPasteEditProvider` is the import
-carried with a pasted type (`editors/vscode/src/imports.ts`).
+**Built:** the `onEnterRules` continuation, in `editors/vscode/language-configuration.json`, and
+*Paste as doc comment* under the frozen kind `text.docComment.nvs`. `editors/vscode/src/docpaste.ts`
+decides the edit without an editor, and `editors/vscode/src/doccomments.ts` is the provider that offers
+it. It is offered at one cursor placed after a line's `///`, for text of two lines or more, and one
+line ending at the end of the text is dropped. `editors/vscode/test/client/docpaste.test.ts` holds it
+in the headless tier.
 
 **Declined:**
 - **A `///`-delimited block** — `///` alone opening, an un-prefixed body, `///` alone closing. Its
