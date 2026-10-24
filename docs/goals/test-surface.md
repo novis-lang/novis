@@ -55,7 +55,7 @@ stages:
         rules: [ide/the-test-tree-is-discovered-and-run-through-the-cli, testing/report-formats, testing/nvst-is-separate]
   - id: 6
     title: fail-fast, rerun-failed and shuffle
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, crates/nvs-config/src/data.rs, docs/rules/testing/a-run-can-stop-early-rerun-failures-and-shuffle.md]
     extra:
       context:
@@ -283,7 +283,7 @@ document alone.
 - [x] Tests for each, and the help text. `crates/nvs-cli/src/runner.rs:4718`
 - [x] The `tools:cli/nvs-test` example shows the three flags. `docs/examples/tools/cli/nvs-test/about.md:1`
 - [x] The gap `an-extension-budget-per-test-has-no-test` closes: a test shows each test spends its own extension CPU budget, and the record is deleted. `crates/nvs-cli/src/extensions.rs:1`
-- [ ] The gap `a-test-response-has-no-bytes-reader` closes: `Core\Test\Response` reads a body that is not UTF-8, or the record is struck as a stated bound. `crates/nvs-stdlib/src/test.rs:1`
+- [x] The gap `a-test-response-has-no-bytes-reader` closes: `Core\Test\Response` reads a body that is not UTF-8, or the record is struck as a stated bound. `crates/nvs-stdlib/src/test.rs:1`
 - [x] The rule `shipped`. `data/rules/testing/a-run-can-stop-early-rerun-failures-and-shuffle.json:3`
 
 ### 9. `nvs test --watch`
@@ -312,18 +312,18 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2, 3, 7, 8 and 4 are done. Stage 6 has its flags, its rule and its extension-budget
-gap closed; the bytes-reader gap is left. The sweep was stale: `env-secret-proofs` exits 0, and the
-nightly run tested `3ea6f1550`, whose reds are fixed (`crypto-bigint` 0.7.6, `a5f50b907`, and
-rustfmt in `baf940219`).
+Stages 1, 5, 2, 3, 7, 8, 4 and 6 are done; stage 9 is next. The sweep was stale again:
+`env-secret-proofs` exits 0, and the nightly run tested `3ea6f1550`, whose reds are fixed
+(`crypto-bigint` 0.7.6, `a5f50b907`, and rustfmt in `baf940219`).
 
-**`nvs test` now charges each test its written `[limits] cpu_time`.** It started no watchdog, so a
-written `cpu_time` reached no test. `Shared` holds one `nvs_host::Watchdog` per run
-(`crates/nvs-cli/src/runner.rs:1655`), and `Job::run` (`crates/nvs-cli/src/runner.rs:1782`)
-registers its thread and publishes the test's tree. An unwritten `cpu_time` is still no ceiling. The
-fixture guest `Shop\Meter` spins for given milliseconds, and
-`each_nvs_test_test_spends_its_own_extension_cpu_budget` (`crates/nvs-cli/tests/test_command.rs:222`)
-passes, and fails with one spin raised to 1200 ms.
+**`Core\Test\Response::bytes()` returns the body as `bytes`, and its gap record is deleted.** It
+shares the body slot through `crate::instance::read_slot` (`crates/nvs-stdlib/src/test.rs:3162`), so
+a read allocates nothing (the bench records 0). `body`, `json` and `jsonAs` now say "Use `bytes()`
+to read it." The two octet conformance cases print the hex of the whole body, and the three
+spreadsheet download cases compare `bytes()` with the file `bytes` writes, or read its sheet. Its
+proofs are under `Test-Response/bytes`, and `proofs --id` with the debug binary owes nothing. The
+Rust test `a_body_that_is_not_utf8_reads_its_status_and_only_its_text_readers_throw` reads it twice.
+`website/public/llms-full.txt` and `website/src/data/core.json` are re-rendered.
 
 May go red at the gate: an `nvs test --help` snapshot (seven new flags); `--list` over a case tree
 expected refused; a `--dump-ir` snapshot with a property; `E0889`'s card and anything counting
@@ -331,14 +331,16 @@ expected refused; a `--dump-ir` snapshot with a property; `E0889`'s card and any
 `set_owned_by_test`); a `.nvst` whose non-test code calls test code; a recorded editor listing; the
 attributes reference; a failing property's JSON snapshot; "failed with the inputs (" for a shrinking
 property; `MARKERS` now six; the data folder's entry count (`failed-tests/`); a test case past a
-written `cpu_time` (now failed); a count of conformance fixtures (`meter`).
+written `cpu_time` (now failed); a count of conformance fixtures (`meter`); a count of `Core`
+members or of `Core\Test\Response`'s instance list, an `nvs meta` or stub snapshot, and a member's
+proof roster (`bytes` is new).
 
 ### Next
 
-**Stage 6's last gap, then stage 9.** The gap touches files stage 9 does not, so they may run
-beside each other, but each is one slice.
+**Stage 9, `--watch`, as one group.** Read `docs/rules/testing/watch-reruns-on-an-edit.md` first,
+then the background check's `watch` and its `Also` hook. `--watch` reuses that thread's change
+signal and builds no second watcher (Standing decisions).
 
-- [ ] The bytes reader: a `bytes(): bytes` member on `Core\Test\Response`, beside `body` in `RESPONSE`'s `instance` list, which clones the `bytes` body slot. It is a feature of its own, so it owes what `bun nv proofs --id 'Core\Test\Response::body'` lists for `body`: a card beside `RESPONSE_CARD`, `about.md`, three examples, a bench and an attack under `Test-Response/bytes`. `body_text`'s message then names `bytes()` too. The conformance cases the record names compare the whole body again. Then delete the record. `data/gaps/nvs-stdlib/a-test-response-has-no-bytes-reader.json:1`, `crates/nvs-stdlib/src/test.rs:957`, `crates/nvs-stdlib/src/test.rs:1021`, `crates/nvs-stdlib/src/test.rs:3250`
 - [ ] Stage 9, `--watch`, from the background check. `crates/nvs-cli/src/script.rs:1500`, `crates/nvs-cli/src/runner.rs:185`
 
 ### Backlog
