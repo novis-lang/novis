@@ -2352,6 +2352,13 @@ fn exchange(
     call.span.borrow_mut().answered(status);
     let rest = raw.split_off(end + 4);
     let frame = frame_of(&headers, call.member)?;
+    // RFC 9112 § 6.3: a reply to `HEAD`, a `204` and a `304` end at the blank
+    // line, whatever their fields say. Read by the fields, a `204` with no length
+    // from an origin that keeps the connection waits for the whole idle bound.
+    // The connection is not pooled, because an origin that sends a body anyway
+    // would leave it in front of the next reply.
+    let bodiless = request.starts_with("HEAD ") || matches!(status, 204 | 304);
+    let frame = if bodiless { Frame::Sized(0) } else { frame };
     let (idle, until) = match bounds {
         Bounds::Whole => (
             call.deadline.saturating_duration_since(Instant::now()),
@@ -2359,7 +2366,7 @@ fn exchange(
         ),
         Bounds::Streamed { idle, until } => (idle, until),
     };
-    let reuse = reusable(&raw, &headers, frame).then(|| Reuse {
+    let reuse = (!bodiless && reusable(&raw, &headers, frame)).then(|| Reuse {
         key: key.to_owned(),
         caps: call.pool,
     });

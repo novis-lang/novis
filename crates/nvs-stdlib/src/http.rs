@@ -8172,4 +8172,42 @@ mod tests {
         let message = ctx.take_pending().expect("the refusal is a thrown error");
         assert!(message.contains("no end date"), "{message}");
     }
+
+    /// A `204` with no length, from an origin that keeps the connection open, is the whole reply.
+    /// The transport returns at the blank line and never waits for the close.
+    #[cfg_attr(miri, ignore = "a loopback socket is a system call Miri does not emulate")]
+    #[test]
+    fn a_204_that_keeps_the_connection_ends_at_its_head() {
+        use std::io::{Read as _, Write as _};
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let at = listener.local_addr().expect("its own address");
+        let served = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the client's connection");
+            let mut request = [0_u8; 4096];
+            let _ = stream.read(&mut request);
+            stream
+                .write_all(b"HTTP/1.1 204 No Content\r\ncontent-type: text/html\r\n\r\n")
+                .expect("the reply");
+            // The connection stays open until the client closes it.
+            let _ = stream.read(&mut request);
+        });
+        let started = std::time::Instant::now();
+        let reply = super::tool_post(
+            "test",
+            &format!("http://{at}/v1/report"),
+            Vec::new(),
+            "application/json",
+            b"{}".to_vec(),
+            std::time::Duration::from_secs(20),
+        )
+        .expect("the reply");
+        assert_eq!(reply.status, 204);
+        assert!(reply.body.is_empty());
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(10),
+            "{:?}",
+            started.elapsed()
+        );
+        served.join().expect("the origin thread");
+    }
 }
