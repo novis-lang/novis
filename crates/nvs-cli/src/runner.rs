@@ -112,7 +112,7 @@
 //! order *is* declaration order, which is what a reader of one file sees.
 
 use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::rc::Rc;
@@ -175,6 +175,35 @@ pub(crate) struct Args {
     /// path.
     #[arg(long, value_name = "N/M")]
     shard: Option<nvs_test::Shard>,
+    /// Stop starting tests after the first test fails.
+    ///
+    /// Tests that are already running finish, and they are reported. The
+    /// summary counts the tests that did not start as not run. A flaky test
+    /// does not stop the run.
+    // `rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`, as are the two below.
+    #[arg(long, conflicts_with = "list")]
+    fail_fast: bool,
+    /// Run only the tests that failed in the last run of this program.
+    ///
+    /// Every run writes the names of its failed tests to a file in the data
+    /// folder. When the last run had no failed test, or no run is recorded,
+    /// every selected test runs. `--filter`, `--tag` and `--skip-tag` still
+    /// select from these tests.
+    #[arg(long, conflicts_with = "list")]
+    rerun_failed: bool,
+    /// Start the tests in a random order, and print the seed in the summary.
+    ///
+    /// `--shuffle=<seed>` starts the tests in the same order as the run that
+    /// printed that seed. The tests of each class start in a random order.
+    /// The report still lists the tests in the order they are written.
+    #[arg(
+        long,
+        value_name = "SEED",
+        num_args = 0..=1,
+        require_equals = true,
+        conflicts_with = "list"
+    )]
+    shuffle: Option<Option<u64>>,
     /// How many tests or `.nvst` cases run at once.
     ///
     /// The default is the number of hardware threads on this machine.
@@ -291,6 +320,7 @@ impl Args {
                 tags: self.tag,
                 skip_tags: self.skip_tag,
                 shard: self.shard,
+                only: None,
             },
             self.jobs,
             self.format,
@@ -302,6 +332,12 @@ impl Args {
                     .map_or_else(default_jobs, std::num::NonZeroUsize::get),
                 show_output: self.show_output,
                 shared_worker: self.shared_worker,
+                fail_fast: self.fail_fast,
+                rerun_failed: self.rerun_failed,
+                shuffle: self
+                    .shuffle
+                    .map(|seed| seed.unwrap_or_else(|| rand::rng().random::<u64>())),
+                record_failed: None,
             },
             &crate::coverage::Requested {
                 lcov: self.coverage_lcov,
@@ -608,6 +644,10 @@ pub(crate) fn run(
         jobs,
         show_output,
         shared_worker: _,
+        fail_fast,
+        rerun_failed: _,
+        shuffle,
+        record_failed,
     } = flags;
     // Answered before the compile below, rather than beside the run: what
     // discovery reads is the checked program's own test table, so a listing
@@ -711,6 +751,8 @@ pub(crate) fn run(
             format,
             jobs,
             show_output,
+            fail_fast,
+            shuffle,
         },
         select,
     ) {
@@ -724,9 +766,13 @@ pub(crate) fn run(
         cases,
         counts,
         left_out,
+        not_run,
         exited,
         class_failures,
     } = suite;
+    if let Some(file) = &record_failed {
+        record_failed_tests(file, &cases);
+    }
     // Flushed before the summary: the report and what the class hooks printed
     // are written through the context, and printing the counts over the top of
     // them would report a run whose output had not been written yet.
@@ -743,7 +789,7 @@ pub(crate) fn run(
     }
     match format {
         Format::Human => println!(
-            "\n  {} failed, {} passed, {} skipped, {} flaky{} in {:.0} ms",
+            "\n  {} failed, {} passed, {} skipped, {} flaky{}{} in {:.0} ms",
             counts.failed,
             counts.passed,
             counts.skipped,
@@ -753,6 +799,10 @@ pub(crate) fn run(
             match left_out {
                 0 => String::new(),
                 n => format!(", {n} left out"),
+            },
+            match not_run {
+                0 => String::new(),
+                n => format!(", {n} not run"),
             },
             started.elapsed().as_secs_f64() * 1000.0
         ),
@@ -766,6 +816,18 @@ pub(crate) fn run(
             )
         ),
         Format::Junit => print!("{}", junit_document(&cases, counts, started.elapsed())),
+    }
+    // A machine format's documents keep their schema, so what they have no key for is said on
+    // stderr, beside the rest of the suite's own output.
+    if format != Format::Human && not_run > 0 {
+        eprintln!("  {not_run} not run: `--fail-fast` stopped the run after a test failed");
+    }
+    if let Some(seed) = shuffle {
+        let line = format!("  started in random order: --shuffle={seed} repeats this order");
+        match format {
+            Format::Human => println!("{line}"),
+            Format::Json | Format::Junit => eprintln!("{line}"),
+        }
     }
     if let Some(hits) = hits {
         match crate::coverage::write(coverage, &sites, &hits.counts(), &hits.edge_counts()) {
@@ -794,6 +856,57 @@ pub(crate) fn run(
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
+    }
+}
+
+/// The file in the data folder that keeps the tests the last run of the program at `entry`
+/// failed, or `None` when there is no data folder to write in.
+///
+/// `rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle` keys it by the entry path: its
+/// name is a hash of the canonical path, so two programs never share one and a path's own
+/// characters never reach a file name.
+pub(crate) fn failed_tests_file(entry: &std::path::Path) -> Option<PathBuf> {
+    let folder = nvs_config::data::current()?;
+    let canonical = std::fs::canonicalize(entry).unwrap_or_else(|_| entry.to_path_buf());
+    let hash = blake3::hash(canonical.to_string_lossy().as_bytes()).to_hex();
+    Some(
+        folder
+            .failed_tests()
+            .join(format!("{}.txt", hash.get(..32).unwrap_or(&hash))),
+    )
+}
+
+/// The tests `file` names, one `Class::label` per line, or `None` when no run wrote it or the
+/// last run failed nothing.
+pub(crate) fn read_failed_tests(file: &std::path::Path) -> Option<BTreeSet<String>> {
+    let text = std::fs::read_to_string(file).ok()?;
+    let names: BTreeSet<String> = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect();
+    (!names.is_empty()).then_some(names)
+}
+
+/// Writes the run's failed tests to `file`, replacing what the last run wrote. A run that failed
+/// nothing writes an empty file. A write that fails is a warning, never a verdict.
+fn record_failed_tests(file: &std::path::Path, cases: &[Case]) {
+    let mut text = String::new();
+    for case in cases {
+        if matches!(case.outcome, Outcome::Failed(_) | Outcome::Exited(_)) {
+            text.push_str(&format!("{}::{}\n", case.class, case.method));
+        }
+    }
+    let written = file
+        .parent()
+        .map_or(Ok(()), nvs_config::data::create_private_root)
+        .and_then(|()| std::fs::write(file, text));
+    if let Err(error) = written {
+        eprintln!(
+            "warning: could not record the failed tests in {}: {error}",
+            file.display()
+        );
     }
 }
 
@@ -1084,6 +1197,9 @@ pub(crate) struct Selection {
     /// `--skip-tag`: a test with any of these does not run.
     pub(crate) skip_tags: Vec<String>,
     pub(crate) shard: Option<nvs_test::Shard>,
+    /// `--rerun-failed`: the `Class::label` of each test the last run failed, or `None` to run
+    /// every test the other four select.
+    pub(crate) only: Option<BTreeSet<String>>,
 }
 
 impl Selection {
@@ -1109,12 +1225,17 @@ impl Selection {
             && self
                 .shard
                 .is_none_or(|shard| shard.holds(&format!("{class}::{}", call.case.method)))
+            && self
+                .only
+                .as_ref()
+                .is_none_or(|only| only.contains(&format!("{class}::{}", call.label)))
     }
 }
 
 /// The switches of [`run`] that change what a run does rather than which
-/// format it reports in: `--update`, `--list`, `--jobs` and `--show-output`.
-#[derive(Clone, Copy)]
+/// format it reports in: `--update`, `--list`, `--jobs`, `--show-output` and
+/// `rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`'s three.
+#[derive(Clone)]
 pub(crate) struct Flags {
     pub(crate) update: bool,
     pub(crate) list: bool,
@@ -1128,6 +1249,15 @@ pub(crate) struct Flags {
     /// `--shared-worker`: each `.nvst` case also runs on one shared worker
     /// ([`crate::shared`]). A program's `#[Test]` run refuses it.
     pub(crate) shared_worker: bool,
+    /// `--fail-fast`: no test starts once one has been reported failed.
+    pub(crate) fail_fast: bool,
+    /// `--rerun-failed`, which `crate::run_program_tests` turns into [`Selection::only`].
+    pub(crate) rerun_failed: bool,
+    /// `--shuffle`'s seed, drawn already when the flag named none.
+    pub(crate) shuffle: Option<u64>,
+    /// The file the run writes its failed tests to ([`failed_tests_file`]), or `None` to write
+    /// nothing.
+    pub(crate) record_failed: Option<PathBuf>,
 }
 
 /// `--jobs`'s default: the machine's hardware threads, as `nvs_test` counts
@@ -1143,6 +1273,10 @@ struct Shape {
     format: Format,
     jobs: usize,
     show_output: bool,
+    /// `--fail-fast` ([`Flags::fail_fast`]).
+    fail_fast: bool,
+    /// `--shuffle`'s seed ([`Flags::shuffle`]).
+    shuffle: Option<u64>,
 }
 
 /// What [`run_suite`] needs beside [`Shape`]: the cores it posts each test to.
@@ -1165,6 +1299,8 @@ struct Suite {
     counts: Counts,
     /// How many tests the selection left out, which no field of [`Self::counts`] counts.
     left_out: usize,
+    /// How many selected tests did not start because `--fail-fast` stopped the run.
+    not_run: usize,
     /// The code an `exit(n)` in a test or a fixture ended the run with.
     exited: Option<i64>,
     /// Each `#[AfterClass]` that threw, as its class and the message. One
@@ -1243,7 +1379,9 @@ fn run_suite(
         format: shape.format,
         show_output: shape.show_output,
     });
-    let mut queue = Queue::new(unit, ctx, shape.format, hits, cores);
+    let mut queue = Queue::new(unit, ctx, shape, hits, cores);
+    let mut order = shape.shuffle.map(Order);
+    let mut not_run = 0;
     for class in checked.exprs.test_classes() {
         let tests = checked.exprs.tests(class).unwrap_or_default();
         let properties = checked.exprs.properties(class).unwrap_or_default();
@@ -1259,6 +1397,11 @@ fn run_suite(
             .filter(|call| select.selects(class, call))
             .collect();
         if calls.is_empty() {
+            continue;
+        }
+        // `--fail-fast` after a failure: the class's setup does not run either.
+        if queue.stopped() {
+            not_run += calls.len();
             continue;
         }
         // `rule:testing/class-hooks`'s order: `#[BeforeClass]`, the fixtures,
@@ -1299,7 +1442,26 @@ fn run_suite(
             queue.push(Entry::Exit(code));
             break;
         }
-        for call in calls {
+        // `--shuffle` changes the order the tests start in. [`Held`] puts each one back in
+        // declaration order before it enters the queue, so the report's order does not change.
+        let mut starts: Vec<usize> = (0..calls.len()).collect();
+        if let Some(order) = &mut order {
+            order.shuffle(&mut starts);
+        }
+        let mut held = Held::new(calls.len());
+        let mut calls: Vec<Option<Invocation<'_>>> = calls.into_iter().map(Some).collect();
+        for at in starts {
+            let Some(call) = calls.get_mut(at).and_then(Option::take) else {
+                continue;
+            };
+            if queue.stopped() {
+                not_run += 1;
+                held.put(at, None);
+                if held.flush(&mut queue) {
+                    break;
+                }
+                continue;
+            }
             let (case, label, row) = (call.case, call.label, call.row);
             let test = Attempted {
                 class: class.to_owned(),
@@ -1325,20 +1487,27 @@ fn run_suite(
             let state = match decided {
                 Some(outcome) => State::Decided(outcome),
                 None => match Job::prepare(unit, test, case, row, &fixtures, &shared) {
-                    Ok(job) => queue.start(job, shape.jobs),
+                    Ok(job) => {
+                        held.make_room(queue.running, shape.jobs);
+                        queue.start(job, shape.jobs)
+                    }
                     Err(outcome) => State::Decided(outcome),
                 },
             };
-            let ended = queue.push(Entry::Test(Box::new(Pending {
-                class: class.to_owned(),
-                label,
-                declared: declared_at(case.span, &checked.map),
-                state,
-            })));
-            if ended {
+            held.put(
+                at,
+                Some(Box::new(Pending {
+                    class: class.to_owned(),
+                    label,
+                    declared: declared_at(case.span, &checked.map),
+                    state,
+                })),
+            );
+            if held.flush(&mut queue) {
                 break;
             }
         }
+        drop(held);
         if queue.ended() {
             break;
         }
@@ -1352,7 +1521,129 @@ fn run_suite(
     }
     Suite {
         left_out,
+        not_run,
         ..queue.finish()
+    }
+}
+
+/// `--shuffle`'s start order: a SplitMix64 stream from the run's seed, so one seed gives one
+/// order on every machine and in every version that keeps this function.
+struct Order(u64);
+
+impl Order {
+    fn next(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    /// Shuffles `items` in place, Fisher–Yates.
+    fn shuffle(&mut self, items: &mut [usize]) {
+        for at in (1..items.len()).rev() {
+            let bound = u64::try_from(at + 1).unwrap_or(u64::MAX);
+            let other = usize::try_from(self.next() % bound).unwrap_or(at);
+            items.swap(at, other);
+        }
+    }
+}
+
+/// One class's tests between the moment each one starts and the moment it enters the
+/// [`Queue`]. `--shuffle` starts them out of order, and the queue takes them in declaration
+/// order, so a test that started early waits here for the ones written above it.
+///
+/// **What it spends** (`rule:programs/memory-priority`): one slot per selected test of the
+/// class, and the results of finished tests waiting behind one that has not started. Without
+/// `--shuffle` every test enters the queue as it starts, and nothing waits here.
+struct Held {
+    slots: Vec<Slot>,
+    /// The first slot not yet in the queue.
+    next: usize,
+}
+
+enum Slot {
+    /// Not started yet.
+    Waiting,
+    /// `--fail-fast` stopped the run before it started.
+    NotRun,
+    Started(Box<Pending>),
+}
+
+impl Held {
+    fn new(tests: usize) -> Self {
+        Self {
+            slots: (0..tests).map(|_| Slot::Waiting).collect(),
+            next: 0,
+        }
+    }
+
+    /// Files the test at `at`, or `None` for one that will not run.
+    fn put(&mut self, at: usize, pending: Option<Box<Pending>>) {
+        if let Some(slot) = self.slots.get_mut(at) {
+            *slot = pending.map_or(Slot::NotRun, Slot::Started);
+        }
+    }
+
+    /// Moves every test at the front that has started into `queue`, in declaration order.
+    /// `true` once an `exit(n)` has ended the run.
+    fn flush(&mut self, queue: &mut Queue<'_>) -> bool {
+        while let Some(slot) = self.slots.get_mut(self.next) {
+            match std::mem::replace(slot, Slot::NotRun) {
+                Slot::Waiting => {
+                    *slot = Slot::Waiting;
+                    return false;
+                }
+                Slot::NotRun => {}
+                Slot::Started(pending) => {
+                    if queue.push(Entry::Test(pending)) {
+                        self.next += 1;
+                        return true;
+                    }
+                }
+            }
+            self.next += 1;
+        }
+        false
+    }
+
+    /// Waits for tests held here until fewer than `jobs` run at once, beside the `running`
+    /// ones the queue counts. Only a shuffled run holds a running test.
+    fn make_room(&mut self, running: usize, jobs: usize) {
+        if jobs <= 1 {
+            return;
+        }
+        let mut held = self
+            .slots
+            .iter()
+            .filter(|slot| matches!(slot, Slot::Started(pending) if matches!(pending.state, State::Running(_))))
+            .count();
+        for slot in &mut self.slots {
+            if running + held < jobs {
+                break;
+            }
+            if let Slot::Started(pending) = slot {
+                let state = std::mem::replace(&mut pending.state, State::Decided(Outcome::Passed));
+                pending.state = match state {
+                    State::Running(posted) => {
+                        held -= 1;
+                        State::Ran(collect(posted))
+                    }
+                    other => other,
+                };
+            }
+        }
+    }
+}
+
+impl Drop for Held {
+    /// An `exit(n)` ended the run, and the tests still held are abandoned.
+    fn drop(&mut self) {
+        for slot in std::mem::take(&mut self.slots) {
+            if let Slot::Started(pending) = slot {
+                abandon(Entry::Test(pending));
+            }
+        }
     }
 }
 
@@ -1622,20 +1913,23 @@ struct Queue<'a> {
     class_failures: Vec<(String, String)>,
     /// The run's own cores, which [`Self::start`] posts each test to.
     cores: Arc<nvs_host::worker::Cores>,
+    /// `--fail-fast`, which [`Self::stopped`] reads.
+    fail_fast: bool,
 }
 
 impl<'a> Queue<'a> {
     fn new(
         unit: &'a nvs_codegen::Unit,
         ctx: &'a mut nvs_runtime::Ctx,
-        format: Format,
+        shape: Shape,
         hits: Option<Arc<nvs_runtime::StmtHits>>,
         cores: Arc<nvs_host::worker::Cores>,
     ) -> Self {
         Self {
             unit,
             ctx,
-            format,
+            format: shape.format,
+            fail_fast: shape.fail_fast,
             hits,
             cores,
             entries: VecDeque::new(),
@@ -1657,6 +1951,13 @@ impl<'a> Queue<'a> {
     /// Whether an `exit(n)` has ended the run.
     fn ended(&self) -> bool {
         self.exited.is_some()
+    }
+
+    /// Whether `--fail-fast` starts no more tests: a failed test has been reported. A failure
+    /// still running or waiting behind an earlier test does not count yet, so under `--jobs 1`
+    /// the run stops right after the first failure, and with more jobs a few tests later at most.
+    fn stopped(&self) -> bool {
+        self.fail_fast && self.counts.failed > 0
     }
 
     /// Starts `job`: posted to one of the run's cores once fewer than `jobs`
@@ -1704,6 +2005,7 @@ impl<'a> Queue<'a> {
             cases: self.cases,
             counts: self.counts,
             left_out: 0,
+            not_run: 0,
             exited: self.exited,
             class_failures: self.class_failures,
         }
@@ -1761,17 +2063,7 @@ impl<'a> Queue<'a> {
             State::Ran(ran) => ran,
             State::Running(posted) => {
                 self.running -= 1;
-                match posted.collect() {
-                    nvs_host::worker::Answer::Value(ran) => ran,
-                    // Contained at the far core's task root, and this test's
-                    // failure rather than the run's.
-                    nvs_host::worker::Answer::Panicked(panic) => Ran::decided(Outcome::failed(
-                        format!("the test's isolate panicked: {panic}"),
-                    )),
-                    nvs_host::worker::Answer::Stopped => Ran::decided(Outcome::failed(
-                        "the test stopped without reaching a verdict",
-                    )),
-                }
+                collect(posted)
             }
         };
         let Ran {
@@ -1855,6 +2147,21 @@ impl<'a> Queue<'a> {
                 self.class_failures.push((class.to_owned(), message));
             }
         }
+    }
+}
+
+/// What a test posted to another core came out with, waiting for it to finish.
+fn collect(posted: nvs_host::worker::Posted<Ran>) -> Ran {
+    match posted.collect() {
+        nvs_host::worker::Answer::Value(ran) => ran,
+        // Contained at the far core's task root, and this test's
+        // failure rather than the run's.
+        nvs_host::worker::Answer::Panicked(panic) => Ran::decided(Outcome::failed(format!(
+            "the test's isolate panicked: {panic}"
+        ))),
+        nvs_host::worker::Answer::Stopped => Ran::decided(Outcome::failed(
+            "the test stopped without reaching a verdict",
+        )),
     }
 }
 
@@ -4281,6 +4588,8 @@ mod tests {
             format: Format::Json,
             jobs: super::default_jobs(),
             show_output: false,
+            fail_fast: false,
+            shuffle: None,
         }
     }
 
@@ -4380,6 +4689,11 @@ mod tests {
 
     /// [`ran`] under a selection of the caller's.
     fn ran_selected(name: &str, select: &Selection) -> super::Suite {
+        ran_shaped(name, select, collected())
+    }
+
+    /// [`ran_selected`] under a shape of the caller's.
+    fn ran_shaped(name: &str, select: &Selection, shape: Shape) -> super::Suite {
         let path = fixture(name);
         let checked = crate::front_end(&path).expect("the fixture is a program");
         let (unit, _) = compile(&checked, None, false).expect("the fixture compiles");
@@ -4391,11 +4705,111 @@ mod tests {
             checked,
             &nvs_config::Config::default(),
             None,
-            collected(),
+            shape,
             select,
         )
         .expect("the suite's own task runs");
         suite
+    }
+
+    /// `rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`: after the first failure
+    /// no test starts, not even in a later class, and the suite counts every one of them.
+    #[test]
+    fn fail_fast_starts_no_test_after_the_first_failure() {
+        let shape = Shape {
+            jobs: 1,
+            fail_fast: true,
+            ..collected()
+        };
+        let suite = ran_shaped("fail-fast.nvs", &Selection::default(), shape);
+        assert_eq!(
+            names(&suite),
+            ["AlphaTest::itPassesFirst", "AlphaTest::itFails"]
+        );
+        assert_eq!(suite.counts.failed, 1);
+        assert_eq!(suite.not_run, 5, "two rows and one test of AlphaTest, and BetaTest's two");
+
+        // Without the flag every test runs, and the run fails twice.
+        let whole = ran_shaped(
+            "fail-fast.nvs",
+            &Selection::default(),
+            Shape {
+                jobs: 1,
+                ..collected()
+            },
+        );
+        assert_eq!(whole.cases.len(), 7);
+        assert_eq!((whole.counts.failed, whole.not_run), (2, 0));
+    }
+
+    /// `rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`: a shuffled run reports in
+    /// declaration order with the same verdicts, on one core and on many.
+    #[test]
+    fn a_shuffled_run_reports_what_a_plain_run_reports() {
+        let report = |suite: &super::Suite| -> Vec<(String, &'static str)> {
+            suite
+                .cases
+                .iter()
+                .map(|case| (format!("{}::{}", case.class, case.method), case.outcome.verdict()))
+                .collect()
+        };
+        let plain = report(&ran("fail-fast.nvs"));
+        for jobs in [1, 4] {
+            for seed in [1, 2, 3] {
+                let shape = Shape {
+                    jobs,
+                    shuffle: Some(seed),
+                    ..collected()
+                };
+                let shuffled = ran_shaped("fail-fast.nvs", &Selection::default(), shape);
+                assert_eq!(report(&shuffled), plain, "--jobs {jobs} --shuffle={seed}");
+            }
+        }
+    }
+
+    /// One seed gives one order, every order is a permutation, and the seeds do not all give
+    /// the order the tests are written in.
+    #[test]
+    fn a_shuffle_seed_repeats_its_order() {
+        let order = |seed| {
+            let mut items: Vec<usize> = (0..8).collect();
+            super::Order(seed).shuffle(&mut items);
+            items
+        };
+        assert_eq!(order(42), order(42));
+        let mut sorted = order(42);
+        sorted.sort_unstable();
+        assert_eq!(sorted, (0..8).collect::<Vec<_>>());
+        let moved = (0..10).filter(|&seed| order(seed) != (0..8).collect::<Vec<_>>());
+        assert!(moved.count() >= 9, "nearly every seed changes the order of eight tests");
+    }
+
+    /// `rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`: a run's failed tests are
+    /// recorded, the record selects exactly them and their data rows, and a run that failed
+    /// nothing records nothing to rerun.
+    #[test]
+    fn rerun_failed_runs_the_tests_the_last_run_failed() {
+        let scratch = nvs_repo::scratch("runner-rerun-failed");
+        let file = scratch.join("failed-tests").join("program.txt");
+        let first = ran("fail-fast.nvs");
+        super::record_failed_tests(&file, &first.cases);
+        let only = super::read_failed_tests(&file).expect("two tests failed");
+        assert_eq!(only.len(), 2, "{only:?}");
+        assert!(only.contains("AlphaTest::itFails"), "{only:?}");
+
+        let select = Selection {
+            only: Some(only.clone()),
+            ..Selection::default()
+        };
+        let rerun = ran_selected("fail-fast.nvs", &select);
+        let mut again = names(&rerun);
+        again.sort();
+        assert_eq!(again, only.into_iter().collect::<Vec<_>>());
+        assert_eq!(rerun.left_out, 5);
+
+        let passing = ran("tags-and-shards.nvs");
+        super::record_failed_tests(&file, &passing.cases);
+        assert_eq!(super::read_failed_tests(&file), None, "nothing failed");
     }
 
     /// Each reported case of `suite` as `Class::label`.
@@ -5322,6 +5736,10 @@ mod tests {
                 jobs: super::default_jobs(),
                 show_output: false,
                 shared_worker: false,
+                fail_fast: false,
+                rerun_failed: false,
+                shuffle: None,
+                record_failed: None,
             },
             &crate::coverage::Requested::default(),
         );
@@ -5345,6 +5763,10 @@ mod tests {
                 jobs: super::default_jobs(),
                 show_output: false,
                 shared_worker: false,
+                fail_fast: false,
+                rerun_failed: false,
+                shuffle: None,
+                record_failed: None,
             },
             &crate::coverage::Requested::default(),
         );
@@ -5427,6 +5849,8 @@ mod tests {
                 format,
                 jobs: super::super::default_jobs().max(4),
                 show_output: false,
+                fail_fast: false,
+                shuffle: None,
             }
         }
 

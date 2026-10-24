@@ -1,0 +1,41 @@
+<?nvs
+// Two classes with one failing test between passing ones, for the runner's
+// `--fail-fast`, `--rerun-failed` and `--shuffle` tests.
+use Core\Test;
+use Core\Test\TestWith;
+
+final class AlphaTest {
+    #[Test]
+    public function itPassesFirst(): void {
+        Test::assertTrue(true);
+    }
+
+    #[Test]
+    public function itFails(): void {
+        Test::assertSame(1 + 1, 3);
+    }
+
+    #[TestWith(words: 0, want: "empty")]
+    #[TestWith(words: 3, want: "empty")]
+    #[Test]
+    public function itNamesALength(uint $words, string $want): void {
+        Test::assertSame($words == 0 ? "empty" : "short", $want);
+    }
+
+    #[Test]
+    public function itPassesLast(): void {
+        Test::assertTrue(true);
+    }
+}
+
+final class BetaTest {
+    #[Test]
+    public function itPublishes(): void {
+        Test::assertTrue(true);
+    }
+
+    #[Test]
+    public function itArchives(): void {
+        Test::assertTrue(true);
+    }
+}

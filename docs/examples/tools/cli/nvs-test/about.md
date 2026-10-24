@@ -8,6 +8,11 @@ directory of such files. A case is one program with its expected output.
 `--format junit` print a report for a build server. `--list` prints the tests and runs none. The
 exit status is not zero when a test failed. A skipped test is not a failure.
 
+`--fail-fast` stops starting tests after the first test fails. The summary counts the tests that did
+not start. `--rerun-failed` runs only the tests that failed in the last run of the program. `--shuffle`
+starts the tests in a random order and prints the seed. `--shuffle=<seed>` repeats that order. The
+report still lists the tests in the order they are written.
+
 `--coverage-lcov <file>`, `--coverage-clover <file>` and `--coverage-cobertura <file>` write which
 lines, functions and branches the tests ran. Most build servers and editors can read these files.
 

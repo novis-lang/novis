@@ -5,7 +5,8 @@
 //! name resolves against the working directory like every other command-line path. Inside it are
 //! [`Folder::config_file`], [`Folder::cache`], [`Folder::tmp`], [`Folder::lsp`],
 //! [`Folder::logs`] and [`Folder::sessions`]; each of those has a configuration key that moves it
-//! or replaces it, and this module only owns the default. `logs/` is the default only for a service: `nvs_cli`'s hosted entry point reads it
+//! or replaces it, and this module only owns the default. [`Folder::failed_tests`] has no key: it
+//! is a fact about one machine's last test run. `logs/` is the default only for a service: `nvs_cli`'s hosted entry point reads it
 //! when the resolved tree sets no `[log] target`, and the command line keeps `stderr`.
 //! [`Folder::telemetry`] has no key: it belongs to the user who runs `nvs`, not to a deployment.
 //!
@@ -172,6 +173,14 @@ impl Folder {
     #[must_use]
     pub fn telemetry(&self) -> PathBuf {
         self.root.join("telemetry")
+    }
+
+    /// `failed-tests/`: one file per tested program, with the tests its last `nvs test` run
+    /// failed, which `nvs test --rerun-failed` reads
+    /// (`rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`). The run creates it.
+    #[must_use]
+    pub fn failed_tests(&self) -> PathBuf {
+        self.root.join("failed-tests")
     }
 
     /// `logs/`: where a service writes `nvs.log` when its configuration sets no `[log] target`.

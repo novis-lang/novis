@@ -2608,6 +2608,9 @@ fn run_test(
         list,
         show_output,
         shared_worker,
+        fail_fast,
+        rerun_failed,
+        shuffle,
         ..
     } = flags;
     // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
@@ -2683,6 +2686,14 @@ fn run_test(
         // section, which `nvs_test` compares whole and which nothing here
         // writes. Refused rather than ignored, for `--format`'s reason below.
         eprintln!("error: `--update` rewrites a program's inline snapshots, not a `.nvst` tree");
+        return ExitCode::FAILURE;
+    }
+    if fail_fast || rerun_failed || shuffle.is_some() {
+        // `rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle` is about a program's
+        // tests, which share one process and one report. Refused rather than ignored.
+        eprintln!(
+            "error: `--fail-fast`, `--rerun-failed` and `--shuffle` run a program's `#[Test]` methods, not a `.nvst` tree"
+        );
         return ExitCode::FAILURE;
     }
     if show_output {
@@ -2832,6 +2843,24 @@ fn run_program_tests(
     let calling = nvs_runtime::extension::install(std::rc::Rc::new(extensions::Tested(
         std::sync::Arc::clone(&set),
     )));
+    // `rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`: every run records its
+    // failed tests, and `--rerun-failed` narrows the selection to the ones the last run recorded.
+    let mut flags = flags;
+    let mut select = select.clone();
+    flags.record_failed = runner::failed_tests_file(program.configured());
+    if flags.rerun_failed {
+        select.only = flags
+            .record_failed
+            .as_deref()
+            .and_then(runner::read_failed_tests);
+        if select.only.is_none() {
+            let line = "No failed tests are recorded for this program, so every selected test runs.";
+            match format {
+                runner::Format::Human => println!("{line}"),
+                runner::Format::Json | runner::Format::Junit => eprintln!("{line}"),
+            }
+        }
+    }
     // `--filter` reaches both suites, and means the same thing in each:
     // `runner::selected` owns the rule and why it is the `.nvst` tree's.
     let code = runner::run(
@@ -2839,7 +2868,7 @@ fn run_program_tests(
         &tree.snapshot,
         Some(set),
         format,
-        select,
+        &select,
         flags,
         coverage,
     );
