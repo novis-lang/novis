@@ -424,6 +424,11 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
     ),
     (
+        "log.client_ip",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
         "debug.inline",
         LIVE,
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
@@ -3089,6 +3094,31 @@ fn the_tier_three_handler_is_the_operators_and_its_row_ends_at_the_dot() {
         keys_in("log").contains(&"handler".to_string()),
         "`[log]` no longer accepts `handler`, so this row governs a key the file refuses and a \
          deployment has no way to name the script at all",
+    );
+}
+
+/// `rule:http-server/a-log-line-can-leave-out-the-client-address`: whether the server's records name
+/// the client address is the operator's promise, so the key has a `System` row of its own inside the
+/// `Runtime` `[log]` block. Without the row the blanket answers for it, and a request could turn the
+/// address back on for its own lines.
+// covers: directive:log.client_ip
+#[test]
+fn the_client_address_setting_is_the_operators_and_reloads() {
+    let row = governing("log.client_ip");
+    assert_eq!(
+        (row.key, row.class, row.apply),
+        ("log.client_ip", Class::System, Apply::Reload),
+        "`log.client_ip` resolves through `{}`, so a request may set it for itself",
+        row.key,
+    );
+    assert!(
+        keys_in("log").contains(&"client_ip".to_string()),
+        "`[log]` does not accept `client_ip`, so this row governs a key the file refuses",
+    );
+    assert_eq!(
+        unit_of("log.client_ip"),
+        None,
+        "a flag is read as a measurement",
     );
 }
 

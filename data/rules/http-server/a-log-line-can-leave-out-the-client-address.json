@@ -1,12 +1,14 @@
 {
   "title": "`[log] client_ip = false` keeps the client address out of every record the server writes, and `Core\\Request::clientIp()` still returns it",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "http-server/the-access-log-is-a-mode-default",
     "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",
     "errors/log-fields",
     "tooling/the-collector-never-stores-an-address"
   ],
-  "guardedBy": [],
-  "goal": "telemetry-service"
+  "guardedBy": [
+    "crates/nvs-server/src/trace.rs",
+    "crates/nvs-config/tests/directives.rs"
+  ]
 }

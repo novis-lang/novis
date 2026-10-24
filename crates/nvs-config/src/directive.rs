@@ -193,6 +193,11 @@ pub const DIRECTIVES: &[Directive] = &[
     // writes a record, so the next context writes under the new one.
     Directive { key: "log.max_size", class: Class::System, apply: Apply::Reload },
     Directive { key: "log.keep", class: Class::System, apply: Apply::Reload },
+    // `rule:http-server/a-log-line-can-leave-out-the-client-address`: `System` because a request
+    // that could turn the address back on would undo the operator's promise to the people whose
+    // addresses these are. `Reload` because it is read off the snapshot each request ran under, so
+    // the next request writes under the new value.
+    Directive { key: "log.client_ip", class: Class::System, apply: Apply::Reload },
     // `[cache]`'s three tiers, one row each. The artifact cache's directory is written
     // `opcache.file_cache_dir` further down: no `[cache]` key is an artifact directory at all
     // (`rule:config/opcache-file-cache-directives-are-system`). The only `Boot` rows are `[server]`'s, written with its block.

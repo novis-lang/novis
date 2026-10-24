@@ -145,6 +145,15 @@ impl Snapshot {
         crate::limits::resolved(self).access
     }
 
+    /// Whether a record the server writes under this snapshot names the client address: `[log]
+    /// client_ip`, `true` unless the file wrote `false`
+    /// (`rule:http-server/a-log-line-can-leave-out-the-client-address`). Read off the resolved
+    /// limits, as [`access_log`](Snapshot::access_log) is.
+    #[must_use]
+    pub fn client_ip_logged(self: &Arc<Self>) -> bool {
+        crate::limits::resolved(self).client_ip
+    }
+
     /// Builds the snapshot for `entry` out of an already-resolved tree.
     ///
     /// `entry` is canonicalized first and kept that way, for [`app`]'s reason: every comparison

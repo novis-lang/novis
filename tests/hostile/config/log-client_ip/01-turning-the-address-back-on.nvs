@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program tries to turn the client address back on in the server's log.
+// Only the person who runs the server may set this, so every change should fail.
+// hostile: timeout-ms 20000
+
+// 1. Tries `log.client_ip` and keys that are almost the same.
+array<string> $names = [
+    'log.client_ip',
+    'client_ip',
+    'LOG.CLIENT_IP',
+    'log.clientIp',
+    'log..client_ip',
+    '.log.client_ip',
+    'log.client_ip.',
+    'app.log.client_ip',
+    'app.0.log.client_ip',
+    "log.client_ip\u{0000}",
+    "log.format\u{0000}log.client_ip",
+    'log.' . Core\Str::repeat('sub.', 20000) . 'client_ip',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'true');
+    Core\Config::set($key, 'false');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries values that are not `true` or `false`.
+array<string> $values = [
+    'true',
+    'false',
+    'TRUE',
+    '1',
+    'yes',
+    '',
+    "true\u{0000}",
+    Core\Str::repeat('t', 1048576),
+];
+foreach ($values as string $value) {
+    Core\Config::set('log.client_ip', $value);
+}
+Core\Config::restore('log.client_ip');
+
+echo 'client_ip: ', Core\Config::get('log.client_ip') ?? '(no value)', "\n";

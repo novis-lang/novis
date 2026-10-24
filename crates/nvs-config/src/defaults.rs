@@ -103,6 +103,8 @@ pub const LOG_TARGET: &str = "stderr";
 pub const LOG_MAX_SIZE: u64 = 10 * MIB;
 /// `[log] keep`: how many renamed files a `file:` target keeps.
 pub const LOG_KEEP: usize = 5;
+/// `[log] client_ip`: whether a record the server writes names the client address.
+pub const LOG_CLIENT_IP: bool = true;
 
 /// `[errors] deprecated`.
 pub const ERRORS_DEPRECATED: &str = "ignore";
@@ -486,6 +488,7 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("log.format", Value::ByMode),
     row!("log.level", Value::ByMode),
     row!("log.access", Value::ByMode),
+    row!("log.client_ip", Value::Flag(LOG_CLIENT_IP)),
     row!("errors.deprecated", Value::Text(ERRORS_DEPRECATED)),
     row!("io.temp_root", Value::DataFolder(Folder::tmp)),
     row!("image.max_pixels", Value::Size(IMAGE_MAX_PIXELS)),

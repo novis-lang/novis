@@ -473,6 +473,14 @@
           "key": "log.keep",
           "class": "System",
           "apply": "Reload"
+        },
+        {
+          "id": "directive:log.client_ip",
+          "title": "log.client_ip",
+          "examples": "config/log-client_ip",
+          "key": "log.client_ip",
+          "class": "System",
+          "apply": "Reload"
         }
       ]
     },
