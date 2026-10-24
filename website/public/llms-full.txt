@@ -54754,7 +54754,7 @@ setting under it gives the warning `W1024`, and Novis ignores it.
 | `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire` — the connection pool's bounds, written as a table where `pool = false` turns it off |
 | `[db] pool` | `pool = false` written beside the blocks rather than inside one, turning pooling off for every connection this process opens — including one `Core\Db::open` described for itself, which names no block. Bounds are not written here: they belong to the block they size |
 | `[mail.<name>]` | `host`, `port`, `from`, `user`, `password`, `password_file`, `timeout` — an SMTP submission endpoint |
-| `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `max_size`, `keep`, `format`, `level` |
+| `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `max_size`, `keep`, `format`, `level`, `access`, `client_ip` |
 | `[http]` | `[http.errors] detail`; `[http.headers]`; `[http.cors]`; `[http.cookies]`; `[http.client]` |
 | `[server]`, `[[server.mount]]` | the web server's listen addresses, timeouts and mounts |
 | `[debug]`, `[metrics]`, `[trace]`, `[opcache]`, `[deferred]` | their named directives |
@@ -55342,6 +55342,7 @@ the file by itself, or only at its next start. Only `[server] listen`, `socket_m
 | `log.target` | operator only — a request cannot change it | at reload |
 | `log.max_size` | operator only — a request cannot change it | at reload |
 | `log.keep` | operator only — a request cannot change it | at reload |
+| `log.client_ip` | operator only — a request cannot change it | at reload |
 | `cache.shared` | operator only — a request cannot change it | at reload |
 | `cache.memory` | operator only — a request cannot change it | at reload |
 | `io.temp_root` | operator only — a request cannot change it | at reload |

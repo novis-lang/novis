@@ -16,9 +16,6 @@ that makes this promise (`rule:tooling/the-collector-never-stores-an-address`).
 
 - **Memory:** none. The setting removes one field from a record that is written anyway.
 
-**Not on disk.** `[log]` has no `client_ip` key, and `crates/nvs-server/src/trace.rs` always writes
-`clientIp`.
-
 **Declined:**
 - **A masked address, such as the first three bytes of an IPv4 address.** It is a second format to
   get right for IPv6 and for every proxy shape, and a masked address is still personal data in many

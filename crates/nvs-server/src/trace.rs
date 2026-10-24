@@ -347,6 +347,10 @@ pub struct Access<'a> {
     pub bytes: Option<u64>,
     /// `Core\Request::clientIp()`'s answer.
     pub client_ip: Option<std::net::IpAddr>,
+    /// `[log] client_ip` for the snapshot the request ran under. When `false`
+    /// the line has no `clientIp` field at all, not a `null` one
+    /// (`rule:http-server/a-log-line-can-leave-out-the-client-address`).
+    pub client_ip_logged: bool,
     /// `rule:observability/route-label-is-the-declared-name`'s label, where a
     /// route matched.
     pub route: Option<&'a str>,
@@ -411,10 +415,12 @@ pub fn access(ctx: &mut nvs_runtime::Ctx, on: bool, line: &Access<'_>) {
     if let Some(bytes) = line.bytes {
         fields.push(("bytes".into(), Node::Scalar(Scalar::Uint(bytes))));
     }
-    let client = line.client_ip.map_or(Node::Scalar(Scalar::Null), |ip| {
-        floor::text(&ip.to_string())
-    });
-    fields.push(("clientIp".into(), client));
+    if line.client_ip_logged {
+        let client = line.client_ip.map_or(Node::Scalar(Scalar::Null), |ip| {
+            floor::text(&ip.to_string())
+        });
+        fields.push(("clientIp".into(), client));
+    }
     if let Some(route) = line.route {
         fields.push(("route".into(), floor::text(route)));
     }
@@ -942,6 +948,17 @@ mod tests {
     /// One access line for `status`, as the door writes it, read back off a
     /// buffered diagnostic channel. Empty where nothing was written.
     fn logged(on: bool, probe: bool, status: u16, trace: Option<TraceContext>) -> String {
+        logged_naming(on, probe, status, trace, true)
+    }
+
+    /// [`logged`], under a `[log] client_ip` of `client_ip_logged`.
+    fn logged_naming(
+        on: bool,
+        probe: bool,
+        status: u16,
+        trace: Option<TraceContext>,
+        client_ip_logged: bool,
+    ) -> String {
         let mut ctx = Ctx::buffered();
         ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
         super::access(
@@ -955,6 +972,7 @@ mod tests {
                 took: std::time::Duration::from_millis(12),
                 bytes: Some(42),
                 client_ip: Some(std::net::IpAddr::from([192, 0, 2, 7])),
+                client_ip_logged,
                 route: Some("orders.show"),
                 trace,
             },
@@ -1007,6 +1025,45 @@ mod tests {
         assert!(
             super::access_on(&tree_of("[log]\naccess = true\n")),
             "a written `access = true` is read"
+        );
+    }
+
+    /// `rule:http-server/a-log-line-can-leave-out-the-client-address`: with
+    /// `[log] client_ip = false` the `5xx` line, which is written whatever
+    /// `access` says, has no `clientIp` field at all, and neither has an access
+    /// line. With the key unwritten both name the address.
+    // covers: directive:log.client_ip
+    #[test]
+    fn client_ip_false_leaves_the_address_out_of_the_5xx_and_the_access_line() {
+        assert!(
+            !super::access_on(&tree_of("[log]\nclient_ip = false\n")),
+            "the key turned the access log on"
+        );
+        for (on, status) in [(false, 500), (true, 200)] {
+            let named = logged_naming(on, false, status, None, true);
+            assert!(
+                named.contains("\"clientIp\":\"192.0.2.7\""),
+                "with the key unwritten a {status} line names the address: {named}"
+            );
+            let left_out = logged_naming(on, false, status, None, false);
+            assert_eq!(left_out.lines().count(), 1, "the {status} line is still written");
+            assert!(
+                !left_out.contains("clientIp") && !left_out.contains("192.0.2.7"),
+                "a {status} line under `client_ip = false` names the address: {left_out}"
+            );
+        }
+
+        assert!(
+            tree_of("").client_ip_logged(),
+            "an unwritten `client_ip` logs the address"
+        );
+        assert!(
+            tree_of("[log]\nclient_ip = true\n").client_ip_logged(),
+            "a written `client_ip = true` logs the address"
+        );
+        assert!(
+            !tree_of("[log]\nclient_ip = false\n").client_ip_logged(),
+            "a written `client_ip = false` is not read"
         );
     }
 

@@ -20,7 +20,7 @@
 //! would be stale. The one change made in place, a publish carrying a `Boot` key back
 //! (`Current::carry_boot`), empties the cell too.
 //!
-//! What it spends: per snapshot, two rows of [`LIMITS`] readings and two flags, under a kilobyte,
+//! What it spends: per snapshot, two rows of [`LIMITS`] readings and three flags, under a kilobyte,
 //! built once and shared by every request that clones the snapshot. Nothing in it is keyed by what
 //! a request supplies, so nothing crosses requests (`rule:security/no-cross-request-state`).
 
@@ -80,6 +80,8 @@ pub(crate) struct Resolved {
     pub(crate) deprecated: Deprecated,
     /// Whether `[log] access` is `true`.
     pub(crate) access: bool,
+    /// Whether `[log] client_ip` is anything but `false`.
+    pub(crate) client_ip: bool,
 }
 
 impl Resolved {
@@ -104,6 +106,9 @@ impl Resolved {
             access: cli
                 .get("log.access")
                 .is_some_and(|written| written == "true"),
+            client_ip: cli
+                .get("log.client_ip")
+                .is_none_or(|written| written != "false"),
         }
     }
 

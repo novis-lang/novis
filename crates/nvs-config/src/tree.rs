@@ -605,6 +605,10 @@ pub struct Log {
     /// `rule:http-server/the-access-log-is-a-mode-default`; its per-mode default is
     /// `rule:config/a-mode-is-five-defaults`'s. `nvs_server::trace::access_on` is the reader.
     pub access: Option<bool>,
+    /// Whether a record the server writes names the client address —
+    /// `rule:http-server/a-log-line-can-leave-out-the-client-address`, `true` when unwritten.
+    /// `nvs_config::Snapshot::client_ip_logged` is the reader.
+    pub client_ip: Option<bool>,
 }
 
 /// The `[http.*]` blocks: one refusal policy (`rule:errors/compile-failure`) and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s defaults blocks.

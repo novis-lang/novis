@@ -1,0 +1,10 @@
+<?nvs
+// This program prints whether the server's log lines contain the client address, and shows that a program cannot change it.
+
+// This file does not set `log.client_ip`, so this prints the default, `true`.
+echo 'client_ip: ', Core\Config::get('log.client_ip') ?? '(no value)', "\n";
+
+// `Core\Config::set` returns `false` here. Only `nvs.toml` can set `log.client_ip`.
+echo 'turn it off: ', Core\Config::set('log.client_ip', 'false') ? 'accepted' : 'not allowed', "\n";
+
+echo 'client_ip now: ', Core\Config::get('log.client_ip') ?? '(no value)', "\n";

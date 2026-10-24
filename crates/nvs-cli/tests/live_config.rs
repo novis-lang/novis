@@ -1678,6 +1678,7 @@ const REQUEST_READ: &[(&str, &str, &str)] = &[
     ("log.target", "\"stderr\"", "\"file:app.log\""),
     ("log.max_size", "\"10M\"", "\"20M\""),
     ("log.keep", "5", "3"),
+    ("log.client_ip", "true", "false"),
     ("debug.inline", "false", "true"),
     ("errors.deprecated", "\"ignore\"", "\"throw\""),
     ("image.max_pixels", "\"24M\"", "\"8M\""),

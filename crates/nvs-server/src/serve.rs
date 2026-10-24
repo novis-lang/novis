@@ -1733,6 +1733,7 @@ where
                     took,
                     bytes: response.body().size_hint().exact(),
                     client_ip: client,
+                    client_ip_logged: under.client_ip_logged(),
                     route,
                     trace: Some(trace),
                 },
