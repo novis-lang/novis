@@ -1,0 +1,23 @@
+--TEST--
+an entry of `#[Core\Api]`'s `security` list is offered the schemes the program declares with `#[Core\Api\Scheme]`, `rule:routing/a-security-scheme-is-declared-in-code`
+--FILE--
+<?nvs
+#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer")]
+#[Core\Api\Scheme(name: "key", type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Header, parameter: "X-Api-Key")]
+class Auth {}
+
+class Orders
+{
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(security: ["<|>"])]
+    public function index(): string
+    {
+        return "";
+    }
+}
+--REQUEST--
+completion
+--EXPECT--
+bearer  value     http
+key     value     apiKey
