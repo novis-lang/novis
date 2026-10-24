@@ -235,6 +235,11 @@ const EXAMPLE_COMPILE_ERROR_RE = /(?:\/\/|#)\s*proof:\s*compile-error\b/;
  * `nvs test`, and its `.out` is that report with every duration removed (`testReport`). An attack
  * that declares it runs under `nvs test` as well, because `nvs run` calls no test (`judgeHostile`). */
 const EXAMPLE_TEST_RE = /(?:\/\/|#)\s*proof:\s*test\b/;
+/** `// proof: test --mutate`: a `proof: test` program run under `nvs test --mutate`, whose report ends
+ * with the mutation counts (`MUTATION_SUMMARY_RE`). */
+const EXAMPLE_MUTATE_RE = /(?:\/\/|#)\s*proof:\s*test\s+--mutate\b/;
+/** The counts line a `--mutate` report writes once every mutant has run. */
+const MUTATION_SUMMARY_RE = /^\s*mutants: [0-9]+ killed, [0-9]+ survived, [0-9]+ timed out, [0-9]+ not reached\r?$/m;
 /** The last line of an `nvs test` report, which is written once every test has run. */
 const TEST_SUMMARY_RE = /^\s*[0-9]+ failed, [0-9]+ passed, [0-9]+ skipped, [0-9]+ flaky\b/m;
 /** The status `nvs test` ends with when a test failed. */
@@ -557,9 +562,10 @@ export function testReport(stdout: string): string {
     .replace(/^(\s+[0-9]+ failed, .* flaky) in [0-9]+ ms(\r?)$/gm, "$1$2");
 }
 
-/** The command line an example or an attack runs with: `nvs test` for a `proof: test` program, `nvs run`
- * otherwise. */
-function proofArgv(nvs: string, path: string, source: string): string[] {
+/** The command line an example or an attack runs with: `nvs test` for a `proof: test` program, with
+ * `--mutate` for a `proof: test --mutate` one, and `nvs run` otherwise. */
+export function proofArgv(nvs: string, path: string, source: string): string[] {
+  if (EXAMPLE_MUTATE_RE.test(source)) return [nvs, "test", path, "--mutate"];
   return [nvs, EXAMPLE_TEST_RE.test(source) ? "test" : "run", path];
 }
 
@@ -780,6 +786,10 @@ export function judgeHostile(path: string, source: string, out: Ran, limit: numb
   if (out.code < 0 || out.code > 255) return ["fail", `crash-shaped exit status ${out.code}`];
   // Under `nvs test` every test runs in its own isolate, so a test that fails stops nothing after it.
   // The attack was delivered when the report reached its summary line.
+  if (EXAMPLE_MUTATE_RE.test(source) && !declared) {
+    if (out.code === 0 && MUTATION_SUMMARY_RE.test(out.stdout)) return ["ok", ""];
+    return ["fail", `the mutation report ended before its counts line (exit ${out.code}): ${[...stoppedBy(out.stderr)].slice(0, 120).join("")}`];
+  }
   if (EXAMPLE_TEST_RE.test(source) && !declared) {
     if ((out.code === 0 || out.code === TEST_FAILED_EXIT) && TEST_SUMMARY_RE.test(out.stdout)) return ["ok", ""];
     return ["fail", `the test report ended before its summary line (exit ${out.code}): ${[...stoppedBy(out.stderr)].slice(0, 120).join("")}`];
