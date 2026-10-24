@@ -10,6 +10,6 @@ var $s = Suit::Hearts;
 --REQUEST--
 codeLens
 --EXPECT--
-2:6 1 reference
-3:10 1 reference
+2:6 1 reference -> case.nvs:6:10
+3:10 1 reference -> case.nvs:6:16
 4:10 no references

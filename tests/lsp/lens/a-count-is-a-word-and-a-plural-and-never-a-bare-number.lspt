@@ -10,5 +10,5 @@ var $b = new Cart();
 --REQUEST--
 codeLens
 --EXPECT--
-2:7 2 references
+2:7 2 references -> case.nvs:5:14, case.nvs:6:14
 3:17 no references

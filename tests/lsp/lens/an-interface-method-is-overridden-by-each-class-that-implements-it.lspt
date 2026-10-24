@@ -14,14 +14,14 @@ class Item extends Base implements Named {
 --REQUEST--
 codeLens
 --EXPECT--
-2:11 1 implementation
-2:11 1 reference
-3:21 1 override
+2:11 1 implementation -> case.nvs:8:7
+2:11 1 reference -> case.nvs:8:36
+3:21 1 override -> case.nvs:9:21
 3:21 no references
-5:7 1 reference
-5:7 1 subclass
-6:21 1 override
+5:7 1 reference -> case.nvs:8:20
+5:7 1 subclass -> case.nvs:8:7
+6:21 1 override -> case.nvs:9:21
 6:21 no references
 8:7 no references
 9:21 no references
-9:21 overrides Base::name, Named::name
+9:21 overrides Base::name, Named::name -> case.nvs:3:21, case.nvs:6:21

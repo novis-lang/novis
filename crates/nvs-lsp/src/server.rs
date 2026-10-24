@@ -71,28 +71,28 @@ use std::time::Instant;
 
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
-    Cancel, DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument,
-    DidOpenTextDocument, Notification as _, PublishDiagnostics,
+    Cancel, DidChangeConfiguration, DidChangeTextDocument, DidChangeWatchedFiles,
+    DidCloseTextDocument, DidOpenTextDocument, Notification as _, PublishDiagnostics,
 };
 use lsp_types::request::{
-    CodeActionRequest, CodeLensRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
-    DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, GotoImplementation,
-    GotoTypeDefinition, HoverRequest, InlayHintRequest, PrepareRenameRequest, References,
-    RegisterCapability, Rename, Request as _, ResolveCompletionItem, SelectionRangeRequest,
-    SemanticTokensFullRequest, SignatureHelpRequest, TypeHierarchyPrepare, TypeHierarchySubtypes,
-    TypeHierarchySupertypes, WillRenameFiles, WorkspaceSymbolRequest,
+    CodeActionRequest, CodeLensRefresh, CodeLensRequest, Completion, DocumentHighlightRequest,
+    DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition,
+    GotoImplementation, GotoTypeDefinition, HoverRequest, InlayHintRequest, PrepareRenameRequest,
+    References, RegisterCapability, Rename, Request as _, ResolveCompletionItem,
+    SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest, TypeHierarchyPrepare,
+    TypeHierarchySubtypes, TypeHierarchySupertypes, WillRenameFiles, WorkspaceSymbolRequest,
 };
 use lsp_types::{
     AnnotatedTextEdit, CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens,
     CodeLensParams, Command, CompletionItem, CompletionParams, CompletionResponse,
-    CompletionTriggerKind, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
-    DidChangeWatchedFilesRegistrationOptions, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentChangeOperation, DocumentChanges, DocumentHighlight,
-    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
-    DocumentSymbolParams, DocumentSymbolResponse, FileSystemWatcher, FoldingRange,
-    FoldingRangeParams, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
-    InitializeParams, InlayHint, InlayHintParams, Location, OneOf,
-    OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse,
+    CompletionTriggerKind, DidChangeConfigurationParams, DidChangeTextDocumentParams,
+    DidChangeWatchedFilesParams, DidChangeWatchedFilesRegistrationOptions,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentChangeOperation,
+    DocumentChanges, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
+    DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse,
+    FileSystemWatcher, FoldingRange, FoldingRangeParams, GlobPattern, GotoDefinitionParams,
+    GotoDefinitionResponse, HoverParams, InitializeParams, InlayHint, InlayHintParams, Location,
+    OneOf, OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse,
     PublishDiagnosticsParams, Range, ReferenceParams, Registration, RegistrationParams, RenameFile,
     RenameFilesParams, RenameParams, ResourceOp, SelectionRange, SelectionRangeParams,
     SemanticTokens, SemanticTokensParams, SemanticTokensResult, SignatureHelp, SignatureHelpParams,
@@ -126,7 +126,7 @@ use crate::regions;
 use crate::rename::{self, Rewrite};
 use crate::selection;
 use crate::semantic;
-use crate::settings::Settings;
+use crate::settings::{Client, Settings};
 use crate::stubs::Stubs;
 use crate::symbols;
 
@@ -190,14 +190,14 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // `rule:ide/the-server-is-synchronous`: one place holds what the client has
     // open, and it is the place that reads the channel.
     let mut documents = Documents::new();
-    // What the client configured, read once because `initialize` is the one
-    // message that carries it ([`crate::settings`]). Each of these decides what
-    // this server builds, or when it builds it, rather than what an answer says,
-    // so they are read here and not at a request: `scope` and the root are the
-    // tree the index below is constructed over, `code_lens` is whether a lens is
-    // offered at all, and `debounce` is how long an edit waits before it is
-    // analysed.
-    let settings = Settings::from_initialize(&params);
+    // What the client configured in `initialize`, changed later by each
+    // `workspace/didChangeConfiguration` ([`crate::settings`], [`configure`]).
+    // Each of these decides what this server builds, or when it builds it,
+    // rather than what an answer says, so they are read here and not at a
+    // request: `scope` and the root are the tree the index below is constructed
+    // over, `code_lens` is whether a lens is offered at all, and `debounce` is
+    // how long an edit waits before it is analysed.
+    let mut settings = Settings::from_initialize(&params);
     // Where a jump to a `Core` name lands: the directory the client named, or
     // the data folder's. Named now and written at the first such jump.
     documents.set_stubs(
@@ -354,6 +354,32 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                 if notification.method == Cancel::METHOD {
                     continue;
                 }
+                if notification.method == DidChangeConfiguration::METHOD {
+                    // A change to the scope rebuilds the index, so the edit
+                    // waiting out the debounce runs first, against the index
+                    // it was made under.
+                    if let Some((pending, _)) = waiting.take() {
+                        reanalyse(
+                            connection,
+                            &mut documents,
+                            &mut index,
+                            &mut completion_files,
+                            settings.scope,
+                            encoding,
+                            &pending,
+                        )?;
+                    }
+                    configure(
+                        connection,
+                        &mut documents,
+                        &mut index,
+                        &mut completion_files,
+                        &mut settings,
+                        encoding,
+                        notification.params,
+                    )?;
+                    continue;
+                }
                 if notification.method == DidChangeWatchedFiles::METHOD {
                     refresh_completion_files(
                         connection,
@@ -402,8 +428,8 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                     )?;
                 }
             }
-            // The one request this server sends is the watcher's registration,
-            // and its answer carries nothing to act on.
+            // This server sends two requests, the watcher's registration and
+            // the lens refresh, and neither answer carries anything to act on.
             Message::Response(_) => {}
         }
     }
@@ -521,6 +547,81 @@ fn reanalyse(
         analysed,
     )
 }
+
+/// Applies one `workspace/didChangeConfiguration`, and rebuilds what the change
+/// made stale.
+///
+/// A new scope surveys and indexes the new tree, the way `initialize` does, and
+/// publishes every open document again, because the unused-member dimming is
+/// silent at one scope and not at the other. A new lens setting asks the client
+/// to fetch its lenses again, when it said it can be asked. A payload that will
+/// not deserialize is dropped, as [`apply`] drops one.
+///
+/// What it spends is what the same `initialize` spends, and only when the scope
+/// changed: one survey and one index over the tree the new scope selects, which
+/// replaces the old index rather than adding to it.
+///
+/// # Errors
+///
+/// As [`publish`].
+fn configure(
+    connection: &Connection,
+    documents: &mut Documents,
+    index: &mut SymbolIndex,
+    completion_files: &mut CompletionFiles,
+    settings: &mut Settings,
+    encoding: PositionEncoding,
+    params: serde_json::Value,
+) -> Result<(), ServerError> {
+    let Ok(params) = serde_json::from_value::<DidChangeConfigurationParams>(params) else {
+        return Ok(());
+    };
+    let changed = settings.change(&params.settings);
+    if changed.scope {
+        let root = settings.root.as_deref();
+        documents.survey(settings.scope, root);
+        *index = SymbolIndex::build(documents, settings.scope, root);
+        if completion_files.check(index) {
+            publish_completion_files(connection, completion_files, encoding)?;
+        }
+        let open: Vec<PathBuf> = documents
+            .iter()
+            .filter_map(|document| document.path().map(Path::to_path_buf))
+            .collect();
+        for path in open {
+            let every = Changed {
+                path: Some(path),
+                closed: None,
+                edited: false,
+            };
+            publish(
+                connection,
+                documents,
+                index,
+                completion_files,
+                settings.scope,
+                encoding,
+                &every,
+                Vec::new(),
+            )?;
+        }
+    }
+    if (changed.scope || changed.code_lens) && settings.client.refresh_lenses {
+        connection.sender.send(
+            Request::new(
+                RequestId::from(REFRESH_LENSES.to_owned()),
+                CodeLensRefresh::METHOD.to_owned(),
+                (),
+            )
+            .into(),
+        )?;
+    }
+    Ok(())
+}
+
+/// The id of the lens refresh [`configure`] sends. Every refresh reuses it,
+/// since its answer is read and dropped.
+const REFRESH_LENSES: &str = "nvs/refresh-lenses";
 
 /// The method name `nvs.checkWorkspace` sends: one workspace pass, on demand
 /// (`rule:ide/check-scope-defaults-to-the-workspace`).
@@ -1061,14 +1162,25 @@ fn locations(documents: &Documents, sites: &[&Site], encoding: PositionEncoding)
 
     sites
         .iter()
-        .filter_map(|site| {
-            let id = (*loaded.get(&site.path)?)?;
-            Some(Location {
-                uri: uri_of(&site.path)?,
-                range: range_of(map.file(id), site.start, site.end, encoding),
-            })
-        })
+        .filter_map(|site| site_location(&map, &loaded, site, encoding))
         .collect()
+}
+
+/// One site as a [`Location`], from files [`overlaid`] already loaded.
+///
+/// `None` for a file that would not load or cannot be spelled as a URI, on
+/// [`locations`]' terms.
+fn site_location(
+    map: &SourceMap,
+    loaded: &HashMap<PathBuf, Option<SourceId>>,
+    site: &Site,
+    encoding: PositionEncoding,
+) -> Option<Location> {
+    let id = (*loaded.get(&site.path)?)?;
+    Some(Location {
+        uri: uri_of(&site.path)?,
+        range: range_of(map.file(id), site.start, site.end, encoding),
+    })
 }
 
 /// `workspace/symbol` — every declaration in the index whose own name contains
@@ -1443,12 +1555,19 @@ const fn symbol_kind(kind: DeclKind) -> SymbolKind {
 /// the cost `nvs.codeLens.enable` exists to let a developer refuse, and
 /// refusing it is `None` rather than an empty list.
 ///
-/// **A lens is a label and not a link.** Its command is the empty string, which
-/// renders the title and runs nothing. A clickable one would have to name a
-/// command id, the roster `rule:ide/contributions-are-frozen-and-only-ever-added`
-/// freezes holds none that shows a reference list, and an editor's own built-in
-/// id would be an error message in the other client
+/// **A click lists what the lens counts.** A lens with something to list
+/// carries [`Client::SHOW_LOCATIONS`], with the document, the lens's position
+/// and the places as its arguments: the uses for a reference count, the
+/// subtypes for a subclass or implementation count, and the methods for an
+/// override lens. The places are the ones counted, so a reference list opened
+/// from a lens holds no `use` line. A client that did not name that command in
+/// `capabilities.experimental.commands`, and a lens that counts nothing, get
+/// the empty command, which renders the title and runs nothing. Another
+/// editor would answer an id it does not know with an error on every click
 /// (`rule:ide/one-server-two-thin-clients`).
+///
+/// The places cost one [`SourceMap`] per answer, with each file that holds one
+/// read once, and are paid only for a client that runs the command.
 ///
 /// **Every declaration the index holds gets one**, an enum case included: a
 /// case's reads are recorded against the case, so the count above one is the
@@ -1477,67 +1596,113 @@ fn code_lens(
     let id = map.load(&path).ok()?;
     let file = map.file(id);
 
+    let lenses: Vec<(Range, String, Vec<&Site>)> = index
+        .declarations_in(&path)
+        .iter()
+        .flat_map(|declared| {
+            let range = range_of(file, declared.site.start, declared.site.end, encoding);
+            let uses: Vec<&Site> = index
+                .occurrences(&declared.symbol)
+                .into_iter()
+                .map(|occurrence| &occurrence.site)
+                .collect();
+            std::iter::once((reference_count(uses.len()), uses))
+                .chain(hierarchy_lenses(index, declared))
+                .map(move |(title, sites)| (range, title, sites))
+        })
+        .collect();
+
+    // The files the places are in, loaded once for every lens of the answer.
+    let places = settings.client.show_locations.then(|| {
+        overlaid(
+            documents,
+            lenses
+                .iter()
+                .flat_map(|(_, _, sites)| sites.iter().map(|site| site.path.as_path())),
+        )
+    });
     Some(
-        index
-            .declarations_in(&path)
-            .iter()
-            .flat_map(|declared| {
-                let range = range_of(file, declared.site.start, declared.site.end, encoding);
-                std::iter::once(reference_count(index.occurrences(&declared.symbol).len()))
-                    .chain(hierarchy_lenses(index, declared))
-                    .map(move |title| CodeLens {
-                        range,
-                        command: Some(Command {
-                            title,
-                            command: String::new(),
-                            arguments: None,
-                        }),
-                        data: None,
+        lenses
+            .into_iter()
+            .map(|(range, title, sites)| {
+                let listed = places.as_ref().and_then(|(map, loaded)| {
+                    let found: Vec<Location> = sites
+                        .iter()
+                        .filter_map(|site| site_location(map, loaded, site, encoding))
+                        .collect();
+                    (!found.is_empty()).then(|| {
+                        vec![
+                            serde_json::json!(uri),
+                            serde_json::json!(range.start),
+                            serde_json::json!(found),
+                        ]
                     })
+                });
+                CodeLens {
+                    range,
+                    command: Some(Command {
+                        title,
+                        command: if listed.is_some() {
+                            Client::SHOW_LOCATIONS.to_owned()
+                        } else {
+                            String::new()
+                        },
+                        arguments: listed,
+                    }),
+                    data: None,
+                }
             })
             .collect(),
     )
 }
 
-/// The hierarchy lenses above `declared`, as their titles: what extends or
-/// implements a type, then what a method overrides and how many override it.
+/// The hierarchy lenses above `declared`, as their titles and the places each
+/// counts: what extends or implements a type, then what a method overrides and
+/// how many override it.
 ///
 /// A class's subtypes are subclasses, and an interface's are its
 /// implementations, an interface that extends it among them, because that is
 /// the word a developer reading the interface reaches for. A method names what
 /// it overrides, since that is one or two declarations; what overrides it is a
 /// count, since that list grows with the workspace.
-fn hierarchy_lenses(index: &SymbolIndex, declared: &Declaration) -> Vec<String> {
+fn hierarchy_lenses<'index>(
+    index: &'index SymbolIndex,
+    declared: &Declaration,
+) -> Vec<(String, Vec<&'index Site>)> {
     let counted = |count: usize, one: &str, many: &str| match count {
         1 => format!("1 {one}"),
         _ => format!("{count} {many}"),
     };
-    let mut titles = Vec::new();
+    let sites = |found: &[&'index Declaration]| -> Vec<&'index Site> {
+        found.iter().map(|declaration| &declaration.site).collect()
+    };
+    let mut lenses = Vec::new();
     match declared.kind {
         DeclKind::Class | DeclKind::Interface => {
-            let below = index.subtypes(&declared.symbol).len();
-            if below > 0 {
-                titles.push(if declared.kind == DeclKind::Class {
-                    counted(below, "subclass", "subclasses")
+            let below = index.subtypes(&declared.symbol);
+            if !below.is_empty() {
+                let title = if declared.kind == DeclKind::Class {
+                    counted(below.len(), "subclass", "subclasses")
                 } else {
-                    counted(below, "implementation", "implementations")
-                });
+                    counted(below.len(), "implementation", "implementations")
+                };
+                lenses.push((title, sites(&below)));
             }
         }
         DeclKind::Method => {
             let above = index.overridden(&declared.symbol);
             if !above.is_empty() {
                 let names: Vec<&str> = above.iter().map(|over| over.symbol.as_str()).collect();
-                titles.push(format!("overrides {}", names.join(", ")));
+                lenses.push((format!("overrides {}", names.join(", ")), sites(&above)));
             }
-            let below = index.overriders(&declared.symbol).len();
-            if below > 0 {
-                titles.push(counted(below, "override", "overrides"));
+            let below = index.overriders(&declared.symbol);
+            if !below.is_empty() {
+                lenses.push((counted(below.len(), "override", "overrides"), sites(&below)));
             }
         }
         _ => {}
     }
-    titles
+    lenses
 }
 
 /// One project, analysed and indexed once for one question asked by name.
@@ -1610,10 +1775,18 @@ pub fn workspace(root: &Path) -> Workspace {
 /// rather than left to the default because a case is answered at workspace
 /// scope whatever a client's default is
 /// (`rule:ide/check-scope-defaults-to-the-workspace`).
+///
+/// The client runs [`Client::SHOW_LOCATIONS`], as the VS Code client does, so
+/// a lens case freezes the places a click lists. No other client field is set:
+/// a completion case freezes the plain text a client that named nothing gets.
 fn case_settings(root: &Path) -> Settings {
     Settings {
         scope: CheckScope::Workspace,
         root: Some(root.to_owned()),
+        client: Client {
+            show_locations: true,
+            ..Client::default()
+        },
         ..Settings::default()
     }
 }

@@ -63,7 +63,7 @@ use crate::document::{Analysed, Documents, analyse, path_of, uri_of};
 use crate::folding;
 use crate::hover;
 use crate::links;
-use crate::render::{Change, Found, Link, Moved, Place, Renamable, Response};
+use crate::render::{Change, Found, Lens, Link, Moved, Place, Renamable, Response};
 use crate::selection;
 use crate::semantic;
 use crate::stubs::{self, Stubs};
@@ -735,9 +735,38 @@ fn inlay_hints(analysed: &Analysed) -> Response {
 /// is on, so the `None` that setting buys is never what a case freezes — a
 /// case writes a document and a question, never a setting, and the refusal has
 /// a `-p nvs-lsp` test of its own.
+///
+/// The places a click lists are the command's third argument, spelled the way
+/// [`references`] spells a hit. A lens with any other command lists nothing.
 fn code_lens(documents: &Documents, files: &Materialised, entry: &Uri) -> Response {
+    let lenses =
+        crate::server::lenses_of_case(documents, &files.dir, entry, COLUMNS).unwrap_or_default();
     Response::CodeLens(
-        crate::server::lenses_of_case(documents, &files.dir, entry, COLUMNS).unwrap_or_default(),
+        lenses
+            .into_iter()
+            .map(|item| {
+                let listed = item
+                    .command
+                    .as_ref()
+                    .filter(|command| command.command == crate::settings::Client::SHOW_LOCATIONS)
+                    .and_then(|command| command.arguments.as_ref()?.get(2).cloned())
+                    .and_then(|places| serde_json::from_value::<Vec<Location>>(places).ok())
+                    .unwrap_or_default();
+                Lens {
+                    range: item.range,
+                    title: item.command.map(|command| command.title),
+                    places: listed
+                        .iter()
+                        .filter_map(|at| {
+                            Some(Place {
+                                path: files.spelling(&path_of(&at.uri)?),
+                                position: at.range.start,
+                            })
+                        })
+                        .collect(),
+                }
+            })
+            .collect(),
     )
 }
 

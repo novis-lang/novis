@@ -15,17 +15,17 @@ class Pup extends Puppy {
 --REQUEST--
 codeLens
 --EXPECT--
-2:7 1 reference
-2:7 1 subclass
-3:21 2 overrides
+2:7 1 reference -> case.nvs:5:19
+2:7 1 subclass -> case.nvs:5:7
+3:21 2 overrides -> case.nvs:6:21, case.nvs:10:21
 3:21 no references
-5:7 1 reference
-5:7 1 subclass
-6:21 1 override
+5:7 1 reference -> case.nvs:8:21
+5:7 1 subclass -> case.nvs:8:7
+6:21 1 override -> case.nvs:10:21
 6:21 no references
-6:21 overrides Animal::speak
-8:7 1 reference
-8:7 1 subclass
+6:21 overrides Animal::speak -> case.nvs:3:21
+8:7 1 reference -> case.nvs:9:19
+8:7 1 subclass -> case.nvs:9:7
 9:7 no references
 10:21 no references
-10:21 overrides Dog::speak
+10:21 overrides Dog::speak -> case.nvs:6:21

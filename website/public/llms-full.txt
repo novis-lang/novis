@@ -56390,12 +56390,12 @@ as nothing.
 | `nvs.lsp.enable` | `true` | whether to run the server at all. Off leaves the TextMate colour and nothing else |
 | `nvs.lsp.trace.server` | `"off"` | log the frames exchanged with the server into the Novis output channel — `off`, `messages`, or `verbose` for the frame bodies too |
 | `nvs.check.scope` | `"workspace"` | which files the server reads, so which types completion offers and which files diagnostics are published for — `workspace` for every file under the workspace folder, which is also the only scope an unreferenced private member is dimmed at, `open` for the open documents and what they require or autoload |
-| `nvs.codeLens.enable` | `true` | whether a declaration carries its reference, implementor and override counts as a lens |
+| `nvs.codeLens.enable` | `true` | whether a declaration carries its reference, implementor and override counts as a lens. Click a lens to see the list of places it counts |
 | `nvs.template.services` | `true` | whether the editor's own HTML, CSS and JavaScript services answer inside an inline-HTML region |
 | `nvs.template.format` | `true` | whether the editor's own HTML formatter lays out the markup of a template after `nvs fmt` has laid out the Novis — see below |
 | `nvs.secrets.redact` | `true` | conceal the ranges the server reports as `secret` |
 | `nvs.taint.mark` | `"off"` | whether a `tainted` value carries a marker glyph as well as the token modifier every theme already styles — `off`, `declaration` for each declaration whose type carries it, or `sink` |
-| `nvs.lsp.debounce` | `150` | milliseconds a keystroke is to wait before analysis starts. Contributed and not yet read — see below |
+| `nvs.lsp.debounce` | `150` | how many milliseconds the server waits after a keystroke before it checks the file again. `0` checks after every keystroke |
 | `nvs.stubs.dir` | `""` | the directory the server writes the `Core` declaration files to, which Go to Definition on a `Core` name opens. Empty is a directory inside the extension's own storage, one per server version. A server that gets no directory from its editor writes to the `lsp` folder in the data folder |
 
 Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is
@@ -56403,11 +56403,12 @@ already running.
 
 The rest divide by who reads them. `nvs.secrets.redact`, `nvs.taint.mark`, `nvs.template.services`
 and `nvs.template.format` are the client's own and take effect on the next redraw, request or save,
-and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under. `nvs.check.scope`, `nvs.codeLens.enable`
-and `nvs.stubs.dir` are the server's: the client hands it the whole `nvs` section once, in
-`initialize`, so a change to one of those reaches it when it next starts — **Novis: Restart Language
-Server**. There is no `didChangeConfiguration` exchange, because two of them decide what the server
-*built* rather than how it answers the next request.
+and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under.
+
+`nvs.check.scope`, `nvs.codeLens.enable` and `nvs.lsp.debounce` are read by the server. When you
+change one, the client sends the new values to the running server, and they apply at once. A new
+`nvs.check.scope` makes the server read the files of the new scope again. `nvs.stubs.dir` applies
+the next time the server starts, which **Novis: Restart Language Server** does.
 
 #### The commands it contributes
 
@@ -56538,10 +56539,6 @@ No UI of its own where the editor already has one. Server health is the language
 the surfaces still to come are the same bargain — coverage through VS Code's own Testing API, a
 profile handed to a viewer that reads the open format, a debugger that is DAP's existing interface.
 None of them is a panel Novis builds and maintains.
-
-`nvs.lsp.debounce` is contributed and not yet read: the identifier is frozen so a `settings.json`
-written against it keeps working when the surface behind it lands, and until then every edit is
-analysed as it arrives.
 
 <a id="tools-agents"></a>
 ## C.7 Coding agents: nvs agent, and what nvs agent init installs

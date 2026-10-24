@@ -323,6 +323,34 @@ fn every_setting_is_read_off_initialization_options() {
 }
 
 #[test]
+fn a_changed_setting_applies_and_says_what_it_rebuilds() {
+    // `workspace/didChangeConfiguration` carries the whole `nvs` section, so a
+    // setting it leaves out takes its default, and a payload that is not an
+    // object changes nothing.
+    let mut settings = Settings::default();
+    let changed = settings.change(&serde_json::json!({
+        "check": { "scope": "open" },
+        "lsp": { "debounce": 0 },
+    }));
+    assert!(changed.scope && !changed.code_lens);
+    assert_eq!(settings.scope, nvs_lsp::CheckScope::Open);
+    assert!(settings.debounce.is_zero());
+
+    let changed = settings.change(&serde_json::json!({ "codeLens": { "enable": false } }));
+    assert!(changed.scope && changed.code_lens);
+    assert_eq!(settings.scope, nvs_lsp::CheckScope::Workspace);
+    assert!(!settings.code_lens);
+    assert_eq!(settings.debounce, Settings::default().debounce);
+
+    let before = settings.clone();
+    assert_eq!(
+        settings.change(&serde_json::Value::Null),
+        Default::default()
+    );
+    assert_eq!(settings, before);
+}
+
+#[test]
 fn a_command_is_sent_only_to_a_client_that_named_it() {
     // `rule:ide/an-accepted-type-writes-what-follows-it`: the two commands are
     // the editor's own, so a client says which of them it runs.
@@ -342,6 +370,8 @@ fn a_command_is_sent_only_to_a_client_that_named_it() {
             snippets: true,
             suggest: true,
             parameter_hints: false,
+            show_locations: false,
+            refresh_lenses: false,
             rename_files: false,
         }
     );

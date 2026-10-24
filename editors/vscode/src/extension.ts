@@ -40,10 +40,13 @@ import {
 } from "vscode";
 import {
   ClientCapabilities,
+  DidChangeConfigurationNotification,
   Executable,
   FeatureState,
   LanguageClient,
   LanguageClientOptions,
+  Location as WireLocation,
+  Position as WirePosition,
   ServerOptions,
   StaticFeature,
 } from "vscode-languageclient/node";
@@ -56,6 +59,7 @@ import * as format from "./format";
 import * as imports from "./imports";
 import { RELEASE_PAGE, currentTarget, downloadVerified, installBinary, overHttps, releaseFor } from "./install";
 import { revealing } from "./links";
+import { changeParams, reaction, SECTION } from "./settings";
 import * as redactions from "./redactions";
 import * as regions from "./regions";
 import { Shadow, Stamp, Watch, stamp } from "./shadow";
@@ -71,12 +75,13 @@ import { refusal } from "./version";
 // handshake of its own.
 //
 // **`Executable.transport` is left unset on purpose, and it is not the same field it looks like.**
-// The editor commands a completion item may name. An accepted class writes `Name::` and the list
-// of its static members opens at once, and an accepted class after `new` writes `Name()` and
-// signature help opens between the parentheses. Both are this editor's commands and not the
-// server's, and the server names one only to a client that listed it here: another editor would
-// answer an id it does not know with an error on every accepted item.
-const EDITOR_COMMANDS = ["editor.action.triggerSuggest", "editor.action.triggerParameterHints"];
+// The commands the server may put on a completion item or a lens. An accepted class writes `Name::`
+// and the list of its static members opens at once, and an accepted class after `new` writes
+// `Name()` and signature help opens between the parentheses. A lens runs `nvs.showLocations` with
+// the places it counts. The first two are this editor's commands, and the third is registered
+// below. The server names one only to a client that listed it here: another editor would answer an
+// id it does not know with an error on every accepted item and every click.
+const EDITOR_COMMANDS = ["editor.action.triggerSuggest", "editor.action.triggerParameterHints", "nvs.showLocations"];
 
 const editorCommands: StaticFeature = {
   fillClientCapabilities(capabilities: ClientCapabilities): void {
@@ -105,9 +110,6 @@ const SUBCOMMAND = ["lsp"];
 // completion is `directives.ts`'s provider, which asks this client and opens nothing on it.
 const SELECTOR = [{ scheme: "file", language: "nvs" }];
 
-// The settings a running client is built from. A change to one of these restarts it, because
-// neither reaches a server that is already spawned.
-const RESPAWNING_SETTINGS = ["nvs.path", "nvs.lsp.enable"];
 
 let client: LanguageClient | undefined;
 let status: LanguageStatusItem | undefined;
@@ -156,9 +158,40 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
         preferred: false,
         apply: "ifSingle",
       })),
+    // A lens's command. Its arguments are the server's JSON, and the editor's reference view takes
+    // its own objects, so this converts them and opens the view at the lens.
+    commands.registerCommand("nvs.showLocations", (uri: string, position: WirePosition, places: WireLocation[]) => {
+      const answering = client;
+      if (answering === undefined) {
+        return;
+      }
+      const convert = answering.protocol2CodeConverter;
+      return commands.executeCommand(
+        "editor.action.showReferences",
+        convert.asUri(uri),
+        convert.asPosition(position),
+        places.map((place) => convert.asLocation(place)),
+      );
+    }),
+    // `settings.ts` decides what a change does. A change to the binary or to whether a server runs
+    // at all restarts it, and any other `nvs.*` change goes to the running server. The send waits
+    // its turn behind a restart, so it reaches the server that is answering.
     workspace.onDidChangeConfiguration((event: ConfigurationChangeEvent) => {
-      if (RESPAWNING_SETTINGS.some((setting) => event.affectsConfiguration(setting))) {
-        void restart(context);
+      switch (reaction((setting) => event.affectsConfiguration(setting))) {
+        case "restart":
+          void restart(context);
+          break;
+        case "send":
+          turn = turn.then(() => client?.sendNotification(
+            DidChangeConfigurationNotification.type,
+            changeParams(
+              workspace.getConfiguration().get<object>(SECTION),
+              stubsDirectory(context.globalStorageUri.fsPath, version(context)),
+            ),
+          ));
+          break;
+        case "none":
+          break;
       }
     }),
   );
@@ -431,10 +464,8 @@ async function launch(context: ExtensionContext, command: string): Promise<Langu
   const executable: Executable = { command, args: SUBCOMMAND };
   const server: ServerOptions = { run: executable, debug: executable };
   // What the server is configured with. `crates/nvs-lsp/src/settings.rs` reads the `nvs` section out
-  // of `initialize`'s `initializationOptions` and there is no `didChangeConfiguration` arm on the
-  // other side, so this is the one moment a setting crosses the wire; a client that sent nothing —
-  // which this one did until now — left every server-side setting at its default however the user
-  // had configured it.
+  // of `initialize`'s `initializationOptions`, and again out of each `didChangeConfiguration` that
+  // `activate`'s listener sends after a setting changed.
   //
   // The section goes over nested and whole, as the editor holds it, which is the shape that module
   // walks: no dotted keys are rebuilt here, and no list of names is kept here to be forgotten when
@@ -457,7 +488,7 @@ async function launch(context: ExtensionContext, command: string): Promise<Langu
     documentSelector: SELECTOR,
     outputChannel: channel,
     initializationOptions: withStubs(
-      workspace.getConfiguration().get<object>("nvs"),
+      workspace.getConfiguration().get<object>(SECTION),
       stubsDirectory(context.globalStorageUri.fsPath, version(context)),
     ),
     middleware: {
