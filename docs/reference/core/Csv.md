@@ -7,7 +7,9 @@ keywords: CSV, comma-separated, parse CSV, write CSV, RFC 4180, header row, deli
 quoted fields and embedded newlines included. With `{header: true}` the first record is consumed
 as column names and every row is keyed by them; without it a row's keys are `"0"`, `"1"`, ….
 `format` writes each row by its values in order (its keys are ignored), quotes a field only where a
-byte would change the parse, and `{header: [...]}` writes a first record. The dialect options
+byte would change the parse, and `{header: [...]}` writes a first record. A field can be a
+`tainted string`, such as a value read from a database, and then the document is a
+`tainted string` too. The dialect options
 `separator`, `quote` and `escape` are single ASCII bytes.
 
 ```nvs
