@@ -1,0 +1,3 @@
+Core\Debug::startCoverage cannot start the `branch` probe, because `[debug] mode` does not include it.
+help: add `"branch"` to `mode` under `[debug]` in nvs.toml. A server never runs a probe.
+line counting is on

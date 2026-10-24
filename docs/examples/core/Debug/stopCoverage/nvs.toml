@@ -1,0 +1,3 @@
+# Allows the program to count which lines run. Counting starts when the program starts.
+[debug]
+mode = ["coverage"]

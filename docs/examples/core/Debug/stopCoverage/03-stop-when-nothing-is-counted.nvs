@@ -1,0 +1,13 @@
+<?nvs
+// Shows that `stopCoverage` is safe to call when counting is already off.
+
+Core\Debug::stopCoverage();
+
+// Counting is off now. A second call does nothing and does not throw an error.
+// So a cleanup step can call `stopCoverage` without checking first.
+Core\Debug::stopCoverage();
+
+// Only the line of the first call was counted.
+foreach (Core\Debug::coverage() as string $path => array<int> $lines) {
+    echo Core\Arr::count($lines), " line was counted\n";
+}

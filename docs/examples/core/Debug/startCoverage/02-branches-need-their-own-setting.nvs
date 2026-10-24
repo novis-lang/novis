@@ -1,0 +1,14 @@
+<?nvs
+// Shows the error you get when `[debug] mode` does not allow branch counting.
+
+// `startCoverage(true)` also counts each side of every condition. The `nvs.toml` beside this
+// file does not allow `"branch"`, so this call throws a `RuntimeError`.
+try {
+    Core\Debug::startCoverage(true);
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// Line counting needs only `"coverage"`, so this call works.
+Core\Debug::startCoverage();
+echo "line counting is on\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to stop counting after the part of a program you want to measure.
+
+class Title {
+    public static function clean(string $title): string {
+        return Core\Str::lower(Core\Str::trim($title));
+    }
+}
+
+// Counting started with the program. This line stops it, and the next starts it again.
+Core\Debug::stopCoverage();
+Core\Debug::startCoverage();
+string $first = Title::clean(" Hello World ");
+
+// `stopCoverage` stops counting. The lines after it are not counted.
+Core\Debug::stopCoverage();
+echo $first, "\n";
+echo Title::clean(" Second Post "), "\n";
+
+// Line 6 has the count 1, from the first call. Lines 17 and 18 are not listed.
+foreach (Core\Debug::coverage() as string $path => array<int> $lines) {
+    foreach ($lines as string $line => int $count) {
+        echo "line ", $line, ": ", $count, "\n";
+    }
+}

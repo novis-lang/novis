@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to check whether a line ran. A line that never ran is not in the result.
+
+class Shipping {
+    public static function cost(int $total): int {
+        if ($total >= 50) {
+            return 0;
+        }
+        return 5;
+    }
+}
+
+// `true` also counts each side of the `if`. The setting in `nvs.toml` allows it.
+Core\Debug::startCoverage(true);
+echo "cost: ", Shipping::cost(80), "\n";
+echo "cost: ", Shipping::cost(120), "\n";
+Core\Debug::stopCoverage();
+
+// Both totals are 50 or more, so line 9 never ran. This prints `line 9 ran: no`.
+foreach (Core\Debug::coverage() as string $path => array<int> $lines) {
+    echo "line 7 ran: ", Core\Arr::hasKey($lines, "7") ? "yes" : "no", "\n";
+    echo "line 9 ran: ", Core\Arr::hasKey($lines, "9") ? "yes" : "no", "\n";
+}

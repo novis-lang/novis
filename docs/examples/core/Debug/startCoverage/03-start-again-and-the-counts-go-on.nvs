@@ -1,0 +1,27 @@
+<?nvs
+// Shows that a second `startCoverage` adds to the counts that are already there.
+
+class Greeter {
+    public static function greet(string $name): string {
+        return "Hello, " . $name;
+    }
+}
+
+Core\Debug::stopCoverage();
+
+// The first round of counting covers one call.
+Core\Debug::startCoverage();
+echo Greeter::greet("Ada"), "\n";
+Core\Debug::stopCoverage();
+
+// This call runs while counting is off, so it is not counted.
+echo Greeter::greet("Grace"), "\n";
+
+// The second round covers one more call. The count for line 6 is now 2.
+Core\Debug::startCoverage();
+echo Greeter::greet("Alan"), "\n";
+Core\Debug::stopCoverage();
+
+foreach (Core\Debug::coverage() as string $path => array<int> $lines) {
+    echo "line 6 ran ", $lines["6"], " times\n";
+}
