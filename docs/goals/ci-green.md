@@ -100,8 +100,9 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 ### State
 
 `origin/main` is at `b7df13c4b`, the end of `editor-fixes`. Its Website run is green. Its CI push
-run, https://github.com/novis-lang/novis/actions/runs/40085245322, was still going at handoff, red
-in five jobs so far. Every one of them is fixed in a commit that is not pushed yet:
+run, https://github.com/novis-lang/novis/actions/runs/40085245322, has ended, and the watch exited 4.
+Every job but the five below is green, including `five-driver matrix`. The five red jobs are
+all fixed in commits that are not pushed yet:
 
 - `third-party attribution`: `c7a505981` regenerates `THIRD-PARTY-LICENSES.txt` for the
   `crypto-bigint` bump that this session pushed in `10c402b57`.
@@ -113,10 +114,9 @@ in five jobs so far. Every one of them is fixed in a commit that is not pushed y
   `reference.json` and `llms-full.txt` from `HEAD`. That render moved 606 question hashes and the
   31 Core enums on `syntax/values/enums.mdx`. `07390a401` rereads and stamps all of them.
 
-The nightly deep lane's reds on `3ea6f1550` (`supply chain` and three Miri legs) are fixed in
-`b7df13c4b`. The rest of that run was not seen. `a5f50b907` runs the stream retry test under Miri again.
+`a5f50b907` runs the stream retry test under Miri again, which the next nightly run checks.
 
-Still red at `HEAD`, and the main loop's open `api-document` work, already told with `loop say`:
+Still red at `HEAD`, and the open stages of `api-document`, already told with `loop say`:
 `syntax/attributes/routes.mdx` is stale in the Website stale guard, and `bun nv proofs --gate`
 owes the Router and `lang:attributes` perf figures.
 
@@ -128,10 +128,8 @@ worktrees. Each contains a `.looper` directory, which Windows will not delete wh
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Watch the rest of run 40085245322, then the next push. `tools/nv/cmd/ci.ts:265`
-  If it is still going, run `bun nv ci --watch --next --past proofs --past "third-party attribution"
-  --past "the chapter examples run and the website matches the binary"`, since those five reds are
-  fixed and not pushed. Once it ends with exit 4, watch again with `--next` alone.
+- [ ] Watch the next push with `bun nv ci --watch --next`. `tools/nv/cmd/ci.ts:265`
+  Run 40085245322 has ended, so `--next` passes over it, and no `--past` is needed.
   `bun nv ci --rerun` reruns every failed job of the run, so a rerun for one flaky job reruns
   the known reds too. An exit of 3 with a run still going means the push came late: watch again.
   Before you watch, run `bun nv site --check stale questions` and `bun nv proofs --gate --limit 0`
