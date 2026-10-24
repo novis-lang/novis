@@ -99,24 +99,24 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `d7386c1f5`. Its CI push run,
-https://github.com/novis-lang/novis/actions/runs/40098404099, ended red in the website job and in
-`proofs`, and every other job was green. `api-document` is reached, so its reds are this goal's
-now. Each is fixed at `HEAD` and not pushed yet:
+`origin/main` is at `38e74b020`, `test-surface`'s goal end. Its Website run,
+https://github.com/novis-lang/novis/actions/runs/40127647736, is green. Its CI push run,
+https://github.com/novis-lang/novis/actions/runs/40127647719, is green but for one conformance
+case. `website` and `proofs` passed, so the fixes of the last push are out and hold.
 
-- `a7acf70c1` renders `llms-full.txt` from the current attributes reference.
-- `c4cfda22d` stamps the questions of `/syntax/attributes/routes/`, `/reference/types/api-keyin/`
-  and `/reference/types/api-schemetype/`. Each was reread, and its questions still fit the page.
-- `3e19818f4` records the seven `Core\Router\Match` perf figures. `3fe655cb6`, the main loop's,
-  gives `Core\Api\SchemeType` and `Core\Api\KeyIn` their proofs.
+The red case is `tests/conformance/lang/a-test-past-its-wall-time-limit-fails-and-names-the-limit.nvst`,
+in `test / macos-aarch64 (conformance)` and in `test / windows-x86_64 (conformance)`'s checked-types
+step. `itSleepsPastTheConfiguredLimit` printed the request's line, "the request exceeded its
+wall-time limit of 300ms". It should print the test's line. The cause is a race. A
+`Core\Time::sleep` that ends at the deadline claims the stop itself (`Ctx::wall_time_breach`), so
+the clock never raises and `deadline_expired()` stays false. The runner read only that word.
+`b986d4fd6` adds `SafepointView::wall_time_stopped` and makes the runner read it too. It is
+committed and not pushed. It passes three times locally, where the race does not happen.
 
-`3e19818f4` also took eight `lang:testing` perf lines that the main loop had just recorded in the
-root at `c4cfda22d`. They are valid, and the main loop was told. A commit by pathspec takes the
-whole file, so a ledger the main loop is writing to can carry its lines into yours.
-
-In the root, with the main loop's uncommitted edits, `bun nv site --check stale questions` and
-`bun nv proofs --gate --limit 0` pass. The main loop restamped the two `syntax/testing/` pages
-after it was told they were stale. Those edits go out at its goal end too.
+Before the watch, at `HEAD` `d6732f3f1`, the site questions check owed five `Core\Test\Response`
+and testing pages, and `proofs --gate` owed three `Core\Test` figures and a long `nvs-test`
+`about.md`. The main loop was told. CI's `website` and `proofs` jobs passed at `38e74b020`, so the
+main loop cleared them before its push.
 
 `.agent-tmp/wt-perf`, `.agent-tmp/wt-csv` and `.agent-tmp/wt-render` are scratch folders that git
 no longer lists as worktrees. Each contains a `.looper` directory, which Windows will not delete
@@ -128,9 +128,9 @@ while looper runs. `wt-csv` also has an ignored `target/`, warm at `d2a782d60`, 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch the next push with `bun nv ci --watch --next`. `tools/nv/cmd/ci.ts:265`
-  Run 40098404099 has ended, so `--next` passes over it. The next push is `test-surface`'s goal
-  end, and it carries every fix above. Watch with no `--past`: a red there is either new, or the
-  testing pages the main loop did not restamp.
+  Run 40127647719 has ended, so `--next` passes over it. The next push is `mutation-testing`'s
+  goal end, and it carries `b986d4fd6`. Watch with no `--past`. If the wall-time case fails
+  again, the race has another path: read `crates/nvs-cli/src/runner.rs:past_wall_time`'s caller.
   `bun nv ci --rerun` reruns every failed job of the run, so a rerun for one flaky job reruns
   the known reds too. An exit of 3 with a run still going means the push came late: watch again.
   Before you watch, run `bun nv site --check stale questions` and `bun nv proofs --gate --limit 0`
