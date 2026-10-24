@@ -102,6 +102,16 @@ A coverage run with a failing test runs no mutant. One mutant runs at a time, it
 `--jobs`. `--format junit` is refused beside `--mutate`. A mutant whose run panics is killed. The
 rule states each, with the declined alternatives.
 
+**The bench is a `bun nv scaling` ladder, not a member bench (stage 3).** A member bench is a
+`Bench::run` a Novis program calls, and a tool feature owes none on the roster, so the cost is a
+`mutate` ladder kind: `benches/scaling/testing/mutate.nvs` prints a program and the tool runs `nvs
+test --mutate --format json` on it, counting mutants and test runs (each JSON record's new `tests`
+field). The ladder grows the suite around a fixed program under test, and `runsPerMutantGrow` fails
+when runs per mutant grow with it. Why: growing the program too makes the clock quadratic by the
+whole-program recompile already decided, which the rule now states; the ladder measures what the
+covering-test filter decides. A proof program runs under `--mutate` by declaring `// proof: test
+--mutate`.
+
 **Lanes.** Stages run in order, 1 then 2 then 3: stage 2 consumes stage 1's mutant list from
 `crates/nvs-ir/src/lower/mutate.rs`, and stage 3 measures stage 2's command and shares
 `crates/nvs-cli/src/runner.rs` with it. Stage 1's rule item touches only

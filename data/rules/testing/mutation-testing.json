@@ -1,11 +1,15 @@
 {
   "title": "A mutation run asks whether any test would have noticed the code being wrong",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/debug-probes",
     "testing/isolate-per-test",
     "testing/feature-proofs"
   ],
-  "guardedBy": [],
-  "goal": "mutation-testing"
+  "guardedBy": [
+    "crates/nvs-cli/src/runner/mutation.rs",
+    "crates/nvs-cli/tests/test_command.rs",
+    "crates/nvs-ir/src/lower/mutate.rs",
+    "benches/scaling/testing/mutate.nvs"
+  ]
 }
