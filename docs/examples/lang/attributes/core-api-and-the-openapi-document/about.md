@@ -10,5 +10,10 @@ answer.
 Novis checks each of those against the code while it compiles your program. A class in `errors:` must
 exist, and every key in `example:` must be a property of the return type.
 
+Each name in `security:` must be declared by a `#[Core\Api\Scheme]` on a class of your program. Its
+`name:` is the name that `security:` uses, and its `type:` is a case of `Core\Api\SchemeType`, such as
+`Http` or `ApiKey`. Each type needs its own fields: `Http` needs `scheme:`, and `ApiKey` needs `in:`
+and `parameter:`. A name that no scheme declares does not compile.
+
 **The examples below** add one tag, then errors and a security scheme, then a small API with
 everything a client generator needs. The last one shows an `example:` that does not compile.
