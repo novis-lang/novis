@@ -34,7 +34,7 @@ stages:
         rules: [ide/a-code-action-writes-only-what-is-already-determined, statements/inout-is-the-by-reference-spelling]
   - id: 5
     title: "declare the function you called"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/generate.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-diagnostics/src/diagnostic.rs, crates/nvs-diagnostics/src/code/types.rs, docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md]
     extra:
       context:
@@ -115,6 +115,13 @@ cannot disagree.
   Novis has no warning tier, and the `W10xx` tier exists (`W1003`, `W1023`). Stage 2 rewrites them to
   say what is true: a construct the language does not allow is always an error, and a warning is for
   code that runs as written.
+
+**The unresolved call is recorded in the expression table, not on the diagnostic.** The checker
+writes `UnresolvedCall` into `ExprTypeTable::unresolved_call`, keyed by the `E0405`'s primary span.
+Why: a field on `Diagnostic` takes it to 128 bytes, and clippy's `result_large_err` then fails every
+`Result<_, Diagnostic>` in the workspace. The table already keeps per-span side maps, and the editor
+reads it as `analysed.exprs`. Only an instance call `$obj->name()` is recorded. A static call's
+unknown method is `E0309` from `nvs-hir`, before any type is known.
 
 **Lanes.** Stages 1 and 2 share `capabilities.rs` and `index.rs`, so 2 runs after 1. Stage 3
 (`extract.rs`) is disjoint from 1 and 2 apart from one capability line, and can run in any order
@@ -237,11 +244,11 @@ each writing only what the type system already determined.
 **Split:** one writing subagent writes the `.lspt` cases under `tests/lsp/actions/` after the action
 lands.
 
-- [ ] The rule says that it declares a method on the receiver's class, because Novis has no free function (`E0215`, `E0320`). `docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md:1`, `crates/nvs-diagnostics/src/code/rejected_php.rs:87`, `crates/nvs-diagnostics/src/code/names.rs:148`
-- [ ] The unresolved-method diagnostic carries the argument types and the return type the checker computed. `crates/nvs-types/src/expr/calls.rs:1819`, `crates/nvs-diagnostics/src/code/types.rs:40`, `crates/nvs-diagnostics/src/diagnostic.rs:1`
-- [ ] The action writes that method, applied twice is a no-op. `crates/nvs-lsp/src/generate.rs:1`
-- [ ] `.lspt` cases for it. `tests/lsp/actions/an-unknown-method-call-is-offered-its-declaration.lspt:1`
-- [ ] `bun nv owners --closes editor-refactors` passes. `data/rules/ide/no-refactoring-introduces-an-alias.json:3`
+- [x] The rule says that it declares a method on the receiver's class, because Novis has no free function (`E0215`, `E0320`). `docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md:1`, `crates/nvs-diagnostics/src/code/rejected_php.rs:87`, `crates/nvs-diagnostics/src/code/names.rs:148`
+- [x] The checker records, beside the unresolved-method diagnostic, the argument types and the return type it computed (`ExprTypeTable::unresolved_call`). `crates/nvs-types/src/expr/calls.rs:1819`, `crates/nvs-types/src/expr_table.rs:1`
+- [x] The action writes that method, applied twice is a no-op. `crates/nvs-lsp/src/generate.rs:1`
+- [x] `.lspt` cases for it. `tests/lsp/actions/an-unknown-method-call-is-offered-its-declaration.lspt:1`
+- [x] `bun nv owners --closes editor-refactors` passes. `data/rules/ide/no-refactoring-introduces-an-alias.json:3`
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -260,94 +267,59 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 4 is done (`606ee30b0`). `crates/nvs-lsp/src/generate.rs` is called from `actions::at`
-beside `extract::at`. *Implement the missing methods* is a `quickfix` on `E0449`, which the checker
-reports for an interface method and for an `abstract` parent's method alike
-(`conformance::check_class_conformance`); `E_ABSTRACT_METHOD_IN_CONCRETE_CLASS` is a class's own
-bodiless method, so it is not an entry point. `generate::missing` walks `completion::lineage` (now
-`pub(crate)`) over the declarations, writes each signature from the declaration's text with each type
-put through the new `imports::written_at`, and a body `throw new LogicError("Pen::name is not
-implemented");`, adding `use LogicError;` in a namespace (a root class needs it there). *Override
-`x` from `Base`* is `refactor.rewrite` at a cursor between a class's members, over the `extends`
-chain, skipping `private`, `final`, `static`, the constructor and `inout`. Both analyse their text
-with `analyse_rewritten` and are offered only with no error; overrides are analysed once together.
-`imports::written_at` replaced `extract`'s `Context::written`, and `definition::resolved_name_in`
-is now `pub(crate)`. The rule fragment `a-code-action-writes-only-what-is-already-determined` has a
-**Built:** paragraph and says it writes methods, since the checker owes no property; its status
-stays `designed` for goal `editor-fixes`' narrowing action. No new code action kind, so
-`tests/handshake.rs` is unchanged by stage 4.
+Stages 1 to 5 are done. Stage 6, the gate, is next.
 
-Stage 3 is done (`f0fb03156`, cases `005af9b84`). `crates/nvs-lsp/src/extract.rs` answers *Extract
-to variable* and *Extract to method* under `refactor.extract`. `actions::at` takes `&Documents`
-second. 14 cases under `tests/lsp/actions/`, one per shape and refusal. A method the extraction
-writes puts `{` on the signature's line, where the generators and the corpus put it on the next one.
+Stage 5 is done (`0fe45763f`, cases in the commit after it). *Declare `name` in `Class`* is a
+`quickfix` on the `E0405` of `$obj->name(...)`, written by `generate::declare`. The checker records
+the call in `ExprTypeTable::unresolved_call`, keyed by the diagnostic's primary span (the receiver),
+from `calls::unresolved_call` in `infer_method_call`, which now takes `expected`. A literal argument
+is widened to its plain type. An argument with an error type, a spread or a method reference records
+nothing. Why the table rather than a field on `Diagnostic` is under *Standing decisions*. The action
+is offered when the entry document declares the receiver's class (`StmtKind::ClassDecl`). It writes
+`private` for a call inside that class's declaration and `public` otherwise. Parameter names come from
+a named argument, then a variable argument, then `$argN`. The return type is the expectation, else
+`void` where `starts_statement` holds and `mixed` elsewhere. `with_not_written` now builds the
+`use LogicError;` edit for both implement and declare. The rule fragment says all of it, and its
+**Missing:** names only the narrowing action, which is goal `editor-fixes`' work.
 
-Ran green: `cargo clippy --all-targets -- -D warnings` and `nvs lsp-test tests/lsp/` (489 passed).
-Not run: `case.rs`' unit tests (the two-cursor branch), `tests/handshake.rs` (stage 3 added a sixth
-kind), and `extract::tests` since `written` moved.
+A bug fixed in passing: a property's or a constant's span ends before its `;`, so `Place::of`
+wrote new methods inside the last property's declaration. It now writes them after the `;`. A case
+pins it for implement.
 
-Stage 2 is done. `workspace/symbol` (`184e27a9c`) answers from `SymbolIndex::matching`: every
-declaration whose own name (`index::own_name`: a type's last segment, a member without `$`)
-contains the query, case-insensitive, sorted by symbol. `server::workspace_symbols` answers
-`WorkspaceSymbolResponse::Nested`, the name as written and the class or namespace as container.
-It is the index's seventh reader: the readers test is now `every_reader_queries_the_one_index`.
+Twelve cases under `tests/lsp/actions/`. `nvs lsp-test tests/lsp/actions` is 79 passed.
+`cargo clippy --all-targets -- -D warnings` is green. `bun nv owners --closes editor-refactors`
+passes, and `bun nv rules --check` is clean.
 
-Organize imports is `crates/nvs-lsp/src/organize.rs`, kind `source.organizeImports`, answered only
-when `only` names it or `source` (`actions::Kind::OrganizeImports`). It applies the edit of each
-`W1026` in `analysed.diags`, sorts with the new `nvs_fmt::sorted_imports`, and answers one edit
-over the changed bytes. A file that does not parse gets nothing. Organize imports reads no index
-query, so `SymbolIndex::unused_imports` and `Import::read` were deleted (the reading lives on in
-`index::Read::read`). The `.lspt` runner takes `workspaceSymbol query=` and `codeAction only=`
-(`rule:ide/a-request-line-is-closed` lists both). Six cases under `tests/lsp/symbols/` and
-`tests/lsp/actions/` (`b0f43ab9d`). The three rules name both features.
+Not run in any stage, so the gate may find them red:
 
-Ran green: `cargo test --test index --test handshake --test coverage`, the `render::`, `case::`,
-`actions::` and `organize::` unit tests, and `nvs lsp-test tests/lsp/symbols tests/lsp/actions` (55).
-The stage-2 warning slice is `c91e6c6c4`. `cargo test --test check` may show a `W1026` where a
-fixture has an unused `use` (`crates/nvs-cli/tests/check.rs:412` counts warnings); not run.
+- `tests/handshake.rs`: stage 3 added a sixth code action kind.
+- `case.rs`' unit tests (the two-cursor branch), and `extract::tests` since `written` moved.
+- The unit tests in `rename.rs`, `render.rs`, `tests/index.rs`, and the CodeLens unit tests, whose
+  type reference counts may grow by the annotation sites.
+- `cargo test --test check` may count a new `W1026` where a fixture has an unused `use`
+  (`crates/nvs-cli/tests/check.rs:412`).
+- `nvs-types` unit and suite tests that compare a whole `ExprTypeTable` or the order of an `E0405`.
+  The report itself did not move, so none is expected.
 
-Stage 1 is done. Rename answers a type, a member and a local, and `workspace/willRenameFiles`
-rewrites `require` paths (`crates/nvs-lsp/src/rename.rs`). A type declared alone in a file named
-after it moves the file too (`7af502c7e`): `rename::named_after` finds it, `rename::types` adds
-the `require` edits `moved` gives, and `server::moving_edit` answers `documentChanges` with the
-text edits first and one `RenameFile` last. A client whose `workspace.workspaceEdit` has no
-`documentChanges` or no `rename` resource operation (`settings::Client::rename_files`) is refused
-that rename, since the autoload would stop finding the type. The `.lspt` renderer prints a
-`moves <from> to <to>` line after the edits. Refusal messages name a file without the `\\?\` prefix
-and count lines from 1 (`ca9f6ba12`). 53 coverage cases under `tests/lsp/rename/` (`f0a5f870f`):
-the whole `.lspt` suite is 464 passed, and `cargo test --test coverage` is green.
+Known gaps, left as designed: a top-level `function` is refused by the language, so its name is not
+renamable. A cursor on the class path of a `use` line is refused with "nothing to rename". A static
+call `C::name()` is offered no declaration.
 
-Known and left as designed: a top-level `function` is a construct the language refuses, so its
-name is not renamable and a type written in its signature refuses a type rename as a missed site.
-A cursor on the class path of a `use` line is refused with "nothing to rename"; renaming from any
-other site rewrites that line. That is a small gap for stage 6 or the backlog.
-
-Built but not run: the unit tests in `rename.rs`, `render.rs` (its one test ran green), `case.rs`,
-`tests/index.rs`, and CodeLens unit tests, whose type reference counts may grow by the annotation
-sites; `tests/handshake.rs` and `tests/completion_edits.rs` gained the `rename_files` field.
-
-The acceptance sweep's nightly reds are run `39922764699` on `7b6ef53ee`, an old commit.
-`env-secret-proofs`' log shows exit 0. The newest push CI (`40056094406` on `056b30a4a`) failed
-twice. The `nvs info` example's `.out` is fixed by `bfee381e4`. The rustfmt failure is the
-`#[cfg_attr(miri, ...)]` in `crates/nvs-runtime/src/capability.rs:2262`. Its fix sits uncommitted in
-the tree, and the guard refuses to stage it because session `6884de4b` (goal `formatter-complete`)
-claims the file. That session, or the user, commits it.
+The acceptance sweep's reds are stale. `env-secret-proofs`' log shows exit 0. The nightly reds are
+run `39922764699` on `7b6ef53ee`, an old commit. The rustfmt fix for
+`crates/nvs-runtime/src/capability.rs:2262` is still uncommitted in the tree. Session `6884de4b`
+(goal `formatter-complete`) claims the file, so that session or the user commits it.
 
 ### Next
 
-**Stage 5, declare the function you called.** It adds a third generator to
-`crates/nvs-lsp/src/generate.rs`, reusing `Place` (where a class's new methods go and how they are
-indented), `signature`'s typed writing through `imports::written_at`, and `compiles`. Write the
-items' checkpoints first.
+**Stage 6, the gate.** Start `bun nv affected --run` with `run_in_background`, then end the turn
+to wait. Group the failures by cause, fix each in one pass, and run it once more. Look first at the
+tests listed under *Not run* above.
 
-- [ ] The rule says it declares a method on the receiver's class, since Novis has no free function. `docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md:1`, `crates/nvs-diagnostics/src/code/rejected_php.rs:87`, `crates/nvs-diagnostics/src/code/names.rs:148`
-- [ ] The unresolved-method diagnostic carries the argument types and the expected return type. Read how `calls.rs` reports it and what the context expectation is there. A payload on the diagnostic is the design call (§ *Trade-offs* allows a few words per unresolved call). `crates/nvs-types/src/expr/calls.rs:1819`, `crates/nvs-diagnostics/src/code/types.rs:40`, `crates/nvs-diagnostics/src/diagnostic.rs:1`
-- [ ] The action writes that method on the receiver's class when that class is declared in the entry document. A `LogicError` body, as implement writes. `crates/nvs-lsp/src/generate.rs:1`
-- [ ] `.lspt` cases, among them a receiver outside the entry and an argument with no known type. `tests/lsp/actions/an-unknown-method-call-is-offered-its-declaration.lspt:1`
-- [ ] `bun nv owners --closes editor-refactors` passes. `data/rules/ide/no-refactoring-introduces-an-alias.json:3`
-
-Then stage 6, the gate. Expect `tests/handshake.rs` and `case.rs`' unit tests to need a look (see
-*Not run* above).
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [ ] Before `DONE`: `bun nv verify --doc` with every broken link fixed, and `bun nv owners --closes editor-refactors`. Move each standing decision only this file holds into a rule or a module doc, since a reached goal's file is deleted. `docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md:1`
 
 ### Backlog
 
