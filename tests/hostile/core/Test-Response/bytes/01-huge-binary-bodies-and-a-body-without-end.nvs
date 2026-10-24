@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a test reads very large binary bodies many times, and one request writes bytes until
+// it reaches its memory limit. The program should stop at that limit and must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early 4 FATAL
+
+use Core\Http\Method;
+use Core\Test;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    var $path = Core\Request::path();
+    if ($path == '/mega') {
+        Core\Response::bytes(Core\Bytes::fill(1048576, 255), 'application/octet-stream');
+    }
+    if ($path == '/without-end') {
+        var $stream = Core\Response::stream('application/octet-stream');
+        bytes $block = Core\Bytes::fill(1048576, 255);
+        while (true) {
+            $stream->write($block);
+        }
+    }
+    if ($path == '/empty') {
+        Core\Response::bytes('' as bytes, 'application/octet-stream');
+    }
+} else {
+    // 1. Read a binary body of one megabyte 1000 times from the same response.
+    var $mega = Test::request(Method::Get, '/mega');
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 1000) {
+        $total = $total + Core\Bytes::length($mega->bytes());
+        $i = $i + 1;
+    }
+    echo 'read ', $total, " bytes\n";
+
+    // 2. Send 200 requests and keep every binary body of one megabyte at the same time.
+    array<bytes> $kept = [];
+    uint $j = 0;
+    while ($j < 200) {
+        var $again = Test::request(Method::Get, '/mega');
+        $kept[] = $again->bytes();
+        $j = $j + 1;
+    }
+    echo 'kept ', Core\Arr::count($kept), " bodies\n";
+
+    // 3. Read the body of a request that wrote nothing, 10000 times.
+    var $empty = Test::request(Method::Get, '/empty');
+    uint $k = 0;
+    while ($k < 10000) {
+        $total = $total + Core\Bytes::length($empty->bytes());
+        $k = $k + 1;
+    }
+    echo "empty bodies add nothing\n";
+
+    // 4. The request writes without end. It reaches its memory limit, and the program stops.
+    echo "step 4\n";
+    var $endless = Test::request(Method::Get, '/without-end');
+    echo 'reached ', Core\Bytes::length($endless->bytes()), "\n";
+}

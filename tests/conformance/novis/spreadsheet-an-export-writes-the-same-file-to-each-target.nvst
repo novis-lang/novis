@@ -35,8 +35,9 @@ final class Check
     }
 
     // Sends the download at `$path` as a request, and prints how it was sent.
-    // An xlsx file is not text, so `body()` throws an error.
-    public static function sent(string $label, string $path): void
+    // `$expected` is the file that `bytes` writes for the same export. An xlsx
+    // file is not text, so `body()` throws an error and `bytes()` reads it.
+    public static function sent(string $label, string $path, bytes $expected): void
     {
         var $sent = Core\Test::request(Core\Http\Method::Get, $path);
         var $text = "text";
@@ -46,7 +47,8 @@ final class Check
             $text = "a workbook";
         }
         echo $label, ": download ", $sent->status(), " ", $sent->header("Content-Type") ?? "none", ", ",
-            $sent->header("Content-Disposition") ?? "none", ", body ", $text, "\n";
+            $sent->header("Content-Disposition") ?? "none", ", body ", $text, ", ",
+            $sent->bytes() == $expected ? "same" : "differs", "\n";
     }
 
     // Writes the export `$make` returns through each method, and prints what differs from `bytes`.
@@ -98,7 +100,7 @@ Check::targets("csv", fn (): Export => $csv, true);
 var $two = Check::two();
 Check::targets("two sheets", fn (): Export => $two, false);
 echo "the function ran ", Check::$runs, " times\n";
-Check::sent("two sheets", "/two");
+Check::sent("two sheets", "/two", $two->bytes());
 
 // `save` counts the rows of each sheet.
 Written $counted = $two->save("counted.xlsx");
@@ -127,7 +129,7 @@ echo Core\IO::readText("log.csv");
 // A filled template writes the same bytes through `save` and `to`, and `download` sends it.
 bytes $template = Check::template();
 Check::targets("template", fn (): Export => Template::open($template)->fill(["shop" => "Shop"]), false);
-Check::sent("template", "/template");
+Check::sent("template", "/template", Template::open($template)->fill(["shop" => "Shop"])->bytes());
 
 // The same filled template a second time throws.
 var $filled = Template::open($template)->fill(["shop" => "Shop"]);
@@ -148,7 +150,7 @@ csv: sizes match match, bytes null
 two sheets: save same, to same
 two sheets: sizes match match, bytes null
 the function ran 3 times
-two sheets: download 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, attachment; filename="sent.xlsx"; filename*=UTF-8''sent.xlsx, body a workbook
+two sheets: download 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, attachment; filename="sent.xlsx"; filename*=UTF-8''sent.xlsx, body a workbook, same
 rows 2 1
 a second csv sheet throws
 # first
@@ -159,5 +161,5 @@ order
 2
 template: save same, to same
 template: sizes match match, bytes null
-template: download 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, attachment; filename="sent.xlsx"; filename*=UTF-8''sent.xlsx, body a workbook
+template: download 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, attachment; filename="sent.xlsx"; filename*=UTF-8''sent.xlsx, body a workbook, same
 a filled template is written once

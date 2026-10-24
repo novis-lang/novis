@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to read a body that is not text, such as the start of a PNG image.
+
+use Core\Http\Method;
+use Core\Test;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part answers the request with the first eight bytes of a PNG file.
+    Core\Response::bytes(Core\Encoding::fromHex("89504e470d0a1a0a"), "image/png");
+} else {
+    var $response = Test::request(Method::Get, "/logo.png");
+
+    // `bytes()` returns every byte of the body.
+    // This prints `89504e470d0a1a0a`.
+    echo Core\Encoding::toHex($response->bytes()), "\n";
+
+    // The byte `89` is not valid UTF-8, so `body()` throws an error.
+    try {
+        echo $response->body(), "\n";
+    } catch (RuntimeError $notText) {
+        echo "body() throws an error\n";
+    }
+}

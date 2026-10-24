@@ -38915,7 +38915,7 @@ Moves the test's clock forward by `$settings.within`, runs `$body`, and checks t
 <a id="core-core-test-response"></a>
 ### `Core\Test\Response`
 
-Keywords: Core\Test::request, in-process request, HTTP test, functional test, route table, status, body, header, headers, cookies, json, jsonAs, response, no socket, status, body, header, headers, cookies, json, jsonAs
+Keywords: Core\Test::request, in-process request, HTTP test, functional test, route table, status, body, header, headers, cookies, json, jsonAs, response, no socket, status, body, bytes, header, headers, cookies, json, jsonAs
 
 `Core\Test\Response` is the value `Core\Test::request(...)` answers: what the program under test wrote
 while answering one synthetic request. `status()` is the status, `header()` and `headers()` the
@@ -38956,6 +38956,7 @@ there being no program under test to answer it.
 |---|---|
 | [`Core\Test\Response->status`](#core-core-test-response-status) | `status(): uint` |
 | [`Core\Test\Response->body`](#core-core-test-response-body) | `body(): string` |
+| [`Core\Test\Response->bytes`](#core-core-test-response-bytes) | `bytes(): bytes` |
 | [`Core\Test\Response->header`](#core-core-test-response-header) | `header(string $name): ?string` |
 | [`Core\Test\Response->headers`](#core-core-test-response-headers) | `headers(): array<array<string>>` |
 | [`Core\Test\Response->cookies`](#core-core-test-response-cookies) | `cookies(): array<string>` |
@@ -38984,7 +38985,18 @@ Returns the text the program wrote while it answered this request.
 
 **Returns** `string` — Everything the program wrote with `echo`, in order. If the program wrote nothing, the result is an empty string. If the program threw an error it did not catch, the result is also an empty string, because the server sends no body for a failed request.
 
-**Throws** `RuntimeError` — The body is not valid UTF-8, so it is not a string. `Core\Response::bytes` and `Core\Response::sendFile` can write such a body. Test it with `status()` and `header()`.
+**Throws** `RuntimeError` — The body is not valid UTF-8, so it is not a string. `Core\Response::bytes` and `Core\Response::sendFile` can write such a body. Read it with `bytes()`.
+
+<a id="core-core-test-response-bytes"></a>
+#### `Core\Test\Response->bytes`
+
+```nvs skip
+$response->bytes(): bytes
+```
+
+Returns the body the program wrote while it answered this request, as `bytes`.
+
+**Returns** `bytes` — Every byte of the body, in order. The bytes do not have to be valid UTF-8, so this works for a PDF, an image or a file sent with `Core\Response::sendFile`. If the program wrote nothing, or threw an error it did not catch, the result is empty `bytes`.
 
 <a id="core-core-test-response-header"></a>
 #### `Core\Test\Response->header`

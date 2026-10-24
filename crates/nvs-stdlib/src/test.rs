@@ -964,6 +964,15 @@ pub(crate) const RESPONSE: CoreClass = CoreClass {
             doc: Some(&RESPONSE_BODY_DOC),
         },
         CoreMethod {
+            name: "bytes",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "nvs_core_test_response_bytes",
+            doc: Some(&RESPONSE_BYTES_DOC),
+        },
+        CoreMethod {
             name: "header",
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
@@ -1021,8 +1030,8 @@ const RESPONSE_HEADER_LINES: CoreTy = CoreTy::Array(&CoreTy::Str);
 const RESPONSE_CARD: ClassDoc = ClassDoc {
     short: "The answer to one request that `Core\\Test::request` sent to your own program. \
             `status()` returns the status code, `header()` and `headers()` return the headers, \
-            `cookies()` returns the cookies the program set, and `body()`, `json()` and \
-            `jsonAs()` return the body. You cannot create one yourself.",
+            `cookies()` returns the cookies the program set, and `body()`, `bytes()`, `json()` \
+            and `jsonAs()` return the body. You cannot create one yourself.",
 };
 
 /// [`RESPONSE`]'s first slot: the status the program declared, or `200`.
@@ -1030,8 +1039,9 @@ const STATUS_SLOT: usize = 0;
 /// [`RESPONSE`]'s second slot: the bytes the program wrote, as a `bytes`.
 ///
 /// Not a `string`, because a route may answer with `Core\Response::bytes` or
-/// `::sendFile`, and a test of such a route still reads its status and
-/// headers. The readers that return text ([`body_text`]) check the bytes.
+/// `::sendFile`, and a test of such a route still reads its status, its
+/// headers and, through `bytes`, its body. The readers that return text
+/// ([`body_text`]) check the bytes.
 const BODY_SLOT: usize = 1;
 /// [`RESPONSE`]'s third slot: the answer's header lines, keyed by the
 /// lower-cased name, each a list of lines in the order the answer carries them
@@ -1269,9 +1279,18 @@ const RESPONSE_BODY_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The body is not valid UTF-8, so it is not a string. `Core\\Response::bytes` and \
-               `Core\\Response::sendFile` can write such a body. Test it with `status()` and \
-               `header()`.",
+               `Core\\Response::sendFile` can write such a body. Read it with `bytes()`.",
     }],
+};
+
+/// `Core\Test\Response::bytes`'s reference card — `rule:core-api/reference-card`.
+const RESPONSE_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "Returns the body the program wrote while it answered this request, as `bytes`.",
+    params: &[],
+    ret: "Every byte of the body, in order. The bytes do not have to be valid UTF-8, so this \
+          works for a PDF, an image or a file sent with `Core\\Response::sendFile`. If the \
+          program wrote nothing, or threw an error it did not catch, the result is empty `bytes`.",
+    errors: &[],
 };
 
 /// `Core\Test\Response::header`'s reference card — `rule:core-api/reference-card`.
@@ -2842,6 +2861,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_test_request" => (nvs_core_test_request as *const ()).cast(),
         "nvs_core_test_response_status" => (nvs_core_test_response_status as *const ()).cast(),
         "nvs_core_test_response_body" => (nvs_core_test_response_body as *const ()).cast(),
+        "nvs_core_test_response_bytes" => (nvs_core_test_response_bytes as *const ()).cast(),
         "nvs_core_test_response_header" => (nvs_core_test_response_header as *const ()).cast(),
         "nvs_core_test_response_headers" => (nvs_core_test_response_headers as *const ()).cast(),
         "nvs_core_test_response_cookies" => (nvs_core_test_response_cookies as *const ()).cast(),
@@ -3133,6 +3153,17 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\Response::bytes(): bytes` — the bytes the program wrote,
+    /// whatever they are.
+    ///
+    /// The slot is shared with the caller, not copied: a `bytes` value is
+    /// never written in place while a second reference to it exists.
+    fn nvs_core_test_response_bytes(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &RESPONSE, BODY_SLOT, "bytes")
+    }
+}
+
 /// The field [`nvs_core_test_response_header`] does not join, and the field
 /// [`nvs_core_test_response_cookies`] reads — lower-cased, as the slot's keys are.
 const SET_COOKIE_FIELD: &str = "set-cookie";
@@ -3258,7 +3289,7 @@ fn body_text<'a>(body: &'a Value, member: &str) -> Result<&'a str, Fault> {
     std::str::from_utf8(octets).map_err(|err| {
         Fault::thrown(format!(
             "{RESPONSE_NAME}::{member}(): the response body is not valid UTF-8 at byte {}, so it \
-             is not a string. Use `status()` and `header()` to test this response.",
+             is not a string. Use `bytes()` to read it.",
             err.valid_up_to()
         ))
     })
@@ -6614,9 +6645,9 @@ mod tests {
     }
 
     /// A route that answers with octets that are not UTF-8 — a PDF, an image —
-    /// still returns a response: its status reads, and only `body`, `json` and
-    /// `jsonAs` throw, each with one `RuntimeError` text.
-    // covers: Core\Test::request, Core\Test\Response::body, Core\Test\Response::json
+    /// still returns a response: its status and its `bytes` read, and only
+    /// `body`, `json` and `jsonAs` throw, each with one `RuntimeError` text.
+    // covers: Core\Test::request, Core\Test\Response::body, Core\Test\Response::json, Core\Test\Response::bytes
     #[test]
     fn a_body_that_is_not_utf8_reads_its_status_and_only_its_text_readers_throw() {
         /// A unit that answers `201` with a body that starts like a PDF and is
@@ -6667,6 +6698,23 @@ mod tests {
             .expect("reading the status cannot fail");
         assert_eq!(status.as_int(), Some(201), "the status the unit declared");
         dropped(status);
+
+        let octets = nvs_runtime::call(nvs_core_test_response_bytes, &mut ctx, &[answered])
+            .expect("reading the bytes cannot fail");
+        assert_eq!(
+            octets.as_bytes(),
+            Some(&b"%PDF-1.7\n\xff\xfe"[..]),
+            "`bytes` returns every octet the unit wrote"
+        );
+        dropped(octets);
+        let again = nvs_runtime::call(nvs_core_test_response_bytes, &mut ctx, &[answered])
+            .expect("reading the bytes twice cannot fail");
+        assert_eq!(
+            again.as_bytes(),
+            Some(&b"%PDF-1.7\n\xff\xfe"[..]),
+            "releasing a reading leaves the response whole"
+        );
+        dropped(again);
 
         assert!(
             nvs_runtime::call(nvs_core_test_response_body, &mut ctx, &[answered]).is_err(),
