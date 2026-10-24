@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/runner.rs, crates/nvs-cli/src/coverage.rs, crates/n
 stages:
   - id: 1
     title: the mutant set
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/mod.rs, crates/nvs-types/src/testing.rs, docs/rules/testing/mutation-testing.md, docs/rules/testing/tests-never-reach-a-build.md]
     extra:
       context:
@@ -106,10 +106,10 @@ changes no rule.
 
 **Does:** a list of type-valid mutants for a program, each with the file, line and change it makes.
 
-- [ ] The rule states the six operators, the IR level, the whole-program recompile and the `.nvst` error, as the standing decisions settle them (`rule:testing/mutation-testing`). `docs/rules/testing/mutation-testing.md:13`
-- [ ] Gate: `test-surface` stage 1 `done`. Mutants are generated from the checked program at lowering, one changed site each, and every one compiles (`rule:testing/mutation-testing`). `crates/nvs-ir/src/lower/mutate.rs:1`, `crates/nvs-ir/src/lower/mod.rs:735`
-- [ ] Test code is never mutated, by the mark `test-surface` stage 1 adds (`rule:testing/tests-never-reach-a-build`). `crates/nvs-types/src/testing.rs:244`
-- [ ] Rust tests: each operator yields the expected mutants on a fixture, every mutant lowers, and a test method yields none (`rule:testing/mutation-testing`). `crates/nvs-ir/src/lower/mutate.rs:1`
+- [x] The rule states the six operators, the IR level, the whole-program recompile and the `.nvst` error, as the standing decisions settle them (`rule:testing/mutation-testing`). `docs/rules/testing/mutation-testing.md:13`
+- [x] Gate: `test-surface` stage 1 `done`. Mutants are generated from the checked program at lowering, one changed site each, and every one lowers (`rule:testing/mutation-testing`). `crates/nvs-ir/src/lower/mutate.rs:1`, `crates/nvs-ir/src/lower/mod.rs:735`
+- [x] Test code is never mutated, by the mark `test-surface` stage 1 adds (`rule:testing/tests-never-reach-a-build`). `crates/nvs-types/src/testing.rs:244`
+- [x] Rust tests: each operator yields the expected mutants on a fixture, every mutant lowers, and a test method yields none (`rule:testing/mutation-testing`). `crates/nvs-ir/src/lower/mutate.rs:1`
 
 ### 2. each mutant runs against the tests that reach its line, and the run reports what survived
 
@@ -118,6 +118,7 @@ tests, and reports each mutant as killed, survived, timed out or not reached.
 
 - [ ] The rule states the four outcomes, the score, the JSON version and the exit status (`rule:testing/mutation-testing`). `docs/rules/testing/mutation-testing.md:13`
 - [ ] `--mutate` joins `nvs test`'s flags with its help text, and on a `.nvst` tree it exits with the coverage flags' error. `crates/nvs-cli/src/runner.rs:142`, `crates/nvs-cli/src/main.rs:2433`
+- [ ] Every mutant of a fixture compiles through `nvs_codegen::compile`, which stage 1's tests stop short of: they lower each one. `crates/nvs-cli/src/runner.rs:1168`, `crates/nvs-ir/src/lower/mutate.rs:1`
 - [ ] One coverage run maps each line to the tests that reached it (`rule:testing/coverage-report`). `crates/nvs-cli/src/runner.rs:1580`, `crates/nvs-cli/src/coverage.rs:243`
 - [ ] Each mutant runs only its covering tests, in parallel up to `--jobs`, and stops at its first failing test (`rule:testing/tests-run-across-every-core`). `crates/nvs-cli/src/runner.rs:1462`
 - [ ] Gate: `test-surface` stage 5 `done`. A mutant that loops is stopped by the test's time limit and counted as timed out (`rule:testing/a-test-has-a-wall-time-limit`). `crates/nvs-cli/src/runner.rs:1567`
@@ -157,21 +158,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. Stage 1's rule item needs nothing. Stage 1's code waits on `test-surface` stage 1
-(`docs/goals/test-surface.md` shows it `done`, and `docs/rules/testing/tests-never-reach-a-build.md` has
-no `**Not on disk.**` paragraph). Stage 2's time-limit item waits on `test-surface` stage 5 the same way
-(`docs/rules/testing/a-test-has-a-wall-time-limit.md`).
+Stage 1 is done. `nvs_ir::lower::mutants` lowers the checked program once in survey mode and lists
+every site; `nvs_ir::lower::lower_mutant` lowers it with one site changed
+(`crates/nvs-ir/src/lower/mutate.rs`). The plan is a thread-local armed for one `lower_program_as`
+call. Sites: `lower_binary` after both operands (relational, equality, arithmetic), the `&&`/`||` arm
+and the `bool` literal arm in `lower_expr`, and `lower_branch_cond` at the four `if`/loop condition
+sites in `control.rs`. A condition `mutate::narrows` names keeps its direction and connectors, and a
+literal that is a condition, a `match`/`switch` subject or an `==` operand keeps its value; the rule
+states why. Test code is skipped through `mutate::within` around `lower_method`/`lower_generator`.
+Both gates hold: `test-surface` is retired, and neither of its rule fragments has a `**Not on
+disk.**` paragraph.
+
+The acceptance sweep's red `env-secret-proofs` is green on disk (`bun nv proofs --gate --only
+"Core\\Env::secret"` exits 0). The nightly run's five red jobs tested `3ea6f1550`, and main has a fix
+for each since: `10c402b57` (supply chain), `c31d0a21a` (rustfmt), `c953c3456` (http stream under
+Miri), `220cb82b7` (json under Miri), `c4842ec8f` (session under Miri). The next nightly run is their
+first check.
+
+Expected red in stage 4: none known. The three tests in `crates/nvs-ir/src/lower/mutate.rs` ran once
+and pass; a snapshot test that lowers an `if` or a loop is unchanged, because a lowering with no plan
+emits nothing more.
 
 ### Next
 
-**Stage 1: the mutant set**, file set `docs/rules/testing/mutation-testing.md`, then
-`crates/nvs-ir/src/lower/`. The rule item has no gate; the three code items wait on `test-surface`
-stage 1. If that gate does not hold, land the rule item alone and end the group.
+**Stage 2: each mutant runs against its covering tests**, file set `docs/rules/testing/mutation-testing.md`,
+`crates/nvs-cli/src/main.rs`, `crates/nvs-cli/src/runner.rs`, `crates/nvs-cli/src/coverage.rs`.
+`runner.rs:1168`'s `compile` is where a mutant's `lower_mutant` replaces `lower_program_with_tests`.
+Map a mutant to tests by `Mutant::file` and `Mutant::line` against `coverage::Sites::reached`.
 
-- [ ] State the six operators, the IR level, the whole-program recompile and the `.nvst` error (`rule:testing/mutation-testing`). `docs/rules/testing/mutation-testing.md:13`
-- [ ] Generate one-site mutants at lowering (`rule:testing/mutation-testing`). `crates/nvs-ir/src/lower/mutate.rs:1`, `crates/nvs-ir/src/lower/mod.rs:735`
-- [ ] Skip test code by `test-surface`'s mark (`rule:testing/tests-never-reach-a-build`). `crates/nvs-types/src/testing.rs:244`
-- [ ] Rust tests for each operator, every mutant lowering, and no mutant from a test method. `crates/nvs-ir/src/lower/mutate.rs:1`
+- [ ] The rule states the four outcomes, the score, the JSON version and the exit status (`rule:testing/mutation-testing`). `docs/rules/testing/mutation-testing.md:54`
+- [ ] `--mutate` on `nvs test`, with help text, and the `.nvst` error. `crates/nvs-cli/src/main.rs:2433`
+- [ ] Every mutant of a fixture compiles through `nvs_codegen::compile`. `crates/nvs-cli/src/runner.rs:1168`
+- [ ] One coverage run maps each line to the tests that reached it. `crates/nvs-cli/src/coverage.rs:243`
+- [ ] Each mutant runs its covering tests up to `--jobs`, stops at its first failure, and a loop is stopped by the time limit. `crates/nvs-cli/src/runner.rs:1462`
+- [ ] The human and JSON reports, and the Rust tests for the four outcomes. `crates/nvs-cli/src/runner.rs:2830`
 
 ### Backlog
 
