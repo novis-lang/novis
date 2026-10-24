@@ -1,0 +1,13 @@
+--TEST--
+a workspace search for text no declared name contains finds nothing, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Basket {
+    public function total(): int {
+        return 0;
+    }
+}
+--REQUEST--
+workspaceSymbol query=Invoice
+--EXPECT--
+none
