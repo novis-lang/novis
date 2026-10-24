@@ -177,3 +177,10 @@ stage 1. If that gate does not hold, land the rule item alone and end the group.
 
 - A threshold flag that fails the run below a mutation score (`docs/rules/testing/mutation-testing.md`).
 - More operators, such as a removed call statement, added in `crates/nvs-ir/src/lower/mutate.rs`.
+- From `test-surface`: a test past its `[limits] cpu_time` reports the runtime's line, which names a request. A line naming the test and its limit would match `Outcome::past_wall_time`. `crates/nvs-cli/src/runner.rs:477`
+- From `test-surface`: a property's counterexample prints an enum case as its number, such as `new Item("", 1, 0)`. The case name would read better. `crates/nvs-cli/src/runner.rs:2357`
+- From `test-surface`: a long failing string or list spends the 1000-call shrink budget on one-item removals, so its counterexample stays long. Removing chunks first would shrink further. `crates/nvs-types/src/property/shrink.rs:362`
+- From `test-surface`: a workspace folder with programs and no `.nvst` case pays one compile of the folder when the editor lists its cases, and the client reads none of those records. `editors/vscode/src/tests.ts:143`
+- From `test-surface`: a case label mixes separators on Windows, such as `tests/conformance/core\x.nvst`, in a report and a listing. `crates/nvs-test/src/lib.rs:225`
+- From `test-surface`: the "it asserted nothing" report line names a rule id, and text a user reads names none. `crates/nvs-cli/src/runner.rs:3375`
+- `bun nv scaling --budget` names 45 benches over their stored share, among them `core/Metrics/*`, `novis/Spreadsheet-*` and `the-pipeline-operator`, none of them a `Core\Test` bench. `data/perf/bench-budget.json:1`

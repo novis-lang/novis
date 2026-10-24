@@ -69,7 +69,7 @@ stages:
         rules: [testing/watch-reruns-on-an-edit, config/an-edit-reaches-the-next-request-without-a-restart]
   - id: 10
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-closes
@@ -313,50 +313,32 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 9 are done; stage 10, the gate, is next. The sweep was stale: `env-secret-proofs` exits
-0, and the nightly run tested `3ea6f1550`, whose Miri reds are already fixed on `main`.
+Every stage is done, and the goal is reached. The gate's first `bun nv affected --run` named three
+failures, all fixed in `d6732f3f1`: a stdlib ledger test on an unowned context, a runner test that
+climbed from `CARGO_MANIFEST_DIR`, and a hostile property file outside the formatter's layout. The
+second run was green. The goal-end gates then named a `generate` doc link, stale `Core\Test` perf
+figures, `nvs test`'s `about.md` at 237 words and five pages owing questions, all fixed in
+`d6732f3f1` and `c966fbc38`. `assertContains`'s bench ramps to 1024, because callgrind's count per
+call settles only from a batch of 256. A third `bun nv affected --run` is green, and so are `bun nv
+verify --doc`, `bun nv owners --closes test-surface`, `bun nv proofs --gate`, `bun nv render
+--website --check` and `bun nv site --check structure snippets stale questions prose`.
 
-**`nvs test --watch` works** (`7b3f9205d`). `script::Rerun` (`crates/nvs-cli/src/script.rs:1660`)
-is `watch`'s thread with an `also` hook over the last pass's trace. `watch_program_tests`
-(`crates/nvs-cli/src/main.rs:2799`) loops pass, arm, wait, and `TestSetup` installs the TLS client
-once (a second install is `E0641`). `Program::front_end` takes `looked`. Tried by hand: a broken
-compile waits, and a fix or an edit to a required file reruns. The rule is `shipped`.
-
-May go red at the gate: an `nvs test --help` snapshot (eight new flags, `--watch` is the last); a
-website CLI reference rendered from the help; `--list` over a case tree
-expected refused; a `--dump-ir` snapshot with a property; `E0889`'s card and anything counting
-`ATTRIBUTE_DOCS` (`crates/nvs-lsp/src/stubs.rs:156`); `take_assertions` on an unowned context (call
-`set_owned_by_test`); a `.nvst` whose non-test code calls test code; a recorded editor listing; the
-attributes reference; a failing property's JSON snapshot; "failed with the inputs (" for a shrinking
-property; `MARKERS` now six; the data folder's entry count (`failed-tests/`); a test case past a
-written `cpu_time` (now failed); a count of conformance fixtures (`meter`); a count of `Core`
-members or of `Core\Test\Response`'s instance list, an `nvs meta` or stub snapshot, and a member's
-proof roster (`bytes` is new).
+The sweep's reds were stale: `env-secret-proofs` exits 0, and the nightly run tested `3ea6f1550`,
+whose advisory, `cargo fmt` and Miri reds are already fixed on `main`.
 
 ### Next
 
-**Stage 10, the gate.** Start `bun nv affected --run` with `run_in_background` and end the turn.
-Group its failures by cause, using the list of likely reds above, and fix them in one pass. Then
-the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes test-surface`, `bun nv proofs
---gate` and `bun nv render --website --check`.
-
-- [ ] Stage 10, the gate over the whole goal. `tools/nv/cmd/verify.ts:1`
+Nothing. The goal is retired, and `mutation-testing` is next on the chain.
 
 ### Backlog
 
-- Shards balanced by recorded run time were declined (`docs/rules/testing/tags-and-shards-select-what-runs.md`).
-- A test past its `[limits] cpu_time` reports the runtime's line, which names a request. A line naming the test and its limit would match `Outcome::past_wall_time`. `crates/nvs-cli/src/runner.rs:477`
-- Goals `mutation-testing` and `bench-counters` gate on stages 1 and 5 (`docs/goals/mutation-testing.md`, `docs/goals/bench-counters.md`).
-- A property's counterexample prints an enum case as its number, such as `new Item("", 1, 0)`. The case name would read better. `crates/nvs-cli/src/runner.rs:2357`
-- A long failing string or list spends the 1000-call shrink budget on one-item removals before it tries all `a`, so its counterexample stays long. Removing chunks first would shrink further. `crates/nvs-types/src/property/shrink.rs:362`
-- A workspace folder with programs and no `.nvst` case pays one compile of the folder as a program when the editor lists its cases, and the client reads none of those records. `editors/vscode/src/tests.ts:143`
-- A case label mixes separators on Windows, such as `tests/conformance/core\x.nvst`, in a run's report and in a listing. `crates/nvs-test/src/lib.rs:225`
-- The "it asserted nothing" report line names a rule id, and text a user reads names none (`AGENTS.md` § *Text an end user reads*). `crates/nvs-cli/src/runner.rs:3375`
+The open items moved to `docs/goals/mutation-testing.md`'s Backlog. Shards balanced by recorded run
+time were declined (`docs/rules/testing/tags-and-shards-select-what-runs.md`).
