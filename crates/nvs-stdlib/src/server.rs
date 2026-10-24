@@ -204,11 +204,15 @@ mod tests {
     /// Asserted through [`Drain::process`] rather than by calling the helper
     /// with a `Ctx`: what could go wrong here is the member reading a detached
     /// handle, and that is a question about which bit, not about the ABI.
+    ///
+    /// The test begins the process drain itself and reads `true`. Comparing
+    /// two readings races the test above, which may begin the drain between
+    /// them, and the bit only ever goes from `false` to `true`.
     #[test]
     fn the_member_reads_the_processs_own_bit() {
-        assert_eq!(
+        Drain::process().begin();
+        assert!(
             nvs_runtime::drain::is_draining(),
-            Drain::process().is_draining(),
             "`isDraining` answered from a bit no server writes"
         );
     }
