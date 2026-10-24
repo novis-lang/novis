@@ -3,8 +3,6 @@
 
 # Tooling
 
-*4 of 69 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="tooling-shebang-opens-code-mode"></a>
 
 ## A file whose first two bytes are `#!` starts in code mode, and its first line is trivia
@@ -2246,7 +2244,7 @@ and `"bytes_sent"`, after `error` and in that order. Each is `null` while teleme
 
 <a id="tooling-the-telemetry-collector-is-a-novis-program"></a>
 
-## The telemetry collector is `apps/telemetry/`, a Novis program in this repository that names no host, and it runs and is tested end to end on one machine  *(designed — owned by goal telemetry-service)*
+## The telemetry collector is `apps/telemetry/`, a Novis program in this repository that names no host, and it runs and is tested end to end on one machine
 
 `rule:tooling/the-telemetry-collector-is-a-novis-program`
 
@@ -2271,7 +2269,10 @@ own credentials.
 **The whole service runs and is tested on one machine.** An end-to-end test starts `nvs serve` on the
 application with a temporary database on loopback, points the real client at it through
 `NVS_TELEMETRY_URL`, uploads a finished week with `nvs telemetry upload`, and reads the result back
-from `/data/totals.json` and the pages. No test and no check reaches a real host.
+from `/data/totals.json` and the pages. No test and no check reaches a real host. It is the one
+test of the app under `nvs serve`. With no `[capabilities.fs] read`, `nvs test` reads any file and a
+request reads only `public/`, so the app's `read` names `known.toml` and `REVISION`, the two files
+outside `public/` it reads, and this test fails on a read the list leaves out.
 
 The collector is a Novis program because it is small, its job is a web request, and running it is a
 real-world test of the language under traffic it does not control. It shares no code, database or
@@ -2279,9 +2280,6 @@ process with the registry, so a fault in one never reaches the other.
 
 - **Memory:** per request, one report of at most 4 KiB and one transaction. The rate limit's table is
   per process ([`tooling/the-collector-never-stores-an-address`](tooling.md#tooling-the-collector-never-stores-an-address)).
-
-**Not on disk.** `apps/telemetry/` has no deploy guide, and no end-to-end test runs the client
-against it. The footer reads `REVISION`, and nothing writes that file yet.
 
 **Declined:**
 - **A hosted analytics product or a third-party collector.** It moves the promise to a company whose
@@ -2296,7 +2294,7 @@ against it. The footer reads `REVISION`, and nothing writes that file yet.
 
 <a id="tooling-a-telemetry-report-is-checked-against-a-closed-schema"></a>
 
-## `POST /v1/report` accepts one JSON report of at most 4 KiB that matches the closed schema, and refuses anything else with a status the client acts on  *(designed — owned by goal telemetry-service)*
+## `POST /v1/report` accepts one JSON report of at most 4 KiB that matches the closed schema, and refuses anything else with a status the client acts on
 
 `rule:tooling/a-telemetry-report-is-checked-against-a-closed-schema`
 
@@ -2339,9 +2337,6 @@ A report the client sent twice, because its three-second budget ran out after th
 already answered `204`, is counted twice. That case is rare, the cost is one report, and preventing it
 needs an identifier on every report.
 
-**Not on disk.** The collector never answers `429`, and no test holds `known.toml` to the binary's
-command table.
-
 **Declined:**
 - **Refusing a report over a value cap.** It loses an honest heavy week, and the cap already bounds
   what one report can move.
@@ -2355,7 +2350,7 @@ command table.
 
 <a id="tooling-the-collector-keeps-weekly-totals-only"></a>
 
-## The collector adds each report to weekly totals per version, os and arch in one transaction, and never stores the report itself  *(designed — owned by goal telemetry-service)*
+## The collector adds each report to weekly totals per version, os and arch in one transaction, and never stores the report itself
 
 `rule:tooling/the-collector-keeps-weekly-totals-only`
 
@@ -2381,8 +2376,6 @@ sees.
 - **Memory:** one transaction per request. The database grows by at most one row per week, version,
   system and counter, which is bounded by the closed lists and not by the number of reports.
 
-**Not on disk.** No page or download publishes the totals yet.
-
 **Declined:**
 - **Storing raw reports and computing totals later.** A raw report is one install's week. Not
   storing it is the simplest way to make sure nobody, including the project, can ever look at one.
@@ -2396,7 +2389,7 @@ sees.
 
 <a id="tooling-the-collector-never-stores-an-address"></a>
 
-## The collector never stores a sender's address: it limits the rate on a keyed hash held in memory, and its server and proxy write no address to any log  *(designed — owned by goal telemetry-service)*
+## The collector never stores a sender's address: it limits the rate on a keyed hash held in memory, and its server and proxy write no address to any log
 
 `rule:tooling/the-collector-never-stores-an-address`
 
@@ -2433,9 +2426,6 @@ server wrote, and the address is in none of them.
 allowance is back, a new day gives a new key, and neither the address nor its key is in either
 table. `Core\Test::request` sends no address, so the log half runs in the end-to-end test against
 `nvs serve`.
-
-**Not on disk.** No test yet reads the log lines a server wrote for a known address, and the deploy
-guide with the proxy's configuration does not exist.
 
 **Declined:**
 - **`Core\Hash::hmac` under the salt.** Its key is a `secret bytes`, and `Core\Cache::memory()` gives

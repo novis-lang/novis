@@ -1,12 +1,16 @@
 {
   "title": "`POST /v1/report` accepts one JSON report of at most 4 KiB that matches the closed schema, and refuses anything else with a status the client acts on",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "tooling/telemetry-counters-are-a-closed-set",
     "tooling/a-failed-upload-never-fails-the-command",
     "tooling/the-telemetry-collector-is-a-novis-program",
     "tooling/the-collector-keeps-weekly-totals-only"
   ],
-  "guardedBy": [],
-  "goal": "telemetry-service"
+  "guardedBy": [
+    "apps/telemetry/src/ReportTest.nvs",
+    "apps/telemetry/src/AppTest.nvs",
+    "crates/nvs-cli/src/telemetry.rs",
+    "crates/nvs-cli/tests/telemetry_e2e.rs"
+  ]
 }
