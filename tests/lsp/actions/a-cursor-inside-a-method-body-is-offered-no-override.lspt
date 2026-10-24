@@ -1,0 +1,25 @@
+--TEST--
+a cursor inside a method body is offered no override
+--FILE--
+<?nvs
+class Base
+{
+    public function greet(): string
+    {
+        return "hi";
+    }
+}
+
+class Pen extends Base
+{
+    public function label(): string
+    {
+        return "pen"<|>;
+    }
+}
+
+echo new Pen()->label();
+--REQUEST--
+codeAction
+--EXPECT--
+none

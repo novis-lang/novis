@@ -4,10 +4,10 @@ heuristic, and never picks between two possible signatures. Anything needing a c
 the user drives, not an action a light bulb offers.
 
 The four: **implement missing members** — on a class that does not satisfy an interface or abstract
-base, insert every missing method and property with the signature copied from the declaration,
+base, insert every missing method with the signature copied from the declaration,
 `rule:statements/inout-is-the-by-reference-spelling` markers and qualifiers intact, and a body that
-throws; **override a method** — a picker over the hierarchy's overridable members, inserting the chosen
-signatures with a call to the base where one exists; **declare the function you just called** — on the
+throws; **override a method** — one action per overridable member of the hierarchy, inserting that
+signature with a call to the base; **declare the function you just called** — on the
 unresolved-call diagnostic, insert a declaration whose parameter types are the argument types at the call
 and whose return type is the one the context requires, both already computed to produce the diagnostic;
 and **narrow an `array<mixed>` to its literal's type**
@@ -24,6 +24,16 @@ property hooks mean the pair of methods that action exists to save typing has no
 Code snippets are refused for a neighbouring reason — a snippet body is a second copy of a syntactic shape
 the grammar already owns, silently stale after a grammar change.
 
-**Missing:** all four actions. The code actions on disk are the quick fixes a diagnostic carries and
-the two rewrites `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows` names
-(`crates/nvs-lsp/src/actions.rs`).
+**Built:** implement missing members and override a method (`crates/nvs-lsp/src/generate.rs`).
+Implement missing members is a `quickfix` on `E0449`, the one diagnostic for a method an interface or
+an `abstract` parent leaves without a body; the checker owes no property, so it writes methods. Each
+signature is the declaration's own text with each type written the way the class's file names it,
+and the body throws a `LogicError`. Override a method is a `refactor.rewrite` action at a cursor
+between a class's members, one per method with a body that a class above it declares and that is not
+`private`, `final`, `static`, the constructor, or one with an `inout` parameter. Its body calls
+`parent::` and returns what that returns, unless the return type is `void` or `never`. Both actions
+analyse the text they write and are offered only when it reports no error, which is what makes the
+text compile and makes a second application offer nothing: the class then reports no `E0449`, and
+declares every method an override would write.
+
+**Missing:** declare the function you just called, and the narrowing action.

@@ -1271,7 +1271,12 @@ pub(crate) fn resolved_name(analysed: &Analysed, text: &str, at: BytePos) -> Opt
 /// (`rule:statements/one-function-resolves-every-name`); what is added here is
 /// the two things it takes and a cursor answer has to find for itself, which
 /// are [`namespace_in`] and [`imports_in`].
-fn resolved_name_in(analysed: &Analysed, file: SourceId, text: &str, at: BytePos) -> Option<QName> {
+pub(crate) fn resolved_name_in(
+    analysed: &Analysed,
+    file: SourceId,
+    text: &str,
+    at: BytePos,
+) -> Option<QName> {
     if text.is_empty() {
         return None;
     }

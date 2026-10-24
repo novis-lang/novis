@@ -3106,7 +3106,7 @@ fn declared_members(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<Com
 ///
 /// The `seen` set is what ends the walk over a cycle, which the checker has
 /// already reported.
-fn lineage(analysed: &Analysed, class: &QName) -> Vec<QName> {
+pub(crate) fn lineage(analysed: &Analysed, class: &QName) -> Vec<QName> {
     let graph = &analysed.module.graph;
     let mut order = vec![class.clone()];
     let mut seen: FxHashSet<QName> = FxHashSet::default();

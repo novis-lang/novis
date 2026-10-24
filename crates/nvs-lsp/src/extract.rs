@@ -53,7 +53,6 @@
 
 use nvs_diagnostics::{BytePos, PositionEncoding, Span};
 use nvs_syntax::walk::{self, Field, Node};
-use rustc_hash::FxHashMap;
 
 use crate::document::{Analysed, Documents, analyse_rewritten};
 use crate::position::range_at;
@@ -522,31 +521,7 @@ impl Context<'_> {
     /// `described`, a type as the checker prints it, with each qualified name
     /// written the way the entry document writes it at `offset`.
     fn written(&self, described: &str, offset: BytePos) -> String {
-        let short: FxHashMap<String, String> = crate::definition::imports_of(self.analysed)
-            .into_iter()
-            .map(|(name, target)| (target.to_string(), name))
-            .collect();
-        let here = crate::definition::namespace_at(self.analysed, offset);
-        let mut out = String::new();
-        let mut word = String::new();
-        let flush = |word: &mut String, out: &mut String| {
-            if word.contains('\\') {
-                out.push_str(&crate::completion::written_as(word, &here, &short));
-            } else {
-                out.push_str(word);
-            }
-            word.clear();
-        };
-        for ch in described.chars() {
-            if ch.is_alphanumeric() || ch == '_' || ch == '\\' {
-                word.push(ch);
-            } else {
-                flush(&mut word, &mut out);
-                out.push(ch);
-            }
-        }
-        flush(&mut word, &mut out);
-        out
+        crate::imports::written_at(self.analysed, described, None, offset)
     }
 }
 
