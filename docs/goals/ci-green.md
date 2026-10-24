@@ -99,45 +99,51 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `3ea6f1550`, the end of `editor-refactors`. It carries the last session's fixes
-`1e42b1d85`, `bfee381e4` and `a47f0a853`. Its Website run is green. Its CI run,
-https://github.com/novis-lang/novis/actions/runs/40070016889, is green in 33 of 34 jobs. The
-`proofs` jobs, the `five-driver matrix` and the LDAP login attack all passed.
+`origin/main` is at `b7df13c4b`, the end of `editor-fixes`. Its Website run is green. Its CI push
+run, https://github.com/novis-lang/novis/actions/runs/40085245322, was still going at handoff, red
+in five jobs so far. Every one of them is fixed in a commit that is not pushed yet:
 
-- `lint`, step `rustfmt`, is the only red: `crates/nvs-runtime/src/capability.rs:2259` is still
-  unformatted at `HEAD`, the only file rustfmt names. The `formatter-complete` interactive session
-  still claims it, after 11 hours, so it stays theirs, and the watch passed it with `--past lint`.
+- `third-party attribution`: `c7a505981` regenerates `THIRD-PARTY-LICENSES.txt` for the
+  `crypto-bigint` bump that this session pushed in `10c402b57`.
+- `proofs` on all three platforms: 43 perf figures were stale after the plain-voice card rewrite
+  (`d42f1dd5c`) of `path.rs`, `http.rs` and `metrics.rs`. `81e061748` carries the Path and Http
+  figures, because the main loop's commit took the ledger lines this session had staged.
+  `cdbb18c13` carries Metrics.
+- `the chapter examples run and the website matches the binary`: `30e9a4e60` renders `core.json`,
+  `reference.json` and `llms-full.txt` from `HEAD`. That render moved 606 question hashes and the
+  31 Core enums on `syntax/values/enums.mdx`. `07390a401` rereads and stamps all of them.
 
-Nothing is committed and not yet pushed. Before this watch, `bun nv site --check stale questions`
-passed and `bun nv proofs --owed --limit 0` owed nothing.
+The nightly deep lane's reds on `3ea6f1550` (`supply chain` and three Miri legs) are fixed in
+`b7df13c4b`. The rest of that run was not seen. `a5f50b907` runs the stream retry test under Miri again.
 
-`.agent-tmp/wt-cig`, `.agent-tmp/wt-r` and `.agent-tmp/wt-csv` are scratch folders. Git no longer
-lists them as worktrees. Each contains a `.looper` directory, which Windows will not delete while
-looper runs. `wt-csv` also has an ignored `target/` and `node_modules/`. Delete all three when looper
-is stopped.
+Still red at `HEAD`, and the main loop's open `api-document` work, already told with `loop say`:
+`syntax/attributes/routes.mdx` is stale in the Website stale guard, and `bun nv proofs --gate`
+owes the Router and `lang:attributes` perf figures.
+
+`.agent-tmp/wt-perf` and `.agent-tmp/wt-csv` are scratch folders that git no longer lists as
+worktrees. Each contains a `.looper` directory, which Windows will not delete while looper runs.
+`wt-csv` also has an ignored `target/` and `node_modules/`. Delete both when looper is stopped.
 
 ### Next
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Watch for the next push. `tools/nv/cmd/ci.ts:265`
-  Run `bun nv ci --watch --next`, so the red run on `056b30a4a` does not end the watch at once.
-  A run that is still going when the watch starts is watched even with `--next`. If its reds are
-  known, pass them with `--past`, and watch again with `--next` once it ends with exit 4.
-  First run `git log origin/main..HEAD -- crates/nvs-runtime/src/capability.rs` and
-  `bun tools/looper/main.ts claims`. If the formatted `capability.rs` is still not committed and no
-  session claims it, commit it, or `lint` goes red again. If it is still claimed, watch with
-  `--past lint`.
+- [ ] Watch the rest of run 40085245322, then the next push. `tools/nv/cmd/ci.ts:265`
+  If it is still going, run `bun nv ci --watch --next --past proofs --past "third-party attribution"
+  --past "the chapter examples run and the website matches the binary"`, since those five reds are
+  fixed and not pushed. Once it ends with exit 4, watch again with `--next` alone.
   `bun nv ci --rerun` reruns every failed job of the run, so a rerun for one flaky job reruns
-  `lint` and `proofs` too.
-  An exit of 3 with a run still going means the push came late: watch again. The questions check counts as stale every page whose feature's examples changed. So an example
-  sweep in the main loop's work turns `Website stale guard` red again. Run `bun nv site --check
-  stale questions` at `HEAD` before you watch, and fix what it names as the last item below says.
-  Each page reread goes to a subagent that writes a scratch JSON, never `questions.json` itself.
-  Run `bun nv proofs --owed --limit 0` too, and record each stale perf figure that comes from a
-  committed change. A stale figure from a file the main loop has not committed yet, such as
-  `csv.rs`, is its open work. A record of `0` ns/op at 256 iterations is normal: the recorder
-  writes the median beside it.
+  the known reds too. An exit of 3 with a run still going means the push came late: watch again.
+  Before you watch, run `bun nv site --check stale questions` and `bun nv proofs --gate --limit 0`
+  at `HEAD`. Use `--gate`, never `--owed`: `--owed` printed nothing while CI owed 43 figures.
+  Record each stale perf figure from a committed change. A stale figure or page from a file the main
+  loop has not committed yet is its open work. A record of `0` ns/op at 256 iterations is normal:
+  the recorder writes the median beside it.
+  A reference card rewrite stales three things in turn: the perf figures of its file, the render of
+  `core.json`, and, once that is rendered, every question and page stamp built on the card. The
+  questions reread splits well: a scratch script writes `bun nv site --questions --owed <area>
+  --limit 1000` into batches of 45 pages with each page's current questions, and read-only `Explore`
+  subagents on `sonnet` report only the pages to change. `--limit 0` there means zero pages.
 - [ ] If the LDAP login attack fails again, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
   It passed on `88fb690a3`. A second `whoami: Timeout` is not noise. Compare the socket deadline with the slice yield
   commits `13004e4f9` and `2b292f862`.
@@ -160,8 +166,10 @@ is stopped.
   `HEAD`, after `bun install` and a copy of the root's ignored `tests/db/ca.crt` into it. Each class
   is its own group: `Core\Process\Result` is not inside `Core\Process`. The main loop may hold
   uncommitted ledger lines in the root, so never copy the ledger over. Take `git diff -U0` of it in the
-  worktree, apply that with `git apply --cached --unidiff-zero` and again without `--cached`, then
-  check with `bun nv proofs --owed --limit 0` and commit the index. Run one attack with
+  worktree and apply that in the root with `git apply --unidiff-zero`, never `--cached`: another
+  session's commit takes what is staged. Check with `bun nv proofs --gate --limit 0`, then commit
+  with `git commit -F <msg> -- data/perf/members.ndjson` at once. A growth check that fails on a
+  figure whose code did not change is noise: measure that one again with `--id`. Run one attack with
   `bun nv proofs --run --id <feature> --show --nvs E:/mwl/target/release/nvs.exe`, never with a
   direct `nvs run`: an attack can change the checkout.
 
