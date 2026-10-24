@@ -1493,6 +1493,15 @@ pub(crate) struct CtorAccess {
 ///
 /// It is recorded only beside that call's `E0405`, so a program that compiles
 /// has none. It costs a few short strings per such call.
+///
+/// # Decision: the table records it, and the diagnostic does not carry it
+///
+/// The entry is keyed by the `E0405`'s primary span, the receiver. A field on
+/// `Diagnostic` would take that type to 128 bytes, and clippy's
+/// `result_large_err` would then fail every `Result<_, Diagnostic>` in the
+/// workspace. The table already keeps per-span side maps, and the editor reads
+/// it as `analysed.exprs`. Only an instance call is recorded: a static call's
+/// unknown method is `E0309` from `nvs-hir`, reported before any type is known.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnresolvedCall {
     /// The receiver's class, fully qualified.

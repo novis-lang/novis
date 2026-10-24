@@ -41,7 +41,7 @@ stages:
         rules: [ide/a-code-action-writes-only-what-is-already-determined]
   - id: 6
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-closes
@@ -259,67 +259,43 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. Stage 6, the gate, is next.
+All six stages are done, and the goal is reached.
 
-Stage 5 is done (`0fe45763f`, cases in the commit after it). *Declare `name` in `Class`* is a
-`quickfix` on the `E0405` of `$obj->name(...)`, written by `generate::declare`. The checker records
-the call in `ExprTypeTable::unresolved_call`, keyed by the diagnostic's primary span (the receiver),
-from `calls::unresolved_call` in `infer_method_call`, which now takes `expected`. A literal argument
-is widened to its plain type. An argument with an error type, a spread or a method reference records
-nothing. Why the table rather than a field on `Diagnostic` is under *Standing decisions*. The action
-is offered when the entry document declares the receiver's class (`StmtKind::ClassDecl`). It writes
-`private` for a call inside that class's declaration and `public` otherwise. Parameter names come from
-a named argument, then a variable argument, then `$argN`. The return type is the expectation, else
-`void` where `starts_statement` holds and `mixed` elsewhere. `with_not_written` now builds the
-`use LogicError;` edit for both implement and declare. The rule fragment says all of it, and its
-**Missing:** names only the narrowing action, which is goal `editor-fixes`' work.
+The gate found two causes, both fixed in `8626b767a`:
 
-A bug fixed in passing: a property's or a constant's span ends before its `;`, so `Place::of`
-wrote new methods inside the last property's declaration. It now writes them after the `;`. A case
-pins it for implement.
+- `data/rules/ide/no-refactoring-introduces-an-alias.json` was shipped and still named this goal.
+  It now names no goal, and its guards are `tests/lsp/rename/a-clash-is-refused.lspt` and
+  `tests/lsp/actions/organize-imports-sorts-and-removes-unused-lines.lspt`.
+- `crates/nvs-lsp/tests/coverage.rs` found 27 empty cells. Stage 3's and stage 5's code-action cases
+  reached `If`, `While` and `Return`. Each cursor request now has a case on each keyword, and
+  `tests/lsp/folding/an-if-and-a-while-each-fold.lspt` and
+  `tests/lsp/diagnostics/a-return-without-its-value-is-reported-on-the-statement.lspt` cover the
+  three for the whole-document half.
 
-Twelve cases under `tests/lsp/actions/`. `nvs lsp-test tests/lsp/actions` is 79 passed.
-`cargo clippy --all-targets -- -D warnings` is green. `bun nv owners --closes editor-refactors`
-passes, and `bun nv rules --check` is clean.
+None of the tests the last handoff listed under *Not run* went red. The second
+`bun nv affected --run` is green: 7557 tests, 3110 conformance cases, clippy and the extension
+suite. `bun nv verify --doc` is green, and `bun nv owners --closes editor-refactors` names no gap.
 
-Not run in any stage, so the gate may find them red:
+The one standing decision only this file held, why the unresolved call goes in the expression table
+and not on `Diagnostic`, is now the `UnresolvedCall` doc in `crates/nvs-types/src/expr_table.rs`.
+The others already live in `extract.rs`, `rename.rs`, `actions.rs` and the rule fragments.
 
-- `tests/handshake.rs`: stage 3 added a sixth code action kind.
-- `case.rs`' unit tests (the two-cursor branch), and `extract::tests` since `written` moved.
-- The unit tests in `rename.rs`, `render.rs`, `tests/index.rs`, and the CodeLens unit tests, whose
-  type reference counts may grow by the annotation sites.
-- `cargo test --test check` may count a new `W1026` where a fixture has an unused `use`
-  (`crates/nvs-cli/tests/check.rs:412`).
-- `nvs-types` unit and suite tests that compare a whole `ExprTypeTable` or the order of an `E0405`.
-  The report itself did not move, so none is expected.
-
-Known gaps, left as designed: a top-level `function` is refused by the language, so its name is not
-renamable. A cursor on the class path of a `use` line is refused with "nothing to rename". A static
-call `C::name()` is offered no declaration.
-
-The acceptance sweep's reds are stale. `env-secret-proofs`' log shows exit 0. The nightly reds are
-run `39922764699` on `7b6ef53ee`, an old commit. The rustfmt fix for
-`crates/nvs-runtime/src/capability.rs:2262` is still uncommitted in the tree. Session `6884de4b`
-(goal `formatter-complete`) claims the file, so that session or the user commits it.
+The rustfmt fix for `crates/nvs-runtime/src/capability.rs` is still uncommitted. Goal
+`formatter-complete`'s session claims that file. The acceptance sweep's reds are stale: the
+`env-secret-proofs` gate exits 0 when run now, and the nightly run `39922764699` built an old commit.
 
 ### Next
 
-**Stage 6, the gate.** Start `bun nv affected --run` with `run_in_background`, then end the turn
-to wait. Group the failures by cause, fix each in one pass, and run it once more. Look first at the
-tests listed under *Not run* above.
-
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
-- [ ] Before `DONE`: `bun nv verify --doc` with every broken link fixed, and `bun nv owners --closes editor-refactors`. Move each standing decision only this file holds into a rule or a module doc, since a reached goal's file is deleted. `docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md:1`
+Nothing. The driver retires the goal, which deletes this file, and `editor-fixes` is next on the
+chain.
 
 ### Backlog
 
