@@ -1469,7 +1469,7 @@ fn run_build(path: &std::path::Path, openapi: bool) -> ExitCode {
         || path.display().to_string(),
         |stem| stem.to_string_lossy().into_owned(),
     );
-    let document = openapi::document(routes, &title);
+    let document = openapi::document(&checked.exprs, &title);
     // Pretty rather than compact, because the artifact is read by people and
     // diffed by `git` as often as it is by § 4's own gate. It cannot fail: the
     // document is strings, bools and integers, and `serde_json` only errors on

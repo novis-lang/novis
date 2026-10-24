@@ -33,7 +33,8 @@
 use std::collections::BTreeMap;
 
 use nvs_types::{
-    ApiScheme, ConstArg, OAuthFlow, ParamIn, Route, RouteParam, RouteTable, SchemeKind,
+    ApiScheme, BodyTy, CodecElement, CodecTy, ConstArg, DerivedCodec, DerivedField, EnumValue,
+    ExprTypeTable, OAuthFlow, ParamIn, Route, RouteParam, RouteTable, SchemeKind,
 };
 use serde_json::{Map, Value, json};
 
@@ -42,12 +43,18 @@ use serde_json::{Map, Value, json};
 /// downgrade and no Swagger 2.
 const VERSION: &str = "3.1.0";
 
-/// The whole document for `routes`.
+/// The whole document for the checked program whose tables are `exprs`: its
+/// route table, and the JSON codec of each class a response names.
 ///
 /// `title` is the entry point's own file stem — the one name the compiler has
 /// for a program, since nothing in the language declares one.
-pub(crate) fn document(routes: &RouteTable, title: &str) -> Value {
+pub(crate) fn document(exprs: &ExprTypeTable, title: &str) -> Value {
+    let routes = exprs.routes();
     let ids = operation_ids(routes);
+    let mut schemas = Schemas {
+        codecs: exprs,
+        entries: BTreeMap::new(),
+    };
 
     // The orderings determinism requires, in the type that holds them, before anything
     // is handed to the JSON map — so the sort is this module's own fact rather
@@ -63,7 +70,7 @@ pub(crate) fn document(routes: &RouteTable, title: &str) -> Value {
             .entry(row.path.as_str())
             .or_default()
             .entry(row.verb.to_lowercase())
-            .or_insert_with(|| operation(row, id));
+            .or_insert_with(|| operation(row, id, &mut schemas));
     }
 
     let paths: Map<String, Value> = paths
@@ -82,10 +89,176 @@ pub(crate) fn document(routes: &RouteTable, title: &str) -> Value {
         },
         "paths": Value::Object(paths),
     });
+    let mut components = Map::new();
+    if !schemas.entries.is_empty() {
+        let entries: Map<String, Value> = schemas.entries.into_iter().collect();
+        components.insert("schemas".to_owned(), Value::Object(entries));
+    }
     if !routes.schemes().is_empty() {
-        document["components"] = json!({ "securitySchemes": security_schemes(routes) });
+        components.insert("securitySchemes".to_owned(), security_schemes(routes));
+    }
+    if !components.is_empty() {
+        document["components"] = Value::Object(components);
     }
     document
+}
+
+/// `components.schemas`, collected while the operations are rendered: one
+/// entry per class a response reaches, keyed by [`component_name`].
+///
+/// A class's schema is its `#[Json\Derive]` codec's field list, read from the
+/// checked program's [`ExprTypeTable::codec`]. That list is what the codec
+/// writes, so a skipped field and a private property the codec does not name
+/// never reach the document. A class with no codec has no JSON form to
+/// describe and gets the empty schema.
+struct Schemas<'a> {
+    codecs: &'a ExprTypeTable,
+    entries: BTreeMap<String, Value>,
+}
+
+impl Schemas<'_> {
+    /// The schema for a declared body type.
+    fn body(&mut self, ty: &BodyTy) -> Value {
+        match ty {
+            // A `void` response has no media type, so `responses` never asks.
+            BodyTy::Void => json!({}),
+            BodyTy::Nullable(inner) => nullable(self.body(inner)),
+            BodyTy::List(inner) => json!({"type": "array", "items": self.body(inner)}),
+            BodyTy::Class(label) => self.class(label),
+            BodyTy::Enum(values) => enum_schema(values.iter().map(|value| match value {
+                EnumValue::Int(number) => json!(number),
+                EnumValue::Uint(number) => json!(number),
+            })),
+            BodyTy::Named(name) => schema(Some(name), None, false),
+        }
+    }
+
+    /// A `$ref` to the class's entry, which is written the first time a class
+    /// is reached. The entry is reserved before its fields are read, so a
+    /// class with a field of its own type ends at the `$ref`.
+    fn class(&mut self, label: &str) -> Value {
+        // `Core\Uuid` is a value with a registered format, and no codec.
+        if label == r"Core\Uuid" {
+            return schema(Some(label), None, false);
+        }
+        let codecs = self.codecs;
+        let Some(codec) = codecs.codec(label) else {
+            return json!({});
+        };
+        let name = component_name(label);
+        if !self.entries.contains_key(&name) {
+            self.entries.insert(name.clone(), Value::Null);
+            let object = self.object(codec);
+            self.entries.insert(name.clone(), object);
+        }
+        json!({"$ref": format!("#/components/schemas/{name}")})
+    }
+
+    /// An object schema over a codec's fields, with `required` in declaration
+    /// order. A field is in `required` when a document must carry its key,
+    /// which is independent of whether its value may be `null`.
+    fn object(&mut self, codec: &DerivedCodec) -> Value {
+        let mut properties = Map::new();
+        let mut required = Vec::new();
+        for field in &codec.fields {
+            let schema = self.wire(field.ty, field.element.as_ref(), field);
+            let schema = if field.nullable {
+                nullable(schema)
+            } else {
+                schema
+            };
+            properties.insert(field.key.clone(), schema);
+            if field.required {
+                required.push(json!(field.key));
+            }
+        }
+        let mut object = Map::new();
+        object.insert("type".to_owned(), json!("object"));
+        object.insert("properties".to_owned(), Value::Object(properties));
+        if !required.is_empty() {
+            object.insert("required".to_owned(), Value::Array(required));
+        }
+        Value::Object(object)
+    }
+
+    /// One codec wire type. `field` carries what the wire type leaves out: a
+    /// nested class's label, an enum's values and a shape's own fields, each
+    /// for the terminal element where `ty` is a list.
+    fn wire(&mut self, ty: CodecTy, element: Option<&CodecElement>, field: &DerivedField) -> Value {
+        match ty {
+            CodecTy::Bool => schema(Some("bool"), None, false),
+            CodecTy::Int => schema(Some("int"), None, false),
+            CodecTy::Uint => schema(Some("uint"), None, false),
+            CodecTy::Float => schema(Some("float"), None, false),
+            CodecTy::Decimal => schema(Some("decimal"), None, false),
+            CodecTy::Str => schema(Some("string"), None, false),
+            CodecTy::Class => field
+                .class
+                .as_deref()
+                .map_or_else(|| json!({}), |label| self.class(label)),
+            CodecTy::List => {
+                let items = element.map_or_else(
+                    || json!({}),
+                    |element| self.wire(element.ty, element.element.as_deref(), field),
+                );
+                json!({"type": "array", "items": items})
+            }
+            CodecTy::Enum => field.cases.as_ref().map_or_else(
+                || json!({}),
+                |cases| {
+                    enum_schema(cases.values.iter().map(|value| {
+                        if cases.unsigned {
+                            u64::try_from(*value).map_or(Value::Null, |number| json!(number))
+                        } else {
+                            i64::try_from(*value).map_or(Value::Null, |number| json!(number))
+                        }
+                    }))
+                },
+            ),
+            CodecTy::Shape => field
+                .shape
+                .as_deref()
+                .map_or_else(|| json!({}), |shape| self.object(shape)),
+            // `Core\Json` writes none of these with a fixed JSON type, so the
+            // document says nothing it cannot back.
+            CodecTy::Bytes | CodecTy::Instant | CodecTy::Mixed | CodecTy::Opaque => json!({}),
+        }
+    }
+}
+
+/// A class label as a component name. 3.1 allows letters, digits, `.`, `-`
+/// and `_` there, so each namespace separator becomes a `.`.
+fn component_name(label: &str) -> String {
+    label.replace('\\', ".")
+}
+
+/// An enum's backing values as an integer schema: `Core\Json` writes a case as
+/// its backing value.
+fn enum_schema(values: impl Iterator<Item = Value>) -> Value {
+    json!({"type": "integer", "enum": values.collect::<Vec<_>>()})
+}
+
+/// `schema` with `null` allowed as well.
+///
+/// A schema with one `type` takes `null` into that list, and into its `enum`
+/// where it has one. The empty schema already allows `null`. Anything else,
+/// a `$ref` among them, is wrapped in an `anyOf` with `{"type": "null"}`.
+fn nullable(schema: Value) -> Value {
+    let Value::Object(mut object) = schema else {
+        return schema;
+    };
+    if object.is_empty() {
+        return Value::Object(object);
+    }
+    if let Some(Value::String(single)) = object.get("type") {
+        let types = json!([single, "null"]);
+        object.insert("type".to_owned(), types);
+        if let Some(Value::Array(values)) = object.get_mut("enum") {
+            values.push(Value::Null);
+        }
+        return Value::Object(object);
+    }
+    json!({"anyOf": [Value::Object(object), {"type": "null"}]})
 }
 
 /// `components.securitySchemes`: every declared scheme under its name, sorted
@@ -203,7 +376,7 @@ fn base_id(row: &Route) -> &str {
 /// `parameters` is omitted rather than written empty where the route declares
 /// none: an empty array and an absent member mean the same thing to a reader,
 /// and the shorter one is what a hand-written document would carry.
-fn operation(row: &Route, id: &str) -> Value {
+fn operation(row: &Route, id: &str, schemas: &mut Schemas<'_>) -> Value {
     let mut operation = Map::new();
     operation.insert("operationId".to_owned(), json!(id));
     // `#[Api]`'s `tags`, in the order they were written: the row carries them
@@ -241,7 +414,7 @@ fn operation(row: &Route, id: &str) -> Value {
             .collect();
         operation.insert("security".to_owned(), Value::Array(schemes));
     }
-    operation.insert("responses".to_owned(), responses(row));
+    operation.insert("responses".to_owned(), responses(row, schemas));
     Value::Object(operation)
 }
 
@@ -254,11 +427,10 @@ fn operation(row: &Route, id: &str) -> Value {
 /// reported, because this module is a renderer and every diagnostic `rule:routing/api-document-is-generated-from-the-route-table`
 /// has is the front end's.
 ///
-/// An error response carries its class as the `description` and no `content`.
-/// The class is what the row knows about that response, and a *schema* for one
-/// is the record `data/gaps/nvs-cli/response-body-that-is-an-object.json` — a class's fields are
-/// `rule:core-classes/derive-attribute`'s codec, which does not reach this module for an error type
-/// any more than it does for a success type.
+/// An error response carries its class as the `description`, and the class's
+/// schema as its `content` where the class has a JSON codec. A class without
+/// one has no body a document can describe, so that response has no
+/// `content`.
 ///
 /// `description` is required of every response object in 3.1, and `success` is
 /// what a generated one can honestly say: the *prose* about an operation is its
@@ -271,16 +443,12 @@ fn operation(row: &Route, id: &str) -> Value {
 /// the codec a return type reaches this document through is
 /// `rule:core-classes/derive-attribute`'s, and that codec is
 /// JSON.
-fn responses(row: &Route) -> Value {
-    let returns = row.returns.as_deref();
+fn responses(row: &Route, schemas: &mut Schemas<'_>) -> Value {
     let mut success = Map::new();
     success.insert("description".to_owned(), json!("success"));
-    if !matches!(returns, None | Some("void")) {
+    if let Some(returns) = row.returns.as_ref().filter(|ty| **ty != BodyTy::Void) {
         let mut media = Map::new();
-        // `false`: a return type is a body the codec encodes, not a segment a
-        // `parse` is given, so a class here is the class-body gap this module
-        // records and never a string.
-        media.insert("schema".to_owned(), schema(returns, None, false));
+        media.insert("schema".to_owned(), schemas.body(returns));
         // `#[Api]`'s `example` sits beside the schema it is an example of, which is
         // 3.1's own place for one. A handler answering with nothing has no
         // media type to hang it on, so an example written there reaches no
@@ -297,9 +465,20 @@ fn responses(row: &Route) -> Value {
     let mut responses = Map::new();
     responses.insert("200".to_owned(), Value::Object(success));
     for error in &row.errors {
-        responses
-            .entry(error.status.to_string())
-            .or_insert_with(|| json!({"description": error.class}));
+        let status = error.status.to_string();
+        if responses.contains_key(&status) {
+            continue;
+        }
+        let mut response = Map::new();
+        response.insert("description".to_owned(), json!(error.class));
+        if schemas.codecs.codec(&error.class).is_some() {
+            let schema = schemas.class(&error.class);
+            response.insert(
+                "content".to_owned(),
+                json!({"application/json": {"schema": schema}}),
+            );
+        }
+        responses.insert(status, Value::Object(response));
     }
     Value::Object(responses)
 }

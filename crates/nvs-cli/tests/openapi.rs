@@ -228,8 +228,8 @@ fn an_operations_summary_and_description_come_from_the_handlers_doc_comment() {
 /// declared return type, through the same `schema` mapping a parameter's is.
 ///
 /// The answers the emitter has to tell apart, in one fixture: a type it
-/// maps (`uint`, floor and all), a type it does not (a class, whose fields are
-/// `rule:core-classes/derive-attribute`'s codec rather than this document's guess), and `void`, which
+/// maps (`uint`, floor and all), a class with no JSON codec, which has no
+/// fields this document could name, and `void`, which
 /// carries no `content` at all. That last one is what would go wrong
 /// silently — an empty schema means *any body*, and *no body* is a different
 /// promise to a generated client.
@@ -254,13 +254,130 @@ fn an_operations_response_schema_is_the_handlers_declared_return_type() {
     assert_eq!(
         ok_response("/notes/first")["content"]["application/json"]["schema"],
         serde_json::json!({}),
-        "a class has no schema here until its codec's roster reaches the row:\n{doc}"
+        "a class with no `#[Json\\Derive]` has no JSON form, so its schema is the empty one:\n{doc}"
     );
 
     let empty = ok_response("/notes/ping");
     assert!(
         empty["content"].is_null(),
         "a `void` handler answers with no body, which is not a body admitting anything:\n{empty}"
+    );
+}
+
+/// The document for `class-response.nvs`, parsed.
+fn class_response() -> serde_json::Value {
+    let (doc, err, ok) = build(&fixture("class-response"));
+    assert!(ok, "the fixture compiles: {err}");
+    serde_json::from_str(&doc).expect("the document is JSON")
+}
+
+/// The `200` schema of `GET <path>` in `document`.
+fn ok_schema(document: &serde_json::Value, path: &str) -> serde_json::Value {
+    document["paths"][path]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+        .clone()
+}
+
+/// A class response is a `$ref` to a `components.schemas` entry, and the entry
+/// is the class's `#[Json\Derive]` codec: each field under its wire key, with
+/// its type, and `required` where a document must carry the key.
+///
+/// The fixture's class has both kinds of property the codec decides about. A
+/// skipped field, public or private, is absent. A private property the codec
+/// writes is present, because the document describes the wire and not the
+/// class. A nested class is an entry of its own.
+#[test]
+fn a_class_response_is_its_codecs_schema_under_a_ref() {
+    let document = class_response();
+    assert_eq!(
+        ok_schema(&document, "/articles/first"),
+        serde_json::json!({"$ref": "#/components/schemas/Article"}),
+        "a class response is a reference to its entry:\n{document}"
+    );
+    let article = &document["components"]["schemas"]["Article"];
+    assert_eq!(
+        article,
+        &serde_json::json!({
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "word_count": {"type": "integer", "minimum": 0},
+                "subtitle": {"type": ["string", "null"]},
+                "labels": {"type": "array", "items": {"type": "string"}},
+                "status": {"type": "integer", "enum": [1, 2]},
+                "author": {"$ref": "#/components/schemas/Author"},
+                "owner": {"type": "string"},
+                "rank": {"type": "integer"},
+            },
+            "required": ["title", "word_count", "subtitle", "labels", "status", "author", "owner"],
+        }),
+        "the codec's fields: `cache` and `secret` are skipped, and `rank` has a default:\n{document}"
+    );
+    assert_eq!(
+        document["components"]["schemas"]["Author"],
+        serde_json::json!({
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        }),
+        "a nested class is its own entry:\n{document}"
+    );
+    assert_eq!(
+        ok_schema(&document, "/articles/all"),
+        serde_json::json!({"type": "array", "items": {"$ref": "#/components/schemas/Article"}}),
+        "a list of a class refers to the same entry:\n{document}"
+    );
+}
+
+/// An `errors` entry whose class has a JSON codec carries that codec's schema
+/// under its status, the same way a `200` does.
+#[test]
+fn an_errors_entrys_class_has_its_codecs_schema() {
+    let document = class_response();
+    let missing = &document["paths"]["/articles/first"]["get"]["responses"]["404"];
+    assert_eq!(missing["description"], "Missing", "{document}");
+    assert_eq!(
+        missing["content"]["application/json"]["schema"],
+        serde_json::json!({"$ref": "#/components/schemas/Missing"}),
+        "the error response refers to its class's entry:\n{document}"
+    );
+    assert_eq!(
+        document["components"]["schemas"]["Missing"]["properties"],
+        serde_json::json!({"reason": {"type": "string"}}),
+        "{document}"
+    );
+}
+
+/// A `?T` return is `T`'s schema with `null` allowed.
+#[test]
+fn a_nullable_return_allows_null_beside_its_type() {
+    let document = class_response();
+    assert_eq!(
+        ok_schema(&document, "/articles/count"),
+        serde_json::json!({"type": ["integer", "null"]}),
+        "{document}"
+    );
+}
+
+/// An `array<T>` return is an array whose `items` are `T`'s schema.
+#[test]
+fn an_array_return_has_its_element_as_items() {
+    let document = class_response();
+    assert_eq!(
+        ok_schema(&document, "/articles/ranks"),
+        serde_json::json!({"type": "array", "items": {"type": "integer"}}),
+        "{document}"
+    );
+}
+
+/// An enum return lists its cases' backing values, which is what `Core\Json`
+/// writes a case as.
+#[test]
+fn an_enum_return_lists_its_backing_values() {
+    let document = class_response();
+    assert_eq!(
+        ok_schema(&document, "/articles/status"),
+        serde_json::json!({"type": "integer", "enum": [1, 2]}),
+        "{document}"
     );
 }
 
@@ -613,7 +730,7 @@ fn an_apis_four_values_reach_the_operation_and_nothing_else() {
     );
     assert!(
         annotated["responses"]["500"]["content"].is_null(),
-        "and with no schema, which is the class-body gap this module records:\n{annotated}"
+        "and with no schema, because `RuntimeError` has no JSON codec:\n{annotated}"
     );
     assert_eq!(
         annotated["responses"]["200"]["content"]["application/json"]["example"],
