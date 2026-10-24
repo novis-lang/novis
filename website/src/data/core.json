@@ -8170,7 +8170,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Returns the column's label as the server described it. This is the <code>name</code> that <code>getColumnMeta</code> gives in PHP. If the <code>select</code> list gives the column an alias, the label is the alias.",
+            "shortHtml": "Returns the column's label as the server described it. If the <code>select</code> list gives the column an alias, the label is the alias.",
             "returnHtml": "The label. It is not a unique key: <code>select a, a</code> gives two columns with one label. So read a column by its position in the array that <code>columns()</code> returns."
           },
           "slug": "name",
@@ -30989,7 +30989,7 @@
       "constants": [
         {
           "name": "SEPARATOR",
-          "descHtml": "The path separator of this platform. It is <code>\\</code> on Windows and <code>/</code> on every other platform, like PHP's <code>DIRECTORY_SEPARATOR</code>. Every method writes it, and every method accepts both <code>/</code> and <code>\\</code>."
+          "descHtml": "The path separator of this platform. It is <code>\\</code> on Windows and <code>/</code> on every other platform. Every method writes it, and every method accepts both <code>/</code> and <code>\\</code>."
         }
       ],
       "members": [

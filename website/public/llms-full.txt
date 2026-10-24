@@ -25260,6 +25260,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 - `#[Core\Query]`
 - `#[Core\Access]`
 - `#[Core\Api]`
+- `#[Core\Api\Scheme]`
 - `#[Core\Path]`
 - `#[Core\Deprecated]`
 
@@ -26062,8 +26063,9 @@ must be a property of that class.
 A class in `errors` that does not exist is `E0303`. A built-in class such as `RuntimeError` works
 too. Each `errors` entry becomes a response under its status, and the response's `description` is the
 class name. An empty `tags` array writes no `tags`. Each name in `security` becomes its own entry in
-the operation's `security` list, with an empty list of scopes. Novis does not check a `security` name
-against anything. The `example` value is written into the `200` response beside its schema.
+the operation's `security` list, with an empty list of scopes. Each name in `security` must be the
+`name` of an `#[Core\Api\Scheme]` on a class of the program. Any other name is `E0886`. The
+`example` value is written into the `200` response beside its schema.
 
 #### Example 01: tag a route for the api document
 
@@ -26102,6 +26104,10 @@ invoice 1042
 // Shows how to say which errors an operation returns, and which security
 // scheme it needs. Each entry in `errors:` becomes one response in the
 // generated API document. Novis checks that the class you name exists.
+
+// `#[Core\Api\Scheme]` declares the scheme that `security:` names.
+#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer", format: "JWT")]
+class Auth {}
 
 class NotFound extends RuntimeError {}
 
@@ -26149,6 +26155,10 @@ not found: there is no payment 0
 // operation has a summary, a group and an example of what it returns. `nvs
 // build --openapi` writes one document holding all of it, and a code generator
 // turns that document into a client library.
+
+// The client sends a bearer token. The document describes it once, here.
+#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer")]
+class Auth {}
 
 class Order {
     public uint $id = 0;
@@ -33106,7 +33116,7 @@ none
 | [`Core\Path::fromCwd`](#core-core-path-fromcwd) | `fromCwd(string $path): string` |
 | [`Core\Path::thisFile`](#core-core-path-thisfile) | `thisFile(): string` |
 | [`Core\Path::thisDir`](#core-core-path-thisdir) | `thisDir(?string $join = null): string` |
-| `Core\Path::SEPARATOR` | `string` = `"/" ("\" on Windows)` — The path separator of this platform. It is `\` on Windows and `/` on every other platform, like PHP's `DIRECTORY_SEPARATOR`. Every method writes it, and every method accepts both `/` and `\`. |
+| `Core\Path::SEPARATOR` | `string` = `"/" ("\" on Windows)` — The path separator of this platform. It is `\` on Windows and `/` on every other platform. Every method writes it, and every method accepts both `/` and `\`. |
 
 <a id="core-core-path-basename"></a>
 #### `Core\Path::basename`
@@ -47623,7 +47633,7 @@ Keywords: name, type, nullable
 $column->name(): string
 ```
 
-Returns the column's label as the server described it. This is the `name` that `getColumnMeta` gives in PHP. If the `select` list gives the column an alias, the label is the alias.
+Returns the column's label as the server described it. If the `select` list gives the column an alias, the label is the alias.
 
 **Returns** `string` — The label. It is not a unique key: `select a, a` gives two columns with one label. So read a column by its position in the array that `columns()` returns.
 
@@ -53047,6 +53057,30 @@ The one access value that `Core` gives for `#[Access(allow: …)]`. `Public` is 
 | Case | Meaning |
 |---|---|
 | `Core\Audience::Public` | The route is open to everyone. For any other access rule, use an enum case or a class constant of your own program. |
+
+<a id="enum-core-api-schemetype"></a>
+#### `Core\Api\SchemeType`
+
+The kind of security scheme that an `#[Api\Scheme]` declares. The generated OpenAPI file writes it as the scheme's `type`. Each kind needs its own fields.
+
+| Case | Meaning |
+|---|---|
+| `Core\Api\SchemeType::ApiKey` | A key in a header, a query parameter or a cookie. It needs `in` and `parameter`. |
+| `Core\Api\SchemeType::Http` | An HTTP `Authorization` scheme, such as `bearer` or `basic`. It needs `scheme`, and `format` is optional. |
+| `Core\Api\SchemeType::MutualTls` | A client certificate. It needs no other field. |
+| `Core\Api\SchemeType::OAuth2` | OAuth 2.0. It needs `flows`. |
+| `Core\Api\SchemeType::OpenIdConnect` | OpenID Connect. It needs `url`, the address of the provider's configuration. |
+
+<a id="enum-core-api-keyin"></a>
+#### `Core\Api\KeyIn`
+
+Where the key of an `ApiKey` security scheme is sent. You write it as `in:` in an `#[Api\Scheme]`.
+
+| Case | Meaning |
+|---|---|
+| `Core\Api\KeyIn::Query` | In a query parameter of the URL. |
+| `Core\Api\KeyIn::Header` | In a request header. |
+| `Core\Api\KeyIn::Cookie` | In a cookie. |
 
 <a id="enum-core-response-redirect"></a>
 #### `Core\Response::Redirect`
