@@ -386,10 +386,13 @@ fn deprecation(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
 /// carrying none answers nothing, and the walk above steps outward to the node
 /// containing it, which is how a cursor inside an argument still reaches the
 /// call around it when the argument itself was recorded as nothing.
+///
+/// A `readonly` property read a dominating test narrowed shows the narrowed
+/// type, which is the type the checker held the read to (`rule:types/narrowing`).
 fn declared(analysed: &Analysed, info: &ExprInfo) -> Option<String> {
     let ty = match info {
-        ExprInfo::Property { ty, .. }
-        | ExprInfo::StaticProperty { ty, .. }
+        ExprInfo::Property { ty, narrowed, .. } => narrowed.unwrap_or(*ty),
+        ExprInfo::StaticProperty { ty, .. }
         | ExprInfo::HookedProperty { ty, .. } => *ty,
         ExprInfo::Index { elem_ty, .. } => *elem_ty,
         ExprInfo::NarrowedRead { to } => *to,

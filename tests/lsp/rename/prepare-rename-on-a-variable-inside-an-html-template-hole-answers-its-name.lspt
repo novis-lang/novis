@@ -1,0 +1,10 @@
+--TEST--
+`prepareRename` on a variable inside a hole of an html template answers the range of the variable's name
+--FILE--
+<?nvs
+string $name = "Ada";
+echo html`<p>Hello {$na<|>me}</p>`;
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:3:21-3:26

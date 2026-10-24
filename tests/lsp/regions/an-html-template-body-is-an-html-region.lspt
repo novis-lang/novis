@@ -1,0 +1,13 @@
+--TEST--
+The body of an html template is html regions with both kinds of hole cut out, and a string inside a hole is not a region
+--FILE--
+<?nvs
+var $name = "world";
+var $x = "!";
+echo html`<p>hi {$name}, <?= $x . "?" ?></p>`;
+--REQUEST--
+regions
+--EXPECT--
+4:11-4:17 html
+4:24-4:26 html
+4:41-4:45 html

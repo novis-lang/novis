@@ -74,6 +74,18 @@
 //! [`half_written_tag`] is the one reading of "half-written", and the
 //! completion arm asks it too.
 //!
+//! # Decision: an html template's body is a region on the same terms
+//!
+//! ``html`…` `` (`rule:core-classes/html-template`) is markup in expression
+//! position, and the lexer frames it: the body is [`TokenKind::StringPart`]
+//! runs between [`TokenKind::HtmlTemplateOpen`] and
+//! [`TokenKind::HtmlTemplateClose`]. Each run is a region, so its two kinds of
+//! hole, `{$ … }` and `<?= … ?>`, are cut out the way a `<?nvs` block is. A
+//! run counts only while the template is the innermost thing open, which a
+//! stack of the open delimiters answers: a plain string written inside a hole
+//! lexes the same `StringPart` and is not markup. Adjacent runs are joined,
+//! since a hole is the only thing that splits a body.
+//!
 //! # Formatting does not cross this wire
 //!
 //! A client's format pass reads these
@@ -202,15 +214,55 @@ pub fn for_request(
 #[must_use]
 pub fn for_source(file: &SourceFile, encoding: PositionEncoding) -> Vec<Region> {
     let mut diags = Diagnostics::new();
-    tokenize(file, &mut diags)
+    let mut spans: Vec<Span> = Vec::new();
+    let mut open: Vec<Frame> = Vec::new();
+    for token in tokenize(file, &mut diags) {
+        match token.kind {
+            TokenKind::InlineHtml => spans.extend(around_half_written_tags(file, token.span)),
+            TokenKind::HtmlTemplateOpen => open.push(Frame::Template),
+            TokenKind::DoubleQuoteOpen | TokenKind::HeredocOpen | TokenKind::NowdocOpen => {
+                open.push(Frame::Other);
+            }
+            TokenKind::ComplexInterpOpen | TokenKind::HtmlTemplateEchoOpen => {
+                open.push(Frame::Other);
+            }
+            TokenKind::HtmlTemplateClose
+            | TokenKind::DoubleQuoteClose
+            | TokenKind::HeredocClose
+            | TokenKind::ComplexInterpClose
+            | TokenKind::HtmlTemplateEchoClose => {
+                open.pop();
+            }
+            TokenKind::StringPart if open.last() == Some(&Frame::Template) => {
+                match spans.last_mut() {
+                    Some(last) if last.end == token.span.start => last.end = token.span.end,
+                    _ => spans.push(token.span),
+                }
+            }
+            _ => {}
+        }
+    }
+    spans
         .into_iter()
-        .filter(|token| token.kind == TokenKind::InlineHtml)
-        .flat_map(|token| around_half_written_tags(file, token.span))
+        .filter(|span| span.start < span.end)
         .map(|span| Region {
             range: range_at(file, span, encoding),
             language: HTML.to_owned(),
         })
         .collect()
+}
+
+/// What the innermost open delimiter is, for [`for_source`]'s walk.
+///
+/// A [`TokenKind::StringPart`] is markup only when the innermost thing open is
+/// an html template. Inside a `{$ … }` or `<?= … ?>` hole, or a plain string
+/// written in one, the same token is a string's text.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Frame {
+    /// An html template's body.
+    Template,
+    /// A string, a heredoc, or a hole in either kind of literal.
+    Other,
 }
 
 /// The length of the half-written open tag `rest` starts with, or `None` where

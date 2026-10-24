@@ -1,0 +1,10 @@
+--TEST--
+a cursor on the html text of an html template selects nothing, so it offers no code action
+--FILE--
+<?nvs
+string $name = "Ada";
+echo html`<p>Hel<|>lo {$name}</p>`;
+--REQUEST--
+codeAction
+--EXPECT--
+none

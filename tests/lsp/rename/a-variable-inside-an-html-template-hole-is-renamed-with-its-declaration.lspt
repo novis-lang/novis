@@ -1,0 +1,11 @@
+--TEST--
+a variable renamed from inside a hole of an html template is renamed at its declaration and in the hole
+--FILE--
+<?nvs
+string $name = "Ada";
+echo html`<p>Hello {$na<|>me}</p>`;
+--REQUEST--
+rename to=guest
+--EXPECT--
+case.nvs:2:8 $guest
+case.nvs:3:21 $guest

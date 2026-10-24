@@ -1,0 +1,19 @@
+--TEST--
+A read of a readonly nullable property inside a branch that tested it against null shows the narrowed type
+--FILE--
+<?nvs
+class User
+{
+    public function constructor(public readonly ?string $nick) {}
+}
+
+var $u = new User("ada");
+if ($u->nick != null) {
+    echo $u->ni<|>ck;
+}
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+string
+```

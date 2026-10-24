@@ -1,0 +1,10 @@
+--TEST--
+`prepareRename` on the html text of an html template is refused, because the text outside its holes is no symbol
+--FILE--
+<?nvs
+string $name = "Ada";
+echo html`<p>Hel<|>lo {$name}</p>`;
+--REQUEST--
+prepareRename
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.

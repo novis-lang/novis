@@ -1,0 +1,10 @@
+--TEST--
+the html text of an html template, outside its holes, names no declaration, so the cursor there answers `none`
+--FILE--
+<?nvs
+string $name = "Ada";
+echo html`<p>Hel<|>lo {$name}</p>`;
+--REQUEST--
+definition
+--EXPECT--
+none
