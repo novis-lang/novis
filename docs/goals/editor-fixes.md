@@ -13,7 +13,7 @@ stages:
         rules: [ide/a-quick-fix-is-a-diagnostics-own-suggestion, routing/a-quick-fix-writes-a-derived-path, classes/definite-property-initialization, statements/require-is-the-only-inclusion-construct, security/tainted-qualifier]
   - id: 2
     title: "the narrowing action writes an array's literal type"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/actions.rs, crates/nvs-types/src/narrow.rs, docs/rules/ide/narrow-an-annotation-to-its-literal.md, docs/rules/ide/narrowest-means-narrowest-base-type.md]
     extra:
       context:
@@ -107,7 +107,19 @@ flip open, and the session takes stage 3.
 
 **The narrowing round trip is defined.** The action's edit applied to a file gives a file that
 passes `nvs check` with the same diagnostics as before, and the action is no longer offered on that
-annotation. The `.lspt` case freezes the edit, and a unit test in `narrow.rs` applies it and checks.
+annotation. The `.lspt` case freezes the edit. The test that applies it is
+`a_narrowed_annotation_checks_as_before_and_is_not_offered_again` in
+`crates/nvs-lsp/tests/actions.rs`, because only `nvs-lsp` can analyse an edited document.
+
+**The narrowing reads `var`'s synthesis, and writes no second one.** The shipped
+`rule:ide/no-compile-path-calls-the-synthesis` already names `synthesize_array_literal` as the one
+synthesis. So the action analyses the document again with `var` in place of the annotation, and
+reads the type `var_array_literal` records at the literal (`ExprTypeTable::literal_type`), a refused
+union included. `crates/nvs-types/src/narrow.rs` only widens, declines and prints. The action is
+offered only when the edited document reports the diagnostics it reports now, so it never breaks a
+later write. It covers local declarations; a property's default and a parameter's are not offered.
+A union is printed with its members in text order, since the interner's order differs between
+documents.
 
 **The older reference cards are rewritten here, one writing subagent per module.** A hover prints a
 card, so a card in the old voice reaches every editor user. Each card is held to `AGENTS.md`
@@ -171,14 +183,18 @@ through one synthesis function in `nvs-types`.
 `tests/lsp/actions/`: a nested literal, a literal in another file (not offered), a mixed element
 type.
 
-- [ ] The synthesis function, with its unit tests (`rule:ide/narrowest-means-narrowest-base-type`). `crates/nvs-types/src/narrow.rs:1`
-- [ ] The guard test that no compile path calls it (`rule:ide/no-compile-path-calls-the-synthesis`). `crates/nvs-types/src/narrow.rs:1`
-- [ ] The action answers from a literal in the same file or is not offered (`rule:ide/the-action-answers-from-the-literal-or-not-at-all`). `crates/nvs-lsp/src/actions.rs:150`
-- [ ] It is never registered under `source.fixAll.nvs` (`rule:ide/narrowing-is-a-diff-never-a-save-time-fix`). `crates/nvs-lsp/src/actions.rs:169`
-- [ ] The round trip § *Standing decisions* defines, as a unit test. `crates/nvs-types/src/narrow.rs:1`
-- [ ] `.lspt` cases. `tests/lsp/actions/an-array-annotation-narrows-to-its-literal.lspt:1`
-- [ ] The four narrowing rules `shipped`. `data/rules/ide/narrow-an-annotation-to-its-literal.json:3`, `data/rules/ide/narrowest-means-narrowest-base-type.json:3`, `data/rules/ide/narrowing-is-a-diff-never-a-save-time-fix.json:3`, `data/rules/ide/the-action-answers-from-the-literal-or-not-at-all.json:3`
-- [ ] Gated on `crates/nvs-lsp/src/generate.rs` holding three generators: `rule:ide/a-code-action-writes-only-what-is-already-determined` `shipped`. `data/rules/ide/a-code-action-writes-only-what-is-already-determined.json:3`
+- [x] The synthesis function, with its unit tests (`rule:ide/narrowest-means-narrowest-base-type`). `crates/nvs-types/src/narrow.rs:1`
+  - [x] `var_array_literal` records the synthesis outcome at the literal's span (`ExprTypeTable::literal_type`).
+  - [x] `narrow::narrowest` widens each element to its base and declines `mixed`, an unwritable type and depth past 32.
+  - [x] `narrow::written` renders it, `?T` for a two-member union with `null`.
+  - [x] The seven unit tests the rule lists.
+- [x] The guard test that no compile path calls it (`rule:ide/no-compile-path-calls-the-synthesis`). `crates/nvs-types/src/narrow.rs:1`
+- [x] The action answers from a literal in the same file or is not offered (`rule:ide/the-action-answers-from-the-literal-or-not-at-all`). `crates/nvs-lsp/src/actions.rs:150`
+- [x] It is never registered under `source.fixAll.nvs` (`rule:ide/narrowing-is-a-diff-never-a-save-time-fix`). `crates/nvs-lsp/src/actions.rs:169`
+- [x] The round trip § *Standing decisions* defines, as a unit test. `crates/nvs-types/src/narrow.rs:1`
+- [x] `.lspt` cases. `tests/lsp/actions/an-array-annotation-narrows-to-its-literal.lspt:1`
+- [x] The four narrowing rules `shipped`. `data/rules/ide/narrow-an-annotation-to-its-literal.json:3`, `data/rules/ide/narrowest-means-narrowest-base-type.json:3`, `data/rules/ide/narrowing-is-a-diff-never-a-save-time-fix.json:3`, `data/rules/ide/the-action-answers-from-the-literal-or-not-at-all.json:3`
+- [x] Gated on `crates/nvs-lsp/src/generate.rs` holding three generators: `rule:ide/a-code-action-writes-only-what-is-already-determined` `shipped`. `data/rules/ide/a-code-action-writes-only-what-is-already-determined.json:3`
 
 ### 3. parameter hints on every call, hover on a narrowed read, and an html template is a region
 
@@ -284,17 +300,21 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. Five diagnostics carry their fix as a suggestion, each frozen by an `.lspt` case
-under `tests/lsp/actions/`: `E0409` (`AssignFix` in `crates/nvs-types/src/ctor_init.rs`), `E0221`
-(`crates/nvs-syntax/src/parser/expr.rs`, `parse_rejected_include_family`), `E0116`
-(`crates/nvs-syntax/src/parser/ty.rs`), `E0747` (`derived_path` and `path_insertion` in
-`crates/nvs-types/src/routes.rs`), and a `tainted` URL's `E0401` (`Carrier::attach` in
-`crates/nvs-types/src/expr/args.rs`, `alternative`). Both rules are `shipped`. The new standing
-decision says why a `secret` value and a DN get no fix. Stage 2's gate is met: goal
-`editor-refactors` is retired, and `crates/nvs-lsp/src/generate.rs` has its three generators.
+Stages 1 and 2 are done. Stage 1: five diagnostics carry their fix as a suggestion, each frozen by
+an `.lspt` case under `tests/lsp/actions/` (`E0409`, `E0221`, `E0116`, `E0747`, a `tainted` URL's
+`E0401`). Stage 2: *Narrow the type* is a `refactor.rewrite` action in
+`crates/nvs-lsp/src/narrow.rs`, appended to quick-fix answers only (`crates/nvs-lsp/src/actions.rs`).
+It reads `ExprTypeTable::literal_type`, which `var_array_literal` in `crates/nvs-types/src/locals.rs`
+now records, and `crates/nvs-types/src/narrow.rs` widens and prints the type. The new standing
+decision says how. Five rules are `shipped`. Tests: `narrow::tests` (8, green),
+`crates/nvs-lsp/tests/actions.rs` (green), and five narrowing `.lspt` cases (green). The old case
+`a-fix-the-checker-would-compute-is-offered-by-nothing.lspt` is now
+`an-array-annotation-narrows-to-its-literal.lspt`.
 
-Tests likely to go red in the gate stage. Each prints the new `= suggestion` line, or checks a
-diagnostic's suggestions:
+Tests likely to go red in the gate stage. Stage 2 adds a `refactor.rewrite` action on any
+`array<mixed> $x = [...]` annotation, so an `.lspt` or a test that asks `codeAction` with the cursor
+on one now gets it. `bun nv lsp-test tests/lsp/ --coverage` may count a new action. Stage 1's, each
+printing the new `= suggestion` line or checking a diagnostic's suggestions:
 - `crates/nvs-syntax/src/parser/tests/ty.rs` (the `E0116` case) and any parser test that counts
   suggestions.
 - `crates/nvs-types/tests/routes.rs` (`E0747`) and the `E0409` unit tests in `ctor_init.rs`.
@@ -303,29 +323,30 @@ diagnostic's suggestions:
   is already updated, and the two `reject/*require*` cases pass.
 - A `nvs check --json` snapshot that holds one of these codes.
 
-**Fix first, outside this goal:** the nightly run's `cost guards / macos-aarch64` failed
-`serve::tests::live_bytes_stay_flat_while_one_core_serves_thousands_of_requests`
-(`crates/nvs-cli/src/serve.rs:4298`): the serving thread held 180120 bytes more after request 4475
-than after request 525, about 45 bytes per request. No commit since the run names it. The run's
-other twelve failures each have a later commit that names them. `env-secret-proofs` is green
-again.
+**The nightly run's red is not owed by this tree.** Run 39922764699 ran at `7b6ef53ee`. Its
+`cost guards / macos-aarch64` soak leak was 2280 bytes per connection, and commit `071663316`
+(`fix(runtime): a spawned tree's start-up bytes leave the tree that spawned it`) fixes it. That
+commit is in `HEAD` and not in the run. The soak passes at `HEAD` on Windows under `--release`. It
+has never run on Linux, so the next nightly is its first run there. `env-secret-proofs` exits 0 at
+`HEAD`. The uncommitted rustfmt change in `crates/nvs-runtime/src/capability.rs` is not this goal's,
+and is left in the tree.
 
 ### Next
 
-**Stage 2: the narrowing action writes an array's literal type**, one file set:
-`crates/nvs-types/src/narrow.rs` (new), `crates/nvs-lsp/src/actions.rs`, `tests/lsp/actions/`.
-The gate is met.
+**Stage 3: parameter hints on every call, hover on a narrowed read, and an html template is a
+region.** Its files are its own: `crates/nvs-lsp/src/hints.rs`, `crates/nvs-lsp/src/hover.rs` and
+`crates/nvs-lsp/src/regions.rs`.
 
-- [ ] The synthesis function, with its unit tests (`rule:ide/narrowest-means-narrowest-base-type`). `crates/nvs-types/src/narrow.rs:1`
-- [ ] The guard test that no compile path calls it (`rule:ide/no-compile-path-calls-the-synthesis`). `crates/nvs-types/src/narrow.rs:1`
-- [ ] Answers from a literal in the same file or is not offered (`rule:ide/the-action-answers-from-the-literal-or-not-at-all`). `crates/nvs-lsp/src/actions.rs:150`
-- [ ] Never under `source.fixAll.nvs` (`rule:ide/narrowing-is-a-diff-never-a-save-time-fix`). `crates/nvs-lsp/src/actions.rs:169`
-- [ ] The round trip as a unit test. `crates/nvs-types/src/narrow.rs:1`
-- [ ] `.lspt` cases. `tests/lsp/actions/an-array-annotation-narrows-to-its-literal.lspt:1`
-- [ ] The four narrowing rules and `rule:ide/a-code-action-writes-only-what-is-already-determined` `shipped`. `data/rules/ide/narrow-an-annotation-to-its-literal.json:3`, `data/rules/ide/a-code-action-writes-only-what-is-already-determined.json:3`
+- [ ] A `new`, a call through a `callable` and a call on a `mixed` receiver get parameter hints. `crates/nvs-lsp/src/hints.rs:455`
+- [ ] Hover on a narrowed `readonly` property read shows the narrowed type. `crates/nvs-lsp/src/hover.rs:390`
+- [ ] An html template's body is an HTML region, with its two kinds of hole cut out. `crates/nvs-lsp/src/regions.rs:268`
+- [ ] An `.lspt` case for each, by one writing subagent. `tests/lsp/hints/a-constructor-call-gets-parameter-hints.lspt:1`
+- [ ] The three gap records deleted. `data/gaps/nvs-lsp/call-the-checker-recorded-as-anything.json:1`
 
 ### Backlog
 
+- The narrowing action covers local declarations only. A property's default, a parameter's and a
+  declaration inside a closure are not offered (`crates/nvs-lsp/src/narrow.rs`, `stmt_at`).
 - An `E0747` fix on a parameter whose type does not resolve writes a capture for it, because
   `converts_from_segment` accepts an unresolved type (`derived_path` in
   `crates/nvs-types/src/routes.rs`). The `E0303` beside it is the real error.
