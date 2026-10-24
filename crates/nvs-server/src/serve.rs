@@ -5644,15 +5644,18 @@ pub(crate) mod tests {
                 handler_said,
                 send_past_the_stall,
             );
-            let quick = crate::bounds::Connection {
-                send: Duration::from_millis(20),
+            // Long enough that only a full socket buffer fails a send. A slow runner can take
+            // 20 ms to write one chunk to a peer that still has room, and that frame then goes
+            // out with the next send's flush, a second frame past `delivered` that no stall held.
+            let stalls_only = crate::bounds::Connection {
+                send: Duration::from_millis(250),
                 ..crate::bounds::Connection::default()
             };
             serve_on_this_core(
                 &mut listener,
                 &handler,
                 Waits::default(),
-                &wide_open().bounded_by(quick),
+                &wide_open().bounded_by(stalls_only),
                 &Draining::detached(),
                 |_note| {},
                 until_the_loop_is_ended(),
