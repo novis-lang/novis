@@ -1,0 +1,19 @@
+--TEST--
+a class whose last member is a property has its missing methods inserted after the property
+--FILE--
+<?nvs
+interface Priced
+{
+    public function price(): int;
+}
+
+class <|>Pen implements Priced
+{
+    public int $count = 0;
+}
+
+echo new Pen()->count;
+--REQUEST--
+codeAction
+--EXPECT--
+9:27-9:27 quickfix Implement the missing methods -> "\n\n    public function price(): int\n    {\n        throw new LogicError("Pen::price is not implemented");\n    }"

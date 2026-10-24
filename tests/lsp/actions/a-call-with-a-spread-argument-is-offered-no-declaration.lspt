@@ -1,0 +1,16 @@
+--TEST--
+a call to an unknown method with a spread argument is offered no declaration
+--FILE--
+<?nvs
+class Cart
+{
+    public int $total = 0;
+}
+
+var $cart = new Cart();
+var $items = [1, 2];
+<|>$cart->add(...$items);
+--REQUEST--
+codeAction
+--EXPECT--
+none

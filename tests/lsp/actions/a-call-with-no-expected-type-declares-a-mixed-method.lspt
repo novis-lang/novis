@@ -1,0 +1,16 @@
+--TEST--
+a call whose result goes to a `var` with no type declares a method that returns `mixed`
+--FILE--
+<?nvs
+class Cart
+{
+    public int $total = 0;
+}
+
+var $cart = new Cart();
+var $first = <|>$cart->first();
+echo $first;
+--REQUEST--
+codeAction
+--EXPECT--
+4:27-4:27 quickfix Declare `first` in `Cart` -> "\n\n    public function first(): mixed\n    {\n        throw new LogicError("Cart::first is not implemented");\n    }"

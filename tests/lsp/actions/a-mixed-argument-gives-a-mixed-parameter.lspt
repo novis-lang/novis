@@ -1,0 +1,23 @@
+--TEST--
+an argument whose type is `mixed` gives the declared method a `mixed` parameter
+--FILE--
+<?nvs
+class Shelf
+{
+    public static function load(): mixed
+    {
+        return 1;
+    }
+}
+
+class Cart
+{
+    public int $total = 0;
+}
+
+var $cart = new Cart();
+<|>$cart->add(Shelf::load());
+--REQUEST--
+codeAction
+--EXPECT--
+12:27-12:27 quickfix Declare `add` in `Cart` -> "\n\n    public function add(mixed $arg1): void\n    {\n        throw new LogicError("Cart::add is not implemented");\n    }"

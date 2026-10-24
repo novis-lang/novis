@@ -1,0 +1,22 @@
+--TEST--
+the declaration applied once leaves nothing to declare, so a second one is not offered
+--FILE--
+<?nvs
+class Cart
+{
+    public int $total = 0;
+
+    public function add(int $count, string $arg2, float $arg3): int
+    {
+        throw new LogicError("Cart::add is not implemented");
+    }
+}
+
+var $cart = new Cart();
+var $count = 2;
+int $sum = <|>$cart->add($count, "pen", 4.5);
+echo $sum;
+--REQUEST--
+codeAction
+--EXPECT--
+none

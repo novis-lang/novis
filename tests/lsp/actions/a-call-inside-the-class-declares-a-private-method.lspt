@@ -1,0 +1,19 @@
+--TEST--
+a call on `$this` inside the class's own declaration declares a private method
+--FILE--
+<?nvs
+class Cart
+{
+    public int $total = 0;
+
+    public function run(): void
+    {
+        <|>$this->helper();
+    }
+}
+
+new Cart()->run();
+--REQUEST--
+codeAction
+--EXPECT--
+9:6-9:6 quickfix Declare `helper` in `Cart` -> "\n\n    private function helper(): void\n    {\n        throw new LogicError("Cart::helper is not implemented");\n    }"

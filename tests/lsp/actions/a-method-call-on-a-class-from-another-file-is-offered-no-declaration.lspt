@@ -1,0 +1,18 @@
+--TEST--
+a call to an unknown method of a class declared in another file is offered no declaration
+--FILE--
+<?nvs
+require 'lib/cart.nvs';
+
+var $cart = new Cart();
+<|>$cart->add(2);
+--FILE lib/cart.nvs--
+<?nvs
+class Cart
+{
+    public int $total = 0;
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

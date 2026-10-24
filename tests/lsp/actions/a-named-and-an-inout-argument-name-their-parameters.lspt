@@ -1,0 +1,18 @@
+--TEST--
+a named argument names its parameter, and an `inout` argument gives an `inout` parameter
+--FILE--
+<?nvs
+class Cart
+{
+    public int $total = 0;
+}
+
+var $cart = new Cart();
+var $count = 2;
+var $name = "pen";
+<|>$cart->add(inout $count, label: $name);
+echo $count;
+--REQUEST--
+codeAction
+--EXPECT--
+4:27-4:27 quickfix Declare `add` in `Cart` -> "\n\n    public function add(inout int $count, string $label): void\n    {\n        throw new LogicError("Cart::add is not implemented");\n    }"

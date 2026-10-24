@@ -1,0 +1,14 @@
+--TEST--
+a static call to a method the class does not declare is offered no declaration
+--FILE--
+<?nvs
+class Cart
+{
+    public int $total = 0;
+}
+
+<|>Cart::add(2);
+--REQUEST--
+codeAction
+--EXPECT--
+none
