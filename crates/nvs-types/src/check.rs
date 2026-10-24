@@ -1024,6 +1024,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         record_locals(body.span, &mut scope, env);
         check_every_path_returns(m, body, return_ty, env);
         reject_static_return_of_another_class(m, body, ctx, env);
+        keep_body_reads(label.as_ref(), env);
         env.body_writers = outer_writers;
         if let Some(label) = label {
             env.exprs.own_inline_snapshots(snapshots, label);
@@ -1048,9 +1049,19 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let void = env.interner.void();
     check_block(&body.stmts, &mut live, &mut scope, void, &inner, env);
     record_locals(body.span, &mut scope, env);
+    keep_body_reads(label.as_ref(), env);
     env.body_writers = outer_writers;
     if let Some(label) = label {
         env.exprs.own_inline_snapshots(snapshots, label);
+    }
+}
+
+/// Hands the body reads a route handler's body wrote to the route table, where
+/// [`crate::routes::check_class_routes`] puts them on the handler's rows.
+fn keep_body_reads(label: Option<&String>, env: &mut Env<'_>) {
+    let bodies = env.body_writers.take_bodies();
+    if let Some(label) = label {
+        env.routes.note_bodies(label.clone(), bodies);
     }
 }
 

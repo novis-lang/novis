@@ -9,7 +9,8 @@ with `T`'s schema under `application/json` or `application/x-www-form-urlencoded
 There is no new syntax. The type is the one the handler already writes to decode its body, so the
 document cannot name a body the code does not decode (`rule:attributes/api-adds-and-cannot-contradict`).
 A handler with a `jsonAs` and a `postAs` gets both media types. Two reads of one kind with different
-types give that media type a `oneOf` of the two schemas.
+types give that media type a `oneOf` of the two schemas. A `postAs` call that writes its `name` option reads
+one field of the form and not the whole body, so the document does not take a body from it.
 
 A body read inside a helper method is not seen. A handler that reaches a `jsonAs` or `postAs` call only
 through methods it calls gets no `requestBody`, and `nvs check` warns at the route that the document does

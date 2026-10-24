@@ -277,7 +277,8 @@ pub use nvs_stdlib::script::{
 pub use nvs_stdlib::format::PIECE_SYMBOL as CORE_STR_FORMAT_PIECE;
 pub use nvs_stdlib::{CodecElement, CodecField, CodecTy, EnumCases, FieldDefault};
 pub use routes::{
-    ApiError, ApiScheme, BodyTy, OAuthFlow, ParamIn, Route, RouteParam, RouteTable, SchemeKind,
+    ApiError, ApiScheme, BodyKind, BodyTy, OAuthFlow, ParamIn, RequestBody, Route, RouteParam,
+    RouteTable, SchemeKind,
 };
 pub use ty::{CoreShape, CoreShapeField, Ty, TypeId, TypeInterner};
 

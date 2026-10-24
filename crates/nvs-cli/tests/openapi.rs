@@ -381,6 +381,106 @@ fn an_enum_return_lists_its_backing_values() {
     );
 }
 
+/// The document for `request-body.nvs`, parsed.
+fn request_body() -> serde_json::Value {
+    let (doc, err, ok) = build(&fixture("request-body"));
+    assert!(ok, "the fixture compiles: {err}");
+    serde_json::from_str(&doc).expect("the document is JSON")
+}
+
+/// The `requestBody` of `POST <path>` in `document`.
+fn body_of(document: &serde_json::Value, path: &str) -> serde_json::Value {
+    document["paths"][path]["post"]["requestBody"].clone()
+}
+
+/// `rule:routing/a-request-body-is-read-from-the-handlers-own-call`: a
+/// `jsonAs<T>()` in the handler is a required `application/json` body with
+/// `T`'s schema, because `jsonAs` throws on an empty body.
+#[test]
+fn a_json_read_in_the_handler_is_its_required_request_body() {
+    let document = request_body();
+    assert_eq!(
+        body_of(&document, "/notes/json"),
+        serde_json::json!({
+            "required": true,
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/NewNote"}}},
+        }),
+        "{document}"
+    );
+    assert_eq!(
+        document["components"]["schemas"]["NewNote"],
+        serde_json::json!({
+            "type": "object",
+            "properties": {"text": {"type": "string"}},
+            "required": ["text"],
+        }),
+        "the body's class is an entry of its own:\n{document}"
+    );
+}
+
+/// A `postAs<T>()` is a form body. It is required only when `T` has a
+/// required field, because `postAs` throws only when one is missing.
+#[test]
+fn a_form_read_is_a_form_body_required_when_its_class_needs_a_field() {
+    let document = request_body();
+    assert_eq!(
+        body_of(&document, "/notes/form"),
+        serde_json::json!({
+            "required": true,
+            "content": {
+                "application/x-www-form-urlencoded": {
+                    "schema": {"$ref": "#/components/schemas/NewNote"},
+                },
+            },
+        }),
+        "{document}"
+    );
+    assert_eq!(
+        body_of(&document, "/notes/search")["required"],
+        false,
+        "every field of `Search` has a default:\n{document}"
+    );
+}
+
+/// A handler with a JSON read and a form read has both media types, and two
+/// JSON reads of two types are a `oneOf` that names each type once.
+#[test]
+fn both_kinds_are_two_media_types_and_two_types_of_one_kind_are_a_one_of() {
+    let document = request_body();
+    assert_eq!(
+        body_of(&document, "/notes/both")["content"],
+        serde_json::json!({
+            "application/json": {"schema": {"$ref": "#/components/schemas/NewNote"}},
+            "application/x-www-form-urlencoded": {
+                "schema": {"$ref": "#/components/schemas/Search"},
+            },
+        }),
+        "{document}"
+    );
+    assert_eq!(
+        body_of(&document, "/notes/either")["content"]["application/json"]["schema"],
+        serde_json::json!({"oneOf": [
+            {"$ref": "#/components/schemas/NewNote"},
+            {"$ref": "#/components/schemas/Draft"},
+        ]}),
+        "{document}"
+    );
+}
+
+/// A read inside a method the handler calls is not the handler's body, and a
+/// `postAs` that writes `name` reads one field. Neither route has a
+/// `requestBody`.
+#[test]
+fn a_read_in_a_helper_or_of_one_field_gives_no_request_body() {
+    let document = request_body();
+    for path in ["/notes/helper", "/notes/field"] {
+        assert!(
+            body_of(&document, path).is_null(),
+            "{path} has no `requestBody`:\n{document}"
+        );
+    }
+}
+
 /// The document's *Enumerations* row, and
 /// `rule:routing/a-capture-narrows-to-a-closed-set`
 /// 's own promise about it — "the generated document emits

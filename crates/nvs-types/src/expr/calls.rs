@@ -918,6 +918,7 @@ pub(crate) fn infer_static_call(
         // Late static binding: which spellings set the called class and which
         // forward the caller's is [`called_class_set_at`]'s.
         call.static_class = called_class_set_at(class, ctx, env);
+        crate::routes::note_body_read(qname, name, &written, args, env);
         if let Some((target, list)) =
             written_class_of(qname, name, &written, outside, type_args, expr.span, env)
         {

@@ -1,0 +1,99 @@
+<?nvs
+// The request bodies a handler reads: a JSON body, a form body, both, two
+// JSON types, a read inside a helper, and a `postAs` that reads one field.
+//
+// `Search` has a default for every field, so a form read into it does not
+// make the body required.
+
+#[Core\Json\Derive]
+class NewNote
+{
+    public tainted string $text;
+
+    public function constructor(tainted string $text)
+    {
+        $this->text = $text;
+    }
+}
+
+#[Core\Json\Derive]
+class Draft
+{
+    public tainted string $title;
+
+    public function constructor(tainted string $title)
+    {
+        $this->title = $title;
+    }
+}
+
+#[Core\Json\Derive]
+class Search
+{
+    public tainted string $term;
+
+    public function constructor(tainted string $term = "")
+    {
+        $this->term = $term;
+    }
+}
+
+class Notes
+{
+    #[Core\Route(path: "/notes/json", method: Core\Http\Method::Post, name: "Notes::json")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function json(): void
+    {
+        var $note = Core\Request::jsonAs<NewNote>();
+    }
+
+    #[Core\Route(path: "/notes/form", method: Core\Http\Method::Post, name: "Notes::form")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function form(): void
+    {
+        var $note = Core\Request::postAs<NewNote>();
+    }
+
+    #[Core\Route(path: "/notes/both", method: Core\Http\Method::Post, name: "Notes::both")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function both(): void
+    {
+        var $note = Core\Request::jsonAs<NewNote>();
+        var $search = Core\Request::postAs<Search>();
+    }
+
+    #[Core\Route(path: "/notes/either", method: Core\Http\Method::Post, name: "Notes::either")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function either(): void
+    {
+        var $note = Core\Request::jsonAs<NewNote>();
+        var $draft = Core\Request::jsonAs<Draft>();
+        var $again = Core\Request::jsonAs<NewNote>();
+    }
+
+    #[Core\Route(path: "/notes/search", method: Core\Http\Method::Post, name: "Notes::search")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function search(): void
+    {
+        var $search = Core\Request::postAs<Search>();
+    }
+
+    #[Core\Route(path: "/notes/helper", method: Core\Http\Method::Post, name: "Notes::helper")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function helper(): void
+    {
+        $this->read();
+    }
+
+    #[Core\Route(path: "/notes/field", method: Core\Http\Method::Post, name: "Notes::field")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function field(): void
+    {
+        var $note = Core\Request::postAs<NewNote>({name: "note"});
+    }
+
+    private function read(): NewNote
+    {
+        return Core\Request::jsonAs<NewNote>();
+    }
+}
