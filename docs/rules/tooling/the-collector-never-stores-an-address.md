@@ -32,9 +32,6 @@ allowance is back, a new day gives a new key, and neither the address nor its ke
 table. `Core\Test::request` sends no address, so the log half runs in the end-to-end test against
 `nvs serve`.
 
-**Not on disk.** No test yet reads the log lines a server wrote for a known address, and the deploy
-guide with the proxy's configuration does not exist.
-
 **Declined:**
 - **`Core\Hash::hmac` under the salt.** Its key is a `secret bytes`, and `Core\Cache::memory()` gives
   a cached salt back `tainted`. Keeping it `secret` would mean sealing it with `putSecret` under a key

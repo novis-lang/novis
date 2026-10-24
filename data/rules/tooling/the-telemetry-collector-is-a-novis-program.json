@@ -1,6 +1,6 @@
 {
   "title": "The telemetry collector is `apps/telemetry/`, a Novis program in this repository that names no host, and it runs and is tested end to end on one machine",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "config/telemetry-and-update-endpoints-are-configuration",
     "tooling/a-telemetry-report-is-checked-against-a-closed-schema",
@@ -9,6 +9,7 @@
     "tooling/telemetry-totals-are-public",
     "packaging/the-registry-is-a-novis-program"
   ],
-  "guardedBy": [],
-  "goal": "telemetry-service"
+  "guardedBy": [
+    "crates/nvs-cli/tests/telemetry_e2e.rs"
+  ]
 }

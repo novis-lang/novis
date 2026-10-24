@@ -26,6 +26,11 @@ path = "telemetry.sqlite"
 driver = "sqlite"
 path = ":memory:"
 
+# A request may read these two files and no other file. `known.toml` has the values a report
+# may name. `REVISION` has the commit that the footer shows.
+[capabilities.fs]
+read = ["known.toml", "REVISION"]
+
 # The program may open these two databases and no other.
 [capabilities.db]
 connect = ["telemetry", "scratch"]

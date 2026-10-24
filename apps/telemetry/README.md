@@ -94,8 +94,9 @@ sudo install -d -m 0750 /var/lib/telemetry
 sudo cp /srv/novis/apps/telemetry/nvs.toml /var/lib/telemetry/nvs.toml
 ```
 
-Then change two things in `/var/lib/telemetry/nvs.toml`. The database file goes into the folder of
-step 2. The log lines go to the system journal.
+Then change three things in `/var/lib/telemetry/nvs.toml`. The database file goes into the folder of
+step 2. The log lines go to the system journal. The two files a request may read get their full
+paths, because a short path is read from the folder of `nvs.toml`.
 
 ```toml
 [db.telemetry]
@@ -105,6 +106,9 @@ path = "/var/lib/telemetry-db/telemetry.sqlite"
 [log]
 client_ip = false
 target = "stderr"
+
+[capabilities.fs]
+read = ["/srv/novis/apps/telemetry/known.toml", "/srv/novis/apps/telemetry/REVISION"]
 ```
 
 The file keeps these settings from the copy:

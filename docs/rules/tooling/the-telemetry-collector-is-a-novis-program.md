@@ -19,7 +19,10 @@ own credentials.
 **The whole service runs and is tested on one machine.** An end-to-end test starts `nvs serve` on the
 application with a temporary database on loopback, points the real client at it through
 `NVS_TELEMETRY_URL`, uploads a finished week with `nvs telemetry upload`, and reads the result back
-from `/data/totals.json` and the pages. No test and no check reaches a real host.
+from `/data/totals.json` and the pages. No test and no check reaches a real host. It is the one
+test of the app under `nvs serve`. With no `[capabilities.fs] read`, `nvs test` reads any file and a
+request reads only `public/`, so the app's `read` names `known.toml` and `REVISION`, the two files
+outside `public/` it reads, and this test fails on a read the list leaves out.
 
 The collector is a Novis program because it is small, its job is a web request, and running it is a
 real-world test of the language under traffic it does not control. It shares no code, database or
@@ -27,8 +30,6 @@ process with the registry, so a fault in one never reaches the other.
 
 - **Memory:** per request, one report of at most 4 KiB and one transaction. The rate limit's table is
   per process (`rule:tooling/the-collector-never-stores-an-address`).
-
-**Not on disk.** No end-to-end test runs the client against `apps/telemetry/`.
 
 **Declined:**
 - **A hosted analytics product or a third-party collector.** It moves the promise to a company whose
