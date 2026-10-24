@@ -41,7 +41,7 @@ stages:
         rules: [routing/a-request-body-is-read-from-the-handlers-own-call]
   - id: 4
     title: a strict validator accepts the document, and the editor completes `#[Api]`
-    status: open
+    status: done
     context: [crates/nvs-cli/tests/openapi.rs, crates/nvs-cli/src/api_diff.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-types/src/derive.rs]
     extra:
       context:
@@ -189,10 +189,10 @@ enum response, and a body.
 - [x] The fixture program that uses every feature the document renders. `crates/nvs-cli/tests/fixtures/openapi/every-feature.nvs:1`
 - [x] `jsonschema` as a dev-dependency, and the OpenAPI 3.1 schema and its dialect vendored. `crates/nvs-cli/Cargo.toml:1`, `crates/nvs-cli/tests/fixtures/openapi/schema-3.1.json:1`
 - [x] A test validates the fixture's document and checks that every `$ref` and `security` name resolves. `crates/nvs-cli/tests/openapi.rs:28`
-- [ ] Completion inside `#[Api(...)]` offers its fields from the attribute's card, and a `security` entry offers the declared schemes (`rule:ide/completion-offers-only-what-the-compiler-derived`). `crates/nvs-types/src/derive.rs:186`, `crates/nvs-lsp/src/completion.rs:2087`
-- [ ] `.lspt` cases for both completions. `tests/lsp/completion/an-api-attribute-offers-its-fields.lspt:1`
+- [x] Completion inside `#[Api(...)]` offers its fields from the attribute's card, and a `security` entry offers the declared schemes (`rule:ide/completion-offers-only-what-the-compiler-derived`). `crates/nvs-types/src/derive.rs:186`, `crates/nvs-lsp/src/completion.rs:2087`
+- [x] `.lspt` cases for both completions. `tests/lsp/completion/an-api-attribute-offers-its-fields.lspt:1`
 - [x] `nvs api diff`'s module doc is rewritten: the document now carries `responses` and `requestBody`. `crates/nvs-cli/src/api_diff.rs:33`
-- [ ] `bun nv owners --closes api-document` passes. `data/rules/routing/a-security-scheme-is-declared-in-code.json:3`
+- [x] `bun nv owners --closes api-document` passes. `data/rules/routing/a-security-scheme-is-declared-in-code.json:3`
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -212,22 +212,22 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2, 3 and 6 are done. In stage 4, the fixture, the vendored schemas, the validator test
-and the `api_diff.rs` doc are done (`dbbcb62bf`, `6f3f796a0`).
+Stages 1, 5, 2, 3, 6 and 4 are done. Only stage 7, the gate, is left.
 
-`a_strict_openapi_31_validator_accepts_every_document_the_fixtures_build`
-(`crates/nvs-cli/tests/openapi.rs:1143`) passes. It holds `every-feature.nvs` and every building
-fixture under `tests/fixtures/api` to the vendored 3.1 `schema-base`, offline, and
-`cross_references` (`:1068`) checks `$ref`, `security`, `operationId` and template names.
+Stage 4 ended with `64d0182bd`. Inside `#[...](`, a field name is offered the fields of the
+attribute's `AttributeDoc` (`attribute_key_at`, `crates/nvs-lsp/src/completion.rs:1377`). This works
+for every compiler attribute, and the name is resolved as the checker resolves it. A string in
+`#[Core\Api]`'s `security` list is offered the route table's `schemes()` (`scheme_at`, `:1438`).
+`SOURCED` has the two new rows. Both `.lspt` cases pass, and so does
+`every_completion_source_names_a_compiler_table`. The completion rule names both sources.
+`bun nv owners --closes api-document` passes.
 
-The emitter wrote `{name...}` and `{name?}` as written, with an optional path parameter, which 3.1
-rejects. `templates` (`crates/nvs-cli/src/openapi.rs:393`) now writes `{name}` and splits a
-`{name?}` route into two paths, the shorter one `<id>.without-<name>`. The routing rule says so.
+The acceptance findings were stale again. `env-secret-proofs`' log shows exit 0. The nightly run
+40075586234 ran on `3ea6f1550`, 52 commits behind `main`. Its `supply chain` red is RUSTSEC-2026-0387
+in `crypto-bigint` 0.7.5, and `Cargo.lock` has 0.7.6 (`c7a505981`).
 
-The acceptance findings were stale: `env-secret-proofs` passes again, and the nightly CI failures
-(`3ea6f1550`) are fixed on `main`. Stage 6's `routes.rs` test is rustfmt-clean (`c8f2c5cb6`).
-
-Tests that may go red at the gate: `nvs-lsp`'s stubs tests (`every_line_lands_on_its_name`, and the
+Tests that may go red at the gate: `nvs-lsp`'s `.lspt` coverage matrix
+(`crates/nvs-lsp/tests/coverage.rs`), if it counts completion cases. Also: `nvs-lsp`'s stubs tests (`every_line_lands_on_its_name`, and the
 test that every name has a line) for the new `Core\Api\*` names and card. Any `nvs-stdlib` test that
 counts `ENUMS` or checks enum cards. Any `nvs api diff` or document test whose fixture returns a
 class with a codec (`components.schemas`), reads a body (`requestBody`), or has a `{name?}` or
@@ -238,17 +238,15 @@ counting `Cargo.lock` packages or dev-dependencies, for `jsonschema`.
 
 ### Next
 
-**Stage 4's last items**, then stage 7.
+**Stage 7, the gate.** Its `**Split:**` line is the plan.
 
-- [ ] Completion inside `#[Api(...)]` offers its fields from `#[Api]`'s `AttributeDoc`, and a `security` string entry offers the declared `#[Api\Scheme]` names. `crates/nvs-lsp/src/completion.rs:1292` (`option_key_at`, the options-bag precedent), `crates/nvs-lsp/src/completion.rs:2096`, `crates/nvs-types/src/derive.rs:186`
-- [ ] A new item-producing function needs a row in `SOURCED`, and the array's length raised (playbook). `crates/nvs-lsp/tests/completion.rs:1`
-- [ ] `.lspt` cases for both completions. `tests/lsp/completion/an-api-attribute-offers-its-fields.lspt:1`
-- [ ] `bun nv owners --closes api-document`, and every gap it names closed. `data/rules/routing/a-security-scheme-is-declared-in-code.json:3`
-
-The perf figures for `Core\Router` and the `lang:attributes` sections are stale. Stage 7 records them
-once, after the last edit to `router.rs` and `90-attributes.md`.
+- [ ] Start `bun nv affected --run` (in the loop, `looper verify`) with `run_in_background`, and end the turn to wait. `tools/nv/cmd/verify.ts:1`
+- [ ] Group the failures by cause, and fix them all in one pass. `tools/nv/cmd/verify.ts:1`
+- [ ] Record the stale perf figures once: `bun nv proofs --record-perf --group 'Core\Router'`, and the `lang:attributes` sections. `docs/reference/lang/90-attributes.md:1369`
+- [ ] Run verify a second time, then run the goal-end gates: `bun nv verify --doc` and `bun nv owners --closes api-document`. `docs/goals/api-document.md:1`
 
 ### Backlog
 
 - OAuth2 scopes per operation: `#[Api(security:)]` writes an empty scope list today (`crates/nvs-cli/src/openapi.rs`, the `security` arm of `operation`). Scopes need a field on `#[Api]` and a check against the scheme's declared flows (`docs/rules/routing/a-security-scheme-is-declared-in-code.md`).
 - Two routes of one verb that write the same template are written once, and the first row wins (`crates/nvs-cli/src/openapi.rs`'s `or_insert_with`). Examples are `/files/{path}` beside `/files/{path...}`, `/a` beside `/a/{x?}`, or `/a/{id}` beside `/a/{key}`. 3.1 also forbids two templated paths that differ only in their names. Whether the router admits such pairs decides whether `nvs build --openapi` needs a diagnostic.
+- `#[Api]`'s card gives every field the type `mixed` (`crates/nvs-types/src/derive.rs:473`), so hover and completion show `mixed (optional)`. `tags` and `security` are `array<string>`. Changing the card changes the rendered reference, so it needs a `bun nv render --website` in the same slice.
