@@ -1,0 +1,49 @@
+--TEST--
+`Core\Debug::coverage` lists each line that ran while coverage was on with its count and no line that did not, `stopCoverage` stops the counting and keeps the counts, and `startCoverage(true)` throws a `RuntimeError` naming `branch` when the mode leaves it out — `rule:testing/debug-surface`, `rule:testing/debug-mode-directive`
+--FILE--
+<?nvs
+// covers: Core\Debug::coverage
+// covers: Core\Debug::startCoverage
+// covers: Core\Debug::stopCoverage
+class Calc {
+    public static function double(int $n): int {
+        return $n * 2;
+    }
+    public static function never(): int {
+        return 0;
+    }
+}
+// The mode turns coverage on before the first line. This stop turns it off,
+// so only the lines between the start and the next stop are counted.
+Core\Debug::stopCoverage();
+echo Calc::double(1), "\n";
+Core\Debug::startCoverage();
+echo Calc::double(2), "\n";
+echo Calc::double(3), "\n";
+Core\Debug::stopCoverage();
+echo Calc::double(4), "\n";
+
+// The counts are kept after the stop: line 7 ran twice while coverage was on.
+// Line 15 is counted because coverage was still on when it began, and line 17
+// is not because it was off. Line 10 never ran, and nothing after line 20 is
+// listed.
+echo Core\Json::encode(Core\Debug::coverage()), "\n";
+
+// Counting each side of a condition needs `branch` in the mode too.
+try {
+    Core\Debug::startCoverage(true);
+    echo "branches started\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+--FILE nvs.toml--
+[debug]
+mode = ["coverage"]
+--EXPECT--
+2
+4
+6
+8
+{"case.nvs":{"7":2,"15":1,"18":1,"19":1,"20":1}}
+Core\Debug::startCoverage cannot start the `branch` probe, because `[debug] mode` does not include it.
+help: add `"branch"` to `mode` under `[debug]` in nvs.toml. A server never runs a probe.

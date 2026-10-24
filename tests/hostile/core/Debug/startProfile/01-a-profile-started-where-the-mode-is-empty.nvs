@@ -1,0 +1,54 @@
+<?nvs
+// Attack: the mode in `nvs.toml` is empty, and a program tries to start a profile anyway.
+// It also tries to turn the mode on from code. Every attempt below should throw an error.
+
+class Attack {
+    // Returns the path resolved from this file's folder.
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+
+    // Each step catches its error, so the step after it still runs.
+    public static function profile(string $step, string $path): void {
+        try {
+            Core\Debug::startProfile($path);
+            echo $step, ": a profile started at ", $path, "\n";
+            Core\Debug::stopProfile();
+        } catch (Throwable $error) {
+            echo $step, ": ", $error->message, "\n";
+        }
+    }
+
+    // Each step catches its error, so the step after it still runs.
+    public static function set(string $step, string $key, string $value): void {
+        try {
+            echo $step, ': set ', $key, ' returned ', Core\Config::set($key, $value) ? 'true' : 'false', "\n";
+        } catch (Throwable $error) {
+            echo $step, ': ', $error->message, "\n";
+        }
+    }
+}
+string $dir = Attack::path('.');
+string $inside = Core\Path::join($dir, 'granted/profile.json');
+
+// 1. Starts a profile on a path the grant allows.
+Attack::profile('step 1', $inside);
+
+// 2. Sets the mode to `profile` from code, then starts again.
+Attack::set('step 2', 'debug.mode', 'profile');
+Attack::profile('step 2', $inside);
+
+// 3. Sets the mode with the list syntax of `nvs.toml`, then starts again.
+Attack::set('step 3', 'debug.mode', '["profile"]');
+Attack::profile('step 3', $inside);
+
+// 4. Tries to start coverage first, then tries the profile again.
+try {
+    Core\Debug::startCoverage();
+} catch (Throwable $error) {
+    echo 'step 4: ', $error->message, "\n";
+}
+Attack::profile('step 4', $inside);
+
+// 5. Leaves the profile folder with `..`, joined while the program runs.
+Attack::profile('step 5', Core\Path::join($dir, 'granted/../profile.json'));

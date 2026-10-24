@@ -1,0 +1,10 @@
+# The attack writes its traces under `./out` and deletes them before it ends.
+[debug]
+mode = ["trace"]
+
+[capabilities.debug]
+trace = ["./out"]
+
+[capabilities.fs]
+read = ["./out"]
+write = ["./out"]

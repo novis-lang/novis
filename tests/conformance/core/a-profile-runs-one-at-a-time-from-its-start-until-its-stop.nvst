@@ -1,0 +1,50 @@
+--TEST--
+`startProfile` under a mode naming `profile` and a granted path starts, a second start throws a `LogicError` until `stopProfile`, a stop with no profile running does nothing, and a stopped profile may start again — `rule:testing/debug-surface`
+--FILE--
+<?nvs
+// covers: Core\Debug::startProfile
+// covers: Core\Debug::stopProfile
+//
+// Nothing writes the profile's file yet, so this case never reads it.
+class Calc {
+    public static function double(int $n): int {
+        return $n * 2;
+    }
+}
+
+// A stop with no profile running does nothing, and does not throw.
+Core\Debug::stopProfile();
+echo "stopped nothing\n";
+
+Core\Debug::startProfile('./out/first.json');
+echo "profile started\n";
+try {
+    Core\Debug::startProfile('./out/second.json');
+    echo "second profile started\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+echo Calc::double(21), "\n";
+Core\Debug::stopProfile();
+
+// The stop closed the first profile, so the next start succeeds.
+Core\Debug::startProfile('./out/second.json');
+echo "profile started again\n";
+Core\Debug::stopProfile();
+Core\Debug::stopProfile();
+echo "stopped twice\n";
+--FILE nvs.toml--
+[debug]
+mode = ["profile"]
+
+[capabilities.debug]
+profile = ["./out"]
+--FILE out/note.txt--
+note
+--EXPECT--
+stopped nothing
+profile started
+Core\Debug::startProfile cannot start a profile, because one is already running. Call `Core\Debug::stopProfile` first.
+42
+profile started again
+stopped twice

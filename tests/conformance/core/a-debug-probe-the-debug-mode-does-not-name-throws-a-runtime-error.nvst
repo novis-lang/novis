@@ -1,0 +1,57 @@
+--TEST--
+`Core\Debug`'s three starts each throw a `RuntimeError` naming the probe when `[debug] mode` leaves it out, even with its path granted, and turn nothing on — `rule:testing/debug-surface`, `rule:testing/debug-mode-directive`
+--FILE--
+<?nvs
+// covers: Core\Debug::startTrace
+// covers: Core\Debug::startProfile
+// covers: Core\Debug::startCoverage
+// covers: Core\Debug::coverage
+//
+// The mode is `[]`, and both sink paths are granted, so the mode is the only
+// reason each start below throws. A start that threw a `LogicError`, or none,
+// would let a deployment that said "off" be overruled by its own code.
+try {
+    Core\Debug::startTrace('./out/calls.jsonl');
+    echo "trace started\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+try {
+    Core\Debug::startProfile('./out/profile.json');
+    echo "profile started\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+try {
+    Core\Debug::startCoverage();
+    echo "coverage started\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// A refused start created no file. The folder has only the file it started with.
+echo Core\Arr::count(Core\IO::list('./out')), " file in the folder\n";
+
+// Coverage never ran, so the result is an empty array.
+echo Core\Json::encode(Core\Debug::coverage()), "\n";
+--FILE nvs.toml--
+[debug]
+mode = []
+
+[capabilities.debug]
+trace = ["./out"]
+profile = ["./out"]
+
+[capabilities.fs]
+read = ["./out"]
+--FILE out/note.txt--
+note
+--EXPECT--
+Core\Debug::startTrace cannot start the `trace` probe, because `[debug] mode` does not include it.
+help: add `"trace"` to `mode` under `[debug]` in nvs.toml. A server never runs a probe.
+Core\Debug::startProfile cannot start the `profile` probe, because `[debug] mode` does not include it.
+help: add `"profile"` to `mode` under `[debug]` in nvs.toml. A server never runs a probe.
+Core\Debug::startCoverage cannot start the `coverage` probe, because `[debug] mode` does not include it.
+help: add `"coverage"` to `mode` under `[debug]` in nvs.toml. A server never runs a probe.
+1 file in the folder
+[]

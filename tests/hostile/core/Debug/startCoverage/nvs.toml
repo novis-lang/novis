@@ -1,0 +1,3 @@
+# Coverage may count lines, but not the two sides of a condition.
+[debug]
+mode = ["coverage"]

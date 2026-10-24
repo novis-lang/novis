@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a program tries to write a trace of its calls outside the one folder
+// that `debug.trace` allows. Every attempt below should throw an error and write no file.
+
+class Attack {
+    // Returns the path resolved from this file's folder.
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+
+    // Each step catches its error, so the step after it still runs.
+    public static function trace(string $step, string $path): void {
+        try {
+            Core\Debug::startTrace($path);
+            echo $step, ": a trace started at ", $path, "\n";
+            Core\Debug::stopTrace();
+        } catch (Throwable $error) {
+            echo $step, ": ", $error->message, "\n";
+        }
+    }
+}
+string $dir = Attack::path('.');
+
+// 1. Writes the trace into `./plain`, where ordinary files may be written.
+Attack::trace('step 1', Core\Path::join($dir, 'plain/calls.jsonl'));
+
+// 2. Leaves the trace folder with `..`, joined while the program runs.
+Attack::trace('step 2', Core\Path::join($dir, 'granted/../calls.jsonl'));
+
+// 3. Uses a folder whose name only starts with the trace folder's name.
+Attack::trace('step 3', Core\Path::join($dir, 'granted-too/calls.jsonl'));
+
+// 4. Hides a null byte in a path that starts inside the trace folder.
+Attack::trace('step 4', Core\Path::join($dir, "granted/calls\x00/../../calls.jsonl"));
+
+// 5. Passes a relative path built while the program runs.
+string $relative = 'granted';
+Attack::trace('step 5', $relative . '/calls.jsonl');
+
+// 6. Tries to add a trace folder from code, then writes into it.
+try {
+    echo 'step 6: set returned ', Core\Config::set('capabilities.debug.trace', $dir) ? 'true' : 'false', "\n";
+} catch (Throwable $error) {
+    echo 'step 6: ', $error->message, "\n";
+}
+Attack::trace('step 6', Core\Path::join($dir, 'calls.jsonl'));

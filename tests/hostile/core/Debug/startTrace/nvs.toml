@@ -1,0 +1,10 @@
+# Traces may be written only under `./granted`, which does not exist.
+# Ordinary files may be written under `./plain`, which is not a trace folder.
+[debug]
+mode = ["trace"]
+
+[capabilities.debug]
+trace = ["./granted"]
+
+[capabilities.fs]
+write = ["./plain"]

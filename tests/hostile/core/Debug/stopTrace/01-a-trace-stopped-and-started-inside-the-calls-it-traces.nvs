@@ -1,0 +1,77 @@
+<?nvs
+// Attack: a program stops and starts its trace from inside the calls being traced,
+// and stops it many times in a row. The runtime should keep running and close every file.
+
+class Attack {
+    // Returns the path resolved from this file's folder.
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+
+    // Calls itself `$depth` times, and stops the trace at the deepest call.
+    public static function deep(int $depth): int {
+        if ($depth == 0) {
+            Core\Debug::stopTrace();
+            return 0;
+        }
+        return 1 + Attack::deep($depth - 1);
+    }
+
+    // Starts a new trace at the deepest call, so every call above it returns into it.
+    public static function restart(int $depth, string $file): int {
+        if ($depth == 0) {
+            Core\Debug::startTrace($file);
+            return 0;
+        }
+        return 1 + Attack::restart($depth - 1, $file);
+    }
+
+    // Stops the trace, then throws, so the call ends with an error.
+    public static function stopThenThrow(): int {
+        Core\Debug::stopTrace();
+        throw new LogicError('thrown after the stop');
+    }
+}
+string $out = Attack::path('./out');
+Core\IO::makeDir($out);
+string $first = Core\Path::join($out, 'first.jsonl');
+string $second = Core\Path::join($out, 'second.jsonl');
+
+// 1. Stops the trace at the bottom of a thousand nested calls.
+Core\Debug::startTrace($first);
+echo 'step 1: ', Attack::deep(1000), " calls\n";
+
+// 2. Starts a trace at the bottom of a thousand nested calls, then stops it at the top.
+echo 'step 2: ', Attack::restart(1000, $second), " calls\n";
+Core\Debug::stopTrace();
+
+// 3. Stops the trace inside a call that then throws. The error is caught.
+Core\Debug::startTrace($first);
+try {
+    Attack::stopThenThrow();
+} catch (LogicError $error) {
+    echo 'step 3: ', $error->message, "\n";
+}
+
+// 4. Stops a hundred thousand times when no trace is running.
+int $stops = 0;
+while ($stops < 100000) {
+    Core\Debug::stopTrace();
+    $stops = $stops + 1;
+}
+echo 'step 4: ', $stops, " stops\n";
+
+// 5. Starts and stops a trace on the same file ten thousand times.
+int $rounds = 0;
+while ($rounds < 10000) {
+    Core\Debug::startTrace($first);
+    Core\Debug::stopTrace();
+    $rounds = $rounds + 1;
+}
+echo 'step 5: ', $rounds, " traces\n";
+
+// The traces are deleted, so nothing stays on disk.
+Core\IO::remove($first);
+Core\IO::remove($second);
+Core\IO::removeDir($out);
+echo "the runtime is still standing\n";

@@ -1,0 +1,3 @@
+# Coverage counts lines from the first line.
+[debug]
+mode = ["coverage"]

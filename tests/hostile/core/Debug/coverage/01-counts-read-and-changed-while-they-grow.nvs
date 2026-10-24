@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a program reads the coverage counts thousands of times while they grow,
+// and changes the array it gets back. The counts should stay correct after each step.
+
+class Attack {
+    // Reads the counts at the bottom of `$depth` nested calls.
+    public static function deep(int $depth): uint {
+        if ($depth == 0) {
+            return Core\Arr::count(Core\Debug::coverage());
+        }
+        return Attack::deep($depth - 1);
+    }
+}
+
+// 1. Reads the counts ten thousand times, once in each pass of a loop.
+int $reads = 0;
+while ($reads < 10000) {
+    Core\Debug::coverage();
+    $reads = $reads + 1;
+}
+echo 'step 1: ', $reads, " reads\n";
+
+// 2. Runs line 25, the loop below, a million times.
+int $runs = 0;
+while ($runs < 1000000) { $runs = $runs + 1; }
+array<array<int>> $counts = Core\Debug::coverage();
+foreach ($counts as string $file => array<int> $lines) {
+    echo 'step 2: line 25 ran ', $lines[25] ?? 0, " times\n";
+}
+
+// 3. Changes the array it got back, then reads the counts again.
+foreach ($counts as string $file => array<int> $lines) {
+    $counts[$file] = [25 => -1];
+}
+$counts['made-up.nvs'] = [1 => 99];
+foreach (Core\Debug::coverage() as string $file => array<int> $lines) {
+    echo 'step 3: line 25 ran ', $lines[25] ?? 0, " times\n";
+}
+
+// 4. Reads the counts at the bottom of a thousand nested calls.
+echo 'step 4: ', Attack::deep(1000), " file counted\n";
+
+// 5. Stops coverage, then reads the counts again.
+Core\Debug::stopCoverage();
+echo 'step 5: ', Core\Arr::count(Core\Debug::coverage()), " file counted\n";

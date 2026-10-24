@@ -1,0 +1,74 @@
+--TEST--
+a trace file has one JSON line per call that returned between `startTrace` and `stopTrace`, naming the callee and how it returned, a second start throws a `LogicError` until the stop, and a stop with no trace running does nothing — `rule:testing/debug-surface`
+--FILE--
+<?nvs
+// covers: Core\Debug::startTrace
+// covers: Core\Debug::stopTrace
+class Calc {
+    public static function double(int $n): int {
+        return $n * 2;
+    }
+
+    public static function fail(): int {
+        throw new LogicError('no');
+    }
+}
+
+// A stop with no trace running does nothing, and does not throw.
+Core\Debug::stopTrace();
+echo "stopped nothing\n";
+
+Core\Debug::startTrace('./out/calls.jsonl');
+try {
+    Core\Debug::startTrace('./out/again.jsonl');
+    echo "second trace started\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+echo Calc::double(2), "\n";
+echo Calc::double(5), "\n";
+try {
+    Calc::fail();
+} catch (LogicError $error) {
+    echo "caught\n";
+}
+Core\Debug::stopTrace();
+
+// Called after the stop, so it has no line in the file.
+echo Calc::double(7), "\n";
+
+// The stop closed the file, so a new trace may start now.
+Core\Debug::startTrace('./out/again.jsonl');
+Core\Debug::stopTrace();
+
+// `start` and `end` are clock readings, so only the other keys are printed.
+// The first line is the start that opened the file, and the second the start
+// that threw. The stop has no line: it closed the file before it returned.
+foreach (Core\Str::split(Core\Str::trim(Core\IO::readText('./out/calls.jsonl')), "\n") as string $line) {
+    var $call = Core\Json::decode($line) as array<mixed>;
+    echo $call['kind'] as string, ' ', $call['callee'] as string, ' ', $call['status'] as string, "\n";
+}
+--FILE nvs.toml--
+[debug]
+mode = ["trace"]
+
+[capabilities.debug]
+trace = ["./out"]
+
+[capabilities.fs]
+read = ["./out"]
+--FILE out/note.txt--
+note
+--EXPECT--
+stopped nothing
+Core\Debug::startTrace cannot start a trace, because one is already running. Call `Core\Debug::stopTrace` first.
+4
+10
+caught
+14
+call Core\Debug::startTrace ok
+call Core\Debug::startTrace thrown
+call Calc::double ok
+call Calc::double ok
+call Throwable::constructor ok
+call Calc::fail thrown

@@ -1,0 +1,10 @@
+# The attack writes its profiles under `./out` and deletes them before it ends.
+[debug]
+mode = ["profile"]
+
+[capabilities.debug]
+profile = ["./out"]
+
+[capabilities.fs]
+read = ["./out"]
+write = ["./out"]

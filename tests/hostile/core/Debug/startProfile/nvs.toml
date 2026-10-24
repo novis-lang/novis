@@ -1,0 +1,7 @@
+# Profiles may be written only under `./granted`, but no profile may start:
+# the mode is empty.
+[debug]
+mode = []
+
+[capabilities.debug]
+profile = ["./granted"]

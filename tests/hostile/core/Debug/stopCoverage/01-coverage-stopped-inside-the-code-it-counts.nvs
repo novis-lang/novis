@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a program stops coverage from inside deep calls and loops, and then tries to
+// start branch coverage after the stop. The runtime should keep running, and the branch start should fail.
+
+class Attack {
+    // Calls itself `$depth` times, and stops coverage at the deepest call.
+    public static function deep(int $depth): int {
+        if ($depth == 0) {
+            Core\Debug::stopCoverage();
+            return 0;
+        }
+        return 1 + Attack::deep($depth - 1);
+    }
+
+    // Starts coverage at the deepest call, so every call above it returns into it.
+    public static function restart(int $depth): int {
+        if ($depth == 0) {
+            Core\Debug::startCoverage();
+            return 0;
+        }
+        return 1 + Attack::restart($depth - 1);
+    }
+}
+
+// 1. Stops coverage at the bottom of a thousand nested calls.
+echo 'step 1: ', Attack::deep(1000), " calls\n";
+
+// 2. Starts coverage at the bottom of a thousand nested calls.
+echo 'step 2: ', Attack::restart(1000), " calls\n";
+
+// 3. Stops and starts coverage in every pass of a loop of a hundred thousand passes.
+int $passes = 0;
+while ($passes < 100000) {
+    Core\Debug::stopCoverage();
+    $passes = $passes + 1;
+    Core\Debug::startCoverage();
+}
+echo 'step 3: ', $passes, " passes\n";
+
+// 4. Stops coverage, then tries to start branch coverage. The error is caught.
+Core\Debug::stopCoverage();
+try {
+    Core\Debug::startCoverage(true);
+    echo "step 4: branch coverage started\n";
+} catch (RuntimeError $error) {
+    echo 'step 4: ', $error->message, "\n";
+}
+
+// 5. Reads the counts after the last stop.
+echo 'step 5: ', Core\Arr::count(Core\Debug::coverage()), " file counted\n";

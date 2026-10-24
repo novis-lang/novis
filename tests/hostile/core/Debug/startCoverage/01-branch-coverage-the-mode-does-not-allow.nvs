@@ -1,0 +1,51 @@
+<?nvs
+// Attack: the mode allows line coverage only, and a program tries to count branches too.
+// It also tries to add `branch` to the mode from code. Every branch start should throw an error.
+
+class Attack {
+    // Each step catches its error, so the step after it still runs.
+    public static function branches(string $step): void {
+        try {
+            Core\Debug::startCoverage(true);
+            echo $step, ": branch coverage started\n";
+        } catch (Throwable $error) {
+            echo $step, ": ", $error->message, "\n";
+        }
+    }
+
+    // Each step catches its error, so the step after it still runs.
+    public static function set(string $step, string $value): void {
+        try {
+            echo $step, ': set returned ', Core\Config::set('debug.mode', $value) ? 'true' : 'false', "\n";
+        } catch (Throwable $error) {
+            echo $step, ': ', $error->message, "\n";
+        }
+    }
+}
+
+// 1. Starts branch coverage.
+Attack::branches('step 1');
+
+// 2. Adds `branch` to the mode from code, then starts again.
+Attack::set('step 2', 'coverage,branch');
+Attack::branches('step 2');
+
+// 3. Uses the list syntax of `nvs.toml`, then starts again.
+Attack::set('step 3', '["coverage", "branch"]');
+Attack::branches('step 3');
+
+// 4. Stops coverage first, then starts branch coverage.
+Core\Debug::stopCoverage();
+Attack::branches('step 4');
+
+// 5. Starts and stops line coverage ten thousand times.
+int $rounds = 0;
+while ($rounds < 10000) {
+    try {
+        Core\Debug::startCoverage();
+    } catch (RuntimeError $refused) {
+    }
+    Core\Debug::stopCoverage();
+    $rounds = $rounds + 1;
+}
+echo 'step 5: ', $rounds, " rounds\n";

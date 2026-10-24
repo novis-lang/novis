@@ -1,0 +1,64 @@
+--TEST--
+a trace or profile path outside `debug.trace` or `debug.profile` throws a `RuntimeError` naming that grant, even where `fs.write` grants the same folder and the mode names the probe, and a `..` out of the granted root throws the same way — `rule:testing/debug-surface`, `rule:testing/debug-mode-directive`
+--FILE--
+<?nvs
+// covers: Core\Debug::startTrace
+// covers: Core\Debug::startProfile
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
+
+// `fs.write` grants the whole folder, `debug.*` only `./sinks`. Writing an
+// ordinary file there is allowed, and is not permission to trace into it.
+Core\IO::write('./plain.txt', "plain\n");
+echo Core\IO::readText('./plain.txt');
+try {
+    Core\Debug::startTrace('./calls.jsonl');
+    echo "trace started\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+try {
+    Core\Debug::startProfile('./profile.json');
+    echo "profile started\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// A `..` joined at run time leaves the granted root, and throws the same way.
+try {
+    Core\Debug::startTrace(Core\Path::join($dir, 'sinks/../calls.jsonl'));
+    echo "trace started\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// Nothing was created where the grant did not reach.
+echo Core\IO::exists('./calls.jsonl') ? "trace file written\n" : "no trace file\n";
+echo Core\IO::exists('./profile.json') ? "profile file written\n" : "no profile file\n";
+--FILE nvs.toml--
+[debug]
+mode = ["trace", "profile"]
+
+[capabilities.debug]
+trace = ["./sinks"]
+profile = ["./sinks"]
+
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--FILE sinks/note.txt--
+note
+--EXPECTF--
+plain
+Core\Debug::startTrace needs the capability `debug.trace` for %s%ecalls.jsonl, which is not granted
+help: add `trace = ["%s"]` under `[capabilities.debug]` in nvs.toml
+Core\Debug::startProfile needs the capability `debug.profile` for %s%eprofile.json, which is not granted
+help: add `profile = ["%s"]` under `[capabilities.debug]` in nvs.toml
+Core\Debug::startTrace needs the capability `debug.trace` for %s%esinks%e..%ecalls.jsonl, which is not granted
+help: add `trace = ["%s"]` under `[capabilities.debug]` in nvs.toml
+no trace file
+no profile file
