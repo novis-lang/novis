@@ -1,0 +1,12 @@
+--TEST--
+a cursor on the `while` keyword is inside the statement and inside neither its condition nor its body, so it answers `none`, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+int $count = 0;
+whil<|>e ($count < 3) {
+    $count = $count + 1;
+}
+--REQUEST--
+definition
+--EXPECT--
+none

@@ -1,0 +1,12 @@
+--TEST--
+a cursor on the `if` keyword is in the statement and in neither its condition nor its body, which is a position, and the locals the script declared are in scope there, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+int $code = 1;
+i<|>f ($code > 0) {
+    echo "positive";
+}
+--REQUEST--
+completion prefix=$
+--EXPECT--
+$code   variable  int

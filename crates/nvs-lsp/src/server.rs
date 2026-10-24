@@ -2086,33 +2086,41 @@ fn code_actions(
     let start = offset_at(file, params.range.start, encoding);
     let end = offset_at(file, params.range.end, encoding);
     let kind = actions::Kind::asked_for(params.context.only.as_deref());
-    actions::at(&analysed, documents, completion_files, start, end, kind, encoding)
-        .into_iter()
-        .map(|action| {
-            let edits = std::iter::once(TextEdit {
-                range: action.range,
-                new_text: action.replacement,
-            })
-            .chain(action.also.into_iter().map(|edit| TextEdit {
-                range: edit.range,
-                new_text: edit.replacement,
-            }))
-            .collect();
-            CodeActionOrCommand::CodeAction(CodeAction {
-                title: action.title,
-                kind: Some(CodeActionKind::from(action.kind)),
-                edit: Some(WorkspaceEdit {
-                    changes: Some(
-                        [(params.text_document.uri.clone(), edits)]
-                            .into_iter()
-                            .collect(),
-                    ),
-                    ..WorkspaceEdit::default()
-                }),
-                ..CodeAction::default()
-            })
+    actions::at(
+        &analysed,
+        documents,
+        completion_files,
+        start,
+        end,
+        kind,
+        encoding,
+    )
+    .into_iter()
+    .map(|action| {
+        let edits = std::iter::once(TextEdit {
+            range: action.range,
+            new_text: action.replacement,
         })
-        .collect()
+        .chain(action.also.into_iter().map(|edit| TextEdit {
+            range: edit.range,
+            new_text: edit.replacement,
+        }))
+        .collect();
+        CodeActionOrCommand::CodeAction(CodeAction {
+            title: action.title,
+            kind: Some(CodeActionKind::from(action.kind)),
+            edit: Some(WorkspaceEdit {
+                changes: Some(
+                    [(params.text_document.uri.clone(), edits)]
+                        .into_iter()
+                        .collect(),
+                ),
+                ..WorkspaceEdit::default()
+            }),
+            ..CodeAction::default()
+        })
+    })
+    .collect()
 }
 
 /// `nvs/redactions` — which bytes of one open document the client conceals.

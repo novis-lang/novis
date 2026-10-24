@@ -1,0 +1,12 @@
+--TEST--
+a cursor on the `while` keyword is on a statement rather than a name, so the answer is empty and not a refusal, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+int $count = 0;
+whil<|>e ($count < 3) {
+    $count = $count + 1;
+}
+--REQUEST--
+references
+--EXPECT--
+none

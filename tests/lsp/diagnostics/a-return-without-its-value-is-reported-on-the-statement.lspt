@@ -1,0 +1,13 @@
+--TEST--
+a `return` with no value in a method that returns `int` is reported on the statement itself, so a whole-document answer names the `return`, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+class Counter {
+    public function next(int $n): int {
+        return;
+    }
+}
+--REQUEST--
+diagnostics
+--EXPECT--
+4:9-4:16 error E0822 `next` declares `int` but this `return` hands back nothing

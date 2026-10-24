@@ -1,0 +1,12 @@
+--TEST--
+a cursor on the `if` keyword is inside the statement and inside neither its condition nor its body, so it answers nothing, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+int $code = 1;
+i<|>f ($code > 0) {
+    echo "positive";
+}
+--REQUEST--
+hover
+--EXPECT--
+none

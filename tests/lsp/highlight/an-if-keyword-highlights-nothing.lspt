@@ -1,0 +1,12 @@
+--TEST--
+a cursor on the `if` keyword is on a statement rather than a name, so the answer is empty and not a refusal, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+int $code = 1;
+i<|>f ($code > 0) {
+    echo "positive";
+}
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

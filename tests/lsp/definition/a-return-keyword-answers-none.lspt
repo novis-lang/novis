@@ -1,0 +1,13 @@
+--TEST--
+a cursor on the `return` keyword is inside the statement and outside the value it returns, so it answers `none`, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Counter {
+    public function next(int $n): int {
+        retu<|>rn $n + 1;
+    }
+}
+--REQUEST--
+definition
+--EXPECT--
+none

@@ -1,0 +1,12 @@
+--TEST--
+a cursor on the `if` keyword is in the statement and in neither its condition nor its body, so the whole statement is the one step there is, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+int $code = 1;
+i<|>f ($code > 0) {
+    echo "positive";
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+3:1-5:2
