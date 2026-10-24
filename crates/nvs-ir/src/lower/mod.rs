@@ -22,6 +22,7 @@
 //! | [`call`] | argument ownership, options-bag flattening, an `inout $x` argument staged and written back |
 //! | [`checked`] | the checked build's type test after each typed read, behind [`check_types`] |
 //! | [`anon_fn`] | `rule:types/anonymous-function`'s anonymous functions, method references and their captured-environment class |
+//! | [`mutate`] | `rule:testing/mutation-testing`'s mutants: the survey of every site, and the one change an armed lowering makes |
 //!
 //! # Control flow (`if`/`while`)
 //!
@@ -125,6 +126,7 @@ pub(crate) mod convert;
 pub(crate) mod exception;
 pub(crate) mod expr;
 pub(crate) mod generator;
+pub(crate) mod mutate;
 pub(crate) mod operator;
 pub(crate) mod stmt;
 
@@ -132,6 +134,7 @@ pub(crate) mod stmt;
 // `impl Lowering` below, so they export nothing to import. The ones named
 // here also carry free items this module and its siblings call.
 pub use self::checked::{check_types, is_checking_types};
+pub use self::mutate::{Mutant, Operator, lower_mutant, mutants};
 use self::{anon_fn::*, call::delegation_forward, exception::*, generator::*};
 
 /// A local's current SSA binding: which value it holds, and at what
@@ -878,15 +881,20 @@ fn lower_program_as(
                                     .body
                                     .as_ref()
                                     .expect("just checked this declaration has one");
+                                // `rule:testing/mutation-testing`: no mutant is
+                                // made inside test code. See `mutate::within`.
+                                let test_code = exprs.is_test_code(label);
                                 if nvs_syntax::ast::is_generator_body(body) {
-                                    let (fns, classes) =
-                                        lower_generator(label, m, src, exprs, checked_types, enums);
+                                    let (fns, classes) = mutate::within(test_code, || {
+                                        lower_generator(label, m, src, exprs, checked_types, enums)
+                                    });
                                     out.extend(fns);
                                     synthesized.extend(classes);
                                     continue;
                                 }
-                                let lowered =
-                                    lower_method(label, m, src, exprs, checked_types, enums);
+                                let lowered = mutate::within(test_code, || {
+                                    lower_method(label, m, src, exprs, checked_types, enums)
+                                });
                                 out.push(lowered.function);
                                 out.extend(lowered.anon_fns);
                                 synthesized.extend(lowered.classes);

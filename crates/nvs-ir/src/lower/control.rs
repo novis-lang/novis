@@ -50,7 +50,7 @@ impl<'a> Lowering<'a> {
                     raise_site: None,
                 });
             }
-            let cond_v = self.lower_truthy_cond(&arm.cond, env, cur);
+            let cond_v = self.lower_branch_cond(&arm.cond, env, cur);
 
             let merge_block = self.new_block();
             let then_block = self.new_block();
@@ -190,7 +190,7 @@ impl<'a> Lowering<'a> {
         // phis above still physically live in `header_block` — cond
         // lowering only ever *appends* blocks after it, never touches those.
         let mut cond_end = header_block;
-        let cond_v = self.lower_truthy_cond(cond, &mut header_env, &mut cond_end);
+        let cond_v = self.lower_branch_cond(cond, &mut header_env, &mut cond_end);
 
         let body_block = self.new_block();
         let after_block = self.new_block();
@@ -403,7 +403,7 @@ impl<'a> Lowering<'a> {
         } else {
             let mut cond_env = self.merge_envs(cond_block, &cond_incoming, &header_env);
             let mut cond_end = cond_block;
-            let cond_v = self.lower_truthy_cond(cond, &mut cond_env, &mut cond_end);
+            let cond_v = self.lower_branch_cond(cond, &mut cond_env, &mut cond_end);
             // Reserved safepoint poll site (loop back edge) — see
             // `InstKind::Safepoint`'s own doc comment.
             self.emit_back_edge_safepoint(cond_end, &cond_env);
@@ -559,7 +559,7 @@ impl<'a> Lowering<'a> {
                 for e in before {
                     self.lower_expr_stmt(e, &mut header_env, &mut cond_end);
                 }
-                self.lower_truthy_cond(test, &mut header_env, &mut cond_end)
+                self.lower_branch_cond(test, &mut header_env, &mut cond_end)
             }
             None => {
                 self.emit(header_block, Ty::Bool, InstKind::ConstBool(true))
@@ -729,6 +729,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         env: &mut Env,
     ) {
+        self.shield_literal(subject);
         let (subj_v, subj_ty) = self.lower_expr(subject, None, env, cur);
         let subject_is_alias = self.aliasing_read(subject);
         // `switch ($x) {}` — PHP still evaluates the subject and then does

@@ -871,6 +871,10 @@ impl<'a> Lowering<'a> {
             unreachable!("lower_binary is reached only from `lower_expr`'s `Binary` arm");
         };
         let op = *op;
+        if matches!(op, BinaryOp::Eq | BinaryOp::NotEq) {
+            self.shield_literal(lhs);
+            self.shield_literal(rhs);
+        }
         // The right operand is lowered against the left's representation,
         // which is `rule:types/numeric-literal-placement`'s placement rule carried one crate down: a
         // digit run beside a `uint` is a `ConstUint`, not an `int` that
@@ -892,6 +896,9 @@ impl<'a> Lowering<'a> {
                 let (rv, rty) = self.lower_expr(rhs, Some(lty), env, cur);
                 (lv, lty, rv, rty)
             };
+        // A mutant's swap, made once both representations are known
+        // (`rule:testing/mutation-testing`).
+        let op = self.mutated_binary(whole, op, lty, rty);
         // `rule:types/arithmetic`'s table is a set of runtime helpers rather than
         // a machine instruction, so a `decimal` on *either* side takes
         // its own path -- including the mixed `decimal ⊕ int` row,
