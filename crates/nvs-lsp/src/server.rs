@@ -80,7 +80,7 @@ use lsp_types::request::{
     GotoTypeDefinition, HoverRequest, InlayHintRequest, PrepareRenameRequest, References,
     RegisterCapability, Rename, Request as _, ResolveCompletionItem, SelectionRangeRequest,
     SemanticTokensFullRequest, SignatureHelpRequest, TypeHierarchyPrepare, TypeHierarchySubtypes,
-    TypeHierarchySupertypes, WillRenameFiles,
+    TypeHierarchySupertypes, WillRenameFiles, WorkspaceSymbolRequest,
 };
 use lsp_types::{
     AnnotatedTextEdit, CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens,
@@ -98,7 +98,8 @@ use lsp_types::{
     SemanticTokens, SemanticTokensParams, SemanticTokensResult, SignatureHelp, SignatureHelpParams,
     SymbolKind, TextDocumentEdit, TextDocumentIdentifier, TextDocumentPositionParams, TextEdit,
     TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
-    TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
+    TypeHierarchySupertypesParams, Uri, WorkspaceEdit, WorkspaceSymbol, WorkspaceSymbolParams,
+    WorkspaceSymbolResponse,
 };
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap};
 
@@ -689,6 +690,20 @@ fn answer(
             Ok(params) => Response::new_ok(id, references(documents, index, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
+        WorkspaceSymbolRequest::METHOD => {
+            match serde_json::from_value::<WorkspaceSymbolParams>(params) {
+                Ok(params) => Response::new_ok(
+                    id,
+                    WorkspaceSymbolResponse::Nested(workspace_symbols(
+                        documents,
+                        index,
+                        encoding,
+                        &params.query,
+                    )),
+                ),
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
         PrepareRenameRequest::METHOD => {
             match serde_json::from_value::<TextDocumentPositionParams>(params) {
                 Ok(params) => match prepare_rename(documents, index, encoding, &params) {
@@ -1054,6 +1069,64 @@ fn locations(documents: &Documents, sites: &[&Site], encoding: PositionEncoding)
             })
         })
         .collect()
+}
+
+/// `workspace/symbol` — every declaration in the index whose own name contains
+/// `query`, in [`SymbolIndex::matching`]'s order.
+///
+/// A declaration in a file this process cannot load drops out, on
+/// [`locations`]' terms. The name is the member as its source writes it, a
+/// property's `$` included, or the type's last segment. The container is the
+/// member's class, or the type's namespace.
+fn workspace_symbols(
+    documents: &Documents,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    query: &str,
+) -> Vec<WorkspaceSymbol> {
+    let found = index.matching(query);
+    let (map, loaded) = overlaid(
+        documents,
+        found.iter().map(|declared| declared.site.path.as_path()),
+    );
+    found
+        .iter()
+        .filter_map(|declared| {
+            let site = &declared.site;
+            let id = (*loaded.get(&site.path)?)?;
+            let (container, name) = match declared.symbol.rsplit_once("::") {
+                Some((class, member)) => (Some(class), member),
+                None => match declared.symbol.rsplit_once('\\') {
+                    Some((namespace, name)) => (Some(namespace), name),
+                    None => (None, declared.symbol.as_str()),
+                },
+            };
+            Some(WorkspaceSymbol {
+                name: name.to_owned(),
+                kind: symbol_kind(declared.kind),
+                tags: None,
+                container_name: container.map(str::to_owned),
+                location: OneOf::Left(Location {
+                    uri: uri_of(&site.path)?,
+                    range: range_of(map.file(id), site.start, site.end, encoding),
+                }),
+                data: None,
+            })
+        })
+        .collect()
+}
+
+/// [`workspace_symbols`] for one `.lspt` case, over an index built for that
+/// case alone and for [`lenses_of_case`]'s reason.
+pub(crate) fn workspace_symbols_of_case(
+    documents: &Documents,
+    root: &Path,
+    query: &str,
+    encoding: PositionEncoding,
+) -> Vec<WorkspaceSymbol> {
+    let settings = case_settings(root);
+    let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
+    workspace_symbols(documents, &index, encoding, query)
 }
 
 /// One source map with the open buffers overlaid, holding each of `paths`

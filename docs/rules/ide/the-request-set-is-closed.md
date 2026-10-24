@@ -1,5 +1,6 @@
-`nvs lsp` answers twenty standard requests, the code actions of
-`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`, and seven requests of Novis's own,
+`nvs lsp` answers twenty-one standard requests, the code actions of
+`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows` and organize imports, and seven
+requests of Novis's own,
 each one admitted on the same test: a data structure the compiler or the server already builds *is* the
 answer. `crates/nvs-lsp/tests/handshake.rs` holds the declared capabilities to exactly that list, and a
 method outside it is answered `MethodNotFound`. Each is named because "minimal" without a list is how
@@ -60,7 +61,10 @@ for the same reason the nine are. `references` and `documentHighlight` are the w
 and narrowed to the open file; `codeLens` counts that index's uses and walks its extends edge; and
 `typeHierarchy` — `prepare`, `supertypes` and `subtypes`, one request in three methods — walks the same
 edge both ways. Those four, with unused-member dimming, are
-`rule:ide/five-features-are-one-reference-index`'s five readers of the one index. `signatureHelp`,
+`rule:ide/five-features-are-one-reference-index`'s five readers of the one index. `workspace/symbol`,
+the twenty-first, is admitted the same way: it searches the same index's declarations by name, and is
+that rule's reader too. A `.lspt` case renders it one line per declaration, `file:L:C kind name`, then
+`in` and the class or namespace it is declared in. `signatureHelp`,
 `typeDefinition` and `implementation` read what `hover` and `definition` already resolve. `inlayHint` is the
 eighth, and it is admitted for two idioms that are settled and no others: a `var` declaration's
 inferred type and a bare literal argument's parameter name, both read out of the type phase's own tables
@@ -72,7 +76,7 @@ a cursor.
 `callHierarchy` is admitted on the same test and is not declared yet. The user decided to offer it. It
 reads the call-site edges that `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method` adds
 to the reference index, so the server declares it in the change that builds those edges, as the
-twenty-first standard request. It answers incoming and outgoing calls. A call through a `callable` value
+twenty-second standard request. It answers incoming and outgoing calls. A call through a `callable` value
 or a `mixed` receiver is not shown, because the checker resolved no single target for it.
 
 The second non-standard request is `nvs/regions`

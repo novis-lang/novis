@@ -101,6 +101,10 @@ pub enum Request {
     Redactions,
     /// `nvs/regions`.
     Regions,
+    /// `workspace/symbol`, for the text its `query=` argument writes, or for
+    /// every declaration without one. It is asked of the workspace, and the
+    /// case's own document is one file in it.
+    WorkspaceSymbol,
 }
 
 impl Request {
@@ -125,6 +129,7 @@ impl Request {
         Self::InlayHint,
         Self::Redactions,
         Self::Regions,
+        Self::WorkspaceSymbol,
     ];
 
     /// How a `--REQUEST--` line writes it.
@@ -150,6 +155,7 @@ impl Request {
             Self::InlayHint => "inlayHint",
             Self::Redactions => "redactions",
             Self::Regions => "regions",
+            Self::WorkspaceSymbol => "workspaceSymbol",
         }
     }
 
@@ -223,6 +229,11 @@ pub struct RequestArgs {
     /// `willRenameFiles from=`: the file or folder that moves, which the
     /// request needs as well as `to=`.
     pub from: Option<String>,
+    /// `workspaceSymbol query=`: the text a name has to contain.
+    pub query: Option<String>,
+    /// `codeAction only=`: the kind the client asks for, which is how a case
+    /// reaches a kind a light bulb does not show.
+    pub only: Option<String>,
 }
 
 /// One file a case puts on disk beside its own `--FILE--`.
@@ -429,6 +440,19 @@ fn apply_argument(
         (Request::Rename, "to") => args.to = Some(value.to_owned()),
         (Request::WillRenameFiles, "from") => args.from = Some(moved_path(value)?),
         (Request::WillRenameFiles, "to") => args.to = Some(moved_path(value)?),
+        (Request::WorkspaceSymbol, "query") => args.query = Some(value.to_owned()),
+        (Request::CodeAction, "only") => {
+            if !crate::CODE_ACTION_KINDS
+                .iter()
+                .any(|kind| kind.as_str() == value)
+            {
+                return Err(format!(
+                    "`only={value}` is not a kind this server produces; the list is \
+                     `nvs_lsp::CODE_ACTION_KINDS`"
+                ));
+            }
+            args.only = Some(value.to_owned());
+        }
         _ => {
             let takes = match request {
                 Request::Completion => "`prefix=` and `limit=`",
@@ -436,6 +460,8 @@ fn apply_argument(
                 Request::SemanticTokens => "`types=`",
                 Request::Rename => "`to=`",
                 Request::WillRenameFiles => "`from=` and `to=`",
+                Request::WorkspaceSymbol => "`query=`",
+                Request::CodeAction => "`only=`",
                 _ => "no arguments",
             };
             return Err(format!("`{request}` takes {takes}, not `{key}=`"));

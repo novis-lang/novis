@@ -20,4 +20,8 @@ outside a class: the index records each type annotation and each class written i
 the rename changes the last segment at every site and in every `use` line. A new name that another
 type in the workspace has, or that a file with a site already writes, is refused. A type declared
 alone in a file named after it renames that file with it, so an `autoload` still finds it.
-**Missing:** extract to method or variable; organize-imports; and cross-file symbol search.
+Organize imports, a `source.organizeImports` code action (`crates/nvs-lsp/src/organize.rs`): it deletes
+each `use` line the `W1026` warning reports, with that warning's own edit, and sorts the rest with
+`nvs fmt`'s sort, so a format after it moves nothing. Cross-file symbol search: `workspace/symbol`
+reads the reference index's declarations.
+**Missing:** extract to method or variable.

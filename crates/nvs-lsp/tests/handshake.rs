@@ -113,9 +113,7 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
     // field that serializes under a different name than the one the
     // specification gives is a capability nothing ever uses.
     //
-    // The absences are the load-bearing half. `workspaceSymbol` looks one
-    // line away from being free and is not: it needs a query the symbol index
-    // does not answer yet.
+    // The absences are the load-bearing half.
     // `rule:ide/the-request-set-is-closed` writes down the test a request must
     // pass before the server declares it, and this assertion is what makes a
     // request declared without passing it visible.
@@ -150,6 +148,9 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
         // cursor, both `rule:ide/five-features-are-one-reference-index`'s.
         "referencesProvider",
         "documentHighlightProvider",
+        // The index's declarations, searched by name: the same rule's reader
+        // that answers a query rather than a cursor.
+        "workspaceSymbolProvider",
         // The same rule's third reader. It answers a document rather than a
         // cursor, and it is the one a client can turn off — which it does by
         // the setting and not by this field, since a capability is cached at
