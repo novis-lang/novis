@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a mutation run changes `+` to `-` in a loop counter, so the loop never ends.
+// Each mutant should stop at its time or memory limit, and the run should finish its report.
+// proof: test --mutate
+use Core\Test;
+
+final class Grow
+{
+    // 1. A changed counter makes this loop run forever without allocating.
+    public static function countTo(int $n): int
+    {
+        var $i = 0;
+        while ($i < $n) {
+            $i = $i + 1;
+        }
+        return $i;
+    }
+
+    // 2. A changed counter makes this loop add items to a list forever.
+    public static function fill(int $n): uint
+    {
+        array<string> $items = [];
+        var $i = 0;
+        while ($i < $n) {
+            $items[] = Core\Str::repeat("x", 1024);
+            $i = $i + 1;
+        }
+        return Core\Arr::count($items);
+    }
+
+    // 3. A changed condition makes this recursion call itself without end.
+    public static function depth(int $n): int
+    {
+        if ($n <= 0) {
+            return 0;
+        }
+        return 1 + Grow::depth($n - 1);
+    }
+}
+
+final class GrowTest
+{
+    #[Test]
+    public function countsToFive(): void
+    {
+        Test::assertSame(Grow::countTo(5), 5);
+    }
+
+    #[Test]
+    public function fillsThree(): void
+    {
+        Test::assertSame(Grow::fill(3), 3 as uint);
+    }
+
+    #[Test]
+    public function goesFourDeep(): void
+    {
+        Test::assertSame(Grow::depth(4), 4);
+    }
+}

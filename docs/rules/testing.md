@@ -3,7 +3,7 @@
 
 # Testing
 
-*24 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*23 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -1055,7 +1055,7 @@ so a snapshot cannot become the place secrets get committed.
 
 <a id="testing-mutation-testing"></a>
 
-## A mutation run asks whether any test would have noticed the code being wrong  *(designed — owned by goal mutation-testing)*
+## A mutation run asks whether any test would have noticed the code being wrong
 
 `rule:testing/mutation-testing`
 
