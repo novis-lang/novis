@@ -612,6 +612,19 @@ impl SafepointView {
         true
     }
 
+    /// Whether the request was stopped at its `wall_time`, by the clock's raise
+    /// ([`Self::stop_at_wall_time`]) or by a `Core\Time::sleep` that ended at the
+    /// deadline ([`Ctx::wall_time_breach`]). The second leaves
+    /// [`Self::deadline_expired`] false, so a caller that reports the stop reads this.
+    #[must_use]
+    pub fn wall_time_stopped(&self) -> bool {
+        *self
+            .tree
+            .wall_stop
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     /// A handle on the same word that does not keep the tree alive.
     ///
     /// For a holder the tree itself keeps, such as the extension host's budget
