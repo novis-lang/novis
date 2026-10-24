@@ -1280,14 +1280,26 @@
   },
   "/reference/cli/nvs-test/": {
     "feature": "tools:cli/nvs-test",
-    "hash": "e2be8e143c68d42d",
+    "hash": "d71fb88842e26e67",
     "questions": [
       "How do I run my unit tests?",
       "Run only the tests whose name matches some text",
-      "Produce a JUnit report for my CI pipeline",
-      "Generate a code coverage report in lcov or Cobertura format",
+      "Produce a JUnit or JSON report for my CI pipeline",
+      "Run only the tests that failed last time",
       "Run my tests again every time I save a file",
-      "List all tests without running them"
+      "How do I update an inline snapshot that changed?"
+    ]
+  },
+  "/reference/cli/nvs-test-mutate/": {
+    "feature": "tools:cli/nvs-test-mutate",
+    "hash": "d1c7a94062e72725",
+    "questions": [
+      "How do I check that my tests would notice a bug?",
+      "What is mutation testing and how do I run it?",
+      "Which lines are run by my tests but never checked?",
+      "What does it mean when a mutant survived?",
+      "How is the mutation score calculated?",
+      "Why does a mutation run take longer than a normal test run?"
     ]
   },
   "/reference/cli/nvs-update-check/": {
