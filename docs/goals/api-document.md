@@ -34,7 +34,7 @@ stages:
         rules: [routing/a-request-body-is-read-from-the-handlers-own-call, routing/api-document-is-generated-from-the-route-table, attributes/api-adds-and-cannot-contradict, core-classes/derive-attribute]
   - id: 6
     title: "`nvs check` warns at a route whose body is read in a helper"
-    status: open
+    status: done
     context: [crates/nvs-types/src/routes.rs, crates/nvs-diagnostics/src/code/warnings.rs, docs/rules/routing/a-request-body-is-read-from-the-handlers-own-call.md]
     extra:
       context:
@@ -173,10 +173,10 @@ schema.
 
 **Does:** a route whose handler reaches a body read only through resolved calls gets a warning.
 
-- [ ] The walk over resolved calls from the handler, stopping at a `callable` or `mixed` receiver. `crates/nvs-types/src/routes.rs:1092`
-- [ ] A new warning code after `W1023`, with its card. `crates/nvs-diagnostics/src/code/warnings.rs:234`
-- [ ] Tests: a read in a helper warns, a read two calls deep warns, a read through a `callable` does not. `crates/nvs-types/src/routes.rs:1092`
-- [ ] The rule `shipped`. `data/rules/routing/a-request-body-is-read-from-the-handlers-own-call.json:3`
+- [x] The walk over resolved calls from the handler, stopping at a `callable` or `mixed` receiver. `crates/nvs-types/src/routes.rs:1092`
+- [x] A new warning code after `W1023`, with its card. `crates/nvs-diagnostics/src/code/warnings.rs:234`
+- [x] Tests: a read in a helper warns, a read two calls deep warns, a read through a `callable` does not. `crates/nvs-types/src/routes.rs:1092`
+- [x] The rule `shipped`. `data/rules/routing/a-request-body-is-read-from-the-handlers-own-call.json:3`
 
 ### 4. a strict validator accepts the document, and the editor completes `#[Api]`
 
@@ -212,18 +212,15 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2 and 3 are done. The `about.md` is under 200 words, and `routes.mdx` is restamped.
+Stages 1, 5, 2, 3 and 6 are done. The rule `routing/a-request-body-is-read-from-the-handlers-own-call`
+is `shipped`, and `docs/rules/routing.md` and `docs/ground-rules.md` are rendered again.
 
-`crate::routes::note_body_read` (`crates/nvs-types/src/routes.rs:2346`) runs in `infer_static_call`
-beside `written_class_of`. It records `Core\Request::jsonAs<T>()` and `postAs<T>()` only in an armed
-`BodyWriters`: a `#[Route]` method's own body, its anonymous functions included. `check_method`'s
-`keep_body_reads` hands the reads to `RouteTable::note_bodies`, and `check_class_routes` puts them
-on `Route::bodies` (`routes.rs:479`) as `RequestBody {kind, ty: BodyTy}`. A `postAs` with an argument
-reads one form field and is not recorded. The emitter's `request_body` writes one media type per kind,
-a `oneOf` for two schemas, and `required` for JSON or a form class with a required field. Four tests
-over `crates/nvs-cli/tests/fixtures/api/request-body.nvs` pass.
-
-The acceptance findings were fixed on HEAD already: the nightly run tested `3ea6f1550`.
+`W1027` (`warnings.rs:286`) is raised by `routes::check_helper_reads` (`routes.rs:2421`). Each
+body's `BodyWriters` records its non-`Core` resolved callees (`routes::note_call`, from the three
+call arms in `expr/calls.rs`) and a `reads` flag from `note_body_read`. `keep_body_reads` hands them
+to `RouteTable::note_calls` as `MethodCalls`. The walk is breadth-first, once per handler with empty
+`bodies`. A method reference and a `mixed` receiver record no call. Three `body_read` tests in
+`crates/nvs-types/tests/routes.rs` pass. The acceptance findings were stale (`3ea6f1550`).
 
 A qualified name is absolute, so `use Core\Api;` does not place `Api\Scheme`. Write
 `#[Core\Api\Scheme]` or `use Core\Api\Scheme;`.
@@ -233,14 +230,20 @@ test that every name has a line) for the new `Core\Api\*` names and card, any `n
 that counts `ENUMS` or checks enum cards, and any `nvs api diff` test whose fixture returns a
 class with a codec, because its document now has `components.schemas`. Any `nvs api diff` test
 whose fixture's handler calls `jsonAs` or `postAs`, because its document now has `requestBody`.
+Any test that asserts empty stderr or a fixed warning list over a program whose route reads its body
+in a helper, which now has `W1027`: `crates/nvs-cli/tests/fixtures/api/request-body.nvs` has one.
+A test that counts the warning codes or checks each card's prose, for `W1027`.
 
 ### Next
 
-**Stage 6: `nvs check` warns at a route whose body is read in a helper**, as its section says.
+**Stage 4: a strict validator accepts the document, and the editor completes `#[Api]`**, as its
+section says. Its `**Split:**` line hands the fixture program to one writing subagent.
 
-- [ ] Record, per method label, the resolved callees its body calls (not through a `callable` or `mixed` receiver), and whether its body has a whole-body read. `note_body_read` returns early for an unarmed body today and needs a second, unarmed record. `crates/nvs-types/src/routes.rs:2346`, `crates/nvs-types/src/check.rs:919`
-- [ ] After the walk, for each row with empty `bodies`, walk the callees from its handler and warn at the `#[Route]` when one reaches a read. A handler with a `postAs` that writes `name` reads in its own body and does not warn. `crates/nvs-types/src/routes.rs:913`
-- [ ] A new warning code after `W1023`, with its card, and the tests the section names. `crates/nvs-diagnostics/src/code/warnings.rs:234`
+- [ ] The fixture program `crates/nvs-cli/tests/fixtures/openapi/every-feature.nvs:1`, written by the subagent.
+- [ ] `jsonschema` (`default-features = false`) as a dev-dependency, and the 3.1 schema and dialect vendored. `crates/nvs-cli/Cargo.toml:1`
+- [ ] The validator test, and the `$ref` and `security` walk. `crates/nvs-cli/tests/openapi.rs:28`
+- [ ] Completion inside `#[Api(...)]`, and its `.lspt` cases. `crates/nvs-lsp/src/completion.rs:2087`, `crates/nvs-types/src/derive.rs:186`
+- [ ] `api_diff.rs`'s module doc, then `bun nv owners --closes api-document`. `crates/nvs-cli/src/api_diff.rs:33`
 
 The perf figures for `Core\Router` and the `lang:attributes` sections are stale. Stage 7 records them
 once, after the last edit to `router.rs` and `90-attributes.md`.
