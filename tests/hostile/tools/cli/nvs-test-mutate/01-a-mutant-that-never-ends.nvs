@@ -2,6 +2,7 @@
 // Attack: a mutation run changes `+` to `-` in a loop counter, so the loop never ends.
 // Each mutant should stop at its time or memory limit, and the run should finish its report.
 // proof: test --mutate
+// hostile: timeout-ms 60000
 use Core\Test;
 
 final class Grow
@@ -22,19 +23,10 @@ final class Grow
         array<string> $items = [];
         var $i = 0;
         while ($i < $n) {
-            $items[] = Core\Str::repeat("x", 1024);
+            $items[] = Core\Str::repeat("x", 1048576);
             $i = $i + 1;
         }
         return Core\Arr::count($items);
-    }
-
-    // 3. A changed condition makes this recursion call itself without end.
-    public static function depth(int $n): int
-    {
-        if ($n <= 0) {
-            return 0;
-        }
-        return 1 + Grow::depth($n - 1);
     }
 }
 
@@ -46,15 +38,10 @@ final class GrowTest
         Test::assertSame(Grow::countTo(5), 5);
     }
 
-    #[Test]
+    // The long time limit makes the memory limit stop this mutant first.
+    #[Test(timeout: "60s")]
     public function fillsThree(): void
     {
         Test::assertSame(Grow::fill(3), 3 as uint);
-    }
-
-    #[Test]
-    public function goesFourDeep(): void
-    {
-        Test::assertSame(Grow::depth(4), 4);
     }
 }

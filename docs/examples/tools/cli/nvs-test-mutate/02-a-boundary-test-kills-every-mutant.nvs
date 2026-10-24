@@ -1,0 +1,39 @@
+<?nvs
+// Shows how one more test kills the mutant that survived before.
+// The new test uses an order of exactly 50.00. The mutation score is now 100%.
+// proof: test --mutate
+use Core\Test;
+
+class Shipping
+{
+    // Prices are in cents.
+    public static function total(int $order): int
+    {
+        if ($order >= 5000) {
+            return $order;
+        }
+        return $order + 495;
+    }
+}
+
+final class ShippingTest
+{
+    #[Test]
+    public function aSmallOrderPaysForShipping(): void
+    {
+        Test::assertSame(Shipping::total(2000), 2495);
+    }
+
+    #[Test]
+    public function aLargeOrderShipsFree(): void
+    {
+        Test::assertSame(Shipping::total(8000), 8000);
+    }
+
+    // This test fails if `>=` changes to `>`.
+    #[Test]
+    public function anOrderOfExactlyFiftyShipsFree(): void
+    {
+        Test::assertSame(Shipping::total(5000), 5000);
+    }
+}

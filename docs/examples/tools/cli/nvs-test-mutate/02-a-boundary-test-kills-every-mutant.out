@@ -1,0 +1,12 @@
+  ShippingTest
+    ✓ aSmallOrderPaysForShipping
+    ✓ aLargeOrderShipsFree
+    ✓ anOrderOfExactlyFiftyShipsFree
+
+  0 failed, 3 passed, 0 skipped, 0 flaky
+  6 of 6 lines run (100.0%)
+
+  3 mutants: each one runs the tests that reach its line
+
+  mutants: 3 killed, 0 survived, 0 timed out, 0 not reached
+  mutation score: 100.0% (3 of 3 reached mutants made a test fail or time out)

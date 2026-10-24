@@ -1,0 +1,12 @@
+  ShippingTest
+    ✓ aSmallOrderPaysForShipping
+    ✓ aLargeOrderShipsFree
+
+  0 failed, 2 passed, 0 skipped, 0 flaky
+  5 of 5 lines run (100.0%)
+
+  3 mutants: each one runs the tests that reach its line
+
+  mutants: 2 killed, 1 survived, 0 timed out, 0 not reached
+  mutation score: 66.7% (2 of 3 reached mutants made a test fail or time out)
+  survived  docs/examples/tools/cli/nvs-test-mutate/01-a-test-that-misses-the-boundary.nvs:13  `>=` to `>`
