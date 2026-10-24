@@ -27,7 +27,7 @@ stages:
         rules: [tooling/the-collector-never-stores-an-address, core-classes/ratelimit-two-members, core-classes/ratelimit-gcra]
   - id: 4
     title: the public pages and the data downloads
-    status: open
+    status: done
     context: [apps/telemetry/src/Pages.nvs, apps/telemetry/src/Charts.nvs, apps/telemetry/src/Data.nvs, apps/notes/src/Pages.nvs, docs/rules/tooling/telemetry-totals-are-public.md]
     extra:
       context:
@@ -228,12 +228,12 @@ daily salt and the address, and the application's configuration writes no addres
 **Does:** every path in `rule:tooling/telemetry-totals-are-public`'s table, as HTML with inline SVG
 and as JSON and CSV.
 
-- [ ] The two chart shapes as SVG, with no script. `apps/telemetry/src/Charts.nvs:1`
-- [ ] `/`, `/collect` and `/data`, the footer with the commit from `REVISION`, and the four newest weeks marked as still arriving (`rule:tooling/telemetry-totals-are-public`). `apps/telemetry/src/Pages.nvs:1`
-- [ ] `/data/totals.json`, `/data/totals.csv` and `/data/<week>.json`. `apps/telemetry/src/Data.nvs:1`
-- [ ] The `Content-Security-Policy` header, and no `Set-Cookie` on any answer. `apps/telemetry/src/App.nvs:1`
-- [ ] Tests: each page with an empty database and with two weeks of totals, the CSP header, no cookie, the JSON and the CSV rows equal to the tables, and an unknown week `404`. `apps/telemetry/src/PagesTest.nvs:1`, `apps/telemetry/src/DataTest.nvs:1`
-- [ ] The page text follows `AGENTS.md` § *Text an end user reads*. `apps/telemetry/src/Pages.nvs:1`
+- [x] The two chart shapes as SVG, with no script. `apps/telemetry/src/Charts.nvs:1`
+- [x] `/`, `/collect` and `/data`, the footer with the commit from `REVISION`, and the four newest weeks marked as still arriving (`rule:tooling/telemetry-totals-are-public`). `apps/telemetry/src/Pages.nvs:1`
+- [x] `/data/totals.json`, `/data/totals.csv` and `/data/<week>.json`. `apps/telemetry/src/Data.nvs:1`
+- [x] The `Content-Security-Policy` header, and no `Set-Cookie` on any answer. The gate sets it. `apps/telemetry/src/Gate.nvs:1`
+- [x] Tests: each page with an empty database and with two weeks of totals, the CSP header, no cookie, the JSON and the CSV rows equal to the tables, and an unknown week `404`. `apps/telemetry/src/PagesTest.nvs:1`, `apps/telemetry/src/DataTest.nvs:1`
+- [x] The page text follows `AGENTS.md` § *Text an end user reads*. `apps/telemetry/src/Pages.nvs:1`
 
 ### 5. the deploy guide, the known list follows the binary, and the reference names the collector
 
@@ -242,7 +242,7 @@ step with the command table.
 
 - [ ] The local run: `nvs serve public/index.nvs`, then `NVS_TELEMETRY_URL=http://127.0.0.1:8000/v1/report nvs telemetry upload` from another terminal, and the totals on `http://127.0.0.1:8000/`. `apps/telemetry/README.md:1`
 - [ ] The deploy guide: Caddy and its Caddyfile with no `log` and `telemetry.example.com` as the site, `nvs.toml`, `REVISION`, how to run it as a service under its own operating-system account, so it shares a host with the registry and cannot read the registry's files, and the one constant to set for the client's default URL (`rule:tooling/the-telemetry-collector-is-a-novis-program`). `apps/telemetry/README.md:1`
-- [ ] `REVISION` in `.gitignore`. `apps/telemetry/.gitignore:1`
+- [x] `REVISION` in `.gitignore`. `apps/telemetry/.gitignore:1`
 - [ ] The test that every command in the binary's table is in `known.toml` (gated on `cli-housekeeping`). `crates/nvs-cli/tests/telemetry_known.rs:1`, `crates/nvs-cli/src/telemetry.rs:1`
 - [ ] `# nvs telemetry` in the CLI reference says the collector is `apps/telemetry/` and how to run one, and lists the answers and what the client does with each (gated on `cli-housekeeping`). `docs/reference/tools/10-cli.md:509`
 
@@ -276,8 +276,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-**Stages 1, 2 and 3 are done.** Stage 3 is `73fadfe73` and `d8bcb6166`, with a stage-1 fix in
-`59451e437`.
+**Stages 1 to 4 are done.** Stage 4 is `86e2e9129`, on top of `7beb15721` and `36efef207`.
+
+- **Stage 4.** `App.nvs` routes `/`, `/collect`, `/data`, `/style.css`, `/data/totals.json`,
+  `/data/totals.csv` and `/data/{file}`. A capture must be a whole segment, so `/data/{file}`
+  takes `2026-W42.json` and `Data::weekOf` checks it. A literal route wins over the capture.
+  `Gate.nvs` sets `Gate::POLICY` in `allows`, `refused` and `failed`. A test sees a header the
+  program set, never one from `[http.headers]`. `Totals` has the read methods, and `Count` is one
+  label with its value. The detailed week on `/` is the newest week with rows.
+- **What a test can reach.** A route under `Core\Test::request` runs in its own isolate. It does
+  not see the test's `scratch` rows, its statics or `Env::Context::Test`. So `PagesTest` and
+  `DataTest` call `Pages::home`, `Data::json` and `Data::csv` on a `Totals` over `scratch`.
+  Requests check only the status, the CSP, the cookies and the content types. They open
+  `telemetry.sqlite`, and `.gitignore` covers it and its `-shm` and `-wal` files.
+- **`Core\Csv::format` takes tainted fields** (`7beb15721`). Every database text is tainted, and
+  the rows are now `Contagious` on the field, as `Str::join`'s parts are. Test
+  `csv_format_over_tainted_fields_answers_a_tainted_string_and_does_not_launder_them` in
+  `crates/nvs-types/tests/tainted.rs` passes. `36efef207` records the three stale Csv perf
+  figures. A change to a `crates/nvs-stdlib/src/<class>.rs` makes every bench of that class
+  stale. `bun nv proofs --record-perf --id '<member>'` records one.
+- 39 app tests pass with `--config apps/telemetry/nvs.toml`, three runs in a row. A
+  `POST /v1/report` in a new test pushed `LimitTest` over ten on the shared no-address key, so
+  `PagesTest` sends `GET /v1/report` (`405`) instead.
+- `rule:tooling/telemetry-totals-are-public` is shipped, guarded by `PagesTest` and `DataTest`.
+  `rule:tooling/the-telemetry-collector-is-a-novis-program`'s *Not on disk* now names only the deploy
+  guide, the end-to-end test and `REVISION`.
+
+Stages 1 to 3: `73fadfe73` and `d8bcb6166`, with a stage-1 fix in `59451e437`.
 
 - `Limit::wait` (`apps/telemetry/src/Limit.nvs:22`) calls `RateLimit::shed` at ten an hour on
   `telemetry:<hex SHA-256 of salt . address>`. The salt is `Random::token(32)`, kept in
@@ -291,8 +316,7 @@ subagent. Such subagents run side by side, and none of them builds.
   (`crates/nvs-stdlib/src/ratelimit.rs`, test `shed_counts_on_a_tests_fixed_clock`).
 - `crates/nvs-config/src/default.toml` lacked `[log] client_ip`, so `nvs agent show` had no card for
   it. `59451e437` adds the line and the stale rule renders.
-- `LimitTest` has four tests, each on its own day. 26 tests pass with
-  `--config apps/telemetry/nvs.toml`, five runs in a row.
+- `LimitTest` has four tests, each on its own day.
 - `Test::request` sends no address, so every `POST /v1/report` in `AppTest` and `LimitTest` counts
   against one key. `AppTest` runs at the real date and sends five. A sixth to tenth is fine, an
   eleventh in one run gets `429`.
@@ -303,17 +327,15 @@ in the tree, and it belongs to interactive session `6884de4b`.
 
 ### Next
 
-**Stage 4, the public pages and the data downloads.** It shares `src/App.nvs` with stage 3, and
-`apps/notes/src/Pages.nvs` shows how pages are built.
+**Stage 5, the deploy guide, the known list and the reference.** Its gate holds:
+`docs/goals/cli-housekeeping.md` is gone. `REVISION` is in `.gitignore` already.
 
-- [ ] `Totals` read methods: every `reports` row and every `counters` row, and one week's rows. `apps/telemetry/src/Totals.nvs:36`
-- [ ] `Charts.nvs`: a line over weeks and a horizontal bar list, as inline SVG. `apps/telemetry/src/Charts.nvs:1`
-- [ ] `Pages.nvs`: `/`, `/collect` and `/data`, the footer from `REVISION` (`unknown` when it is missing), and the four newest weeks marked as still arriving. The CSP is `style-src 'self'`, so a stylesheet needs a route of its own. `docs/rules/tooling/telemetry-totals-are-public.md:1`, `apps/notes/src/Pages.nvs:1`
-- [ ] `Data.nvs`: `/data/totals.json`, `/data/totals.csv` and `/data/<week>.json`, with `404` for a week that has no rows. `apps/telemetry/src/Data.nvs:1`
-- [ ] The CSP header on every answer, and no `Set-Cookie`. `apps/telemetry/src/App.nvs:1`
-- [ ] `PagesTest` and `DataTest`, with the scratch database. The routes call `Db::connect("telemetry")`, so a test that fills rows needs the routes to take the connection from one place the test can change. `apps/telemetry/src/PagesTest.nvs:1`, `apps/telemetry/src/DataTest.nvs:1`
+- [ ] The local run in the README: `nvs serve public/index.nvs`, then `NVS_TELEMETRY_URL=http://127.0.0.1:8000/v1/report nvs telemetry upload`, and the totals on `/`. `apps/telemetry/README.md:1`
+- [ ] The deploy guide: the Caddyfile with no `log` and `telemetry.example.com`, `[server] trusted_proxies = ["127.0.0.1"]` in `nvs.toml`, the deploy step that writes `REVISION`, a service under its own account, and the one client constant. `apps/telemetry/README.md:1`, `crates/nvs-cli/src/endpoints.rs:1`
+- [ ] `crates/nvs-cli/tests/telemetry_known.rs`: every name in `COMMAND_NAMES` is in `known.toml`. The table is private to `main.rs`, so check how a test can read it first. `crates/nvs-cli/src/main.rs:471`, `apps/telemetry/known.toml:1`
+- [ ] `# nvs telemetry` in the CLI reference names `apps/telemetry/`, how to run one, and each answer and what the client does with it. Then `bun nv render --website`. `docs/reference/tools/10-cli.md:554`
 
-Expected red: none. Stage 3's Rust is one test, and it passes by name. Clippy is clean.
+Expected red: none. The new Rust test ran once by name, and clippy is clean.
 
 ### Backlog
 
