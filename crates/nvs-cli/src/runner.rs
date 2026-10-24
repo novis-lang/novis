@@ -1866,7 +1866,10 @@ impl Job {
         drop(watched);
         drop(clock);
         let outcome = match limit {
-            Some(limit) if ctx.safepoint_view().deadline_expired() => {
+            Some(limit)
+                if ctx.safepoint_view().deadline_expired()
+                    || ctx.safepoint_view().wall_time_stopped() =>
+            {
                 outcome.past_wall_time(&limit)
             }
             _ => outcome,
