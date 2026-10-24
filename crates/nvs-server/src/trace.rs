@@ -1046,7 +1046,11 @@ mod tests {
                 "with the key unwritten a {status} line names the address: {named}"
             );
             let left_out = logged_naming(on, false, status, None, false);
-            assert_eq!(left_out.lines().count(), 1, "the {status} line is still written");
+            assert_eq!(
+                left_out.lines().count(),
+                1,
+                "the {status} line is still written"
+            );
             assert!(
                 !left_out.contains("clientIp") && !left_out.contains("192.0.2.7"),
                 "a {status} line under `client_ip = false` names the address: {left_out}"

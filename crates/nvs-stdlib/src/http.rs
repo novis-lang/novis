@@ -8175,7 +8175,10 @@ mod tests {
 
     /// A `204` with no length, from an origin that keeps the connection open, is the whole reply.
     /// The transport returns at the blank line and never waits for the close.
-    #[cfg_attr(miri, ignore = "a loopback socket is a system call Miri does not emulate")]
+    #[cfg_attr(
+        miri,
+        ignore = "a loopback socket is a system call Miri does not emulate"
+    )]
     #[test]
     fn a_204_that_keeps_the_connection_ends_at_its_head() {
         use std::io::{Read as _, Write as _};

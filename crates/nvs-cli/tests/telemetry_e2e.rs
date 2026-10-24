@@ -110,7 +110,9 @@ fn this_monday() -> i64 {
 /// A counter file with nothing uploaded and the finished week `week` waiting, due at `due`
 /// seconds since 1970.
 fn waiting(week: &str, due: i64) -> String {
-    format!("uploads 0\nbytes 0\ndue {due}\npending {week}\ndays 1110000\ninvocation.run 41\ninvocation.serve 2\n")
+    format!(
+        "uploads 0\nbytes 0\ndue {due}\npending {week}\ndays 1110000\ninvocation.run 41\ninvocation.serve 2\n"
+    )
 }
 
 /// A private data folder with telemetry on and `counters` as its counter file.
@@ -220,7 +222,10 @@ impl Server {
         let mut answer = String::new();
         stream.read_to_string(&mut answer).expect("the answer");
         let (head, body) = answer.split_once("\r\n\r\n").expect("a head and a body");
-        assert!(head.starts_with("HTTP/1.1 200") || head.starts_with("HTTP/1.0 200"), "{head}");
+        assert!(
+            head.starts_with("HTTP/1.1 200") || head.starts_with("HTTP/1.0 200"),
+            "{head}"
+        );
         body.to_owned()
     }
 
@@ -321,7 +326,10 @@ fn database(dir: &Path, text: &[u8]) -> Vec<(String, bool)> {
 fn the_client_uploads_to_the_collector_and_the_totals_show_it() {
     let app = nvs_repo::scratch("telemetry-e2e-app");
     for name in APP {
-        copy(&nvs_repo::path(&format!("apps/telemetry/{name}")), &app.join(name));
+        copy(
+            &nvs_repo::path(&format!("apps/telemetry/{name}")),
+            &app.join(name),
+        );
     }
     let config = std::fs::read_to_string(app.join("nvs.toml")).expect("the app's `nvs.toml`");
     let config = config.replacen(
@@ -380,7 +388,10 @@ fn the_client_uploads_to_the_collector_and_the_totals_show_it() {
     std::fs::write(data.join("telemetry").join("counters"), &file).expect("the counter file");
     let out = ran(nvs(&data, &data, &env, &["telemetry", "upload"]));
     assert!(
-        out.starts_with(&format!("telemetry: week {} is sent from ", label(monday - 14))),
+        out.starts_with(&format!(
+            "telemetry: week {} is sent from ",
+            label(monday - 14)
+        )),
         "{out}"
     );
 
@@ -399,15 +410,25 @@ fn the_client_uploads_to_the_collector_and_the_totals_show_it() {
 
     let totals: serde_json::Value =
         serde_json::from_str(&server.get("/data/totals.json")).expect("the totals as JSON");
-    assert_eq!(totals["reports"].as_array().map(Vec::len), Some(1), "{totals}");
+    assert_eq!(
+        totals["reports"].as_array().map(Vec::len),
+        Some(1),
+        "{totals}"
+    );
 
     // Every request came from 127.0.0.1, and the address is in no table and no log line.
     server.wait_for("/data/totals.json");
     let lines = server.lines.lock().expect("the lines").clone();
     for line in &lines {
-        assert!(!line.contains("127.0.0.1") || line.starts_with("listening on "), "{line}");
+        assert!(
+            !line.contains("127.0.0.1") || line.starts_with("listening on "),
+            "{line}"
+        );
     }
     let files = database(&app, b"127.0.0.1");
-    assert!(files.iter().any(|(name, _)| name == "telemetry.sqlite"), "{files:?}");
+    assert!(
+        files.iter().any(|(name, _)| name == "telemetry.sqlite"),
+        "{files:?}"
+    );
     assert!(files.iter().all(|(_, found)| !found), "{files:?}");
 }

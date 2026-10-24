@@ -1224,8 +1224,9 @@ mod tests {
     /// a command a later release removes still arrives from the older clients.
     #[test]
     fn the_collectors_known_lists_name_everything_this_client_sends() {
-        let known: toml::Table =
-            include_str!("../../../apps/telemetry/known.toml").parse().expect("known.toml parses");
+        let known: toml::Table = include_str!("../../../apps/telemetry/known.toml")
+            .parse()
+            .expect("known.toml parses");
         let list = |key: &str| -> Vec<String> {
             known[key]
                 .as_array()
@@ -1236,15 +1237,24 @@ mod tests {
         };
         let commands = list("commands");
         for name in crate::COMMAND_NAMES.iter().chain([&UNKNOWN]) {
-            assert!(commands.iter().any(|known| known == name), "known.toml lacks command `{name}`");
+            assert!(
+                commands.iter().any(|known| known == name),
+                "known.toml lacks command `{name}`"
+            );
         }
         let systems = list("os");
         for name in ["linux", "macos", "windows", "freebsd"].map(os) {
-            assert!(systems.iter().any(|known| known == name), "known.toml lacks os `{name}`");
+            assert!(
+                systems.iter().any(|known| known == name),
+                "known.toml lacks os `{name}`"
+            );
         }
         let processors = list("arch");
         for name in ["x86_64", "aarch64", "riscv64"].map(arch) {
-            assert!(processors.iter().any(|known| known == name), "known.toml lacks arch `{name}`");
+            assert!(
+                processors.iter().any(|known| known == name),
+                "known.toml lacks arch `{name}`"
+            );
         }
     }
 

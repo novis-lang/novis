@@ -1368,15 +1368,22 @@ mod tests {
         crate::cache::tests::forget(&fixed);
         assert!(arrival(&mut ctx), "the first arrival on the host's clock");
 
-        let at = crate::time::fixed_clock_nanos("2026-10-21T12:00:00Z").expect("an RFC 3339 instant");
+        let at =
+            crate::time::fixed_clock_nanos("2026-10-21T12:00:00Z").expect("an RFC 3339 instant");
         ctx.set_fixed_clock(at);
         assert!(
             arrival(&mut ctx),
             "the fixed clock is its own timeline, so the host clock's arrival does not count"
         );
-        assert!(!arrival(&mut ctx), "the second arrival in the same instant is refused");
+        assert!(
+            !arrival(&mut ctx),
+            "the second arrival in the same instant is refused"
+        );
         ctx.set_fixed_clock(at + 3_600 * 1_000_000_000);
-        assert!(arrival(&mut ctx), "an hour later on the fixed clock, the allowance is back");
+        assert!(
+            arrival(&mut ctx),
+            "an hour later on the fixed clock, the allowance is back"
+        );
 
         crate::cache::tests::forget(&monotonic);
         crate::cache::tests::forget(&fixed);
