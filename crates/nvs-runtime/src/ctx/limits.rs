@@ -923,6 +923,10 @@ impl Ctx {
             .map(|at| at.saturating_duration_since(std::time::Instant::now()))
     }
 
+    /// How [`Self::wall_time_message`] starts, so `nvs test` can tell a test stopped at its
+    /// limit and write its own line in place of this one, which names a request.
+    pub const WALL_TIME_EXCEEDED: &'static str = "the request exceeded its wall-time limit";
+
     /// The `FATAL`'s message for a request past its `[limits] wall_time`,
     /// naming the ceiling as the request has it now.
     pub(super) fn wall_time_message(&self) -> String {
@@ -931,7 +935,7 @@ impl Ctx {
                 .wall_time
                 .load(std::sync::atomic::Ordering::Relaxed),
         );
-        format!("the request exceeded its wall-time limit of {ceiling:?}")
+        format!("{} of {ceiling:?}", Self::WALL_TIME_EXCEEDED)
     }
 
     /// Runs `rule:errors/on-limit`'s handler for a request past its

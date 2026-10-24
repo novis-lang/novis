@@ -2593,7 +2593,7 @@ fn run_run(
 )]
 fn run_test(
     paths: &[PathBuf],
-    filter: Option<String>,
+    select: runner::Selection,
     jobs: Option<std::num::NonZeroUsize>,
     format: runner::Format,
     flags: runner::Flags,
@@ -2657,7 +2657,15 @@ fn run_test(
             Ok(tree) => tree,
             Err(code) => return code,
         };
-        return run_program_tests(program, &tree, format, filter, flags, coverage);
+        return run_program_tests(program, &tree, format, &select, flags, coverage);
+    }
+    if !select.tags.is_empty() || !select.skip_tags.is_empty() {
+        // A `.nvst` case has no `#[Test]` attribute to carry a tag, so every
+        // `--tag` would select nothing.
+        eprintln!(
+            "error: `--tag` and `--skip-tag` select a program's `#[Test]` methods, not `.nvst` cases"
+        );
+        return ExitCode::FAILURE;
     }
     if list {
         // A `.nvst` tree is discovered by walking directories, which is what
@@ -2710,7 +2718,8 @@ fn run_test(
             return ExitCode::FAILURE;
         }
     };
-    options.filter = filter;
+    options.filter = select.filter;
+    options.shard = select.shard;
     if let Some(jobs) = jobs {
         options.jobs = jobs.get();
     }
@@ -2776,7 +2785,7 @@ fn run_program_tests(
     program: &Program,
     tree: &config::Tree,
     format: runner::Format,
-    filter: Option<String>,
+    select: &runner::Selection,
     flags: runner::Flags,
     coverage: &coverage::Requested,
 ) -> ExitCode {
@@ -2821,7 +2830,7 @@ fn run_program_tests(
         &tree.snapshot,
         Some(set),
         format,
-        filter,
+        select,
         flags,
         coverage,
     );

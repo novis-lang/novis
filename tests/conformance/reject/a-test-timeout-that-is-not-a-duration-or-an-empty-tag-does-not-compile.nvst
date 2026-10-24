@@ -1,0 +1,36 @@
+--TEST--
+A `timeout:` that is not a duration or is zero, and an empty tag in `tags:`, are `E0880` at the value — `rule:testing/a-test-has-a-wall-time-limit`, `rule:testing/tags-and-shards-select-what-runs`
+--FILE--
+<?nvs
+use Core\Test;
+
+final class LimitTest {
+    #[Test(timeout: "soon")]
+    public function notADuration(): void {}
+
+    #[Test(timeout: "0s")]
+    public function zero(): void {}
+
+    #[Test(tags: ["", "db"])]
+    public function emptyTag(): void {}
+
+    #[Test(tags: "db")]
+    public function notAList(): void {}
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0880]: `timeout:` is not a duration
+%A
+5 |     #[Test(timeout: "soon")]
+  |                     ^^^^^^ this value
+  = help: write a number and a unit, such as `"5s"`, `"250ms"` or `"2m"`
+
+error[E0880]: `timeout:` is zero, so the test always fails
+%A
+error[E0880]: `tags:` has an empty tag, which `--tag` cannot select
+%A
+error[E0401]: expected `array<string>`, found `string`
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

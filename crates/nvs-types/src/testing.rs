@@ -12,9 +12,10 @@
 //! # The option roster is the shape
 //!
 //! `rule:testing/test-attribute` writes the payload as `{skip?: string, at?: string, seed?: int,
-//! db?: string, server?: bool, retries?: int, because?: string}` — **every**
+//! db?: string, server?: bool, retries?: int, because?: string, timeout?: string,
+//! tags?: array<string>}` — **every**
 //! field optional. That cannot be a [`crate::ty::Ty::Shape`] target: `rule:types/shape-type`'s width subtyping requires every field the target names to be present
-//! in the literal, so a shape of seven fields would refuse the bare `#[Test]`
+//! in the literal, so a shape of nine fields would refuse the bare `#[Test]`
 //! that rule's own example writes. It is `rule:core-api/shape-rules` R2's options-bag rule
 //! instead, which is the one this shape actually wants: a field the roster
 //! does not name is refused (`E_UNKNOWN_OPTION`), a field it does name is
@@ -155,17 +156,19 @@ use crate::{Ctx, Env, span_text};
 /// because a second copy of three variants is how two attributes come to
 /// disagree about what `int` means.
 ///
-/// Three scalar rows, because `rule:testing/test-attribute`'s shape names three types, and two that are
+/// Three scalar rows, because `rule:testing/test-attribute`'s shape names three types, and three that are
 /// not scalars at all: `rule:attributes/payload-is-a-compile-time-constant` admits an enum case in a payload and
-/// `rule:routing/route-attribute`'s `method` is one, and `rule:attributes/access-payload` declares a field whose
-/// type is `mixed` on purpose. A sixth row is a decision about what some
-/// attribute may carry and belongs in the section that decides it before it
-/// belongs here.
+/// `rule:routing/route-attribute`'s `method` is one, `rule:attributes/access-payload` declares a field whose
+/// type is `mixed` on purpose, and `rule:testing/tags-and-shards-select-what-runs`'s `tags` is a list of
+/// strings. A seventh row is a decision about what some attribute may carry and belongs in the
+/// section that decides it before it belongs here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum OptionTy {
     Str,
     Int,
     Bool,
+    /// `array<string>`, whose elements are each a constant string.
+    StrList,
     /// One enum, by fully-qualified name — the type of an option whose value
     /// is a case of it.
     Enum(&'static str),
@@ -199,6 +202,10 @@ impl OptionTy {
             Self::Str => Ty::String,
             Self::Int => Ty::Int,
             Self::Bool => Ty::Bool,
+            Self::StrList => {
+                let string = env.interner.string();
+                return Some(env.interner.array(string));
+            }
             // `rule:attributes/access-payload`'s `mixed`: the value is checked as a constant and
             // then placed at nothing, which is the whole of what `mixed` asks.
             Self::Mixed => return None,
@@ -219,6 +226,7 @@ impl OptionTy {
             Self::Str => "string",
             Self::Int => "int",
             Self::Bool => "bool",
+            Self::StrList => "array<string>",
             Self::Mixed => "mixed",
             Self::Enum(name) => name,
         }
@@ -236,6 +244,8 @@ pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
     ("server", OptionTy::Bool),
     ("retries", OptionTy::Int),
     ("because", OptionTy::Str),
+    ("timeout", OptionTy::Str),
+    ("tags", OptionTy::StrList),
 ];
 
 /// One `#[Test]` method of one class — `rule:testing/test-attribute`'s table, one row at a
@@ -1131,7 +1141,9 @@ fn fold_options(fields: &[AnonObjectField], env: &mut Env<'_>) -> Vec<(String, C
         let Some(declared) = ty.intern(env) else {
             continue;
         };
-        if let Some(value) = crate::defaults::literal_default(&field.value, declared, env) {
+        // `eval_const_value` rather than `literal_default`, because `tags` is an array and
+        // `literal_default` folds no array but the empty one.
+        if let Some(value) = crate::defaults::eval_const_value(&field.value, declared, env) {
             folded.push((name, value));
         }
     }
@@ -1151,7 +1163,10 @@ pub(crate) fn check_payload(fields: &[AnonObjectField], ctx: &Ctx<'_>, env: &mut
 
 /// `rule:testing/runner-is-strict`'s reasons and retry count, held to a
 /// value that says something: a `skip:` or `because:` that is empty states no
-/// reason, and a `retries:` below 1 retries nothing.
+/// reason, and a `retries:` below 1 retries nothing. `rule:testing/a-test-has-a-wall-time-limit`'s
+/// `timeout:` is read as `nvs.toml` reads a duration ([`timeout_nanos`]), and a zero limit would
+/// fail every run. A `rule:testing/tags-and-shards-select-what-runs` tag that is empty is a label no
+/// `--tag` can name.
 ///
 /// The roster checks each value's type and not its value, so this reads the
 /// folded constants. A value of the wrong type is the roster's error already,
@@ -1159,6 +1174,7 @@ pub(crate) fn check_payload(fields: &[AnonObjectField], ctx: &Ctx<'_>, env: &mut
 fn check_option_values(fields: &[AnonObjectField], env: &mut Env<'_>) {
     let string = env.interner.string();
     let int = env.interner.int();
+    let tags = env.interner.array(string);
     for field in fields {
         let option = span_text(env.src, field.name).to_owned();
         let (fault, help) = match option.as_str() {
@@ -1177,6 +1193,33 @@ fn check_option_values(fields: &[AnonObjectField], env: &mut Env<'_>) {
                 ),
                 _ => continue,
             },
+            "timeout" => match crate::defaults::literal_default(&field.value, string, env) {
+                Some(crate::defaults::ConstArg::Str(text)) => match timeout_nanos(&text) {
+                    Some(0) => (
+                        "is zero, so the test always fails",
+                        "write a duration longer than zero, such as `\"5s\"` or `\"250ms\"`",
+                    ),
+                    Some(_) => continue,
+                    None => (
+                        "is not a duration",
+                        "write a number and a unit, such as `\"5s\"`, `\"250ms\"` or `\"2m\"`",
+                    ),
+                },
+                _ => continue,
+            },
+            "tags" => match crate::defaults::eval_const_value(&field.value, tags, env) {
+                Some(crate::defaults::ConstArg::Array(entries))
+                    if entries.iter().any(|(_, tag)| {
+                        matches!(tag, crate::defaults::ConstArg::Str(text) if text.trim().is_empty())
+                    }) =>
+                {
+                    (
+                        "has an empty tag, which `--tag` cannot select",
+                        "write a word for each tag, such as `[\"slow\", \"db\"]`",
+                    )
+                }
+                _ => continue,
+            },
             _ => continue,
         };
         env.diags.report(
@@ -1184,6 +1227,18 @@ fn check_option_values(fields: &[AnonObjectField], env: &mut Env<'_>) {
                 .with_primary(field.value.span, "this value")
                 .with_help(help),
         );
+    }
+}
+
+/// `timeout:`'s text as nanoseconds, read the way `nvs.toml` reads `[limits] wall_time`
+/// ([`nvs_config::Quantity::parse`]), so the two cannot disagree about what `"5s"` means.
+/// `None` for text that is not a duration.
+#[must_use]
+pub fn timeout_nanos(text: &str) -> Option<u64> {
+    let written = nvs_config::Setting::Text(text.to_owned());
+    match nvs_config::Quantity::parse("timeout", nvs_config::Unit::Duration, &written) {
+        Ok(nvs_config::Quantity::Nanos(nanos)) => Some(nanos),
+        _ => None,
     }
 }
 

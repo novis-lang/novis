@@ -12,7 +12,8 @@ about that test already points — because that is the one fact about a test not
 recompute, and it is what locates a test in a report and in an editor's test tree.
 
 `#[Test]`'s payload is an options bag — `skip`, `at`, `seed`, `db`, `server`, `retries`,
-`because` — every field optional and every field checked at its own type. An option the roster does
+`because`, `timeout` (`rule:testing/a-test-has-a-wall-time-limit`) and `tags`
+(`rule:testing/tags-and-shards-select-what-runs`) — every field optional and every field checked at its own type. An option the roster does
 not name is refused, one written twice is refused, and `skip: true` is a `bool` where a `string` is
 declared.
 

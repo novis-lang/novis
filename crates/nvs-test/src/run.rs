@@ -68,6 +68,9 @@ pub struct Options {
     /// slash. `None` runs every case the trees hold; [`crate::run()`] refuses a
     /// listed file no tree holds.
     pub only: Option<Vec<PathBuf>>,
+    /// Run only the cases in this part of the selection
+    /// (`rule:testing/tags-and-shards-select-what-runs`). `None` runs every selected case.
+    pub shard: Option<crate::Shard>,
     /// Record each case into this directory: every `nvs` process the case
     /// starts writes its coverage counters and its footprint log there, under
     /// the case's [`record_name`], and compiles with no artifact cache.
@@ -115,6 +118,7 @@ impl Options {
             jobs: std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get),
             timeout: CASE_TIMEOUT,
             only: None,
+            shard: None,
             record: None,
             root,
             shared: None,
