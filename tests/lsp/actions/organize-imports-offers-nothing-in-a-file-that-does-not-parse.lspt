@@ -1,0 +1,21 @@
+--TEST--
+organize imports offers nothing in a file that does not parse, because the sort does not run on it, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+require 'lib/shop.nvs';
+
+use Shop\Order;
+use Shop\Item;
+
+var $item = new Item(;<|>
+--FILE lib/shop.nvs--
+<?nvs
+namespace Shop;
+
+class Item {}
+
+class Order {}
+--REQUEST--
+codeAction only=source.organizeImports
+--EXPECT--
+none

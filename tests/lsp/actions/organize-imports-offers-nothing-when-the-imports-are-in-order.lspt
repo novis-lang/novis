@@ -1,0 +1,22 @@
+--TEST--
+organize imports offers nothing when every `use` line is read and the lines are in order, `rule:tooling/fmt-sorts-the-use-block`
+--FILE--
+<?nvs
+require 'lib/shop.nvs';
+
+use Shop\Item;
+use Shop\Order;
+
+var $item = new Item();
+var $order = new <|>Order();
+--FILE lib/shop.nvs--
+<?nvs
+namespace Shop;
+
+class Item {}
+
+class Order {}
+--REQUEST--
+codeAction only=source.organizeImports
+--EXPECT--
+none

@@ -1,0 +1,22 @@
+--TEST--
+organize imports sorts a `use` block where every line is read, and deletes nothing, `rule:tooling/fmt-sorts-the-use-block`
+--FILE--
+<?nvs
+require 'lib/shop.nvs';
+
+use Shop\Order;
+use Shop\Item;
+
+var $item = new Item();
+var $order = new <|>Order();
+--FILE lib/shop.nvs--
+<?nvs
+namespace Shop;
+
+class Item {}
+
+class Order {}
+--REQUEST--
+codeAction only=source.organizeImports
+--EXPECT--
+4:10-5:14 source.organizeImports Organize imports -> "Item;\nuse Shop\Order"
