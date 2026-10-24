@@ -1330,6 +1330,37 @@ mod tests {
         assert_eq!(hits.counts(), [0, 1]);
     }
 
+    /// Every child form starts from its parent's flag word at the spawn, and that word is its
+    /// ceiling: it may stop a probe and start it again, and never start one its parent had off —
+    /// `rule:testing/debug-surface`'s *narrow and never widen*, even where the parent's mode was
+    /// wider than what it had on.
+    #[test]
+    fn every_child_form_inherits_the_flag_word_and_may_only_narrow_it() {
+        let mut parent = Ctx::buffered();
+        parent.set_debug_flags(DebugFlags::COVERAGE | DebugFlags::TRACE);
+        parent.stop_probes(DebugFlags::TRACE);
+        #[expect(unsafe_code, reason = "the child is dropped before its parent")]
+        let task = unsafe { parent.child() };
+        let children = [
+            task,
+            parent.isolate(OutputSink::Sink),
+            parent.placed_isolate().build(OutputSink::Sink),
+        ];
+        for mut child in children {
+            assert_eq!(child.debug_flags(), DebugFlags::COVERAGE);
+            assert_eq!(child.debug_ceiling(), DebugFlags::COVERAGE);
+            assert_eq!(
+                child.start_probes(DebugFlags::TRACE),
+                Err(DebugFlags::TRACE)
+            );
+            child.stop_probes(DebugFlags::COVERAGE);
+            assert!(child.debug_flags().is_empty());
+            assert_eq!(child.start_probes(DebugFlags::COVERAGE), Ok(()));
+            assert_eq!(child.debug_flags(), DebugFlags::COVERAGE);
+        }
+        assert_eq!(parent.debug_flags(), DebugFlags::COVERAGE);
+    }
+
     #[test]
     fn nothing_is_armed_by_default_and_the_site_fires_exactly_once() {
         let mut ctx = Ctx::buffered();
