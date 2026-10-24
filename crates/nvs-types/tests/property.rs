@@ -77,7 +77,7 @@ fn each_scalar_parameter_gets_the_generator_of_its_type() {
         }
     );
     assert!(matches!(&case.params[7], Gen::Nullable(inner) if matches!(**inner, Gen::Int { .. })));
-    assert!(matches!(&case.params[8], Gen::Enum(values) if values.len() == 3));
+    assert!(matches!(&case.params[8], Gen::Enum { values, uint: false } if values.len() == 3));
     assert!(
         matches!(&case.params[9], Gen::List { element, len } if **element == Gen::Int { min: i64::MIN, max: i64::MAX } && *len == full)
     );
@@ -97,7 +97,9 @@ fn each_scalar_parameter_gets_the_generator_of_its_type() {
         assert!(matches!(inputs[5], Generated::Str(_)));
         assert!(matches!(&inputs[6], Generated::Bytes(raw) if raw.len() <= 100));
         saw_null |= inputs[7] == Generated::Null;
-        assert!(matches!(&inputs[8], Generated::Enum(v) if (0..3).contains(v)));
+        assert!(
+            matches!(&inputs[8], Generated::Enum { value, uint: false } if (0..3).contains(value))
+        );
         assert!(matches!(&inputs[9], Generated::List(xs) if xs.len() <= 100));
     }
     assert!(saw_null);

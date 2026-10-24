@@ -1,0 +1,40 @@
+<?nvs
+// `rule:testing/property-testing`, from the language surface: each `#[Property]` method is one
+// test, called once per generated input set. One property holds for every input and passes.
+// One fails for most inputs and is reported with its inputs and its seed. The third builds a
+// list of shapes and a class through its constructor, so every kind of input is built once.
+//
+// `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
+use Core\Test;
+use Core\Test\Property;
+
+final class Point {
+    public function constructor(public int $x, public int $y) {}
+}
+
+enum Size: uint {
+    Small = 1,
+    Large = 2,
+}
+
+final class PropertyTest {
+    #[Property(runs: 50, gen: {a: "-1000..1000", b: "-1000..1000"})]
+    public function itAddsInEitherOrder(int $a, int $b): void {
+        Test::assertSame($a + $b, $b + $a);
+    }
+
+    #[Property(runs: 50, gen: {n: "0..1000"})]
+    public function itFailsForANumberAboveTen(int $n): void {
+        Test::assertTrue($n <= 10);
+    }
+
+    #[Property(runs: 20)]
+    public function itBuildsEveryKindOfInput(
+        array<{name: string, size?: Size}> $rows,
+        Point $point,
+        ?decimal $price,
+        bytes $raw,
+    ): void {
+        Test::assertSame($point->x, $point->x);
+    }
+}

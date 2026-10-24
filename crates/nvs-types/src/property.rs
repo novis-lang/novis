@@ -161,8 +161,8 @@ pub enum Gen {
     Str { len: Len, tainted: bool },
     /// `bytes`, and `tainted` where the declared type is.
     Bytes { len: Len, tainted: bool },
-    /// The backing values of an enum's cases, ascending.
-    Enum(Vec<i128>),
+    /// The backing values of an enum's cases, ascending, and whether the enum is `uint`-backed.
+    Enum { values: Vec<i128>, uint: bool },
     /// `array<T>`, its `element` generating each `T`.
     List { element: Box<Gen>, len: Len },
     /// An inline shape, its fields in the order the type interns them.
@@ -556,7 +556,7 @@ impl Deriver {
                 }
                 Gen::Shape(gens)
             }
-            Ty::Enum(ref name, _) | Ty::EnumCase(ref name, _, _) => {
+            Ty::Enum(ref name, backing) | Ty::EnumCase(ref name, backing, _) => {
                 let case = match &ty {
                     Ty::EnumCase(_, _, case) => Some(case.as_str()),
                     _ => None,
@@ -565,7 +565,10 @@ impl Deriver {
                 if values.is_empty() {
                     return none(&format!("`{name}` has no cases, so it"));
                 }
-                Gen::Enum(values)
+                Gen::Enum {
+                    values,
+                    uint: backing == crate::enums::EnumBacking::Uint,
+                }
             }
             Ty::Union(members) => {
                 let mut arms = Vec::with_capacity(members.len());

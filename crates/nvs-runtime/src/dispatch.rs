@@ -874,6 +874,187 @@ impl Drop for RowValues {
     }
 }
 
+/// `rule:testing/property-testing`'s generated inputs, built into the values one call of a
+/// `#[Property]` method takes.
+///
+/// It is [`RowValues`]' shape over a richer source, and it is here for that type's reason: each
+/// value carries one reference somebody has to release, `nvs-cli` forbids `unsafe`, and a
+/// released [`Value`] has no safe spelling. It is a **per-call** owner too: one call's inputs
+/// are built just before the call and released when this set is dropped after it.
+///
+/// Values are built **bottom up** and named by [`Input`] handles rather than by [`Value`]s, so
+/// a list, shape or constructor call can only be built from values this set made and still
+/// owns. Each composite retains its parts, so the set holds exactly one reference per value it
+/// built, whether or not that value is also inside another one.
+///
+/// A `tainted` string or `bytes` is built as a plain one: the qualifier is checked at compile
+/// time and erased (`rule:security/tainted-qualifier`), so no value carries it.
+///
+/// **Memory:** one [`Value`] per generated value of the call in flight, plus a `Vec` slot each,
+/// all freed when the call has returned. `nvs_types::property::generate` bounds the count.
+#[derive(Debug, Default)]
+pub struct InputValues {
+    built: Vec<Value>,
+}
+
+/// One value an [`InputValues`] built, by its place in that set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Input(usize);
+
+impl InputValues {
+    /// An empty set: one call's worth, filled as the inputs are built.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The value `input` names, borrowed from this set. `null` for a handle this set did not
+    /// make.
+    #[must_use]
+    pub fn get(&self, input: Input) -> Value {
+        self.built.get(input.0).copied().unwrap_or_else(Value::null)
+    }
+
+    /// `null`.
+    pub fn null(&mut self) -> Input {
+        self.keep(Value::null())
+    }
+
+    /// A `bool`.
+    pub fn bool(&mut self, value: bool) -> Input {
+        self.keep(Value::bool(value))
+    }
+
+    /// An `int`.
+    pub fn int(&mut self, value: i64) -> Input {
+        self.keep(Value::int(value))
+    }
+
+    /// A `uint`.
+    pub fn uint(&mut self, value: u64) -> Input {
+        self.keep(Value::uint(value))
+    }
+
+    /// A `float`.
+    pub fn float(&mut self, value: f64) -> Input {
+        self.keep(Value::float(value))
+    }
+
+    /// A `decimal` read from its digits, such as `-12.5`, or `None` where `digits` is not an
+    /// exact decimal literal.
+    pub fn decimal(&mut self, digits: &str) -> Option<Input> {
+        let value = crate::decimal::Decimal::parse(digits)?;
+        Some(self.keep(Value::decimal(value)))
+    }
+
+    /// A `string`, `tainted` or not. Each call makes one fresh allocation.
+    pub fn str(&mut self, text: &str) -> Input {
+        self.keep(Value::text(text))
+    }
+
+    /// A `bytes` value, `tainted` or not. Each call makes one fresh allocation.
+    pub fn bytes(&mut self, raw: &[u8]) -> Input {
+        self.keep(Value::bytes(crate::string::NvsStr::new(raw)))
+    }
+
+    /// A case of an `int`-backed enum, by its backing value.
+    pub fn enum_int(&mut self, value: i64) -> Input {
+        self.keep(Value::enum_int(value))
+    }
+
+    /// A case of a `uint`-backed enum, by its backing value.
+    pub fn enum_uint(&mut self, value: u64) -> Input {
+        self.keep(Value::enum_uint(value))
+    }
+
+    /// An `array<T>` of `items`, in order, keyed from `0`. Each item is retained.
+    pub fn list(&mut self, items: &[Input]) -> Input {
+        let mut array = crate::array::NvsArray::with_capacity(items.len());
+        for item in items {
+            array.append(self.retained(*item));
+        }
+        self.keep(Value::array(array))
+    }
+
+    /// An instance of the anonymous-object class `label`, each of `fields` written to the slot
+    /// of its name and every other slot left unwritten, as an absent optional field is. Each
+    /// value is retained.
+    ///
+    /// `None` where the running program has no shape class `label`, or the class has no slot
+    /// for one of the names ([`Ctx::new_shape`]).
+    pub fn shape(&mut self, ctx: &Ctx, label: &str, fields: &[(&str, Input)]) -> Option<Input> {
+        let fields: Vec<(String, Value)> = fields
+            .iter()
+            .map(|(name, input)| ((*name).to_owned(), self.retained(*input)))
+            .collect();
+        let shape = ctx.new_shape(label, fields)?;
+        Some(self.keep(shape))
+    }
+
+    /// `new <class>(...args)`, so the constructor runs as `new` runs it, from outside every
+    /// class. The arguments are borrowed by the call.
+    ///
+    /// # Errors
+    ///
+    /// `None` where the running program declares no class `class`. `Some(status)` where the
+    /// constructor failed, with what it threw left on `ctx` as any failed call leaves it.
+    pub fn object(
+        &mut self,
+        ctx: &mut Ctx,
+        class: &str,
+        args: &[Input],
+    ) -> Result<Input, Option<i32>> {
+        let desc = ctx.class_desc(class).ok_or(None)?;
+        let args: Vec<Value> = args.iter().map(|input| self.get(*input)).collect();
+        #[expect(
+            unsafe_code,
+            reason = "`Ctx::class_desc` returns a descriptor live for as long as `ctx`, \
+                      which outlives this call"
+        )]
+        let built = unsafe { construct_erased_from(ctx, desc, &args, None) };
+        match built {
+            Ok(object) => Ok(self.keep(object)),
+            Err(fault) => Err(Some(crate::abi::record_fault(ctx, fault))),
+        }
+    }
+
+    /// A second reference to the value `input` names, for a composite to take over.
+    fn retained(&self, input: Input) -> Value {
+        let value = self.get(input);
+        #[expect(
+            unsafe_code,
+            reason = "this set holds a reference to the value for its whole life, so the \
+                      payload is live while a second one is taken"
+        )]
+        unsafe {
+            value.retain();
+        }
+        value
+    }
+
+    /// Records the one reference `value` carries and names it: the single place this set takes
+    /// ownership, so the count it keeps and the count [`Drop`] releases cannot disagree.
+    fn keep(&mut self, value: Value) -> Input {
+        self.built.push(value);
+        Input(self.built.len() - 1)
+    }
+}
+
+impl Drop for InputValues {
+    fn drop(&mut self) {
+        #[expect(
+            unsafe_code,
+            reason = "this set holds exactly one reference per value it built, and the call \
+                      that borrowed them has returned"
+        )]
+        unsafe {
+            for value in self.built.drain(..) {
+                value.release();
+            }
+        }
+    }
+}
+
 /// One test isolate's own copies of the fixtures it asked for — `rule:testing/fixtures`'s
 /// "built once in the parent, copied into each test", which is
 /// `rule:classes/graph-copy`'s graph copy and nothing else.
