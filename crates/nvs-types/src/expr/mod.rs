@@ -615,7 +615,7 @@ pub(crate) fn infer(
             type_args,
             args,
         } => infer_method_call(
-            expr, object, method, *nullsafe, type_args, args, live, scope, ctx, env,
+            expr, expected, object, method, *nullsafe, type_args, args, live, scope, ctx, env,
         ),
         ExprKind::StaticCall {
             class,

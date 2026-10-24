@@ -1486,6 +1486,38 @@ pub(crate) struct CtorAccess {
     pub(crate) before_parent: bool,
 }
 
+/// A call to a method its receiver's class does not declare, in the types the
+/// checker computed for it, which an editor's *declare the method you called*
+/// writes the declaration from
+/// (`rule:ide/a-code-action-writes-only-what-is-already-determined`).
+///
+/// It is recorded only beside that call's `E0405`, so a program that compiles
+/// has none. It costs a few short strings per such call.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnresolvedCall {
+    /// The receiver's class, fully qualified.
+    pub class: String,
+    /// The method the call names.
+    pub method: String,
+    /// The arguments, in the order the call writes them.
+    pub args: Vec<CallArg>,
+    /// The type the call's context expects, as the checker prints it. `None`
+    /// where the context expects none.
+    pub returns: Option<String>,
+}
+
+/// One argument of an [`UnresolvedCall`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallArg {
+    /// The argument's type, as the checker prints it.
+    pub ty: String,
+    /// The name the call writes for it: a named argument's name, or the
+    /// variable an argument is, without its `$`.
+    pub name: Option<String>,
+    /// Whether the call writes it `inout`.
+    pub inout: bool,
+}
+
 /// Every [`ExprInfo`] [`crate::check::check_program`] recorded this run,
 /// looked up by the source span of the expression it describes. See the
 /// module docs for the full design and why a span is the lookup key.
@@ -1496,6 +1528,7 @@ pub struct ExprTypeTable {
     spans: Vec<Span>,
     by_span: FxHashMap<Span, ExprId>,
     methods: FxHashMap<Span, String>,
+    unresolved_calls: FxHashMap<Span, UnresolvedCall>,
     types: FxHashMap<Span, TypeId>,
     float_widened: FxHashSet<Span>,
     guarded_target_reads: FxHashSet<Span>,
@@ -1974,6 +2007,18 @@ impl ExprTypeTable {
     #[must_use]
     pub fn method_label(&self, span: Span) -> Option<&str> {
         self.methods.get(&span).map(String::as_str)
+    }
+
+    /// Records the call whose `E0405` has its primary label at `span`.
+    pub(crate) fn record_unresolved_call(&mut self, span: Span, call: UnresolvedCall) {
+        self.unresolved_calls.insert(span, call);
+    }
+
+    /// The call whose `E0405` has its primary label at `span`: the receiver
+    /// of a method its class does not declare.
+    #[must_use]
+    pub fn unresolved_call(&self, span: Span) -> Option<&UnresolvedCall> {
+        self.unresolved_calls.get(&span)
     }
 
     /// Records the class labelled `label` as carrying `rule:core-classes/derive-attribute`'s derive

@@ -2,7 +2,7 @@ VS Code is the reference client and gets real depth, not an LSP passthrough with
 inspections and quick fixes, refactorings, signature help and workspace symbol search, inlay hints, a
 native Test Explorer with coverage, an AST panel, a profiler view, debugger wiring, HTML/CSS/JS services
 inside an inline-HTML region (the template, given `rule:programs/no-first-party-framework`), and the four
-"write" actions that implement a member, override a method, declare the function just called, or narrow
+"write" actions that implement a member, override a method, declare the method just called, or narrow
 an `array<mixed>` annotation to its literal.
 
 Each is a commitment tagged with the language or runtime piece it needs, and lands with that piece
