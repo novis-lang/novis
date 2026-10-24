@@ -1,11 +1,13 @@
 {
   "title": "Every total the collector keeps is public, on server-rendered pages with no script, no cookie and no third-party request, and as JSON and CSV under CC0",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "tooling/the-collector-keeps-weekly-totals-only",
     "tooling/telemetry-show-prints-the-payload",
     "tooling/the-telemetry-collector-is-a-novis-program"
   ],
-  "guardedBy": [],
-  "goal": "telemetry-service"
+  "guardedBy": [
+    "apps/telemetry/src/PagesTest.nvs",
+    "apps/telemetry/src/DataTest.nvs"
+  ]
 }

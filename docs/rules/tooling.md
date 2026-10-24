@@ -3,7 +3,7 @@
 
 # Tooling
 
-*5 of 69 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 69 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -2280,8 +2280,8 @@ process with the registry, so a fault in one never reaches the other.
 - **Memory:** per request, one report of at most 4 KiB and one transaction. The rate limit's table is
   per process ([`tooling/the-collector-never-stores-an-address`](tooling.md#tooling-the-collector-never-stores-an-address)).
 
-**Not on disk.** `apps/telemetry/` takes reports and adds them to the totals, and publishes nothing
-yet: it has no page, no footer and no deploy guide, and no end-to-end test runs the client against it.
+**Not on disk.** `apps/telemetry/` has no deploy guide, and no end-to-end test runs the client
+against it. The footer reads `REVISION`, and nothing writes that file yet.
 
 **Declined:**
 - **A hosted analytics product or a third-party collector.** It moves the promise to a company whose
@@ -2452,7 +2452,7 @@ guide with the proxy's configuration does not exist.
 
 <a id="tooling-telemetry-totals-are-public"></a>
 
-## Every total the collector keeps is public, on server-rendered pages with no script, no cookie and no third-party request, and as JSON and CSV under CC0  *(designed — owned by goal telemetry-service)*
+## Every total the collector keeps is public, on server-rendered pages with no script, no cookie and no third-party request, and as JSON and CSV under CC0
 
 `rule:tooling/telemetry-totals-are-public`
 
@@ -2477,7 +2477,13 @@ The data is CC0: anyone may copy, chart or republish it without asking.
 
 - **Memory:** per request, the rows of the page it renders. The pages read the totals and write nothing.
 
-**Not on disk.** There is no `apps/telemetry/`.
+**How it is built.** The application's gate (`apps/telemetry/src/Gate.nvs`) sets the policy on every
+answer, an error answer included, so the header does not depend on `[http.headers]`. The stylesheet is
+`/style.css`, because the policy allows no style in the page. The week the home page details is the
+newest week with rows; the collector takes a report only for a finished week, so that is the last
+finished week whenever one arrived. `/data/totals.csv` is one file with a first column `table`, which
+is `reports` or `counters`, and the columns of both tables; a column the row's table lacks is empty.
+`/data/<week>.json` is `404` for a week with no `reports` row.
 
 **Declined:**
 - **A JavaScript chart library.** It is a script on a page that promises to run none, and SVG drawn

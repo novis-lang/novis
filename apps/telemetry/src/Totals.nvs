@@ -2,11 +2,11 @@
 namespace Telemetry;
 
 use Core\Db\Connection;
+use Core\Db\Row;
 use Core\Db\Transaction;
 
 // The weekly totals. A report is added to them, and the report itself is not saved.
-// Each row is for one week, version, operating system and processor.
-// The table `reports` counts the reports. The table `counters` adds up each counter.
+// A row is for one week, version, system and processor. `reports` counts reports, and `counters` adds up counters.
 final class Totals {
     private Connection $db;
 
@@ -61,5 +61,84 @@ final class Totals {
                 }
             }
         });
+    }
+
+    // The columns of the table `reports`, in order.
+    public static function reportColumns(): array<string> {
+        return ["week", "version", "os", "arch", "reports", "first_reports", "active_1", "active_2", "active_3", "active_4", "active_5", "active_6", "active_7"];
+    }
+
+    // The columns of the table `counters`, in order.
+    public static function counterColumns(): array<string> {
+        return ["week", "version", "os", "arch", "counter", "total", "reports"];
+    }
+
+    // Returns the rows of the table `reports`. With a week, such as `2026-W42`, it returns only the rows of that week.
+    public function reports(?tainted string $week = null): array<Row> {
+        return $this->rows("reports", "week, version, os, arch", $week);
+    }
+
+    // Returns the rows of the table `counters`. With a week, it returns only the rows of that week.
+    public function counters(?tainted string $week = null): array<Row> {
+        return $this->rows("counters", "week, version, os, arch, counter", $week);
+    }
+
+    // Returns the number of reports in each week, oldest week first.
+    public function reportsPerWeek(): array<Count> {
+        return $this->counts("select week as label, sum(reports) as value from reports group by week order by week", []);
+    }
+
+    // Returns the number of first reports in each week, oldest week first. A first report comes from a new install.
+    public function firstReportsPerWeek(): array<Count> {
+        return $this->counts("select week as label, sum(first_reports) as value from reports group by week order by week", []);
+    }
+
+    // Returns the number of reports from each version in one week, largest number first.
+    public function versions(tainted string $week): array<Count> {
+        return $this->counts("select version as label, sum(reports) as value from reports where week = ? group by version order by value desc, label", [$week]);
+    }
+
+    // Returns the number of reports from each operating system and processor in one week, such as `linux x86_64`.
+    public function systems(tainted string $week): array<Count> {
+        return $this->counts("select os || ' ' || arch as label, sum(reports) as value from reports where week = ? group by os, arch order by value desc, label", [$week]);
+    }
+
+    // Returns how many installs used each command in one week. The label is the command, such as `run`.
+    public function commands(tainted string $week): array<Count> {
+        // `invocation.` has 11 characters, so the command starts at character 12.
+        return $this->counts("select substr(counter, 12) as label, sum(reports) as value from counters where week = ? and counter like 'invocation.%' "
+            . "group by counter order by value desc, label", [$week]);
+    }
+
+    // Returns the number of internal errors of each command in one week.
+    public function internalErrors(tainted string $week): array<Count> {
+        // `internal-error.` has 15 characters, so the command starts at character 16.
+        return $this->counts("select substr(counter, 16) as label, sum(total) as value from counters where week = ? and counter like 'internal-error.%' "
+            . "group by counter order by value desc, label", [$week]);
+    }
+
+    // Returns how many reports in one week had each value of `days_active`, from 1 day to 7 days.
+    public function daysActive(tainted string $week): array<Count> {
+        array<Count> $days = [];
+        foreach (Core\Arr::range(1, 7) as int $day) {
+            var $counts = $this->counts("select '{$day}' as label, coalesce(sum(active_{$day}), 0) as value from reports where week = ?", [$week]);
+            $days[] = $counts[0];
+        }
+        return $days;
+    }
+
+    private function rows(string $table, string $order, ?tainted string $week): array<Row> {
+        if ($week == null) {
+            return Core\Arr::from($this->db->query("select * from {$table} order by {$order}", []));
+        }
+        return Core\Arr::from($this->db->query("select * from {$table} where week = ? order by {$order}", [$week]));
+    }
+
+    private function counts(string $sql, array<mixed> $values): array<Count> {
+        array<Count> $counts = [];
+        foreach ($this->db->query($sql, $values) as Row $row) {
+            $counts[] = new Count($row->string("label") ?? "", $row->int("value") ?? 0);
+        }
+        return $counts;
     }
 }
