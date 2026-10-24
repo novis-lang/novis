@@ -5209,7 +5209,6 @@ pub(crate) mod tests {
     /// the origin cut short is not a second request — retrying there would send
     /// the request twice for one walk and splice the second reply's tail onto
     /// the first one's.
-    #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn stream_is_retried_before_its_head_and_never_after() {
         let (at, served) = origin(vec![
