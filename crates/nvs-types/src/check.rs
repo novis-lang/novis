@@ -240,6 +240,7 @@ pub fn check_program_loaded(
     }
     crate::routes::check_table(&routes, diags);
     crate::routes::check_responders(&routes, diags);
+    crate::routes::check_helper_reads(&routes, diags);
     // `rule:tooling/commands-are-compiled`'s duplicate command name, over the same enumeration and for
     // the same reason — see `crate::commands::check_table`.
     crate::commands::check_table(&commands, diags);
@@ -1058,10 +1059,14 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 
 /// Hands the body reads a route handler's body wrote to the route table, where
 /// [`crate::routes::check_class_routes`] puts them on the handler's rows.
+/// The calls every body made go to the table too, for
+/// [`crate::routes::check_helper_reads`].
 fn keep_body_reads(label: Option<&String>, env: &mut Env<'_>) {
     let bodies = env.body_writers.take_bodies();
+    let calls = env.body_writers.take_calls();
     if let Some(label) = label {
         env.routes.note_bodies(label.clone(), bodies);
+        env.routes.note_calls(label.clone(), calls);
     }
 }
 

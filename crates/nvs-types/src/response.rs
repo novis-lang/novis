@@ -141,6 +141,10 @@ pub(crate) struct BodyWriters {
     /// The body reads this handler's body wrote — see
     /// [`crate::routes::note_body_read`].
     bodies: Vec<crate::routes::RequestBody>,
+    /// The methods this body calls and whether it reads the whole request
+    /// body, for every body and not only a handler's — see
+    /// [`crate::routes::check_helper_reads`].
+    calls: crate::routes::MethodCalls,
 }
 
 impl BodyWriters {
@@ -159,6 +163,24 @@ impl BodyWriters {
     /// The body reads recorded so far, taken out.
     pub(crate) fn take_bodies(&mut self) -> Vec<crate::routes::RequestBody> {
         std::mem::take(&mut self.bodies)
+    }
+
+    /// Records one resolved call this body makes.
+    pub(crate) fn note_call(&mut self, label: String) {
+        self.calls.callees.push(label);
+    }
+
+    /// Records that this body reads the whole request body.
+    pub(crate) const fn note_read(&mut self) {
+        self.calls.reads = true;
+    }
+
+    /// The calls recorded so far, taken out, each callee once.
+    pub(crate) fn take_calls(&mut self) -> crate::routes::MethodCalls {
+        let mut calls = std::mem::take(&mut self.calls);
+        calls.callees.sort_unstable();
+        calls.callees.dedup();
+        calls
     }
 }
 

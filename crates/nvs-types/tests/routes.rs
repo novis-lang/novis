@@ -1637,3 +1637,73 @@ fn a_route_method_is_static_or_its_class_is_built_with_no_argument() {
         );
     }
 }
+
+/// A `Draft` class the body helpers below decode into, then `members` in
+/// `Users` and `helpers` after it.
+fn body_src(members: &str, helpers: &str) -> String {
+    format!(
+        "{}#[Core\\Json\\Derive]\nclass Draft {{\n  public tainted string $title;\n  \
+         public function constructor(tainted string $title = \"\") {{\n    \
+         $this->title = $title;\n  }}\n}}\n{helpers}",
+        route_src(members)
+    )
+}
+
+/// The `rule:routing/a-request-body-is-read-from-the-handlers-own-call`
+/// warnings `src` reports.
+fn helper_reads(src: &str) -> Vec<nvs_diagnostics::Diagnostic> {
+    let diags = check_src(src);
+    assert!(!diags.has_errors(), "{src}\n{diags:?}");
+    diags
+        .iter()
+        .filter(|d| d.code == Some(code::W_BODY_READ_IN_HELPER))
+        .cloned()
+        .collect()
+}
+
+const CREATE: &str = "  #[Route(path: \"/drafts\", method: Core\\Http\\Method::Post)]\n  \
+                      public function create(): void {\n    $this->decode();\n  }\n";
+
+#[test]
+fn a_body_read_in_a_helper_warns_at_the_route() {
+    let members = format!(
+        "{CREATE}  private function decode(): void {{\n    \
+         var $draft = Core\\Request::jsonAs<Draft>();\n  }}\n"
+    );
+    let warned = helper_reads(&body_src(&members, ""));
+    assert_eq!(warned.len(), 1, "{warned:?}");
+    assert!(warned[0].message.contains("`Users::create`"), "{warned:?}");
+}
+
+#[test]
+fn a_body_read_two_calls_deep_warns_and_names_the_reading_method() {
+    let members = format!(
+        "{CREATE}  private function decode(): void {{\n    Reader::read();\n  }}\n"
+    );
+    let helpers = "class Reader {\n  public static function read(): void {\n    \
+                   var $draft = Core\\Request::postAs<Draft>();\n  }\n}\n";
+    let warned = helper_reads(&body_src(&members, helpers));
+    assert_eq!(warned.len(), 1, "{warned:?}");
+    let label = warned[0].labels.first().map(|l| l.message.clone());
+    assert_eq!(label.as_deref(), Some("`Reader::read` reads the request body"));
+}
+
+#[test]
+fn a_body_read_through_a_callable_or_the_handler_itself_does_not_warn() {
+    let members = "  #[Route(path: \"/drafts\", method: Core\\Http\\Method::Post)]\n  \
+                   public function create(): void {\n    Runner::run(Users::decode(...));\n  }\n  \
+                   public static function decode(): void {\n    \
+                   var $draft = Core\\Request::jsonAs<Draft>();\n  }\n";
+    let helpers = "class Runner {\n  public static function run(callable $f): void {\n    \
+                   $f();\n  }\n}\n";
+    assert!(helper_reads(&body_src(members, helpers)).is_empty());
+
+    // The handler reads the body itself, so the document describes it. The
+    // helper's `postAs` with a field name reads one field and no body.
+    let members = "  #[Route(path: \"/drafts\", method: Core\\Http\\Method::Post)]\n  \
+                   public function create(): void {\n    \
+                   var $draft = Core\\Request::jsonAs<Draft>();\n    $this->field();\n  }\n  \
+                   private function field(): void {\n    \
+                   var $title = Core\\Request::postAs<Draft>({name: \"draft\"});\n  }\n";
+    assert!(helper_reads(&body_src(members, "")).is_empty());
+}

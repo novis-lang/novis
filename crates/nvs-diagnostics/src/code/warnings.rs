@@ -276,4 +276,17 @@ codes! {
         "This `use` line imports a name that the file never uses. The line has no effect, so \
          you can delete it. `nvs check --fix` deletes it for you.",
     );
+    /// A route method that reads no request body itself, and reaches a
+    /// `Core\Request::jsonAs` or `postAs` call through the methods it calls
+    /// (`rule:routing/a-request-body-is-read-from-the-handlers-own-call`). The
+    /// API document takes a body only from the handler's own call, so it has
+    /// no `requestBody` for the route. A warning and never an error: the
+    /// program runs as written, and only the document is incomplete.
+    /// `nvs_types::routes::check_helper_reads` raises it.
+    pub const W_BODY_READ_IN_HELPER: Code = Code::new("W1027").card(
+        "This route method reads the request body in another method that it calls. The API \
+         document only describes a body that the route method reads itself. So the document has \
+         no `requestBody` for this route. Move the `Core\\Request::jsonAs` or \
+         `Core\\Request::postAs` call into the route method.",
+    );
 }

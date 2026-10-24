@@ -753,6 +753,22 @@ pub struct RouteTable {
     /// A method's body is checked before [`check_class_routes`] builds its
     /// rows, which take their reads out of this map.
     bodies: FxHashMap<String, Vec<RequestBody>>,
+    /// The calls each method's body made, by method label, for
+    /// [`check_helper_reads`]. A method that calls nothing and reads nothing
+    /// has no entry.
+    calls: FxHashMap<String, MethodCalls>,
+}
+
+/// The resolved calls one method's body makes, and whether it reads the whole
+/// request body, as [`check_helper_reads`] follows them.
+#[derive(Debug, Default)]
+pub(crate) struct MethodCalls {
+    /// The label of each method the body calls, sorted, each once. A `Core`
+    /// method is not listed, because it reads no body through a program's
+    /// own call.
+    pub(crate) callees: Vec<String>,
+    /// Whether the body calls `jsonAs` or `postAs` for the whole body.
+    pub(crate) reads: bool,
 }
 
 /// One `rule:routing/a-security-scheme-is-declared-in-code` declaration, as
@@ -872,6 +888,14 @@ impl RouteTable {
     pub(crate) fn note_bodies(&mut self, handler: String, bodies: Vec<RequestBody>) {
         if !bodies.is_empty() {
             self.bodies.insert(handler, bodies);
+        }
+    }
+
+    /// Keeps the calls one method's body made until [`check_helper_reads`]
+    /// runs.
+    pub(crate) fn note_calls(&mut self, method: String, calls: MethodCalls) {
+        if calls.reads || !calls.callees.is_empty() {
+            self.calls.insert(method, calls);
         }
     }
 
@@ -2342,7 +2366,8 @@ fn declared_return(m: &MethodMember, class: &QName, env: &Env<'_>) -> Option<Bod
 /// ends.
 ///
 /// A `postAs` call that writes its `name` option reads one field of the form
-/// and not the whole body, so it is not recorded.
+/// and not the whole body, so it is not recorded. A read in a body that is not
+/// a handler's is recorded only as a read, for [`check_helper_reads`].
 pub(crate) fn note_body_read(
     owner: &QName,
     method: &str,
@@ -2350,7 +2375,7 @@ pub(crate) fn note_body_read(
     args: &nvs_syntax::ast::CallArgs,
     env: &mut Env<'_>,
 ) {
-    if !env.body_writers.armed() || owner.to_string() != r"Core\Request" {
+    if owner.to_string() != r"Core\Request" {
         return;
     }
     let kind = match method {
@@ -2365,11 +2390,81 @@ pub(crate) fn note_body_read(
     let Some(&ty) = written.first() else {
         return;
     };
+    env.body_writers.note_read();
+    if !env.body_writers.armed() {
+        return;
+    }
     let body = RequestBody {
         kind,
         ty: body_ty(ty, env),
     };
     env.body_writers.note_body(body);
+}
+
+/// Records a resolved call to `owner::method` on the body being checked, for
+/// [`check_helper_reads`]. A `Core` method is left out.
+pub(crate) fn note_call(owner: &QName, method: &str, env: &mut Env<'_>) {
+    if !owner.is_core() {
+        env.body_writers.note_call(format!("{owner}::{method}"));
+    }
+}
+
+/// `rule:routing/a-request-body-is-read-from-the-handlers-own-call`'s
+/// warning: a route whose handler reads no body itself, and reaches a
+/// `jsonAs` or `postAs` read through the methods it calls.
+///
+/// The walk follows [`MethodCalls::callees`], which hold only the calls the
+/// checker resolved, so a call through a `callable` or a `mixed` receiver is
+/// never followed. It reports once per handler however many `#[Route]`s the
+/// handler carries, at its first, and names the first reading method in a
+/// breadth-first walk, so the nearest read is the one named.
+pub(crate) fn check_helper_reads(table: &RouteTable, diags: &mut Diagnostics) {
+    let mut warned: Vec<&str> = Vec::new();
+    for row in table.rows.iter().filter(|row| row.bodies.is_empty()) {
+        if warned.contains(&row.handler.as_str()) {
+            continue;
+        }
+        let Some(reader) = reading_callee(table, &row.handler) else {
+            continue;
+        };
+        warned.push(&row.handler);
+        let handler = &row.handler;
+        diags.report(
+            Diagnostic::warning(
+                code::W_BODY_READ_IN_HELPER,
+                format!("the API document does not describe the request body of `{handler}`"),
+            )
+            .with_primary(row.span, format!("`{reader}` reads the request body"))
+            .with_help(
+                "call `Core\\Request::jsonAs` or `Core\\Request::postAs` in the route method. \
+                 Then the API document describes the body",
+            ),
+        );
+    }
+}
+
+/// The first method `handler` reaches through its resolved calls that reads
+/// the whole request body, or `None`.
+fn reading_callee<'t>(table: &'t RouteTable, handler: &'t str) -> Option<&'t str> {
+    let mut seen: rustc_hash::FxHashSet<&str> = rustc_hash::FxHashSet::default();
+    seen.insert(handler);
+    let mut queue: std::collections::VecDeque<&str> = std::collections::VecDeque::new();
+    queue.push_back(handler);
+    while let Some(method) = queue.pop_front() {
+        let Some(calls) = table.calls.get(method) else {
+            continue;
+        };
+        for callee in &calls.callees {
+            if !seen.insert(callee.as_str()) {
+                continue;
+            }
+            if table.calls.get(callee).is_some_and(|calls| calls.reads) {
+                return Some(callee);
+            }
+            queue.push_back(callee);
+        }
+    }
+    None
 }
 
 /// `ty` read as a [`BodyTy`].

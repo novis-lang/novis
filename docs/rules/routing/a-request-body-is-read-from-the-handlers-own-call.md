@@ -14,13 +14,13 @@ one field of the form and not the whole body, so the document does not take a bo
 
 A body read inside a helper method is not seen. A handler that reaches a `jsonAs` or `postAs` call only
 through methods it calls gets no `requestBody`, and `nvs check` warns at the route that the document does
-not describe its body. The warning follows the calls the checker resolved, through any number of
+not describe its body (`W1027`). The warning follows the calls the checker resolved, through any number of
 methods, and does not follow a call through a `callable` or a `mixed` receiver. Moving the read into the
 handler removes the warning.
 
-- **Memory:** one body entry per route row, on the compile path only. The warning's walk runs only in
-  `nvs check` over a program with routes, and holds one list of resolved callees per method while it
-  runs.
+- **Memory:** one body entry per route row, on the compile path only. The checker keeps one list of
+  resolved callees for each method that calls one, until every route is in. The warning's walk then
+  visits each method once per route that reads no body itself. Nothing runs per request.
 
 **Declined:**
 - **An `#[Api(body: ...)]` field.** It could name a type the handler does not decode, the contradiction

@@ -1,11 +1,13 @@
 {
   "title": "A route's request body is the type its handler decodes with `Core\\Request::jsonAs` or `postAs`, read from the handler's own call",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "routing/api-document-is-generated-from-the-route-table",
     "attributes/api-adds-and-cannot-contradict",
     "routing/route-attribute"
   ],
-  "guardedBy": [],
-  "goal": "api-document"
+  "guardedBy": [
+    "crates/nvs-cli/tests/openapi.rs",
+    "crates/nvs-types/tests/routes.rs"
+  ]
 }
