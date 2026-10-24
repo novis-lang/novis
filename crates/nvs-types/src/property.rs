@@ -38,6 +38,7 @@
 //! input set is at most [`generate::MAX_INPUT_UNITS`] elements and bytes, per property in flight.
 
 pub mod generate;
+pub mod shrink;
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
