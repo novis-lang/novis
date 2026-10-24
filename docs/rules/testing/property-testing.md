@@ -53,7 +53,9 @@ one seed shrinks to one counterexample on every platform.
 
 - **Memory:** one call's inputs hold at most 2^20 elements, bytes and string pieces together, per
   property in flight. An input whose shortest form is over that is refused before it is built. A
-  failure also keeps its generated inputs while it shrinks, and one step's candidate list.
+  failure also keeps its generated inputs while it shrinks, and one candidate at a time: a candidate
+  is built when it is tried, so a step costs what it tries and never the square of an input's
+  length.
 
 **Declined:**
 - **`retries:` on a property.** A failure is reproduced from its seed and shrunk, so a retry would

@@ -225,7 +225,7 @@ fn a_shape_drops_its_optional_field_first() {
         ("id".to_owned(), Generated::Int(7)),
         ("tag".to_owned(), Generated::Str("xyz".to_owned())),
     ]);
-    let list = candidates(&value, &shape, &[]);
+    let list: Vec<Generated> = candidates(&value, &shape, &[]).collect();
     assert_eq!(
         list[0],
         Generated::Shape(vec![("id".to_owned(), Generated::Int(7))])
