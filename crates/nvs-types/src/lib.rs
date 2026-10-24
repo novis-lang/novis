@@ -357,6 +357,12 @@ pub(crate) struct Ctx<'a> {
     /// (`E0834`, [`crate::expr::report_class_keyword_outside_class`]). Set
     /// only where an anonymous function's body is entered.
     pub in_anon_fn: bool,
+    /// Whether the body being checked is test code (`rule:testing/tests-never-reach-a-build`),
+    /// so a `private` or `protected` member of a class declared in the same file is visible
+    /// in it (`rule:testing/private-in-the-same-file`, [`crate::signatures::is_visible_here`]).
+    /// Set where a method's body is entered, and inherited by an anonymous function written
+    /// inside one.
+    pub in_test_code: bool,
 }
 
 /// `rule:types/anonymous-function-self-name`'s

@@ -397,6 +397,7 @@ pub(crate) fn check_stmts(
                     generator_elem: None,
                     in_constructor: false,
                     in_anon_fn: false,
+                    in_test_code: false,
                 };
                 let parents = decl.extends.iter();
                 let parents = parents.chain(decl.implements.iter().map(|clause| &clause.name));
@@ -453,6 +454,7 @@ pub(crate) fn check_stmts(
                     generator_elem: None,
                     in_constructor: false,
                     in_anon_fn: false,
+                    in_test_code: false,
                 };
                 warn_deprecated_parents(&qname, decl.extends.iter(), &ctx, env);
                 check_members(&decl.members, &ctx, env);
@@ -476,6 +478,7 @@ pub(crate) fn check_stmts(
                     generator_elem: None,
                     in_constructor: false,
                     in_anon_fn: false,
+                    in_test_code: false,
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::conformance::check_covariant_params(&decl.members, &qname, env);
@@ -511,6 +514,7 @@ pub(crate) fn check_stmts(
                     generator_elem: None,
                     in_constructor: false,
                     in_anon_fn: false,
+                    in_test_code: false,
                 };
                 crate::deprecated::window(None, None, env, |env| {
                     check_stmt(
@@ -830,6 +834,7 @@ fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
         // `rule:classes/property-hooks` makes it a member called on a built instance.
         in_constructor: false,
         in_anon_fn: false,
+        in_test_code: false,
     };
     for hook in hooks {
         env.exprs.record_method(
@@ -958,6 +963,9 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         generator_elem: ctx.generator_elem,
         in_constructor: span_text(env.src, m.name) == "constructor",
         in_anon_fn: false,
+        in_test_code: ctx
+            .current_class
+            .is_some_and(|class| env.test_code.contains(class, span_text(env.src, m.name))),
     };
     if let Some(class) = ctx.current_class.filter(|_| ctx.in_constructor) {
         crate::expr::members::record_promoted_pipelines(m, class, env);
@@ -1048,6 +1056,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         generator_elem: Some(elem),
         in_constructor: ctx.in_constructor,
         in_anon_fn: ctx.in_anon_fn,
+        in_test_code: ctx.in_test_code,
     };
     // A generator's body returns nothing: calling it produced the cursor, and
     // `rule:iteration/one-way-only` leaves no return value to retrieve. So the body is checked
