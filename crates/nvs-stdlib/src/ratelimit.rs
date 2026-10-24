@@ -80,6 +80,14 @@
 //! the wall clock: a limiter reading the wall clock refuses for as long as an
 //! NTP step moved it backwards, and an interval is all GCRA reads.
 //!
+//! Under `rule:testing/determinism-declared-on-the-test`'s fixed clock the
+//! clock is that fixed reading instead, in microseconds since 1970, so
+//! `Core\Test::advance` refills an allowance the way an hour of waiting would.
+//! The two readings are on different timelines, so the fixed one keeps its
+//! entries under a key of its own: every test of one `nvs test` shares the
+//! process's memory tier, and a timestamp from one timeline compared against
+//! the other would refuse for decades or admit at once.
+//!
 //! The script counts in **microseconds** rather than nanoseconds, because Lua's
 //! numbers are doubles and a nanosecond count of the Unix epoch passed 2⁵³ in
 //! 1970 + 104 days: it would be rounded, silently, on every arrival. A
@@ -836,9 +844,14 @@ nvs_runtime::nvs_helper! {
         // a program caching under `account:1` must not find a timestamp there.
         // Scoped as that member scopes a key, so two applications on one
         // server never share an allowance.
-        let namespaced = format!("{PREFIX}{key}");
+        // A test's fixed clock is its own timeline, kept apart as the module
+        // doc says.
+        let (now, timeline) = match ctx.fixed_clock() {
+            Some(nanos) => (nanos.div_euclid(1000), "fixed:"),
+            None => (crate::time::monotonic_micros(), ""),
+        };
+        let namespaced = format!("{PREFIX}{timeline}{key}");
         let scoped = crate::cache::scoped(ctx, namespaced.as_bytes());
-        let now = crate::time::monotonic_micros();
         let reply = crate::cache::memory_update(
             &scoped,
             // The cap is what bounds a limiter's entries, not a clock: a
@@ -1336,6 +1349,37 @@ mod tests {
             SHED_DOC.errors.iter().all(|entry| entry.error != "IOError"),
             "there is no store to be unreachable, so there is no `IOError` to document"
         );
+    }
+
+    /// `rule:testing/determinism-declared-on-the-test`: under a fixed clock
+    /// `shed` counts on that clock, so moving it an hour refills a limit of one
+    /// an hour. The fixed timeline keeps its own entry, so the monotonic
+    /// arrival made first neither refuses nor admits the fixed one.
+    #[test]
+    fn shed_counts_on_a_tests_fixed_clock() {
+        let _serial = crate::cache::tests::TIER
+            .lock()
+            .expect("the memory tier's cases run one at a time");
+
+        let mut ctx = Ctx::buffered();
+        let monotonic = crate::cache::scoped(&ctx, format!("{PREFIX}{SHED_KEY}").as_bytes());
+        let fixed = crate::cache::scoped(&ctx, format!("{PREFIX}fixed:{SHED_KEY}").as_bytes());
+        crate::cache::tests::forget(&monotonic);
+        crate::cache::tests::forget(&fixed);
+        assert!(arrival(&mut ctx), "the first arrival on the host's clock");
+
+        let at = crate::time::fixed_clock_nanos("2026-10-21T12:00:00Z").expect("an RFC 3339 instant");
+        ctx.set_fixed_clock(at);
+        assert!(
+            arrival(&mut ctx),
+            "the fixed clock is its own timeline, so the host clock's arrival does not count"
+        );
+        assert!(!arrival(&mut ctx), "the second arrival in the same instant is refused");
+        ctx.set_fixed_clock(at + 3_600 * 1_000_000_000);
+        assert!(arrival(&mut ctx), "an hour later on the fixed clock, the allowance is back");
+
+        crate::cache::tests::forget(&monotonic);
+        crate::cache::tests::forget(&fixed);
     }
 
     /// `rule:core-classes/ratelimit-gcra`: `retryAfter` is the theoretical arrival time minus now,
