@@ -1,0 +1,14 @@
+--TEST--
+a class name written inside a string is text and not a use of the class, so renaming there is refused, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+echo "Us<|>er";
+--REQUEST--
+rename to=Customer
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.

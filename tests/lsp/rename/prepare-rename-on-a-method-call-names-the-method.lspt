@@ -1,0 +1,18 @@
+--TEST--
+`prepareRename` on a method call answers the range of the method's name alone, without the receiver, the arrow or the parentheses, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class User
+{
+    public function greet(): string
+    {
+        return "hi";
+    }
+}
+
+var $u = new User();
+echo $u->gre<|>et();
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:11:10-11:15

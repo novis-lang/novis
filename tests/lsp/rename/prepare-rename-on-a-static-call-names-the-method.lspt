@@ -1,0 +1,14 @@
+--TEST--
+`prepareRename` on a static call answers the range of the method's name alone, without the class and the `::` in front of it, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Cart
+{
+    public static function reset(): void {}
+}
+
+Cart::re<|>set();
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:7:7-7:12

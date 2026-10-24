@@ -1,0 +1,12 @@
+--TEST--
+the `foreach` keyword names no symbol, so renaming there is refused, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+array<int> $rows = [1, 2, 3];
+forea<|>ch ($rows as int $row) {
+    echo $row;
+}
+--REQUEST--
+rename to=items
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.

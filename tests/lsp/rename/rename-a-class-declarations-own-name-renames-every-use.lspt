@@ -1,0 +1,23 @@
+--TEST--
+a class renamed at its own declaration is renamed at every allocation, annotation and static call too, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Us<|>er
+{
+    public static function guest(): User
+    {
+        return new User();
+    }
+}
+
+User $u = new User();
+var $g = User::guest();
+--REQUEST--
+rename to=Customer
+--EXPECT--
+case.nvs:2:7 Customer
+case.nvs:4:37 Customer
+case.nvs:6:20 Customer
+case.nvs:10:1 Customer
+case.nvs:10:15 Customer
+case.nvs:11:10 Customer

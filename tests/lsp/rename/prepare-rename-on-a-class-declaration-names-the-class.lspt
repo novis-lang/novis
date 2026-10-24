@@ -1,0 +1,14 @@
+--TEST--
+`prepareRename` on a class's own declaration answers the range of its name, because a type declared in the workspace is renamed everywhere it is written, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Us<|>er
+{
+    public string $name = "";
+}
+
+var $u = new User();
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:2:7-2:11

@@ -1,0 +1,24 @@
+--TEST--
+the name after `is` is the interface, so renaming there renames the interface at its declaration, its `implements` clause and the test, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+interface Shape
+{
+    public function area(): int;
+}
+
+class Square implements Shape
+{
+    public function area(): int { return 4; }
+}
+
+mixed $s = new Square();
+if ($s is Sh<|>ape) {
+    echo $s->area();
+}
+--REQUEST--
+rename to=Figure
+--EXPECT--
+case.nvs:2:11 Figure
+case.nvs:7:25 Figure
+case.nvs:13:11 Figure

@@ -1,0 +1,10 @@
+--TEST--
+the `echo` keyword names no symbol, so renaming there is refused, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+var $total = 3;
+ech<|>o $total;
+--REQUEST--
+rename to=sum
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.

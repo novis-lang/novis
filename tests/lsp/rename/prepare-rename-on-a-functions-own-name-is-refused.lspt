@@ -1,0 +1,14 @@
+--TEST--
+`prepareRename` on a top-level function's own name is refused, because a free function is not among the symbols rename covers, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+function hel<|>per(): int
+{
+    return 1;
+}
+
+echo helper();
+--REQUEST--
+prepareRename
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.

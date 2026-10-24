@@ -1,0 +1,25 @@
+--TEST--
+an interface renamed at its own declaration is renamed in the `implements` clause and in every annotation, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+interface Gre<|>ets
+{
+    public function greet(): string;
+}
+
+class User implements Greets
+{
+    public function greet(): string
+    {
+        return "hi";
+    }
+}
+
+Greets $g = new User();
+echo $g->greet();
+--REQUEST--
+rename to=Welcomes
+--EXPECT--
+case.nvs:2:11 Welcomes
+case.nvs:7:23 Welcomes
+case.nvs:15:1 Welcomes

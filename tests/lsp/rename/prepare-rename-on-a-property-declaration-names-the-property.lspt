@@ -1,0 +1,15 @@
+--TEST--
+`prepareRename` on a property's own declaration answers the range of its name with the `$` the declaration writes, without the modifiers and the type, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class User
+{
+    public string $na<|>me = "";
+}
+
+var $u = new User();
+echo $u->name;
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:4:19-4:24

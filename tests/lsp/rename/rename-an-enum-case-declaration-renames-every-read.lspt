@@ -1,0 +1,19 @@
+--TEST--
+an enum case renamed at its declaration is renamed at every read of it, and the other case is left alone, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+enum Status: int
+{
+    case Dr<|>aft = 1;
+    case Live = 2;
+}
+
+var $s = Status::Draft;
+var $t = Status::Live;
+echo $s === Status::Draft;
+--REQUEST--
+rename to=Pending
+--EXPECT--
+case.nvs:4:10 Pending
+case.nvs:8:18 Pending
+case.nvs:10:21 Pending

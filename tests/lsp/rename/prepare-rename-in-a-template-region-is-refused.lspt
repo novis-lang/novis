@@ -1,0 +1,11 @@
+--TEST--
+`prepareRename` in the HTML after a closing `?>` is refused, because template text holds no symbol, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+var $name = "world";
+?>
+<p>hel<|>lo</p>
+--REQUEST--
+prepareRename
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.

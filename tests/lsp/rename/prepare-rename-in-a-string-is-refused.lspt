@@ -1,0 +1,14 @@
+--TEST--
+`prepareRename` inside a string is refused even where the text spells a class's name, because a string's contents are no symbol, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+echo "Us<|>er";
+--REQUEST--
+prepareRename
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.

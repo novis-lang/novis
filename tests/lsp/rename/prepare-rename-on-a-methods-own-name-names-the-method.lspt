@@ -1,0 +1,18 @@
+--TEST--
+`prepareRename` on a method's own declaration answers the range of its name alone, without the modifiers and the `function` keyword, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class User
+{
+    public function gr<|>eet(): string
+    {
+        return "hi";
+    }
+}
+
+var $u = new User();
+echo $u->greet();
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:4:21-4:26

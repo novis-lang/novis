@@ -1,0 +1,20 @@
+--TEST--
+a class renamed after `new` is renamed at its declaration in another file and at every other allocation, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+require 'lib/cart.nvs';
+
+var $a = new Ca<|>rt();
+var $b = new Cart();
+--FILE lib/cart.nvs--
+<?nvs
+class Cart
+{
+    public int $total = 0;
+}
+--REQUEST--
+rename to=Basket
+--EXPECT--
+case.nvs:4:14 Basket
+case.nvs:5:14 Basket
+lib/cart.nvs:2:7 Basket

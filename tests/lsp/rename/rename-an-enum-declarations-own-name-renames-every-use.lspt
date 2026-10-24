@@ -1,0 +1,19 @@
+--TEST--
+an enum renamed at its own declaration is renamed at every case read and every annotation, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+enum Sta<|>tus: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+
+Status $s = Status::Draft;
+var $t = Status::Live;
+--REQUEST--
+rename to=State
+--EXPECT--
+case.nvs:2:6 State
+case.nvs:8:1 State
+case.nvs:8:13 State
+case.nvs:9:10 State

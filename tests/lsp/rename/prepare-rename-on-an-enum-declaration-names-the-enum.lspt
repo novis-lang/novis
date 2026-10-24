@@ -1,0 +1,15 @@
+--TEST--
+`prepareRename` on an enum's own declaration answers the range of its name alone, without the backing type, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+enum Sta<|>tus: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+
+var $s = Status::Draft;
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:2:6-2:12

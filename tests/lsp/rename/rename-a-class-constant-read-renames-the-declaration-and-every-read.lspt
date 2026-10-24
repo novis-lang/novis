@@ -1,0 +1,23 @@
+--TEST--
+a class constant read is renamed together with its declaration and every other read, so every read still finds it, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Cart
+{
+    public const int LIMIT = 10;
+
+    public function full(int $count): bool
+    {
+        return $count >= self::LIMIT;
+    }
+}
+
+echo Cart::LI<|>MIT;
+echo Cart::LIMIT + 1;
+--REQUEST--
+rename to=MAX_ITEMS
+--EXPECT--
+case.nvs:4:22 MAX_ITEMS
+case.nvs:8:32 MAX_ITEMS
+case.nvs:12:12 MAX_ITEMS
+case.nvs:13:12 MAX_ITEMS

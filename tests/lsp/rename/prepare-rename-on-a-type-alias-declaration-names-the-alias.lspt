@@ -1,0 +1,9 @@
+--TEST--
+`prepareRename` on a top-level type alias's own declaration answers the range of its name, because a type alias outside a class is renamed like any type, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+type I<|>d = uint;
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:2:6-2:8

@@ -1,0 +1,11 @@
+--TEST--
+text in a template region is not code, so the cursor is on no symbol and renaming there is refused, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+var $name = "world";
+?>
+<p>hel<|>lo</p>
+--REQUEST--
+rename to=greeting
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.

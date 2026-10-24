@@ -1,0 +1,26 @@
+--TEST--
+a method renamed at its own declaration is renamed at every call, including a call on `$this`, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class User
+{
+    public function gr<|>eet(): string
+    {
+        return "hi";
+    }
+
+    public function twice(): string
+    {
+        return $this->greet() . $this->greet();
+    }
+}
+
+var $u = new User();
+echo $u->greet();
+--REQUEST--
+rename to=welcome
+--EXPECT--
+case.nvs:4:21 welcome
+case.nvs:11:23 welcome
+case.nvs:11:40 welcome
+case.nvs:16:10 welcome

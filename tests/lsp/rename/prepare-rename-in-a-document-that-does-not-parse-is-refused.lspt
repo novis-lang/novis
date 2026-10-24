@@ -1,0 +1,10 @@
+--TEST--
+`prepareRename` inside a cast syntax that does not parse is refused, because a parse error holds no symbol, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+int $n = 3;
+int $m = (i<|>nt)$n;
+--REQUEST--
+prepareRename
+--EXPECT--
+refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.
