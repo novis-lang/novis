@@ -35,6 +35,10 @@ const INSTALL = new RegExp(
   String.raw`${START}(?:&\s*)?(?:\S*[\\/])?(?:looper(?:\.exe)?|cargo\s+run\b[^\n;&|]*\s--)\s+(?:self-update|service\s+install)\b`,
   "i",
 );
+const SERVICE = new RegExp(
+  String.raw`${START}(?:&\s*)?(?:\S*[\\/])?(?:looper(?:\.exe)?|cargo\s+run\b[^\n;&|]*\s--)\s+service\s+(?:stop|start|uninstall)\b`,
+  "i",
+);
 /** Where a command ends: `&&`, `||`, `;`, `|` or a line break. */
 export const SEGMENT = /&&|\|\||[;|\n]/;
 /** Where a pipeline ends: `&&`, `||`, `;` or a line break. */
@@ -57,8 +61,11 @@ function words(text: string): string[] {
   return text.split(/\s+/).filter((w) => w !== "");
 }
 
-/** The reason a built-in shell rule refuses `cmd`, if one does. A redirect or a `tee` whose every target `scratch` accepts passes. */
-export function shell(cmd: string, scratch: (target: string) => boolean): string | undefined {
+/**
+ * The reason a built-in shell rule refuses `cmd`, if one does. A redirect or a `tee` whose every target
+ * `scratch` accepts passes. A service stop, start or uninstall is refused only when `loop` is set.
+ */
+export function shell(cmd: string, scratch: (target: string) => boolean, loop: boolean): string | undefined {
   const bare = unquoted(cmd);
   if (HEREDOC.test(bare)) return `a heredoc. ${WRITE}`;
   for (const m of bare.matchAll(REDIRECT)) {
@@ -85,6 +92,9 @@ export function shell(cmd: string, scratch: (target: string) => boolean): string
   }
   if (INSTALL.test(bare)) {
     return "a session never installs looper or builds it in its own job (docs/findings.md § loop-controls). Run `looper service update --wait`, which the server runs outside the session.";
+  }
+  if (loop && SERVICE.test(bare)) {
+    return "a loop session never stops, starts or uninstalls the service, which outlives every session. When the server needs a person, file it with `looper decision ask --parked` and write `BLOCKED`.";
   }
   // A test run too wide to start at all is named before how its output is cut.
   for (const c of bare.split(SEGMENT)) {

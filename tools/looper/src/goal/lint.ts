@@ -5,7 +5,8 @@
 // `lintGoal` checks one parsed goal: unique stage and check ids, `gate: true` on the last stage and on
 // no other unless the goal is never reached, checks that name existing stages and carry a real command,
 // the sections in their order, a heading for every stage that matches its title, the Handoff's
-// subsections, and a repo-rooted `path:line` anchor on every open `### Next` item.
+// subsections, a `### State` of at most `STATE_MAX` non-blank lines, and a repo-rooted `path:line`
+// anchor on every open `### Next` item.
 // `lintAll` adds what only the tree can show:
 //
 // - a goal file or chain whose front matter does not parse, and a slug on the chain twice or without a
@@ -43,7 +44,7 @@ import {
 import { loadPlaybook, playbookLint } from "./playbook.ts";
 import { debug } from "./reader.ts";
 import { jsonQuote, renderReadme } from "./render.ts";
-import { anchors, HANDOFF_SECTIONS, items, names, SECTIONS, type Section, section, sectionsOf, stageHeadings } from "./sections.ts";
+import { anchors, HANDOFF_SECTIONS, items, names, SECTIONS, type Section, section, sectionsOf, STATE_MAX, stageHeadings } from "./sections.ts";
 
 /** One problem lint found: the file from the project root with `/`, its line when it has one, and why. */
 export interface Issue {
@@ -169,6 +170,11 @@ function lintProse(g: Goal, at: At): void {
   const subs = handoff ? sectionsOf(handoff.text, 3) : [];
   for (const name of HANDOFF_SECTIONS) {
     if (section(subs, name) === undefined) at(handoff && g.body_line + handoff.line - 1, `## Handoff has no ### ${name}`);
+  }
+  const state = section(subs, "State");
+  const stateLines = state ? state.text.split("\n").filter((l) => l.trim() !== "").length : 0;
+  if (handoff && state && stateLines > STATE_MAX) {
+    at(fileLine(handoff, state.line), `### State is ${stateLines} lines; it takes at most ${STATE_MAX}: say where the work stands, not its history`);
   }
   const next = section(subs, "Next");
   if (handoff && next) {

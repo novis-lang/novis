@@ -14,6 +14,12 @@ export const SECTIONS = ["Why", "Standing decisions", "Stages", "Handoff"] as co
 /** The `###` subsections of `## Handoff`. */
 export const HANDOFF_SECTIONS = ["State", "Next", "Backlog"] as const;
 
+/**
+ * The most non-blank lines `### State` holds. Every turn of a session re-reads the pack, so a State that
+ * logs each finished stage costs every later turn.
+ */
+export const STATE_MAX = 20;
+
 /** A repo-rooted `path:line`: a path with a directory, or a root file with an extension (`Cargo.toml:1`). */
 export const ANCHOR =
   /(?:[A-Za-z0-9_.@-]+\/)+[A-Za-z0-9_.@-]*[A-Za-z0-9_-]:[0-9]+|\b[A-Za-z0-9_@-]+(?:\.[A-Za-z0-9_-]+)*\.[A-Za-z0-9]+:[0-9]+/g;

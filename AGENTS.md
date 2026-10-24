@@ -262,7 +262,7 @@ What a loop session owes on top of the block's § *Session workflow*:
   the home, and the header of `tools/nv/cmd/lints.ts` the reasoning.
 - **`package.json` takes its dependencies at caret ranges,** and the committed `bun.lock` pins each one.
 
-<!-- looper:begin agents v4 -->
+<!-- looper:begin agents v5 -->
 ## Where to look
 
 | You are | Run or read |
@@ -328,7 +328,9 @@ rule is its home.
 - Work that will not fit is split across subagents before it starts.
   - The session keeps the decisions, the check of each result and the wrap.
   - Each subagent gets one narrow deliverable and a brief that names its ceiling.
-  - Read-only subagents go out together.
+  - Read-only subagents go out together, on smaller models. `Explore` finds code, and `reader` takes a
+    read that needs judgment, such as a CI log. `.claude/agents/` defines both.
+  - A writing subagent runs on the session's model.
   - Writing subagents whose files are disjoint run side by side in the same tree. None of them builds,
     and the session builds once they all end. Writing subagents that share a file run one after
     another, or each in its own worktree.
