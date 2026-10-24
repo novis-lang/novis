@@ -3,8 +3,6 @@
 
 # The HTTP server
 
-*1 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
 ## The server is a development server or a proxied production origin, and nothing a proxy does earlier is in it
@@ -694,7 +692,7 @@ The door writes the line where it counts the request for the request series, so 
 
 <a id="http-server-a-log-line-can-leave-out-the-client-address"></a>
 
-## `[log] client_ip = false` keeps the client address out of every record the server writes, and `Core\Request::clientIp()` still returns it  *(designed — owned by goal telemetry-service)*
+## `[log] client_ip = false` keeps the client address out of every record the server writes, and `Core\Request::clientIp()` still returns it
 
 `rule:http-server/a-log-line-can-leave-out-the-client-address`
 
@@ -715,9 +713,6 @@ unconditionally. Turning the access log off is not enough. The telemetry collect
 that makes this promise ([`tooling/the-collector-never-stores-an-address`](tooling.md#tooling-the-collector-never-stores-an-address)).
 
 - **Memory:** none. The setting removes one field from a record that is written anyway.
-
-**Not on disk.** `[log]` has no `client_ip` key, and `crates/nvs-server/src/trace.rs` always writes
-`clientIp`.
 
 **Declined:**
 - **A masked address, such as the first three bytes of an IPv4 address.** It is a second format to

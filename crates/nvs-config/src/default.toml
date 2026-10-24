@@ -309,6 +309,8 @@
 # With `true`, the server writes one line for each request it answers. The health probe writes none.
 # A `5xx` answer is always written, at level `Error`, even when this is `false`. The mode picks this.
 #access = false                       # default: false in production, true in development
+# With `false`, no line the server writes has the client address, not even a `5xx` line.
+#client_ip = true                     # default
 
 
 # ----------------------------------------------------------------------------------------------
