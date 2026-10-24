@@ -6,8 +6,8 @@ context: [crates/nvs-runtime/src/ctx/trace.rs, crates/nvs-runtime/src/ctx/mod.rs
 stages:
   - id: 1
     title: every trace event has a time on one clock
-    status: open
-    context: [crates/nvs-runtime/src/ctx/trace.rs, crates/nvs-server/src/trace.rs, crates/nvs-server/src/otlp.rs, data/gaps/nvs-server/span-has-no-window.json, docs/rules/observability/four-kinds-become-a-span.md]
+    status: done
+    context: [crates/nvs-runtime/src/ctx/trace.rs, crates/nvs-server/src/trace.rs, crates/nvs-server/src/otlp.rs, docs/rules/observability/four-kinds-become-a-span.md]
     extra:
       context:
         rules: [observability/trace-events-carry-a-kind, observability/four-kinds-become-a-span, observability/gc-pause-is-its-own-event, observability/spawn-is-its-own-event]
@@ -78,8 +78,8 @@ checks:
 ## Why
 
 A trace event records what happened and not when. `TraceEvent` has a kind, a label and a status
-(`crates/nvs-runtime/src/ctx/trace.rs:102`), so an OTLP span has no duration
-(`data/gaps/nvs-server/span-has-no-window.json`) and no timeline can be drawn. The call half of the
+(`crates/nvs-runtime/src/ctx/trace.rs:102`), so an OTLP span has no duration and no timeline can be
+drawn. The call half of the
 trace grows in a vector without bound (`crates/nvs-runtime/src/ctx/mod.rs:1381`), which is why
 `TRACE` is off for every served request. The `PROFILE` bit exists and no call probe reads it
 (`crates/nvs-runtime/src/ctx/trace.rs:769-803`). `Core\Debug` can dump and render a value and cannot
@@ -96,9 +96,13 @@ sampling profiler. Its docs say that the probe per call makes call-heavy code lo
 `rule:observability/speedscope-timeline-export` hold it.
 
 **One clock for every event.** Every event carries its start and end as readings of the one process
-epoch `SPAWN_EPOCH` already is (`crates/nvs-runtime/src/ctx/trace.rs:27`). One wall-clock reading
-taken with the epoch puts any event on a collector's clock. A per-request epoch is declined in that
-static's own doc comment.
+epoch, `EPOCH` (`crates/nvs-runtime/src/ctx/trace.rs:31`), read with `nvs_runtime::trace_clock`. One
+wall-clock reading taken with the epoch puts any event on a collector's clock
+(`nvs_runtime::unix_nanos`). A per-request epoch is declined in that static's own doc comment. A
+`query` and an `http` are filed with the duration their span already measured, so their start is the
+filing reading less that duration and no second clock read crosses a crate. A door reads the root
+span's start before the run and `nvs_server::trace::record` reads its end, so the root's window
+contains every child's.
 
 **Only the unbounded half moves to the sink.** A recorded request's `query`, `http` and `spawn` events
 stay in the bounded vector the OTLP push reads (`SPAN_EVENT_CEILING`). The `call` events, which grow
@@ -158,12 +162,12 @@ stage 4's flags.
 **Does:** each `TraceEvent` carries its start and end on the process epoch, and an OTLP span has a
 window.
 
-- [ ] `TraceEvent` gains a start and an end reading on the epoch (`rule:observability/trace-events-carry-a-kind`). `crates/nvs-runtime/src/ctx/trace.rs:102`
-- [ ] The `call` probe pair, `gc`, `spawn`, `query` and `http` each fill them where they already read a clock (`rule:observability/gc-pause-is-its-own-event`, `rule:observability/spawn-is-its-own-event`). `crates/nvs-runtime/src/ctx/trace.rs:407`, `crates/nvs-runtime/src/ctx/trace.rs:453`, `crates/nvs-runtime/src/ctx/trace.rs:769`, `crates/nvs-runtime/src/ctx/trace.rs:329`
-- [ ] The epoch is taken with one wall-clock reading, and each `Span` carries the event's window on that clock (`rule:observability/four-kinds-become-a-span`). `crates/nvs-runtime/src/ctx/trace.rs:27`, `crates/nvs-server/src/trace.rs:182`, `crates/nvs-server/src/trace.rs:217`
-- [ ] The OTLP encoder writes each span's start and end from them. `crates/nvs-server/src/otlp.rs:983`
-- [ ] A Rust test that a span's window contains its children's (`rule:observability/four-kinds-become-a-span`). `crates/nvs-server/src/otlp.rs:1324`
-- [ ] The gap record deleted, and the comment that cites it rewritten. `data/gaps/nvs-server/span-has-no-window.json:1`, `crates/nvs-server/src/otlp.rs:978`
+- [x] `TraceEvent` gains a start and an end reading on the epoch (`rule:observability/trace-events-carry-a-kind`). `crates/nvs-runtime/src/ctx/trace.rs:102`
+- [x] The `call` probe pair, `gc`, `spawn`, `query` and `http` each fill them where they already read a clock (`rule:observability/gc-pause-is-its-own-event`, `rule:observability/spawn-is-its-own-event`). `crates/nvs-runtime/src/ctx/trace.rs:407`, `crates/nvs-runtime/src/ctx/trace.rs:453`, `crates/nvs-runtime/src/ctx/trace.rs:769`, `crates/nvs-runtime/src/ctx/trace.rs:329`
+- [x] The epoch is taken with one wall-clock reading, and each `Span` carries the event's window on that clock (`rule:observability/four-kinds-become-a-span`). `crates/nvs-runtime/src/ctx/trace.rs:27`, `crates/nvs-server/src/trace.rs:182`, `crates/nvs-server/src/trace.rs:217`
+- [x] The OTLP encoder writes each span's start and end from them. `crates/nvs-server/src/otlp.rs:983`
+- [x] A Rust test that a span's window contains its children's (`rule:observability/four-kinds-become-a-span`). `crates/nvs-server/src/otlp.rs:1324`
+- [x] The gap record deleted, and the comment that cites it rewritten. `crates/nvs-server/src/otlp.rs:978`
 
 ### 2. `Core\Debug` starts and stops each probe
 
@@ -260,21 +264,31 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. Stage 1 has no gate. Stage 5 is a side lane that needs only a fixture speedscope
-file. Stages 6, 7, 3, 4 and 8 each wait on the stage before them, as `## Standing decisions` § *Lanes*
-says.
+Stage 1 is done. Every `TraceEvent` has `start` and `end` on `EPOCH`, read with
+`nvs_runtime::trace_clock`, and `nvs_runtime::unix_nanos` puts a reading on the wall clock. `record_query`
+and `record_http` take the span's own duration. `nvs_server::trace::spans` takes the root's window, and
+`record` takes the root's start, which both doors and the scheduler read before the run. The OTLP
+`Recorded` has no batch stamp: each span is encoded with its own window. The gap record is deleted. The
+two new tests passed once by name:
+`ctx::trace::tests::a_timed_event_ends_where_it_is_filed_and_began_its_duration_before` and
+`otlp::tests::a_spans_window_contains_its_childrens_on_the_wire`. No test is expected to go red: the two
+runtime cases that compared whole events now compare kind, callee and status.
+
+The sweep's six findings were already fixed on main after the nightly run's commit `3ea6f1550`:
+`crypto-bigint` 0.7.6 (`10c402b57`), the stale `deny.toml` ignore (`d2a782d60`), the `capability.rs`
+format, the JSON case's Miri ignore (`220cb82b7`), the session case's 20 requests under Miri
+(`c4842ec8f`) and the transport's Miri idle bound (`c953c3456`). `env-secret-proofs` exits 0 when rerun.
 
 ### Next
 
-**Stage 1: every trace event has a time on one clock**, file set `crates/nvs-runtime/src/ctx/trace.rs`,
-`crates/nvs-server/src/trace.rs`, `crates/nvs-server/src/otlp.rs`. No gate.
+**Stage 2: `Core\Debug` starts and stops each probe**, file set `crates/nvs-stdlib/src/debug.rs`,
+`crates/nvs-config/src/capability.rs`, `docs/rules/testing/debug-surface.md`. No gate. Stage 5 is a
+side lane beside it (`editors/vscode/`).
 
-- [ ] The start and end on `TraceEvent` (`rule:observability/trace-events-carry-a-kind`). `crates/nvs-runtime/src/ctx/trace.rs:102`
-- [ ] Each kind fills them where it reads a clock (`rule:observability/gc-pause-is-its-own-event`). `crates/nvs-runtime/src/ctx/trace.rs:407`, `crates/nvs-runtime/src/ctx/trace.rs:453`, `crates/nvs-runtime/src/ctx/trace.rs:769`
-- [ ] The epoch's wall reading, and each `Span`'s window on it (`rule:observability/four-kinds-become-a-span`). `crates/nvs-runtime/src/ctx/trace.rs:27`, `crates/nvs-server/src/trace.rs:182`
-- [ ] The OTLP span's start and end. `crates/nvs-server/src/otlp.rs:983`
-- [ ] A Rust test that a span's window contains its children's. `crates/nvs-server/src/otlp.rs:1324`
-- [ ] The gap record deleted and its citation rewritten. `data/gaps/nvs-server/span-has-no-window.json:1`, `crates/nvs-server/src/otlp.rs:978`
+- [ ] The rule names the members, their parameters and the coverage map's shape (`rule:testing/debug-surface`, `rule:core-api/no-mode-strings`). `docs/rules/testing/debug-surface.md:1`
+- [ ] The members join `Core\Debug` with their reference cards (`rule:testing/debug-mode-directive`, `rule:core-api/reference-card`). `crates/nvs-stdlib/src/debug.rs:117`
+- [ ] A path is admitted only under the `debug.trace` or `debug.profile` grant (`rule:testing/debug-probes`). `crates/nvs-config/src/capability.rs:146`
+- [ ] Rust tests: a start and stop around one call, a coverage read-back, a path refused without its grant, and a request that cannot widen `[debug] mode`. `crates/nvs-stdlib/src/debug.rs:409`
 
 ### Backlog
 

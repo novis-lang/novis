@@ -8,7 +8,9 @@ work in a request's causal graph.
 
 The spans are derived from the same events the timeline already files: production telemetry reads
 the four event kinds the trace records and adds no instrumentation of its own. A retried outbound call
-is one span carrying an attempt count, not one span per attempt.
+is one span carrying an attempt count, not one span per attempt. A span's start and end are its
+event's, read on the one process clock every event is timed on. The root's are read before and after
+the run, so its window contains every other span's.
 
 The set is closed because of what one more kind would cost. `rule:testing/debug-probes` keeps the
 per-call path to a load and a predicted-not-taken branch, and every other kind was placed off that

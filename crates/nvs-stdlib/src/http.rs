@@ -4235,12 +4235,12 @@ fn traced(ctx: &mut Ctx, call: &transport::Call<'_>) {
     if !ctx.records_spans() {
         return;
     }
-    let line = {
+    let (line, took) = {
         let mut span = call.span.borrow_mut();
         span.finished();
-        span.to_string()
+        (span.to_string(), span.duration())
     };
-    ctx.record_http(&line);
+    ctx.record_http(&line, took);
 }
 
 /// A streamed reply's body, filed against this request, as the key its

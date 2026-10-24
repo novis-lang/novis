@@ -886,7 +886,11 @@ where
         // reason `nvs_host::Isolate::recorded_trace` gives. The draw is the
         // implementor's, because the head sample is a key off the tree and this
         // loop holds none.
-        let recording = isolate.recorded_trace();
+        // The root's start is read with it, before the run, so the root's window
+        // contains every event the run files.
+        let recording = isolate
+            .recorded_trace()
+            .map(|trace| (trace, nvs_runtime::trace_clock()));
         match isolate.narrowed_by(entry.narrowing.clone()).run(ctx) {
             Ok(mut done) => {
                 fires.ran(&entry, &done);
@@ -894,8 +898,8 @@ where
                 // scheduled run's whole request line: it has no method and no
                 // path, and the name is what an operator wrote and what every
                 // other record of this fire already says.
-                if let Some(trace) = &recording {
-                    crate::trace::record(entry.name(), trace, &done.trace);
+                if let Some((trace, started)) = &recording {
+                    crate::trace::record(entry.name(), trace, *started, &done.trace);
                 }
                 // Nothing is waiting for a scheduled run (§ 5), so this frame is where the answer
                 // stops — and `Completion::value` is a reference copied into *this* ownership

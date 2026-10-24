@@ -309,7 +309,8 @@ pub use ctx::{
     Session, Settled, SnapshotMismatch, SocketAnswer, SocketFrame, SpawnForm, SpecBody, SpecPart,
     SseSlot, StmtHits, TaskSlot, TraceEvent, TraceKind, TreeState, Upgrade, UpgradeSlot,
     WeakSafepointView, is_carrier, nvs_deprecated_use, nvs_probe_call_enter, nvs_probe_call_exit,
-    nvs_probe_edge, nvs_probe_stmt, nvs_safepoint, nvs_stack_check, stack_pointer,
+    nvs_probe_edge, nvs_probe_stmt, nvs_safepoint, nvs_stack_check, stack_pointer, trace_clock,
+    unix_nanos,
 };
 pub use decimal::{Decimal, NotDecimal};
 pub use dispatch::{

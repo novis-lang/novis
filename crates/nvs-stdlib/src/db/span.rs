@@ -106,7 +106,7 @@ impl QueryWatch {
             return;
         };
         if self.traced {
-            ctx.record_query(&line);
+            ctx.record_query(&line, took);
         }
         if self.slow.is_some_and(|threshold| took >= threshold) {
             slow_query_record(ctx, &line);

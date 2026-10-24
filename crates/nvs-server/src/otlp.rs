@@ -181,17 +181,15 @@ impl Signal {
     }
 }
 
-/// One sampled request's spans, stamped when the request handed them over.
+/// One sampled request's spans, as the request handed them over.
 ///
-/// The stamp is taken at [`queue`] rather than at the encode, because how long
-/// a batch waited for a collector is not a property of the trace: two requests
-/// that ran a second apart and shipped in one push are still a second apart.
+/// Each span carries its own window on the trace clock, so how long a batch
+/// waited for a collector is not in the trace: two requests that ran a second
+/// apart and shipped in one push are still a second apart.
 #[derive(Clone, Debug)]
 pub struct Recorded {
     /// The graph [`crate::trace::spans`] derived, root first.
     pub spans: Vec<Span>,
-    /// When the request handed them over, in nanoseconds since the Unix epoch.
-    pub at: u64,
 }
 
 /// What the process is holding for its collector: the queue and what it never
@@ -241,14 +239,13 @@ impl Pending {
     /// needs the room.
     ///
     /// This is the request's half of the module and it does no work a request
-    /// can feel: a stamp, a lock and a push, with the drops — where there are
+    /// can feel: a lock and a push, with the drops — where there are
     /// any — being a pop of a deque. An empty `spans` is a request that was not
     /// sampled and is not queued at all.
     pub fn hand_over(&self, spans: Vec<Span>) {
         if spans.is_empty() {
             return;
         }
-        let at = stamped();
         let arriving = spans.len();
         let mut waiting = match self.waiting.lock() {
             Ok(waiting) => waiting,
@@ -274,7 +271,7 @@ impl Pending {
             self.count_dropped(oldest.spans.len());
         }
         waiting.spans += arriving;
-        waiting.traces.push_back(Recorded { spans, at });
+        waiting.traces.push_back(Recorded { spans });
     }
 
     /// The oldest traces adding up to at most `most` spans, taken out of the
@@ -794,7 +791,7 @@ pub fn encode(batch: &[Recorded]) -> Vec<u8> {
             for trace in batch {
                 for span in &trace.spans {
                     // `ScopeSpans.spans`.
-                    nested(scope_spans, 2, |out| encoded(out, span, trace.at));
+                    nested(scope_spans, 2, |out| encoded(out, span));
                 }
             }
         });
@@ -975,12 +972,9 @@ fn attribute(out: &mut Vec<u8>, field: u32, key: &str, value: &str) {
     });
 }
 
-/// One `Span`, as the OTLP message.
-///
-/// `at` is both ends of it. That is the record
-/// `data/gaps/nvs-server/span-has-no-window.json`, not a reading of the
-/// specification.
-fn encoded(out: &mut Vec<u8>, span: &Span, at: u64) {
+/// One `Span`, as the OTLP message: its start and its end are the span's own
+/// window, put on the wall clock by [`nvs_runtime::unix_nanos`].
+fn encoded(out: &mut Vec<u8>, span: &Span) {
     raw(out, 1, &span.trace_id);
     raw(out, 2, &span.span_id);
     if let Some(parent) = span.parent {
@@ -988,8 +982,8 @@ fn encoded(out: &mut Vec<u8>, span: &Span, at: u64) {
     }
     text(out, 5, &span.detail);
     number(out, 6, kind(span.kind));
-    fixed64(out, 7, at);
-    fixed64(out, 8, at);
+    fixed64(out, 7, nvs_runtime::unix_nanos(span.start));
+    fixed64(out, 8, nvs_runtime::unix_nanos(span.end));
 }
 
 /// Which `SpanKind` of the specification's five one of
@@ -1077,7 +1071,7 @@ mod tests {
 
     use nvs_runtime::{TraceContext, TraceEvent, TraceKind};
 
-    use super::{BATCH, Endpoint, Pending, Signal, encode, encode_registry, post};
+    use super::{BATCH, Endpoint, Pending, Recorded, Signal, encode, encode_registry, post};
     use crate::io::Nonblocking;
     use crate::metrics::Registry;
     use crate::trace::{Span, spans};
@@ -1097,19 +1091,30 @@ mod tests {
                 kind: TraceKind::Call,
                 callee: "Orders::total".to_owned(),
                 status: None,
+                start: Duration::from_millis(2),
+                end: Duration::from_millis(2),
             },
             TraceEvent {
                 kind: TraceKind::Query,
                 callee: "select 1 driver=sqlite rows=1".to_owned(),
                 status: None,
+                start: Duration::from_millis(3),
+                end: Duration::from_millis(5),
             },
             TraceEvent {
                 kind: TraceKind::Http,
                 callee: "GET https://api.example.test/v1/pay status=200 attempt=3".to_owned(),
                 status: None,
+                start: Duration::from_millis(6),
+                end: Duration::from_millis(9),
             },
         ];
-        spans("GET /orders/17", &trace, &events)
+        spans(
+            "GET /orders/17",
+            &trace,
+            (Duration::from_millis(1), Duration::from_millis(10)),
+            &events,
+        )
     }
 
     /// The payloads of every length-delimited `field` at the top level of
@@ -1373,6 +1378,49 @@ mod tests {
                 "the span is not of what it was derived from"
             );
         }
+    }
+
+    /// `rule:observability/four-kinds-become-a-span`'s graph, on a collector's
+    /// clock: every span is encoded with the window its event had, and the
+    /// root's window contains each of its children's.
+    ///
+    /// Read back off the wire rather than off [`Span`], because the window is
+    /// what a collector draws, and a start and end written as one instant is the
+    /// break this pins.
+    #[test]
+    fn a_spans_window_contains_its_childrens_on_the_wire() {
+        let derived = derived();
+        let body = encode(&[Recorded {
+            spans: derived.clone(),
+        }]);
+        let scope = fields(fields(&body, 1)[0], 2)[0];
+        let windows: Vec<(u64, u64)> = fields(scope, 2)
+            .into_iter()
+            .map(|sent| (eights(sent, 7)[0], eights(sent, 8)[0]))
+            .collect();
+        assert_eq!(windows.len(), derived.len());
+        for (span, (start, end)) in derived.iter().zip(&windows) {
+            assert_eq!(
+                (*start, *end),
+                (
+                    nvs_runtime::unix_nanos(span.start),
+                    nvs_runtime::unix_nanos(span.end)
+                ),
+                "{span:?} was not sent with its own window"
+            );
+        }
+        let (root, children) = windows.split_first().expect("a root span");
+        assert!(root.0 < root.1, "the root has no duration: {root:?}");
+        for child in children {
+            assert!(
+                root.0 <= child.0 && child.0 <= child.1 && child.1 <= root.1,
+                "a child's window {child:?} is outside the root's {root:?}"
+            );
+        }
+        assert!(
+            children.iter().any(|(start, end)| start < end),
+            "no child was sent with a duration"
+        );
     }
 
     /// `rule:observability/a-registry-is-per-core-and-nothing-reads-it`'s

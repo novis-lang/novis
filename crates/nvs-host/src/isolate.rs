@@ -3222,7 +3222,7 @@ mod tests {
                 // A `query`, because it is one of the four a span is derived
                 // from and it is filed from a routine of its own rather than
                 // from the per-call probe a span is never derived from.
-                child.record_query("select 1 -- db=main rows=1");
+                child.record_query("select 1 -- db=main rows=1", std::time::Duration::ZERO);
                 Value::null()
             });
             let mut inbound = Inbound::new("GET", "/orders/17", "");

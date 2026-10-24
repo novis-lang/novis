@@ -13,18 +13,60 @@
 use super::*;
 
 use std::sync::{Arc, LazyLock};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-/// The moment this process first timed a spawn, so that the events two requests
-/// record sit on one timeline.
+/// The one clock every [`TraceEvent`] is read on: the moment this process
+/// first timed an event, as a monotonic reading and a wall reading taken
+/// together.
 ///
 /// An [`Instant`] has no absolute rendering and a per-request epoch would give
 /// every request a timeline of its own, which is exactly the join
 /// `rule:observability/spawn-is-its-own-event`'s export-time nesting has to
-/// make. **What it spends:** one `Instant` per process, initialised by the
-/// first spawn that is timed at all, so a run with both bits off never reads a
-/// clock for it.
-static SPAWN_EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
+/// make. The wall reading is what puts a reading on a collector's clock
+/// ([`unix_nanos`]); events are timed on the monotonic one, so a wall clock
+/// stepped mid-run moves no event against another. **What it spends:** one
+/// `Instant` and one `SystemTime` per process, initialised by the first event
+/// that is timed at all, so a run that records nothing never reads a clock for
+/// it.
+static EPOCH: LazyLock<Epoch> = LazyLock::new(|| Epoch {
+    monotonic: Instant::now(),
+    wall: SystemTime::now(),
+});
+
+/// [`EPOCH`]'s two readings.
+struct Epoch {
+    /// What every event's start and end are measured from.
+    monotonic: Instant,
+    /// The wall clock at that same moment.
+    wall: SystemTime,
+}
+
+/// A reading of the trace clock: the time since [`EPOCH`], which is what a
+/// [`TraceEvent`]'s start and end are.
+///
+/// Public because the filing sites outside this crate — the root span a door
+/// derives — read the same clock the events are on, and a second clock would
+/// put a root's window beside its children's rather than around them.
+#[must_use]
+pub fn trace_clock() -> Duration {
+    EPOCH.monotonic.elapsed()
+}
+
+/// `reading`, a [`trace_clock`] reading, as nanoseconds since the Unix epoch —
+/// how OTLP stamps a span's start and end.
+///
+/// A reading past what a `u64` of nanoseconds holds saturates, and a wall clock
+/// set before 1970 reads as `0`; both are a clock this side cannot correct.
+#[must_use]
+pub fn unix_nanos(reading: Duration) -> u64 {
+    EPOCH
+        .wall
+        .checked_add(reading)
+        .and_then(|at| at.duration_since(UNIX_EPOCH).ok())
+        .map_or(0, |since| {
+            u64::try_from(since.as_nanos()).unwrap_or(u64::MAX)
+        })
+}
 
 /// A failure a run can be *asked* to produce, for a mode that by definition
 /// has no user-facing trigger.
@@ -94,10 +136,15 @@ pub enum TraceKind {
 /// `rule:observability/trace-events-carry-a-kind`
 /// 's kind.
 ///
-/// The remaining two fields are the `call` kind's shape, and a `query` and an
+/// `callee` and `status` are the `call` kind's shape, and a `query` and an
 /// `http` reuse the first of them rather than adding a field per kind —
 /// [`Ctx::record_query`] owns that reasoning, and [`TraceKind`]'s doc comment
-/// owns what a per-kind payload waits on.
+/// owns what a per-kind payload waits on. `start` and `end` are every kind's,
+/// on the one clock [`trace_clock`] reads.
+///
+/// **What it spends:** two `Duration`s per event, and one clock read per event
+/// at the site that files it — only while something records events, so a
+/// request with every bit off pays nothing for them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceEvent {
     /// Which of `rule:observability/trace-events-carry-a-kind`'s kinds this is.
@@ -111,6 +158,13 @@ pub struct TraceEvent {
     /// on — so a trace records a thrown or `FATAL` exit exactly as it
     /// happened rather than as a reconstruction.
     pub status: Option<i32>,
+    /// When the event began, as a [`trace_clock`] reading. A `call` entry and
+    /// a `call` exit are each an instant, so their start is their end.
+    pub start: Duration,
+    /// When it ended, on the same clock: a `query` and an `http` when the
+    /// routine filed it, a `gc` when the walk finished, and a `spawn` at its
+    /// join. A spawn that was never joined ends where it started.
+    pub end: Duration,
 }
 
 /// Which of `rule:observability/spawn-is-its-own-event`'s constructs a
@@ -166,7 +220,7 @@ pub struct OpenSpawn {
     form: SpawnForm,
     /// Where in this request's trace the event sits.
     index: usize,
-    /// When the child was started, on [`SPAWN_EPOCH`]'s timeline.
+    /// When the child was started, as a [`trace_clock`] reading.
     started: Duration,
 }
 
@@ -325,13 +379,26 @@ impl Ctx {
     /// The kind is [`TraceKind::Call`] and is not a parameter: a probe is the
     /// only thing that reaches this method, and the other kinds are
     /// emitted from routines that carry facts this record has no field for
-    /// (`rule:observability/trace-events-carry-a-kind`).
+    /// (`rule:observability/trace-events-carry-a-kind`). The event is an
+    /// instant, timed here with one [`trace_clock`] read.
     pub fn record_trace(&mut self, callee: &str, status: Option<i32>) {
+        let at = trace_clock();
         self.trace.push(TraceEvent {
             kind: TraceKind::Call,
             callee: callee.to_owned(),
             status,
+            start: at,
+            end: at,
         });
+    }
+
+    /// The window a routine that timed itself files: it ends now, and began
+    /// `took` before. The routine's own duration is the start rather than a
+    /// second clock read where it began, which a `query` and an `http` would
+    /// otherwise have to carry here through a crate that has no `Ctx`.
+    fn ended_after(took: Duration) -> (Duration, Duration) {
+        let end = trace_clock();
+        (end.saturating_sub(took), end)
     }
 
     /// Records one statement as
@@ -358,11 +425,17 @@ impl Ctx {
     /// is held where the span is built and
     /// `a_query_span_contains_no_parameter_value_anywhere` asserts it over that
     /// same rendering; nothing here can put a bound value back.
-    pub fn record_query(&mut self, span: &str) {
+    ///
+    /// `took` is the statement's own duration, which the span already measured,
+    /// and the event's window is the `took` that ends here.
+    pub fn record_query(&mut self, span: &str, took: Duration) {
+        let (start, end) = Self::ended_after(took);
         self.trace.push(TraceEvent {
             kind: TraceKind::Query,
             callee: span.to_owned(),
             status: None,
+            start,
+            end,
         });
     }
 
@@ -385,11 +458,17 @@ impl Ctx {
     /// *call site* is about to branch on, and an HTTP status written into it
     /// would be a second meaning for one field that every reader would then
     /// have to disambiguate by kind.
-    pub fn record_http(&mut self, span: &str) {
+    ///
+    /// `took` is the call's duration as the transport's span measured it, for
+    /// [`Ctx::record_query`]'s reason.
+    pub fn record_http(&mut self, span: &str, took: Duration) {
+        let (start, end) = Self::ended_after(took);
         self.trace.push(TraceEvent {
             kind: TraceKind::Http,
             callee: span.to_owned(),
             status: None,
+            start,
+            end,
         });
     }
 
@@ -408,11 +487,13 @@ impl Ctx {
         if !self.records_spans() && !self.debug.contains(DebugFlags::PROFILE) {
             return None;
         }
-        let started = SPAWN_EPOCH.elapsed();
+        let started = trace_clock();
         self.trace.push(TraceEvent {
             kind: TraceKind::Spawn,
             callee: format!("{} started={started:?} unjoined", form.spelling()),
             status: None,
+            start: started,
+            end: started,
         });
         Some(OpenSpawn {
             form,
@@ -429,12 +510,14 @@ impl Ctx {
     /// cost — scheduling the child and copying its answer back — and one opaque
     /// total cannot be read as either.
     pub fn close_spawn(&mut self, open: OpenSpawn, child: Option<Duration>) {
-        let payload = render_spawn(open.form, open.started, SPAWN_EPOCH.elapsed(), child);
+        let joined = trace_clock();
+        let payload = render_spawn(open.form, open.started, joined, child);
         // Indexed rather than assumed: the trace is only ever appended to, so
         // the position holds, and a miss loses one event rather than panicking
         // inside a request that was only being observed.
         if let Some(event) = self.trace.get_mut(open.index) {
             event.callee = payload;
+            event.end = joined;
         }
     }
 
@@ -451,8 +534,7 @@ impl Ctx {
     /// the collector's routine and never from the poll: a back edge that finds
     /// no collection asked for reads no clock and tests no debug bit.
     pub(crate) fn open_gc_pause(&self) -> Option<Duration> {
-        (self.records_spans() || self.debug.contains(DebugFlags::PROFILE))
-            .then(|| SPAWN_EPOCH.elapsed())
+        (self.records_spans() || self.debug.contains(DebugFlags::PROFILE)).then(trace_clock)
     }
 
     /// Files the `gc` event [`Ctx::open_gc_pause`] read the clock for, with the
@@ -462,12 +544,14 @@ impl Ctx {
     /// A pause of zero objects is filed like any other. What the event buys is
     /// attribution, and a walk that found nothing still took the time it took.
     pub(crate) fn close_gc_pause(&mut self, started: Duration, freed: usize) {
-        let ended = SPAWN_EPOCH.elapsed();
+        let ended = trace_clock();
         let took = ended.saturating_sub(started);
         self.trace.push(TraceEvent {
             kind: TraceKind::Gc,
             callee: format!("gc started={started:?} took={took:?} freed={freed}"),
             status: None,
+            start: started,
+            end: ended,
         });
     }
 
@@ -1069,20 +1153,47 @@ mod tests {
             nvs_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::THROWN);
         }
         assert_eq!(
-            ctx.trace(),
+            shape(ctx.trace()),
             [
-                TraceEvent {
-                    kind: TraceKind::Call,
-                    callee: "Boom::inner".to_owned(),
-                    status: None,
-                },
-                TraceEvent {
-                    kind: TraceKind::Call,
-                    callee: "Boom::inner".to_owned(),
-                    status: Some(crate::THROWN),
-                },
+                (TraceKind::Call, "Boom::inner", None),
+                (TraceKind::Call, "Boom::inner", Some(crate::THROWN)),
             ]
         );
+        let [entered, left] = ctx.trace() else {
+            panic!("two events");
+        };
+        assert_eq!(entered.start, entered.end, "a call event is an instant");
+        assert!(
+            entered.end <= left.start,
+            "the exit is not before the entry"
+        );
+    }
+
+    /// The kind, the callee and the status of each event: what these cases
+    /// assert, with the readings of a clock left to the cases about time.
+    fn shape(events: &[TraceEvent]) -> Vec<(TraceKind, &str, Option<i32>)> {
+        events
+            .iter()
+            .map(|event| (event.kind, event.callee.as_str(), event.status))
+            .collect()
+    }
+
+    /// `rule:observability/trace-events-carry-a-kind`'s window, on the one
+    /// clock: a routine that timed itself files the `took` that ends where it
+    /// files, so its window is that long and sits after an event filed before.
+    #[test]
+    fn a_timed_event_ends_where_it_is_filed_and_began_its_duration_before() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_debug_flags(DebugFlags::TRACE);
+        ctx.record_trace("People::all", None);
+        let before = trace_clock();
+        ctx.record_query("sql=select 1", Duration::from_nanos(1));
+        let after = trace_clock();
+        let [call, query] = ctx.trace() else {
+            panic!("two events");
+        };
+        assert!(call.end <= before && before <= query.end && query.end <= after);
+        assert_eq!(query.end - query.start, Duration::from_nanos(1));
     }
 
     /// `rule:observability/trace-events-carry-a-kind`'s kind, over the kinds
@@ -1099,30 +1210,30 @@ mod tests {
         // What `nvs_db::QuerySpan`'s `Display` hands over, which is the whole
         // of what a `query` event carries — no bound value among it, per
         // `rule:observability/a-query-is-a-trace-event`.
-        ctx.record_query("driver=postgres connection=main rows=2 sql=select 1");
+        ctx.record_query(
+            "driver=postgres connection=main rows=2 sql=select 1",
+            Duration::ZERO,
+        );
         // And the transport's own span, which carries no query string, header
         // value or body for the same rule's reason.
-        ctx.record_http("http method=GET scheme=https host=api.example.com port=443 path=/things");
+        ctx.record_http(
+            "http method=GET scheme=https host=api.example.com port=443 path=/things",
+            Duration::ZERO,
+        );
         assert_eq!(
-            ctx.trace(),
+            shape(ctx.trace()),
             [
-                TraceEvent {
-                    kind: TraceKind::Call,
-                    callee: "People::all".to_owned(),
-                    status: Some(crate::OK),
-                },
-                TraceEvent {
-                    kind: TraceKind::Query,
-                    callee: "driver=postgres connection=main rows=2 sql=select 1".to_owned(),
-                    status: None,
-                },
-                TraceEvent {
-                    kind: TraceKind::Http,
-                    callee: "http method=GET scheme=https host=api.example.com port=443 \
-                             path=/things"
-                        .to_owned(),
-                    status: None,
-                },
+                (TraceKind::Call, "People::all", Some(crate::OK)),
+                (
+                    TraceKind::Query,
+                    "driver=postgres connection=main rows=2 sql=select 1",
+                    None
+                ),
+                (
+                    TraceKind::Http,
+                    "http method=GET scheme=https host=api.example.com port=443 path=/things",
+                    None
+                ),
             ]
         );
     }
@@ -1224,8 +1335,14 @@ mod tests {
             .open_spawn(SpawnForm::Task)
             .expect("a recorded run files its spawn");
         ctx.close_spawn(open, None);
-        ctx.record_query("driver=postgres connection=main rows=1 sql=select 1");
-        ctx.record_http("http method=GET scheme=https host=api.example.com port=443 path=/things");
+        ctx.record_query(
+            "driver=postgres connection=main rows=1 sql=select 1",
+            Duration::ZERO,
+        );
+        ctx.record_http(
+            "http method=GET scheme=https host=api.example.com port=443 path=/things",
+            Duration::ZERO,
+        );
 
         let name = b"Math::double";
         #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
@@ -1251,7 +1368,10 @@ mod tests {
         ctx.set_trace_context(crate::TraceContext::rooted(1.0));
         for _ in 0..SPAN_EVENT_CEILING {
             assert!(ctx.records_spans(), "the ceiling closed early");
-            ctx.record_query("driver=postgres connection=main rows=1 sql=select 1");
+            ctx.record_query(
+                "driver=postgres connection=main rows=1 sql=select 1",
+                Duration::ZERO,
+            );
         }
 
         assert!(

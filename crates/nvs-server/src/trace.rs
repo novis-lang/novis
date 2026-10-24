@@ -87,6 +87,7 @@
 
 use nvs_runtime::{Inbound, TraceContext, TraceEvent, TraceKind};
 use rand::RngExt;
+use std::time::Duration;
 
 /// The field name § 2 names, lower case because `hyper` normalises a
 /// `HeaderName` on the way in and the carrier keeps what it was given.
@@ -200,6 +201,14 @@ pub struct Span {
     /// one, and that type's own doc comment owns why a per-kind field set
     /// waits on `rule:testing/debug-probes`'s sink.
     pub detail: String,
+    /// When the span began, as an `nvs_runtime::trace_clock` reading: the
+    /// event's start, or for the root the reading the door took before the
+    /// run. `nvs_runtime::unix_nanos` puts it on a collector's clock.
+    pub start: Duration,
+    /// When it ended, on the same clock: the event's end, or for the root the
+    /// reading [`record`] takes once the run has ended. So the root's window
+    /// contains every other span's.
+    pub end: Duration,
 }
 
 /// The spans `request` contributes to its trace — `rule:observability/four-kinds-become-a-span`'s four kinds and
@@ -217,8 +226,17 @@ pub struct Span {
 /// this module reads the carrier's headers and not its request line, and a
 /// second reading of the line here is a second thing to keep in step with the
 /// door.
+///
+/// `root` is the root span's window, as two `nvs_runtime::trace_clock`
+/// readings: one taken before the run and one after it. A parameter for the
+/// same reason as `request`, and so that a derivation reads no clock itself.
 #[must_use]
-pub fn spans(request: &str, trace: &TraceContext, events: &[TraceEvent]) -> Vec<Span> {
+pub fn spans(
+    request: &str,
+    trace: &TraceContext,
+    root: (Duration, Duration),
+    events: &[TraceEvent],
+) -> Vec<Span> {
     if !trace.sampled() {
         return Vec::new();
     }
@@ -228,6 +246,8 @@ pub fn spans(request: &str, trace: &TraceContext, events: &[TraceEvent]) -> Vec<
         span_id: trace.span_id(),
         parent: trace.parent_span_id(),
         detail: request.to_owned(),
+        start: root.0,
+        end: root.1,
     }];
     for event in events {
         // The ceiling counts the root, so a request that only ever spans is
@@ -251,10 +271,13 @@ pub fn spans(request: &str, trace: &TraceContext, events: &[TraceEvent]) -> Vec<
             // Flat under the root rather than nested: the events are a flat
             // list in the order they were filed, and only a `spawn`'s child
             // could nest — which is the export-time join
-            // `rule:observability/spawn-is-its-own-event` gives the shared
-            // timeline epoch for, and not something this list can reconstruct.
+            // `rule:observability/spawn-is-its-own-event` puts every event on
+            // one clock for, and needs the child's events, which this list
+            // does not carry.
             parent: Some(trace.span_id()),
             detail: event.callee.clone(),
+            start: event.start,
+            end: event.end,
         });
     }
     spans
@@ -278,12 +301,18 @@ pub fn spans(request: &str, trace: &TraceContext, events: &[TraceEvent]) -> Vec<
 ///
 /// `request` is what the root span is *of* — [`spans`] owns why it is a
 /// parameter, and the two callers give it the method and path the door matched
-/// and the `[[schedule]]` entry's name.
-pub fn record(request: &str, trace: &TraceContext, events: &[TraceEvent]) {
+/// and the `[[schedule]]` entry's name. `started` is the root's start, read
+/// before the run; its end is read here, once the run has ended.
+pub fn record(request: &str, trace: &TraceContext, started: Duration, events: &[TraceEvent]) {
     #[cfg(feature = "exporter")]
-    crate::otlp::queue().hand_over(spans(request, trace, events));
+    crate::otlp::queue().hand_over(spans(
+        request,
+        trace,
+        (started, nvs_runtime::trace_clock()),
+        events,
+    ));
     #[cfg(not(feature = "exporter"))]
-    let _ = (request, trace, events);
+    let _ = (request, trace, started, events);
 }
 
 /// The field name W3C Trace Context gives the id a server answers with.
@@ -444,6 +473,7 @@ mod tests {
     use super::{SPAN_CEILING, SpanKind, spans, take};
     use nvs_render::Level;
     use nvs_runtime::{Ctx, Inbound, OutputSink, TraceContext, TraceEvent, TraceKind, floor};
+    use std::time::Duration;
 
     /// A carrier as the door builds one: the request line, then one field line
     /// per entry in arrival order.
@@ -651,7 +681,7 @@ mod tests {
             "the trace id was dropped with the flag"
         );
         assert!(
-            spans("GET /", &continued, &[]).is_empty(),
+            spans("GET /", &continued, ROOT, &[]).is_empty(),
             "an unrecorded request derived spans"
         );
         assert!(!decided_at(&[("host", "localhost")], None).sampled());
@@ -773,8 +803,13 @@ mod tests {
             kind,
             callee: payload.to_owned(),
             status: None,
+            start: Duration::ZERO,
+            end: Duration::ZERO,
         }
     }
+
+    /// A root window for the cases that assert what is derived and not when.
+    const ROOT: (Duration, Duration) = (Duration::ZERO, Duration::ZERO);
 
     /// `rule:observability/four-kinds-become-a-span`: the root, a `query`, an outbound call and a `spawn` become
     /// spans, and a `call` never does — nor does a `gc`, which is a histogram
@@ -811,7 +846,7 @@ mod tests {
             ),
             event(TraceKind::Spawn, "spawn worker started=1ms joined=4ms"),
         ];
-        let derived = spans("GET /orders/17", &sampled, &events);
+        let derived = spans("GET /orders/17", &sampled, ROOT, &events);
 
         let kinds: Vec<SpanKind> = derived.iter().map(|span| span.kind).collect();
         assert_eq!(
@@ -867,7 +902,7 @@ mod tests {
             .map(|line| event(TraceKind::Call, &format!("Orders::line{line}")))
             .collect();
         assert_eq!(
-            spans("GET /orders/17", &sampled, &calls).len(),
+            spans("GET /orders/17", &sampled, ROOT, &calls).len(),
             1,
             "a call site became a span"
         );
@@ -877,14 +912,14 @@ mod tests {
         // and `SPAN_CEILING`'s own doc owns why the cap is a fixed count.
         let unsampled = decided(&[("host", "localhost")]);
         assert!(
-            spans("GET /orders/17", &unsampled, &events).is_empty(),
+            spans("GET /orders/17", &unsampled, ROOT, &events).is_empty(),
             "an unrecorded trace built spans nobody will ever read"
         );
         let many: Vec<TraceEvent> = (0..SPAN_CEILING * 2)
             .map(|row| event(TraceKind::Query, &format!("select {row}")))
             .collect();
         assert_eq!(
-            spans("GET /orders/17", &sampled, &many).len(),
+            spans("GET /orders/17", &sampled, ROOT, &many).len(),
             SPAN_CEILING,
             "a request in a loop held an unbounded number of spans"
         );
@@ -907,8 +942,13 @@ mod tests {
             event(TraceKind::Query, "select 1 -- db=main rows=1"),
             event(TraceKind::Call, "Orders::total"),
         ];
-        record("GET /orders/17", &decided_at(&[], Some(1.0)), &events);
-        record("GET /orders/18", &decided(&[]), &events);
+        record(
+            "GET /orders/17",
+            &decided_at(&[], Some(1.0)),
+            Duration::ZERO,
+            &events,
+        );
+        record("GET /orders/18", &decided(&[]), Duration::ZERO, &events);
 
         let queued = crate::otlp::queue().take(usize::MAX);
         let roots: Vec<&str> = queued

@@ -1353,8 +1353,9 @@ struct Streamed<'a> {
     /// read off the carrier before the isolate took it, and held here for the
     /// same reason the isolate is: a streamed answer leaves the service
     /// future's frame early, so what its end owes the exporter travels with it.
-    /// `None` for every request nobody is recording.
-    recording: Option<(String, nvs_runtime::TraceContext)>,
+    /// The third is the root span's start, as a trace clock reading. `None` for
+    /// every request nobody is recording.
+    recording: Option<(String, nvs_runtime::TraceContext, std::time::Duration)>,
 }
 
 /// Joins a streaming request's isolate once the body it was writing has ended,
@@ -1387,8 +1388,8 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
         // completion: a streamed request files its events like any other, and
         // the head having gone out early is no reason for its trace to be the
         // one that is never exported.
-        if let Some((request, trace)) = &streamed.recording {
-            crate::trace::record(request, trace, &done.trace);
+        if let Some((request, trace, started)) = &streamed.recording {
+            crate::trace::record(request, trace, *started, &done.trace);
         }
         // Nowhere to move the child's returned value to, and nothing left to
         // say with what it wrote: the answer is already on the wire. [`answer`]
@@ -1997,12 +1998,18 @@ where
                     // answer for one is an empty graph, and this is where that is
                     // cheapest to know. The path carries no query string, which is
                     // `rule:observability/trace-events-carry-a-kind`'s rule about
-                    // what a trace is a `secret` sink for.
+                    // what a trace is a `secret` sink for. The clock is read here,
+                    // before the isolate runs, so the root's window contains every
+                    // event the request files.
                     let recording = isolate.answering_request().and_then(|request| {
                         let trace = request.trace_context()?;
-                        trace
-                            .sampled()
-                            .then(|| (format!("{} {}", request.method(), request.path()), trace))
+                        trace.sampled().then(|| {
+                            (
+                                format!("{} {}", request.method(), request.path()),
+                                trace,
+                                nvs_runtime::trace_clock(),
+                            )
+                        })
                     });
                     // The offer reaches the program through the carrier the handler
                     // built, which is why it is made here and not above: this loop
@@ -2193,8 +2200,13 @@ where
                                             // (`nvs_runtime::host::Completion::trace`), and
                                             // derived here because this is where the request
                                             // has ended and its graph is complete.
-                                            if let Some((request, trace)) = &recording {
-                                                crate::trace::record(request, trace, &done.trace);
+                                            if let Some((request, trace, started)) = &recording {
+                                                crate::trace::record(
+                                                    request,
+                                                    trace,
+                                                    *started,
+                                                    &done.trace,
+                                                );
                                             }
                                             let ok = done.ok;
                                             // Memory and CPU time are the limits
