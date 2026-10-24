@@ -34,7 +34,7 @@ stages:
         rules: [testing/property-testing, testing/determinism-declared-on-the-test]
   - id: 7
     title: "a `#[Property]` failure shrinks, and the report carries the counterexample and the seed"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, crates/nvs-types/src/testing.rs, docs/rules/testing/property-testing.md]
     extra:
       context:
@@ -233,9 +233,12 @@ example with `timeout` and `tags`.
 **Does:** the runner runs a property, shrinks a failure, and reports it.
 
 - [x] The runner runs each property over its generated inputs, as one test. `crates/nvs-cli/src/runner.rs:490`
-- [ ] A failure shrinks to a minimal counterexample and reports the seed that reproduces it (`rule:testing/property-testing`). `crates/nvs-cli/src/runner.rs:490`
-- [ ] The JSON report gains the counterexample key it is waiting for (`rule:testing/report-formats`). `crates/nvs-cli/src/runner.rs:2817`
-- [ ] Novis tests: a property that holds, one that fails and shrinks, a seed that reproduces it. `docs/examples/lang/testing/core-test-property-generated-inputs/01-a-property-holds-for-every-input.nvs:1`
+- [x] A failure shrinks to a minimal counterexample and reports the seed that reproduces it (`rule:testing/property-testing`). `crates/nvs-cli/src/runner.rs:490`
+  - [x] `shrink_failure` calls the pure shrinker, one call per candidate in the test's isolate.
+  - [x] Only the last failing call's records are kept, and a stop or `exit()` ends the shrink.
+  - [x] `test_inherit` merges the property table, so a subclass runs an inherited property.
+- [x] The JSON report gains the counterexample key it is waiting for (`rule:testing/report-formats`). `crates/nvs-cli/src/runner.rs:2817`
+- [x] Novis tests: a property that holds, one that fails and shrinks, a seed that reproduces it. `docs/examples/lang/testing/core-test-property-generated-inputs/01-a-property-holds-for-every-input.nvs:1`
 
 ### 8. `#[Property]` has its feature proofs
 
@@ -298,34 +301,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2 and 3 are done; stage 7 is half done. The sweep was stale (the nightly run tested
-`3ea6f1550`, whose failures each have a later fix). `nvs test` runs each `#[Property]` as one test
-under a stand-in `TestCase` (`run_property`, `crates/nvs-cli/src/runner.rs:1997`), listed by
-`class_calls` (`runner.rs:3296`) and `test_classes()`. `build_input` (`runner.rs:2057`) builds each
-tree through `nvs_runtime::InputValues` (`dispatch.rs`), objects with `new`. nvs-ir's
-`property_shapes` registers each inline shape's class. `Gen::Enum`/`Generated::Enum` carry `uint`.
-The seed is `seed:` or random, and arms `set_random_state` too. A failure names the call, the inputs
-(`render_input`) and `#[Property(seed: n)]`. The pure shrinker
-(`crates/nvs-types/src/property/shrink.rs`) and its nine tests pass, but the runner does not call it
-yet. `a_property_runs_as_one_test_over_its_generated_inputs` passes, and clippy is clean.
+Stages 1, 5, 2, 3 and 7 are done. The sweep was stale again: `env-secret-proofs` is green when run,
+and the nightly run tested `3ea6f1550`, whose failures each have a later fix.
+
+A failing property call now shrinks: `shrink_failure` (`crates/nvs-cli/src/runner.rs:2088`) runs
+each candidate through `call_property` in the test's isolate, keeps the last failing outcome, and
+stops at the wall-time deadline or an `exit()`. `counterexample_record` (`runner.rs:2150`) adds the
+report line and a `counterexample` field, which `json_document` writes as the test's
+`counterexample` key through `json_node` (`runner.rs:3954`). `Outcome::and_record` is
+`and_failed` with a built record. `test_inherit` merges the property table, and `#[Property]` is
+in its `MARKERS`. Three examples with blessed `.out` files are in
+`docs/examples/lang/testing/core-test-property-generated-inputs/`, and the property, report-formats
+and hook-inheritance rules say all of it. `a_property_runs_as_one_test_over_its_generated_inputs`
+(`cargo test --bin nvs`) passes, and clippy is clean.
 
 May go red at the gate: a `--dump-ir` snapshot of a program with a property (extra shape classes);
 `E0889`'s card snapshot and anything counting `ATTRIBUTE_DOCS` (`crates/nvs-lsp/src/stubs.rs:156`);
 an `nvs-host` `group.rs` or `nvs-stdlib` `test.rs` unit test reading `take_assertions` on an unowned
 context (call `set_owned_by_test`); a `.nvst` whose non-test code calls test code (`E0889`); a
 recorded editor listing or `nvs test --help` snapshot (`--tag`, `--skip-tag`, `--shard`); the
-site's attributes reference (two new options).
+site's attributes reference (two new options); a JSON report snapshot of a failing property (new
+`counterexample` key); any test asserting the old line "failed with the inputs (" for a property
+that shrinks; a diagnostic snapshot naming `MARKERS`' five attributes (now six).
 
 ### Next
 
-**Stage 7, second half: shrink a failure, report it, and inherit properties.** Its lane is
-`runner.rs`. § *Standing decisions* says how the shrinker is called and that properties inherit.
+**Stage 8: `#[Property]`'s feature proofs.** Follow its `**Split:**` line. The three examples
+exist and are blessed, so the first subagent writes `about.md` and the chapter heading around them.
 
-- [ ] In `run_property`, on the first failing call, call `shrink::shrink` with a `fails` callback that builds the candidate with `build_input` and runs `run_case` in the same isolate. Report the shrunk inputs, the original call and the seed. `crates/nvs-cli/src/runner.rs:1997`, `crates/nvs-types/src/property/shrink.rs:51`
-- [ ] A candidate call's failures must not leak into the verdict: `judge` takes the ledger per call, so keep only the last failing candidate's records. `crates/nvs-cli/src/runner.rs:2864`
-- [ ] The JSON report's counterexample key (`rule:testing/report-formats`). `crates/nvs-cli/src/runner.rs:3143`
-- [ ] `test_inherit` merges the property table as it merges tests. `crates/nvs-types/src/test_inherit.rs:263`
-- [ ] Novis tests: a property that holds, one that fails and shrinks, a seed that reproduces it. `docs/examples/lang/testing/core-test-property-generated-inputs/01-a-property-holds-for-every-input.nvs:1`
+- [ ] `chapter.md` gains a `# \`#[Core\Test\Property]\`: generated inputs` heading after the data-rows one, and `property` in its keywords. `docs/examples/lang/testing/chapter.md:12`
+- [ ] `about.md` for the three examples, modelled on the data-rows one. `docs/examples/lang/testing/core-test-testwith-data-rows/about.md:1`
+- [ ] One bench with its growth, modelled on the data-rows bench. `benches/members/lang/testing/core-test-testwith-data-rows.nvs:1`
+- [ ] One attack: a `gen:` length range asking for a huge input stays under the input budget. `tests/hostile/lang/testing/property-generator-size.nvs:1`
+- [ ] `bun nv proofs --id 'lang:testing/core-test-property-generated-inputs'` passes, then the rule's status is `shipped`. `data/rules/testing/property-testing.json:3`
 
 ### Backlog
 
