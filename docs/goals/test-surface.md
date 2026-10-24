@@ -62,7 +62,7 @@ stages:
         rules: [testing/a-run-can-stop-early-rerun-failures-and-shuffle, testing/runner-is-strict]
   - id: 9
     title: "`nvs test --watch`"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/script.rs, crates/nvs-cli/src/runner.rs, docs/rules/testing/watch-reruns-on-an-edit.md]
     extra:
       context:
@@ -172,6 +172,15 @@ folder that way.** A run of a mixed folder is still refused. Why: the editor nee
 without searching, and a workspace folder usually holds programs too. A new flag that picks the kind
 was declined as one more flag for one client. The cost is one folder compile on discovery in a
 workspace folder with programs and no case. The rule says so (`docs/rules/testing/report-formats.md`).
+
+**`--watch` checks the trace of its own test compile, on the background check's thread.**
+`script::Rerun` starts `watch` with an `also` hook that compares the last pass's trace with the disk
+through `describes_the_disk`, under the same `[opcache]` policy and `settle`. The test compile records
+what it read through `Looked`, as the compiler's own compile does. Why: registering the entry with
+`Compiler::compiled` would compile every edit twice (once as `nvs run`, once as `nvs test`), and a
+folder of programs has an entry that exists only in memory, which the path table cannot watch. The
+TLS client and the extension set are set up once per process (`TestSetup`), and the configuration is
+not watched. The rule says so (`docs/rules/testing/watch-reruns-on-an-edit.md`).
 
 ## Stages
 
@@ -290,10 +299,10 @@ document alone.
 
 **Does:** `--watch` reruns on each change the background check sees.
 
-- [ ] `--watch` drives the runner from the background check's change signal (`rule:testing/watch-reruns-on-an-edit`). `crates/nvs-cli/src/script.rs:1500`, `crates/nvs-cli/src/runner.rs:261`
-- [ ] A test: an edit to a watched file starts a second pass. `crates/nvs-cli/src/script.rs:1500`
-- [ ] The help text. `crates/nvs-cli/src/runner.rs:236`
-- [ ] The rule `shipped`, and `bun nv owners --closes test-surface` passes. `data/rules/testing/watch-reruns-on-an-edit.json:3`
+- [x] `--watch` drives the runner from the background check's change signal (`rule:testing/watch-reruns-on-an-edit`). `crates/nvs-cli/src/script.rs:1500`, `crates/nvs-cli/src/runner.rs:261`
+- [x] A test: an edit to a watched file starts a second pass. `crates/nvs-cli/src/script.rs:1500`
+- [x] The help text. `crates/nvs-cli/src/runner.rs:236`
+- [x] The rule `shipped`, and `bun nv owners --closes test-surface` passes. `data/rules/testing/watch-reruns-on-an-edit.json:3`
 
 ### 10. the goal is verified once, and every failure is fixed
 
@@ -312,20 +321,17 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2, 3, 7, 8, 4 and 6 are done; stage 9 is next. The sweep was stale again:
-`env-secret-proofs` exits 0, and the nightly run tested `3ea6f1550`, whose reds are fixed
-(`crypto-bigint` 0.7.6, `a5f50b907`, and rustfmt in `baf940219`).
+Stages 1 to 9 are done; stage 10, the gate, is next. The sweep was stale: `env-secret-proofs` exits
+0, and the nightly run tested `3ea6f1550`, whose Miri reds are already fixed on `main`.
 
-**`Core\Test\Response::bytes()` returns the body as `bytes`, and its gap record is deleted.** It
-shares the body slot through `crate::instance::read_slot` (`crates/nvs-stdlib/src/test.rs:3162`), so
-a read allocates nothing (the bench records 0). `body`, `json` and `jsonAs` now say "Use `bytes()`
-to read it." The two octet conformance cases print the hex of the whole body, and the three
-spreadsheet download cases compare `bytes()` with the file `bytes` writes, or read its sheet. Its
-proofs are under `Test-Response/bytes`, and `proofs --id` with the debug binary owes nothing. The
-Rust test `a_body_that_is_not_utf8_reads_its_status_and_only_its_text_readers_throw` reads it twice.
-`website/public/llms-full.txt` and `website/src/data/core.json` are re-rendered.
+**`nvs test --watch` works** (`7b3f9205d`). `script::Rerun` (`crates/nvs-cli/src/script.rs:1660`)
+is `watch`'s thread with an `also` hook over the last pass's trace. `watch_program_tests`
+(`crates/nvs-cli/src/main.rs:2799`) loops pass, arm, wait, and `TestSetup` installs the TLS client
+once (a second install is `E0641`). `Program::front_end` takes `looked`. Tried by hand: a broken
+compile waits, and a fix or an edit to a required file reruns. The rule is `shipped`.
 
-May go red at the gate: an `nvs test --help` snapshot (seven new flags); `--list` over a case tree
+May go red at the gate: an `nvs test --help` snapshot (eight new flags, `--watch` is the last); a
+website CLI reference rendered from the help; `--list` over a case tree
 expected refused; a `--dump-ir` snapshot with a property; `E0889`'s card and anything counting
 `ATTRIBUTE_DOCS` (`crates/nvs-lsp/src/stubs.rs:156`); `take_assertions` on an unowned context (call
 `set_owned_by_test`); a `.nvst` whose non-test code calls test code; a recorded editor listing; the
@@ -337,11 +343,12 @@ proof roster (`bytes` is new).
 
 ### Next
 
-**Stage 9, `--watch`, as one group.** Read `docs/rules/testing/watch-reruns-on-an-edit.md` first,
-then the background check's `watch` and its `Also` hook. `--watch` reuses that thread's change
-signal and builds no second watcher (Standing decisions).
+**Stage 10, the gate.** Start `bun nv affected --run` with `run_in_background` and end the turn.
+Group its failures by cause, using the list of likely reds above, and fix them in one pass. Then
+the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes test-surface`, `bun nv proofs
+--gate` and `bun nv render --website --check`.
 
-- [ ] Stage 9, `--watch`, from the background check. `crates/nvs-cli/src/script.rs:1500`, `crates/nvs-cli/src/runner.rs:185`
+- [ ] Stage 10, the gate over the whole goal. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog
 
