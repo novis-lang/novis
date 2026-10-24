@@ -34,8 +34,9 @@ that changes meaning is not a formatter (`rule:tooling/fmt-never-inserts-visibil
 - **An implicit `private`**, as in Rust and in C++ classes. It is safer, but a ported file would compile
   and quietly change meaning, which is worse than either PHP's rule or an error. Novis diverges from PHP
   loudly or not at all.
-- **A warning, or a lint with a suppression annotation.** There is no warning tier and no suppression
-  mechanism (`rule:core-api/casing-has-no-suppression`), and a rule whose whole value is that the author decided
+- **A warning, or a lint with a suppression annotation.** A construct the language does not allow is
+  always an error, a warning is only for code that runs as written, and there is no suppression
+  mechanism (`rule:core-api/casing-has-no-suppression`). A rule whose whole value is that the author decided
   is worth nothing if the author can skip it.
 - **The keyword on properties only, with methods left PHP-shaped.** Half the rule costs a reader the
   whole rule, because they must still remember which half applies where.

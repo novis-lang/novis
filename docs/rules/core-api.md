@@ -519,9 +519,10 @@ that must violate the convention — because it mirrors an external wire format,
 produced it unmodified — does not compile until it is renamed, and a mapping layer is the only route.
 
 A suppression attribute would be the first compiler-level opt-out of any kind in this language, which is a
-larger precedent than the rule it would soften; and a warning tier would be ignored indefinitely, since
-every other diagnostic here is an error. The same reasoning covers the other spelling rules: a rule whose
-whole value is that the author decided is worth nothing if the author can skip it.
+larger precedent than the rule it would soften; and a casing warning would be ignored indefinitely. A
+construct the language does not allow is always an error, and a warning is only for code that runs as
+written ([`statements/an-unused-use-is-a-warning`](statements.md#statements-an-unused-use-is-a-warning)). The same reasoning covers the other spelling
+rules: a rule whose whole value is that the author decided is worth nothing if the author can skip it.
 
 The stance is the piece most likely to be revisited, and only under pressure from a concrete boundary that
 does not exist yet. The question would then be whether *that one* boundary needs an escape, not whether the
@@ -571,8 +572,9 @@ that changes meaning is not a formatter ([`tooling/fmt-never-inserts-visibility`
 - **An implicit `private`**, as in Rust and in C++ classes. It is safer, but a ported file would compile
   and quietly change meaning, which is worse than either PHP's rule or an error. Novis diverges from PHP
   loudly or not at all.
-- **A warning, or a lint with a suppression annotation.** There is no warning tier and no suppression
-  mechanism ([`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression)), and a rule whose whole value is that the author decided
+- **A warning, or a lint with a suppression annotation.** A construct the language does not allow is
+  always an error, a warning is only for code that runs as written, and there is no suppression
+  mechanism ([`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression)). A rule whose whole value is that the author decided
   is worth nothing if the author can skip it.
 - **The keyword on properties only, with methods left PHP-shaped.** Half the rule costs a reader the
   whole rule, because they must still remember which half applies where.

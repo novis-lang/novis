@@ -182,7 +182,11 @@ fn check_fix_applies_every_safe_fix_until_none_applies() {
     );
 
     assert!(
-        out.starts_with("made 4 edits in 2 files\n"),
+        !fixed.contains("use Shop\\Api;"),
+        "the import the rewrites left unused is deleted by a later pass:\n{fixed}"
+    );
+    assert!(
+        out.starts_with("made 5 edits in 2 files\n"),
         "the count comes first: {out}"
     );
     assert!(
@@ -209,7 +213,7 @@ fn check_fix_never_writes_under_vendor() {
     );
     let (out, err, ok) = run_check(&["--fix"], &dir.join("page.nvs"));
     assert!(ok, "{err}");
-    assert!(out.starts_with("made 3 edits in 1 file\n"), "{out}");
+    assert!(out.starts_with("made 4 edits in 1 file\n"), "{out}");
     assert_eq!(
         std::fs::read_to_string(dir.join("vendor/shop.nvs")).expect("the library is there"),
         SHOP,
@@ -277,5 +281,87 @@ fn check_json_carries_the_todos() {
         document["todos"],
         serde_json::json!([]),
         "without the flag the list is empty"
+    );
+}
+
+/// A file with one `use` line a name reads and one that nothing reads, the
+/// second followed by a comment on its line.
+const IMPORTS: &str = r#"<?nvs
+namespace Shop;
+
+use Core\Json;
+use Core\Str; // for the length
+
+echo Json::encode([1]), "\n";
+"#;
+
+/// [`IMPORTS`] once `--fix` has deleted its unused line.
+const IMPORTS_FIXED: &str = r#"<?nvs
+namespace Shop;
+
+use Core\Json;
+
+echo Json::encode([1]), "\n";
+"#;
+
+/// The codes `stderr` reports, in order.
+fn codes(stderr: &str) -> Vec<&str> {
+    stderr
+        .lines()
+        .filter_map(|line| line.strip_prefix("warning["))
+        .filter_map(|rest| rest.split(']').next())
+        .collect()
+}
+
+#[test]
+fn check_warns_about_an_unused_use_and_not_a_used_one() {
+    let dir = scratch("check-unused-use", &[("main.nvs", IMPORTS)]);
+    let (_, err, ok) = run_check(&[], &dir.join("main.nvs"));
+    assert!(ok, "an unused `use` is a warning, not an error: {err}");
+    assert_eq!(codes(&err), ["W1026"], "{err}");
+    assert!(err.contains("`Core\\Str` is imported"), "{err}");
+    assert!(
+        !err.contains("`Core\\Json`"),
+        "a used import warns nothing: {err}"
+    );
+}
+
+#[test]
+fn check_fix_deletes_an_unused_use_and_the_program_still_compiles() {
+    let dir = scratch("check-fix-unused-use", &[("main.nvs", IMPORTS)]);
+    let main = dir.join("main.nvs");
+    let (out, err, ok) = run_check(&["--fix"], &main);
+    assert!(ok, "{err}");
+    assert!(out.starts_with("made 1 edit in 1 file\n"), "{out}");
+    assert_eq!(
+        std::fs::read_to_string(&main).expect("the file is still there"),
+        IMPORTS_FIXED,
+        "the whole line goes, its comment with it"
+    );
+    let (_, err, ok) = run_check(&[], &main);
+    assert!(ok, "the fixed program compiles: {err}");
+    assert!(codes(&err).is_empty(), "nothing is left to report: {err}");
+}
+
+#[test]
+fn fmt_keeps_an_unused_use() {
+    let dir = scratch("fmt-unused-use", &[("main.nvs", IMPORTS)]);
+    let main = dir.join("main.nvs");
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--no-init")
+        .arg("fmt")
+        .arg(&main)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        std::fs::read_to_string(&main)
+            .expect("the file is still there")
+            .contains("use Core\\Str;"),
+        "the formatter has no name resolution and deletes no line"
     );
 }

@@ -740,6 +740,13 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         );
         deprecated = nvs_types::deprecated::notices(&files);
     }
+    // The entry's alone: a diagnostic is published for the document it points
+    // into, and every other file of the graph is published as its own entry.
+    diags.extend(crate::diagnostics::unused_uses(
+        &map,
+        loaded.iter().filter(|file| file.id == entry),
+        &module.imports,
+    ));
 
     Some(Analysed {
         map,

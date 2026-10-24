@@ -457,7 +457,7 @@ server process's life after its first `Core` jump, and one copy on disk per serv
 
 `rule:ide/the-request-set-is-closed`
 
-`nvs lsp` answers seventeen standard requests, the code actions of
+`nvs lsp` answers twenty standard requests, the code actions of
 [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), and seven requests of Novis's own,
 each one admitted on the same test: a data structure the compiler or the server already builds *is* the
 answer. `crates/nvs-lsp/tests/handshake.rs` holds the declared capabilities to exactly that list, and a
@@ -531,7 +531,7 @@ a cursor.
 `callHierarchy` is admitted on the same test and is not declared yet. The user decided to offer it. It
 reads the call-site edges that [`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method) adds
 to the reference index, so the server declares it in the change that builds those edges, as the
-eighteenth standard request. It answers incoming and outgoing calls. A call through a `callable` value
+twenty-first standard request. It answers incoming and outgoing calls. A call through a `callable` value
 or a `mixed` receiver is not shown, because the checker resolved no single target for it.
 
 The second non-standard request is `nvs/regions`
@@ -548,6 +548,23 @@ are rows in the coverage matrix. The other four are answered on the wire and hel
 `nvs_lsp::render` has no canonical spelling for the shapes they answer and a case may not invent one
 ([`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case)). Giving one of them a rendering makes it a case and
 changes nothing about the answer.
+
+The last three standard requests are the rename of [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), and
+they pass the same test. `prepareRename` and `rename` read the reference index for a type and for a
+member, with a method's whole override family, and the type phase's record of each body's bindings for
+a local. `workspace/willRenameFiles` reads the `require` edges the graph walk recorded, the same edges
+`documentLink` underlines, and writes each literal that names a moved file again. A type declared alone
+in a file named after it moves that file too, because an `autoload` finds it by that name: the edit is
+`documentChanges`, its text edits first and one `RenameFile` last, with the `require` edits that move
+makes. A rename the server will not carry out is answered `RequestFailed` with a message the editor
+shows: a cursor on no symbol, `$this`, a parameter, a name declared outside the workspace, a new name
+that is no identifier or that clashes, and a type whose file must move for a client whose
+`workspace.workspaceEdit` capability has no `documentChanges` or no `rename` resource operation. All
+three carry `.lspt` vocabulary: `prepareRename` renders a range, `rename` and `willRenameFiles` one line
+per edit, a moved file one `moves <from> to <to>` line after them, and a refusal its message.
+
+- **Memory:** nothing held. Each request reads the index and the text of the files its sites are in,
+  and a file move analyses each entry point that read the moved file once.
 
 The third and fourth non-standard requests are `nvs/imports` and `nvs/importEdits`
 ([`ide/a-pasted-type-carries-its-use-line`](ide.md#ide-a-pasted-type-carries-its-use-line)), and they pass the same test: the first is the
@@ -1041,8 +1058,16 @@ much a second name as one typed by hand.
 **Built:** signature help, inlay hints, and the three places the server writes a `use` line: an
 accepted completion, a pasted type ([`ide/a-pasted-type-carries-its-use-line`](ide.md#ide-a-pasted-type-carries-its-use-line)) and an undeclared
 name's fix. Each writes the fully-qualified name at `nvs_hir::import_site` and never an alias
-(`crates/nvs-lsp/src/imports.rs`). **Missing:** rename, extract to method or variable, organize-imports
-and cross-file symbol search.
+(`crates/nvs-lsp/src/imports.rs`). Rename of a member or a local, and the `require` paths a moved file
+changes (`crates/nvs-lsp/src/rename.rs`): a method is renamed with every method that overrides it or
+that it overrides, and a new name that some class of that family, above it or below it, already
+declares is refused with a message. A local's new name may not be bound already in its body. Neither
+is ever resolved with an alias. Rename of a class, an interface, an enum or a type alias declared
+outside a class: the index records each type annotation and each class written in front of `::`, and
+the rename changes the last segment at every site and in every `use` line. A new name that another
+type in the workspace has, or that a file with a site already writes, is refused. A type declared
+alone in a file named after it renames that file with it, so an `autoload` still finds it.
+**Missing:** extract to method or variable; organize-imports; and cross-file symbol search.
 
 <sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/var-inference`](types.md#types-var-inference), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index).</sub>
 
@@ -2195,12 +2220,14 @@ contributor has to know the shape of both.
 
 `rule:ide/a-request-line-is-closed`
 
-`--REQUEST--` is one line: the request name, then optional `key=value` arguments. The argument set is
+`--REQUEST--` is one line: the request name, then its `key=value` arguments. The argument set is
 closed per request and lives in the case parser, `crates/nvs-lsp/src/case.rs`, so a case cannot ask for something no runner implements.
 `completion` takes `prefix=` (filter the labels, which is how a case about `->` avoids freezing the whole
 keyword list) and `limit=`; `diagnostics` takes `phase=all` to defeat [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated),
 which is how the gating itself gets a case; `semanticTokens` takes `types=` to restrict the rendering to
-the token types under test; the rest take none.
+the token types under test; `rename` needs `to=`, the new name; `willRenameFiles` needs `from=` and
+`to=`, the file or folder that moves and where it moves to, each relative to the case's own directory;
+the rest take none. A line that leaves out an argument its request needs fails the case.
 
 An unknown request or argument fails the case loudly rather than being ignored. A silently-dropped argument
 is a case that passes while testing something else.

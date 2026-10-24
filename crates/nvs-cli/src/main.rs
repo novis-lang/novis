@@ -1169,6 +1169,16 @@ fn front_end_in(
     if let Some(looked) = looked {
         looked.take(&map, Some(&autoload));
     }
+    // `nvs check`'s alone (`rule:statements/an-unused-use-is-a-warning`): a
+    // program that runs prints nothing about a line it never needed. A file
+    // under `vendor` is not the project's to change, so it is not reported.
+    if matches!(sink, Sink::Check { .. } | Sink::Fix) {
+        let owned = loaded
+            .iter()
+            .filter(|file| !map.file(file.id).path().is_some_and(check::vendored));
+        let unused = nvs_lsp::diagnostics::unused_uses(&map, owned, &module.imports);
+        diags.extend(unused);
+    }
     conceal_secret_literals(&mut map, &diags, &loaded, &exprs, &interner);
     let Some(layouts) = layouts else {
         autoload.note_searched_roots(

@@ -1411,7 +1411,41 @@ fn named(node: &walk::Node) -> Span {
 /// `rule:statements/a-qualified-name-is-absolute` makes that one consult no
 /// import at all. [`Import::read`] says which way this reading errs.
 fn imports(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Import> {
-    let file = analysed.map.file(loaded.id);
+    reads(
+        analysed.map.file(loaded.id),
+        loaded,
+        &analysed.module.imports,
+    )
+    .into_iter()
+    .map(|found| Import {
+        symbol: found.import.target.to_string(),
+        site: site(path, found.import.span),
+        read: found.read,
+    })
+    .collect()
+}
+
+/// One `use` import of a file, as [`reads`] found it.
+#[derive(Debug)]
+pub(crate) struct Read<'a> {
+    pub(crate) import: &'a nvs_hir::Import,
+    /// The whole `use` statement that writes it.
+    pub(crate) statement: Span,
+    /// [`Import::read`].
+    pub(crate) read: bool,
+}
+
+/// Every `use` import `file` writes, of the `imports` name resolution saw,
+/// each with whether a name in its scope reads it.
+///
+/// The one reading of an import's use: [`imports`] keeps it in the index, and
+/// the unused-`use` warning of [`crate::diagnostics::unused_uses`] reports it,
+/// so the editor and `nvs check` cannot disagree about a line.
+pub(crate) fn reads<'a>(
+    file: &SourceFile,
+    loaded: &Loaded,
+    imports: &'a [nvs_hir::Import],
+) -> Vec<Read<'a>> {
     // The file parsed already, so lexing it again reports nothing new.
     let tokens = tokenize(file, &mut Diagnostics::new());
     let end = BytePos::try_from(file.text().len()).unwrap_or(BytePos::MAX);
@@ -1419,9 +1453,7 @@ fn imports(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Import> {
     let mut statements = Vec::new();
     use_statements(&loaded.stmts, &mut statements);
 
-    analysed
-        .module
-        .imports
+    imports
         .iter()
         .filter(|import| import.span.file == loaded.id)
         .map(|import| {
@@ -1435,9 +1467,14 @@ fn imports(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Import> {
                         .any(|used| covers(*used, token.span.start))
                     && !beside_a_backslash(&tokens, at)
             });
-            Import {
-                symbol: import.target.to_string(),
-                site: site(path, import.span),
+            let statement = statements
+                .iter()
+                .copied()
+                .find(|used| covers(*used, import.span.start))
+                .unwrap_or(import.span);
+            Read {
+                import,
+                statement,
                 read,
             }
         })

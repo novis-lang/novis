@@ -53,14 +53,16 @@ use std::sync::Arc;
 
 use lsp_types::{DiagnosticSeverity, DiagnosticTag, NumberOrString, Range};
 use nvs_diagnostics::{
-    Code, Diagnostic, Diagnostics, PositionEncoding, Severity, SourceFile, SourceId, Span, code,
+    BytePos, Code, Diagnostic, Diagnostics, PositionEncoding, Severity, SourceFile, SourceId,
+    SourceMap, Span, code,
 };
+use nvs_hir::Loaded;
 use nvs_syntax::string_lit::cook_string_literal;
 
 use crate::arguments;
 use crate::completion_files::{CompletionFiles, Value};
 use crate::document::Analysed;
-use crate::index::{CheckScope, Declaration, Import};
+use crate::index::{CheckScope, Declaration};
 use crate::position::position_at;
 
 /// The bands whose error means this file's tree is broken, so what the phases
@@ -313,9 +315,71 @@ fn deprecated_value(
     ))
 }
 
+/// A `W1026` warning for every `use` line in `files` that no name in its scope
+/// reads (`rule:statements/an-unused-use-is-a-warning`), in source order.
+///
+/// The reading is the index's own ([`crate::index::reads`]), so `nvs check`,
+/// which calls this over every file of its program, and the editor, whose
+/// analysis calls it over the open document, report the same lines. An import
+/// whose name resolves to nothing has its error already and no warning here.
+///
+/// Each warning carries one safe edit that deletes the statement. When nothing
+/// but blank space or a comment shares its line, the edit deletes the whole
+/// line, so the file keeps no empty line where the import was.
+#[must_use]
+pub fn unused_uses<'a>(
+    map: &SourceMap,
+    files: impl IntoIterator<Item = &'a Loaded>,
+    imports: &[nvs_hir::Import],
+) -> Vec<Diagnostic> {
+    files
+        .into_iter()
+        .flat_map(|loaded| {
+            let file = map.file(loaded.id);
+            crate::index::reads(file, loaded, imports)
+                .into_iter()
+                .filter(|found| !found.read && found.import.resolved)
+                .map(|found| {
+                    Diagnostic::warning(
+                        code::W_UNUSED_USE,
+                        format!(
+                            "`{}` is imported, but this file never uses it",
+                            found.import.target
+                        ),
+                    )
+                    .with_primary(found.import.span, "not used")
+                    .with_fix(
+                        line_of(file, found.statement),
+                        String::new(),
+                        "delete this `use` line",
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+/// `statement` widened to its whole line, newline included, when nothing else
+/// on that line is code; `statement` itself otherwise.
+fn line_of(file: &SourceFile, statement: Span) -> Span {
+    let text = file.text();
+    let (start, end) = (statement.start as usize, statement.end as usize);
+    let line_start = text[..start].rfind('\n').map_or(0, |at| at + 1);
+    let rest = &text[end..];
+    let line_end = rest.find('\n').map_or(text.len(), |at| end + at + 1);
+    let after = rest[..line_end - end].trim();
+    let alone =
+        text[line_start..start].trim().is_empty() && (after.is_empty() || after.starts_with("//"));
+    if !alone {
+        return statement;
+    }
+    let to = |at: usize| BytePos::try_from(at).unwrap_or(BytePos::MAX);
+    Span::new(statement.file, to(line_start), to(line_end))
+}
+
 /// The dimming an editor is sent for one document: one `Unnecessary` tag per
-/// private declaration in it that nothing in the index refers to, and one per
-/// `use` import that no name in its scope reads.
+/// private declaration in it that nothing in the index refers to. An unused
+/// `use` line is not here: it is the `W1026` warning, which [`to_wire`] fades.
 ///
 /// **Silent at open scope**, and that is the rule rather than a shortcut.
 /// `rule:ide/check-scope-defaults-to-the-workspace`'s `"open"` indexes the open
@@ -324,9 +388,8 @@ fn deprecated_value(
 /// index does not span the workspace the honest answer is nothing at all,
 /// rather than a guess a client renders in grey.
 ///
-/// `unused` and `imports` are the answer to *which* names, which is
-/// [`crate::SymbolIndex::unused_private`]'s and
-/// [`crate::SymbolIndex::unused_imports`]'s, and this is the crossing to the
+/// `unused` is the answer to *which* names, which is
+/// [`crate::SymbolIndex::unused_private`]'s, and this is the crossing to the
 /// wire — the same split [`for_document`] makes between the gate and
 /// [`to_wire`].
 ///
@@ -336,7 +399,6 @@ fn deprecated_value(
 #[must_use]
 pub fn dimming(
     unused: &[&Declaration],
-    imports: &[&Import],
     scope: CheckScope,
     analysed: &Analysed,
     encoding: PositionEncoding,
@@ -359,26 +421,19 @@ pub fn dimming(
         message,
         ..lsp_types::Diagnostic::default()
     };
-    let members = unused.iter().map(|declared| {
-        faded(
-            &declared.site,
-            format!(
-                "{} `{}` is private and nothing in this workspace uses it",
-                declared.kind.describe(),
-                declared.symbol
-            ),
-        )
-    });
-    let imported = imports.iter().map(|import| {
-        faded(
-            &import.site,
-            format!(
-                "`{}` is imported and nothing in this file uses it",
-                import.symbol
-            ),
-        )
-    });
-    members.chain(imported).collect()
+    unused
+        .iter()
+        .map(|declared| {
+            faded(
+                &declared.site,
+                format!(
+                    "{} `{}` is private and nothing in this workspace uses it",
+                    declared.kind.describe(),
+                    declared.symbol
+                ),
+            )
+        })
+        .collect()
 }
 
 /// What a diagnostic's `source` field says produced it.
@@ -426,9 +481,9 @@ const fn severity(severity: Severity) -> DiagnosticSeverity {
 /// [`nvs_diagnostics::Suggestion`] is a code action, which is
 /// `textDocument/codeAction`'s. The one tag set here is `Deprecated`, on
 /// `W1003`, a use of deprecated code, and on `W1021`, the hint
-/// [`from_completion_files`] gives a deprecated value. The
-/// `Unnecessary` tag is not set here: no compiler diagnostic carries it, and
-/// [`dimming`] is where the index produces one instead.
+/// [`from_completion_files`] gives a deprecated value. `Unnecessary` is set on
+/// `W1026`, an unused `use` line, so an editor fades the line as well as
+/// listing it.
 #[must_use]
 pub fn to_wire(
     diagnostic: &Diagnostic,
@@ -457,12 +512,15 @@ pub fn to_wire(
         source: Some(SOURCE.to_owned()),
         message: diagnostic.message.clone(),
         related_information: None,
-        tags: diagnostic
-            .code
-            .is_some_and(|found| {
-                found == code::W_DEPRECATED || found == code::W_COMPLETION_VALUE_DEPRECATED
-            })
-            .then(|| vec![DiagnosticTag::DEPRECATED]),
+        tags: match diagnostic.code {
+            Some(found)
+                if found == code::W_DEPRECATED || found == code::W_COMPLETION_VALUE_DEPRECATED =>
+            {
+                Some(vec![DiagnosticTag::DEPRECATED])
+            }
+            Some(found) if found == code::W_UNUSED_USE => Some(vec![DiagnosticTag::UNNECESSARY]),
+            _ => None,
+        },
         data: None,
     }
 }
@@ -610,6 +668,57 @@ mod tests {
                 code::E_TYPE_MISMATCH.as_str()
             ],
             "an unplaced diagnostic was attributed to the broken file"
+        );
+    }
+
+    /// An unused `use` line is faded, which is what its `Unnecessary` tag
+    /// asks an editor to do, and a deprecated use keeps its own tag.
+    #[test]
+    fn an_unused_use_is_tagged_unnecessary() {
+        let mut map = SourceMap::new();
+        let id = map.add("main.nvs", "<?nvs\nuse Core\\Str;\n");
+        let file = map.file(id);
+        let tags = |diagnostic_code| {
+            to_wire(
+                &at(Severity::Warning, diagnostic_code, id),
+                file,
+                PositionEncoding::Utf16,
+            )
+            .tags
+        };
+        assert_eq!(
+            tags(code::W_UNUSED_USE),
+            Some(vec![DiagnosticTag::UNNECESSARY])
+        );
+        assert_eq!(
+            tags(code::W_DEPRECATED),
+            Some(vec![DiagnosticTag::DEPRECATED])
+        );
+    }
+
+    /// The fix deletes a statement alone on its line with the line, comment
+    /// and newline included, and only the statement when code shares its line.
+    #[test]
+    fn the_fix_deletes_the_whole_line_only_when_the_statement_is_alone() {
+        let mut map = SourceMap::new();
+        let text = "<?nvs\nuse A\\B; // why\nuse C\\D; echo 1;\n";
+        let id = map.add("main.nvs", text);
+        let file = map.file(id);
+        let span_of = |needle: &str| {
+            let start = u32::try_from(text.find(needle).expect("the fixture has it"))
+                .expect("a small fixture");
+            let end = start + u32::try_from(needle.len()).expect("a small fixture");
+            Span::new(id, start, end)
+        };
+        let alone = line_of(file, span_of("use A\\B;"));
+        assert_eq!(
+            &text[alone.start as usize..alone.end as usize],
+            "use A\\B; // why\n"
+        );
+        let shared = line_of(file, span_of("use C\\D;"));
+        assert_eq!(
+            &text[shared.start as usize..shared.end as usize],
+            "use C\\D;"
         );
     }
 }
