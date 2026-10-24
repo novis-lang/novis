@@ -3,7 +3,7 @@
 
 # The editor
 
-*16 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -772,26 +772,32 @@ which changes only line breaks. Nothing is wrong in either case, so there is no 
 them, and the server computes each from the expression under the cursor alone, with no type or module
 question. Neither is ever under `source.fixAll.nvs` or `quickfix`. The server computes no other
 action for itself but the two extractions under `refactor.extract`, which
-[`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias) states; the ones that write a declaration are
-[`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined)'s.
+[`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias) states; the ones that write a declaration or narrow an
+annotation are [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined)'s.
 
 <sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one).</sub>
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
-## An inspection is a code action backed by a diagnostic the checker emits, runs on the resilient tree, and is off by default under `source.fixAll.nvs` so it composes with format-on-save while `nvs fmt` stays layout-only  *(designed — owned by goal editor-fixes)*
+## An inspection is a code action backed by a diagnostic the checker emits, runs on the resilient tree, and is off by default under `source.fixAll.nvs` so it composes with format-on-save while `nvs fmt` stays layout-only
 
 `rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`
 
 An inspection is an LSP code action, and every one is backed by a diagnostic the checker emits: a casing
 violation offers the `camelCase`/`PascalCase` rename ([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)); a legacy
 `(int)$x` offers `$x as int` ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)); a missing constructor property assignment
-offers to add it ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)); `include` and `require_once` offer
-`require` ([`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct)); a `tainted` or `secret` value at
-a refusing sink offers the laundering call the diagnostic already names
-([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), a mis-ordered `tainted secret string` included; and a `#[Route]`
-missing its `path` offers the derived one ([`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path)). Each is a
-suggestion the developer applies deliberately.
+offers `$this->name = $name;` as the body's first statement where a parameter that is not promoted has
+the property's name ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)); `include`, `include_once` and
+`require_once` offer `require` ([`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct)); a `tainted`
+value at a refusing sink offers the laundering call the diagnostic already names, where that call takes
+the value as its one argument ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)); a mis-ordered `tainted secret string`
+offers `secret tainted string`; and a `#[Route]` missing its `path` offers the derived one
+([`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path)). Each is a suggestion the developer applies
+deliberately.
+
+A fix is offered only where the diagnostic knows every word of it. A property with no parameter of its
+name has no value to assign, `Core\Ldap\Dn::of` needs an attribute name, and `Core\Secret::reveal` and
+`Core\Taint::assertTrusted` need a reason only the author can give, so none of them is offered.
 
 They run against the resilient tree ([`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error)), not a successful
 parse: a mis-ordered qualifier, a legacy cast and a `var $x` property are parse or declaration errors,
@@ -820,12 +826,14 @@ changes what the line prints.
 `quickfix` and `source.fixAll.nvs`, and leaves an `alternative` out of the fix-all set. The suggestions
 on disk include the casing rename, the legacy cast, the `var` property's visibility and type, an
 undeclared name's import ([`ide/an-undeclared-name-offers-its-import`](ide.md#ide-an-undeclared-name-offers-its-import)), a deprecated use's
-replacement, `W1022`'s two groupings and the regrouped bitwise comparison.
-
-**Missing:** the constructor assignment, `include` and `require_once` to `require`, the laundering
-call, the reordered qualifiers and the derived `#[Route]` path. Their diagnostics carry no suggestion.
-The laundering call is marked `alternative` when it lands: a sink usually accepts more than one
-launderer, the choice is the reader's, and so `source.fixAll.nvs` never applies it.
+replacement, `W1022`'s two groupings and the regrouped bitwise comparison. `E0409` carries the
+constructor assignment (`crates/nvs-types/src/ctor_init.rs`), `E0221` the `require` keyword
+(`crates/nvs-syntax/src/parser/expr.rs`), `E0116` the reordered qualifiers
+(`crates/nvs-syntax/src/parser/ty.rs`), `E0747` the derived path (`crates/nvs-types/src/routes.rs`),
+and the `E0401` of a `tainted` URL at an outbound call `Core\Http::allowUrl` around the argument
+(`crates/nvs-types/src/expr/args.rs`). That call is marked `alternative`: it checks the address at run
+time and may throw, the choice is the reader's, and so `source.fixAll.nvs` never applies it. Each has a
+case under `tests/lsp/actions/`.
 
 <sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template).</sub>
 
@@ -1008,7 +1016,7 @@ spelling — a list of name pairs and a text edit — and are held by a Rust tes
 
 <a id="ide-a-code-action-writes-only-what-is-already-determined"></a>
 
-## A code action that writes may write only text the type system has already fully determined, and never makes a choice  *(designed — owned by goal editor-fixes)*
+## A code action that writes may write only text the type system has already fully determined, and never makes a choice
 
 `rule:ide/a-code-action-writes-only-what-is-already-determined`
 
@@ -1061,7 +1069,10 @@ statement and `mixed` elsewhere. The body throws a `LogicError`, and the text is
 offered. A static call and a `...` spread get nothing. Applied once, the call resolves, so a second
 application finds no diagnostic.
 
-**Missing:** the narrowing action.
+Narrow an `array<mixed>` is a `refactor.rewrite` at the annotation (`crates/nvs-lsp/src/narrow.rs`). The
+type it writes is the one the checker recorded for the literal, and the document with the edit applied
+must report the diagnostics it reported before. Applied once, the annotation is no longer
+`array<mixed>`, so a second application finds nothing to offer.
 
 <sub>See also [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`classes/property-observer`](classes.md#classes-property-observer), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
@@ -1122,7 +1133,7 @@ graph and runs only while a selection covers exactly one expression or run of st
 
 <a id="ide-narrow-an-annotation-to-its-literal"></a>
 
-## One editor action rewrites an `array<mixed>` annotation to the type of the array literal that initializes it, and rewrites nothing else  *(designed — owned by goal editor-fixes)*
+## One editor action rewrites an `array<mixed>` annotation to the type of the array literal that initializes it, and rewrites nothing else
 
 `rule:ide/narrow-an-annotation-to-its-literal`
 
@@ -1149,7 +1160,13 @@ the far side of the boundary the first editor slice draws.
 A round trip asserts it: offered on a literal-initialized annotation, absent on a `Core\Json::decode`
 initializer, and the file it produces still checks clean.
 
-**Missing:** the action, its synthesis in `nvs-types` and the round trip. Nothing on disk offers it.
+**Built:** *Narrow the type*, a `refactor.rewrite` action (`crates/nvs-lsp/src/narrow.rs`). It is offered
+on the annotation of a local declaration, at any depth of statements and method bodies. A property's
+default, a parameter's and a declaration inside a closure are not offered. The type comes from the
+synthesis `var` runs: the document is analysed with `var` in place of the annotation, and the checker
+records the literal's type there (`ExprTypeTable::literal_type`), the union of a literal it refuses
+included. `nvs_types::narrow` widens and prints it. The round trip is
+`a_narrowed_annotation_checks_as_before_and_is_not_offered_again` in `crates/nvs-lsp/tests/actions.rs`.
 
 **Declined:**
 - **A hint-severity diagnostic saying an annotation could be narrower.** It makes the checker say
@@ -1160,7 +1177,7 @@ initializer, and the file it produces still checks clean.
 
 <a id="ide-narrowest-means-narrowest-base-type"></a>
 
-## The synthesized element type is the canonical union of the elements' base types, recursed through nested literals and bounded at depth 32  *(designed — owned by goal editor-fixes)*
+## The synthesized element type is the canonical union of the elements' base types, recursed through nested literals and bounded at depth 32
 
 `rule:ide/narrowest-means-narrowest-base-type`
 
@@ -1183,8 +1200,10 @@ The unit tests are the list: a homogeneous nest at three levels, a heterogeneous
 canonical union, an integer literal widening to `int`, an enum case widening to its enum, `[]` yielding no
 offer, a `mixed` element yielding no offer, and a literal past depth 32 yielding no offer.
 
-**Missing:** the synthesis and its unit tests, with the action they serve
-([`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal)).
+**Built:** `nvs_types::narrow::narrowest` widens the type the synthesis gave the literal and declines the
+cases above, and `nvs_types::narrow::written` prints it, `?T` for a union of one type and `null`. A type
+no annotation is written as declines too: a shape, an intersection, a `property<T>` key, a `string<K>`
+and a callable signature. The unit tests are in `crates/nvs-types/src/narrow.rs`.
 
 **Declined:**
 - **The true narrowest type, literals included.** `array<1|3>` is narrower and correct, and it refuses
@@ -1195,7 +1214,7 @@ offer, a `mixed` element yielding no offer, and a literal past depth 32 yielding
 
 <a id="ide-the-action-answers-from-the-literal-or-not-at-all"></a>
 
-## The narrowing action answers from a literal in the same file, or it is not offered: no literal, a `mixed` element, or a no-op each hides it  *(designed — owned by goal editor-fixes)*
+## The narrowing action answers from a literal in the same file, or it is not offered: no literal, a `mixed` element, or a no-op each hides it
 
 `rule:ide/the-action-answers-from-the-literal-or-not-at-all`
 
@@ -1223,7 +1242,10 @@ reaching the declaration and a generator that picks between answers, which
 objection goes away if the reference index of [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index) comes
 to answer every write reaching a declaration; the choice half remains.
 
-**Missing:** the action these refusals bound ([`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal)).
+**Built:** `narrowing_is_not_offered_without_a_literal_that_states_the_type` in
+`crates/nvs-lsp/tests/actions.rs` holds a decoded value, an empty literal at the top and nested, and a
+`mixed` element to no offer. An initializer that is not an array literal is never asked about, so a
+value from another file has no answer to give.
 
 <sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/tainted-sources`](security.md#security-tainted-sources).</sub>
 
@@ -1265,7 +1287,7 @@ choice in it: the type is the one its elements state, so `var` takes it.
 
 <a id="ide-narrowing-is-a-diff-never-a-save-time-fix"></a>
 
-## The narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects, because it breaks writes it cannot see  *(designed — owned by goal editor-fixes)*
+## The narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects, because it breaks writes it cannot see
 
 `rule:ide/narrowing-is-a-diff-never-a-save-time-fix`
 
@@ -1290,9 +1312,11 @@ generic helper path for the typed one, and its element writes become compile err
 throws. Nothing is spent per request, and no memory beyond one more interned descriptor where the program
 did not already have that type.
 
-**Missing:** the action and the client test, with
-[`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal). The `source.fixAll.nvs` set on disk is the suggestions
-diagnostics carry, less the alternatives (`crates/nvs-lsp/src/actions.rs`).
+**Built:** the action is a `refactor.rewrite` appended only to a quick-fix answer
+(`crates/nvs-lsp/src/actions.rs`), and the round trip in `crates/nvs-lsp/tests/actions.rs` asks for
+`source.fixAll.nvs` and is answered nothing. The writes it cannot see from the declaration are seen by
+the analysis it runs before the offer: the document with the edit applied must report exactly the
+diagnostics it reports now, so a later `$a[] = "x"` that the narrower type refuses hides the action.
 
 <sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/conversion`](types.md#types-conversion), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
@@ -1420,7 +1444,11 @@ is the same query narrowed to the open file, which is why it reads the index rat
 document alone: it needs resolution applied to every occurrence, not to one. CodeLens above a declaration shows
 the reference count, a type's implementors, and the methods a method overrides and is overridden by; it is
 gated on `nvs.codeLens.enable` (default `true`), because a lens is a request per visible declaration and a
-large file is where it is least welcome. `textDocument/typeHierarchy` shows supertypes and subtypes,
+large file is where it is least welcome. A click on a lens lists the places it counts. The lens carries
+`nvs.showLocations` with the document, its position and those places, and only for a client that names
+that id in `capabilities.experimental.commands`; every other client gets a label. The VS Code client
+registers the id and opens the editor's reference view. The id is frozen like a contributed command, and
+the places cost one file load per file that holds one, per lens request. `textDocument/typeHierarchy` shows supertypes and subtypes,
 including [`classes/interface-default-methods`](classes.md#classes-interface-default-methods) and [`classes/delegation-by-property`](classes.md#classes-delegation-by-property), which is
 where a reader most needs to see the shape rather than reconstruct it.
 
@@ -2556,7 +2584,7 @@ the wrong token.
 
 <a id="ide-doc-comment-authoring-is-the-editors-own"></a>
 
-## Writing a `///` run is the editor's job: `onEnterRules` continues one, a paste provider prefixes one, and neither contributes a name  *(designed — owned by goal editor-fixes)*
+## Writing a `///` run is the editor's job: `onEnterRules` continues one, a paste provider prefixes one, and neither contributes a name
 
 `rule:ide/doc-comment-authoring-is-the-editors-own`
 
@@ -2588,9 +2616,12 @@ produce anything that is not a comment, so the worst case is a badly worded one.
 
 - **Memory:** none. Both affordances run in the editor and touch no compile and no request.
 
-**Built:** the `onEnterRules` continuation, in `editors/vscode/language-configuration.json`.
-**Missing:** *Paste as doc comment*. The extension's one `DocumentPasteEditProvider` is the import
-carried with a pasted type (`editors/vscode/src/imports.ts`).
+**Built:** the `onEnterRules` continuation, in `editors/vscode/language-configuration.json`, and
+*Paste as doc comment* under the frozen kind `text.docComment.nvs`. `editors/vscode/src/docpaste.ts`
+decides the edit without an editor, and `editors/vscode/src/doccomments.ts` is the provider that offers
+it. It is offered at one cursor placed after a line's `///`, for text of two lines or more, and one
+line ending at the end of the text is dropped. `editors/vscode/test/client/docpaste.test.ts` holds it
+in the headless tier.
 
 **Declined:**
 - **A `///`-delimited block** — `///` alone opening, an un-prefixed body, `///` alone closing. Its
@@ -3322,7 +3353,7 @@ user is the only thing that turns it off, with `nvs.secrets.redact` (default `tr
 
 <a id="ide-redaction-does-not-reach"></a>
 
-## What the editor's concealment cannot cover is written down, because a redaction trusted past its reach is worse than none  *(designed — owned by goal editor-fixes)*
+## What the editor's concealment cannot cover is written down, because a redaction trusted past its reach is worse than none
 
 `rule:ide/redaction-does-not-reach`
 
@@ -3351,8 +3382,8 @@ who believes the editor protects them everywhere is worse off than one who knows
 - **Redacting the "before" side of a diff.** Does not exist: it needs a type answer for a revision of the
   document the server never analysed.
 
-**Built:** the concealment itself ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)). **Missing:** this
-list in `editors/vscode/README.md`, which describes the concealment and not where it stops.
+**Built:** the concealment itself ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)), and this list in
+`editors/vscode/README.md` § *Where hidden secrets are still visible*, the page the Marketplace shows.
 
 <sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local).</sub>
 

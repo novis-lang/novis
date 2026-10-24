@@ -9,6 +9,22 @@ The extension is a thin client. It holds no parser, no formatter and no type tab
 `rule:ide/one-server-two-thin-clients` is why: language smarts have one implementation, and a second one
 arriving here as an npm dependency is what the contributions suite's allowlist refuses.
 
+## Where hidden secrets are still visible
+
+The editor hides the value of a `secret` string while you read the code. The setting is
+`nvs.secrets.redact`. This only changes what the editor draws. The value is still in the file, and you
+can see it in these places:
+
+- Search results and the Quick Open preview. They show the matching lines outside the editor.
+- Diff and source control views. The old value of a secret you changed is visible there.
+- The minimap. It draws the text of the file.
+- Other extensions. Their hovers, code lenses and web views read the text of the file.
+- The clipboard. If you copy a hidden value, the clipboard gets the real value.
+- The file on disk, the working tree and the Git history. A secret that is written in the code is
+  still in the code.
+
+Keep real secrets out of the source code. Read them from the environment or a secret store instead.
+
 ## Working on it
 
 ```
