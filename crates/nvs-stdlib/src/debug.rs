@@ -590,19 +590,41 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Debug::startTrace(string $path): void` — the call probe on, its sink named.
+    /// `Core\Debug::startTrace(string $path): void` — the call probe on, and the file its calls
+    /// stream to created. A file that cannot be created turns the probe back off and throws.
     fn nvs_core_debug_start_trace(ctx, args: [1]) {
         let path = start_sink(ctx, &args[0], (DebugFlags::TRACE, Cap::DebugTrace), "startTrace")?;
-        ctx.set_trace_sink(Some(path));
-        Ok(Value::null())
+        match nvs_runtime::TraceSink::create(&path) {
+            Ok(sink) => {
+                ctx.set_trace_sink(Some(sink));
+                Ok(Value::null())
+            }
+            Err(err) => {
+                ctx.stop_probes(DebugFlags::TRACE);
+                Err(Fault::thrown(format!(
+                    "Core\\Debug::startTrace cannot create `{}`: {err}.",
+                    path.display()
+                )))
+            }
+        }
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Debug::stopTrace(): void` — the call probe off and its sink closed.
+    /// `Core\Debug::stopTrace(): void` — the call probe off and its file closed. The probe is off
+    /// even when the close fails, and the failure throws, because the file is missing calls.
     fn nvs_core_debug_stop_trace(ctx, args: [0]) {
         ctx.stop_probes(DebugFlags::TRACE);
-        ctx.set_trace_sink(None);
+        let Some(sink) = ctx.set_trace_sink(None) else {
+            return Ok(Value::null());
+        };
+        let path = sink.path().to_path_buf();
+        sink.finish().map_err(|err| {
+            Fault::thrown(format!(
+                "Core\\Debug::stopTrace could not write every call to `{}`: {err}.",
+                path.display()
+            ))
+        })?;
         Ok(Value::null())
     }
 }

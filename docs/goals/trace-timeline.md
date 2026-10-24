@@ -182,9 +182,9 @@ window.
 
 **Does:** the `call` events go to a sink as they close, and never into memory.
 
-- [ ] A sink writes the `call` events as newline-delimited JSON as they close (`rule:testing/debug-surface`). `crates/nvs-runtime/src/ctx/trace.rs:329`
-- [ ] The vector keeps only the bounded span events, and `startTrace`'s path opens the sink. `crates/nvs-runtime/src/ctx/mod.rs:1381`, `crates/nvs-stdlib/src/debug.rs:117`
-- [ ] Rust tests: a traced loop of many calls holds no `call` event in the vector, and the sink file has one line per call (`rule:testing/debug-probes`). `crates/nvs-runtime/src/ctx/trace.rs:1324`
+- [x] A sink writes the `call` events as newline-delimited JSON as they close (`rule:testing/debug-surface`). `crates/nvs-runtime/src/ctx/trace.rs:329`
+- [x] The vector keeps only the bounded span events, and `startTrace`'s path opens the sink. `crates/nvs-runtime/src/ctx/mod.rs:1381`, `crates/nvs-stdlib/src/debug.rs:117`
+- [x] Rust tests: a traced loop of many calls holds no `call` event in the vector, and the sink file has one line per call (`rule:testing/debug-probes`). `crates/nvs-runtime/src/ctx/trace.rs:1324`
 - [ ] Every host that installs a statement table locates it with `StmtLines`, and `nvs run` installs one when its ceiling has `coverage`, so `Core\Debug::coverage` answers from source (`rule:testing/debug-surface`). `crates/nvs-cli/src/runner.rs:755`, `crates/nvs-cli/src/main.rs:2163`, `crates/nvs-runtime/src/ctx/trace.rs:832`
 
 ### 7. the new `Core\Debug` members have their feature proofs

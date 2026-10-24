@@ -1406,25 +1406,17 @@ pub struct Ctx {
     /// keeping beside a wall-clock figure that is not.
     counted_stmts: u64,
     counted_calls: u64,
-    /// `rule:observability/four-kinds-become-a-span`'s events and
-    /// `rule:testing/debug-probes`'s call-site trace, in the order they were
-    /// filed.
+    /// `rule:observability/four-kinds-become-a-span`'s events, in the order
+    /// they were filed: a `query`, an `http`, a `spawn` and a `gc`, at most
+    /// [`SPAN_EVENT_CEILING`] of them, written through [`Ctx::records_spans`].
+    /// A request that is neither recorded nor traced never touches this vector
+    /// and never allocates it.
     ///
-    /// Two populations in one vector, and [`Ctx::records_spans`] is the gate
-    /// both are written through. A recorded run files a `query`, an `http` and
-    /// a `spawn`, at most [`SPAN_EVENT_CEILING`] of them. A run under
-    /// [`DebugFlags::TRACE`] additionally files a `call` per compiled call site,
-    /// from [`nvs_probe_call_enter`]/[`nvs_probe_call_exit`] and bounded by
-    /// nothing. A request that is neither recorded nor traced never touches
-    /// this vector and never allocates it.
-    ///
-    /// **The call half is a stand-in, not the final shape.** `rule:testing/debug-probes` has trace
-    /// and profile data *stream to a sink* rather than accumulate, precisely
-    /// because a long-running request's call trace is call-count-proportional.
-    /// That unbounded half is why `TRACE` is a debugging surface a served
-    /// request never turns on, and it exists in this shape only until
-    /// `Core\Debug` names the sink. `PROFILE`'s self/inclusive timing shares
-    /// these sites and lands with it.
+    /// **No `call` event is ever in it.** `rule:testing/debug-surface` streams
+    /// the call trace to the [`TraceSink`] `Core\Debug::startTrace` opened,
+    /// because it grows with the call count; a run under [`DebugFlags::TRACE`]
+    /// with no sink writes its calls nowhere. So the vector is bounded under
+    /// every bit, and no buffer needs a limit of its own.
     trace: Vec<TraceEvent>,
     /// The class a bare-message failure is promoted to, if one was
     /// installed — see [`Ctx::set_runtime_error_class`].

@@ -193,38 +193,59 @@ fn a_call_may_supply_some_defaulted_parameters_and_omit_the_rest() {
     );
 }
 
+/// Runs `source` under `flags` with a trace file open, and returns the context with each call
+/// the file has, as its callee and status, in the order the calls returned.
+fn traced(name: &str, source: &str, flags: DebugFlags) -> (Ctx, Vec<(String, String)>) {
+    let dir = nvs_repo::scratch(name);
+    let path = dir.join("calls.jsonl");
+    let mut ctx = Ctx::buffered();
+    ctx.set_debug_flags(flags);
+    ctx.set_trace_sink(Some(
+        nvs_runtime::TraceSink::create(&path).expect("the scratch directory exists"),
+    ));
+    run_with(&mut ctx, source).expect("the script ran");
+    ctx.set_trace_sink(None)
+        .expect("the trace still runs")
+        .finish()
+        .expect("every line was written");
+    let calls = std::fs::read_to_string(&path)
+        .expect("the trace file exists")
+        .lines()
+        .map(|line| {
+            let (head, tail) = line.split_once(r#"","status":""#).expect("a status");
+            let callee = head
+                .strip_prefix(r#"{"kind":"call","callee":""#)
+                .expect("a call line");
+            let (status, _) = tail.split_once('"').expect("a closed status");
+            (callee.replace(r"\\", r"\"), status.to_owned())
+        })
+        .collect();
+    (ctx, calls)
+}
+
 #[test]
 fn the_call_probe_costs_nothing_observable_with_every_bit_off() {
-    let mut ctx = Ctx::buffered();
-    run_with(&mut ctx, CALLS).expect("the script ran");
+    let (ctx, calls) = traced("calls-off", CALLS, DebugFlags::empty());
+    assert!(calls.is_empty(), "a call was written with the bit off: {calls:?}");
     assert!(ctx.trace().is_empty());
 }
 
 #[test]
-fn turning_tracing_on_records_an_entry_and_an_exit_per_call() {
-    // `rule:testing/debug-probes`'s call-site pair. `quadruple` is entered first and left
-    // last; both `double` calls nest inside it, and every exit carries the
-    // status the call site is about to branch on.
-    let mut ctx = Ctx::buffered();
-    ctx.set_debug_flags(DebugFlags::TRACE);
-    run_with(&mut ctx, CALLS).expect("the script ran");
-
-    let events: Vec<(&str, Option<i32>)> = ctx
-        .trace()
-        .iter()
-        .map(|e| (e.callee.as_str(), e.status))
-        .collect();
+fn turning_tracing_on_writes_a_line_per_call_as_it_returns() {
+    // `rule:testing/debug-probes`'s call-site pair, written by `rule:testing/debug-surface`'s
+    // sink. Both `double` calls nest inside `quadruple`, so they return first, and every line
+    // carries the status the call site is about to branch on.
+    let (ctx, calls) = traced("calls-on", CALLS, DebugFlags::TRACE);
+    let calls: Vec<(&str, &str)> = calls.iter().map(|(c, s)| (c.as_str(), s.as_str())).collect();
     assert_eq!(
-        events,
+        calls,
         [
-            ("Math::quadruple", None),
-            ("Math::double", None),
-            ("Math::double", Some(OK)),
-            ("Math::double", None),
-            ("Math::double", Some(OK)),
-            ("Math::quadruple", Some(OK)),
+            ("Math::double", "ok"),
+            ("Math::double", "ok"),
+            ("Math::quadruple", "ok"),
         ]
     );
+    assert!(ctx.trace().is_empty(), "a call was filed in memory");
 }
 
 #[test]
@@ -237,36 +258,28 @@ fn a_trace_records_a_core_call_and_every_callback_it_makes() {
                   var $double = fn(int $n): int => $n * 2;\n\
                   array<int> $all = Core\\Arr::map([1, 2, 3], $double);\n\
                   echo $double(4);\n";
-    let mut ctx = Ctx::buffered();
-    ctx.set_debug_flags(DebugFlags::TRACE | DebugFlags::COUNT);
-    run_with(&mut ctx, source).expect("the script ran");
+    let (mut ctx, calls) = traced("calls-callable", source, DebugFlags::TRACE | DebugFlags::COUNT);
     assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b"8"[..]));
 
-    let events: Vec<(&str, Option<i32>)> = ctx
-        .trace()
+    let calls: Vec<(&str, &str)> = calls
         .iter()
-        .map(|e| {
-            let callee = if e.callee.ends_with("::invoke") {
+        .map(|(callee, status)| {
+            let callee = if callee.ends_with("::invoke") {
                 "{callable}"
             } else {
-                e.callee.as_str()
+                callee.as_str()
             };
-            (callee, e.status)
+            (callee, status.as_str())
         })
         .collect();
     assert_eq!(
-        events,
+        calls,
         [
-            (r"Core\Arr::map", None),
-            ("{callable}", None),
-            ("{callable}", Some(OK)),
-            ("{callable}", None),
-            ("{callable}", Some(OK)),
-            ("{callable}", None),
-            ("{callable}", Some(OK)),
-            (r"Core\Arr::map", Some(OK)),
-            ("{callable}", None),
-            ("{callable}", Some(OK)),
+            ("{callable}", "ok"),
+            ("{callable}", "ok"),
+            ("{callable}", "ok"),
+            (r"Core\Arr::map", "ok"),
+            ("{callable}", "ok"),
         ]
     );
     assert_eq!(ctx.counted().calls, 5, "one map and four callback calls");

@@ -35,6 +35,8 @@ nvs-syntax.workspace = true
 nvs-hir.workspace = true
 nvs-types.workspace = true
 region.workspace = true
+# The scratch directory a traced test writes its trace file into.
+nvs-repo.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy. Handing a JIT-compiled

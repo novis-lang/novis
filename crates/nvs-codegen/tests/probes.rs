@@ -263,9 +263,22 @@ fn no_probe_is_added_to_the_measured_path() {
             ));
             ctx.set_inbound(inbound);
         }
+        let dir = nvs_repo::scratch("probes-identity");
+        let path = dir.join("calls.jsonl");
+        ctx.set_trace_sink(Some(
+            nvs_runtime::TraceSink::create(&path).expect("the scratch directory exists"),
+        ));
         let lines = covered_with(&mut ctx, flags, MEASURED);
         let hits: u64 = lines.iter().map(|(_, count)| count).sum();
-        (hits, ctx.trace().len())
+        ctx.set_trace_sink(None)
+            .expect("the trace still runs")
+            .finish()
+            .expect("every line was written");
+        let calls = std::fs::read_to_string(&path)
+            .expect("the trace file exists")
+            .lines()
+            .count();
+        (hits, calls + ctx.trace().len())
     };
 
     // With `rule:testing/debug-probes`'s bits off, the identity is on the context and reaches

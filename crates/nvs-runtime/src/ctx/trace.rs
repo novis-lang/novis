@@ -249,7 +249,7 @@ fn render_spawn(
 }
 
 /// How many of `rule:observability/four-kinds-become-a-span`'s events a
-/// recorded run files before it stops filing them.
+/// recorded or traced run files before it stops filing them.
 ///
 /// **This is the one home of that number**, and `nvs_server::trace::SPAN_CEILING`
 /// — the span count a derived graph carries — is the root plus this. The bound is
@@ -265,9 +265,9 @@ fn render_spawn(
 /// further, and the run itself is untouched — a trace is an observation of a
 /// request and never a limit on one.
 ///
-/// A debugging run is not held to it ([`Ctx::records_spans`]): `DebugFlags::TRACE`
-/// files a `call` event per compiled call site, so a ceiling would truncate the
-/// trace a debugger asked for at the first few statements.
+/// A run under `DebugFlags::TRACE` is held to it too. Its `call` events, the
+/// ones that grow with the call count, stream to a [`TraceSink`] and are never
+/// filed here, so the ceiling truncates no call.
 pub const SPAN_EVENT_CEILING: usize = 512;
 
 impl Ctx {
@@ -280,25 +280,23 @@ impl Ctx {
     /// one flag with two names. **The trace is recorded**: the head draw
     /// (`rule:observability/sampling-is-head-based`) went that way, so a
     /// collector is going to be handed this request's graph. **A debugger is
-    /// attached**: [`DebugFlags::TRACE`] is on, which additionally files a
-    /// `call` event per compiled call site — the cost
+    /// attached**: [`DebugFlags::TRACE`] is on, which additionally streams a
+    /// `call` per compiled call site to the trace's sink — the cost
     /// `rule:observability/four-kinds-become-a-span` refuses on a served
     /// request outright, and the reason the two cannot be one bit. A sampled
     /// request never pays it, because the call probes read that bit and this
     /// answer is not it.
     ///
     /// The ceiling is asked here rather than beside each site, so that a filer
-    /// cannot skip it: past [`SPAN_EVENT_CEILING`] filed events a sampled run
-    /// answers `false` and a debugging one still answers `true`.
+    /// cannot skip it: past [`SPAN_EVENT_CEILING`] filed events both answer
+    /// `false`.
     #[must_use]
     pub fn records_spans(&self) -> bool {
-        if self.debug.contains(DebugFlags::TRACE) {
-            return true;
-        }
-        // The vector holds nothing else when that bit is off — the call probes
-        // read it themselves — so its length is the filed-event count this
-        // ceiling is about, and no second counter has to be kept true.
-        self.trace_context.sampled() && self.trace.len() < SPAN_EVENT_CEILING
+        // The vector holds nothing but these events — a call goes to the sink —
+        // so its length is the filed-event count this ceiling is about, and no
+        // second counter has to be kept true.
+        (self.trace_context.sampled() || self.debug.contains(DebugFlags::TRACE))
+            && self.trace.len() < SPAN_EVENT_CEILING
     }
 
     /// Counts one hit for the statement `stmt` names in this context's
@@ -373,23 +371,20 @@ impl Ctx {
         }
     }
 
-    /// Records one call-site trace event — [`nvs_probe_call_enter`]/
-    /// [`nvs_probe_call_exit`]'s whole effect under [`DebugFlags::TRACE`].
+    /// Records one call's entry (`status` is `None`) or its exit —
+    /// [`nvs_probe_call_enter`]/[`nvs_probe_call_exit`]'s whole effect under
+    /// [`DebugFlags::TRACE`].
     ///
-    /// The kind is [`TraceKind::Call`] and is not a parameter: a probe is the
-    /// only thing that reaches this method, and the other kinds are
-    /// emitted from routines that carry facts this record has no field for
-    /// (`rule:observability/trace-events-carry-a-kind`). The event is an
-    /// instant, timed here with one [`trace_clock`] read.
+    /// The call goes to the [`TraceSink`] `Core\Debug::startTrace` opened, as
+    /// one line when it returns, and never into [`Ctx::trace`]. With no sink it
+    /// is written nowhere and reads no clock.
     pub fn record_trace(&mut self, callee: &str, status: Option<i32>) {
-        let at = trace_clock();
-        self.trace.push(TraceEvent {
-            kind: TraceKind::Call,
-            callee: callee.to_owned(),
-            status,
-            start: at,
-            end: at,
-        });
+        if let Some(sink) = &mut self.debug_sinks.trace {
+            match status {
+                None => sink.enter(),
+                Some(status) => sink.exit(callee, status),
+            }
+        }
     }
 
     /// The window a routine that timed itself files: it ends now, and began
@@ -555,10 +550,9 @@ impl Ctx {
         });
     }
 
-    /// The call-site trace gathered so far, in the order the probes fired —
-    /// empty for a request that ran with [`DebugFlags::TRACE`] off
-    /// throughout. See the field's own doc comment for why this accumulates
-    /// in memory and will not once `rule:testing/debug-probes`'s sink exists.
+    /// The span events filed so far, in the order they were filed — empty for
+    /// a request that was neither recorded nor traced. No `call` is among
+    /// them: the field's own doc comment says where those go.
     #[must_use]
     pub fn trace(&self) -> &[TraceEvent] {
         &self.trace
@@ -756,22 +750,139 @@ impl StmtLines {
 /// The files `Core\Debug::startTrace` and `Core\Debug::startProfile` named
 /// (`rule:testing/debug-surface`), each from its start until its stop. A context that started
 /// neither has `None` for both. A child context does not share them.
+///
+/// The trace is boxed so a context with no trace running carries one word for it.
 #[derive(Debug, Default)]
 pub(crate) struct DebugSinks {
-    trace: Option<std::path::PathBuf>,
+    trace: Option<Box<TraceSink>>,
     profile: Option<std::path::PathBuf>,
+}
+
+/// An open trace file: `rule:testing/debug-surface`'s newline-delimited JSON, one line per call,
+/// written when the call returns.
+///
+/// A line is `{"kind":"call","callee":"Math::double","status":"ok","start":1200,"end":1450}`:
+/// the callee's label, how it returned (`ok`, `thrown`, `fatal` or `exited`), and its entry and
+/// exit as nanoseconds on [`trace_clock`]. A call still running when the trace stops has not
+/// returned, so it has no line. An exit whose entry came before the trace started is an instant
+/// at its exit.
+///
+/// A write that fails stops the writing and is kept until [`Self::finish`] returns it, because a
+/// trace observes a run and never stops one.
+///
+/// **What it spends:** one buffered file per running trace, and one reading per call in flight,
+/// so it grows with the call depth and never with the call count.
+#[derive(Debug)]
+pub struct TraceSink {
+    path: std::path::PathBuf,
+    out: std::io::BufWriter<std::fs::File>,
+    /// When each call in flight was entered, the innermost last.
+    open: Vec<Duration>,
+    failed: Option<std::io::Error>,
+}
+
+impl TraceSink {
+    /// Creates `path`, or empties it when it exists.
+    ///
+    /// # Errors
+    ///
+    /// What the operating system returned for the create.
+    pub fn create(path: &std::path::Path) -> std::io::Result<Self> {
+        Ok(Self {
+            path: path.to_path_buf(),
+            out: std::io::BufWriter::new(std::fs::File::create(path)?),
+            open: Vec::new(),
+            failed: None,
+        })
+    }
+
+    /// The file this sink writes.
+    #[must_use]
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+
+    /// Writes what is still buffered and closes the file.
+    ///
+    /// # Errors
+    ///
+    /// The first write that failed while the trace ran, or the final flush's own failure.
+    pub fn finish(mut self) -> std::io::Result<()> {
+        use std::io::Write as _;
+        match self.failed.take() {
+            Some(failed) => Err(failed),
+            None => self.out.flush(),
+        }
+    }
+
+    fn enter(&mut self) {
+        self.open.push(trace_clock());
+    }
+
+    fn exit(&mut self, callee: &str, status: i32) {
+        let end = trace_clock();
+        let start = self.open.pop().unwrap_or(end);
+        if self.failed.is_none()
+            && let Err(failed) = self.write_call(callee, status, start, end)
+        {
+            self.failed = Some(failed);
+        }
+    }
+
+    fn write_call(
+        &mut self,
+        callee: &str,
+        status: i32,
+        start: Duration,
+        end: Duration,
+    ) -> std::io::Result<()> {
+        use std::io::Write as _;
+        self.out.write_all(br#"{"kind":"call","callee":""#)?;
+        write_json_text(&mut self.out, callee)?;
+        let returned = match status {
+            crate::OK => "ok",
+            crate::THROWN => "thrown",
+            crate::FATAL => "fatal",
+            crate::EXITED => "exited",
+            _ => "unknown",
+        };
+        writeln!(
+            self.out,
+            r#"","status":"{returned}","start":{},"end":{}}}"#,
+            start.as_nanos(),
+            end.as_nanos()
+        )
+    }
+}
+
+/// `text` as the inside of a JSON string: `"`, `\` and every control character escaped.
+fn write_json_text(out: &mut impl std::io::Write, text: &str) -> std::io::Result<()> {
+    let mut rest = text;
+    while let Some(at) = rest.find(|c: char| c == '"' || c == '\\' || c.is_control()) {
+        out.write_all(&rest.as_bytes()[..at])?;
+        let c = rest[at..].chars().next().unwrap_or_default();
+        match c {
+            '"' => out.write_all(br#"\""#)?,
+            '\\' => out.write_all(br"\\")?,
+            '\n' => out.write_all(br"\n")?,
+            _ => write!(out, "\\u{:04x}", u32::from(c))?,
+        }
+        rest = &rest[at + c.len_utf8()..];
+    }
+    out.write_all(rest.as_bytes())
 }
 
 impl Ctx {
     /// The file the running trace writes to, while one runs.
     #[must_use]
     pub fn trace_sink(&self) -> Option<&std::path::Path> {
-        self.debug_sinks.trace.as_deref()
+        self.debug_sinks.trace.as_deref().map(TraceSink::path)
     }
 
-    /// Names the file a trace writes to, or none with `None`.
-    pub fn set_trace_sink(&mut self, path: Option<std::path::PathBuf>) {
-        self.debug_sinks.trace = path;
+    /// Gives this context the trace its `call` events stream to, or takes it away with `None`,
+    /// and returns the one it had, which its taker closes with [`TraceSink::finish`].
+    pub fn set_trace_sink(&mut self, sink: Option<TraceSink>) -> Option<TraceSink> {
+        std::mem::replace(&mut self.debug_sinks.trace, sink.map(Box::new)).map(|old| *old)
     }
 
     /// The file the running profile writes to, while one runs.
@@ -1222,22 +1333,69 @@ mod tests {
         assert!(!ctx.take_armed_helper_panic());
     }
 
-    #[test]
-    fn a_call_probe_with_tracing_off_records_nothing() {
+    /// A context under [`DebugFlags::TRACE`] streaming its calls to a new file, and the scratch
+    /// directory holding it, which the test keeps until it ends.
+    fn tracing(name: &str) -> (Ctx, nvs_repo::Scratch) {
+        let dir = nvs_repo::scratch(name);
         let mut ctx = Ctx::buffered();
-        let name = b"Math::double";
+        ctx.set_debug_flags(DebugFlags::TRACE);
+        let sink = TraceSink::create(&dir.join("calls.jsonl")).expect("the scratch directory exists");
+        assert!(ctx.set_trace_sink(Some(sink)).is_none());
+        (ctx, dir)
+    }
+
+    /// Every line the running trace wrote, read back once it is closed.
+    fn written(ctx: &mut Ctx) -> Vec<String> {
+        let sink = ctx.set_trace_sink(None).expect("a trace is running");
+        let path = sink.path().to_path_buf();
+        sink.finish().expect("every line was written");
+        std::fs::read_to_string(path)
+            .expect("the trace file exists")
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// A line's callee and status, and its entry and exit readings as nanoseconds.
+    fn call_of(line: &str) -> (&str, &str, u128, u128) {
+        let (head, times) = line
+            .split_once(r#"","status":""#)
+            .expect("a call line has a status");
+        let callee = head
+            .strip_prefix(r#"{"kind":"call","callee":""#)
+            .expect("a call line starts with its kind and callee");
+        let (status, times) = times.split_once(r#"","start":"#).expect("a status is followed by the start");
+        let (start, end) = times
+            .strip_suffix('}')
+            .and_then(|times| times.split_once(r#","end":"#))
+            .expect("the line ends with its exit");
+        (
+            callee,
+            status,
+            start.parse().expect("the start is a number"),
+            end.parse().expect("the end is a number"),
+        )
+    }
+
+    /// One call through both compiled-code probes, returning `status`.
+    fn probe_call(ctx: &mut Ctx, name: &[u8], status: i32) {
         #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
         unsafe {
-            nvs_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
-            nvs_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::OK);
+            nvs_probe_call_enter(&raw mut *ctx, name.as_ptr(), name.len());
+            nvs_probe_call_exit(&raw mut *ctx, name.as_ptr(), name.len(), status);
         }
+    }
+
+    #[test]
+    fn a_call_probe_with_tracing_off_records_nothing() {
+        let (mut ctx, _dir) = tracing("trace-off");
+        ctx.set_debug_flags(DebugFlags::empty());
+        probe_call(&mut ctx, b"Math::double", crate::OK);
         // Coverage on, tracing still off: the two flags are independent, and
         // the call probe reads its own bit rather than "any bit set".
         ctx.set_debug_flags(DebugFlags::COVERAGE);
-        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
-        unsafe {
-            nvs_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
-        }
+        probe_call(&mut ctx, b"Math::double", crate::OK);
+        assert!(written(&mut ctx).is_empty());
         assert!(ctx.trace().is_empty());
     }
 
@@ -1246,29 +1404,66 @@ mod tests {
         // The exit probe carries the checked-return status the call site is
         // about to branch on, so a thrown or `FATAL` exit is recorded as it
         // happened rather than reconstructed — `rule:testing/debug-probes`.
-        let mut ctx = Ctx::buffered();
-        ctx.set_debug_flags(DebugFlags::TRACE);
-        let name = b"Boom::inner";
+        let (mut ctx, _dir) = tracing("trace-status");
+        probe_call(&mut ctx, b"Boom::inner", crate::THROWN);
+        probe_call(&mut ctx, br"Core\Arr::map", crate::OK);
+        let lines = written(&mut ctx);
+        let calls: Vec<_> = lines.iter().map(|line| call_of(line)).collect();
+        let [(inner, thrown, entered, left), (map, ok, _, _)] = calls[..] else {
+            panic!("one line per call: {lines:?}");
+        };
+        assert_eq!((inner, thrown), ("Boom::inner", "thrown"));
+        assert_eq!((map, ok), (r"Core\\Arr::map", "ok"), "a backslash is escaped");
+        assert!(entered <= left, "the exit is not before the entry");
+        assert!(ctx.trace().is_empty(), "a call is never filed in memory");
+    }
+
+    /// `rule:testing/debug-surface`: the call half of a trace streams, so a loop of many calls
+    /// holds nothing in the context and writes one line per call. A nested call's line comes
+    /// first, because a line is written when its call returns, and its window is inside its
+    /// caller's.
+    #[test]
+    fn a_traced_loop_of_many_calls_holds_no_call_and_writes_one_line_per_call() {
+        let (mut ctx, _dir) = tracing("trace-loop");
+        let outer = b"Orders::total";
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            nvs_probe_call_enter(&raw mut ctx, outer.as_ptr(), outer.len());
+        }
+        for _ in 0..10_000 {
+            probe_call(&mut ctx, b"Orders::line", crate::OK);
+        }
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            nvs_probe_call_exit(&raw mut ctx, outer.as_ptr(), outer.len(), crate::OK);
+        }
+        assert!(ctx.trace().is_empty(), "a call was filed in memory");
+
+        let lines = written(&mut ctx);
+        assert_eq!(lines.len(), 10_001);
+        let (first, _, first_in, first_out) = call_of(&lines[0]);
+        let (last, _, last_in, last_out) = call_of(&lines[10_000]);
+        assert_eq!((first, last), ("Orders::line", "Orders::total"));
+        assert!(last_in <= first_in && first_out <= last_out);
+    }
+
+    /// A call still running when the trace stops has no line, and a stopped trace writes
+    /// nothing more.
+    #[test]
+    fn a_trace_writes_only_the_calls_that_returned_while_it_ran() {
+        let (mut ctx, _dir) = tracing("trace-open");
+        let name = b"Main::run";
         #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
         unsafe {
             nvs_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
-            nvs_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::THROWN);
         }
-        assert_eq!(
-            shape(ctx.trace()),
-            [
-                (TraceKind::Call, "Boom::inner", None),
-                (TraceKind::Call, "Boom::inner", Some(crate::THROWN)),
-            ]
-        );
-        let [entered, left] = ctx.trace() else {
-            panic!("two events");
-        };
-        assert_eq!(entered.start, entered.end, "a call event is an instant");
-        assert!(
-            entered.end <= left.start,
-            "the exit is not before the entry"
-        );
+        probe_call(&mut ctx, b"Main::step", crate::OK);
+        assert_eq!(written(&mut ctx).len(), 1);
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            nvs_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::OK);
+        }
+        assert!(ctx.trace().is_empty());
     }
 
     /// The kind, the callee and the status of each event: what these cases
@@ -1287,27 +1482,26 @@ mod tests {
     fn a_timed_event_ends_where_it_is_filed_and_began_its_duration_before() {
         let mut ctx = Ctx::buffered();
         ctx.set_debug_flags(DebugFlags::TRACE);
-        ctx.record_trace("People::all", None);
+        ctx.record_http("http method=GET", Duration::ZERO);
         let before = trace_clock();
         ctx.record_query("sql=select 1", Duration::from_nanos(1));
         let after = trace_clock();
-        let [call, query] = ctx.trace() else {
+        let [http, query] = ctx.trace() else {
             panic!("two events");
         };
-        assert!(call.end <= before && before <= query.end && query.end <= after);
+        assert!(http.end <= before && before <= query.end && query.end <= after);
         assert_eq!(query.end - query.start, Duration::from_nanos(1));
     }
 
     /// `rule:observability/trace-events-carry-a-kind`'s kind, over the kinds
-    /// anything in the tree records: a probe files a `call`, `Core\Db`'s
-    /// statement routine files a `query` and `Core\Http\Client`'s transport
-    /// files an `http`, and one vector keeps them apart. Asserted as the whole
-    /// trace rather than on the events after the first, because the tag only
-    /// earns its place if the `call` still reads as one beside them.
+    /// anything in the tree records: `Core\Db`'s statement routine files a
+    /// `query` and `Core\Http\Client`'s transport files an `http`, and one
+    /// vector keeps them apart. A `call` beside them goes to the trace's file
+    /// and never into that vector, so the whole vector is asserted.
     #[test]
-    fn each_recorded_kind_is_filed_under_its_own_tag_beside_a_call() {
-        let mut ctx = Ctx::buffered();
-        ctx.set_debug_flags(DebugFlags::TRACE);
+    fn each_recorded_kind_is_filed_under_its_own_tag_and_a_call_streams() {
+        let (mut ctx, _dir) = tracing("trace-kinds");
+        ctx.record_trace("People::all", None);
         ctx.record_trace("People::all", Some(crate::OK));
         // What `nvs_db::QuerySpan`'s `Display` hands over, which is the whole
         // of what a `query` event carries — no bound value among it, per
@@ -1325,7 +1519,6 @@ mod tests {
         assert_eq!(
             shape(ctx.trace()),
             [
-                (TraceKind::Call, "People::all", Some(crate::OK)),
                 (
                     TraceKind::Query,
                     "driver=postgres connection=main rows=2 sql=select 1",
@@ -1338,18 +1531,26 @@ mod tests {
                 ),
             ]
         );
+        let lines = written(&mut ctx);
+        assert_eq!(
+            lines.iter().map(|line| call_of(line).0).collect::<Vec<_>>(),
+            ["People::all"]
+        );
     }
 
     #[test]
     fn a_call_probe_accepts_an_empty_label_without_reading_the_pointer() {
-        let mut ctx = Ctx::buffered();
-        ctx.set_debug_flags(DebugFlags::TRACE);
-        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        let (mut ctx, _dir) = tracing("trace-empty-label");
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
         unsafe {
             nvs_probe_call_enter(&raw mut ctx, std::ptr::null(), 0);
+            nvs_probe_call_exit(&raw mut ctx, std::ptr::null(), 0, crate::OK);
         }
-        assert_eq!(ctx.trace().len(), 1);
-        assert_eq!(ctx.trace()[0].callee, "");
+        let lines = written(&mut ctx);
+        assert_eq!(
+            lines.iter().map(|line| call_of(line).0).collect::<Vec<_>>(),
+            [""]
+        );
     }
 
     #[test]
@@ -1461,12 +1662,13 @@ mod tests {
         );
     }
 
-    /// The bound a recorded run is held to, and the debugging run that is not:
-    /// a program querying in a loop stops filing, while a trace somebody asked
-    /// for is never truncated under them.
+    /// The bound a recorded run and a traced one are both held to: a program
+    /// querying in a loop stops filing, while the calls a trace streams are
+    /// never truncated by it.
     #[test]
-    fn a_recorded_runs_filing_stops_at_the_ceiling_and_a_debugged_ones_does_not() {
-        let mut ctx = Ctx::buffered();
+    fn filing_stops_at_the_ceiling_and_a_traced_runs_calls_still_stream() {
+        let (mut ctx, _dir) = tracing("trace-ceiling");
+        ctx.set_debug_flags(DebugFlags::empty());
         ctx.set_trace_context(crate::TraceContext::rooted(1.0));
         for _ in 0..SPAN_EVENT_CEILING {
             assert!(ctx.records_spans(), "the ceiling closed early");
@@ -1487,8 +1689,11 @@ mod tests {
 
         ctx.set_debug_flags(DebugFlags::TRACE);
         assert!(
-            ctx.records_spans(),
-            "a debugger's trace was truncated by a ceiling that is not its"
+            !ctx.records_spans(),
+            "a traced run kept filing past `SPAN_EVENT_CEILING`"
         );
+        probe_call(&mut ctx, b"Math::double", crate::OK);
+        assert_eq!(written(&mut ctx).len(), 1, "the ceiling truncated a call");
+        assert_eq!(ctx.trace().len(), SPAN_EVENT_CEILING);
     }
 }
