@@ -735,11 +735,7 @@ fn every_declared_scheme_is_a_security_scheme_component_sorted_by_name() {
         }),
         "{doc}"
     );
-    let names: Vec<&String> = schemes
-        .as_object()
-        .expect("an object")
-        .keys()
-        .collect();
+    let names: Vec<&String> = schemes.as_object().expect("an object").keys().collect();
     let at = |name: &str| doc.find(&format!("\"{name}\": {{")).expect(name);
     assert!(
         at("bearer") < at("key") && at("key") < at("mtls") && at("oauth") < at("openid"),
@@ -797,12 +793,12 @@ fn a_scheme_that_is_undeclared_repeated_or_misfit_does_not_compile() {
         let (doc, err, ok) = build(&fixture(stem));
         assert!(!ok, "`{stem}` does not build");
         for message in messages {
-            assert!(err.contains(message), "`{stem}` reports `{message}`:\n{err}");
+            assert!(
+                err.contains(message),
+                "`{stem}` reports `{message}`:\n{err}"
+            );
         }
-        assert!(
-            doc.trim().is_empty(),
-            "and writes no document:\n{doc}"
-        );
+        assert!(doc.trim().is_empty(), "and writes no document:\n{doc}");
     }
     let (_, err, _) = build(&fixture("scheme-fields-that-do-not-fit"));
     assert!(

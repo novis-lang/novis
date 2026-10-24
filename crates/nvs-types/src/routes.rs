@@ -1775,8 +1775,7 @@ fn collect_scheme(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     else {
         return;
     };
-    let Some(&(_, required, optional)) = SCHEME_FIELDS.iter().find(|(row, ..)| *row == case)
-    else {
+    let Some(&(_, required, optional)) = SCHEME_FIELDS.iter().find(|(row, ..)| *row == case) else {
         return;
     };
     let mut complete = name.is_some();
@@ -1881,7 +1880,11 @@ fn scheme_fields_text(required: &[&str], optional: &[&str]) -> String {
         (true, true) => "no field but `name`, `type` and `description`".to_owned(),
         (false, true) => quoted(required),
         (true, false) => format!("the optional {}", quoted(optional)),
-        (false, false) => format!("{}, and the optional {}", quoted(required), quoted(optional)),
+        (false, false) => format!(
+            "{}, and the optional {}",
+            quoted(required),
+            quoted(optional)
+        ),
     }
 }
 
