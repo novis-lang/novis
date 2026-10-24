@@ -1,0 +1,11 @@
+--TEST--
+a `tainted` URL at an outbound call offers `Core\Http::allowUrl` around it, a quick fix only and never a fix-all, because the launderer may throw, `rule:security/tainted-qualifier`, `rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`
+--FILE--
+<?nvs
+tainted string $outside = "http://example.com/status";
+var $a = Core\Http\Client::get($out<|>side);
+--REQUEST--
+codeAction
+--EXPECT--
+3:31-3:41 refactor.rewrite Put on separate lines -> "(\n    $outside,\n)"
+3:32-3:40 quickfix pass it through `Core\Http::allowUrl` -> "Core\Http::allowUrl($outside)"

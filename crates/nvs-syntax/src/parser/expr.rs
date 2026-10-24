@@ -2511,7 +2511,10 @@ impl<'src, 'd> Parser<'src, 'd> {
             .with_help(
                 "use `require` — it already throws on a missing file and runs every time it is \
                  reached",
-            ),
+            )
+            // Not safe: a missing file now throws, and a `_once` file runs
+            // every time it is reached.
+            .with_unsafe_fix(start, "require", format!("replace `{spelling}` with `require`")),
         );
         Expr {
             span,

@@ -1,0 +1,9 @@
+--TEST--
+an `include` offers `require`, the edit covering the keyword alone so the path is kept as written, `rule:statements/require-is-the-only-inclusion-construct`, `rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`
+--FILE--
+<?nvs
+inc<|>lude "lib.nvs";
+--REQUEST--
+codeAction
+--EXPECT--
+2:1-2:8 quickfix replace `include` with `require` -> "require"

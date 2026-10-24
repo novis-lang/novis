@@ -1,11 +1,12 @@
 {
   "title": "A `#[Route]` missing its `path` gets a quick fix that offers a derived one, and nothing derives a path on its own",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "routing/repeated-routes-share-a-name-when-they-share-a-path",
     "core-api/identifier-casing",
     "routing/route-attribute"
   ],
-  "guardedBy": [],
-  "goal": "editor-fixes"
+  "guardedBy": [
+    "tests/lsp/actions/a-route-with-no-path-is-offered-the-derived-one.lspt"
+  ]
 }

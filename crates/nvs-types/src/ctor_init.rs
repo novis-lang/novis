@@ -123,7 +123,7 @@
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    AssignOp, ClassDecl, ClassMemberKind, Expr, ExprKind, MemberName, Stmt, StmtKind,
+    AssignOp, Block, ClassDecl, ClassMemberKind, Expr, ExprKind, MemberName, Stmt, StmtKind,
 };
 use nvs_syntax::visit::each_child_expr;
 
@@ -143,6 +143,65 @@ struct CtorObligations<'a> {
     needs_parent_call: bool,
     /// Which body is walked, for the wording of what [`finish`] reports.
     body: Body,
+    /// Where a constructor's missing assignment is written, and the
+    /// parameters it may be written from. `None` for a `set` hook.
+    fix: Option<AssignFix<'a>>,
+}
+
+/// The quick fix on a property a constructor does not assign
+/// (`rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`): `$this->name =
+/// $name;` as the body's first statement, offered only where the constructor
+/// has a parameter of that name that is not promoted. With no such parameter
+/// nothing says what the value is, so nothing is offered.
+struct AssignFix<'a> {
+    /// An empty span where the statement is inserted.
+    at: Span,
+    /// What goes before and after the statement, so the statement after it
+    /// keeps its line.
+    around: (&'static str, String),
+    /// The names of the parameters that are not promoted, without `$`.
+    params: &'a [String],
+}
+
+impl<'a> AssignFix<'a> {
+    /// Before the first statement of `body`, indented as it is, or inside an
+    /// empty body.
+    fn new(body: &Block, params: &'a [String], src: &str) -> Self {
+        let (at, around) = match body.stmts.first() {
+            Some(first) => {
+                let start = first.span.start as usize;
+                let line = src[..start].rfind('\n').map_or(0, |i| i + 1);
+                let indent = &src[line..start];
+                let after = if indent.trim().is_empty() {
+                    format!("\n{indent}")
+                } else {
+                    " ".to_owned()
+                };
+                (first.span.shrink_to_start(), ("", after))
+            }
+            None => (
+                Span::at(body.span.file, body.span.start + 1),
+                (" ", " ".to_owned()),
+            ),
+        };
+        Self { at, around, params }
+    }
+
+    /// `diag` with `$this->name = $name;` for a property `name`, or `diag`
+    /// alone where no parameter has that name.
+    fn suggest(&self, diag: Diagnostic, name: &str) -> Diagnostic {
+        if !self.params.iter().any(|param| param == name) {
+            return diag;
+        }
+        let (before, after) = &self.around;
+        // Not safe: the parameter's type may not be the property's, and a
+        // `readonly` property some path assigns would be written twice.
+        diag.with_unsafe_fix(
+            self.at,
+            format!("{before}$this->{name} = ${name};{after}"),
+            format!("assign `$this->{name}` from `${name}`"),
+        )
+    }
 }
 
 /// The two bodies [`walk_stmts`] checks the obligations of.
@@ -474,12 +533,19 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
     };
 
     let needs_parent_call = decl.extends.is_some() && parent_declares_constructor(qname, env);
+    let plain_params: Vec<String> = ctor
+        .params
+        .iter()
+        .filter(|p| !p.is_promoted())
+        .map(|p| strip_sigil(span_text(env.src, p.name)).to_owned())
+        .collect();
     let obligations = CtorObligations {
         qname,
         required: &required,
         ctor_name: ctor.name,
         needs_parent_call,
         body: Body::Constructor,
+        fix: Some(AssignFix::new(body, &plain_params, env.src.text())),
     };
     let readonly: Vec<String> = env
         .signatures
@@ -734,6 +800,7 @@ fn check_set_hooks_commit(
                 ctor_name: crate::returns::closing_brace(block),
                 needs_parent_call: false,
                 body: Body::SetHook,
+                fix: None,
             };
             let mut state = InitState::default();
             if !walk_stmts(&block.stmts, &mut state, &obligations, env) {
@@ -772,6 +839,10 @@ fn finish(state: &InitState, obligations: &CtorObligations<'_>, env: &mut Env<'_
             .with_help(format!(
                 "assign `$this->{name}` on every path that does not throw"
             )),
+        };
+        let diag = match &obligations.fix {
+            Some(fix) => fix.suggest(diag, name),
+            None => diag,
         };
         env.diags.report(diag);
     }
