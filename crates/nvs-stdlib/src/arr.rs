@@ -767,8 +767,8 @@ const FILTER_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "predicate",
-            desc: "Called as `($value, $key)` per entry; a truthy answer keeps the entry, on \
-                   the same truthiness table `if` reads.",
+            desc: "Called as `($value, $key)` per entry. A truthy result keeps the entry. \
+                   Truthy means the same here as in an `if` test.",
             shape: &[],
         },
     ],
@@ -793,7 +793,7 @@ const MAP_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "One entry per entry of `$a`, under the same key, holding the callback's answer.",
+    ret: "One entry per entry of `$a`, under the same key. Its value is the callback's result.",
     errors: &[],
 };
 
@@ -808,13 +808,13 @@ const MAP_KEYS_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "fn",
-            desc: "Called as `($value, $key)` per entry, and may declare fewer parameters; it \
-                   answers the entry's new key, an `int` or a `string`.",
+            desc: "Called as `($value, $key)` per entry, and may declare fewer parameters. It \
+                   returns the entry's new key, an `int` or a `string`.",
             shape: &[],
         },
     ],
-    ret: "The values under their new keys, in first-occurrence order; two entries given one key \
-          collapse to the last, and `1` and `\"1\"` are one key.",
+    ret: "The values under their new keys, in first-occurrence order. When two entries get the \
+          same key, the last one is kept. `1` and `\"1\"` are the same key.",
     errors: &[],
 };
 
@@ -830,13 +830,13 @@ const GROUP_BY_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "key",
-            desc: "Called as `($value, $key)` per entry, and may declare fewer parameters; it \
-                   answers the bucket's name, an `int` or a `string`.",
+            desc: "Called as `($value, $key)` per entry, and may declare fewer parameters. It \
+                   returns the group's name, an `int` or a `string`.",
             shape: &[],
         },
     ],
-    ret: "One inner array per distinct answer, in first-occurrence order, each keeping its entries \
-          under their own keys; `1` and `\"1\"` name one bucket.",
+    ret: "One inner array per distinct result, in first-occurrence order. Each inner array keeps \
+          its entries under their own keys. `1` and `\"1\"` name the same group.",
     errors: &[],
 };
 
@@ -847,17 +847,17 @@ const REDUCE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "a",
-            desc: "The array to fold.",
+            desc: "The array to reduce.",
             shape: &[],
         },
         ParamDoc {
             name: "fn",
-            desc: "Called as `($carry, $value, $key)` per entry, answering the next carry.",
+            desc: "Called as `($carry, $value, $key)` per entry. It returns the next carry.",
             shape: &[],
         },
         ParamDoc {
             name: "initial",
-            desc: "The seed, whose type is the fold's `U` and therefore the result's.",
+            desc: "The starting value. Its type is `U`, which is also the type of the result.",
             shape: &[],
         },
     ],
@@ -881,8 +881,8 @@ const FIND_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The matching value, or `null` when nothing matches — which a stored `null` in an \
-          `array<?T>` cannot be told from.",
+    ret: "The matching value, or `null` when nothing matches. In an `array<?T>`, this `null` \
+          looks the same as a stored `null`.",
     errors: &[],
 };
 
@@ -922,7 +922,7 @@ const ANY_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "`true` at the first truthy answer; `false` over the empty array.",
+    ret: "`true` at the first truthy result; `false` for the empty array.",
     errors: &[],
 };
 
@@ -942,7 +942,7 @@ const ALL_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "`false` at the first falsy answer; `true` over the empty array.",
+    ret: "`false` at the first falsy result; `true` for the empty array.",
     errors: &[],
 };
 
@@ -974,7 +974,7 @@ const HAS_KEY_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "`true` when the key is present, whatever value it holds.",
+    ret: "`true` when the key is present, whatever its value is.",
     errors: &[],
 };
 
@@ -1014,7 +1014,7 @@ const KEY_OF_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The key as a `string`, or `null` when no entry is identical — never `false`.",
+    ret: "The key as a `string`, or `null` when no entry is identical. It never returns `false`.",
     errors: &[],
 };
 
@@ -1026,8 +1026,8 @@ const IS_LIST_DOC: MethodDoc = MethodDoc {
         desc: "The array to test.",
         shape: &[],
     }],
-    ret: "`true` for a list and for the empty array; `false` once any key is out of sequence or \
-          is not its index's exact decimal spelling.",
+    ret: "`true` for a list and for the empty array. `false` when any key is out of sequence, or \
+          is not its index written exactly in decimal digits.",
     errors: &[],
 };
 
@@ -1039,8 +1039,8 @@ const KEYS_DOC: MethodDoc = MethodDoc {
         desc: "The array whose keys are wanted.",
         shape: &[],
     }],
-    ret: "A list of the keys as `string`s — `\"10\"` stays `\"10\"`, never an `int`; the empty \
-          array for an empty subject.",
+    ret: "A list of the keys as `string`s. `\"10\"` stays `\"10\"` and is never an `int`. An \
+          empty array gives the empty array.",
     errors: &[],
 };
 
@@ -1064,8 +1064,8 @@ const FIRST_DOC: MethodDoc = MethodDoc {
         desc: "The array to read.",
         shape: &[],
     }],
-    ret: "The value, or `null` for the empty array — which a stored `null` in an `array<?T>` \
-          cannot be told from.",
+    ret: "The value, or `null` for the empty array. In an `array<?T>`, this `null` looks the \
+          same as a stored `null`.",
     errors: &[],
 };
 
@@ -1077,8 +1077,8 @@ const LAST_DOC: MethodDoc = MethodDoc {
         desc: "The array to read.",
         shape: &[],
     }],
-    ret: "The value, or `null` for the empty array — which a stored `null` in an `array<?T>` \
-          cannot be told from.",
+    ret: "The value, or `null` for the empty array. In an `array<?T>`, this `null` looks the \
+          same as a stored `null`.",
     errors: &[],
 };
 
@@ -1118,24 +1118,24 @@ const SLICE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "offset",
-            desc: "Where the window opens; a negative offset counts back from the last entry, \
-                   and one reaching past the first clamps to it.",
+            desc: "The position where the range starts. A negative offset counts back from the \
+                   last entry. An offset before the first entry starts at the first entry.",
             shape: &[],
         },
         ParamDoc {
             name: "length",
-            desc: "How many entries the window holds; a negative length stops that many short \
-                   of the end, and `null` runs to the end.",
+            desc: "How many entries the range has. A negative length stops that many entries \
+                   before the end, and `null` takes every entry to the end.",
             shape: &[],
         },
         ParamDoc {
             name: "preserveKeys",
-            desc: "Keep every entry's own key; the default discards every key, string keys \
-                   included, and renumbers from `\"0\"`.",
+            desc: "Keeps every entry's own key. By default every key is discarded, string keys \
+                   included, and the result is renumbered from `\"0\"`.",
             shape: &[],
         },
     ],
-    ret: "The window's entries; the empty array when the window closes before it opens.",
+    ret: "The entries in the range; the empty array when the range ends before it starts.",
     errors: &[],
 };
 
@@ -1151,20 +1151,19 @@ const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "offset",
-            desc: "Where the window opens, on `slice`'s sign rule; an offset at the end \
-                   appends.",
+            desc: "The position where the range starts. A negative offset works as in `slice`. \
+                   An offset at the end appends.",
             shape: &[],
         },
         ParamDoc {
             name: "length",
-            desc: "How many entries the window holds, on `slice`'s sign rule; `0` inserts at \
-                   the position and `null` reaches the end.",
+            desc: "How many entries the range has. A negative length works as in `slice`. `0` \
+                   inserts at the position, and `null` reaches the end.",
             shape: &[],
         },
         ParamDoc {
             name: "replacement",
-            desc: "The values to put in the window's place; omitted, the window is simply \
-                   removed.",
+            desc: "The values to put in place of the range. Without it, the range is removed.",
             shape: &[],
         },
     ],
@@ -1174,8 +1173,8 @@ const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::chunk`'s reference card — `rule:core-api/reference-card`.
 const CHUNK_DOC: MethodDoc = MethodDoc {
-    short: "Splits the entries into runs of `$size` entries. The last run is shorter when the \
-            count does not divide evenly.",
+    short: "Splits the entries into chunks of `$size` entries. The last chunk is shorter when \
+            the count does not divide evenly.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1184,17 +1183,17 @@ const CHUNK_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "size",
-            desc: "How many entries each run holds; at least `1`.",
+            desc: "How many entries each chunk has; at least `1`.",
             shape: &[],
         },
         ParamDoc {
             name: "preserveKeys",
-            desc: "Keep each entry's own key inside its run; the default renumbers every run \
-                   from `\"0\"`.",
+            desc: "Keeps each entry's own key inside its chunk. By default every chunk is \
+                   renumbered from `\"0\"`.",
             shape: &[],
         },
     ],
-    ret: "A list of runs; no runs at all for the empty array.",
+    ret: "A list of chunks. The empty array gives no chunks.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "`$size` is `0`.",
@@ -1217,9 +1216,9 @@ const APPEND_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The subject's entries under their own keys, then each value under the next free \
-          integer key — one past the largest present; the subject itself when no values are \
-          given.",
+    ret: "The entries of `$a` under their own keys, then each value under the next free \
+          integer key. That key is one past the largest key present. With no values, the result \
+          is `$a` itself.",
     errors: &[],
 };
 
@@ -1238,8 +1237,8 @@ const PREPEND_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "A list renumbered from `\"0\"` — every key is discarded, since a value put in front \
-          has no key of its own to take.",
+    ret: "A list renumbered from `\"0\"`. Every key is discarded, because a value put in front \
+          has no key of its own.",
     errors: &[],
 };
 
@@ -1251,8 +1250,8 @@ const WITHOUT_FIRST_DOC: MethodDoc = MethodDoc {
         desc: "The array to shorten.",
         shape: &[],
     }],
-    ret: "The remaining entries under their own keys, never renumbered; the empty array for a \
-          subject of one entry or none.",
+    ret: "The remaining entries under their own keys, never renumbered; the empty array for an \
+          array of one entry or none.",
     errors: &[],
 };
 
@@ -1264,8 +1263,8 @@ const WITHOUT_LAST_DOC: MethodDoc = MethodDoc {
         desc: "The array to shorten.",
         shape: &[],
     }],
-    ret: "The remaining entries under their own keys, never renumbered; the empty array for a \
-          subject of one entry or none.",
+    ret: "The remaining entries under their own keys, never renumbered; the empty array for an \
+          array of one entry or none.",
     errors: &[],
 };
 
@@ -1280,19 +1279,19 @@ const PAD_START_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "size",
-            desc: "The length to reach; a subject already that long is not padded.",
+            desc: "The length to reach; an array already that long is not padded.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "The value every added entry holds.",
+            desc: "The value of every added entry.",
             shape: &[],
         },
     ],
-    ret: "A list renumbered from `\"0\"` — every key is discarded, padded or not.",
+    ret: "A list renumbered from `\"0\"`. Every key is discarded, padded or not.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The padded result is larger than any array this process could hold.",
+        desc: "The padded result is larger than the largest array this process can store.",
     }],
 };
 
@@ -1307,19 +1306,19 @@ const PAD_END_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "size",
-            desc: "The length to reach; a subject already that long is not padded.",
+            desc: "The length to reach; an array already that long is not padded.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "The value every added entry holds.",
+            desc: "The value of every added entry.",
             shape: &[],
         },
     ],
-    ret: "A list renumbered from `\"0\"` — every key is discarded, padded or not.",
+    ret: "A list renumbered from `\"0\"`. Every key is discarded, padded or not.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The padded result is larger than any array this process could hold.",
+        desc: "The padded result is larger than the largest array this process can store.",
     }],
 };
 
@@ -1334,8 +1333,8 @@ const REVERSE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "preserveKeys",
-            desc: "Keep every entry's own key; the default discards every key, string keys \
-                   included, and renumbers from `\"0\"`.",
+            desc: "Keeps every entry's own key. By default every key is discarded, string keys \
+                   included, and the result is renumbered from `\"0\"`.",
             shape: &[],
         },
     ],
@@ -1348,26 +1347,27 @@ const FLIP_DOC: MethodDoc = MethodDoc {
     short: "Makes every value a key, and every key its value.",
     params: &[ParamDoc {
         name: "a",
-        desc: "The array to flip; every value is an `int` or a `string`, and `1` and `\"1\"` \
-               flip to one key.",
+        desc: "The array to flip. Every value must be an `int` or a `string`. `1` and `\"1\"` \
+               become the same key.",
         shape: &[],
     }],
-    ret: "The old keys as `string` values under the old values as keys, in first-occurrence \
-          order; a repeated value keeps its first position and takes its last key.",
+    ret: "The old keys as `string` values, stored under the old values as keys, in \
+          first-occurrence order. A repeated value keeps its first position and takes its last \
+          key.",
     errors: &[],
 };
 
 /// `Core\Arr::flatten`'s reference card — `rule:core-api/reference-card`.
 const FLATTEN_DOC: MethodDoc = MethodDoc {
-    short: "One level of nesting removed — every inner array's values in order, as a hand-written \
-            walk does.",
+    short: "Removes one level of nesting. The result has every inner array's values in order, \
+            as a hand-written loop gives them.",
     params: &[ParamDoc {
         name: "a",
         desc: "An array of arrays.",
         shape: &[],
     }],
-    ret: "A list renumbered from `\"0\"`; the inner keys are discarded, since two inner arrays \
-          can share one.",
+    ret: "A list renumbered from `\"0\"`. The inner keys are discarded, because two inner arrays \
+          can have the same key.",
     errors: &[],
 };
 
@@ -1380,8 +1380,8 @@ const FLATTEN_DEEP_DOC: MethodDoc = MethodDoc {
         desc: "An array nested to any depth.",
         shape: &[],
     }],
-    ret: "A list of every non-array leaf in walk order, renumbered from `\"0\"`; `mixed` \
-          because the depth is the caller's data, not the type's.",
+    ret: "A list of every value that is not an array, in order, renumbered from `\"0\"`. Its \
+          type is `mixed`, because the depth depends on the data and not on the type.",
     errors: &[],
 };
 
@@ -1402,14 +1402,14 @@ const COLUMN_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "indexBy",
-            desc: "The key of the cell to key the result by; the default gives the result fresh \
-                   integer keys.",
+            desc: "The key of the cell to use as the result's key. By default the result gets \
+                   new integer keys.",
             shape: &[],
         },
     ],
-    ret: "The cells in row order: a row without the column is skipped, a row without the \
-          `indexBy` cell lands under the next free integer key, and two rows with one `indexBy` \
-          value collapse to the last.",
+    ret: "The cells in row order. A row without the column is skipped. A row without the \
+          `indexBy` cell goes under the next free integer key. When two rows have the same \
+          `indexBy` value, the last one is kept.",
     errors: &[],
 };
 
@@ -1425,8 +1425,8 @@ const SORT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "by",
-            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters; \
-                   what it answers is compared in the entry's place.",
+            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters. \
+                   Its result is compared instead of the entry.",
             shape: &[],
         },
         ParamDoc {
@@ -1447,13 +1447,13 @@ const SORT_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The sorted entries. The natural order is between two numbers, two strings bytewise, \
-          two bools or two nulls — `\"10\"` sorts before `\"9\"` — and nothing else.",
+    ret: "The sorted entries. A natural order exists only between two numbers, two strings \
+          (compared byte by byte), two bools or two nulls. `\"10\"` sorts before `\"9\"`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "Two entries have no natural order between them — an `int` against a `string`, \
-               or any object — and no `comparator` was given; or the comparator answered \
-               `NaN`.",
+        desc: "Two entries have no natural order and no `comparator` was given. An `int` and a \
+               `string` have no natural order, and neither does any object. The error is also \
+               thrown when the comparator returns `NaN`.",
     }],
 };
 
@@ -1483,7 +1483,7 @@ const SORT_BY_KEY_DOC: MethodDoc = MethodDoc {
           so `\"10\"` precedes `\"9\"`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The comparator answered `NaN`.",
+        desc: "The comparator returned `NaN`.",
     }],
 };
 
@@ -1499,14 +1499,14 @@ const FILL_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "value",
-            desc: "The value every entry holds.",
+            desc: "The value of every entry.",
             shape: &[],
         },
     ],
     ret: "A list of `$count` entries.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$count` names a result larger than any array this process could hold.",
+        desc: "The result for `$count` is larger than the largest array this process can store.",
     }],
 };
 
@@ -1516,13 +1516,13 @@ const FILL_KEYS_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "keys",
-            desc: "The keys to store under, as the array's *values* — each an `int` or a \
-                   `string`; its own keys are ignored.",
+            desc: "The keys to store under, given as the array's *values*. Each is an `int` or \
+                   a `string`. The array's own keys are ignored.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "The value every entry holds.",
+            desc: "The value of every entry.",
             shape: &[],
         },
     ],
@@ -1542,14 +1542,14 @@ const RANGE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "end",
-            desc: "The last value that may appear; a step that overshoots stops at the last \
-                   in-range value.",
+            desc: "The last value that may appear. When a step goes past it, the list stops at \
+                   the last value inside the range.",
             shape: &[],
         },
         ParamDoc {
             name: "step",
-            desc: "The distance between neighbours, `1` by default; always positive, since the \
-                   direction comes from the bounds.",
+            desc: "The distance between two neighbouring values, `1` by default. It is always \
+                   positive, because `$start` and `$end` set the direction.",
             shape: &[],
         },
     ],
@@ -1567,21 +1567,21 @@ const FROM_KEYS_AND_VALUES_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "keys",
-            desc: "The keys, as the array's *values* — each an `int` or a `string`; its own \
-                   keys are ignored.",
+            desc: "The keys, given as the array's *values*. Each is an `int` or a `string`. The \
+                   array's own keys are ignored.",
             shape: &[],
         },
         ParamDoc {
             name: "values",
-            desc: "The values, in the same order; its own keys are ignored.",
+            desc: "The values, in the same order. The array's own keys are ignored.",
             shape: &[],
         },
     ],
-    ret: "One entry per pair, in `$keys`' order; a repeated key keeps its first position and \
-          takes its last value, and `1` and `\"1\"` are one key.",
+    ret: "One entry per pair, in the order of `$keys`. A repeated key keeps its first position \
+          and takes its last value. `1` and `\"1\"` are the same key.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The two arrays hold different numbers of entries.",
+        desc: "The two arrays have different numbers of entries.",
     }],
 };
 
@@ -1592,24 +1592,26 @@ const FROM_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "items",
-            desc: "The sequence to drain, once.",
+            desc: "The sequence to read. It is read once.",
             shape: &[],
         },
         ParamDoc {
             name: "limit",
-            desc: "Stop the drive after this many elements — the only guard against an unbounded \
-                   generator; the default takes everything, and `0` takes nothing.",
+            desc: "Stops after this many elements. It is the only protection against a \
+                   generator that never ends. By default every element is taken, and `0` takes \
+                   nothing.",
             shape: &[],
         },
     ],
-    ret: "A list renumbered from `\"0\"` — a cursor has no keys, and an array's are discarded.",
+    ret: "A list renumbered from `\"0\"`. An iterator has no keys, and the keys of an array are \
+          discarded.",
     errors: &[],
 };
 
 /// `Core\Arr::overlay`'s reference card — `rule:core-api/reference-card`.
 const OVERLAY_DOC: MethodDoc = MethodDoc {
     short: "Writes the entries of every layer over `$base`. Where two have the same key, the \
-            value further right is kept. Integer keys and string keys work the same way.",
+            value from the later array is kept. Integer keys and string keys work the same way.",
     params: &[
         ParamDoc {
             name: "base",
@@ -1618,12 +1620,13 @@ const OVERLAY_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "layers",
-            desc: "The arrays laid over it, in order; a later layer wins over an earlier one.",
+            desc: "The arrays to write over it, in order. A later layer replaces the values of \
+                   an earlier one.",
             shape: &[],
         },
     ],
-    ret: "Every key of every argument: an existing key keeps its position and takes the last \
-          value written under it, a new one is appended.",
+    ret: "Every key of every argument. An existing key keeps its position and takes the last \
+          value written under it. A new key is appended.",
     errors: &[],
 };
 
@@ -1639,19 +1642,21 @@ const OVERLAY_DEEP_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "layers",
-            desc: "The arrays laid over it, in order; a later layer wins over an earlier one.",
+            desc: "The arrays to write over it, in order. A later layer replaces the values of \
+                   an earlier one.",
             shape: &[],
         },
     ],
-    ret: "Every key of every argument, as `overlay` answers it, with two maps under one key \
-          combined the same way rather than the right one winning.",
+    ret: "Every key of every argument, as `overlay` returns them. When both values under one \
+          key are maps, they are combined the same way, and the later map does not replace the \
+          earlier one.",
     errors: &[],
 };
 
 /// `Core\Arr::underlay`'s reference card — `rule:core-api/reference-card`.
 const UNDERLAY_DOC: MethodDoc = MethodDoc {
     short: "Returns `$base` with the entries of every layer added under it. Where two have the \
-            same key, the value further left is kept.",
+            same key, the value from the earlier array is kept.",
     params: &[
         ParamDoc {
             name: "base",
@@ -1660,7 +1665,8 @@ const UNDERLAY_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "layers",
-            desc: "The arrays laid under it, in order; an earlier one wins over a later one.",
+            desc: "The arrays to add under it, in order. The value of an earlier layer is kept \
+                   over the value of a later one.",
             shape: &[],
         },
     ],
@@ -1700,7 +1706,7 @@ const DIFF_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "b",
-            desc: "The array whose entries exclude.",
+            desc: "The entries of `$a` that are also in this array are removed.",
             shape: &[],
         },
         ParamDoc {
@@ -1727,7 +1733,7 @@ const DIFF_DOC: MethodDoc = MethodDoc {
     ret: "The kept entries of `$a` under their own keys, in `$a`'s order.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The comparator answered `NaN`.",
+        desc: "The comparator returned `NaN`.",
     }],
 };
 
@@ -1770,7 +1776,7 @@ const INTERSECT_DOC: MethodDoc = MethodDoc {
     ret: "The kept entries of `$a` under their own keys, in `$a`'s order.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The comparator answered `NaN`.",
+        desc: "The comparator returned `NaN`.",
     }],
 };
 
@@ -1786,14 +1792,14 @@ const COUNT_BY_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "by",
-            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters; \
-                   it answers the bucket's name, an `int` or a `string`. Without it the value \
-                   itself is the bucket.",
+            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters. \
+                   It returns the group's name, an `int` or a `string`. Without it, the value \
+                   itself is the group.",
             shape: &[],
         },
     ],
-    ret: "One `uint` per distinct bucket, keyed by it in first-occurrence order; `1` and `\"1\"` \
-          are one bucket.",
+    ret: "One `uint` per distinct group, keyed by the group in first-occurrence order. `1` and \
+          `\"1\"` are the same group.",
     errors: &[],
 };
 
@@ -1809,9 +1815,8 @@ const UNIQUE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "by",
-            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters; \
-                   identity is asked of what it answers, while the entry kept is still the \
-                   entry.",
+            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters. \
+                   Its result is compared by identity, but the entry itself is what is kept.",
             shape: &[],
         },
     ],
@@ -1832,8 +1837,8 @@ const MIN_DOC: MethodDoc = MethodDoc {
           compare bytewise, so `min([\"1e2\", \"50\"])` is `\"1e2\"`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "Two entries have no natural order between them — an `int` against a `string`, \
-               or any object.",
+        desc: "Two entries have no natural order, such as an `int` and a `string`, or any \
+               object.",
     }],
 };
 
@@ -1850,8 +1855,8 @@ const MAX_DOC: MethodDoc = MethodDoc {
           compare bytewise, so `max([\"1e2\", \"50\"])` is `\"50\"`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "Two entries have no natural order between them — an `int` against a `string`, \
-               or any object.",
+        desc: "Two entries have no natural order, such as an `int` and a `string`, or any \
+               object.",
     }],
 };
 
@@ -1867,9 +1872,9 @@ const SUM_DOC: MethodDoc = MethodDoc {
     ret: "The total, of the widest type met; `0` as an `int` for the empty array.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The running `int` or `decimal` total leaves its type's range — there is no \
-               silent promotion to `float` — or a `float` and a `decimal` meet in one array, \
-               which have no common type.",
+        desc: "The running `int` or `decimal` total goes outside its type's range. It is never \
+               converted to `float`. The error is also thrown when one array has both a \
+               `float` and a `decimal`, because they have no common type.",
     }],
 };
 
@@ -1884,9 +1889,9 @@ const PRODUCT_DOC: MethodDoc = MethodDoc {
     ret: "The product, of the widest type met; `1` as an `int` for the empty array.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The running `int` or `decimal` product leaves its type's range — there is no \
-               silent promotion to `float` — or a `float` and a `decimal` meet in one array, \
-               which have no common type.",
+        desc: "The running `int` or `decimal` product goes outside its type's range. It is \
+               never converted to `float`. The error is also thrown when one array has both a \
+               `float` and a `decimal`, because they have no common type.",
     }],
 };
 
@@ -1898,22 +1903,22 @@ const AVERAGE_DOC: MethodDoc = MethodDoc {
         desc: "The numbers to average.",
         shape: &[],
     }],
-    ret: "A `decimal` when the total is one — exact, rounded half to even at the widest scale \
-          the quotient admits — and a `float` otherwise; `null` for the empty array.",
+    ret: "A `decimal` when the total is a `decimal`, and a `float` otherwise; `null` for the \
+          empty array. A `decimal` result is exact, rounded half to even at the widest scale the \
+          quotient allows.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The running total leaves its type's range or meets a `float` and a `decimal` in \
-               one array, as `sum` throws; or a `decimal` quotient falls outside what a \
-               `decimal` can hold.",
+        desc: "The running total goes outside its type's range, or the array has both a \
+               `float` and a `decimal`, as in `sum`. The error is also thrown when a `decimal` \
+               quotient is outside the range of `decimal`.",
     }],
 };
 
 /// `Core\Arr::shapeAs`'s reference card — `rule:core-api/reference-card`.
 const SHAPE_AS_DOC: MethodDoc = MethodDoc {
-    short: "Reads `$a` as the type `T` written at the call site — an inline shape, `{name: T}`, \
-            or a class carrying `#[Json\\Derive]` — converting each named field with `as` and \
-            leaving every key the type does not name behind; write `array<T>` to read a list of \
-            them instead.",
+    short: "Reads `$a` as the type `T` written at the call site. `T` is an inline shape such as \
+            `{name: T}`, or a class with `#[Json\\Derive]`. Each field that `T` names is \
+            converted with `as`, and other keys are left out. Write `array<T>` to read a list.",
     params: &[ParamDoc {
         name: "a",
         desc: "The loose values to read: a form, a query string, a decoded document, or an \
@@ -1921,19 +1926,19 @@ const SHAPE_AS_DOC: MethodDoc = MethodDoc {
                field of `T` that it fills must be `tainted` too.",
         shape: &[],
     }],
-    ret: "A new `T` whose every field is the declared type, or — for an `array<T>` — one per \
+    ret: "A new `T` where every field has its declared type. For an `array<T>`, one `T` per \
           entry, in the array's own order.",
     errors: &[
         ErrorDoc {
             error: "ParseError",
-            desc: "A field `T` requires is absent, or holds a value `as` refuses for its \
-                   declared type. Every field that failed is one issue on the error, at its own \
-                   dotted path, so a form shows the whole list rather than the first item of it.",
+            desc: "A field that `T` requires is missing, or `as` cannot convert its value to the \
+                   declared type. Every failed field is one issue on the error, at its own \
+                   dotted path. A form can then show the whole list of problems.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`T` is a class that carries no `#[Json\\Derive]`, so there is no field list \
-                   to read `$a` against.",
+            desc: "`T` is a class without `#[Json\\Derive]`, so there is no field list to read \
+                   `$a` against.",
         },
     ],
 };
@@ -1965,7 +1970,7 @@ const ORDER_DOC: EnumDoc = EnumDoc {
     cases: &[
         CaseDoc {
             name: "Asc",
-            desc: "Smallest first — what an omitted `{order: …}` means.",
+            desc: "Smallest first. This is the default when `{order: …}` is left out.",
         },
         CaseDoc {
             name: "Desc",
@@ -1991,8 +1996,8 @@ pub const SET_ON: CoreEnum = CoreEnum {
 /// [`SET_ON`]'s reference card — `rule:core-api/reference-card`.
 const SET_ON_DOC: EnumDoc = EnumDoc {
     short: "Which part of an entry `Core\\Arr::diff` and `intersect` compare. It is the \
-            `{on: …}` option, and it is `Values` when you leave it out; `by` and `comparator` apply to \
-            the part it selects.",
+            `{on: …}` option, and it is `Values` when you leave it out. `by` and `comparator` \
+            apply to the part it selects.",
     cases: &[
         CaseDoc {
             name: "Values",

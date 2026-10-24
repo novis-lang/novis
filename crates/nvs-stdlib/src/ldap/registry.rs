@@ -217,8 +217,8 @@ const CONNECT_DOC: MethodDoc = MethodDoc {
         desc: "The block to open: `\"corp\"` is `[ldap.corp]`.",
         shape: &[],
     }],
-    ret: "A `Core\\Ldap\\Connection`, bound as the block's `user`. It is closed when the request \
-          ends.",
+    ret: "A `Core\\Ldap\\Connection`, logged in as the block's `user`. It is closed when the \
+          request ends.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -232,7 +232,7 @@ const CONNECT_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "Core\\Ldap\\LdapError",
-            desc: "No URL in the block answered, or the server did not accept the block's user \
+            desc: "No URL in the block responded, or the server did not accept the block's user \
                    and password. `$kind` says why.",
         },
     ],
@@ -294,7 +294,7 @@ const OPEN_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "Core\\Ldap\\LdapError",
-            desc: "The server did not answer, the connection is not encrypted and the host may \
+            desc: "The server did not respond, the connection is not encrypted and the host may \
                    not use plain text, or the server did not accept the user and password. \
                    `$kind` says why.",
         },
@@ -550,7 +550,7 @@ const WHOAMI_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "Core\\Ldap\\LdapError",
-            desc: "The server did not answer, or it returned an error. `$kind` says why.",
+            desc: "The server did not respond, or it returned an error. `$kind` says why.",
         },
     ],
 };
@@ -770,8 +770,8 @@ const WRITE_DN_PARAM: ParamDoc = ParamDoc {
 const WRITE_ERRORS: &[ErrorDoc] = &[
     ErrorDoc {
         error: "LogicError",
-        desc: "An attribute name is not a name, a value has no LDAP form, such as a `float`, \
-               or the connection is closed.",
+        desc: "An attribute name is not a valid name, a value has no LDAP form, such as a \
+               `float`, or the connection is closed.",
     },
     ErrorDoc {
         error: "Core\\Ldap\\LdapError",
@@ -788,7 +788,7 @@ const ADD_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "attributes",
             desc: "The entry's attributes, keyed by name, such as `['objectClass' => ['top', \
-                   'group'], 'cn' => 'Staff']`. A value is written in the form the readers of \
+                   'group'], 'cn' => 'Staff']`. A value is written in the form the methods of \
                    `Entry` return it, and a list writes one value per element. A value may be \
                    `tainted`. A name that can come from outside the program does not compile.",
             shape: &[],
@@ -958,7 +958,7 @@ const CHANGE_ATTRIBUTE_PARAM: ParamDoc = ParamDoc {
 /// The value parameter of every `Change` constructor that takes one.
 const CHANGE_VALUE_PARAM: ParamDoc = ParamDoc {
     name: "value",
-    desc: "One value, or a list of values. A value is written in the form the readers of \
+    desc: "One value, or a list of values. A value is written in the form the methods of \
            `Entry` return it, such as an `int`, a `Uuid` or an `Instant`.",
     shape: &[],
 };
@@ -1154,8 +1154,8 @@ const ENTRIES_REFERENCES_DOC: MethodDoc = MethodDoc {
 
 /// `Ldap\Entry`'s class card — `rule:core-api/reference-card`.
 const ENTRY_CARD: ClassDoc = ClassDoc {
-    short: "One entry from a directory: its DN and its attributes. An attribute name is found \
-            without case, so `mail` and `Mail` are the same attribute.",
+    short: "One entry from a directory: its DN and its attributes. Attribute names ignore upper \
+            and lower case, so `mail` and `Mail` are the same attribute.",
 };
 
 /// The card shared by [`ENTRY`]'s readers' one parameter.
@@ -1467,8 +1467,8 @@ const ENTRY_SIDS_DOC: MethodDoc = MethodDoc {
 /// `Ldap\Entry::instant`'s reference card — `rule:core-api/reference-card`.
 const ENTRY_INSTANT_DOC: MethodDoc = MethodDoc {
     short: "Returns a time attribute as a `Core\\Time\\Instant`. It reads both forms a \
-            directory uses: a number of 100-nanosecond steps since the year 1601, such as \
-            `pwdLastSet`, and text such as `20240101120000.0Z`, such as `whenCreated`.",
+            directory uses. One is a number of 100-nanosecond steps since the year 1601, as in \
+            `pwdLastSet`. The other is text such as `20240101120000.0Z`, as in `whenCreated`.",
     params: &[ATTRIBUTE_NAME_PARAM],
     ret: "The instant, or `null` when the entry has no value for the attribute. It is also \
           `null` when the number is `0` or `9223372036854775807`. Active Directory uses those \
@@ -1773,7 +1773,7 @@ const FILTER_AT_MOST_DOC: MethodDoc = MethodDoc {
 /// `Ldap\Filter::approx`' reference card — `rule:core-api/reference-card`.
 const FILTER_APPROX_DOC: MethodDoc = MethodDoc {
     short: "Matches the entries where a value of an attribute is close to this value, such as a \
-            name that sounds the same. The server decides what is close.",
+            name that sounds the same. Each server has its own rules for what is close.",
     params: &[
         FILTER_ATTRIBUTE_PARAM,
         ParamDoc {
@@ -1867,8 +1867,8 @@ const FILTER_TO_STRING_DOC: MethodDoc = MethodDoc {
 /// `Ldap\Dn`'s class card — `rule:core-api/reference-card`.
 const DN_CARD: ClassDoc = ClassDoc {
     short: "A DN (distinguished name), the path of an entry in a directory, such as \
-            `CN=Ann Lee,OU=Staff,DC=example,DC=test`. Build one from an attribute and a value, \
-            and the value can be user input: each special character in it is escaped.",
+            `CN=Ann Lee,OU=Staff,DC=example,DC=test`. Build one from an attribute and a value. \
+            The value can be user input, because each special character in it is escaped.",
 };
 
 /// The `attribute` parameter of [`DN`]'s builders.
@@ -2049,8 +2049,8 @@ const DN_RDN_VALUE_DOC: MethodDoc = MethodDoc {
 
 /// `Ldap\Dn->isWithin`'s reference card — `rule:core-api/reference-card`.
 const DN_IS_WITHIN_DOC: MethodDoc = MethodDoc {
-    short: "Checks if this DN is `other` or an entry below it. Names and values are compared \
-            without case.",
+    short: "Checks if this DN is `other` or an entry below it. Upper and lower case do not \
+            matter when names and values are compared.",
     params: &[ParamDoc {
         name: "other",
         desc: "The DN to compare with, such as `Dn::parse('DC=example,DC=test')`.",
@@ -2358,8 +2358,8 @@ const fn flag_doc(short: &'static str) -> MethodDoc {
 /// `Ldap\Ad\AccountFlags`' class card — `rule:core-api/reference-card`.
 const ACCOUNT_FLAGS_CARD: ClassDoc = ClassDoc {
     short: "The flags of a user or computer account, read from `userAccountControl`. Each flag \
-            is a function that returns a `bool`. `bits` returns the whole number, with every \
-            bit, also the bits no function names.",
+            is a function that returns a `bool`. `bits` returns the whole number. It includes \
+            every bit, also the bits that have no function of their own.",
 };
 
 /// `Ldap\Ad\AccountFlags` (`rule:core-classes/ldap-value-types`): one reader per flag
@@ -2892,8 +2892,9 @@ const TLS_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "None",
-            desc: "The connection is not encrypted. The password and every result cross the \
-                   network as plain text. The host must be in `[capabilities.ldap] cleartext`.",
+            desc: "The connection is not encrypted. The password and every result are sent over \
+                   the network as plain text. The host must be in `[capabilities.ldap] \
+                   cleartext`.",
         },
     ],
 };

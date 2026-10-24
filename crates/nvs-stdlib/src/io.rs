@@ -476,16 +476,16 @@ const READ_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.read` for this path; the message names \
-                   the capability in the spelling `nvs.toml` grants it under. Or the file is \
-                   larger than `[limits] max_output`, the one ceiling a request holds a single \
-                   read to — the same directive that bounds a captured child's output. Or the \
-                   file is not valid UTF-8, and the message names the byte where the text stops.",
+            desc: "The configuration does not grant `fs.read` for this path. The message names \
+                   the capability the way `nvs.toml` writes it. Or the file is larger than \
+                   `[limits] max_output`, the limit for a single read in a request. The same \
+                   setting limits the captured output of a child process. Or the file is not \
+                   valid UTF-8, and the message names the byte where the text stops.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — the file does \
-                   not exist, is a directory, or could not be read.",
+            desc: "The capability allowed the call, but the operating system did not. The file \
+                   does not exist, is a directory, or could not be read.",
         },
     ],
 };
@@ -503,23 +503,24 @@ const WRITE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "content",
-            desc: "The bytes to write. They become the file's entire content; `append` is the \
-                   member that adds to what is already there.",
+            desc: "The bytes to write. They become the file's entire content. `append` is the \
+                   method that adds to what is already there.",
             shape: &[],
         },
     ],
-    ret: "Nothing. A refusal throws rather than answering `false`, so a caller that ignores the \
-          result has not ignored a failure.",
+    ret: "Nothing. A failure throws an error. It never returns `false`, so a caller that ignores \
+          the result does not miss a failure.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.write` for this path; checked before \
-                   anything is created, so a refused write leaves no file behind.",
+            desc: "The configuration does not grant `fs.write` for this path. This is checked \
+                   before anything is created, so the failed write leaves no file behind.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — a missing \
-                   directory, a read-only filesystem, a permission the process lacks.",
+            desc: "The capability allowed the call, but the operating system did not. A \
+                   directory is missing, the filesystem is read-only, or the process does not \
+                   have permission.",
         },
     ],
 };
@@ -536,33 +537,33 @@ const APPEND_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "content",
-            desc: "The bytes to add. Whatever the file already holds is kept and these follow \
-                   it; the end is found by the operating system at the write, not read \
-                   beforehand.",
+            desc: "The bytes to add. The file's current content is kept, and these bytes come \
+                   after it. The operating system finds the end of the file when it writes. \
+                   The file is not read first.",
             shape: &[],
         },
     ],
-    ret: "Nothing. A refusal throws rather than answering `false`, so a caller that ignores the \
-          result has not ignored a failure.",
+    ret: "Nothing. A failure throws an error. It never returns `false`, so a caller that ignores \
+          the result does not miss a failure.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.write` for this path; checked before \
-                   anything is created, so a refused append leaves no file behind.",
+            desc: "The configuration does not grant `fs.write` for this path. This is checked \
+                   before anything is created, so the failed append leaves no file behind.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — a missing \
-                   directory, a read-only filesystem, a path that is a directory.",
+            desc: "The capability allowed the call, but the operating system did not. A \
+                   directory is missing, the filesystem is read-only, or the path is a directory.",
         },
     ],
 };
 
 /// `Core\IO::writeStream`'s reference card — `rule:core-api/reference-card`.
 const WRITE_STREAM_DOC: MethodDoc = MethodDoc {
-    short: "Writes a sequence of `bytes` chunks to `$path` as they arrive, holding no more than one \
-            of them — an upload part, a response body, a decompressed archive. Needs the `fs.write` \
-            capability for the path.",
+    short: "Writes a sequence of `bytes` chunks to `$path` as they arrive. Only one chunk is in \
+            memory at a time. Examples are an upload part, a response body or a decompressed \
+            archive. It needs the `fs.write` capability for the path.",
     params: &[
         ParamDoc {
             name: "path",
@@ -571,26 +572,28 @@ const WRITE_STREAM_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "src",
-            desc: "The chunks, in order — an `array<bytes>`, an `Iterable<bytes>` or an \
-                   `Iterator<bytes>`. Each is written and then dropped, so the source's length is \
-                   not what this holds.",
+            desc: "The chunks, in order: an `array<bytes>`, an `Iterable<bytes>` or an \
+                   `Iterator<bytes>`. Each chunk is written and then freed, so memory use does \
+                   not grow with the length of the source.",
             shape: &[],
         },
         ParamDoc {
             name: "max",
-            desc: "The most bytes to accept across the whole stream. Unbounded when it is not \
-                   given: nothing else bounds a file on disk, so this is the only ceiling there is.",
+            desc: "The most bytes to accept across the whole stream. When it is not given, there \
+                   is no limit. Nothing else limits the size of a file on disk, so this is the \
+                   only limit.",
             shape: &[],
         },
         ParamDoc {
             name: "overwrite",
-            desc: "Whether an existing file may be replaced. `false` by default, because the \
-                   destination is usually a name a client claimed.",
+            desc: "Whether an existing file may be replaced. It is `false` by default, because \
+                   the file name usually comes from a client.",
             shape: &[],
         },
     ],
-    ret: "Nothing. A failure part-way through removes the partial file before it throws, so a later \
-          reader never finds a truncated write the program believes it completed.",
+    ret: "Nothing. If a write fails part-way through, the partial file is removed before the error \
+          is thrown. A later reader never finds a cut-off file that the program thinks is \
+          complete.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -599,8 +602,8 @@ const WRITE_STREAM_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "Something is already at the path and `overwrite` is `false`, or the operating \
-                   system refused the create or one of the writes.",
+            desc: "Something is already at the path and `overwrite` is `false`. Or the operating \
+                   system did not allow the file to be created or written.",
         },
     ],
 };
@@ -615,19 +618,20 @@ const EXISTS_DOC: MethodDoc = MethodDoc {
         desc: "The name to look for. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
-    ret: "`true` if the name resolves to something, `false` if it resolves to nothing. Absence is \
-          an answer here and not a failure, which is what separates this from `size`.",
+    ret: "`true` if something is at the path, `false` if nothing is there. A missing path is a \
+          normal result here and not an error. `size` throws an error for it.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.read` for this path. A refusal and a \
-                   `false` are deliberately distinguishable: a program that was never granted the \
-                   root cannot use this member to learn what is in it.",
+            desc: "The configuration does not grant `fs.read` for this path. This error is \
+                   different from `false`. A program without access to a folder cannot use this \
+                   method to learn what is in it.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system could answer neither yes nor no — a parent directory it \
-                   will not traverse, which is not the same as the name being absent.",
+            desc: "The operating system could not say whether the path exists. For example, the \
+                   process may not open a parent directory. That is not the same as a missing \
+                   path.",
         },
     ],
 };
@@ -639,23 +643,23 @@ const IS_FILE_DOC: MethodDoc = MethodDoc {
             is used.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The name to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
+        desc: "The path to check. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
-    ret: "`true` for a regular file, `false` for a directory, for anything else the operating \
-          system holds at that name, and for a name that is not there at all. Absence answers \
-          `false` here rather than throwing, because the question is what kind of thing is at the \
-          name and *nothing* is a complete answer to it.",
+    ret: "`true` for a regular file. `false` for a directory, for any other kind of entry, and \
+          for a path where nothing exists. A missing path gives `false` and does not throw an \
+          error.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.read` for this path. A refusal and a \
-                   `false` stay distinguishable, exactly as they do for `exists`.",
+            desc: "The configuration does not grant `fs.read` for this path. This error is \
+                   different from `false`, as it is for `exists`.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system could answer neither yes nor no — a parent directory it \
-                   will not traverse, which is not the same as the name naming no file.",
+            desc: "The operating system could not say whether the path is a file. For example, \
+                   the process may not open a parent directory. That is not the same as a \
+                   missing file.",
         },
     ],
 };
@@ -666,12 +670,12 @@ const IS_DIR_DOC: MethodDoc = MethodDoc {
             directory gives `true`. It needs the `fs.read` capability.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The name to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
+        desc: "The path to check. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
-    ret: "`true` for a directory, `false` for a file, for anything else, and for a name that is \
-          not there. With `isFile` it partitions what `exists` answers `true` for into the two \
-          kinds this class has separate members for, and a name can satisfy neither.",
+    ret: "`true` for a directory. `false` for a file, for any other kind of entry, and for a path \
+          where nothing exists. A path can exist and still give `false` for both `isFile` and \
+          `isDir`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -679,8 +683,8 @@ const IS_DIR_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system could answer neither yes nor no — a parent directory it \
-                   will not traverse.",
+            desc: "The operating system could not say whether the path is a directory. For \
+                   example, the process may not open a parent directory.",
         },
     ],
 };
@@ -692,12 +696,12 @@ const IS_READABLE_DOC: MethodDoc = MethodDoc {
             an error.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
+        desc: "The file or directory to check. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
-    ret: "`true` if the operating system would allow a read, `false` if it would not — including \
-          for a name that is not there. The answer is about the instant it was asked and nothing \
-          holds it still, so a read that follows it can still fail.",
+    ret: "`true` if the operating system would allow a read, `false` if it would not. A path \
+          where nothing exists gives `false`. The result is only true at the moment of the call, \
+          so a read after it can still fail.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The configuration does not grant `fs.read` for this path.",
@@ -710,11 +714,12 @@ const IS_WRITABLE_DOC: MethodDoc = MethodDoc {
             `fs.write` capability. A program that may only read cannot check where it could write.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
+        desc: "The file or directory to check. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
-    ret: "`true` if the operating system would allow a write, `false` if it would not — including \
-          for a name that is not there. A snapshot, exactly as `isReadable` is.",
+    ret: "`true` if the operating system would allow a write, `false` if it would not. A path \
+          where nothing exists gives `false`. As with `isReadable`, the result is only true at \
+          the moment of the call.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The configuration does not grant `fs.write` for this path.",
@@ -730,9 +735,9 @@ const SIZE_DOC: MethodDoc = MethodDoc {
         desc: "The file to measure. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
-    ret: "The byte count as a `uint`. For a text file this is bytes and not characters — a \
-          `string`'s own length is `Core\\Str::length`, which counts graphemes \
-           (what a person counts as one character).",
+    ret: "The byte count as a `uint`. For a text file this counts bytes, not characters. \
+          `Core\\Str::length` gives the length of a `string` in graphemes (what a person counts \
+          as one character).",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -740,9 +745,9 @@ const SIZE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — there is nothing \
+            desc: "The capability allowed the call, but the operating system did not. Nothing is \
                    at the path, or its metadata could not be read. A missing file has no size, so \
-                   it throws here where `exists` answers `false`.",
+                   this method throws an error. `exists` returns `false` for it.",
         },
     ],
 };
@@ -753,11 +758,11 @@ const MODIFIED_AT_DOC: MethodDoc = MethodDoc {
             needs the `fs.read` capability.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
+        desc: "The file or directory to check. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
-    ret: "The modification time as an absolute point on the timeline, with no zone of its own — \
-          `->in($zone)` is what gives it a calendar.",
+    ret: "The modification time as an exact point in time, with no time zone. Call \
+          `->in($zone)` to get a calendar date and time.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -765,9 +770,9 @@ const MODIFIED_AT_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "There is nothing at the path, its metadata could not be read, the platform \
-                   does not record a modification time, or the one it recorded falls outside \
-                   the range a `Core\\Time\\Instant` can name.",
+            desc: "Nothing is at the path, or its metadata could not be read. Or the platform \
+                   does not record a modification time, or the recorded time is outside the \
+                   range of a `Core\\Time\\Instant`.",
         },
     ],
 };
@@ -782,8 +787,8 @@ const STAT_DOC: MethodDoc = MethodDoc {
         desc: "The file or directory to measure. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
-    ret: "A `Core\\IO\\Metadata` — a snapshot, not a live view: it answers about the moment the \
-          call was made, and says nothing about the file afterwards.",
+    ret: "A `Core\\IO\\Metadata`. Its values are from the moment of the call. They do not change \
+          when the file changes later.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -791,8 +796,8 @@ const STAT_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "There is nothing at the path, or its metadata could not be read. A missing \
-                   file has no metadata, so it throws here where `exists` answers `false`.",
+            desc: "Nothing is at the path, or its metadata could not be read. A missing file has \
+                   no metadata, so this method throws an error. `exists` returns `false` for it.",
         },
     ],
 };
@@ -810,26 +815,26 @@ const COPY_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "to",
             desc: "The file to create. Anything already at this path is replaced, as `write` \
-                   replaces — this destination is one the program named beside a source it already \
-                   holds.",
+                   replaces it. The program names this path itself, together with the source.",
             shape: &[],
         },
     ],
-    ret: "Nothing. A refusal throws rather than answering `false`, so a caller that ignores the \
-          result has not ignored a failure.",
+    ret: "Nothing. A failure throws an error. It never returns `false`, so a caller that ignores \
+          the result does not miss a failure.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
             desc: "The configuration does not grant `fs.read` for the source or `fs.write` for the \
-                   destination; both are checked before either is used, so a refusal copies \
+                   destination. Both are checked before either is used, so a failed check copies \
                    nothing.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — nothing at the \
-                   source, a destination directory that is not there, or a permission the process \
-                   lacks. A destination that is the source file itself, under any spelling, \
-                   throws too and leaves the file as it was. The message names both ends.",
+            desc: "The capability allowed the call, but the operating system did not. Nothing is \
+                   at the source, the destination directory does not exist, or the process does \
+                   not have permission. A destination that is the source file itself, however the \
+                   path is written, also throws an error. The file stays as it was. The message \
+                   names both paths.",
         },
     ],
 };
@@ -846,25 +851,25 @@ const MOVE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "to",
-            desc: "The path that ends up holding the file. Anything already there is replaced.",
+            desc: "The new path of the file. Anything already there is replaced.",
             shape: &[],
         },
     ],
-    ret: "Nothing. The rename is the operating system's own, so it is atomic: the destination is \
-          the whole file or the file it was before. A move between filesystems fails rather than \
-          becoming a copy and a delete, which would be neither atomic nor the two capability checks \
-          the program would have chosen — `copy` then `remove` is that spelling.",
+    ret: "Nothing. The operating system does the rename, so it is atomic. The destination always \
+          has either the whole new file or the file it had before. A move between filesystems \
+          fails. It is not done as a copy and a delete, because that is not atomic and needs \
+          different capabilities. To do that, call `copy` and then `remove`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.write` for one of the two paths; both are \
+            desc: "The configuration does not grant `fs.write` for one of the two paths. Both are \
                    checked before either is used.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — nothing at the \
-                   source, a destination directory that is not there, or the two paths on \
-                   different filesystems. The message names both ends.",
+            desc: "The capability allowed the call, but the operating system did not. Nothing is \
+                   at the source, the destination directory does not exist, or the two paths are \
+                   on different filesystems. The message names both paths.",
         },
     ],
 };
@@ -875,24 +880,24 @@ const MAKE_DIR_DOC: MethodDoc = MethodDoc {
             directory. It needs the `fs.write` capability.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The directory that is to exist. Every missing component above it is created too; \
-               all of them are under the path the capability was asked about.",
+        desc: "The directory that must exist. Every missing directory above it is created too. \
+               All of them are inside the path the capability is checked for.",
         shape: &[],
     }],
-    ret: "Nothing. A directory that is already there is success rather than a refusal — the \
-          contract is that it exists afterwards, and refusing would leave every caller writing an \
-          `exists` check in front of this one. `removeDir` is deliberately not the mirror of this: \
-          it refuses to recurse, because what it would recurse over is destruction.",
+    ret: "Nothing. A directory that already exists is a success, not an error. The method only \
+          promises that the directory exists afterwards, so a caller needs no `exists` check \
+          first. `removeDir` works differently. It does not delete directories recursively.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.write` for this path; checked before \
-                   anything is created, so a refused call leaves no directory behind.",
+            desc: "The configuration does not grant `fs.write` for this path. This is checked \
+                   before anything is created, so the failed call leaves no directory behind.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — the path is empty, \
-                   a component of the path exists and is a file, or the process may not create there.",
+            desc: "The capability allowed the call, but the operating system did not. The path \
+                   is empty, a part of the path exists and is a file, or the process may not \
+                   create a directory there.",
         },
     ],
 };
@@ -903,16 +908,16 @@ const REMOVE_DOC: MethodDoc = MethodDoc {
             file is a write.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file to delete. A directory is `removeDir`'s argument, not this one.",
+        desc: "The file to delete. To delete a directory, use `removeDir`.",
         shape: &[],
     }],
-    ret: "Nothing. Removing a name that is not there throws rather than answering quietly, so a \
-          program that deleted nothing has not been told it succeeded.",
+    ret: "Nothing. Removing a path where nothing exists throws an error. A program that deleted \
+          nothing is never told that it succeeded.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.write` for this path; being allowed to \
-                   read a root is not permission to empty it.",
+            desc: "The configuration does not grant `fs.write` for this path. Permission to read \
+                   a folder does not give permission to delete from it.",
         },
         ErrorDoc {
             error: "IOError",
@@ -929,10 +934,10 @@ const REMOVE_DIR_DOC: MethodDoc = MethodDoc {
             directory, a program walks it and removes each entry.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The directory to delete, which must hold no entries.",
+        desc: "The directory to delete. It must be empty.",
         shape: &[],
     }],
-    ret: "Nothing. A refusal throws rather than answering `false`.",
+    ret: "Nothing. A failure throws an error. It never returns `false`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -940,8 +945,8 @@ const REMOVE_DIR_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — nothing is at the \
-                   path, it is not a directory, or it still has entries in it.",
+            desc: "The capability allowed the call, but the operating system did not. Nothing is \
+                   at the path, it is not a directory, or it still has entries in it.",
         },
     ],
 };
@@ -953,14 +958,13 @@ const LIST_DOC: MethodDoc = MethodDoc {
             the operating system's own, and the list is not sorted. `Core\\Arr::sort` sorts it.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The directory to read. A file throws rather than answering a one-element array.",
+        desc: "The directory to read. A file throws an error.",
         shape: &[],
     }],
-    ret: "One `string` per entry, each a name and not a path: joining it back onto `$path` is the \
-          caller's own step, and `within` is what makes that join safe when the name reached this \
-          program from outside. The whole directory is held at once, which is what makes this a \
-          member for a directory a program expects to fit in memory; `walk` is the member for the \
-          tree underneath it.",
+    ret: "One `string` per entry. Each one is a name, not a path. The caller joins it to `$path`. \
+          Use `within` to make that join safe when the name came from outside the program. The \
+          whole list is in memory at once, so use this method for a directory that fits in \
+          memory. `walk` reads the whole tree under a directory.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -968,9 +972,9 @@ const LIST_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — nothing is at the \
-                   path, it is not a directory, or an entry could not be read partway through the \
-                   walk.",
+            desc: "The capability allowed the call, but the operating system did not. Nothing is \
+                   at the path, it is not a directory, or an entry could not be read partway \
+                   through the listing.",
         },
     ],
 };
@@ -984,25 +988,25 @@ const WALK_DOC: MethodDoc = MethodDoc {
             always ends.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The directory the walk starts at. A file throws, exactly as `list` does.",
+        desc: "The directory the walk starts at. A file throws an error, as it does for `list`.",
         shape: &[],
     }],
-    ret: "One `string` per entry found anywhere beneath `$path`, each a path *relative to* `$path` \
-          and spelled with `Core\\Path::SEPARATOR` — joining it back on is the caller's own step, \
-          and `within` is what makes that join safe. Every entry of a directory is answered before \
-          any entry beneath it, and within one directory the order is the operating system's own.",
+    ret: "One `string` per entry anywhere under `$path`. Each one is a path *relative to* `$path`, \
+          written with `Core\\Path::SEPARATOR`. The caller joins it to `$path`, and `within` makes \
+          that join safe. All entries of a directory come before any entry inside them. Within \
+          one directory, the order is the operating system's own.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.read` for a directory the walk asked to \
-                   read; the message names the one it stopped at, which is the root unless a grant \
-                   covers less than a whole subtree.",
+            desc: "The configuration does not grant `fs.read` for a directory the walk tried to \
+                   read. The message names the directory where the walk stopped. That is the \
+                   start directory, unless the capability covers only part of the tree.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — nothing is at the \
-                   path, it is not a directory, or a directory the walk had entered could not be \
-                   read to the end.",
+            desc: "The capability allowed the call, but the operating system did not. Nothing is \
+                   at the path, it is not a directory, or a directory inside the walk could not \
+                   be read to the end.",
         },
     ],
 };
@@ -1015,22 +1019,22 @@ const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
             the path it creates**. A configuration that allows only the working directory does not \
             cover the temporary folder.",
     params: &[],
-    ret: "The absolute path of a directory that exists, holds nothing, and belongs to this script. \
-          The runtime deletes it, and everything in it, when the script ends — after the last user \
-          code and whatever the ending was — so a program never has to remember and can never leak \
-          one. Removing it early is allowed and is not an error; a file that must outlive its \
-          script is storage, not a temporary.",
+    ret: "The absolute path of a directory that exists, is empty, and belongs to this script. \
+          Novis deletes it and everything in it when the script ends. This happens after the last \
+          line of your code runs, however the script ends. A program never has to delete it, and \
+          it is never left behind. You may remove it earlier, and that is not an error. A file \
+          that must stay after the script ends does not belong in a temporary directory.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.write` for the temporary root; the message \
-                   names the path a grant would have to cover.",
+            desc: "The configuration does not grant `fs.write` for the temporary folder. The \
+                   message names the path that the capability must cover.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and no directory could be created — the root is full, \
-                   read-only, or absent, or there is no root because `[io] temp_root` is unset and \
-                   the data folder cannot be used.",
+            desc: "The capability allowed the call, but no directory could be created. The \
+                   temporary folder is full, read-only or missing. Or there is no temporary \
+                   folder, because `[io] temp_root` is not set and the data folder cannot be used.",
         },
     ],
 };
@@ -1044,14 +1048,14 @@ const CANONICALIZE_DOC: MethodDoc = MethodDoc {
             a folder.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The name to resolve. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. Every \
-               component must exist, including the last one.",
+        desc: "The path to resolve. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. Every \
+               part of the path must exist, including the last one.",
         shape: &[],
     }],
-    ret: "The resolved absolute path. Passing the answer back in resolves to itself, so the result \
-          is a fixed point and a program may compare two of them for equality — which is the one \
-          use this member has that `Core\\Path::normalize` cannot serve, since two different \
-          spellings of one file normalize differently and canonicalize the same.",
+    ret: "The resolved absolute path. Resolving the result again gives the same path, so you can \
+          compare two results for equality. `Core\\Path::normalize` cannot do this. Two different \
+          ways to write the path of one file normalize to different strings. They canonicalize \
+          to the same string.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1059,53 +1063,54 @@ const CANONICALIZE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — a component of \
-                   the path is not there, or is not a directory, or a symbolic link loops. A name \
-                   that does not exist has no resolution, so it throws here where `exists` \
-                   answers `false`.",
+            desc: "The capability allowed the call, but the operating system did not. A part of \
+                   the path does not exist or is not a directory, or a symbolic link loops. A \
+                   missing path cannot be resolved, so this method throws an error. `exists` \
+                   returns `false` for it.",
         },
     ],
 };
 
 /// `Core\IO::within`'s reference card — `rule:core-api/reference-card`.
 const WITHIN_DOC: MethodDoc = MethodDoc {
-    short: "Resolves `$path` against `$base` and then **proves** the answer is still under it — the \
-            path-traversal launderer, so its result is accepted where a `tainted` string is not. \
-            `Core\\Path::normalize` cannot make this check: collapsing `..` textually says nothing \
-            about where a name ended up once a symlink is on the way. Needs the `fs.read` \
-            capability for both paths, because resolving one reads the directories above it.",
+    short: "Resolves `$path` against `$base` and then **checks** that the result is still inside \
+            `$base`. This is the path traversal check, so its result is accepted where a \
+            `tainted` string is not. `Core\\Path::normalize` cannot make this check. It removes \
+            `..` from the text, but a symbolic link in the path can still lead somewhere else. It \
+            needs the `fs.read` capability for both paths, because resolving a path reads the \
+            directories above it.",
     params: &[
         ParamDoc {
             name: "base",
-            desc: "The directory the answer must stay under. It has to exist, since containment is \
-                   proved against its canonical spelling.",
+            desc: "The directory the result must stay inside. It must exist, because the check \
+                   uses its canonical path.",
             shape: &[],
         },
         ParamDoc {
             name: "path",
-            desc: "The name to resolve against `$base` — the untrusted half, which is the whole \
-                   point of the member. A relative `$path` is joined to `$base`, also when it is \
+            desc: "The path to resolve against `$base`. This is the untrusted part, and the reason \
+                   to use this method. A relative `$path` is joined to `$base`, also when it is \
                    written directly in the code. It is not joined to the folder of the file \
-                   that calls `within`. An absolute path is no escape hatch: it is resolved \
-                   and then fails the same containment check.",
+                   that calls `within`. An absolute path is resolved too, and then the same \
+                   check makes it fail.",
             shape: &[],
         },
     ],
-    ret: "The resolved absolute path, as a plain `string`. Every `..`, every symlink and every \
-          separator is already gone, so what the caller holds is a name the operating system \
-          agrees with rather than one it still has to be trusted about.",
+    ret: "The resolved absolute path, as a plain `string`. It has no `..`, no symbolic links and \
+          no repeated separators. It is the path the operating system itself uses for the file.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
             desc: "The resolved path is not inside `$base`. The message names the base and the \
-                   argument and never where the argument led, so a refusal discloses nothing about \
-                   a symlink's target. A configuration that does not grant `fs.read` for either \
-                   path refuses earlier, in the same class.",
+                   argument, but never the place the argument led to. So the error shows nothing \
+                   about the target of a symbolic link. If the configuration does not grant \
+                   `fs.read` for either path, the same error class is thrown earlier.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and nothing could be resolved — `$base` is not there \
-                   or is not a directory, or no ancestor of the joined path is.",
+            desc: "The capability allowed the call, but nothing could be resolved. `$base` does \
+                   not exist or is not a directory, or no parent directory of the joined path \
+                   exists.",
         },
     ],
 };
@@ -1123,25 +1128,24 @@ const READ_TEXT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "charset",
-            desc: "The encoding the file's octets are in. `Core\\Charset::Utf8` when it is not \
-                   given, which is the decode that is the identity on text already written the \
-                   way Novis spells it.",
+            desc: "The encoding of the file's bytes. It is `Core\\Charset::Utf8` when it is not \
+                   given. Novis strings are UTF-8, so UTF-8 text is read unchanged.",
             shape: &[],
         },
     ],
-    ret: "The file's content as a `string`, converted from `$charset` — never with a replacement \
-          character in it, because a conversion that cannot be exact throws instead.",
+    ret: "The file's content as a `string`, converted from `$charset`. It never contains a \
+          replacement character, because a conversion that cannot be exact throws an error.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.read` for this path, or the file's bytes \
-                   are not `$charset` — the second message names the offset of the first sequence \
-                   that is not.",
+            desc: "The configuration does not grant `fs.read` for this path. Or the file's bytes \
+                   are not valid `$charset`. In that case the message names the offset of the \
+                   first invalid sequence.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — the file does not \
-                   exist, is a directory, or could not be read.",
+            desc: "The capability allowed the call, but the operating system did not. The file \
+                   does not exist, is a directory, or could not be read.",
         },
     ],
 };
@@ -1156,9 +1160,10 @@ const LINES_DOC: MethodDoc = MethodDoc {
         desc: "The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
-    ret: "An `Iterable<string>` a `foreach` walks in file order, and walks again as often as it \
-          is asked. `\\n`, `\\r\\n` and a lone `\\r` each end a line; a trailing terminator does \
-          not open an empty last one, and an empty file has no lines at all.",
+    ret: "An `Iterable<string>`. A `foreach` loop gives the lines in file order, and you can loop \
+          over it again as often as you like. `\\n`, `\\r\\n` and a single `\\r` each end a line. \
+          A line ending at the end of the file does not add an empty last line. An empty file \
+          has no lines.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1166,8 +1171,8 @@ const LINES_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — the file does not \
-                   exist, is a directory, or could not be read.",
+            desc: "The capability allowed the call, but the operating system did not. The file \
+                   does not exist, is a directory, or could not be read.",
         },
     ],
 };
@@ -1198,8 +1203,9 @@ const OPEN_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — `Read` on a path \
-                   that is not there, a directory, or a path this process may not open.",
+            desc: "The capability allowed the call, but the operating system did not. The mode is \
+                   `Read` and nothing is at the path, the path is a directory, or this process \
+                   may not open it.",
         },
     ],
 };
@@ -1210,15 +1216,15 @@ const STDIN_DOC: MethodDoc = MethodDoc {
             `tainted`, because the bytes come from whoever started the program. It needs no \
             capability, because the program starts with its standard input already open.",
     params: &[],
-    ret: "Every byte until end of input, as one `tainted string` — the empty string when input \
-          is already closed, which is what a program started with no input sees. Input ends when \
-          its writer ends it, so at a terminal this waits for the person there; a program that \
-          means to ask someone a question uses `Core\\Cli`'s prompts, which have a deadline.",
+    ret: "Every byte until the end of input, as one `tainted string`. It is the empty string when \
+          the input is already closed. A program started with no input gets that. Input ends when \
+          the writer closes it, so at a terminal this call waits for the user. To ask the user a \
+          question, use the prompts in `Core\\Cli`, which have a time limit.",
     errors: &[
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system failed the read — the pipe's writer died, or the \
-                   descriptor was not open for reading.",
+            desc: "The read failed in the operating system. The process writing to the pipe \
+                   stopped, or standard input was not open for reading.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -1477,10 +1483,9 @@ const FILE_READ_DOC: MethodDoc = MethodDoc {
         desc: "The most bytes to read. Fewer are returned when the file ends first.",
         shape: &[],
     }],
-    ret: "The bytes read, as a `string`. The text always ends with a whole character: when `$max` \
+    ret: "The bytes read, as a `string`. The text always ends with a whole character. When `$max` \
           ends inside a character, that character stays in the file for the next read. An empty \
-          string means the end of the file, which is the one answer `read` gives that is not an \
-          error and not data.",
+          string means the end of the file.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1504,9 +1509,9 @@ const FILE_READ_LINE_DOC: MethodDoc = MethodDoc {
             returned. `\\n`, `\\r\\n` and `\\r` all end a line, as they do for `Core\\Str::lines` \
             and `Core\\IO::lines`.",
     params: &[],
-    ret: "The line without its terminator, or `null` at the end of the file — which is R5's \
-          spelling of an absence, and the reason this member needs no separate `eof`. A last line \
-          with no terminator on it is still a line.",
+    ret: "The line without its line ending, or `null` at the end of the file. Because of the \
+          `null`, there is no separate `eof` method. A last line with no line ending is still a \
+          line.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1533,8 +1538,8 @@ const FILE_WRITE_DOC: MethodDoc = MethodDoc {
         desc: "The data to write, as a `string` or as `bytes`. It is written exactly as it is.",
         shape: &[],
     }],
-    ret: "How many bytes were written, which is every byte of `$data` — a short write is retried \
-          rather than reported, so a caller never has to loop.",
+    ret: "How many bytes were written. This is always every byte of `$data`. A partial write is \
+          retried until it is complete, so a caller never needs a loop.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1556,8 +1561,7 @@ const FILE_SEEK_DOC: MethodDoc = MethodDoc {
         desc: "How many bytes from the start of the file the next read or write happens at.",
         shape: &[],
     }],
-    ret: "Nothing. `tell` is how a program reads the position back, so this member has no answer \
-          of its own to give.",
+    ret: "Nothing. Use `tell` to get the position.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1565,8 +1569,8 @@ const FILE_SEEK_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The seek itself failed — a pipe or a terminal, which has no position to move \
-                   to.",
+            desc: "The seek itself failed. For example, the handle is a pipe or a terminal, which \
+                   has no position.",
         },
     ],
 };
@@ -1586,8 +1590,8 @@ const FILE_TELL_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The query itself failed — a pipe or a terminal, which has no position to \
-                   report.",
+            desc: "Getting the position failed. For example, the handle is a pipe or a terminal, \
+                   which has no position.",
         },
     ],
 };
@@ -1601,9 +1605,9 @@ const FILE_TRUNCATE_DOC: MethodDoc = MethodDoc {
         desc: "How long the file is to be afterwards, in bytes from its start.",
         shape: &[],
     }],
-    ret: "Nothing. The handle's own position does not move, so shortening a file can leave the \
-          handle past its new end — `tell` still answers where it was, and a write there lands \
-          over a hole rather than at the end.",
+    ret: "Nothing. The handle's position does not move. After a file is shortened, the position \
+          can be past its new end. `tell` still returns the old position. A write there leaves \
+          a gap filled with zeroes before the written bytes.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1611,8 +1615,8 @@ const FILE_TRUNCATE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The resize itself failed — most often a handle opened `FileMode::Read`, which \
-                   the operating system will not resize.",
+            desc: "The resize itself failed. The most common cause is a handle opened with \
+                   `FileMode::Read`, which the operating system does not resize.",
         },
     ],
 };
@@ -1630,9 +1634,8 @@ const FILE_FLUSH_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The flush itself failed. Nothing this class does can provoke one today, and \
-                   the row is here because the answer belongs to the operating system rather than \
-                   to this member.",
+            desc: "The flush itself failed in the operating system. No method of this class \
+                   causes this error now, but the operating system may still report one.",
         },
     ],
 };
@@ -1642,8 +1645,8 @@ const FILE_LOCK_DOC: MethodDoc = MethodDoc {
     short: "Takes an exclusive lock on the file. The lock lasts until the handle closes. It never \
             waits: if another handle has the lock, it throws an error at once.",
     params: &[],
-    ret: "Nothing, and there is no `unlock` — the lock's lifetime is the handle's, so `close` \
-          releases it and so does the end of the request.",
+    ret: "Nothing. There is no `unlock`. The lock lasts as long as the handle, so `close` \
+          releases it, and so does the end of the request.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1651,9 +1654,9 @@ const FILE_LOCK_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "Another handle already holds the lock, or the operating system refused it. \
-                   Whether a lock stops a *non-holder's* own reads and writes is the platform's \
-                   answer rather than this member's.",
+            desc: "Another handle already has the lock, or the operating system did not allow \
+                   it. Whether the lock stops reads and writes by handles that do *not* have \
+                   the lock depends on the platform.",
         },
     ],
 };
@@ -1666,8 +1669,8 @@ const FILE_CLOSE_DOC: MethodDoc = MethodDoc {
     ret: "Nothing.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The handle has already been closed. Closing twice is a bug in the program rather \
-               than a state of the file, so it is reported rather than ignored.",
+        desc: "The handle has already been closed. Closing twice is a bug in the program, so it \
+               throws an error and is not ignored.",
     }],
 };
 
@@ -1949,28 +1952,28 @@ pub(crate) const METADATA: CoreClass = CoreClass {
 
 /// `Core\IO\Metadata::size`'s reference card — `rule:core-api/reference-card`.
 const METADATA_SIZE_DOC: MethodDoc = MethodDoc {
-    short: "The file's size in bytes at the moment `stat` was called. Needs no capability of its \
-            own: the path was checked when `stat` produced this value.",
+    short: "The file's size in bytes at the moment `stat` was called. It needs no capability, \
+            because `stat` already checked the path.",
     params: &[],
-    ret: "The byte count as a `uint`. A directory's is the platform's own number for a directory \
-          entry and means nothing portable.",
+    ret: "The byte count as a `uint`. For a directory, the number depends on the platform and has \
+          no portable meaning.",
     errors: &[],
 };
 
 /// `Core\IO\Metadata::modifiedAt`'s reference card — `rule:core-api/reference-card`.
 const METADATA_MODIFIED_AT_DOC: MethodDoc = MethodDoc {
-    short: "When the file was last written, as a `Core\\Time\\Instant` — the same answer \
-            `Core\\IO::modifiedAt` gives, out of the `stat` this value already holds.",
+    short: "When the file was last written, as a `Core\\Time\\Instant`. It is the same value that \
+            `Core\\IO::modifiedAt` returns, taken from this `stat` result.",
     params: &[],
-    ret: "The modification time as an absolute point on the timeline, with no zone of its own.",
+    ret: "The modification time as an exact point in time, with no time zone.",
     errors: &[],
 };
 
 /// `Core\IO\Metadata::isFile`'s reference card — `rule:core-api/reference-card`.
 const METADATA_IS_FILE_DOC: MethodDoc = MethodDoc {
-    short: "Whether the path was a regular file. Together with `isDir` this partitions most of \
-            what exists and does not cover it — a socket, a device node and a named pipe answer \
-            `false` to both.",
+    short: "Whether the path was a regular file. Most paths are either a file or a directory, but \
+            not all. A socket, a device node and a named pipe give `false` for both `isFile` and \
+            `isDir`.",
     params: &[],
     ret: "`true` for a regular file, `false` for anything else that was there.",
     errors: &[],
@@ -1978,8 +1981,8 @@ const METADATA_IS_FILE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO\Metadata::isDir`'s reference card — `rule:core-api/reference-card`.
 const METADATA_IS_DIR_DOC: MethodDoc = MethodDoc {
-    short: "Whether the path was a directory — the other half of the partition `isFile` \
-            describes.",
+    short: "Whether the path was a directory. As with `isFile`, some paths are neither a file nor \
+            a directory.",
     params: &[],
     ret: "`true` for a directory, `false` for anything else that was there.",
     errors: &[],
