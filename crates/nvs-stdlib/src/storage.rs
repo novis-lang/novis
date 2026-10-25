@@ -482,7 +482,7 @@ fn text_of<'a>(args: &'a [Value], slot: usize, what: &str, member: &str) -> Resu
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Storage::put(string $disk, string $key, bytes $contents, {overwrite?: bool}): void` —
+    /// `Core\Storage::put(string $disk, string $key, bytes $contents, { overwrite?: bool }): void` —
     /// `rule:programs/framework-core-half`'s object storage, writing half.
     ///
     /// The door decides the capability and this decides nothing: the path is
@@ -552,7 +552,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Storage::list(string $disk, {prefix?: string}): array<string>` —
+    /// `Core\Storage::list(string $disk, { prefix?: string }): array<string>` —
     /// `rule:programs/framework-core-half`'s fourth row, and the only one that reads the disk itself
     /// rather than one object on it.
     ///

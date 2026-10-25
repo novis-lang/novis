@@ -303,7 +303,7 @@ pub(crate) fn reject_untainted_text_from_unchecked(
         .with_help(
             "Text from a `mixed` value can come from outside the program, so it is tainted. \
              The same is true for an object field that is `mixed` or tainted. \
-             Write `tainted` before the type, as in `tainted string` or `tainted {name: string}`. \
+             Write `tainted` before the type, as in `tainted string` or `tainted { name: string }`. \
              Then check or escape the text before you use it in a query, a page or a command.",
         ),
     );
@@ -1014,10 +1014,10 @@ pub(crate) fn carries_qualifier(ty: TypeId, interner: &TypeInterner) -> bool {
 /// [`check_array_literal`](super::literals::check_array_literal) joins no
 /// element types, so `[$secret]` placed at an `array<mixed>` drops the bit at
 /// the bracket; [`check_anon_object`](super::literals::check_anon_object)
-/// infers a field type and *keeps* it, so `{token: $secret}` drops it one step
+/// infers a field type and *keeps* it, so `{ token: $secret }` drops it one step
 /// later, where the literal meets a field declared wider. Asking the position
 /// what it carries covers both, and accepts the spellings that keep it:
-/// `array<secret string>` and `{token: secret string}` are ordinary types the
+/// `array<secret string>` and `{ token: secret string }` are ordinary types the
 /// grammar already writes, and a value read back out of either is still
 /// `secret`.
 ///
@@ -1064,7 +1064,7 @@ pub(crate) fn reject_secret_into_container(
         .with_primary(value.span, "this value is `secret`")
         .with_help(
             "declare the container as secret too: `array<secret string>` for an element, or \
-             `{name: secret string}` for a field. Or reveal the value with \
+             `{ name: secret string }` for a field. Or reveal the value with \
              `Core\\Secret::reveal(..., \"reason\")`. A database parameter, a process argument \
              and an outgoing request take a `secret` argument directly",
         ),

@@ -2868,7 +2868,7 @@ fn a_local_declared_in_one_if_branch_is_released_where_the_branches_merge() {
 /// `rule:core-api/shape-rules` R2's options bag, flattened: `Core\Arr::range` takes two
 /// positional arguments and one bag declaring one option, and both calls
 /// below emit a `core.call` with **three** arguments — the written
-/// `{step: 3}` in the first, the materialized default `1` in the second.
+/// `{ step: 3 }` in the first, the materialized default `1` in the second.
 /// The bag itself never appears in the IR at all, which is the property
 /// that keeps `nvs-codegen` and the `rule:errors/propagation` helper convention from
 /// learning that options exist.
@@ -4528,7 +4528,7 @@ fn an_await_suspends_until_its_task_completes() {
 /// docs' *A shape's wire contract* is the carrier.
 ///
 /// Asserted over two sites at once, since what would look right on either line
-/// alone is one class *and* one contract: `{n: int}` and `{n: string}` are the
+/// alone is one class *and* one contract: `{ n: int }` and `{ n: string }` are the
 /// pair that shares a label and shares no contract at all.
 #[test]
 fn two_shapes_of_one_field_name_share_a_class_and_carry_a_contract_each() {
@@ -4538,7 +4538,7 @@ fn two_shapes_of_one_field_name_share_a_class_and_carry_a_contract_each() {
         "var $text = Core\\Json::decodeAs<{n: string}>(\"{\\\"n\\\":\\\"a\\\"}\");\n",
     ));
     // The class is registered by the call site alone — this file writes no
-    // `{n: 1}` literal, and without it the descriptor constant below would name
+    // `{ n: 1 }` literal, and without it the descriptor constant below would name
     // a class the unit never declares.
     let shapes: Vec<&str> = program
         .classes

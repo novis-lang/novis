@@ -4,7 +4,7 @@ The unit of an amount of time that `RelativeTime::format` writes, such as "5 min
 
 Each item you pass to `RelativeTime::format` has a `count` and a `unit`. The unit is one of
 `Second`, `Minute`, `Hour`, `Day`, `Week`, `Month`, `Quarter` and `Year`. A negative count is in the
-past and a positive count is in the future, so `{count: -2, unit: RelativeTime::Unit::Week}` is "2 weeks ago".
+past and a positive count is in the future, so `{ count: -2, unit: RelativeTime::Unit::Week }` is "2 weeks ago".
 
 The words and the plural form come from the locale.
 

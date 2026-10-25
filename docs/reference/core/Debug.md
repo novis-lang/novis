@@ -12,15 +12,17 @@ byte is made visible, a `secret` property renders as `[redacted]`, and the rende
 
 ```nvs
 <?nvs
-class Point {
-    public function constructor(public int $x, public int $y) {}
+class Point
+{
+    public function constructor(public int $x, public int $y)
+    {}
 }
 echo Core\Debug::render(42), "\n";
-echo Core\Debug::render("42"), "\n";
+echo Core\Debug::render('42'), "\n";
 echo Core\Debug::render(null), "\n";
 array<int> $list = [10, 20];
 echo Core\Debug::render($list), "\n";
-array<string> $map = ["a" => "x", "b" => "y"];
+array<string> $map = ['a' => 'x', 'b' => 'y'];
 echo Core\Debug::render($map), "\n";
 echo Core\Debug::render(new Point(1, 2)), "\n";
 Core\Debug::dump($list);

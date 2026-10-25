@@ -10,5 +10,5 @@ echo Core\Str::compare('apple', 'apple'), "\n";
 // Upper case letters come before lower case letters. This prints `-1`.
 echo Core\Str::compare('Zebra', 'apple'), "\n";
 
-// With `{caseInsensitive: true}`, "Zebra" is compared as "zebra". This prints `1`.
+// With `{ caseInsensitive: true }`, "Zebra" is compared as "zebra". This prints `1`.
 echo Core\Str::compare('Zebra', 'apple', { caseInsensitive: true }), "\n";

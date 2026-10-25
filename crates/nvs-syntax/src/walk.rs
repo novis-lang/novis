@@ -1154,8 +1154,8 @@ fn push_types(kids: &mut Vec<Node>, ty: Option<&Type>) {
 
 /// A type is no node, and a shape type is the one exception: its fields are a
 /// list `nvs fmt` lays out, so its braces need a node of their own to be told
-/// from a block's. A shape written inside another type — `?{a: int}`,
-/// `array<{a: int}>`, a field's own shape — is a node too, and a shape inside a
+/// from a block's. A shape written inside another type — `?{ a: int }`,
+/// `array<{ a: int }>`, a field's own shape — is a node too, and a shape inside a
 /// shape is that shape's child.
 fn push_type(kids: &mut Vec<Node>, ty: &Type) {
     match &ty.kind {

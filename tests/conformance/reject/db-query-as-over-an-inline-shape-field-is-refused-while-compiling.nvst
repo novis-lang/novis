@@ -37,7 +37,7 @@ class Rowsource {
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0756]: `Row::$where` is declared `{city: string}`, which has no column mapping
+error[E0756]: `Row::$where` is declared `{ city: string }`, which has no column mapping
 %A
 error[E0806]: `Row::$where` is declared a type no column reads back, so `Core\Db\Transaction::queryAs` has no value to give it
 %A

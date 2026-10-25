@@ -124,7 +124,7 @@ pub(crate) fn expand(
 /// mistakes. A `$member` that is not a string literal names no roster and
 /// every row's `attribute` is `null`, as `get<T>`'s computed member folds.
 ///
-/// Returns the call's type — `array<{instance: I, attribute: ?T}>` over the
+/// Returns the call's type — `array<{ instance: I, attribute: ?T }>` over the
 /// written arguments — because no registry row can state it: the row spells
 /// the shape for the card, and its return type is not lowered for this
 /// member. `mixed` where the call was refused.
@@ -277,7 +277,7 @@ pub(crate) fn expand_with(
 /// `E0839` naming it, with the reason as a note, and every such class is
 /// reported before the call is refused.
 ///
-/// Returns `array<{class: string, make: C}>`, refused or not, so a refusal is
+/// Returns `array<{ class: string, make: C }>`, refused or not, so a refusal is
 /// reported once rather than again by whatever reads the answer. The
 /// callables' own signature, `callable(<C's parameters>): T`, is recorded
 /// against the call's span so a `$f is callable(...)` test sees the classes

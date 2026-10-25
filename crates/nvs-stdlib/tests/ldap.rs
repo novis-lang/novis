@@ -676,7 +676,7 @@ fn a_filter_nests_at_most_max_filter_depth_levels() {
 // covers: Core\Ldap\Ad::memberOf
 #[test]
 fn ad_member_of_nested_uses_the_in_chain_rule() {
-    // `Ldap\Ad::memberOf($group, {nested: true})`: RFC 4511's extensible
+    // `Ldap\Ad::memberOf($group, { nested: true })`: RFC 4511's extensible
     // match, with AD's `LDAP_MATCHING_RULE_IN_CHAIN` and the DN as its value.
     let rule = "1.2.840.113556.1.4.1941";
     let staff = "CN=Staff,DC=example,DC=test";

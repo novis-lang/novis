@@ -575,7 +575,7 @@ const SIGN_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "LogicError",
             desc: "`$key` is a secret shorter than 32 bytes, or an `X25519` pair, which cannot \
-                   sign. `{embedKey: true}` is used with a shared secret. `$lifetime` is zero or \
+                   sign. `{ embedKey: true }` is used with a shared secret. `$lifetime` is zero or \
                    negative. `$claims` contains `exp` or `iat`, or an entry without a name.",
         },
         ErrorDoc {
@@ -862,7 +862,7 @@ const KEY_SET_READ_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`{rsaScheme: …}` names a kind that is not one of the two RSA kinds. No other \
+            desc: "`{ rsaScheme: … }` names a kind that is not one of the two RSA kinds. No other \
                    kind has two schemes to choose from.",
         },
         ErrorDoc {
@@ -1073,7 +1073,7 @@ fn pair_at(args: &[Value], slot: usize, member: &str) -> Result<(PrivateKey, &'s
     Ok((pair, alg))
 }
 
-/// The header `jwk` a `{embedKey: true}` call writes: the pair's public half as
+/// The header `jwk` a `{ embedKey: true }` call writes: the pair's public half as
 /// RFC 7638's minimal JWK.
 ///
 /// # Errors
@@ -1323,11 +1323,11 @@ struct Signing<'a> {
     /// The key, which is what chooses the algorithm
     /// (`rule:security/algorithm-comes-from-the-key`).
     signer: Signer<'a>,
-    /// `{kid: …}`, written into the header when a call names one.
+    /// `{ kid: … }`, written into the header when a call names one.
     kid: Option<&'a str>,
-    /// `{typ: …}`, [`TYP`] when a call names none.
+    /// `{ typ: … }`, [`TYP`] when a call names none.
     typ: &'a str,
-    /// `{embedKey: …}`, which writes the pair's public half under `jwk`.
+    /// `{ embedKey: … }`, which writes the pair's public half under `jwk`.
     embed: bool,
     /// The second the token is signed at, written as `iat`.
     now: i64,
@@ -1348,7 +1348,7 @@ struct Signing<'a> {
 ///
 /// # Errors
 ///
-/// A `LogicError` for `{embedKey: true}` under a shared secret, which has no
+/// A `LogicError` for `{ embedKey: true }` under a shared secret, which has no
 /// public half to embed, and whatever [`embedded_jwk`], [`payload_of`] and
 /// [`pair_signature`] refuse. A resource refusal for a token larger than the
 /// request can still afford.
@@ -1369,7 +1369,7 @@ fn signed_token(asked: Signing<'_>) -> Result<String, Fault> {
                 return Err(Fault::thrown_as(
                     ThrownClass::Logic,
                     format!(
-                        "{NAME}::sign(): {{embedKey: true}} writes the signing key's public \
+                        "{NAME}::sign(): {{ embedKey: true }} writes the signing key's public \
                          half into the header, and a shared secret has no public half — it \
                          is the key the recipient already holds. Sign under a \
                          `Core\\Crypto\\KeyPair` to embed one."
@@ -1658,7 +1658,7 @@ fn seconds_option(args: &[Value], slot: usize, member: &str) -> Result<Option<i6
     ))
 }
 
-/// `{leeway: …}` in whole seconds, bounded on both sides.
+/// `{ leeway: … }` in whole seconds, bounded on both sides.
 ///
 /// # Errors
 ///
@@ -1674,7 +1674,7 @@ fn leeway_of(args: &[Value], slot: usize) -> Result<i64, Fault> {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
-                "{NAME}::verifyIssued(): {{leeway: …}} is {seconds}s, and it is a clock \
+                "{NAME}::verifyIssued(): {{ leeway: … }} is {seconds}s, and it is a clock \
                  disagreement rather than an extension of the token's life — it is refused \
                  below zero and above {MAX_LEEWAY}s."
             ),
@@ -1825,13 +1825,13 @@ struct Issued<'a> {
     issuer: &'a str,
     /// The audience this call named, which `aud` must name.
     audience: &'a str,
-    /// `{leeway: …}` in seconds, already bounded by [`leeway_of`].
+    /// `{ leeway: … }` in seconds, already bounded by [`leeway_of`].
     leeway: i64,
-    /// `{typ: …}`, compared by [`same_typ`] when a call asks for one.
+    /// `{ typ: … }`, compared by [`same_typ`] when a call asks for one.
     typ: Option<&'a str>,
-    /// `{nonce: …}`, compared in constant time when a call asks for one.
+    /// `{ nonce: … }`, compared in constant time when a call asks for one.
     nonce: Option<&'a str>,
-    /// `{maxAge: …}` in seconds, which asks the token for an `auth_time`.
+    /// `{ maxAge: … }` in seconds, which asks the token for an `auth_time`.
     max_age: Option<i64>,
     /// The second the token is judged at.
     now: i64,
@@ -2160,7 +2160,7 @@ fn admitted_key(
             None => scheme.ok_or_else(|| {
                 not_a_key_set(
                     "an RSA key in it carries no `alg`, and RS256 and PS256 are one key type \
-                     under two schemes — name one as `{rsaScheme: …}`, because a key read under \
+                     under two schemes — name one as `{ rsaScheme: … }`, because a key read under \
                      the scheme it was not issued for verifies nothing and says nothing about \
                      why",
                 )
@@ -2408,7 +2408,7 @@ nvs_runtime::nvs_helper! {
                     return Err(Fault::thrown_as(
                         ThrownClass::Logic,
                         format!(
-                            "{KEY_SET_NAME}::read(): {{rsaScheme: …}} names a kind that is not \
+                            "{KEY_SET_NAME}::read(): {{ rsaScheme: … }} names a kind that is not \
                              an RSA one, and it is the scheme an RSA key carrying no `alg` is \
                              read under — RS256 and PS256 being the two one key type carries. \
                              Every other kind names its own algorithm, so there is nothing \
@@ -2590,7 +2590,7 @@ mod tests {
     /// `None` for a case naming none.
     ///
     /// A case spells it as the JWS algorithm, because that is what the document
-    /// would have carried; `{rsaScheme: …}` takes the kind.
+    /// would have carried; `{ rsaScheme: … }` takes the kind.
     fn rsa_scheme(case: &serde_json::Value, name: &str) -> Option<KeyKind> {
         case.pointer("/rsaScheme")
             .and_then(serde_json::Value::as_str)
@@ -3441,7 +3441,7 @@ mod tests {
         );
     }
 
-    /// The one-field shape `{sub: string}` at the ABI a compiled call site
+    /// The one-field shape `{ sub: string }` at the ABI a compiled call site
     /// hands `verifyIssued<T>()`: a descriptor and the wire contract. The table
     /// is leaked because a descriptor's address is its identity and it must
     /// outlive every instance made from it.
@@ -3472,7 +3472,7 @@ mod tests {
         (table.desc(id), shape)
     }
 
-    /// One call of `verifyIssued<{sub: string}>` as compiled code makes it,
+    /// One call of `verifyIssued<{ sub: string }>` as compiled code makes it,
     /// with no options, answering the decoded `sub` or the sentence it threw.
     /// `list` is the `array<…>` flag a call site writes beside the type. The
     /// caller keeps `keys`.

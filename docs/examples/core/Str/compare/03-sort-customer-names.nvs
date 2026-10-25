@@ -3,7 +3,7 @@
 
 array<string> $customers = ['bob', 'Alice', 'carol', 'Dave', 'alice'];
 
-// `{caseInsensitive: true}` makes "Alice" and "alice" equal, and "bob" comes before "Dave".
+// `{ caseInsensitive: true }` makes "Alice" and "alice" equal, and "bob" comes before "Dave".
 // This prints the names in alphabetical order, one per line.
 array<string> $sorted = Core\Arr::sort(
     $customers,

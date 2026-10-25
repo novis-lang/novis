@@ -28,7 +28,7 @@
 //!
 //! # `gen:` narrows one parameter
 //!
-//! `gen: {age: "0..120"}` names a parameter and an inclusive range. For a number the range bounds
+//! `gen: { age: "0..120" }` names a parameter and an inclusive range. For a number the range bounds
 //! the value; for a `string`, `bytes` or `array<T>` it bounds the length, in grapheme clusters for
 //! a string. A `?T` parameter narrows its `T`. A length range ends at [`MAX_LENGTH`], and
 //! [`generate()`]'s budget bounds the input as a whole, so no range a program writes makes the
@@ -377,7 +377,7 @@ fn report_gen(at: Span, message: String, env: &mut Env<'_>) {
             .with_primary(at, "this `gen:` entry does not fit the method")
             .with_help(
                 "each `gen:` entry names a parameter and gives a range with both ends, such as \
-                 `gen: {age: \"0..120\"}`. For a number the range limits the value. For a string, \
+                 `gen: { age: \"0..120\" }`. For a number the range limits the value. For a string, \
                  `bytes` or an array it limits the length",
             ),
     );

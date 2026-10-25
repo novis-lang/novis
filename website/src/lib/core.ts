@@ -77,7 +77,7 @@ export interface CoreClass {
   /** The summary and the class's introduction under `docs/reference/`, as HTML. */
   summaryHtml: string
   enums: { name: string; cases: string[]; raw: string; doc?: CoreEnumDoc }[]
-  /** The shape types the class declares, by the name its signatures use: `Info` and `{format: Format, …}`. */
+  /** The shape types the class declares, by the name its signatures use: `Info` and `{ format: Format, … }`. */
   types: { name: string; type: string }[]
   constants: { name: string; descHtml: string }[]
   members: CoreMember[]

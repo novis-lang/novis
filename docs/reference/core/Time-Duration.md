@@ -23,12 +23,12 @@ echo $d->minus(2h), "\n";
 echo $d->multipliedBy(2), "\n";
 echo $d->negated(), "\n";
 
-echo Core\Time\Duration::parse("250ms")->toMilliseconds(), "\n";
+echo Core\Time\Duration::parse('250ms')->toMilliseconds(), "\n";
 echo Core\Time\Duration::minutes(90)->compareTo($d), "\n";
 echo Core\Time\Duration::seconds(90061), "\n";
 echo 1500ms->toString(), "\n";
 
-string $flag = "--since=30 seconds";
+string $flag = '--since=30 seconds';
 try {
     Core\Time\Duration::parse(Core\Str::slice($flag, 8));
 } catch (ParseError $bad) {

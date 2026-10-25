@@ -1,6 +1,6 @@
 <?nvs
 // Shows that a `{` at the start of a statement starts a block, so this
-// program does not compile. Write `({x: 1});` instead.
+// program does not compile. Write `({ x: 1 });` instead.
 // proof: compile-error
 
-{x: 1};
+{ x: 1 };

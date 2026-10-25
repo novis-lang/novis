@@ -35,9 +35,9 @@ memory = "512M"
 ```
 ```nvs
 <?nvs
-echo "memory=", Core\Config::get("memory") ?? "unset", "\n";
-echo "ceiling=", Core\Config::get("limits.hard.memory") ?? "unset", "\n";
-echo "wall_time=", Core\Config::get("wall_time") ?? "unset", "\n";
+echo 'memory=', Core\Config::get('memory') ?? 'unset', "\n";
+echo 'ceiling=', Core\Config::get('limits.hard.memory') ?? 'unset', "\n";
+echo 'wall_time=', Core\Config::get('wall_time') ?? 'unset', "\n";
 ```
 ```output
 memory=256M
@@ -98,11 +98,11 @@ wall_time = "5m"
 ```
 ```nvs
 <?nvs
-echo "2m: ", Core\Config::set("wall_time", "2m") ? "ok" : "refused", "\n";
-echo "90: ", Core\Config::set("wall_time", "90") ? "ok" : "refused", "\n";
-echo "1m30s: ", Core\Config::set("wall_time", "1m30s") ? "ok" : "refused", "\n";
-echo "8x tasks: ", Core\Config::set("max_tasks", "8x") ? "ok" : "refused", "\n";
-echo "now ", Core\Config::get("wall_time"), "\n";
+echo '2m: ', Core\Config::set('wall_time', '2m') ? 'ok' : 'refused', "\n";
+echo '90: ', Core\Config::set('wall_time', '90') ? 'ok' : 'refused', "\n";
+echo '1m30s: ', Core\Config::set('wall_time', '1m30s') ? 'ok' : 'refused', "\n";
+echo '8x tasks: ', Core\Config::set('max_tasks', '8x') ? 'ok' : 'refused', "\n";
+echo 'now ', Core\Config::get('wall_time'), "\n";
 ```
 ```output
 2m: ok
@@ -152,14 +152,14 @@ memory = "16M"
 ```
 ```nvs exit=1
 <?nvs
-echo "before the cap", "\n";
+echo 'before the cap', "\n";
 array<string> $ballast = [];
 int $slabs = 0;
 while ($slabs < 64) {
-    $ballast[] = Core\Str::repeat("x", 1048576);
+    $ballast[] = Core\Str::repeat('x', 1048576);
     $slabs++;
 }
-echo "never printed", "\n";
+echo 'never printed', "\n";
 ```
 ```output
 before the cap
@@ -268,19 +268,19 @@ hello from data
 ```
 ```nvs
 <?nvs
-echo Core\Str::trim(Core\IO::read("data/greeting.txt")), "\n";
+echo Core\Str::trim(Core\IO::read('data/greeting.txt')), "\n";
 
 try {
-    Core\IO::write("data/out.txt", "x");
+    Core\IO::write('data/out.txt', 'x');
 } catch (RuntimeError $denied) {
     // The message goes on with the full path of the file. This prints the part before it.
-    echo Core\Str::before($denied->message, " for "), "\n";
+    echo Core\Str::before($denied->message, ' for '), "\n";
 }
 
 try {
-    echo Core\IO::read("main.nvs");
+    echo Core\IO::read('main.nvs');
 } catch (RuntimeError $denied) {
-    echo Core\Str::before($denied->message, " for "), "\n";
+    echo Core\Str::before($denied->message, ' for '), "\n";
 }
 ```
 ```output
@@ -413,9 +413,9 @@ memory = "256M"
 ```
 ```nvs
 <?nvs
-echo Core\Config::get("memory"), "\n";
-echo "300M: ", Core\Config::set("memory", "300M") ? "ok" : "refused", "\n";
-echo "200M: ", Core\Config::set("memory", "200M") ? "ok" : "refused", "\n";
+echo Core\Config::get('memory'), "\n";
+echo '300M: ', Core\Config::set('memory', '300M') ? 'ok' : 'refused', "\n";
+echo '200M: ', Core\Config::set('memory', '200M') ? 'ok' : 'refused', "\n";
 ```
 ```output
 128M
@@ -458,7 +458,7 @@ memory = "256M"
 ```
 ```nvs
 <?nvs
-echo Core\Config::get("memory"), "\n";
+echo Core\Config::get('memory'), "\n";
 ```
 ```output
 256M
@@ -589,20 +589,20 @@ level = "info"
 <?nvs
 use Core\Config;
 
-echo "256M: ", Config::set("memory", "256M") ? "ok" : "refused", "\n";
-echo "1G: ", Config::set("memory", "1G") ? "ok" : "refused", "\n";
-echo "file_cache_dir: ", Config::set("opcache.file_cache_dir", "/tmp/nvs") ? "ok" : "refused", "\n";
-echo "unknown: ", Config::set("no.such.key", "1") ? "ok" : "refused", "\n";
-Config::set("log.level", "debug");
+echo '256M: ', Config::set('memory', '256M') ? 'ok' : 'refused', "\n";
+echo '1G: ', Config::set('memory', '1G') ? 'ok' : 'refused', "\n";
+echo 'file_cache_dir: ', Config::set('opcache.file_cache_dir', '/tmp/nvs') ? 'ok' : 'refused', "\n";
+echo 'unknown: ', Config::set('no.such.key', '1') ? 'ok' : 'refused', "\n";
+Config::set('log.level', 'debug');
 
 foreach (Config::all() as string $name => string $value) {
-    if ($name == "limits.memory" || $name == "log.level" || $name == "session.ttl") {
-        echo $name, " = ", $value, "\n";
+    if ($name == 'limits.memory' || $name == 'log.level' || $name == 'session.ttl') {
+        echo $name, ' = ', $value, "\n";
     }
 }
 
-Config::restore("memory");
-echo "restored: ", Config::get("memory"), "\n";
+Config::restore('memory');
+echo 'restored: ', Config::get('memory'), "\n";
 ```
 ```output
 256M: ok

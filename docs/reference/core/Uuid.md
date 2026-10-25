@@ -18,17 +18,17 @@ echo Core\Str::length($id->toString()), "\n";
 echo Core\Str::slice($id->toString(), 14, 1), "\n";
 echo Core\Str::slice(Core\Uuid::v7()->toString(), 14, 1), "\n";
 
-var $known = Core\Uuid::parse("123E4567-E89B-12D3-A456-426614174000");
+var $known = Core\Uuid::parse('123E4567-E89B-12D3-A456-426614174000');
 echo $known, "\n";
-echo Core\Uuid::tryParse("not-a-uuid") == null ? "invalid" : "valid", "\n";
-echo Core\Uuid::tryParse("123e4567-e89b-12d3-a456-426614174000") != null ? "valid" : "invalid", "\n";
+echo Core\Uuid::tryParse('not-a-uuid') == null ? 'invalid' : 'valid', "\n";
+echo Core\Uuid::tryParse('123e4567-e89b-12d3-a456-426614174000') != null ? 'valid' : 'invalid', "\n";
 
-var $again = Core\Uuid::parse("123e4567-e89b-12d3-a456-426614174000");
-echo $known == $again ? "same object" : "different objects", "\n";
-echo $known->toString() == $again->toString() ? "same value" : "different values", "\n";
+var $again = Core\Uuid::parse('123e4567-e89b-12d3-a456-426614174000');
+echo $known == $again ? 'same object' : 'different objects', "\n";
+echo $known->toString() == $again->toString() ? 'same value' : 'different values', "\n";
 
 try {
-    Core\Uuid::parse("{123e4567-e89b-12d3-a456-426614174000}");
+    Core\Uuid::parse('{123e4567-e89b-12d3-a456-426614174000}');
 } catch (RuntimeError $bad) {
     echo "braces refused\n";
 }

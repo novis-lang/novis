@@ -5,7 +5,7 @@ number, the number of pages, and values that the HTML sets for that page, such a
 chapter. The function returns an `html` template, and `render` draws it in the top margin of that
 page.
 
-The header never moves the body of the document. `height`, such as `{height: "3cm"}`, sets the top
+The header never moves the body of the document. `height`, such as `{ height: "3cm" }`, sets the top
 margin before the body is placed on the pages. Without it, the margin is the one that CSS `@page`
 gives. A header taller than its margin is cut off at the margin. `Rendered::overflows` lists it with
 its page number.

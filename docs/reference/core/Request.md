@@ -26,11 +26,11 @@ document that is malformed, too deep, or absent altogether. `json()` keeps what 
 `jsonAs<T>()` hydrates per call, so writing to what a second call answered leaves the first alone.
 
 `queryAs<T>()` and `postAs<T>()` are that idea over the parameters rather than the body: each reads what
-`query()` and `post()` parse as the type written at the call site — an inline shape, `{page: uint}`, or a
+`query()` and `post()` parse as the type written at the call site — an inline shape, `{ page: uint }`, or a
 class carrying `#[Core\Json\Derive]` — converting every named field with `as` and leaving the keys the
 type does not name behind. Called with nothing, the whole parameter set is the subject, and that is the
 only way a program reaches it: there is no `query(): array<mixed>`. Called with
-`{name: "filter"}`, the subject is the one bracket-named subtree under that name. A field that is absent,
+`{ name: "filter" }`, the subject is the one bracket-named subtree under that name. A field that is absent,
 or that holds a value `as` refuses for its declared type, is a `ParseError` listing every field that
 failed at its own path — so a form reports the whole list rather than the first item of it.
 
@@ -42,11 +42,13 @@ error at the `jsonAs<T>()` call rather than a silent laundering.
 ```nvs skip
 <?nvs
 #[Core\Json\Derive]
-class Author {
+class Author
+{
     public tainted string $name;
     public int $tags;
 
-    public function constructor(tainted string $name, int $tags) {
+    public function constructor(tainted string $name, int $tags)
+    {
         $this->name = $name;
         $this->tags = $tags;
     }
@@ -54,7 +56,7 @@ class Author {
 
 if (Core\Request::method() == Core\Http\Method::Post) {
     Author $author = Core\Request::jsonAs<Author>();
-    echo "hello ", $author->name, "\n";
+    echo 'hello ', $author->name, "\n";
 }
 ```
 

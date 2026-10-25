@@ -1,6 +1,6 @@
 `Core\Task::all` runs a fixed set of jobs at the same time and gives you all their results together.
 
-You give it a shape: a value with named fields, written `{rows: …, label: …}`. Each field holds a
+You give it a shape: a value with named fields, written `{ rows: …, label: … }`. Each field holds a
 function that takes no arguments. `Core\Task::all` returns a shape with the same field names, and
 each field has the type that job's function returns. You read `$page->rows` straight away, with no
 conversion. A variable of type `callable`, with no signature, gives you `mixed` for that field alone.

@@ -11,7 +11,7 @@ class Document
 
 class Invoice extends Document
 {
-    #[{format: 'money'}]
+    #[{ format: 'money' }]
     public int $total = 0;
 }
 

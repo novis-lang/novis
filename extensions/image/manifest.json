@@ -8,14 +8,14 @@
     {
       "name": "info",
       "params": [{"name": "data", "type": "bytes"}],
-      "returns": "{format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool}",
+      "returns": "{ format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool }",
       "help": "Reads the format, the size and the orientation of an encoded image from its header. No pixel is decoded."
     },
     {
       "name": "run",
       "params": [
         {"name": "source", "type": "Source"},
-        {"name": "plan", "type": "{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}"}
+        {"name": "plan", "type": "{ steps: array<{ resize?: { width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool }, crop?: { x: uint, y: uint, width: uint, height: uint }, trim?: { threshold?: float }, rotate?: { degrees: float, background: ?{ r: uint, g: uint, b: uint, alpha: float } }, flip?: Axis, composite?: { overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend }, flatten?: { r: uint, g: uint, b: uint, alpha: float }, sharpen?: { sigma?: float }, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: { r: uint, g: uint, b: uint, alpha: float }, text?: { text: string, font: bytes, size: float, color: { r: uint, g: uint, b: uint, alpha: float }, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align }, format?: { format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint }, metadata?: { keep: bool } }>, overlays: array<{ source: Source, steps: array<{ resize?: { width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool }, crop?: { x: uint, y: uint, width: uint, height: uint }, trim?: { threshold?: float }, rotate?: { degrees: float, background: ?{ r: uint, g: uint, b: uint, alpha: float } }, flip?: Axis, composite?: { overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend }, flatten?: { r: uint, g: uint, b: uint, alpha: float }, sharpen?: { sigma?: float }, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: { r: uint, g: uint, b: uint, alpha: float }, text?: { text: string, font: bytes, size: float, color: { r: uint, g: uint, b: uint, alpha: float }, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align }, format?: { format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint }, metadata?: { keep: bool } }> }>, output: Output }"}
       ],
       "returns": "bytes",
       "help": "Runs one image pipeline on a source and returns the result: the encoded file, the pixels, or the size."
@@ -24,7 +24,7 @@
       "name": "variants",
       "params": [
         {"name": "source", "type": "Source"},
-        {"name": "plans", "type": "array<{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}>"}
+        {"name": "plans", "type": "array<{ steps: array<{ resize?: { width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool }, crop?: { x: uint, y: uint, width: uint, height: uint }, trim?: { threshold?: float }, rotate?: { degrees: float, background: ?{ r: uint, g: uint, b: uint, alpha: float } }, flip?: Axis, composite?: { overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend }, flatten?: { r: uint, g: uint, b: uint, alpha: float }, sharpen?: { sigma?: float }, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: { r: uint, g: uint, b: uint, alpha: float }, text?: { text: string, font: bytes, size: float, color: { r: uint, g: uint, b: uint, alpha: float }, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align }, format?: { format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint }, metadata?: { keep: bool } }>, overlays: array<{ source: Source, steps: array<{ resize?: { width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool }, crop?: { x: uint, y: uint, width: uint, height: uint }, trim?: { threshold?: float }, rotate?: { degrees: float, background: ?{ r: uint, g: uint, b: uint, alpha: float } }, flip?: Axis, composite?: { overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend }, flatten?: { r: uint, g: uint, b: uint, alpha: float }, sharpen?: { sigma?: float }, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: { r: uint, g: uint, b: uint, alpha: float }, text?: { text: string, font: bytes, size: float, color: { r: uint, g: uint, b: uint, alpha: float }, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align }, format?: { format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint }, metadata?: { keep: bool } }> }>, output: Output }>"}
       ],
       "returns": "array<bytes>",
       "help": "Decodes a source once and runs each pipeline on it. Returns one result per pipeline, in the same order."
@@ -34,9 +34,9 @@
       "params": [
         {"name": "a", "type": "bytes"},
         {"name": "b", "type": "bytes"},
-        {"name": "options", "type": "{tolerance: ?uint, render: bool}"}
+        {"name": "options", "type": "{ tolerance: ?uint, render: bool }"}
       ],
-      "returns": "{identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes}",
+      "returns": "{ identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes }",
       "help": "Decodes two encoded images of the same size and compares their pixels. Two images of different sizes throw a `LogicError`."
     },
     {
@@ -63,14 +63,14 @@
         {"name": "data", "type": "bytes"},
         {"name": "count", "type": "uint"}
       ],
-      "returns": "array<{r: uint, g: uint, b: uint, alpha: float}>",
+      "returns": "array<{ r: uint, g: uint, b: uint, alpha: float }>",
       "help": "Decodes an encoded image and returns at most `count` of its main colours, the most common first."
     },
     {
       "name": "qr",
       "params": [
         {"name": "data", "type": "string"},
-        {"name": "options", "type": "{size: ?uint, margin: ?uint, level: ?Level, format: ?Format}"}
+        {"name": "options", "type": "{ size: ?uint, margin: ?uint, level: ?Level, format: ?Format }"}
       ],
       "returns": "bytes",
       "help": "Returns a text as an encoded QR code image. Data too long for the level, or a size too small for the code, throws a `LogicError`."
@@ -80,7 +80,7 @@
       "params": [
         {"name": "data", "type": "string"},
         {"name": "symbology", "type": "Symbology"},
-        {"name": "options", "type": "{height: ?uint, module: ?uint, margin: ?uint, text: ?bool, format: ?Format}"}
+        {"name": "options", "type": "{ height: ?uint, module: ?uint, margin: ?uint, text: ?bool, format: ?Format }"}
       ],
       "returns": "bytes",
       "help": "Returns a text as an encoded barcode image. A wrong check digit, or a character the barcode type cannot hold, throws a `LogicError`."
@@ -102,10 +102,10 @@
   ],
   "unions": [
     {"name": "Source", "cases": [
-      {"name": "Encoded", "shape": "{data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint, page?: uint, dpi?: float}"},
-      {"name": "Canvas", "shape": "{width: uint, height: uint, fill: {r: uint, g: uint, b: uint, alpha: float}}"},
-      {"name": "Pixels", "shape": "{width: uint, height: uint, pixels: bytes}"},
-      {"name": "Text", "shape": "{text: string, font: bytes, size: float, maxWidth: ?uint, align: ?Align}"}
+      {"name": "Encoded", "shape": "{ data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint, page?: uint, dpi?: float }"},
+      {"name": "Canvas", "shape": "{ width: uint, height: uint, fill: { r: uint, g: uint, b: uint, alpha: float } }"},
+      {"name": "Pixels", "shape": "{ width: uint, height: uint, pixels: bytes }"},
+      {"name": "Text", "shape": "{ text: string, font: bytes, size: float, maxWidth: ?uint, align: ?Align }"}
     ]}
   ]
 }

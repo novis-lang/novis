@@ -10,7 +10,7 @@
 
 use super::*;
 
-/// The [`ISOLATION`] case an `{isolation: …}` option arrived as, or `None` for
+/// The [`ISOLATION`] case an `{ isolation: … }` option arrived as, or `None` for
 /// the call that left it out.
 ///
 /// **The two rosters are matched by ordinal and written out**, not cast:
@@ -89,7 +89,7 @@ nvs_runtime::nvs_helper! {
     /// driver's question, and [`TRANSACTION_OPTIONS`] owns what their defaults
     /// mean.
     ///
-    /// **`{retries: n}` goes around the whole block and not inside it.** Each
+    /// **`{ retries: n }` goes around the whole block and not inside it.** Each
     /// attempt gets its own `BEGIN` and its own scope object, because the one
     /// above is closed and discarded on every path already — a re-run that
     /// reused either would be handing the callable a `$tx` that is refusing.
@@ -270,14 +270,14 @@ pub(super) struct Attempted {
     isolation: Option<nvs_db::Isolation>,
     /// § 7's `{readOnly}`, on the same terms.
     read_only: bool,
-    /// § 7's `{retries: n}` — how many re-runs a conflict may still have.
+    /// § 7's `{ retries: n }` — how many re-runs a conflict may still have.
     retries: u64,
 }
 
 /// The first rung of § 7's backoff, and the base every rung after it doubles
 /// from.
 ///
-/// § 7 names no number and `{retries: n}` has no key for one, which is the
+/// § 7 names no number and `{ retries: n }` has no key for one, which is the
 /// right shape rather than an omission: the wait is not spent letting a lock
 /// clear. A server reports a deadlock or a serialization failure only once it
 /// has already *resolved* the conflict — PostgreSQL detects a deadlock by
@@ -523,7 +523,7 @@ pub(super) fn transacted(
         };
         discard(answered);
 
-        // § 7's `{retries: n}`, and the four conditions are all of it: an
+        // § 7's `{ retries: n }`, and the four conditions are all of it: an
         // outermost transaction, an attempt left, nothing that asked to be
         // rolled back, and a conflict the driver says may be re-run.
         let conflicted =
@@ -1108,7 +1108,7 @@ mod tests {
         Value::object(object)
     }
 
-    /// `rule:core-classes/db-transactions`'s `{retries: n}`, at the seam that belongs to no driver: a
+    /// `rule:core-classes/db-transactions`'s `{ retries: n }`, at the seam that belongs to no driver: a
     /// deadlock inside the callable re-runs it, and the second attempt's answer
     /// is the call's.
     ///

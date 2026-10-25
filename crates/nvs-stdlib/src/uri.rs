@@ -925,7 +925,7 @@ const TO_STRING_DOC: MethodDoc = MethodDoc {
 /// `$uri->with`'s reference card — `rule:core-api/reference-card`.
 const WITH_DOC: MethodDoc = MethodDoc {
     short: "Returns a new `Uri` with some parts of the address changed. You name the parts in a \
-            block, for example `with({scheme: \"https\", port: null})`. Each part you do not name \
+            block, for example `with({ scheme: \"https\", port: null })`. Each part you do not name \
             stays the same. `null` removes the `port`, the `query` or the `fragment`. The user \
             part (`userInfo`) is always kept.",
     params: &[
@@ -1653,7 +1653,7 @@ fn removable<'a>(value: &'a Value, option: &str) -> Result<Option<Option<&'a str
 ///
 /// A recomposition is a concatenation, so the *grammar* is still
 /// `fluent-uri`'s: [`recompose`] joins, [`read`] decides. What a concatenation
-/// can still do is move a component across a delimiter — `with({path: "a"})`
+/// can still do is move a component across a delimiter — `with({ path: "a" })`
 /// on a URI with an authority would write `//hosta`, whose host is `hosta` and
 /// whose path is empty — and re-parsing alone would not notice, because that
 /// text is a perfectly good URI. So the check is this struct compared against
@@ -1707,7 +1707,7 @@ fn recompose(composed: &Composed<'_>) -> String {
 /// # Errors
 ///
 /// A [`Fault::thrown`] naming the **first** component that moved. That name is
-/// the whole value of the check: `with({path: "a"})` on a URI with an
+/// the whole value of the check: `with({ path: "a" })` on a URI with an
 /// authority fails saying `host`, which is where the caller's missing `/`
 /// actually landed, rather than saying the result is not a URI when it is.
 fn unmoved(composed: &Composed<'_>, reference: &UriRef<&str>) -> Result<(), Fault> {
@@ -2216,7 +2216,7 @@ impl<'a> Iterator for Path<'a> {
 }
 
 /// The array `key` names inside `parent`, displacing whatever was there when
-/// it is not an array already — which is `a=1&a[]=2` answering `{a: ["2"]}`,
+/// it is not an array already — which is `a=1&a[]=2` answering `{ a: ["2"] }`,
 /// exactly as PHP does. `None` always builds a fresh one and appends it, since
 /// `a[][x]=1&a[][y]=2` is two arrays rather than one, and answers `None` where
 /// `parent`'s next integer key is already taken — a key of `i64::MAX` written
@@ -2667,7 +2667,7 @@ nvs_runtime::nvs_helper! {
     /// caller who had already validated it is the shape this exists to avoid.
     ///
     /// **Three of the six components can be removed, and `null` is how** —
-    /// `port`, `query` and `fragment` are `?T`, so `{fragment: null}` clears
+    /// `port`, `query` and `fragment` are `?T`, so `{ fragment: null }` clears
     /// the fragment where `{}` leaves it alone ([`removable`]). The other
     /// three are `string`: `rule:core-classes/uri-removable-components` owns
     /// why each of those is a different operation wearing a removal's clothes,
@@ -2700,7 +2700,7 @@ nvs_runtime::nvs_helper! {
         let port = match args[3].tag() {
             // Not mentioned: carry the receiver's own port over.
             Some(Tag::Unset) => slots[PORT_SLOT].as_int(),
-            // `{port: null}` — removed, which is the whole of what a written
+            // `{ port: null }` — removed, which is the whole of what a written
             // `null` means here (`rule:core-api/a-written-null-removes`).
             Some(Tag::Null) => None,
             // Unreachable from source, on `removable`'s judgement: `port` is
@@ -3007,7 +3007,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$uri->sign({keys: array<secret bytes>, until: ?Core\Time\Instant}): Uri`
+    /// `$uri->sign({ keys: array<secret bytes>, until: ?Core\Time\Instant }): Uri`
     /// — the door onto `rule:core-api/signing-is-over-a-payload` where someone
     /// holding a URL will look, replacing the `hash_hmac` over an assembled
     /// query string that every framework grows its own slightly different copy
@@ -5051,7 +5051,7 @@ mod tests {
         }
     }
 
-    /// `Core\Uri::parse($subject)->sign({keys: $keys, until: null})->toString()`
+    /// `Core\Uri::parse($subject)->sign({ keys: $keys, until: null })->toString()`
     /// — the signed link, as text, which is the form every assertion below
     /// tampers with.
     fn signed_text(subject: &str, keys: Value) -> String {

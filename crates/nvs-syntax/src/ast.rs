@@ -177,7 +177,7 @@ pub enum TypeAtom {
     },
     /// `object`
     Object,
-    /// `{name: T, ...}` — `rule:types/shape-type`: an inline structural shape type,
+    /// `{ name: T, ... }` — `rule:types/shape-type`: an inline structural shape type,
     /// checked by width subtyping rather than nominal `implements` — Novis's
     /// one deliberate exception to otherwise fully nominal typing. May be
     /// empty (`{}`), which carries the same "no field promised" meaning as
@@ -275,7 +275,7 @@ pub struct ShapeField {
     pub ty: Type,
     /// Whether a value must carry this key at all. A written `?` after the
     /// name clears it, and that is a different question from the type being
-    /// nullable: `{a?: int}` admits a value with no `a`, while `{a: ?int}`
+    /// nullable: `{ a?: int }` admits a value with no `a`, while `{ a: ?int }`
     /// demands one holding `null`. The polarity is `nvs_types::ty::ShapeField`'s
     /// so nothing flips it on the way down.
     pub required: bool,
@@ -558,7 +558,7 @@ pub struct AttributeGroup {
 }
 
 /// One attribute inside an [`AttributeGroup`] — `rule:attributes/attach-sites-and-forms`'s two forms,
-/// `Name(field: value, ...)` and a bare `{field: value, ...}`.
+/// `Name(field: value, ...)` and a bare `{ field: value, ... }`.
 ///
 /// Both attach the *same* thing: `rule:types/anonymous-object`'s anonymous object. The named form is sugar for a name
 /// immediately followed by that object, so the payload is
@@ -888,7 +888,7 @@ impl Expr {
 /// opening `(` a type.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TestOperand {
-    /// A written type: `$x is int`, `$x is Request`, `$x is {x: int}`.
+    /// A written type: `$x is int`, `$x is Request`, `$x is { x: int }`.
     Type(Type),
     /// A value carrying the class descriptor to test against: `$x is $cls`.
     Value(Box<Expr>),
@@ -1202,8 +1202,8 @@ pub enum ExprKind {
     /// than discarded in favour of the inner expression — only so its span
     /// covers the parentheses; it carries no other meaning.
     Paren(Box<Expr>),
-    /// `{name: value, ...}` — `rule:types/anonymous-object`: an anonymous, methodless object
-    /// literal. May be empty (`{a: 1}`'s fields are the common case, but
+    /// `{ name: value, ... }` — `rule:types/anonymous-object`: an anonymous, methodless object
+    /// literal. May be empty (`{ a: 1 }`'s fields are the common case, but
     /// `{}` is not rejected here). The two positions where `{` already means
     /// a block (a bare statement, an arrow-bodied `fn`'s body) never reach
     /// this variant for an empty `{}` — the disambiguating lookahead only

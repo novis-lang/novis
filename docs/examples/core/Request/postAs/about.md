@@ -8,7 +8,7 @@ way `as` does. Form fields that the type does not name are ignored. `postAs` rea
 form: `application/x-www-form-urlencoded` and `multipart/form-data`.
 
 The option `name` reads only the fields inside one bracket name. For `address[city]=Paris`, you
-write `{name: "address"}`, and the field `city` gets `Paris`.
+write `{ name: "address" }`, and the field `city` gets `Paris`.
 
 If a field is missing or its value does not convert, `postAs` throws a `ParseError`. Its `issues`
 list has one entry for each wrong field.

@@ -10,6 +10,6 @@ foreach ($steps as string $step) {
     Core\Cli::write(' ');
 }
 
-// `{newline: true}` adds one newline at the end. The line now reads
+// `{ newline: true }` adds one newline at the end. The line now reads
 // "read check save done".
 Core\Cli::write('done', { newline: true });

@@ -16,7 +16,7 @@ foreach ($fields as string $field) {
     }
 }
 
-// Options are written as `{key: value}` after the last argument.
+// Options are written as `{ key: value }` after the last argument.
 // This prints `[30,12,7]`.
 array<int> $ordered = Core\Arr::sort($quantities, { order: Core\Arr::Order::Desc });
 echo Core\Json::encode($ordered), "\n";

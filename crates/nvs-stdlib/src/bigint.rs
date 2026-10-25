@@ -37,7 +37,7 @@
 //! `rule:classes/stringable` and `rule:classes/comparable` with no rule of this
 //! class's own. The sort is in that list because [`crate::ordering`]'s natural
 //! order sends two objects to `rule:classes/comparable`'s `compareTo`, so a
-//! sort over these needs no `{comparator: ...}`.
+//! sort over these needs no `{ comparator: ... }`.
 //!
 //! **There are no operators.** `$a + $b` over two objects is the compile error
 //! it is for any class, because Novis has no operator overloading
@@ -376,7 +376,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// The `{radix?: uint}` both `parse` and `format` carry.
+/// The `{ radix?: uint }` both `parse` and `format` carry.
 ///
 /// `rule:core-api/shape-rules` R2 makes every option optional, so the radix is
 /// written with the default every other spelling in the language already means
@@ -889,7 +889,7 @@ fn width(args: &[Value], at: usize, member: &str) -> Result<u64, Fault> {
 /// its input, which is why it is not the `ParseError` a bad digit is.
 fn radix(value: &Value, member: &str) -> Result<u32, Fault> {
     // Unreachable from source: `radix` is a `CoreTy::Uint` option, so
-    // `{radix: $r}` over anything else is `E0401` at the checker and an
+    // `{ radix: $r }` over anything else is `E0401` at the checker and an
     // omitting call site passes the `Const::Uint` default.
     let asked = value.as_uint().ok_or_else(|| {
         Fault::fatal(format!(
@@ -1035,7 +1035,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\BigInt::parse(string $text, {radix?: uint}): BigInt`.
+    /// `Core\BigInt::parse(string $text, { radix?: uint }): BigInt`.
     ///
     /// What is accepted is an optional sign and then digits: no leading space,
     /// and no prefix, since `0x` is a radix written down rather than a spelling
@@ -1599,7 +1599,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$n->format({radix?: uint}): string` — `toString` in any base `parse`
+    /// `$n->format({ radix?: uint }): string` — `toString` in any base `parse`
     /// reads back.
     fn nvs_core_bigint_format(_ctx, args: [2]) {
         let value = operand(args, 0, "format")?;

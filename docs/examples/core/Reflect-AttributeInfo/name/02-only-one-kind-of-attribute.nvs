@@ -9,7 +9,7 @@ class Api
     public function oldSearch(): void
     {}
 
-    #[{public: true}]
+    #[{ public: true }]
     public function search(): void
     {}
 

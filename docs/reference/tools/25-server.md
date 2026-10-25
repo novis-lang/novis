@@ -170,7 +170,7 @@ empty array — and outside a request it throws.
 // `/acme/orders` arrives here with `path()` equal to `/orders`.
 Core\Request\Mount $mount = Core\Request::mount();
 tainted string $tenant = $mount->captures()[0];
-echo "serving ", $tenant, " under ", $mount->prefix(), "\n";
+echo 'serving ', $tenant, ' under ', $mount->prefix(), "\n";
 ```
 
 `Core\Router::url` puts the same prefix in front of every link it builds, so a link is never

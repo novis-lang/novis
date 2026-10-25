@@ -14,8 +14,9 @@ producer and the consumer are both done.
 
 ```nvs
 <?nvs
-class Log {
-    public static string $seen = "";
+class Log
+{
+    public static string $seen = '';
 }
 
 var $line = new Core\Task\Channel<int>(2);
@@ -30,7 +31,7 @@ Core\Task::all({
     },
     consume: fn(): int => {
         foreach ($line as int $square) {
-            Log::$seen = Log::$seen . $square . " ";
+            Log::$seen = Log::$seen . $square . ' ';
         }
         return 0;
     },

@@ -1,7 +1,7 @@
 <?nvs
 use Novis\Image\Color;
 use Novis\Image\Format;
-// Shows that `metadata({keep: true})` keeps the EXIF data in every file that `variants` writes.
+// Shows that `metadata({ keep: true })` keeps the EXIF data in every file that `variants` writes.
 use Novis\Image\Image;
 
 // A JPEG with an EXIF block replaces a photo from a phone. The block has orientation 6.

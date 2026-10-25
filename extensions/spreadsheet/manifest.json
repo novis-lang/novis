@@ -8,7 +8,7 @@
     {
       "name": "writerOpen",
       "params": [
-        {"name": "options", "type": "{properties: {title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}}, target: string}"}
+        {"name": "options", "type": "{ properties: { title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay } }, target: string }"}
       ],
       "returns": "Writer",
       "help": "Starts a new workbook. `target` is where the file goes, such as its file name. The workbook is written when you add a sheet."
@@ -17,7 +17,7 @@
       "name": "writerStyle",
       "params": [
         {"name": "writer", "type": "Writer"},
-        {"name": "style", "type": "{font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool}"}
+        {"name": "style", "type": "{ font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{ top: ?Line, right: ?Line, bottom: ?Line, left: ?Line }, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool }"}
       ],
       "returns": "uint",
       "help": "Returns a number for `style`. Two equal styles get the same number. A cell, a row or a column uses this number as its style."
@@ -26,8 +26,8 @@
       "name": "writerSheet",
       "params": [
         {"name": "writer", "type": "Writer"},
-        {"name": "options", "type": "{name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: {defaultStyle: bool, style: ?uint, freeze: bool, filter: bool}, newSheetOnOverflow: bool}"},
-        {"name": "first", "type": "array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}>"}
+        {"name": "options", "type": "{ name: string, position: ?uint, visibility: Visibility, columns: array<{ width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool }>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: { defaultStyle: bool, style: ?uint, freeze: bool, filter: bool }, newSheetOnOverflow: bool }"},
+        {"name": "first", "type": "array<{ cells: array<{ value: ?CellValue, style: ?uint }>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool }>"}
       ],
       "returns": "bytes",
       "help": "Finishes the sheet before it, if there is one, and starts a new sheet with the rows in `first`. Returns the bytes of the file that are ready to send."
@@ -36,7 +36,7 @@
       "name": "writerRows",
       "params": [
         {"name": "writer", "type": "Writer"},
-        {"name": "rows", "type": "array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}>"}
+        {"name": "rows", "type": "array<{ cells: array<{ value: ?CellValue, style: ?uint }>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool }>"}
       ],
       "returns": "bytes",
       "help": "Adds `rows` to the current sheet. Returns the bytes of the file that are ready to send."
@@ -83,14 +83,14 @@
       "params": [
         {"name": "writer", "type": "Writer"}
       ],
-      "returns": "{data: bytes, rows: array<{name: string, rows: uint}>, size: uint}",
+      "returns": "{ data: bytes, rows: array<{ name: string, rows: uint }>, size: uint }",
       "help": "Finishes the last sheet and the workbook. Returns the last bytes of the file, the number of rows in each sheet, and the size of the whole file in bytes."
     },
     {
       "name": "readerOpen",
       "params": [
         {"name": "source", "type": "mixed"},
-        {"name": "bound", "type": "{maxBytes: ?uint, maxRatio: ?uint}"}
+        {"name": "bound", "type": "{ maxBytes: ?uint, maxRatio: ?uint }"}
       ],
       "returns": "Reading",
       "help": "Opens the workbook in `source`, which is `bytes` or an open `Core\\IO\\File`. This reads the list of sheets and no rows. A part of the file that is kept whole decompresses to at most `maxBytes` bytes, and every part to at most `maxRatio` times its compressed size. The server sets both from `[limits]`."
@@ -101,7 +101,7 @@
         {"name": "reader", "type": "Reading"},
         {"name": "source", "type": "mixed"}
       ],
-      "returns": "array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>",
+      "returns": "array<{ name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind }>",
       "source": true,
       "help": "Returns each sheet of the workbook in tab order. `rows` and `columns` are the size the file gives for the sheet, or 0 when it gives none."
     },
@@ -131,7 +131,7 @@
         {"name": "source", "type": "mixed"},
         {"name": "sheet", "type": "string"}
       ],
-      "returns": "array<{anchor: string, target: string, text: ?string, tooltip: ?string, external: bool}>",
+      "returns": "array<{ anchor: string, target: string, text: ?string, tooltip: ?string, external: bool }>",
       "source": true,
       "help": "Returns the hyperlinks of the sheet `sheet`. `external` is `true` for a link to a URL or a file. Nothing opens the link."
     },
@@ -142,7 +142,7 @@
         {"name": "source", "type": "mixed"},
         {"name": "sheet", "type": "string"}
       ],
-      "returns": "array<{noted: string, note: string, author: ?string}>",
+      "returns": "array<{ noted: string, note: string, author: ?string }>",
       "source": true,
       "help": "Returns the notes of the sheet `sheet`, each with its cell, its text and its author."
     },
@@ -152,7 +152,7 @@
         {"name": "reader", "type": "Reading"},
         {"name": "source", "type": "mixed"}
       ],
-      "returns": "array<{name: string, reference: string, sheet: ?string}>",
+      "returns": "array<{ name: string, reference: string, sheet: ?string }>",
       "source": true,
       "help": "Returns the defined names of the workbook, each with its reference as text. `sheet` is the sheet a local name belongs to."
     },
@@ -163,7 +163,7 @@
         {"name": "source", "type": "mixed"},
         {"name": "sheet", "type": "string"}
       ],
-      "returns": "array<{table: string, name: string, sheet: string}>",
+      "returns": "array<{ table: string, name: string, sheet: string }>",
       "source": true,
       "help": "Returns the Excel tables of the sheet `sheet`, each with its range, such as `A1:C10`, and its name."
     },
@@ -174,7 +174,7 @@
         {"name": "source", "type": "mixed"},
         {"name": "sheet", "type": "string"}
       ],
-      "returns": "array<{at: string, image: bytes, format: string, link: ?string}>",
+      "returns": "array<{ at: string, image: bytes, format: string, link: ?string }>",
       "source": true,
       "help": "Returns the pictures of the sheet `sheet`, each with its top-left cell, its bytes and its format. A linked picture has no bytes, and `link` is its target. Nothing fetches it."
     },
@@ -184,7 +184,7 @@
         {"name": "reader", "type": "Reading"},
         {"name": "source", "type": "mixed"}
       ],
-      "returns": "{title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}}",
+      "returns": "{ title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay } }",
       "help": "Returns the document properties of the workbook. `created` is the time it was created, in UTC."
     },
     {
@@ -192,7 +192,7 @@
       "params": [
         {"name": "reader", "type": "Reading"},
         {"name": "source", "type": "mixed"},
-        {"name": "options", "type": "{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}"}
+        {"name": "options", "type": "{ sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string }"}
       ],
       "returns": "array<string>",
       "help": "Returns the names in the header row, one for each column from `A`. A name that is already used gets ` (2)`, ` (3)` and so on. An empty header cell gets its column letter."
@@ -202,17 +202,17 @@
       "params": [
         {"name": "reader", "type": "Reading"},
         {"name": "source", "type": "mixed"},
-        {"name": "options", "type": "{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}"},
+        {"name": "options", "type": "{ sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string }"},
         {"name": "max", "type": "uint"}
       ],
-      "returns": "{rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}",
+      "returns": "{ rows: array<{ number: uint, cells: array<{ column: uint, value: ?ReadValue, formula: ?string, display: ?string }> }>, done: bool }",
       "help": "Returns the next rows of a sheet, at most `max` of them. To get the rows after these, call it again with `from` one past the last row number. `done` is `true` after the last row of the sheet."
     },
     {
       "name": "templateOpen",
       "params": [
         {"name": "source", "type": "mixed"},
-        {"name": "bound", "type": "{maxBytes: ?uint, maxRatio: ?uint}"}
+        {"name": "bound", "type": "{ maxBytes: ?uint, maxRatio: ?uint }"}
       ],
       "returns": "Filling",
       "help": "Opens the template in `source`, which is `bytes` or an open `Core\\IO\\File`. A template is a workbook with placeholders such as `{{name}}` in its cells."
@@ -231,17 +231,17 @@
       "name": "templateFill",
       "params": [
         {"name": "template", "type": "Filling"},
-        {"name": "values", "type": "array<{path: string, value: ?CellValue}>"},
+        {"name": "values", "type": "array<{ path: string, value: ?CellValue }>"},
         {"name": "lists", "type": "array<string>"}
       ],
-      "returns": "{data: bytes, lists: array<string>}",
+      "returns": "{ data: bytes, lists: array<string> }",
       "help": "Fills every placeholder that is not in a list. `lists` has the names of the lists. Returns the bytes of the file that are ready to send, and the lists the template uses, in the order of their rows."
     },
     {
       "name": "templateItems",
       "params": [
         {"name": "template", "type": "Filling"},
-        {"name": "batch", "type": "{name: string, items: array<array<{path: string, value: ?CellValue}>>}"}
+        {"name": "batch", "type": "{ name: string, items: array<array<{ path: string, value: ?CellValue }>> }"}
       ],
       "returns": "bytes",
       "help": "Writes the rows of some items of the list `name`. The path of a value is its path inside the item, such as `qty`. Returns the bytes of the file that are ready to send."
@@ -252,7 +252,7 @@
         {"name": "template", "type": "Filling"},
         {"name": "source", "type": "mixed"}
       ],
-      "returns": "{data: bytes, rows: array<{name: string, rows: uint}>, size: uint}",
+      "returns": "{ data: bytes, rows: array<{ name: string, rows: uint }>, size: uint }",
       "help": "Writes the rest of the file. Returns the last bytes of the file, the number of rows in each sheet, and the size of the whole file in bytes."
     }
   ],
@@ -275,41 +275,41 @@
   "resources": [{"name": "Writer"}, {"name": "Reading"}, {"name": "Filling"}],
   "unions": [
     {"name": "ReadValue", "cases": [
-      {"name": "Text", "shape": "{text: string}"},
-      {"name": "Integer", "shape": "{integer: int}"},
-      {"name": "Number", "shape": "{number: float}"},
-      {"name": "Boolean", "shape": "{boolean: bool}"},
-      {"name": "Clock", "shape": "{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}"},
-      {"name": "Date", "shape": "{date: Core\\Time\\Date}"},
-      {"name": "Time", "shape": "{time: Core\\Time\\TimeOfDay}"},
-      {"name": "Duration", "shape": "{duration: Core\\Time\\Duration}"},
-      {"name": "Error", "shape": "{error: CellError}"}
+      {"name": "Text", "shape": "{ text: string }"},
+      {"name": "Integer", "shape": "{ integer: int }"},
+      {"name": "Number", "shape": "{ number: float }"},
+      {"name": "Boolean", "shape": "{ boolean: bool }"},
+      {"name": "Clock", "shape": "{ day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay }"},
+      {"name": "Date", "shape": "{ date: Core\\Time\\Date }"},
+      {"name": "Time", "shape": "{ time: Core\\Time\\TimeOfDay }"},
+      {"name": "Duration", "shape": "{ duration: Core\\Time\\Duration }"},
+      {"name": "Error", "shape": "{ error: CellError }"}
     ]},
     {"name": "CellValue", "cases": [
-      {"name": "Text", "shape": "{text: string}"},
-      {"name": "Number", "shape": "{number: float}"},
-      {"name": "Integer", "shape": "{integer: int}"},
-      {"name": "Decimal", "shape": "{decimal: string}"},
-      {"name": "Boolean", "shape": "{boolean: bool}"},
-      {"name": "Date", "shape": "{date: Core\\Time\\Date}"},
-      {"name": "Time", "shape": "{time: Core\\Time\\TimeOfDay}"},
-      {"name": "Duration", "shape": "{duration: Core\\Time\\Duration}"},
-      {"name": "Clock", "shape": "{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}"},
-      {"name": "Formula", "shape": "{formula: string, cachedText: ?string, cachedNumber: ?float}"},
-      {"name": "Rich", "shape": "{runs: array<{text: string, style: ?uint}>}"}
+      {"name": "Text", "shape": "{ text: string }"},
+      {"name": "Number", "shape": "{ number: float }"},
+      {"name": "Integer", "shape": "{ integer: int }"},
+      {"name": "Decimal", "shape": "{ decimal: string }"},
+      {"name": "Boolean", "shape": "{ boolean: bool }"},
+      {"name": "Date", "shape": "{ date: Core\\Time\\Date }"},
+      {"name": "Time", "shape": "{ time: Core\\Time\\TimeOfDay }"},
+      {"name": "Duration", "shape": "{ duration: Core\\Time\\Duration }"},
+      {"name": "Clock", "shape": "{ day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay }"},
+      {"name": "Formula", "shape": "{ formula: string, cachedText: ?string, cachedNumber: ?float }"},
+      {"name": "Rich", "shape": "{ runs: array<{ text: string, style: ?uint }> }"}
     ]},
     {"name": "SheetPart", "cases": [
-      {"name": "Merge", "shape": "{merge: string}"},
-      {"name": "Link", "shape": "{anchor: string, target: string, text: ?string, tooltip: ?string}"},
-      {"name": "Note", "shape": "{noted: string, note: string, author: ?string}"},
-      {"name": "Validation", "shape": "{validated: string, kind: RuleKind, operator: ?Operator, values: array<string>, inputTitle: ?string, inputMessage: ?string, errorTitle: ?string, errorMessage: ?string, allowEmpty: bool}"},
-      {"name": "Group", "shape": "{grouped: string, collapsed: bool}"},
-      {"name": "Table", "shape": "{table: string, name: ?string, style: ?string, banded: bool, filter: bool, totals: array<{column: string, function: ?TotalFunction, formula: ?string}>}"},
-      {"name": "Conditional", "shape": "{formatted: string, kind: ConditionalKind, operator: ?Operator, values: array<string>, colors: array<string>, icons: ?string, rank: ?uint, percent: bool, style: ?{font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool}}"},
-      {"name": "Image", "shape": "{at: string, image: bytes, width: ?float, height: ?float, offsetX: ?float, offsetY: ?float}"},
-      {"name": "Chart", "shape": "{placed: string, layers: array<{kind: ChartKind, series: array<{values: string, categories: ?string, name: ?string, color: ?string}>}>, title: ?string, xTitle: ?string, yTitle: ?string, legend: Legend, labels: bool, width: ?float, height: ?float}"},
-      {"name": "Print", "shape": "{orientation: ?Orientation, fitWidth: ?uint, fitHeight: ?uint, margins: ?{top: float, right: float, bottom: float, left: float}, header: ?string, footer: ?string, repeatRows: ?string, area: ?string}"},
-      {"name": "Protect", "shape": "{password: ?string, allow: array<string>}"}
+      {"name": "Merge", "shape": "{ merge: string }"},
+      {"name": "Link", "shape": "{ anchor: string, target: string, text: ?string, tooltip: ?string }"},
+      {"name": "Note", "shape": "{ noted: string, note: string, author: ?string }"},
+      {"name": "Validation", "shape": "{ validated: string, kind: RuleKind, operator: ?Operator, values: array<string>, inputTitle: ?string, inputMessage: ?string, errorTitle: ?string, errorMessage: ?string, allowEmpty: bool }"},
+      {"name": "Group", "shape": "{ grouped: string, collapsed: bool }"},
+      {"name": "Table", "shape": "{ table: string, name: ?string, style: ?string, banded: bool, filter: bool, totals: array<{ column: string, function: ?TotalFunction, formula: ?string }> }"},
+      {"name": "Conditional", "shape": "{ formatted: string, kind: ConditionalKind, operator: ?Operator, values: array<string>, colors: array<string>, icons: ?string, rank: ?uint, percent: bool, style: ?{ font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{ top: ?Line, right: ?Line, bottom: ?Line, left: ?Line }, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool } }"},
+      {"name": "Image", "shape": "{ at: string, image: bytes, width: ?float, height: ?float, offsetX: ?float, offsetY: ?float }"},
+      {"name": "Chart", "shape": "{ placed: string, layers: array<{ kind: ChartKind, series: array<{ values: string, categories: ?string, name: ?string, color: ?string }> }>, title: ?string, xTitle: ?string, yTitle: ?string, legend: Legend, labels: bool, width: ?float, height: ?float }"},
+      {"name": "Print", "shape": "{ orientation: ?Orientation, fitWidth: ?uint, fitHeight: ?uint, margins: ?{ top: float, right: float, bottom: float, left: float }, header: ?string, footer: ?string, repeatRows: ?string, area: ?string }"},
+      {"name": "Protect", "shape": "{ password: ?string, allow: array<string> }"}
     ]}
   ]
 }

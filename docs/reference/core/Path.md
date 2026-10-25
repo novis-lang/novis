@@ -13,21 +13,23 @@ is `null`: `extension` on a name without one, `relativeTo` where no relative pat
 
 ```nvs
 <?nvs
-class Show {
+class Show
+{
     // A rendered path carries the platform's separator; print it as `/` either way.
-    public static function slash(string $p): string {
-        return Core\Str::replace($p, Core\Path::SEPARATOR, "/");
+    public static function slash(string $p): string
+    {
+        return Core\Str::replace($p, Core\Path::SEPARATOR, '/');
     }
 }
-string $p = "/var/www/html/index.php";
-echo Core\Path::basename($p), " ", Core\Path::basename($p, {withoutExtension: true}), " ", Core\Path::extension($p) ?? "none", "\n";
-echo Show::slash(Core\Path::dirname($p)), " ", Show::slash(Core\Path::dirname($p, {levels: 2})), "\n";
-echo Show::slash(Core\Path::withExtension($p, "html")), "\n";
-echo Show::slash(Core\Path::join("/var/www", "html", "/index.php")), "\n";
-echo Show::slash(Core\Path::normalize("/var/www/../log/./app.log")), "\n";
-echo Show::slash(Core\Path::relativeTo("/var/log/app.log", "/var/www") ?? "none"), "\n";
-echo Core\Str::join(Core\Path::split("etc//hosts/"), ","), " ", Core\Path::isAbsolute("C:/tmp") ? "abs" : "rel", " ", Core\Path::isAbsolute("tmp") ? "abs" : "rel", "\n";
-echo Core\Path::extension("Makefile") ?? "none", "\n";
+string $p = '/var/www/html/index.php';
+echo Core\Path::basename($p), ' ', Core\Path::basename($p, { withoutExtension: true }), ' ', Core\Path::extension($p) ?? 'none', "\n";
+echo Show::slash(Core\Path::dirname($p)), ' ', Show::slash(Core\Path::dirname($p, { levels: 2 })), "\n";
+echo Show::slash(Core\Path::withExtension($p, 'html')), "\n";
+echo Show::slash(Core\Path::join('/var/www', 'html', '/index.php')), "\n";
+echo Show::slash(Core\Path::normalize('/var/www/../log/./app.log')), "\n";
+echo Show::slash(Core\Path::relativeTo('/var/log/app.log', '/var/www') ?? 'none'), "\n";
+echo Core\Str::join(Core\Path::split('etc//hosts/'), ','), ' ', Core\Path::isAbsolute('C:/tmp') ? 'abs' : 'rel', ' ', Core\Path::isAbsolute('tmp') ? 'abs' : 'rel', "\n";
+echo Core\Path::extension('Makefile') ?? 'none', "\n";
 ```
 ```output
 index.php index php

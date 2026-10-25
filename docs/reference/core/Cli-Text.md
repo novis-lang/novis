@@ -13,14 +13,14 @@ until it is converted. Styling, colour and the rest of a terminal surface are no
 ```nvs
 <?nvs
 var $captured = Core\Out::capture(fn (): void => {
-    echo "inner";
+    echo 'inner';
 });
 
-echo "[", $captured, "]\n";
-echo "joined: " . $captured . "!\n";
+echo '[', $captured, "]\n";
+echo 'joined: ' . $captured . "!\n";
 
 string $text = $captured as string;
-echo "length=", Core\Str::length($text), "\n";
+echo 'length=', Core\Str::length($text), "\n";
 ```
 ```output
 [inner]

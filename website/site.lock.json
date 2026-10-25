@@ -8,7 +8,7 @@
   "syntax/attributes/commands-and-discovery.mdx": {
     "lang:attributes/core-command-and-core-option-the-command-table": "9e19511d92c9a7ec",
     "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "6b7e5aaf8098bbd7",
-    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "dba17f83e41bcb64"
+    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "e322053faa68e35c"
   },
   "syntax/attributes/json.mdx": {
     "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "0aeb336c016beb72"
@@ -19,9 +19,9 @@
     "lang:attributes/core-route-and-core-access-the-route-table": "84453ba251cfab8a"
   },
   "syntax/attributes/writing-and-reading.mdx": {
-    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "28b9a98e2b0cbcef",
-    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "8ef39ad164ce4b9d",
-    "lang:attributes/the-names-the-compiler-acts-on": "77998dd1c404a172"
+    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "852fea340a2bb893",
+    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "b3199a51360a9487",
+    "lang:attributes/the-names-the-compiler-acts-on": "315e8e8e77297d39"
   },
   "syntax/basics/comments.mdx": {
     "lang:programs/comments": "71264be3b82fa28b",
@@ -39,7 +39,7 @@
     "lang:types/every-binding-has-a-type": "61e87453b74d2a92"
   },
   "syntax/classes/anonymous-objects.mdx": {
-    "lang:expressions/anonymous-objects": "c37b4caa3dfed2d0"
+    "lang:expressions/anonymous-objects": "e1eaacc21c0cdba4"
   },
   "syntax/classes/covariant.mdx": {
     "lang:classes/covariant": "75d97113cee24da2"
@@ -60,7 +60,7 @@
     "lang:classes/objects-are-handles": "fdf600b7a1be0f56",
     "lang:classes/what-a-class-cannot-declare": "3e516736032ca759",
     "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "c2da7dcab6b5a909",
-    "lang:types/callable-classes-object-shapes": "c8e649f3bd7939b5"
+    "lang:types/callable-classes-object-shapes": "be8a99c946d740dc"
   },
   "syntax/classes/properties.mdx": {
     "lang:classes/lateinit": "b2fca72bdd0b6ae9",
@@ -92,16 +92,16 @@
     "lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks": "8d317b3106ba8038"
   },
   "syntax/concurrency/isolates.mdx": {
-    "lang:concurrency/a-child-s-failure-is-a-value": "b9ef8c80e679329c",
+    "lang:concurrency/a-child-s-failure-is-a-value": "0d39b4a4d63addb4",
     "lang:concurrency/a-child-shares-nothing": "fbf5bb8ece7f306e",
-    "lang:concurrency/isolates-spawn-script-and-await": "abda945a528fc722"
+    "lang:concurrency/isolates-spawn-script-and-await": "e2871e94c560b5b3"
   },
   "syntax/concurrency/limits-and-errors.mdx": {
     "lang:concurrency/a-child-s-throw": "3be9ca50349ed7be",
     "lang:concurrency/limit-and-deadline": "84f954dd88e083d9"
   },
   "syntax/concurrency/tasks.mdx": {
-    "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "d344e565306d6e97",
+    "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "8e34438b2eaf6fbb",
     "lang:concurrency/core-task-map-one-task-per-element": "59524d895f7d29d4",
     "lang:concurrency/no-colouring-i-o-just-waits": "b72d841ae5f19425",
     "lang:concurrency/what-does-not-exist": "087c720a7ca52804"
@@ -156,7 +156,7 @@
     "Core\\Db\\RolledBack": "df5c34b4ef5737fe",
     "Core\\Script\\Finished": "e2ca69d6a2bf9c19",
     "IOError": "16019898000eb971",
-    "lang:errors/constructing-and-subclassing": "de5788738ee10c53",
+    "lang:errors/constructing-and-subclassing": "50c35d30f8de6865",
     "lang:errors/properties-not-accessors": "5c9b19e97a135bf0",
     "lang:errors/the-throwable-tree": "9773253e6743462d",
     "LogicError": "111255374a1312ac",
@@ -173,7 +173,7 @@
   },
   "syntax/errors/rethrowing.mdx": {
     "lang:errors/an-uncaught-throw": "b2f210668299ed76",
-    "lang:errors/rethrowing": "353415846f620b0d"
+    "lang:errors/rethrowing": "2b6a233edf1823d8"
   },
   "syntax/errors/throw-and-catch.mdx": {
     "lang:errors/throw": "b785ec137a81994f",
@@ -229,7 +229,7 @@
     "lang:types/what-does-not-exist": "9974b39bdf001f58"
   },
   "syntax/testing/fixtures-and-assertions.mdx": {
-    "lang:testing/assertions": "1eb8f8764b9604de",
+    "lang:testing/assertions": "4828a029a4109902",
     "lang:testing/core-test-fixture-built-once-injected-by-type": "8003e9ee8920cf91",
     "lang:testing/core-test-testwith-data-rows": "03ce1be5303e2b8f",
     "lang:testing/hooks-beforeclass-afterclass-and-aftereachtest": "4ceb7d1b18bbb134"
@@ -246,14 +246,14 @@
   },
   "syntax/values/as.mdx": {
     "lang:types/the-conversion-operator-as": "ea4bf157002fff89",
-    "lang:types/widening-without-as": "9d067c1382312ab8"
+    "lang:types/widening-without-as": "9b819abd54e89dc5"
   },
   "syntax/values/bool-and-null.mdx": {
     "lang:types/truthiness": "a59e4ea86f62deae"
   },
   "syntax/values/enums.mdx": {
-    "Core\\Arr::Order": "4ca6275775085f8f",
-    "Core\\Arr::SetOn": "5e8fdf0ca14da812",
+    "Core\\Arr::Order": "874c58c7c527703c",
+    "Core\\Arr::SetOn": "c18b936def864b64",
     "Core\\Audience": "8488208ef9be7ec4",
     "Core\\Charset": "832aaa3ceb8d72b1",
     "Core\\Cldr::PluralCategory": "5ceaaed49629daf7",
@@ -291,7 +291,7 @@
     "lang:enums/an-enum-as-a-type": "26f8f0ea5f100029",
     "lang:enums/an-enum-inside-a-class": "46552aab643bd7fc",
     "lang:enums/comparing-cases": "82ff34954eb9e7f2",
-    "lang:enums/core-enums": "6e9c162148bebdb9",
+    "lang:enums/core-enums": "268763ea1ff1cec6",
     "lang:enums/declaring-an-enum": "41c9a4f2bfc222fe",
     "lang:enums/from-an-integer-back-to-a-case": "57a9106d66b7706c",
     "lang:enums/match-and-switch-over-an-enum": "55b2566710de421b",
@@ -308,7 +308,7 @@
   },
   "syntax/values/strings.mdx": {
     "lang:types/text-string-and-bytes": "e114e428f67a2bc3",
-    "lang:types/values-written-in-the-code": "868919b9f8d04acf"
+    "lang:types/values-written-in-the-code": "ad7d0a7f1d4d26cf"
   },
   "syntax/values/tainted-and-secret.mdx": {
     "lang:types/qualifiers-tainted-and-secret": "68d075b395504719"

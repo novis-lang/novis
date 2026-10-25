@@ -449,7 +449,7 @@ codes! {
     /// for either, the bag being the all-optional case of the shape.
     pub const E_OPTIONS_NOT_AN_ANON_OBJECT: Code = Code::new("E0453").card(
         "The options of this function must be written in the call itself, such as \
-         `{default: false}`. A variable that contains the options cannot be passed.",
+         `{ default: false }`. A variable that contains the options cannot be passed.",
     );
     /// A field name in an options bag that the member does not declare —
     /// usually a typo. Unlike `rule:types/shape-type`'s width subtyping, which accepts an
@@ -555,7 +555,7 @@ codes! {
     /// class has.
     pub const E_TYPE_ARG_NOT_A_CLASS: Code = Code::new("E0465").card(
         "This function needs a class or a shape as its type argument, not a type such as `int`. \
-         Write a class such as `User`, a shape such as `{id: uint, name: string}`, or \
+         Write a class such as `User`, a shape such as `{ id: uint, name: string }`, or \
          `array<User>` for a list.",
     );
     /// An `==`/`!=` — or a `switch` label, or a `match` arm — whose two static
@@ -912,9 +912,9 @@ codes! {
          ordinary parameter and `return` the result, or pass an object and change its properties.",
     );
     /// An `rule:types/anonymous-object` anonymous object writing one field name twice —
-    /// `{a: 1, a: 2}`.
+    /// `{ a: 1, a: 2 }`.
     ///
-    /// A shape's fields are a set: the type `{a: int}` names one slot `a`,
+    /// A shape's fields are a set: the type `{ a: int }` names one slot `a`,
     /// and there is no layout under which an anonymous object's two `a`s are both
     /// reachable. PHP's nearest neighbour is a duplicate *array* key, where
     /// the last write wins silently, but an array is a map and a shape is a
@@ -923,7 +923,7 @@ codes! {
     /// class carries one slot per name. Refusing where it is written is the
     /// only answer that keeps both readings out of the language.
     pub const E_DUPLICATE_SHAPE_FIELD: Code = Code::new("E0494").card(
-        "This anonymous object writes the same field name twice, as in `{a: 1, a: 2}`. Each field \
+        "This anonymous object writes the same field name twice, as in `{ a: 1, a: 2 }`. Each field \
          can appear only once, so remove one of them.",
     );
     /// `->` on a receiver whose declared type can never hold an object —

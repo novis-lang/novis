@@ -30,7 +30,7 @@
 //! `[[extension]]` entry declaring a `Novis\` class is still refused, so no entry can shadow one.
 //!
 //! **Which Novis types the check reads.** The structural ones: `bool`, `int`, `uint`, `float`,
-//! `string`, `bytes`, `array<T>`, `array<K, V>`, `?T`, a shape `{a: T, b?: U}` (its keys in
+//! `string`, `bytes`, `array<T>`, `array<K, V>`, `?T`, a shape `{ a: T, b?: U }` (its keys in
 //! kebab-case, an optional key an `option`), `mixed` as a `borrow` of a resource, and `void` as a
 //! return. Then the named ones the manifest resolves (`Manifest::novis_type`): an enum as an
 //! `enum` of its cases in kebab-case and in order, a closed union of shapes as a `variant` whose

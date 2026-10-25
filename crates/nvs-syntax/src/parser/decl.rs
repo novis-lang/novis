@@ -166,7 +166,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// One attribute — `rule:attributes/attach-sites-and-forms`'s named `Name(field: value, ...)` or bare
-    /// `{field: value, ...}`. Both carry the same payload, so the
+    /// `{ field: value, ... }`. Both carry the same payload, so the
     /// parenthesized list is parsed by the very function that parses an
     /// `rule:types/anonymous-object` anonymous object's fields: an attribute payload is that
     /// object written without its braces, not an argument list, so a

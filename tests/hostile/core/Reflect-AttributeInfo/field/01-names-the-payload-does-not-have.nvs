@@ -7,7 +7,7 @@ class Limits
     public const int MAX = 5;
 }
 
-#[{count: 3, cap: Limits::MAX}]
+#[{ count: 3, cap: Limits::MAX }]
 class Job
 {
 }

@@ -1212,15 +1212,15 @@ fn lower_program_as(
     // statement id.
     classes.sort_by(|a, b| a.label.cmp(&b.label));
     // An anonymous object's synthesized class is keyed on the shape, not the site
-    // — see `shape_class_label` — so two bodies both writing `{x: 1, y: 2}`
+    // — see `shape_class_label` — so two bodies both writing `{ x: 1, y: 2 }`
     // each record one. Nothing else here can repeat a label: `layouts` is a
     // map, and an anonymous function's and a generator's class are named for the site.
     //
     // Collapsing the repeats **merges** their slot representations on
     // `Lowering::record_shape_class`'s terms, rather than keeping whichever
     // one sorted first: that function already merges the records one frame
-    // makes, and a label is program-wide, so two frames writing `{x: 1}` and
-    // `{x: "s"}` have to reach the same degraded tag that one frame writing
+    // makes, and a label is program-wide, so two frames writing `{ x: 1 }` and
+    // `{ x: "s" }` have to reach the same degraded tag that one frame writing
     // both does. Keeping the first instead would let the frame a class was
     // sorted out of decide what every other frame's writes are checked
     // against.
@@ -2322,7 +2322,7 @@ pub(crate) struct Lowering<'a> {
     /// Travels out beside `anon_fns` for the same reason: a class is
     /// something only [`lower_file`] can hold, and an expression met in the
     /// middle of a body has nowhere else to put one. Deduplicated by label as
-    /// it is filled, so a body writing `{x: 1}` in a loop records one entry.
+    /// it is filled, so a body writing `{ x: 1 }` in a loop records one entry.
     shapes: Vec<crate::ir::Class>,
     /// `Some` under [`with_debug_slots`]: the variables given a slot so far.
     /// [`Self::emit_stmt_marker`] fills it, and [`Self::finish`] hands it out.
@@ -2656,7 +2656,7 @@ impl<'a> Lowering<'a> {
     ///
     /// A label already recorded is **merged**, not skipped: `$shape{x}` is
     /// named for its field names alone (see [`shape_class_label`]), so
-    /// `{x: 1}` and `{x: "s"}` are one class with two disagreeing slot types.
+    /// `{ x: 1 }` and `{ x: "s" }` are one class with two disagreeing slot types.
     /// A slot the two spell differently degrades to [`Ty::Tagged`], which
     /// `nvs-codegen` reads as "no fixed tag, do not check" — picking whichever
     /// literal was seen first would instead reject the other one's own writes.
@@ -2863,7 +2863,7 @@ impl<'a> Lowering<'a> {
     /// refcounted, so none is retained or released.
     ///
     /// A shape also **registers its class here**, because a unit that hydrates
-    /// a `{n: int}` it never spells has no anonymous object to synthesize one and
+    /// a `{ n: int }` it never spells has no anonymous object to synthesize one and
     /// the descriptor constant above would resolve to nothing. Every slot it
     /// claims is [`Ty::Tagged`]: what fills them is a native decoder rather
     /// than a lowered write, so this registration has no tag to promise, and
@@ -4512,7 +4512,7 @@ fn shape_fills(
 }
 
 /// The label the class synthesized for an `rule:types/anonymous-object` anonymous object carries
-/// — `$shape{x,y}` for `{x: 1, y: 2}`, from the field names **already
+/// — `$shape{x,y}` for `{ x: 1, y: 2 }`, from the field names **already
 /// sorted**.
 ///
 /// A label, not a name: it identifies the class in [`crate::ir::Program`]'s
@@ -4543,7 +4543,7 @@ pub(crate) fn shape_class_label(sorted_fields: &[String]) -> String {
 ///
 /// It renders **every column that makes two contracts different**, so two call
 /// sites writing the same fields at the same wire types share one
-/// `nvs_runtime::ShapeCodec` and two writing `{n: int}` and `{n: string}` — one
+/// `nvs_runtime::ShapeCodec` and two writing `{ n: int }` and `{ n: string }` — one
 /// class, by that label's own rule — get one table each. Nothing outside this
 /// compile reads the spelling: `nvs-codegen` mangles it into a relocation
 /// symbol, and both ends of that relocation derive the name from a key built
@@ -4650,7 +4650,7 @@ fn nested_shape_key(field: &nvs_types::derive::DerivedField) -> Option<String> {
 ///
 /// A shape written as a **type argument** is registered where its call site
 /// lowers ([`Lowering::written_type_constants`]). One reached as a *field* has
-/// no site to lower at — a class may declare `{n: int}` in a program that never
+/// no site to lower at — a class may declare `{ n: int }` in a program that never
 /// writes a literal of it — so both halves are collected here instead, which is
 /// what leaves `nvs-codegen` two resolvable pointers rather than one label and a
 /// null.
@@ -4757,7 +4757,7 @@ fn property_shapes(exprs: &nvs_types::ExprTypeTable, classes: &mut Vec<crate::ir
 /// about what a missing one means.
 ///
 /// A written **shape** answers the class synthesized for it, which is the same
-/// descriptor a `{n: 1}` literal of those field names builds; what that label
+/// descriptor a `{ n: 1 }` literal of those field names builds; what that label
 /// cannot carry is the field *types*, and
 /// [`Lowering::written_type_constants`] is where the contract holding them is
 /// emitted beside it.

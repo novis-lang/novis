@@ -564,16 +564,16 @@ const COMPILE_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `{caseInsensitive: true}` — PCRE's `i`.
+/// `{ caseInsensitive: true }` — PCRE's `i`.
 const FLAG_CASE_INSENSITIVE: u8 = 1;
 
-/// `{multiline: true}` — PCRE's `m`.
+/// `{ multiline: true }` — PCRE's `m`.
 const FLAG_MULTILINE: u8 = 1 << 1;
 
-/// `{dotAll: true}` — PCRE's `s`.
+/// `{ dotAll: true }` — PCRE's `s`.
 const FLAG_DOT_ALL: u8 = 1 << 2;
 
-/// `{ungreedy: true}` — PCRE's `U`.
+/// `{ ungreedy: true }` — PCRE's `U`.
 const FLAG_UNGREEDY: u8 = 1 << 3;
 
 /// No flag set at all, which is what a plain `string` pattern carries.
@@ -713,7 +713,7 @@ const GROUPS_SLOT: usize = 0;
 /// [`MATCH`]'s `offset` slot, by index — see [`GROUPS_SLOT`].
 const OFFSET_SLOT: usize = 1;
 
-/// `Core\Regex::match`'s `{from?: int}` — the position in the subject to start
+/// `Core\Regex::match`'s `{ from?: int }` — the position in the subject to start
 /// searching at, defaulting to its beginning.
 ///
 /// A [`crate::granularity::DEFAULT`]-unit index, like every other `string`
@@ -725,7 +725,7 @@ const OFFSET_SLOT: usize = 1;
 /// The match is still made against the whole subject, so a look-behind or a
 /// `^` sees what precedes `from` — the same treatment both engines' own
 /// "search from" entry points give, and the only one under which
-/// `Regex::match($s, $p, {from: $m->offset() + 1})` finds the second match
+/// `Regex::match($s, $p, { from: $m->offset() + 1 })` finds the second match
 /// rather than a different pattern's.
 /// `Core\Regex::match`'s reference card (`rule:core-api/reference-card`) — the member that proves
 /// [`ErrorDoc`], because it throws: both of its errors are the `RuntimeError`
@@ -768,7 +768,7 @@ const MATCH_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Int(0),
 }];
 
-/// `Core\Regex::replace`'s `{limit?: uint}` — how many matches to replace,
+/// `Core\Regex::replace`'s `{ limit?: uint }` — how many matches to replace,
 /// defaulting to `uint`'s maximum, which is "every one".
 ///
 /// The same spelling, and the same reason, as `Core\Str::replace`'s: a
@@ -781,7 +781,7 @@ const REPLACE_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Uint(u64::MAX),
 }];
 
-/// `Core\Regex::split`'s `{limit?: int, keepEmpty?: bool}`.
+/// `Core\Regex::split`'s `{ limit?: int, keepEmpty?: bool }`.
 ///
 /// `limit` has **`Core\Str::split`'s three-sign rule**, which that member's
 /// own docs state and this one does not repeat — one word, one meaning, across
@@ -1809,7 +1809,7 @@ fn group_key<'a>(value: &'a Value, member: &str) -> Result<std::borrow::Cow<'a, 
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Regex::match(string $subject, string $pattern, {from?: int}): ?Match`
+    /// `Core\Regex::match(string $subject, string $pattern, { from?: int }): ?Match`
     /// — replacing `preg_match`, its `$matches` out-parameter and
     /// `PREG_OFFSET_CAPTURE` at once.
     ///
@@ -1982,7 +1982,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Regex::replace(string $subject, string $pattern, string $replacement, {limit?: uint}): string`
+    /// `Core\Regex::replace(string $subject, string $pattern, string $replacement, { limit?: uint }): string`
     /// — replacing `preg_replace`.
     ///
     /// **`$1` and `${name}` are the group spellings**, and `$$` is a literal
@@ -2098,7 +2098,7 @@ fn replacement_for(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Regex::replaceWith(string $subject, Pattern|string $pattern, callable $fn, {limit?: uint}): string`
+    /// `Core\Regex::replaceWith(string $subject, Pattern|string $pattern, callable $fn, { limit?: uint }): string`
     /// — replacing `preg_replace_callback` and `preg_replace_callback_array`.
     ///
     /// The callback is handed **one [`MATCH`]**, not PHP's positional array,
@@ -2215,7 +2215,7 @@ fn each_piece<'a>(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Regex::split(string $subject, string $pattern, {limit?: int, keepEmpty?: bool}): array<string>`
+    /// `Core\Regex::split(string $subject, string $pattern, { limit?: int, keepEmpty?: bool }): array<string>`
     /// — replacing `preg_split` and its four flags.
     ///
     /// `limit` is **`Core\Str::split`'s rule**, stated there: positive is at

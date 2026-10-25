@@ -11,16 +11,16 @@ throws `RuntimeError`. Two digests of one input need two streams.
 ```nvs
 <?nvs
 var $stream = Core\Hash::stream(Core\Hash::Digest::Sha256);
-$stream->update("a");
-$stream->update("bc");
+$stream->update('a');
+$stream->update('bc');
 bytes $streamed = $stream->finish();
 echo Core\Encoding::toHex($streamed), "\n";
 
-bytes $whole = Core\Hash::of("abc", Core\Hash::Digest::Sha256);
-echo Core\Hash::equals($streamed, $whole) ? "same" : "differ", "\n";
+bytes $whole = Core\Hash::of('abc', Core\Hash::Digest::Sha256);
+echo Core\Hash::equals($streamed, $whole) ? 'same' : 'differ', "\n";
 
 try {
-    $stream->update("more");
+    $stream->update('more');
 } catch (RuntimeError $e) {
     echo "finished\n";
 }

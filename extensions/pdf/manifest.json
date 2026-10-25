@@ -10,13 +10,13 @@
       "params": [
         {"name": "pass", "type": "Pass"}
       ],
-      "returns": "{data: bytes, pageCount: uint, pages: array<{number: uint, name: ?string, strings: array<{name: string, value: string}>, marks: array<{name: string, value: string}>}>, dropped: array<{property: string, value: string, selector: string, line: uint, column: uint}>, missingGlyphs: array<{text: string, fonts: array<string>, page: uint}>, overflows: array<{page: uint, area: string, text: string}>}",
+      "returns": "{ data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }",
       "help": "Renders an HTML document to a PDF file. Returns the file, its pages, and what the render could not draw."
     },
     {
       "name": "merge",
       "params": [
-        {"name": "parts", "type": "array<{data: bytes, pages: ?array<uint>}>"}
+        {"name": "parts", "type": "array<{ data: bytes, pages: ?array<uint> }>"}
       ],
       "returns": "bytes",
       "help": "Returns one PDF file with the chosen pages of each part, in order. An encrypted part throws a `ParseError`."
@@ -26,7 +26,7 @@
       "params": [
         {"name": "data", "type": "bytes"}
       ],
-      "returns": "{pageCount: uint, metadata: {title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string}, attachments: array<{name: string, data: bytes}>, invoiceXml: ?string}",
+      "returns": "{ pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }",
       "help": "Reads the page count, the metadata and the attached files of a PDF file."
     },
     {
@@ -44,9 +44,9 @@
   ],
   "unions": [
     {"name": "Pass", "cases": [
-      {"name": "Whole", "shape": "{html: string, assets: array<{name: string, data: bytes}>, options: {standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant}}"},
-      {"name": "First", "shape": "{document: {html: string, assets: array<{name: string, data: bytes}>, options: {standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant}}, headerHeight: ?string, footerHeight: ?string}"},
-      {"name": "Second", "shape": "{pages: array<{header: ?string, footer: ?string, slots: array<{name: string, value: string}>}>}"}
+      {"name": "Whole", "shape": "{ html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant } }"},
+      {"name": "First", "shape": "{ document: { html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant } }, headerHeight: ?string, footerHeight: ?string }"},
+      {"name": "Second", "shape": "{ pages: array<{ header: ?string, footer: ?string, slots: array<{ name: string, value: string }> }> }"}
     ]}
   ]
 }

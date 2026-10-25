@@ -231,7 +231,7 @@ fn two_connections_claiming_one_sqlite_file_never_come_back_with_the_same_job() 
     assert_eq!(
         server.kind,
         nvs_db::DbErrorKind::Deadlock,
-        "§ 8's kind is what makes `{{retries: n}}` mean something here"
+        "§ 8's kind is what makes `{{ retries: n }}` mean something here"
     );
     assert_eq!(second.depth(), 0, "a refused begin opened no transaction");
 

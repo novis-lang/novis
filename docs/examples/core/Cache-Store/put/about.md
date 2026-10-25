@@ -4,7 +4,7 @@ Writes a value into a cache store under a key.
 the write does not change what is stored. A key that already has a value is replaced, and the
 replacement costs the store the room of one value.
 
-You can give the value a lifetime with the `ttl` option, for example `{ttl: 10m}`. After that time
+You can give the value a lifetime with the `ttl` option, for example `{ ttl: 10m }`. After that time
 the key returns `null` again. Without a lifetime the value stays until the store needs the room or
 your program removes it.
 

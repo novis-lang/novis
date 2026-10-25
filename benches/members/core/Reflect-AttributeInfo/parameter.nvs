@@ -5,8 +5,8 @@
 
 class ArticleController
 {
-    #[{path: '/articles/{id}'}]
-    public function update(#[{source: 'path'}] int $id): void
+    #[{ path: '/articles/{id}' }]
+    public function update(#[{ source: 'path' }] int $id): void
     {}
 }
 

@@ -5,8 +5,8 @@ class Search
 {
     #[Core\Route(path: '/search', method: Core\Http\Method::Get, name: 'Search::results')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{seconds: 30, shared: true}]
-    #[{perMinute: 20}]
+    #[{ seconds: 30, shared: true }]
+    #[{ perMinute: 20 }]
     public function results(): string
     {
         return 'results';

@@ -9,7 +9,7 @@ class Orders
 {
     // This attribute has one field more than `Requires`. Matching is by shape,
     // so it still matches.
-    #[{permission: 'orders.read', audit: true}]
+    #[{ permission: 'orders.read', audit: true }]
     public static function show(): string
     {
         return 'order 1042';

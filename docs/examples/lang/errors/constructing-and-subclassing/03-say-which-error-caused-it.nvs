@@ -7,7 +7,7 @@ class ConfigError extends RuntimeError
 {
     public function constructor(string $message, public string $file, ?Throwable $cause)
     {
-        // `{previous: $cause}` is the options bag of the inherited constructor.
+        // `{ previous: $cause }` is the options bag of the inherited constructor.
         parent::constructor($message, { previous: $cause });
     }
 }

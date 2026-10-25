@@ -3,12 +3,12 @@
 
 class CheckoutController
 {
-    #[{method: 'POST', path: '/checkout'}]
+    #[{ method: 'POST', path: '/checkout' }]
     public function pay(): void
     {}
 
     // `pth` is a typing mistake for `path`.
-    #[{method: 'GET', pth: '/checkout/done'}]
+    #[{ method: 'GET', pth: '/checkout/done' }]
     public function done(): void
     {}
 }

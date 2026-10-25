@@ -4,7 +4,7 @@
 var $berlin = Core\Time\Zone::of('Europe/Berlin');
 var $june = Core\Time::at(2024, 6, 14, $berlin);
 
-// June has only 30 days, so `{day: 31}` throws a `RuntimeError`.
+// June has only 30 days, so `{ day: 31 }` throws a `RuntimeError`.
 // This prints the message of the error.
 try {
     $june->with({ day: 31 });

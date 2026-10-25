@@ -28,9 +28,9 @@
 echo 'email is ', $account->email, "\n";
 echo 'age is ', $account->age as string, "\n";
 
-// `{nickname?: string}` proves the field's type and not its presence, so an
+// `{ nickname?: string }` proves the field's type and not its presence, so an
 // absent key is a catchable throw and `??` is the spelling that asks without
-// one (`rule:types/shape-type`). Optional is not nullable: `{nickname: ?string}`
+// one (`rule:types/shape-type`). Optional is not nullable: `{ nickname: ?string }`
 // would demand the key and let it hold `null`.
 echo 'nickname is ', $account->nickname ?? 'absent', "\n";
 
@@ -49,7 +49,7 @@ if (Core\Json::encode(Core\Arr::shapeAs<{ city: string }>(['city' => 'Vienna', '
     echo "an unnamed field was left behind\n";
 }
 
-// The failure, which is the half a form actually needs: `{name: "bad"}` reads
+// The failure, which is the half a form actually needs: `{ name: "bad" }` reads
 // the one bracket-named subtree under `bad`, where `age` holds text no `as int`
 // accepts and `city` was never sent at all. Both are reported, each at its own
 // dotted path, because a form wants the whole list rather than the first item

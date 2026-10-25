@@ -330,7 +330,7 @@ pub(crate) fn begin<S: Read + Write>(
                 format!(
                     "a transaction nested {open} deep asked for its own isolation level, and SQL \
                      Server settles one for the whole session: ask for it on the outermost \
-                     `transaction()`, or give this one a `{{shared: false}}` connection of its own"
+                     `transaction()`, or give this one a `{{ shared: false }}` connection of its own"
                 ),
             ));
         }
@@ -423,7 +423,7 @@ pub(super) fn restore_isolation<S: Read + Write>(
 /// [`simple_command`]. **The count follows the connection where the server took
 /// it**, [`crate::mysql::commit`]'s rule and its reasoning in full: an outermost
 /// commit the server refused has already rolled the transaction back, so the
-/// depth goes to 0 and § 7's `{retries: n}` opens the next attempt with a
+/// depth goes to 0 and § 7's `{ retries: n }` opens the next attempt with a
 /// `BEGIN TRANSACTION` rather than a `SAVE TRANSACTION` against nothing. That
 /// path leaves the isolation restore owed rather than sending it, so the error
 /// the caller sees is the server's own — [`begin`] pays it instead.
@@ -1382,7 +1382,7 @@ mod tests {
     /// refused ends the transaction with the level still moved.
     ///
     /// The depth follows the connection where the server took it —
-    /// [`crate::mysql::commit`]'s rule — so § 7's `{retries: n}` opens the next
+    /// [`crate::mysql::commit`]'s rule — so § 7's `{ retries: n }` opens the next
     /// attempt with a `BEGIN TRANSACTION`. What this pins is that the restore
     /// rides that begin instead of the commit that could not carry it: the error
     /// the caller sees stays the server's own, and the next transaction still

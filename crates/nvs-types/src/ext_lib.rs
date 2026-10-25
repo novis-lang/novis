@@ -404,9 +404,9 @@ fn lower_shape(manifest: &Manifest, fields: &[Field], interner: &mut TypeInterne
 /// written. An extension's result is a new value the call builds, so every
 /// field of it is the extension's output, and a shape's field types are
 /// invariant ([`crate::expr::assign::shape_satisfied`]): a result typed
-/// `{name: string}` could not be returned at `{name: tainted string}`. So a
+/// `{ name: string }` could not be returned at `{ name: tainted string }`. So a
 /// `tainted` argument makes every field `tainted`, and a method returning
-/// `array<{level: int, text: string}>` admits one
+/// `array<{ level: int, text: string }>` admits one
 /// (`rule:security/extension-contagion`).
 fn tainted_output(returns: TypeId, interner: &mut TypeInterner) -> TypeId {
     match interner.get(returns).clone() {

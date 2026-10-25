@@ -2092,7 +2092,7 @@ pub(crate) fn check_property_member(
             // one; the slot rides along as the hint the runtime tries first
             // (`nvs_ir::InstKind::SlotGet`).
             //
-            // An **optional** one — `{a?: int}` — is the middle case
+            // An **optional** one — `{ a?: int }` — is the middle case
             // `rule:types/shape-type` names: the shape proves the type and not
             // the presence, so the read answers the declared `T` and an absent
             // key is that same throw. Under a `??`, an `isset` or an `empty`

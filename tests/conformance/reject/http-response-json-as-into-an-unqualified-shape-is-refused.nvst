@@ -24,7 +24,7 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0810]: `name` is declared `string` in `{name: string}`, and `Core\Http\Response::jsonAs` fills it with text from outside the program
+error[E0810]: `name` is declared `string` in `{ name: string }`, and `Core\Http\Response::jsonAs` fills it with text from outside the program
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

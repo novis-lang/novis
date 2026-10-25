@@ -1,5 +1,5 @@
 Returns a new `Uri` with some parts of the address changed. You name the parts in a block, for example
-`with({scheme: "https", port: null})`. The parts are `scheme`, `host`, `port`, `path`, `query` and
+`with({ scheme: "https", port: null })`. The parts are `scheme`, `host`, `port`, `path`, `query` and
 `fragment`. Each part you do not name stays the same. The `Uri` you call it on does not change.
 
 `null` removes a part. This works for `port`, `query` and `fragment`. An empty `query` is different:

@@ -1,9 +1,9 @@
 error[E0134]: a local declaration cannot be typed with a bare shape
   --> 05-a-shape-needs-a-name.nvs:6:1
   |
-6 | {x: int, y: int} $p = {x: 1, y: 2};
-  | ^^^^^^^^^^^^^^^^ `{` at the start of a statement already opens a block
-  = help: give the shape a name first: `type Point = {x: int}; Point $point;`
+6 | { x: int, y: int } $p = { x: 1, y: 2 };
+  | ^^^^^^^^^^^^^^^^^^ `{` at the start of a statement already opens a block
+  = help: give the shape a name first: `type Point = { x: int }; Point $point;`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

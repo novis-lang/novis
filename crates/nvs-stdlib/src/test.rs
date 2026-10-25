@@ -156,7 +156,7 @@
 //!
 //! # Decision: a double's descriptor is built here, at the call that asks for one
 //!
-//! `Core\Test::double<Clock>({now: fn (): Instant => …})` answers a value that
+//! `Core\Test::double<Clock>({ now: fn (): Instant => … })` answers a value that
 //! **is** a `Clock` (`rule:testing/doubles`), which means a
 //! [`nvs_runtime::ClassDesc`] naming `Clock` among the classes an instance also
 //! is and carrying a method row per interface method. Two places could build
@@ -308,11 +308,11 @@ pub(crate) const NAME: &str = r"Core\Test";
 /// module's docs for what it buys.
 const T: CoreTy = CoreTy::Var("T");
 
-/// `{message?: string}` — `rule:core-api/shape-rules` R2's trailing bag, and `rule:testing/assertions-are-typed`'s own
-/// `{message: "a fresh user is active"}`.
+/// `{ message?: string }` — `rule:core-api/shape-rules` R2's trailing bag, and `rule:testing/assertions-are-typed`'s own
+/// `{ message: "a fresh user is active" }`.
 ///
 /// [`Const::Null`] rather than an empty `string` because "not given" and
-/// `{message: ""}` are one thing to a reader and the helper takes the same path
+/// `{ message: "" }` are one thing to a reader and the helper takes the same path
 /// for both; the option's declared type stays `string`, which is what a call
 /// site may write.
 const MESSAGE: &[CoreOption] = &[CoreOption {
@@ -321,7 +321,7 @@ const MESSAGE: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `{times?: uint, with?: array<mixed>, message?: string}` —
+/// `{ times?: uint, with?: array<mixed>, message?: string }` —
 /// `Core\Test::assertCalled`'s bag, and the only one on this class wider than
 /// [`MESSAGE`].
 ///
@@ -353,13 +353,13 @@ const CALLED: &[CoreOption] = &[
     },
 ];
 
-/// `{within: Duration}` — `Core\Test::assertCompletes`'s budget, a
+/// `{ within: Duration }` — `Core\Test::assertCompletes`'s budget, a
 /// `rule:core-api/shape-parameter` shape rather than a [`MESSAGE`]-style bag.
 ///
 /// A bag's option is optional by construction and there is no duration this
 /// member could pick on a call site's behalf, so the one thing it takes has to
 /// be a field with no default — which is a shape, and which keeps
-/// `rule:testing/task-tree-and-virtual-clock`'s own spelling, `{within: Duration::millis(50)}`, rather than trading
+/// `rule:testing/task-tree-and-virtual-clock`'s own spelling, `{ within: Duration::millis(50) }`, rather than trading
 /// it for a bare positional `Duration`.
 const WITHIN: &[&[CoreField]] = &[&[CoreField {
     name: "within",
@@ -2206,7 +2206,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::assertCompletes(callable $body, {within: Duration}, {message?: string}): void`
+    /// `Core\Test::assertCompletes(callable $body, { within: Duration }, { message?: string }): void`
     /// — `rule:testing/task-tree-and-virtual-clock`'s budget, spent against the virtual clock.
     ///
     /// **The clock moves before `$body` runs**, which is the ordering that
@@ -2466,7 +2466,7 @@ nvs_runtime::nvs_helper! {
     /// from here opens no socket, resolves no name and asks no capability,
     /// because there is nothing for a capability to be asked about.
     ///
-    /// **`{json: null}` is an answer whose body is the JSON document `null`**,
+    /// **`{ json: null }` is an answer whose body is the JSON document `null`**,
     /// and omitting `json` is no body at all: the option admits `null`, so it
     /// omits as the never-written marker
     /// (`rule:core-api/omission-is-not-a-written-null`) and the two arrive
@@ -3007,7 +3007,7 @@ fn captures_of(value: &Value) -> Result<Vec<String>, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string|bytes, mount?: string, captures?: array<string>}): Core\Test\Response`
+    /// `Core\Test::request(Core\Http\Method $method, string $path, { headers?: array<string>, body?: string|bytes, mount?: string, captures?: array<string> }): Core\Test\Response`
     /// — `rule:testing/in-process-request`'s in-process request.
     ///
     /// **Neither the match nor the dispatch happens here.** `rule:routing/matched-once-before-the-handler`'s
@@ -3364,7 +3364,7 @@ fn response_text<'a>(body: &'a Value, member: &str) -> Result<&'a str, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test\Response::json({maxDepth?: uint}): mixed` — the body decoded
+    /// `Core\Test\Response::json({ maxDepth?: uint }): mixed` — the body decoded
     /// as `Core\Json::decode` decodes it, with `Core\Request::json`'s bag,
     /// default and errors.
     ///
@@ -3391,7 +3391,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test\Response::jsonAs<T>({maxDepth?: uint}): T` — the body hydrated
+    /// `Core\Test\Response::jsonAs<T>({ maxDepth?: uint }): T` — the body hydrated
     /// into `T`, which is `Core\Json::decodeAs` over the body, with
     /// `Core\Request::jsonAs`' bag, default and errors.
     ///
@@ -3470,7 +3470,7 @@ fn response_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fa
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::assertSame(T $actual, T $expected, {message?: string}): void`
+    /// `Core\Test::assertSame(T $actual, T $expected, { message?: string }): void`
     /// — `rule:testing/assertions-are-typed`'s identity row, which is [`identity::value_identical`] and nothing
     /// added to it.
     fn nvs_core_test_assert_same(ctx, args: [3]) {
@@ -3492,7 +3492,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::assertEquals(T $actual, T $expected, {message?: string}): void`
+    /// `Core\Test::assertEquals(T $actual, T $expected, { message?: string }): void`
     /// — `rule:testing/assertions-are-typed`'s value row: [`identity::value_identical`] everywhere except two
     /// objects, which are compared through `rule:classes/comparable`'s `Comparable::compareTo`.
     fn nvs_core_test_assert_equals(ctx, args: [3]) {
@@ -3514,7 +3514,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::assertEqualsDeep(T $actual, T $expected, {message?: string}): void`
+    /// `Core\Test::assertEqualsDeep(T $actual, T $expected, { message?: string }): void`
     /// — `rule:testing/assertions-are-typed`'s structural walk, which reports **where** the two differ rather
     /// than only that they do.
     fn nvs_core_test_assert_equals_deep(ctx, args: [3]) {
@@ -3540,7 +3540,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::assertTrue(bool $actual, {message?: string}): void` — `rule:testing/assertions-are-typed`'s
+    /// `Core\Test::assertTrue(bool $actual, { message?: string }): void` — `rule:testing/assertions-are-typed`'s
     /// predicate row, and the one member whose subject is a *declared* `bool`
     /// rather than a [`CoreTy::Var`].
     ///
@@ -3571,7 +3571,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::assertNull(mixed $actual, {message?: string}): void` — `rule:testing/assertions-are-typed`'s
+    /// `Core\Test::assertNull(mixed $actual, { message?: string }): void` — `rule:testing/assertions-are-typed`'s
     /// second predicate row.
     ///
     /// The subject is `mixed` rather than a `?T`: `rule:types/conversion` makes `mixed`
@@ -3595,7 +3595,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::assertCount(array<T> $actual, uint $expected, {message?: string}): void`
+    /// `Core\Test::assertCount(array<T> $actual, uint $expected, { message?: string }): void`
     /// — `rule:testing/assertions-are-typed`'s third predicate row, and the one whose subject row had to be
     /// decided rather than read off that rule.
     ///
@@ -3647,7 +3647,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::assertContains(array<T> $actual, T $expected, {message?: string}): void`
+    /// `Core\Test::assertContains(array<T> $actual, T $expected, { message?: string }): void`
     /// — `rule:testing/assertions-are-typed`'s membership row, whose subject and comparison are
     /// [`crate::arr`]'s `Core\Arr::contains` rather than a second reading of
     /// either.
@@ -3759,7 +3759,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::assertThrows(callable $body, string $expected, {message?: string}): void`
+    /// `Core\Test::assertThrows(callable $body, string $expected, { message?: string }): void`
     /// — `rule:testing/assertions-are-typed`'s last row, and the one member whose subject is a
     /// **`callable`** and whose expectation is a class.
     ///
@@ -3844,7 +3844,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::assertDoesNotThrow(callable $body, {message?: string}): void`
+    /// `Core\Test::assertDoesNotThrow(callable $body, { message?: string }): void`
     /// — `rule:testing/runner-is-strict`'s member, and the first of the two whose subject is a
     /// **`callable`** rather than a value.
     ///
@@ -3955,7 +3955,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The [`Fault`] every failed assertion raises, with the `{message?: string}`
+/// The [`Fault`] every failed assertion raises, with the `{ message?: string }`
 /// option in front of it where one was given.
 ///
 /// A **catchable** throw rather than a [`Fault::fatal`]: `rule:testing/failure-ledger` makes the
@@ -4008,7 +4008,7 @@ fn failed_comparison(
     Fault::thrown_as(ThrownClass::TestFailure, text)
 }
 
-/// A failed assertion's message, with the `{message?: string}` option in
+/// A failed assertion's message, with the `{ message?: string }` option in
 /// front of it where one was given.
 fn failure_text(member: &str, detail: &str, message: Value) -> String {
     match message.as_text() {
@@ -4921,7 +4921,7 @@ fn object_of(
     })
 }
 
-/// One field of a `{name: fn …}` argument: the method it answers, and the
+/// One field of a `{ name: fn … }` argument: the method it answers, and the
 /// callable answering it **borrowed** from the shape that holds it.
 type Given = (String, Value);
 

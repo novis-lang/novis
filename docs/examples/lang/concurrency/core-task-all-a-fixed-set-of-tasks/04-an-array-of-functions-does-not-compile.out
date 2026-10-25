@@ -1,4 +1,4 @@
-error[E0401]: expected `{name: callable(): T, ...}`, found `array<mixed>`
+error[E0401]: expected `{ name: callable(): T, ... }`, found `array<mixed>`
   --> 04-an-array-of-functions-does-not-compile.nvs:6:31
   |
 6 | var $results = Core\Task::all([fn(): int => 1, fn(): int => 2]);

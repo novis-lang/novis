@@ -1812,7 +1812,7 @@ one of these enums accepts only its cases. A wrong value is an error when the pr
 text a visitor sent into a sort order. Example 04 shows that a number in place of a case does not
 compile.
 
-A number where a member needs a `Core` enum is the error `E0401`, such as `{order: 1}` for
+A number where a member needs a `Core` enum is the error `E0401`, such as `{ order: 1 }` for
 `Core\Arr::sort`. A case of another enum is `E0401` too. `Core\Arr::Order::Desc` passed to
 `Core\Decimal::divRound` needs a `Core\RoundMode`, so it does not compile.
 

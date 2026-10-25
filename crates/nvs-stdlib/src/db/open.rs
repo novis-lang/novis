@@ -164,7 +164,7 @@ pub(super) fn address_of(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Db::connect(string $name, {shared?: bool, timeout?: Duration}): Db\Connection`
+    /// `Core\Db::connect(string $name, { shared?: bool, timeout?: Duration }): Db\Connection`
     /// — `rule:core-classes/db-connection-is-named`'s named connection, memoized for the request.
     ///
     /// **The grant is asked first**, before the configuration is read at all,
@@ -184,7 +184,7 @@ nvs_runtime::nvs_helper! {
     /// **What it spends:** one connection — a socket, a TLS session and § 1's
     /// statement cache — per distinct name a request opens, held by the request
     /// and closed with it. A second `connect("main")` spends nothing at all,
-    /// which is what § 2's memoization is for; `{shared: false}` opts out of
+    /// which is what § 2's memoization is for; `{ shared: false }` opts out of
     /// that and is charged again.
     fn nvs_core_db_connect(ctx, args: [3]) {
         // Unreachable from source: parameter 0 is a `string` in `CLASS` above,
@@ -466,7 +466,7 @@ pub(crate) fn open_named(
             }
         },
     };
-    // The lease is filed even for `{shared: false}`, whose `None` memo is
+    // The lease is filed even for `{ shared: false }`, whose `None` memo is
     // the slot beside it: that option bypasses memoization *within* the
     // request and never pooling across requests — § 13 says so in as many
     // words.
@@ -693,7 +693,7 @@ pub(super) fn block_settings_key(block: &nvs_config::tree::Database) -> Option<S
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Db::open(Db\Settings $settings, {shared?: bool}): Db\Connection`
+    /// `Core\Db::open(Db\Settings $settings, { shared?: bool }): Db\Connection`
     /// — `rule:core-classes/db-connection-is-named`'s connection the *program* describes.
     ///
     /// **The whole difference from `connect` is which authority wrote the
@@ -822,7 +822,7 @@ nvs_runtime::nvs_helper! {
             Some(lease) => lease,
             None => wait_for_slot(ctx, ticket, &full, deadline)?,
         };
-        // § 13's acquire, and `{shared: false}` reaches it too: that option
+        // § 13's acquire, and `{ shared: false }` reaches it too: that option
         // bypasses the memo above and never the pool, which § 13 says in as
         // many words. `warm_connection` is where a failed reset destroys the
         // connection, so a `None` here is indistinguishable from an empty pool
@@ -1415,7 +1415,7 @@ mod tests {
     /// before it can read a `[db.main]` block, let alone open a socket. The
     /// shared call answering a key is therefore proof it returned at
     /// [`nvs_runtime::Ctx::memoized_connection`] and nowhere later, and the
-    /// `{shared: false}` call reaching that refusal on the same context is the
+    /// `{ shared: false }` call reaching that refusal on the same context is the
     /// other half of the same evidence — § 2's opt-out is charged again, as
     /// [`CONNECT_DOC`] tells a caller it is.
     ///
@@ -1443,7 +1443,7 @@ mod tests {
 
         // The default the two bare calls in § 2's sentence are made under:
         // memoization is what a program gets for writing no option at all, and
-        // `{shared: false}` is the only way out of it.
+        // `{ shared: false }` is the only way out of it.
         let connect = CLASS
             .methods
             .iter()
@@ -1474,7 +1474,7 @@ mod tests {
         );
 
         let refused = open_named(&mut ctx, "main", false, None, CONNECT).expect_err(
-            "`{shared: false}` bypasses the memo, and there is no `[db.main]` behind it",
+            "`{ shared: false }` bypasses the memo, and there is no `[db.main]` behind it",
         );
         let Fault::Thrown(ThrownClass::Runtime, message) = refused else {
             panic!("a name with no configuration behind it refuses as a plain `RuntimeError`")

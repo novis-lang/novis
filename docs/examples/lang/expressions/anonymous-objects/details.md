@@ -3,10 +3,10 @@ A field name is a plain name with no quotes. `{"x": 1}` is the error `E0101`, an
 and `{}` is an object with no fields. A field name written twice is the error `E0494`.
 
 At the start of a statement and directly after the `=>` of an anonymous function, `{` starts a
-block. An anonymous object there is the error `E0117`. Write it in parentheses: `({x: 1});` and
-`fn(int $x): Point => ({x: $x, y: 0})`.
+block. An anonymous object there is the error `E0117`. Write it in parentheses: `({ x: 1 });` and
+`fn(int $x): Point => ({ x: $x, y: 0 })`.
 
-The type of a field does not change. `$p->x = "a";` on `{x: 1}` is the error `E0401`. A
+The type of a field does not change. `$p->x = "a";` on `{ x: 1 }` is the error `E0401`. A
 field with another anonymous object in it, or a function, is allowed. Call that function as
 `($p->f)(1)`. `$p->f(1)` is the error `E0477`, because an anonymous object has no methods.
 

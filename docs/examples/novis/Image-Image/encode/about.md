@@ -6,7 +6,7 @@ result. All of this happens in one call to the image component.
 
 The output has the format that `format` chose. Without `format`, it has the format of the file you
 opened, and a canvas or raw pixels are written as PNG. The output has no EXIF data unless you called
-`metadata({keep: true})`.
+`metadata({ keep: true })`.
 
 `encode` throws an error when the input is not an image, when a step cannot run, for example a `crop`
 box outside the image, or when the image has more pixels than the limit.

@@ -17,23 +17,23 @@ even a `catch`.
 <?nvs
 var $page = Core\Task::all({
     rows:  fn(): array<int> => [1, 2, 3],
-    label: fn(): string     => "all",
+    label: fn(): string     => 'all',
 });
-echo $page->label, "=", Core\Arr::count($page->rows), "\n";
+echo $page->label, '=', Core\Arr::count($page->rows), "\n";
 
-var $lengths = Core\Task::map(["fig" => "fig", "pear" => "pear"], fn(string $word): uint => Core\Str::length($word), {limit: 1});
+var $lengths = Core\Task::map(['fig' => 'fig', 'pear' => 'pear'], fn(string $word): uint => Core\Str::length($word), { limit: 1 });
 foreach ($lengths as string $key => uint $length) {
-    echo $key, ":", $length, "\n";
+    echo $key, ':', $length, "\n";
 }
 
 try {
     Core\Task::map([1, 2], fn(int $n): int => {
         Core\Time::sleep(200ms);
         return $n;
-    }, {deadline: 20ms});
-    echo "finished in time", "\n";
+    }, { deadline: 20ms });
+    echo 'finished in time', "\n";
 } catch (TimeoutError $late) {
-    echo "deadline hit", "\n";
+    echo 'deadline hit', "\n";
 }
 ```
 ```output

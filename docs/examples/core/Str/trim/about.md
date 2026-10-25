@@ -5,7 +5,7 @@ end. The characters in the middle of the string are not changed. Text that peopl
 comes from a file, often has extra spaces like these.
 
 The `characters` option gives your own list of characters to remove. It replaces the default list,
-so `{characters: "-"}` removes only `-`. Each character in the list counts on its own, and the order
+so `{ characters: "-" }` removes only `-`. Each character in the list counts on its own, and the order
 does not matter. `"a..z"` is the three characters `a`, `.` and `z`. It is not a range of letters.
 
 `Core\Str::trimStart` removes characters from the start only, and

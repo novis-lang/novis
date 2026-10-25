@@ -65,12 +65,12 @@ use crate::ty::TypeId;
 pub struct ExprId(u32);
 
 /// The inline shape a call site wrote as the type argument of a member on
-/// `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` — `Core\Arr::shapeAs<{n: int}>`.
+/// `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` — `Core\Arr::shapeAs<{ n: int }>`.
 ///
 /// Two facts rather than one, because a shape's class and a shape's wire
 /// contract are keyed differently and have to be: [`Self::label`] names the
 /// class `nvs-ir` synthesizes, which is keyed on the sorted field *names*
-/// alone, so `{n: int}` and `{n: string}` are one class and one label;
+/// alone, so `{ n: int }` and `{ n: string }` are one class and one label;
 /// [`Self::codec`] is the span the type argument was written at, which is what
 /// [`ExprTypeTable::shape_codec`] answers the per-field wire types under —
 /// exactly the fact the label cannot tell apart.
@@ -202,7 +202,7 @@ pub struct ResolvedCall {
     pub written_class_is_list: bool,
     /// The **inline shape** written in that same first type argument, where
     /// what was written is a shape rather than a class —
-    /// `Core\Arr::shapeAs<{n: int}>` records `$shape{n}` and the span its wire
+    /// `Core\Arr::shapeAs<{ n: int }>` records `$shape{n}` and the span its wire
     /// contract is filed under.
     ///
     /// A field of its own rather than a second spelling of
@@ -223,7 +223,7 @@ pub struct ResolvedCall {
     pub written_enum: Option<QName>,
     /// The attribute payloads a member on
     /// `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS` was folded to —
-    /// `Core\Router\Match::attribute<{seconds: int}>` records one entry per
+    /// `Core\Router\Match::attribute<{ seconds: int }>` records one entry per
     /// method carrying a `#[Route]` whose attributes hold a payload satisfying
     /// the shape, keyed by that method's `Class::method` label and sorted by
     /// it ([`crate::match_attribute`]).
@@ -2098,7 +2098,7 @@ impl ExprTypeTable {
     /// Keyed by the span the shape was **written** at rather than by the class
     /// label its fields produce, which is the one thing
     /// [`Self::record_codec`] cannot do here: a shape class is keyed on sorted
-    /// field names alone, so `{n: int}` and `{n: string}` share `$shape{n}`
+    /// field names alone, so `{ n: int }` and `{ n: string }` share `$shape{n}`
     /// while sharing no wire contract at all. So this is a fact about a call
     /// site, exactly as [`ResolvedCall::written_class`] is, and never one about
     /// a declaration.

@@ -48,7 +48,7 @@ You can write an attribute on an enum, an enum case or a class constant, and the
 `Core\Attributes` cannot read it back, because only a class, an interface, a method, a property and a
 parameter have a way to name them.
 
-An attribute may have no name, as in `#[{inject: "repo"}]`. Nothing checks its fields.
+An attribute may have no name, as in `#[{ inject: "repo" }]`. Nothing checks its fields.
 
 Several attributes can share one bracket, with commas between them: `#[A(n: 1), B(s: "x")]`. This is
 the same as writing each one in its own bracket.
@@ -110,7 +110,7 @@ class Invoice
     #[Tag(label: 'money')]
     public int $cents = 0;
 
-    public function send(#[{from: 'config'}] string $to): string
+    public function send(#[{ from: 'config' }] string $to): string
     {
         return $to;
     }
@@ -265,14 +265,14 @@ that declaration, and you then get the attributes on that one. This name must be
 write a variable there, the result is `null` or an empty list.
 
 Matching is by shape and not by name. An attribute with more fields than the shape you write still
-matches, so `{name: string}` matches `#[Tag(name: "alpha", weight: 3)]`.
+matches, so `{ name: string }` matches `#[Tag(name: "alpha", weight: 3)]`.
 
 Novis does all of this while it compiles your program. The call is replaced by the value it found, so
 there is no lookup while the program runs.
 
 `get` with two matching attributes is `E0728`. `all` has no such limit.
 
-The type between `<` and `>` must be a shape, written out as `{label: string}` or as a `type` alias
+The type between `<` and `>` must be a shape, written out as `{ label: string }` or as a `type` alias
 for one. `get<int>` is `E0729`, and `get` with no type is `E0442`.
 
 Every class has a constructor, even when you do not write one. So `Users::constructor(...)` always
@@ -407,7 +407,7 @@ class Orders
 {
     // This attribute has one field more than `Requires`. Matching is by shape,
     // so it still matches.
-    #[{permission: 'orders.read', audit: true}]
+    #[{ permission: 'orders.read', audit: true }]
     public static function show(): string
     {
         return 'order 1042';
@@ -511,11 +511,11 @@ A name under `Core\` that Novis does not read, such as `#[Core\Nope]`, is `E0726
 never written with `::`, so `#[Core\Json::Derive]` is `E0405`. An import cannot be renamed, so
 `use Core\Command as Cmd;` is `E0212`.
 
-Novis does not read an attribute without a name. `#[{name: "deploy", about: "…"}]` is ordinary
+Novis does not read an attribute without a name. `#[{ name: "deploy", about: "…" }]` is ordinary
 metadata, even when its fields are the same as a `Core\Command`.
 
 Your code can still read these attributes with `Core\Attributes`. For example,
-`Core\Attributes::get<{path: string}>(Home::show(...))` returns the `path` of a `#[Core\Route]`.
+`Core\Attributes::get<{ path: string }>(Home::show(...))` returns the `path` of a `#[Core\Route]`.
 
 Each of these attributes belongs on one kind of declaration. A `#[Core\Command]` belongs on a
 `static` method, and on a method that is not `static` it is `E0789`.
@@ -2323,10 +2323,10 @@ fields. Two attributes that both match on one class are `E0728`, and the message
 the member. A shape with a field that only one of them has picks that one. A `T` that is not a shape,
 such as `int` or a class, is `E0729`.
 
-Each row has the type `{instance: I, attribute: ?T}`. Storing the result in an
-`array<{instance: I, attribute: T}>` is `E0401`, because `attribute` may be `null`.
+Each row has the type `{ instance: I, attribute: ?T }`. Storing the result in an
+`array<{ instance: I, attribute: T }>` is `E0401`, because `attribute` may be `null`.
 
-The attributes Novis reads itself can be read this way too. `{path: string}` reads the path of each
+The attributes Novis reads itself can be read this way too. `{ path: string }` reads the path of each
 class's `#[Core\Route]`.
 
 When no class implements `I`, the result is `[]`, whatever `$member` is.

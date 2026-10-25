@@ -5,7 +5,7 @@ start of the string is not changed, so an indented line keeps its indent. A comm
 the line break at the end of a line that a program read.
 
 The `characters` option gives your own list of characters to remove. It replaces the default list,
-so `{characters: "/"}` removes only `/`. Each character in the list counts on its own, and the order
+so `{ characters: "/" }` removes only `/`. Each character in the list counts on its own, and the order
 does not matter. When every character of the string is in the list, the result is the empty string.
 
 `Core\Str::trim` removes characters from both ends, and `Core\Str::trimStart` from the start only.

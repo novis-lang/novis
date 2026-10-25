@@ -33,7 +33,7 @@
 //! cursor the caller drives itself would buy that back only for a member that
 //! can consume one element at a time, and `Core\Arr::from`'s whole job is to
 //! materialise. `limit` is the *caller's* bound on that, and the published signature's
-//! `{limit?: uint}` is that argument.
+//! `{ limit?: uint }` is that argument.
 //!
 //! **`[limits] memory` is what bounds a sequence that never ends**, and [`drain`]
 //! asks for it in front of every push through [`crate::abi::affordable`].

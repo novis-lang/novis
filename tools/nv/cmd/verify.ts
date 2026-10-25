@@ -56,12 +56,13 @@
 // `fmt` and `nvs-fmt` format rather than check, because a red `fmt` was only ever fixed by running the
 // formatter and verifying again. `fmt` runs first, so everything after it compiles the text the commit
 // carries, and its own failure is reported only when every other step passed: a parse error reads
-// better from `build`. `nvs-fmt` runs over only the new or modified `.nvs` files the corpus holds
-// (`tools/data/nvs-fmt-corpus.txt`) that it has not formatted as they now stand, so a layout rule that
-// changes what the formatter prints is still `crates/nvs-fmt/tests/identity.rs`'s to judge over the
-// rest, and `bun nv nvs-fmt` is what formats the rest. A file the formatter cannot parse is left as it was, and the step is never red. After
-// either one rewrites a file the change is read again, and an atom that ran before the rewrite and is
-// selected again counts as not run.
+// better from `build`. `nvs-fmt` runs over only the new or modified `.nvs` files and pages the corpus
+// holds (`tools/data/nvs-fmt-corpus.txt`) that it has not formatted as they now stand, a page's ```nvs
+// blocks as `bun nv nvs-fmt` formats them. A layout rule that changes what the formatter prints is
+// still `crates/nvs-fmt/tests/identity.rs`'s to judge over the rest, and `bun nv nvs-fmt` is what
+// formats the rest. A file or block the formatter cannot parse is left as it was, and the step is never
+// red. After either one rewrites a file the change is read again, and an atom that ran before the
+// rewrite and is selected again counts as not run.
 //
 // `test` builds the selected binaries with `cargo test --no-run` and the target filters that name them
 // (`--lib`, `--bin <name>`, `--test <name>`), never a `-p`, so a change to a library every binary links
@@ -117,7 +118,8 @@ import { basename, dirname, join, relative } from "node:path";
 
 import { COVWS_TARGET, covwsCargo, covwsNvs, hostTriple } from "../lib/covws.ts";
 import { type AddFields, type EndFields, ev, eventsFile } from "../lib/events.ts";
-import { held, readCorpus } from "../lib/nvs-fmt-corpus.ts";
+import { formatBlocks } from "../lib/nvs-fences.ts";
+import { held, heldPage, readCorpus } from "../lib/nvs-fmt-corpus.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 import { cargoStatus, progress as showProgress } from "../lib/progress.ts";
@@ -798,13 +800,13 @@ async function runSelftest(r: Run, s: Step): Promise<[number, string]> {
 
 // ---- nvs-fmt ---------------------------------------------------------------------------------------
 
-/** The `.nvs` files the corpus holds that git reports as new or modified, repo-relative. */
+/** The `.nvs` files and the pages the corpus holds that git reports as new or modified, repo-relative. */
 async function changedSources(): Promise<string[]> {
   let p;
   let corpus;
   try {
     corpus = readCorpus();
-    p = await proc(["git", "status", "--porcelain", "-z", "--untracked-files=all", "--", ...corpus.trees]);
+    p = await proc(["git", "status", "--porcelain", "-z", "--untracked-files=all", "--", ...corpus.trees, ...corpus.pages]);
   } catch {
     return [];
   }
@@ -818,7 +820,7 @@ async function changedSources(): Promise<string[]> {
     const rel = entry.slice(3);
     // `-z` puts the name a rename or copy came from in the next field.
     if (status[0] === "R" || status[0] === "C") i++;
-    if (status.includes("D") || !rel.endsWith(".nvs") || !held(corpus, rel)) continue;
+    if (status.includes("D") || !((rel.endsWith(".nvs") && held(corpus, rel)) || heldPage(corpus, rel))) continue;
     try {
       if (!statSync(join(ROOT, rel)).isFile()) continue;
     } catch {
@@ -866,7 +868,18 @@ async function runNvsFmt(s: Step): Promise<[number, string]> {
   if (todo.length === 0) return [0, ""];
   if (!existsSync(s.exe)) return [0, `note: ${s.exe} is not built, so nothing was formatted`];
   const before = new Map(todo.map((rel) => [rel, readFileSync(join(ROOT, rel))]));
-  const [, said] = await spawnOut([s.exe, "fmt", ...todo], ROOT);
+  const programs = todo.filter((rel) => rel.endsWith(".nvs"));
+  const pages = todo.filter((rel) => !rel.endsWith(".nvs"));
+  let said = "";
+  if (programs.length > 0) [, said] = await spawnOut([s.exe, "fmt", ...programs], ROOT);
+  // A page's ```nvs blocks, formatted as `bun nv nvs-fmt` formats them.
+  if (pages.length > 0) {
+    try {
+      await formatBlocks(s.exe, pages, false);
+    } catch (e) {
+      said += `\nthe code blocks of ${pages.length} page(s) were not formatted: ${(e as Error).message}`;
+    }
+  }
   const lines: string[] = [];
   for (const rel of todo) {
     let after: Buffer;
@@ -1121,7 +1134,7 @@ function stepsFor(opts: Opts, r: () => Run, built = existsSync(covwsNvs())): Ste
   // Whole-workspace runs only from here on for the steps that run `nvs`: a scoped build leaves no
   // binary the tree can trust.
   if (!opts.fast && !opts.package) {
-    steps.push(step("nvs-fmt", ["fmt", "<each new or modified .nvs the corpus holds>"], summaries["nvs-fmt"]!, { exe: nvs, runner: runNvsFmt }));
+    steps.push(step("nvs-fmt", ["fmt", "<each new or modified .nvs file and page the corpus holds>"], summaries["nvs-fmt"]!, { exe: nvs, runner: runNvsFmt }));
   }
   steps.push(step("test", ["test", ...target], summaries.test!, { runner: (s) => runTests(r(), s) }));
   if (!opts.fast) {

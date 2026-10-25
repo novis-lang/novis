@@ -6,7 +6,7 @@ sent on. Rethrow when the code you are in has something to do first, such as clo
 counting a failure, and cannot handle the error itself.
 
 **Good to know:** to add information of your own, do not rethrow. Throw a new error and give it the
-caught one as its cause, with `{previous: $e}`. A handler further out then has both messages.
+caught one as its cause, with `{ previous: $e }`. A handler further out then has both messages.
 
 **The examples below** show a plain rethrow, a rethrow after a log line, and a retry that gives up
 and sends the last error on.

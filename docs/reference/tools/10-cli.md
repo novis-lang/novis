@@ -57,7 +57,7 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` a
 
 ```nvs
 #!/usr/bin/env nvs
-echo "This line runs as code.", "\n";
+echo 'This line runs as code.', "\n";
 ```
 ```output
 This line runs as code.
@@ -103,7 +103,7 @@ line per frame under `format = "text"`. Nothing about it reaches standard output
 
 ```nvs exit=3
 <?nvs
-echo "bye", "\n";
+echo 'bye', "\n";
 exit(3);
 ```
 ```output
@@ -112,8 +112,8 @@ bye
 
 ```nvs exit=1
 <?nvs
-echo "before", "\n";
-throw new LogicError("boom");
+echo 'before', "\n";
+throw new LogicError('boom');
 ```
 ```output
 before
@@ -185,11 +185,12 @@ directory name it resolved to.
 
 ```nvs error
 <?nvs
-class Counter {
+class Counter
+{
     public int $n = 0;
 }
 Counter $c = new Counter();
-$c->n = "one";
+$c->n = 'one';
 ```
 ```output
 E0401
@@ -224,14 +225,17 @@ when to use each.
 <?nvs
 use Core\Test;
 
-final class MathTest {
+final class MathTest
+{
     #[Test]
-    public function addsTwoNumbers(): void {
+    public function addsTwoNumbers(): void
+    {
         Test::assertSame(2 + 2, 4);
     }
 
-    #[Test(skip: "not written yet")]
-    public function dividesByZero(): void {
+    #[Test(skip: 'not written yet')]
+    public function dividesByZero(): void
+    {
         Test::assertSame(1, 1);
     }
 }

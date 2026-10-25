@@ -203,8 +203,8 @@ impl AttributeDoc {
         self.name.rsplit('\\').next().unwrap_or(self.name)
     }
 
-    /// The payload as a shape type — `{path: string, method: Core\Http\Method,
-    /// name?: string}` — which is what a stub declares the attribute as, and
+    /// The payload as a shape type — `{ path: string, method: Core\Http\Method,
+    /// name?: string }` — which is what a stub declares the attribute as, and
     /// `object` for an attribute whose fields are not fixed.
     #[must_use]
     pub fn shape(&self) -> String {
@@ -219,7 +219,7 @@ impl AttributeDoc {
                 format!("{}{optional}: {}", field.name, field.ty)
             })
             .collect();
-        format!("{{{}}}", fields.join(", "))
+        format!("{{ {} }}", fields.join(", "))
     }
 
     /// The attribute as a program writes it, with each field at its type —
@@ -1096,7 +1096,7 @@ pub fn shape_codec(
 }
 
 /// The label the class synthesized for an inline shape carries — `$shape{n}`
-/// for `{n: int}`, built from the field names
+/// for `{ n: int }`, built from the field names
 /// [`crate::ty::TypeInterner::shape`] has already sorted.
 ///
 /// The format lives here, a crate before the one that synthesizes that class,
@@ -1230,7 +1230,7 @@ fn codec_ty(
 /// `rule:core-classes/derive-property-list`'s list field, erased. The element goes through [`codec_ty`] once and
 /// comes back as a [`CodecElement`] chain, so a second `List` is one more link
 /// rather than a type this has no room for: `array<array<Tag>>` and
-/// `array<{n: int}>` describe themselves in full.
+/// `array<{ n: int }>` describe themselves in full.
 ///
 /// **Everything the element's own erasure dropped rides up onto the field** —
 /// the class label, the case roster and the inline shape's contract alike —

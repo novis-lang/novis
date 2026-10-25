@@ -101,17 +101,17 @@ mixed $any = {w: "x"};
 echo ($any as {w: mixed}) is tainted {w: string} ? "kept" : "lost", "\n";
 --EXPECT--
 2.5
-cannot convert a value of another type to `{left: float, top: float}`
+cannot convert a value of another type to `{ left: float, top: float }`
 w=1.5
 w=1.5
-cannot convert a value of another type to `{w: float}`
-cannot convert a value of another type to `{w: float}`
-cannot convert a value of another type to `{w: float}`
-cannot convert a value of another type to `{w: float}`
-cannot convert a value of another type to `{w: float}`
-cannot convert a value of another type to `{w: float}`
+cannot convert a value of another type to `{ w: float }`
+cannot convert a value of another type to `{ w: float }`
+cannot convert a value of another type to `{ w: float }`
+cannot convert a value of another type to `{ w: float }`
+cannot convert a value of another type to `{ w: float }`
+cannot convert a value of another type to `{ w: float }`
 2
 agreed 6/6
 4
-cannot convert a value of another type to `{left: float, top: float}`
+cannot convert a value of another type to `{ left: float, top: float }`
 kept

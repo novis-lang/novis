@@ -13,18 +13,18 @@ outside the field's range.
 
 ```nvs
 <?nvs
-bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a");
-echo Core\Bytes::length($png), " ", Core\Bytes::at($png, 0), " ", Core\Bytes::at($png, -1), "\n";
-echo Core\Bytes::startsWith($png, Core\Encoding::fromHex("89504e47")) ? "png" : "other", "\n";
-echo Core\Encoding::toHex(Core\Bytes::slice($png, 1, 3)), " ", Core\Bytes::indexOf($png, Core\Encoding::fromHex("0d0a")) ?? "none", "\n";
-bytes $header = Core\Bytes::pack("NnC", 305419896, 4660, 255);
+bytes $png = Core\Encoding::fromHex('89504e470d0a1a0a');
+echo Core\Bytes::length($png), ' ', Core\Bytes::at($png, 0), ' ', Core\Bytes::at($png, -1), "\n";
+echo Core\Bytes::startsWith($png, Core\Encoding::fromHex('89504e47')) ? 'png' : 'other', "\n";
+echo Core\Encoding::toHex(Core\Bytes::slice($png, 1, 3)), ' ', Core\Bytes::indexOf($png, Core\Encoding::fromHex('0d0a')) ?? 'none', "\n";
+bytes $header = Core\Bytes::pack('NnC', 305419896, 4660, 255);
 echo Core\Encoding::toHex($header), "\n";
-var $fields = Core\Bytes::unpack($header, "NnC");
+var $fields = Core\Bytes::unpack($header, 'NnC');
 echo Core\Json::encode($fields), "\n";
 array<bytes> $parts = [$header, Core\Bytes::fill(2, 0)];
 bytes $frame = Core\Bytes::join($parts);
-echo Core\Bytes::length($frame), " ", Core\Encoding::toHex($frame), "\n";
-echo Core\Bytes::compare(Core\Encoding::fromHex("01"), Core\Encoding::fromHex("02")), "\n";
+echo Core\Bytes::length($frame), ' ', Core\Encoding::toHex($frame), "\n";
+echo Core\Bytes::compare(Core\Encoding::fromHex('01'), Core\Encoding::fromHex('02')), "\n";
 ```
 ```output
 8 137 10

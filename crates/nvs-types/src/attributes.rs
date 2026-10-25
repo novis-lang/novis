@@ -469,7 +469,7 @@ impl Payload {
 
 /// Every value of a payload no roster and no shape places, inferred over an
 /// empty scope so that what each names is recorded: `Status::Live` in a bare
-/// `#[{state: Status::Live}]` is an enum case an editor can follow, exactly as
+/// `#[{ state: Status::Live }]` is an enum case an editor can follow, exactly as
 /// it is in a payload a roster reads through [`check_roster`].
 ///
 /// Nothing is placed and nothing new is reported for a constant that resolves:
@@ -700,8 +700,8 @@ fn report_not_a_shape(span: Span, what: &str, env: &mut Env<'_>) {
         .with_primary(span, "this names no shape to check the payload against")
         .with_help(
             "an attribute's name is a `type` alias of a shape, such as \
-             `type Route = {path: string, method: string};`. The payload is checked against \
-             that shape. An attribute with no shape is written without a name: `#[{field: value}]`",
+             `type Route = { path: string, method: string };`. The payload is checked against \
+             that shape. An attribute with no shape is written without a name: `#[{ field: value }]`",
         ),
     );
 }

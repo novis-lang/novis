@@ -460,7 +460,7 @@ fn option_json(option: &CoreOption) -> Value {
     Value::Object(out)
 }
 
-/// A row's published signature — `name(type $a, type $b = 1, {opt?: T}): ret`,
+/// A row's published signature — `name(type $a, type $b = 1, { opt?: T }): ret`,
 /// with a variadic tail as `type ...$rest` and a written type-argument list
 /// as `name<T>(…)`. Never the class or the `$receiver->`: the consumer knows
 /// which class it is reading and `kind` says the rest.

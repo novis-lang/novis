@@ -119,7 +119,7 @@ print, byte for byte after trailing whitespace is trimmed. An example that fails
 
     ```nvs
     <?nvs
-    echo "Hello", "\n";
+    echo 'Hello', "\n";
     ```
     ```output
     Hello

@@ -8,7 +8,7 @@ class Site
 {
     #[Core\Route(path: '/public', method: Core\Http\Method::Get, name: 'Site::open')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{seconds: 3600}]
+    #[{ seconds: 3600 }]
     public function open(): string
     {
         return 'open';
@@ -16,7 +16,7 @@ class Site
 
     #[Core\Route(path: '/private', method: Core\Http\Method::Get, name: 'Site::closed')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{seconds: 0, role: 'admin'}]
+    #[{ seconds: 0, role: 'admin' }]
     public function closed(): string
     {
         return 'closed';
@@ -30,7 +30,7 @@ class Site
     }
 
     // This method has a setting but no route. No match should ever return it.
-    #[{seconds: 99, role: 'root'}]
+    #[{ seconds: 99, role: 'root' }]
     public function helper(): string
     {
         return 'helper';

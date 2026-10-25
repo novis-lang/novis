@@ -431,7 +431,7 @@ impl<'a> Lowering<'a> {
             // `rule:types/anonymous-object`'s parenthesized reading, and every other one.
             // `nvs_syntax`'s `parse_statement_inner` commits a
             // statement-initial `{` to a *block*, so a discarded shape
-            // literal has to be written `({a: 1});` — which arrives here
+            // literal has to be written `({ a: 1 });` — which arrives here
             // wrapped. Parentheses say nothing about what a statement means,
             // so this unwraps and dispatches again rather than duplicating
             // any arm above.

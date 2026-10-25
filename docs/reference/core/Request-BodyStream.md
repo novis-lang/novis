@@ -36,7 +36,7 @@ int $total = 0;
 foreach (Core\Request::bodyStream() as tainted bytes $chunk) {
     $total = $total + Core\Bytes::length($chunk);
 }
-echo "read ", $total, " bytes\n";
+echo 'read ', $total, " bytes\n";
 ```
 
 Or spent on a file instead, where the bytes never become a value the program holds. One request carries
@@ -44,7 +44,7 @@ one body, so this is the *other* program, not the next few lines of that one:
 
 ```nvs skip
 <?nvs
-Core\IO::writeStream("incoming.bin", Core\Request::bodyStream(), {max: 64 * 1024 * 1024});
+Core\IO::writeStream('incoming.bin', Core\Request::bodyStream(), { max: 64 * 1024 * 1024 });
 ```
 
 Both of those need a request in front of them. Without one, naming the walk is what every other member of

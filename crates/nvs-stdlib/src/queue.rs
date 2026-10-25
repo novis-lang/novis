@@ -1963,28 +1963,28 @@ const STATS_NON_TRANSACTIONAL_AT: usize = 5;
 /// `$script`'s argument slot.
 const SCRIPT_ARG: usize = 0;
 
-/// `{args: …}`'s. Every option below is flattened to one slot in the order [`CLASS`] declares them.
+/// `{ args: … }`'s. Every option below is flattened to one slot in the order [`CLASS`] declares them.
 const ARGS_ARG: usize = 1;
 
-/// `{queue: …}`'s. See [`ARGS_ARG`].
+/// `{ queue: … }`'s. See [`ARGS_ARG`].
 const QUEUE_ARG: usize = 2;
 
-/// `{runAt: …}`'s. See [`ARGS_ARG`].
+/// `{ runAt: … }`'s. See [`ARGS_ARG`].
 const RUN_AT_ARG: usize = 3;
 
-/// `{maxAttempts: …}`'s. See [`ARGS_ARG`].
+/// `{ maxAttempts: … }`'s. See [`ARGS_ARG`].
 const MAX_ATTEMPTS_ARG: usize = 4;
 
-/// `{backoff: …}`'s. See [`ARGS_ARG`].
+/// `{ backoff: … }`'s. See [`ARGS_ARG`].
 const BACKOFF_ARG: usize = 5;
 
-/// `{key: …}`'s. See [`ARGS_ARG`].
+/// `{ key: … }`'s. See [`ARGS_ARG`].
 const KEY_ARG: usize = 6;
 
-/// `{tag: …}`'s. See [`ARGS_ARG`].
+/// `{ tag: … }`'s. See [`ARGS_ARG`].
 const TAG_ARG: usize = 7;
 
-/// `push`'s `{grants: …}`.
+/// `push`'s `{ grants: … }`.
 const GRANTS_ARG: usize = 8;
 
 /// `push`'s first `[limits]` option: [`LIMIT_OPTIONS`]' order is the slot order from here.
@@ -2010,19 +2010,19 @@ const LIMIT_OPTIONS: [(&str, &str); 4] = [
 /// `purge`'s queue name, which is the whole of its positional half.
 const PURGE_QUEUE_ARG: usize = 0;
 
-/// `purge`'s `{state: …}`.
+/// `purge`'s `{ state: … }`.
 const PURGE_STATE_ARG: usize = 1;
 
-/// `purge`'s `{tag: …}`.
+/// `purge`'s `{ tag: … }`.
 const PURGE_TAG_ARG: usize = 2;
 
-/// `purge`'s `{before: …}`.
+/// `purge`'s `{ before: … }`.
 const PURGE_BEFORE_ARG: usize = 3;
 
-/// `purge`'s `{limit: …}`.
+/// `purge`'s `{ limit: … }`.
 const PURGE_LIMIT_ARG: usize = 4;
 
-/// How many rows a `purge` that wrote no `{limit: …}` removes.
+/// How many rows a `purge` that wrote no `{ limit: … }` removes.
 ///
 /// `rule:concurrency/queue-deletion-is-explicit-and-bounded` makes the bound finite with nothing
 /// written and names no number, so the number is
@@ -2866,7 +2866,7 @@ fn units_of(value: Value) -> Option<i64> {
         .or_else(|| value.as_uint().and_then(|held| i64::try_from(held).ok()))
 }
 
-/// `{runAt: …}` as epoch milliseconds, or `None` for the call that left it out.
+/// `{ runAt: … }` as epoch milliseconds, or `None` for the call that left it out.
 ///
 /// # Errors
 ///
@@ -2899,7 +2899,7 @@ fn run_at_of(args: &[Value]) -> Result<Option<i64>, Fault> {
     ))
 }
 
-/// The base delay a `push` that wrote no `{backoff: …}` agreed to, in milliseconds.
+/// The base delay a `push` that wrote no `{ backoff: … }` agreed to, in milliseconds.
 ///
 /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` asks for exponential backoff
 /// with jitter and a cap and names no number, and § 2's `[queue]` block has no key for one — the
@@ -2911,7 +2911,7 @@ fn run_at_of(args: &[Value]) -> Result<Option<i64>, Fault> {
 /// failure of the same outage and short enough to be invisible on a queue that is merely busy.
 const DEFAULT_BACKOFF_MS: i64 = 1_000;
 
-/// `{backoff: …}` as milliseconds, or [`DEFAULT_BACKOFF_MS`] for the call that left it out.
+/// `{ backoff: … }` as milliseconds, or [`DEFAULT_BACKOFF_MS`] for the call that left it out.
 ///
 /// # Errors
 ///
@@ -2931,7 +2931,7 @@ fn backoff_of(args: &[Value]) -> Result<i64, Fault> {
     Ok(nanos / 1_000_000)
 }
 
-/// `{maxAttempts: …}`, or the `[queue] max_attempts` the operator configured.
+/// `{ maxAttempts: … }`, or the `[queue] max_attempts` the operator configured.
 ///
 /// # Errors
 ///
@@ -3037,7 +3037,7 @@ fn grants_written<'a>(
     Ok(serde_json::Value::Array(kept).to_string())
 }
 
-/// `{grants: …}` as the row's column: the call site's list where it wrote one, the enqueuing
+/// `{ grants: … }` as the row's column: the call site's list where it wrote one, the enqueuing
 /// context's own narrowing ([`grants_recorded`]) where it did not.
 ///
 /// The names are copied out of their slots before they are judged, because a `Value` read off the
@@ -3253,11 +3253,11 @@ pub fn narrowing(
     })
 }
 
-/// `{args: …}` as the JSON the row holds, or `None` for a payload that was not given.
+/// `{ args: … }` as the JSON the row holds, or `None` for a payload that was not given.
 ///
 /// Two tags mean `None` and they are two different requests that arrive at the same place: an
 /// omitted `args` is the never-written marker
-/// (`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`) and a written `{args: null}`
+/// (`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`) and a written `{ args: null }`
 /// is `rule:core-api/a-written-null-removes`'s removal, which for this option is the payload
 /// itself. The distinction the marker buys is spent by `Core\Uri::with`, not here; what it buys
 /// here is that the row can be declared `mixed` at all.
@@ -3539,7 +3539,7 @@ nvs_runtime::nvs_helper! {
         let granted = grants_of(ctx, args)?;
         let limited = limits_of(ctx, args)?;
 
-        // Shared, and that is § 3 rather than an economy: `{shared: false}` would open a second
+        // Shared, and that is § 3 rather than an economy: `{ shared: false }` would open a second
         // connection, outside whatever transaction the request has open on the first, and the
         // enqueue would commit on its own. The memo is what makes the property hold.
         let handle = crate::db::open_named(ctx, &configured.connection, true, None, PUSH)?;
@@ -4941,7 +4941,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// Which of § 6's two tables a `purge`'s `{state: …}` selects, and the ordinal that table's
+/// Which of § 6's two tables a `purge`'s `{ state: … }` selects, and the ordinal that table's
 /// statement binds for it.
 ///
 /// A call names at most one state, and § 6 puts a dead-lettered job in a table of its own — so the
@@ -4957,7 +4957,7 @@ enum Selection {
     Dead,
 }
 
-/// `{state: …}` as the table it selects and the ordinal that table's statement binds.
+/// `{ state: … }` as the table it selects and the ordinal that table's statement binds.
 ///
 /// **`State::Claimed` is refused here as well as in [`PURGE_POSTGRES`]'s own text**, and the two
 /// are not one check written twice: this is where a caller finds out, naming the case it wrote,
@@ -5003,7 +5003,7 @@ fn purge_state_of(args: &[Value]) -> Result<Selection, Fault> {
     }
 }
 
-/// `{tag: …}` as the group name a statement binds, or [`None`] for the call that left it out.
+/// `{ tag: … }` as the group name a statement binds, or [`None`] for the call that left it out.
 ///
 /// # Errors
 ///
@@ -5025,7 +5025,7 @@ fn purge_tag_of(args: &[Value]) -> Result<Option<String>, Fault> {
     ))
 }
 
-/// `{before: …}` as epoch milliseconds, or [`None`] for the call that left it out.
+/// `{ before: … }` as epoch milliseconds, or [`None`] for the call that left it out.
 ///
 /// # Errors
 ///
@@ -6140,7 +6140,7 @@ mod tests {
         }
     }
 
-    /// A `Value` array shaped like the one [`purge_state_of`] reads its `{state: …}` out of.
+    /// A `Value` array shaped like the one [`purge_state_of`] reads its `{ state: … }` out of.
     ///
     /// Only that slot is written. The other three options have helpers of their own, and a text
     /// `Value` would carry a reference this array has nothing to release it with.

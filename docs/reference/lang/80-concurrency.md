@@ -173,7 +173,7 @@ Free delivery this week
 
 `Core\Task::all` runs a fixed set of jobs at the same time and gives you all their results together.
 
-You give it a shape: a value with named fields, written `{rows: …, label: …}`. Each field holds a
+You give it a shape: a value with named fields, written `{ rows: …, label: … }`. Each field holds a
 function that takes no arguments. `Core\Task::all` returns a shape with the same field names, and
 each field has the type that job's function returns. You read `$page->rows` straight away, with no
 conversion. A variable of type `callable`, with no signature, gives you `mixed` for that field alone.
@@ -198,7 +198,7 @@ Reading a field that the shape does not have compiles and throws `RuntimeError` 
 
 `Core\Task::all({})` has no tasks and returns at once.
 
-Each field must be a function. A field with another value, such as `{a: 1}`, is `E0401`. An array
+Each field must be a function. A field with another value, such as `{ a: 1 }`, is `E0401`. An array
 of functions is `E0401` too.
 
 ## Example 01: three jobs read by name
@@ -317,7 +317,7 @@ var $results = Core\Task::all([fn(): int => 1, fn(): int => 2]);
 ```
 
 ```output
-error[E0401]: expected `{name: callable(): T, ...}`, found `array<mixed>`
+error[E0401]: expected `{ name: callable(): T, ... }`, found `array<mixed>`
   --> main.nvs:6:31
   |
 6 | var $results = Core\Task::all([fn(): int => 1, fn(): int => 2]);
@@ -1037,7 +1037,7 @@ A path built while the program runs must be absolute. For a relative one, the me
 `spawn script` needs an absolute path, and `child.nvs` is relative ``. A second line names
 `Core\Path::join` and `Core\Path::fromCwd`.
 
-`limits: {memory: "1M"}` gives the child a memory limit. A child that goes over it ends with `ok`
+`limits: { memory: "1M" }` gives the child a memory limit. A child that goes over it ends with `ok`
 `false` and a `RuntimeError`. `grants: []` gives the child no capabilities, so a `spawn script` inside
 it throws `RuntimeError`.
 
@@ -1753,7 +1753,7 @@ the line that starts the script, and you catch them with `try`.
 script's failure, and a group of jobs where one fails and the other two still finish. The last one
 shows the error when your program may not start scripts.
 
-The type of `error` is `null|{class: string, message: string}`. It is `null` when `ok` is `true`. So
+The type of `error` is `null|{ class: string, message: string }`. It is `null` when `ok` is `true`. So
 `$r->error->message` is `E0459`. Read it with `?->`, or test `$r->error != null` first.
 
 `error` has two fields, `class` and `message`. It has no `backtrace` and no `line`. `$r->error?->line`

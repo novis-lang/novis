@@ -64,7 +64,7 @@ echo Core\Arr::count(Core\Program::implementing<Sender>()), "\n";
 error[E0743]: `Core\Program::implementing` enumerates an interface or a class, and `Level` is neither
    --> case.nvs:48:22
 %A
-error[E0743]: `Core\Program::implementing` enumerates an interface or a class, and `{name: string}` is neither
+error[E0743]: `Core\Program::implementing` enumerates an interface or a class, and `{ name: string }` is neither
    --> case.nvs:52:22
 %A
 error[E0744]: `Needy` is a `Needful` and its constructor takes 1 required argument(s)

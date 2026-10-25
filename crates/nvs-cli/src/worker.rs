@@ -840,7 +840,7 @@ struct Job {
     /// Attempts made *including this one* — [`nvs_stdlib::queue::CLAIM_POSTGRES`] increments the column in
     /// the same statement it returns it from, so a job being run for the first time reads `1`.
     attempts: i64,
-    /// § 6's bound on the above, as `Core\Queue::push` recorded it from `{maxAttempts: …}` or from
+    /// § 6's bound on the above, as `Core\Queue::push` recorded it from `{ maxAttempts: … }` or from
     /// `[queue] max_attempts`.
     max_attempts: i64,
     /// The base delay of § 6's ladder for this job, in milliseconds.

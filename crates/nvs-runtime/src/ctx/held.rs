@@ -282,9 +282,9 @@ impl Drop for HeldChild {
 /// [`crate::pool`] to be handed and nothing it is counted against.
 #[derive(Debug)]
 pub(super) struct OpenConnection {
-    /// § 2's memoization key, or `None` for a `{shared: false}` call — see
+    /// § 2's memoization key, or `None` for a `{ shared: false }` call — see
     /// [`Ctx::hold_open_connection`]. Distinct from the lease's key on
-    /// purpose: `{shared: false}` bypasses memoization *within* the request and
+    /// purpose: `{ shared: false }` bypasses memoization *within* the request and
     /// is still drawn from and returned to the pool.
     memo: Option<String>,
     /// The slot this connection is live under, holding the key and the bounds
@@ -625,7 +625,7 @@ impl Ctx {
     /// a key into a request-owned table. What this adds is `memo`, which is
     /// `rule:core-classes/db-connection-is-named`'s memoization key —
     /// the block's name for `Core\Db::connect`, and `None` for a
-    /// `{shared: false}` call, which is exactly what "bypasses memoization"
+    /// `{ shared: false }` call, which is exactly what "bypasses memoization"
     /// means: an entry no [`Ctx::memoized_connection`] lookup can match. The
     /// key is held beside the connection rather than in a map of its own
     /// because a request opens a handful of connections at most, so a linear
@@ -635,7 +635,7 @@ impl Ctx {
     /// connection is live under, and it names the pool the connection rejoins
     /// when the request ends instead of being closed. It is **not** the
     /// memoization key even though `connect` computes both from the block's
-    /// name — a `{shared: false}` call is `None` for `memo` and still carries a
+    /// name — a `{ shared: false }` call is `None` for `memo` and still carries a
     /// lease, because what that option bypasses is memoization within the
     /// request and never pooling across requests. `None` is a connection closed
     /// with the request and counted against nothing: an embedder's.

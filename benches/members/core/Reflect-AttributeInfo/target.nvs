@@ -5,10 +5,10 @@
 
 class Signup
 {
-    #[{required: true}]
+    #[{ required: true }]
     public string $email = '';
 
-    #[{maxLength: 40}]
+    #[{ maxLength: 40 }]
     public string $nickname = '';
 }
 

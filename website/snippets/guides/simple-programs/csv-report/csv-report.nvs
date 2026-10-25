@@ -6,7 +6,7 @@ class Report
     public static function totals(string $path): array<float>
     {
         array<float> $totals = [];
-        // `{header: true}` uses the first line as the column names.
+        // `{ header: true }` uses the first line as the column names.
         foreach (Core\Csv::parse(Core\IO::readText($path), { header: true }) as array<string> $row) {
             string $product = $row['product'];
             float $amount = ($row['qty'] as int) * ($row['price'] as float);

@@ -1,6 +1,6 @@
 Returns an attribute of the method of the route that matched. You write the shape of the attribute
-between `<` and `>`. For a method with `#[{seconds: 60}]`, `$route->attribute<{seconds: int}>()`
-returns `{seconds: 60}`. If the method has no attribute with every field of the shape, the result is
+between `<` and `>`. For a method with `#[{ seconds: 60 }]`, `$route->attribute<{ seconds: int }>()`
+returns `{ seconds: 60 }`. If the method has no attribute with every field of the shape, the result is
 `null`.
 
 An attribute may have more fields than the shape. So one method can have a cache setting and a rate

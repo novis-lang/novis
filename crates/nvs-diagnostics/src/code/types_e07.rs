@@ -260,7 +260,7 @@ codes! {
     pub const E_UNTESTABLE_CONVERSION_TARGET: Code = Code::new("E0711").card(
         "`as` can only convert a value to a type it can check the value against. `object`, \
          `callable` and a `Core` namespace class have nothing to check. Convert to a class, as in \
-         `$v as User`, or to a shape, as in `$v as {id: int}`.\n\n\
+         `$v as User`, or to a shape, as in `$v as { id: int }`.\n\n\
          `as array<T>` checks each element by the kind of value it is. That works when `T` is \
          `mixed` or a simple type such as `int` or `string`. It does not work for a class, a \
          shape, an enum, or a union such as `?int` or `'on'|'off'`. Convert to `array<mixed>`, \

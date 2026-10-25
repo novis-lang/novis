@@ -54,5 +54,5 @@ cleartext = ["127.0.0.1"]
 [capabilities.net]
 internal = ["127.0.0.1"]
 --EXPECT--
-LogicError: Core\Ldap\Connection::search: the search has no `base`. Give one, such as `{base: 'DC=example,DC=test'}`, or set `base` in the `[ldap]` block
+LogicError: Core\Ldap\Connection::search: the search has no `base`. Give one, such as `{ base: 'DC=example,DC=test' }`, or set `base` in the `[ldap]` block
 with a base: 1

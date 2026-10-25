@@ -3460,7 +3460,7 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
-    /// `$x is {path: string}`'s per-field presence question: one call to
+    /// `$x is { path: string }`'s per-field presence question: one call to
     /// `nvs_runtime::nvs_object_slot_probe`, on [`Self::emit_slot_get`]'s
     /// arguments less the two the read needs and this does not.
     ///

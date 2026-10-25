@@ -7,7 +7,7 @@ type Cache = { seconds: int };
 
 #[Route(path: '/a')]
 #[Cache(seconds: 1)]
-#[{bare: true}]
+#[{ bare: true }]
 class Busy
 {
     #[Route(path: '/b')]
@@ -17,7 +17,7 @@ class Busy
     }
 
     #[Route(path: '/c')]
-    public function two(#[{from: 'query'}] int $id): void
+    public function two(#[{ from: 'query' }] int $id): void
     {
     }
 }

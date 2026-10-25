@@ -18,6 +18,6 @@ These assignments each need `as` or a test that narrows the type. Without it, ea
 - a `mixed` value to any other type
 - a `?int` to an `int`. The help suggests `$value ?? 0`.
 
-An anonymous object written at a shape type has its fields converted too. `{x: 2}` at `{x: float}`
-stores `2.0`. A shape value that already exists is not converted. A `{x: int}` value at
-`{x: float}` is the error `E0401`. Build a new value instead: `{x: $old->x}`.
+An anonymous object written at a shape type has its fields converted too. `{ x: 2 }` at `{ x: float }`
+stores `2.0`. A shape value that already exists is not converted. A `{ x: int }` value at
+`{ x: float }` is the error `E0401`. Build a new value instead: `{ x: $old->x }`.

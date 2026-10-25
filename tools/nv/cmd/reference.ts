@@ -276,7 +276,7 @@ function renderMember(className: string, member: Json, lines: string[]): void {
       const q = qualifier(o.qualifier);
       if (q) extras.push(q);
       const desc: string = docsByName.get(o.name)?.desc ?? "";
-      lines.push(`| \`{${o.name}: …}\` | \`${esc(o.type)}\` (${extras.join(", ")}) | ${esc(desc)} |`);
+      lines.push(`| \`{ ${o.name}: … }\` | \`${esc(o.type)}\` (${extras.join(", ")}) | ${esc(desc)} |`);
     }
     lines.push("");
   }
@@ -389,8 +389,8 @@ Conventions the whole file uses:
 - A signature reads \`Core\\Str::length(string $s): uint\` for a static member — every \`Core\` member is
   static unless written \`$x->name(...)\`, which marks an instance method reached through a value that
   some other member returned. The \`$name\` of every parameter is callable by name: \`Core\\Str::length(s:
-  $x)\`. A trailing \`{a?: T, b?: U}\` is an *options bag* — one optional shape argument, written
-  \`{a: value}\`, addressable as \`options:\`.
+  $x)\`. A trailing \`{ a?: T, b?: U }\` is an *options bag* — one optional shape argument, written
+  \`{ a: value }\`, addressable as \`options:\`.
 - \`?T\` means "\`T\` or \`null\`", and is how every member spells *absent*. Failure is a thrown
   \`Throwable\` subclass named on the card; nothing returns \`false\` to mean failure.
 - Every code block marked \`nvs\` is a complete program that was run against the binary while this

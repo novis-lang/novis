@@ -747,7 +747,7 @@ static SHAPES: OnceLock<&'static ClassTable> = OnceLock::new();
 /// `(descriptor name, fields in slot order)`.
 ///
 /// **Slot order is the field name order, sorted** — `nvs_types::ty::Ty::Shape`
-/// canonicalizes `{y: …, x: …}` and `{x: …, y: …}` to one interned type by
+/// canonicalizes `{ y: …, x: … }` and `{ x: …, y: … }` to one interned type by
 /// sorting, so the runtime layout has to be the same order or a written shape
 /// type and a built value would disagree about which slot is which.
 ///
@@ -784,7 +784,7 @@ fn shape_descriptor(name: &str) -> *const ClassDesc {
     table.desc(id)
 }
 
-/// A fresh `rule:types/object-top` shape value — `{path: "…", message: "…"}` — its slots
+/// A fresh `rule:types/object-top` shape value — `{ path: "…", message: "…" }` — its slots
 /// filled from `slots` in [`SHAPE_ROSTER`]'s order.
 ///
 /// The same anonymous methodless instance a Novis anonymous object (`{…}`) builds, so

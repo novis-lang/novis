@@ -79,7 +79,7 @@ fn every_core_member_a_refused_superglobal_names_is_registered() {
 }
 
 /// `rule:core-api/shape-rules` R2's options bag at a call site: written, and omitted whole.
-/// `Core\Arr::range`'s `{step?: int}` is the first one in the roster, and
+/// `Core\Arr::range`'s `{ step?: int }` is the first one in the roster, and
 /// `MethodSig::required()` has to say 2 either way — the bag is optional
 /// by construction, so nothing about the arity check changed to allow it.
 #[test]

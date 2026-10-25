@@ -26,24 +26,34 @@ origin = "https://example.test"
 ```
 ```nvs
 <?nvs
-class Users {
-    #[Core\Route(path: "/users", method: Core\Http\Method::Get, name: "Users::index")]
+class Users
+{
+    #[Core\Route(path: '/users', method: Core\Http\Method::Get, name: 'Users::index')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function index(): string { return "every user"; }
+    public function index(): string
+    {
+        return 'every user';
+    }
 
-    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(uint $id): string { return "user " . $id; }
+    public function show(uint $id): string
+    {
+        return 'user ' . $id;
+    }
 
-    #[Core\Route(path: "/users/{id}/files/{path...}", method: Core\Http\Method::Get, name: "Users::file")]
+    #[Core\Route(path: '/users/{id}/files/{path...}', method: Core\Http\Method::Get, name: 'Users::file')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function file(uint $id, string $path): string { return $path; }
+    public function file(uint $id, string $path): string
+    {
+        return $path;
+    }
 }
 
-echo Core\Router::url("Users::index", []), "\n";
-echo Core\Router::url("Users::show", ["id" => 7]), "\n";
-echo Core\Router::url("Users::file", ["id" => 7, "path" => "a b/c.txt"]), "\n";
-echo Core\Router::urlAbsolute("Users::show", ["id" => 7]), "\n";
+echo Core\Router::url('Users::index', []), "\n";
+echo Core\Router::url('Users::show', ['id' => 7]), "\n";
+echo Core\Router::url('Users::file', ['id' => 7, 'path' => 'a b/c.txt']), "\n";
+echo Core\Router::urlAbsolute('Users::show', ['id' => 7]), "\n";
 ```
 ```output
 /users

@@ -25,7 +25,7 @@ An index line opens with the symbol `show` resolves and continues with that memb
 
 ```text
 Core\IO::read(string $path): string  [fs.read]
-Core\Json::decodeAs<T>(string $json, {maxDepth?: uint}): T
+Core\Json::decodeAs<T>(string $json, { maxDepth?: uint }): T
 Core\Arr::Order  enum {Asc, Desc}
 RuntimeError  exception extends Throwable
 programs  chapter: Programs, files and names
@@ -305,7 +305,7 @@ does not exist, and the help says the built-in methods are on `Core` classes:
 ```nvs error
 <?nvs
 
-string $name = "Zoë";
+string $name = 'Zoë';
 echo strlen($name), "\n";
 ```
 ```output
@@ -317,7 +317,7 @@ Either way it arrives at one program, and `nvs check` accepts it:
 ```nvs
 <?nvs
 
-string $name = "Zoë";
+string $name = 'Zoë';
 echo Core\Str::length($name), "\n";
 ```
 ```output

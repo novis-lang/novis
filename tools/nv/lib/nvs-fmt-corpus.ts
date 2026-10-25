@@ -1,5 +1,6 @@
-// The `.nvs` files `nvs fmt` holds to its layout, read from `tools/data/nvs-fmt-corpus.txt`, which says
-// what the corpus is and who else reads it. `crates/nvs-fmt/tests/common/mod.rs` reads the same file.
+// The `.nvs` files and the pages whose ```nvs blocks `nvs fmt` holds to its layout, read from
+// `tools/data/nvs-fmt-corpus.txt`, which says what the corpus is and who else reads it.
+// `crates/nvs-fmt/tests/common/mod.rs` reads the same file.
 
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -13,18 +14,23 @@ export interface Corpus {
   trees: string[];
   /** Each `skip` directory or file, repo-relative, with no trailing `/`. */
   skips: string[];
+  /** Each `pages` directory or file, repo-relative, with no trailing `/`. */
+  pages: string[];
 }
+
+/** The extensions of a page whose ```nvs blocks are formatted. */
+export const PAGE_EXTENSIONS = [".md", ".mdx"];
 
 /** The corpus `text` declares, in the format `CORPUS_FILE` documents. Throws on a line it cannot read. */
 export function parseCorpus(text: string): Corpus {
-  const corpus: Corpus = { trees: [], skips: [] };
+  const corpus: Corpus = { trees: [], skips: [], pages: [] };
   for (const [i, raw] of text.split(/\r?\n/).entries()) {
     const line = raw.trim();
     if (line === "" || line.startsWith("#")) continue;
-    const m = /^(tree|skip)\s+(\S+?)\/?(?:\s+--\s+\S.*)?$/.exec(line);
-    if (!m) throw new Error(`${CORPUS_FILE}:${i + 1}: expected \`tree <dir>\` or \`skip <dir>  --  <why>\`, got \`${line}\``);
+    const m = /^(tree|skip|pages)\s+(\S+?)\/?(?:\s+--\s+\S.*)?$/.exec(line);
+    if (!m) throw new Error(`${CORPUS_FILE}:${i + 1}: expected \`tree <dir>\`, \`pages <path>\` or \`skip <path>  --  <why>\`, got \`${line}\``);
     if (m[1] === "skip" && !line.includes(" -- ")) throw new Error(`${CORPUS_FILE}:${i + 1}: a skip says why after \` -- \``);
-    (m[1] === "tree" ? corpus.trees : corpus.skips).push(m[2]!);
+    (m[1] === "tree" ? corpus.trees : m[1] === "skip" ? corpus.skips : corpus.pages).push(m[2]!);
   }
   return corpus;
 }
@@ -42,6 +48,16 @@ export function held(corpus: Corpus, rel: string): boolean {
   return corpus.trees.some((t) => under(rel, t)) && !corpus.skips.some((s) => rel === s || under(rel, s));
 }
 
+/** Whether the repo-relative `rel` is a page whose ```nvs blocks the formatter holds: a `.md` or `.mdx`
+ * file that is a `pages` entry or under one, and neither a skip nor under one. */
+export function heldPage(corpus: Corpus, rel: string): boolean {
+  return (
+    PAGE_EXTENSIONS.some((e) => rel.endsWith(e)) &&
+    corpus.pages.some((p) => rel === p || under(rel, p)) &&
+    !corpus.skips.some((s) => rel === s || under(rel, s))
+  );
+}
+
 /** Whether the repo-relative `rel` is under no tree at all, which `bun nv nvs-fmt --check` fails on. */
 export function outside(corpus: Corpus, rel: string): boolean {
   return !corpus.trees.some((t) => under(rel, t));
@@ -49,11 +65,21 @@ export function outside(corpus: Corpus, rel: string): boolean {
 
 /** Every `.nvs` file git tracks or would track, repo-relative and sorted, with the ones that exist on disk. */
 export async function nvsFiles(root: string = ROOT): Promise<string[]> {
-  const p = await run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "*.nvs"], { cwd: root });
+  return listed(["*.nvs"], root);
+}
+
+/** Every page git tracks or would track, repo-relative and sorted: each `.md` and `.mdx` file on disk. */
+export async function pageFiles(root: string = ROOT): Promise<string[]> {
+  return listed(PAGE_EXTENSIONS.map((e) => `*${e}`), root);
+}
+
+async function listed(patterns: string[], root: string): Promise<string[]> {
+  const p = await run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...patterns], { cwd: root });
   if (p.code !== 0) throw new Error(`git ls-files exited ${p.code}: ${p.stderr.trim()}`);
+  const ends = patterns.map((x) => x.slice(1));
   const seen = new Set<string>();
   for (const rel of p.stdout.split("\0")) {
-    if (!rel.endsWith(".nvs") || seen.has(rel)) continue;
+    if (!ends.some((e) => rel.endsWith(e)) || seen.has(rel)) continue;
     try {
       if (statSync(join(root, rel)).isFile()) seen.add(rel);
     } catch {

@@ -299,7 +299,7 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "limits",
             desc: "Lower limits for the stream, with the same syntax as for `spawn script`: \
-                   `{memory: \"8M\", cpu_time: \"2s\"}`. The keys are `memory`, `cpu_time`, \
+                   `{ memory: \"8M\", cpu_time: \"2s\" }`. The keys are `memory`, `cpu_time`, \
                    `wall_time`, `max_output` and `max_tasks`. A limit higher than the \
                    server's own has no effect. The stream stops when it reaches one.",
             shape: &[],
@@ -1046,7 +1046,7 @@ mod tests {
         ctx.set_inbound(inbound);
     }
 
-    /// `{room: 7}`, as the one refcounted argument a crossing can be observed
+    /// `{ room: 7 }`, as the one refcounted argument a crossing can be observed
     /// on: an `int` would cross as itself and prove nothing.
     fn a_room() -> Value {
         let mut map = NvsArray::new();

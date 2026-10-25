@@ -23,14 +23,14 @@ var $s = ({x: 1});
 echo $s->scaled(3) as string, "\n";
 --EXPECTF-ERROR--
 error[E0477]: `object` names no class, so it has no method `scaled`
-   --> %s:15:6
+   --> case.nvs:15:6
    |
 15 | echo $o->scaled(3) as string, "\n";
    |      ^^^^^^^^^^ called on a receiver that names no class here
    = help: test the receiver for the class that declares `scaled` first: `if ($x is ClassName) { … }`. An `object` has no methods of its own
 
-error[E0477]: `{x: int}` names no class, so it has no method `scaled`
-   --> %s:20:6
+error[E0477]: `{ x: int }` names no class, so it has no method `scaled`
+   --> case.nvs:20:6
    |
 20 | echo $s->scaled(3) as string, "\n";
    |      ^^^^^^^^^^ called on a receiver that names no class here

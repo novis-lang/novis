@@ -15,26 +15,26 @@ type Hidden = {key: secret string};
 mixed $m = 3;
 $m as Hidden;
 --EXPECTF-ERROR--
-error[E0708]: `int` cannot be converted to `{left: float, top: float}`
-  --> %s:6:1
+error[E0708]: `int` cannot be converted to `{ left: float, top: float }`
+  --> case.nvs:6:1
   |
 6 | $n as Pad;
   | ^^^^^^^^^ converted here
   = help: a conversion to a shape checks the fields of an object. A value of this type is never an object
 
-error[E0708]: `string` cannot be converted to `{a: int}`
-  --> %s:8:1
+error[E0708]: `string` cannot be converted to `{ a: int }`
+  --> case.nvs:8:1
   |
 8 | $s as {a: int};
   | ^^^^^^^^^^^^^^ converted here
   = help: a conversion to a shape checks the fields of an object. A value of this type is never an object
 
-error[E0711]: `mixed` cannot be converted to `{key: secret string}`
-   --> %s:13:1
+error[E0711]: `mixed` cannot be converted to `{ key: secret string }`
+   --> case.nvs:13:1
    |
 13 | $m as Hidden;
    | ^^^^^^^^^^^^ converted here
-   = help: There is no checked conversion into this type, because it cannot be tested at run time. Convert to a declared class, a `Core` class such as `Core\Time\Date`, or a shape such as `{id: int}`. A shape cannot have a `secret` field here.
+   = help: There is no checked conversion into this type, because it cannot be tested at run time. Convert to a declared class, a `Core` class such as `Core\Time\Date`, or a shape such as `{ id: int }`. A shape cannot have a `secret` field here.
 
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

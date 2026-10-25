@@ -7,7 +7,7 @@ array<Core\Time\Date> $orders = [
     Core\Time\Date::at(2023, 12, 31),
 ];
 
-// `with({day: 1})` gives the first day of the month. One month later, minus one day, is the last day.
+// `with({ day: 1 })` gives the first day of the month. One month later, minus one day, is the last day.
 // For the first order, this prints 2024-02-01 to 2024-02-29.
 foreach ($orders as Core\Time\Date $ordered) {
     var $first = $ordered->with({ day: 1 });

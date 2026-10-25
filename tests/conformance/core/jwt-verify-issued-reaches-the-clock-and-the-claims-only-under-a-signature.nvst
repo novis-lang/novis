@@ -250,5 +250,5 @@ two of three spellings are the same `typ`: 2
 one session of three was authenticated recently enough: 1
 Core\Jwt::verifyIssued(): the token is authentic and carries no `auth_time`, which is what a `maxAge` is asked of. A claim this member checks is one the issuer and this program had to agree on beforehand, so a mismatch is a token meant for somebody else rather than a forgery.
 five minutes is the widest leeway there is
-Core\Jwt::verifyIssued(): {leeway: …} is 301s, and it is a clock disagreement rather than an extension of the token's life — it is refused below zero and above 300s.
+Core\Jwt::verifyIssued(): { leeway: … } is 301s, and it is a clock disagreement rather than an extension of the token's life — it is refused below zero and above 300s.
 Core\Jwt::verifyIssued(): $token is not a token this issuer's key signed. Every way of not being one — a shape that is not three base64url parts, a header carrying a parameter a verifier may not honour, a `kid` that names no key in the set, an `alg` that is not the one that key carries, a signature under another key, and an altered payload — is this one sentence, so a forgery says nothing about which half of it failed.

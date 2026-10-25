@@ -646,7 +646,7 @@ class Handle {
 /// type argument arrives through, where there is no property and no constructor
 /// to carry any of them.
 ///
-/// `{b?: ?int}` and `{a: string}` are written in that order deliberately: the
+/// `{ b?: ?int }` and `{ a: string }` are written in that order deliberately: the
 /// parameter positions are the **sorted** order `TypeInterner::shape` interns
 /// fields in, which is the order `nvs_ir::lower::shape_class_label` keys a
 /// shape class's slots on, so a codec that preserved the written order would

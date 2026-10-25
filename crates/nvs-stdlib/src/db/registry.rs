@@ -217,7 +217,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                         name: "shared",
                         ty: CoreTy::Bool,
                         // Memoized is the default and the option only turns it
-                        // off, which is `rule:core-classes/db-connection-is-named`'s `{shared: false}`.
+                        // off, which is `rule:core-classes/db-connection-is-named`'s `{ shared: false }`.
                         default: Const::Bool(true),
                     },
                     CoreOption {
@@ -296,7 +296,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `rule:classes/no-traits` makes `Transaction` delegate the interface to its connection, so
 /// every one of them is declared once — here — and [`TRANSACTION`] is where the
 /// forwarding lands.
-/// `rule:core-classes/db-statement-members`'s `{timeout?: Duration}`, the one option every statement member
+/// `rule:core-classes/db-statement-members`'s `{ timeout?: Duration }`, the one option every statement member
 /// carries.
 ///
 /// One constant rather than ten copies of it: § 4 gives `query`, `queryAs`,
@@ -1049,7 +1049,7 @@ pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\DbError::Kind";
 /// maps its own codes onto, and its doc comment owns why the set is normalised
 /// at all — PDO exposes a `SQLSTATE` and a vendor integer, so real PHP matches
 /// on `"Duplicate entry"` or hard-codes `1062`. `nvs_db::DbErrorKind::is_retryable`
-/// owns which two of these § 7's `{retries: n}` re-runs a callable over, and
+/// owns which two of these § 7's `{ retries: n }` re-runs a callable over, and
 /// nothing about that rule is decided here.
 ///
 /// **A class per condition was rejected** — § 8's own *Alternatives*: ten more
@@ -2526,7 +2526,7 @@ pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
     ret: "The statement's rows for a `foreach` loop, each one a `Core\\Db\\Row`, in the server's \
           order. No row has been read yet when this returns. The connection is busy until the \
           loop reaches the last row, and no other statement can run on it. A loop that writes \
-          for each row needs a second connection (`{shared: false}`), or `query` instead.",
+          for each row needs a second connection (`{ shared: false }`), or `query` instead.",
     errors: &[
         ErrorDoc {
             error: "LogicError",

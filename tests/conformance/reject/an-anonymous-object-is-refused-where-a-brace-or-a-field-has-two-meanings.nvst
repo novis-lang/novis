@@ -40,9 +40,9 @@ error[E0134]: a local declaration cannot be typed with a bare shape
 %A
 error[E0494]: the field `x` is written twice in this anonymous object
 %A
-error[E0401]: expected `{x: int, y: int}`, found `{x: int}`
+error[E0401]: expected `{ x: int, y: int }`, found `{ x: int }`
 %A
-error[E0401]: expected `{x: int, y: int}`, found `{x: int, y: string}`
+error[E0401]: expected `{ x: int, y: int }`, found `{ x: int, y: string }`
 %A
 error: aborting due to 6 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

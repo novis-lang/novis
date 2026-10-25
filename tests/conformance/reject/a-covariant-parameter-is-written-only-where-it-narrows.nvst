@@ -49,7 +49,7 @@ error[E0882]: `covariant` has no effect here, because `$a` is not narrower than 
 %A
 error[E0883]: a `covariant` parameter cannot have the type `array<int>`
 %A
-error[E0883]: a `covariant` parameter cannot have the type `{y: int}`
+error[E0883]: a `covariant` parameter cannot have the type `{ y: int }`
 %A
 error[E0883]: a `covariant` parameter cannot have the type `callable(int): int`
 %A

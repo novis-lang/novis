@@ -321,7 +321,7 @@ fn reject_unanswerable_target(
 
 /// The first `tainted`/`secret` atom inside `tested`, wherever it is written.
 ///
-/// Not just the top level: `tainted {a: string}` is rewritten while parsing
+/// Not just the top level: `tainted { a: string }` is rewritten while parsing
 /// into the shape whose text fields are their tainted forms
 /// (`rule:security/tainted-qualifier`), so a qualifier written over a shape
 /// arrives here inside one, and `array<tainted string>` puts it inside an

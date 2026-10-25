@@ -1,8 +1,8 @@
 error[E0117]: an anonymous object here is ambiguous with a block
   --> 05-an-object-at-the-start-of-a-statement.nvs:6:1
   |
-6 | {x: 1};
-  | ^^^^^^ `{` already means a block in this position
+6 | { x: 1 };
+  | ^^^^^^^^ `{` already means a block in this position
   = help: wrap it in parentheses: `({...})`
 
 error: aborting due to 1 error

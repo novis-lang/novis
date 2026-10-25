@@ -1,7 +1,7 @@
 Returns the name an attribute was written with.
 
 An attribute can be written in two forms. The named form starts with the name of a type, such as
-`#[Route(path: "/orders")]`, and `name` returns `Route`. The short form, such as `#[{cache: 60}]`,
+`#[Route(path: "/orders")]`, and `name` returns `Route`. The short form, such as `#[{ cache: 60 }]`,
 has no name, and `name` returns an empty string.
 
 `Core\Reflect` gives you one `Core\Reflect\AttributeInfo` for each attribute of a class. Compare

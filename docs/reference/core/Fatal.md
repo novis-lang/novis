@@ -14,7 +14,7 @@ runs nothing. The handler receives one array whose `limit` key names the directi
 ```nvs
 <?nvs
 Core\Fatal::onLimit(fn (array<string> $report): void => {
-    echo "stopped by the ", $report["limit"], " limit\n";
+    echo 'stopped by the ', $report['limit'], " limit\n";
 });
 echo "handler registered\n";
 
@@ -24,7 +24,7 @@ Core\Fatal::onLimit(fn (): void => {
 echo "handler replaced\n";
 
 var $work = Core\Arr::range(1, 1000);
-echo "work done: ", Core\Arr::count($work), " items, no limit reached\n";
+echo 'work done: ', Core\Arr::count($work), " items, no limit reached\n";
 ```
 ```output
 handler registered

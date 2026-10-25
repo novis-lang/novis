@@ -997,12 +997,12 @@ pub(crate) fn check_heredoc_run_issues(
     }
 }
 
-/// `{a: 1, b: $x}` — `rule:types/anonymous-object`'s anonymous object, whose type is the
+/// `{ a: 1, b: $x }` — `rule:types/anonymous-object`'s anonymous object, whose type is the
 /// exact-fields shape of its own fields.
 ///
 /// Where the position declares a shape (`rule:types/shape-type`), a field the
 /// declaration names is checked against the declared field type and, when its
-/// value fits, has that type: `{w: 2}` at `{w: float}` is a `{w: float}`. The
+/// value fits, has that type: `{ w: 2 }` at `{ w: float }` is a `{ w: float }`. The
 /// literal builds a new value, so lowering can convert each field where it is
 /// stored, which an existing value's field cannot be (see
 /// [`super::assign::field_fits`]). Every other field infers its own type, and
@@ -1010,7 +1010,7 @@ pub(crate) fn check_heredoc_run_issues(
 /// the literal flow into a narrower shape or a plain `object`.
 ///
 /// **A field name written twice is `E0494`.** A shape's fields are a set —
-/// `{a: int}` names one slot `a` — and the two sides of a repeated name would
+/// `{ a: int }` names one slot `a` — and the two sides of a repeated name would
 /// not even agree on which write survives: the interned shape reads the first
 /// of the pair, while the class `nvs_ir::lower` synthesizes carries one slot
 /// per name and would keep the last. PHP's nearest neighbour is a duplicate
@@ -1042,7 +1042,7 @@ pub(crate) fn check_anon_object(
         // A field the declaration names is checked with the declared type as
         // its expectation, so `2` in a `float` field is a `float` literal. When
         // the value fits the declared type, the field has the declared type:
-        // `{w: $int}` at `{w: float}` is a `{w: float}`, and lowering converts
+        // `{ w: $int }` at `{ w: float }` is a `{ w: float }`, and lowering converts
         // the value where the literal stores it, at the slot type
         // `nvs_ir::lower` reads back from the field name's span. A value that
         // does not fit keeps its own type, and the assignment that follows
@@ -1062,7 +1062,7 @@ pub(crate) fn check_anon_object(
         };
         // Unlike an array element, a field's inferred type *keeps* the
         // qualifier, so what this catches is the declared field one step on:
-        // `{token: $secret}` at a `{token: mixed}` is where the bit stops
+        // `{ token: $secret }` at a `{ token: mixed }` is where the bit stops
         // being visible. A literal with no shape declared for it is asked
         // nothing — it carries the qualifier onward in its own inferred type,
         // and a position that then widens it to `mixed` is the widening every
@@ -1098,8 +1098,8 @@ pub(crate) fn check_anon_object(
 ///
 /// A shape source's field types are invariant
 /// ([`super::assign::shape_satisfied`]), so a literal at a union of shapes
-/// needs this: `{n: null}` infers `{n: null}`, which fits no `{n: ?float}`
-/// member, while the same literal placed at that member is a `{n: ?float}`.
+/// needs this: `{ n: null }` infers `{ n: null }`, which fits no `{ n: ?float }`
+/// member, while the same literal placed at that member is a `{ n: ?float }`.
 fn declared_shape(expected: TypeId, written: &[&str], env: &mut Env<'_>) -> Option<TypeId> {
     let expected = env.interner.without_null(expected);
     match env.interner.get(expected) {

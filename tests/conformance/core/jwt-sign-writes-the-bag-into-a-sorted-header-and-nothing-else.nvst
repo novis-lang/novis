@@ -58,4 +58,4 @@ try {
 {"alg":"HS256","kid":"2026-a","typ":"at+jwt"}
 the embedded key is the exported one: yes
 and it is the only header of the three carrying a `jwk`: yes
-Core\Jwt::sign(): {embedKey: true} writes the signing key's public half into the header, and a shared secret has no public half — it is the key the recipient already holds. Sign under a `Core\Crypto\KeyPair` to embed one.
+Core\Jwt::sign(): { embedKey: true } writes the signing key's public half into the header, and a shared secret has no public half — it is the key the recipient already holds. Sign under a `Core\Crypto\KeyPair` to embed one.

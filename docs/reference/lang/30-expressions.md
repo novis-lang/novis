@@ -3517,8 +3517,8 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 An anonymous object is an object with exactly the fields you write. You do not declare a class for
 it.
 
-You write it as `{x: 1, y: 2}` and read or change a field with `$point->x`. Its type is the shape
-`{x: int, y: int}`, and a `type` alias gives that shape a short name. Any object with at least those
+You write it as `{ x: 1, y: 2 }` and read or change a field with `$point->x`. Its type is the shape
+`{ x: int, y: int }`, and a `type` alias gives that shape a short name. Any object with at least those
 fields fits where the shape is needed. So two parts of a program work together when they name the
 same fields.
 A field that may be missing is written `label?: string`, and `??` gives a value for the times it is
@@ -3537,10 +3537,10 @@ A field name is a plain name with no quotes. `{"x": 1}` is the error `E0101`, an
 and `{}` is an object with no fields. A field name written twice is the error `E0494`.
 
 At the start of a statement and directly after the `=>` of an anonymous function, `{` starts a
-block. An anonymous object there is the error `E0117`. Write it in parentheses: `({x: 1});` and
-`fn(int $x): Point => ({x: $x, y: 0})`.
+block. An anonymous object there is the error `E0117`. Write it in parentheses: `({ x: 1 });` and
+`fn(int $x): Point => ({ x: $x, y: 0 })`.
 
-The type of a field does not change. `$p->x = "a";` on `{x: 1}` is the error `E0401`. A
+The type of a field does not change. `$p->x = "a";` on `{ x: 1 }` is the error `E0401`. A
 field with another anonymous object in it, or a function, is allowed. Call that function as
 `($p->f)(1)`. `$p->f(1)` is the error `E0477`, because an anonymous object has no methods.
 
@@ -3711,18 +3711,18 @@ same different
 ```nvs error
 <?nvs
 // Shows that a `{` at the start of a statement starts a block, so this
-// program does not compile. Write `({x: 1});` instead.
+// program does not compile. Write `({ x: 1 });` instead.
 // proof: compile-error
 
-{x: 1};
+{ x: 1 };
 ```
 
 ```output
 error[E0117]: an anonymous object here is ambiguous with a block
   --> main.nvs:6:1
   |
-6 | {x: 1};
-  | ^^^^^^ `{` already means a block in this position
+6 | { x: 1 };
+  | ^^^^^^^^ `{` already means a block in this position
   = help: wrap it in parentheses: `({...})`
 
 error: aborting due to 1 error

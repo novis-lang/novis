@@ -3,7 +3,7 @@
 //!
 //! The whole of it: nested `array<T>`, DNF unions and intersections, the
 //! `?T` sugar, `tainted`/`secret` qualifiers (`rule:security/tainted-qualifier`, `rule:security/secret-qualifier`), the
-//! inline `{name: T}` shape (`rule:types/shape-type`), `rule:types/single-value-types`'s literal and enum-case
+//! inline `{ name: T }` shape (`rule:types/shape-type`), `rule:types/single-value-types`'s literal and enum-case
 //! atoms, and `decimal` (`rule:types/decimal`). A `>>` closing two nested generics is
 //! split back into two `>` closes here rather than in the lexer — see
 //! [`Parser::expect_type_close_angle`].
@@ -851,7 +851,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `{name: T, name?: T, ...}` in type position — `rule:types/shape-type`,
+    /// `{ name: T, name?: T, ... }` in type position — `rule:types/shape-type`,
     /// Novis's one structurally-checked type. No ambiguity to resolve here the
     /// way the value literal has (see [`Self::parse_anon_object_expr`]): type
     /// position never dispatches `{` to a block, so an empty `{}` is simply
@@ -867,8 +867,8 @@ impl<'src, 'd> Parser<'src, 'd> {
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             let field_start = self.peek().span;
             // A keyword is a field name here for the reason the value literal
-            // gives in `Self::parse_anon_object_expr`: `{class: string}`
-            // is the type of `{class: …}`, and a value the literal can build
+            // gives in `Self::parse_anon_object_expr`: `{ class: string }`
+            // is the type of `{ class: … }`, and a value the literal can build
             // needs a type a declaration can write.
             let name = if matches!(self.peek().kind, TokenKind::Keyword(_)) {
                 self.bump().span

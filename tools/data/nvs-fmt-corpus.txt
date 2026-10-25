@@ -1,14 +1,16 @@
-# Where the `.nvs` files `nvs fmt` holds to its layout are, one entry per line.
+# Where the Novis code `nvs fmt` holds to its layout is, one entry per line.
 #
-# `tree <dir>` takes every `.nvs` file under the directory. `skip <path>  --  <why>` leaves out a
-# directory or one file under a tree, which keeps the layout it has.
+# `tree <dir>` takes every `.nvs` file under the directory. `pages <path>` takes every ```nvs block of
+# each `.md` and `.mdx` file that is the path or under it: the pages a reader sees the code on.
+# `skip <path>  --  <why>` leaves out a directory or one file under either, which keeps the layout it has.
 #
 # Every `.nvs` file git tracks is under a tree, and `bun nv nvs-fmt --check` fails on one that is not.
-# `crates/nvs-fmt/tests/identity.rs` fails on a file under a tree that the formatter would change, and
-# `bun nv nvs-fmt` formats every such file, which is how a layout rule lands. `crates/nvs-fmt/tests/
-# corpus.rs` walks the trees with the skipped directories put back, and `bun nv verify`'s `nvs-fmt` step
-# formats each new or modified file under a tree. `tools/nv/lib/nvs-fmt-corpus.ts` and
-# `crates/nvs-fmt/tests/common/mod.rs` read this file.
+# `crates/nvs-fmt/tests/identity.rs` fails on a file under a tree, or a block on a page, that the
+# formatter would change, and `bun nv nvs-fmt` formats every such file and block, which is how a layout
+# rule lands. A block the formatter refuses, such as a signature, is a fragment and stays as written.
+# `crates/nvs-fmt/tests/corpus.rs` walks the trees with the skipped directories put back, and
+# `bun nv verify`'s `nvs-fmt` step formats each new or modified file and page. `tools/nv/lib/
+# nvs-fmt-corpus.ts` and `crates/nvs-fmt/tests/common/mod.rs` read this file.
 
 tree apps
 tree benches
@@ -21,6 +23,13 @@ tree extensions
 tree tests
 tree website/guides
 tree website/snippets
+
+pages README.md
+pages apps
+pages docs/examples
+pages docs/reference
+pages extensions
+pages website/src/content
 
 skip benches/compare/generated  --  `bun nv bench-compare` writes it and git ignores it, and the tests walk the disk, not the index
 skip crates/nvs-cli/tests/fixtures/check/secret-in-snippet.nvs  --  its two statements share one line, which is the line the diagnostic `crates/nvs-cli/tests/check.rs` reads quotes

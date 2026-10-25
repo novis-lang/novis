@@ -105,7 +105,7 @@ codes! {
         "`secret` must come before `tainted`. Write `secret tainted string` or \
          `secret tainted bytes`.",
     );
-    /// A `{name: value, ...}` anonymous object written where `{` already
+    /// A `{ name: value, ... }` anonymous object written where `{` already
     /// commits to a block — an expression-bodied `fn() => {...}`, or a bare
     /// statement-initial `{...}` — needs the same parenthesize-to-force-
     /// expression fix JavaScript uses for the identical ambiguity; see
@@ -113,19 +113,19 @@ codes! {
     pub const E_ANON_OBJECT_NEEDS_PARENS: Code = Code::new("E0117").card(
         "An anonymous object in this position is read as a block of code. This happens after \
          `fn() =>` and at the start of a statement. Put parentheses around it: \
-         `({name: value})`.",
+         `({ name: value })`.",
     );
     /// `{x}` — an anonymous object has no shorthand; every field is written
     /// `name: value`. See `rule:types/anonymous-object`.
     pub const E_ANON_OBJECT_SHORTHAND: Code = Code::new("E0118").card(
         "An anonymous object has no short form for a field. Write each field as `name: value`. \
-         For example, write `{x: $x}`, not `{x}`.",
+         For example, write `{ x: $x }`, not `{x}`.",
     );
     /// `{[$expr]: value}` — an anonymous object has no computed/dynamic key;
     /// every field name is a static identifier. See `rule:types/anonymous-object`.
     pub const E_ANON_OBJECT_COMPUTED_KEY: Code = Code::new("E0119").card(
         "A field name in an anonymous object cannot be computed from an expression. Write each \
-         field name directly, for example `{name: value}`.",
+         field name directly, for example `{ name: value }`.",
     );
     /// A `float` literal in type position — `rule:types/single-value-types` defers single-value
     /// `float` types until floating-point equality has a real answer, so `0.1` names
@@ -274,7 +274,7 @@ codes! {
     /// is a variable, because parentheses are not the fix for this one.
     pub const E_SHAPE_TYPED_LOCAL_NEEDS_AN_ALIAS: Code = Code::new("E0134").card(
         "A variable cannot be declared with a shape type written directly in front of it. Give \
-         the shape a name first, for example `type Point = {x: int};`. Then write \
+         the shape a name first, for example `type Point = { x: int };`. Then write \
          `Point $point;`.",
     );
     /// A `::` written after `self`, `static` or `parent` in type position

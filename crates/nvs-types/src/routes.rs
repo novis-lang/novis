@@ -5,7 +5,7 @@
 //!
 //! § 1 writes the attribute as an ordinary
 //! `rule:attributes/inert-metadata`
-//! `type Core\Route = {path: string, method: Core\Http\Method, name?: string};`
+//! `type Core\Route = { path: string, method: Core\Http\Method, name?: string };`
 //! and then adds the one thing that makes it not one: the compiler acts on the
 //! attribute only when its name **resolves** to `Core\Route`, so a userland
 //! `type Route = {…};` is not it however it is spelled and a framework carrying
@@ -1447,7 +1447,7 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
             "`errors` is not a list".to_owned(),
             span,
             "written as a single value",
-            "`errors` is always an array of `{status: …, type: …}` entries. Write \
+            "`errors` is always an array of `{ status: …, type: … }` entries. Write \
              `errors: [{...}]`, even for one entry",
             env,
         );
@@ -1463,7 +1463,7 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
                 "this `errors` entry is not a `{status, type}`".to_owned(),
                 entry.span,
                 "not an anonymous object",
-                "write each entry as `{status: 404, type: Api\\NotFound::class}`. The two \
+                "write each entry as `{ status: 404, type: Api\\NotFound::class }`. The two \
                  fields describe one error response",
                 env,
             );
@@ -1655,7 +1655,7 @@ fn check_api_example(
             span,
             "not an anonymous object",
             "`example` is one value that the operation returns, written \
-             `{field: value, …}`",
+             `{ field: value, … }`",
             env,
         );
         return None;

@@ -853,7 +853,7 @@ pub(crate) fn infer_static_call(
         && crate::program::is_enumeration(qname, name)
     {
         // The joined form's type is built from its two written arguments —
-        // no registry row can spell `array<{instance: I, attribute: ?T}>`
+        // no registry row can spell `array<{ instance: I, attribute: ?T }>`
         // as a lowered type — so it answers the type itself.
         if crate::program::is_joined(name) {
             return crate::program::expand_with(expr, &written, args, live, scope, ctx, env);

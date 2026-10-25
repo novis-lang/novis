@@ -62,8 +62,8 @@ echo Core\Decimal::divRound($bill, $three, 2, Core\RoundMode::Up), "\n";
 // named for -- and the scale is the answer's, so it pads.
 decimal $one = 1;
 decimal $eight = 8;
-echo Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfEven), "|",
-     Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfUp), "|",
+echo Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfEven), '|',
+     Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfUp), '|',
      Core\Decimal::divRound($one, $four, 5, Core\RoundMode::HalfEven), "\n";
 ```
 ```output
@@ -89,15 +89,15 @@ foreach (Core\Decimal::allocate($nickel, [1, 1, 1]) as decimal $part) {
 
 // The keys are the ratios', so the parties keep their names -- and the
 // leftover unit goes to the one written first.
-array<decimal> $shares = ["alice" => 1, "bob" => 2];
+array<decimal> $shares = ['alice' => 1, 'bob' => 2];
 foreach (Core\Decimal::allocate(10.00, $shares) as string $name => decimal $share) {
-    echo $name, " ", $share, "\n";
+    echo $name, ' ', $share, "\n";
 }
 
 // A power is repeated multiplication to the digit, scale included. The
 // reciprocal is a division, so it names the rounding it needs.
 decimal $rate = 1.05;
-echo Core\Decimal::pow($rate, 2), "|",
+echo Core\Decimal::pow($rate, 2), '|',
      Core\Decimal::divRound(1, Core\Decimal::pow($rate, 2), 4, Core\RoundMode::HalfEven), "\n";
 ```
 ```output
@@ -122,22 +122,22 @@ mode is written *before* the scale because the scale is the argument you may lea
 <?nvs
 // The scale you name is the scale you get, so a cut pads as well as trims.
 decimal $price = 1.005;
-echo Core\Decimal::floor($price, 2), "|", Core\Decimal::ceil($price, 2), "\n";
+echo Core\Decimal::floor($price, 2), '|', Core\Decimal::ceil($price, 2), "\n";
 
 // Left out, it is zero: a whole number that is still a `decimal`, so the
 // conversion to `int` is written after it rather than hidden inside it.
-echo Core\Decimal::truncate($price), "|", Core\Decimal::floor($price) as int, "\n";
+echo Core\Decimal::truncate($price), '|', Core\Decimal::floor($price) as int, "\n";
 
 // Half a cent is the tie the `Half*` modes are named for, and the reason
 // `round` has no default mode.
-echo Core\Decimal::round($price, Core\RoundMode::HalfEven, 2), "|",
+echo Core\Decimal::round($price, Core\RoundMode::HalfEven, 2), '|',
      Core\Decimal::round($price, Core\RoundMode::HalfUp, 2), "\n";
 
 // Negative is where the three directions part: down the line, up the line,
 // and towards zero. A negative `decimal` is built by subtraction.
 decimal $loss = 0 - $price;
-echo Core\Decimal::floor($loss), "|",
-     Core\Decimal::ceil($loss), "|",
+echo Core\Decimal::floor($loss), '|',
+     Core\Decimal::ceil($loss), '|',
      Core\Decimal::truncate($loss), "\n";
 ```
 ```output

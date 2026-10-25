@@ -10,7 +10,7 @@
       "params": [
         {"name": "strings", "type": "array<string>"},
         {"name": "locale", "type": "string"},
-        {"name": "options", "type": "{strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool}"}
+        {"name": "options", "type": "{ strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool }"}
       ],
       "returns": "array<uint>",
       "help": "Sorts strings by the rules of a locale. Returns the indexes of the strings in sorted order. Equal strings keep their order."
@@ -20,7 +20,7 @@
       "params": [
         {"name": "strings", "type": "array<string>"},
         {"name": "locale", "type": "string"},
-        {"name": "options", "type": "{strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool}"}
+        {"name": "options", "type": "{ strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool }"}
       ],
       "returns": "array<bytes>",
       "help": "Returns one sort key for each string. Two keys compare byte by byte in the same order as their strings sort in the locale."
@@ -30,7 +30,7 @@
       "params": [
         {"name": "numbers", "type": "array<string>"},
         {"name": "locale", "type": "string"},
-        {"name": "options", "type": "{style: Style, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay}"}
+        {"name": "options", "type": "{ style: Style, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay }"}
       ],
       "returns": "array<string>",
       "help": "Formats numbers, each given as its decimal text, in the style and locale you give."
@@ -48,9 +48,9 @@
     {
       "name": "formatDateTimes",
       "params": [
-        {"name": "values", "type": "array<{year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string}>"},
+        {"name": "values", "type": "array<{ year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string }>"},
         {"name": "locale", "type": "string"},
-        {"name": "options", "type": "{length?: Length, seconds?: bool, zone?: ZoneStyle}"}
+        {"name": "options", "type": "{ length?: Length, seconds?: bool, zone?: ZoneStyle }"}
       ],
       "returns": "array<string>",
       "help": "Formats dates with times of day, each given as its local fields, its UTC offset and its time zone, in the locale."
@@ -70,7 +70,7 @@
       "params": [
         {"name": "values", "type": "array<Core\\Time\\TimeOfDay>"},
         {"name": "locale", "type": "string"},
-        {"name": "options", "type": "{seconds?: bool}"}
+        {"name": "options", "type": "{ seconds?: bool }"}
       ],
       "returns": "array<string>",
       "help": "Formats times of day in the locale."
@@ -78,9 +78,9 @@
     {
       "name": "formatRelative",
       "params": [
-        {"name": "items", "type": "array<{count: int, unit: Unit}>"},
+        {"name": "items", "type": "array<{ count: int, unit: Unit }>"},
         {"name": "locale", "type": "string"},
-        {"name": "options", "type": "{width?: Width, numeric?: Numeric}"}
+        {"name": "options", "type": "{ width?: Width, numeric?: Numeric }"}
       ],
       "returns": "array<string>",
       "help": "Formats amounts of time before or after now, such as \"in 3 days\". A negative count is in the past."
@@ -90,7 +90,7 @@
       "params": [
         {"name": "lists", "type": "array<array<string>>"},
         {"name": "locale", "type": "string"},
-        {"name": "options", "type": "{type?: Type, width?: Width}"}
+        {"name": "options", "type": "{ type?: Type, width?: Width }"}
       ],
       "returns": "array<string>",
       "help": "Joins the items of each list with the words of the locale, such as \"a, b and c\"."
@@ -101,7 +101,7 @@
         {"name": "strings", "type": "array<string>"},
         {"name": "locale", "type": "string"}
       ],
-      "returns": "array<array<{text: string, wordLike: bool}>>",
+      "returns": "array<array<{ text: string, wordLike: bool }>>",
       "help": "Splits each string into words, spaces and punctuation. Joined again, the parts of a string are the string."
     },
     {

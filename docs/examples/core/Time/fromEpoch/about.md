@@ -2,7 +2,7 @@ Builds an `Instant` from a Unix timestamp. A Unix timestamp is the number of sec
 1 January 1970 at midnight in UTC.
 
 A negative number of seconds is a time before 1970. The `nanos` option adds nanoseconds after the
-second. So `-1` with `{nanos: 500000000}` is half a second after `-1`, not before it.
+second. So `-1` with `{ nanos: 500000000 }` is half a second after `-1`, not before it.
 
 The seconds must be between `-377705023201` and `253402207200`. That is about the years -9999 to
 9999. A number outside that range throws a `RuntimeError`, and so

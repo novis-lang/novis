@@ -66,7 +66,7 @@ pub(crate) fn fold(
             )
             .with_primary(call, format!("`{found}` written here"))
             .with_help(
-                "write a shape such as `{seconds: int}`, or a `type` name for one. An attribute \
+                "write a shape such as `{ seconds: int }`, or a `type` name for one. An attribute \
                  matches when it has every field of the shape",
             ),
         );

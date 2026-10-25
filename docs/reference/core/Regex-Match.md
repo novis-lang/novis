@@ -12,16 +12,16 @@ where the match starts, counted in graphemes.
 
 ```nvs
 <?nvs
-var $m = Core\Regex::match("café au lait", "(?<drink>lait)");
+var $m = Core\Regex::match('café au lait', '(?<drink>lait)');
 if ($m != null) {
-    echo $m->text(), " ", $m->offset(), " ", $m->group("drink") ?? "?", " ", $m->group(1) ?? "?", "\n";
+    echo $m->text(), ' ', $m->offset(), ' ', $m->group('drink') ?? '?', ' ', $m->group(1) ?? '?', "\n";
     foreach ($m->groups() as string $k => ?string $v) {
-        echo $k, "=", $v ?? "null", ";";
+        echo $k, '=', $v ?? 'null', ';';
     }
     echo "\n";
 }
-var $opt = Core\Regex::match("ac", "(a)(b)?(c)");
-echo $opt?->group(2) ?? "no b", " ", $opt?->group(3) ?? "no c", "\n";
+var $opt = Core\Regex::match('ac', '(a)(b)?(c)');
+echo $opt?->group(2) ?? 'no b', ' ', $opt?->group(3) ?? 'no c', "\n";
 ```
 ```output
 lait 8 lait lait

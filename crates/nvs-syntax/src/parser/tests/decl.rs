@@ -1092,7 +1092,7 @@ fn an_autoload_declaration_owes_a_from_and_a_root() {
 }
 
 /// `rule:attributes/attach-sites-and-forms`'s two attach forms carry one payload between them: the named
-/// `Name(field: value)` and the bare `{field: value}` differ in whether a
+/// `Name(field: value)` and the bare `{ field: value }` differ in whether a
 /// name was written and in nothing else, and a name written with no list at
 /// all attaches an empty literal rather than a second kind of attribute.
 #[test]

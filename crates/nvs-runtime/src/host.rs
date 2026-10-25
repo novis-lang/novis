@@ -123,7 +123,7 @@ use crate::value::Value;
 pub type Job = Box<dyn FnOnce(&mut Ctx) -> Value>;
 
 /// `rule:concurrency/limit-and-deadline-are-the-only-bounds`'s
-/// `{limit?: uint, deadline?: Duration}`, decoded.
+/// `{ limit?: uint, deadline?: Duration }`, decoded.
 ///
 /// `None` is that section's "unbounded" in both fields, which is why neither is
 /// a number with a sentinel: a `limit` of `0` is a real bound meaning "run

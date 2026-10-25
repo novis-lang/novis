@@ -14,14 +14,14 @@ never fails.
 
 ```nvs
 <?nvs
-tainted string $name = "<script>alert(1)</script>";
-string $bio = "<p>likes <b>tea</b></p><img src=x onerror=alert(1)>";
+tainted string $name = '<script>alert(1)</script>';
+string $bio = '<p>likes <b>tea</b></p><img src=x onerror=alert(1)>';
 Core\Html\Markup $badge = html`<span class="badge">new</span>`;
 Core\Html\Markup $line = html`<p>{$name} {$badge}</p>`;
 Core\Html\Markup $safe = Core\Html::sanitize($bio);
 echo $line + $safe, "\n";
 echo Core\Html::join([$badge, $badge], html`, `), "\n";
-echo Core\Html::toSource($badge, "logging the fragment"), "\n";
+echo Core\Html::toSource($badge, 'logging the fragment'), "\n";
 ```
 ```output
 <p>&lt;script&gt;alert(1)&lt;/script&gt; <span class="badge">new</span></p><p>likes <b>tea</b></p><img src="x">

@@ -142,11 +142,11 @@
 //!   without changing an observable.
 //! - **A shape's wire contract is a constant of the call site, never of its
 //!   class.** A member handed an inline shape as its type argument —
-//!   `Core\Arr::shapeAs<{n: int}>` — needs the per-field wire types
+//!   `Core\Arr::shapeAs<{ n: int }>` — needs the per-field wire types
 //!   `nvs_runtime::CodecField` carries, exactly as `Json::decodeAs<User>`
 //!   needs `User`'s. The descriptor those would hang on is shared:
 //!   `lower::shape_class_label` keys a shape class on its sorted field
-//!   *names* alone, so `{n: int}` and `{n: string}` are one class and one
+//!   *names* alone, so `{ n: int }` and `{ n: string }` are one class and one
 //!   `nvs_runtime::ClassDesc`; and a shape class is synthesized in this crate
 //!   rather than laid out in `nvs_types::layout`, so [`lower::lower_file`]'s
 //!   codec join has no slot order to run one against either. The list
@@ -172,14 +172,14 @@
 //!   The consequence a widening contributor must hold: **a call site whose
 //!   type argument names a shape registers that shape's class itself.**
 //!   `lower::Lowering::lower_anon_object` synthesizes one only where a
-//!   literal is *written*, so a unit that hydrates a `{n: int}` it never
+//!   literal is *written*, so a unit that hydrates a `{ n: int }` it never
 //!   spells would otherwise have no `$shape{n}` for the descriptor constant to
 //!   resolve to — `lower::Lowering::written_type_constants` is where it does
 //!   both, and the third constant it emits is
 //!   [`ir::InstKind::ShapeCodecConst`] naming an entry of
 //!   [`ir::Program::shape_codecs`]. The table is keyed on the contract rather
 //!   than on the class (`lower::shape_codec_key`), so two sites writing
-//!   `{n: int}` share one and a third writing `{n: string}` gets its own.
+//!   `{ n: int }` share one and a third writing `{ n: string }` gets its own.
 //!   What this spends, per `rule:programs/memory-priority`: one table per
 //!   distinct written shape in the program, O(distinct types) like every other
 //!   interned descriptor and never O(requests served).
@@ -311,7 +311,7 @@
 //!    which throws in PHP's own wording for a receiver that is not an object
 //!    — every *statically* non-object receiver having been `E0495` at the
 //!    checker (`rule:types/a-declared-type-answers-before-the-program-runs`). An
-//!    anonymous `{a: 1}` literal
+//!    anonymous `{ a: 1 }` literal
 //!    constructs, as an instance of the class [`lower::shape_class_label`]
 //!    names. Nullsafe `?->` *reads* — a call and a property alike, over
 //!    the one guard [`lower::Lowering::open_nullsafe`] opens — but a nullsafe

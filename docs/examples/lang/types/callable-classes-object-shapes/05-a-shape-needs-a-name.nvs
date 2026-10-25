@@ -3,4 +3,4 @@
 // a statement opens a block, so this program does not compile.
 // proof: compile-error
 
-{x: int, y: int} $p = {x: 1, y: 2};
+{ x: int, y: int } $p = { x: 1, y: 2 };

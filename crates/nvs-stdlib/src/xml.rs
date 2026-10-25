@@ -3446,7 +3446,7 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Xml::writer({indent?: string}): Core\Xml\Writer` — replacing
+    /// `Core\Xml::writer({ indent?: string }): Core\Xml\Writer` — replacing
     /// `xmlwriter_open_memory` and the five calls PHP configures one with.
     ///
     /// Nothing is written here, exactly as [`nvs_core_xml_reader`] reads

@@ -8,7 +8,7 @@ language's and have no member here. `abs`, `sign`, `min`, `max` and `clamp` take
 `float` or a `decimal` and answer in the argument's own type; the rounding, root, exponential,
 logarithmic and trigonometric members take and answer `float`; `intDiv`, `gcd`, `lcm`, `toBase` and
 `fromBase` work over `int`. `round` names its tie rule as a `Core\RoundMode` case and defaults to
-`HalfUp` — and answers a `float`, so `round(6.0, {decimals: 2})` prints `6`; a number shown with a
+`HalfUp` — and answers a `float`, so `round(6.0, { decimals: 2 })` prints `6`; a number shown with a
 fixed count of decimals is `format`'s job, not `round`'s. `format` groups digits only when asked,
 since there is no locale. A refusal throws —
 `fromBase` on a digit outside the base, `format` on an infinity — never answers `false`. The
@@ -16,18 +16,18 @@ constants are class constants: `Core\Math::PI`, `INT_MAX`, `EPSILON`, `NAN`, `IN
 
 ```nvs
 <?nvs
-echo Core\Math::abs(-7), " ", Core\Math::abs(-2.5), " ", Core\Math::sign(-3), "\n";
-echo Core\Math::max(3, 9), " ", Core\Math::clamp(15, 0, 10), "\n";
-echo Core\Math::round(2.5), " ", Core\Math::round(1.2345, {precision: 2}), " ",
-     Core\Math::round(2.5, {mode: Core\RoundMode::HalfEven}), "\n";
-echo Core\Math::floor(1.8), " ", Core\Math::ceil(1.2), " ", Core\Math::truncate(-1.7), "\n";
-echo Core\Math::intDiv(7, 2), " ", 7 % 2, " ", Core\Math::mod(7.5, 2.0), "\n";
-echo Core\Math::sqrt(16.0), " ", Core\Math::hypot(3.0, 4.0), " ", Core\Math::log(100.0, {base: 10.0}), "\n";
-echo Core\Math::round(Core\Math::sin(Core\Math::PI / 2), {precision: 3}), " ", Core\Math::toDegrees(Core\Math::PI), "\n";
-echo Core\Math::toBase(255, 16), " ", Core\Math::fromBase("ff", 16), " ", Core\Math::toBase(5, 2), "\n";
-echo Core\Math::format(1234567.891, {decimals: 2, groupSeparator: ","}), "\n";
-echo Core\Math::gcd(12, 18), " ", Core\Math::lcm(4, 6), "\n";
-echo Core\Math::isNan(Core\Math::NAN) ? "nan" : "number", " ", Core\Math::INT_MAX, "\n";
+echo Core\Math::abs(-7), ' ', Core\Math::abs(-2.5), ' ', Core\Math::sign(-3), "\n";
+echo Core\Math::max(3, 9), ' ', Core\Math::clamp(15, 0, 10), "\n";
+echo Core\Math::round(2.5), ' ', Core\Math::round(1.2345, { precision: 2 }), ' ',
+     Core\Math::round(2.5, { mode: Core\RoundMode::HalfEven }), "\n";
+echo Core\Math::floor(1.8), ' ', Core\Math::ceil(1.2), ' ', Core\Math::truncate(-1.7), "\n";
+echo Core\Math::intDiv(7, 2), ' ', 7 % 2, ' ', Core\Math::mod(7.5, 2.0), "\n";
+echo Core\Math::sqrt(16.0), ' ', Core\Math::hypot(3.0, 4.0), ' ', Core\Math::log(100.0, { base: 10.0 }), "\n";
+echo Core\Math::round(Core\Math::sin(Core\Math::PI / 2), { precision: 3 }), ' ', Core\Math::toDegrees(Core\Math::PI), "\n";
+echo Core\Math::toBase(255, 16), ' ', Core\Math::fromBase('ff', 16), ' ', Core\Math::toBase(5, 2), "\n";
+echo Core\Math::format(1234567.891, { decimals: 2, groupSeparator: ',' }), "\n";
+echo Core\Math::gcd(12, 18), ' ', Core\Math::lcm(4, 6), "\n";
+echo Core\Math::isNan(Core\Math::NAN) ? 'nan' : 'number', ' ', Core\Math::INT_MAX, "\n";
 ```
 ```output
 7 2.5 -1

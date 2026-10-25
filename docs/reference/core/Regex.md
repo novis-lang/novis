@@ -16,19 +16,19 @@ goes through `quote`.
 
 ```nvs
 <?nvs
-string $log = "2026-08-30 GET /a 200; 2026-08-31 POST /b 404";
-echo Core\Regex::matches($log, "\\b\\d{3}\\b") ? "has status" : "none", "\n";
+string $log = '2026-08-30 GET /a 200; 2026-08-31 POST /b 404';
+echo Core\Regex::matches($log, "\\b\\d{3}\\b") ? 'has status' : 'none', "\n";
 var $m = Core\Regex::match($log, "(?<y>\\d{4})-(?<mo>\\d{2})-(?<d>\\d{2})");
-echo $m?->text() ?? "none", " at ", $m?->offset() ?? -1, " day=", $m?->group("d") ?? "?", "\n";
+echo $m?->text() ?? 'none', ' at ', $m?->offset() ?? -1, ' day=', $m?->group('d') ?? '?', "\n";
 foreach (Core\Regex::matchAll($log, "(GET|POST) (\\S+)") as Core\Regex\Match $hit) {
-    echo $hit->group(1) ?? "?", " ", $hit->group(2) ?? "?", "\n";
+    echo $hit->group(1) ?? '?', ' ', $hit->group(2) ?? '?', "\n";
 }
-echo Core\Regex::replace("2026-08-30", "(\\d+)-(\\d+)-(\\d+)", "$3/$2/$1"), "\n";
-echo Core\Regex::replaceWith("a1b22", "\\d+", fn(Core\Regex\Match $x): string => "<" . $x->text() . ">"), "\n";
-echo Core\Str::join(Core\Regex::split("a, b,c", ",\\s*"), "|"), "\n";
-Core\Regex\Pattern $word = Core\Regex::compile("^[a-z]+$", {caseInsensitive: true});
-echo Core\Regex::matches("Hello", $word) ? "word" : "not a word", "\n";
-echo Core\Regex::quote("a.b*c?"), "\n";
+echo Core\Regex::replace('2026-08-30', "(\\d+)-(\\d+)-(\\d+)", '$3/$2/$1'), "\n";
+echo Core\Regex::replaceWith('a1b22', "\\d+", fn(Core\Regex\Match $x): string => '<' . $x->text() . '>'), "\n";
+echo Core\Str::join(Core\Regex::split('a, b,c', ",\\s*"), '|'), "\n";
+Core\Regex\Pattern $word = Core\Regex::compile('^[a-z]+$', { caseInsensitive: true });
+echo Core\Regex::matches('Hello', $word) ? 'word' : 'not a word', "\n";
+echo Core\Regex::quote('a.b*c?'), "\n";
 ```
 ```output
 has status

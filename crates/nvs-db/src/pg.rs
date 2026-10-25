@@ -3554,7 +3554,7 @@ fn begin<S: Read + Write>(
             format!(
                 "a transaction nested {open} deep asked for its own isolation level or read-only \
                  mode, and PostgreSQL settles both for the whole transaction: ask for them on the \
-                 outermost `transaction()`, or give this one a `{{shared: false}}` connection of \
+                 outermost `transaction()`, or give this one a `{{ shared: false }}` connection of \
                  its own"
             ),
         ));
@@ -3578,7 +3578,7 @@ fn begin<S: Read + Write>(
 /// own side effects outlive it. **The count follows the connection there**: an
 /// outermost commit the *server* refused leaves the depth at 0, unlike every
 /// other refusal in this family, because the level really is gone. A caller that
-/// opens the next transaction on that connection — § 7's `{retries: n}` is the
+/// opens the next transaction on that connection — § 7's `{ retries: n }` is the
 /// one that does — must get a `BEGIN` and not a `SAVEPOINT` against nothing. A
 /// refused `RELEASE SAVEPOINT` says nothing of the kind and moves nothing, as in
 /// [`roll_back`], and neither does a refusal this crate made itself — § 4's busy
@@ -3863,7 +3863,7 @@ fn columns_of(body: &backend::RowDescriptionBody) -> io::Result<Vec<PgColumn>> {
 /// lives.
 ///
 /// **It names both fixes, always**, because § 4 requires the refusal to: the
-/// buffered read that frees the connection, and the `{shared: false}`
+/// buffered read that frees the connection, and the `{ shared: false }`
 /// connection that gives this statement one of its own. Those are the only two
 /// answers, they fix different programs — one loop wants its rows in memory,
 /// one genuinely wants two connections — and a message saying only that the
@@ -3884,7 +3884,7 @@ pub(crate) fn second_statement(state: &Cell<State>) -> io::Error {
         format!(
             "a statement was written to a connection that is {:?}, and `rule:core-classes/db-statement-members` allows one at \
              a time: read the first statement's rows into memory (`->all()`), or open a \
-             `{{shared: false}}` connection so this statement has one of its own",
+             `{{ shared: false }}` connection so this statement has one of its own",
             state.get()
         ),
     )
@@ -5754,7 +5754,7 @@ mod tests {
     }
 
     /// § 4 does not only require the refusal — it requires it to name **both**
-    /// fixes, `->all()` *or* a `{shared: false}` connection, because they fix
+    /// fixes, `->all()` *or* a `{ shared: false }` connection, because they fix
     /// different programs. Asserted for every entry point that can refuse, so a
     /// member added later with a message of its own fails here rather than
     /// shipping half the answer.
@@ -5784,7 +5784,7 @@ mod tests {
                 "the buffered read is unnamed: {said}"
             );
             assert!(
-                said.contains("{shared: false}"),
+                said.contains("{ shared: false }"),
                 "the dedicated connection is unnamed: {said}"
             );
         }

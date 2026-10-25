@@ -379,7 +379,7 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "limits",
             desc: "Lower limits for the connection, written as `spawn script` writes them: \
-                   `{memory: \"8M\", cpu_time: \"2s\"}`. The keys are `memory`, `cpu_time`, \
+                   `{ memory: \"8M\", cpu_time: \"2s\" }`. The keys are `memory`, `cpu_time`, \
                    `wall_time`, `max_output` and `max_tasks`. A limit higher than the \
                    server's own has no effect. The connection stops when it reaches one.",
             shape: &[],
@@ -1920,7 +1920,7 @@ mod tests {
         ctx.set_inbound(inbound);
     }
 
-    /// `{room: "lobby"}`, as the one refcounted argument a crossing can be
+    /// `{ room: "lobby" }`, as the one refcounted argument a crossing can be
     /// observed on: an `int` would cross as itself and prove nothing.
     fn a_room() -> Value {
         let mut map = NvsArray::new();

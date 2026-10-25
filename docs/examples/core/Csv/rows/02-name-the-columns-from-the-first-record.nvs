@@ -1,6 +1,6 @@
 <?nvs
 // Shows how to read a file whose first line names the columns. With
-// `{header: true}` every record is keyed by those names.
+// `{ header: true }` every record is keyed by those names.
 
 string $path = Core\Path::join(Core\IO::temporaryDir(), 'stock.csv');
 Core\IO::write($path, "product,count\nfig,2\napple,10\n");

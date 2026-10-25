@@ -1,13 +1,13 @@
 <?nvs
 // Shows which part of a class each attribute is written on.
 
-#[{table: 'products'}]
+#[{ table: 'products' }]
 class Product
 {
-    #[{column: 'product_name'}]
+    #[{ column: 'product_name' }]
     public string $name = '';
 
-    #[{cache: 300}]
+    #[{ cache: 300 }]
     public function price(): int
     {
         return 0;

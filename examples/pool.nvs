@@ -99,7 +99,7 @@ class Ceiling
 var $db = Db::connect('tight');
 echo 'opened=', Ceiling::one($db, 'select 1 as n'), "\n";
 
-// `{shared: false}` is what makes this a *second* connection rather than the
+// `{ shared: false }` is what makes this a *second* connection rather than the
 // one above handed back: § 2's memoization is per request, and opting out of it
 // opts into the handshake — which is where the ceiling is, since § 13 takes the
 // slot before the socket and so bounds every connection this core holds under

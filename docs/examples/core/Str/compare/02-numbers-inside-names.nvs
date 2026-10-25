@@ -11,7 +11,7 @@ array<string> $plain = Core\Arr::sort(
 );
 echo Core\Str::join($plain, ', '), "\n";
 
-// With `{natural: true}`, the digits are compared as numbers.
+// With `{ natural: true }`, the digits are compared as numbers.
 // This prints `file1.txt, file2.txt, file10.txt`.
 array<string> $natural = Core\Arr::sort(
     $files,

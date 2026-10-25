@@ -1,6 +1,6 @@
 `get` with two matching attributes is `E0728`. `all` has no such limit.
 
-The type between `<` and `>` must be a shape, written out as `{label: string}` or as a `type` alias
+The type between `<` and `>` must be a shape, written out as `{ label: string }` or as a `type` alias
 for one. `get<int>` is `E0729`, and `get` with no type is `E0442`.
 
 Every class has a constructor, even when you do not write one. So `Users::constructor(...)` always

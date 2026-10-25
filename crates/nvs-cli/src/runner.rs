@@ -2980,7 +2980,7 @@ fn input_fits(
     }
 }
 
-/// One generated input written the way a program writes the value: `[1, 2]`, `{a: 1}`,
+/// One generated input written the way a program writes the value: `[1, 2]`, `{ a: 1 }`,
 /// `new Point(1, 2)`, and a string in double quotes with its escapes. An enum case is written as
 /// its backing value.
 fn render_input(input: &nvs_types::property::Generated) -> String {

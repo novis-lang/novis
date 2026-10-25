@@ -12,7 +12,7 @@
 // function that all three doors reach.
 //
 // Two more rules are on display, both structural rather than advisory. A
-// lifetime is a **required key holding a nullable value** — `{until: null}`
+// lifetime is a **required key holding a nullable value** — `{ until: null }`
 // is the forever spelling and leaving the key out does not compile
 // (`rule:core-api/a-lifetime-is-written`) — because a permanent signed link
 // is a permanent bearer credential, written into browser history, `Referer`

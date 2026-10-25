@@ -252,7 +252,7 @@ fn hover_on_later_shows_its_card() {
     );
     let value = value.expect("`later` hovers");
     assert!(
-        value.contains("Core\\Html::later(callable(): mixed $fn, {placeholder?: "),
+        value.contains("Core\\Html::later(callable(): mixed $fn, { placeholder?: "),
         "{value}"
     );
     assert!(value.contains("returns a placeholder"), "{value}");

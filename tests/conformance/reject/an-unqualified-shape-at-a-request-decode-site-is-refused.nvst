@@ -26,13 +26,13 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0810]: `name` is declared `string` in `{name: string}`, and `Core\Request::jsonAs` fills it with text from outside the program
+error[E0810]: `name` is declared `string` in `{ name: string }`, and `Core\Request::jsonAs` fills it with text from outside the program
   --> case.nvs:9:34
 %A
-error[E0810]: `q` is declared `string` in `{q: string}`, and `Core\Request::queryAs` fills it with text from outside the program
+error[E0810]: `q` is declared `string` in `{ q: string }`, and `Core\Request::queryAs` fills it with text from outside the program
    --> case.nvs:10:36
 %A
-error[E0810]: `email` is declared `string` in `{email: string}`, and `Core\Request::postAs` fills it with text from outside the program
+error[E0810]: `email` is declared `string` in `{ email: string }`, and `Core\Request::postAs` fills it with text from outside the program
    --> case.nvs:11:34
 %A
 error: aborting due to 3 errors

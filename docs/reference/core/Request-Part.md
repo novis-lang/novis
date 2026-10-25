@@ -39,7 +39,7 @@ foreach (Core\Request::files() as Core\Request\Part $part) {
     foreach ($part->content() as tainted bytes $chunk) {
         $bytes = $bytes + Core\Bytes::length($chunk);
     }
-    echo $part->name(), " (", $part->filename(), ", ", $part->contentType(), "): ", $bytes, "\n";
+    echo $part->name(), ' (', $part->filename(), ', ', $part->contentType(), '): ', $bytes, "\n";
 }
 ```
 
@@ -49,7 +49,7 @@ not two halves of one:
 ```nvs skip
 <?nvs
 foreach (Core\Request::files() as Core\Request\Part $part) {
-    tainted bytes $whole = $part->readAll({max: 1 * 1024 * 1024});
+    tainted bytes $whole = $part->readAll({ max: 1 * 1024 * 1024 });
     echo Core\Bytes::length($whole), "\n";
 }
 ```
@@ -57,7 +57,7 @@ foreach (Core\Request::files() as Core\Request\Part $part) {
 ```nvs skip
 <?nvs
 foreach (Core\Request::files() as Core\Request\Part $part) {
-    $part->saveTo(Core\IO::within("uploads", $part->filename()), {overwrite: true});
+    $part->saveTo(Core\IO::within('uploads', $part->filename()), { overwrite: true });
 }
 ```
 

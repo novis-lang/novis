@@ -5,7 +5,7 @@ class Pages
 {
     #[Core\Route(path: '/news', method: Core\Http\Method::Get, name: 'Pages::news')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{seconds: 60}]
+    #[{ seconds: 60 }]
     public function news(): string
     {
         return 'news';
@@ -19,7 +19,7 @@ class Pages
     }
 }
 
-// The method of `/news` has `#[{seconds: 60}]`. This prints `news: 60 seconds`.
+// The method of `/news` has `#[{ seconds: 60 }]`. This prints `news: 60 seconds`.
 ?Core\Router\Match $news = Core\Router::match(Core\Http\Method::Get, '/news');
 if ($news != null) {
     ?{ seconds: int } $cache = $news->attribute<{ seconds: int }>();

@@ -5,11 +5,11 @@
 
 class CheckoutController
 {
-    #[{method: 'POST', path: '/checkout'}]
+    #[{ method: 'POST', path: '/checkout' }]
     public function pay(): void
     {}
 
-    #[{method: 'GET', path: '/checkout/done', cache: 60}]
+    #[{ method: 'GET', path: '/checkout/done', cache: 60 }]
     public function done(): void
     {}
 }

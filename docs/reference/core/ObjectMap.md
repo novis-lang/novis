@@ -13,30 +13,32 @@ may `remove` what it is walking.
 
 ```nvs
 <?nvs
-class Tag {
-    public function constructor(public string $name) {}
+class Tag
+{
+    public function constructor(public string $name)
+    {}
 }
 
-var $red = new Tag("red");
-var $blue = new Tag("blue");
+var $red = new Tag('red');
+var $blue = new Tag('blue');
 
 var $weights = new Core\ObjectMap<Tag, int>();
 $weights->set($red, 3);
 $weights->set($blue, 7);
 $weights->set($red, 4);
 
-echo "red=", $weights->get($red) ?? 0, "\n";
-echo "other red=", $weights->get(new Tag("red")) ?? -1, "\n";
-echo "count=", $weights->count(), "\n";
+echo 'red=', $weights->get($red) ?? 0, "\n";
+echo 'other red=', $weights->get(new Tag('red')) ?? -1, "\n";
+echo 'count=', $weights->count(), "\n";
 
 foreach ($weights as Tag $tag) {
-    echo $tag->name, " ";
+    echo $tag->name, ' ';
 }
 echo "\n";
 
 $weights->remove($blue);
-echo $weights->has($blue) ? "blue kept" : "blue gone", "\n";
-echo "keys=", Core\Arr::count($weights->keys()), " values=", Core\Arr::count($weights->values()), "\n";
+echo $weights->has($blue) ? 'blue kept' : 'blue gone', "\n";
+echo 'keys=', Core\Arr::count($weights->keys()), ' values=', Core\Arr::count($weights->values()), "\n";
 ```
 ```output
 red=4

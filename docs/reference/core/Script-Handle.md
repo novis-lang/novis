@@ -20,23 +20,23 @@ spawn = true
 ```
 ```nvs file=child.nvs
 <?nvs
-echo "child says hello";
+echo 'child says hello';
 return 6 * 7;
 ```
 ```nvs
 <?nvs
 var $job = spawn script 'child.nvs' with(output: 'capture');
-echo "spawned", "\n";
+echo 'spawned', "\n";
 
 var $done = await $job;
-echo "ok=", $done->ok ? "true" : "false", "\n";
-echo "output=", $done->output, "\n";
-echo "value=", $done->value as int, "\n";
+echo 'ok=', $done->ok ? 'true' : 'false', "\n";
+echo 'output=', $done->output, "\n";
+echo 'value=', $done->value as int, "\n";
 
 try {
     var $again = await $job;
 } catch (LogicError $twice) {
-    echo "a handle is awaited once", "\n";
+    echo 'a handle is awaited once', "\n";
 }
 ```
 ```output

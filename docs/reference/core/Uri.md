@@ -21,26 +21,26 @@ which throws for octets no `string` can hold, exactly where a `string`-returning
 
 ```nvs
 <?nvs
-var $u = Core\Uri::parse("https://example.com:8443/a/b%20c?x=1&y=2#top");
-echo $u->scheme() ?? "-", " ", $u->host() ?? "-", " ", $u->port() ?? 0, "\n";
-echo $u->path(), " ", $u->query() ?? "-", " ", $u->fragment() ?? "-", "\n";
-echo $u->with({path: "/c", fragment: "end"})->toString(), "\n";
-echo $u->resolve("../d?z=3")->toString(), "\n";
+var $u = Core\Uri::parse('https://example.com:8443/a/b%20c?x=1&y=2#top');
+echo $u->scheme() ?? '-', ' ', $u->host() ?? '-', ' ', $u->port() ?? 0, "\n";
+echo $u->path(), ' ', $u->query() ?? '-', ' ', $u->fragment() ?? '-', "\n";
+echo $u->with({ path: '/c', fragment: 'end' })->toString(), "\n";
+echo $u->resolve('../d?z=3')->toString(), "\n";
 
-var $rel = Core\Uri::parse("/only/a/path");
-echo $rel->scheme() == null ? "relative" : "absolute", "\n";
-echo Core\Uri::tryParse("http://example.com/a b") == null ? "not a uri" : "a uri", "\n";
+var $rel = Core\Uri::parse('/only/a/path');
+echo $rel->scheme() == null ? 'relative' : 'absolute', "\n";
+echo Core\Uri::tryParse('http://example.com/a b') == null ? 'not a uri' : 'a uri', "\n";
 
-var $same = Core\Uri::parse("HTTPS://EXAMPLE.com:8443/a/b%20c?x=1&y=2#top");
-echo $u->compareTo($same) == 0 ? "same uri" : "different", "\n";
+var $same = Core\Uri::parse('HTTPS://EXAMPLE.com:8443/a/b%20c?x=1&y=2#top');
+echo $u->compareTo($same) == 0 ? 'same uri' : 'different', "\n";
 
-var $q = Core\Uri::parseQuery("a=1&b[]=2&b[]=3");
-echo Core\Str::join(Core\Arr::keys($q), ","), "\n";
-array<mixed> $params = ["name" => "a b", "page" => 2];
+var $q = Core\Uri::parseQuery('a=1&b[]=2&b[]=3');
+echo Core\Str::join(Core\Arr::keys($q), ','), "\n";
+array<mixed> $params = ['name' => 'a b', 'page' => 2];
 echo Core\Uri::buildQuery($params), "\n";
-echo $u->queryParameter("x") as bytes as string, "\n";
-echo $u->withQueryParameter("y", null)->withQueryParameter("z", "3")->toString(), "\n";
-echo Core\Uri::encodeComponent("a b&c"), " ", Core\Uri::encodeFormValue("a b&c"), "\n";
+echo $u->queryParameter('x') as bytes as string, "\n";
+echo $u->withQueryParameter('y', null)->withQueryParameter('z', '3')->toString(), "\n";
+echo Core\Uri::encodeComponent('a b&c'), ' ', Core\Uri::encodeFormValue('a b&c'), "\n";
 ```
 ```output
 https example.com 8443

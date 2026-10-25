@@ -17,7 +17,7 @@ error[E0729]: `Core\Router\Match::attribute` returns an attribute by its shape, 
    |
 10 | ?int $limit = $shop?->attribute<int>();
    |               ^^^^^^^^^^^^^^^^^^^^^^^^ `int` written here
-   = help: write a shape such as `{seconds: int}`, or a `type` name for one. An attribute matches when it has every field of the shape
+   = help: write a shape such as `{ seconds: int }`, or a `type` name for one. An attribute matches when it has every field of the shape
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

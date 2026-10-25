@@ -18,9 +18,9 @@ a parameter declaring which generator it takes cannot be handed the other one by
 <?nvs
 echo Core\Random::int(7, 7), "\n";
 int $face = Core\Random::int(1, 6);
-echo $face >= 1 && $face <= 6 ? "a die face" : "out of range", "\n";
+echo $face >= 1 && $face <= 6 ? 'a die face' : 'out of range', "\n";
 
-array<string> $only = ["ace"];
+array<string> $only = ['ace'];
 echo Core\Random::pick($only), "\n";
 array<int> $deck = [1, 2, 3, 4, 5];
 echo Core\Arr::count(Core\Random::shuffle($deck)), "\n";
@@ -29,10 +29,10 @@ echo Core\Arr::count(Core\Random::sample($deck, 2)), "\n";
 echo Core\Str::length(Core\Random::token(8)), "\n";
 echo Core\Bytes::length(Core\Random::bytes(16)), "\n";
 float $f = Core\Random::float();
-echo $f >= 0.0 && $f < 1.0 ? "in [0, 1)" : "outside", "\n";
+echo $f >= 0.0 && $f < 1.0 ? 'in [0, 1)' : 'outside', "\n";
 
 array<int> $none = [];
-echo Core\Random::pick($none) == null ? "nothing to pick" : "picked", "\n";
+echo Core\Random::pick($none) == null ? 'nothing to pick' : 'picked', "\n";
 try {
     Core\Random::int(5, 1);
 } catch (RuntimeError $empty) {
@@ -41,8 +41,8 @@ try {
 
 var $left = new Core\Random\Seeded(42);
 var $right = new Core\Random\Seeded(42);
-echo $left->token(4) == $right->token(4) ? "one seed, one sequence" : "diverged", "\n";
-echo $left->int(1, 6) == $right->int(1, 6) ? "and it stays that way" : "diverged", "\n";
+echo $left->token(4) == $right->token(4) ? 'one seed, one sequence' : 'diverged', "\n";
+echo $left->int(1, 6) == $right->int(1, 6) ? 'and it stays that way' : 'diverged', "\n";
 ```
 ```output
 7

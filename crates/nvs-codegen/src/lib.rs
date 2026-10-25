@@ -1657,7 +1657,7 @@ impl Classes {
     /// The recursion terminates on the type: a shape's field types are written
     /// out in full where the shape is, so no contract reaches itself. An entry
     /// already defined is handed back rather than defined twice, which is what
-    /// keeps `{a: {n: int}, b: {n: int}}` one nested table and not two.
+    /// keeps `{ a: { n: int }, b: { n: int } }` one nested table and not two.
     fn define_shape_codec(
         &mut self,
         shape: &nvs_ir::ir::ShapeCodec,
@@ -3022,7 +3022,7 @@ fn core_desc_symbols() -> impl Iterator<Item = (String, *const u8)> {
 ///
 /// The key is `nvs_ir::ir::ShapeCodec::key`, which renders the contract itself,
 /// so two units that wrote the same shape mint the same symbol and one that
-/// wrote `{n: string}` where another wrote `{n: int}` cannot collide with it.
+/// wrote `{ n: string }` where another wrote `{ n: int }` cannot collide with it.
 #[must_use]
 pub fn shape_codec_symbol(key: &str) -> String {
     mangled("nvs_shape_codec_", key)

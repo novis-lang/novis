@@ -20,20 +20,20 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `{age: int, name: string}`, found `{name: string}`
+error[E0401]: expected `{ age: int, name: string }`, found `{ name: string }`
   --> case.nvs:5:35
 %A
   = help: `age` is required here, and this value does not supply it
 %A
-error[E0401]: expected `{x: int, y: int, z: int}`, found `{y: int}`
+error[E0401]: expected `{ x: int, y: int, z: int }`, found `{ y: int }`
   --> case.nvs:8:35
 %A
   = help: these keys are required here, and this value supplies none of them: `x`, `z`
 %A
-error[E0401]: expected `{x: int}`, found `{x: string}`
+error[E0401]: expected `{ x: int }`, found `{ x: string }`
    --> case.nvs:12:21
 %A
-error[E0401]: expected `{age: int, name: string}`, found `{name: string}`
+error[E0401]: expected `{ age: int, name: string }`, found `{ name: string }`
    --> case.nvs:15:38
 %A
    = help: `age` is required here, and this value does not supply it

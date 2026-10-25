@@ -33,7 +33,7 @@
 //!
 //! A comparator wins because it is the more specific of the two and is written
 //! at the call site that wanted it — the same precedence `Core\Arr::sort`'s
-//! `{comparator: …}` has over its own natural order.
+//! `{ comparator: … }` has over its own natural order.
 //!
 //! Step 2 reaches a `Core`-owned instance — a `Core\Time\Instant`, a
 //! `Core\BigInt` — as readily as a class the program declared, and neither the

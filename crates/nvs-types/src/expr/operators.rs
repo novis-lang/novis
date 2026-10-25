@@ -2326,7 +2326,7 @@ fn reject_untestable_object_target(from: TypeId, to: TypeId, span: Span, env: &m
         .with_help(
             "There is no checked conversion into this type, because it cannot be tested at run \
              time. Convert to a declared class, a `Core` class such as `Core\\Time\\Date`, or a \
-             shape such as `{id: int}`. A shape cannot have a `secret` field here.",
+             shape such as `{ id: int }`. A shape cannot have a `secret` field here.",
         ),
     );
 }

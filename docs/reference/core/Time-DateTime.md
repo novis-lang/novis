@@ -35,20 +35,20 @@ are refused.
 ```nvs
 <?nvs
 var $utc = Core\Time\Zone::UTC;
-var $d = Core\Time::at(2024, 1, 31, $utc, {hour: 9, minute: 30});
-echo $d->format("yyyy-MM-dd HH:mm:ss"), "\n";
+var $d = Core\Time::at(2024, 1, 31, $utc, { hour: 9, minute: 30 });
+echo $d->format('yyyy-MM-dd HH:mm:ss'), "\n";
 echo $d->format("EEEE, d MMMM yyyy 'at' h:mm a"), "\n";
 
-echo $d->plus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "\n";
-echo $d->minus(1, Core\Unit::Week)->format("yyyy-MM-dd"), "\n";
-echo $d->next(Core\Time\DateTime::Weekday::Monday)->format("yyyy-MM-dd HH:mm"), "\n";
-echo $d->with({month: 3, day: 1})->format("yyyy-MM-dd"), "\n";
-echo $d->startOf(Core\Unit::Day)->format("HH:mm"), " ",
-    $d->endOf(Core\Unit::Month)->format("dd HH:mm:ss.SSS"), "\n";
+echo $d->plus(1, Core\Unit::Month)->format('yyyy-MM-dd'), "\n";
+echo $d->minus(1, Core\Unit::Week)->format('yyyy-MM-dd'), "\n";
+echo $d->next(Core\Time\DateTime::Weekday::Monday)->format('yyyy-MM-dd HH:mm'), "\n";
+echo $d->with({ month: 3, day: 1 })->format('yyyy-MM-dd'), "\n";
+echo $d->startOf(Core\Unit::Day)->format('HH:mm'), ' ',
+    $d->endOf(Core\Unit::Month)->format('dd HH:mm:ss.SSS'), "\n";
 
 echo $d->difference(Core\Time::at(2026, 8, 30, $utc), Core\Unit::Year), "\n";
-echo $d->weekday() == Core\Time\DateTime::Weekday::Wednesday ? "midweek" : "other", "\n";
-echo $d->dayOfYear(), " ", $d->isLeapYear() ? "leap" : "common", "\n";
+echo $d->weekday() == Core\Time\DateTime::Weekday::Wednesday ? 'midweek' : 'other', "\n";
+echo $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap' : 'common', "\n";
 echo $d->toInstant()->toIso(), "\n";
 ```
 ```output

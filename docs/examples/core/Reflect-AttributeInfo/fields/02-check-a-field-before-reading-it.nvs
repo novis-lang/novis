@@ -3,11 +3,11 @@
 
 class Job
 {
-    #[{retries: 3}]
+    #[{ retries: 3 }]
     public function sendReport(): void
     {}
 
-    #[{queue: 'low'}]
+    #[{ queue: 'low' }]
     public function cleanUp(): void
     {}
 }

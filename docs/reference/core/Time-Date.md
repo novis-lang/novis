@@ -14,12 +14,12 @@ none to render. Two dates are ordered with `compareTo`; the `<` operators do not
 ```nvs
 <?nvs
 var $d = Core\Time\Date::at(2024, 1, 31);
-echo $d->format("yyyy-MM-dd"), "\n";
-echo $d->format("EEEE, d MMMM"), "\n";
+echo $d->format('yyyy-MM-dd'), "\n";
+echo $d->format('EEEE, d MMMM'), "\n";
 
-echo $d->plus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "\n";
-echo $d->minus(1, Core\Unit::Day)->format("EEE d MMM"), "\n";
-echo $d->with({month: 3})->format("yyyy-MM-dd"), "\n";
+echo $d->plus(1, Core\Unit::Month)->format('yyyy-MM-dd'), "\n";
+echo $d->minus(1, Core\Unit::Day)->format('EEE d MMM'), "\n";
+echo $d->with({ month: 3 })->format('yyyy-MM-dd'), "\n";
 echo $d->compareTo(Core\Time\Date::at(2024, 2, 1)), "\n";
 
 try {
@@ -29,7 +29,7 @@ try {
 }
 
 var $utc = Core\Time\Zone::UTC;
-echo Core\Time::at(2024, 3, 1, $utc, {hour: 23})->date()->format("d/M/yyyy"), "\n";
+echo Core\Time::at(2024, 3, 1, $utc, { hour: 23 })->date()->format('d/M/yyyy'), "\n";
 ```
 ```output
 2024-01-31

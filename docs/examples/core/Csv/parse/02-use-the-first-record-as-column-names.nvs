@@ -1,6 +1,6 @@
 <?nvs
 // Shows how to read a document whose first record holds the column names. With
-// `{header: true}` every later record is keyed by those names, and the first
+// `{ header: true }` every later record is keyed by those names, and the first
 // record is not part of the result.
 
 string $document = "name,qty,price\nfig,2,3.50\napple,10,0.40\n";

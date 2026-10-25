@@ -62,13 +62,13 @@ error[E0401]: expected `string`, found `tainted string`
 error[E0401]: expected `string`, found `tainted string`
    --> case.nvs:18:24
 %A
-error[E0851]: `{name: string}` gets its text from `mixed`, so it must be `tainted {…}`
+error[E0851]: `{ name: string }` gets its text from `mixed`, so it must be `tainted {…}`
    --> case.nvs:22:7
 %A
-error[E0851]: `{name: string}` gets its text from `mixed`, so it must be `tainted {…}`
+error[E0851]: `{ name: string }` gets its text from `mixed`, so it must be `tainted {…}`
    --> case.nvs:23:5
 %A
-error[E0851]: `{name: string}` gets its text from `object`, so it must be `tainted {…}`
+error[E0851]: `{ name: string }` gets its text from `object`, so it must be `tainted {…}`
    --> case.nvs:27:7
 %A
 error: aborting due to 11 errors

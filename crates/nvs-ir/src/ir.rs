@@ -123,7 +123,7 @@ pub struct Enum {
 }
 
 /// The wire contract of one inline shape a call site wrote as a type argument —
-/// `Core\Json::decodeAs<{n: int}>`'s `{n: int}`, read as the per-field list
+/// `Core\Json::decodeAs<{ n: int }>`'s `{ n: int }`, read as the per-field list
 /// `nvs_runtime::ShapeCodec` holds.
 ///
 /// One of these per distinct **contract**, not per call site: two calls writing
@@ -1205,7 +1205,7 @@ pub enum InstKind {
     /// known here. A shape is anonymous and methodless, so there is no class
     /// label for codegen to resolve an offset through — and the receiver's
     /// *static* shape need not be the concrete value's own: `rule:types/shape-type`'s
-    /// width subtyping lets a `{x: int, y: int}` reach a `{y: int}`
+    /// width subtyping lets a `{ x: int, y: int }` reach a `{ y: int }`
     /// parameter, where the two lay their slots out differently. So this is
     /// a **name-keyed fetch**, `nvs_runtime::nvs_object_slot_get`, and not a
     /// fixed offset, as `rule:types/erased-member-access` says outright. No
@@ -1263,7 +1263,7 @@ pub enum InstKind {
         /// no field of that name.
         absent: AbsentKey,
     },
-    /// `$x is {path: string}`'s presence question, and the one object access
+    /// `$x is { path: string }`'s presence question, and the one object access
     /// that **cannot fail**: does the receiver carry a readable field of this
     /// name, answered as a [`Ty::Bool`]?
     ///
@@ -1287,7 +1287,7 @@ pub enum InstKind {
     /// different question and answers a `bool`. Nor could the read hand absence
     /// back as a value instead: `nvs_runtime::Tag::Unset` is a storage state
     /// that never becomes an expression's value, and [`AbsentKey::Null`] cannot
-    /// tell an absent `{a: ?int}` from an `a` holding `null` — the distinction
+    /// tell an absent `{ a: ?int }` from an `a` holding `null` — the distinction
     /// `rule:types/type-test`'s shape row exists to make.
     ///
     /// Borrows its receiver and allocates nothing: one call, and one name
@@ -1317,8 +1317,8 @@ pub enum InstKind {
     /// **Fallible for a second reason the read does not have.** § 4 checks the
     /// incoming value against the field's *real* declared type, because § 3
     /// compares a shape's field types by ordinary assignability and a shape
-    /// value is aliased rather than copied — so `{n: int|string}` is a legal
-    /// view of a `{n: int}` value, and a `string` written through it would sit
+    /// value is aliased rather than copied — so `{ n: int|string }` is a legal
+    /// view of a `{ n: int }` value, and a `string` written through it would sit
     /// in a slot the narrow view loads as an `int`. What the runtime actually
     /// compares is the tag; `nvs_runtime::object`'s module docs
     /// § *What a shape write checks* own that granularity and its gaps.
@@ -2235,7 +2235,7 @@ pub const fn prepared_code(fact: Option<Prepared>) -> i64 {
 /// and yields `null` (Novis throws instead — `rule:types/absent-storage-is-never-a-zero-value`), while
 /// `$a["k"] ?? "d"` is defined as *"absent or `null`, without the warning"*
 /// and must produce the default. `rule:types/shape-type`'s optional field asks
-/// the identical question of an object: `{a?: string}` proves the type and not
+/// the identical question of an object: `{ a?: string }` proves the type and not
 /// the presence, so `$p->a` throws and `$p->a ?? "d"` must not — which is why
 /// one enum serves both instructions rather than each growing its own bit.
 /// The guard is recognized in `nvs_types`, which records it on the access's

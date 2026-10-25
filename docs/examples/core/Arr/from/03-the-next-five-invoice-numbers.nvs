@@ -17,7 +17,7 @@ class Invoices
     }
 }
 
-// `{limit: 5}` reads five values and then stops the generator.
+// `{ limit: 5 }` reads five values and then stops the generator.
 // This prints ["INV-1007","INV-1008","INV-1009","INV-1010","INV-1011"].
 array<string> $batch = Core\Arr::from(Invoices::numbers(1007), { limit: 5 });
 echo Core\Json::encode($batch), "\n";

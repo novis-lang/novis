@@ -6,7 +6,7 @@
 //!
 //! The types are the rows of `rule:packaging/a-value-crosses-as-its-wit-type`'s table: `bool`,
 //! `int`, `uint`, `float`, `string`, `bytes`, `mixed`, `array<T>`, `array<K, V>`, `?T`, a shape
-//! `{a: T, b?: U}`, and four named rows. `void` is a return, never a type here:
+//! `{ a: T, b?: U }`, and four named rows. `void` is a return, never a type here:
 //! [`crate::manifest::Method`] writes it as the absence of one.
 //!
 //! **A named type is resolved while it is parsed**, so a [`NovisType`] carries everything its
@@ -39,7 +39,7 @@ pub enum NovisType {
     Keyed(Box<NovisType>, Box<NovisType>),
     /// `?T`.
     Optional(Box<NovisType>),
-    /// `{a: T, b?: U}`: each field's name, whether it is optional, and its type, in order.
+    /// `{ a: T, b?: U }`: each field's name, whether it is optional, and its type, in order.
     Shape(Vec<Field>),
     /// An enum the manifest declares: its name and its cases, in order. It crosses as a WIT `enum`
     /// whose cases are the same names in kebab-case.

@@ -1,7 +1,7 @@
 Reads an array as the type you write at the call site. Values from a form, a query string or a
 decoded document arrive as text.
 
-You write the type between angle brackets. It can be a shape, such as `{name: string, age: int}`, or
+You write the type between angle brackets. It can be a shape, such as `{ name: string, age: int }`, or
 a class that carries `#[Core\Json\Derive]`. Each field the type names is converted with `as`. A key
 the type does not name is left out of the result. Write `array<T>` to read a whole list of them in
 one call.

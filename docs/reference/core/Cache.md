@@ -27,7 +27,7 @@ var $cache = Core\Cache::memory();
 echo $cache->get('greeting') ?? 'not in the cache', "\n";
 
 // Every request on this server can now read this value.
-$cache->put('greeting', 'hello', {ttl: 30s});
+$cache->put('greeting', 'hello', { ttl: 30s });
 echo $cache->get('greeting') ?? 'not in the cache', "\n";
 
 $cache->forget('greeting');

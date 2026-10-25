@@ -5,7 +5,7 @@
 //!
 //! `rule:tooling/commands-are-compiled` builds a *table* from them while compiling — the same
 //! `rule:programs/implementing` scan `rule:routing/routes-are-compiled-not-registered`'s route table is built by — so a userland
-//! `type Command = {name: string};` must not contribute a command however it is
+//! `type Command = { name: string };` must not contribute a command however it is
 //! spelled. That is exactly
 //! `rule:core-classes/derive-attribute`'s rule, so both
 //! names sit on [`crate::derive::ATTRIBUTES`] and are matched *nominally* after

@@ -12,7 +12,7 @@ and `since` measures the exact gap between two instants; a step in days or month
 
 ```nvs
 <?nvs
-var $start = Core\Time::fromIso("2024-03-01T12:00:00Z");
+var $start = Core\Time::fromIso('2024-03-01T12:00:00Z');
 echo $start->toIso(), "\n";
 echo $start->toEpochSeconds(), "\n";
 echo $start->toEpochMillis(), "\n";
@@ -23,8 +23,8 @@ echo $end->since($start), "\n";
 echo $start->minus(30m)->toIso(), "\n";
 echo $start->compareTo($end), "\n";
 
-echo $start->in(Core\Time\Zone::of("Asia/Tokyo"))->format("yyyy-MM-dd HH:mm"), "\n";
-echo Core\Time::fromEpoch(1709294400, {nanos: 500000000})->toIso(), "\n";
+echo $start->in(Core\Time\Zone::of('Asia/Tokyo'))->format('yyyy-MM-dd HH:mm'), "\n";
+echo Core\Time::fromEpoch(1709294400, { nanos: 500000000 })->toIso(), "\n";
 ```
 ```output
 2024-03-01T12:00:00Z

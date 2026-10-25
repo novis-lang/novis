@@ -42,7 +42,7 @@ A path built while the program runs must be absolute. For a relative one, the me
 `spawn script` needs an absolute path, and `child.nvs` is relative ``. A second line names
 `Core\Path::join` and `Core\Path::fromCwd`.
 
-`limits: {memory: "1M"}` gives the child a memory limit. A child that goes over it ends with `ok`
+`limits: { memory: "1M" }` gives the child a memory limit. A child that goes over it ends with `ok`
 `false` and a `RuntimeError`. `grants: []` gives the child no capabilities, so a `spawn script` inside
 it throws `RuntimeError`.
 

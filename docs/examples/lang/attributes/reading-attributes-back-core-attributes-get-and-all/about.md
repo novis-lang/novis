@@ -8,7 +8,7 @@ that declaration, and you then get the attributes on that one. This name must be
 write a variable there, the result is `null` or an empty list.
 
 Matching is by shape and not by name. An attribute with more fields than the shape you write still
-matches, so `{name: string}` matches `#[Tag(name: "alpha", weight: 3)]`.
+matches, so `{ name: string }` matches `#[Tag(name: "alpha", weight: 3)]`.
 
 Novis does all of this while it compiles your program. The call is replaced by the value it found, so
 there is no lookup while the program runs.

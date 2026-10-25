@@ -20,11 +20,11 @@ string $html = "<html lang=\"en\"><head><title>Invoice 1042</title></head><body>
 
 // The footer is a function. The render calls it once for each page.
 var $rendered = Document::fromHtml($html)
-    ->asset("logo.svg", $logo)
+    ->asset('logo.svg', $logo)
     ->footer(fn(Page $page): Core\Html\Markup => html`<p>Page {$page->number} of {$page->count}</p>`)
     ->render();
 
-echo Core\Bytes::startsWith($rendered->bytes, "%PDF-" as bytes) ? "a PDF file" : "not a PDF file", "\n";
+echo Core\Bytes::startsWith($rendered->bytes, '%PDF-' as bytes) ? 'a PDF file' : 'not a PDF file', "\n";
 echo $rendered->pageCount, " page\n";
 ```
 ```output

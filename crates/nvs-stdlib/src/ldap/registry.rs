@@ -648,7 +648,7 @@ const SEARCH_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "window",
             desc: "How many sorted entries to return, starting after `offset`. It needs `sort`. \
-                   With `{sort: 'cn', offset: 20, window: 10}`, the search returns entries 21 \
+                   With `{ sort: 'cn', offset: 20, window: 10 }`, the search returns entries 21 \
                    to 30. `total()` then returns how many entries there are in all. The \
                    default, 0, returns every entry.",
             shape: &[],
@@ -2627,7 +2627,7 @@ const AF_WITH_OPTIONS: &[CoreOption] = &[
 /// `Ldap\Ad\AccountFlags::with`'s reference card — `rule:core-api/reference-card`.
 const AF_WITH_DOC: MethodDoc = MethodDoc {
     short: "Returns a copy with the flags you name set or cleared, such as \
-            `$flags->with({disabled: true})`. Every other bit stays as it is. `lockedOut` and \
+            `$flags->with({ disabled: true })`. Every other bit stays as it is. `lockedOut` and \
             `passwordExpired` are not options, because Active Directory computes them.",
     params: &[
         flag_option_doc("script"),
@@ -2767,7 +2767,7 @@ const GT_WITH_OPTIONS: &[CoreOption] = &[
 /// `Ldap\Ad\GroupType::with`'s reference card — `rule:core-api/reference-card`.
 const GT_WITH_DOC: MethodDoc = MethodDoc {
     short: "Returns a copy with the flags you name set or cleared, such as \
-            `$type->with({security: false})`. Every other bit stays as it is.",
+            `$type->with({ security: false })`. Every other bit stays as it is.",
     params: &[
         flag_option_doc("system"),
         flag_option_doc("global"),

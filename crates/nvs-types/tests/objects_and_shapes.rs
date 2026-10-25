@@ -133,7 +133,7 @@ fn an_anon_object_missing_two_required_keys_names_both() {
 
 #[test]
 fn a_source_field_that_is_itself_optional_is_named_as_missing() {
-    // The source carries the key and still cannot supply it: `{x?: int}` is not
+    // The source carries the key and still cannot supply it: `{ x?: int }` is not
     // proven to hold an `x`, which is `shape_satisfied`'s rule and not a second
     // one written for the message.
     let diags = check_in_method("({x?: int}) $a = {x: 1};\n({x: int}) $b = $a;");
@@ -239,7 +239,7 @@ fn an_optional_field_that_is_present_is_still_type_checked() {
 
 #[test]
 fn an_optional_field_does_not_admit_null_and_a_nullable_one_does_not_admit_absence() {
-    // The two halves of `{a?: int}` versus `{a: ?int}`, asserted together so
+    // The two halves of `{ a?: int }` versus `{ a: ?int }`, asserted together so
     // that a checker collapsing them into one type fails here whichever way
     // round it collapsed them.
     let optional_given_null = check_in_method("({a?: int}) $p = {a: null};");
@@ -262,8 +262,8 @@ fn an_optional_field_does_not_admit_null_and_a_nullable_one_does_not_admit_absen
 
 #[test]
 fn a_source_whose_own_field_is_optional_does_not_fill_a_required_one() {
-    // Presence has to be *proven*, not merely possible: a `{a?: int}` value
-    // widens to another `{a?: int}` and to `{}`, and to nothing that promises
+    // Presence has to be *proven*, not merely possible: a `{ a?: int }` value
+    // widens to another `{ a?: int }` and to `{}`, and to nothing that promises
     // an `a`.
     let diags = check_src(
         "<?nvs\ntype Maybe = {a?: int};\ntype Sure = {a: int};\nclass T {\n  function m(Maybe $q): void {\n    Sure $p = $q;\n  }\n}\n",

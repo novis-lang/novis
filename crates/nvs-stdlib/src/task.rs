@@ -98,7 +98,7 @@ use crate::time::DURATION_NAME;
 /// every consumer that matches on it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Task";
 
-/// `rule:concurrency/limit-and-deadline-are-the-only-bounds`'s `{limit?: uint, deadline?: Duration}`, in the order the ABI passes
+/// `rule:concurrency/limit-and-deadline-are-the-only-bounds`'s `{ limit?: uint, deadline?: Duration }`, in the order the ABI passes
 /// them.
 ///
 /// Both are [`Const::Null`] rather than a number, for that variant's own
@@ -225,7 +225,7 @@ const ALL_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "tasks",
             desc: "An object whose fields are anonymous functions with no parameters, such as \
-                   `{a: fn (): int => 1}`. Write them directly in the call. A variable of type \
+                   `{ a: fn (): int => 1 }`. Write them directly in the call. A variable of type \
                    `callable` in a field does not compile.",
             shape: &[],
         },

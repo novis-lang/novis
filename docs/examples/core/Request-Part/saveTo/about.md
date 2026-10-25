@@ -2,9 +2,9 @@ Writes one uploaded file to a file on disk. It reads the upload in small pieces 
 at once, so even a very large file uses little memory. A request may write only in the folders that
 `Core\IO::temporaryDir` made for it. Any other path needs the `fs.write` capability.
 
-`{max: …}` sets the largest size in bytes. Without it, there is no limit. A larger file throws a
+`{ max: … }` sets the largest size in bytes. Without it, there is no limit. A larger file throws a
 `RuntimeError`, and the part that was already written is deleted. `saveTo` does not replace a file
-that already exists and throws an error instead. `{overwrite: true}` allows it.
+that already exists and throws an error instead. `{ overwrite: true }` allows it.
 
 The file name from `filename()` is `tainted`, so `saveTo` does not accept it as a path. Pass it
 through `Core\IO::within` first. Call `saveTo` while the `Core\Request::files()` loop is on this file.

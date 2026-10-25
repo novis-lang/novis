@@ -485,7 +485,7 @@ const THIS_DIR_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Path::basename`'s `{withoutExtension?: bool}` — `pathinfo`'s
+/// `Core\Path::basename`'s `{ withoutExtension?: bool }` — `pathinfo`'s
 /// `PATHINFO_FILENAME` as an option rather than as a second member, since it
 /// asks the same question of the same path.
 const BASENAME_OPTIONS: &[CoreOption] = &[CoreOption {
@@ -494,7 +494,7 @@ const BASENAME_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Bool(false),
 }];
 
-/// `Core\Path::dirname`'s `{levels?: uint}` — PHP's second `dirname` argument,
+/// `Core\Path::dirname`'s `{ levels?: uint }` — PHP's second `dirname` argument,
 /// with [`nvs_core_path_dirname`]'s own docs owning what `0` means here and
 /// throws there.
 const DIRNAME_OPTIONS: &[CoreOption] = &[CoreOption {
@@ -855,7 +855,7 @@ fn produced(text: &str) -> HelperResult {
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Path::basename(string $path, {withoutExtension?: bool}): string`
+    /// `Core\Path::basename(string $path, { withoutExtension?: bool }): string`
     /// — replacing PHP's `basename` and `pathinfo(…, PATHINFO_BASENAME)`.
     ///
     /// The **name** of the last component, so a trailing separator is ignored
@@ -879,7 +879,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Path::dirname(string $path, {levels?: uint}): string` — replacing
+    /// `Core\Path::dirname(string $path, { levels?: uint }): string` — replacing
     /// PHP's `dirname`, whose second argument becomes the one option here.
     ///
     /// Drops `levels` components from the end. Where that leaves nothing, the

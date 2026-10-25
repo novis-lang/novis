@@ -80,12 +80,12 @@
 //! network call would put an attacker-controlled string on the request path's
 //! latency budget, which is latency traded away for nothing.
 //!
-//! # `isIp(string $s, {version?: 4|6})`
+//! # `isIp(string $s, { version?: 4|6 })`
 //!
-//! Omitting `version` accepts either family; `{version: 4}` and
-//! `{version: 6}` accept exactly one. The option is
+//! Omitting `version` accepts either family; `{ version: 4 }` and
+//! `{ version: 6 }` accept exactly one. The option is
 //! `rule:types/single-value-types`'s
-//! set of allowed values rather than an `int`, so `{version: 5}` does not compile —
+//! set of allowed values rather than an `int`, so `{ version: 5 }` does not compile —
 //! and that is the reason `isIpV4`/`isIpV6` are *gone* rather than
 //! being two more member names. It is the registry's first union-typed option,
 //! and [`crate::registry::CoreTy::Union`] records what that costs.
@@ -155,7 +155,7 @@
 //! Three tests have no member because another call already does them: a URL
 //! test is `Uri::tryParse($s)?->scheme() != null`, a test for one of several
 //! allowed values is `Arr::contains($allowed, $value)`, and an IPv4 or IPv6
-//! test is the `{version: 4}` or `{version: 6}` option.
+//! test is the `{ version: 4 }` or `{ version: 6 }` option.
 
 use nvs_runtime::{Fault, Tag, Value};
 
@@ -431,7 +431,7 @@ fn family(value: &Value) -> Result<Option<u8>, Fault> {
             ))),
         },
         // The same declaration refuses every other tag one step earlier:
-        // `{version: "4"}` is `E0401: expected `4|6`, found `string``, so this
+        // `{ version: "4" }` is `E0401: expected `4|6`, found `string``, so this
         // arm is unreachable from source and covers only the `Tag::Null` an
         // omitting call site does not take.
         _ => Err(Fault::fatal(format!(
@@ -562,7 +562,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Validate::isIp(string $s, {version?: 4|6}): bool` — replacing
+    /// `Core\Validate::isIp(string $s, { version?: 4|6 }): bool` — replacing
     /// `filter_var($s, FILTER_VALIDATE_IP)` and its two family flags, which
     /// this one option replaces.
     ///

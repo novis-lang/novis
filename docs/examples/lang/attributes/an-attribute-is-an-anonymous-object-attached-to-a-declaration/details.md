@@ -23,7 +23,7 @@ You can write an attribute on an enum, an enum case or a class constant, and the
 `Core\Attributes` cannot read it back, because only a class, an interface, a method, a property and a
 parameter have a way to name them.
 
-An attribute may have no name, as in `#[{inject: "repo"}]`. Nothing checks its fields.
+An attribute may have no name, as in `#[{ inject: "repo" }]`. Nothing checks its fields.
 
 Several attributes can share one bracket, with commas between them: `#[A(n: 1), B(s: "x")]`. This is
 the same as writing each one in its own bracket.

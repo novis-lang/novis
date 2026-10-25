@@ -2,7 +2,7 @@ Sets a function that returns the footer of each page of a document.
 
 `footer` works like `header`, in the bottom margin. `render` calls the function once for each page,
 with that page as a `Page`. The function returns an `html` template. `height`, such as
-`{height: "2cm"}`, sets the bottom margin.
+`{ height: "2cm" }`, sets the bottom margin.
 
 A footer often needs numbers from the page. `$page->isFirst()` and `$page->isLast()` test where the
 page is. `$page->marksUpTo("amount")` returns every `data-mark="amount:..."` value up to this page,

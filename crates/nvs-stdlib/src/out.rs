@@ -1,6 +1,6 @@
 //! `Core\Out`: one member, and the whole of PHP's `ob_*` family in it.
 //!
-//! `capture(callable $fn, {through?: callable}): Core\Html\Markup|Core\Cli\Text` runs `$fn` with
+//! `capture(callable $fn, { through?: callable }): Core\Html\Markup|Core\Cli\Text` runs `$fn` with
 //! this request's sink redirected into a buffer, and answers what it wrote.
 //! Three properties of that sentence are the design, and each is
 //! `rule:security/capture-answers-the-carrier`
@@ -42,7 +42,7 @@ use crate::registry::{
 /// The class's fully-qualified name.
 pub(crate) const NAME: &str = r"Core\Out";
 
-/// `capture`'s `{through?: callable}` — a transform applied to the captured
+/// `capture`'s `{ through?: callable }` — a transform applied to the captured
 /// carrier before it is answered.
 ///
 /// [`Const::Null`] rather than a do-nothing callable, for the reason that
@@ -127,7 +127,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Out::capture(callable $fn, {through?: callable}): Core\Html\Markup|Core\Cli\Text`
+    /// `Core\Out::capture(callable $fn, { through?: callable }): Core\Html\Markup|Core\Cli\Text`
     /// — see the module docs.
     ///
     /// The capture level is opened before `$fn` runs and closed on **both**

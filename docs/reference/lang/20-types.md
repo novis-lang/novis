@@ -737,13 +737,13 @@ any of the three is the error `E0496`. `Dog::class` is a `string`, the class nam
 `string` with a `class<T>` is the error `E0466`.
 
 A shape cannot be written in front of a variable, because a `{` at the start of a statement opens a
-block. `{x: int} $p = …;` is the error `E0134`. Name the shape with `type` first.
+block. `{ x: int } $p = …;` is the error `E0134`. Name the shape with `type` first.
 
 A value assigned to a shape needs every field the shape names, with the type it gives. A missing
 field or a field of another type is the error `E0401`. You can assign a new value to an existing
 field of an anonymous object. Adding a field it does not have throws a `RuntimeError`.
 
-`as Point` checks the type of each field too. `{x: 5, y: "six"} as Point` throws a `RuntimeError`,
+`as Point` checks the type of each field too. `{ x: 5, y: "six" } as Point` throws a `RuntimeError`,
 and `as ?Point` gives `null` for it.
 
 ## Example 01: pass a pricing rule around
@@ -825,7 +825,7 @@ echo $place is Point ? Grid::describe($place) : 'not on the grid', "\n";
 (3, 4)
 (10, 20) office
 (7, 1)
-cannot convert a value of another type to `{x: int, y: int}`
+cannot convert a value of another type to `{ x: int, y: int }`
 not on the grid
 ```
 
@@ -941,16 +941,16 @@ cannot convert a value of another type to `Row`
 // a statement opens a block, so this program does not compile.
 // proof: compile-error
 
-{x: int, y: int} $p = {x: 1, y: 2};
+{ x: int, y: int } $p = { x: 1, y: 2 };
 ```
 
 ```output
 error[E0134]: a local declaration cannot be typed with a bare shape
   --> main.nvs:6:1
   |
-6 | {x: int, y: int} $p = {x: 1, y: 2};
-  | ^^^^^^^^^^^^^^^^ `{` at the start of a statement already opens a block
-  = help: give the shape a name first: `type Point = {x: int}; Point $point;`
+6 | { x: int, y: int } $p = { x: 1, y: 2 };
+  | ^^^^^^^^^^^^^^^^^^ `{` at the start of a statement already opens a block
+  = help: give the shape a name first: `type Point = { x: int }; Point $point;`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -2027,7 +2027,7 @@ A duration has the units `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`. A duratio
 `==` checks whether two variables are the same object. `1h == 1h` is `false`. To compare two
 durations, use `compareTo`, which returns `0` when they are equal.
 
-An anonymous object at the start of a statement must be in parentheses: `({x: 1});`. Without them
+An anonymous object at the start of a statement must be in parentheses: `({ x: 1 });`. Without them
 it is the error `E0117`. The same is true for the body of an arrow function.
 
 An html template keeps every byte between the backticks, also the spaces and line breaks. Write a
@@ -2340,9 +2340,9 @@ These assignments each need `as` or a test that narrows the type. Without it, ea
 - a `mixed` value to any other type
 - a `?int` to an `int`. The help suggests `$value ?? 0`.
 
-An anonymous object written at a shape type has its fields converted too. `{x: 2}` at `{x: float}`
-stores `2.0`. A shape value that already exists is not converted. A `{x: int}` value at
-`{x: float}` is the error `E0401`. Build a new value instead: `{x: $old->x}`.
+An anonymous object written at a shape type has its fields converted too. `{ x: 2 }` at `{ x: float }`
+stores `2.0`. A shape value that already exists is not converted. A `{ x: int }` value at
+`{ x: float }` is the error `E0401`. Build a new value instead: `{ x: $old->x }`.
 
 ## Example 01: a whole number where a fraction is wanted
 

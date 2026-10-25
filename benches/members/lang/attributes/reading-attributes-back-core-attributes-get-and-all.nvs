@@ -16,7 +16,7 @@ class Orders
     #[Middleware(name: 'auth')]
     #[Middleware(name: 'throttle')]
     #[Middleware(name: 'audit')]
-    public function show(#[{max: 64}] int $id): int
+    public function show(#[{ max: 64 }] int $id): int
     {
         return $id;
     }

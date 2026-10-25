@@ -190,7 +190,7 @@
   },
   "/guides/extensions/rust/": {
     "feature": "guides/extensions/rust.mdx",
-    "hash": "561e463bf2253a4f",
+    "hash": "e7097760df20bc62",
     "questions": [
       "Step by step guide to write an extension in Rust",
       "Convert Markdown to HTML with a Rust library",
@@ -370,7 +370,7 @@
   },
   "/guides/simple-programs/csv-report/": {
     "feature": "guides/simple-programs/csv-report.mdx",
-    "hash": "09cec9a3c8e188d9",
+    "hash": "dd11f0db3c5da467",
     "questions": [
       "How do I add up sales per product from a spreadsheet file?",
       "Example of reading a CSV file and printing totals",
@@ -1020,7 +1020,7 @@
   },
   "/reference/cli/a-worked-session/": {
     "feature": "tools:agents/a-worked-session",
-    "hash": "1331efc3091dae06",
+    "hash": "811548eda7e035bb",
     "questions": [
       "How does an AI coding assistant find the right Novis method?",
       "Example of an AI agent looking up a function step by step",
@@ -1031,7 +1031,7 @@
   },
   "/reference/cli/files-extensions-and-tags/": {
     "feature": "tools:cli/files-extensions-and-tags",
-    "hash": "cd3d46ecf76fa70f",
+    "hash": "317833af348d8130",
     "questions": [
       "What file extension should a Novis program use?",
       "How do I start the code in a Novis file?",
@@ -1043,7 +1043,7 @@
   },
   "/reference/cli/nvs-agent/": {
     "feature": "tools:agents/nvs-agent",
-    "hash": "739666e77e09b36f",
+    "hash": "b3d2b8e7cd384ed3",
     "questions": [
       "How can an AI assistant look up the language from the command line?",
       "Search the standard library by keyword in the terminal",
@@ -1067,7 +1067,7 @@
   },
   "/reference/cli/nvs-agent-primer/": {
     "feature": "tools:agents/nvs-agent-primer",
-    "hash": "642bba76b56cea80",
+    "hash": "0b2bd88593b435b1",
     "questions": [
       "What should an AI assistant read before writing Novis code?",
       "Print a short introduction to the language for a coding agent",
@@ -1120,7 +1120,7 @@
   },
   "/reference/cli/nvs-check/": {
     "feature": "tools:cli/nvs-check",
-    "hash": "ae1a928451e3d86a",
+    "hash": "8cc13d1e84f0c0c6",
     "questions": [
       "How do I check my code for errors without running it?",
       "Type-check every file in a folder from a pre-commit hook or CI",
@@ -1198,7 +1198,7 @@
   },
   "/reference/cli/nvs-lsp/": {
     "feature": "tools:editor/nvs-lsp",
-    "hash": "33990e0eda0fc6ca",
+    "hash": "68861d58afed4cb3",
     "questions": [
       "How do I get error highlighting and autocomplete in my editor?",
       "Set up a language server for Novis in Vim or Neovim",
@@ -1232,7 +1232,7 @@
   },
   "/reference/cli/nvs-run/": {
     "feature": "tools:cli/nvs-run",
-    "hash": "4b60d187925a3a26",
+    "hash": "4b967e9f4aa6519b",
     "questions": [
       "How do I run a Novis script from the command line?",
       "Execute my program with a different configuration file",
@@ -1280,7 +1280,7 @@
   },
   "/reference/cli/nvs-test/": {
     "feature": "tools:cli/nvs-test",
-    "hash": "d71fb88842e26e67",
+    "hash": "357b5f6837f6f81d",
     "questions": [
       "How do I run my unit tests?",
       "Run only the tests whose name matches some text",
@@ -1364,7 +1364,7 @@
   },
   "/reference/config/app/": {
     "feature": "tools:config/app-per-application-blocks",
-    "hash": "6dfa0dec7d7f5e21",
+    "hash": "447d8cc88735737c",
     "questions": [
       "How do I give one program different settings than the rest?",
       "Run several applications on one server with separate limits",
@@ -1399,7 +1399,7 @@
   },
   "/reference/config/capabilities/": {
     "feature": "tools:config/capabilities",
-    "hash": "a82d7ea8b3517598",
+    "hash": "f535a1f7875a8be1",
     "questions": [
       "How do I allow a program to read files from a folder?",
       "Why does writing a file throw a RuntimeError about a capability?",
@@ -1499,7 +1499,7 @@
   },
   "/reference/config/include/": {
     "feature": "tools:config/include-a-tree-of-files",
-    "hash": "09bce2b7174c48a2",
+    "hash": "6407f18c4710fa83",
     "questions": [
       "How do I split configuration across several files?",
       "Load every settings file from a conf.d directory",
@@ -1520,7 +1520,7 @@
   },
   "/reference/config/limits/": {
     "feature": "tools:config/limits-and-limits-hard",
-    "hash": "e749b2a6b6baab99",
+    "hash": "d69a2c13b747c635",
     "questions": [
       "How do I limit how much memory a request can use?",
       "Stop a slow request after a few seconds",
@@ -1600,7 +1600,7 @@
   },
   "/reference/config/reading-and-changing-it-from-a-program-core-config/": {
     "feature": "tools:config/reading-and-changing-it-from-a-program-core-config",
-    "hash": "2dad302d66ad48df",
+    "hash": "2f3cde81e72f28f7",
     "questions": [
       "How do I read a setting from my program?",
       "Change a setting for the current request only",
@@ -1669,7 +1669,7 @@
   },
   "/reference/config/the-file-and-where-it-is-read-from/": {
     "feature": "tools:config/the-file-and-where-it-is-read-from",
-    "hash": "181650d8d52d1932",
+    "hash": "7c12df51f81f50f0",
     "questions": [
       "Where does Novis look for its configuration file?",
       "Use a different configuration file for one command",
@@ -1700,7 +1700,7 @@
   },
   "/reference/config/values-and-units/": {
     "feature": "tools:config/values-and-units",
-    "hash": "b13efae143ab06dc",
+    "hash": "72a040a2714847de",
     "questions": [
       "How do I write sizes like 256 megabytes?",
       "Write a timeout in minutes or milliseconds",
@@ -1775,7 +1775,7 @@
   },
   "/reference/core/arr/chunk/": {
     "feature": "Core\\Arr::chunk",
-    "hash": "7f1f50802d1c6f42",
+    "hash": "547f569cb0ea664f",
     "questions": [
       "How do I split an array into smaller arrays of equal size?",
       "Break a list into batches of ten items",
@@ -1786,7 +1786,7 @@
   },
   "/reference/core/arr/column/": {
     "feature": "Core\\Arr::column",
-    "hash": "592b7da3b5b5dda8",
+    "hash": "feed9719894e961b",
     "questions": [
       "How do I get one field from every row in an array?",
       "Extract a single column from a list of records",
@@ -1819,7 +1819,7 @@
   },
   "/reference/core/arr/countby/": {
     "feature": "Core\\Arr::countBy",
-    "hash": "a04354dcafbfd8af",
+    "hash": "cf0816aed2127355",
     "questions": [
       "How do I count how often each value appears in an array?",
       "Count occurrences of every item in a list",
@@ -1830,7 +1830,7 @@
   },
   "/reference/core/arr/diff/": {
     "feature": "Core\\Arr::diff",
-    "hash": "1cf074fd4b7227bd",
+    "hash": "a4c6e45e10b9d4bc",
     "questions": [
       "How do I find the values in one array that are not in another?",
       "Get the difference between two lists",
@@ -1942,7 +1942,7 @@
   },
   "/reference/core/arr/from/": {
     "feature": "Core\\Arr::from",
-    "hash": "e8b3d60b2c5829e0",
+    "hash": "c9e6659977675207",
     "questions": [
       "How do I convert a generator to an array?",
       "Turn an iterator into a list",
@@ -1985,7 +1985,7 @@
   },
   "/reference/core/arr/intersect/": {
     "feature": "Core\\Arr::intersect",
-    "hash": "c249da0d5c8bf543",
+    "hash": "654247fa239c1bf7",
     "questions": [
       "How do I find the values two arrays have in common?",
       "Get the intersection of two lists",
@@ -2161,7 +2161,7 @@
   },
   "/reference/core/arr/range/": {
     "feature": "Core\\Arr::range",
-    "hash": "1314e9ab91929543",
+    "hash": "c703d7f4081d9333",
     "questions": [
       "How do I create a list of numbers from 1 to 10?",
       "Generate a sequence of integers between two numbers",
@@ -2193,7 +2193,7 @@
   },
   "/reference/core/arr/reverse/": {
     "feature": "Core\\Arr::reverse",
-    "hash": "cd70f90e49312d6d",
+    "hash": "6551bbe5618384ed",
     "questions": [
       "How do I reverse the order of an array?",
       "Turn a list around so the last item comes first",
@@ -2203,7 +2203,7 @@
   },
   "/reference/core/arr/shapeas/": {
     "feature": "Core\\Arr::shapeAs",
-    "hash": "138bfd38bd9bd360",
+    "hash": "8f65799de2acb1a3",
     "questions": [
       "How do I convert an array into a typed object or shape?",
       "Read form data into a class with typed fields",
@@ -2214,7 +2214,7 @@
   },
   "/reference/core/arr/slice/": {
     "feature": "Core\\Arr::slice",
-    "hash": "465a574cdee81a29",
+    "hash": "0434cca00cd48578",
     "questions": [
       "How do I get part of an array?",
       "Take the first ten items of a list",
@@ -2225,7 +2225,7 @@
   },
   "/reference/core/arr/sort/": {
     "feature": "Core\\Arr::sort",
-    "hash": "4d56baa495d998a9",
+    "hash": "ba04e8ca41208d82",
     "questions": [
       "How do I sort an array by its values?",
       "Sort a list of numbers from smallest to largest",
@@ -2236,7 +2236,7 @@
   },
   "/reference/core/arr/sortbykey/": {
     "feature": "Core\\Arr::sortByKey",
-    "hash": "8d4e16949e5b14b4",
+    "hash": "b7444d3f4a066e44",
     "questions": [
       "How do I sort an array by its keys?",
       "Order a map alphabetically by key name",
@@ -2266,7 +2266,7 @@
   },
   "/reference/core/arr/unique/": {
     "feature": "Core\\Arr::unique",
-    "hash": "8a4490ab4386c705",
+    "hash": "11b7a71a3abed7a3",
     "questions": [
       "How do I remove duplicate values from an array?",
       "Make every value in a list unique",
@@ -2485,7 +2485,7 @@
   },
   "/reference/core/bigint/format/": {
     "feature": "Core\\BigInt::format",
-    "hash": "5b1a0cfefc880de5",
+    "hash": "2cfa6291b84f7ea0",
     "questions": [
       "How do I convert a big integer to hexadecimal?",
       "Write a large number in binary or another base",
@@ -2566,7 +2566,7 @@
   },
   "/reference/core/bigint/parse/": {
     "feature": "Core\\BigInt::parse",
-    "hash": "7caf49bc1724678b",
+    "hash": "9297d2066910b843",
     "questions": [
       "How do I convert a string of digits to a big integer?",
       "Read a very long number from text",
@@ -2790,7 +2790,7 @@
   },
   "/reference/core/bytes/indexof/": {
     "feature": "Core\\Bytes::indexOf",
-    "hash": "37c86e40d8639859",
+    "hash": "d730e613ebb0943e",
     "questions": [
       "How do I find the position of bytes in a buffer?",
       "Locate a byte sequence in binary data",
@@ -2954,7 +2954,7 @@
   },
   "/reference/core/cache-store/getsecret/": {
     "feature": "Core\\Cache\\Store::getSecret",
-    "hash": "5bd916b8e3c35945",
+    "hash": "a81ce4a80f4df12d",
     "questions": [
       "How do I read an encrypted secret from the cache?",
       "Cache an access token and fetch it when missing",
@@ -2964,7 +2964,7 @@
   },
   "/reference/core/cache-store/put/": {
     "feature": "Core\\Cache\\Store::put",
-    "hash": "dea61b4907ff7fed",
+    "hash": "669cf31e06eee35a",
     "questions": [
       "How do I store a value in the cache?",
       "Cache a value with an expiry time",
@@ -3058,7 +3058,7 @@
   },
   "/reference/core/cli/ask/": {
     "feature": "Core\\Cli::ask",
-    "hash": "95baaf07c1d9f449",
+    "hash": "2541cf3154b03372",
     "questions": [
       "How do I ask the user for input in the terminal?",
       "Read a line of text typed by the user",
@@ -3080,7 +3080,7 @@
   },
   "/reference/core/cli/confirm/": {
     "feature": "Core\\Cli::confirm",
-    "hash": "e11304856bf64137",
+    "hash": "1653e7642bd12973",
     "questions": [
       "How do I ask a yes or no question in the terminal?",
       "Ask the user to confirm before deleting files",
@@ -3146,7 +3146,7 @@
   },
   "/reference/core/cli/multiselect/": {
     "feature": "Core\\Cli::multiSelect",
-    "hash": "b84e3aab6df7abf4",
+    "hash": "ee19d182349dabdc",
     "questions": [
       "How do I let the user pick several options from a list?",
       "Choose more than one item in a terminal menu",
@@ -3157,7 +3157,7 @@
   },
   "/reference/core/cli/progress/": {
     "feature": "Core\\Cli::progress",
-    "hash": "db29574b0b66357d",
+    "hash": "aedee4d16442f551",
     "questions": [
       "How do I show a progress bar in the terminal?",
       "Display progress while processing many files",
@@ -3179,7 +3179,7 @@
   },
   "/reference/core/cli/select/": {
     "feature": "Core\\Cli::select",
-    "hash": "4507ac600eae23e0",
+    "hash": "9be1ce8931d7a0e9",
     "questions": [
       "How do I let the user pick one option from a list?",
       "Show a numbered menu in the terminal",
@@ -3201,7 +3201,7 @@
   },
   "/reference/core/cli/write/": {
     "feature": "Core\\Cli::write",
-    "hash": "7eb12ae4f18a28e1",
+    "hash": "122145403d62b614",
     "questions": [
       "How do I print to standard error?",
       "Write text without a newline",
@@ -3274,7 +3274,7 @@
   },
   "/reference/core/cli-progress/advance/": {
     "feature": "Core\\Cli\\Progress::advance",
-    "hash": "48f536a82c3b1829",
+    "hash": "1c47d51aec9297ba",
     "questions": [
       "How do I move a progress bar forward by one step?",
       "Advance a progress bar by many units at once",
@@ -3295,7 +3295,7 @@
   },
   "/reference/core/cli-style/of/": {
     "feature": "Core\\Cli\\Style::of",
-    "hash": "3bde687835709996",
+    "hash": "dc0d19e4fbd8f7bd",
     "questions": [
       "How do I create a bold red text style?",
       "Set foreground and background color for terminal text",
@@ -3810,7 +3810,7 @@
   },
   "/reference/core/csv/format/": {
     "feature": "Core\\Csv::format",
-    "hash": "18c8b2f428504b88",
+    "hash": "3af1878227156460",
     "questions": [
       "How do I write an array of rows as CSV?",
       "Export data to a CSV string",
@@ -3822,7 +3822,7 @@
   },
   "/reference/core/csv/parse/": {
     "feature": "Core\\Csv::parse",
-    "hash": "b92f8a7dec6831e2",
+    "hash": "bfcdd5b59465b8bf",
     "questions": [
       "How do I parse a CSV string into an array?",
       "Read rows from CSV text",
@@ -3833,7 +3833,7 @@
   },
   "/reference/core/csv/rows/": {
     "feature": "Core\\Csv::rows",
-    "hash": "16c02d1d17a31ca7",
+    "hash": "3bc3e4efddf8b50a",
     "questions": [
       "How do I read a large CSV file line by line?",
       "Loop over CSV records without loading the whole file",
@@ -3864,7 +3864,7 @@
   },
   "/reference/core/db/connect/": {
     "feature": "Core\\Db::connect",
-    "hash": "6a000caf64cfe90b",
+    "hash": "cb4730620af24d4f",
     "questions": [
       "How do I connect to the database named in my config?",
       "Open a database connection without a password in code",
@@ -3886,7 +3886,7 @@
   },
   "/reference/core/db/open/": {
     "feature": "Core\\Db::open",
-    "hash": "f8ee47ca16fddcb8",
+    "hash": "e68f95e12400f504",
     "questions": [
       "How do I connect to a database with host and password?",
       "Open a SQLite database file",
@@ -3982,7 +3982,7 @@
   },
   "/reference/core/db-connection/execute/": {
     "feature": "Core\\Db\\Connection::execute",
-    "hash": "607a7f8fcaf9867d",
+    "hash": "f09cf9649d13051a",
     "questions": [
       "How do I insert a row into a database table?",
       "Run an update or delete statement and get the number of changed rows",
@@ -3994,7 +3994,7 @@
   },
   "/reference/core/db-connection/executemany/": {
     "feature": "Core\\Db\\Connection::executeMany",
-    "hash": "9800aa8cfdd92cf6",
+    "hash": "163cdd33aec0c21f",
     "questions": [
       "How do I insert many rows with one call?",
       "Run the same statement once for each set of values",
@@ -4016,7 +4016,7 @@
   },
   "/reference/core/db-connection/query/": {
     "feature": "Core\\Db\\Connection::query",
-    "hash": "5338e812af211df3",
+    "hash": "0ee27c65158e041c",
     "questions": [
       "How do I run a select query and get the rows?",
       "Read rows from a database table",
@@ -4028,7 +4028,7 @@
   },
   "/reference/core/db-connection/queryas/": {
     "feature": "Core\\Db\\Connection::queryAs",
-    "hash": "1c8a81620eef57e3",
+    "hash": "92b606ffe900f93d",
     "questions": [
       "How do I map query rows to objects of my class?",
       "Read database rows straight into typed objects",
@@ -4050,7 +4050,7 @@
   },
   "/reference/core/db-connection/stream/": {
     "feature": "Core\\Db\\Connection::stream",
-    "hash": "d73c6ad78bed1a53",
+    "hash": "466ac77603352305",
     "questions": [
       "How do I read a huge query result without running out of memory?",
       "Read rows one at a time from a large table",
@@ -4061,7 +4061,7 @@
   },
   "/reference/core/db-connection/streamas/": {
     "feature": "Core\\Db\\Connection::streamAs",
-    "hash": "616e95605f323965",
+    "hash": "e96dbbb8febbb3cf",
     "questions": [
       "How do I read a large table as objects one row at a time?",
       "Stream query results into typed objects without loading them all",
@@ -4072,7 +4072,7 @@
   },
   "/reference/core/db-connection/transaction/": {
     "feature": "Core\\Db\\Connection::transaction",
-    "hash": "83b7995501108e9d",
+    "hash": "cf693110a3551fb9",
     "questions": [
       "How do I run several queries in a database transaction?",
       "Commit or roll back a group of database changes",
@@ -4472,7 +4472,7 @@
   },
   "/reference/core/db-transaction/execute/": {
     "feature": "Core\\Db\\Transaction::execute",
-    "hash": "e0f54a0546898660",
+    "hash": "d6d62988191c9c35",
     "questions": [
       "How do I insert a row inside a transaction?",
       "Update or delete rows as part of a transaction",
@@ -4483,7 +4483,7 @@
   },
   "/reference/core/db-transaction/executemany/": {
     "feature": "Core\\Db\\Transaction::executeMany",
-    "hash": "4819a37ef50bc45f",
+    "hash": "768955d5087b324f",
     "questions": [
       "How do I insert many rows inside a transaction?",
       "Batch insert that is undone completely if one row fails",
@@ -4494,7 +4494,7 @@
   },
   "/reference/core/db-transaction/query/": {
     "feature": "Core\\Db\\Transaction::query",
-    "hash": "c77ba9c940be28a2",
+    "hash": "18a02856641e0822",
     "questions": [
       "How do I select rows inside a transaction?",
       "Read the rows I just wrote before the transaction ends",
@@ -4505,7 +4505,7 @@
   },
   "/reference/core/db-transaction/queryas/": {
     "feature": "Core\\Db\\Transaction::queryAs",
-    "hash": "6127e4a6fec431d1",
+    "hash": "3778d7624711489b",
     "questions": [
       "How do I read rows as objects inside a transaction?",
       "Load typed objects from a query in a transaction",
@@ -4526,7 +4526,7 @@
   },
   "/reference/core/db-transaction/stream/": {
     "feature": "Core\\Db\\Transaction::stream",
-    "hash": "e6480b3b1a4102ce",
+    "hash": "67c713f459635842",
     "questions": [
       "How do I read a very large result inside a transaction?",
       "Read rows one at a time while a transaction is open",
@@ -4537,7 +4537,7 @@
   },
   "/reference/core/db-transaction/streamas/": {
     "feature": "Core\\Db\\Transaction::streamAs",
-    "hash": "e711b3d69ade815b",
+    "hash": "d557fb4d74d18bca",
     "questions": [
       "How do I read a large result as objects in a transaction?",
       "Build one object per row without loading every row",
@@ -4547,7 +4547,7 @@
   },
   "/reference/core/db-transaction/transaction/": {
     "feature": "Core\\Db\\Transaction::transaction",
-    "hash": "06e39110e8d0e2ff",
+    "hash": "be7585323c4b8017",
     "questions": [
       "How do I nest a transaction inside another one?",
       "Undo one step and keep the rest of the transaction",
@@ -5195,7 +5195,7 @@
   },
   "/reference/core/html/later/": {
     "feature": "Core\\Html::later",
-    "hash": "7815627810a78b09",
+    "hash": "7fa11e007c23bb83",
     "questions": [
       "Load slow parts of a page at the same time",
       "How do I render page sections in parallel?",
@@ -5302,7 +5302,7 @@
   },
   "/reference/core/http-client/delete/": {
     "feature": "Core\\Http\\Client::delete",
-    "hash": "a663621fc6343d50",
+    "hash": "48fe842576dc19b6",
     "questions": [
       "How do I send a DELETE request?",
       "Remove a record through a REST API",
@@ -5312,7 +5312,7 @@
   },
   "/reference/core/http-client/get/": {
     "feature": "Core\\Http\\Client::get",
-    "hash": "27629334f565e639",
+    "hash": "b12e2d84b149088e",
     "questions": [
       "How do I fetch a URL?",
       "Download data from an API",
@@ -5324,7 +5324,7 @@
   },
   "/reference/core/http-client/head/": {
     "feature": "Core\\Http\\Client::head",
-    "hash": "5933f5bb98f7f96e",
+    "hash": "f48d8908e4f12480",
     "questions": [
       "Check if a URL exists without downloading it",
       "How do I get the size of a remote file?",
@@ -5335,7 +5335,7 @@
   },
   "/reference/core/http-client/opensocket/": {
     "feature": "Core\\Http\\Client::openSocket",
-    "hash": "2b2e2b5eda99473f",
+    "hash": "c17e415425c568a0",
     "questions": [
       "How do I connect to a WebSocket server?",
       "Receive live messages from another server",
@@ -5346,7 +5346,7 @@
   },
   "/reference/core/http-client/patch/": {
     "feature": "Core\\Http\\Client::patch",
-    "hash": "a87f15a1cd842fec",
+    "hash": "213d1902fa314efc",
     "questions": [
       "How do I update only some fields of a record?",
       "Send a PATCH request with JSON",
@@ -5356,7 +5356,7 @@
   },
   "/reference/core/http-client/post/": {
     "feature": "Core\\Http\\Client::post",
-    "hash": "3dd8f33b452c57bc",
+    "hash": "9ea22e9fbbad5e0c",
     "questions": [
       "How do I send JSON to an API?",
       "Submit form data to another server",
@@ -5368,7 +5368,7 @@
   },
   "/reference/core/http-client/put/": {
     "feature": "Core\\Http\\Client::put",
-    "hash": "7ac099d027e42068",
+    "hash": "70f1117d42d1e137",
     "questions": [
       "How do I replace a whole record with an API call?",
       "Send a PUT request",
@@ -5378,7 +5378,7 @@
   },
   "/reference/core/http-client/request/": {
     "feature": "Core\\Http\\Client::request",
-    "hash": "8c75a50135a0f9ff",
+    "hash": "8219bafc3b0ef799",
     "questions": [
       "Send a request with a method chosen at runtime",
       "How do I send an OPTIONS request?",
@@ -5389,7 +5389,7 @@
   },
   "/reference/core/http-client/stream/": {
     "feature": "Core\\Http\\Client::stream",
-    "hash": "45f996abad603f7e",
+    "hash": "212a0a33fdb11315",
     "questions": [
       "Read a large response while it is still downloading",
       "How do I receive server-sent events?",
@@ -5497,7 +5497,7 @@
   },
   "/reference/core/http-part/bytes/": {
     "feature": "Core\\Http\\Part::bytes",
-    "hash": "8c0c52d6af97ea12",
+    "hash": "f5081c66d3f1d271",
     "questions": [
       "How do I upload data I already have in memory?",
       "Send a string as a file in a form upload",
@@ -5508,7 +5508,7 @@
   },
   "/reference/core/http-part/file/": {
     "feature": "Core\\Http\\Part::file",
-    "hash": "279151173d54287b",
+    "hash": "d54d4441b03f796e",
     "questions": [
       "How do I upload a file from disk?",
       "Send a large file as the request body",
@@ -5563,7 +5563,7 @@
   },
   "/reference/core/http-response/jsonas/": {
     "feature": "Core\\Http\\Response::jsonAs",
-    "hash": "c86e1b10c27b264d",
+    "hash": "5e870cc447fb6e2f",
     "questions": [
       "How do I decode a JSON API reply into a class?",
       "Turn a JSON response into typed objects",
@@ -6032,7 +6032,7 @@
   },
   "/reference/core/io/readtext/": {
     "feature": "Core\\IO::readText",
-    "hash": "21961579d5442d8a",
+    "hash": "f49c8f9b2358b258",
     "questions": [
       "How do I read a file saved in Latin-1 or Windows-1252?",
       "Read a text file with a different character encoding",
@@ -6139,7 +6139,7 @@
   },
   "/reference/core/io/writestream/": {
     "feature": "Core\\IO::writeStream",
-    "hash": "d41fd2c640c69e05",
+    "hash": "ff014e23f4d005d4",
     "questions": [
       "How do I save a large upload to disk without using much memory?",
       "Write a file from chunks of data",
@@ -6336,7 +6336,7 @@
   },
   "/reference/core/json/decode/": {
     "feature": "Core\\Json::decode",
-    "hash": "89046e4fa4b406c6",
+    "hash": "21112c1e6aa21afc",
     "questions": [
       "How do I parse a JSON string into an array?",
       "Read the fields of a JSON object",
@@ -6347,7 +6347,7 @@
   },
   "/reference/core/json/decodeas/": {
     "feature": "Core\\Json::decodeAs",
-    "hash": "df93ef680857a0b6",
+    "hash": "7f1b4c558e0d37af",
     "questions": [
       "How do I read JSON straight into my own class?",
       "Fill an object from a JSON document",
@@ -6358,7 +6358,7 @@
   },
   "/reference/core/json/encode/": {
     "feature": "Core\\Json::encode",
-    "hash": "c97b7a83fb69feca",
+    "hash": "8c0cda578efecfd8",
     "questions": [
       "How do I convert an array to a JSON string?",
       "Write an object as JSON text",
@@ -6472,7 +6472,7 @@
   },
   "/reference/core/jwt/sign/": {
     "feature": "Core\\Jwt::sign",
-    "hash": "4b2541fbada23059",
+    "hash": "30e98b4965a1ab93",
     "questions": [
       "How do I create a JWT with a user id?",
       "Sign a login token that expires in one hour",
@@ -6483,7 +6483,7 @@
   },
   "/reference/core/jwt/signobject/": {
     "feature": "Core\\Jwt::signObject",
-    "hash": "b6b30be228cd0557",
+    "hash": "71229799afa47b3a",
     "questions": [
       "How do I put numbers or lists in a JWT?",
       "Sign an object as token claims",
@@ -6504,7 +6504,7 @@
   },
   "/reference/core/jwt/verifyissued/": {
     "feature": "Core\\Jwt::verifyIssued",
-    "hash": "79c8a7045215184d",
+    "hash": "9648751bc2f45af5",
     "questions": [
       "How do I check a token from a login provider?",
       "Validate an access token from another service",
@@ -6525,7 +6525,7 @@
   },
   "/reference/core/jwt-keyset/read/": {
     "feature": "Core\\Jwt\\KeySet::read",
-    "hash": "2dfe8c5e9f0ea1e7",
+    "hash": "95a9abd21e28222c",
     "questions": [
       "How do I load a JWKS document?",
       "Read the published keys of a login provider",
@@ -6556,7 +6556,7 @@
   },
   "/reference/core/ldap/open/": {
     "feature": "Core\\Ldap::open",
-    "hash": "5c2dce073fe6972a",
+    "hash": "ff13d4ecfa14826e",
     "questions": [
       "How do I connect to an LDAP server at a given URL?",
       "Connect to a directory that each customer sets up",
@@ -6616,7 +6616,7 @@
   },
   "/reference/core/ldap-ad/memberof/": {
     "feature": "Core\\Ldap\\Ad::memberOf",
-    "hash": "06cef9c65e70cfe0",
+    "hash": "be642ba175bfe5c0",
     "questions": [
       "How do I find all users in a group?",
       "Include users from nested groups in a search",
@@ -6856,7 +6856,7 @@
   },
   "/reference/core/ldap-ad-accountflags/with/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::with",
-    "hash": "e00f6854d0540047",
+    "hash": "a48da1372320e815",
     "questions": [
       "How do I disable an account by changing its flags?",
       "Set or clear one userAccountControl flag",
@@ -6967,7 +6967,7 @@
   },
   "/reference/core/ldap-ad-grouptype/with/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::with",
-    "hash": "ed804e4e11c176c4",
+    "hash": "9f169cff184b92b9",
     "questions": [
       "Turn a security group into a distribution group",
       "Change the scope of a group from global to universal",
@@ -7087,7 +7087,7 @@
   },
   "/reference/core/ldap-connection/changes/": {
     "feature": "Core\\Ldap\\Connection::changes",
-    "hash": "16ac317f25e05645",
+    "hash": "9ddbe18b22bf81f7",
     "questions": [
       "How do I sync only the changed entries from Active Directory?",
       "Keep a local copy of the directory up to date",
@@ -7127,7 +7127,7 @@
   },
   "/reference/core/ldap-connection/read/": {
     "feature": "Core\\Ldap\\Connection::read",
-    "hash": "f61c2eec04bb4fdc",
+    "hash": "8fa53e145ebbcd7b",
     "questions": [
       "How do I read one entry by its DN?",
       "Get a single user from LDAP by distinguished name",
@@ -7147,7 +7147,7 @@
   },
   "/reference/core/ldap-connection/search/": {
     "feature": "Core\\Ldap\\Connection::search",
-    "hash": "1f7ecb127b87b750",
+    "hash": "b56a2dd92414d504",
     "questions": [
       "How do I search an LDAP directory?",
       "Find a user by account name in Active Directory",
@@ -7710,7 +7710,7 @@
   },
   "/reference/core/mail/send/": {
     "feature": "Core\\Mail::send",
-    "hash": "d91123280f3c49f2",
+    "hash": "852c79ffc2a40d4b",
     "questions": [
       "How do I send an email with an HTML body?",
       "Send one message to several recipients",
@@ -7897,7 +7897,7 @@
   },
   "/reference/core/math/format/": {
     "feature": "Core\\Math::format",
-    "hash": "8a46726d9c6256e7",
+    "hash": "7aacac482716ca47",
     "questions": [
       "How do I format a number with two decimals?",
       "Add thousands separators to a number",
@@ -7979,7 +7979,7 @@
   },
   "/reference/core/math/log/": {
     "feature": "Core\\Math::log",
-    "hash": "b88d8f5f1ea525de",
+    "hash": "c3ea3d42072487d4",
     "questions": [
       "How do I calculate a logarithm?",
       "Logarithm in base 10 or base 2",
@@ -8020,7 +8020,7 @@
   },
   "/reference/core/math/round/": {
     "feature": "Core\\Math::round",
-    "hash": "c74b1ef032b59650",
+    "hash": "853b8235ab3ec09c",
     "questions": [
       "How do I round a number to two decimal places?",
       "Round to the nearest whole number",
@@ -8143,7 +8143,7 @@
   },
   "/reference/core/metrics/gauge/": {
     "feature": "Core\\Metrics::gauge",
-    "hash": "1b3cc1c06afcfe38",
+    "hash": "a34e7a09d92bcaff",
     "questions": [
       "How do I report a value that goes up and down?",
       "Track how many jobs are waiting",
@@ -8153,7 +8153,7 @@
   },
   "/reference/core/metrics/increment/": {
     "feature": "Core\\Metrics::increment",
-    "hash": "45aae8b7d0e0fe83",
+    "hash": "68cc418b4cfe69e5",
     "questions": [
       "How do I count events for monitoring?",
       "Count failed logins",
@@ -8164,7 +8164,7 @@
   },
   "/reference/core/metrics/observe/": {
     "feature": "Core\\Metrics::observe",
-    "hash": "15e29c0632088b89",
+    "hash": "f0a651f93456c927",
     "questions": [
       "How do I measure how long requests take?",
       "Record durations in a histogram",
@@ -8632,7 +8632,7 @@
   },
   "/reference/core/novis-image-image/encode/": {
     "feature": "Novis\\Image\\Image::encode",
-    "hash": "0baf52a23020b2f6",
+    "hash": "dc1ee0f6a110a142",
     "questions": [
       "How do I save the edited image as a file?",
       "Get the bytes of the finished image",
@@ -8756,7 +8756,7 @@
   },
   "/reference/core/novis-image-image/metadata/": {
     "feature": "Novis\\Image\\Image::metadata",
-    "hash": "ea42a9fc657c8b11",
+    "hash": "35eb5a8bb65d686b",
     "questions": [
       "How do I keep EXIF data in a photo?",
       "Remove GPS location from uploaded photos",
@@ -9155,7 +9155,7 @@
   },
   "/reference/core/novis-intl-relativetime/format/": {
     "feature": "Novis\\Intl\\RelativeTime::format",
-    "hash": "907e04d0872ad185",
+    "hash": "761f4a4057a400de",
     "questions": [
       "Write \"in 2 hours\" or \"3 days ago\"",
       "How do I show yesterday instead of 1 day ago?",
@@ -9228,7 +9228,7 @@
   },
   "/reference/core/novis-pdf-document/footer/": {
     "feature": "Novis\\Pdf\\Document::footer",
-    "hash": "30f932dd207d32bf",
+    "hash": "62e0148404df2181",
     "questions": [
       "Add a footer to every PDF page",
       "Show a running total at the bottom of each page",
@@ -9250,7 +9250,7 @@
   },
   "/reference/core/novis-pdf-document/header/": {
     "feature": "Novis\\Pdf\\Document::header",
-    "hash": "09ddb183b2219800",
+    "hash": "bbc092f49130938b",
     "questions": [
       "Add a header to every PDF page",
       "Number the pages of a PDF report",
@@ -10490,7 +10490,7 @@
   },
   "/reference/core/out/capture/": {
     "feature": "Core\\Out::capture",
-    "hash": "fb4defedabcf12ab",
+    "hash": "60a347d47f6e86a2",
     "questions": [
       "How do I capture what a function prints with echo?",
       "Render a template into a variable and print it later",
@@ -10552,7 +10552,7 @@
   },
   "/reference/core/path/basename/": {
     "feature": "Core\\Path::basename",
-    "hash": "9e70f0d30287f283",
+    "hash": "7ad21ec3f74bc357",
     "questions": [
       "How do I get the file name from a full path?",
       "Get the file name without its extension",
@@ -10562,7 +10562,7 @@
   },
   "/reference/core/path/dirname/": {
     "feature": "Core\\Path::dirname",
-    "hash": "a37453906f16cb7b",
+    "hash": "31cca34619d7a299",
     "questions": [
       "How do I get the folder that contains a file?",
       "Go up two folders from a path",
@@ -10683,7 +10683,7 @@
   },
   "/reference/core/process/run/": {
     "feature": "Core\\Process::run",
-    "hash": "07dc1f1165f734fd",
+    "hash": "cb5dacf57ee9beb9",
     "questions": [
       "How do I run another program and read its output?",
       "Run a command and wait until it finishes",
@@ -10695,7 +10695,7 @@
   },
   "/reference/core/process/spawn/": {
     "feature": "Core\\Process::spawn",
-    "hash": "07117fda87711d67",
+    "hash": "6413f39c28a8b815",
     "questions": [
       "How do I start a program in the background and keep going?",
       "Read a program's output while it is still running",
@@ -10819,7 +10819,7 @@
   },
   "/reference/core/program/constructors/": {
     "feature": "Core\\Program::constructors",
-    "hash": "6f99c9f8c19ca9e9",
+    "hash": "296de664096860d2",
     "questions": [
       "Create objects of every plugin class with constructor arguments",
       "How do I create a class by its name with arguments?",
@@ -10852,7 +10852,7 @@
   },
   "/reference/core/program/implementingwith/": {
     "feature": "Core\\Program::implementingWith",
-    "hash": "2bfe72f424d44fad",
+    "hash": "6f5fdbec40fbcea5",
     "questions": [
       "How do I read an attribute from every class of an interface?",
       "Build routes from attributes on page classes",
@@ -10895,7 +10895,7 @@
   },
   "/reference/core/queue/purge/": {
     "feature": "Core\\Queue::purge",
-    "hash": "dc418532b492ce8c",
+    "hash": "5143c22d36ef41a6",
     "questions": [
       "How do I clean up old finished jobs?",
       "Delete many jobs from a queue at once",
@@ -10906,7 +10906,7 @@
   },
   "/reference/core/queue/push/": {
     "feature": "Core\\Queue::push",
-    "hash": "bbb24fbd6e157977",
+    "hash": "aed6da71cd8bdce5",
     "questions": [
       "How do I add a job to a background queue?",
       "Schedule a task to run later",
@@ -11192,7 +11192,7 @@
   },
   "/reference/core/ratelimit/consume/": {
     "feature": "Core\\RateLimit::consume",
-    "hash": "4416413972da2df9",
+    "hash": "19455b329066bf50",
     "questions": [
       "How do I limit login attempts to 5 per 15 minutes?",
       "Enforce an API quota across all servers",
@@ -11203,7 +11203,7 @@
   },
   "/reference/core/ratelimit/shed/": {
     "feature": "Core\\RateLimit::shed",
-    "hash": "42c7b2b62e26462b",
+    "hash": "b79f7e391c6093c4",
     "questions": [
       "Shed load quickly when a server gets too many requests",
       "Fast rate limit without a shared store",
@@ -11326,7 +11326,7 @@
   },
   "/reference/core/reflect-attributeinfo/field/": {
     "feature": "Core\\Reflect\\AttributeInfo::field",
-    "hash": "971a392d325f75cb",
+    "hash": "2b438e776ec5f8bd",
     "questions": [
       "How do I read one value from an attribute?",
       "Get the value of a named attribute argument",
@@ -11336,7 +11336,7 @@
   },
   "/reference/core/reflect-attributeinfo/fields/": {
     "feature": "Core\\Reflect\\AttributeInfo::fields",
-    "hash": "364a90aae00de4ef",
+    "hash": "d973b9031f392399",
     "questions": [
       "List the argument names of an attribute",
       "Which fields does an annotation have?",
@@ -11346,7 +11346,7 @@
   },
   "/reference/core/reflect-attributeinfo/name/": {
     "feature": "Core\\Reflect\\AttributeInfo::name",
-    "hash": "be609e45d3ebb517",
+    "hash": "fe10863086fdd3fe",
     "questions": [
       "How do I get the type name of an attribute?",
       "Keep only the Route attributes of a class",
@@ -11356,7 +11356,7 @@
   },
   "/reference/core/reflect-attributeinfo/parameter/": {
     "feature": "Core\\Reflect\\AttributeInfo::parameter",
-    "hash": "266dc92e2f93918a",
+    "hash": "8d8f38269562b1a7",
     "questions": [
       "Which method argument is an attribute written on?",
       "Read attributes on function parameters",
@@ -11366,7 +11366,7 @@
   },
   "/reference/core/reflect-attributeinfo/target/": {
     "feature": "Core\\Reflect\\AttributeInfo::target",
-    "hash": "029ffa19b0c69c49",
+    "hash": "69ae991827d24836",
     "questions": [
       "Which property or method has this attribute?",
       "Find the attributes of one property",
@@ -11386,7 +11386,7 @@
   },
   "/reference/core/reflect-classinfo/attributes/": {
     "feature": "Core\\Reflect\\ClassInfo::attributes",
-    "hash": "a7894089de41b989",
+    "hash": "8fa97d1d9bd002f5",
     "questions": [
       "How do I list all attributes of a class?",
       "Get every annotation on a class and its methods",
@@ -11747,7 +11747,7 @@
   },
   "/reference/core/regex/compile/": {
     "feature": "Core\\Regex::compile",
-    "hash": "5f1f7aa5045f5053",
+    "hash": "765152d9a3812316",
     "questions": [
       "How do I reuse one regex pattern many times?",
       "Make a pattern ignore upper and lower case",
@@ -11758,7 +11758,7 @@
   },
   "/reference/core/regex/match/": {
     "feature": "Core\\Regex::match",
-    "hash": "8cfabbfc9a72bc3f",
+    "hash": "8706721ea0be3b0d",
     "questions": [
       "How do I find the first place a pattern appears in a string?",
       "Extract a value from text with a regular expression",
@@ -11802,7 +11802,7 @@
   },
   "/reference/core/regex/replace/": {
     "feature": "Core\\Regex::replace",
-    "hash": "9bb0bbc5eaf40b19",
+    "hash": "d12d10ca49f975b3",
     "questions": [
       "How do I replace text that fits a pattern?",
       "Search and replace with a regular expression",
@@ -11813,7 +11813,7 @@
   },
   "/reference/core/regex/replacewith/": {
     "feature": "Core\\Regex::replaceWith",
-    "hash": "d63cec3de478ba96",
+    "hash": "e75c8f009628500e",
     "questions": [
       "How do I replace each regex hit with the result of a function?",
       "Build a different replacement for every occurrence",
@@ -11824,7 +11824,7 @@
   },
   "/reference/core/regex/split/": {
     "feature": "Core\\Regex::split",
-    "hash": "210bad60caf03681",
+    "hash": "4e323c12c25fce15",
     "questions": [
       "How do I split a string by a regular expression?",
       "Break text into words at any whitespace",
@@ -12009,7 +12009,7 @@
   },
   "/reference/core/request/json/": {
     "feature": "Core\\Request::json",
-    "hash": "ff1fc7d2c6914673",
+    "hash": "be39010fd548f267",
     "questions": [
       "How do I read JSON sent in a POST request?",
       "Decode the request body as JSON",
@@ -12020,7 +12020,7 @@
   },
   "/reference/core/request/jsonas/": {
     "feature": "Core\\Request::jsonAs",
-    "hash": "3e1d635b655c4b7f",
+    "hash": "bdca8e38b7d1b855",
     "questions": [
       "How do I turn a JSON body into an object of my class?",
       "Validate incoming JSON fields and types",
@@ -12084,7 +12084,7 @@
   },
   "/reference/core/request/postas/": {
     "feature": "Core\\Request::postAs",
-    "hash": "6e868c178ec43d49",
+    "hash": "3990a0fab1aace1b",
     "questions": [
       "How do I read a whole form into a class?",
       "Validate a sign-up form and list every wrong field",
@@ -12116,7 +12116,7 @@
   },
   "/reference/core/request/queryas/": {
     "feature": "Core\\Request::queryAs",
-    "hash": "7dee03af0f736606",
+    "hash": "daef15760891ab0a",
     "questions": [
       "How do I read all URL parameters into a class?",
       "Validate search filters from the address",
@@ -12253,7 +12253,7 @@
   },
   "/reference/core/request-part/readall/": {
     "feature": "Core\\Request\\Part::readAll",
-    "hash": "2cc47cdd3225000c",
+    "hash": "d12127de7acb2ab7",
     "questions": [
       "How do I read a small uploaded file into memory?",
       "Get the whole content of an upload as one value",
@@ -12264,7 +12264,7 @@
   },
   "/reference/core/request-part/saveto/": {
     "feature": "Core\\Request\\Part::saveTo",
-    "hash": "d9ca444544b95ecd",
+    "hash": "2f0de8c37e0b81e1",
     "questions": [
       "How do I save an uploaded file to disk?",
       "Store a large upload in a file without using much memory",
@@ -12296,7 +12296,7 @@
   },
   "/reference/core/response/addcookie/": {
     "feature": "Core\\Response::addCookie",
-    "hash": "94c3b50d775eb71f",
+    "hash": "3fe547f67013d3b0",
     "questions": [
       "How do I set a cookie in the browser?",
       "Create a secure HttpOnly session cookie",
@@ -12534,7 +12534,7 @@
   },
   "/reference/core/router/urlsigned/": {
     "feature": "Core\\Router::urlSigned",
-    "hash": "ac98cc5855e0f7c2",
+    "hash": "e6b170890f394dae",
     "questions": [
       "How do I make a link that nobody can change?",
       "Create a download link that expires after one hour",
@@ -12574,7 +12574,7 @@
   },
   "/reference/core/router-match/attribute/": {
     "feature": "Core\\Router\\Match::attribute",
-    "hash": "767f4b5db09469a7",
+    "hash": "672777c8ab427811",
     "questions": [
       "Read a custom setting attached to one route",
       "Give each route its own cache time",
@@ -12961,7 +12961,7 @@
   },
   "/reference/core/signature/sign/": {
     "feature": "Core\\Signature::sign",
-    "hash": "9f37b621f30a5316",
+    "hash": "05dc241992bf0ac0",
     "questions": [
       "How do I create a signed link?",
       "Build a password reset link that expires after one hour",
@@ -13064,7 +13064,7 @@
   },
   "/reference/core/socket/upgrade/": {
     "feature": "Core\\Socket::upgrade",
-    "hash": "8cb957390d90b671",
+    "hash": "9acab6b96fa84b73",
     "questions": [
       "How do I accept a WebSocket connection in a request?",
       "Switch an HTTP request to a WebSocket",
@@ -13185,7 +13185,7 @@
   },
   "/reference/core/sse/upgrade/": {
     "feature": "Core\\Sse::upgrade",
-    "hash": "6baaeff99b3140c9",
+    "hash": "231fef3f5eaeda84",
     "questions": [
       "How do I keep an event stream open after the request ends?",
       "Long-lived notifications stream for a signed-in user",
@@ -13258,7 +13258,7 @@
   },
   "/reference/core/storage/list/": {
     "feature": "Core\\Storage::list",
-    "hash": "1b2257e4b92c26f8",
+    "hash": "808e7c8ac40b94b7",
     "questions": [
       "How do I see which files are in storage?",
       "Get the names of all saved files on a disk",
@@ -13268,7 +13268,7 @@
   },
   "/reference/core/storage/put/": {
     "feature": "Core\\Storage::put",
-    "hash": "ddb2c3ac5a629d34",
+    "hash": "a5487b97885943be",
     "questions": [
       "How do I save bytes as a file?",
       "Write an uploaded file to disk under a safe name",
@@ -13291,7 +13291,7 @@
   },
   "/reference/core/str/after/": {
     "feature": "Core\\Str::after",
-    "hash": "63dcdf649bca125f",
+    "hash": "797dfd114fdea9b5",
     "questions": [
       "How do I get the text after a separator?",
       "Take the part of a string after a character",
@@ -13313,7 +13313,7 @@
   },
   "/reference/core/str/before/": {
     "feature": "Core\\Str::before",
-    "hash": "54b4eddcb266b73c",
+    "hash": "b993c3aed7a788f4",
     "questions": [
       "How do I get the text before a separator?",
       "Take the part of a string before a character",
@@ -13345,7 +13345,7 @@
   },
   "/reference/core/str/compare/": {
     "feature": "Core\\Str::compare",
-    "hash": "251f132e62da6b7e",
+    "hash": "3b884aad36d4d8ba",
     "questions": [
       "How do I compare two strings for sorting?",
       "Which string comes first in alphabetical order?",
@@ -13388,7 +13388,7 @@
   },
   "/reference/core/str/fold/": {
     "feature": "Core\\Str::fold",
-    "hash": "8e2f98dcc5567650",
+    "hash": "af403d95ac560979",
     "questions": [
       "How do I compare two strings ignoring case?",
       "Case insensitive comparison of text",
@@ -13441,7 +13441,7 @@
   },
   "/reference/core/str/indexof/": {
     "feature": "Core\\Str::indexOf",
-    "hash": "e2a3cc289be0c6d2",
+    "hash": "813a9cff29505cc9",
     "questions": [
       "How do I find the position of a word in a string?",
       "Where does a substring first appear in a text?",
@@ -13473,7 +13473,7 @@
   },
   "/reference/core/str/lastindexof/": {
     "feature": "Core\\Str::lastIndexOf",
-    "hash": "1df2fa7b072ae51c",
+    "hash": "f68612dcb4c23984",
     "questions": [
       "How do I find the last position of a word in a string?",
       "Where does a substring appear for the last time?",
@@ -13576,7 +13576,7 @@
   },
   "/reference/core/str/replace/": {
     "feature": "Core\\Str::replace",
-    "hash": "8e5393a48d081709",
+    "hash": "2e1d555065570157",
     "questions": [
       "How do I replace text in a string?",
       "Find and replace a word in a text",
@@ -13587,7 +13587,7 @@
   },
   "/reference/core/str/replaceall/": {
     "feature": "Core\\Str::replaceAll",
-    "hash": "f26a4a72d6a022e1",
+    "hash": "f9ec8c84d799d93e",
     "questions": [
       "How do I replace several different words at once?",
       "Replace many texts in one call with a map",
@@ -13629,7 +13629,7 @@
   },
   "/reference/core/str/split/": {
     "feature": "Core\\Str::split",
-    "hash": "c22a052c2d1a094d",
+    "hash": "23a68c8b56180484",
     "questions": [
       "How do I split a string by a separator?",
       "Break a text into an array at every comma",
@@ -13650,7 +13650,7 @@
   },
   "/reference/core/str/trim/": {
     "feature": "Core\\Str::trim",
-    "hash": "d48a23e6a38fc9b5",
+    "hash": "66b620cfbf1a9871",
     "questions": [
       "How do I remove spaces at both ends of a string?",
       "Trim whitespace from the start and end of a text",
@@ -13661,7 +13661,7 @@
   },
   "/reference/core/str/trimend/": {
     "feature": "Core\\Str::trimEnd",
-    "hash": "b46e66ab2f9500c4",
+    "hash": "5db569ae510f0395",
     "questions": [
       "How do I remove trailing spaces from a string?",
       "Remove the line break at the end of a line",
@@ -13672,7 +13672,7 @@
   },
   "/reference/core/str/trimstart/": {
     "feature": "Core\\Str::trimStart",
-    "hash": "cdbf3d5164da3b59",
+    "hash": "b50e00c40ef41cd0",
     "questions": [
       "How do I remove leading spaces from a string?",
       "Remove whitespace at the start of a text only",
@@ -13702,7 +13702,7 @@
   },
   "/reference/core/str/wrap/": {
     "feature": "Core\\Str::wrap",
-    "hash": "93632d2691c6f337",
+    "hash": "53c392562f27c958",
     "questions": [
       "How do I wrap long text to a fixed width?",
       "Break a long line into shorter lines at spaces",
@@ -13756,7 +13756,7 @@
   },
   "/reference/core/task/afterresponse/": {
     "feature": "Core\\Task::afterResponse",
-    "hash": "f49a94819efdac7f",
+    "hash": "a7cfb73c2db167fc",
     "questions": [
       "How do I send an email after the response is sent?",
       "Run code in the background so the visitor does not wait",
@@ -13767,7 +13767,7 @@
   },
   "/reference/core/task/all/": {
     "feature": "Core\\Task::all",
-    "hash": "59f7a1b60d80940e",
+    "hash": "47f28800b81139c9",
     "questions": [
       "How do I call two web services at the same time?",
       "Load a database query and a cache lookup in parallel",
@@ -13778,7 +13778,7 @@
   },
   "/reference/core/task/map/": {
     "feature": "Core\\Task::map",
-    "hash": "64ef0edbb69894f6",
+    "hash": "c42934b180fe56a4",
     "questions": [
       "How do I process every item of a list in parallel?",
       "Check many URLs at the same time",
@@ -13840,7 +13840,7 @@
   },
   "/reference/core/test/answerhttp/": {
     "feature": "Core\\Test::answerHttp",
-    "hash": "333bd217f254c194",
+    "hash": "808b09f340d6d8b7",
     "questions": [
       "How do I fake an HTTP API reply in a test?",
       "Mock an external web service response",
@@ -13851,7 +13851,7 @@
   },
   "/reference/core/test/answersocket/": {
     "feature": "Core\\Test::answerSocket",
-    "hash": "b8c25cfecce652c9",
+    "hash": "3609ceb2ab8e3555",
     "questions": [
       "How do I fake a WebSocket server in a test?",
       "Send scripted messages to my WebSocket client",
@@ -13861,7 +13861,7 @@
   },
   "/reference/core/test/assertcalled/": {
     "feature": "Core\\Test::assertCalled",
-    "hash": "f3f85718e67ed857",
+    "hash": "192311f632e34987",
     "questions": [
       "How do I check that my code called a method on a mock?",
       "Verify an email was sent in a test",
@@ -13871,7 +13871,7 @@
   },
   "/reference/core/test/assertcompletes/": {
     "feature": "Core\\Test::assertCompletes",
-    "hash": "a84147b0c44eb539",
+    "hash": "b0956204e50a8ccf",
     "questions": [
       "How do I test that code finishes within a time limit?",
       "Check a retry loop ends at its deadline without waiting",
@@ -13881,7 +13881,7 @@
   },
   "/reference/core/test/assertcontains/": {
     "feature": "Core\\Test::assertContains",
-    "hash": "a689e9b75f11231e",
+    "hash": "14927f4f03296721",
     "questions": [
       "How do I check that a list contains a value in a test?",
       "Test that an array includes an item",
@@ -13891,7 +13891,7 @@
   },
   "/reference/core/test/assertcount/": {
     "feature": "Core\\Test::assertCount",
-    "hash": "54b82ffe184403e8",
+    "hash": "53748a3413535795",
     "questions": [
       "How do I check the number of items in a test?",
       "Test that an array has exactly three entries",
@@ -13901,7 +13901,7 @@
   },
   "/reference/core/test/assertdoesnotthrow/": {
     "feature": "Core\\Test::assertDoesNotThrow",
-    "hash": "db0f26d0bbcaefa8",
+    "hash": "a75e6af16a09a2e8",
     "questions": [
       "How do I test that code runs without an error?",
       "Check that a call does not throw an exception",
@@ -13911,7 +13911,7 @@
   },
   "/reference/core/test/assertequals/": {
     "feature": "Core\\Test::assertEquals",
-    "hash": "aaa99770df85af2c",
+    "hash": "aae05181963ccf3e",
     "questions": [
       "How do I compare a result with an expected value in a test?",
       "Check that a function returns the right number",
@@ -13921,7 +13921,7 @@
   },
   "/reference/core/test/assertequalsdeep/": {
     "feature": "Core\\Test::assertEqualsDeep",
-    "hash": "1e4cbd2fdd4b5a3a",
+    "hash": "c2178daa0c70fb74",
     "questions": [
       "How do I compare nested arrays and objects in a test?",
       "Check every property of two objects in a test",
@@ -13931,7 +13931,7 @@
   },
   "/reference/core/test/assertmatchesinline/": {
     "feature": "Core\\Test::assertMatchesInline",
-    "hash": "79b68aedd19bffdb",
+    "hash": "3e2ca71baf44d060",
     "questions": [
       "How do I write a snapshot test?",
       "Compare a complex value with expected text in a test",
@@ -13941,7 +13941,7 @@
   },
   "/reference/core/test/assertnevercalled/": {
     "feature": "Core\\Test::assertNeverCalled",
-    "hash": "df690f180cc608e8",
+    "hash": "e46514a54a2d7ac0",
     "questions": [
       "How do I check a method was not called?",
       "Test that a dry run deletes nothing",
@@ -13951,7 +13951,7 @@
   },
   "/reference/core/test/assertnull/": {
     "feature": "Core\\Test::assertNull",
-    "hash": "6df5ae32811dd0f9",
+    "hash": "78c3c58a5c470e3a",
     "questions": [
       "How do I check that a value is null in a test?",
       "Test that a search returns nothing",
@@ -13961,7 +13961,7 @@
   },
   "/reference/core/test/assertsame/": {
     "feature": "Core\\Test::assertSame",
-    "hash": "6dcefa03249e5f59",
+    "hash": "dbfa274efb4ebbf1",
     "questions": [
       "How do I check two values are exactly the same in a test?",
       "Test that a cache returns the same object every time",
@@ -13971,7 +13971,7 @@
   },
   "/reference/core/test/assertthrows/": {
     "feature": "Core\\Test::assertThrows",
-    "hash": "b8942922adb01b0b",
+    "hash": "c98dd2c0594a4cf6",
     "questions": [
       "How do I test that code throws an exception?",
       "Check that an invalid payment gives an error",
@@ -13981,7 +13981,7 @@
   },
   "/reference/core/test/asserttrue/": {
     "feature": "Core\\Test::assertTrue",
-    "hash": "4bdb6510be80c85b",
+    "hash": "47633e156f2da60b",
     "questions": [
       "How do I check a condition is true in a test?",
       "Test that a password follows a rule",
@@ -14021,7 +14021,7 @@
   },
   "/reference/core/test/request/": {
     "feature": "Core\\Test::request",
-    "hash": "e13db732ef5671ee",
+    "hash": "4d9ddcdbbbcfb913",
     "questions": [
       "How do I test a route of my web app?",
       "Send a fake HTTP request to my own program",
@@ -14072,7 +14072,7 @@
   },
   "/reference/core/test/tlssession/": {
     "feature": "Core\\Test::tlsSession",
-    "hash": "0a87e4e9c1ef7f33",
+    "hash": "87fd3e5e1e1e6f01",
     "questions": [
       "How do I fake an HTTPS certificate in a test?",
       "Test code that reads TLS version and cipher",
@@ -14204,7 +14204,7 @@
   },
   "/reference/core/test-response/json/": {
     "feature": "Core\\Test\\Response::json",
-    "hash": "0f12140cbbe6ae96",
+    "hash": "a920757e7ee89431",
     "questions": [
       "How do I decode the JSON my endpoint returned in a test?",
       "Check values in an API reply during a test",
@@ -14214,7 +14214,7 @@
   },
   "/reference/core/test-response/jsonas/": {
     "feature": "Core\\Test\\Response::jsonAs",
-    "hash": "a5d3e827046141ac",
+    "hash": "9dbd4bf0ca0d6e58",
     "questions": [
       "How do I turn an API reply into a class in a test?",
       "Read a JSON list from my endpoint into objects",
@@ -14365,7 +14365,7 @@
   },
   "/reference/core/time/at/": {
     "feature": "Core\\Time::at",
-    "hash": "5eab08dcb87102ea",
+    "hash": "a13040cb7a1d5ed6",
     "questions": [
       "How do I create a date and time from year, month and day?",
       "Build a specific date and time in a time zone",
@@ -14376,7 +14376,7 @@
   },
   "/reference/core/time/fromepoch/": {
     "feature": "Core\\Time::fromEpoch",
-    "hash": "38849a3466914851",
+    "hash": "d6de026534c620ed",
     "questions": [
       "How do I convert a Unix timestamp to a time?",
       "Turn seconds since 1970 into a moment",
@@ -14508,7 +14508,7 @@
   },
   "/reference/core/time-date/with/": {
     "feature": "Core\\Time\\Date::with",
-    "hash": "60ce50e46eae818c",
+    "hash": "6117d4542b164145",
     "questions": [
       "How do I change only the year of a date?",
       "Get the first day of the month for a date",
@@ -14684,7 +14684,7 @@
   },
   "/reference/core/time-datetime/with/": {
     "feature": "Core\\Time\\DateTime::with",
-    "hash": "f41eac55902e2b6e",
+    "hash": "27031a494028ee0d",
     "questions": [
       "How do I change only the hour of a date and time?",
       "Set the year, month or day of a date and time",
@@ -15031,7 +15031,7 @@
   },
   "/reference/core/time-timeofday/at/": {
     "feature": "Core\\Time\\TimeOfDay::at",
-    "hash": "9d0b7fa124b8b2c8",
+    "hash": "e8922dec82130474",
     "questions": [
       "How do I create a time of day from hours and minutes?",
       "Make a clock time such as 09:00",
@@ -15081,7 +15081,7 @@
   },
   "/reference/core/time-timeofday/with/": {
     "feature": "Core\\Time\\TimeOfDay::with",
-    "hash": "c9220ebec1cbacf7",
+    "hash": "c437c0678d70c152",
     "questions": [
       "How do I change only the hour of a time of day?",
       "Set the minutes of a clock time to zero",
@@ -15399,7 +15399,7 @@
   },
   "/reference/core/uri/sign/": {
     "feature": "Core\\Uri::sign",
-    "hash": "fd2af4ab26cce625",
+    "hash": "c280db9dcd6cab7d",
     "questions": [
       "How do I create a link that expires after one hour?",
       "Sign a download URL so nobody can change it",
@@ -15454,7 +15454,7 @@
   },
   "/reference/core/uri/with/": {
     "feature": "Core\\Uri::with",
-    "hash": "1424c1a665f22473",
+    "hash": "c1bedb0bf4fb37d5",
     "questions": [
       "How do I change the host or scheme of a URL?",
       "Switch a link from http to https",
@@ -15607,7 +15607,7 @@
   },
   "/reference/core/validate/isip/": {
     "feature": "Core\\Validate::isIp",
-    "hash": "a355b3c839017c40",
+    "hash": "9ae0d5bf7f28394e",
     "questions": [
       "How do I check if a text is an IP address?",
       "Validate an IPv4 or IPv6 address",
@@ -15670,7 +15670,7 @@
   },
   "/reference/core/xml/writer/": {
     "feature": "Core\\Xml::writer",
-    "hash": "49cb6448f53addec",
+    "hash": "925abd09fe41782f",
     "questions": [
       "How do I create an XML document from my data?",
       "Build XML output step by step",
@@ -15974,7 +15974,7 @@
   },
   "/reference/types/arr-order/": {
     "feature": "Core\\Arr::Order",
-    "hash": "ddba412c98b2200e",
+    "hash": "2d0458b6242decd7",
     "questions": [
       "Sort a list from largest to smallest",
       "Sort in descending order",
@@ -15984,7 +15984,7 @@
   },
   "/reference/types/arr-seton/": {
     "feature": "Core\\Arr::SetOn",
-    "hash": "0cd7fb21d2c0c6bb",
+    "hash": "46d69d0210224291",
     "questions": [
       "Compare arrays by keys instead of values",
       "Find entries where key and value both match",
@@ -16634,7 +16634,7 @@
   },
   "/reference/types/novis-intl-relativetime-unit/": {
     "feature": "Novis\\Intl\\RelativeTime::Unit",
-    "hash": "d5a61caae4c50b74",
+    "hash": "cb8809dbe98ca5b0",
     "questions": [
       "How do I write 5 minutes ago?",
       "Show a time like in 2 weeks",
@@ -16696,7 +16696,7 @@
   },
   "/reference/types/novis-spreadsheet-line/": {
     "feature": "Novis\\Spreadsheet\\Line",
-    "hash": "d49478a59884fd81",
+    "hash": "b2b55308eecc098f",
     "questions": [
       "How do I add a border to a spreadsheet cell?",
       "Double line border above a total row",
@@ -17068,7 +17068,7 @@
   },
   "/syntax/attributes/writing-and-reading/": {
     "feature": "syntax/attributes/writing-and-reading.mdx",
-    "hash": "2626dce24820c187",
+    "hash": "9431d2ca6744f1b4",
     "questions": [
       "How do I attach extra data to a class or method?",
       "What is the syntax for an attribute in Novis?",
@@ -17124,7 +17124,7 @@
   },
   "/syntax/classes/anonymous-objects/": {
     "feature": "syntax/classes/anonymous-objects.mdx",
-    "hash": "3acbed1adc3f09e2",
+    "hash": "761b7e9704113d57",
     "questions": [
       "How do I create an object without writing a class?",
       "Give a name to the type of a small object",
@@ -17393,7 +17393,7 @@
   },
   "/syntax/errors/error-types/": {
     "feature": "syntax/errors/error-types.mdx",
-    "hash": "746f2dd00202f5e8",
+    "hash": "c910e6f6062ffc57",
     "questions": [
       "Which error classes exist and when is each one thrown?",
       "How do I write my own error class?",
@@ -17416,7 +17416,7 @@
   },
   "/syntax/errors/rethrowing/": {
     "feature": "syntax/errors/rethrowing.mdx",
-    "hash": "db47430d0124d92b",
+    "hash": "7c68c5e4fbe94293",
     "questions": [
       "How do I throw a caught error again?",
       "What happens to an error that nothing catches?",
@@ -17584,7 +17584,7 @@
   },
   "/syntax/start-here/": {
     "feature": "syntax/start-here.mdx",
-    "hash": "1dff53ff1dfa95f1",
+    "hash": "9c796ecddf47e6bf",
     "questions": [
       "What does a first Novis program look like?",
       "What is different in Novis if I know PHP?",

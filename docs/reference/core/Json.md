@@ -17,23 +17,25 @@ level is a JSON array as one `User` per element, reporting a bad element under i
 ```nvs
 <?nvs
 #[Core\Json\Derive]
-class User {
+class User
+{
     public string $name;
     public ?int $age;
-    #[Core\Json\Field(name: "is_admin")]
+    #[Core\Json\Field(name: 'is_admin')]
     public bool $admin;
-    public function constructor(string $name, ?int $age, bool $admin) {
+    public function constructor(string $name, ?int $age, bool $admin)
+    {
         $this->name = $name;
         $this->age = $age;
         $this->admin = $admin;
     }
 }
-echo Core\Json::encode(["id" => 7, "tags" => ["a", "b"], "ok" => true]), "\n";
+echo Core\Json::encode(['id' => 7, 'tags' => ['a', 'b'], 'ok' => true]), "\n";
 var $doc = Core\Json::decode("{\"n\": 3.5, \"list\": [1, 2]}");
-echo Core\Json::encode($doc, {pretty: true}), "\n";
+echo Core\Json::encode($doc, { pretty: true }), "\n";
 User $u = Core\Json::decodeAs<User>("{\"name\":\"Ada\",\"age\":null,\"is_admin\":true}");
-echo $u->name, " ", $u->age ?? "unknown", " ", Core\Json::encode($u), "\n";
-echo Core\Json::isValid("{oops}") ? "valid" : "invalid", "\n";
+echo $u->name, ' ', $u->age ?? 'unknown', ' ', Core\Json::encode($u), "\n";
+echo Core\Json::isValid('{oops}') ? 'valid' : 'invalid', "\n";
 try {
     Core\Json::decodeAs<User>("{\"name\":1}");
 } catch (ParseError $e) {

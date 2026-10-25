@@ -8,14 +8,14 @@ echo $text;
 hover
 --EXPECT--
 ```nvs
-Core\Json::encode(mixed $value, {pretty?: bool, escapeUnicode?: bool} $options): string
+Core\Json::encode(mixed $value, { pretty?: bool, escapeUnicode?: bool } $options): string
 ```
 
 Converts `$value` to JSON text. It can be a scalar, an array, an anonymous object or an instance of a class with `#[Json\Derive]`. The text is on one line unless `pretty` is set.
 
 **Parameters**
 
-- `$value` — The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, `string`, an array, a `{name: value}` shape, or an instance of a class with `#[Json\Derive]`.
+- `$value` — The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, `string`, an array, a `{ name: value }` shape, or an instance of a class with `#[Json\Derive]`.
 - `pretty` — Writes the output across several lines, with indentation. By default, the output is on one line.
 - `escapeUnicode` — Writes every non-ASCII character as a `\uXXXX` escape. By default, UTF-8 text is written as it is.
 

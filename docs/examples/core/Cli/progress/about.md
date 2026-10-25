@@ -1,8 +1,8 @@
 Draws a progress bar on the terminal while your code works.
 
 `Core\Cli::progress` opens a bar scaled to `$total` and runs your code with a handle to it. Your code
-counts: `advance` says that one more unit of work is done, and the runtime draws the bar. `{by: 1000}`
-counts a thousand units in one step, and `{label: "..."}` sets the caption beside the bar.
+counts: `advance` says that one more unit of work is done, and the runtime draws the bar. `{ by: 1000 }`
+counts a thousand units in one step, and `{ label: "..." }` sets the caption beside the bar.
 
 The bar closes when `Core\Cli::progress` returns, on every way out, and the terminal is left the way
 it was found. Where the output is not a terminal, a log file for example, nothing is drawn and your

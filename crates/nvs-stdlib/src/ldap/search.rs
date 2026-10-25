@@ -410,7 +410,7 @@ fn base_arg(
                 ThrownClass::Logic,
                 format!(
                     "{member}: the search has no `base`. Give one, such as \
-                     `{{base: 'DC=example,DC=test'}}`, or set `base` in the `[ldap]` block"
+                     `{{ base: 'DC=example,DC=test' }}`, or set `base` in the `[ldap]` block"
                 ),
             )
         }),

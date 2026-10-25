@@ -20,11 +20,11 @@ any of the three is the error `E0496`. `Dog::class` is a `string`, the class nam
 `string` with a `class<T>` is the error `E0466`.
 
 A shape cannot be written in front of a variable, because a `{` at the start of a statement opens a
-block. `{x: int} $p = …;` is the error `E0134`. Name the shape with `type` first.
+block. `{ x: int } $p = …;` is the error `E0134`. Name the shape with `type` first.
 
 A value assigned to a shape needs every field the shape names, with the type it gives. A missing
 field or a field of another type is the error `E0401`. You can assign a new value to an existing
 field of an anonymous object. Adding a field it does not have throws a `RuntimeError`.
 
-`as Point` checks the type of each field too. `{x: 5, y: "six"} as Point` throws a `RuntimeError`,
+`as Point` checks the type of each field too. `{ x: 5, y: "six" } as Point` throws a `RuntimeError`,
 and `as ?Point` gives `null` for it.

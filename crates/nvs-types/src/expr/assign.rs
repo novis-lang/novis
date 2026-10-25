@@ -80,8 +80,8 @@ pub(crate) fn is_assignable(
 /// does not work for the field of a shape value or object that already exists,
 /// because that value is shared and its field keeps the representation it was
 /// built with. [`shape_satisfied`] compares fields with [`Widening::InPlace`],
-/// at every depth of the field type, so a `{w: int}` value never satisfies
-/// `{w: float}`, `{w: ?float}` or `{w: array<float>}`. An array's elements are
+/// at every depth of the field type, so a `{ w: int }` value never satisfies
+/// `{ w: float }`, `{ w: ?float }` or `{ w: array<float> }`. An array's elements are
 /// compared the same way, for the same reason: the elements of an array that
 /// already exists keep the representation they were stored with, so an
 /// `array<int>` never satisfies `array<float>`.
@@ -538,7 +538,7 @@ pub(crate) fn class_satisfied(
 /// object's slot carries a tag and no declared type, so a write through a wider
 /// view would store a value the narrower view reads at the wrong type. `{pet:
 /// Dog}` therefore does not satisfy `{pet: Animal}`, and `{a: int}` does not
-/// satisfy `{a: ?int}`. A class source stays covariant: its field types come
+/// satisfy `{ a: ?int }`. A class source stays covariant: its field types come
 /// from [`resolve_property`], the same ancestor walk an ordinary `$obj->prop`
 /// access uses, and a write through the view is checked at run time against
 /// the class's own declared type. Any other `from` (a scalar, `object`, a
@@ -546,7 +546,7 @@ pub(crate) fn class_satisfied(
 ///
 /// A field the target marks optional ([`ShapeField::required`] false) relaxes
 /// exactly one half of that: the key may be **absent** from `from`. When it is
-/// present it is checked like any other, so `{a?: int}` still refuses a source
+/// present it is checked like any other, so `{ a?: int }` still refuses a source
 /// whose `a` is a `string`. The relaxation does not run the other way — a
 /// source whose own `a` is optional is not proven to carry one, so it fills a
 /// required `a` no better than a source with no `a` at all, and only another

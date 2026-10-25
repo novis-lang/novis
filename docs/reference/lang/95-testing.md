@@ -1319,7 +1319,7 @@ true for every input, and the runner looks for an input where it is false.
 
 `#[Property]` goes on a method with the same shape as a `#[Test]` method. Each parameter gets a
 generated value of its declared type. The runner calls the method 100 times, and `runs:` changes
-that number. `gen: {level: "0..1000"}` gives `$level` a whole number from 0 to 1000.
+that number. `gen: { level: "0..1000" }` gives `$level` a whole number from 0 to 1000.
 
 When a call fails, the runner tries smaller inputs that still fail. The report shows the smallest
 input it found, the input that failed first, and the seed. Write that seed as
@@ -1783,7 +1783,7 @@ An assertion checks one thing about a value. When the check is false, the test f
 Every assertion is a static method of `Core\Test`. You write the value your code produced first,
 and the value you expect second. An assertion that passes returns and does nothing. One that fails
 records the failure and throws `Core\Test\Failure`, and the error message names both values. You
-may add `{message: "..."}` at the end of any assertion to put your own sentence in front of that
+may add `{ message: "..." }` at the end of any assertion to put your own sentence in front of that
 message.
 
 Catching a `Core\Test\Failure` does not make a test pass. The runner keeps a record of every failed
@@ -1902,7 +1902,7 @@ try {
     echo $f->message, "\n";
 }
 
-// A trailing `{message: "..."}` puts your own sentence in front of the report.
+// A trailing `{ message: "..." }` puts your own sentence in front of the report.
 try {
     Test::assertSame(0, 1, { message: 'a fresh counter is one' });
 } catch (Core\Test\Failure $f) {
@@ -1994,7 +1994,7 @@ try {
     echo $f->message, "\n";
 }
 
-// `{message: …}` puts your own sentence in front of the report.
+// `{ message: … }` puts your own sentence in front of the report.
 try {
     Test::assertEquals(1, 2, { message: 'a new counter is one' });
 } catch (Core\Test\Failure $f) {

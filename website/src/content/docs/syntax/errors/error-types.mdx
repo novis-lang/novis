@@ -44,7 +44,7 @@ class it expects.
 ## Do and don't
 
 - Do read `$e->message`. `getMessage()` and the other `get...()` methods do not exist.
-- Do pass the caught error as `{previous: $e}` when you throw a new one.
+- Do pass the caught error as `{ previous: $e }` when you throw a new one.
 - Do extend `RuntimeError` for a problem outside the program, and `LogicError` for a bug.
 - Don't write `Exception` or `Error`. They do not exist.
 - Don't catch `Throwable` when you expect one kind of failure. Name that class.

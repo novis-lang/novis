@@ -22,19 +22,19 @@ beta
 ```
 ```nvs
 <?nvs
-string $text = Core\IO::read("data.txt");
+string $text = Core\IO::read('data.txt');
 echo Core\Str::length($text), " bytes\n";
 
-Core\IO::write("./copy.txt", $text . "gamma\n");
-echo Core\Str::trim(Core\IO::read("./copy.txt")), "\n";
+Core\IO::write('./copy.txt', $text . "gamma\n");
+echo Core\Str::trim(Core\IO::read('./copy.txt')), "\n";
 
 try {
-    Core\IO::read("./missing.txt");
+    Core\IO::read('./missing.txt');
 } catch (IOError $io) {
     echo "missing: no such file\n";
 }
 try {
-    Core\IO::read("../outside.txt");
+    Core\IO::read('../outside.txt');
 } catch (RuntimeError $denied) {
     echo "outside: refused\n";
 }

@@ -3839,7 +3839,7 @@ impl<'a> Lowering<'a> {
     /// Each `make` is the object [`Self::lower_method_ref`] builds for a
     /// `(...)`, over a [`ThunkTarget::Build`] thunk whose `invoke` writes the
     /// `new`, so nothing is constructed here. The row is the synthesized class
-    /// a written `{class: …, make: …}` literal gets. Every fresh value is
+    /// a written `{ class: …, make: … }` literal gets. Every fresh value is
     /// staged until the row or the array takes it, as in
     /// [`Self::lower_program_instances_with`], so a later allocation that
     /// fails releases what was built before it.
@@ -5946,13 +5946,13 @@ impl<'a> Lowering<'a> {
         *cur = written;
     }
 
-    /// `{x: 1, y: 2}` — `rule:types/anonymous-object`'s anonymous object, which is an ordinary instance of a
+    /// `{ x: 1, y: 2 }` — `rule:types/anonymous-object`'s anonymous object, which is an ordinary instance of a
     /// class this function invents: one [`InstKind::New`] with no constructor,
     /// then one [`InstKind::FieldSet`] per field.
     ///
     /// **The class is per *shape*, not per site** — [`shape_class_label`]
     /// renders the sorted field-name list into the label, so every occurrence
-    /// of `{x: …, y: …}` anywhere in the unit names the same synthesized
+    /// of `{ x: …, y: … }` anywhere in the unit names the same synthesized
     /// class and the table carries one copy of it ([`super::lower_file`]
     /// dedups). Sorted because that is the order
     /// `nvs_types::ty::TypeInterner::shape` interns a shape's fields in, and
@@ -6028,8 +6028,8 @@ impl<'a> Lowering<'a> {
         for (field, name) in fields.iter().zip(&names) {
             // A field the checker gave its declared type, when the literal sits
             // at a declared shape (`nvs_types::expr::literals::check_anon_object`),
-            // is converted to that type here and its slot has that type: `{w: 2}`
-            // at `{w: float}` stores `2.0` in a `float` slot. Any other field
+            // is converted to that type here and its slot has that type: `{ w: 2 }`
+            // at `{ w: float }` stores `2.0` in a `float` slot. Any other field
             // stores its value as the value lowered.
             let declared = self
                 .exprs
@@ -6918,7 +6918,7 @@ impl<'a> Lowering<'a> {
             // asks whether the subject carries the key, and only the proven
             // edge reads it — which is what makes that read's error edge
             // unreachable (`InstKind::SlotProbe`). An absent key is the
-            // *field's* own answer rather than the shape's, since `{a?: int}`
+            // *field's* own answer rather than the shape's, since `{ a?: int }`
             // accepts a subject without one, so the two edges merge on a phi
             // instead of the chain's early branch deciding for them.
             //
@@ -7559,7 +7559,7 @@ pub(super) enum TestShape {
     /// already owes, over the cursor `foreach` steps
     /// ([`InstKind::ArrayNextSlot`]), with the element read at [`Ty::Tagged`] —
     /// what an array slot holds — and handed to the element's own row. Every
-    /// row therefore composes: `is array<{a: int}>` is this over
+    /// row therefore composes: `is array<{ a: int }>` is this over
     /// [`Self::Field`], and `is array<array<Foo>>` is this over itself.
     ///
     /// There is no `as` spelling to share, because `rule:types/type-test` keeps
@@ -7587,9 +7587,9 @@ pub(super) enum TestShape {
         /// way.
         slot: u32,
         /// Whether the subject has to carry the key at all —
-        /// `nvs_types::ShapeField::required`, in its polarity. A `{a?: int}`
+        /// `nvs_types::ShapeField::required`, in its polarity. A `{ a?: int }`
         /// the subject does not carry answers `true` here with nothing read; a
-        /// `{a: int}` it does not carry answers `false`.
+        /// `{ a: int }` it does not carry answers `false`.
         required: bool,
         /// What the value has to be where the key is there. Tested at
         /// [`Ty::Tagged`]: the class the subject actually is need not be the
@@ -7764,7 +7764,7 @@ pub(super) fn test_shape(
         // types: one [`TestShape::Field`] each, chained by [`TestShape::All`]
         // behind the object tag so a subject holding no object declines before
         // any field is read. A field whose own type has no row makes the whole
-        // shape `None`, which keeps `is {a: array<Foo>}` a single known gap
+        // shape `None`, which keeps `is { a: array<Foo> }` a single known gap
         // rather than a walk half of which lowers.
         // `rule:enums/representation` makes a case its backing integer and
         // nothing else, so the enum *itself* is the disjunction of its cases:

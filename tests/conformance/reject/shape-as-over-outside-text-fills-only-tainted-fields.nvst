@@ -33,9 +33,9 @@ var $fromOwnLiteral = Core\Arr::shapeAs<{sql: string, n: int}>(["sql" => "select
 --EXPECTF-ERROR--
 error[E0810]: `Note::$text` is declared `string`, and `Core\Arr::shapeAs` fills it with text from outside the program
 %A
-error[E0810]: `sql` is declared `string` in `{sql: string}`, and `Core\Arr::shapeAs` fills it with text from outside the program
+error[E0810]: `sql` is declared `string` in `{ sql: string }`, and `Core\Arr::shapeAs` fills it with text from outside the program
 %A
-error[E0810]: `sql` is declared `string` in `{sql: string}`, and `Core\Arr::shapeAs` fills it with text from outside the program
+error[E0810]: `sql` is declared `string` in `{ sql: string }`, and `Core\Arr::shapeAs` fills it with text from outside the program
 %A
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

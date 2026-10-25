@@ -111,7 +111,7 @@ pub(crate) struct Site<'a> {
 /// The namespace, `use` table and enclosing class one attach site was written
 /// under — everything a class name inside its payload resolves through.
 ///
-/// The retrieval's own scope cannot answer that: `#[{mode: Mode::Fast}]` is
+/// The retrieval's own scope cannot answer that: `#[{ mode: Mode::Fast }]` is
 /// written in the file that declares the class, and the `Core\Attributes` call
 /// asking for it may be in another file, in another namespace, importing
 /// another `Mode`. Kept per class declaration rather than per site, since every

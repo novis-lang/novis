@@ -1917,7 +1917,7 @@ const AVERAGE_DOC: MethodDoc = MethodDoc {
 /// `Core\Arr::shapeAs`'s reference card — `rule:core-api/reference-card`.
 const SHAPE_AS_DOC: MethodDoc = MethodDoc {
     short: "Reads `$a` as the type `T` written at the call site. `T` is an inline shape such as \
-            `{name: T}`, or a class with `#[Json\\Derive]`. Each field that `T` names is \
+            `{ name: T }`, or a class with `#[Json\\Derive]`. Each field that `T` names is \
             converted with `as`, and other keys are left out. Write `array<T>` to read a list.",
     params: &[ParamDoc {
         name: "a",
@@ -1951,12 +1951,12 @@ const SHAPE_AS_DOC: MethodDoc = MethodDoc {
 /// reason this is a union rather than plain `float`.
 const QUOTIENT: &[CoreTy] = &[CoreTy::Float, CoreTy::Decimal];
 
-/// `Core\Arr::Order` — the enum [`nvs_core_arr_sort`]'s `{order: ...}` option takes.
+/// `Core\Arr::Order` — the enum [`nvs_core_arr_sort`]'s `{ order: ... }` option takes.
 ///
 /// Declared here, beside its only consumer, for the same reason [`CLASS`] is.
 /// [`crate::registry`]'s `ENUMS` lists it; the value of each case is written
 /// out rather than auto-incremented, and `Asc` is `0` so it is also what an
-/// omitted `{order: ...}` ends up meaning.
+/// omitted `{ order: ... }` ends up meaning.
 pub const ORDER: CoreEnum = CoreEnum {
     name: r"Core\Arr::Order",
     cases: &[("Asc", 0), ("Desc", 1)],
@@ -1966,11 +1966,11 @@ pub const ORDER: CoreEnum = CoreEnum {
 /// [`ORDER`]'s reference card — `rule:core-api/reference-card`, on the first enum documented.
 const ORDER_DOC: EnumDoc = EnumDoc {
     short: "The direction `Core\\Arr::sort` and `sortByKey` put elements in. It is the \
-            `{order: …}` option, and it is `Asc` when you leave it out.",
+            `{ order: … }` option, and it is `Asc` when you leave it out.",
     cases: &[
         CaseDoc {
             name: "Asc",
-            desc: "Smallest first. This is the default when `{order: …}` is left out.",
+            desc: "Smallest first. This is the default when `{ order: … }` is left out.",
         },
         CaseDoc {
             name: "Desc",
@@ -1984,7 +1984,7 @@ const ORDER_DOC: EnumDoc = EnumDoc {
 /// functions differed by.
 ///
 /// Declared here beside its two consumers, exactly as [`ORDER`] is, and
-/// `Values` is `0` so it is also what an omitted `{on: ...}` ends up meaning.
+/// `Values` is `0` so it is also what an omitted `{ on: ... }` ends up meaning.
 /// This module's own docs hold what each case compares and how `by` and
 /// `comparator` compose with it.
 pub const SET_ON: CoreEnum = CoreEnum {
@@ -1996,7 +1996,7 @@ pub const SET_ON: CoreEnum = CoreEnum {
 /// [`SET_ON`]'s reference card — `rule:core-api/reference-card`.
 const SET_ON_DOC: EnumDoc = EnumDoc {
     short: "Which part of an entry `Core\\Arr::diff` and `intersect` compare. It is the \
-            `{on: …}` option, and it is `Values` when you leave it out. `by` and `comparator` \
+            `{ on: … }` option, and it is `Values` when you leave it out. `by` and `comparator` \
             apply to the part it selects.",
     cases: &[
         CaseDoc {
@@ -2058,7 +2058,7 @@ const ARRAY_KEY_CONTAGIOUS: &[CoreTy] = &[CoreTy::Int, CoreTy::Text(Qual::Contag
 /// call did not write.
 const COMBINED: &[CoreTy] = &[CoreTy::Var("T"), CoreTy::Var("U")];
 
-/// `{preserveKeys?: bool}` — the bag `Core\Arr`'s structure members share.
+/// `{ preserveKeys?: bool }` — the bag `Core\Arr`'s structure members share.
 ///
 /// The default is `false` everywhere it appears, and it means the same thing
 /// everywhere: **every** key is discarded and the result renumbered
@@ -2071,7 +2071,7 @@ const PRESERVE_KEYS: &[CoreOption] = &[CoreOption {
     default: Const::Bool(false),
 }];
 
-/// `Core\Arr::range`'s `{step?: int}` — the first options bag in the roster.
+/// `Core\Arr::range`'s `{ step?: int }` — the first options bag in the roster.
 ///
 /// A named constant rather than an inline slice because a bag is referenced
 /// twice in practice: once as a parameter type here, and once by this module's
@@ -2082,7 +2082,7 @@ const RANGE_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Int(1),
 }];
 
-/// `Core\Arr::countBy`'s `{by?: callable}` — the combining bag
+/// `Core\Arr::countBy`'s `{ by?: callable }` — the combining bag
 /// that `unique`, `diff` and `intersect` share the `by` half of.
 ///
 /// The same option [`SORT_OPTIONS`] declares and the same default: there is no
@@ -2094,7 +2094,7 @@ const BY_OPTION: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `{on?: SetOn, by?: callable, comparator?: callable}` — the bag `Core\Arr`'s
+/// `{ on?: SetOn, by?: callable, comparator?: callable }` — the bag `Core\Arr`'s
 /// set members share, in the order the ABI passes them.
 ///
 /// `by` and `comparator` default to [`Const::Null`] for the reason that
@@ -2119,15 +2119,15 @@ const SET_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `{indexBy?: int|string}` — [`nvs_core_arr_column`]'s only option, and the
+/// `{ indexBy?: int|string }` — [`nvs_core_arr_column`]'s only option, and the
 /// first union option whose members are not single-value types.
 ///
 /// [`CoreTy::Union`]'s docs own the rule this widened: what an option's
 /// default has to be is a value **outside** the declared type, so that "not
 /// given" cannot be confused with something a call site wrote. `int|string`
 /// admits no `null`, so [`Const::Null`] is that sentinel here exactly as it
-/// already is for `{by?: callable}` — the set-of-allowed-values shape
-/// `Core\Validate::isIp`'s `{version?: 4|6}` needed was one instance of that
+/// already is for `{ by?: callable }` — the set-of-allowed-values shape
+/// `Core\Validate::isIp`'s `{ version?: 4|6 }` needed was one instance of that
 /// rule rather than the rule itself.
 const COLUMN_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "indexBy",
@@ -2135,10 +2135,10 @@ const COLUMN_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `Core\Arr::from`'s `{limit?: uint}` — the only guard against materialising
+/// `Core\Arr::from`'s `{ limit?: uint }` — the only guard against materialising
 /// an unbounded generator, so an omitted
 /// limit is [`Const::Null`] and means *no* limit rather than zero, and a
-/// written `{limit: 0}` is an empty result the caller asked for.
+/// written `{ limit: 0 }` is an empty result the caller asked for.
 const FROM_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "limit",
     ty: CoreTy::Uint,
@@ -2146,9 +2146,9 @@ const FROM_OPTIONS: &[CoreOption] = &[CoreOption {
 }];
 
 /// `Core\Arr::sort`'s
-/// `{by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}`
+/// `{ by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool }`
 /// — the eleven PHP sort functions plus `array_multisort` in one bag: descending
-/// is `{order: Arr::Order::Desc}`, and key-preservation is an option rather than a
+/// is `{ order: Arr::Order::Desc }`, and key-preservation is an option rather than a
 /// letter in the name.
 ///
 /// [`nvs_core_arr_sort`]'s own docs own what each option does and which
@@ -2179,7 +2179,7 @@ const SORT_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Arr::sortByKey`'s `{order?: Order, comparator?: callable}` —
+/// `Core\Arr::sortByKey`'s `{ order?: Order, comparator?: callable }` —
 /// [`SORT_OPTIONS`] without the two options a key sort has no use for.
 ///
 /// `by` is absent because the thing compared is already the key, and
@@ -2692,7 +2692,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The `{preserveKeys?: bool}` option's value — [`PRESERVE_KEYS`] read back on
+/// The `{ preserveKeys?: bool }` option's value — [`PRESERVE_KEYS`] read back on
 /// the runtime side.
 ///
 /// The bag is flattened into one ordinary argument by
@@ -3233,7 +3233,7 @@ fn window(
 
 /// Writes the entry at `slot` into `out`, keeping its key or renumbering it —
 /// the one line `slice` and `chunk` differ by, and the only thing their
-/// `{preserveKeys?: bool}` option changes.
+/// `{ preserveKeys?: bool }` option changes.
 fn carry_entry(subject: &NvsArray, slot: usize, out: &mut NvsArray, preserve: bool) {
     if preserve {
         copy_entry(subject, slot, out);
@@ -3246,7 +3246,7 @@ fn carry_entry(subject: &NvsArray, slot: usize, out: &mut NvsArray, preserve: bo
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::slice(array<T> $a, int $offset, ?int $length = null, {preserveKeys?: bool}): array<T>`
+    /// `Core\Arr::slice(array<T> $a, int $offset, ?int $length = null, { preserveKeys?: bool }): array<T>`
     /// — the entries in one window, replacing PHP's `array_slice`.
     ///
     /// [`window`] owns what each sign means, and [`PRESERVE_KEYS`] owns what
@@ -3302,7 +3302,7 @@ nvs_runtime::nvs_helper! {
     /// default answer and
     /// `rule:types/preserve-keys`'s rule rather than this member's opinion — `array_splice`'s
     /// "renumber the integers, keep the strings" is exactly the key-type
-    /// dependence that rule refuses. There is no `{preserveKeys?: bool}`
+    /// dependence that rule refuses. There is no `{ preserveKeys?: bool }`
     /// option, and not only because the published signature declares none: the entries
     /// either side of the window and the ones spliced into it cannot all keep
     /// a key without colliding, so the option would have no honest meaning.
@@ -3348,7 +3348,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::chunk(array<T> $a, uint $size, {preserveKeys?: bool}): array<array<T>>`
+    /// `Core\Arr::chunk(array<T> $a, uint $size, { preserveKeys?: bool }): array<array<T>>`
     /// — the entries in runs of `$size`, replacing PHP's `array_chunk`.
     ///
     /// The last run is short when the count does not divide, and an empty
@@ -3467,7 +3467,7 @@ nvs_runtime::nvs_helper! {
     /// keys. PHP escapes that by renumbering the integer keys and keeping the
     /// string ones, which is the key-type-dependent behaviour `rule:types/preserve-keys`
     /// removes; renumbering *every* key is the same answer applied uniformly,
-    /// and it is what `{preserveKeys: false}` means wherever the
+    /// and it is what `{ preserveKeys: false }` means wherever the
     /// option appears. The option is not declared here because, as in the
     /// padding members, keeping a key is not a choice that can be offered.
     ///
@@ -3615,7 +3615,7 @@ nvs_runtime::nvs_helper! {
     /// keys and keeping the string ones, which is exactly the
     /// key-type-dependent rule
     /// `rule:types/preserve-keys` removes; renumbering *every* key is the same answer applied
-    /// uniformly, and it is what `{preserveKeys: false}` means
+    /// uniformly, and it is what `{ preserveKeys: false }` means
     /// wherever the option appears. Neither member declares the option,
     /// because keeping a key here is not a choice that can be offered.
     ///
@@ -3651,7 +3651,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::reverse(array<T> $a, {preserveKeys?: bool}): array<T>` —
+    /// `Core\Arr::reverse(array<T> $a, { preserveKeys?: bool }): array<T>` —
     /// the entries in the opposite order, replacing PHP's `array_reverse`.
     ///
     /// The option is [`PRESERVE_KEYS`], whose docs own what `false` means:
@@ -3840,7 +3840,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::column(array<array<T>> $a, int|string $column, {indexBy?: int|string}): array<T>`
+    /// `Core\Arr::column(array<array<T>> $a, int|string $column, { indexBy?: int|string }): array<T>`
     /// — one named cell out of every row, replacing PHP's `array_column`.
     ///
     /// The parameter is [`nvs_core_arr_flatten`]'s `array<array<T>>`, for that
@@ -4045,12 +4045,12 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::range(int $start, int $end, {step?: int}): array<int>` — the
+    /// `Core\Arr::range(int $start, int $end, { step?: int }): array<int>` — the
     /// integers from `$start` to `$end` inclusive, replacing PHP's `range`.
     ///
     /// The first member with an `rule:core-api/shape-rules` R2 options bag, and therefore the
     /// first whose arity says something the published signature does not:
-    /// `{step?: int}` is flattened into one ordinary argument by
+    /// `{ step?: int }` is flattened into one ordinary argument by
     /// `nvs_ir::lower::lower_call_args`, so this is an `args: [3]` helper and
     /// `args[2]` is always present — the call site materialized the default
     /// where it was not written. `nvs_stdlib::registry`'s own docs own why.
@@ -4065,8 +4065,8 @@ nvs_runtime::nvs_helper! {
     ///   (`nvs_runtime::Ctx::set_runtime_error_class`) — the `Core\Error`
     ///   tree's `LogicError` is the class this owes once it can.
     /// * **A step that overshoots stops at the last in-range value**, so
-    ///   `range(1, 10, {step: 3})` is `1, 4, 7, 10` and
-    ///   `range(1, 10, {step: 4})` is `1, 5, 9`.
+    ///   `range(1, 10, { step: 3 })` is `1, 4, 7, 10` and
+    ///   `range(1, 10, { step: 4 })` is `1, 5, 9`.
     ///
     /// The cursor advances by `checked_add`/`checked_sub` rather than by
     /// multiplying an index: a range whose next step would leave `int` stops
@@ -4130,7 +4130,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_arr_values`] discards them, which is also PHP's
     /// `iterator_to_array($it, false)` and the only reading that composes.
     ///
-    /// **`{limit: n}` stops after `n` elements** and an omitted limit does not
+    /// **`{ limit: n }` stops after `n` elements** and an omitted limit does not
     /// stop at all — this is the only guard against
     /// materialising an unbounded generator, so it is the *drive* that stops
     /// rather than the result being truncated afterwards: a generator asked
@@ -4222,7 +4222,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::countBy(array<T> $a, {by?: callable}): array<uint>` — how
+    /// `Core\Arr::countBy(array<T> $a, { by?: callable }): array<uint>` — how
     /// many entries fall under each distinct value, replacing PHP's
     /// `array_count_values` and the userland group-and-count loop.
     ///
@@ -4435,7 +4435,7 @@ impl Drop for Extracted {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::sort(array<T> $a, {by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}): array<T>`
+    /// `Core\Arr::sort(array<T> $a, { by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool }): array<T>`
     /// — the ordering member that replaces `sort`, `rsort`,
     /// `asort`, `arsort`, `usort`, `uasort`, `natsort`, `natcasesort` and
     /// `array_multisort`.
@@ -4489,7 +4489,7 @@ nvs_runtime::nvs_helper! {
     /// changes-type-by-itself behaviour
     /// `rule:types/declaration` rejects
     /// everywhere else; a caller who wants a numeric order over numeric
-    /// strings writes `{by: ...}` and says so.
+    /// strings writes `{ by: ... }` and says so.
     ///
     /// An `array<T>` of objects sorts under
     /// `rule:classes/comparable`'s `compareTo`,
@@ -4649,7 +4649,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::sortByKey(array<T> $a, {order?: Order, comparator?: callable}): array<T>`
+    /// `Core\Arr::sortByKey(array<T> $a, { order?: Order, comparator?: callable }): array<T>`
     /// — the second ordering member, replacing `ksort`, `krsort`
     /// and `uksort`.
     ///
@@ -5226,7 +5226,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::unique(array<T> $a, {by?: callable}): array<T>` — the
+    /// `Core\Arr::unique(array<T> $a, { by?: callable }): array<T>` — the
     /// entries whose value has not been seen before, replacing PHP's
     /// `array_unique`.
     ///
@@ -5243,7 +5243,7 @@ nvs_runtime::nvs_helper! {
     /// would make this the one member whose answer depends on a value's
     /// *spelling* rather than its identity.
     ///
-    /// `{by: fn}` names what to compare *by* — the callback receives
+    /// `{ by: fn }` names what to compare *by* — the callback receives
     /// `($value, $key)` like every other `Core\Arr` callback, is called
     /// exactly once per entry, and its result rather than the entry is what
     /// identity is asked about. The entry kept is still the entry, not the
@@ -5635,7 +5635,7 @@ nvs_runtime::nvs_helper! {
 }
 
 /// Which part of an entry a set member compares — `Core\Arr::SetOn`,
-/// decoded from the `{on: ...}` option's integer case.
+/// decoded from the `{ on: ... }` option's integer case.
 ///
 /// [`SET_ON`] is where the cases and their values are stated; this is the
 /// same closed set read back on the runtime side, and the two cannot drift
@@ -5647,7 +5647,7 @@ enum On {
     Both,
 }
 
-/// The `{on: ...}` option as an [`On`].
+/// The `{ on: ... }` option as an [`On`].
 fn on_of(value: &Value, member: &str) -> Result<On, Fault> {
     match value.as_int() {
         Some(0) => Ok(On::Values),
@@ -5839,7 +5839,7 @@ fn set_member(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::diff(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>`
+    /// `Core\Arr::diff(array<T> $a, array<T> $b, { on?: SetOn, by?: callable, comparator?: callable }): array<T>`
     /// — the entries of `$a` that `$b` does not have, replacing PHP's
     /// `array_diff` and its five variants.
     ///
@@ -5857,7 +5857,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::intersect(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>`
+    /// `Core\Arr::intersect(array<T> $a, array<T> $b, { on?: SetOn, by?: callable, comparator?: callable }): array<T>`
     /// — the entries of `$a` that `$b` also has, replacing PHP's
     /// `array_intersect` and its five variants.
     ///
@@ -5887,7 +5887,7 @@ nvs_runtime::nvs_helper! {
     /// numeral strings as numbers and answers `"50"`, and this member compares
     /// them bytewise, exactly as [`nvs_core_arr_sort`] does. Neither member has
     /// a comparator option; a caller who wants one writes
-    /// `first(sort($a, {by: ...}))`. Both halves are pinned in
+    /// `first(sort($a, { by: ... }))`. Both halves are pinned in
     /// `tests/conformance/core/arr-min-and-max-*`.
     ///
     /// PHP's variadic `min(1, 2, 3)` has no member at all: that is what `<`
@@ -6328,7 +6328,7 @@ mod tests {
     /// Nothing in this crate builds either, because nothing here compiles a
     /// call site. [`crate::request`]'s `reading_class` is the nearest fixture
     /// and it builds a *class*, whose contract rides on its own descriptor; a
-    /// shape's cannot, because `{n: int}` and `{n: string}` are one class, so
+    /// shape's cannot, because `{ n: int }` and `{ n: string }` are one class, so
     /// the field types live beside it and
     /// [`ClassTable::define_shape_codec`] is what hands back their address.
     ///

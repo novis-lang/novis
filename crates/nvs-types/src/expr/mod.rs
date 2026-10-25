@@ -135,7 +135,7 @@ pub fn type_is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
 /// group's inner expression has already had the whole of this function applied
 /// to it — the refusal below, and the callable one above it — at its own,
 /// narrower span. Repeating either here is one mistake reported twice, a column
-/// apart, which is what `Door::a(({name: "x"}))` used to print.
+/// apart, which is what `Door::a(({ name: "x" }))` used to print.
 ///
 /// An expression that contains a node the parser already refused reports
 /// neither: its type is a stand-in, and the parser's error is the real one

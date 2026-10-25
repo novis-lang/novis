@@ -1,4 +1,4 @@
-The type of `error` is `null|{class: string, message: string}`. It is `null` when `ok` is `true`. So
+The type of `error` is `null|{ class: string, message: string }`. It is `null` when `ok` is `true`. So
 `$r->error->message` is `E0459`. Read it with `?->`, or test `$r->error != null` first.
 
 `error` has two fields, `class` and `message`. It has no `backtrace` and no `line`. `$r->error?->line`

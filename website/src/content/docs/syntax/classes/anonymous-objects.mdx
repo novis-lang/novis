@@ -1,12 +1,12 @@
 ---
 title: Anonymous objects and shapes
 covers: ['lang:expressions/anonymous-objects']
-description: 'How to create an object without a class with {name: value}, and how a shape type describes its fields.'
+description: 'How to create an object without a class with { name: value }, and how a shape type describes its fields.'
 ---
 import FeatureSection from '@components/FeatureSection.astro'
 
-`{x: 1, y: 2}` creates an anonymous object: an object without a class. Its type is a shape:
-`{x: int, y: int}`. You usually give a shape a name with `type`.
+`{ x: 1, y: 2 }` creates an anonymous object: an object without a class. Its type is a shape:
+`{ x: int, y: int }`. You usually give a shape a name with `type`.
 
 <FeatureSection examples="lang/expressions/anonymous-objects" heading="Anonymous objects" id="anonymous-objects" />
 
@@ -15,4 +15,4 @@ import FeatureSection from '@components/FeatureSection.astro'
 - Do use an anonymous object for a small group of values, like the result of a method.
 - Do name a shape with `type` when you use it in more than one place.
 - Don't use an anonymous object when the data needs methods or checks. Write a class.
-- Don't start a statement with `{x: 1}`. It does not compile. Write `({x: 1})`.
+- Don't start a statement with `{ x: 1 }`. It does not compile. Write `({ x: 1 })`.

@@ -12,18 +12,18 @@ through `stream`, which opens a `Core\Hash\Stream`.
 
 ```nvs
 <?nvs
-bytes $digest = Core\Hash::of("abc", Core\Hash::Digest::Sha256);
+bytes $digest = Core\Hash::of('abc', Core\Hash::Digest::Sha256);
 echo Core\Encoding::toHex($digest), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Md5)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Crc32)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of('abc', Core\Hash::Digest::Md5)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of('abc', Core\Hash::Digest::Crc32)), "\n";
 
-bytes $key = "Jefe" as bytes;
-bytes $mac = Core\Hash::hmac("what do ya want for nothing?", $key, Core\Hash::Digest::Sha256);
+bytes $key = 'Jefe' as bytes;
+bytes $mac = Core\Hash::hmac('what do ya want for nothing?', $key, Core\Hash::Digest::Sha256);
 echo Core\Encoding::toHex($mac), "\n";
 
-bytes $again = Core\Hash::of("abc", Core\Hash::Digest::Sha256);
-echo Core\Hash::equals($digest, $again) ? "same" : "differ", "\n";
-echo Core\Hash::equals($digest, Core\Hash::of("abd", Core\Hash::Digest::Sha256)) ? "same" : "differ", "\n";
+bytes $again = Core\Hash::of('abc', Core\Hash::Digest::Sha256);
+echo Core\Hash::equals($digest, $again) ? 'same' : 'differ', "\n";
+echo Core\Hash::equals($digest, Core\Hash::of('abd', Core\Hash::Digest::Sha256)) ? 'same' : 'differ', "\n";
 ```
 ```output
 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad

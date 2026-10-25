@@ -5,7 +5,7 @@ end of the string is not changed. This is useful when the end of a text matters,
 the spaces that end a line of a fixed-width table.
 
 The `characters` option gives your own list of characters to remove. It replaces the default list,
-so `{characters: "0"}` removes only zeros. Each character in the list counts on its own, and the
+so `{ characters: "0" }` removes only zeros. Each character in the list counts on its own, and the
 order does not matter. When every character of the string is in the list, the result is the empty
 string.
 

@@ -754,7 +754,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Deliberately the same synthesized class a written literal of the same
     /// field set gets ([`super::shape_class_label`], keyed on the sorted
-    /// names), so a retrieved payload and a hand-written `{path: "/x"}` are
+    /// names), so a retrieved payload and a hand-written `{ path: "/x" }` are
     /// one class with one layout: `nvs_types` matched the payload against the
     /// caller's shape structurally, and two classes for one shape would make
     /// the field offsets they agree on a coincidence.

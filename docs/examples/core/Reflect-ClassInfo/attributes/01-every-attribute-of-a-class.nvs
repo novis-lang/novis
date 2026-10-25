@@ -6,11 +6,11 @@ type Route = { path: string };
 #[Route(path: '/users')]
 class UserController
 {
-    #[{column: 'user_name'}]
+    #[{ column: 'user_name' }]
     public string $name = '';
 
     #[Route(path: '/show')]
-    public function show(#[{from: 'query'}] int $id): int
+    public function show(#[{ from: 'query' }] int $id): int
     {
         return $id;
     }

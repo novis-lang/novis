@@ -8,7 +8,7 @@ Every value in a query string is text. A field of another type, such as `uint`, 
 the same way `as` does. Parameters that the type does not name are ignored.
 
 The option `name` reads only the parameters inside one bracket name. For `price[min]=10`, you write
-`{name: "price"}`, and the field `min` gets `10`.
+`{ name: "price" }`, and the field `min` gets `10`.
 
 If a field is missing or its value does not convert, `queryAs` throws a `ParseError`. Its `issues`
 list has one entry for each wrong field.

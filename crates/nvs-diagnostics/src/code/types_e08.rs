@@ -434,7 +434,7 @@ codes! {
     pub const E_SECRET_INTO_CONTAINER: Code = Code::new("E0824").card(
         "A `secret` value cannot be stored in an array element or a field whose type is not \
          `secret`. Declare the type with `secret`, as in `array<secret string>` or \
-         `{name: secret string}`.",
+         `{ name: secret string }`.",
     );
 
     /// A `Core\Test::double<T>` whose shape of answers leaves a method `T`
@@ -768,7 +768,7 @@ codes! {
          the program). The same is true for an object field that is `mixed` or tainted, and \
          for the keys of an array whose values are tainted or `mixed`. A shape or a variable \
          that gets this text must say so. Write `tainted string`, or write `tainted` before a \
-         shape, as in `$data as tainted {name: string}`.",
+         shape, as in `$data as tainted { name: string }`.",
     );
     /// A call to a member on `nvs_stdlib::registry::MUST_USE_MEMBERS` written
     /// as a statement of its own, so its result is thrown away
@@ -1151,6 +1151,6 @@ codes! {
         "A `#[Property]` method gets random values for its parameters. Each value comes from \
          the parameter's type. Some types have no random values, such as a function or an \
          interface, so change the parameter's type. A `gen:` entry names a parameter and gives \
-         a range, such as `gen: {age: \"0..120\"}`. The message says which part does not fit.",
+         a range, such as `gen: { age: \"0..120\" }`. The message says which part does not fit.",
     );
 }

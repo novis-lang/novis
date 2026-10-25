@@ -5,27 +5,27 @@
 class Handlers
 {
     public function first(
-        #[{n: 1}] int $a,
-        #[{n: 2}] int $b,
-        #[{n: 3}] int $c,
-        #[{n: 4}] int $d,
-        #[{n: 5}] int $e,
-        #[{n: 6}] int $f,
-        #[{n: 7}] int $g,
-        #[{n: 8}] int $h,
+        #[{ n: 1 }] int $a,
+        #[{ n: 2 }] int $b,
+        #[{ n: 3 }] int $c,
+        #[{ n: 4 }] int $d,
+        #[{ n: 5 }] int $e,
+        #[{ n: 6 }] int $f,
+        #[{ n: 7 }] int $g,
+        #[{ n: 8 }] int $h,
     ): void
     {
     }
 
     public function second(
-        #[{n: 11}] int $a,
-        #[{n: 12}] int $b,
-        #[{n: 13}] int $c,
-        #[{n: 14}] int $d,
-        #[{n: 15}] int $e,
-        #[{n: 16}] int $f,
-        #[{n: 17}] int $g,
-        #[{n: 18}] int $h,
+        #[{ n: 11 }] int $a,
+        #[{ n: 12 }] int $b,
+        #[{ n: 13 }] int $c,
+        #[{ n: 14 }] int $d,
+        #[{ n: 15 }] int $e,
+        #[{ n: 16 }] int $f,
+        #[{ n: 17 }] int $g,
+        #[{ n: 18 }] int $h,
     ): void
     {
     }

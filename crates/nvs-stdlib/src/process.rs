@@ -200,7 +200,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `{cwd?: string, env?: array<string>, timeout?: Duration}` —
+/// `{ cwd?: string, env?: array<string>, timeout?: Duration }` —
 /// `rule:core-classes/process-options`' bag, one constant for both rows so `run`
 /// and `spawn` cannot take different ones.
 ///
@@ -208,7 +208,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// parent's, no environment is the door's small base set taken from the
 /// parent's, and no timeout leaves the child bounded by the request alone.
 /// `env` is `array<string>` keyed by name, and a given one is the child's whole
-/// environment, so `{env: []}` is a child with no variables and is told apart
+/// environment, so `{ env: [] }` is a child with no variables and is told apart
 /// from an omitted `env` by that null.
 /// `cwd` is a path position, so a relative path given as a string literal is
 /// joined to the folder of the file that wrote it, and a sink, so a `tainted`

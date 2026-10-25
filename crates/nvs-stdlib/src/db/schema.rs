@@ -723,7 +723,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **The name is the documentation.** `rule:core-classes/schema-apply-capability`'s whole argument for two members
     /// rather than one member with a flag is that a reviewer reading the call
-    /// site sees the claim being made; a `{risky: true}` option is the same
+    /// site sees the claim being made; a `{ risky: true }` option is the same
     /// decision spelled where nobody greps.
     ///
     /// It still runs no report — `rule:core-classes/schema-absence-never-destroys`'s absence-never-destroys is not what

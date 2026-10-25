@@ -1,11 +1,12 @@
-// `bun nv nvs-fmt`: formats every `.nvs` file the corpus holds, so a change to a layout rule is one
-// command over the whole tree. `tools/data/nvs-fmt-corpus.txt` says which files those are.
+// `bun nv nvs-fmt`: formats every `.nvs` file the corpus holds and every ```nvs block on its pages, so a
+// change to a layout rule is one command over the whole tree. `tools/data/nvs-fmt-corpus.txt` says which
+// files and pages those are, and `tools/nv/lib/nvs-fences.ts` what a block is.
 //
-//     bun nv nvs-fmt [PATH...]           build `nvs`, format every held file (under PATH when given), and
-//                                        name each expectation file the new layout can have moved
+//     bun nv nvs-fmt [PATH...]           build `nvs`, format every held file and page (under PATH when
+//                                        given), and name each expectation file the new layout can have moved
 //     bun nv nvs-fmt --bless [PATH...]   the same, then bless each one it names
-//     bun nv nvs-fmt --check [PATH...]   write nothing: name each held file the formatter would change,
-//                                        and each `.nvs` file outside every tree
+//     bun nv nvs-fmt --check [PATH...]   write nothing: name each held file and block the formatter would
+//                                        change, and each `.nvs` file outside every tree
 //     --nvs <path>                       format with this binary instead of building the covws `nvs`
 //
 // A file that does not parse is refused by `nvs fmt` and left as it is: the corpus has many that are
@@ -22,12 +23,13 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { buildCovws } from "../lib/covws.ts";
-import { held, nvsFiles, outside, readCorpus } from "../lib/nvs-fmt-corpus.ts";
+import { formatBlocks } from "../lib/nvs-fences.ts";
+import { held, heldPage, nvsFiles, outside, pageFiles, readCorpus } from "../lib/nvs-fmt-corpus.ts";
 import { ROOT } from "../lib/paths.ts";
 import { passthrough, run as runProc } from "../lib/proc.ts";
 import { cargoLines } from "../lib/progress.ts";
 
-export const summary = "format every .nvs file the formatter holds, and name the expectation files to bless again: nv nvs-fmt [--check | --bless] [--nvs PATH] [PATH...]";
+export const summary = "format every .nvs file and ```nvs page block the formatter holds, and name the expectation files to bless again: nv nvs-fmt [--check | --bless] [--nvs PATH] [PATH...]";
 
 /** Below Windows' 32 767-character command line, with room for the binary and the flags. */
 const ARGV_CHARS = 24_000;
@@ -92,8 +94,9 @@ export async function run(args: string[]): Promise<number> {
   const strays = all.filter((f) => outside(corpus, f));
   const wanted = (f: string) => o.paths.length === 0 || o.paths.some((p) => f === p || f.startsWith(`${p}/`));
   const files = all.filter((f) => held(corpus, f) && wanted(f));
-  if (o.paths.length > 0 && files.length === 0) {
-    console.error(`nv nvs-fmt: no file the corpus holds is under ${o.paths.join(", ")}`);
+  const pages = (await pageFiles()).filter((f) => heldPage(corpus, f) && wanted(f));
+  if (o.paths.length > 0 && files.length === 0 && pages.length === 0) {
+    console.error(`nv nvs-fmt: no file or page the corpus holds is under ${o.paths.join(", ")}`);
     return 2;
   }
 
@@ -103,14 +106,22 @@ export async function run(args: string[]): Promise<number> {
   const before = new Map(files.map((f) => [f, readFileSync(join(ROOT, f))]));
   const fmt = await format(nvs, files, o.mode === "check");
   if (fmt === null) return 1;
+  let blocks;
+  try {
+    blocks = await formatBlocks(nvs, pages, o.mode === "check");
+  } catch (e) {
+    console.error(`nv nvs-fmt: ${(e as Error).message}`);
+    return 1;
+  }
 
   for (const f of strays) console.log(`outside every tree: ${f}`);
   if (strays.length > 0) console.log(`nv nvs-fmt: add the tree of each file above to tools/data/nvs-fmt-corpus.txt, or a skip that says why`);
 
   if (o.mode === "check") {
-    for (const f of fmt.named) console.log(`would change: ${f}`);
+    for (const f of [...fmt.named, ...blocks.changed]) console.log(`would change: ${f}`);
     console.log(`nv nvs-fmt: ${fmt.named.length} of ${files.length} file(s) would change; ${fmt.refused} do not parse and are left as they are`);
-    return fmt.named.length > 0 || strays.length > 0 ? 1 : 0;
+    console.log(`nv nvs-fmt: ${blocks.changed.length} block(s) on ${pages.length} page(s) would change; ${blocks.refused} are fragments and are left as they are`);
+    return fmt.named.length > 0 || blocks.changed.length > 0 || strays.length > 0 ? 1 : 0;
   }
 
   const rewritten = files.filter((f) => !readFileSync(join(ROOT, f)).equals(before.get(f)!));
@@ -121,6 +132,8 @@ export async function run(args: string[]): Promise<number> {
   }
   for (const [tree, n] of [...byTree].sort((a, b) => b[1] - a[1])) console.log(`  ${String(n).padStart(5)}  ${tree}/`);
   console.log(`nv nvs-fmt: rewrote ${rewritten.length} of ${files.length} file(s); ${fmt.refused} do not parse and are left as they are`);
+  for (const b of blocks.changed) console.log(`  rewrote the block at ${b}`);
+  console.log(`nv nvs-fmt: rewrote ${blocks.changed.length} block(s) on ${blocks.written.length} page(s); ${blocks.refused} are fragments and are left as they are`);
 
   const pins = pinned(rewritten);
   const site = pins.filter((p) => p.program.startsWith(SNIPPETS) && !p.byHand);
@@ -139,7 +152,7 @@ export async function run(args: string[]): Promise<number> {
     console.log(`\nnv nvs-fmt: ${cites.length} comment(s) in a program whose lines moved name a line number; check each against the program as it now is:`);
     for (const c of cites) console.log(`  ${c}`);
   }
-  if (rewritten.length > 0) console.log(`\nnv nvs-fmt: then, in order:\n${AFTER.map((s) => `  ${s}`).join("\n")}`);
+  if (rewritten.length > 0 || blocks.written.length > 0) console.log(`\nnv nvs-fmt: then, in order:\n${AFTER.map((s) => `  ${s}`).join("\n")}`);
   if (o.mode !== "bless") return strays.length > 0 ? 1 : 0;
 
   let code = 0;

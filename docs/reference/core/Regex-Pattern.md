@@ -11,11 +11,11 @@ itself.
 
 ```nvs
 <?nvs
-Core\Regex\Pattern $tag = Core\Regex::compile("<.+>", {ungreedy: true});
-echo Core\Regex::match("<a><b>", $tag)?->text() ?? "none", "\n";
-Core\Regex\Pattern $vowel = Core\Regex::compile("[aeiou]", {caseInsensitive: true});
-echo Core\Regex::replace("Banana", $vowel, "."), " ", Core\Arr::count(Core\Regex::matchAll("Banana", $vowel)), "\n";
-string $bad = "(unclosed";
+Core\Regex\Pattern $tag = Core\Regex::compile('<.+>', { ungreedy: true });
+echo Core\Regex::match('<a><b>', $tag)?->text() ?? 'none', "\n";
+Core\Regex\Pattern $vowel = Core\Regex::compile('[aeiou]', { caseInsensitive: true });
+echo Core\Regex::replace('Banana', $vowel, '.'), ' ', Core\Arr::count(Core\Regex::matchAll('Banana', $vowel)), "\n";
+string $bad = '(unclosed';
 try {
     Core\Regex\Pattern $never = Core\Regex::compile($bad);
     echo "compiled\n";

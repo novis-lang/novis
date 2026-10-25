@@ -1,8 +1,8 @@
 An anonymous object is an object with exactly the fields you write. You do not declare a class for
 it.
 
-You write it as `{x: 1, y: 2}` and read or change a field with `$point->x`. Its type is the shape
-`{x: int, y: int}`, and a `type` alias gives that shape a short name. Any object with at least those
+You write it as `{ x: 1, y: 2 }` and read or change a field with `$point->x`. Its type is the shape
+`{ x: int, y: int }`, and a `type` alias gives that shape a short name. Any object with at least those
 fields fits where the shape is needed. So two parts of a program work together when they name the
 same fields.
 A field that may be missing is written `label?: string`, and `??` gives a value for the times it is

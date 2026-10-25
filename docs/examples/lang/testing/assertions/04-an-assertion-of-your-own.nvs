@@ -27,7 +27,7 @@ try {
     echo $f->message, "\n";
 }
 
-// `{message: …}` puts your own sentence in front of the report.
+// `{ message: … }` puts your own sentence in front of the report.
 try {
     Test::assertEquals(1, 2, { message: 'a new counter is one' });
 } catch (Core\Test\Failure $f) {

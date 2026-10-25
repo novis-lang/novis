@@ -51,7 +51,7 @@ the cursor on a string, or select it, and the action rewrites the string as an
 ``html`…` `` template that prints the same text:
 
 ```nvs
-var $name = "Ada";
+var $name = 'Ada';
 echo "<p class=\"note\">Hello, $name</p>";
 echo html`<p class="note">Hello, $name</p>`;
 ```
@@ -62,7 +62,7 @@ array read on one, becomes a `{$…}` hole. Any other value becomes a `<?= … ?
 ```nvs
 var $name = "Ada";
 echo "<b>" . $name . "</b> is " . Core\Str::upper("here") . '!';
-echo html`<b>{$name}</b> is <?= Core\Str::upper("here") ?>!`;
+echo html`<b>{$name}</b> is <?= Core\Str::upper('here') ?>!`;
 ```
 
 The action changes what the line prints. Text from a plain string is escaped when it is printed,

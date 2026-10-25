@@ -1345,7 +1345,7 @@ impl SqliteConn {
                 format!(
                     "a transaction nested {open} deep asked for its own isolation level, and \
                      SQLite settles one for the whole transaction: ask for it on the outermost \
-                     `transaction()`, or give this one a `{{shared: false}}` connection of its own"
+                     `transaction()`, or give this one a `{{ shared: false }}` connection of its own"
                 ),
             ));
         } else {
@@ -1388,7 +1388,7 @@ impl SqliteConn {
     ///
     /// `InvalidInput` for a connection already in a transaction, otherwise as
     /// [`simple_command`] — a `SQLITE_BUSY` here is another connection's write
-    /// lock, which § 8 normalises to the `Deadlock` kind § 7's `{retries: n}`
+    /// lock, which § 8 normalises to the `Deadlock` kind § 7's `{ retries: n }`
     /// retries. The depth moves only after a command SQLite accepted, so a
     /// refused `BEGIN IMMEDIATE` leaves a connection that is still in no
     /// transaction.
@@ -1401,7 +1401,7 @@ impl SqliteConn {
                     "an immediate transaction was asked for inside one already {open} deep, and an \
                      immediate transaction is an outermost one: SQLite takes the write lock where \
                      the outermost transaction begins, so ask for it there — or give this level a \
-                     `{{shared: false}}` connection of its own"
+                     `{{ shared: false }}` connection of its own"
                 ),
             ));
         }
@@ -1433,7 +1433,7 @@ impl SqliteConn {
     /// is gone there; SQLite refuses one with `SQLITE_BUSY` and leaves the
     /// transaction open and retryable. Zeroing the count here would send the
     /// next command as a `BEGIN` inside a transaction SQLite still holds, and
-    /// § 7's `{retries: n}` is the caller that would do it.
+    /// § 7's `{ retries: n }` is the caller that would do it.
     ///
     /// # Errors
     ///
@@ -1981,7 +1981,7 @@ fn server_error(error: rusqlite::Error) -> io::Error {
 /// byte and the fallthrough reads that.
 ///
 /// § 8 names these rows itself: `SQLITE_BUSY` and `SQLITE_LOCKED` are
-/// `Deadlock`, so § 7's `{retries: n}` works on this backend too.
+/// `Deadlock`, so § 7's `{ retries: n }` works on this backend too.
 fn kind_of(extended: i32) -> DbErrorKind {
     use rusqlite::ffi;
 
@@ -2670,7 +2670,7 @@ mod tests {
     }
 
     /// A write that another connection's open transaction is holding the table
-    /// against is § 8's `Deadlock`, which is what makes § 7's `{retries: n}`
+    /// against is § 8's `Deadlock`, which is what makes § 7's `{ retries: n }`
     /// mean something on this backend.
     ///
     /// Two connections to one database, per [`shared`].
@@ -2678,7 +2678,7 @@ mod tests {
     /// The kind is asserted and the extended code is not: a shared-cache
     /// conflict answers `SQLITE_LOCKED` where a file conflict answers
     /// `SQLITE_BUSY`, and § 8 maps both to the same kind precisely so a caller
-    /// never has to know which lock it lost. That is the claim `{retries: n}`
+    /// never has to know which lock it lost. That is the claim `{ retries: n }`
     /// rests on, and it is the one this pins.
     #[test]
     fn a_read_only_target_reads_the_file_and_a_write_is_refused() {
@@ -2885,7 +2885,7 @@ mod tests {
     ///
     /// The refusal is a real one — a second connection's write lock — rather
     /// than the depth guard above, so what is pinned is the engine's answer and
-    /// not this file's own check. It is also § 7's `{retries: n}` becoming
+    /// not this file's own check. It is also § 7's `{ retries: n }` becoming
     /// meaningful for a claim: the kind is `Deadlock`, and the retry is a whole
     /// transaction rather than an upgrade nothing can back off.
     #[test]

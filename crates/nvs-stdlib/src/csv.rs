@@ -57,10 +57,10 @@
 //! all** — `escape` defaults to the empty string, which means a quote inside a
 //! quoted field is written by doubling it and nothing else is special. That is
 //! PHP 8.5's default too, after PHP spent a major version deprecating the `\`
-//! it had inherited from nowhere in particular; `{escape: "\\"}` asks for the
+//! it had inherited from nowhere in particular; `{ escape: "\\" }` asks for the
 //! old behaviour explicitly, and doubling keeps working alongside it.
 //!
-//! # `{header: true}` keys the rows and is not one of them
+//! # `{ header: true }` keys the rows and is not one of them
 //!
 //! The first record becomes the column names, every later record is keyed by
 //! them, and the header record itself is not returned. The return type does
@@ -104,7 +104,7 @@
 //! who needs every field quoted is asking for a different member, not for this
 //! one's default to be looser.
 //!
-//! `{header: [...]}` writes those names as the first record and is otherwise
+//! `{ header: [...] }` writes those names as the first record and is otherwise
 //! independent of the rows — a row is written by its **values in order**, its
 //! keys ignored, which is what makes `format(parse($t, {header: true}),
 //! {header: $names})` a round trip rather than a rekeying.
@@ -120,7 +120,7 @@
 //!
 //! # `rows` walks an open handle, and holds one record
 //!
-//! [`nvs_core_csv_rows`] takes the same dialect and the same `{header: true}`
+//! [`nvs_core_csv_rows`] takes the same dialect and the same `{ header: true }`
 //! as `parse` and answers a [`ROWS`] the program walks with `foreach`. What it
 //! reads is a `Core\IO\File` — the descriptor stays in the request's own table
 //! where `Core\IO::open` filed it, so this member opens nothing, asks for no
@@ -518,7 +518,7 @@ const PARSE_OPTIONS: &[CoreOption] = &[
 ///
 /// `header` defaults to [`Const::Null`] rather than to an empty array, since
 /// "no header row" and "a header row of no columns" are different documents —
-/// the same reason `Core\Arr::sort`'s `{by?: callable}` defaults that way.
+/// the same reason `Core\Arr::sort`'s `{ by?: callable }` defaults that way.
 const FORMAT_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "separator",
@@ -686,7 +686,7 @@ nvs_runtime::nvs_helper! {
     /// The grammar is RFC 4180's, read by `csv-core`: a field is quoted or it
     /// is not, a doubled quote inside a quoted field is one quote, a record
     /// ends at `LF` or `CRLF`, and a blank line is not a record. This module's
-    /// own docs own the dialect defaults, what `{header: true}` does to the
+    /// own docs own the dialect defaults, what `{ header: true }` does to the
     /// keys, and what a ragged record answers.
     ///
     /// # Errors
@@ -1016,7 +1016,7 @@ struct RowReader {
     cell: Vec<u8>,
     /// The record being assembled, one field per column read so far.
     record: Vec<Vec<u8>>,
-    /// The header's names, where `{header: true}` asked for them.
+    /// The header's names, where `{ header: true }` asked for them.
     names: Vec<Vec<u8>>,
     /// Whether the first record is the header rather than a row.
     header: bool,
@@ -1048,7 +1048,7 @@ impl RowReader {
     /// needs in order to answer one.
     ///
     /// A header record is consumed here rather than answered, so the first
-    /// record a `{header: true}` walk hands out is the first data row — which
+    /// record a `{ header: true }` walk hands out is the first data row — which
     /// is `parse`'s rule, kept in the one place either member decides it.
     fn step(&mut self) -> Step {
         loop {
@@ -1652,7 +1652,7 @@ mod tests {
     // covers: Core\Csv::format
     #[test]
     fn the_member_writes_the_header_first_and_takes_every_row_by_its_values() {
-        // A record keyed by column names, as `parse({header: true})` answers
+        // A record keyed by column names, as `parse({ header: true })` answers
         // one: its values are written in slot order and its keys nowhere,
         // which is what makes a parsed document safe to write straight back.
         let mut keyed = NvsArray::new();

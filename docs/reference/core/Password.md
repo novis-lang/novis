@@ -37,7 +37,7 @@ of those is worth waking someone up for.
 
 ```nvs
 <?nvs
-secret string $password = "correct horse battery staple";
+secret string $password = 'correct horse battery staple';
 
 // One argument, and the parameters come back out inside the answer.
 string $stored = Core\Password::hash($password);
@@ -46,8 +46,8 @@ if (Core\Str::startsWith($stored, '$argon2id$v=19$')) {
 }
 
 // The bound, both sides of it.
-secret string $offered = "correct horse battery staple";
-secret string $wrong = "hunter2";
+secret string $offered = 'correct horse battery staple';
+secret string $wrong = 'hunter2';
 if (Core\Password::verify($offered, $stored)) {
     echo "the right password verifies\n";
 }

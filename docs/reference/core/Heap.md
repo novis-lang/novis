@@ -13,21 +13,24 @@ order. A max-heap is therefore the min-heap with its comparator reversed, not an
 
 ```nvs
 <?nvs
-class Job implements Comparable {
-    public function constructor(public string $name, public int $cost) {}
+class Job implements Comparable
+{
+    public function constructor(public string $name, public int $cost)
+    {}
 
-    public function compareTo(Job $other): int {
+    public function compareTo(Job $other): int
+    {
         return $this->cost - $other->cost;
     }
 }
 
 var $jobs = new Core\Heap<Job>();
-$jobs->push(new Job("deploy", 5));
-$jobs->push(new Job("lint", 1));
-$jobs->push(new Job("build", 3));
+$jobs->push(new Job('deploy', 5));
+$jobs->push(new Job('lint', 1));
+$jobs->push(new Job('build', 3));
 
 var $first = $jobs->peek();
-echo "next=", $first->name, " of ", $jobs->count(), "\n";
+echo 'next=', $first->name, ' of ', $jobs->count(), "\n";
 while (!$jobs->isEmpty()) {
     var $job = $jobs->pop();
     echo $job->name, "\n";
@@ -38,9 +41,9 @@ $largest->push(3);
 $largest->push(9);
 $largest->push(5);
 foreach ($largest as int $n) {
-    echo $n, " ";
+    echo $n, ' ';
 }
-echo "still ", $largest->count(), "\n";
+echo 'still ', $largest->count(), "\n";
 ```
 ```output
 next=lint of 3

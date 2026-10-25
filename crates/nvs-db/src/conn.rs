@@ -631,7 +631,7 @@ pub enum DbErrorKind {
 
 impl DbErrorKind {
     /// Whether `rule:core-classes/db-transactions`'s
-    /// `{retries: n}` re-runs the transaction's callable over this.
+    /// `{ retries: n }` re-runs the transaction's callable over this.
     ///
     /// **These two, and nothing else.** A retry is sound only where the server
     /// aborted the transaction *because* of a conflict it expects to be gone on
@@ -1203,7 +1203,7 @@ impl Connection {
     }
 
     /// Bounds this connection's next exchange by `at`, or lifts the bound —
-    /// `rule:core-classes/db-statement-members`'s `{timeout?: Duration}`.
+    /// `rule:core-classes/db-statement-members`'s `{ timeout?: Duration }`.
     ///
     /// **One clock per connection, on the thing that waits**, which is the same
     /// clock [`PgConn::connect`] and its siblings already file for the

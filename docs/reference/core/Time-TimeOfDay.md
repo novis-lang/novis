@@ -13,18 +13,18 @@ back onto a date. Two readings are ordered with `compareTo`; the `<` operators d
 ```nvs
 <?nvs
 var $t = Core\Time\TimeOfDay::at(23, 30);
-echo $t->format("HH:mm:ss"), "\n";
-echo $t->format("h:mm a"), "\n";
+echo $t->format('HH:mm:ss'), "\n";
+echo $t->format('h:mm a'), "\n";
 
-echo $t->plus(1, Core\Unit::Hour)->format("HH:mm"), "\n";
-echo $t->minus(45, Core\Unit::Minute)->format("HH:mm"), "\n";
-echo $t->with({second: 45})->format("HH:mm:ss"), "\n";
+echo $t->plus(1, Core\Unit::Hour)->format('HH:mm'), "\n";
+echo $t->minus(45, Core\Unit::Minute)->format('HH:mm'), "\n";
+echo $t->with({ second: 45 })->format('HH:mm:ss'), "\n";
 echo $t->compareTo(Core\Time\TimeOfDay::at(9, 0)), "\n";
 
 var $utc = Core\Time\Zone::UTC;
-var $d = Core\Time::at(2024, 3, 1, $utc, {hour: 9});
-echo $d->withTime($t)->format("yyyy-MM-dd HH:mm"), "\n";
-echo $d->timeOfDay()->format("HH:mm"), "\n";
+var $d = Core\Time::at(2024, 3, 1, $utc, { hour: 9 });
+echo $d->withTime($t)->format('yyyy-MM-dd HH:mm'), "\n";
+echo $d->timeOfDay()->format('HH:mm'), "\n";
 ```
 ```output
 23:30:00

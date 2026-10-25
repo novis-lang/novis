@@ -1942,7 +1942,7 @@ const DATETIME_WITH_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "An option is outside its field's range, or the fields together are not a date \
-               that exists — `{day: 31}` on a June value.",
+               that exists — `{ day: 31 }` on a June value.",
     }],
 };
 
@@ -2296,7 +2296,7 @@ const TIME_SLEEP_DOC: MethodDoc = MethodDoc {
 /// `Core\Time::fromEpoch`'s reference card — `rule:core-api/reference-card`.
 const TIME_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
     short: "Builds the instant at a Unix timestamp. The `nanos` option is added after the second, \
-            so `-1` with `{nanos: 1}` is one nanosecond after `-1`.",
+            so `-1` with `{ nanos: 1 }` is one nanosecond after `-1`.",
     params: &[
         ParamDoc {
             name: "seconds",
@@ -2689,7 +2689,7 @@ const DATE_MINUS_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\Date::with`'s reference card — `rule:core-api/reference-card`.
 const DATE_WITH_DOC: MethodDoc = MethodDoc {
     short: "Replaces any of the three fields and keeps the others. A combination that is not \
-            a date throws an error. `2024-02-29` with `{year: 2023}` throws, because 29 February \
+            a date throws an error. `2024-02-29` with `{ year: 2023 }` throws, because 29 February \
             2023 does not exist.",
     params: &[
         ParamDoc {
@@ -2757,7 +2757,7 @@ fn date_address(symbol: &str) -> Option<*const u8> {
 /// [`DURATION_NAME`]'s reason.
 pub const TIME_OF_DAY_NAME: &str = r"Core\Time\TimeOfDay";
 
-/// The `{second?: uint, nanos?: uint}` bag `TimeOfDay::at` takes — the two
+/// The `{ second?: uint, nanos?: uint }` bag `TimeOfDay::at` takes — the two
 /// fields a wall clock usually leaves off, defaulting to zero.
 ///
 /// [`Const::Uint`] rather than [`Const::Null`] here, unlike
@@ -3748,7 +3748,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Time::fromEpoch(int $seconds, {nanos?: uint}): Instant`.
+    /// `Core\Time::fromEpoch(int $seconds, { nanos?: uint }): Instant`.
     ///
     /// The `nanos` option is added *after* the second, rather than written
     /// into the slot beside it, so that a negative second and a positive
@@ -4895,7 +4895,7 @@ nvs_runtime::nvs_helper! {
     /// field, for [`WITH_OPTIONS`]'s reason.
     ///
     /// A combination that is not a date throws, exactly as the constructor
-    /// does: `2024-02-29` with `{year: 2023}` has no answer to clamp to that
+    /// does: `2024-02-29` with `{ year: 2023 }` has no answer to clamp to that
     /// is not a guess.
     fn nvs_core_time_date_with(_ctx, args: [4]) {
         let label = r"Core\Time\Date::with";

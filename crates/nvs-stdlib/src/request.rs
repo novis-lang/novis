@@ -1080,7 +1080,7 @@ const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 ///
 /// # Why a class, where § 7 spells a shape
 ///
-/// § 7 writes `{prefix: string, captures: array<tainted string>}`, and that is
+/// § 7 writes `{ prefix: string, captures: array<tainted string> }`, and that is
 /// not spellable in return position: [`CoreTy::Shape`] is a parameter-only
 /// variant whose own doc says no runtime representation of a shape appears
 /// anywhere, and `nvs_ir::erase_checked_ty` erases a `Ty::Shape` value to
@@ -2480,7 +2480,7 @@ fn field_values(found: Option<Value>, member: &str, nested: &str) -> Result<Valu
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::queryAs<T>({name?: string}): T` — the query string read
+    /// `Core\Request::queryAs<T>({ name?: string }): T` — the query string read
     /// as the type the call site wrote, which is `Core\Arr::shapeAs` over the
     /// array [`nvs_core_request_query`] indexes into.
     ///
@@ -2609,7 +2609,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::postAs<T>({name?: string}): T` — the submitted form read
+    /// `Core\Request::postAs<T>({ name?: string }): T` — the submitted form read
     /// as the type the call site wrote, which is `Core\Arr::shapeAs` over the
     /// array [`nvs_core_request_post`] indexes into.
     ///
@@ -3017,7 +3017,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::json({maxDepth?: uint}): mixed` — `Core\Json::decode`
+    /// `Core\Request::json({ maxDepth?: uint }): mixed` — `Core\Json::decode`
     /// over the octets [`nvs_core_request_body`] answers, carrying that
     /// member's `{maxDepth?}` bag and its default.
     ///
@@ -3048,7 +3048,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **A call naming a different `maxDepth` is a different question**, so it
     /// decodes again and leaves the hold as it stands. The cap is the call's
-    /// and never the request's: a `{maxDepth: 2}` call still throws over a
+    /// and never the request's: a `{ maxDepth: 2 }` call still throws over a
     /// document a default-depth call already read, and the default-depth
     /// reading after it still answers.
     ///
@@ -3103,7 +3103,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::jsonAs<T>({maxDepth?: uint}): T` — the request body
+    /// `Core\Request::jsonAs<T>({ maxDepth?: uint }): T` — the request body
     /// hydrated into `T`, which is `Core\Json::decodeAs` over the octets
     /// [`nvs_core_request_body`] answers, carrying that member's `{maxDepth?}`
     /// bag and its default.
@@ -7515,7 +7515,7 @@ mod tests {
     /// `title: string`, in the slot order a written shape's fields take.
     ///
     /// A shape rather than a named class, because that is what a request call
-    /// site writes: `postAs<{n: int, title: string}>()` resolves to a
+    /// site writes: `postAs<{ n: int, title: string }>()` resolves to a
     /// synthesized descriptor and the [`ShapeCodec`] beside it. A shape
     /// declares no constructor, so unlike [`reading_class`] there is no
     /// `set_methods` — `crate::json` writes a shape's slots directly rather
@@ -7573,7 +7573,7 @@ mod tests {
         (table.desc(id), shape)
     }
 
-    /// `Core\Request::postAs<T>({name?: string})` at the ABI a compiled call
+    /// `Core\Request::postAs<T>({ name?: string })` at the ABI a compiled call
     /// site gives it: [`crate::registry::WRITTEN_CLASS_MEMBERS`] writes the
     /// descriptor, the `array<...>` flag and the wire contract ahead of the one
     /// declared option, so the helper's arity is three more than the row's.

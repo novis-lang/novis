@@ -68,10 +68,10 @@ error[E0726]: an attribute's name must be a shape-typed `type` alias, and `NotAn
 error[E0726]: an attribute's name must be a shape-typed `type` alias, and `Id` is a `type` alias for `int`, which is not a shape
    --> case.nvs:41:28
 %A
-error[E0401]: expected `{method: string, path: string}`, found `{method: string, path: int}`
+error[E0401]: expected `{ method: string, path: string }`, found `{ method: string, path: int }`
    --> case.nvs:49:8
 %A
-error[E0401]: expected `{method: string, path: string}`, found `{path: string}`
+error[E0401]: expected `{ method: string, path: string }`, found `{ path: string }`
    --> case.nvs:52:8
 %A
 error: aborting due to 5 errors

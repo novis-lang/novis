@@ -48,10 +48,12 @@ to the class, and `==` compares two strings without converting them to numbers:
 
 ```nvs
 <?nvs
-class Stock {
-    public const string UNIT = "pcs";
+class Stock
+{
+    public const string UNIT = 'pcs';
 
-    public static function total(array<int> $counts): int {
+    public static function total(array<int> $counts): int
+    {
         int $sum = 0;
         foreach ($counts as int $count) {
             $sum += $count;
@@ -60,8 +62,8 @@ class Stock {
     }
 }
 
-echo Stock::total(["apples" => 12, "pears" => 5]), " ", Stock::UNIT, "\n";
-echo "12" == "012" ? "equal" : "different", " ", Core\Str::length("Café"), "\n";
+echo Stock::total(['apples' => 12, 'pears' => 5]), ' ', Stock::UNIT, "\n";
+echo '12' == '012' ? 'equal' : 'different', ' ', Core\Str::length('Café'), "\n";
 ```
 ```output
 17 pcs
@@ -104,10 +106,12 @@ This is a small cart program written in Novis. The function `total` is a method 
 
 ```nvs
 <?nvs
-class Cart {
+class Cart
+{
     public const int FREE_SHIPPING = 50;
 
-    public static function total(array<int> $prices): int {
+    public static function total(array<int> $prices): int
+    {
         int $sum = 0;
         foreach ($prices as int $p) {
             $sum += $p;
@@ -118,18 +122,18 @@ class Cart {
 
 array<int> $prices = [20, 35];
 int $total = Cart::total($prices);
-string $input = "7";
+string $input = '7';
 int $qty = $input as int;
 
-echo $total, " ", ($total >= Cart::FREE_SHIPPING && $qty > 0) ? "ships free" : "pays", "\n";
-echo Core\Str::slice("Novis", 0, 1), " ", 7 <=> 3, " ", 1 == 1.0 ? "eq" : "ne", "\n";
+echo $total, ' ', ($total >= Cart::FREE_SHIPPING && $qty > 0) ? 'ships free' : 'pays', "\n";
+echo Core\Str::slice('Novis', 0, 1), ' ', 7 <=> 3, ' ', 1 == 1.0 ? 'eq' : 'ne', "\n";
 
 [int $first, int $second] = $prices;
 var $double = fn(int $n): int => $n * 2;
-echo $first, " ", $second, " ", $double($qty) as int, "\n";
+echo $first, ' ', $second, ' ', $double($qty) as int, "\n";
 
 try {
-    throw new RuntimeError("stock");
+    throw new RuntimeError('stock');
 } catch (RuntimeError $e) {
     echo $e->message, "\n";
 }
@@ -164,22 +168,27 @@ one for each `#[TestWith]` row, and one that is skipped with its reason.
 use Core\Test;
 use Core\Test\TestWith;
 
-final class Price {
-    public static function withTax(int $cents, int $percent): int {
+final class Price
+{
+    public static function withTax(int $cents, int $percent): int
+    {
         return $cents + Core\Math::intDiv($cents * $percent, 100);
     }
 }
 
-final class PriceTest {
+final class PriceTest
+{
     #[TestWith(cents: 1000, percent: 20, want: 1200)]
     #[TestWith(cents: 999, percent: 10, want: 1098)]
     #[Test]
-    public function taxIsAdded(int $cents, int $percent, int $want): void {
+    public function taxIsAdded(int $cents, int $percent, int $want): void
+    {
         Test::assertSame(Price::withTax($cents, $percent), $want);
     }
 
-    #[Test(skip: "refunds are not written yet")]
-    public function aRefundGivesTheTaxBack(): void {
+    #[Test(skip: 'refunds are not written yet')]
+    public function aRefundGivesTheTaxBack(): void
+    {
         Test::assertSame(Price::withTax(-1000, 20), -1200);
     }
 }
@@ -198,10 +207,12 @@ for it:
 
 ```nvs error
 <?nvs
-class Stock {
-    public static function label(int $count): string {
+class Stock
+{
+    public static function label(int $count): string
+    {
         if ($count > 0) {
-            return "in stock";
+            return 'in stock';
         }
     }
 }

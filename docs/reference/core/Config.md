@@ -23,16 +23,16 @@ memory = "512M"
 ```
 ```nvs
 <?nvs
-echo "memory=", Core\Config::get("memory") ?? "unset", "\n";
+echo 'memory=', Core\Config::get('memory') ?? 'unset', "\n";
 
-echo Core\Config::set("memory", "512M") ? "raised to the ceiling" : "refused", "\n";
-echo Core\Config::set("memory", "1G") ? "raised past it" : "refused past the ceiling", "\n";
-echo "now=", Core\Config::get("limits.memory") ?? "unset", "\n";
+echo Core\Config::set('memory', '512M') ? 'raised to the ceiling' : 'refused', "\n";
+echo Core\Config::set('memory', '1G') ? 'raised past it' : 'refused past the ceiling', "\n";
+echo 'now=', Core\Config::get('limits.memory') ?? 'unset', "\n";
 
-Core\Config::restore("memory");
-echo "restored=", Core\Config::get("memory") ?? "unset", "\n";
+Core\Config::restore('memory');
+echo 'restored=', Core\Config::get('memory') ?? 'unset', "\n";
 
-echo Core\Config::set("no.such.directive", "1") ? "set" : "unknown name refused", "\n";
+echo Core\Config::set('no.such.directive', '1') ? 'set' : 'unknown name refused', "\n";
 ```
 ```output
 memory=256M

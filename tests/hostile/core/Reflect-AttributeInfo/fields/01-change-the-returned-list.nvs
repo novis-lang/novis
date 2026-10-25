@@ -2,7 +2,7 @@
 // Attack: the program changes the list that `fields` returns, to add a field to the attribute.
 // The attribute should not change, and the next call should return the original two names.
 
-#[{path: '/admin', role: 'editor'}]
+#[{ path: '/admin', role: 'editor' }]
 class AdminController
 {
 }

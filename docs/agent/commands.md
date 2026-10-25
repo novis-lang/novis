@@ -365,9 +365,10 @@ outside its package is judged by `tools/nv/keys/escape.ts`: `tools/data/impact-w
 wide one is, and `tools/data/impact-data-literals.txt` lists the `"../x"` literals that are data.
 
 `nvs-fmt`, straight after `build`, **formats** each `.nvs` file git reports as new or modified under
-a tree of `tools/data/nvs-fmt-corpus.txt`, for `fmt`'s reason: `nvs-fmt`'s identity test fails on an
-unformatted one, and the fix was always the same command and the whole run again. **A change to a
-layout rule runs `bun nv nvs-fmt`**, which formats the whole corpus and names each `.out`, `.err`,
+a tree of `tools/data/nvs-fmt-corpus.txt`, and each ```nvs block of a new or modified page under one
+of its `pages` entries, for `fmt`'s reason: `nvs-fmt`'s identity test fails on an unformatted one, and
+the fix was always the same command and the whole run again. **A change to a layout rule runs
+`bun nv nvs-fmt`**, which formats the whole corpus and every page block and names each `.out`, `.err`,
 `.tainted` or `.replay` beside a rewritten file that can quote a moved line, with the command that
 writes it again (`--bless` runs it). `--check` writes nothing.
 

@@ -13,17 +13,17 @@ write a buffer in source.
 
 ```nvs
 <?nvs
-bytes $raw = Core\Encoding::encodeText("héllo", Core\Charset::Utf8);
-echo Core\Bytes::length($raw), " ", Core\Encoding::toHex($raw), "\n";
-echo Core\Encoding::toBase64($raw), " ", Core\Encoding::toBase64Url($raw), " ", Core\Encoding::toBase32($raw), "\n";
-echo Core\Encoding::decodeText(Core\Encoding::fromBase64("aMOpbGxv"), Core\Charset::Utf8), "\n";
-bytes $latin = Core\Encoding::encodeText("héllo", Core\Charset::Latin1);
-echo Core\Bytes::length($latin), " ", Core\Encoding::toHex($latin), "\n";
-echo Core\Encoding::isValidText($latin, Core\Charset::Utf8) ? "utf-8" : "not utf-8", "\n";
-bytes $png = Core\Encoding::fromHex("89504e47");
+bytes $raw = Core\Encoding::encodeText('héllo', Core\Charset::Utf8);
+echo Core\Bytes::length($raw), ' ', Core\Encoding::toHex($raw), "\n";
+echo Core\Encoding::toBase64($raw), ' ', Core\Encoding::toBase64Url($raw), ' ', Core\Encoding::toBase32($raw), "\n";
+echo Core\Encoding::decodeText(Core\Encoding::fromBase64('aMOpbGxv'), Core\Charset::Utf8), "\n";
+bytes $latin = Core\Encoding::encodeText('héllo', Core\Charset::Latin1);
+echo Core\Bytes::length($latin), ' ', Core\Encoding::toHex($latin), "\n";
+echo Core\Encoding::isValidText($latin, Core\Charset::Utf8) ? 'utf-8' : 'not utf-8', "\n";
+bytes $png = Core\Encoding::fromHex('89504e47');
 echo Core\Bytes::at($png, 1), "\n";
 try {
-    bytes $never = Core\Encoding::fromBase64("not base64!");
+    bytes $never = Core\Encoding::fromBase64('not base64!');
     echo "decoded\n";
 } catch (Throwable $e) {
     echo "refused\n";

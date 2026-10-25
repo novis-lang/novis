@@ -20,13 +20,13 @@ exposure.
 
 ```nvs
 <?nvs
-secret string $token = "hunter2";
-secret bytes $key = "raw-key" as bytes;
+secret string $token = 'hunter2';
+secret bytes $key = 'raw-key' as bytes;
 
 // Without these two lines, every `echo` below is a compile error naming
 // `rule:security/secret-sinks-refuse`'s terminal sink.
-string $revealed = Core\Secret::reveal($token, "this command exists to print the token");
-bytes $raw = Core\Secret::revealBytes($key, "the signer takes the key as bytes");
+string $revealed = Core\Secret::reveal($token, 'this command exists to print the token');
+bytes $raw = Core\Secret::revealBytes($key, 'the signer takes the key as bytes');
 
 echo $revealed, "\n";
 echo "Bearer {$revealed}\n";
@@ -34,8 +34,8 @@ echo Core\Bytes::length($raw), "\n";
 
 // Nothing is normalized on the way through: the value that comes back is the
 // value that went in.
-secret string $padded = "  spaced  ";
-echo "[", Core\Secret::reveal($padded, "the padding is part of the credential"), "]\n";
+secret string $padded = '  spaced  ';
+echo '[', Core\Secret::reveal($padded, 'the padding is part of the credential'), "]\n";
 ```
 ```output
 hunter2

@@ -193,7 +193,7 @@ const IMPLEMENTING_WITH_DOC: MethodDoc = MethodDoc {
     short: "Returns the same objects as `implementing<I>()`, each with one attribute of its class. \
             You write the interface or class `I` and the shape `T` of the attribute between `<` \
             and `>`: \
-            `Core\\Program::implementingWith<Page, {path: string}>(\"render\")`. Novis reads the \
+            `Core\\Program::implementingWith<Page, { path: string }>(\"render\")`. Novis reads the \
             attributes when it compiles the program, so nothing is searched while it runs.",
     params: &[ParamDoc {
         name: "member",
@@ -202,7 +202,7 @@ const IMPLEMENTING_WITH_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "An array with one row per class, sorted by class name. Each row is \
-          `{instance: I, attribute: ?T}`. `attribute` is `null` when the class has no attribute \
+          `{ instance: I, attribute: ?T }`. `attribute` is `null` when the class has no attribute \
           of the shape `T`. Two matching attributes on one class do not compile.",
     errors: &[],
 };
@@ -216,7 +216,7 @@ const CONSTRUCTORS_DOC: MethodDoc = MethodDoc {
             constructor does not accept these arguments does not compile.",
     params: &[],
     ret: "An array with one row per class, sorted by class name. Each row is \
-          `{class: string, make: C}`. `class` is the full class name. No object is created until \
+          `{ class: string, make: C }`. `class` is the full class name. No object is created until \
           you call `make`.",
     errors: &[],
 };

@@ -28,7 +28,7 @@ A duration has the units `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`. A duratio
 `==` checks whether two variables are the same object. `1h == 1h` is `false`. To compare two
 durations, use `compareTo`, which returns `0` when they are equal.
 
-An anonymous object at the start of a statement must be in parentheses: `({x: 1});`. Without them
+An anonymous object at the start of a statement must be in parentheses: `({ x: 1 });`. Without them
 it is the error `E0117`. The same is true for the body of an arrow function.
 
 An html template keeps every byte between the backticks, also the spaces and line breaks. Write a

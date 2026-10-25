@@ -611,7 +611,7 @@ const PLACEMENTS: [&str; 2] = ["here", "worker"];
 /// `limits:`'s expected type: every sub-cap, each optional.
 ///
 /// Optional because a spawn narrows the ceilings it names and inherits the
-/// rest — a required field would make `{memory: "64M"}` mean "and no bound on
+/// rest — a required field would make `{ memory: "64M" }` mean "and no bound on
 /// anything else", which is the opposite of what a sub-cap is.
 fn sub_caps(env: &mut Env<'_>) -> TypeId {
     let string = env.interner.string();
@@ -637,7 +637,7 @@ fn optional_field(name: &str, ty: TypeId) -> ShapeField {
 ///
 /// `rule:types/shape-type`'s width subtyping accepts a field the target does
 /// not name, which is right for a shape and wrong for this option — a
-/// `{memmory: "64M"}` that compiles is a ceiling the program asked for and did
+/// `{ memmory: "64M" }` that compiles is a ceiling the program asked for and did
 /// not get. So the written shape's own field names are read back and the extras
 /// refused, which is [`code::E_UNKNOWN_OPTION`]'s own reading of a bag: a
 /// misspelled key that is silently ignored is what that code exists for.

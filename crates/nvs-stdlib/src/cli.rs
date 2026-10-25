@@ -448,7 +448,7 @@ const DISPLAY_WIDTH_DOC: MethodDoc = MethodDoc {
 const WRITABLE: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Instance(NAME)];
 
 /// `Core\Cli::write`'s trailing options — `rule:tooling/the-terminal-profile-resolves-once`'s
-/// `{stream?: Cli::Stream, newline?: bool}`.
+/// `{ stream?: Cli::Stream, newline?: bool }`.
 ///
 /// Both carry a value rather than [`Const::Null`], unlike every other bag in
 /// this file: neither option has an "absent" meaning distinct from its default.
@@ -520,7 +520,7 @@ const WRITE_DOC: MethodDoc = MethodDoc {
 };
 
 /// `Core\Cli::ask`'s trailing options — `rule:tooling/a-prompt-is-a-core-member`'s
-/// `{default?: string, validate?: callable}`.
+/// `{ default?: string, validate?: callable }`.
 ///
 /// Both defaults are [`Const::Null`] rather than a value of the option's own
 /// type, which is that variant's documented case twice over: a `callable` has
@@ -540,7 +540,7 @@ const ASK_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Cli::confirm`'s trailing options — `rule:tooling/a-prompt-is-a-core-member`'s `{default?: bool}`.
+/// `Core\Cli::confirm`'s trailing options — `rule:tooling/a-prompt-is-a-core-member`'s `{ default?: bool }`.
 ///
 /// [`Const::Null`] again, and here the distinction it draws is the whole
 /// member: `false` is an answer, absence is not, and only absence makes an
@@ -552,7 +552,7 @@ const CONFIRM_OPTIONS: &[CoreOption] = &[CoreOption {
 }];
 
 /// `Core\Cli::select`'s trailing options — `rule:tooling/a-prompt-is-a-core-member`'s
-/// `{labels?: callable, default?: T}`.
+/// `{ labels?: callable, default?: T }`.
 ///
 /// `default` is typed as the same variable the options array binds, so a
 /// default that is not one of the values offered is a compile error rather
@@ -874,7 +874,7 @@ const PROGRESS_DONE: usize = 2;
 /// See [`PROGRESS_DEPTH`].
 const PROGRESS_LABEL: usize = 3;
 
-/// `advance`'s options — `rule:tooling/in-place-output-is-a-scoped-live-region`'s `{by?: uint, label?: string}`.
+/// `advance`'s options — `rule:tooling/in-place-output-is-a-scoped-live-region`'s `{ by?: uint, label?: string }`.
 ///
 /// `by` defaults to one because counting one thing at a time is what a loop
 /// does. `label` defaults to [`Const::Null`] rather than to the empty string,
@@ -1183,7 +1183,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::write(string|Cli\Text $value, {stream?: Cli::Stream, newline?: bool}): void`
+    /// `Core\Cli::write(string|Cli\Text $value, { stream?: Cli::Stream, newline?: bool }): void`
     /// — `rule:tooling/the-terminal-profile-resolves-once`'s first row, replacing `fwrite(STDOUT, …)` and `print`.
     ///
     /// # It is the sink `echo` already is, reached with a stream named
@@ -1572,7 +1572,7 @@ fn handed_back(value: Value) -> Value {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::ask(string $question, {default?: string, validate?: callable}): tainted string`
+    /// `Core\Cli::ask(string $question, { default?: string, validate?: callable }): tainted string`
     /// — `rule:tooling/a-prompt-is-a-core-member`'s first prompt, replacing `readline` and the
     /// `fgets(STDIN)` every PHP script writes instead of it.
     ///
@@ -1653,7 +1653,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::confirm(string $question, {default?: bool}): bool` — `rule:tooling/a-prompt-is-a-core-member`'s
+    /// `Core\Cli::confirm(string $question, { default?: bool }): bool` — `rule:tooling/a-prompt-is-a-core-member`'s
     /// second prompt, and the one whose answer is **not** `tainted`.
     ///
     /// `rule:security/taint-propagation` launders a checked conversion, and a closed two-case
@@ -1689,7 +1689,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::select<T>(string $question, array<T> $choices, {labels?: callable, default?: T}): T`
+    /// `Core\Cli::select<T>(string $question, array<T> $choices, { labels?: callable, default?: T }): T`
     /// — `rule:tooling/a-prompt-is-a-core-member`'s third prompt.
     ///
     /// **It answers the value, not the index**, which is
@@ -1789,7 +1789,7 @@ fn chosen_of(answer: &str, offered: usize) -> Option<Vec<bool>> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::multiSelect<T>(string $question, array<T> $choices, {labels?: callable}): array<T>`
+    /// `Core\Cli::multiSelect<T>(string $question, array<T> $choices, { labels?: callable }): array<T>`
     /// — `rule:tooling/a-prompt-is-a-core-member`'s fourth prompt, and the only one whose answer is a set.
     ///
     /// It is [`nvs_core_cli_select`] with a second reading loop and nothing
@@ -2687,7 +2687,7 @@ const ATTRIBUTES: [(i64, &str); 5] = [(1, "1"), (2, "2"), (4, "3"), (8, "4"), (1
 ///
 /// Every option is absent by default and an absent colour is [`Const::Null`],
 /// which is that variant's own case: there is no "no colour" `Color`, and
-/// inventing one would make `Style::of({})` and `Style::of({color: …})`
+/// inventing one would make `Style::of({})` and `Style::of({ color: … })`
 /// different shapes of the same thing.
 const STYLE_OPTIONS: &[CoreOption] = &[
     CoreOption {
@@ -3397,7 +3397,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli\Progress::advance({by?: uint, label?: string}): void` —
+    /// `Core\Cli\Progress::advance({ by?: uint, label?: string }): void` —
     /// `rule:tooling/in-place-output-is-a-scoped-live-region`'s one member on a bar.
     ///
     /// # Errors

@@ -165,7 +165,7 @@ fn webp_chunks(file: &[u8]) -> Vec<([u8; 4], Vec<u8>)> {
     chunks
 }
 
-/// The step `resize({width: width})`.
+/// The step `resize({ width: width })`.
 fn resize(width: u64) -> Value {
     shape(vec![("resize", shape(vec![("width", Value::Uint(width))]))])
 }
@@ -181,7 +181,7 @@ fn rotate(degrees: f64) -> Value {
     )])
 }
 
-/// The step `crop({x: 0, y: 0, width: width, height: height})`.
+/// The step `crop({ x: 0, y: 0, width: width, height: height })`.
 fn crop(width: u64, height: u64) -> Value {
     shape(vec![(
         "crop",
@@ -194,7 +194,7 @@ fn crop(width: u64, height: u64) -> Value {
     )])
 }
 
-/// The step `metadata({keep: keep})`.
+/// The step `metadata({ keep: keep })`.
 fn metadata(keep: bool) -> Value {
     shape(vec![("metadata", shape(vec![("keep", Value::Bool(keep))]))])
 }
@@ -586,7 +586,7 @@ fn a_jpeg_with_gps_tags_re_encodes_without_them() {
     )
     .expect("the tagged JPEG re-encodes");
     assert_eq!(exif_in(&out), None);
-    // `metadata({keep: false})` is the same as no `metadata` step.
+    // `metadata({ keep: false })` is the same as no `metadata` step.
     let out = run(
         &request,
         &extension,

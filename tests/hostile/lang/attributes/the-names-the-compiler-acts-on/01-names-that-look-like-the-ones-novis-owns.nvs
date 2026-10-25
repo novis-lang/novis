@@ -101,7 +101,7 @@ class Spoof08
 //    payload has. It tries to be read as a command by its shape.
 class Nameless
 {
-    #[{name: 'import', about: 'nine'}]
+    #[{ name: 'import', about: 'nine' }]
     public static function run(): void
     {}
 }

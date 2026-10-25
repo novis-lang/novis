@@ -12,7 +12,7 @@
 //! syntax, `fn`, plus the `function` forms it refuses), generators
 //! (`yield`/`yield from`), named arguments, spread, nullsafe, method
 //! references, `require` (an expression, not a statement — `rule:statements/require-is-the-only-inclusion-construct`),
-//! `spawn script … with(…)`, `rule:types/anonymous-object`'s `{a: 1}` anonymous object, and the
+//! `spawn script … with(…)`, `rule:types/anonymous-object`'s `{ a: 1 }` anonymous object, and the
 //! interpolated-string bodies the lexer hands back in parts.
 //!
 //! Several PHP spellings are parsed here only to be diagnosed, and they are
@@ -1671,7 +1671,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `{name: value, ...}` as a primary expression — `rule:types/anonymous-object`. No
+    /// `{ name: value, ... }` as a primary expression — `rule:types/anonymous-object`. No
     /// shorthand (`{x}`) and no computed key (`{[expr]: value}`); either is
     /// diagnosed in place and the field is dropped rather than aborting the
     /// whole object, so one bad field doesn't hide problems with the rest.
@@ -1703,7 +1703,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                         "an anonymous object cannot have a computed key",
                     )
                     .with_primary(key_span, "every field name is a static identifier")
-                    .with_help("write the field name directly, e.g. `{name: value}`"),
+                    .with_help("write the field name directly, e.g. `{ name: value }`"),
                 );
                 if self.eat(TokenKind::Colon).is_some() {
                     let _ = self.parse_expr();
@@ -1711,8 +1711,8 @@ impl<'src, 'd> Parser<'src, 'd> {
             } else {
                 let field_start = self.peek().span;
                 // A field name is a name, not an expression, so a keyword is
-                // one: `{default: "ada"}` is `Core\Cli::ask`'s own option
-                // (`rule:tooling/a-prompt-is-a-core-member`) and `{match: …}`, `{class: …}` are the shapes
+                // one: `{ default: "ada" }` is `Core\Cli::ask`'s own option
+                // (`rule:tooling/a-prompt-is-a-core-member`) and `{ match: … }`, `{ class: … }` are the shapes
                 // a JSON document or an HTML attribute set arrives as. Nothing
                 // is ambiguous here — the token is followed by a `:` inside an
                 // already-open anonymous object, where no statement keyword can begin —
@@ -1730,7 +1730,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                             "an anonymous object cannot have a shorthand field",
                         )
                         .with_primary(name, "write the value explicitly")
-                        .with_help("write `{name: value}` instead of `{name}`"),
+                        .with_help("write `{ name: value }` instead of `{name}`"),
                     );
                 } else {
                     let value = self.parse_expr();

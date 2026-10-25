@@ -17,7 +17,7 @@ that folder in `[capabilities.fs] read`.
 ## How it works
 
 `Core\IO::readText` reads the whole file as a string. `Core\Csv::parse` splits that string into
-rows. With `{header: true}`, each row is an array with the column names as keys.
+rows. With `{ header: true }`, each row is an array with the column names as keys.
 
 Every field in a CSV file is a string. `as int` and `as float` convert the quantity and the price
 to numbers. If a field is not a number, the conversion throws an error and the program stops.

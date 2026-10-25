@@ -317,7 +317,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Metrics::increment(string $name, {by?: uint, labels?: array<string, string>}): void`
+    /// `Core\Metrics::increment(string $name, { by?: uint, labels?: array<string, string> }): void`
     /// — `rule:observability/metrics-three-members`.
     ///
     /// `args: [4]` for three declared arguments: this member is on
@@ -329,7 +329,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Metrics::observe(string $name, float $value, {labels?: array<string, string>}): void`
+    /// `Core\Metrics::observe(string $name, float $value, { labels?: array<string, string> }): void`
     /// — `rule:observability/metrics-three-members`.
     fn nvs_core_metrics_observe(_ctx, args: [4]) {
         let value = args[2].as_float().unwrap_or_default();
@@ -338,7 +338,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Metrics::gauge(string $name, float $value, {labels?: array<string, string>}): void`
+    /// `Core\Metrics::gauge(string $name, float $value, { labels?: array<string, string> }): void`
     /// — `rule:observability/metrics-three-members`.
     fn nvs_core_metrics_gauge(_ctx, args: [4]) {
         let value = args[2].as_float().unwrap_or_default();

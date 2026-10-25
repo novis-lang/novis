@@ -14,37 +14,44 @@ data rows and the runner's report belong to [testing](#lang-testing).
 
 ```nvs test
 <?nvs
-final class Cart {
+final class Cart
+{
     private array<int> $prices = [];
 
-    public function add(int $price): void {
+    public function add(int $price): void
+    {
         if ($price < 0) {
-            throw new LogicError("a price is never negative");
+            throw new LogicError('a price is never negative');
         }
         $this->prices = Core\Arr::append($this->prices, $price);
     }
 
-    public function total(): int {
+    public function total(): int
+    {
         return Core\Arr::sum($this->prices) as int;
     }
 
-    public function lines(): array<int> {
+    public function lines(): array<int>
+    {
         return $this->prices;
     }
 }
 
-final class CartTest {
+final class CartTest
+{
     #[Core\Test]
-    public function sumsWhatWasAdded(): void {
+    public function sumsWhatWasAdded(): void
+    {
         var $cart = new Cart();
         $cart->add(3);
         $cart->add(4);
         Core\Test::assertSame($cart->total(), 7);
-        Core\Test::assertCount($cart->lines(), 2, {message: "two lines were added"});
+        Core\Test::assertCount($cart->lines(), 2, { message: 'two lines were added' });
     }
 
     #[Core\Test]
-    public function refusesANegativePrice(): void {
+    public function refusesANegativePrice(): void
+    {
         var $cart = new Cart();
         Core\Test::assertThrows(fn (): void => { $cart->add(-1); }, LogicError::class);
         Core\Test::assertTrue($cart->total() == 0);

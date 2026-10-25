@@ -12,7 +12,7 @@ class Attack
         return Core\Str::compare($s . 'a', $s . 'b', { caseInsensitive: true });
     }
 
-    /// 2. Compares two numbers of one million digits each with `{natural: true}`.
+    /// 2. Compares two numbers of one million digits each with `{ natural: true }`.
     public static function hugeNumbers(uint $count): int
     {
         var $digits = Core\Str::repeat('9', $count);

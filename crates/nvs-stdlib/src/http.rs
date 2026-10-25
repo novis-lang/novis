@@ -821,7 +821,7 @@ const URL: CoreTy = CoreTy::Union(&[CoreTy::Text(Qual::Sink), CoreTy::Instance(T
 /// member carries.
 ///
 /// **The absence is the decision.** Every bound here is a `Duration`, which has
-/// no infinite value; none is nullable, so `{deadline: null}` does not compile;
+/// no infinite value; none is nullable, so `{ deadline: null }` does not compile;
 /// and an omitted option passes `Const::Null`, which the body reads as *not
 /// given* and the transport will answer from `[http.client]` — § 5's rule that
 /// leaving a field out inherits the bound rather than removing it. There is no
@@ -4837,7 +4837,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Http\Response::jsonAs<T>({maxDepth?: uint}): T` — the reply's body
+    /// `Core\Http\Response::jsonAs<T>({ maxDepth?: uint }): T` — the reply's body
     /// hydrated into `T`, which is `Core\Json::decodeAs` over the octets
     /// [`nvs_core_http_response_bytes`] answers, carrying that member's
     /// `{maxDepth?}` bag and its default.
@@ -6549,7 +6549,7 @@ mod tests {
         }
     }
 
-    /// The one-field shape `{name: string}` at the ABI a compiled call site
+    /// The one-field shape `{ name: string }` at the ABI a compiled call site
     /// hands `jsonAs<T>()`: a descriptor, the `array<...>` flag and the wire
     /// contract. The table is leaked because a descriptor's address is its
     /// identity and it must outlive every instance made from it.

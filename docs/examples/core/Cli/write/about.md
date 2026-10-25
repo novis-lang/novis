@@ -5,7 +5,7 @@ messages meant for the person running the program. `Core\Cli::write` writes to e
 result you send to a file stays clean while the progress notes still reach the screen.
 
 `Core\Cli::write` writes exactly the characters you give it. It adds no newline. Ask for one with
-`{newline: true}`, and build a line from as many calls as you like.
+`{ newline: true }`, and build a line from as many calls as you like.
 
 Text that can control the terminal is made safe first. A control character in a `string` is replaced
 by a visible character that does nothing, the same replacement `Core\Cli::escape` makes. A

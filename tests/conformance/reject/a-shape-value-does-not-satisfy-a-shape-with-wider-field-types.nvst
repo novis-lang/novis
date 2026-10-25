@@ -40,22 +40,22 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `{pet: Animal}`, found `{pet: Dog}`
+error[E0401]: expected `{ pet: Animal }`, found `{ pet: Dog }`
    --> case.nvs:20:11
 %A
-error[E0401]: expected `{n: int|null}`, found `{n: int}`
+error[E0401]: expected `{ n: int|null }`, found `{ n: int }`
    --> case.nvs:24:22
 %A
-error[E0401]: expected `{n: string|int}`, found `{n: int}`
+error[E0401]: expected `{ n: string|int }`, found `{ n: int }`
    --> case.nvs:25:29
 %A
-error[E0401]: expected `{text: tainted string}`, found `{text: string}`
+error[E0401]: expected `{ text: tainted string }`, found `{ text: string }`
    --> case.nvs:29:36
 %A
-error[E0401]: expected `{pets: array<Animal>}`, found `{pets: array<Dog>}`
+error[E0401]: expected `{ pets: array<Animal> }`, found `{ pets: array<Dog> }`
    --> case.nvs:34:36
 %A
-error[E0401]: expected `{inner: {pet: Animal}}`, found `{inner: {pet: Dog}}`
+error[E0401]: expected `{ inner: { pet: Animal } }`, found `{ inner: { pet: Dog } }`
    --> case.nvs:35:26
 %A
 error: aborting due to 6 errors

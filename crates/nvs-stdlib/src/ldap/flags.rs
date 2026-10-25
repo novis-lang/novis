@@ -21,7 +21,7 @@
 //!
 //! **`with` takes one `bool` option per settable flag, defaulting to `null`**
 //! (`registry::Const::Null`), which is "leave this bit alone": the option's
-//! type stays `bool`, so `{disabled: null}` does not compile and the helper
+//! type stays `bool`, so `{ disabled: null }` does not compile and the helper
 //! sees exactly set, clear or not given.
 //!
 //! **`mustChangePassword` is `pwdLastSet = 0`**, kept as a `bool` in the
@@ -304,7 +304,7 @@ mod tests {
         let group_bits = read(&mut ctx, nvs_core_ldap_ad_group_type_bits, &[group]);
         assert_eq!(group_bits.as_int(), Some(-2_147_483_646));
 
-        // `with({disabled: false})`: the second settable flag is cleared, and
+        // `with({ disabled: false })`: the second settable flag is cleared, and
         // the unnamed bit, the computed attribute and `pwdLastSet` are kept.
         let mut options = vec![Value::null(); 19];
         options[1] = Value::bool(false);
@@ -326,7 +326,7 @@ mod tests {
             Some(true)
         );
 
-        // `with({security: false})` on a global security group returns the
+        // `with({ security: false })` on a global security group returns the
         // distribution group's positive number.
         let mut options = vec![Value::null(); 7];
         options[6] = Value::bool(false);

@@ -42,30 +42,30 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `{amount: float}`, found `{amount: int}`
+error[E0401]: expected `{ amount: float }`, found `{ amount: int }`
    --> case.nvs:22:16
 %A
    = help: the field `amount` is `int` in this value, and a value that already exists keeps its field types, so it is not converted to `float`. Build a new value instead: `{amount: $value->amount}`
 %A
-error[E0401]: expected `{amount: float}`, found `Stock`
+error[E0401]: expected `{ amount: float }`, found `Stock`
    --> case.nvs:25:17
 %A
    = help: the field `amount` is `int` in this value, and a value that already exists keeps its field types, so it is not converted to `float`. Build a new value instead: `{amount: $value->amount}`
 %A
-error[E0401]: expected `{amount: null|float}`, found `{amount: int}`
+error[E0401]: expected `{ amount: null|float }`, found `{ amount: int }`
    --> case.nvs:28:29
 %A
    = help: the field `amount` is `int` in this value, and a value that already exists keeps its field types, so it is not converted to `null|float`. Build a new value instead: `{amount: $value->amount}`
 %A
-error[E0401]: expected `{amount: string|float}`, found `{amount: int}`
+error[E0401]: expected `{ amount: string|float }`, found `{ amount: int }`
    --> case.nvs:29:36
 %A
    = help: the field `amount` is `int` in this value, and a value that already exists keeps its field types, so it is not converted to `string|float`. Build a new value instead: `{amount: $value->amount}`
 %A
-error[E0401]: expected `{inner: {amount: float}}`, found `{inner: {amount: int}}`
+error[E0401]: expected `{ inner: { amount: float } }`, found `{ inner: { amount: int } }`
    --> case.nvs:32:27
 %A
-error[E0401]: expected `{items: array<float>}`, found `{items: array<int>}`
+error[E0401]: expected `{ items: array<float> }`, found `{ items: array<int> }`
    --> case.nvs:37:35
 %A
 error: aborting due to 6 errors

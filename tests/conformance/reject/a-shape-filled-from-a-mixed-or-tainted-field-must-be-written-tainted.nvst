@@ -41,16 +41,16 @@ echo ($named as {data: string})->data, "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0851]: `{data: string}` gets its text from `Bag`, so it must be `tainted {…}`
+error[E0851]: `{ data: string }` gets its text from `Bag`, so it must be `tainted {…}`
    --> case.nvs:22:7
 %A
-error[E0851]: `{data: string}` gets its text from `Bag`, so it must be `tainted {…}`
+error[E0851]: `{ data: string }` gets its text from `Bag`, so it must be `tainted {…}`
    --> case.nvs:23:5
 %A
-error[E0851]: `{data: string}` gets its text from `Held`, so it must be `tainted {…}`
+error[E0851]: `{ data: string }` gets its text from `Held`, so it must be `tainted {…}`
    --> case.nvs:27:7
 %A
-error[E0851]: `{data: string}` gets its text from `Empty`, so it must be `tainted {…}`
+error[E0851]: `{ data: string }` gets its text from `Empty`, so it must be `tainted {…}`
    --> case.nvs:29:7
 %A
 error: aborting due to 4 errors

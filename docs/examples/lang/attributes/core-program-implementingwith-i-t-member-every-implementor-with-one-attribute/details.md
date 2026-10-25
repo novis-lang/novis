@@ -26,10 +26,10 @@ fields. Two attributes that both match on one class are `E0728`, and the message
 the member. A shape with a field that only one of them has picks that one. A `T` that is not a shape,
 such as `int` or a class, is `E0729`.
 
-Each row has the type `{instance: I, attribute: ?T}`. Storing the result in an
-`array<{instance: I, attribute: T}>` is `E0401`, because `attribute` may be `null`.
+Each row has the type `{ instance: I, attribute: ?T }`. Storing the result in an
+`array<{ instance: I, attribute: T }>` is `E0401`, because `attribute` may be `null`.
 
-The attributes Novis reads itself can be read this way too. `{path: string}` reads the path of each
+The attributes Novis reads itself can be read this way too. `{ path: string }` reads the path of each
 class's `#[Core\Route]`.
 
 When no class implements `I`, the result is `[]`, whatever `$member` is.

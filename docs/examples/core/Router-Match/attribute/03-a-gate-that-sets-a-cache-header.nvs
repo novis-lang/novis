@@ -8,7 +8,7 @@ class Pages
 {
     #[Core\Route(path: '/news', method: Core\Http\Method::Get, name: 'Pages::news')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{seconds: 60}]
+    #[{ seconds: 60 }]
     public function news(): void
     {
         echo 'news';

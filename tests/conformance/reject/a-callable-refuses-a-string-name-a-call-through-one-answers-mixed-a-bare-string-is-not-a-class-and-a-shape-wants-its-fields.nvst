@@ -43,7 +43,7 @@ error[E0496]: the class side of a `::` call must be a written class name
 %A
 error[E0496]: the right-hand side of `is` is a type or a class reference, and this is neither
 %A
-error[E0401]: expected `{x: int, y: int}`, found `{x: int}`
+error[E0401]: expected `{ x: int, y: int }`, found `{ x: int }`
 %A
 error: aborting due to 5 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

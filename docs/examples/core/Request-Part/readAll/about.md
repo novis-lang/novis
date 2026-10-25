@@ -3,7 +3,7 @@ that is small enough to keep in memory, such as a picture, an invoice or a short
 file gives empty bytes.
 
 Without an argument, the file may be as large as the `[limits] request_body` setting, which is 8 MB
-by default. `{max: …}` sets your own largest size in bytes. A file larger than the limit throws a
+by default. `{ max: … }` sets your own largest size in bytes. A file larger than the limit throws a
 `RuntimeError`. A `max` larger than the `[limits] memory` setting of the request throws a
 `LogicError`. Call `readAll` while the `Core\Request::files()` loop is on this file. After the loop
 moves on, it throws a `LogicError`. The content can be read only once, so a second call returns empty

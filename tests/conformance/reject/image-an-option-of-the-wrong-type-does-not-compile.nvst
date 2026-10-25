@@ -13,7 +13,7 @@ echo Core\Bytes::length($image->resize({width: "800"})->encode()), "\n";
 // `quality` is a whole number, so 80.5 does not compile.
 echo Core\Bytes::length($image->format(Format::Jpeg, {quality: 80.5})->encode()), "\n";
 --EXPECTF-ERROR--
-error[E0401]: expected `{filter?: Novis\Image\Image::Filter, fit?: Novis\Image\Image::Fit, gravity?: Novis\Image\Image::Gravity, height?: uint, upscale?: bool, width?: uint}`, found `{width: string}`
+error[E0401]: expected `{ filter?: Novis\Image\Image::Filter, fit?: Novis\Image\Image::Fit, gravity?: Novis\Image\Image::Gravity, height?: uint, upscale?: bool, width?: uint }`, found `{ width: string }`
 %A
 error[E0401]: %s
 %A

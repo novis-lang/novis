@@ -1,7 +1,7 @@
 Returns a filter that matches the members of a group. Use it with `search` on a connection, to
 find the users in a group.
 
-By default the filter matches only the direct members. With `{nested: true}`, it also matches the
+By default the filter matches only the direct members. With `{ nested: true }`, it also matches the
 members of a group that is itself in the group, at any depth. Only Active Directory understands the
 nested filter.
 

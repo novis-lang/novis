@@ -3,8 +3,8 @@
 
 class InvoiceController
 {
-    #[{path: '/invoices/{id}'}]
-    public function show(#[{source: 'path'}] int $id): int
+    #[{ path: '/invoices/{id}' }]
+    public function show(#[{ source: 'path' }] int $id): int
     {
         return $id;
     }

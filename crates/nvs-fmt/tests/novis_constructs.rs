@@ -369,3 +369,31 @@ var $wrapped = {
 ";
     assert_eq!(formatted(mangled), canonical);
 }
+
+#[test]
+fn an_attribute_in_its_bare_form_is_spaced_as_an_anon_object() {
+    // The bare form on a method and on a parameter, beside a named attribute
+    // whose argument list is not an object and keeps its parentheses tight.
+    let mangled = "\
+<?nvs
+class Mailer
+{
+    #[{audit: true}]
+    public function send(#[{   from: 'config'}] string $to, #[Core\\Inject] int $n): void
+    {
+    }
+}
+";
+    let canonical = "\
+<?nvs
+class Mailer
+{
+    #[{ audit: true }]
+    public function send(#[{ from: 'config' }] string $to, #[Core\\Inject] int $n): void
+    {
+    }
+}
+";
+    assert_eq!(formatted(mangled), canonical);
+    assert_eq!(formatted(canonical), canonical);
+}

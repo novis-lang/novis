@@ -38,7 +38,7 @@ the mount's own captures, a handful of values against a glob's one or two.
 Core\Request\Mount $mount = Core\Request::mount();
 tainted string $tenant = $mount->captures()[0];
 
-echo "serving ", $tenant, " under ", $mount->prefix(), "\n";
+echo 'serving ', $tenant, ' under ', $mount->prefix(), "\n";
 ```
 
 A program therefore never derives its own base path from the request target, and `Core\Router::url`

@@ -2087,7 +2087,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\IO::readText(string $path, {charset?: Core\Charset}): string` —
+    /// `Core\IO::readText(string $path, { charset?: Core\Charset }): string` —
     /// replacing `file_get_contents` followed by `mb_convert_encoding`.
     ///
     /// [`slurp`] and then [`crate::encoding::decode_argument`], which is the

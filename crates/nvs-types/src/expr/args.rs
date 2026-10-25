@@ -1008,7 +1008,7 @@ struct WrittenKey<'src> {
 /// Where none accepts, the answer is the arm with the **fewest** mistakes of
 /// those three kinds, ties going to declaration order. That is what makes the
 /// diagnostic name the form the caller was evidently writing:
-/// `{driver: Driver::Sqlite, path: …, host: …}` misses the SQLite arm by one
+/// `{ driver: Driver::Sqlite, path: …, host: … }` misses the SQLite arm by one
 /// key and the server arm by five, so it is answered with "`host` is not a key
 /// of this form" rather than with the four keys the server arm would want. A
 /// wrong *value* counts the same as a wrong key deliberately: weighting the
@@ -1892,7 +1892,7 @@ pub(crate) fn check_written_type_args(
 pub(crate) enum WrittenTarget {
     /// A declared class, `Core\Json::decodeAs<User>`.
     Class(QName),
-    /// An inline shape, `Core\Arr::shapeAs<{n: int}>`.
+    /// An inline shape, `Core\Arr::shapeAs<{ n: int }>`.
     Shape(crate::expr_table::WrittenShape),
 }
 
@@ -1927,7 +1927,7 @@ impl WrittenTarget {
 /// to the caller on [`WrittenTarget::Shape`], and the per-field wire contract
 /// [`crate::derive::shape_codec`] reads off the type goes onto the expression
 /// table under the type argument's own span. It cannot ride the label —
-/// `{n: int}` and `{n: string}` are one `$shape{n}` — and it cannot ride
+/// `{ n: int }` and `{ n: string }` are one `$shape{n}` — and it cannot ride
 /// [`crate::expr_table::ResolvedCall`], which `nvs-ir` reads by span anyway.
 ///
 /// `subject_outside` is [`super::quals::converts_outside_text`]'s answer for
@@ -2068,7 +2068,7 @@ pub(crate) fn written_class_of(
         .with_primary(span, format!("`{found}` written here"))
         .with_help(
             "the type argument is what the method builds. It is a class with the attribute \
-             its format needs, or a shape such as `{id: uint, name: string}`. Write `array<…>` \
+             its format needs, or a shape such as `{ id: uint, name: string }`. Write `array<…>` \
              around either one when the source is a list",
         ),
     );

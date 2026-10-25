@@ -12,21 +12,21 @@ offset, so `offsetAt` asks for the instant.
 
 ```nvs
 <?nvs
-var $berlin = Core\Time\Zone::of("Europe/Berlin");
-var $jan = Core\Time::fromIso("2024-01-15T12:00:00Z");
-var $jul = Core\Time::fromIso("2024-07-15T12:00:00Z");
+var $berlin = Core\Time\Zone::of('Europe/Berlin');
+var $jan = Core\Time::fromIso('2024-01-15T12:00:00Z');
+var $jul = Core\Time::fromIso('2024-07-15T12:00:00Z');
 echo $berlin->offsetAt($jan), "\n";
 echo $berlin->offsetAt($jul), "\n";
-echo $jul->in($berlin)->format("HH:mm xxx VV"), "\n";
+echo $jul->in($berlin)->format('HH:mm xxx VV'), "\n";
 
 var $india = Core\Time\Zone::fixed(5h30m);
-echo $jul->in($india)->format("HH:mm xxx"), "\n";
+echo $jul->in($india)->format('HH:mm xxx'), "\n";
 echo Core\Time\Zone::UTC->offsetAt($jul)->toSeconds(), "\n";
 
-echo Core\Time::at(2024, 7, 15, $berlin, {hour: 14})->toInstant()->toIso(), "\n";
+echo Core\Time::at(2024, 7, 15, $berlin, { hour: 14 })->toInstant()->toIso(), "\n";
 
 try {
-    Core\Time\Zone::of("Mars/Olympus");
+    Core\Time\Zone::of('Mars/Olympus');
 } catch (RuntimeError $unknown) {
     echo "not in the database\n";
 }

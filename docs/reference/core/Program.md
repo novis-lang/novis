@@ -12,10 +12,10 @@ Abstract classes and the interface itself are not entries; a class reaching `T` 
 through an interface that extends `T` is.
 
 `Core\Program::implementingWith<I, T>($member)` is the same list with one attribute read off each class.
-Every row is `{instance: I, attribute: ?T}`: the instance, and the one attribute on that class's own
+Every row is `{ instance: I, attribute: ?T }`: the instance, and the one attribute on that class's own
 `$member` whose fields satisfy the shape `T`, or `null` when there is none. `$member` is a method name, a
 property name, or the empty string for the attributes on the class itself. This is how a framework finds
-its pages and their routes in one call: `implementingWith<View, {path: string}>("render")` gives each
+its pages and their routes in one call: `implementingWith<View, { path: string }>("render")` gives each
 page beside the `path` its `#[Core\Route]` carries, so the path is written once. Everything is resolved
 while compiling, and a member some implementor does not declare, or two matching attributes on one
 class, do not compile.
@@ -35,7 +35,8 @@ file's bytes, and so the id it just wrote down.
 <?nvs
 namespace App;
 
-interface Greeter {
+interface Greeter
+{
     public function greet(): string;
 }
 ```
@@ -43,9 +44,11 @@ interface Greeter {
 <?nvs
 namespace App;
 
-class Formal implements Greeter {
-    public function greet(): string {
-        return "Good day.";
+class Formal implements Greeter
+{
+    public function greet(): string
+    {
+        return 'Good day.';
     }
 }
 ```
@@ -53,9 +56,11 @@ class Formal implements Greeter {
 <?nvs
 namespace App;
 
-class Casual implements Greeter {
-    public function greet(): string {
-        return "Hey!";
+class Casual implements Greeter
+{
+    public function greet(): string
+    {
+        return 'Hey!';
     }
 }
 ```
@@ -64,7 +69,7 @@ class Casual implements Greeter {
 autoload 'App' from './lib';
 
 var $greeters = Core\Program::implementing<App\Greeter>();
-echo "found ", Core\Arr::count($greeters), "\n";
+echo 'found ', Core\Arr::count($greeters), "\n";
 foreach ($greeters as App\Greeter $greeter) {
     echo $greeter->greet(), "\n";
 }
@@ -72,7 +77,7 @@ foreach ($greeters as App\Greeter $greeter) {
 // The id is a digest of these very files, so no example can print it and stay
 // reproducible. Its shape is what holds from run to run.
 string $id = Core\Program::id();
-echo "id is ", Core\Str::length($id), " characters, and stable within the run: ", Core\Program::id() == $id ? "yes" : "no", "\n";
+echo 'id is ', Core\Str::length($id), ' characters, and stable within the run: ', Core\Program::id() == $id ? 'yes' : 'no', "\n";
 ```
 ```output
 found 2

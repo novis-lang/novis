@@ -71,7 +71,7 @@
 //! # A statement's `timeout` is a deadline on the socket
 //!
 //! `rule:core-classes/db-statement-members` gives `query`, `queryAs`,
-//! `execute`, `executeMany` and `stream` a `{timeout?: Duration}`, and says
+//! `execute`, `executeMany` and `stream` a `{ timeout?: Duration }`, and says
 //! nothing about what bounds it. There were two candidates and this module is
 //! where the choice is recorded, because it is a property of the implementation
 //! rather than of the surface: **it is a deadline on the connection's socket**,
@@ -137,7 +137,7 @@
 //! row. An option that parsed and did nothing would be worse than its absence,
 //! which the compiler can at least report. What would reopen this is a driver
 //! whose protocol delivers a result set eagerly rather than as a readable
-//! stream, and none of the five is one. Its sibling `{timeout?: Duration}` is
+//! stream, and none of the five is one. Its sibling `{ timeout?: Duration }` is
 //! no longer here — the section above is where that landed and what it decided.
 //!
 //! # Every driver reaches every member, and all five are pooled

@@ -43,7 +43,7 @@ echo "unreachable\n";
 error[E0810]: `Session::$sub` is declared `string`, and `Core\Jwt::verifyIssued` fills it with text from outside the program
    --> case.nvs:10:19
 %A
-error[E0810]: `iss` is declared `string` in `{exp: int, iss: string}`, and `Core\Jwt::verifyIssued` fills it with text from outside the program
+error[E0810]: `iss` is declared `string` in `{ exp: int, iss: string }`, and `Core\Jwt::verifyIssued` fills it with text from outside the program
    --> case.nvs:24:38
 %A
 error: aborting due to 2 errors

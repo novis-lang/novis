@@ -2180,7 +2180,7 @@ mod tests {
     /// is that nothing has grown one. Every time bound lowers to exactly
     /// `Core\Time\Duration` — a `?Duration` would describe as
     /// `null|Core\Time\Duration` and fail here, and it is the one edit that
-    /// would make `{deadline: null}` compile — and every bound is left out by
+    /// would make `{ deadline: null }` compile — and every bound is left out by
     /// omitting it, which § 5 makes inherit `[http.client]`'s own figure rather
     /// than remove the bound. A default of `0` or `-1` would be the unbounded
     /// spelling arriving as a *default*, which no call site would show.
@@ -2341,9 +2341,9 @@ mod tests {
         seed(&mut table, &mut interner);
 
         for (member, bag) in [
-            ("increment", "{by?: uint, labels?: array<string>}"),
-            ("observe", "{labels?: array<string>}"),
-            ("gauge", "{labels?: array<string>}"),
+            ("increment", "{ by?: uint, labels?: array<string> }"),
+            ("observe", "{ labels?: array<string> }"),
+            ("gauge", "{ labels?: array<string> }"),
         ] {
             let (owner, sig) = resolve_method(
                 &QName::parse(r"Core\Metrics"),
@@ -2604,7 +2604,7 @@ mod tests {
         )
         .expect("Core\\Arr::range is registered");
         assert_eq!(sig.params.len(), 3);
-        assert_eq!(interner.describe(sig.params[2]), "{step?: int}");
+        assert_eq!(interner.describe(sig.params[2]), "{ step?: int }");
         // The bag is optional by construction: two arguments are required, so
         // `Core\Arr::range(1, 10)` is a legal call with no registry row saying
         // the bag has a default.
@@ -2715,7 +2715,7 @@ mod tests {
 
     /// `CoreTy::SingleValueInt` inside an option's union interns to exactly the
     /// two single-value types a source-written `4|6` would — which is what makes
-    /// `Core\Validate::isIp($s, {version: 5})` an `E0401` naming `4|6` rather
+    /// `Core\Validate::isIp($s, { version: 5 })` an `E0401` naming `4|6` rather
     /// than an `int` argument the member has to re-check at run time.
     ///
     /// The union is built here rather than compared against a `describe`

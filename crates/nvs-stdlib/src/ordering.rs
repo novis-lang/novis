@@ -50,7 +50,7 @@ use nvs_runtime::{Ctx, Decimal, Fault, Tag, Value};
 /// `string` heap shape and would order bytewise the same way, but
 /// `rule:types/bytes` gives it no ordering and [`Value::as_str_bytes`]
 /// deliberately answers `None` for it, so two `bytes` have no natural order
-/// here and a sort over them takes `{comparator: ...}` with
+/// here and a sort over them takes `{ comparator: ... }` with
 /// `Core\Bytes::compare`. Giving it a row is a one-line change in this
 /// function and one row in [`crate::sort`], once a rule says so.
 ///
@@ -105,7 +105,7 @@ pub(crate) fn compare_values(
     Err(Fault::thrown(format!(
         "{member} has no natural order for tag {} against tag {}: two numbers, two strings, two \
          bools or two nulls have one and no other pair does. `Core\\Arr::sort` takes \
-         `{{comparator: ...}}`; for an object `rule:classes/comparable` makes `Comparable` the answer",
+         `{{ comparator: ... }}`; for an object `rule:classes/comparable` makes `Comparable` the answer",
         left.tag_byte(),
         right.tag_byte()
     )))

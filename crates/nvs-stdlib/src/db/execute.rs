@@ -13,7 +13,7 @@
 
 use super::*;
 
-/// The ABI slot `rule:core-classes/db-statement-members`'s `{timeout?: Duration}` arrives in, on every
+/// The ABI slot `rule:core-classes/db-statement-members`'s `{ timeout?: Duration }` arrives in, on every
 /// statement member.
 ///
 /// One constant for all five, because the bag flattens to one trailing argument
@@ -1642,7 +1642,7 @@ mod tests {
         }
     }
 
-    /// `rule:core-classes/db-statement-members`'s `{timeout?: Duration}`, over
+    /// `rule:core-classes/db-statement-members`'s `{ timeout?: Duration }`, over
     /// the three links that make it a bound rather than an option that parses:
     /// the duration becomes an instant, the instant reaches the socket, and a
     /// socket that gave up on it becomes a throw.

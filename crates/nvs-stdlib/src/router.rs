@@ -644,7 +644,7 @@ const MATCH_ROW: usize = 4;
 /// forms of [`nvs_runtime::routes::Param`] are spelled as a type.
 ///
 /// A union rather than a `string`, because § 1 says the server computes "typed
-/// parameters" and answering the segment text for a `{id: uint}` route would
+/// parameters" and answering the segment text for a `{ id: uint }` route would
 /// make the program parse a second time what the matcher already parsed — the
 /// two-readings-that-can-disagree shape this crate refuses everywhere else. A
 /// union rather than [`CoreTy::Mixed`] because the text arm is `tainted`: a
@@ -902,8 +902,8 @@ const MATCH_ACCESS_AS_DOC: MethodDoc = MethodDoc {
 /// `Core\Router\Match::attribute`'s reference card — `rule:core-api/reference-card`.
 const MATCH_ATTRIBUTE_DOC: MethodDoc = MethodDoc {
     short: "Returns the attribute of the route's method that has the shape you write between `<` \
-            and `>`. For a method with `#[{seconds: 60}]`, `$match->attribute<{seconds: int}>()` \
-            returns `{seconds: 60}`. A gate uses it to read a setting for one route.",
+            and `>`. For a method with `#[{ seconds: 60 }]`, `$match->attribute<{ seconds: int }>()` \
+            returns `{ seconds: 60 }`. A gate uses it to read a setting for one route.",
     params: &[],
     ret: "The attribute as an object of that shape, or `null` when the method has no attribute \
           with every field of the shape. The type argument must be a shape. Two matching \
@@ -2227,7 +2227,7 @@ nvs_runtime::nvs_helper! {
 /// The text arm decodes; nothing before it does, and nothing after it may. The
 /// segment travels from the door still as the peer wrote it —
 /// [`nvs_runtime::routes::Route::convert`] must see it that way, because it
-/// runs *first* and a `{n: uint}` route reading a decoded `%34` would match `4`
+/// runs *first* and a `{ n: uint }` route reading a decoded `%34` would match `4`
 /// — so this crossing is the single point where a capture stops being a piece
 /// of a URL and starts being a value. Deciding it here also decides it once for
 /// both readers: `Core\Request::route()` on a served request and
@@ -3013,7 +3013,7 @@ mod tests {
     /// side of `Route::convert` rather than in `nvs_runtime::routes`: a
     /// converted capture is a number the matcher already read out of the raw
     /// segment, and nothing here touches it. Were the decode to run first,
-    /// `%34` would reach a `{n: uint}` route as `4`; it does not reach it at
+    /// `%34` would reach a `{ n: uint }` route as `4`; it does not reach it at
     /// all, because no digit has an encoded spelling.
     #[test]
     fn a_uint_capture_is_unchanged_by_the_decode() {

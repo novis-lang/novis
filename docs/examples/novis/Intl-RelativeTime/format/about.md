@@ -1,8 +1,8 @@
 Writes an amount of time before or after now, such as "3 days ago" or "in 2 hours".
 
 `RelativeTime::format` returns one string for each item, in the same order as the list. Each item has
-a `count` and a `unit`, such as `{count: -3, unit: RelativeTime::Unit::Day}`. A negative count is in the past,
-so that item is "3 days ago". A positive count is in the future, so `{count: 2, unit: RelativeTime::Unit::Hour}`
+a `count` and a `unit`, such as `{ count: -3, unit: RelativeTime::Unit::Day }`. A negative count is in the past,
+so that item is "3 days ago". A positive count is in the future, so `{ count: 2, unit: RelativeTime::Unit::Hour }`
 is "in 2 hours". The locale decides the words. In German, the first item is "vor 3 Tagen".
 
 The options change how the text looks. `numeric: RelativeTime::Numeric::Auto` uses a word where the language has

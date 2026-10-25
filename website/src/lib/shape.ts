@@ -33,12 +33,13 @@ function splitTopLevel(text: string, sep: string): string[] {
   return out.map((p) => p.trim()).filter(Boolean)
 }
 
-/** The type on one line, its spacing normalised: `{a: int, b: ?string}`. */
+/** The type on one line, its spacing normalised the way `nvs fmt` writes it: `{ a: int, b: ?string }`. */
 const flat = (type: string) =>
   type
     .replace(/\s+/g, ' ')
-    .replace(/\{ /g, '{')
-    .replace(/,? \}/g, '}')
+    .replace(/\{ ?/g, '{ ')
+    .replace(/,? ?\}/g, ' }')
+    .replace(/\{ +\}/g, '{}')
     .replace(/\s*\|\s*/g, ' | ')
     .trim()
 

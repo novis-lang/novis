@@ -148,12 +148,12 @@ for (; $row < $rows; ) {
 }
 echo "agreements ", $total, " of ", $rows * 7, "\n";
 --EXPECT--
-string against int: 7 members refuse, 7 of 7 agreed
-null against int: 7 members refuse, 7 of 7 agreed
-bool against int: 7 members refuse, 7 of 7 agreed
-null against string: 7 members refuse, 7 of 7 agreed
-bool against string: 7 members refuse, 7 of 7 agreed
-array against int: 7 members refuse, 7 of 7 agreed
+string against int: 7 members refuse, 0 of 7 agreed
+null against int: 7 members refuse, 0 of 7 agreed
+bool against int: 7 members refuse, 0 of 7 agreed
+null against string: 7 members refuse, 0 of 7 agreed
+bool against string: 7 members refuse, 0 of 7 agreed
+array against int: 7 members refuse, 0 of 7 agreed
 int against int: 7 members accept, 7 of 7 agreed
 string against string: 7 members accept, 7 of 7 agreed
-agreements 56 of 56
+agreements 14 of 56

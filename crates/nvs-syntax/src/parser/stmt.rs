@@ -73,7 +73,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// Whether the `{` at the current position opens a *shape type* written in
-    /// front of a local's name (`{x: int} $point;`, `{x?: int} $point;`)
+    /// front of a local's name (`{ x: int } $point;`, `{ x?: int } $point;`)
     /// rather than a block or an anonymous object, answering with how far the
     /// matching `}` is from here so the refusal can consume the run this
     /// identified.
@@ -82,7 +82,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// list, which is what keeps a block a variable happens to follow
     /// (`{ echo 1; } $x = 1;`) out of it, and the token after the *matched*
     /// `}` has to be a variable, which is what keeps a discarded anonymous
-    /// object (`{x: 1};`) out. An optional key (`{x?: int}`) opens a field
+    /// object (`{ x: 1 };`) out. An optional key (`{ x?: int }`) opens a field
     /// list too: it is the same declaration written in the same place, and
     /// only [`Self::at_anon_object_in_block_position`], which answers for a
     /// *value*, has no spelling for it.
@@ -115,7 +115,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         None
     }
 
-    /// `{x: int} $point;` — the refusal `rule:types/shape-type` leaves this
+    /// `{ x: int } $point;` — the refusal `rule:types/shape-type` leaves this
     /// position with. Every other declaration slot (parameter, return type,
     /// property, class constant, `foreach` binding) takes a bare shape, and a
     /// local's cannot, because a statement-initial `{` is a block first. The
@@ -123,7 +123,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     ///
     /// `close` is where [`Self::at_shape_typed_local`] found the matching `}`.
     /// That run, the variable behind it and whatever reaches the `;` are
-    /// consumed and the statement becomes `Empty`: parsing `{x: int}` as a
+    /// consumed and the statement becomes `Empty`: parsing `{ x: int }` as a
     /// block would report the field list as broken statements, which is the
     /// cascade this error exists to replace.
     fn parse_shape_typed_local_refusal(&mut self, close: usize) -> Stmt {
@@ -141,7 +141,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 shape,
                 "`{` at the start of a statement already opens a block",
             )
-            .with_help("give the shape a name first: `type Point = {x: int}; Point $point;`"),
+            .with_help("give the shape a name first: `type Point = { x: int }; Point $point;`"),
         );
         self.bump(); // the variable the tell found behind the `}`
         while !self.at(TokenKind::Semicolon)

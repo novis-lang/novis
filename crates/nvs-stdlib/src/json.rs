@@ -43,7 +43,7 @@
 //! anything it should not.
 //!
 //! **What it spends:** one extra `String` the size of the document, on the
-//! `{escapeUnicode: true}` path only — an option a call has to ask for.
+//! `{ escapeUnicode: true }` path only — an option a call has to ask for.
 //!
 //! # The refusals
 //!
@@ -93,11 +93,11 @@
 //!
 //! # A shape is a second contract, not a second walk
 //!
-//! `rule:types/shape-type`'s `{n: int}` may be written where `decodeAs<T>`
+//! `rule:types/shape-type`'s `{ n: int }` may be written where `decodeAs<T>`
 //! takes its type argument, and what reaches this module is two things: the
 //! class the compiler synthesized for the shape's *field names*, and a
 //! [`nvs_runtime::ShapeCodec`] carrying the field *types*. They are separate
-//! because `{n: int}` and `{n: string}` share one class, so a shape's wire
+//! because `{ n: int }` and `{ n: string }` share one class, so a shape's wire
 //! types have nowhere on a descriptor to live — `nvs-ir`'s module docs own that
 //! fork and what it costs.
 //!
@@ -393,7 +393,7 @@ const CARD: ClassDoc = ClassDoc {
             document that is not valid JSON throws a `ParseError`.",
 };
 
-/// `Core\Json::encode`'s `{pretty?: bool, escapeUnicode?: bool}` — the two
+/// `Core\Json::encode`'s `{ pretty?: bool, escapeUnicode?: bool }` — the two
 /// options that survive `json_encode`'s fifteen `JSON_*` flags.
 ///
 /// Both default to `false`, which is `json_encode`'s own no-flags behaviour:
@@ -412,7 +412,7 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "value",
             desc: "The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, \
-                   `string`, an array, a `{name: value}` shape, or an instance of a class \
+                   `string`, an array, a `{ name: value }` shape, or an instance of a class \
                    with `#[Json\\Derive]`.",
             shape: &[],
         },
@@ -548,7 +548,7 @@ const ENCODE_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Json::decode`'s `{maxDepth?: uint}` — see [`DEFAULT_MAX_DEPTH`].
+/// `Core\Json::decode`'s `{ maxDepth?: uint }` — see [`DEFAULT_MAX_DEPTH`].
 ///
 /// `pub(crate)` because `Core\Request::json` reads a document out of a request
 /// body and carries the same bag: one default for the depth of a JSON document,
@@ -610,7 +610,7 @@ const _: () = assert!(DEPTH_CEILING < u32::MAX as u64);
 /// did not write.
 pub(crate) fn max_depth(value: &Value, who: &str) -> Result<u32, Fault> {
     // Unreachable from source: `maxDepth` is a `CoreTy::Uint` option in
-    // `DECODE_OPTIONS` below, so `{maxDepth: $m}` over a `mixed` is `E0401:
+    // `DECODE_OPTIONS` below, so `{ maxDepth: $m }` over a `mixed` is `E0401:
     // expected uint, found mixed` at the checker and the bag a call that
     // omits it passes carries the `Const::Uint` default. The `1..=1024`
     // refusal underneath is the reachable half, and it throws.
@@ -1331,7 +1331,7 @@ impl Stack {
         // walked the way an array's entries are, each value spelled by its own
         // tag, because the class is keyed on field *names* alone
         // (`nvs_ir::lower::shape_class_label`) and so has no per-field wire
-        // type a `CodecField` could honestly carry: `{n: 1}` and `{n: "s"}` are
+        // type a `CodecField` could honestly carry: `{ n: 1 }` and `{ n: "s" }` are
         // one class. Key order is that label's, which is sorted, so a shape's
         // document is byte-deterministic on `rule:core-classes/derive-property-list`'s terms.
         if desc.is_shape() {
@@ -1624,7 +1624,7 @@ impl Stack {
 }
 
 /// Every non-ASCII `char` of `text` rewritten as its `\uXXXX` escape —
-/// `{escapeUnicode: true}`. This module's own docs own why a post-pass is
+/// `{ escapeUnicode: true }`. This module's own docs own why a post-pass is
 /// sound.
 fn escape_non_ascii(text: &str) -> String {
     if text.is_ascii() {
@@ -1719,7 +1719,7 @@ fn rendered(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Json::encode(mixed $value, {pretty?: bool, escapeUnicode?: bool}): string`
+    /// `Core\Json::encode(mixed $value, { pretty?: bool, escapeUnicode?: bool }): string`
     /// — replacing `json_encode` and its fifteen `JSON_*` flags.
     ///
     /// Anything it cannot write throws a `LogicError`: the value was built by
@@ -1740,7 +1740,7 @@ nvs_runtime::nvs_helper! {
 /// One `bool` option.
 fn flag(value: &Value, option: &str) -> Result<bool, Fault> {
     // Unreachable from source: both callers pass an `ENCODE_OPTIONS` slot and
-    // both of those are `CoreTy::Bool`, so `{pretty: $m}` over a `mixed` is
+    // both of those are `CoreTy::Bool`, so `{ pretty: $m }` over a `mixed` is
     // `E0401: expected bool, found mixed` at the checker.
     value.as_bool().ok_or_else(|| {
         Fault::fatal(format!(
@@ -2007,7 +2007,7 @@ fn parse(text: &str, max: u32, lists: Option<&Lists>) -> Result<Value, serde_jso
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Json::decode(string $json, {maxDepth?: uint}): mixed` — replacing
+    /// `Core\Json::decode(string $json, { maxDepth?: uint }): mixed` — replacing
     /// `json_decode`, `json_last_error`, `json_last_error_msg` and `$depth`.
     ///
     /// Always the associative shape: there is no `$associative` flag, because
@@ -2033,7 +2033,7 @@ nvs_runtime::nvs_helper! {
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Json::decodeAs<T>(string $json, {maxDepth?: uint}): T` — replacing
+    /// `Core\Json::decodeAs<T>(string $json, { maxDepth?: uint }): T` — replacing
     /// hand-written hydration.
     ///
     /// **Arguments 0 to 2 are what the call site wrote as its type argument**,
@@ -2062,7 +2062,7 @@ nvs_runtime::nvs_helper! {
         // the zero word there — which is the whole of what tells the two apart,
         // since `Value::as_shape_codec` answers `None` for a zero payload. A
         // shape class carries no codec of its own, so this is the only thing
-        // that says what `{n: int}`'s `n` is on the wire.
+        // that says what `{ n: int }`'s `n` is on the wire.
         let shape = args[2].as_shape_codec();
         let text = text_of(&args[3], "decodeAs")?;
         let max = max_depth(&args[4], "Core\\Json::decodeAs")?;
@@ -2910,7 +2910,7 @@ fn parse_against(
 /// them is a caller of this:
 ///
 /// * **Where the fields come from.** A shape class is keyed on its field names
-///   alone, so `{n: int}` and `{n: string}` are one
+///   alone, so `{ n: int }` and `{ n: string }` are one
 ///   [`nvs_runtime::ClassDesc`] and the per-field wire types live beside it in
 ///   a [`nvs_runtime::ShapeCodec`].
 /// * **How the object is built** — [`build_shape`] against
@@ -4122,7 +4122,7 @@ unsafe fn build_shape<'a>(
 ///   ([`nvs_runtime::Value::unset`]), which is the storage state
 ///   `rule:types/shape-type`'s "an absent key is that same rule's checked,
 ///   catchable throw" is read back out of. Writing `null` would instead make
-///   `{a?: int}` and `{a: ?int}` — two types that intern apart — hold the same
+///   `{ a?: int }` and `{ a: ?int }` — two types that intern apart — hold the same
 ///   thing.
 /// * **A `?T` field is `expr as ?T`**, which answers `null` exactly where
 ///   `as T` would throw (`rule:expressions/nullable-conversion`), so a value

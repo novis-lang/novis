@@ -15,11 +15,11 @@ An error that nothing catches ends the program with exit status `1`.
 ## Use this when you want to add information
 
 `throw $e;` does not add anything. To say more, throw a new error and pass the old one as
-`{previous: $e}`. See [Error types](/syntax/errors/error-types/).
+`{ previous: $e }`. See [Error types](/syntax/errors/error-types/).
 
 ## Do and don't
 
 - Do rethrow when you only want to log the error and let a caller handle it.
-- Do throw a new error with `{previous: $e}` when you add information.
+- Do throw a new error with `{ previous: $e }` when you add information.
 - Don't catch an error only to throw it again unchanged. Leave out the `catch`.
 - Don't look for `set_exception_handler`. It does not exist.

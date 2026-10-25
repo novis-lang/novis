@@ -11,5 +11,5 @@ Reading a field that the shape does not have compiles and throws `RuntimeError` 
 
 `Core\Task::all({})` has no tasks and returns at once.
 
-Each field must be a function. A field with another value, such as `{a: 1}`, is `E0401`. An array
+Each field must be a function. A field with another value, such as `{ a: 1 }`, is `E0401`. An array
 of functions is `E0401` too.

@@ -5,16 +5,16 @@
 type Route = { path: string };
 
 #[Route(path: '/a')]
-#[{a: 1}]
-#[{b: 'two'}]
+#[{ a: 1 }]
+#[{ b: 'two' }]
 class Base
 {
-    #[{column: 'id'}]
+    #[{ column: 'id' }]
     public int $id = 0;
 
     #[Route(path: '/b')]
-    #[{c: true}]
-    public function one(#[{from: 'query'}] int $x, #[{from: 'body'}] int $y): void
+    #[{ c: true }]
+    public function one(#[{ from: 'query' }] int $x, #[{ from: 'body' }] int $y): void
     {
     }
 }
@@ -22,7 +22,7 @@ class Base
 #[Route(path: '/child')]
 class Child extends Base
 {
-    #[{d: 1.5}]
+    #[{ d: 1.5 }]
     public function two(): void
     {
     }

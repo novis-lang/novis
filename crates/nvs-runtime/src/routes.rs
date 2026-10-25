@@ -73,7 +73,7 @@
 //! **A capture leaves this crate as the segment arrived, still
 //! percent-encoded**, and is decoded once on the far side of the crossing.
 //! [`Route::convert`] is why the decode cannot be here: it runs first, so a
-//! segment decoded before it would let `%34` reach a `{n: uint}` route as `4`.
+//! segment decoded before it would let `%34` reach a `{ n: uint }` route as `4`.
 //! The decoder is `nvs_stdlib::uri`'s — a second one here would be the
 //! two-that-agree-today failure the tainted laundering rules exist to prevent —
 //! and `nvs_stdlib::router`'s `capture_value` is both the crossing and the home

@@ -138,7 +138,7 @@ impl Default for Connection {
     /// § 7's numbers, chosen against § 1's own worked example rather than
     /// against the codec's defaults.
     ///
-    /// The example in § 2 gives a connection `{memory: 8mb, idle: 5m}`, and
+    /// The example in § 2 gives a connection `{ memory: 8mb, idle: 5m }`, and
     /// that is the whole of where these come from. `idle` is transcribed from
     /// it. [`frame`](Connection::frame) and [`message`](Connection::message)
     /// are **below** it on purpose: `tungstenite`'s own defaults are 16 MiB and

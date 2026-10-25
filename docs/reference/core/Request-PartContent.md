@@ -35,7 +35,7 @@ foreach (Core\Request::files() as Core\Request\Part $part) {
     foreach ($part->content() as tainted bytes $chunk) {
         $seen = $seen + Core\Bytes::length($chunk);
     }
-    echo $part->name(), ": ", $seen, " bytes\n";
+    echo $part->name(), ': ', $seen, " bytes\n";
 }
 ```
 

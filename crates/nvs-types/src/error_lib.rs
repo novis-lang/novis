@@ -20,7 +20,7 @@
 //! `issues: array<Core\Issue>`, seeded from
 //! [`nvs_hir::errors::OWN_PROPERTIES`] rather than named here, so that the
 //! slot order and the signature cannot disagree. `Core\Issue` is an `rule:types/object-top`
-//! **shape**, `{path: string, message: string}` — see [`issue_shape`] — so a
+//! **shape**, `{ path: string, message: string }` — see [`issue_shape`] — so a
 //! class of that name exists nowhere and a decoder builds one with nothing
 //! declared.
 //!
@@ -39,7 +39,7 @@
 //! an exception constructed and never thrown reads `""`, and rethrowing one
 //! that was already caught *rewrites* its location to the rethrow site rather
 //! than keeping the original. Chaining is what preserves the original — the
-//! cause keeps its own location, and `{previous: $e}` is how it is kept.
+//! cause keeps its own location, and `{ previous: $e }` is how it is kept.
 //!
 //! An `issues` entry is read like any other value now: `$issue->path` is a
 //! property access on an `rule:types/erased-member-access` shape receiver, which
@@ -210,7 +210,7 @@ const LDAP_ERROR: &str = r"Core\Ldap\LdapError";
 /// `the_ldap_kind_property_names_a_registered_enum` holds the two together.
 const LDAP_ERROR_KIND: &str = r"Core\Ldap\LdapError::Kind";
 
-/// `type Core\Issue = {path: string, message: string}` —
+/// `type Core\Issue = { path: string, message: string }` —
 /// `rule:core-classes/derive-reports-every-field`'s one shape.
 ///
 /// An `rule:types/object-top` shape rather than a class, which is what that rule writes and
@@ -256,7 +256,7 @@ fn root_properties(interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
         .collect()
 }
 
-/// `constructor(string $message, {previous?: Throwable|null})` — one
+/// `constructor(string $message, { previous?: Throwable|null })` — one
 /// required message and one options shape, which is
 /// `rule:core-api/shape-rules` R2 applied to a
 /// constructor like any other member.

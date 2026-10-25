@@ -1338,7 +1338,7 @@ const ROUND_MODE_DOC: EnumDoc = EnumDoc {
 /// it yet.
 pub(crate) const NUMBER: &[CoreTy] = &[CoreTy::Int, CoreTy::Float, CoreTy::Decimal];
 
-/// `Core\Math::round`'s `{precision?: int, mode?: RoundMode}`.
+/// `Core\Math::round`'s `{ precision?: int, mode?: RoundMode }`.
 ///
 /// `precision` is `int` rather than `uint` on purpose: a negative one rounds
 /// to tens, hundreds and up, which is `round($n, -2)` in PHP and the only
@@ -1356,7 +1356,7 @@ const ROUND_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Math::log`'s `{base?: float}` — the option that folds PHP's `log10`
+/// `Core\Math::log`'s `{ base?: float }` — the option that folds PHP's `log10`
 /// and `log2` into one member, with the natural logarithm as the default.
 const LOG_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "base",
@@ -1365,7 +1365,7 @@ const LOG_OPTIONS: &[CoreOption] = &[CoreOption {
 }];
 
 /// `Core\Math::format`'s
-/// `{decimals?: uint, decimalSeparator?: string, groupSeparator?: string}`.
+/// `{ decimals?: uint, decimalSeparator?: string, groupSeparator?: string }`.
 ///
 /// The group separator defaults to **empty**, unlike `number_format`'s `,`:
 /// Novis has no ambient locale, so grouping is a thing the caller
@@ -1824,7 +1824,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Math::round(float $n, {precision?: int, mode?: RoundMode}): float`
+    /// `Core\Math::round(float $n, { precision?: int, mode?: RoundMode }): float`
     /// — replacing PHP's `round` and its four `PHP_ROUND_*` constants.
     ///
     /// [`round_to`] owns what each mode means and what a precision does.
@@ -1958,12 +1958,12 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Math::log(float $n, {base?: float}): float` — the logarithm,
+    /// `Core\Math::log(float $n, { base?: float }): float` — the logarithm,
     /// replacing PHP's `log`, `log10` and `log2`.
     ///
     /// Base `10` and base `2` take `f64`'s own dedicated routines rather than
     /// `ln($n) / ln($base)`, which is a ratio of two inexact values and
-    /// answers `2.9999999999999996` for `log(1000.0, {base: 10.0})`. Every
+    /// answers `2.9999999999999996` for `log(1000.0, { base: 10.0 })`. Every
     /// other base is that ratio, because there is nothing more exact to use.
     ///
     /// A base that is not greater than zero has no logarithm at all, and the

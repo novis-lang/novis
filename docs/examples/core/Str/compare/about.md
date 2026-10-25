@@ -5,7 +5,7 @@ and `1` when the second string comes first. You can use it as the comparison fun
 
 By default, the comparison is character by character and case-sensitive. All upper case letters
 come before all lower case letters, so `"Zebra"` comes before `"apple"`. Two options change this.
-With `{caseInsensitive: true}`, upper and lower case letters are equal. With `{natural: true}`,
+With `{ caseInsensitive: true }`, upper and lower case letters are equal. With `{ natural: true }`,
 digits inside the strings are compared as numbers, so `"file2"` comes before `"file10"`. You can
 use both options together.
 

@@ -895,7 +895,7 @@ const COMPARE_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::before`'s reference card — `rule:core-api/reference-card`.
 const BEFORE_DOC: MethodDoc = MethodDoc {
     short: "Returns the part of `$s` before the first `$needle`, without the needle. With \
-            `{last: true}`, it cuts at the last `$needle`.",
+            `{ last: true }`, it cuts at the last `$needle`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -923,7 +923,7 @@ const BEFORE_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::after`'s reference card — `rule:core-api/reference-card`.
 const AFTER_DOC: MethodDoc = MethodDoc {
     short: "Returns the part of `$s` after the first `$needle`, without the needle. With \
-            `{last: true}`, it cuts at the last `$needle`.",
+            `{ last: true }`, it cuts at the last `$needle`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1545,7 +1545,7 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Str::split`'s `{limit?: int}` — [`nvs_core_str_split`]'s own docs own
+/// `Core\Str::split`'s `{ limit?: int }` — [`nvs_core_str_split`]'s own docs own
 /// what each sign of it means and why the default is `int`'s maximum.
 const SPLIT_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "limit",
@@ -1553,7 +1553,7 @@ const SPLIT_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Int(i64::MAX),
 }];
 
-/// `Core\Str::trim`/`trimStart`/`trimEnd`'s `{characters?: string}`, shared by
+/// `Core\Str::trim`/`trimStart`/`trimEnd`'s `{ characters?: string }`, shared by
 /// all three — one bag, so the three members cannot drift apart on either the
 /// option's name or its default.
 ///
@@ -1566,7 +1566,7 @@ const TRIM_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Str(" \t\n\r\0\u{0b}"),
 }];
 
-/// `Core\Str::replace`'s `{caseInsensitive?: bool, limit?: uint}`.
+/// `Core\Str::replace`'s `{ caseInsensitive?: bool, limit?: uint }`.
 ///
 /// [`nvs_core_str_replace`]'s own docs own both defaults — in particular why
 /// "every occurrence" is spelled as `uint`'s maximum rather than as a sentinel
@@ -1584,7 +1584,7 @@ const REPLACE_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Str::replaceAll`'s `{caseInsensitive?: bool}`.
+/// `Core\Str::replaceAll`'s `{ caseInsensitive?: bool }`.
 ///
 /// Deliberately **not** [`REPLACE_OPTIONS`]: a `limit` over a whole
 /// substitution table would have to say *which* pair it counts, and the
@@ -1596,7 +1596,7 @@ const REPLACE_ALL_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Bool(false),
 }];
 
-/// `Core\Str::indexOf`'s `{from?: int, caseInsensitive?: bool}`.
+/// `Core\Str::indexOf`'s `{ from?: int, caseInsensitive?: bool }`.
 ///
 /// `from` is a **position**, so it obeys `rule:core-api/shape-rules` R8's sign rule and reads
 /// through [`crate::granularity::Unit::byte_of_signed_index`] — the same option,
@@ -1616,7 +1616,7 @@ const INDEX_OF_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Str::lastIndexOf`'s `{before?: int, caseInsensitive?: bool}` — the
+/// `Core\Str::lastIndexOf`'s `{ before?: int, caseInsensitive?: bool }` — the
 /// mirror of [`INDEX_OF_OPTIONS`], whose bound runs the other way.
 ///
 /// The default is `int`'s maximum rather than a sentinel, which
@@ -1636,7 +1636,7 @@ const LAST_INDEX_OF_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Str::compare`'s `{caseInsensitive?: bool, natural?: bool}`.
+/// `Core\Str::compare`'s `{ caseInsensitive?: bool, natural?: bool }`.
 ///
 /// The two are independent, and all four combinations name one of PHP's four
 /// comparison functions: neither is `strcmp`, `caseInsensitive` alone is
@@ -1657,7 +1657,7 @@ const COMPARE_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Str::before`/`after`'s `{last?: bool}`, shared by both — one bag, so
+/// `Core\Str::before`/`after`'s `{ last?: bool }`, shared by both — one bag, so
 /// the two members cannot drift apart on which occurrence they cut at.
 const AROUND_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "last",
@@ -1665,7 +1665,7 @@ const AROUND_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Bool(false),
 }];
 
-/// `Core\Str::wrap`'s `{breakWith?: string, cutLongWords?: bool}` — PHP's
+/// `Core\Str::wrap`'s `{ breakWith?: string, cutLongWords?: bool }` — PHP's
 /// `wordwrap` third and fourth arguments, named rather than positional, with
 /// PHP's defaults: `"\n"` and `false`. [`nvs_core_str_wrap`] owns the rest.
 const WRAP_OPTIONS: &[CoreOption] = &[
@@ -2099,7 +2099,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Str::split(string $s, string $separator, {limit?: int}): array<string>`
+    /// `Core\Str::split(string $s, string $separator, { limit?: int }): array<string>`
     /// — replacing PHP's `explode`, whose third argument becomes the one
     /// option here.
     ///
@@ -2540,7 +2540,7 @@ impl TrimSet {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Str::trim(string $s, {characters?: string}): string` — replacing
+    /// `Core\Str::trim(string $s, { characters?: string }): string` — replacing
     /// PHP's `trim`. [`trimmed`] owns the two divergences from it, and
     /// `crate::registry`'s `TRIM_OPTIONS` owns the default set.
     fn nvs_core_str_trim(_ctx, args: [2]) {
@@ -2551,7 +2551,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Str::trimStart(string $s, {characters?: string}): string` —
+    /// `Core\Str::trimStart(string $s, { characters?: string }): string` —
     /// replacing PHP's `ltrim`. See [`nvs_core_str_trim`].
     fn nvs_core_str_trim_start(_ctx, args: [2]) {
         let subject = text(&args[0], "trimStart", "the subject")?;
@@ -2561,7 +2561,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Str::trimEnd(string $s, {characters?: string}): string` —
+    /// `Core\Str::trimEnd(string $s, { characters?: string }): string` —
     /// replacing PHP's `rtrim`/`chop`. See [`nvs_core_str_trim`].
     fn nvs_core_str_trim_end(_ctx, args: [2]) {
         let subject = text(&args[0], "trimEnd", "the subject")?;
@@ -2769,7 +2769,7 @@ fn match_at(rest: &str, needle: &str) -> Option<usize> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Str::replace(string $s, string $search, string $replacement, {caseInsensitive?: bool, limit?: uint}): string`
+    /// `Core\Str::replace(string $s, string $search, string $replacement, { caseInsensitive?: bool, limit?: uint }): string`
     /// — replacing PHP's `str_replace` **and** `str_ireplace`, which are one
     /// member here because `rule:core-api/shape-rules` R13/R20 leave no room for a second
     /// spelling of one operation.
@@ -2825,7 +2825,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Str::replaceAll(string $s, array<string> $pairs, {caseInsensitive?: bool}): string`
+    /// `Core\Str::replaceAll(string $s, array<string> $pairs, { caseInsensitive?: bool }): string`
     /// — replacing PHP's `str_replace` with array arguments **and** its
     /// `strtr`, which are one member here because they are one operation:
     /// substituting a whole table in a single pass.
@@ -3094,7 +3094,7 @@ fn position(value: &Value, subject: &str, byte: usize) -> HelperResult {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Str::indexOf(string $haystack, string $needle, {from?: int, caseInsensitive?: bool}): ?uint`
+    /// `Core\Str::indexOf(string $haystack, string $needle, { from?: int, caseInsensitive?: bool }): ?uint`
     /// — replacing PHP's `strpos`, `stripos`, `mb_strpos` and `mb_stripos`, all
     /// four at once, because `rule:core-api/shape-rules` R13 makes the encoding question moot and
     /// R20 leaves no room for a second spelling of one operation.
@@ -3122,7 +3122,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Str::lastIndexOf(string $haystack, string $needle, {before?: int, caseInsensitive?: bool}): ?uint`
+    /// `Core\Str::lastIndexOf(string $haystack, string $needle, { before?: int, caseInsensitive?: bool }): ?uint`
     /// — replacing PHP's `strrpos`, `strripos` and `mb_strrpos`. See
     /// [`nvs_core_str_index_of`] for what the two members share.
     ///
@@ -3212,8 +3212,8 @@ fn skip_whitespace(subject: &str, mut at: usize) -> usize {
 
 /// Past the zeros PHP's `leading` flag drops — at the very start of a subject
 /// only, a `0` followed by another digit is not part of the number at all,
-/// which is why `compare("01", "1", {natural: true})` is `0` while
-/// `compare("a01", "a1", {natural: true})` is negative.
+/// which is why `compare("01", "1", { natural: true })` is `0` while
+/// `compare("a01", "a1", { natural: true })` is negative.
 fn skip_leading_zeros(subject: &str, mut at: usize) -> usize {
     let bytes = subject.as_bytes();
     while bytes.get(at) == Some(&b'0') && bytes.get(at + 1).is_some_and(u8::is_ascii_digit) {
@@ -3279,7 +3279,7 @@ fn folded(subject: &str) -> impl Iterator<Item = char> + '_ {
     subject.chars().flat_map(char::to_lowercase)
 }
 
-/// `{natural: true}`'s ordering: a run of digits compares as a number and
+/// `{ natural: true }`'s ordering: a run of digits compares as a number and
 /// everything else compares as characters, which is what puts `img2` before
 /// `img12`.
 ///
@@ -3361,7 +3361,7 @@ fn natural_order(a: &str, b: &str, case_insensitive: bool) -> Ordering {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Str::compare(string $a, string $b, {caseInsensitive?: bool, natural?: bool}): int`
+    /// `Core\Str::compare(string $a, string $b, { caseInsensitive?: bool, natural?: bool }): int`
     /// — replacing all four of PHP's `strcmp`, `strcasecmp`, `strnatcmp` and
     /// `strnatcasecmp`, plus the comparator behind `natsort`/`natcasesort`,
     /// because `rule:core-api/shape-rules` R20 leaves no room for four spellings of one
@@ -3373,9 +3373,9 @@ nvs_runtime::nvs_helper! {
     /// come to depend on without it meaning anything.
     ///
     /// The default ordering is over characters, which for UTF-8 is also over
-    /// bytes; `{caseInsensitive: true}` compares Unicode's simple lower-case
+    /// bytes; `{ caseInsensitive: true }` compares Unicode's simple lower-case
     /// mapping of each instead, the same boundary [`match_at`] sits on, so
-    /// `ß` and `SS` are still different. `{natural: true}` is a **different
+    /// `ß` and `SS` are still different. `{ natural: true }` is a **different
     /// ordering** rather than a variant of this one — [`natural_order`] owns
     /// what it is, and `compare("img12", "img2")` is the sign that flips.
     ///
@@ -3413,12 +3413,12 @@ fn cut_at(subject: &str, needle: &str, last: bool) -> Option<(usize, usize)> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Str::before(string $s, string $needle, {last?: bool}): ?string` —
+    /// `Core\Str::before(string $s, string $needle, { last?: bool }): ?string` —
     /// everything up to the first occurrence of `$needle`, replacing PHP's
     /// `strstr($h, $n, true)` and `strrchr` used as a prefix.
     ///
     /// The needle itself is not included, and a needle that does not occur is
-    /// `null` rather than PHP's `false` (`rule:core-api/shape-rules` R5). `{last: true}` cuts at
+    /// `null` rather than PHP's `false` (`rule:core-api/shape-rules` R5). `{ last: true }` cuts at
     /// the last occurrence instead of the first.
     fn nvs_core_str_before(_ctx, args: [3]) {
         let subject = text(&args[0], "before", "the subject")?;
@@ -3432,7 +3432,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Str::after(string $s, string $needle, {last?: bool}): ?string` —
+    /// `Core\Str::after(string $s, string $needle, { last?: bool }): ?string` —
     /// everything past the first occurrence of `$needle`, replacing PHP's
     /// `strstr`, `stristr` and `strrchr`.
     ///
@@ -3474,7 +3474,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Str::wrap(string $s, uint $width, {breakWith?: string, cutLongWords?: bool}): string`
+    /// `Core\Str::wrap(string $s, uint $width, { breakWith?: string, cutLongWords?: bool }): string`
     /// — replacing PHP's `wordwrap`, whose third and fourth arguments become
     /// this member's two options.
     ///
@@ -3788,7 +3788,7 @@ nvs_runtime::nvs_helper! {
     /// anyone — it is a key.
     ///
     /// This is therefore the strict form of `compare`'s
-    /// `{caseInsensitive: true}`, whose per-character simple mapping cannot
+    /// `{ caseInsensitive: true }`, whose per-character simple mapping cannot
     /// see `ß` and `SS` as the same: `compare(fold($a), fold($b)) == 0` is the
     /// caseless test that does. Two members rather than a third option,
     /// because folding is a value a caller can hold on to — a lookup key
@@ -5018,7 +5018,7 @@ mod tests {
     }
 
     /// `after` answers the slice past the first occurrence, or past the last
-    /// under `{last: true}`, with the needle left out; absence is `null` and a
+    /// under `{ last: true }`, with the needle left out; absence is `null` and a
     /// needle at the very end is the empty string, so the two stay apart.
     // covers: Core\Str::after
     #[test]
@@ -5141,7 +5141,7 @@ mod tests {
     }
 
     /// `before` is `after`'s mirror over the same `cut_at`: the slice up to the
-    /// first occurrence, or up to the last under `{last: true}`, and `null`
+    /// first occurrence, or up to the last under `{ last: true }`, and `null`
     /// for absence while a needle at the very start answers the empty string.
     // covers: Core\Str::before
     #[test]
@@ -5774,7 +5774,7 @@ mod tests {
     }
 
     /// Every row here was checked against `php -r` while it was written.
-    /// `{natural: true}` is a port of `strnatcmp` rather than a fresh reading
+    /// `{ natural: true }` is a port of `strnatcmp` rather than a fresh reading
     /// of "sort numbers as numbers", and its three quirks are exactly where a
     /// fresh reading would disagree with the program being migrated: the
     /// leading-zero skip applies at the start of a subject and nowhere else, a

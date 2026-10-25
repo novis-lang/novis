@@ -41,7 +41,7 @@ being WebCrypto's own IV.
 ```nvs
 <?nvs
 secret bytes $key = Core\Crypto::generateKey();
-bytes $message = "attack at dawn" as bytes;
+bytes $message = 'attack at dawn' as bytes;
 
 // No mode, no padding, no IV — and 40 octets of overhead, flat.
 bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
@@ -107,20 +107,20 @@ secret at two call sites without storing a second one.
 // A password is stretched. The count is the call's, because whoever wrote a
 // derived key down is the one who chose what it was derived under.
 bytes $salt = Core\Random::bytes(16);
-secret bytes $fromPassword = Core\Crypto::deriveKey("correct horse battery staple", $salt, 100000);
+secret bytes $fromPassword = Core\Crypto::deriveKey('correct horse battery staple', $salt, 100000);
 
 // Material that is already uniform is spread instead, and `$info` keeps two
 // uses of one secret apart.
 secret bytes $root = Core\Crypto::generateKey();
-secret bytes $forCookies = Core\Crypto::expandKey($root, $salt, "cookies");
-secret bytes $forTokens = Core\Crypto::expandKey($root, $salt, "tokens");
+secret bytes $forCookies = Core\Crypto::expandKey($root, $salt, 'cookies');
+secret bytes $forTokens = Core\Crypto::expandKey($root, $salt, 'tokens');
 if ($forCookies != $forTokens) {
     echo "one secret, two keys\n";
 }
 
 // Either answer is a key like any other, and is a `secret bytes` like any
 // other: neither derivation is a way out of the qualifier.
-bytes $message = "attack at dawn" as bytes;
+bytes $message = 'attack at dawn' as bytes;
 bytes $sealed = Core\Crypto::seal($message, $fromPassword, Core\Crypto::Cipher::XChaCha20Poly1305);
 if (Core\Crypto::open($sealed, $fromPassword, Core\Crypto::Cipher::XChaCha20Poly1305) == $message) {
     echo "a derived key seals like a drawn one\n";
@@ -130,7 +130,7 @@ if (Core\Crypto::open($sealed, $fromPassword, Core\Crypto::Cipher::XChaCha20Poly
 // attack; over the ceiling one call is a denial of service against the process
 // that made it, which is what stops a token naming its own.
 try {
-    secret bytes $cheap = Core\Crypto::deriveKey("correct horse battery staple", $salt, 1000);
+    secret bytes $cheap = Core\Crypto::deriveKey('correct horse battery staple', $salt, 1000);
     echo "1000 rounds accepted\n";
 } catch (LogicError $outside) {
     echo "1000 rounds refused\n";
@@ -175,36 +175,36 @@ bytes $sent = $mine->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
 Core\Crypto\PublicKey $peer = Core\Crypto\PublicKey::read(
     $theirs->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
     Core\Crypto\KeyKind::X25519,
-    Core\Crypto\PublicKey::Format::Raw
+    Core\Crypto\PublicKey::Format::Raw,
 );
 Core\Crypto\PublicKey $me = Core\Crypto\PublicKey::read(
     $sent,
     Core\Crypto\KeyKind::X25519,
-    Core\Crypto\PublicKey::Format::Raw
+    Core\Crypto\PublicKey::Format::Raw,
 );
 
 // Both ends agree the same secret from opposite halves and spread it into a
 // key, which is a key like any other: it seals here and opens there.
-bytes $salt = "a salt both ends know" as bytes;
-secret bytes $ours = Core\Crypto::expandKey(Core\Crypto::agree($mine, $peer), $salt, "session");
-secret bytes $yours = Core\Crypto::expandKey(Core\Crypto::agree($theirs, $me), $salt, "session");
-bytes $sealed = Core\Crypto::seal("ping" as bytes, $ours, Core\Crypto::Cipher::Aes256Gcm);
-if (Core\Crypto::open($sealed, $yours, Core\Crypto::Cipher::Aes256Gcm) == ("ping" as bytes)) {
+bytes $salt = 'a salt both ends know' as bytes;
+secret bytes $ours = Core\Crypto::expandKey(Core\Crypto::agree($mine, $peer), $salt, 'session');
+secret bytes $yours = Core\Crypto::expandKey(Core\Crypto::agree($theirs, $me), $salt, 'session');
+bytes $sealed = Core\Crypto::seal('ping' as bytes, $ours, Core\Crypto::Cipher::Aes256Gcm);
+if (Core\Crypto::open($sealed, $yours, Core\Crypto::Cipher::Aes256Gcm) == ('ping' as bytes)) {
     echo "one secret, agreed from both ends\n";
 }
 
 // A signing pair is a different kind, and `::verify` answers nothing at all —
 // there is no boolean here for a loose comparison to get wrong.
 Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
-bytes $announcement = "the service says this" as bytes;
+bytes $announcement = 'the service says this' as bytes;
 bytes $signature = Core\Crypto::sign($announcement, $signing);
 Core\Crypto::verify($announcement, $signature, $signing->publicKey());
-echo "signed and verified, ", Core\Bytes::length($signature), " octets\n";
+echo 'signed and verified, ', Core\Bytes::length($signature), " octets\n";
 
 // Another message under the same signature is a forgery, with the one sentence
 // every refusal here gets.
 try {
-    Core\Crypto::verify("the service says something else" as bytes, $signature, $signing->publicKey());
+    Core\Crypto::verify('the service says something else' as bytes, $signature, $signing->publicKey());
     echo "another message took the signature\n";
 } catch (RuntimeError $notThisMessage) {
     echo "another message is refused\n";

@@ -3,7 +3,7 @@ true for every input, and the runner looks for an input where it is false.
 
 `#[Property]` goes on a method with the same shape as a `#[Test]` method. Each parameter gets a
 generated value of its declared type. The runner calls the method 100 times, and `runs:` changes
-that number. `gen: {level: "0..1000"}` gives `$level` a whole number from 0 to 1000.
+that number. `gen: { level: "0..1000" }` gives `$level` a whole number from 0 to 1000.
 
 When a call fails, the runner tries smaller inputs that still fail. The report shows the smallest
 input it found, the input that failed first, and the seed. Write that seed as

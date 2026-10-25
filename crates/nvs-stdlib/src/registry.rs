@@ -45,7 +45,7 @@
 //! # The options bag
 //!
 //! `rule:core-api/shape-rules` R2 makes a
-//! trailing options shape (`{step?: int}`) the form of *every* optioned
+//! trailing options shape (`{ step?: int }`) the form of *every* optioned
 //! member. It is [`CoreTy::Options`], and the four properties below are what
 //! it costs and what it buys — recorded here because the fork is the
 //! expensive part, not the code:
@@ -661,13 +661,13 @@ pub enum CoreTy {
     /// option and an omitted option passes a [`Const`], which has no
     /// union-shaped spelling — so a union admitting no `null` defaults to
     /// [`Const::Null`], read back by the helper as "not given" exactly as it
-    /// already is for the `{by?: callable}` an option cannot otherwise spell,
+    /// already is for the `{ by?: callable }` an option cannot otherwise spell,
     /// and a union with a [`Self::Nullable`] member defaults to
-    /// [`Const::NeverWritten`] instead, so "omitted" and `{a: null}` stay two
+    /// [`Const::NeverWritten`] instead, so "omitted" and `{ a: null }` stay two
     /// arguments (`rule:core-api/omission-is-not-a-written-null`).
-    /// `Core\Validate::isIp`'s `{version?: 4|6}` was the row that wanted a
+    /// `Core\Validate::isIp`'s `{ version?: 4|6 }` was the row that wanted a
     /// union here first — [`crate::validate`]'s docs say why the alternative
-    /// was worse — and `Core\Arr::column`'s `{indexBy?: int|string}` is the
+    /// was worse — and `Core\Arr::column`'s `{ indexBy?: int|string }` is the
     /// one that showed the restriction was about `null` rather than about
     /// literals. `a_nullable_option_omits_as_the_never_written_marker` holds
     /// the pairing.
@@ -690,8 +690,8 @@ pub enum CoreTy {
     ///
     /// The same relationship to [`Self::Int`] that [`Self::EnumCase`] has to
     /// [`Self::Enum`], and it exists for the same reason at a different place:
-    /// `Core\Validate` writes `isIp(string $s, {version?: 4|6})`, and the point of
-    /// that spelling is that `{version: 5}` does not compile. `int` would not
+    /// `Core\Validate` writes `isIp(string $s, { version?: 4|6 })`, and the point of
+    /// that spelling is that `{ version: 5 }` does not compile. `int` would not
     /// say that, and a `Core\IpVersion` enum would say it by adding a name to
     /// the surface — which is precisely what leaving out `isIpV4`/`isIpV6`
     /// avoids.
@@ -718,7 +718,7 @@ pub enum CoreTy {
     /// `a_nullable_wraps_something_that_can_be_null` holds both.
     Nullable(&'static CoreTy),
     /// A `Core`-owned enum, named by its fully-qualified name — `Core\Arr::Order`
-    /// in `sort(array<T> $a, {order?: Order, ...})`.
+    /// in `sort(array<T> $a, { order?: Order, ... })`.
     ///
     /// The name is resolved against [`ENUMS`], not against the compiled
     /// program: an enum a `Core` signature names is part of `Core`'s
@@ -819,7 +819,7 @@ pub enum CoreTy {
     /// `foreach` over the same value performs. Materialising the sequence into
     /// an array in the IR before the call was the rejected alternative: it
     /// allocates a second copy of every array argument, and it would drain an
-    /// unbounded generator before `Core\Arr::from`'s `{limit: n}` — the
+    /// unbounded generator before `Core\Arr::from`'s `{ limit: n }` — the
     /// only guard against exactly that — could stop it.
     ///
     /// **Parameter position only.** A member *returning* a sequence would be
@@ -854,7 +854,7 @@ pub enum CoreTy {
     /// `MethodSig::required()` stops one short of the parameter list for a
     /// variadic signature.
     Variadic(&'static CoreTy),
-    /// `rule:core-api/shape-rules` R2's trailing options shape — `{step?: int}`, one
+    /// `rule:core-api/shape-rules` R2's trailing options shape — `{ step?: int }`, one
     /// [`CoreOption`] per declared option, in the order the ABI passes them.
     /// See this module's own docs for why it is its own type rather than a
     /// [`CoreTy`] wrapping an `rule:types/object-top` shape.
@@ -927,7 +927,7 @@ pub const KEY_VAR: &str = "#key";
 #[derive(Clone, Copy, Debug)]
 pub struct CoreOption {
     /// The option's own name, `camelCase` per `rule:core-api/identifier-casing` — what a call site
-    /// writes on the left of the `:` in `{step: 2}`.
+    /// writes on the left of the `:` in `{ step: 2 }`.
     pub name: &'static str,
     /// Its declared type. Never itself a [`CoreTy::Options`]: a bag flattens
     /// to one ABI argument per option, and a nested one would have nothing to
@@ -956,7 +956,7 @@ pub struct CoreOption {
 #[derive(Clone, Copy, Debug)]
 pub struct CoreField {
     /// The field's own name, `camelCase` per `rule:core-api/identifier-casing` — what a call site
-    /// writes on the left of the `:` in `{driver: Driver::Sqlite}`.
+    /// writes on the left of the `:` in `{ driver: Driver::Sqlite }`.
     pub name: &'static str,
     /// Its declared type. Never itself a [`CoreTy::Shape`] —
     /// `a_shape_is_only_ever_a_whole_parameter` holds that — and nullable
@@ -991,7 +991,7 @@ pub enum Const {
     ///
     /// `rule:core-api/shape-rules` R2 makes every option optional, but the registry writes several
     /// whose type has no "absent" value in it: `Core\Arr::sort`'s
-    /// `{by?: callable, comparator?: callable}` are the first two — a
+    /// `{ by?: callable, comparator?: callable }` are the first two — a
     /// `callable` cannot be a "no callback" callable, and inventing a
     /// do-nothing one would silently change the answer. So the *declared*
     /// type stays what a call site may write, and the default an omitting
@@ -1135,6 +1135,19 @@ pub struct MethodDoc {
     pub errors: &'static [ErrorDoc],
 }
 
+/// A shape's fields, already joined, between braces the way `nvs fmt` writes a
+/// shape: `{ name: string, age?: int }`, and `{}` for one with none. Every
+/// place that prints a shape type goes through it, so a signature, a
+/// diagnostic and a hover spell a shape as the code beside them does.
+#[must_use]
+pub fn braced(fields: &str) -> String {
+    if fields.is_empty() {
+        "{}".to_owned()
+    } else {
+        format!("{{ {fields} }}")
+    }
+}
+
 /// One parameter's name and description.
 ///
 /// A **key**, not the name's home: [`CoreMethod::names`] is where a
@@ -1159,7 +1172,7 @@ pub struct ParamDoc {
 #[derive(Clone, Copy, Debug)]
 pub struct ShapeKeyDoc {
     /// The key's own name — what a call site writes on the left of the
-    /// `:` in `{pretty: true}`.
+    /// `:` in `{ pretty: true }`.
     pub key: &'static str,
     /// Its type, spelled as the published signature spells it — `bool`, `int`, `?string`.
     pub ty: &'static str,
@@ -1375,7 +1388,7 @@ impl CoreTy {
             // so spelling it as one would document an accepted argument that is
             // refused. See [`Self::MethodRef`].
             Self::MethodRef => "method".into(),
-            Self::ShapeOfCallables(_) => "{name: callable(): T, ...}".into(),
+            Self::ShapeOfCallables(_) => "{ name: callable(): T, ... }".into(),
             // Spelled as the grammar writes it, because a program can write this
             // one: the parameters in their own order and the mandatory return
             // type after the colon.
@@ -1410,7 +1423,7 @@ impl CoreTy {
                     .iter()
                     .map(|option| format!("{}?: {}", option.name, option.ty.spelled()))
                     .collect();
-                format!("{{{}}}", fields.join(", "))
+                braced(&fields.join(", "))
             }
             // Each arm as the grammar writes a shape, arms joined as a union:
             // a field with a default is one a call site may leave out.
@@ -1425,7 +1438,7 @@ impl CoreTy {
                                 format!("{}{optional}: {}", field.name, field.ty.spelled())
                             })
                             .collect();
-                        format!("{{{}}}", fields.join(", "))
+                        braced(&fields.join(", "))
                     })
                     .collect();
                 arms.join("|")
@@ -2404,7 +2417,7 @@ impl CoreEnum {
 }
 
 /// One enum's reference documentation — `rule:core-api/reference-card`'s card for the values a
-/// parameter may take, so a `{mode: RoundMode::HalfEven}` is explained where
+/// parameter may take, so a `{ mode: RoundMode::HalfEven }` is explained where
 /// `RoundMode` is declared and not only where `round` is.
 ///
 /// The same rules as [`MethodDoc`]: inline markdown, one or two sentences a

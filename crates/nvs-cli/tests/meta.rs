@@ -163,9 +163,9 @@ fn the_golden_for_order_matches_the_contract() {
             "name": r"Core\Arr::Order",
             "doc": {
                 "short": "The direction `Core\\Arr::sort` and `sortByKey` put elements in. It is \
-                          the `{order: …}` option, and it is `Asc` when you leave it out.",
+                          the `{ order: … }` option, and it is `Asc` when you leave it out.",
                 "cases": [
-                    { "name": "Asc", "desc": "Smallest first. This is the default when `{order: …}` is left out." },
+                    { "name": "Asc", "desc": "Smallest first. This is the default when `{ order: … }` is left out." },
                     { "name": "Desc", "desc": "Largest first." }
                 ]
             }
@@ -290,7 +290,7 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
     assert!(
         signature
             .as_str()
-            .is_some_and(|s| s.starts_with("info(bytes $data): {format: Format")),
+            .is_some_and(|s| s.starts_with("info(bytes $data): { format: Format")),
         "{signature}"
     );
     assert_eq!(

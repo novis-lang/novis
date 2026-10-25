@@ -71,7 +71,7 @@
 //! A `limit` of `0` is clamped to `1`. A bound of zero would mean the call can
 //! never start anything and therefore can never return, and `rule:concurrency/nothing-is-still-running-when-a-call-returns` is a promise
 //! that work does not outlive the call — not that the call may never happen.
-//! Whether a `{limit: 0}` deserves a diagnostic is the member's question, not
+//! Whether a `{ limit: 0 }` deserves a diagnostic is the member's question, not
 //! this seam's.
 //!
 //! `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s second throw is *written* rather than swallowed, which is all

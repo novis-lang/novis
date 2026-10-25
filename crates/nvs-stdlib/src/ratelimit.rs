@@ -138,7 +138,7 @@ pub(crate) const PREFIX: &str = "nvs:ratelimit:";
 /// `Core\Time\Duration`, as the two places below spell it.
 const DURATION: CoreTy = CoreTy::Instance(crate::time::DURATION_NAME);
 
-/// `{burst?: uint, cost?: uint}` — § 1's one trailing options shape, which both
+/// `{ burst?: uint, cost?: uint }` — § 1's one trailing options shape, which both
 /// members take because § 2 gives them one algorithm.
 ///
 /// `burst` defaults to `limit`, which is a value only the call knows, so its

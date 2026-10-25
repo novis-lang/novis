@@ -164,8 +164,8 @@ const SIGNED: CoreTy = CoreTy::TaintedStr;
 /// `rule:core-api/a-lifetime-is-written` makes the lifetime a *required* key
 /// holding a nullable value, and `rule:core-api/shape-rules` R2 makes every
 /// member of a bag optional. So a bag could not have said the one thing this
-/// parameter exists to say — that `{keys: $ring}` does not compile and
-/// `{keys: $ring, until: null}` does, because a permanent signed link should
+/// parameter exists to say — that `{ keys: $ring }` does not compile and
+/// `{ keys: $ring, until: null }` does, because a permanent signed link should
 /// be something a person typed.
 ///
 /// `until` therefore carries `default: None` over a nullable type, which is
@@ -550,7 +550,7 @@ pub(crate) fn confirm(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Core\Time\Instant}): string`
+    /// `Core\Signature::sign(array<string> $payload, { keys: array<secret bytes>, until: ?Core\Time\Instant }): string`
     /// — the write half of `rule:security/protocol-roster`'s fifth entry,
     /// replacing the `hash_hmac` over an assembled query string that every
     /// signed-URL helper in every framework grows its own slightly different

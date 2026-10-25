@@ -22,7 +22,7 @@
 //! a union or an intersection with it as a member is the error type itself.
 
 use nvs_hir::QName;
-use nvs_stdlib::registry::Qual;
+use nvs_stdlib::registry::{Qual, braced};
 use rustc_hash::FxHashMap;
 
 /// A type, interned. Cheap to copy and compare — two `TypeId`s are equal
@@ -285,7 +285,7 @@ pub enum Ty {
     /// a function of the `QName`, so it never splits one enum into two
     /// interned types.
     Enum(QName, crate::enums::EnumBacking),
-    /// `{name: T, name?: T, ...}` — `rule:types/shape-type`, Novis's one
+    /// `{ name: T, name?: T, ... }` — `rule:types/shape-type`, Novis's one
     /// structurally-checked type.
     /// Fields are sorted by name (see [`TypeInterner::shape`]) so two shapes
     /// naming the same fields in a different written order intern to the
@@ -294,11 +294,11 @@ pub enum Ty {
     /// required to be a shape.
     ///
     /// [`ShapeField::required`] carries the written `?`, and it is part of what
-    /// the type *is*: `{a?: int}` and `{a: int}` intern apart, and so do
-    /// `{a?: int}` and `{a: ?int}`, which ask different questions of a value.
+    /// the type *is*: `{ a?: int }` and `{ a: int }` intern apart, and so do
+    /// `{ a?: int }` and `{ a: ?int }`, which ask different questions of a value.
     Shape(Vec<ShapeField>),
     /// A `Core` parameter whose keys are fixed — `rule:core-api/shape-rules` R2's trailing options
-    /// bag (`{step?: int}`) and `rule:core-api/shape-parameter`'s fixed-key shape parameter, which are
+    /// bag (`{ step?: int }`) and `rule:core-api/shape-parameter`'s fixed-key shape parameter, which are
     /// **one** checked type because they differ in call-site rules rather than
     /// in checking (`rule:core-api/one-checked-shape-type`).
     ///
@@ -423,8 +423,8 @@ pub struct ShapeField {
     /// restrict — ordinary assignability decides it (`rule:types/shape-type`).
     pub ty: TypeId,
     /// Whether a value must carry the key at all. A written `?` clears it, and
-    /// **that is not nullability**: `{a?: int}` accepts a value with no `a`,
-    /// `{a: ?int}` demands an `a` that may hold `null`, and the two intern
+    /// **that is not nullability**: `{ a?: int }` accepts a value with no `a`,
+    /// `{ a: ?int }` demands an `a` that may hold `null`, and the two intern
     /// apart because they accept different values.
     pub required: bool,
 }
@@ -695,7 +695,7 @@ impl TypeInterner {
             // because there is no type name — see [`Ty::ShapeOfCallables`],
             // which survives substitution precisely so that a mismatch here
             // gets rendered.
-            Ty::ShapeOfCallables(_) => "{name: callable(): T, ...}".to_owned(),
+            Ty::ShapeOfCallables(_) => "{ name: callable(): T, ... }".to_owned(),
             Ty::Enum(q, _) => q.to_string(),
             Ty::Class(q, args) if args.is_empty() => q.to_string(),
             Ty::Class(q, args) => {
@@ -715,7 +715,7 @@ impl TypeInterner {
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
-                format!("{{{inner}}}")
+                braced(&inner)
             }
             Ty::CoreShape(shape) => {
                 let inner = shape
@@ -727,7 +727,7 @@ impl TypeInterner {
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
-                format!("{{{inner}}}")
+                braced(&inner)
             }
             Ty::Union(members) => members
                 .iter()
@@ -1018,8 +1018,8 @@ impl TypeInterner {
         self.intern(Ty::Enum(qname, backing))
     }
 
-    /// Interns `{name: T, ...}` — `rule:types/shape-type`. Sorts `fields` by name first,
-    /// so `{x: int, y: string}` and `{y: string, x: int}` intern to the same
+    /// Interns `{ name: T, ... }` — `rule:types/shape-type`. Sorts `fields` by name first,
+    /// so `{ x: int, y: string }` and `{ y: string, x: int }` intern to the same
     /// `TypeId` regardless of how each was written (same canonicalization
     /// idea as [`Self::make_union`], applied to field order instead of
     /// member order).
@@ -1217,7 +1217,7 @@ mod tests {
         let mut i = TypeInterner::new();
         let int = i.int();
         let s = i.shape(vec![ShapeField::required("x".to_owned(), int)]);
-        assert_eq!(i.describe(s), "{x: int}");
+        assert_eq!(i.describe(s), "{ x: int }");
     }
 
     /// `rule:types/shape-type`: an optional key and a nullable one are
@@ -1238,8 +1238,8 @@ mod tests {
         let of_nullable = i.shape(vec![ShapeField::required("a".to_owned(), nullable)]);
         assert_ne!(optional, required);
         assert_ne!(optional, of_nullable);
-        assert_eq!(i.describe(optional), "{a?: int}");
-        assert_eq!(i.describe(required), "{a: int}");
+        assert_eq!(i.describe(optional), "{ a?: int }");
+        assert_eq!(i.describe(required), "{ a: int }");
     }
 
     /// `rule:types/callable-signature`: a signature renders as the source

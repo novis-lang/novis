@@ -2606,7 +2606,7 @@ pub(crate) fn begin<S: Read + Write>(
                 format!(
                     "a transaction nested {open} deep asked for its own isolation level or \
                      read-only mode, and MySQL settles both for the whole transaction: ask for \
-                     them on the outermost `transaction()`, or give this one a `{{shared: false}}` \
+                     them on the outermost `transaction()`, or give this one a `{{ shared: false }}` \
                      connection of its own"
                 ),
             ));
@@ -2671,7 +2671,7 @@ fn isolation_command(level: Isolation) -> &'static str {
 /// it**: an outermost `COMMIT` the server refused has already rolled the
 /// transaction back, so that level really is gone and the depth goes to 0 — a
 /// caller that opens the next transaction on the connection, which § 7's
-/// `{retries: n}` is, must get a `START TRANSACTION` and not a `SAVEPOINT`
+/// `{ retries: n }` is, must get a `START TRANSACTION` and not a `SAVEPOINT`
 /// against nothing. Which refusals those are is asked of the error itself —
 /// [`ServerError::of`], the same question [`poison_on_write`] asks — and not
 /// read back off the [`State`] that answer left. The state is a *summary* of it,
@@ -5324,7 +5324,7 @@ mod tests {
     /// connection.
     ///
     /// Two counts that only look alike. The server rolls the transaction back
-    /// before it refuses a commit, so the level is gone and § 7's `{retries: n}`
+    /// before it refuses a commit, so the level is gone and § 7's `{ retries: n }`
     /// must get a `START TRANSACTION` on the next attempt rather than a
     /// savepoint against nothing. The armed `SET TRANSACTION`, by contrast,
     /// survives on the *session* with no command able to clear it — so that
@@ -6882,7 +6882,7 @@ mod tests {
     }
 
     /// The code table, asserted as a table — and the two codes § 7's
-    /// `{retries: n}` turns on named against each other.
+    /// `{ retries: n }` turns on named against each other.
     ///
     /// `1213` and `1205` are the pair worth pinning together: they are what an
     /// application reads when it is deciding whether to retry, they are a digit

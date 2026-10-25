@@ -58,7 +58,7 @@
 //!   so it is `Contagious`, and whoever implements propagation owes the
 //!   question of what a qualified `uint` is rather than inheriting a silent
 //!   launderer.
-//! - **`indexOf` takes `{from?: int}` and no `caseInsensitive`.**
+//! - **`indexOf` takes `{ from?: int }` and no `caseInsensitive`.**
 //!   `Core\Str::indexOf`'s second option is a Unicode case folding, and there
 //!   is no case in a byte string — a `bytes` carries no charset, which is the
 //!   premise of the whole `Core\Encoding`/`Core\Bytes` split. An ASCII-only
@@ -619,7 +619,7 @@ const UNPACK_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Bytes::indexOf`'s `{from?: int}` — the module doc owns why
+/// `Core\Bytes::indexOf`'s `{ from?: int }` — the module doc owns why
 /// `Core\Str::indexOf`'s second option has no counterpart here.
 ///
 /// `from` is a **position**, so it obeys `rule:core-api/shape-rules` R8's sign rule and reads
@@ -900,7 +900,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Bytes::indexOf(bytes $haystack, bytes $needle, {from?: int}): ?uint`
+    /// `Core\Bytes::indexOf(bytes $haystack, bytes $needle, { from?: int }): ?uint`
     /// — replacing PHP's `strpos` used on binary data.
     ///
     /// **Absence is `null`, not `false`**, which is `rule:core-api/shape-rules` R5 and the same

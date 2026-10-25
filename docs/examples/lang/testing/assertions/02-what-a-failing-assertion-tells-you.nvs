@@ -11,7 +11,7 @@ try {
     echo $f->message, "\n";
 }
 
-// A trailing `{message: "..."}` puts your own sentence in front of the report.
+// A trailing `{ message: "..." }` puts your own sentence in front of the report.
 try {
     Test::assertSame(0, 1, { message: 'a fresh counter is one' });
 } catch (Core\Test\Failure $f) {

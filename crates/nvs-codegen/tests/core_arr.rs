@@ -119,7 +119,7 @@ echo Core\\Str::join(Core\\Arr::sort($words), \",\");
     assert_eq!(output_of(source), "Apple,banana,fig,pear");
 }
 
-/// `{order: Core\Arr::Order::Desc}` — a `Core`-owned enum reaching a running
+/// `{ order: Core\Arr::Order::Desc }` — a `Core`-owned enum reaching a running
 /// program, and PHP's `rsort` in one option rather than a second member name.
 #[test]
 fn a_core_enum_case_selects_the_descending_order() {
@@ -130,7 +130,7 @@ echo Core\\Str::join(Core\\Arr::sort($words, {order: Core\\Arr::Order::Desc}), \
     assert_eq!(output_of(source), "pear,fig,banana,Apple");
 }
 
-/// `{by: ...}` decides *what* is compared. Sorting by the lower-cased word
+/// `{ by: ... }` decides *what* is compared. Sorting by the lower-cased word
 /// puts `apple` first, where the bytewise order the previous test checks puts
 /// `Zebra` first — so this fails if the extractor is ignored rather than
 /// merely mis-ordered.
@@ -145,7 +145,7 @@ echo Core\\Str::join(Core\\Arr::sort($words, {by: fn(string $w): string => Core\
     assert_eq!(output_of(source), "Zebra,apple|apple,Zebra");
 }
 
-/// `{comparator: ...}` is `usort`'s callback, unchanged — PHP's
+/// `{ comparator: ... }` is `usort`'s callback, unchanged — PHP's
 /// `usort($nums, fn($a, $b) => $b - $a)` answers `9|5|3|1` for the same input.
 #[test]
 fn a_comparator_replaces_the_natural_ordering() {
@@ -157,7 +157,7 @@ echo Core\\Str::join(Core\\Arr::map($down, fn(int $n): string => $n as string), 
     assert_eq!(output_of(source), "9|5|3|1");
 }
 
-/// `{preserveKeys: true}` is PHP's `asort`, and with `Core\Arr::Order::Desc` its
+/// `{ preserveKeys: true }` is PHP's `asort`, and with `Core\Arr::Order::Desc` its
 /// `arsort` — the eight extra names that half of PHP's roster spends on this
 /// one option.
 #[test]

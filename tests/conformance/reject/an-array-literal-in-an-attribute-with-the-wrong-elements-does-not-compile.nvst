@@ -13,7 +13,7 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `{ids: array<int>}`, found `{ids: array<mixed>}`
+error[E0401]: expected `{ ids: array<int> }`, found `{ ids: array<mixed> }`
   --> case.nvs:5:11
 %A
 error: aborting due to 1 error

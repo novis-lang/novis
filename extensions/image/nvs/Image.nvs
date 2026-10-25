@@ -283,7 +283,7 @@ final class Image
         }});
     }
 
-    /// `metadata({keep: true})` keeps the EXIF data in the output. Without it, `encode` removes all metadata.
+    /// `metadata({ keep: true })` keeps the EXIF data in the output. Without it, `encode` removes all metadata.
     public function metadata({ keep: bool } $options): Image
     {
         return $this->then({ metadata: { keep: $options->keep } });

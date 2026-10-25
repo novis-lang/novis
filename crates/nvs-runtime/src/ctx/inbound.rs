@@ -340,7 +340,7 @@ pub struct Inbound {
     ///
     /// **The depth is part of the hold, not a fact about the request.** The bag
     /// is the *call's*, so a call naming a different cap is a different
-    /// question and is decoded again — which is what keeps a `{maxDepth: 2}`
+    /// question and is decoded again — which is what keeps a `{ maxDepth: 2 }`
     /// call throwing over a document a default-depth one already read. Only the
     /// first reading fills this, and a call at another depth answers and leaves
     /// it alone, so a request holds one document however many depths its

@@ -88,7 +88,7 @@
 //!   eaten and the path behind it parses as the ordinary import it looks like. `function` and `const`
 //!   remain ordinary name segments everywhere else, so `use function\Foo;` is a namespace whose first
 //!   segment is spelled `function` and is not this refusal.
-//! - **A local declaration typed with a bare inline shape** (`{x: int} $point;`) is refused rather
+//! - **A local declaration typed with a bare inline shape** (`{ x: int } $point;`) is refused rather
 //!   than parsed — `E_SHAPE_TYPED_LOCAL_NEEDS_AN_ALIAS`, whose help names the `type` alias form
 //!   `rule:types/shape-type`'s own example uses. A statement-initial `{` opens a block before it is
 //!   anything else, so this is the one declaration slot a bare shape cannot fill, while every other

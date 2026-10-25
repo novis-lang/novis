@@ -1016,7 +1016,7 @@ Each construct with no PER precedent has one layout, chosen once:
   multi-line list ends in a trailing comma.
 - An anonymous object or shape type on one line has one space inside each brace, `{ a: 1, b: 2 }`; across
   lines it is one field per line, indented one level, with a trailing comma. An empty one has no inside
-  to space and stays `{}`.
+  to space and stays `{}`. An attribute's bare form is the same object, `#[{ audit: true }]`.
 - An enum's case list is a list under [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line):
   `enum Status { Active, Banned }` on one line, or one case per line below an Allman brace.
 - An html template's body is never touched — not reflowed, not re-indented, not re-quoted — exactly as a

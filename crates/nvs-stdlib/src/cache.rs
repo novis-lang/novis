@@ -99,7 +99,7 @@
 //!
 //! # Decision: a lifetime is a deadline the write records and the read judges
 //!
-//! `put`'s trailing `{ttl?: Duration}` is `rule:core-api/shape-rules` R2's
+//! `put`'s trailing `{ ttl?: Duration }` is `rule:core-api/shape-rules` R2's
 //! options shape carrying R12's unit-as-a-type, and it is *optional* where
 //! `rule:core-api/a-lifetime-is-written` makes a signature's lifetime a
 //! required key. That rule is about a bearer credential that leaves the
@@ -267,7 +267,7 @@ const SHARED_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `{ttl?: Duration}` — [`STORE`]'s one trailing options shape, and the whole
+/// `{ ttl?: Duration }` — [`STORE`]'s one trailing options shape, and the whole
 /// of what a program writes about how long an entry lives.
 ///
 /// A `Core\Time\Duration` rather than a count of seconds, which is
@@ -281,7 +281,7 @@ const PUT_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `{fill?: callable(): Core\Cache\SecretEntry, wait?: Duration}` — [`STORE`]'s
+/// `{ fill?: callable(): Core\Cache\SecretEntry, wait?: Duration }` — [`STORE`]'s
 /// other trailing options shape, and the whole of what a program writes about
 /// supplying a miss.
 ///
@@ -1297,7 +1297,7 @@ pub(crate) fn memory_update<T>(
     answer
 }
 
-/// The `{wait?: Duration}` written in argument slot `at`, or
+/// The `{ wait?: Duration }` written in argument slot `at`, or
 /// `[cache.memory] fill_wait`, or [`DEFAULT_FILL_WAIT`].
 ///
 /// An omitted option inherits the directive rather than removing the bound, and
@@ -1948,7 +1948,7 @@ fn key_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, Fau
     })
 }
 
-/// The `{ttl?: Duration}` in argument slot `at`, as the lifetime the call
+/// The `{ ttl?: Duration }` in argument slot `at`, as the lifetime the call
 /// wrote.
 ///
 /// An omitted option arrives as the [`Const::Null`] [`PUT_OPTIONS`] defaults it

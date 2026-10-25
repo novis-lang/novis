@@ -22,17 +22,17 @@ exist is `null` — `indexOf`, `lastIndexOf`, `before`, `after` — never `false
 
 ```nvs
 <?nvs
-string $s = Core\Str::trim("  Grüße aus Köln  ");
-echo Core\Str::length($s), " ", Core\Str::upper($s), "\n";
-echo Core\Str::slice($s, 0, 5), "|", Core\Str::at($s, 2), "|", Core\Str::reverse("café"), "\n";
-echo Core\Str::indexOf($s, "aus") ?? "none", " ", Core\Str::indexOf($s, "Bonn") ?? "none", "\n";
-echo Core\Str::contains($s, "Köln") ? "yes" : "no", " ", Core\Str::countOf($s, "ü"), "\n";
-array<string> $words = Core\Str::split($s, " ");
-echo Core\Arr::count($words), " ", Core\Str::join(Core\Arr::reverse($words), "-"), "\n";
-echo Core\Str::replace($s, "Köln", "Bonn"), "|", Core\Str::before($s, " ") ?? "none", "\n";
-echo Core\Str::padStart("7", 3, "0"), " ", Core\Str::repeat("ab", 3), " ", Core\Str::upperFirst("ßig"), "\n";
-echo Core\Str::format("%-6s|%05.1f|%x", "id", 3.14159, 255), "\n";
-echo Core\Str::compare("img10", "img9"), " ", Core\Str::compare("img10", "img9", {natural: true}), "\n";
+string $s = Core\Str::trim('  Grüße aus Köln  ');
+echo Core\Str::length($s), ' ', Core\Str::upper($s), "\n";
+echo Core\Str::slice($s, 0, 5), '|', Core\Str::at($s, 2), '|', Core\Str::reverse('café'), "\n";
+echo Core\Str::indexOf($s, 'aus') ?? 'none', ' ', Core\Str::indexOf($s, 'Bonn') ?? 'none', "\n";
+echo Core\Str::contains($s, 'Köln') ? 'yes' : 'no', ' ', Core\Str::countOf($s, 'ü'), "\n";
+array<string> $words = Core\Str::split($s, ' ');
+echo Core\Arr::count($words), ' ', Core\Str::join(Core\Arr::reverse($words), '-'), "\n";
+echo Core\Str::replace($s, 'Köln', 'Bonn'), '|', Core\Str::before($s, ' ') ?? 'none', "\n";
+echo Core\Str::padStart('7', 3, '0'), ' ', Core\Str::repeat('ab', 3), ' ', Core\Str::upperFirst('ßig'), "\n";
+echo Core\Str::format('%-6s|%05.1f|%x', 'id', 3.14159, 255), "\n";
+echo Core\Str::compare('img10', 'img9'), ' ', Core\Str::compare('img10', 'img9', { natural: true }), "\n";
 ```
 ```output
 14 GRÜSSE AUS KÖLN

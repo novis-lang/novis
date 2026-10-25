@@ -12,23 +12,30 @@ declared properties no longer match with `ParseError`, and `encode` throws `Logi
 
 ```nvs
 <?nvs
-class Slot {
-    public function constructor(public int $n) {}
+class Slot
+{
+    public function constructor(public int $n)
+    {}
 }
-class Ring {
+class Ring
+{
     public int $id = 0;
     public ?Ring $self;
-    public function constructor(int $id) { $this->id = $id; $this->self = null; }
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+        $this->self = null;
+    }
 }
 
 bytes $blob = Core\Serialize::encode(new Slot(7));
 Slot $back = Core\Serialize::decode($blob) as Slot;
-echo "n=", $back->n, "\n";
+echo 'n=', $back->n, "\n";
 
 var $ring = new Ring(1);
 $ring->self = $ring;
 Ring $copy = Core\Serialize::decode(Core\Serialize::encode($ring)) as Ring;
-echo "cycle=", ($copy->self?->id ?? 0), "\n";
+echo 'cycle=', ($copy->self?->id ?? 0), "\n";
 
 try {
     Core\Serialize::decode("O:4:\"Slot\":1:{s:1:\"n\";i:7;}" as bytes);

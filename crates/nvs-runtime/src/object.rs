@@ -149,7 +149,7 @@
 //! write through an erased or widened view to check the incoming value against
 //! the field's *real, concrete declared type*. A class instance's property
 //! types are covariant under `rule:types/shape-type`, so a class with an `int $n`
-//! property satisfies a `{n: int|string}` binding, and the object is aliased
+//! property satisfies a `{ n: int|string }` binding, and the object is aliased
 //! rather than copied. Without the check, a write through the wider view would
 //! leave a `string` in a slot the class still loads as an `int`.
 //!
@@ -161,7 +161,7 @@
 //! * [`ClassDesc::field_classes`] holds the classes a slot typed `Node`,
 //!   `?Node` or `A|B` admits, because [`Tag::Object`] answers for every class.
 //! * [`ClassDesc::field_checks`] holds the rest as a [`SlotCheck`]: an
-//!   `array<Dog>`'s elements, a `{pet: Dog}`'s fields and every arm of a
+//!   `array<Dog>`'s elements, a `{ pet: Dog }`'s fields and every arm of a
 //!   `?int` or an `int|Dog`. [`write_erased_property`] walks the written value
 //!   against it, so an erased write costs time in the size of that value.
 //!
@@ -174,7 +174,7 @@
 //!
 //! An **anonymous object's** slot is checked by tag alone. Its class is named
 //! for its field names (`$shape{x,y}`, `nvs_ir::lower::shape_class_label`), so
-//! `{x: 1}` and `{x: "s"}` are one class and no single declared type belongs
+//! `{ x: 1 }` and `{ x: "s" }` are one class and no single declared type belongs
 //! to the slot. Two records of one shape that disagree on a slot's
 //! representation leave it with no tag at all:
 //! `nvs_ir::lower::Lowering::record_shape_class` degrades the tag rather than
@@ -523,7 +523,7 @@ pub struct ClassDesc {
     /// all of it — `None` for every other slot, and **empty** for a class
     /// nothing told.
     ///
-    /// A slot typed `array<Dog>`, `{pet: Dog}`, `?int` or `int|Dog` has a tag
+    /// A slot typed `array<Dog>`, `{ pet: Dog }`, `?int` or `int|Dog` has a tag
     /// that answers for values the type does not admit, and compiled code
     /// trusts the type when it reads the slot back. Without this an erased
     /// write could store an `array<Animal>` there, and a typed read would load
@@ -978,7 +978,7 @@ pub enum CodecTy {
     /// [`Self::Class`]'s reason: this enum is `Copy` and a case list is not.
     Enum,
     /// An inline shape reached as a field — `rule:types/shape-type`'s
-    /// `{name: T}` written as a property's declared type, decoded by running
+    /// `{ name: T }` written as a property's declared type, decoded by running
     /// that shape's own contract over the nested JSON object.
     ///
     /// **Two resolved pointers, where every other wire type needs at most
@@ -987,7 +987,7 @@ pub enum CodecTy {
     /// descriptor a decode constructs rides on [`CodecField::class`] exactly as
     /// a nested class's does, and the per-field wire types the class cannot
     /// carry ride beside it on [`CodecField::shape`], as the key of the
-    /// [`ShapeCodec`] a `decodeAs<{n: int}>` call site is handed.
+    /// [`ShapeCodec`] a `decodeAs<{ n: int }>` call site is handed.
     Shape,
     /// A declared type no wire type describes — a `callable`, an `object`, a
     /// union of two non-`null` arms.
@@ -1288,7 +1288,7 @@ pub struct CodecField {
     /// `None` for every other wire type.
     pub cases: Option<EnumCases>,
     /// The wire contract's key when [`Self::ty`] is [`CodecTy::Shape`] — or
-    /// when [`Self::element`]'s terminal is, an `array<{n: int}>` naming its
+    /// when [`Self::element`]'s terminal is, an `array<{ n: int }>` naming its
     /// element's contract here exactly as it names that element's class on
     /// [`Self::class`]. `None` for every other wire type —
     /// `nvs_ir::lower::shape_codec_key`'s
@@ -1296,8 +1296,8 @@ pub struct CodecField {
     /// [`ShapeCodec`] address in the second pass [`Self::class`] is resolved in.
     ///
     /// A second label beside [`Self::class`] rather than one label answering
-    /// for both, because the two sharings are not the same sharing: `{n: int}`
-    /// and `{n: string}` are one class and two contracts, so a shape field
+    /// for both, because the two sharings are not the same sharing: `{ n: int }`
+    /// and `{ n: string }` are one class and two contracts, so a shape field
     /// names its class *and* this.
     pub shape: Option<String>,
     /// Whether the declared type admits `null` — `rule:core-api/required-optional-and-nullable`'s second
@@ -1337,13 +1337,13 @@ pub struct CodecField {
 }
 
 /// The wire contract of one **inline shape** written as a type argument —
-/// `rule:types/shape-type`'s `{name: T}` read as a codec, which is what a
+/// `rule:types/shape-type`'s `{ name: T }` read as a codec, which is what a
 /// member hydrating into a shape decodes against.
 ///
 /// The same list [`ClassDesc::codec`] holds for a class, carried *beside* a
 /// descriptor instead of on one, because a shape class is keyed on its field
-/// names alone (`nvs_ir::lower::shape_class_label`): `{n: int}` and
-/// `{n: string}` are one class and one [`ClassDesc`], so the per-field wire
+/// names alone (`nvs_ir::lower::shape_class_label`): `{ n: int }` and
+/// `{ n: string }` are one class and one [`ClassDesc`], so the per-field wire
 /// types have nowhere on the descriptor to live. `nvs-ir`'s module docs own
 /// that choice, the one it was taken against, and what it costs.
 ///
@@ -1362,7 +1362,7 @@ pub struct ShapeCodec {
     classes: Vec<*const ClassDesc>,
     /// One entry per [`Self::fields`] entry, null except where the field is
     /// itself an inline shape — [`ClassDesc::codec_shapes`]' convention, which
-    /// is what makes `{outer: {inner: int}}` decode rather than stop one level
+    /// is what makes `{ outer: { inner: int } }` decode rather than stop one level
     /// down.
     shapes: Vec<*const ShapeCodec>,
 }
@@ -4856,7 +4856,7 @@ pub unsafe extern "C" fn nvs_object_slot_optional_get(
     }
 }
 
-/// `$x is {path: string}`'s presence question: **is `name` readable off this
+/// `$x is { path: string }`'s presence question: **is `name` readable off this
 /// receiver right now**, answered as a `bool` and never as a throw.
 ///
 /// True exactly when [`nvs_object_slot_get`] over the same receiver and the
@@ -6808,7 +6808,7 @@ mod tests {
         let desc = unsafe { &*table.desc(id) };
 
         assert_eq!(desc.field_slot("y", 1), Some(1));
-        // A `{y: int}` view puts `y` at slot 0; the scan corrects it.
+        // A `{ y: int }` view puts `y` at slot 0; the scan corrects it.
         assert_eq!(desc.field_slot("y", 0), Some(1));
         // A hint past the end is not an index error.
         assert_eq!(desc.field_slot("x", 9), Some(0));
