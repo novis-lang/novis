@@ -2083,6 +2083,44 @@ mod tests {
         assert!(flagged(&handled), "a handler ran on past its slice");
     }
 
+    /// `rule:testing/a-stop-pauses-the-whole-task-tree`: a request a debugger
+    /// has stopped has no deadline for the sweep to reach, however late it
+    /// reads, and is stopped again once released and past its moved deadline.
+    #[test]
+    fn the_sweep_stops_no_request_a_debugger_holds_and_stops_it_once_released() {
+        const INTERVAL: Duration = Duration::from_millis(100);
+        let request = configured("[limits]\nwall_time = \"10s\"\n");
+        let view = request.safepoint_view();
+        let at = view
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+
+        request.hold_deadlines();
+        stop_at_wall_time(&view, at + Duration::from_secs(3600), INTERVAL);
+        assert!(
+            !view.flags().contains(SafepointFlags::WALL_TIME),
+            "a stopped request was stopped at its wall time"
+        );
+        assert!(!view.deadline_expired());
+
+        assert!(view.downgrade().release_debug_stop());
+        let moved = view
+            .wall_deadline()
+            .expect("a released request has its deadline again");
+        assert!(
+            moved >= at,
+            "a stop moves the deadline later, never earlier"
+        );
+        stop_at_wall_time(&view, moved - Duration::from_millis(1), INTERVAL);
+        assert!(!view.flags().contains(SafepointFlags::WALL_TIME));
+        stop_at_wall_time(&view, moved, INTERVAL);
+        assert!(
+            view.flags().contains(SafepointFlags::WALL_TIME),
+            "a released request past its moved deadline ran on"
+        );
+        assert!(view.deadline_expired());
+    }
+
     /// The distinction the ceiling exists for, from the other side: a request
     /// waiting on the world spends wall time and none of what is sampled, so a
     /// wait several times its own ceiling is left alone where a spin that

@@ -386,11 +386,11 @@ fn variables(function: &DebugFunction, slots: &[nvs_runtime::Value]) -> Vec<Stop
         .collect()
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::cell::Cell;
     use std::rc::Rc;
+    use std::time::{Duration, Instant};
 
     use nvs_runtime::TaskRoot;
 
@@ -538,6 +538,238 @@ mod tests {
         assert!(
             debugger.shared.lock().requests.is_empty(),
             "a pause forgets a request that ended"
+        );
+    }
+
+    /// A request with this `[limits]` block, read as a served request reads
+    /// its snapshot.
+    fn configured(written: &str) -> Ctx {
+        let table: toml::Table = written.parse().expect("the case writes valid TOML");
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        }));
+        ctx
+    }
+
+    /// `rule:testing/a-stop-pauses-the-whole-task-tree`'s deadline half: a
+    /// request stopped past its `wall_time` has no deadline to reach, and the
+    /// resume moves the deadline by the time stopped. Real time passes here,
+    /// because the time stopped is what is measured.
+    #[test]
+    fn a_stop_past_the_wall_time_does_not_end_the_request_and_moves_its_deadline() {
+        let (debugger, stops, _sites) = session();
+        let controller = debugger.clone();
+        let (attached, views) = mpsc::channel();
+        let (start, go) = mpsc::channel();
+        let program = std::thread::spawn(move || {
+            let mut ctx = configured("[limits]\nwall_time = \"50ms\"\n");
+            controller.attach(&mut ctx);
+            attached
+                .send(ctx.safepoint_view())
+                .expect("the test is waiting");
+            go.recv().expect("the test watches the deadline");
+            let stopped = site(&mut ctx);
+            (stopped, poll(&mut ctx), ctx.safepoint_flags())
+        });
+
+        let view = views.recv().expect("the request attached");
+        let before = view
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+        // The clock that times a request waits on this wake, and reads the
+        // deadline again each time it fires.
+        let (moved, deadline_moved) = mpsc::channel();
+        let wake = moved.clone();
+        view.watch_wall_time(Box::new(move || {
+            let _ = wake.send("held");
+        }));
+        start.send(()).expect("the program is waiting");
+
+        let stop = stops.recv().expect("the request stopped");
+        let stopped_at = Instant::now();
+        assert_eq!(stop.reason, StopReason::Breakpoint);
+        assert_eq!(deadline_moved.recv(), Ok("held"), "the stop woke the clock");
+        assert_eq!(
+            view.wall_deadline(),
+            None,
+            "a stopped request has no deadline"
+        );
+        std::thread::sleep(
+            before.saturating_duration_since(Instant::now()) + Duration::from_millis(10),
+        );
+        assert!(
+            Instant::now() > before,
+            "the stop outlasted the original deadline"
+        );
+        assert_eq!(view.wall_deadline(), None);
+        assert!(!view.flags().contains(SafepointFlags::WALL_TIME));
+
+        view.watch_wall_time(Box::new(move || {
+            let _ = moved.send("released");
+        }));
+        let resumed_at = Instant::now();
+        debugger.resume();
+        assert_eq!(
+            deadline_moved.recv(),
+            Ok("released"),
+            "the resume woke the clock"
+        );
+        let after = view
+            .wall_deadline()
+            .expect("a resumed request has its deadline again");
+        assert!(
+            after >= before + (resumed_at - stopped_at),
+            "the deadline moved by at least the time stopped"
+        );
+        let (stopped, next, flags) = program.join().expect("the program ended");
+        assert_eq!((stopped, next), (nvs_runtime::OK, nvs_runtime::OK));
+        assert!(
+            !flags.intersects(SafepointFlags::WALL_TIME | SafepointFlags::DEBUG_BREAK),
+            "a resumed request runs on with a clean word"
+        );
+    }
+
+    /// A task's status and the output it wrote, once it ended.
+    type Ended = Option<(i32, Vec<u8>)>;
+
+    /// Spawns a task of the request tree on `sched` that writes `name` and
+    /// `before`, stops at `stop`, writes `after`, and records its status and
+    /// output in `seen`.
+    fn spawn_writer(
+        sched: &mut Scheduler,
+        ctx: Ctx,
+        stop: fn(&mut Ctx) -> i32,
+        seen: &Rc<Cell<Ended>>,
+        name: &'static str,
+    ) {
+        let seen = Rc::clone(seen);
+        sched.spawn(ctx, TaskRoot::Request, move |ctx| {
+            ctx.write_output(format!("{name} before\n").as_bytes())
+                .expect("a buffer takes every write");
+            let status = stop(ctx);
+            ctx.write_output(format!("{name} after\n").as_bytes())
+                .expect("a buffer takes every write");
+            let output = ctx.take_buffered_output().expect("a buffered context");
+            seen.set(Some((status, output)));
+        });
+    }
+
+    /// Runs a request tree of two tasks on one core: the first stops at a
+    /// site, the second polls after it. Beside it, an unattached request
+    /// sends on `ran`. Gives each task's status and output, and how many
+    /// tasks were left parked.
+    fn run_a_tree_of_two(
+        controller: Debugger,
+        ran: mpsc::Sender<&'static str>,
+    ) -> std::thread::JoinHandle<(Ended, Ended, usize)> {
+        std::thread::spawn(move || {
+            let mut sched = Scheduler::new();
+            let _installed = install(Reactor::new().expect("the OS refused a poll"));
+            let mut first = Ctx::buffered();
+            controller.attach(&mut first);
+            let second = first.isolate(nvs_runtime::OutputSink::Buffer(Vec::new()));
+            let first_seen = Rc::new(Cell::new(None));
+            let second_seen = Rc::new(Cell::new(None));
+            spawn_writer(&mut sched, first, site, &first_seen, "first");
+            spawn_writer(&mut sched, second, poll, &second_seen, "second");
+            sched.spawn(Ctx::buffered(), TaskRoot::Request, move |_| {
+                ran.send("the other request ran")
+                    .expect("the test is waiting");
+            });
+            let report = run_until_idle(&mut sched).expect("the loop failed");
+            (first_seen.take(), second_seen.take(), report.parked)
+        })
+    }
+
+    #[test]
+    fn a_breakpoint_stops_every_task_of_its_tree_while_another_request_on_the_core_is_answered() {
+        let (debugger, stops, _sites) = session();
+        let (ran, other) = mpsc::channel();
+        let core = run_a_tree_of_two(debugger.clone(), ran);
+
+        let first = stops.recv().expect("the first task stopped");
+        assert_eq!(first.reason, StopReason::Breakpoint);
+        let second = stops.recv().expect("the second task stopped at its poll");
+        assert_eq!(second.reason, StopReason::Tree);
+        assert_eq!(second.round, first.round, "one stop, one round");
+        assert!(first.task.is_some() && second.task.is_some());
+        assert_ne!(first.task, second.task);
+        assert_eq!(
+            other.recv(),
+            Ok("the other request ran"),
+            "a request outside the tree is answered while it is stopped"
+        );
+        debugger.resume();
+
+        let (first, second, parked) = core.join().expect("the core ended");
+        assert_eq!(first.map(|(status, _)| status), Some(nvs_runtime::OK));
+        assert_eq!(second.map(|(status, _)| status), Some(nvs_runtime::OK));
+        assert_eq!(parked, 0);
+    }
+
+    #[test]
+    fn a_resumed_tree_finishes_with_all_of_its_output_in_order() {
+        let (debugger, stops, _sites) = session();
+        let (ran, other) = mpsc::channel();
+        let core = run_a_tree_of_two(debugger.clone(), ran);
+
+        for _ in 0..2 {
+            stops.recv().expect("each task of the tree stopped");
+        }
+        other.recv().expect("the other request ran");
+        debugger.resume();
+
+        let (first, second, _) = core.join().expect("the core ended");
+        assert_eq!(
+            first,
+            Some((nvs_runtime::OK, b"first before\nfirst after\n".to_vec()))
+        );
+        assert_eq!(
+            second,
+            Some((nvs_runtime::OK, b"second before\nsecond after\n".to_vec()))
+        );
+    }
+
+    /// A `spawn worker` child runs on another core, in its parent's tree.
+    #[test]
+    fn a_context_of_the_tree_on_another_thread_stops_at_its_next_poll_and_resumes_with_it() {
+        let (debugger, stops, _sites) = session();
+        let controller = debugger.clone();
+        let (handle, trees) = mpsc::channel();
+        let program = std::thread::spawn(move || {
+            let mut ctx = Ctx::buffered();
+            controller.attach(&mut ctx);
+            handle.send(ctx.tree_handle()).expect("the test is waiting");
+            site(&mut ctx)
+        });
+        let tree = trees.recv().expect("the request attached");
+        let first = stops.recv().expect("the request stopped");
+        assert_eq!(first.reason, StopReason::Breakpoint);
+
+        let worker = std::thread::spawn(move || {
+            let mut ctx = Ctx::buffered();
+            ctx.join_tree(tree);
+            let stopped = poll(&mut ctx);
+            (stopped, poll(&mut ctx))
+        });
+        let second = stops.recv().expect("the worker stopped at its poll");
+        assert_eq!(
+            (second.task, second.reason, second.round),
+            (None, StopReason::Tree, first.round)
+        );
+        debugger.resume();
+
+        assert_eq!(program.join().expect("the program ended"), nvs_runtime::OK);
+        assert_eq!(
+            worker.join().expect("the worker ended"),
+            (nvs_runtime::OK, nvs_runtime::OK),
+            "the worker ran on, and its next poll did not stop again"
         );
     }
 }
