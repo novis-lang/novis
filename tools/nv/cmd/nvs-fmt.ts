@@ -14,6 +14,10 @@
 // a `.out` or `.err` that names `file.nvs:12`, a `.tainted` range, a recorded `.lcov`. The run names each
 // such file beside a program it rewrote, with the command that writes it again, and `--bless` runs those
 // commands. A name in that list is a lead, not a verdict: the full gate is what proves the tree green.
+//
+// The examples are embedded in more than their own files, so a run that rewrote any prints the steps
+// that follow it (`AFTER`): render the reference and the website, restamp what the site's stale guard
+// names, and record the perf figures that hash a re-rendered chapter, once the sweep is committed.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -38,6 +42,14 @@ const ALWAYS = [".tainted", ".replay", ".lcov"];
 /** Expectation files that can quote a position, and do when `PIN_RE` finds one. */
 const QUOTING = [".out", ".err"];
 const SNIPPETS = "website/snippets/";
+/** What a sweep that rewrote files still owes, after its blesses: each place that embeds an example. */
+const AFTER = [
+  "bun nv render && bun nv render --website       the reference chapters, core.json and llms-full.txt embed the examples",
+  "bun nv affected --run                           the gate, and fix what it names",
+  "bun nv site --check stale questions             restamp each page (`site --stamp`) and question entry (`site --questions --stamp`) it names",
+  "commit, then bun nv proofs --record-perf --group <g>   one chapter group at a time, for each figure `proofs --gate --limit 0` names stale",
+  "bun nv ci --check                               everything CI's push checks",
+];
 
 interface Options {
   mode: "write" | "check" | "bless";
@@ -127,6 +139,7 @@ export async function run(args: string[]): Promise<number> {
     console.log(`\nnv nvs-fmt: ${cites.length} comment(s) in a program whose lines moved name a line number; check each against the program as it now is:`);
     for (const c of cites) console.log(`  ${c}`);
   }
+  if (rewritten.length > 0) console.log(`\nnv nvs-fmt: then, in order:\n${AFTER.map((s) => `  ${s}`).join("\n")}`);
   if (o.mode !== "bless") return strays.length > 0 ? 1 : 0;
 
   let code = 0;
