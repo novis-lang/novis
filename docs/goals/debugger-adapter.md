@@ -20,7 +20,7 @@ stages:
         rules: [ide/the-debug-adapter-does-not-wait-for-an-editor, testing/a-stop-pauses-the-whole-task-tree, testing/a-debugged-program-is-compiled-with-a-debug-switch]
   - id: 2
     title: stepping over, into and out, and the value a step out returned
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-runtime/src/ctx/frames.rs, crates/nvs-host/src/debug.rs, docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md]
     extra:
       context:
@@ -244,8 +244,8 @@ item over fixtures. The session reviews them.
   - [x] `Debugger::step` names a stop by `Stop::id`, and its task sets the step when it wakes
   - [x] the handler stops at an unarmed site only where `Step::stops_at` says, as `StopReason::Step`
   - [x] `next`, `stepIn` and `stepOut` in `Session::answer`, and the `step` reason
-- [ ] A step over an `await` stops at the next statement of the same frame when the task resumes, and the task's siblings run while it waits (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-ir/src/lower/expr.rs:3972`
-- [ ] A step into a call through a `callable` lands in the function or closure it names, and a step into a `Core` method steps over it (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-runtime/src/callable.rs:184`
+- [x] A step over an `await` stops at the next statement of the same frame when the task resumes, and the task's siblings run while it waits (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-ir/src/lower/expr.rs:3972`
+- [x] A step into a call through a `callable` lands in the function or closure it names, and a step into a `Core` method steps over it (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-runtime/src/callable.rs:184`
 - [x] The frame record keeps the value its function returned, and after a step out the caller's first scope shows it (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-runtime/src/ctx/frames.rs:1`, `crates/nvs-codegen/src/emit.rs:3806`
   - [x] the context keeps it instead of the record (`## Standing decisions`), through `nvs_debug_return`
   - [x] `Function::debug_returns_secret` from the written return type
@@ -253,7 +253,7 @@ item over fixtures. The session reviews them.
 - [x] `skipFiles` keeps a step into from stopping in a file it matches (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/mod.rs:1`
   - [x] `LaunchArguments::skip_files`, built into a `globset` set by `dap::skip_files`
   - [x] `Debugger::skip_files`, read by `Shared::step_stops`
-- [ ] Rust tests for each step kind, across an `await`, into a closure passed as a `callable`, and past a skipped file. `crates/nvs-cli/src/dap/mod.rs:1`
+- [x] Rust tests for each step kind, across an `await`, into a closure passed as a `callable`, and past a skipped file. `crates/nvs-cli/src/dap/mod.rs:1`
 
 ### 3. conditions, hit counts, logpoints and exception filters
 
@@ -308,43 +308,43 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 5 are done. Stage 2's mechanisms are in (`f9a9a6796`), and four of its tests are owed.
-`launch` reads `mode`, `program`, `args`, `cwd`, `env`, `stopOnEntry`, `filter` and `skipFiles`.
-Not read yet: `pathMappings`.
+Stages 1, 5 and 2 are done. `launch` reads `mode`, `program`, `args`, `cwd`, `env`,
+`stopOnEntry`, `filter` and `skipFiles`. Not read yet: `pathMappings`.
 
-`Debugger::step(stop_id, kind)` names a stop by `Stop::id`, and that stop's task sets a
-`nvs_runtime::Step` on its own context when it wakes. `Shared::step_stops`
-(`crates/nvs-host/src/debug.rs:573`) decides each unarmed site. `nvs_debug_return`
-(`crates/nvs-runtime/src/ctx/frames.rs:455`) keeps the returned value, and the innermost scope
-shows it first as `Shop::total() returned`. An `await` and a `callable` need no code of their own,
-and no test proves them yet (`## Standing decisions` § *A step is the context's*).
+Stage 2's four tests are in `crates/nvs-cli/tests/dap.rs`, from `:664` on: a `next` over an
+`await`, a `stepIn` through a callable variable, into `Core\Arr::map`'s callback and over a
+`Core` method, a `stepIn` past a `skipFiles` file, and a `stepOut` of a `: secret string` method.
+They use the new `stopped_at` and `run_to_the_end` helpers (`:627`), and the `Client`'s
+`transcript` keeps every frame the adapter wrote. All four passed on Windows the first time, so the
+controller needed no fix. None of the `dap.rs` tests after the `run` breakpoint test has run on
+Linux. No existing test is expected to go red.
 
-`a_step_in_over_and_out_moves_one_statement_and_shows_the_returned_value`
-(`crates/nvs-cli/tests/dap.rs:570`) and two unit tests pass on Windows. The `dap.rs` tests after
-the `run` breakpoint test have not run on Linux. No existing test is expected to go red.
+The acceptance sweep's reds were stale. `env-secret-proofs`'s log says exit 0. Nightly
+`40174915924` tested `9be30356e`, and HEAD already has a fix for each of its five jobs:
+`d5aa2be18` (bench `null` p99), `901f4855c` (Miri `getrusage`), `bd2e51f0a` (Miri trace loop)
+and `0b7eadd2c` (the Windows stalled-peer bound).
 
 For stage 4's attack: `echo` writes a carriage return as `␍`, so a program cannot echo a real
 frame header. The attack shows the line arriving as an `output` event.
 
 ### Next
 
-**Finish stage 2: its tests**, file `crates/nvs-cli/tests/dap.rs` alone. Write them with the
-file's `step` and `top_frame` helpers, beside the step test at `:570`, as the stage's split says,
-and run each once by name. A test that fails because the controller is wrong is a fix in
-`crates/nvs-host/src/debug.rs` or `crates/nvs-runtime/src/ctx/frames.rs`, made in the same slice.
-Then tick items 2, 3 and 6 of `### 2.` and set stage 2 done.
+**Stage 3: conditions, hit counts, logpoints and exception filters.** Take its first two items as
+one group: they share `crates/nvs-host/src/debug.rs` and `crates/nvs-cli/src/dap/mod.rs`. Write
+checkpoints under each before starting. The anchors:
 
-- [ ] A `next` over a statement that awaits a task stops at the same frame's next statement, and a sibling task runs while it waits and does not stop. `crates/nvs-host/src/debug.rs:573`
-- [ ] A `stepIn` at a call through a `callable` (`$fn(...)` or a closure given to `Core\Arr::map`) stops in the closure's body. `crates/nvs-runtime/src/callable.rs:184`
-- [ ] A `stepIn` at a statement whose only call is a `Core` method stops at the same frame's next statement. `crates/nvs-host/src/debug.rs:573`
-- [ ] With `skipFiles` naming a second file, a `stepIn` at a call into it stops at the caller's next statement. `crates/nvs-cli/src/dap/mod.rs:493`
-- [ ] A `stepOut` from a method declared `: secret string` shows its returned value redacted, and the secret's text is in no frame the adapter wrote. `crates/nvs-runtime/src/ctx/frames.rs:455`
+- `Session::set_breakpoints` reads each source breakpoint (`crates/nvs-cli/src/dap/mod.rs:354`).
+  It has to read `condition`, `hitCondition` and `logMessage`, and answer `verified: false` with
+  the compiler's message for a condition that does not compile.
+- `DebugUnit::arm` arms a breakpoint's sites (`crates/nvs-host/src/debug.rs:226`). A condition
+  belongs to the breakpoint, and it runs in the stop handler only at an armed site.
+- `check_program` (`crates/nvs-types/src/check.rs:84`) is what the new condition entry goes beside.
+  The frame's slot table is what types the condition's variables.
+- The throw hook starts at `nvs_raise`, `nvs_raise_new` and `nvs_raise_site`
+  (`crates/nvs-runtime/src/throwable.rs:1011`, `:1062`, `:1138`).
 
-**Then stage 3: conditions, hit counts, logpoints and exception filters**, files
-`crates/nvs-host/src/debug.rs`, `crates/nvs-cli/src/dap/mod.rs`, `crates/nvs-runtime/src/throwable.rs`,
-`crates/nvs-codegen/src/emit.rs`. Start from where a breakpoint is armed (`DebugUnit::arm`) and where
-a throw starts (`nvs_raise`, `crates/nvs-runtime/src/throwable.rs:1011`). Stage 4 touches no Rust
-and may run as its own lane beside it (`## Standing decisions` § *Lanes*).
+Stage 4 touches no Rust and may run as its own lane beside stage 3 (`## Standing decisions`
+§ *Lanes*).
 
 ### Backlog
 

@@ -12,6 +12,7 @@ use std::net::TcpStream;
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{Receiver, channel};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -24,6 +25,8 @@ struct Client {
     frames: Receiver<Value>,
     reader: JoinHandle<Result<usize, String>>,
     seq: i64,
+    /// Every frame the adapter wrote so far, as its JSON text, in the order it arrived.
+    transcript: Arc<Mutex<Vec<String>>>,
 }
 
 impl Client {
@@ -43,6 +46,8 @@ impl Client {
         let stdout = child.stdout.take().expect("stdout was piped");
         let stdin = child.stdin.take();
         let (sender, frames) = channel();
+        let transcript = Arc::new(Mutex::new(Vec::new()));
+        let written = Arc::clone(&transcript);
         let reader = std::thread::spawn(move || {
             let mut stdout = BufReader::new(stdout);
             let mut count = 0;
@@ -50,6 +55,10 @@ impl Client {
                 match strict_frame(&mut stdout)? {
                     Some(frame) => {
                         count += 1;
+                        written
+                            .lock()
+                            .expect("the transcript is never poisoned")
+                            .push(frame.to_string());
                         let _ = sender.send(frame);
                     }
                     None => return Ok(count),
@@ -62,6 +71,7 @@ impl Client {
             frames,
             reader,
             seq: 1,
+            transcript,
         }
     }
 
@@ -610,4 +620,175 @@ fn a_step_in_over_and_out_moves_one_statement_and_shows_the_returned_value() {
     client.request("disconnect", json!({}));
     let (_, success) = client.finish();
     assert!(success, "the adapter ended with a failure");
+}
+
+/// Starts `nvs dap` in `dir` with one breakpoint at `line` of `file`, launches `file` in `run`
+/// mode with `launch`'s fields added, and reads up to the breakpoint's stop.
+fn stopped_at(dir: &Path, file: &str, line: u32, launch: Value) -> Client {
+    let program = dir.join(file);
+    let mut client = Client::start(dir);
+    client.request("initialize", json!({ "adapterID": "novis" }));
+    client.until_event("initialized");
+    client.ask(
+        "setBreakpoints",
+        json!({ "source": { "path": program }, "breakpoints": [{ "line": line }] }),
+    );
+    let mut arguments = json!({ "mode": "run", "program": program });
+    if let (Some(all), Some(extra)) = (arguments.as_object_mut(), launch.as_object()) {
+        all.extend(extra.clone());
+    }
+    client.request("launch", arguments);
+    client.request("configurationDone", json!({}));
+    let ran = client.until_event("stopped");
+    assert_eq!(
+        ran.last().unwrap()["body"]["reason"],
+        "breakpoint",
+        "{ran:#?}"
+    );
+    client
+}
+
+/// Sends `continue`, reads up to `terminated` and ends the adapter. Gives the program's stdout.
+fn run_to_the_end(mut client: Client) -> String {
+    client.ask("continue", json!({}));
+    let ran = client.until_event("terminated");
+    client.request("disconnect", json!({}));
+    let (_, success) = client.finish();
+    assert!(success, "the adapter ended with a failure");
+    output(&ran, "stdout")
+}
+
+/// A `next` over a statement that awaits a task stops at the next statement of the same frame,
+/// once the task has ended. The task runs while its parent waits, and its sites do not stop it.
+#[test]
+fn a_next_over_an_await_stops_at_the_same_frame_s_next_statement() {
+    let dir = nvs_repo::scratch_private("dap-step-await");
+    fs::write(
+        dir.join("nvs.toml"),
+        "[capabilities.script]\nspawn = true\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join("child.nvs"),
+        "<?nvs\nint $count = 2;\necho \"child ran \", $count, \"\\n\";\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nvar $job = spawn script \"child.nvs\" with(output: \"capture\");\nvar $result = await $job;\necho $result->output;\n",
+    )
+    .unwrap();
+
+    let mut client = stopped_at(&dir, "main.nvs", 3, json!({}));
+    step(&mut client, "next");
+    let (frame, _) = top_frame(&mut client);
+    assert_eq!(frame["line"], 4, "{frame:#?}");
+    assert!(
+        frame["source"]["path"]
+            .as_str()
+            .is_some_and(|path| path.ends_with("main.nvs")),
+        "the step stopped in the task: {frame:#?}"
+    );
+    assert_eq!(run_to_the_end(client), "child ran 2\n");
+}
+
+/// A `stepIn` at a statement whose only call is a `Core` method stops at the next statement of
+/// the same frame. A `stepIn` at a call through a callable variable stops in the closure's body,
+/// and so does one at a `Core` method that calls the closure it was given.
+#[test]
+fn a_step_in_reaches_a_closure_through_a_callable_and_steps_over_a_core_method() {
+    let dir = nvs_repo::scratch_private("dap-step-callable");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nvar $double = fn(int $n): int => {\n    int $twice = $n * 2;\n    return $twice;\n};\nstring $name = Core\\Str::upper('anna');\nint $four = $double(2);\narray<int> $all = Core\\Arr::map([5, 6], $double);\necho $name, \" \", $four, \" \", Core\\Arr::count($all), \"\\n\";\n",
+    )
+    .unwrap();
+
+    let mut client = stopped_at(&dir, "main.nvs", 6, json!({}));
+    step(&mut client, "stepIn");
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 7, "{frame:#?}");
+    assert_eq!(variables["$name"], "\"ANNA\"", "{variables:#?}");
+
+    step(&mut client, "stepIn");
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 3, "{frame:#?}");
+    assert_eq!(variables["$n"], "2", "{variables:#?}");
+
+    step(&mut client, "stepOut");
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 8, "{frame:#?}");
+    assert_eq!(variables["$four"], "4", "{variables:#?}");
+
+    step(&mut client, "stepIn");
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 3, "{frame:#?}");
+    assert_eq!(variables["$n"], "5", "{variables:#?}");
+
+    assert_eq!(run_to_the_end(client), "ANNA 4 2\n");
+}
+
+/// With `skipFiles` naming a second file, a `stepIn` at a call into it stops at the caller's next
+/// statement.
+#[test]
+fn a_step_in_at_a_call_into_a_skipped_file_stops_at_the_caller_s_next_statement() {
+    let dir = nvs_repo::scratch_private("dap-step-skip");
+    fs::write(
+        dir.join("lib.nvs"),
+        "<?nvs\nclass Lib {\n    public static function twice(int $n): int {\n        int $twice = $n * 2;\n        return $twice;\n    }\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nrequire 'lib.nvs';\nint $four = Lib::twice(2);\necho $four, \"\\n\";\n",
+    )
+    .unwrap();
+
+    let mut client = stopped_at(&dir, "main.nvs", 3, json!({ "skipFiles": ["**/lib.nvs"] }));
+    step(&mut client, "stepIn");
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 4, "{frame:#?}");
+    assert!(
+        frame["source"]["path"]
+            .as_str()
+            .is_some_and(|path| path.ends_with("main.nvs")),
+        "the step stopped in the skipped file: {frame:#?}"
+    );
+    assert_eq!(variables["$four"], "4", "{variables:#?}");
+    assert_eq!(run_to_the_end(client), "4\n");
+}
+
+/// A `stepOut` from a method declared `: secret string` shows the value it returned redacted, and
+/// the secret's text is in no frame the adapter wrote.
+#[test]
+fn a_step_out_of_a_secret_method_shows_its_returned_value_redacted() {
+    const KEY: &str = "dap-key-7f3a9c";
+    let dir = nvs_repo::scratch_private("dap-step-secret");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nclass Vault {\n    public static function key(): secret string {\n        secret string $key = Core\\Env::secret('DAP_KEY') ?? '';\n        return $key;\n    }\n}\nsecret string $got = Vault::key();\necho \"done\\n\";\n",
+    )
+    .unwrap();
+
+    let mut client = stopped_at(&dir, "main.nvs", 8, json!({ "env": { "DAP_KEY": KEY } }));
+    step(&mut client, "stepIn");
+    let (frame, _) = top_frame(&mut client);
+    assert_eq!(frame["line"], 4, "{frame:#?}");
+
+    step(&mut client, "stepOut");
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 9, "{frame:#?}");
+    let returned = variables["Vault::key() returned"]
+        .as_str()
+        .unwrap_or_else(|| panic!("no returned value: {variables:#?}"))
+        .to_owned();
+    assert!(!returned.contains(KEY), "{variables:#?}");
+
+    let transcript = Arc::clone(&client.transcript);
+    assert_eq!(run_to_the_end(client), "done\n");
+    let written = transcript.lock().expect("the transcript is never poisoned");
+    assert!(
+        written.iter().all(|frame| !frame.contains(KEY)),
+        "a frame carries the secret: {written:#?}"
+    );
 }
