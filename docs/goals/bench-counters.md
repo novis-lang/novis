@@ -41,7 +41,7 @@ stages:
         rules: [testing/probes-on-is-a-tested-configuration, testing/debug-probes, testing/nvst-is-separate]
   - id: 6
     title: the request-path gaps `request-overhead` handed over are built
-    status: open
+    status: done
     context: [crates/nvs-host/src/cpuclock.rs, crates/nvs-host/src/isolate.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/stack.rs, crates/nvs-stdlib/src/format.rs, crates/nvs-stdlib/src/math.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/test.rs]
     extra:
       context:
@@ -241,13 +241,13 @@ of them builds. The session builds once they all end, and checks each against it
 - [x] A literal `Str::format` template is split while compiling, a tainted argument's result stays tainted, and the bench declares what it measures. `crates/nvs-types/src/intrinsics.rs:905`, `crates/nvs-ir/src/lower/expr.rs:2437`
 - [x] A cross-tree switch charges `[limits] cpu_time` with a cheaper clock, or the read is struck as a stated bound (`## Standing decisions`). `crates/nvs-host/src/cpuclock.rs:49`
 - [x] The hello case's 2.5 µs of isolate start and finish is broken down, and each part that is not isolation is removed or moved out of the request. `crates/nvs-host/src/isolate.rs:1`, `data/gaps/nvs-host/an-isolate-start-and-finish-cost-microseconds-per-request.json:1`
-- [ ] A waiting request's stack and heap are broken down in the module doc, and each part not needed per request is removed. `crates/nvs-host/src/stack.rs:1`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
+- [x] A waiting request's stack and heap are broken down in the module doc, and each part not needed per request is removed. `crates/nvs-host/src/stack.rs:1`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
   - [x] A debug test measures a waiting request's heap on its core, connection and request apart. `crates/nvs-cli/src/serve.rs:4499`
   - [x] The heap is broken down in `stack.rs`'s *What a waiting request holds*. `crates/nvs-host/src/stack.rs:123`
   - [x] The per-connection read scratch and the head buffer the access line kept are gone, 16 KiB per waiting request. `crates/nvs-server/src/io.rs:508`, `crates/nvs-server/src/serve.rs:1682`
   - [x] The stack is counted per part through `nvs_host::counts::StackPages`, and the module doc breaks it down: the program's part is the host's path, and three quarters is the connection's. `crates/nvs-host/src/stack.rs:117`
   - [x] The task's `Ctx` stays boxed, one page less on every task's stack. `crates/nvs-host/src/scheduler.rs:923`
-  - [ ] The connection's stack, 8 pages while its request waits in release, is broken down by frame, and a frame not needed while it waits is made smaller or moved. `crates/nvs-server/src/serve.rs:1574`
+  - [x] The connection's stack, 8 pages while its request waits in release, is broken down by frame, and a frame not needed while it waits is made smaller or moved. `crates/nvs-server/src/serve.rs:1574`
   - [ ] The gap record is deleted. `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
 
 ### 7. the goal is verified once, and every failure is fixed
@@ -267,23 +267,22 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 6's items 1 to 7 are done, and their gap records are deleted. Item 8's heap is done, and its
-stack is measured per part.
+Stage 6 is done: all eight items, and every gap record it owned is deleted. Stage 3 is the one
+stage left before the gate.
 
-- **A waiting request's stack** is counted by `nvs_host::counts::StackPages`
-  (`crates/nvs-host/src/counts.rs:65`, debug only, fed by a live-stack list in `stack.rs`'s
-  `Stacks::take`/`give`). The heap test reads it at each probe and bounds each part
-  (`crates/nvs-cli/src/serve.rs:4503`). In release on Windows, measured by turning the reading on by
-  hand: an idle connection 4.1 pages, its request 3.9 more on the connection's stack, its program 2.0
-  on its own. Debug: 13.5, 9.6 and 8. The container profile's "program 36 KiB" was the connection's
-  stack. The module doc is `crates/nvs-host/src/stack.rs:117`.
-- **The task's `Ctx` stays boxed** (`crates/nvs-host/src/scheduler.rs:923`): an idle connection
-  went from 5.0 to 4.1 pages, and the heap readings did not move.
-- The gap record now names the connection's stack (`data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`).
-Checked: build, clippy and fmt green, and the heap test ran by name in debug and twice in release.
+- **A waiting request's stack went from 10 pages to 7 in release** (19 in debug, from 31). The
+  breakdown by frame is `crates/nvs-host/src/stack.rs:118`.
+- **A task's `Ctx` is boxed from the spawn to its `Finished`** (`crates/nvs-host/src/scheduler.rs:362`,
+  `Pending::ctx` and `Finished::ctx` are `Box<Ctx>`, and `spawn_child_ordered` takes one). Every
+  task's entry frame went from 4.1 KiB to 0.4 KiB, and `Isolate::start`'s from 10.3 to 4.6
+  (`crates/nvs-host/src/isolate.rs:756`). The box is the one the scheduler allocated already, made
+  earlier, and `hand_over_its_making` credits its bytes to the child.
+- **The connection drive's tail is out of line** (`nvs_server`'s `after_the_drive`,
+  `crates/nvs-server/src/serve.rs:2531`): 1.2 KiB less in the frame a connection parks in.
+- Both stack tests' bounds are tightened. Checked: build, clippy and fmt green, both ran by name.
 
-Tests expected to go red: none known. Stage 7 runs `cargo test --lib watchdog` (per-core lock),
-`nvs-server`'s `io` tests (per-core scratch) and `stack::tests` (boxed `Ctx`) first.
+Tests expected to go red: none known. Stage 7 runs `cargo test --lib watchdog`, `nvs-server`'s `io`
+tests, `stack::tests` and `scheduler::tests` (boxed `Ctx`) first.
 
 The sweep's reds were stale. `env-secret-proofs` exits 0 when run. Nightly `40075586234`'s jobs
 were dealt with last session. The push run `40158642410`'s one red, `serve::tests::sends_to_a_peer_that_stopped_reading_queue_one_frame_at_the_most`
@@ -291,25 +290,21 @@ on Windows, ran at `9be30356e`, before `0b7eadd2c` widened that bound.
 
 ### Next
 
-**Stage 6, item 8, the connection's stack.** It holds 8 pages in release while its request waits:
-the accept loop's spawn, `hyper`'s connection future (`crates/nvs-server/src/serve.rs:1574`), and
-the handler's path.
+**Stage 3, the sibling form whose `N` sizes an input fixed outside the program.** Its first two
+items come first, and then the four batches, each by a writing subagent, one after another.
 
-- [ ] The connection's stack is broken down by frame, and a frame not needed while it waits is made smaller or moved. `crates/nvs-server/src/serve.rs:1574`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
+- [ ] A sibling form whose `N` sizes the input the program reads, such as a `.nvsr` or `.in` the ramp writes at each size (`rule:testing/member-perf-ledger`). `tools/nv/cmd/scaling.ts:919`
+- [ ] A test of the new form beside the existing ones (`rule:testing/perf-two-mechanisms`). `tools/nv/test/scaling.test.ts:58`
 
-To measure in release, change `#[cfg(debug_assertions)]` on `pub mod counts` (`crates/nvs-host/src/lib.rs:128`)
-and in `stack.rs` to an always-true `cfg` by hand, then run `cargo test --release --bin nvs
-a_waiting_request_holds -- --nocapture` with a temporary print. It takes 5 minutes. Revert before
-committing. Frame sizes: a release build's `-Z emit-stack-sizes` needs nightly. Reading the stack
-pointer at the park, against the resident pages, separates a deep frame that returned from a
-frame held while parked.
-
-Stage 3 (`tools/nv/cmd/scaling.ts:919`) stays open as the other side lane.
+The gap's text names every bench that waits on it
+(`data/gaps/nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program.json:1`). Once stage 3 is
+done, stage 7 is the gate.
 
 ### Backlog
 
-- Stages 3 and 6 are side lanes any session may take (`tools/nv/cmd/scaling.ts`,
-  `crates/nvs-host/src/isolate.rs`). Stage 6's last two items touch disjoint files.
+- What a waiting connection still keeps is a stated bound in `stack.rs`: the parked drive's
+  7.9 KiB frame, about 5.5 KiB of it temporaries no split moved, and the pages the request's start
+  touched before it returned. Running the start on another stack would add a switch per request.
 - `--opt-level` and `--probes` are new `nvs test` flags. The gate stage's `bun nv proofs --gate` says
   whether either owes a proof of its own.
 - `bun nv scaling --budget` reports 45 benches over their share, none of them this goal's
