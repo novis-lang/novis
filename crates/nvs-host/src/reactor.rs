@@ -1388,7 +1388,11 @@ mod tests {
         assert_eq!(reactor.remote_waits(), 200);
 
         assert_eq!(reactor.turn(&mut sched).expect("a turn failed"), 1);
-        assert_eq!(reactor.remote_waits(), 0, "a merged wake was never collected");
+        assert_eq!(
+            reactor.remote_waits(),
+            0,
+            "a merged wake was never collected"
+        );
         assert_eq!(sched.run().finished, 1);
     }
 
