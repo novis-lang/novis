@@ -74,7 +74,7 @@ fn a_reference_to_the_units_own_data_is_not_colocated() {
     );
     for (site, next) in sites {
         assert!(
-            next.contains("self.clear_colocated(global)"),
+            next.contains(".func, global);") && next.contains("clear_colocated("),
             "nvs-codegen no longer clears `colocated` on a reference to one of the unit's own \
              data symbols: `{}` is not followed by the call. A string literal is \
              `Linkage::Local`, so it would be addressed PC-relative again, and a data \

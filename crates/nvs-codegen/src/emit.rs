@@ -325,6 +325,26 @@ struct DebugFrame {
 }
 
 /// A layout constant of the runtime, as the offset an instruction takes.
+/// Clears `colocated` on a `Symbol` global, for the reason
+/// [`Emitter::callee_ref`] gives in full: `cranelift-module` derives the flag
+/// from `linkage.is_final()`, and a colocated symbol lowers to a 32-bit
+/// PC-relative address that is correct only while the referrer and the
+/// referent sit within ±2 GiB. `cranelift-jit` allocates code and data
+/// separately, so nothing guarantees that, and the relocation then panics
+/// *inside cranelift* with `TryFromIntError(PosOverflow)` where no
+/// diagnostic of ours can reach. Cleared, the address is materialized
+/// absolutely and has no range at all.
+///
+/// Only a symbol this unit *defines* is ever colocated — an `Import` is
+/// not final and arrives with the flag already clear — so this is a no-op
+/// on the descriptor and debug-site paths and load-bearing on the literal one.
+fn clear_colocated(func: &mut codegen::ir::Function, global: codegen::ir::GlobalValue) {
+    if let codegen::ir::GlobalValueData::Symbol { colocated, .. } = &mut func.global_values[global]
+    {
+        *colocated = false;
+    }
+}
+
 fn offset_i32(offset: usize) -> Result<i32, CodegenError> {
     i32::try_from(offset).map_err(|_| internal("a runtime layout offset past 2 GiB"))
 }
@@ -402,8 +422,8 @@ fn link_frame_record(
     b.ins().store(ctx_word(), first, record_p, site_offset);
     b.ins().store(ctx_word(), record_p, ctx_p, head);
 
-    // An import, so it arrives with `colocated` clear: see
-    // [`Emitter::clear_colocated`].
+    // An import, so it arrives with `colocated` clear. It goes through
+    // [`clear_colocated`] all the same, like every data reference.
     let data = module
         .declare_data(crate::DEBUG_SITES_SYMBOL, Linkage::Import, true, false)
         .map_err(|source| CodegenError::Cranelift {
@@ -411,6 +431,7 @@ fn link_frame_record(
             source: Box::new(source),
         })?;
     let global = module.declare_data_in_func(data, b.func);
+    clear_colocated(b.func, global);
     let sites_p = b.ins().symbol_value(types::I64, global);
     Ok(DebugFrame {
         record,
@@ -1829,29 +1850,8 @@ impl Emitter<'_, '_> {
     /// One defined data object's address, in the function being emitted.
     fn literal_address(&mut self, data: DataId) -> Value {
         let global = self.module.declare_data_in_func(data, self.b.func);
-        self.clear_colocated(global);
+        clear_colocated(self.b.func, global);
         self.b.ins().symbol_value(types::I64, global)
-    }
-
-    /// Clears `colocated` on a `Symbol` global, for the reason
-    /// [`Self::callee_ref`] gives in full: `cranelift-module` derives the flag
-    /// from `linkage.is_final()`, and a colocated symbol lowers to a 32-bit
-    /// PC-relative address that is correct only while the referrer and the
-    /// referent sit within ±2 GiB. `cranelift-jit` allocates code and data
-    /// separately, so nothing guarantees that, and the relocation then panics
-    /// *inside cranelift* with `TryFromIntError(PosOverflow)` where no
-    /// diagnostic of ours can reach. Cleared, the address is materialized
-    /// absolutely and has no range at all.
-    ///
-    /// Only a symbol this unit *defines* is ever colocated — an `Import` is
-    /// not final and arrives with the flag already clear — so this is a no-op
-    /// on the descriptor path and load-bearing on the literal one.
-    fn clear_colocated(&mut self, global: codegen::ir::GlobalValue) {
-        if let codegen::ir::GlobalValueData::Symbol { colocated, .. } =
-            &mut self.b.func.global_values[global]
-        {
-            *colocated = false;
-        }
     }
 
     /// Emits one [`InstKind::BinOp`], returning both its value and the block
@@ -3027,7 +3027,7 @@ impl Emitter<'_, '_> {
         }
         let data = self.class_desc_data(class)?;
         let global = self.module.declare_data_in_func(data, self.b.func);
-        self.clear_colocated(global);
+        clear_colocated(self.b.func, global);
         self.desc_globals.insert(class.to_owned(), global);
         Ok(self.b.ins().symbol_value(types::I64, global))
     }
@@ -3079,7 +3079,7 @@ impl Emitter<'_, '_> {
                 source: Box::new(source),
             })?;
         let global = self.module.declare_data_in_func(data, self.b.func);
-        self.clear_colocated(global);
+        clear_colocated(self.b.func, global);
         self.codec_globals.insert(key.to_owned(), global);
         Ok(self.b.ins().symbol_value(types::I64, global))
     }
