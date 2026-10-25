@@ -104,31 +104,30 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is still at `9be30356e`. Its Website run is green. Its CI push run,
-https://github.com/novis-lang/novis/actions/runs/40158642410, and the nightly deep run on the same
-commit, https://github.com/novis-lang/novis/actions/runs/40174915924, are red only in jobs whose
-fixes are committed and not pushed:
+`origin/main` is at `9be30356e`. Its CI runs 40158642410 and 40174915924 are red only in five jobs
+fixed and not pushed: the Windows one-frame test `0b7eadd2c`, Miri `getrusage` `901f4855c` and
+`c7e5bd3c3`, the Miri traced loop `bd2e51f0a`, and the flood row's `null` p99 `d5aa2be18`.
 
-- `test / windows-x86_64 (tests)`, both runs: the one-frame test, Windows socket buffers. `0b7eadd2c`.
-- `miri units (nvs-runtime 1/2)` and `(nvs-stdlib 10/12)`: gather cases call `getrusage`, which Miri
-  does not model. `901f4855c` and `c7e5bd3c3`. No other gather case runs under Miri.
-- `miri units (nvs-runtime 2/2)`: the traced-loop case timed out at 300 s. `bd2e51f0a`.
-- `overload past capacity`, the flood row: PHP answered nothing, `oha` wrote `"p99": null`, and
-  `steadyResult` threw. `d5aa2be18` gives a `null` p99.
+bench-counters' goal-end push of `093ab5323` was refused by the website stale guard. Line numbers
+moved in two log example outputs. `f6883f463` restamps the three pages, and the guard is green.
 
-At `f63958552`, `bun nv proofs --gate --limit 0` (which now lists past 30) owed 106 perf figures from
-bench-counters' committed commits: `crates/nvs-stdlib/src/math.rs` 38, `test.rs` 34, `request.rs` 30,
-`json.rs` 4. The main loop was told, and its gate records them. The site check was clean.
+`bun nv ci --check` at `8b28b6cd3` is still red, in the main loop's live `debugger-core` work. The
+main loop was told with `loop say`. rustfmt is red at committed `HEAD` in `emit.rs`,
+`nvs-runtime/src/lib.rs`, `ctx/safepoint.rs` and `nvs-host/src/debug.rs`, which it is still
+committing into. The build is red only in the working tree, at `crates/nvs-host/src/debug.rs:261`.
 
-`.agent-tmp/wt-perf`, `.agent-tmp/wt-csv` and `.agent-tmp/wt-render` are scratch folders that git
-no longer lists as worktrees. Each contains a `.looper` directory, which Windows will not delete
-while looper runs. `wt-csv` also has an ignored `target/`, warm at `d2a782d60`, and a
-`node_modules/`. Delete all three when looper is stopped.
+`.agent-tmp/wt-perf`, `wt-csv` and `wt-render` are stray folders with a `.looper` directory that
+Windows keeps while looper runs. `wt-csv` has a `target/` warm at `f6883f463`. Delete all three
+when looper is stopped.
 
 ### Next
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
+- [ ] Send the refused push once its checks are green. `tools/nv/cmd/ci.ts:1`
+  Run `bun nv ci --check`. If rustfmt or the build is still red and the main loop has uncommitted
+  edits in the files it names, watch again: `--watch` exits 1 at once on the refused push, so wait
+  for the main loop to commit first. Once every check is green, run `bun nv ci --push`, then watch.
 - [ ] Watch the next push with `bun nv ci --watch --next`. `tools/nv/cmd/ci.ts:265`
   Runs 40158642410 and 40174915924 have ended, so `--next` passes over them. The next goal end's
   push carries the five fixes above. Watch with no `--past`, and without a pipe into `tail`, which
