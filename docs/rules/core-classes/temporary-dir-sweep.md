@@ -26,7 +26,8 @@ and off the request path, so a response never waits on a deletion. It covers nor
 uncaught throw, and a request that died mid-flight, because the worker survives that request. A
 `FATAL` on the CLI ends the process without that sweep, and its directory is an orphan for
 `rule:core-classes/temporary-dir-orphan-sweep`. Each directory is named `nvs-<pid>-<nonce>`, and
-the pid is what that sweep reads.
+the pid is what that sweep reads. The pid is written at ten digits, so every name has one length
+and a counted run allocates the same bytes for its paths in every process.
 
 These deletions are work a correct program owed anyway, so the default case costs nothing new, and
 the work moves off the request path. What a manual rule never covered is the failure case: an

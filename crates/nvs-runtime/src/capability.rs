@@ -1398,7 +1398,10 @@ fn create_entry<E>(
     const ATTEMPTS: u32 = 16;
 
     for attempt in 0..ATTEMPTS {
-        let path = root.join(format!("nvs-{}-{:016x}", std::process::id(), nonce()));
+        // The pid at ten digits, the widest a `u32` is, so every process's directory name has
+        // the same length and a counted run allocates the same bytes for its paths
+        // (`rule:testing/bench-counters`).
+        let path = root.join(format!("nvs-{:010}-{:016x}", std::process::id(), nonce()));
         check(&path)?;
         if attempt == 0 {
             // After the check and never before it: creating the root is itself a write.
