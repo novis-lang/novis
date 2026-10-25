@@ -89,6 +89,16 @@ Each is here because not knowing it exists is the entire cost. The file named af
   binary. `bun nv proofs --id '<feature>'` prints what it still owes and the path of each, and every
   `.nvs` and `about.md` among them is held to § *Text an end user reads* below
   (`rule:testing/feature-proofs`).
+- **Code and tests hold on every CI runner, not just on this Windows machine.** CI runs Linux, macOS,
+  aarch64 and Windows, under load, ASAN, Miri and the cost guards, and every mistake below cost a CI
+  round. The code rules: state lives as long as its request or case, every way out releases what the
+  normal one does, a second path that ends a thing is read by every reader, a shared file or port is
+  opened twice at once, nothing on the request path is made on first use, a mechanism costs nothing
+  where unused, a path is judged before it is joined, and a new check is tried on every setup that runs
+  it. The test rules: wait on events, never time; set the global state a test reads; declare its
+  environment. A change to paths, sockets or processes runs its tests in WSL with `bun nv linux-test`.
+  Read [coding.md](docs/agent/coding.md) before writing such code and [testing.md](docs/agent/testing.md)
+  § *A test holds on every CI runner* before writing a test.
 - **A `HANG:` line stops what you are doing until you know what hangs.** Every program `bun nv` starts
   is watched, and a tree that stalls or spins with no output is killed early, with a report under
   `.agent-tmp/hangs/`. Read the report, run the hung unit alone, and fix the cause before the slice

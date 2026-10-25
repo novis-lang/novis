@@ -35,16 +35,10 @@ rule below is a failure CI found that the dev machine could not.
   `exec = []` is when no program may start. A loopback address is `127.0.0.1` or `::1`: macOS has no
   `127.0.0.2`. Its files go under its own scratch directory, whose ownership and permissions the test
   sets: a runner's drive grants `BUILTIN\Users` what this machine does not.
-- **Code that compares paths compares canonical ones,** and a test of it covers a path behind a link:
-  Ubuntu's `/bin` and `/usr/bin` hold links into another folder, so a grant on the folder covered no
-  program. A Windows path such as `\\host\share` is not a path on Linux, and a check that reads it as
-  one passes it through.
 - **A recorded output never contains a version, a host, a time or an absolute path.** The `.out` elides
   those lines: CI builds `0.0.1+dev`, and its host and paths are not these.
-- **A change to paths, permissions, sockets, processes or signals runs its own tests on Linux before
-  its commit:** `bun nv linux-test --test <name> <filter>`, or `--lib <filter>` for unit tests. It is
-  one filtered run in WSL, minutes once its build is warm (`tools/nv/cmd/linux-test.ts`). macOS has
-  no local run, so macOS differences are CI's.
+- **The code under test follows [coding.md](coding.md)**, whose last rule runs the tests of a change
+  to paths, permissions, sockets, processes or signals on Linux: `bun nv linux-test`.
 - **A test Miri runs is sized for Miri.** Miri runs a test thousands of times slower and models no
   `getrusage`, `mmap(PROT_NONE)` or real process: shrink the loop under `cfg!(miri)`, or mark the test
   `#[cfg_attr(miri, ignore = "<why>")]` on one line, as rustfmt writes it.
