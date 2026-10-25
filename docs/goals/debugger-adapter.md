@@ -169,6 +169,29 @@ and clears every `[[app]] mode`, and `config::set_of` runs it while the process-
 ceiling goes because a written `production` ceiling would otherwise refuse the start. Trade-off: one
 `AtomicBool` for the process, set only by `nvs dap`.
 
+**A step is the context's, not the site table's.** The site table is the unit's, shared by every
+request and task, so arming its bytes for a step would stop every task that reaches them.
+`Ctx::set_step` raises a byte on the stepping context, a site calls `nvs_debug_site` when its armed
+byte or that byte is set, and the controller decides by `Step::stops_at` over the frame depth and by
+`skipFiles`. Trade-offs: one more byte load per statement under the switch, and one walk of the
+frame chain per site while a step is set. Nothing outside the switch.
+
+**The returned value is kept on the context, rendered at the return.** The callee's frame record is
+gone once it returns, and keeping a `Value` would need a retain and a release that every exit path
+must run. `nvs_debug_return` runs only while the step byte is set, and when the step's own frame
+returns it renders the out-slot on the task's stack, where variables are already read, and moves the
+step to the caller. The next stop shows it first in the innermost scope as `f() returned`. Memory:
+one rendered tree per stepping task, freed at its next stop.
+
+**A returned value is redacted unless the written return type rules out `secret`.** The checker
+records no type per expression, so `Function::debug_returns_secret` is read off the declaration
+(`nvs_ir::lower::may_return_secret`). A function with no written return type, a generator, a thunk
+and a property hook show their returned value redacted. Usability cost: a step out of an untyped
+arrow function does not show its value.
+
+**`skipFiles` is a `globset` set,** matched against the file's path with `/` between its parts, and
+on Windows with no regard to case. `globset` is already in the graph through `ignore`.
+
 ## Stages
 
 ### 1. `nvs dap` speaks DAP over stdio and launches a program
@@ -216,11 +239,20 @@ the value the callee returned.
 **Split:** once the four step mechanisms land, one writing subagent writes the step tests in the last
 item over fixtures. The session reviews them.
 
-- [ ] A step arms the thread's next stop site in the same frame, in any deeper frame, or in its caller, and only that thread's sites (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-codegen/src/emit.rs:1230`, `crates/nvs-host/src/debug.rs:1`
+- [x] A step arms the thread's next stop site in the same frame, in any deeper frame, or in its caller, and only that thread's sites (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-codegen/src/emit.rs:1230`, `crates/nvs-host/src/debug.rs:1`
+  - [x] `Step` and the context's step byte (`DEBUG_STEP_OFFSET`), read at each site beside the armed byte
+  - [x] `Debugger::step` names a stop by `Stop::id`, and its task sets the step when it wakes
+  - [x] the handler stops at an unarmed site only where `Step::stops_at` says, as `StopReason::Step`
+  - [x] `next`, `stepIn` and `stepOut` in `Session::answer`, and the `step` reason
 - [ ] A step over an `await` stops at the next statement of the same frame when the task resumes, and the task's siblings run while it waits (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-ir/src/lower/expr.rs:3972`
 - [ ] A step into a call through a `callable` lands in the function or closure it names, and a step into a `Core` method steps over it (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-runtime/src/callable.rs:184`
-- [ ] The frame record keeps the value its function returned, and after a step out the caller's first scope shows it (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-runtime/src/ctx/frames.rs:1`, `crates/nvs-codegen/src/emit.rs:3806`
-- [ ] `skipFiles` keeps a step into from stopping in a file it matches (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [x] The frame record keeps the value its function returned, and after a step out the caller's first scope shows it (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-runtime/src/ctx/frames.rs:1`, `crates/nvs-codegen/src/emit.rs:3806`
+  - [x] the context keeps it instead of the record (`## Standing decisions`), through `nvs_debug_return`
+  - [x] `Function::debug_returns_secret` from the written return type
+  - [x] `Stop::returned`, shown first in the innermost scope
+- [x] `skipFiles` keeps a step into from stopping in a file it matches (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/mod.rs:1`
+  - [x] `LaunchArguments::skip_files`, built into a `globset` set by `dap::skip_files`
+  - [x] `Debugger::skip_files`, read by `Shared::step_stops`
 - [ ] Rust tests for each step kind, across an `await`, into a closure passed as a `callable`, and past a skipped file. `crates/nvs-cli/src/dap/mod.rs:1`
 
 ### 3. conditions, hit counts, logpoints and exception filters
@@ -276,43 +308,43 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 5 are done. `run` goes through `crate::run_run(.., Some(&Debugger))`, `test` through
-`crate::run_test` with `runner::Flags::debug`, and `serve` through
-`crate::serve::run(.., Some(debugger))`, which builds its compiler with `Compiler::debugging` and
-boots in `development` (`## Standing decisions`). Every debug compile names files with
-`dap::file_key`.
+Stages 1 and 5 are done. Stage 2's mechanisms are in (`f9a9a6796`), and four of its tests are owed.
+`launch` reads `mode`, `program`, `args`, `cwd`, `env`, `stopOnEntry`, `filter` and `skipFiles`.
+Not read yet: `pathMappings`.
 
-`launch` reads `mode`, `program`, `args` (a serve's `--listen`/`--port`, `dap::serve_address`),
-`cwd`, `env`, `stopOnEntry` and `filter`. Not read yet: `skipFiles` and `pathMappings`.
+`Debugger::step(stop_id, kind)` names a stop by `Stop::id`, and that stop's task sets a
+`nvs_runtime::Step` on its own context when it wakes. `Shared::step_stops`
+(`crates/nvs-host/src/debug.rs:573`) decides each unarmed site. `nvs_debug_return`
+(`crates/nvs-runtime/src/ctx/frames.rs:455`) keeps the returned value, and the innermost scope
+shows it first as `Shop::total() returned`. An `await` and a `callable` need no code of their own,
+and no test proves them yet (`## Standing decisions` § *A step is the context's*).
 
-Tests in `crates/nvs-cli/tests/dap.rs`: `run` breakpoint, `stopOnEntry` with `env`, `pause` in a
-loop, a breakpoint in a `test` launch, and
-`a_breakpoint_stops_one_served_request_while_another_is_answered`. All pass on Windows. The last
-four have not run on Linux. No existing test is expected to go red.
-
-The two `serve.rs` hunks of this slice (`debugger` parameter, `Compiler::debugging`) were committed
-by the side loop's driver as `a9418ff9e` (`wip(loop): the unfinished slice of session 0048`), under
-a stale claim. That commit does not build alone; the slice commit after it does. Not pushed.
-
-The sweep's nightly CI failures were from `9be30356e`, before their fixes, and
-`env-secret-proofs` passes.
+`a_step_in_over_and_out_moves_one_statement_and_shows_the_returned_value`
+(`crates/nvs-cli/tests/dap.rs:570`) and two unit tests pass on Windows. The `dap.rs` tests after
+the `run` breakpoint test have not run on Linux. No existing test is expected to go red.
 
 For stage 4's attack: `echo` writes a carriage return as `␍`, so a program cannot echo a real
 frame header. The attack shows the line arriving as an `output` event.
 
 ### Next
 
-**Stage 2: stepping**, file set `crates/nvs-codegen/src/emit.rs`, `crates/nvs-host/src/debug.rs`,
-`crates/nvs-runtime/src/ctx/frames.rs`, `crates/nvs-cli/src/dap/mod.rs`. Stage 4 touches no Rust
-and may run as its own lane beside it (`## Standing decisions` § *Lanes*). Before an item, write its
-checkpoints under it in `### 2.`.
+**Finish stage 2: its tests**, file `crates/nvs-cli/tests/dap.rs` alone. Write them with the
+file's `step` and `top_frame` helpers, beside the step test at `:570`, as the stage's split says,
+and run each once by name. A test that fails because the controller is wrong is a fix in
+`crates/nvs-host/src/debug.rs` or `crates/nvs-runtime/src/ctx/frames.rs`, made in the same slice.
+Then tick items 2, 3 and 6 of `### 2.` and set stage 2 done.
 
-- [ ] `next`, `stepIn` and `stepOut` arm the thread's next stop site in the same frame, a deeper frame or the caller, on that thread alone. Start from how `Debugger::resume` lowers `DEBUG_BREAK` and how a site's armed byte is read. `crates/nvs-host/src/debug.rs:1`, `crates/nvs-codegen/src/emit.rs:1230`
-- [ ] A step over an `await` stops at the same frame's next statement on resume. `crates/nvs-ir/src/lower/expr.rs:3972`
-- [ ] A step into through a `callable` lands in its target, and a `Core` method is stepped over. `crates/nvs-runtime/src/callable.rs:184`
-- [ ] The frame record keeps its return value, shown in the caller's first scope after a step out. `crates/nvs-runtime/src/ctx/frames.rs:1`, `crates/nvs-codegen/src/emit.rs:3806`
-- [ ] `skipFiles` read by `launch` (`protocol::LaunchArguments`) and honoured by a step into. `crates/nvs-cli/src/dap/protocol.rs:73`
-- [ ] Step tests by the split the stage names, beside the serve test. `crates/nvs-cli/tests/dap.rs:484`
+- [ ] A `next` over a statement that awaits a task stops at the same frame's next statement, and a sibling task runs while it waits and does not stop. `crates/nvs-host/src/debug.rs:573`
+- [ ] A `stepIn` at a call through a `callable` (`$fn(...)` or a closure given to `Core\Arr::map`) stops in the closure's body. `crates/nvs-runtime/src/callable.rs:184`
+- [ ] A `stepIn` at a statement whose only call is a `Core` method stops at the same frame's next statement. `crates/nvs-host/src/debug.rs:573`
+- [ ] With `skipFiles` naming a second file, a `stepIn` at a call into it stops at the caller's next statement. `crates/nvs-cli/src/dap/mod.rs:493`
+- [ ] A `stepOut` from a method declared `: secret string` shows its returned value redacted, and the secret's text is in no frame the adapter wrote. `crates/nvs-runtime/src/ctx/frames.rs:455`
+
+**Then stage 3: conditions, hit counts, logpoints and exception filters**, files
+`crates/nvs-host/src/debug.rs`, `crates/nvs-cli/src/dap/mod.rs`, `crates/nvs-runtime/src/throwable.rs`,
+`crates/nvs-codegen/src/emit.rs`. Start from where a breakpoint is armed (`DebugUnit::arm`) and where
+a throw starts (`nvs_raise`, `crates/nvs-runtime/src/throwable.rs:1011`). Stage 4 touches no Rust
+and may run as its own lane beside it (`## Standing decisions` § *Lanes*).
 
 ### Backlog
 
