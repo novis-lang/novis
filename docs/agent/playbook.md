@@ -55,6 +55,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **A frame's size on Windows is measured, never guessed from the source.** No frame-size tool
+  works on an MSVC build, and a guess cost a 5-minute release run: an 8 KiB buffer in a function
+  with one caller was not in its caller's frame. A temporary probe that prints the distance from
+  the task stack's base to a local, and the resident pages, at each step gives every frame's size
+  in one run. A by-value `Ctx` was the big frame each time. `until: gone crates/nvs-host/src/stack.rs:What a waiting request holds`
 - **A recursive walk over the repository root overflows the stack in `target/`, and takes half a
   minute there.** A proof run leaves a folder thousands of levels deep under `target/proof/.nvsdata`,
   and `target/` has links back up the tree. `nvs test --list .` died with "has overflowed its
