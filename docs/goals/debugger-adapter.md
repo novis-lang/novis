@@ -34,7 +34,7 @@ stages:
         rules: [ide/the-debugger-ui-is-as-deep-as-the-adapter, errors/escalation-ladder, security/redaction-reaches-the-tools-own-renderings]
   - id: 4
     title: VS Code launches `nvs dap`, and the adapter has its feature proofs
-    status: open
+    status: done
     context: [editors/vscode/package.json, editors/vscode/src/extension.ts, editors/vscode/src/binary.ts, editors/vscode/test/host/surfaces.test.ts, editors/vscode/test/contributions/contributions.test.ts, docs/reference/tools/40-editor.md, docs/rules/ide/the-extension-builds-no-ui-the-editor-already-has.md]
     extra:
       context:
@@ -214,6 +214,22 @@ counted only where the condition holds, and the count is the breakpoint's across
 **A condition may not read a `secret` variable; a logpoint's hole may, and shows it redacted.** A
 condition that stops by a secret's value would tell the person debugging something about it.
 
+**`pathMappings` is a list of `{ "localRoot", "remoteRoot" }`,** the shape VS Code's own adapters
+read (`crates/nvs-cli/src/dap/paths.rs`). The longest root that matches whole parts of a path wins,
+on Windows with no regard to case or separator. `program`, `cwd` and each `setBreakpoints` file are
+mapped in, each frame's file out, and `skipFiles` matches the editor's path. The adapter sends
+`initialized` with its `initialize` answer, so a client may set breakpoints before `launch`: such a
+set is kept by the editor's path and set again under its mapped file at `launch`, with the same ids.
+Moving `initialized` after `launch` would reorder every client's handshake for one field. Memory:
+the roots for the session, and each early set's specs until `launch`.
+
+**`nvsCommand` is a binary or a command line,** written into
+`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`. A string is an `nvs` binary, copied like
+every spawn (`rule:ide/the-extension-runs-a-copy-of-the-binary`). An array, such as
+`["docker", "exec", "-i", "app", "nvs"]`, runs as written with `dap` appended, because its first
+word is a wrapper and not an `nvs` build. The extension also activates on `onDebugResolve:nvs`, so a
+session started with no `.nvs` file open finds the factory.
+
 ## Stages
 
 ### 1. `nvs dap` speaks DAP over stdio and launches a program
@@ -324,13 +340,13 @@ schema, and the feature is documented and proven.
 examples and the attack at the paths `bun nv proofs --id 'tools:editor/nvs-dap'` prints, under § *Text
 an end user reads*.
 
-- [ ] A `debuggers` contribution with the `launch.json` schema, its snippets and the `nvs` language for breakpoints (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/package.json:29`
-- [ ] A `DebugAdapterDescriptorFactory` that starts `nvs dap` with the binary `binary.ts` resolves, or the launch configuration's `nvsCommand`, registered in `activate` (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/extension.ts:121`, `editors/vscode/src/binary.ts:49`
-- [ ] `pathMappings` maps every path in and out of the adapter (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/mod.rs:1`
-- [ ] A host test sets a breakpoint through VS Code's API on the fixture and reads the right variable values, and the contributions test checks the schema. `editors/vscode/test/host/surfaces.test.ts:72`, `editors/vscode/test/contributions/contributions.test.ts:140`
-- [ ] A `# nvs dap` section after `# nvs lsp-test` in the editor chapter (`rule:testing/feature-proofs`). `docs/reference/tools/40-editor.md:229`
-- [ ] `about.md`, three examples and the attack, a program that prints a protocol frame; `bun nv proofs --id 'tools:editor/nvs-dap'` prints nothing owed (`rule:testing/feature-proofs`). `docs/examples/tools/editor/nvs-dap/about.md:1`, `tests/hostile/tools/editor/nvs-dap/01-a-program-prints-a-protocol-frame.nvs:1`
-- [ ] The four rules this goal owns `shipped`, and `bun nv owners --closes debugger-adapter` passes (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`, `rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`, `rule:ide/the-extension-builds-no-ui-the-editor-already-has`, `rule:ide/every-feature-is-staged-behind-its-dependency`). `data/rules/ide/the-debug-adapter-does-not-wait-for-an-editor.json:3`, `data/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.json:3`, `data/rules/ide/the-extension-builds-no-ui-the-editor-already-has.json:3`, `data/rules/ide/every-feature-is-staged-behind-its-dependency.json:3`
+- [x] A `debuggers` contribution with the `launch.json` schema, its snippets and the `nvs` language for breakpoints (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/package.json:29`
+- [x] A `DebugAdapterDescriptorFactory` that starts `nvs dap` with the binary `binary.ts` resolves, or the launch configuration's `nvsCommand`, registered in `activate` (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/extension.ts:121`, `editors/vscode/src/binary.ts:49`
+- [x] `pathMappings` maps every path in and out of the adapter (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [x] A host test sets a breakpoint through VS Code's API on the fixture and reads the right variable values, and the contributions test checks the schema. `editors/vscode/test/host/surfaces.test.ts:72`, `editors/vscode/test/contributions/contributions.test.ts:140`
+- [x] A `# nvs dap` section after `# nvs lsp-test` in the editor chapter (`rule:testing/feature-proofs`). `docs/reference/tools/40-editor.md:229`
+- [x] `about.md`, three examples and the attack, a program that prints a protocol frame; `bun nv proofs --id 'tools:editor/nvs-dap'` prints nothing owed (`rule:testing/feature-proofs`). `docs/examples/tools/editor/nvs-dap/about.md:1`, `tests/hostile/tools/editor/nvs-dap/01-a-program-prints-a-protocol-frame.nvs:1`
+- [x] The four rules this goal owns `shipped`, and `bun nv owners --closes debugger-adapter` passes (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`, `rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`, `rule:ide/the-extension-builds-no-ui-the-editor-already-has`, `rule:ide/every-feature-is-staged-behind-its-dependency`). `data/rules/ide/the-debug-adapter-does-not-wait-for-an-editor.json:3`, `data/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.json:3`, `data/rules/ide/the-extension-builds-no-ui-the-editor-already-has.json:3`, `data/rules/ide/every-feature-is-staged-behind-its-dependency.json:3`
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -349,37 +365,32 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2 and 3 are done. `launch` reads `mode`, `program`, `args`, `cwd`, `env`,
-`stopOnEntry`, `filter` and `skipFiles`. Not read yet: `pathMappings`.
+Stages 1, 5, 2, 3 and 4 are done. Only stage 6, the gate, is left.
 
-Stage 3's tests are in and green: `crates/nvs-cli/tests/dap.rs` has 20 tests, the seven new ones
-after `a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping` (both filters,
-each condition form, each hit form, a `skipFiles` catch, a `Core` fault, a `catch` expression),
-and `crates/nvs-host/src/debug.rs`'s `mod tests` has
-`a_site_s_catches_are_found_by_site_whatever_order_they_arrive_in`. The exception path worked on
-its first run, and nothing in it changed. `throw_stops` needs linked frames and a pending
-exception, so it has no unit test; the protocol tests cover each branch of it.
+Stage 4 landed in seven commits. `pathMappings` is `crates/nvs-cli/src/dap/paths.rs`, with
+three unit tests and `path_mappings_map_every_path_in_and_out_of_the_adapter` in `dap.rs` (21
+tests now), each run once and green. VS Code: the `debuggers` and `breakpoints` contributions in
+`editors/vscode/package.json`, the factory in `editors/vscode/src/debug.ts`, `runnableNamed` in
+`binary.ts`, and `onDebugResolve:nvs` added to `activationEvents`. The headless tier (314) and
+the host tier (16, with the new breakpoint test in `surfaces.test.ts`) each ran once, green.
+`# nvs dap` is in `docs/reference/tools/40-editor.md`. The four rules are `shipped`.
+`bun nv owners --closes debugger-adapter` and `bun nv proofs --gate --only 'tools:editor/nvs-dap'`
+pass.
 
-May go red in stage 6: a test that counts the runtime symbol table (`nvs_debug_throw` is new) or
-a debug unit's calls at a landing block (`crates/nvs-codegen/tests/probes.rs`). The sweep's reds
-are stale (`env-secret-proofs`' log shows exit 0), and nightly `40174915924` is the
-`side-ci-green` loop's.
+May go red in stage 6: a test that counts the runtime symbol table (`nvs_debug_throw` is new), a
+debug unit's calls at a landing block (`crates/nvs-codegen/tests/probes.rs`), a docs check of the
+new `40-editor.md` section or of `docs/rules/ide.md`, and the website render of the new examples.
+The sweep's `env-secret-proofs` red is stale: its gate passes on today's tree. The nightly
+`40174915924` reds are the `side-ci-green` loop's.
 
 ### Next
 
-**Stage 4's first three items.** The `debuggers` contribution in `editors/vscode/package.json`
-(the `launch.json` schema names every field `dap::launch` reads: `mode`, `program`, `args`,
-`cwd`, `env`, `stopOnEntry`, `filter`, `skipFiles`, `pathMappings`, and `nvsCommand` for the
-factory). Then the `DebugAdapterDescriptorFactory` in `editors/vscode/src/extension.ts`, which
-starts the binary `binary.ts` resolves with `dap`. Then `pathMappings` in
-`crates/nvs-cli/src/dap/mod.rs`: map each path `setBreakpoints` sends through `file_key`, and
-each path a `stackTrace` frame and a `breakpoint` event send back. Add one protocol test of it
-beside the others in `dap.rs`, run once by name.
-
-Then items 4 to 6 of stage 4 (host test, `# nvs dap` section, proofs by the stage's `**Split:**`
-line), then its last item, the rule flips. For the attack: `echo` writes a carriage return as
-`␍`, so a program cannot echo a real frame header, and the attack shows the line arriving as an
-`output` event.
+**Stage 6, the gate.** Start `bun nv affected --run` with `run_in_background` (or
+`looper verify`), end the turn, and group its failures by cause as the stage's `**Split:**` says.
+Fix them in one pass, then run it once more. Before `DONE`: `bun nv verify --doc`,
+`bun nv owners --closes debugger-adapter` and `bun nv ci --check`, each red fixed. Move any
+decision only this file's prose holds into a rule or module doc before the file is deleted: the
+`pathMappings` and `nvsCommand` decisions are already in `paths.rs`'s doc and the launch rule.
 
 ### Backlog
 
