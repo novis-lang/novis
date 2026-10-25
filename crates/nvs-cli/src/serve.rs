@@ -4705,8 +4705,10 @@ mod tests {
     const REQUEST_HEAP: isize = 6 * 1024;
 
     /// How many stack pages an idle connection may keep resident in a debug
-    /// build: 8.3 measured on Windows. A release build measured 3.1.
-    const CONNECTION_STACK_PAGES: usize = 9;
+    /// build: 8.3 measured on Windows, and under 9 on Linux x86_64. Linux
+    /// aarch64's debug frames are larger, and CI measured 9.8 there. A release
+    /// build measured 3.1.
+    const CONNECTION_STACK_PAGES: usize = if cfg!(target_arch = "aarch64") { 11 } else { 9 };
 
     /// How many more pages a waiting request may keep resident on its
     /// connection's stack in a debug build: 8.0 measured, and 2.9 in release.
