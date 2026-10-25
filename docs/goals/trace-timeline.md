@@ -48,7 +48,7 @@ stages:
         rules: [observability/speedscope-timeline-export, testing/debug-surface, testing/debug-probes, testing/report-formats]
   - id: 5
     title: VS Code opens a profile
-    status: open
+    status: done
     context: [editors/vscode/src/extension.ts, editors/vscode/package.json, docs/rules/ide/the-extension-builds-no-ui-the-editor-already-has.md]
     extra:
       context:
@@ -129,9 +129,13 @@ bundled webview and declines speedscope.app. **The viewer's source is the `speed
 (MIT), a `devDependency` of `editors/vscode/package.json` at a caret range with
 `editors/vscode/package-lock.json` pinning the version. The `bundle` script copies its built
 `dist/release/` folder and its `LICENSE` into `out/speedscope/`, so `vsce package --no-dependencies`
-ships it. The webview opens `index.html#profileURL=<the file's webview URI>`, with `localResourceRoots`
-the viewer folder and the profile's folder only. Why: no source build and no blob committed to the tree
-(security, simplicity); the lockfile names the exact code that runs.
+ships it. Why: no source build and no blob committed to the tree (security, simplicity); the lockfile
+names the exact code that runs. **Built differently from the plan:** speedscope 1.25 loads a
+`profileURL` only from an `http:` or `https:` page, and a webview is neither. So the profile's bytes go
+into the page, and a nonce script hands them to `window.speedscope.loadFileFromBase64`, the door its own
+CLI uses. The webview's one resource root is the viewer's folder, so the profile's folder is never
+served (security). Spends: the file and its base64 copy per open panel. `editors/vscode/src/viewer.ts`
+holds the page and its policy.
 
 **Each export is checked by its own format, with no new dependency.** No JSON Schema validator is in
 `Cargo.toml` or `package.json`, and none is added. The speedscope test checks what the published
@@ -282,10 +286,10 @@ exports.
 **Does:** a *View Profile* command opens a speedscope file in a webview. It needs only a fixture
 speedscope file, so it runs beside stages 1 to 4.
 
-- [ ] The `speedscope` devDependency, and the `bundle` step that copies its `dist/release/` and licence into `out/speedscope/`. `editors/vscode/package.json:352`
-- [ ] The command and its contribution land (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/extension.ts:129`, `editors/vscode/package.json:202`
-- [ ] The webview loads only the bundled viewer and the chosen file, under a content security policy that allows nothing else (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/profile.ts:1`
-- [ ] A headless test opens a fixture speedscope file and checks the policy and the resource roots. `editors/vscode/test/profile.test.ts:1`
+- [x] The `speedscope` devDependency, and the `bundle` step that copies its `dist/release/` and licence into `out/speedscope/`. `editors/vscode/package.json:352`
+- [x] The command and its contribution land (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/extension.ts:129`, `editors/vscode/package.json:202`
+- [x] The webview loads only the bundled viewer and the chosen file, under a content security policy that allows nothing else (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/profile.ts:1`
+- [x] A headless test opens a fixture speedscope file and checks the policy and the resource roots. `editors/vscode/test/profile/viewer.test.ts:1`
 
 ### 8. the profiler has its feature proofs
 
@@ -323,21 +327,18 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 4, 6, 7 and 8 are done. Stage 5 is next, then the gate stage.
-`bun nv owners --closes trace-timeline` passes.
+Stages 1 to 8 are done. The gate stage is next. `bun nv owners --closes trace-timeline` passes.
 
-- **The metrics gap** (`829f748eb`): `every_core` fills the cache and process memory scopes,
-  `nvs_tasks_in_flight` and `nvs_deferred_trees`, from a per-core `Meter`'s two atomics, a cache
-  reader `nvs-stdlib` registers, and `os::resident_bytes` (`rule:observability/default-series`).
-  Its three new tests ran once, green. The gap record is deleted.
-- **The sweep's reds are stale.** `env-secret-proofs` exits 0 now. The nightly ran on `3ea6f15`, and
-  HEAD fixes each red: `10c402b57` (RUSTSEC-2026-0387), `c31d0a21a` (fmt), and `c953c3456`,
-  `c4842ec8f` and `220cb82b7` (the three Miri jobs).
-
-Expected red at the gate: anything that snapshots `nvs run --help` or `nvs test --help` (two new
-flags each), `nvs meta --json` and reference-card snapshots of `Core\Debug`, and `bun nv scaling
---budget`. The budget is already over for 45 benches, so `--budget --write` refuses, and the two
-new benches `benches/members/tools/cli/profiling.nvs` and `.twin.nvs` still have no share.
+- **Stage 5:** *View Profile* (`nvs.viewProfile`) opens a speedscope file in a webview running the
+  bundled speedscope 1.25 viewer. `scripts/viewer.mjs` copies it into `out/speedscope/` at the start
+  of `bundle`. The page and its policy are `src/viewer.ts`, and the panel is `src/profile.ts`. The
+  profile's bytes go into the page (Standing decisions, *View Profile*). The new `profile` headless
+  suite and the `contributions` suite ran once, green, and so did `cargo test --test
+  extension_reference` for the chapter's new command row. **Not seen in a real editor window yet:**
+  the gate's `test:host` run is the first thing to open it, and it does not run the command.
+- **The sweep's reds are stale.** `env-secret-proofs` exits 0 on HEAD (its log shows exit 0). The
+  nightly run 40075586234 ran on `3ea6f15`, and HEAD fixes each red: `10c402b57` (RUSTSEC-2026-0387),
+  `c31d0a21a` (fmt), and `c953c3456`, `c4842ec8f` and `220cb82b7` (the three Miri jobs).
 
 Expected red at the gate: anything that snapshots `nvs run --help` or `nvs test --help` (two new
 flags each), `nvs meta --json` and reference-card snapshots of `Core\Debug`, and `bun nv scaling
@@ -346,12 +347,13 @@ new benches `benches/members/tools/cli/profiling.nvs` and `.twin.nvs` still have
 
 ### Next
 
-**Stage 5** (`editors/vscode/` only), then the gate stage. A headless suite is a folder,
-`test/<name>/*.test.ts` (`editors/vscode/scripts/headless.mjs`), so the test may need to be
-`test/profile/` rather than `test/profile.test.ts`. Read `headless.mjs` first.
+**Stage 9, the gate.** Start `bun nv affected --run` with `run_in_background` and end the turn to
+wait. Group its failures by cause, fix each in one pass, and run it again. Then the goal-end gates
+(AGENTS.md § *In the loop*).
 
-- [ ] Stage 5: the `speedscope` devDependency and the `bundle` copy into `out/speedscope/`. `editors/vscode/package.json:352`
-- [ ] Stage 5: *View Profile* in `editors/vscode/src/profile.ts`, its contribution, and the headless test. `editors/vscode/src/extension.ts:129`, `editors/vscode/test/profile.test.ts:1`
+- [ ] Stage 9: the first `bun nv affected --run`, failures grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Stage 9: every failure fixed, and the second run green. `tools/nv/cmd/verify.ts:1`
+- [ ] Goal end: `bun nv verify --doc`, `bun nv owners --closes trace-timeline`, `bun nv proofs --gate`, `bun nv render --website --check`. `docs/goals/trace-timeline.md:1`
 
 ### Backlog
 
