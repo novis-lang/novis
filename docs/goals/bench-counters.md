@@ -292,8 +292,13 @@ pre-push checks ok). Each standing decision is also in its home: `rule:testing/b
 - **Callgrind measures each ramp size warm** (`e2d980359`, `tools/nv/cmd/scaling.ts:506`). One plain
   run fills the compile cache before the measured run. `Core\Test::assertTrue` and `assertSame` are
   now `unclear`, not a false `grows`: `bytes` still rises by 1 when the echoed total gains a digit.
-- The sweep's reds were stale: `env-secret-proofs` exits 0, and nightly `40174915924` tested `9be30356e`,
-  before the fixes on HEAD that are not pushed yet.
+- **`floor-debt` is green again** (`416d9764b`, `086cfa96d`). The `nvs fmt` reformat moved two log
+  calls, so their examples' `.out` files named old lines and were blessed again. The bench attack never
+  agreed with its covws recording run: a failed bench's counted row and a memory-limit failure's byte
+  figures depend on the build. `testReport` (`tools/nv/proofs/run.ts:578`) now leaves both out of the
+  comparison. The `no-hand-build` red was gone by the rerun.
+- The sweep's other reds were stale: `env-secret-proofs` exits 0, and nightly `40174915924` tested
+  `9be30356e`, before the fixes on HEAD that are not pushed yet.
 
 Tests expected to go red: none known.
 
