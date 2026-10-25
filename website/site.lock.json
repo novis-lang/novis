@@ -274,7 +274,7 @@
     "Core\\Hash::Digest": "06801779996ca2b0",
     "Core\\Http\\Method": "13001c74b95756a6",
     "Core\\IO::FileMode": "a1bee43338ce76d6",
-    "Core\\Log::Level": "394e9c66a7d89d15",
+    "Core\\Log::Level": "6c1289976c043719",
     "Core\\Mime::Type": "70dd60ad005b3a6f",
     "Core\\Queue::State": "9790f63b8c97f935",
     "Core\\Reflect::TypeKind": "6edbc7dfa224d153",

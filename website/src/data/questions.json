@@ -10531,7 +10531,7 @@
   },
   "/reference/core/password/verify/": {
     "feature": "Core\\Password::verify",
-    "hash": "006aa2b88f9e824c",
+    "hash": "5751842cdea61cb5",
     "questions": [
       "How do I check a password when a user logs in?",
       "Compare a typed password with the stored hash",
@@ -16391,7 +16391,7 @@
   },
   "/reference/types/log-level/": {
     "feature": "Core\\Log::Level",
-    "hash": "30df14dcd27e098a",
+    "hash": "f6b4442d1d0192e3",
     "questions": [
       "Which log levels are there?",
       "How do I write a debug message to the log?",
