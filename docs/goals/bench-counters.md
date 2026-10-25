@@ -6,8 +6,8 @@ context: [crates/nvs-runtime/src/ctx/trace.rs, crates/nvs-cli/src/main.rs, crate
 stages:
   - id: 1
     title: a GC cycle is counted, and a blocking call counts the same on every run
-    status: open
-    context: [crates/nvs-runtime/src/ctx/trace.rs, crates/nvs-runtime/src/ctx/limits.rs, crates/nvs-cli/src/main.rs, crates/nvs-cli/tests/check_command.rs, tools/nv/proofs/perf.ts, data/gaps/nvs-cli/a-counted-run-under-a-ceiling-counts-by-its-cache-state.json]
+    status: done
+    context: [crates/nvs-runtime/src/ctx/trace.rs, crates/nvs-runtime/src/ctx/limits.rs, crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-cli/src/main.rs, crates/nvs-cli/tests/check_command.rs, tools/nv/proofs/perf.ts]
     extra:
       context:
         rules: [testing/bench-counters, testing/member-perf-ledger, observability/gc-pause-is-its-own-event]
@@ -131,7 +131,7 @@ however its job ends.
 - [x] The blocking pool's allocations for a call do not depend on when the answer lands: a call frees its thread before it publishes its answer, so calls one after another use one thread (`## Standing decisions`). `crates/nvs-host/src/blocking.rs:124`, `crates/nvs-host/src/blocking.rs:995`
 - [x] The `writeStdin` bench drops its gap marker and judges the same on repeated runs, and the gap record is deleted (`rule:testing/member-perf-ledger`). `benches/members/core/Process-Handle/writeStdin.nvs:5`
 - [x] A Rust test that two counted runs of a program with a collection print the same line (`rule:testing/bench-counters`). `crates/nvs-cli/tests/check_command.rs:331`
-- [ ] A counted run that collects under a ceiling prints the same line cold and warm, the test above compares one of each, and the gap record is deleted (`rule:testing/bench-counters`). `data/gaps/nvs-cli/a-counted-run-under-a-ceiling-counts-by-its-cache-state.json:1`, `crates/nvs-runtime/src/ctx/limits.rs:281`
+- [x] A counted run that collects under a ceiling prints the same line cold and warm, the test above compares one of each, and the gap record is deleted (`rule:testing/bench-counters`). `crates/nvs-runtime/src/ctx/wiring.rs:121`, `crates/nvs-cli/tests/check_command.rs:331`
 
 ### 2. `#[Bench]` and `nvs test --bench` report the counted rows
 
@@ -206,40 +206,46 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 has one item left. `nvs run --count` prints `gc=<cycles>` last
-(`crates/nvs-runtime/src/ctx/safepoint.rs:395`, `crates/nvs-cli/src/main.rs:2538`). The blocking pool
-frees a `run` job's thread before its answer is published, so `writeStdin` counts the same on every run.
-Its marker and gap record are gone. On Windows, 6 runs of an 8192-round copy differed by one thread start
-(5 allocations) before the fix. After it, 1 run in 37 at 8192 differed by one allocation of 72 bytes, and
-25 runs at 4096 (the ramp's max) all matched. `bun nv scaling --growth` judged both of its benches `flat`
-three times out of three. Linux, where `cat` reads the input, was not run locally.
+Stage 1 is done. `nvs run --count` prints `gc=<cycles>` last, a blocking call counts the same on every
+run, and a counted run that collects under a ceiling prints the same line cold and warm.
 
-The new item comes from a finding of this session. A counted run that collects under a ceiling prints one
-line every cold run and another every warm run: 84 more allocations and 3444 more bytes cold, with the
-same `gc=14`. With no ceiling the two match. The gap record states it.
+The cold/warm difference was the thread's random generator. `TraceContext::started` draws with
+`rand::rng()`, which makes the generator on a thread's first draw. A cold compile draws first, so a warm
+run made the generator inside `Ctx::new`, after `memory_base` was read. Every warm run then held 336 more
+bytes (debug, Windows), so each window between collections fit 6 fewer nodes. `Ctx::new` now draws the
+trace ids before it reads the base (`crates/nvs-runtime/src/ctx/wiring.rs:121`). A cold and a warm run
+of the test's program now print the same line, and the gap record is deleted.
 
-Tests expected to go red: none. `two_counted_runs_with_a_collection_print_the_same_line` and
-`calls_one_after_another_use_one_thread_and_allocate_the_same` are new and pass. The second fails with the
-early release taken out.
+Tests expected to go red: none. `two_counted_runs_with_a_collection_print_the_same_line` now compares two
+cold runs and one warm run, and passes.
 
-The nightly run `40075586234` was on `3ea6f1550`, and HEAD already fixes each job it failed. `crypto-bigint`
-is 0.7.6, `cargo fmt --check` is clean, and the three miri tests are handled by `c953c3456`, `220cb82b7`
-and `c4842ec8f`. `env-secret-proofs` passes when run by hand.
+The sweep's findings needed no change. `env-secret-proofs` passes when run by hand, and its log shows
+exit 0. The nightly run `40075586234` was a `workflow_dispatch` on `3ea6f1550`, and HEAD already fixes
+each job it failed.
 
 ### Next
 
-**Stage 1's last item: a ceiling that counts the same cold and warm**, file set
-`crates/nvs-runtime/src/ctx/limits.rs`, `crates/nvs-runtime/src/budget.rs`, `crates/nvs-cli/src/main.rs`,
-`crates/nvs-cli/src/cache.rs`, `crates/nvs-cli/tests/check_command.rs`. No gate.
+**Stage 2: `#[Bench]` and `nvs test --bench`.** Its gate holds: `test-surface` is retired, and
+`docs/rules/testing/tests-never-reach-a-build.md` has no `**Not on disk.**` paragraph. The file set is
+`crates/nvs-types/src/derive.rs`, `crates/nvs-types/src/testing.rs`, `crates/nvs-cli/src/runner.rs`,
+`docs/rules/testing/bench-counters.md`. Follow the stage's `**Split:**` line.
 
-- [ ] Find what the cold compile moves on the run's thread: the ceiling is `memory_base` plus the limit, so a pre-run allocation freed during the run, or a unit held at a different size after a compile than after a cache load, moves where it is crossed. `crates/nvs-runtime/src/ctx/limits.rs:290`, `crates/nvs-cli/src/cache.rs:1637`
-- [ ] Fix the cause so the crossings depend only on what the program allocated; reproduce with the test's program under `[limits] memory = "2M"`, one fresh `--data` run cold and then warm. `crates/nvs-runtime/src/ctx/limits.rs:290`
-- [ ] The test compares one cold run with one warm run, and the gap record is deleted. `crates/nvs-cli/tests/check_command.rs:331`, `data/gaps/nvs-cli/a-counted-run-under-a-ceiling-counts-by-its-cache-state.json:1`
-- [ ] Stage 1's status is `done` in the front matter. `docs/goals/bench-counters.md:9`
+- [ ] The rule states `#[Bench]`'s `skip` and `because`, and that `--bench` runs benches and no tests. `docs/rules/testing/bench-counters.md:17`
+- [ ] `#[Bench]` joins the roster with its card, and its methods are collected beside `#[Test]`'s. `crates/nvs-types/src/derive.rs:73`, `crates/nvs-types/src/testing.rs:231`
+- [ ] `--bench` runs each bench with `DebugFlags::COUNT` and reports the five counts and an advisory wall time, in text and JSON. `crates/nvs-cli/src/runner.rs:142`, `crates/nvs-cli/src/runner.rs:1478`
+- [ ] A Rust test that a bench's rows are identical across two runs. `crates/nvs-cli/src/runner.rs:3458`
 
 ### Backlog
 
 - Stage 3 is a side lane any session may take (`tools/nv/cmd/scaling.ts`).
-- Stage 4 follows stage 1 (`crates/nvs-codegen/src/lib.rs:896`).
+- Stage 4 is open now that stage 1 is done. It shares `crates/nvs-cli/src/main.rs` with stage 5 only,
+  so it may run before or after stage 2 (`crates/nvs-codegen/src/lib.rs:896`).
+- Stage 5's gate holds: `trace-timeline` is retired.
+- `bun nv owners --closes bench-counters` names 8 perf gap records outside this goal's stages, which
+  `931c14a2e` handed over from `request-overhead`: `crates/nvs-host/src/cpuclock.rs`,
+  `crates/nvs-host/src/isolate.rs`, `crates/nvs-host/src/scheduler.rs`, `crates/nvs-host/src/stack.rs`,
+  `crates/nvs-stdlib/src/format.rs`, `crates/nvs-stdlib/src/math.rs`, `crates/nvs-stdlib/src/request.rs`,
+  `crates/nvs-stdlib/src/test.rs`. The acceptance check needs each built or owned by another goal. A
+  session before the gate stage decides which, and adds a stage or moves the records.
 - The gate stage watches the nightly `writeStdin` perf proof on Linux for the leftover one-allocation
   difference seen above the ramp's max.

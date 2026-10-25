@@ -111,6 +111,14 @@ impl Ctx {
         // the handle into the field below leaves the allocation exactly where it
         // is.
         let tree = std::sync::Arc::new(TreeState::default());
+        // The trace ids are drawn before `memory_base` is read. The draw makes
+        // the thread's random generator on its first use, and that generator is
+        // the thread's for as long as it runs. Charged to the first context
+        // made on a thread, its bytes would be on one run's balance and not on
+        // the next, so a ceiling would be crossed at a point that depends on
+        // what this thread did before: a compile draws first, a cache load does
+        // not (`rule:testing/bench-counters`).
+        let trace_context = crate::trace_context::TraceContext::started();
         let mut ctx = Self {
             safepoint: std::ptr::from_ref(&tree.word),
             debug: DebugFlags::empty(),
@@ -185,7 +193,7 @@ impl Ctx {
             program_id: None,
             config: None,
             grant_filter: None,
-            trace_context: crate::trace_context::TraceContext::started(),
+            trace_context,
             fixed_clock: None,
             owned_by_test: false,
             random_state: None,

@@ -325,8 +325,9 @@ fn check_count_prints_what_each_phase_produced() {
 
 /// `rule:testing/bench-counters`: two counted runs of one program print the
 /// same count line, collections included. The program makes cycles under a
-/// small ceiling, so the in-flight collector runs, and `gc=` is not zero. Each
-/// run has a cache of its own, so both compile the program cold.
+/// small ceiling, so the in-flight collector runs, and `gc=` is not zero. The
+/// first two runs have a cache each, so both compile the program cold. The
+/// third reuses the first one's cache, so it loads the program warm.
 #[test]
 fn two_counted_runs_with_a_collection_print_the_same_line() {
     let program = "<?nvs\nfinal class Node {\n    public lateinit Node $next;\n\n    \
@@ -334,16 +335,18 @@ fn two_counted_runs_with_a_collection_print_the_same_line() {
                    int $i = 0;\nfor (; $i < 100000; $i = $i + 1) {\n    var $a = new Node();\n    \
                    var $b = new Node();\n    $a->next = $b;\n    $b->next = $a;\n}\n\
                    echo \"done\\n\";\n";
-    let line = |case: &str| {
+    let tree = |case: &str| {
         let dir = scratch(case);
         fs::write(dir.join("nvs.toml"), "[limits]\nmemory = \"2M\"\n").unwrap();
         fs::write(dir.join("main.nvs"), program).unwrap();
-        let data = nvs_repo::scratch_private("nvsdata");
+        (dir, nvs_repo::scratch_private("nvsdata"))
+    };
+    let line = |dir: &Path, data: &Path| {
         let run = Command::new(env!("CARGO_BIN_EXE_nvs"))
             .arg("--data")
-            .arg(&*data)
+            .arg(data)
             .args(["run", "--count", "main.nvs"])
-            .current_dir(&dir)
+            .current_dir(dir)
             .output()
             .expect("the `nvs` binary this test was built beside runs");
         let stderr = String::from_utf8_lossy(&run.stderr).into_owned();
@@ -356,12 +359,15 @@ fn two_counted_runs_with_a_collection_print_the_same_line() {
             .to_owned()
     };
 
-    let first = line("gc-count-first");
+    let (dir, data) = tree("gc-count-first");
+    let first = line(&dir, &data);
     assert!(
         !first.ends_with(" gc=0") && first.contains(" gc="),
         "the ceiling ran no collection: {first}"
     );
-    assert_eq!(line("gc-count-second"), first);
+    let (other, other_data) = tree("gc-count-second");
+    assert_eq!(line(&other, &other_data), first, "a second cold run");
+    assert_eq!(line(&dir, &data), first, "a warm run");
 }
 
 /// `nvs run --count` starts no queue worker, whatever `[queue] workers` says:
