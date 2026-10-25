@@ -148,6 +148,14 @@ ahead on the chain is about the request path, so moving them would only defer th
 closing turns out to cost an invariant every contributor must remember is struck as a stated bound in
 its module doc instead, with the reason.
 
+**A cross-tree switch keeps its CPU clock system call, as a stated bound.** No cheaper clock
+charges every switch to the request it ran for. Linux's vDSO serves only wall clocks. The
+`perf_event` task clock reads from a mapped page, but Docker's default seccomp profile and the
+Debian and Ubuntu `perf_event_paranoid` default refuse it, so the clock `[limits] cpu_time` is
+enforced on would gain a second path that CI does not run. Security and request isolation rank above
+latency. A wall clock between switches and skipping the reads around the core's wait both charge a
+request for time it did not spend. `crates/nvs-host/src/cpuclock.rs:49` is the home.
+
 ## Stages
 
 ### 1. a GC cycle is counted, and a blocking call counts the same on every run
@@ -230,8 +238,8 @@ of them builds. The session builds once they all end, and checks each against it
 - [x] `Core\Math::intDiv` is emitted inline, with the same division-by-zero and overflow errors, and its bench declares the calls it makes. `crates/nvs-stdlib/src/math.rs:163`, `data/gaps/nvs-stdlib/math-int-div-is-an-out-of-line-call.json:1`
 - [x] `Core\Test\Response::body` keeps the checked string after the first call, per response, and its bench declares what it measures. `crates/nvs-stdlib/src/test.rs:1`, `data/gaps/nvs-stdlib/a-test-response-body-copies-its-bytes-on-every-call.json:1`
 - [x] `Core\Request::jsonAs` decodes with `read_against`, keeping every check `decodeAs` keeps, and every `Core\Request` and `Core\Json` attack gives the same output. `crates/nvs-stdlib/src/request.rs:336`, `data/gaps/nvs-stdlib/request-json-as-builds-arrays-before-its-object.json:1`
-- [ ] A literal `Str::format` template is split while compiling, a tainted argument's result stays tainted, and the bench declares what it measures. `crates/nvs-stdlib/src/format.rs:1`, `data/gaps/nvs-stdlib/a-literal-format-template-is-parsed-on-every-call.json:1`
-- [ ] A cross-tree switch charges `[limits] cpu_time` with a cheaper clock, and every CPU-time limit test stays green. `crates/nvs-host/src/cpuclock.rs:171`, `data/gaps/nvs-host/a-cross-tree-switch-reads-the-cpu-clock-with-a-system-call.json:1`
+- [x] A literal `Str::format` template is split while compiling, a tainted argument's result stays tainted, and the bench declares what it measures. `crates/nvs-types/src/intrinsics.rs:905`, `crates/nvs-ir/src/lower/expr.rs:2437`
+- [x] A cross-tree switch charges `[limits] cpu_time` with a cheaper clock, or the read is struck as a stated bound (`## Standing decisions`). `crates/nvs-host/src/cpuclock.rs:49`
 - [ ] The hello case's 2.5 µs of isolate start and finish is broken down, and each part that is not isolation is removed or moved out of the request. `crates/nvs-host/src/isolate.rs:1`, `data/gaps/nvs-host/an-isolate-start-and-finish-cost-microseconds-per-request.json:1`
 - [ ] A waiting request's stack and heap are broken down in the module doc, and each part not needed per request is removed. `crates/nvs-host/src/stack.rs:1`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
 
@@ -252,57 +260,42 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 6's first four items are done, one commit each, and their gap records are deleted.
+Stage 6's items 1 to 6 are done, and their gap records are deleted.
 
-- **`TaskId` maps.** `nvs_host::scheduler::TaskMap` is `FxHashMap<TaskId, _>`, and its doc says
-  why the key needs no seed. The task tree, the parked set, the reactor's registrations and the
-  timers' armed deadlines all use it (`crates/nvs-host/src/scheduler.rs:384`). The first profile
-  still showed a SipHash row from the reactor and timer maps, which is why all four use it. The
-  second `bun nv bench-compare --profile hello` shows no hash row among its 33.
-- **`Core\Math::intDiv`** lowers to a new `BinOp::IntDiv` (`crates/nvs-ir/src/lower/expr.rs:4610`),
-  which `emit_truncating_int_div` emits inline with the helper's two `ArithmeticError` messages
-  (`crates/nvs-codegen/src/emit.rs:2020`). A callable value made from the member still calls the
-  helper, and both read the messages from `nvs_stdlib::math`'s constants. The bench counts 0 calls.
-- **`Core\Test\Response::body`** keeps the checked string in a fourth slot, `text`. That string is
-  over the body's own bytes, so no call allocates (`crates/nvs-stdlib/src/test.rs:1051`).
-- **`Core\Request::jsonAs`** calls `json::read_as`, which is `decode_as`'s parse with no context,
-  then `ReadAs::build` (`crates/nvs-stdlib/src/json.rs:2163`). The bench fell from 67 to 32
-  allocations per operation.
+- **`Core\Str::format`.** Every literal template whose checks pass is split. A template the
+  in-order form does not take is `FormatPiece::Rendered` pieces (`crates/nvs-types/src/intrinsics.rs:905`).
+  `lower_rendered_format` evaluates every argument first, then renders each placeholder with
+  `nvs_core_str_format_piece` (`crates/nvs-ir/src/lower/expr.rs:2437`). An empty template stays a call.
+- **The CPU clock read** at a cross-tree switch is a stated bound (`crates/nvs-host/src/cpuclock.rs:49`).
+- **`cargo fmt --check`** failed at HEAD on a re-export in `crates/nvs-types/src/lib.rs`, and passes now.
 
-Checked: build and clippy green. The three new tests pass by name:
-`a_direct_int_div_call_is_an_inline_division_with_an_error_edge`,
-`body_keeps_the_string_it_checked_and_a_second_call_allocates_nothing` and
-`json_as_refuses_each_bad_body_with_the_message_the_array_path_gave`. The jsonAs test first read
-`ctx.take_pending()`, which is empty for a `ParseError` in a context with no program, so it now
-compares the two routes' faults. `bun nv proofs --run` passed every example and attack of
-`Core\Request`, `Core\Json`, `Core\Math` and `Core\Test\Response`. The two `intDiv` conformance
-cases pass. `--record-perf` recorded the three members.
-
-`bun nv owners --closes bench-counters` should name five gaps: stage 3's one and stage 6's last four.
+Checked: build, clippy and fmt green. `a_rendered_template_prints_what_the_member_prints`,
+`a_rendered_placeholder_throws_after_every_argument_ran` and the updated
+`a_literal_format_template_lowers_to_a_concatenation` pass. Seven `Str::format` and taint
+conformance cases pass, and `bun nv proofs --run --only 'Core\Str::format'` is green.
+`bun nv owners --closes bench-counters` names three gaps: stage 3's and stage 6's items 7 and 8.
 
 Tests expected to go red: none known.
 
-The sweep's findings needed no change. The `env-secret-proofs` log shows exit 0 on its rerun, and
-the nightly run `40075586234` is on `3ea6f1550`, far behind HEAD.
+The nightly run `40075586234` is 178 commits behind HEAD. HEAD has `crypto-bigint 0.7.6`, and its
+three Miri failures are fixed (`json.rs:6454`, `session.rs:2303`, `c953c3456`).
 
 ### Next
 
-**Stage 6, items 5 and 6.** Their files are disjoint, so writing subagents may take them side by
-side without building. The session builds once, checks each against its gap record, and deletes it.
+**Stage 6, items 7 and 8.** Each starts with a profile: `bun nv bench-compare --profile hello` for
+the isolate start and finish, and `--profile wait` for a waiting request's memory. A profile builds
+a Docker image in about ten minutes, so run it with `run_in_background`. The two items touch
+disjoint files.
 
-- [ ] A literal `Str::format` template is split while compiling, and a tainted argument's result stays tainted. The checker already takes a literal call apart (`format_pieces`, `crates/nvs-ir/src/lower/expr.rs:4643`): find what is still parsed per call first. `crates/nvs-stdlib/src/format.rs:1`, `data/gaps/nvs-stdlib/a-literal-format-template-is-parsed-on-every-call.json:1`
-- [ ] A cross-tree switch charges `[limits] cpu_time` with a cheaper clock, and every CPU-time limit test stays green. `crates/nvs-host/src/cpuclock.rs:171`, `data/gaps/nvs-host/a-cross-tree-switch-reads-the-cpu-clock-with-a-system-call.json:1`
-
-Items 7 and 8 (the isolate start and finish, and a waiting request's memory) each start with a
-profile from `bun nv bench-compare --profile hello` or `--profile wait`. It builds a Docker image
-in about ten minutes, so run it with `run_in_background`.
+- [ ] The hello case's 2.5 µs of isolate start and finish is broken down, and each part that is not isolation is removed or moved out of the request. `crates/nvs-host/src/isolate.rs:1`, `data/gaps/nvs-host/an-isolate-start-and-finish-cost-microseconds-per-request.json:1`
+- [ ] A waiting request's stack and heap are broken down in the module doc, and each part not needed per request is removed. `crates/nvs-host/src/stack.rs:1`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
 
 Stage 3 (`tools/nv/cmd/scaling.ts:919`) stays open as the other side lane.
 
 ### Backlog
 
 - Stages 3 and 6 are side lanes any session may take (`tools/nv/cmd/scaling.ts`,
-  `crates/nvs-host/src/cpuclock.rs:171`). Stage 6's last four items touch disjoint files.
+  `crates/nvs-host/src/isolate.rs`). Stage 6's last two items touch disjoint files.
 - `--opt-level` and `--probes` are new `nvs test` flags. The gate stage's `bun nv proofs --gate` says
   whether either owes a proof of its own.
 - `bun nv scaling --budget` reports 45 benches over their share, none of them this goal's
