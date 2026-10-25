@@ -62,15 +62,19 @@ carries its path and any write failure. A task of the same request is not an iso
 into its request's table. No `Core` member reads these fields yet. Spends one counter per statement
 per isolate in flight under coverage, freed at its join.
 
-**Not on disk.** The probe bits exist (`crates/nvs-runtime/src/ctx/mod.rs:287`), and `nvs test` writes
-lcov, Clover and Cobertura coverage (`crates/nvs-cli/src/main.rs:617`,
-`crates/nvs-cli/src/coverage.rs`). `Core\Debug`'s seven members exist
-(`crates/nvs-stdlib/src/debug.rs`), and a trace streams one line per returned call to its file
-(`nvs_runtime::TraceSink`). A named profile sink is recorded and nothing writes to it yet. `nvs test` locates
-its coverage tables, and `nvs run` installs a located table when `[debug] mode` has `coverage`, so
-`coverage()` names the files and lines that ran. A spawned isolate's coverage table and closed
-trace come back on its `Completion` (`nvs_runtime::host::Completion::coverage`). There is no
-Callgrind or speedscope exporter, and `nvs run` has no probe flags.
+**A profile is a file and one track per context.** `startProfile` opens a profiler with one track,
+the calling context's, and writes the one file its grant names. `stopProfile` closes the file, and a
+context that ends with its profile running closes it then. `--profile` installs a profiler on the
+run's context, and every child context gets a track of its own in the same file, because two
+contexts' calls interleave and would not nest on one track. A track other than the first writes its
+events to a part file beside the profile, which is copied in and deleted once the first track closes.
+Under `nvs test` each test's context has a track named for the test. A `stopProfile` inside a run
+`--profile` wraps turns the probe off and leaves the run's file open.
+
+The flags are on disk as the paragraphs above describe: `nvs test` writes lcov, Clover and Cobertura
+coverage (`crates/nvs-cli/src/coverage.rs`), and `--profile` and `--profile-out` on both commands
+(`crates/nvs-cli/src/profile.rs`) write either export (`nvs_runtime::Profiler`). `nvs run` has no
+coverage or trace flag of its own; `[debug] mode` and `Core\Debug` turn those on.
 
 **Declined:**
 - **A sampling profiler.** It would interrupt compiled code on a timer and walk native frames on every

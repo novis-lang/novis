@@ -1,0 +1,28 @@
+<?nvs
+// `rule:observability/speedscope-timeline-export`'s fixture: two tests that each
+// call one function of their own, so a profile of the run names both.
+//
+// `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
+use Core\Test;
+
+final class Steps {
+    public static function double(int $n): int {
+        return $n * 2;
+    }
+
+    public static function triple(int $n): int {
+        return Steps::double($n) + $n;
+    }
+}
+
+final class ProfileTest {
+    #[Test]
+    public function itDoubles(): void {
+        Test::assertSame(Steps::double(2), 4);
+    }
+
+    #[Test]
+    public function itTriples(): void {
+        Test::assertSame(Steps::triple(2), 6);
+    }
+}

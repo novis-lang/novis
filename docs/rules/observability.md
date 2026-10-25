@@ -3,7 +3,7 @@
 
 # Observability
 
-*3 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
@@ -378,7 +378,9 @@ work in a request's causal graph.
 
 The spans are derived from the same events the timeline already files: production telemetry reads
 the four event kinds the trace records and adds no instrumentation of its own. A retried outbound call
-is one span carrying an attempt count, not one span per attempt.
+is one span carrying an attempt count, not one span per attempt. A span's start and end are its
+event's, read on the one process clock every event is timed on. The root's are read before and after
+the run, so its window contains every other span's.
 
 The set is closed because of what one more kind would cost. [`testing/debug-probes`](testing.md#testing-debug-probes) keeps the
 per-call path to a load and a predicted-not-taken branch, and every other kind was placed off that
@@ -755,15 +757,28 @@ manifests are read again before concluding either way.
 
 <a id="observability-speedscope-timeline-export"></a>
 
-## The profiler's speedscope export is one evented timeline of every trace event kind, beside its Callgrind export  *(designed — owned by goal trace-timeline)*
+## The profiler's speedscope export is an evented timeline per context, with every trace event kind on it, beside its Callgrind export
 
 `rule:observability/speedscope-timeline-export`
 
 `nvs run --profile=speedscope` and `nvs test --profile=speedscope` write the run's trace events, of
 every kind [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind) names, as speedscope's evented-profile JSON:
 an open and a close at a time on the run's one monotonic clock, which is what each trace event carries.
-speedscope opens the file as one scrollable timeline with every kind on it, and a spawned child's events
-nest under its parent's `spawn` bar.
+A call is a frame named for its callee. A `gc` pause, a `spawn` from its start to its join, and a
+`query` or `http` a recorded run files are frames named for their kind, inside the call that was
+running, so their time is never that call's self time. A time is never written before the one before
+it on its timeline, which keeps a window that began before the latest event inside it.
+
+**Each context is its own timeline**, an evented profile of the file's `profiles` list, because two
+contexts' calls interleave and would not nest on one. The run's context has the first, named for the
+program; under `nvs test` each test has one named for the test; and a spawned child's is named for
+the timeline of the context that started it, with a number. The parent's `spawn` bar spans the
+child's run on the parent's timeline, and the child's calls are on its own.
+
+**Where the file goes.** `--profile=callgrind` writes `callgrind.out.<pid>`, the name KCachegrind
+opens by default, and `--profile=speedscope` writes `profile.<pid>.speedscope.json`, both in the
+working folder. `--profile-out <path>` names another file. The run prints the path on stderr when it
+ends, and `Core\Debug::startProfile` writes speedscope to the path it was given.
 
 It is one of the profiler's two exports. Novis has one profiler, the probe-based one
 [`testing/debug-surface`](testing.md#testing-debug-surface) describes, and `--profile=callgrind` is its other export: self and
@@ -776,9 +791,12 @@ The probe pair costs time at every call, so call-heavy code reads slower in a pr
 unmeasured. The profiler's help text and its `about.md` say so in one sentence, because a reader who
 does not know it will optimise the call overhead the probe added.
 
-- **Memory:** the export streams to its file as events close, through the sink
-  [`testing/debug-surface`](testing.md#testing-debug-surface) names. A run holds one open entry per call frame in flight and one name
-  per distinct function, so the file grows with the run and the process does not.
+- **Memory:** the speedscope export streams to its file as events happen, the first timeline into the
+  file and every other one into a part file beside it, copied in and deleted once the first closes.
+  The Callgrind export adds each timeline's totals into the profiler's when it closes and writes the
+  file at the end. A run holds one open entry per call frame in flight, one name per distinct
+  function, and under Callgrind one total per function and per caller and callee pair, so the file
+  grows with the run and the process does not.
 
 **Declined:**
 - **A sampling profiler beside the probe-based one.** It needs a timer that interrupts compiled code and

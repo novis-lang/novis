@@ -190,6 +190,7 @@ mod isolate;
 mod late_init;
 mod limits;
 mod output;
+mod profile;
 mod safepoint;
 mod trace;
 mod visibility;
@@ -212,6 +213,7 @@ pub use self::inbound::*;
 pub use self::isolate::{PlacedIsolate, RunKind};
 pub use self::late_init::{LateInit, LateInitCall, Settled};
 pub use self::output::*;
+pub use self::profile::*;
 pub use self::safepoint::*;
 pub use self::trace::*;
 pub use self::wiring::*;
@@ -1394,6 +1396,9 @@ pub struct Ctx {
     /// The host's run table, which a joined isolate's table is added into
     /// ([`Ctx::join_coverage`]). Every child context gets a clone of the handle.
     run_hits: Option<std::sync::Arc<StmtHits>>,
+    /// The host's profiler ([`Ctx::set_run_profile`]). Every child context gets a clone of the
+    /// handle and a track of its own in it.
+    run_profile: Option<std::sync::Arc<Profiler>>,
     /// `rule:testing/debug-mode-directive`'s ceiling: the probes `Core\Debug` may turn on in this
     /// context ([`Ctx::start_probes`]). `[debug] mode` and every bit the host turns on raise it, and
     /// a child starts with its parent's current [`DebugFlags`] as its own, so a child only narrows.

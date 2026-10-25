@@ -43,6 +43,19 @@ pub(crate) struct Args {
     /// the queue stay there.
     #[arg(long, conflicts_with_all = ["dump_ir", "dump_asm"])]
     count: bool,
+    /// Time every call and write a profile file when the program ends.
+    ///
+    /// `callgrind` writes the time spent in each function, for KCachegrind
+    /// or Webgrind. `speedscope` writes every call on a timeline, for
+    /// speedscope or the VS Code extension. The file is
+    /// `callgrind.out.<pid>` or `profile.<pid>.speedscope.json` in the
+    /// current folder. The timing adds a small cost to every call, so
+    /// code that makes many small calls looks slower than it is.
+    #[arg(long, value_name = "FORMAT", conflicts_with_all = ["dump_ir", "dump_asm", "count"])]
+    profile: Option<crate::profile::Format>,
+    /// Write the profile to this file instead.
+    #[arg(long, value_name = "FILE", requires = "profile")]
+    profile_out: Option<PathBuf>,
     /// Answer the request this file describes, rather than run as a
     /// program that is answering none.
     ///
@@ -121,6 +134,7 @@ impl Args {
             self.dump_asm,
             self.fault_inject,
             self.count,
+            self.profile.map(|format| (format, self.profile_out)),
             self.request.as_deref(),
             self.peer.as_deref(),
             self.events.as_deref(),

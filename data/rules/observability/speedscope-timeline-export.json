@@ -1,10 +1,11 @@
 {
-  "title": "The profiler's speedscope export is one evented timeline of every trace event kind, beside its Callgrind export",
-  "status": "designed",
+  "title": "The profiler's speedscope export is an evented timeline per context, with every trace event kind on it, beside its Callgrind export",
+  "status": "shipped",
   "seeAlso": [
     "observability/trace-events-carry-a-kind",
     "testing/debug-surface"
   ],
-  "guardedBy": [],
-  "goal": "trace-timeline"
+  "guardedBy": [
+    "crates/nvs-cli/src/runner.rs"
+  ]
 }

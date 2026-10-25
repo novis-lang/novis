@@ -290,6 +290,19 @@ pub(crate) struct Args {
     /// GitLab and Azure DevOps read. One run can write all three files.
     #[arg(long, value_name = "FILE", conflicts_with = "list")]
     coverage_cobertura: Option<PathBuf>,
+    /// Time every call and write a profile file when the tests end.
+    ///
+    /// `callgrind` writes the time spent in each function, for KCachegrind
+    /// or Webgrind. `speedscope` writes every call on a timeline, with one
+    /// timeline for each test. The file is `callgrind.out.<pid>` or
+    /// `profile.<pid>.speedscope.json` in the current folder. The timing
+    /// adds a small cost to every call, so code that makes many small calls
+    /// looks slower than it is. A `.nvst` tree has no profile.
+    #[arg(long, value_name = "FORMAT", conflicts_with = "list")]
+    profile: Option<crate::profile::Format>,
+    /// Write the profile to this file instead.
+    #[arg(long, value_name = "FILE", requires = "profile")]
+    profile_out: Option<PathBuf>,
     /// Check whether the tests notice small changes to the program.
     ///
     /// The tests run once. Then the program is changed in one place, such
@@ -365,6 +378,7 @@ impl Args {
                     .map(|seed| seed.unwrap_or_else(|| rand::rng().random::<u64>())),
                 record_failed: None,
                 mutate: self.mutate,
+                profile: self.profile.map(|format| (format, self.profile_out)),
             },
             &crate::coverage::Requested {
                 lcov: self.coverage_lcov,
@@ -680,6 +694,7 @@ pub(crate) fn run(
         shuffle,
         record_failed,
         mutate,
+        profile,
     } = flags;
     if mutate && format == Format::Junit {
         // `rule:testing/mutation-testing`: JUnit has an element for a test and none for a mutant.
@@ -759,6 +774,24 @@ pub(crate) fn run(
         );
         hits
     });
+    // `--profile`: the suite's context and every test's time their calls into one file.
+    let profiling = match profile {
+        Some((wanted, out)) => {
+            let name = checked
+                .map
+                .files()
+                .next()
+                .map_or_else(String::new, |file| file.name().to_owned());
+            match crate::profile::install(&mut ctx, wanted, out.as_deref(), &name) {
+                Ok(running) => Some(running),
+                Err(line) => {
+                    eprintln!("{line}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+        None => None,
+    };
     // The tree's snapshot goes on the suite's context before anything runs, as
     // `nvs run` puts it on the script's: every test's own parent context is
     // given this snapshot ([`Job::run`]), and its isolate asks that context for
@@ -821,6 +854,11 @@ pub(crate) fn run(
     // them would report a run whose output had not been written yet.
     if let Err(error) = ctx.flush_output() {
         eprintln!("error: could not flush output: {error}");
+        return ExitCode::FAILURE;
+    }
+    if let Some(running) = profiling
+        && !running.finish(&mut ctx)
+    {
         return ExitCode::FAILURE;
     }
     // `rule:testing/inline-snapshots`'s splice, after every test has run and before the summary is
@@ -1357,6 +1395,8 @@ pub(crate) struct Flags {
     /// `--mutate` (`rule:testing/mutation-testing`): after the run, each mutant runs the tests
     /// that reach it ([`mutation`]).
     pub(crate) mutate: bool,
+    /// `--profile` and `--profile-out` ([`crate::profile`]).
+    pub(crate) profile: Option<(crate::profile::Format, Option<PathBuf>)>,
 }
 
 /// `--jobs`'s default: the machine's hardware threads, as `nvs_test` counts
@@ -1484,6 +1524,7 @@ fn run_suite(
                 hits.lines().map(Arc::clone),
             )
         }),
+        profile: ctx.run_profile().cloned(),
         format: shape.format,
         show_output: shape.show_output,
         wall: shape.wall,
@@ -1773,6 +1814,8 @@ struct Shared {
     /// each statement is written, or `None` for a run with no coverage flag.
     /// Each test's own table is located by the same lines.
     coverage: Option<(usize, usize, Option<Arc<nvs_runtime::StmtLines>>)>,
+    /// The run's profiler under `--profile`, which each test's context times its calls into.
+    profile: Option<Arc<nvs_runtime::Profiler>>,
     format: Format,
     show_output: bool,
     /// [`Shape::wall`].
@@ -1946,6 +1989,15 @@ impl Job {
             );
             hits
         });
+        // Under `--profile` the test's calls are a track of their own in the run's one file,
+        // named for the test.
+        if let Some(profiler) = &shared.profile {
+            ctx.set_run_profile(Some(Arc::clone(profiler)));
+            ctx.set_profile_sink(Some(
+                profiler.track(&format!("{}::{}", test.class, case.method)),
+            ));
+            ctx.set_debug_flags(ctx.debug_flags() | nvs_runtime::DebugFlags::PROFILE);
+        }
         let receiving = ctx.class_table();
         let (outcome, snapshots) =
             match nvs_runtime::CrossedFixtures::decode(&fixtures, receiving.as_ref()) {
@@ -5915,6 +5967,203 @@ mod tests {
     /// written in. The last assertion is the one that says the spliced text is
     /// a *literal* and not merely bytes: the same suite, recompiled from the
     /// rewritten file, passes.
+    /// `rule:observability/speedscope-timeline-export`: `--profile` writes each export, and each
+    /// passes its own format's checks. The speedscope file has what the published schema
+    /// requires, with open and close events that balance and times that never go back. The
+    /// Callgrind file has its header, `fn=` blocks with `calls=` lines, and self costs that sum
+    /// to the total.
+    #[cfg_attr(
+        miri,
+        ignore = "compiles and runs a program, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_profile_of_a_suite_passes_each_formats_checks() {
+        let dir = nvs_repo::scratch("runner-profile");
+        let uncached = nvs_config::Snapshot {
+            config: toml::from_str("[opcache]\nfile_cache = false\n")
+                .expect("a tree that turns the disk cache off"),
+            ..Default::default()
+        };
+        let profile = |format: crate::profile::Format, name: &str| {
+            let out = dir.join(name);
+            let checked = crate::front_end(&fixture("profile.nvs")).expect("the fixture compiles");
+            let code = super::run(
+                checked,
+                &uncached,
+                None,
+                Format::Json,
+                &Selection::default(),
+                super::Flags {
+                    update: false,
+                    list: false,
+                    jobs: super::default_jobs(),
+                    show_output: false,
+                    shared_worker: false,
+                    fail_fast: false,
+                    rerun_failed: false,
+                    shuffle: None,
+                    record_failed: None,
+                    mutate: false,
+                    profile: Some((format, Some(out.clone()))),
+                },
+                &crate::coverage::Requested::default(),
+            );
+            assert_eq!(code, std::process::ExitCode::SUCCESS, "both tests pass");
+            std::fs::read_to_string(&out).expect("the profile was written")
+        };
+
+        let speedscope: serde_json::Value =
+            serde_json::from_str(&profile(crate::profile::Format::Speedscope, "run.json"))
+                .expect("the speedscope file is JSON");
+        let frames = check_speedscope(&speedscope);
+        for function in ["Steps::double", "Steps::triple"] {
+            assert!(
+                frames.iter().any(|frame| frame == function),
+                "{function} is a frame: {frames:?}"
+            );
+        }
+        let names: Vec<&str> = speedscope["profiles"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|profile| profile["name"].as_str())
+            .collect();
+        for test in ["ProfileTest::itDoubles", "ProfileTest::itTriples"] {
+            assert!(
+                names.iter().any(|name| name.starts_with(test)),
+                "{test} has a timeline: {names:?}"
+            );
+        }
+
+        let callgrind = profile(crate::profile::Format::Callgrind, "callgrind.out");
+        check_callgrind(&callgrind);
+        assert!(
+            callgrind.contains("fn=Steps::triple\n0 ")
+                && callgrind.contains("cfn=Steps::double\ncalls=1 0\n"),
+            "`Steps::triple` calls `Steps::double` once: {callgrind}"
+        );
+        let left: Vec<_> = std::fs::read_dir(&dir)
+            .expect("the scratch directory exists")
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name())
+            .filter(|name| name.to_string_lossy().ends_with(".part"))
+            .collect();
+        assert!(left.is_empty(), "every part file is deleted: {left:?}");
+    }
+
+    /// What speedscope's `file-format-schema.json` requires of an evented file, and that its
+    /// events nest: answers the frame names.
+    fn check_speedscope(file: &serde_json::Value) -> Vec<String> {
+        assert_eq!(
+            file["$schema"],
+            nvs_runtime::SPEEDSCOPE_SCHEMA,
+            "the schema is named"
+        );
+        let frames: Vec<String> = file["shared"]["frames"]
+            .as_array()
+            .expect("`shared.frames` is an array")
+            .iter()
+            .map(|frame| {
+                frame["name"]
+                    .as_str()
+                    .expect("a frame has a name")
+                    .to_owned()
+            })
+            .collect();
+        let profiles = file["profiles"].as_array().expect("`profiles` is an array");
+        assert!(
+            !profiles.is_empty(),
+            "a run that called something has a profile"
+        );
+        for profile in profiles {
+            assert_eq!(profile["type"], "evented");
+            assert_eq!(profile["unit"], "nanoseconds");
+            assert!(profile["name"].is_string(), "a profile has a name");
+            let start = profile["startValue"]
+                .as_u64()
+                .expect("`startValue` is a number");
+            let end = profile["endValue"]
+                .as_u64()
+                .expect("`endValue` is a number");
+            let mut open = Vec::new();
+            let mut last = start;
+            for event in profile["events"].as_array().expect("`events` is an array") {
+                let frame = event["frame"].as_u64().expect("an event names a frame");
+                let at = event["at"].as_u64().expect("an event has a time");
+                assert!(
+                    usize::try_from(frame).is_ok_and(|frame| frame < frames.len()),
+                    "{event}"
+                );
+                assert!(
+                    at >= last && at <= end,
+                    "`at` never goes back and ends by `endValue`: {event}"
+                );
+                last = at;
+                match event["type"].as_str() {
+                    Some("O") => open.push(frame),
+                    Some("C") => {
+                        assert_eq!(open.pop(), Some(frame), "a close ends the frame on top")
+                    }
+                    other => panic!("an event is `O` or `C`, not {other:?}"),
+                }
+            }
+            assert!(open.is_empty(), "every open has its close: {profile}");
+        }
+        frames
+    }
+
+    /// Callgrind's header, its `fn=` blocks with their `cfn=` and `calls=` lines, and self costs
+    /// that sum to the `summary:` and the `totals:`.
+    fn check_callgrind(file: &str) {
+        let lines: Vec<&str> = file.lines().collect();
+        assert_eq!(lines.first(), Some(&"# callgrind format"));
+        assert!(
+            lines.iter().any(|line| line.starts_with("events: ")),
+            "the header names its events"
+        );
+        let number = |prefix: &str| -> u64 {
+            lines
+                .iter()
+                .find_map(|line| line.strip_prefix(prefix))
+                .and_then(|n| n.trim().parse().ok())
+                .unwrap_or_else(|| panic!("`{prefix}` is in the file"))
+        };
+        let mut selves = 0;
+        let mut functions = 0;
+        for (at, line) in lines.iter().enumerate() {
+            if line.starts_with("fn=") {
+                functions += 1;
+                let cost = lines.get(at + 1).and_then(|cost| cost.strip_prefix("0 "));
+                selves += cost
+                    .and_then(|n| n.parse::<u64>().ok())
+                    .expect("a `fn=` line has its self cost");
+            }
+            if line.starts_with("cfn=") {
+                assert!(
+                    lines
+                        .get(at + 1)
+                        .is_some_and(|calls| calls.starts_with("calls=")),
+                    "a `cfn=` line is followed by its `calls=` line"
+                );
+                assert!(
+                    lines.get(at + 2).is_some_and(|cost| cost.starts_with("0 ")),
+                    "a `calls=` line is followed by its inclusive cost"
+                );
+            }
+        }
+        assert!(functions > 0, "a run that called something has a function");
+        assert_eq!(
+            selves,
+            number("summary:"),
+            "the self costs sum to the summary"
+        );
+        assert_eq!(
+            selves,
+            number("totals:"),
+            "the self costs sum to the totals"
+        );
+    }
+
     #[test]
     fn an_inline_snapshot_updates_its_own_source_when_asked_and_never_otherwise() {
         let dir = nvs_repo::scratch("inline-snapshot");
@@ -5953,6 +6202,7 @@ mod tests {
                 shuffle: None,
                 record_failed: None,
                 mutate: false,
+                profile: None,
             },
             &crate::coverage::Requested::default(),
         );
@@ -5981,6 +6231,7 @@ mod tests {
                 shuffle: None,
                 record_failed: None,
                 mutate: false,
+                profile: None,
             },
             &crate::coverage::Requested::default(),
         );

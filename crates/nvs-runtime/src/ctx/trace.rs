@@ -354,8 +354,17 @@ impl Ctx {
     /// site could hold. `callee` builds the label, and runs only under
     /// [`DebugFlags::TRACE`], so a call with every bit off pays one flags test.
     pub(crate) fn enter_runtime_call(&mut self, callee: impl FnOnce() -> String) {
-        if self.debug.contains(DebugFlags::TRACE) {
-            self.record_trace(&callee(), None);
+        if self
+            .debug
+            .intersects(DebugFlags::TRACE | DebugFlags::PROFILE)
+        {
+            let label = callee();
+            if self.debug.contains(DebugFlags::TRACE) {
+                self.record_trace(&label, None);
+            }
+            if self.debug.contains(DebugFlags::PROFILE) {
+                self.profile_enter(&label);
+            }
         }
         if self.debug.contains(DebugFlags::COUNT) {
             self.counted_calls += 1;
@@ -368,6 +377,25 @@ impl Ctx {
     pub(crate) fn exit_runtime_call(&mut self, callee: impl FnOnce() -> String, status: i32) {
         if self.debug.contains(DebugFlags::TRACE) {
             self.record_trace(&callee(), Some(status));
+        }
+        if self.debug.contains(DebugFlags::PROFILE) {
+            self.profile_exit();
+        }
+    }
+
+    /// A call to `callee` begins, in the running profile — [`nvs_probe_call_enter`]'s effect
+    /// under [`DebugFlags::PROFILE`]. With no profile running it reads no clock.
+    pub fn profile_enter(&mut self, callee: &str) {
+        if let Some(track) = &mut self.debug_sinks.profile {
+            track.enter(callee);
+        }
+    }
+
+    /// The innermost call in the running profile returns — [`nvs_probe_call_exit`]'s effect
+    /// under [`DebugFlags::PROFILE`].
+    pub fn profile_exit(&mut self) {
+        if let Some(track) = &mut self.debug_sinks.profile {
+            track.exit();
         }
     }
 
@@ -425,6 +453,7 @@ impl Ctx {
     /// and the event's window is the `took` that ends here.
     pub fn record_query(&mut self, span: &str, took: Duration) {
         let (start, end) = Self::ended_after(took);
+        self.profile_window("query", start, end);
         self.trace.push(TraceEvent {
             kind: TraceKind::Query,
             callee: span.to_owned(),
@@ -458,6 +487,7 @@ impl Ctx {
     /// [`Ctx::record_query`]'s reason.
     pub fn record_http(&mut self, span: &str, took: Duration) {
         let (start, end) = Self::ended_after(took);
+        self.profile_window("http", start, end);
         self.trace.push(TraceEvent {
             kind: TraceKind::Http,
             callee: span.to_owned(),
@@ -506,6 +536,7 @@ impl Ctx {
     /// total cannot be read as either.
     pub fn close_spawn(&mut self, open: OpenSpawn, child: Option<Duration>) {
         let joined = trace_clock();
+        self.profile_window(open.form.spelling(), open.started, joined);
         let payload = render_spawn(open.form, open.started, joined, child);
         // Indexed rather than assumed: the trace is only ever appended to, so
         // the position holds, and a miss loses one event rather than panicking
@@ -541,6 +572,7 @@ impl Ctx {
     pub(crate) fn close_gc_pause(&mut self, started: Duration, freed: usize) {
         let ended = trace_clock();
         let took = ended.saturating_sub(started);
+        self.profile_window("gc", started, ended);
         self.trace.push(TraceEvent {
             kind: TraceKind::Gc,
             callee: format!("gc started={started:?} took={took:?} freed={freed}"),
@@ -760,11 +792,25 @@ impl StmtLines {
 /// (`rule:testing/debug-surface`), each from its start until its stop. A context that started
 /// neither has `None` for both. A child context does not share them.
 ///
-/// The trace is boxed so a context with no trace running carries one word for it.
+/// The profile is a [`ProfileTrack`] of the file's [`Profiler`]. A child of a context whose host
+/// installed a profiler ([`Ctx::set_run_profile`]) starts with a track of its own in it.
+///
+/// Both are boxed so a context with neither running carries one word for each.
 #[derive(Debug, Default)]
 pub(crate) struct DebugSinks {
     trace: Option<Box<TraceSink>>,
-    profile: Option<std::path::PathBuf>,
+    profile: Option<Box<ProfileTrack>>,
+}
+
+impl DebugSinks {
+    /// A child context's sinks: no trace, and a track of the host's profiler when there is one.
+    pub(crate) fn for_child(run_profile: Option<&Arc<Profiler>>, parent: &Self) -> Self {
+        Self {
+            trace: None,
+            profile: run_profile
+                .map(|profiler| Box::new(profiler.child_track(parent.profile.as_deref()))),
+        }
+    }
 }
 
 /// A trace an isolate left running, closed at its end: what its result carries in place of the
@@ -875,7 +921,7 @@ impl TraceSink {
 }
 
 /// `text` as the inside of a JSON string: `"`, `\` and every control character escaped.
-fn write_json_text(out: &mut impl std::io::Write, text: &str) -> std::io::Result<()> {
+pub(crate) fn write_json_text(out: &mut impl std::io::Write, text: &str) -> std::io::Result<()> {
     let mut rest = text;
     while let Some(at) = rest.find(|c: char| c == '"' || c == '\\' || c.is_control()) {
         out.write_all(&rest.as_bytes()[..at])?;
@@ -907,12 +953,42 @@ impl Ctx {
     /// The file the running profile writes to, while one runs.
     #[must_use]
     pub fn profile_sink(&self) -> Option<&std::path::Path> {
-        self.debug_sinks.profile.as_deref()
+        self.debug_sinks
+            .profile
+            .as_deref()
+            .map(|track| track.profiler().path())
     }
 
-    /// Names the file a profile writes to, or none with `None`.
-    pub fn set_profile_sink(&mut self, path: Option<std::path::PathBuf>) {
-        self.debug_sinks.profile = path;
+    /// Gives this context the track its calls are timed into, or takes it away with `None`, and
+    /// returns the one it had. A track closes when it is dropped.
+    pub fn set_profile_sink(&mut self, track: Option<ProfileTrack>) -> Option<ProfileTrack> {
+        std::mem::replace(&mut self.debug_sinks.profile, track.map(Box::new)).map(|old| *old)
+    }
+
+    /// The host's profiler, which every child context gets a track of its own in.
+    #[must_use]
+    pub fn run_profile(&self) -> Option<&Arc<Profiler>> {
+        self.run_profile.as_ref()
+    }
+
+    /// Installs (or with `None`, removes) the host's profiler. This context's own track is
+    /// [`Self::set_profile_sink`]'s.
+    pub fn set_run_profile(&mut self, profiler: Option<Arc<Profiler>>) {
+        self.run_profile = profiler;
+    }
+
+    /// A child context's sinks, for the constructors in `isolate.rs`.
+    pub(crate) fn child_sinks(&self) -> DebugSinks {
+        DebugSinks::for_child(self.run_profile.as_ref(), &self.debug_sinks)
+    }
+
+    /// Times something that is not a call, from `start` to `end`, into the running profile.
+    fn profile_window(&mut self, label: &str, start: Duration, end: Duration) {
+        if self.debug.contains(DebugFlags::PROFILE)
+            && let Some(track) = &mut self.debug_sinks.profile
+        {
+            track.window(label, start, end);
+        }
     }
 
     /// Closes the trace this context left running, for an isolate's result. A sink is never
@@ -1149,6 +1225,9 @@ pub unsafe extern "C" fn nvs_probe_call_enter(ctx: *mut Ctx, name: *const u8, le
     if ctx.debug.contains(DebugFlags::TRACE) {
         ctx.record_trace(&label, None);
     }
+    if ctx.debug.contains(DebugFlags::PROFILE) {
+        ctx.profile_enter(&label);
+    }
     if ctx.debug.contains(DebugFlags::COUNT) {
         ctx.counted_calls += 1;
     }
@@ -1187,6 +1266,9 @@ pub unsafe extern "C" fn nvs_probe_call_exit(
     let (ctx, label) = unsafe { (&mut *ctx, callee_label(name, len)) };
     if ctx.debug.contains(DebugFlags::TRACE) {
         ctx.record_trace(&label, Some(status));
+    }
+    if ctx.debug.contains(DebugFlags::PROFILE) {
+        ctx.profile_exit();
     }
 }
 

@@ -165,6 +165,7 @@ mod lsp_test;
 mod meta;
 mod openapi;
 mod peer;
+mod profile;
 mod queue;
 mod reload;
 mod run;
@@ -1795,6 +1796,7 @@ fn run_run(
     dump_asm: bool,
     fault_inject: Option<run::FaultSiteArg>,
     count: bool,
+    profile: Option<(profile::Format, Option<PathBuf>)>,
     request: Option<&std::path::Path>,
     peer: Option<&std::path::Path>,
     events: Option<&std::path::Path>,
@@ -2172,6 +2174,24 @@ fn run_run(
     if count {
         ctx.set_debug_flags(nvs_runtime::DebugFlags::COUNT);
     }
+    // `--profile`: the call probes time every call into the file, for the length of the run.
+    let profiling = match profile {
+        Some((format, out)) => {
+            match profile::install(
+                &mut ctx,
+                format,
+                out.as_deref(),
+                &path.display().to_string(),
+            ) {
+                Ok(running) => Some(running),
+                Err(line) => {
+                    eprintln!("{line}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+        None => None,
+    };
     // `rule:concurrency/a-child-belongs-to-the-calling-task` and `rule:concurrency/limit-and-deadline-are-the-only-bounds`: the program is a *task*, because the children a
     // `Core\Task::all` inside it asks for are children of the calling task and
     // `nvs_host::spawn_child` reads that caller off the scheduler rather than
@@ -2515,6 +2535,12 @@ fn run_run(
             nvs_runtime::budget::allocated_bytes().wrapping_sub(bytes),
         );
     }
+    // The profile is closed whatever the outcome below, like the count above.
+    if let Some(running) = profiling
+        && !running.finish(&mut ctx)
+    {
+        return ExitCode::FAILURE;
+    }
 
     // `rule:http-server/containment-does-not-end-at-the-helper`'s outer boundary caught a panic under the task root. For a
     // request that is a failed request; for a CLI run it is this process's
@@ -2603,6 +2629,7 @@ fn run_test(
         rerun_failed,
         shuffle,
         mutate,
+        ref profile,
         ..
     } = flags;
     // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
@@ -2725,6 +2752,11 @@ fn run_test(
         eprintln!(
             "error: `--mutate` changes a program and runs its `#[Test]` methods, not a `.nvst` tree"
         );
+        return ExitCode::FAILURE;
+    }
+    if profile.is_some() {
+        // The calls are timed in the one program this process compiles, as coverage is.
+        eprintln!("error: `--profile` times a program's `#[Test]` methods, not a `.nvst` tree");
         return ExitCode::FAILURE;
     }
 

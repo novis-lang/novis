@@ -1,11 +1,13 @@
 {
   "title": "Each probe starts and stops mid-request, and exports what existing tooling already reads",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/debug-probes",
     "testing/debug-mode-directive",
     "testing/report-formats"
   ],
-  "guardedBy": [],
-  "goal": "trace-timeline"
+  "guardedBy": [
+    "crates/nvs-stdlib/src/debug.rs",
+    "crates/nvs-cli/src/runner.rs"
+  ]
 }

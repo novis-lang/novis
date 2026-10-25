@@ -637,16 +637,44 @@ nvs_runtime::nvs_helper! {
     /// `Core\Debug::startProfile(string $path): void` — the timing probe on, its sink named.
     fn nvs_core_debug_start_profile(ctx, args: [1]) {
         let path = start_sink(ctx, &args[0], (DebugFlags::PROFILE, Cap::DebugProfile), "startProfile")?;
-        ctx.set_profile_sink(Some(path));
-        Ok(Value::null())
+        let label = path.display().to_string();
+        match nvs_runtime::Profiler::create(&path, nvs_runtime::ProfileFormat::Speedscope, &label) {
+            Ok(profiler) => {
+                ctx.set_profile_sink(Some(profiler.track("main")));
+                Ok(Value::null())
+            }
+            Err(err) => {
+                ctx.stop_probes(DebugFlags::PROFILE);
+                Err(Fault::thrown(format!(
+                    "Core\\Debug::startProfile cannot create `{label}`: {err}."
+                )))
+            }
+        }
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Debug::stopProfile(): void` — the timing probe off and its sink closed.
+    /// `Core\Debug::stopProfile(): void` — the timing probe off and its file closed. The probe is
+    /// off even when the close fails, and the failure throws, because the file is missing calls.
+    /// A profile the host started, such as `nvs run --profile`, stays open until the run ends.
     fn nvs_core_debug_stop_profile(ctx, args: [0]) {
         ctx.stop_probes(DebugFlags::PROFILE);
-        ctx.set_profile_sink(None);
+        let hosts = ctx.run_profile().cloned();
+        let Some(track) = ctx.set_profile_sink(None) else {
+            return Ok(Value::null());
+        };
+        let profiler = std::sync::Arc::clone(track.profiler());
+        if hosts.is_some_and(|hosts| std::sync::Arc::ptr_eq(&hosts, &profiler)) {
+            ctx.set_profile_sink(Some(track));
+            return Ok(Value::null());
+        }
+        drop(track);
+        profiler.finish().map_err(|err| {
+            Fault::thrown(format!(
+                "Core\\Debug::stopProfile could not write every call to `{}`: {err}.",
+                profiler.path().display()
+            ))
+        })?;
         Ok(Value::null())
     }
 }

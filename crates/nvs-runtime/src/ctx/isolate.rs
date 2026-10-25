@@ -408,6 +408,8 @@ impl Ctx {
         child.debug_ceiling = self.debug;
         child.stmt_hits = self.stmt_hits.clone();
         child.run_hits = self.run_hits.clone();
+        child.run_profile = self.run_profile.clone();
+        child.debug_sinks = self.child_sinks();
         child.origin = self.origin.clone();
         // The effective configuration, overlay included — see the doc above for
         // why the copy goes this way round and not through the snapshot alone.
@@ -541,6 +543,8 @@ impl Ctx {
         isolate.debug_ceiling = self.debug;
         isolate.stmt_hits = self.fresh_hits();
         isolate.run_hits = self.run_hits.clone();
+        isolate.run_profile = self.run_profile.clone();
+        isolate.debug_sinks = self.child_sinks();
         isolate.origin = self.origin.clone();
         // The configuration **including the parent's overlay**, so a child
         // starts from the values in force where it was spawned rather than from
@@ -718,6 +722,7 @@ impl Ctx {
             debug: self.debug,
             stmt_hits: self.fresh_hits(),
             run_hits: self.run_hits.clone(),
+            run_profile: self.run_profile.clone(),
             origin: self.origin.clone(),
             config: self.config.clone(),
             grant_filter: self.grant_filter.clone(),
@@ -949,6 +954,7 @@ pub struct PlacedIsolate {
     debug: DebugFlags,
     stmt_hits: Option<std::sync::Arc<StmtHits>>,
     run_hits: Option<std::sync::Arc<StmtHits>>,
+    run_profile: Option<std::sync::Arc<crate::Profiler>>,
     origin: Option<Box<str>>,
     config: Option<nvs_config::Request>,
     grant_filter: Option<std::sync::Arc<[nvs_config::capability::Cap]>>,
@@ -1024,6 +1030,9 @@ impl PlacedIsolate {
         child.debug_ceiling = self.debug;
         child.stmt_hits = self.stmt_hits;
         child.run_hits = self.run_hits;
+        child.debug_sinks =
+            DebugSinks::for_child(self.run_profile.as_ref(), &DebugSinks::default());
+        child.run_profile = self.run_profile;
         child.origin = self.origin;
         child.config = self.config;
         child.grant_filter = self.grant_filter;

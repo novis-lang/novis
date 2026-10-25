@@ -208,6 +208,7 @@ impl Ctx {
             run_kind: RunKind::Command,
             stmt_hits: None,
             run_hits: None,
+            run_profile: None,
             debug_ceiling: DebugFlags::empty(),
             debug_sinks: DebugSinks::default(),
             counted_stmts: 0,
