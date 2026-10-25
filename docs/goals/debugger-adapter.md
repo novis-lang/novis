@@ -27,7 +27,7 @@ stages:
         rules: [ide/the-debugger-ui-is-as-deep-as-the-adapter, testing/a-debugged-program-is-compiled-with-a-debug-switch, testing/a-stop-pauses-the-whole-task-tree]
   - id: 3
     title: conditions, hit counts, logpoints and exception filters
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/throwable.rs, crates/nvs-types/src/check.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-cli/src/dap/mod.rs, docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md]
     extra:
       context:
@@ -306,7 +306,12 @@ the last item over fixtures. The session reviews them.
   - [x] `setExceptionBreakpoints`, `exceptionInfo` and the two filters at `initialize`
 - [x] A throw caught inside a `skipFiles` file never stops (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-host/src/debug.rs:1`
   - [x] `Shared::throw_stops` reads the catching frame's file through the `skipFiles` test
-- [ ] Rust tests for each condition form, each hit form, a logpoint, both filters, and a condition that tries to call a method. `crates/nvs-cli/src/dap/mod.rs:1`
+- [x] Rust tests for each condition form, each hit form, a logpoint, both filters, and a condition that tries to call a method. `crates/nvs-cli/src/dap/mod.rs:1`
+  - [x] the exception path run once: `uncaught` and `thrown` each stop once at the throw, and a `catch` that does not match does not stop it again
+  - [x] each condition form, a refused condition per kind, and a `secret` hole redacted
+  - [x] each hit form, and two hit conditions that do not parse
+  - [x] a throw a `skipFiles` file catches, a `Core` method's fault, and a `catch` expression
+  - [x] `DebugUnit::catches_at` and `file_of` as a unit test
 
 ### 4. VS Code launches `nvs dap`, and the adapter has its feature proofs
 
@@ -344,45 +349,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5 and 2 are done. `launch` reads `mode`, `program`, `args`, `cwd`, `env`,
+Stages 1, 5, 2 and 3 are done. `launch` reads `mode`, `program`, `args`, `cwd`, `env`,
 `stopOnEntry`, `filter` and `skipFiles`. Not read yet: `pathMappings`.
 
-Stage 3's first five items are in; only its tests are owed. The exception filters replace the
-push and pop per `try` (revised decision *"Uncaught" is decided at the throw*): the lowering
-records each statement's caught classes (`crates/nvs-ir/src/lower/mod.rs:4271`,
-`Program::stmt_catches` `crates/nvs-ir/src/ir.rs:59`), every landing block under the switch first
-calls `nvs_debug_throw` (`crates/nvs-codegen/src/emit.rs:1641`,
-`crates/nvs-runtime/src/ctx/frames.rs:517`), and `Shared::throw_stops`
-(`crates/nvs-host/src/debug.rs:836`) applies the filters and `skipFiles`. The adapter offers
-`uncaught` (default on) and `thrown`, and answers `setExceptionBreakpoints` and `exceptionInfo`.
-`DebugUnit::new` takes the catches as a fifth argument. The exception path is built and
-clippy-clean, and has never run.
+Stage 3's tests are in and green: `crates/nvs-cli/tests/dap.rs` has 20 tests, the seven new ones
+after `a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping` (both filters,
+each condition form, each hit form, a `skipFiles` catch, a `Core` fault, a `catch` expression),
+and `crates/nvs-host/src/debug.rs`'s `mod tests` has
+`a_site_s_catches_are_found_by_site_whatever_order_they_arrive_in`. The exception path worked on
+its first run, and nothing in it changed. `throw_stops` needs linked frames and a pending
+exception, so it has no unit test; the protocol tests cover each branch of it.
 
-Tests so far: the condition units in `crates/nvs-types/src/condition.rs` and
-`crates/nvs-cli/src/dap/condition.rs`, and one protocol test in `crates/nvs-cli/tests/dap.rs`.
-May go red: a test that counts the runtime symbol table (`nvs_debug_throw` is new) or a debug
-unit's calls at a landing block (`crates/nvs-codegen/tests/probes.rs`). The sweep's reds are
-stale, and nightly `40174915924` is the `side-ci-green` loop's.
+May go red in stage 6: a test that counts the runtime symbol table (`nvs_debug_throw` is new) or
+a debug unit's calls at a landing block (`crates/nvs-codegen/tests/probes.rs`). The sweep's reds
+are stale (`env-secret-proofs`' log shows exit 0), and nightly `40174915924` is the
+`side-ci-green` loop's.
 
 ### Next
 
-**Stage 3's last item: the tests.** First run the exception path once by hand: a fixture under
-`dap.rs`'s helpers that throws inside a `try` and outside one, with `setExceptionBreakpoints`
-`["uncaught"]` and then `["thrown"]`. Check that it stops once per exception, at the throwing
-line, with the variables shown. Then check a `catch` that does not match, which re-raises the
-same object and must not stop a second time. Fix what that shows before writing more.
+**Stage 4's first three items.** The `debuggers` contribution in `editors/vscode/package.json`
+(the `launch.json` schema names every field `dap::launch` reads: `mode`, `program`, `args`,
+`cwd`, `env`, `stopOnEntry`, `filter`, `skipFiles`, `pathMappings`, and `nvsCommand` for the
+factory). Then the `DebugAdapterDescriptorFactory` in `editors/vscode/src/extension.ts`, which
+starts the binary `binary.ts` resolves with `dap`. Then `pathMappings` in
+`crates/nvs-cli/src/dap/mod.rs`: map each path `setBreakpoints` sends through `file_key`, and
+each path a `stackTrace` frame and a `breakpoint` event send back. Add one protocol test of it
+beside the others in `dap.rs`, run once by name.
 
-Then item 6 by its `**Split:**` line: one writing subagent writes the remaining tests in
-`crates/nvs-cli/tests/dap.rs` beside
-`a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping`. They cover each
-condition form, each hit form, a `secret` hole redacted, both filters, a throw a `skipFiles`
-file catches, a `Core` method's fault under `uncaught`, and a `catch` expression. Review them,
-and add a unit test of `DebugUnit::catches_at` and `throw_stops` beside
-`crates/nvs-host/src/debug.rs`'s `mod tests`.
-
-Stage 4 touches no Rust and may run as its own lane beside stage 3 (`## Standing decisions`
-§ *Lanes*). For its attack: `echo` writes a carriage return as `␍`, so a program cannot echo a
-real frame header, and the attack shows the line arriving as an `output` event.
+Then items 4 to 6 of stage 4 (host test, `# nvs dap` section, proofs by the stage's `**Split:**`
+line), then its last item, the rule flips. For the attack: `echo` writes a carriage return as
+`␍`, so a program cannot echo a real frame header, and the attack shows the line arriving as an
+`output` event.
 
 ### Backlog
 
