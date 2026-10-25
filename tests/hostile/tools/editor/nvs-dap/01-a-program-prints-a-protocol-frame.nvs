@@ -1,0 +1,13 @@
+<?nvs
+// Attack: the program prints a complete debugger message to make the editor end the session.
+// The editor should show the text in the debug console, and the session should go on.
+
+// 1. Prints a header and a body that say the session has ended.
+var $body = '{"seq":1,"type":"event","event":"terminated"}';
+echo 'Content-Length: ', Core\Str::length($body), "\r\n\r\n", $body;
+
+// 2. Prints the same message again on its own line. It arrives in the debug console as text.
+echo "\n", 'Content-Length: ', Core\Str::length($body), "\n\n", $body, "\n";
+
+// 3. Prints a normal line. The debug console should show it after the two messages.
+echo "still running\n";

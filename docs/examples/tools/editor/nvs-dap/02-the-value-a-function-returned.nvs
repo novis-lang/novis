@@ -1,0 +1,17 @@
+<?nvs
+// This program shows the value a function returns after you step out of it.
+
+final class Price
+{
+    // The return type `int` is written, so the debugger shows the returned value.
+    public static function withShipping(int $cents): int
+    {
+        int $shipping = 200;
+        return $cents + $shipping;
+    }
+}
+
+// Step into `withShipping`, then step out. The Variables view shows `withShipping() returned` first.
+// Its value is `1200`.
+int $total = Price::withShipping(1000);
+echo $total, "\n";

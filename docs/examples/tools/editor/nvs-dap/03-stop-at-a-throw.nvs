@@ -1,0 +1,23 @@
+<?nvs
+// This program shows how the debugger stops at an exception that a `catch` handles.
+
+final class Stock
+{
+    public static function take(int $have, int $want): int
+    {
+        if ($want > $have) {
+            // With *All Exceptions* on, the program stops at this `throw`.
+            // *Uncaught Exceptions* does not stop here, because the `catch` below handles it.
+            throw new RuntimeError('not enough items in stock');
+        }
+        return $have - $want;
+    }
+}
+
+echo Stock::take(10, 4), "\n";
+
+try {
+    echo Stock::take(2, 5), "\n";
+} catch (RuntimeError $error) {
+    echo 'error: ', $error->message, "\n";
+}

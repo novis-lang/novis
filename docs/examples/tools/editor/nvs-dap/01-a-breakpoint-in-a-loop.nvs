@@ -1,0 +1,13 @@
+<?nvs
+// This program shows a loop where a breakpoint with a condition is useful.
+
+int $total = 0;
+for (int $i = 1; $i <= 5; $i++) {
+    // Set a breakpoint on the next line with the condition `$i == 3`.
+    // The program stops once, and the Variables view shows `$total` is `3`.
+    $total = $total + $i;
+    // A log message `{$i}: {$total}` on this line prints each step in the debug console.
+    echo $i, ' ', $total, "\n";
+}
+
+echo 'total: ', $total, "\n";
