@@ -250,7 +250,14 @@ impl Ctx {
     /// by [`Ctx::new`] where this context was made, so what it publishes is what
     /// it and every context beneath it on this core hold.
     pub fn join_tree(&mut self, tree: std::sync::Arc<TreeState>) {
+        // [`Ctx::new`] made this context's own state before it read
+        // `memory_base`, so freeing it here would take its bytes off this
+        // context's share, and the member would read less than it holds. The
+        // base moves down by what the swap freed, so the share stays the same.
+        let before = crate::budget::live_bytes();
         self.tree = tree;
+        let freed = before.saturating_sub(crate::budget::live_bytes());
+        self.memory_base = self.memory_base.saturating_sub(freed);
         self.safepoint = std::ptr::from_ref(&self.tree.word);
         self.on_root_core = false;
         self.tree_root = false;
