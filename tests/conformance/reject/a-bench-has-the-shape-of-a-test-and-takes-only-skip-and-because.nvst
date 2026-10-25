@@ -84,7 +84,7 @@ error[E0733]: the `#[Bench]` method `itReturnsAValue` returns `int`
 error[E0401]: expected `string`, found `int`
    --> case.nvs:51:19
 %A
-error[E0738]: this `#[TestWith]` is on a method that is a `#[Bench]` rather than a `#[Test]`
+error[E0738]: this `#[TestWith]` is on a method that is a `#[Bench]`
    --> case.nvs:56:15
 %A
 error: aborting due to 10 errors

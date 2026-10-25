@@ -390,7 +390,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         if crate::test_hooks::is_hook(m, ctx, env) {
             // `crate::test_hooks` checks a hook, and refuses one that is also a
             // test or a fixture, so it is in neither roster here.
-            report_stray_rows(&rows, "is a hook rather than a `#[Test]`", env);
+            report_stray_rows(&rows, "is a hook", env);
             continue;
         }
         if let Some(attr) = property {
@@ -398,7 +398,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
             // generated, so a second marker on it is one method claiming two shapes, and
             // a data row would fill a parameter the generator already fills.
             let method = span_text(env.src, m.name).to_owned();
-            report_stray_rows(&rows, "is a `#[Property]` rather than a `#[Test]`", env);
+            report_stray_rows(&rows, "is a `#[Property]`", env);
             let other = if test.is_some() {
                 Some("#[Test]")
             } else if bench.is_some() {
@@ -486,7 +486,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         if let Some(attr) = fixture {
             // A fixture is built **once** for the whole class, so a row — one
             // case per row — has nothing here to vary.
-            report_stray_rows(&rows, "is a `#[Fixture]` rather than a `#[Test]`", env);
+            report_stray_rows(&rows, "is a `#[Fixture]`", env);
             check_fixture_payload(attr, env);
             let Some(ty) = check_fixture_shape(m, &method, class, env) else {
                 continue;
@@ -542,7 +542,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         let rows = match bench {
             // A bench runs once, so a data row has no second call to fill.
             Some(_) => {
-                report_stray_rows(&rows, "is a `#[Bench]` rather than a `#[Test]`", env);
+                report_stray_rows(&rows, "is a `#[Bench]`", env);
                 Vec::new()
             }
             None => rows,
@@ -643,7 +643,7 @@ fn resolve_injections(
         let (params, rows) = resolve_parameters(
             class,
             &case.method,
-            "#[Test]",
+            if case.bench { "#[Bench]" } else { "#[Test]" },
             case.span,
             &roster,
             rows,
@@ -878,7 +878,8 @@ fn rows_attached(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &Env<'_>) -> Vec
 }
 
 /// `rule:testing/data-rows` attaches a data row to a `#[Test]` method and to nothing else: this is
-/// every other member carrying one, refused where the marker is written.
+/// every other member carrying one, refused where the marker is written. Each of those
+/// methods refuses a second `#[Test]` marker, so the help moves the row and never adds one.
 ///
 /// A marker that quietly did nothing is what `rule:core-classes/derive-attribute`'s closed, recognized
 /// roster exists to prevent — an attribute the compiler acts on either acts or
@@ -888,8 +889,8 @@ fn report_stray_rows(rows: &[RawRow], did: &str, env: &mut Env<'_>) {
         report_row_field(
             row.span,
             format!("this `#[TestWith]` is on a method that {did}"),
-            "a `#[TestWith]` row is a test case of a `#[Test]` method. Add `#[Test]` to the \
-             method, or delete the row",
+            "a `#[TestWith]` row is a test case of a `#[Test]` method. Move the row to a \
+             `#[Test]` method, or delete it",
             env,
         );
     }
@@ -1164,7 +1165,7 @@ fn check_method_shape(
             marker,
             method,
             &format!("returns `{returned}`"),
-            "a test reports by asserting rather than by returning, so declare `: void`",
+            "the runner does not use a returned value, so declare `: void`",
             env,
         );
     }
