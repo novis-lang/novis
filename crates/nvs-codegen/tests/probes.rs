@@ -401,7 +401,7 @@ fn a_unit_lowered_without_the_debug_switch_is_unchanged() {
     let before = nvs_codegen::clif(&lower(LOCALS)).expect("the unit compiled");
     let _ = lower_for_debugging(LOCALS);
     let program = lower(LOCALS);
-    assert!(program.functions.iter().all(|f| f.debug_slots.is_empty()));
+    assert!(program.functions.iter().all(|f| f.debug_slots.is_none()));
     let stores = program
         .functions
         .iter()
@@ -464,4 +464,107 @@ fn a_unit_lowered_with_the_debug_switch_has_a_slot_per_local() {
         .expect("the script ran");
     let out = ctx.take_buffered_output().expect("a buffered context");
     assert_eq!(String::from_utf8(out).expect("UTF-8"), "n=6");
+}
+
+/// What one stop saw: its site, and the function index of every frame record
+/// on the chain, innermost first.
+type Stops = std::rc::Rc<std::cell::RefCell<Vec<(u32, Vec<u32>)>>>;
+
+/// Compiles `program`, arms every site `arm` names, and runs the script with a
+/// stop handler that records each stop. Returns the unit, what the stops saw
+/// and the output. Checks that no frame record is linked once the run ends.
+fn run_stopping(
+    program: &nvs_ir::Program,
+    arm: impl Fn(u32) -> bool,
+) -> (nvs_codegen::Unit, Vec<(u32, Vec<u32>)>, String) {
+    let unit = nvs_codegen::compile(program).expect("the unit compiled");
+    let sites = unit.debug_sites().expect("a debug unit has a site table");
+    assert_eq!(sites.len(), program.stmt_spans().len());
+    for site in 0..u32::try_from(sites.len()).unwrap() {
+        sites.arm(site, arm(site));
+    }
+    let stops = Stops::default();
+    let seen = std::rc::Rc::clone(&stops);
+    let mut ctx = Ctx::buffered();
+    ctx.set_debug_stop(Some(Box::new(move |ctx: &mut Ctx| {
+        let chain: Vec<_> = ctx.frames().collect();
+        let site = chain.first().expect("a stop has a frame").site;
+        seen.borrow_mut()
+            .push((site, chain.iter().map(|frame| frame.function).collect()));
+        nvs_runtime::OK
+    })));
+    unit.install_in(&mut ctx);
+    unit.script()
+        .expect("the script frame")
+        .call(&mut ctx)
+        .expect("the script ran");
+    assert_eq!(ctx.frames().count(), 0, "a frame record is still linked");
+    let out = ctx.take_buffered_output().expect("a buffered context");
+    let stops = stops.borrow().clone();
+    (unit, stops, String::from_utf8(out).expect("UTF-8"))
+}
+
+#[test]
+fn a_debug_unit_has_a_stop_site_per_statement() {
+    let program = lower_for_debugging(LOCALS);
+    let statements = u32::try_from(program.stmt_spans().len()).unwrap();
+
+    // Nothing armed: no stop, and the program runs as before.
+    let (_, stops, out) = run_stopping(&program, |_| false);
+    assert_eq!((stops.len(), out.as_str()), (0, "n=6"));
+
+    // Every site armed: each statement stops at its own site, with a frame
+    // record per call in flight.
+    let (unit, stops, out) = run_stopping(&program, |_| true);
+    assert_eq!(out, "n=6");
+    let mut sites: Vec<u32> = stops.iter().map(|(site, _)| *site).collect();
+    sites.sort_unstable();
+    sites.dedup();
+    assert_eq!(sites, (0..statements).collect::<Vec<_>>());
+    let names = |chain: &[u32]| -> Vec<&str> {
+        chain
+            .iter()
+            .map(|&index| unit.debug_function(index).expect("a function index"))
+            .collect()
+    };
+    let deepest = stops
+        .iter()
+        .map(|(_, chain)| chain.as_slice())
+        .max_by_key(|chain| chain.len())
+        .expect("a stop");
+    assert_eq!(names(deepest), ["M::twice", "<script>"]);
+}
+
+#[test]
+fn a_throw_unlinks_the_frame_record_of_every_frame_it_unwinds() {
+    let source = "<?nvs
+class Deep {
+    public static function level3(): void {
+        throw new LogicError(\"boom\");
+    }
+    public static function level2(): void {
+        Deep::level3();
+    }
+}
+int $depth = 0;
+try {
+    Deep::level2();
+} catch (Throwable $e) {
+    $depth = 1;
+}
+echo $depth;
+";
+    let program = lower_for_debugging(source);
+    let (unit, stops, out) = run_stopping(&program, |_| true);
+    assert_eq!(out, "1");
+    let depths: Vec<usize> = stops.iter().map(|(_, chain)| chain.len()).collect();
+    // The throw stops at depth 3, inside `level3`, and the next stop is in the
+    // catch block, back at the script alone.
+    let thrown = depths
+        .iter()
+        .position(|&depth| depth == 3)
+        .expect("a stop inside `level3`");
+    assert_eq!(depths.get(thrown + 1), Some(&1), "{depths:?}");
+    let (_, chain) = &stops[thrown + 1];
+    assert_eq!(unit.debug_function(chain[0]), Some("<script>"));
 }

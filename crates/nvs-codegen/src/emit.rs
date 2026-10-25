@@ -70,8 +70,9 @@ use nvs_ir::ir::{
     AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, TestedClass, UnOp,
 };
 use nvs_runtime::{
-    DEBUG_FLAGS_OFFSET, DEPRECATED_OFFSET, Decimal as NvsDecimal, OK, SAFEPOINT_OFFSET,
-    STACK_LIMIT_OFFSET, THROWN, Tag, Value as NvsValue,
+    DEBUG_FLAGS_OFFSET, DEBUG_FRAMES_OFFSET, DEPRECATED_OFFSET, Decimal as NvsDecimal,
+    FRAME_CALLER_OFFSET, FRAME_FUNCTION_OFFSET, FRAME_RECORD_SIZE, FRAME_SITE_OFFSET,
+    FRAME_SLOTS_OFFSET, OK, SAFEPOINT_OFFSET, STACK_LIMIT_OFFSET, THROWN, Tag, Value as NvsValue,
 };
 use rustc_hash::FxHashMap;
 
@@ -153,6 +154,9 @@ pub(crate) struct UnitTables<'a> {
     /// which every branch probe in it adds to its own `EdgeId` — see
     /// `nvs_ir::Program::edge_spans`.
     pub edge_base: u32,
+    /// This function's index in `nvs_ir::Program::functions`, which its frame
+    /// record carries under the debug switch.
+    pub function_index: u32,
 }
 
 /// Emits `f` into `ctx.func`, which the caller has already given the ABI
@@ -172,6 +176,7 @@ pub(crate) fn emit_function(
         literals,
         stmt_base,
         edge_base,
+        function_index,
     } = tables;
     let target_config = module.target_config();
     let mut b = FunctionBuilder::new(&mut ctx.func, fn_ctx);
@@ -202,18 +207,32 @@ pub(crate) fn emit_function(
     // Under the debug switch, one area of sixteen-byte `Value`s, one per
     // entry of the function's slot table. Without it the function has no
     // table, and nothing here is emitted.
-    let debug_area = if f.debug_slots.is_empty() {
-        None
-    } else {
-        let size = u32::try_from(f.debug_slots.len())
-            .ok()
-            .and_then(|count| count.checked_mul(VALUE_SIZE.cast_unsigned()))
-            .ok_or_else(|| internal("a debug slot area past 4 GiB"))?;
-        Some(b.create_sized_stack_slot(StackSlotData::new(
-            StackSlotKind::ExplicitSlot,
-            size,
-            VALUE_ALIGN_SHIFT,
-        )))
+    let debug_area = match f.debug_slots.as_deref() {
+        None | Some([]) => None,
+        Some(slots) => {
+            let size = u32::try_from(slots.len())
+                .ok()
+                .and_then(|count| count.checked_mul(VALUE_SIZE.cast_unsigned()))
+                .ok_or_else(|| internal("a debug slot area past 4 GiB"))?;
+            Some(b.create_sized_stack_slot(StackSlotData::new(
+                StackSlotKind::ExplicitSlot,
+                size,
+                VALUE_ALIGN_SHIFT,
+            )))
+        }
+    };
+    // Under the debug switch, the frame record, linked before anything can
+    // return. Every return unlinks it again — see [`Emitter::emit_return`].
+    let debug_frame = match f.debug_slots {
+        None => None,
+        Some(_) => Some(link_frame_record(
+            &mut b,
+            module,
+            ctx_p,
+            debug_area,
+            function_index,
+            stmt_base,
+        )?),
     };
 
     // One walk, used twice: which blocks exist at all, and the order they are
@@ -275,6 +294,8 @@ pub(crate) fn emit_function(
         out_p,
         safepoint_p,
         debug_area,
+        debug_frame,
+        debug_site: stmt_base,
         landing_status: None,
         order,
         stack_check_pending: !is_leaf(f),
@@ -283,6 +304,88 @@ pub(crate) fn emit_function(
     emitter.b.seal_all_blocks();
     emitter.b.finalize(target_config);
     Ok(())
+}
+
+/// A function's frame record under the debug switch
+/// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`), and the
+/// values its stop sites read.
+struct DebugFrame {
+    /// The stack slot of the `nvs_runtime::FrameRecord`.
+    record: codegen::ir::StackSlot,
+    /// The base of the unit's `nvs_runtime::SiteTable`, bound once in the ABI
+    /// entry block like `safepoint_p`.
+    sites_p: Value,
+    /// [`DEBUG_FRAMES_OFFSET`], as the offset an instruction takes.
+    head: i32,
+    /// [`FRAME_CALLER_OFFSET`], likewise.
+    caller: i32,
+    /// [`FRAME_SITE_OFFSET`], likewise.
+    site: i32,
+}
+
+/// A layout constant of the runtime, as the offset an instruction takes.
+fn offset_i32(offset: usize) -> Result<i32, CodegenError> {
+    i32::try_from(offset).map_err(|_| internal("a runtime layout offset past 2 GiB"))
+}
+
+/// Links a frame record to the task in the ABI entry block: the caller's
+/// record, the slot base, the function and its first site are written into a
+/// stack slot, and the context's head is set to it. The function's first
+/// statement writes its own site before anything reads the record.
+fn link_frame_record(
+    b: &mut FunctionBuilder<'_>,
+    module: &mut dyn Module,
+    ctx_p: Value,
+    area: Option<codegen::ir::StackSlot>,
+    function: u32,
+    site: u32,
+) -> Result<DebugFrame, CodegenError> {
+    let size =
+        u32::try_from(FRAME_RECORD_SIZE).map_err(|_| internal("a frame record past 4 GiB"))?;
+    // Eight-byte aligned, for the two pointers at its head.
+    let record =
+        b.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, size, 3));
+    let head = offset_i32(DEBUG_FRAMES_OFFSET)?;
+    let caller = offset_i32(FRAME_CALLER_OFFSET)?;
+    let site_offset = offset_i32(FRAME_SITE_OFFSET)?;
+
+    let record_p = b.ins().stack_addr(types::I64, record, 0);
+    let outer = b.ins().load(types::I64, ctx_word(), ctx_p, head);
+    b.ins().store(ctx_word(), outer, record_p, caller);
+    let slots = match area {
+        Some(area) => b.ins().stack_addr(types::I64, area, 0),
+        None => b.ins().iconst(types::I64, 0),
+    };
+    b.ins()
+        .store(ctx_word(), slots, record_p, offset_i32(FRAME_SLOTS_OFFSET)?);
+    let function = b.ins().iconst(types::I32, i64::from(function));
+    b.ins().store(
+        ctx_word(),
+        function,
+        record_p,
+        offset_i32(FRAME_FUNCTION_OFFSET)?,
+    );
+    let first = b.ins().iconst(types::I32, i64::from(site));
+    b.ins().store(ctx_word(), first, record_p, site_offset);
+    b.ins().store(ctx_word(), record_p, ctx_p, head);
+
+    // An import, so it arrives with `colocated` clear: see
+    // [`Emitter::clear_colocated`].
+    let data = module
+        .declare_data(crate::DEBUG_SITES_SYMBOL, Linkage::Import, true, false)
+        .map_err(|source| CodegenError::Cranelift {
+            function: "<debug sites>".to_owned(),
+            source: Box::new(source),
+        })?;
+    let global = module.declare_data_in_func(data, b.func);
+    let sites_p = b.ins().symbol_value(types::I64, global);
+    Ok(DebugFrame {
+        record,
+        sites_p,
+        head,
+        caller,
+        site: site_offset,
+    })
 }
 
 /// How many instructions at the head of `block` are phis, rejecting a phi that
@@ -463,8 +566,15 @@ struct Emitter<'a, 'f> {
     /// entry block — see [`Emitter::emit_safepoint`].
     safepoint_p: Value,
     /// Under the debug switch, the stack slot holding the function's variable
-    /// slots, and `None` without it — see [`Emitter::emit_debug_locals`].
+    /// slots, and `None` without it or for a function with no variables — see
+    /// [`Emitter::emit_debug_locals`].
     debug_area: Option<codegen::ir::StackSlot>,
+    /// Under the debug switch, the function's frame record, and `None` without
+    /// it — see [`link_frame_record`].
+    debug_frame: Option<DebugFrame>,
+    /// The program-wide number of the statement marker emitted last, which the
+    /// stop site after it carries.
+    debug_site: u32,
     /// The status parameter of the landing block currently being emitted, or
     /// `None` for an ordinary block — see [`is_landing`].
     landing_status: Option<Value>,
@@ -553,9 +663,10 @@ impl Emitter<'_, '_> {
                     .stmt_base
                     .checked_add(stmt.index())
                     .ok_or_else(|| internal("a unit with more than 2^32 statements"))?;
+                self.debug_site = stmt;
                 return self.emit_stmt_probe(cur, stmt);
             }
-            InstKind::DebugLocals(stores) => self.emit_debug_locals(stores)?,
+            InstKind::DebugLocals(stores) => return self.emit_debug_locals(stores, inst.on_error),
             InstKind::Safepoint => return self.emit_safepoint(cur, inst.on_error),
             InstKind::DeprecationCheck { message, at } => {
                 return self.emit_deprecation_check(message, at, inst.on_error);
@@ -1193,7 +1304,7 @@ impl Emitter<'_, '_> {
         self.b.ins().brif(status, stop, &[], cont, &[]);
 
         self.b.switch_to_block(stop);
-        self.b.ins().return_(&[status]);
+        self.emit_return(status);
 
         self.b.switch_to_block(cont);
         Ok(cont)
@@ -1245,7 +1356,7 @@ impl Emitter<'_, '_> {
             self.b.ins().brif(status, stop, &[], cont, &[]);
 
             self.b.switch_to_block(stop);
-            self.b.ins().return_(&[status]);
+            self.emit_return(status);
         }
 
         self.b.switch_to_block(cont);
@@ -1328,13 +1439,33 @@ impl Emitter<'_, '_> {
     /// a whole `Value`, and every other slot as never assigned. So a slot read
     /// at this statement never shows a value that left scope earlier. The
     /// store takes no reference; the variable keeps its own.
-    fn emit_debug_locals(&mut self, stores: &[(u32, ValueId)]) -> Result<(), CodegenError> {
-        let area = self
-            .debug_area
-            .ok_or_else(|| internal("a debug store in a function with no slot table"))?;
+    ///
+    /// Then the statement's stop site, [`Self::emit_stop_site`].
+    fn emit_debug_locals(
+        &mut self,
+        stores: &[(u32, ValueId)],
+        on_error: Option<BlockId>,
+    ) -> Result<Block, CodegenError> {
+        let count = self.f.debug_slots.as_ref().map_or(0, Vec::len);
+        if let Some(area) = self.debug_area {
+            self.emit_debug_stores(area, count, stores)?;
+        } else if !stores.is_empty() {
+            return Err(internal("a debug store in a function with no slot table"));
+        }
+        self.emit_stop_site(on_error)
+    }
+
+    /// [`Self::emit_debug_locals`]'s stores into the slot area `area` of
+    /// `count` slots.
+    fn emit_debug_stores(
+        &mut self,
+        area: codegen::ir::StackSlot,
+        count: usize,
+        stores: &[(u32, ValueId)],
+    ) -> Result<(), CodegenError> {
         let base = self.b.ins().stack_addr(types::I64, area, 0);
         let mut listed = stores.iter().peekable();
-        for slot in 0..self.f.debug_slots.len() {
+        for slot in 0..count {
             let offset = i32::try_from(slot)
                 .ok()
                 .and_then(|slot| slot.checked_mul(VALUE_SIZE))
@@ -1351,6 +1482,74 @@ impl Emitter<'_, '_> {
             return Err(internal("a debug store past its function's slot table"));
         }
         Ok(())
+    }
+
+    /// A statement's stop site under the debug switch
+    /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+    ///
+    /// Writes the site's number into the frame record, then tests the site's
+    /// armed byte with one load and one branch to [`nvs_runtime::nvs_debug_site`],
+    /// then the safepoint word with one load and one branch to
+    /// [`nvs_runtime::nvs_safepoint`], so a pending pause stops here too. Both
+    /// calls' statuses go to `on_error`, which releases the statement's
+    /// variables.
+    fn emit_stop_site(&mut self, on_error: Option<BlockId>) -> Result<Block, CodegenError> {
+        let (record, sites_p, site_offset) = match &self.debug_frame {
+            Some(frame) => (frame.record, frame.sites_p, frame.site),
+            None => return Err(internal("a stop site in a function with no frame record")),
+        };
+        let site = self.debug_site;
+        let record_p = self.b.ins().stack_addr(types::I64, record, 0);
+        let number = self.b.ins().iconst(types::I32, i64::from(site));
+        self.b
+            .ins()
+            .store(ctx_word(), number, record_p, site_offset);
+
+        let byte = i32::try_from(site).map_err(|_| internal("a stop site past 2 GiB"))?;
+        let armed = self.b.ins().uload8(types::I32, ctx_word(), sites_p, byte);
+        let stop = self.b.create_block();
+        let poll = self.b.create_block();
+        self.b.ins().brif(armed, stop, &[], poll, &[]);
+
+        self.b.switch_to_block(stop);
+        let callee = self.runtime_ref("nvs_debug_site", RuntimeSig::DebugSite)?;
+        let call = self.b.ins().call(callee, &[self.ctx_p]);
+        let status = self.b.inst_results(call)[0];
+        self.emit_status_check(status, on_error)?;
+        self.b.ins().jump(poll, &[]);
+
+        self.b.switch_to_block(poll);
+        let flags = self
+            .b
+            .ins()
+            .load(types::I64, ctx_word(), self.safepoint_p, 0);
+        let slow = self.b.create_block();
+        let cont = self.b.create_block();
+        self.b.ins().brif(flags, slow, &[], cont, &[]);
+
+        self.b.switch_to_block(slow);
+        let callee = self.runtime_ref("nvs_safepoint", RuntimeSig::Safepoint)?;
+        let call = self.b.ins().call(callee, &[self.ctx_p]);
+        let status = self.b.inst_results(call)[0];
+        self.emit_status_check(status, on_error)?;
+        self.b.ins().jump(cont, &[]);
+
+        self.b.switch_to_block(cont);
+        Ok(cont)
+    }
+
+    /// Returns `status` from the function. Under the debug switch, first puts
+    /// the context's frame head back to the caller's record, so every way out
+    /// of the function unlinks its record: a value, a throw, a stop and a
+    /// failed stack check.
+    fn emit_return(&mut self, status: Value) {
+        if let Some(frame) = &self.debug_frame {
+            let (record, head, caller) = (frame.record, frame.head, frame.caller);
+            let record_p = self.b.ins().stack_addr(types::I64, record, 0);
+            let outer = self.b.ins().load(types::I64, ctx_word(), record_p, caller);
+            self.b.ins().store(ctx_word(), outer, self.ctx_p, head);
+        }
+        self.b.ins().return_(&[status]);
     }
 
     /// `rule:testing/debug-probes`'s conditional-edge check, emitted before a
@@ -4066,13 +4265,13 @@ impl Emitter<'_, '_> {
             Terminator::Return(None) => {
                 self.store_tag_and_bits(self.out_p, 0, Tag::Null, None)?;
                 let ok = self.b.ins().iconst(types::I32, i64::from(OK));
-                self.b.ins().return_(&[ok]);
+                self.emit_return(ok);
             }
             Terminator::Return(Some(id)) => {
                 let (value, ty) = self.value(*id)?;
                 self.store_value(self.out_p, 0, value, ty)?;
                 let ok = self.b.ins().iconst(types::I32, i64::from(OK));
-                self.b.ins().return_(&[ok]);
+                self.emit_return(ok);
             }
             Terminator::Jump(target) => {
                 let args = self.phi_args(block.id, *target)?;
@@ -4167,7 +4366,7 @@ impl Emitter<'_, '_> {
                 self.b
                     .ins()
                     .call(callee, &[self.ctx_p, address, len, status]);
-                self.b.ins().return_(&[status]);
+                self.emit_return(status);
             }
             Terminator::Catch { handler, onward } => {
                 let status = self.landing_status()?;
@@ -4405,6 +4604,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::Helper => &self.sigs.helper,
             RuntimeSig::HelperVariadic => &self.sigs.helper_variadic,
             RuntimeSig::Safepoint => &self.sigs.safepoint,
+            RuntimeSig::DebugSite => &self.sigs.debug_site,
             RuntimeSig::StackCheck => &self.sigs.stack_check,
             RuntimeSig::Deprecated => &self.sigs.deprecated,
             RuntimeSig::Probe => &self.sigs.probe,
@@ -4468,6 +4668,7 @@ enum RuntimeSig {
     Helper,
     HelperVariadic,
     Safepoint,
+    DebugSite,
     StackCheck,
     Deprecated,
     Probe,

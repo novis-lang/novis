@@ -2593,7 +2593,8 @@ impl<'a> Lowering<'a> {
 
     /// Appends a statement's [`InstKind::StmtMarker`] to `b`, and under the
     /// debug switch the [`InstKind::DebugLocals`] storing every variable `env`
-    /// has there.
+    /// has there. Its error edge releases what `env` holds, as every fallible
+    /// instruction's does, because the stop site it carries can end the request.
     ///
     /// A name with a `#` is one this lowering made up, such as an anonymous
     /// function's own object, and gets no slot. A by-reference variable and a
@@ -2625,11 +2626,12 @@ impl<'a> Lowering<'a> {
             })
             .collect();
         stores.sort_unstable_by_key(|&(slot, _)| slot);
+        let landing = self.landing_block(env);
         self.block_insts[b.index() as usize].push(Inst {
             result: None,
             ty: None,
             kind: InstKind::DebugLocals(stores),
-            on_error: None,
+            on_error: Some(landing),
             raise_site: None,
         });
     }
@@ -4173,10 +4175,10 @@ impl<'a> Lowering<'a> {
         Vec<BasicBlock>,
         Vec<Span>,
         Vec<Span>,
-        Vec<crate::ir::DebugSlot>,
+        Option<Vec<crate::ir::DebugSlot>>,
     ) {
         let (stmt_spans, edge_spans) = self.ids.into_spans();
-        let debug_slots = self.debug.map(|debug| debug.slots).unwrap_or_default();
+        let debug_slots = self.debug.map(|debug| debug.slots);
         let blocks = self
             .block_ids
             .into_iter()

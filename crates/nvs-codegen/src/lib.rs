@@ -381,6 +381,14 @@ pub struct Unit {
     /// Under the debug switch, each function's slot table by the same name as
     /// [`Unit::entries`], and empty without it — see [`Unit::debug_slots`].
     debug_slots: FxHashMap<String, Vec<nvs_ir::ir::DebugSlot>>,
+    /// Under the debug switch, the armed byte of every stop site — see
+    /// [`Unit::debug_sites`]. The code pages keep a second handle, because
+    /// compiled code reads the table for as long as they are mapped.
+    debug_sites: Option<Arc<nvs_runtime::SiteTable>>,
+    /// Under the debug switch, every function's name at its index in
+    /// `nvs_ir::Program::functions`, the number a frame record carries — see
+    /// [`Unit::debug_function`]. Empty without it.
+    debug_functions: Vec<String>,
 }
 
 /// The pages of a unit this process compiled: `cranelift-jit`'s own mapping,
@@ -622,7 +630,7 @@ impl Unit {
 
     /// The slot table of the function `name`, when the unit was lowered under
     /// the debug switch (`nvs_ir::lower::with_debug_slots`), and `None`
-    /// otherwise or for a function with no variables.
+    /// otherwise. A function with no variables has an empty table.
     ///
     /// Entry `i` describes the `i`th sixteen-byte `nvs_runtime::Value` of the
     /// function's slot area: the variable's name and the representation its
@@ -631,6 +639,25 @@ impl Unit {
     #[must_use]
     pub fn debug_slots(&self, name: &str) -> Option<&[nvs_ir::ir::DebugSlot]> {
         self.debug_slots.get(name).map(Vec::as_slice)
+    }
+
+    /// The armed byte of every stop site in the unit, indexed by the
+    /// program-wide statement number `nvs_ir::Program::stmt_spans` uses. `None`
+    /// for a unit lowered without the debug switch
+    /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+    #[must_use]
+    pub fn debug_sites(&self) -> Option<&nvs_runtime::SiteTable> {
+        self.debug_sites.as_deref()
+    }
+
+    /// The name of the function a frame record's index names
+    /// ([`nvs_runtime::Frame::function`]), under the debug switch. `None`
+    /// without it or for an index past the unit.
+    #[must_use]
+    pub fn debug_function(&self, index: u32) -> Option<&str> {
+        self.debug_functions
+            .get(usize::try_from(index).ok()?)
+            .map(String::as_str)
     }
 
     /// The runtime descriptor this unit built for `label`, or `None` for a
@@ -1298,6 +1325,8 @@ impl Descriptors {
             // A cached artifact is never a debug unit: a debug session compiles
             // in process.
             debug_slots: FxHashMap::default(),
+            debug_sites: None,
+            debug_functions: Vec::new(),
         }
     }
 }
@@ -1337,6 +1366,12 @@ struct UnitBuilder<M> {
     /// Each function's debug slot table, for every function that has one —
     /// moved into [`Unit::debug_slots`].
     debug_slots: FxHashMap<String, Vec<nvs_ir::ir::DebugSlot>>,
+    /// Under the debug switch, the unit's stop-site table — moved into
+    /// [`Unit::debug_sites`].
+    debug_sites: Option<Arc<nvs_runtime::SiteTable>>,
+    /// Under the debug switch, every function's name by index — moved into
+    /// [`Unit::debug_functions`].
+    debug_functions: Vec<String>,
     /// Every class the unit declares — the descriptors compiled code points
     /// at, and the field-slot index every `FieldGet`/`FieldSet` resolves
     /// through.
@@ -1997,6 +2032,10 @@ struct Signatures {
     helper_variadic: Signature,
     /// `nvs_safepoint(ctx) -> status`.
     safepoint: Signature,
+    /// `nvs_debug_site(ctx) -> status`, an armed stop site's slow path. The
+    /// same shape as `safepoint`, kept apart so the two symbols never share
+    /// one declaration.
+    debug_site: Signature,
     /// `nvs_stack_check(ctx, sp) -> status` —
     /// `rule:errors/on-limit`'s
     /// slow path. `sp` is `I64` for the reason every other pointer-shaped
@@ -2320,6 +2359,8 @@ impl<M: Module> UnitBuilder<M> {
             functions: FxHashMap::default(),
             shapes: FxHashMap::default(),
             debug_slots: FxHashMap::default(),
+            debug_sites: None,
+            debug_functions: Vec::new(),
             classes: Classes::default(),
             desc_symbols,
             statics: FxHashMap::default(),
@@ -2385,15 +2426,18 @@ impl<M: Module> UnitBuilder<M> {
             self.functions.insert(function.name.clone(), id);
             self.shapes
                 .insert(function.name.clone(), MethodShape::of(&function.params));
-            if !function.debug_slots.is_empty() {
+            if let Some(slots) = &function.debug_slots {
                 self.debug_slots
-                    .insert(function.name.clone(), function.debug_slots.clone());
+                    .insert(function.name.clone(), slots.clone());
             }
         }
+        self.publish_debug_sites(program);
         let mut stmt_base = 0_u32;
         let mut edge_base = 0_u32;
-        for function in &program.functions {
-            self.compile_function(function, stmt_base, edge_base)?;
+        for (index, function) in program.functions.iter().enumerate() {
+            let index = u32::try_from(index)
+                .map_err(|_| emit::internal("a unit with more than 2^32 functions"))?;
+            self.compile_function(function, index, stmt_base, edge_base)?;
             stmt_base = u32::try_from(function.stmt_spans.len())
                 .ok()
                 .and_then(|count| stmt_base.checked_add(count))
@@ -2406,6 +2450,28 @@ impl<M: Module> UnitBuilder<M> {
         Ok(())
     }
 
+    /// Under the debug switch, makes the unit's stop-site table, one byte per
+    /// statement in the program, and publishes its address as
+    /// [`DEBUG_SITES_SYMBOL`] for the stop sites to relocate against. Records
+    /// every function's name by index beside it. Does nothing for a program
+    /// lowered without the switch.
+    ///
+    /// **What it spends:** one byte per statement and one name per function,
+    /// per debug unit.
+    fn publish_debug_sites(&mut self, program: &Program) {
+        if program.functions.iter().all(|f| f.debug_slots.is_none()) {
+            return;
+        }
+        let sites = program.functions.iter().map(|f| f.stmt_spans.len()).sum();
+        let table = Arc::new(nvs_runtime::SiteTable::new(sites));
+        self.desc_symbols
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(DEBUG_SITES_SYMBOL.to_owned(), table.base());
+        self.debug_sites = Some(table);
+        self.debug_functions = program.functions.iter().map(|f| f.name.clone()).collect();
+    }
+
     /// Emits one already-declared function's body. `stmt_base` is the
     /// program-wide number of the function's first statement: the count of
     /// statements in every function before it in `program.functions`, which is
@@ -2414,6 +2480,7 @@ impl<M: Module> UnitBuilder<M> {
     fn compile_function(
         &mut self,
         function: &nvs_ir::Function,
+        index: u32,
         stmt_base: u32,
         edge_base: u32,
     ) -> Result<(), CodegenError> {
@@ -2442,6 +2509,7 @@ impl<M: Module> UnitBuilder<M> {
                 literals: &mut self.literals,
                 stmt_base,
                 edge_base,
+                function_index: index,
             },
             function,
         );
@@ -2531,15 +2599,19 @@ impl UnitBuilder<JITModule> {
             .iter()
             .map(|(name, id)| (name.clone(), self.module.get_finalized_function(*id)))
             .collect();
-        self.classes
-            .table
-            .keep_code(Arc::new(JitPages::new(self.module)));
+        // The stop-site table lives as long as the pages whose code reads it.
+        self.classes.table.keep_code(Arc::new((
+            JitPages::new(self.module),
+            self.debug_sites.clone(),
+        )));
         Ok(Unit {
             classes: std::sync::Arc::new(self.classes.table),
             entries,
             shapes: self.shapes,
             statics: self.static_defaults.into(),
             debug_slots: self.debug_slots,
+            debug_sites: self.debug_sites,
+            debug_functions: self.debug_functions,
         })
     }
 
@@ -2631,6 +2703,10 @@ impl Signatures {
         let mut safepoint = module.make_signature();
         safepoint.params.push(AbiParam::new(ptr));
         safepoint.returns.push(AbiParam::new(types::I32));
+
+        let mut debug_site = module.make_signature();
+        debug_site.params.push(AbiParam::new(ptr));
+        debug_site.returns.push(AbiParam::new(types::I32));
 
         let mut stack_check = module.make_signature();
         stack_check.params.push(AbiParam::new(ptr));
@@ -2808,6 +2884,7 @@ impl Signatures {
             helper,
             helper_variadic,
             safepoint,
+            debug_site,
             stack_check,
             deprecated,
             probe,
@@ -2905,6 +2982,11 @@ pub fn is_function_symbol(symbol: &str, label: &str) -> bool {
 pub fn class_desc_symbol(label: &str) -> String {
     mangled("nvs_class_desc_", label)
 }
+
+/// The symbol a debug unit's stop sites relocate against: the base of its
+/// [`nvs_runtime::SiteTable`]. Only the JIT resolves it, because a debug unit
+/// is never written to the artifact cache.
+pub(crate) const DEBUG_SITES_SYMBOL: &str = "nvs_debug_sites";
 
 /// Every `Core` class descriptor a unit may relocate against, under
 /// [`class_desc_symbol`]'s name and at the address this process leaked it at.

@@ -72,7 +72,11 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         let parts: Vec<String> = stores
             .iter()
             .map(|(slot, v)| {
-                let name = f.debug_slots.get(*slot as usize).map_or("?", |s| &s.name);
+                let name = f
+                    .debug_slots
+                    .as_deref()
+                    .and_then(|slots| slots.get(*slot as usize))
+                    .map_or("?", |s| &s.name);
                 format!("${name}=v{}", v.index())
             })
             .collect();

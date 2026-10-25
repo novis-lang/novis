@@ -468,10 +468,12 @@ pub struct Function {
     /// any function containing an `if`/`while`.
     pub edge_spans: Vec<Span>,
     /// Under the debug switch, one entry per variable the function has, in
-    /// slot order. Empty without the switch
+    /// slot order, and `None` without the switch
     /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+    /// A function lowered with the switch has a table even with no variables,
+    /// because `nvs-codegen` gives it a frame record and stop sites either way.
     /// Every [`InstKind::DebugLocals`] in the function indexes this table.
-    pub debug_slots: Vec<DebugSlot>,
+    pub debug_slots: Option<Vec<DebugSlot>>,
 }
 
 /// One variable's described stack slot under the debug switch. The entry at
@@ -656,8 +658,9 @@ pub enum InstKind {
     /// `nvs-codegen` writes every slot the table has at each one, and a slot
     /// not listed is written as never assigned, so no slot keeps a value that
     /// went out of scope. The slots borrow their values and take no reference.
-    /// Emitted only under the switch, and defines no value
-    /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+    /// It is also the statement's stop site, so its error edge is where a stop
+    /// that ends the request goes. Emitted only under the switch, and defines
+    /// no value (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
     DebugLocals(Vec<(u32, ValueId)>),
     /// A reserved safepoint poll site — function entry (recursion) or a
     /// loop's back edge, the sites `nvs-codegen`'s module doc names and that

@@ -128,6 +128,8 @@ impl Ctx {
             statics: std::ptr::null_mut(),
             deprecated: 0,
             deprecated_logged: std::collections::HashSet::new(),
+            frames: std::ptr::null(),
+            debug_stop: super::frames::StopSlot::default(),
             tree,
             cancelled: false,
             exit_code: 0,

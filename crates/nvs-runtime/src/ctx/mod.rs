@@ -183,6 +183,7 @@ mod answers;
 mod current;
 mod deprecated;
 mod error;
+mod frames;
 mod held;
 mod hooks;
 mod inbound;
@@ -208,6 +209,7 @@ pub use self::answers::*;
 pub use self::current::CurrentStack;
 pub use self::deprecated::{OnDeprecated, nvs_deprecated_use};
 pub use self::error::*;
+pub use self::frames::*;
 pub use self::held::*;
 pub use self::inbound::*;
 pub use self::isolate::{PlacedIsolate, RunKind};
@@ -404,6 +406,13 @@ pub struct Ctx {
     /// keyed by the address of each site's own message bytes. Empty unless the
     /// request logs deprecated uses, and freed with the context.
     deprecated_logged: std::collections::HashSet<usize>,
+    /// Under the debug switch, the record of the innermost call in flight, and
+    /// null otherwise. Compiled code links and unlinks it at the offset
+    /// [`DEBUG_FRAMES_OFFSET`] names, and [`Ctx::frames`] walks it. Cold:
+    /// only code compiled with the switch loads it.
+    frames: *const FrameRecord,
+    /// What an armed stop site runs — see [`Ctx::set_debug_stop`].
+    debug_stop: frames::StopSlot,
     /// The state this request tree shares — the safepoint word [`Self::safepoint`]
     /// names, and the counters a member of the tree running on another core
     /// charges into. [`TreeState`] owns what it holds and what it costs.
@@ -1817,6 +1826,10 @@ pub const SAFEPOINT_OFFSET: usize = std::mem::offset_of!(Ctx, safepoint);
 
 /// Byte offset of the debug-flags word within [`Ctx`] — see the module docs.
 pub const DEBUG_FLAGS_OFFSET: usize = std::mem::offset_of!(Ctx, debug);
+
+/// Byte offset of the head of the debug switch's frame records within [`Ctx`]
+/// — see `frames`'s module docs.
+pub const DEBUG_FRAMES_OFFSET: usize = std::mem::offset_of!(Ctx, frames);
 
 /// Byte offset of the soft call-stack limit within [`Ctx`] — see the module
 /// docs.
