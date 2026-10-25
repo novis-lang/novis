@@ -62,7 +62,7 @@ stages:
         rules: [testing/feature-proofs, observability/speedscope-timeline-export, testing/member-perf-ledger]
   - id: 9
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-closes
@@ -319,43 +319,37 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 8 are done. The gate stage is next. `bun nv owners --closes trace-timeline` passes.
+Every stage is done, and the goal is reached. The last `bun nv affected --run` is green (22 of 22
+steps, 7646 tests, 3125 cases), and so are `bun nv verify --doc`, `bun nv owners --closes
+trace-timeline`, `bun nv proofs --gate` (nothing owed in 1515 features), `bun nv render --website
+--check`, `bun nv site --check questions` and `bun nv site --check reference`.
 
-- **Stage 5:** *View Profile* (`nvs.viewProfile`) opens a speedscope file in a webview running the
-  bundled speedscope 1.25 viewer. `scripts/viewer.mjs` copies it into `out/speedscope/` at the start
-  of `bundle`. The page and its policy are `src/viewer.ts`, and the panel is `src/profile.ts`. The
-  profile's bytes go into the page (Standing decisions, *View Profile*). The new `profile` headless
-  suite and the `contributions` suite ran once, green, and so did `cargo test --test
-  extension_reference` for the chapter's new command row. **Not seen in a real editor window yet:**
-  the gate's `test:host` run is the first thing to open it, and it does not run the command.
-- **The sweep's reds are stale.** `env-secret-proofs` exits 0 on HEAD (its log shows exit 0). The
-  nightly run 40075586234 ran on `3ea6f15`, and HEAD fixes each red: `10c402b57` (RUSTSEC-2026-0387),
-  `c31d0a21a` (fmt), and `c953c3456`, `c4842ec8f` and `220cb82b7` (the three Miri jobs).
-
-Expected red at the gate: anything that snapshots `nvs run --help` or `nvs test --help` (two new
-flags each), `nvs meta --json` and reference-card snapshots of `Core\Debug`, and `bun nv scaling
---budget`. The budget is already over for 45 benches, so `--budget --write` refuses, and the two
-new benches `benches/members/tools/cli/profiling.nvs` and `.twin.nvs` still have no share.
+- **The `Core\Debug` floor** has three new cases in `tests/conformance/core/`. The two write-failure
+  paths are asserted by `debug::tests::a_failed_write_throws_at_the_stop`, which writes to
+  `/dev/full` on Linux only. **It has not run yet:** the owed Linux leg is its first run.
+- **Two tests that load breaks** were given what they depend on: the Redis lease cases wait
+  `STORE_WAIT` (30 s), and `parallel-class-hooks.nvs` sleeps one second per test.
+- **The 50 stale perf figures are recorded, and the 10 new pages have stamped questions,** so CI's
+  `proofs` and stale guard are green. The rest was formatting, a stale `docs/rules/ide.md`, a `Known
+  gaps` block in `otlp.rs` with no record, and a test checking an old message.
+- **The sweep's reds were stale:** `env-secret-proofs` exits 0 on HEAD, and the nightly run
+  40075586234 ran on `3ea6f15`, before each job's fix.
 
 ### Next
 
-**Stage 9, the gate.** Start `bun nv affected --run` with `run_in_background` and end the turn to
-wait. Group its failures by cause, fix each in one pass, and run it again. Then the goal-end gates
-(AGENTS.md § *In the loop*).
-
-- [ ] Stage 9: the first `bun nv affected --run`, failures grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Stage 9: every failure fixed, and the second run green. `tools/nv/cmd/verify.ts:1`
-- [ ] Goal end: `bun nv verify --doc`, `bun nv owners --closes trace-timeline`, `bun nv proofs --gate`, `bun nv render --website --check`. `docs/goals/trace-timeline.md:1`
+Nothing in this goal. The driver's acceptance run and retirement come next, then `bench-counters`.
 
 ### Backlog
+
+- `Core\Http\TlsInfo::cipher`'s bench rose with slope 1.20 in a full `--record-perf` run and read `unclear` alone. A second full run would tell noise from a real rise. `benches/members/core/Http-TlsInfo/cipher.nvs:1`
 
 - `fuzz/Cargo.lock` still pins crypto-bigint 0.7.5 (RUSTSEC-2026-0387). The root lock is 0.7.6, and CI's `cargo deny` reads only the root. `fuzz/Cargo.lock:1`
 - Not checked yet: under a `--config` with no `[capabilities.fs]` table, `Core\IO::temporaryDir` threw an `fs.write` error, while its `about.md` says it needs no capability unless `[capabilities.fs] write` is set. Also, `[io] temp_root = "."` was read from the working folder, not the file's. `docs/examples/core/IO/temporaryDir/about.md:1`
