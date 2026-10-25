@@ -260,35 +260,42 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 6's items 1 to 6 are done, and their gap records are deleted.
+Stage 6's items 1 to 7 are done, and their gap records are deleted.
 
-- **`Core\Str::format`.** Every literal template whose checks pass is split. A template the
-  in-order form does not take is `FormatPiece::Rendered` pieces (`crates/nvs-types/src/intrinsics.rs:905`).
-  `lower_rendered_format` evaluates every argument first, then renders each placeholder with
-  `nvs_core_str_format_piece` (`crates/nvs-ir/src/lower/expr.rs:2437`). An empty template stays a call.
-- **The CPU clock read** at a cross-tree switch is a stated bound (`crates/nvs-host/src/cpuclock.rs:49`).
-- **`cargo fmt --check`** failed at HEAD on a re-export in `crates/nvs-types/src/lib.rs`, and passes now.
+- **The isolate's 2.3 µs** is broken down in `crates/nvs-host/src/isolate.rs`'s *What a served
+  request's isolate costs in time*, and every part is isolation. The largest is the CPU-time charge,
+  about 1 µs, and 0.55 µs of that is the clock read `cpuclock.rs:49` states as a bound.
+- **A core publishes to the watchdog under a lock of its own** (`Publications`,
+  `crates/nvs-host/src/watchdog.rs:726`), not the lock every core shares. The sweep takes the
+  shared lock and then each core's. One core cannot show the gain; many cores should.
+- **`Compiler::prepared`** looks a served path up without copying it (`crates/nvs-cli/src/script.rs:728`),
+  2.2% → 1.4% of a hello request.
+- **`bench-compare --profile`** prints a call-graph section (`benches/compare/profile.sh:81`).
 
-Checked: build, clippy and fmt green. `a_rendered_template_prints_what_the_member_prints`,
-`a_rendered_placeholder_throws_after_every_argument_ran` and the updated
-`a_literal_format_template_lowers_to_a_concatenation` pass. Seven `Str::format` and taint
-conformance cases pass, and `bun nv proofs --run --only 'Core\Str::format'` is green.
-`bun nv owners --closes bench-counters` names three gaps: stage 3's and stage 6's items 7 and 8.
+Checked: build, clippy and fmt green, and the profile rerun on the built image. No test was run.
 
-Tests expected to go red: none known.
+Tests expected to go red: none known. The watchdog's own tests read publications through the new
+per-core lock (`charged_on`, `Watchdog::running`), so stage 7 runs `cargo test --lib watchdog` first.
 
-The nightly run `40075586234` is 178 commits behind HEAD. HEAD has `crypto-bigint 0.7.6`, and its
-three Miri failures are fixed (`json.rs:6454`, `session.rs:2303`, `c953c3456`).
+The sweep's `env-secret-proofs` line was stale: `bun nv proofs --gate --only 'Core\Env::secret'` exits 0
+at HEAD, and no goal names that check. The nightly `40075586234` is older than the fixes noted before.
 
 ### Next
 
-**Stage 6, items 7 and 8.** Each starts with a profile: `bun nv bench-compare --profile hello` for
-the isolate start and finish, and `--profile wait` for a waiting request's memory. A profile builds
-a Docker image in about ten minutes, so run it with `run_in_background`. The two items touch
-disjoint files.
+**Stage 6, item 8, from what this session measured.** In the wait case with 1000 requests waiting,
+`/proc/<pid>/smaps` shows two stack mappings per request: the connection stacks are 8 KiB resident
+and the program stacks 36 KiB. Other anonymous memory is about 39 KiB per request. Run it in a
+privileged container of `nvs-bench-serve:local`. Pick the `nvs` pid with the largest RSS, and add up
+each 1 MiB mapping's `Rss:`. heaptrack's runtime attach (`heaptrack -p`) crashes `nvs serve` with
+a segfault, so break the heap down another way: a debug test in `nvs-server` that reads
+`nvs_runtime::budget::live_bytes()` around one waiting request, as the gap record suggests.
 
-- [x] The hello case's 2.5 µs of isolate start and finish is broken down, and each part that is not isolation is removed or moved out of the request. `crates/nvs-host/src/isolate.rs:1`, `data/gaps/nvs-host/an-isolate-start-and-finish-cost-microseconds-per-request.json:1`
-- [ ] A waiting request's stack and heap are broken down in the module doc, and each part not needed per request is removed. `crates/nvs-host/src/stack.rs:1`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
+- [ ] A waiting request's stack and heap are broken down in the module doc, and each part not needed per request is removed. `crates/nvs-host/src/stack.rs:105`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
+
+The 36 KiB program stack is 28 KiB above `KEPT_RESIDENT`. The stack doc's *What a sleeping program
+touches* puts the host's part at 2 pages, so the rest is the request's compiled code and `Core`
+calls before it slept. Find the deep frame with a release build's frame sizes. Boxing the task
+entry's 1,776-byte `Ctx` (`scheduler.rs`) is the gap's other lead.
 
 Stage 3 (`tools/nv/cmd/scaling.ts:919`) stays open as the other side lane.
 
