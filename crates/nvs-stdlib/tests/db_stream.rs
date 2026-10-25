@@ -358,7 +358,7 @@ fn names_both_fixes(driver: Driver, refusal: &str) -> bool {
             refusal.contains("read or drop the rows")
                 && refusal.contains("open a second connection")
         }
-        _ => refusal.contains("->all()") && refusal.contains("{shared: false}"),
+        _ => refusal.contains("->all()") && refusal.contains("{ shared: false }"),
     }
 }
 
