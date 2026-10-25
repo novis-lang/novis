@@ -66,7 +66,8 @@
 // load at the smallest size could not stay inside it.
 //
 // A bench that reaches the ceiling and has not agreed, or whose clock grew twice, runs the same batches again under
-// `valgrind --tool=callgrind`, in WSL on Windows, with the Linux binary `--wsl-nvs` names. Callgrind's
+// `valgrind --tool=callgrind`, in WSL on Windows, with the Linux binary `--wsl-nvs` names. Each size
+// runs once plain before callgrind measures it, so its compile is cached. Callgrind's warm
 // instruction count is nearly the same on every run, so it is judged as one more count. A bench still
 // unclear after that is reported under *unclear* and is not judged. In the perf proof, a bench whose
 // instructions agree has its `iterations` lowered to twice the batch where they first did, and the
@@ -503,11 +504,16 @@ async function timeRun(nvs: string, copy: string, bench: string, reps: number): 
   return best;
 }
 
-/** Callgrind's instruction total for one `nvs <command> <file>`. */
+/** Callgrind's instruction total for one `nvs <command> <file>`. Every ramp size is a new program, so
+ * one plain run of it goes first and fills the compile cache. A cold compile's instructions spread as
+ * much between four runs of one program as a whole step of the ramp, and a warm run repeats closely. */
 async function instructions(opts: Options, command: string, file: string, bench: string): Promise<number> {
   await currentWslNvs(opts.wslNvs);
-  const argv = ["valgrind", "--tool=callgrind", "--callgrind-out-file=/dev/null", process.platform === "win32" ? opts.wslNvs : opts.nvs, command, file];
-  const out = await spawnProof(process.platform === "win32" ? ["wsl.exe", "--", ...argv] : argv, file, TIMEOUT_MS * 4, { unlogged: true });
+  const nvs = [process.platform === "win32" ? opts.wslNvs : opts.nvs, command, file];
+  const wsl = (argv: string[]) => (process.platform === "win32" ? ["wsl.exe", "--", ...argv] : argv);
+  await spawnProof(wsl(nvs), file, TIMEOUT_MS, { unlogged: true });
+  const argv = ["valgrind", "--tool=callgrind", "--callgrind-out-file=/dev/null", ...nvs];
+  const out = await spawnProof(wsl(argv), file, TIMEOUT_MS * 4, { unlogged: true });
   const m = COLLECTED_RE.exec(out.stderr);
   if (!m) throw new PerfError(`callgrind printed no instruction total for ${bench}: ${out.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`);
   return Number(m[1]);
