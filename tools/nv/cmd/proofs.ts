@@ -34,8 +34,7 @@
 // `--no-callgrind` to report a growth ramp whose counts do not settle as unclear without valgrind,
 // `--force` to re-measure what already has a current figure, `--note` to record a word with each record,
 // and `--perf-report` to write the report after it. `--nvs` names the binary to use as it is. Without it,
-// the audit reads the roster from the first built of `target/release`, the proof binary and the `covws`
-// debug build, `--bless`, `--run` and `--verify` use the proof binary, and
+// the audit reads the roster from the newest built `nvs` (`lib/nvs-binary.ts`), `--bless`, `--run` and `--verify` use the proof binary, and
 // `--record-perf` uses the release binary, each built first when it is not current. `--run` and
 // `--verify` on the proof binary run only the programs the change since the selection store's tree
 // reaches, record each in a second run on the covws debug build, and report the rest green
@@ -59,8 +58,8 @@ import { inPart } from "../lib/reads.ts";
 import { collect, collectParts, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, skippedOf, textProblems, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, DETAILS, examplesDir, hostileDir, noteRoster, programsIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
-import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
-import { bless, namedBinary, type Pass, PROOF_BINARY, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
+import { newestNvs } from "../lib/nvs-binary.ts";
+import { bless, namedBinary, type Pass, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
 import { featureGroup } from "../select/store.ts";
 import { type Diverged, runSelected } from "../proofs/select.ts";
 
@@ -78,17 +77,12 @@ const USAGE = [
   "                 [--perf-report] [--impl-hash FILE [FILE ...]]",
 ].join("\n");
 
-/** What the binary is: the one named, or the first built of the release binary, the proof binary and
- * the pipeline's debug build. A named path is made absolute, because a `.cmd` example runs in a
- * scratch directory of its own, where a relative path names nothing. */
+/** What the binary is: the one named, or the newest built `nvs` (`lib/nvs-binary.ts`). A named path is
+ * made absolute, because a `.cmd` example runs in a scratch directory of its own, where a relative
+ * path names nothing. */
 export function binary(explicit: string | undefined): string | null {
   if (explicit !== undefined) return existsSync(explicit) ? resolve(explicit) : null;
-  const exe = process.platform === "win32" ? "nvs.exe" : "nvs";
-  const covws = `${COVWS_TARGET}/${hostTriple()}`;
-  for (const p of [`target/release/${exe}`, PROOF_BINARY, `${covws}/debug/${exe}`].map((x) => abs(x))) {
-    if (existsSync(p)) return p;
-  }
-  return null;
+  return newestNvs();
 }
 
 const ljust = (s: string, n: number) => s + " ".repeat(Math.max(0, n - [...s].length));

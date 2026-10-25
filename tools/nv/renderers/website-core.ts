@@ -25,8 +25,9 @@
 // `website-reference.ts`, from the proofs roster over the same `nvs meta --json`.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { BUILT_NVS, newestNvs } from "../lib/nvs-binary.ts";
 import type { Output, Renderer } from "../lib/render.ts";
 import { memberPath, roster, type Meta } from "../proofs/roster.ts";
 import { REFERENCE_FILE, referenceData } from "./website-reference.ts";
@@ -66,20 +67,17 @@ interface Registry {
   meta: Meta & { directives?: { key: string; class: string; apply: string }[] };
 }
 
-/** `NVS_BIN` when it is set, otherwise the most recently built of `target/debug` and `target/release`. */
+/** `NVS_BIN` when it is set, otherwise the most recently built of `target/debug` and `target/release`
+ * (`lib/nvs-binary.ts`). */
 export function binary(root: string): string {
   const env = process.env.NVS_BIN;
   if (env) {
     if (!existsSync(env)) throw new Error(`NVS_BIN names ${env}, which does not exist`);
     return env;
   }
-  const exe = process.platform === "win32" ? "nvs.exe" : "nvs";
-  const built = ["debug", "release"]
-    .map((profile) => join(root, "target", profile, exe))
-    .filter((p) => existsSync(p))
-    .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
-  if (built.length === 0) throw new Error("the Core reference reads `nvs meta --json`, and no nvs binary is built: run `cargo build` first");
-  return built[0]!;
+  const built = newestNvs(root, BUILT_NVS.slice(0, 2));
+  if (built === null) throw new Error("the Core reference reads `nvs meta --json`, and no nvs binary is built: run `cargo build` first");
+  return built;
 }
 
 function registry(root: string): Registry {

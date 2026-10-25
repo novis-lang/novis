@@ -25,7 +25,7 @@
 //
 // `--nvs PATH` names the binary that reads the roster and runs the snippets and the apps. A relative path
 // is resolved against the directory `nv` runs in, before any command runs in another one. Without it,
-// the first built of `target/release` and the `covws` debug build is used.
+// the newest built `nvs` is used (`lib/nvs-binary.ts`).
 //
 // **An app's copies** are the files under `website/public/example-apps/<app>/`, which its page shows and
 // links. Each is what the app's server returns for `GET /<file name>`. The files on disk are the list,
@@ -173,7 +173,7 @@ import { createServer } from "node:net";
 import { availableParallelism } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
+import { newestNvs } from "../lib/nvs-binary.ts";
 import { lspFrame, lspMessages } from "../lib/lsp.ts";
 import { rel, ROOT } from "../lib/paths.ts";
 import { parseReplay, recordReplay } from "../lib/replay.ts";
@@ -1337,14 +1337,11 @@ export function proseProblems(body: string): string[] {
   return problems;
 }
 
-/** The `nvs` binary as an absolute path, since the apps and the snippets run it from other directories. */
+/** The `nvs` binary as an absolute path, since the apps and the snippets run it from other directories:
+ * the one named, or the newest built (`lib/nvs-binary.ts`). */
 export function binary(explicit: string | undefined): string | null {
   if (explicit !== undefined) return existsSync(explicit) ? resolve(explicit) : null;
-  const exe = process.platform === "win32" ? "nvs.exe" : "nvs";
-  for (const p of [`target/release/${exe}`, `${COVWS_TARGET}/${hostTriple()}/debug/${exe}`].map((x) => join(ROOT, x))) {
-    if (existsSync(p)) return p;
-  }
-  return null;
+  return newestNvs();
 }
 
 /** A roster feature Reference owes a page: a class member, an enum, exception or interface, a
