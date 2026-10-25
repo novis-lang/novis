@@ -193,11 +193,13 @@ pub struct Parser<'src, 'd> {
 /// stack-depth probe. **This bounds the parse, not the stack a build runs it
 /// on.** A release binary refuses every depth cleanly here, and so does
 /// `cargo fuzz`'s ASan-instrumented release build, which carries larger frames
-/// than either. A *debug* binary does not: its frames overflow a 1 MiB
-/// main-thread stack a level or two past where this guard first reports, so a
-/// nested array literal aborts the process at twenty `[` where the guard
-/// reports `E0108` at nineteen. Probe a nesting limit with a release binary;
-/// raising this constant widens that debug-only window rather than closing it.
+/// than either. A *debug* build's frames overflow a 1 MiB stack a level or two
+/// past where this guard first reports, so a nested array literal aborts the
+/// thread at twenty `[` where the guard reports `E0108` at nineteen. `nvs.exe`
+/// reserves an 8 MiB main thread (`crates/nvs-cli/build.rs`) for that reason;
+/// a debug test thread or an embedder's thread may still be 1 MiB. Probe a
+/// nesting limit with a release binary; raising this constant widens that
+/// debug-only window rather than closing it.
 const MAX_RECURSION_DEPTH: u32 = 96;
 
 /// A saved parser position, for the three places this parser backtracks:

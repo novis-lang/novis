@@ -68,6 +68,25 @@ fn main() {
     println!("cargo:rerun-if-env-changed=NVS_RELEASE");
 
     windows_resource(&manifest, &workspace, &commit);
+    main_thread_stack();
+}
+
+/// Reserves an 8 MiB main-thread stack for `nvs.exe`, the size Linux and macOS
+/// already give a main thread.
+///
+/// The MSVC linker reserves 1 MiB by default. A release build parses any
+/// nesting depth on it, but a debug build's frames overflow it a level or two
+/// past where the parser's `MAX_RECURSION_DEPTH` guard reports `E0108`. Where
+/// the stack starts varies per run, so a program nested past the guard aborted
+/// some runs of a debug binary and not others. Programs run on coroutine
+/// stacks of their own, so this changes no limit Novis code runs under.
+/// Spends: 7 MiB more reserved address space per process, committed only as
+/// the compiler's frames reach it.
+fn main_thread_stack() {
+    if env("CARGO_CFG_TARGET_OS") != "windows" || env("CARGO_CFG_TARGET_ENV") != "msvc" {
+        return;
+    }
+    println!("cargo:rustc-link-arg-bin=nvs=/STACK:8388608");
 }
 
 /// Links `nvs.exe`'s icon and version information, on a Windows target whose
