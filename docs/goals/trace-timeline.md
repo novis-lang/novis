@@ -194,6 +194,14 @@ is totals. A `stopProfile` inside a run that `--profile` wraps turns the probe o
 run's file open. Spends: per track, one entry per call in flight and one index per function it
 called, plus Callgrind totals per function and per caller and callee pair.
 
+**The profiling examples read back a profile `Core\Debug` wrote.** Built: the example runner runs
+`nvs run <file>` alone, and a `--profile` file holds times no `.out` can match. So each example in
+`docs/examples/tools/cli/profiling/` writes its profile with `Core\Debug::startProfile`, reads the
+speedscope file back and prints frame names, counts and order, never a time. No `// proof:` directive
+for `--profile` is added (simplicity). The bench is `profiling.nvs` against its `.twin.nvs` with the
+probe off, at N 262144, since at 4096 both read `0.0` ns/op under start-up. A `tool` feature owes no
+perf, so its record is taken with `--record-perf --force` and never goes stale in the gate.
+
 ## Stages
 
 ### 1. every trace event has a time on one clock
@@ -289,11 +297,14 @@ speedscope file, so it runs beside stages 1 to 4.
 `about.md`, the three examples and the attack, under § *Text an end user reads*. Its brief names the paths
 `bun nv proofs --id 'tools:cli/profiling'` prints.
 
-- [ ] A `# Profiling` section in the CLI chapter, which states the probe's cost. `docs/reference/tools/10-cli.md:302`
-- [ ] A bench of the probe's cost per call, with its growth (`rule:testing/member-perf-ledger`). `benches/members/tools/cli/profiling.nvs:1`
-- [ ] `about.md` and three examples (`rule:testing/feature-proofs`). `docs/examples/tools/cli/profiling/about.md:1`
-- [ ] An attack: a request cannot write a profile without the grant (`rule:testing/feature-proofs`). `tests/hostile/tools/cli/profiling/01-a-profile-without-the-grant.nvs:1`
+- [x] A `# Profiling` section in the CLI chapter, which states the probe's cost. `docs/reference/tools/10-cli.md:372`
+- [x] A bench of the probe's cost per call, with its growth (`rule:testing/member-perf-ledger`). `benches/members/tools/cli/profiling.nvs:1`
+- [x] `about.md` and three examples (`rule:testing/feature-proofs`). `docs/examples/tools/cli/profiling/about.md:1`
+- [x] An attack: a request cannot write a profile without the grant (`rule:testing/feature-proofs`). `tests/hostile/tools/cli/profiling/01-a-profile-without-the-grant.nvs:1`
 - [ ] `bun nv proofs --id 'tools:cli/profiling'` prints nothing owed, and `bun nv owners --closes trace-timeline` passes. `tools/nv/proofs/roster.ts:209`
+  - [x] `bun nv proofs --gate --only 'tools:cli/profiling'` owes nothing
+  - [ ] The gap `three-seeded-series-are-never-written` is closed: `every_core`'s gather writes `nvs_memory_bytes{scope="cache"|"process"}`, `nvs_tasks_in_flight` and `nvs_deferred_trees`, and a scrape test reads a non-zero value for each. `data/gaps/nvs-runtime/three-seeded-series-are-never-written.json:1`, `crates/nvs-runtime/src/metrics.rs:73`
+  - [ ] `bun nv owners --closes trace-timeline` passes
 
 ### 9. the goal is verified once, and every failure is fixed
 
@@ -312,42 +323,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 4, 6 and 7 are done. The profiler exists: `nvs run` and `nvs test` take
-`--profile=callgrind|speedscope` and `--profile-out`, and `Core\Debug::startProfile` writes
-speedscope to the one file its grant names.
+Stages 1, 2, 3, 4, 6 and 7 are done, and stage 8 has one item left. `tools:cli/profiling` owes
+nothing (`bun nv proofs --gate --only 'tools:cli/profiling'`).
 
-- **Stage 4** (this session): `nvs_runtime::Profiler` and `ProfileTrack`
-  (`crates/nvs-runtime/src/ctx/profile.rs`), driven by the call probes and the runtime-call pair in
-  `crates/nvs-runtime/src/ctx/trace.rs`. A gc pause, a spawn and a recorded query or http call are
-  windows inside the running call. The CLI half is `crates/nvs-cli/src/profile.rs`. The standing
-  decision *A profile is one track per context* records the design, and both rules are `shipped`.
-  `a_profile_of_a_suite_passes_each_formats_checks` (`crates/nvs-cli/src/runner.rs:5980`) passed
-  once by name, over `crates/nvs-cli/tests/fixtures/runner/profile.nvs`.
-- **The sweep's reds are stale.** The env-secret log is Oct 22's `exit 0`, and the nightly run on
-  `3ea6f15` is older than the Miri and `deny.toml` fixes (`d2a782d60`, `a5f50b907`).
-- **Found by running it.** A recursive `cfn=` edge carries nested inclusive time, which
-  KCachegrind reads as a cycle. Under `nvs test`, Callgrind's total adds the waiting parent's
-  `spawn script` frame and the child's calls together.
+- **Stage 8** (this session, `b7a8bf7cf`): `# Profiling` in `docs/reference/tools/10-cli.md:372`,
+  the bench and its twin (`benches/members/tools/cli/`), and `about.md`, three examples and the
+  attack. The ledger record is 170.8 ns/op with the probe on, and the twin is under the floor, so
+  the chapter states about 170 ns per call. `bun nv proofs --run --id 'tools:cli/profiling'` is
+  green with no divergence. The standing decision *The profiling examples read back a profile*
+  records the design.
+- `0bd492218` rendered the website. `core.json` had never listed stage 7's `Core\Debug` members.
+- **Left in stage 8:** `bun nv owners --closes trace-timeline` fails on one gap record this goal
+  owns, `data/gaps/nvs-runtime/three-seeded-series-are-never-written.json`. It is about metrics,
+  not the profiler, but this goal is its owner, so it is built here.
+- **The sweep's reds are stale.** `cargo fmt --all --check` is clean, the env-secret log is Oct 22's
+  `exit 0`, and the nightly on `3ea6f15` is older than `d2a782d60` and `a5f50b907`.
 
 Expected red at the gate: anything that snapshots `nvs run --help` or `nvs test --help` (two new
-flags each), and the earlier list: `nvs meta --json` and reference-card snapshots of `Core\Debug`,
-and `bun nv scaling --budget`. `crates/nvs-stdlib/src/debug.rs`'s
-`a_profile_starts_and_stops_its_probe_and_sink` now creates the file it names, so it should stay
-green.
+flags each), `nvs meta --json` and reference-card snapshots of `Core\Debug`, and `bun nv scaling
+--budget`. The budget is already over for 45 benches, so `--budget --write` refuses, and the two
+new benches `benches/members/tools/cli/profiling.nvs` and `.twin.nvs` still have no share.
 
 ### Next
 
-**Stage 8: the profiler's feature proofs**, the gate stage's last prerequisite, then stage 5 as the
-side lane (`editors/vscode/`). Stage 8's split line names the subagent. The bench measures the probe's
-cost per call with `PROFILE` on against off.
+**Close the metrics gap, then stage 5** (`editors/vscode/`, disjoint), then the gate stage.
 
-- [ ] A `# Profiling` section in the CLI chapter that states the probe's cost and where each file goes. `docs/reference/tools/10-cli.md:302`
-- [ ] A bench of the probe's cost per call, with its growth. `benches/members/tools/cli/profiling.nvs:1`
-- [ ] `about.md`, three examples and the attack (no grant, no file), by one writing subagent. `docs/examples/tools/cli/profiling/about.md:1`, `tests/hostile/tools/cli/profiling/01-a-profile-without-the-grant.nvs:1`
-- [ ] `bun nv proofs --id 'tools:cli/profiling'` owes nothing. `tools/nv/proofs/roster.ts:209`
-- [ ] Stage 5: the bundled speedscope viewer and *View Profile*. `editors/vscode/package.json:352`, `editors/vscode/src/extension.ts:129`
+- [ ] `every_core`'s gather writes `nvs_memory_bytes{scope="cache"|"process"}`, `nvs_tasks_in_flight` and `nvs_deferred_trees`, and a scrape test reads a non-zero value for each. Then delete the gap record and run `bun nv owners --closes trace-timeline`. `crates/nvs-runtime/src/metrics.rs:73`, `data/gaps/nvs-runtime/three-seeded-series-are-never-written.json:1`
+- [ ] Stage 5: the `speedscope` devDependency and the `bundle` copy into `out/speedscope/`. `editors/vscode/package.json:352`
+- [ ] Stage 5: *View Profile* in `editors/vscode/src/profile.ts`, its contribution, and the headless test. `editors/vscode/src/extension.ts:129`, `editors/vscode/test/profile.test.ts:1`
 
 ### Backlog
+
+- Not checked yet: under a `--config` with no `[capabilities.fs]` table, `Core\IO::temporaryDir` threw an `fs.write` error, while its `about.md` says it needs no capability unless `[capabilities.fs] write` is set. Also, `[io] temp_root = "."` was read from the working folder, not the file's. `docs/examples/core/IO/temporaryDir/about.md:1`
 
 - `rule:ide/the-extension-builds-no-ui-the-editor-already-has` also covers the debugger wiring, which is `debugger-adapter`'s (`docs/rules/ide/the-extension-builds-no-ui-the-editor-already-has.md`).
 - `debug-viewer` hands a profile to speedscope in this goal's format (`docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md`).
