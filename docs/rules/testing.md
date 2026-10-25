@@ -2291,9 +2291,12 @@ rules say under that one codegen, and this bug class lives only where a probe-at
 build of the same program prints something else. The cost is CI wall-clock proportional to the added
 axes, and nothing at all at run time.
 
-CI runs the conformance suite on every leg three times: at `opt_level` `speed`, again with
-`NOVIS_NO_OPTIMISE` set, which compiles at `none` and keeps the artifact cache off
-(`nvs_codegen::compile_unoptimised`), and again with `NOVIS_CHECK_TYPES` set. That third run is the
+CI runs the conformance suite on every leg three times: at `opt_level` `speed`, again with `nvs test
+--opt-level none`, and again with `NOVIS_CHECK_TYPES` set. `--opt-level` sets the level in the test
+process and, as `NOVIS_OPT_LEVEL`, in every process a case starts (`nvs_codegen::set_opt_level`). It
+is a flag so that `nvs test --help` lists it. The artifact cache stays on, because a unit's key
+covers the level (`crates/nvs-cli/src/cache.rs`'s `unit_key`): a unit compiled at one level is never
+loaded at the other. That third run is the
 checked build (`nvs_codegen::compile_checked_types`): each typed read also tests its value against its
 declared type, and a value of another type stops the process naming the line. A case whose output is
 right can still read a value as another type, and only this run sees that.

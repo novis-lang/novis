@@ -27,7 +27,7 @@ stages:
         rules: [testing/member-perf-ledger, testing/perf-two-mechanisms]
   - id: 4
     title: the conformance suite runs at each optimisation level
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/main.rs, crates/nvs-cli/src/cache.rs, .github/workflows/ci.yml, docs/rules/testing/probes-on-is-a-tested-configuration.md]
     extra:
       context:
@@ -93,6 +93,16 @@ runs the built binary, and a flag is visible in `nvs test --help` where an envir
 `--opt-level` replaces the `NOVIS_NO_OPTIMISE` variable the CI lane sets today
 (`crates/nvs-codegen/src/lib.rs:896`). The compile cache keys on the level, so a unit compiled at one
 level is never run at another.
+
+**`--opt-level` reaches a case's processes as `NOVIS_OPT_LEVEL`.** A `.nvst` case runs each `nvs`
+process as a child, and a case may start more of its own, so `nvs test --opt-level` sets the level
+in its own process and passes it to every child as `NOVIS_OPT_LEVEL=none|speed`
+(`nvs_test::Options::nvs_env`). An environment variable is inherited by every grandchild, and an
+argument is not. The variable replaces `NOVIS_NO_OPTIMISE`, and the CI lane names the flag. The
+level sits in the unit key's content half (`crates/nvs-cli/src/cache.rs`'s `unit_key`), not in
+`env_hash`, because `env_hash` is also `Core\Program::id()`'s and an id does not change with the
+level. So the cache stays on at both levels. Request path: nothing, the key is hashed once per unit
+on a cold read. Memory: one artifact per level for a unit that was compiled at both.
 
 **`--probes` waits on `trace-timeline`'s sink.** With `TRACE` on, the call events must go to a sink
 and not grow in memory. **Gate for stage 5:** `docs/goals/trace-timeline.md` shows stage 6 `done` (or
@@ -185,11 +195,11 @@ line. The session checks each batch and ticks it.
 
 **Does:** `nvs test --opt-level`, and the CI lane uses it.
 
-- [ ] The rule names `--opt-level`, as the standing decision says (`rule:testing/probes-on-is-a-tested-configuration`). `docs/rules/testing/probes-on-is-a-tested-configuration.md:18`
-- [ ] Cranelift's level is a parameter of the host ISA in place of `NOVIS_NO_OPTIMISE`, and the compile cache keys on it (`rule:config/the-extension-set-is-in-every-unit-key`). `crates/nvs-codegen/src/lib.rs:896`, `crates/nvs-codegen/src/lib.rs:2076`, `crates/nvs-cli/src/cache.rs:1291`
-- [ ] `--opt-level` on `nvs test`, with its help text. `crates/nvs-cli/src/runner.rs:142`
-- [ ] A Rust test that a unit cached at one level is not loaded at the other (`rule:config/the-extension-set-is-in-every-unit-key`). `crates/nvs-cli/src/cache.rs:1585`
-- [ ] The CI lane runs `--opt-level none` in place of the variable; proved locally on `tests/conformance/lang/`. `.github/workflows/ci.yml:229`
+- [x] The rule names `--opt-level`, as the standing decision says (`rule:testing/probes-on-is-a-tested-configuration`). `docs/rules/testing/probes-on-is-a-tested-configuration.md:18`
+- [x] Cranelift's level is a parameter of the host ISA in place of `NOVIS_NO_OPTIMISE`, and the compile cache keys on it (`rule:config/the-extension-set-is-in-every-unit-key`). `crates/nvs-codegen/src/lib.rs:896`, `crates/nvs-codegen/src/lib.rs:2076`, `crates/nvs-cli/src/cache.rs:1291`
+- [x] `--opt-level` on `nvs test`, with its help text. `crates/nvs-cli/src/runner.rs:142`
+- [x] A Rust test that a unit cached at one level is not loaded at the other (`rule:config/the-extension-set-is-in-every-unit-key`). `crates/nvs-cli/src/cache.rs:1585`
+- [x] The CI lane runs `--opt-level none` in place of the variable; proved locally on `tests/conformance/lang/`. `.github/workflows/ci.yml:229`
 
 ### 5. the conformance suite runs with the probes on
 
@@ -236,40 +246,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 2 is done. The ten `lang:testing/*` perf proofs are recorded (`data/perf/members.ndjson`),
-`bun nv proofs --gate` is green over the whole roster, and `bun nv proofs --id
-'lang:testing/bench-and-nvs-test-bench'` owes nothing. `rule:testing/bench-counters` is `shipped`,
-guarded by its two `.nvst` cases and `crates/nvs-cli/src/runner.rs`, and its `**Not on disk.**`
-paragraph is now a present-tense pointer to the code.
+Stage 4 is done. `nvs test --opt-level none|speed` sets Cranelift's level for the run
+(`crates/nvs-cli/src/runner.rs`, `Args::run`) and passes it to every process a `.nvst` case starts as
+`NOVIS_OPT_LEVEL` (`nvs_test::Options::nvs_env`, `crates/nvs-cli/src/main.rs:2818`). `NOVIS_NO_OPTIMISE`
+is gone. `nvs_codegen::OptLevel` and `set_opt_level` replace `compile_unoptimised`, and `host_isa`
+takes the level as a parameter. The compile cache keys on the level (`cache::unit_key`), so it stays
+on at both levels; the checked build still turns it off. The CI lane runs `test --opt-level none`
+(`.github/workflows/ci.yml:297`), and the rule says so. `## Standing decisions` records why the level
+travels as a variable and why it is in the content half of the key.
 
-The bench diagnostics' wording is fixed (`9b275d9cd`): an unsupplied bench parameter says "the
-#[Bench] method", a stray `#[TestWith]` names what the method is and its help moves or deletes the
-row, and the non-void help no longer says "rather than". The two cases that pin the wording passed.
+Checked: build and clippy green. `cache::tests::a_unit_cached_at_one_level_is_not_loaded_at_the_other`
+and both tests in `crates/nvs-codegen/tests/unoptimised.rs` pass. `nvs test --opt-level none
+tests/conformance/lang/` passed 435 of 435.
 
-The eight perf gaps `request-overhead` handed over are now stage 6, a side lane (`## Standing
-decisions`), and the gate stage is 7.
+Tests expected to go red: none known. No snapshot of `nvs --help`'s environment list or of `nvs test
+--help` was found by grep.
 
-Tests expected to go red: none known. A snapshot of a `#[TestWith]` stray-row help or of the
-non-void help would change, and none was found by grep.
-
-The sweep's findings needed no change: `env-secret-proofs`'s log shows exit 0, and `40075586234` is
-the nightly run an earlier session found fixed at HEAD.
+The sweep's findings needed no change. `bun nv proofs --gate --only 'Core\Env::secret'` exits 0
+when rerun, and the nightly run `40075586234` is on `3ea6f1550`, 171 commits behind HEAD.
 
 ### Next
 
-**Stage 4: `nvs test --opt-level`.**
+**Stage 5: `nvs test --probes`.** Its gate holds: `trace-timeline` is retired.
 
-- [ ] The rule names `--opt-level`. `docs/rules/testing/probes-on-is-a-tested-configuration.md:18`
-- [ ] Cranelift's level is an ISA parameter in place of `NOVIS_NO_OPTIMISE`, keyed in the cache. `crates/nvs-codegen/src/lib.rs:896`, `crates/nvs-cli/src/cache.rs:1291`
-- [ ] `--opt-level` on `nvs test` with its help, its Rust cache test, and the CI lane. `crates/nvs-cli/src/runner.rs:142`, `.github/workflows/ci.yml:229`
-
-Then stage 5 (`crates/nvs-cli/src/main.rs:2377`).
+- [ ] The rule names `--probes`, and its `**Not on disk.**` paragraph goes once the lane exists. `docs/rules/testing/probes-on-is-a-tested-configuration.md:24`
+- [ ] Over a `.nvst` tree, `--probes` turns every probe bit on in each case's processes and discards the data; pass it the way `--opt-level` is passed (`options.nvs_env`). `crates/nvs-cli/src/main.rs:2751`, `crates/nvs-cli/src/main.rs:2818`
+- [ ] A Rust test that a case passes with and without `--probes` and leaves no probe data. `crates/nvs-cli/src/main.rs:2751`
+- [ ] The CI lane beside the unoptimised run; proved locally with `nvs test --probes tests/conformance/lang/`. `.github/workflows/ci.yml:297`
 
 ### Backlog
 
 - Stages 3 and 6 are side lanes any session may take (`tools/nv/cmd/scaling.ts`,
   `crates/nvs-host/src/scheduler.rs:382`). Stage 6's first four items are small and independent.
-- Stage 5's gate holds: `trace-timeline` is retired.
+- `--opt-level` is a new `nvs test` flag. The gate stage's `bun nv proofs --gate` says whether it
+  owes a proof of its own.
 - `bun nv scaling --budget` reports 45 benches over their share, none of them this goal's
   (`benches/members/core/Metrics/`, `lang/expressions/the-pipeline-operator`, `novis/Spreadsheet-*`).
   It is not a gate. Whoever owns those benches lowers N or writes the reason. `data/perf/bench-budget.json:1`

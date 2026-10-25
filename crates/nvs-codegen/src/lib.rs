@@ -888,28 +888,67 @@ impl Unit {
     }
 }
 
-/// Whether every unit this process compiles from now on is compiled with
-/// Cranelift's optimiser off. Set only through [`compile_unoptimised`].
-static UNOPTIMISED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// Compiles every unit this process builds after the call with Cranelift's
-/// `opt_level` at `none` instead of `speed`, through both backends.
+/// Cranelift's optimisation level, which [`host_isa`] takes for both backends.
 ///
-/// This exists for one check: `rule:testing/probes-on-is-a-tested-configuration`
-/// runs the conformance suite once per optimisation level, and a case whose
-/// output differs between the two is a miscompile in whichever level is wrong.
-/// It is process-wide and one-way because the check is a whole run, and a unit
-/// compiled at the other level partway through would make that run evidence
-/// about neither. A caller that sets it must also keep the artifact cache off,
-/// since an artifact's key does not cover the level.
-pub fn compile_unoptimised() {
-    UNOPTIMISED.store(true, std::sync::atomic::Ordering::Relaxed);
+/// It exists for one check: `rule:testing/probes-on-is-a-tested-configuration`
+/// runs the conformance suite once per level, and a case whose output differs
+/// between the two is a miscompile in whichever level is wrong. `speed` is what
+/// every other run compiles at.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum OptLevel {
+    /// No optimisation passes.
+    None,
+    /// Cranelift's optimiser on, the default.
+    #[default]
+    Speed,
 }
 
-/// Whether [`compile_unoptimised`] has been called in this process.
+impl OptLevel {
+    /// The level's name, as Cranelift's `opt_level` flag and `nvs test
+    /// --opt-level` spell it.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Speed => "speed",
+        }
+    }
+
+    /// The level [`Self::name`] spells, or `None` for any other text.
+    #[must_use]
+    pub fn named(name: &str) -> Option<Self> {
+        [Self::None, Self::Speed]
+            .into_iter()
+            .find(|level| level.name() == name)
+    }
+}
+
+/// The level every unit this process compiles is compiled at, as
+/// [`OptLevel::Speed`]'s `false` or [`OptLevel::None`]'s `true`. Set only
+/// through [`set_opt_level`].
+static UNOPTIMISED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Compiles every unit this process builds after the call at `level`, through
+/// both backends.
+///
+/// It is process-wide because the check is a whole run, and a unit compiled at
+/// the other level partway through would make that run evidence about neither,
+/// so a caller sets it once, before its first compile. The artifact cache keys
+/// on [`opt_level`], so a unit compiled at one level is never loaded at the other.
+pub fn set_opt_level(level: OptLevel) {
+    UNOPTIMISED.store(
+        level == OptLevel::None,
+        std::sync::atomic::Ordering::Relaxed,
+    );
+}
+
+/// The level [`set_opt_level`] set, or [`OptLevel::Speed`] when nothing did.
 #[must_use]
-pub fn is_unoptimised() -> bool {
-    UNOPTIMISED.load(std::sync::atomic::Ordering::Relaxed)
+pub fn opt_level() -> OptLevel {
+    match UNOPTIMISED.load(std::sync::atomic::Ordering::Relaxed) {
+        true => OptLevel::None,
+        false => OptLevel::Speed,
+    }
 }
 
 /// Lowers every unit this process builds after the call with a type test after
@@ -918,8 +957,8 @@ pub fn is_unoptimised() -> bool {
 /// reads).
 ///
 /// It is the checked build of `rule:testing/probes-on-is-a-tested-configuration`
-/// and works like [`compile_unoptimised`]: process-wide and one-way, with the
-/// artifact cache off, since an artifact's key does not cover it. It changes
+/// and is process-wide and one-way, like [`set_opt_level`], with the artifact
+/// cache off, since an artifact's key does not cover it. It changes
 /// no program that does not call it: the tests are emitted only after it.
 pub fn compile_checked_types() {
     nvs_ir::lower::check_types();
@@ -2099,7 +2138,7 @@ struct Signatures {
 /// rather than a tuning choice — `tests/backend_policy.rs` pins those of them
 /// that leave no trace in a compiled unit.
 ///
-/// `opt_level` follows [`is_unoptimised`], for the whole process.
+/// `opt_level` is `level`, which both backends read from [`opt_level`].
 ///
 /// **`is_pic` is the only flag the backends disagree about**, and the
 /// disagreement is forced rather than a preference: a JIT owns the pages it
@@ -2108,7 +2147,10 @@ struct Signatures {
 /// reference in it must be one a loader can place. Everything else is shared on
 /// purpose — an object emitted under different tuning would be evidence about
 /// some other compiler, not about the one whose output runs.
-fn host_isa(is_pic: bool) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> {
+fn host_isa(
+    is_pic: bool,
+    level: OptLevel,
+) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> {
     let mut flags = settings::builder();
     for (name, value) in [
         // A JIT resolves every call through an absolute address, and the
@@ -2116,9 +2158,9 @@ fn host_isa(is_pic: bool) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> 
         // Novis's costs under.
         ("use_colocated_libcalls", "false"),
         ("is_pic", if is_pic { "true" } else { "false" }),
-        // `none` only under `compile_unoptimised`, the differential check's
+        // `none` only under `set_opt_level`, the differential check's
         // second half.
-        ("opt_level", if is_unoptimised() { "none" } else { "speed" }),
+        ("opt_level", level.name()),
         // Cranelift defaults this **off**, and off means a frame larger
         // than the guard page can move the stack pointer past it in one
         // step and write into whatever lies beyond — a stack clash, which
@@ -2163,7 +2205,7 @@ impl UnitBuilder<JITModule> {
     /// The in-process backend: code compiled into pages this process owns, with
     /// every symbol it names resolved to an address before it is ever called.
     fn new(disasm: Option<String>) -> Result<Self, CodegenError> {
-        let isa = host_isa(false)?;
+        let isa = host_isa(false, opt_level())?;
         let mut builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
         // Two symbol tables, one namespace: `nvs_runtime`'s primitives and
         // helpers, and every Tier 0 `Core` member. Both have `rule:errors/propagation`'s one
@@ -2213,7 +2255,7 @@ impl UnitBuilder<ObjectModule> {
     /// symbol is a relocation record, and a resolved one is an address that was
     /// only ever true for the compiling process.
     fn for_object() -> Result<Self, CodegenError> {
-        let isa = host_isa(true)?;
+        let isa = host_isa(true, opt_level())?;
         // The object's own name is metadata: a cached artifact is addressed by
         // `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s key, which the file's contents cannot contribute to.
         let builder = ObjectBuilder::new(isa, "nvs", cranelift_module::default_libcall_names())

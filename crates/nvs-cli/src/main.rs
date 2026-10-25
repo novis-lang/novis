@@ -219,13 +219,13 @@ const VERSION: &str = concat!(
     ")"
 );
 
-/// The variable that compiles every unit of this process with Cranelift's optimiser off. It works
-/// on presence, as `NOVIS_NO_FILE_CACHE` does, and the conformance suite's second CI run sets it
+/// The variable that sets Cranelift's optimisation level for every unit of this process, `none` or
+/// `speed`. `nvs test --opt-level` sets it for each process a `.nvst` case starts
 /// (`rule:testing/probes-on-is-a-tested-configuration`).
-const NO_OPTIMISE: &str = "NOVIS_NO_OPTIMISE";
+pub(crate) const OPT_LEVEL: &str = "NOVIS_OPT_LEVEL";
 
 /// The variable that compiles every unit of this process with a type test after each typed read
-/// (`nvs_codegen::compile_checked_types`). It works on presence, as [`NO_OPTIMISE`] does.
+/// (`nvs_codegen::compile_checked_types`). It works on presence, as `NOVIS_NO_FILE_CACHE` does.
 const CHECK_TYPES: &str = "NOVIS_CHECK_TYPES";
 
 /// The environment variables `nvs` reads, which `nvs --help` lists below the options.
@@ -233,8 +233,8 @@ const ENVIRONMENT: &str = "\
 Environment:
   NOVIS_NO_INIT        Do not create `nvs.toml` in the data folder, as `--no-init` does.
   NOVIS_NO_FILE_CACHE  Read and write no compiled artifact, so every program is compiled again.
-  NOVIS_NO_OPTIMISE    Compile without optimisations, and read and write no compiled artifact.
-                       The test suite uses it to check that both builds print the same output.
+  NOVIS_OPT_LEVEL      The optimisation level: `none` or `speed`. The default is `speed`.
+                       `nvs test --opt-level` sets it for the programs a `.nvst` case runs.
   NOVIS_CHECK_TYPES    Test each value a program reads against its declared type, and stop with
                        an error at the first value that does not match. A value like that is a
                        bug in Novis. Reads and writes no compiled artifact.
@@ -674,8 +674,15 @@ fn main() -> ExitCode {
 
     // After the bundle check, so a bundled application always runs optimised code. Before any
     // command compiles, so every unit of this process is compiled at the same level.
-    if std::env::var_os(NO_OPTIMISE).is_some() {
-        nvs_codegen::compile_unoptimised();
+    if let Some(name) = std::env::var_os(OPT_LEVEL) {
+        let Some(level) = name.to_str().and_then(nvs_codegen::OptLevel::named) else {
+            eprintln!(
+                "error: `{OPT_LEVEL}` is `{}`. It must be `none` or `speed`.",
+                name.display()
+            );
+            return ExitCode::FAILURE;
+        };
+        nvs_codegen::set_opt_level(level);
     }
     if std::env::var_os(CHECK_TYPES).is_some() {
         nvs_codegen::compile_checked_types();
@@ -2807,6 +2814,11 @@ fn run_test(
     options.filter = select.filter;
     options.shard = select.shard;
     options.only = only;
+    // Every process a case starts compiles at this run's level, which `--opt-level` set.
+    options.nvs_env.push((
+        OPT_LEVEL.to_owned(),
+        nvs_codegen::opt_level().name().to_owned(),
+    ));
     if let Some(jobs) = jobs {
         options.jobs = jobs.get();
     }

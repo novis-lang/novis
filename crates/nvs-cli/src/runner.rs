@@ -357,12 +357,44 @@ pub(crate) struct Args {
     /// `.`, `_` or `-` as `@` and two hex digits.
     #[arg(long, value_name = "DIR", conflicts_with = "list")]
     record: Option<PathBuf>,
+    /// Compile the tests at this optimisation level: `none` or `speed`.
+    ///
+    /// The default is `speed`, the level `nvs run` and `nvs serve` use.
+    /// `none` compiles without optimisations. A test that passes at one
+    /// level and fails at the other shows a bug in Novis. For `.nvst`
+    /// cases, every program a case runs uses this level.
+    // `rule:testing/probes-on-is-a-tested-configuration`.
+    #[arg(long, value_name = "LEVEL", conflicts_with = "list")]
+    opt_level: Option<OptLevel>,
+}
+
+/// The levels `--opt-level` takes, one for each [`nvs_codegen::OptLevel`].
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub(crate) enum OptLevel {
+    /// No optimisations.
+    None,
+    /// Optimised, the default.
+    Speed,
+}
+
+impl From<OptLevel> for nvs_codegen::OptLevel {
+    fn from(level: OptLevel) -> Self {
+        match level {
+            OptLevel::None => Self::None,
+            OptLevel::Speed => Self::Speed,
+        }
+    }
 }
 
 impl Args {
     /// Runs `nvs test` with the arguments clap parsed, the global `--config`
     /// files and the project's init gate.
     pub(crate) fn run(self, config: &[PathBuf], init: crate::config::Init) -> ExitCode {
+        // Before anything compiles, so every unit of the run is at one level. `run_test` passes
+        // the level on to each process a `.nvst` case starts.
+        if let Some(level) = self.opt_level {
+            nvs_codegen::set_opt_level(level.into());
+        }
         crate::run_test(
             &self.paths,
             Selection {

@@ -20,7 +20,7 @@
 //! With the switch off, [`Lowering::check_read`] and
 //! [`Lowering::emit_type_check`] return before they emit anything, so a unit
 //! has not one instruction more. The switch is process-wide and one-way, like
-//! `nvs_codegen::compile_unoptimised`, and for the same reason: the run is the
+//! `nvs_codegen::set_opt_level`, and for the same reason: the run is the
 //! evidence, and a unit compiled the other way partway through it would make
 //! it evidence about neither. A caller that sets it keeps the artifact cache
 //! off, since an artifact's key does not cover it.

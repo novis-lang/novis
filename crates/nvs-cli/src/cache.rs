@@ -1585,6 +1585,19 @@ pub(crate) fn unit_digests(files: &[nvs_types::ProgramFile<'_>]) -> Vec<Digest> 
         .collect()
 }
 
+/// The key [`unit_for`] reads and writes a compiled unit under: [`artifact_key`] over `env` and a
+/// content half that is `BLAKE3(source ‖ level)`.
+///
+/// The level is Cranelift's optimisation level (`rule:testing/probes-on-is-a-tested-configuration`),
+/// so a unit compiled at one level is never loaded at the other. It is in the content half and not
+/// in `env` because `env` is also `Core\Program::id()`'s, and a program's identity does not change
+/// with the level.
+pub(crate) fn unit_key(source: Digest, env: EnvHash, level: nvs_codegen::OptLevel) -> Digest {
+    let mut keyed = source.as_bytes().to_vec();
+    keyed.extend_from_slice(level.name().as_bytes());
+    artifact_key(content_hash(&keyed), env)
+}
+
 /// Which half of `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` this run's unit came out of.
 ///
 /// Nothing a script can observe turns on this — § 3 makes a miss exactly as invisible as a cold
@@ -1624,16 +1637,13 @@ pub(crate) fn unit_for(
     source: Digest,
     cache: Option<&Cache>,
 ) -> Result<(nvs_codegen::Unit, Provenance), nvs_codegen::CodegenError> {
-    // An unoptimised or a checked process neither reads nor writes an artifact: the key covers
-    // neither the optimisation level nor the checked build's tests, so a hit would run the other
-    // build's code and a write would hand this build's code to every later run
-    // (`nvs_codegen::compile_unoptimised`, `nvs_codegen::compile_checked_types`).
-    let Some(cache) =
-        cache.filter(|_| !nvs_codegen::is_unoptimised() && !nvs_codegen::is_checking_types())
-    else {
+    // A checked process neither reads nor writes an artifact: the key does not cover the checked
+    // build's tests, so a hit would run the other build's code and a write would hand this build's
+    // code to every later run (`nvs_codegen::compile_checked_types`).
+    let Some(cache) = cache.filter(|_| !nvs_codegen::is_checking_types()) else {
         return Ok((nvs_codegen::compile(program)?, Provenance::Compiled));
     };
-    let key = artifact_key(source, cache.env());
+    let key = unit_key(source, cache.env(), nvs_codegen::opt_level());
     if let Some(unit) = warm_hit(program, cache, key) {
         return Ok((unit, Provenance::Loaded));
     }
@@ -2852,6 +2862,49 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
+    /// A unit compiled at one optimisation level is never loaded at the other, which is what lets
+    /// `nvs test --opt-level` keep the cache on (`rule:testing/probes-on-is-a-tested-configuration`).
+    ///
+    /// The level is process-wide, so this test does not switch it: it publishes at this process's
+    /// level through [`unit_for`] and then reads under each level's key.
+    #[test]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    fn a_unit_cached_at_one_level_is_not_loaded_at_the_other() {
+        use nvs_codegen::OptLevel;
+
+        let dir = scratch("opt-level");
+        let source = dir.join("program.nvs");
+        fs::write(&source, "<?nvs\necho 6 * 7;\n")
+            .expect("a scratch directory of this test's own is writable");
+        let (program, digest) = lowered(&source);
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+
+        let (_, provenance) =
+            unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
+        assert_eq!(provenance, Provenance::Compiled);
+
+        let here = nvs_codegen::opt_level();
+        let other = match here {
+            OptLevel::None => OptLevel::Speed,
+            OptLevel::Speed => OptLevel::None,
+        };
+        assert_ne!(
+            unit_key(digest, cache.env(), here),
+            unit_key(digest, cache.env(), other),
+            "the two levels key the same source apart"
+        );
+        assert!(
+            warm_hit(&program, &cache, unit_key(digest, cache.env(), here)).is_some(),
+            "the unit is there at the level it was compiled at"
+        );
+        assert!(
+            warm_hit(&program, &cache, unit_key(digest, cache.env(), other)).is_none(),
+            "and the other level finds nothing"
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
     /// The goal's standing decision, pinned: `nvs run` keeps working with no cache to consult and
     /// with one it can never write.
     ///
@@ -3251,7 +3304,11 @@ mod tests {
                     // loader's: an on-access scanner reads it whole, once per file, so a real warm start
                     // opening an artifact an earlier run published never meets it.
                     drop(
-                        File::open(cache.path(artifact_key(digest, cache.env())))
+                        File::open(cache.path(unit_key(
+                            digest,
+                            cache.env(),
+                            nvs_codegen::opt_level(),
+                        )))
                             .expect("the cold arm published this artifact"),
                     );
 

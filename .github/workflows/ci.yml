@@ -296,9 +296,7 @@ jobs:
       # On every leg, because each target is its own Cranelift backend.
       - name: Conformance suite, unoptimised
         if: matrix.part != 'tests'
-        env:
-          NOVIS_NO_OPTIMISE: '1'
-        run: cargo run --quiet -p nvs-cli -- test tests/conformance/
+        run: cargo run --quiet -p nvs-cli -- test --opt-level none tests/conformance/
       # The same suite under the checked build (`rule:testing/probes-on-is-a-tested-configuration`):
       # each typed read also tests its value against its declared type, and a value of another type
       # stops the case. That is a compiler bug a case's output alone may not show.

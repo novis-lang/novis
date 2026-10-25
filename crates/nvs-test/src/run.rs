@@ -84,6 +84,10 @@ pub struct Options {
     /// fresh run has passed, and fail it when the two outputs differ. `None`
     /// runs every case fresh only.
     pub shared: Option<Arc<dyn SharedWorker>>,
+    /// Variables every `nvs` process of every case gets, ahead of the case's
+    /// own `--ENV--`, so a case's own value wins. `nvs test --opt-level` puts
+    /// its level here.
+    pub nvs_env: Vec<(String, String)>,
 }
 
 /// One worker that runs many cases' programs in turn, for `nvs test
@@ -122,6 +126,7 @@ impl Options {
             record: None,
             root,
             shared: None,
+            nvs_env: Vec::new(),
         })
     }
 }
@@ -580,7 +585,7 @@ fn run_nvs(opts: &Options, workdir: &Path, run: &Invocation<'_>) -> io::Result<O
         &opts.nvs,
         &args,
         workdir,
-        &[run.env, run.record],
+        &[&opts.nvs_env, run.env, run.record],
         opts.timeout,
     )
 }
