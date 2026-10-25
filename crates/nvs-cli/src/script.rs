@@ -172,6 +172,7 @@ use nvs_config::cache::{
     env_hash,
 };
 use nvs_config::tree::Config;
+use nvs_host::debug::{DebugFunction, DebugUnit, DebugVariable, Debugger, SiteLine};
 use nvs_runtime::script::{Prepared, Program, Resolver};
 use nvs_runtime::{Ctx, Value};
 
@@ -200,6 +201,11 @@ pub(crate) struct Compiled {
     /// that moves the environment drops the unit and compiles a new one, so
     /// the id follows the swap with nothing else to update.
     id: Arc<str>,
+    /// The debug session this unit was compiled for, and its sites, lines and
+    /// functions. Every context [`program_over`] arms is attached to the
+    /// session with this unit, so a request stops at the sites of the unit it
+    /// runs. `None` for a compiler without the debug switch.
+    debug: Option<(Debugger, Arc<DebugUnit>)>,
 }
 
 /// What one written path resolved to last, and when that was checked: the
@@ -549,6 +555,13 @@ pub(crate) struct Compiler {
     /// build a different struct, and this is the number an `nvs info` would
     /// report if it ever reported one.
     compiles: AtomicU64,
+    /// The debug session every unit is compiled for, under the debug switch
+    /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+    /// Each compile loads its unit into the session, which resolves every
+    /// breakpoint again against it. `None` for every compiler but
+    /// [`Self::debugging`]'s, and set for the compiler's whole life, so no
+    /// request runs a unit of the other kind.
+    debug: Option<Debugger>,
 }
 
 impl Default for Compiler {
@@ -582,6 +595,26 @@ impl Compiler {
             watcher: Mutex::new(Weak::new()),
             cache: RwLock::new(crate::cache::from_config(config)),
             compiles: AtomicU64::new(0),
+            debug: None,
+        }
+    }
+
+    /// [`Self::new`]'s compiler with the debug switch on: every unit it
+    /// compiles is loaded into `debugger`, and every request on it is
+    /// attached to `debugger`. It reads and writes no artifact
+    /// ([`crate::cache::unit_for`]).
+    ///
+    /// **What it spends:** a debug unit's slower code, and its sites, lines
+    /// and functions beside each unit the table holds. A compiler without the
+    /// switch spends nothing.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "`nvs dap` is the first caller outside the tests")
+    )]
+    pub(crate) fn debugging(config: &Config, debugger: Debugger) -> Self {
+        Self {
+            debug: Some(debugger),
+            ..Self::new(config)
         }
     }
 
@@ -1376,14 +1409,21 @@ impl Compiler {
         // list that was lowered and not the entry file alone.
         let files = checked.program_files();
         let program = crate::cache::program_digest(&files);
-        let lowered = nvs_ir::lower::lower_program(
-            nvs_ir::lower::ENTRY_SCRIPT_LABEL,
-            &files,
-            &checked.exprs,
-            &checked.interner,
-            &checked.enums,
-            &checked.layouts,
-        );
+        let lower = || {
+            nvs_ir::lower::lower_program(
+                nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+                &files,
+                &checked.exprs,
+                &checked.interner,
+                &checked.enums,
+                &checked.layouts,
+            )
+        };
+        let lowered = if self.debug.is_some() {
+            nvs_ir::lower::with_debug_slots(lower)
+        } else {
+            lower()
+        };
         let id: Arc<str> =
             nvs_config::cache::program_id(&crate::cache::unit_digests(&files), self.env())
                 .to_string()
@@ -1391,10 +1431,16 @@ impl Compiler {
         let cache = shared(&self.cache).clone();
         let outcome = crate::cache::unit_for(&lowered, program, cache.as_ref())
             .map(|(unit, _)| {
+                let debug = self.debug.as_ref().and_then(|debugger| {
+                    let unit = debug_unit(&unit, &lowered, &checked.map)?;
+                    debugger.load(&unit);
+                    Some((debugger.clone(), unit))
+                });
                 Arc::new(Compiled {
                     unit: Arc::new(unit),
                     routes: Arc::new(crate::runtime_routes(&checked.exprs)),
                     id,
+                    debug,
                 })
             })
             .map_err(|error| {
@@ -1968,6 +2014,12 @@ fn program_over(compiled: Arc<Compiled>) -> Program {
         // program of its own, so it reads its own unit's id and not its
         // parent's.
         ctx.set_program_id(Arc::clone(&compiled.id));
+        // And the debug session, on the unit this context runs. A served
+        // request's context is set up for its request by now, so the stop
+        // handler is set on the request's own tree.
+        if let Some((debugger, unit)) = &compiled.debug {
+            debugger.attach(ctx, unit);
+        }
         // Ownership discharged into the isolate's own root; the seam's type
         // doc owns why this and not a release here.
         ctx.set_isolate_argument(args);
@@ -1993,6 +2045,38 @@ fn program_over(compiled: Arc<Compiled>) -> Program {
             }
         }
     })
+}
+
+/// The sites, lines and functions of `unit`, compiled from `program` under the
+/// debug switch, with each site's file named as `map` names it. `None` for a
+/// unit compiled without the switch.
+fn debug_unit(
+    unit: &nvs_codegen::Unit,
+    program: &nvs_ir::Program,
+    map: &nvs_diagnostics::SourceMap,
+) -> Option<Arc<DebugUnit>> {
+    let sites = unit.debug_sites()?;
+    let lines = program
+        .stmt_lines(map)
+        .into_iter()
+        .map(|(file, line)| SiteLine { file, line })
+        .collect();
+    let functions = (0u32..)
+        .map_while(|index| unit.debug_function(index))
+        .map(|name| DebugFunction {
+            name: name.to_owned(),
+            slots: unit
+                .debug_slots(name)
+                .unwrap_or_default()
+                .iter()
+                .map(|slot| DebugVariable {
+                    name: slot.name.clone(),
+                    secret: slot.secret,
+                })
+                .collect(),
+        })
+        .collect();
+    Some(DebugUnit::new(Arc::clone(sites), lines, functions))
 }
 
 /// A context granting `script.spawn` for everything, and nothing else.
@@ -2205,8 +2289,13 @@ mod tests {
 
     /// The same, with `validate` and `revalidate_freq` chosen by the test.
     fn checking(validate: &str, freq: &str) -> Compiler {
+        Compiler::new(&checking_config(validate, freq))
+    }
+
+    /// The configuration [`checking`]'s compiler is built from.
+    fn checking_config(validate: &str, freq: &str) -> nvs_config::tree::Config {
         use nvs_config::tree::{Config, Opcache, Setting};
-        Compiler::new(&Config {
+        Config {
             opcache: Some(Opcache {
                 validate: Some(Setting::Text(validate.to_owned())),
                 revalidate_freq: Some(Setting::Text(freq.to_owned())),
@@ -2214,7 +2303,7 @@ mod tests {
                 ..Opcache::default()
             }),
             ..Config::default()
-        })
+        }
     }
 
     #[test]
@@ -3357,6 +3446,88 @@ mod tests {
         let completion = run_program(open);
         assert!(completion.ok, "error: {:?}", completion.error);
         assert_eq!(String::from_utf8_lossy(&completion.output), "one\n");
+    }
+
+    /// Runs a request for `path` through `compiler` on a core of its own, so
+    /// the test thread can drive the debug session while the request is
+    /// stopped. The handle gives what the request printed.
+    fn serve_on_a_core(
+        compiler: &Arc<Compiler>,
+        path: &std::path::Path,
+    ) -> std::thread::JoinHandle<String> {
+        let compiler = Arc::clone(compiler);
+        let path = path.to_string_lossy().into_owned();
+        std::thread::spawn(move || {
+            let (program, _) = compiler.compiled(&path).expect("the entry compiles");
+            let completion = run_serving(program);
+            assert!(completion.ok, "error: {:?}", completion.error);
+            String::from_utf8_lossy(&completion.output).into_owned()
+        })
+    }
+
+    #[test]
+    fn a_breakpoint_outlives_an_edit_and_a_stopped_request_finishes_on_its_own_unit() {
+        use nvs_host::debug::{Debugger, Stop, StopReason};
+
+        // A guard against a hang, never a wait for something to happen.
+        const HANG: std::time::Duration = std::time::Duration::from_secs(60);
+        let next = |stops: &std::sync::mpsc::Receiver<Stop>| {
+            stops
+                .recv_timeout(HANG)
+                .expect("the request did not stop at its breakpoint")
+        };
+        // The script frame's line and its `$total`.
+        let seen = |stop: &Stop| {
+            let frame = stop.frames.last().expect("a stop has the script frame");
+            let total = frame
+                .variables
+                .iter()
+                .find(|variable| variable.name == "total")
+                .map(|variable| variable.value.clone());
+            (frame.at.as_ref().map(|at| at.line), total)
+        };
+        let int = |n| Some(nvs_runtime::record::node(Value::int(n)));
+
+        let path = a_file_running(
+            "debug-edit",
+            "int $price = 4;\nint $total = $price * 3;\necho $total, \"\\n\";\necho \"done\\n\";",
+        );
+        let file = super::real_path(&path).display().to_string();
+        let (debugger, stops) = Debugger::new();
+        let compiler = Arc::new(Compiler::debugging(
+            &checking_config("hash", "0s"),
+            debugger.clone(),
+        ));
+        debugger.set_breakpoints(&file, &[4, 5]);
+
+        let old = serve_on_a_core(&compiler, &path);
+        let stop = next(&stops);
+        assert_eq!(stop.reason, StopReason::Breakpoint);
+        assert_eq!(seen(&stop), (Some(4), int(12)));
+
+        // The edit, while the request is stopped: a new price, and no line 5.
+        path.run("int $price = 5;\nint $total = $price * 3;\necho $total, \"\\n\";");
+        compiler.revalidate();
+        assert_eq!(compiler.compiles.load(Ordering::Relaxed), 2);
+
+        // The stopped request runs on its own unit, whose line 5 still stops.
+        debugger.resume();
+        assert_eq!(seen(&next(&stops)).0, Some(5));
+        debugger.resume();
+        assert_eq!(old.join().expect("the old request ended"), "12\ndone\n");
+
+        // The next request runs the new unit and stops at the same line.
+        let new = serve_on_a_core(&compiler, &path);
+        assert_eq!(seen(&next(&stops)), (Some(4), int(15)));
+        debugger.resume();
+        assert_eq!(new.join().expect("the new request ended"), "15\n");
+
+        let resolved = debugger.set_breakpoints(&file, &[4, 5]);
+        assert_eq!(
+            resolved.iter().map(|b| b.verified).collect::<Vec<_>>(),
+            [true, false],
+            "line 5 has no statement in the new unit"
+        );
     }
 
     #[test]

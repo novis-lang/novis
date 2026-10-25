@@ -1,12 +1,14 @@
 {
   "title": "A stop pauses every task of the debugged request at its next stop site, suspends that request's deadlines, and leaves every other request running",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/a-debugged-program-is-compiled-with-a-debug-switch",
     "ide/the-debugger-ui-is-as-deep-as-the-adapter",
     "http-server/a-wedged-core-is-detected-by-its-deadline",
     "errors/on-limit"
   ],
-  "guardedBy": [],
-  "goal": "debugger-core"
+  "guardedBy": [
+    "crates/nvs-host/src/debug.rs",
+    "crates/nvs-host/src/watchdog.rs"
+  ]
 }

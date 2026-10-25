@@ -52,6 +52,15 @@ impl Program {
             .collect()
     }
 
+    /// Whether the program was lowered under the debug switch
+    /// ([`crate::lower::with_debug_slots`]). The artifact cache neither
+    /// writes nor reads such a program, because its key does not cover the
+    /// switch.
+    #[must_use]
+    pub fn is_debug(&self) -> bool {
+        self.functions.iter().any(|f| f.debug_slots.is_some())
+    }
+
     /// The file name and 1-based line each statement starts on, indexed as
     /// [`Self::stmt_spans`] indexes it, read through the source map the
     /// program was lowered from. A debug session resolves a breakpoint's file

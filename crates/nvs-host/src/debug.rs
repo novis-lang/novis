@@ -9,6 +9,15 @@
 //! site and at a [`SafepointFlags::DEBUG_BREAK`] poll. The handler sends a
 //! [`Stop`] and parks the task on its own stack until [`Debugger::resume`].
 //!
+//! A session outlives a recompile
+//! (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). Each
+//! compiled unit is a [`DebugUnit`], and [`Debugger::load`] adds the new one
+//! and resolves every breakpoint again by file and line against it. The
+//! session keeps a breakpoint as its file and line, never as a site, because
+//! an edit renumbers the sites. A request is attached with the unit it runs,
+//! and finishes on that unit with its sites and its lines. A breakpoint set
+//! later is armed in every unit still running.
+//!
 //! A stop is the request tree's (`rule:testing/a-stop-pauses-the-whole-task-tree`).
 //! The handler is set on the tree, so every context of it runs the same one,
 //! a `spawn worker` child on another core included. A task that stops at a
@@ -41,13 +50,15 @@
 //! thread while the program runs on a core.
 //!
 //! **What it spends:** one [`SiteLine`] per statement and one
-//! [`DebugFunction`] per function per session, one weak safepoint view per
+//! [`DebugFunction`] per function per unit, held while the compiled unit or a
+//! request on it lives, one weak unit per load, freed at the next load once
+//! the unit has ended, one weak safepoint view per
 //! attached request, freed at the next attach once the request has ended, and
 //! one wake per stopped task, freed by the resume. A stop holds the tree of
 //! every variable of every frame until the session drops it. A program that
 //! is not debugged spends nothing.
 
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, mpsc};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, Weak, mpsc};
 
 use nvs_render::Node;
 use nvs_runtime::{
@@ -148,6 +159,56 @@ pub struct Stop {
     pub frames: Vec<StoppedFrame>,
 }
 
+/// One compiled unit of a debugged program: its stop sites, where each one is,
+/// and its functions. A recompile gives a new one, and a request runs on the
+/// one it was attached with until it ends.
+#[derive(Debug)]
+pub struct DebugUnit {
+    sites: Arc<SiteTable>,
+    lines: Vec<SiteLine>,
+    functions: Vec<DebugFunction>,
+}
+
+impl DebugUnit {
+    /// The unit whose stop sites are `sites`. `lines` is where each site is,
+    /// indexed the same way: the caller builds it from
+    /// `nvs_ir::Program::stmt_lines`. `functions` is the unit's functions by
+    /// index, from `nvs_codegen::Unit::debug_function` and
+    /// `nvs_codegen::Unit::debug_slots`.
+    #[must_use]
+    pub fn new(
+        sites: Arc<SiteTable>,
+        lines: Vec<SiteLine>,
+        functions: Vec<DebugFunction>,
+    ) -> Arc<Self> {
+        debug_assert_eq!(sites.len(), lines.len(), "one line per stop site");
+        Arc::new(Self {
+            sites,
+            lines,
+            functions,
+        })
+    }
+
+    /// Arms or disarms every site of `file` on each of `lines`. Answers one
+    /// [`Breakpoint`] per line, in order.
+    fn arm(&self, file: &str, lines: &[u32], on: bool) -> Vec<Breakpoint> {
+        lines
+            .iter()
+            .map(|&line| {
+                let mut verified = false;
+                for (site, _) in (0u32..)
+                    .zip(&self.lines)
+                    .filter(|(_, at)| at.file == file && at.line == line)
+                {
+                    self.sites.arm(site, on);
+                    verified = true;
+                }
+                Breakpoint { line, verified }
+            })
+            .collect()
+    }
+}
+
 /// The controller of one debug session. Cloning it gives a second handle to
 /// the same session.
 #[derive(Clone, Debug)]
@@ -158,9 +219,6 @@ pub struct Debugger {
 /// What every handle and every attached context share.
 #[derive(Debug)]
 struct Shared {
-    sites: Arc<SiteTable>,
-    lines: Vec<SiteLine>,
-    functions: Vec<DebugFunction>,
     state: Mutex<State>,
     /// Signalled by every resume, for a stopped context with no reactor.
     resumed: Condvar,
@@ -169,8 +227,11 @@ struct Shared {
 
 #[derive(Debug, Default)]
 struct State {
-    /// The sites each file's breakpoints armed.
+    /// The lines of each file's breakpoints, as the session set them.
     breakpoints: FxHashMap<String, Vec<u32>>,
+    /// Every unit loaded into the session, the newest last. Weak, because a
+    /// unit lives as long as its compiled code and the requests running it.
+    units: Vec<Weak<DebugUnit>>,
     /// The safepoint word of every attached request, for a pause and a
     /// resume. Weak, because each tree holds this session's stop handler.
     requests: Vec<WeakSafepointView>,
@@ -184,23 +245,12 @@ struct State {
 }
 
 impl Debugger {
-    /// A session over the unit whose stop sites are `sites`. `lines` is where
-    /// each site is, indexed the same way: the caller builds it from
-    /// `nvs_ir::Program::stmt_lines`. `functions` is the unit's functions by
-    /// index, from `nvs_codegen::Unit::debug_function` and
-    /// `nvs_codegen::Unit::debug_slots`. The receiver gets every [`Stop`].
+    /// A session with no unit and no breakpoint yet. The receiver gets every
+    /// [`Stop`].
     #[must_use]
-    pub fn new(
-        sites: Arc<SiteTable>,
-        lines: Vec<SiteLine>,
-        functions: Vec<DebugFunction>,
-    ) -> (Self, mpsc::Receiver<Stop>) {
-        debug_assert_eq!(sites.len(), lines.len(), "one line per stop site");
+    pub fn new() -> (Self, mpsc::Receiver<Stop>) {
         let (stops, receiver) = mpsc::channel();
         let shared = Shared {
-            sites,
-            lines,
-            functions,
             state: Mutex::default(),
             resumed: Condvar::new(),
             stops,
@@ -213,37 +263,47 @@ impl Debugger {
         )
     }
 
-    /// Sets the breakpoints of `file` to `lines`, replacing the ones it had,
-    /// and arms every stop site on each line. Returns one [`Breakpoint`] per
-    /// line, in order.
-    pub fn set_breakpoints(&self, file: &str, lines: &[u32]) -> Vec<Breakpoint> {
-        let shared = &self.shared;
-        let mut state = shared.lock();
-        for site in state.breakpoints.remove(file).unwrap_or_default() {
-            shared.sites.arm(site, false);
-        }
-        let mut armed = Vec::new();
-        let answer = lines
+    /// Adds `unit` to the session as its newest unit, and arms every
+    /// breakpoint again against it. A recompile calls this with the new unit.
+    /// The units loaded before keep their sites armed for the requests still
+    /// running on them.
+    ///
+    /// Returns each file's breakpoints resolved in `unit`, sorted by file. A
+    /// breakpoint on a line that no longer has a statement is not
+    /// [`Breakpoint::verified`].
+    pub fn load(&self, unit: &Arc<DebugUnit>) -> Vec<(String, Vec<Breakpoint>)> {
+        let mut state = self.shared.lock();
+        state.units.retain(|unit| unit.strong_count() > 0);
+        state.units.push(Arc::downgrade(unit));
+        let mut resolved: Vec<_> = state
+            .breakpoints
             .iter()
-            .map(|&line| {
-                let before = armed.len();
-                armed.extend(
-                    (0u32..)
-                        .zip(&shared.lines)
-                        .filter(|(_, at)| at.file == file && at.line == line)
-                        .map(|(site, _)| site),
-                );
-                Breakpoint {
-                    line,
-                    verified: armed.len() > before,
-                }
+            .map(|(file, lines)| (file.clone(), unit.arm(file, lines, true)))
+            .collect();
+        resolved.sort_by(|(a, _), (b, _)| a.cmp(b));
+        resolved
+    }
+
+    /// Sets the breakpoints of `file` to `lines`, replacing the ones it had,
+    /// and arms every stop site on each line in every loaded unit. Returns
+    /// one [`Breakpoint`] per line, in order, resolved in the newest unit.
+    pub fn set_breakpoints(&self, file: &str, lines: &[u32]) -> Vec<Breakpoint> {
+        let mut state = self.shared.lock();
+        let before = state.breakpoints.remove(file).unwrap_or_default();
+        let units: Vec<Arc<DebugUnit>> = state.units.iter().filter_map(Weak::upgrade).collect();
+        let mut answer = lines
+            .iter()
+            .map(|&line| Breakpoint {
+                line,
+                verified: false,
             })
             .collect();
-        for &site in &armed {
-            shared.sites.arm(site, true);
+        for unit in &units {
+            unit.arm(file, &before, false);
+            answer = unit.arm(file, lines, true);
         }
-        if !armed.is_empty() {
-            state.breakpoints.insert(file.to_owned(), armed);
+        if !lines.is_empty() {
+            state.breakpoints.insert(file.to_owned(), lines.to_vec());
         }
         answer
     }
@@ -274,19 +334,22 @@ impl Debugger {
         }
     }
 
-    /// Makes the request tree of `ctx` stop under this session: at an armed
-    /// site, and at the poll after a [`Self::pause`]. Every context of the
-    /// tree stops, a child spawned later included. The request stays attached
-    /// until its tree ends or its stop handler is replaced.
-    pub fn attach(&self, ctx: &mut Ctx) {
+    /// Makes the request tree of `ctx`, which runs `unit`, stop under this
+    /// session: at an armed site, and at the poll after a [`Self::pause`].
+    /// Every context of the tree stops, a child spawned later included. Its
+    /// frames are read against `unit` until the tree ends, whatever units the
+    /// session loads after. The request stays attached until its tree ends or
+    /// its stop handler is replaced.
+    pub fn attach(&self, ctx: &mut Ctx, unit: &Arc<DebugUnit>) {
         {
             let mut state = self.shared.lock();
             state.requests.retain(|view| view.flags().is_some());
             state.requests.push(ctx.safepoint_view().downgrade());
         }
         let shared = Arc::clone(&self.shared);
+        let unit = Arc::clone(unit);
         ctx.set_debug_stop(Some(Arc::new(move |ctx: &mut Ctx, cause| {
-            shared.stop(ctx, cause)
+            shared.stop(ctx, cause, &unit)
         })));
     }
 }
@@ -298,8 +361,8 @@ impl Shared {
 
     /// The stop handler: stops the whole tree at a breakpoint, reports the
     /// stop, then parks until a resume.
-    fn stop(&self, ctx: &mut Ctx, cause: StopCause) -> i32 {
-        let frames: Vec<StoppedFrame> = ctx.frames().map(|frame| self.read(frame)).collect();
+    fn stop(&self, ctx: &mut Ctx, cause: StopCause, unit: &DebugUnit) -> i32 {
+        let frames: Vec<StoppedFrame> = ctx.frames().map(|frame| read(unit, frame)).collect();
         let mut state = self.lock();
         let reason = match cause {
             StopCause::Site => {
@@ -347,24 +410,24 @@ impl Shared {
         }
         nvs_runtime::OK
     }
+}
 
-    /// One frame of a stopped task, its variables rendered. Runs on the
-    /// task's stack, where `frame`'s slots are valid.
-    fn read(&self, frame: Frame<'_>) -> StoppedFrame {
-        let function = usize::try_from(frame.function)
-            .ok()
-            .and_then(|index| self.functions.get(index));
-        let at = usize::try_from(frame.site)
-            .ok()
-            .and_then(|site| self.lines.get(site))
-            .cloned();
-        StoppedFrame {
-            function: frame.function,
-            name: function.map(|f| f.name.clone()).unwrap_or_default(),
-            site: frame.site,
-            at,
-            variables: function.map_or_else(Vec::new, |f| variables(f, frame.slots)),
-        }
+/// One frame of a stopped task running `unit`, its variables rendered. Runs
+/// on the task's stack, where `frame`'s slots are valid.
+fn read(unit: &DebugUnit, frame: Frame<'_>) -> StoppedFrame {
+    let function = usize::try_from(frame.function)
+        .ok()
+        .and_then(|index| unit.functions.get(index));
+    let at = usize::try_from(frame.site)
+        .ok()
+        .and_then(|site| unit.lines.get(site))
+        .cloned();
+    StoppedFrame {
+        function: frame.function,
+        name: function.map(|f| f.name.clone()).unwrap_or_default(),
+        site: frame.site,
+        at,
+        variables: function.map_or_else(Vec::new, |f| variables(f, frame.slots)),
     }
 }
 
@@ -398,19 +461,25 @@ mod tests {
     use crate::reactor::{Reactor, install, run_until_idle};
     use crate::scheduler::Scheduler;
 
-    /// Three sites: two on line 2 of `a.nvs`, one on line 4.
-    fn session() -> (Debugger, mpsc::Receiver<Stop>, Arc<SiteTable>) {
-        let sites = Arc::new(SiteTable::new(3));
-        let line = |line| SiteLine {
+    /// A unit over `a.nvs` with a site on each of `lines`.
+    fn unit(lines: &[u32]) -> Arc<DebugUnit> {
+        let at = |&line| SiteLine {
             file: "a.nvs".to_owned(),
             line,
         };
-        let (debugger, stops) = Debugger::new(
-            Arc::clone(&sites),
-            vec![line(2), line(2), line(4)],
+        DebugUnit::new(
+            Arc::new(SiteTable::new(lines.len())),
+            lines.iter().map(at).collect(),
             Vec::new(),
-        );
-        (debugger, stops, sites)
+        )
+    }
+
+    /// A session over three sites: two on line 2 of `a.nvs`, one on line 4.
+    fn session() -> (Debugger, mpsc::Receiver<Stop>, Arc<DebugUnit>) {
+        let unit = unit(&[2, 2, 4]);
+        let (debugger, stops) = Debugger::new();
+        debugger.load(&unit);
+        (debugger, stops, unit)
     }
 
     #[test]
@@ -457,7 +526,8 @@ mod tests {
 
     #[test]
     fn a_breakpoint_arms_every_site_on_its_line_and_a_new_set_replaces_it() {
-        let (debugger, _stops, sites) = session();
+        let (debugger, _stops, unit) = session();
+        let sites = &unit.sites;
         let set = debugger.set_breakpoints("a.nvs", &[2, 3]);
         assert_eq!(
             set,
@@ -482,8 +552,44 @@ mod tests {
     }
 
     #[test]
+    fn a_new_unit_takes_every_breakpoint_by_line_and_the_old_unit_keeps_its_own() {
+        let (debugger, _stops, old) = session();
+        debugger.set_breakpoints("a.nvs", &[2, 4]);
+
+        // The edit moved line 2's statements to line 3, and kept line 4.
+        let new = unit(&[3, 4]);
+        let resolved = debugger.load(&new);
+        let [(file, lines)] = resolved.as_slice() else {
+            panic!("one file's breakpoints, got {resolved:?}");
+        };
+        assert_eq!(file, "a.nvs");
+        assert_eq!(
+            lines
+                .iter()
+                .map(|b| (b.line, b.verified))
+                .collect::<Vec<_>>(),
+            [(2, false), (4, true)]
+        );
+        assert!(!new.sites.is_armed(0) && new.sites.is_armed(1));
+        assert!(
+            old.sites.is_armed(0) && old.sites.is_armed(2),
+            "the old unit keeps its sites"
+        );
+
+        // A new set reaches both units, and is resolved in the newest.
+        assert!(debugger.set_breakpoints("a.nvs", &[3])[0].verified);
+        assert!(new.sites.is_armed(0) && !new.sites.is_armed(1));
+        assert!(!old.sites.is_armed(0) && !old.sites.is_armed(2));
+
+        // A unit nothing holds any more is left out.
+        drop(old);
+        assert!(debugger.set_breakpoints("a.nvs", &[4])[0].verified);
+        assert!(new.sites.is_armed(1));
+    }
+
+    #[test]
     fn a_stopped_task_gives_its_core_to_the_others_and_a_resume_continues_it() {
-        let (debugger, stops, _sites) = session();
+        let (debugger, stops, unit) = session();
         let (ran, after) = mpsc::channel();
         let controller = debugger.clone();
         let core = std::thread::spawn(move || {
@@ -492,7 +598,7 @@ mod tests {
             let status = Rc::new(Cell::new(None));
             let seen = Rc::clone(&status);
             let mut ctx = Ctx::buffered();
-            controller.attach(&mut ctx);
+            controller.attach(&mut ctx, &unit);
             sched.spawn(ctx, TaskRoot::Request, move |ctx| seen.set(Some(site(ctx))));
             sched.spawn(Ctx::buffered(), TaskRoot::Request, move |_| {
                 ran.send("the other task ran").expect("the test is waiting");
@@ -512,13 +618,13 @@ mod tests {
 
     #[test]
     fn a_pause_stops_an_attached_request_at_its_next_poll() {
-        let (debugger, stops, _sites) = session();
+        let (debugger, stops, unit) = session();
         let controller = debugger.clone();
         let (attached, ready) = mpsc::channel();
         let (paused, go) = mpsc::channel();
         let program = std::thread::spawn(move || {
             let mut ctx = Ctx::buffered();
-            controller.attach(&mut ctx);
+            controller.attach(&mut ctx, &unit);
             attached.send(()).expect("the test is waiting");
             go.recv().expect("the test paused");
             assert!(ctx.safepoint_flags().contains(SafepointFlags::DEBUG_BREAK));
@@ -563,13 +669,13 @@ mod tests {
     /// because the time stopped is what is measured.
     #[test]
     fn a_stop_past_the_wall_time_does_not_end_the_request_and_moves_its_deadline() {
-        let (debugger, stops, _sites) = session();
+        let (debugger, stops, unit) = session();
         let controller = debugger.clone();
         let (attached, views) = mpsc::channel();
         let (start, go) = mpsc::channel();
         let program = std::thread::spawn(move || {
             let mut ctx = configured("[limits]\nwall_time = \"50ms\"\n");
-            controller.attach(&mut ctx);
+            controller.attach(&mut ctx, &unit);
             attached
                 .send(ctx.safepoint_view())
                 .expect("the test is waiting");
@@ -666,13 +772,14 @@ mod tests {
     /// tasks were left parked.
     fn run_a_tree_of_two(
         controller: Debugger,
+        unit: Arc<DebugUnit>,
         ran: mpsc::Sender<&'static str>,
     ) -> std::thread::JoinHandle<(Ended, Ended, usize)> {
         std::thread::spawn(move || {
             let mut sched = Scheduler::new();
             let _installed = install(Reactor::new().expect("the OS refused a poll"));
             let mut first = Ctx::buffered();
-            controller.attach(&mut first);
+            controller.attach(&mut first, &unit);
             let second = first.isolate(nvs_runtime::OutputSink::Buffer(Vec::new()));
             let first_seen = Rc::new(Cell::new(None));
             let second_seen = Rc::new(Cell::new(None));
@@ -689,9 +796,9 @@ mod tests {
 
     #[test]
     fn a_breakpoint_stops_every_task_of_its_tree_while_another_request_on_the_core_is_answered() {
-        let (debugger, stops, _sites) = session();
+        let (debugger, stops, unit) = session();
         let (ran, other) = mpsc::channel();
-        let core = run_a_tree_of_two(debugger.clone(), ran);
+        let core = run_a_tree_of_two(debugger.clone(), unit, ran);
 
         let first = stops.recv().expect("the first task stopped");
         assert_eq!(first.reason, StopReason::Breakpoint);
@@ -715,9 +822,9 @@ mod tests {
 
     #[test]
     fn a_resumed_tree_finishes_with_all_of_its_output_in_order() {
-        let (debugger, stops, _sites) = session();
+        let (debugger, stops, unit) = session();
         let (ran, other) = mpsc::channel();
-        let core = run_a_tree_of_two(debugger.clone(), ran);
+        let core = run_a_tree_of_two(debugger.clone(), unit, ran);
 
         for _ in 0..2 {
             stops.recv().expect("each task of the tree stopped");
@@ -739,12 +846,12 @@ mod tests {
     /// A `spawn worker` child runs on another core, in its parent's tree.
     #[test]
     fn a_context_of_the_tree_on_another_thread_stops_at_its_next_poll_and_resumes_with_it() {
-        let (debugger, stops, _sites) = session();
+        let (debugger, stops, unit) = session();
         let controller = debugger.clone();
         let (handle, trees) = mpsc::channel();
         let program = std::thread::spawn(move || {
             let mut ctx = Ctx::buffered();
-            controller.attach(&mut ctx);
+            controller.attach(&mut ctx, &unit);
             handle.send(ctx.tree_handle()).expect("the test is waiting");
             site(&mut ctx)
         });

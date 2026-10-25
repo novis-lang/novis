@@ -1,12 +1,15 @@
 {
   "title": "Under `nvs dap` the baseline compiler runs with a debug switch: every local is in a described stack slot and every statement is a stop site",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/debug-probes",
     "testing/a-stop-pauses-the-whole-task-tree",
     "ide/the-debug-adapter-does-not-wait-for-an-editor",
     "security/redaction-reaches-the-tools-own-renderings"
   ],
-  "guardedBy": [],
-  "goal": "debugger-core"
+  "guardedBy": [
+    "crates/nvs-cli/tests/debugger.rs",
+    "crates/nvs-cli/src/script.rs",
+    "crates/nvs-cli/src/cache.rs"
+  ]
 }

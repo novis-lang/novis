@@ -1054,7 +1054,7 @@ pub fn compile(program: &Program) -> Result<Unit, CodegenError> {
 /// a debug unit is never cached
 /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
 pub fn compile_object(program: &Program) -> Result<Vec<u8>, CodegenError> {
-    if program.functions.iter().any(|f| f.debug_slots.is_some()) {
+    if program.is_debug() {
         return Err(CodegenError::Internal(
             "a program lowered under the debug switch is never written to the artifact cache"
                 .to_owned(),

@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_host::debug::{
-    DebugFunction, DebugVariable, Debugger, SiteLine, Stop, StopReason, StoppedFrame,
+    DebugFunction, DebugUnit, DebugVariable, Debugger, SiteLine, Stop, StopReason, StoppedFrame,
 };
 use nvs_render::{Node, Scalar};
 
@@ -105,14 +105,16 @@ impl Session {
                 .collect();
             let unit = nvs_codegen::compile(&program).expect("the fixture compiles");
             let sites = unit.debug_sites().expect("a debug unit has a site table");
-            let (debugger, stops) = Debugger::new(sites.clone(), lines, functions(&unit));
+            let debug = DebugUnit::new(sites.clone(), lines, functions(&unit));
+            let (debugger, stops) = Debugger::new();
+            debugger.load(&debug);
             setup
                 .send((debugger.clone(), stops))
                 .expect("the test is waiting for the session");
             start.recv().expect("the test started the program");
 
             let mut ctx = nvs_runtime::Ctx::buffered();
-            debugger.attach(&mut ctx);
+            debugger.attach(&mut ctx, &debug);
             unit.install_in(&mut ctx);
             unit.script()
                 .expect("the script frame was compiled")

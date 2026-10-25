@@ -3,7 +3,7 @@
 
 # Testing
 
-*20 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*18 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -2189,7 +2189,7 @@ coverage or trace flag of its own; `[debug] mode` and `Core\Debug` turn those on
 
 <a id="testing-a-debugged-program-is-compiled-with-a-debug-switch"></a>
 
-## Under `nvs dap` the baseline compiler runs with a debug switch: every local is in a described stack slot and every statement is a stop site  *(designed — owned by goal debugger-core)*
+## Under `nvs dap` the baseline compiler runs with a debug switch: every local is in a described stack slot and every statement is a stop site
 
 `rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`
 
@@ -2238,7 +2238,7 @@ a `secret` value is redacted there as in every other rendering
 
 <a id="testing-a-stop-pauses-the-whole-task-tree"></a>
 
-## A stop pauses every task of the debugged request at its next stop site, suspends that request's deadlines, and leaves every other request running  *(designed — owned by goal debugger-core)*
+## A stop pauses every task of the debugged request at its next stop site, suspends that request's deadlines, and leaves every other request running
 
 `rule:testing/a-stop-pauses-the-whole-task-tree`
 

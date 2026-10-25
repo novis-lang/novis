@@ -1639,8 +1639,11 @@ pub(crate) fn unit_for(
 ) -> Result<(nvs_codegen::Unit, Provenance), nvs_codegen::CodegenError> {
     // A checked process neither reads nor writes an artifact: the key does not cover the checked
     // build's tests, so a hit would run the other build's code and a write would hand this build's
-    // code to every later run (`nvs_codegen::compile_checked_types`).
-    let Some(cache) = cache.filter(|_| !nvs_codegen::is_checking_types()) else {
+    // code to every later run (`nvs_codegen::compile_checked_types`). A program lowered under the
+    // debug switch is the same case: the key does not cover the switch either
+    // (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+    let Some(cache) = cache.filter(|_| !nvs_codegen::is_checking_types() && !program.is_debug())
+    else {
         return Ok((nvs_codegen::compile(program)?, Provenance::Compiled));
     };
     let key = unit_key(source, cache.env(), nvs_codegen::opt_level());
@@ -2858,6 +2861,31 @@ mod tests {
             "the second run reads the artifact the first one published"
         );
         assert_eq!(ran(&warm), "hi42", "and runs the same program");
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// A program lowered under the debug switch is compiled even where the cache holds the same
+    /// source's artifact, because the key does not cover the switch
+    /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+    #[test]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    fn a_debug_program_is_compiled_beside_a_cached_artifact_of_the_same_source() {
+        let dir = scratch("debug-switch");
+        let source = dir.join("program.nvs");
+        fs::write(&source, "<?nvs\nint $n = 6;\necho $n * 7;\n")
+            .expect("a scratch directory of this test's own is writable");
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+        let (program, digest) = lowered(&source);
+        unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
+
+        let (debug, debug_digest) = nvs_ir::lower::with_debug_slots(|| lowered(&source));
+        assert_eq!(debug_digest, digest, "the same source has the same key");
+        let (unit, provenance) =
+            unit_for(&debug, digest, Some(&cache)).expect("a program that compiles");
+        assert_eq!(provenance, Provenance::Compiled);
+        assert!(unit.debug_sites().is_some(), "the unit is the debug one");
+        assert_eq!(ran(&unit), "42");
 
         drop(fs::remove_dir_all(&dir));
     }
