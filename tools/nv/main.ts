@@ -47,6 +47,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   holes: () => import("./cmd/holes.ts"),
   layout: () => import("./cmd/layout.ts"),
   legs: () => import("./cmd/legs.ts"),
+  "linux-test": () => import("./cmd/linux-test.ts"),
   links: () => import("./cmd/links.ts"),
   lints: () => import("./cmd/lints.ts"),
   machine: () => import("./cmd/machine.ts"),
