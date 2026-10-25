@@ -1709,13 +1709,15 @@ mod tests {
     /// caller's.
     #[test]
     fn a_traced_loop_of_many_calls_holds_no_call_and_writes_one_line_per_call() {
+        // Under Miri, 100 calls still show that nothing is filed in memory.
+        let calls = if cfg!(miri) { 100 } else { 10_000 };
         let (mut ctx, _dir) = tracing("trace-loop");
         let outer = b"Orders::total";
         #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
         unsafe {
             nvs_probe_call_enter(&raw mut ctx, outer.as_ptr(), outer.len());
         }
-        for _ in 0..10_000 {
+        for _ in 0..calls {
             probe_call(&mut ctx, b"Orders::line", crate::OK);
         }
         #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
@@ -1725,9 +1727,9 @@ mod tests {
         assert!(ctx.trace().is_empty(), "a call was filed in memory");
 
         let lines = written(&mut ctx);
-        assert_eq!(lines.len(), 10_001);
+        assert_eq!(lines.len(), calls + 1);
         let (first, _, first_in, first_out) = call_of(&lines[0]);
-        let (last, _, last_in, last_out) = call_of(&lines[10_000]);
+        let (last, _, last_in, last_out) = call_of(&lines[calls]);
         assert_eq!((first, last), ("Orders::line", "Orders::total"));
         assert!(last_in <= first_in && first_out <= last_out);
     }
