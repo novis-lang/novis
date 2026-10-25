@@ -246,3 +246,5 @@ name (`Lsp(`, `Command::Lsp`, `fn run_run`).
 
 - `evaluate` for watch and hover expressions is not asked for by any rule; a goal that wants it writes it into `docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md` first.
 - A condition that may call a pure `Core` function would need a purity mark on `Core` methods (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
+- An `inout` by-reference variable has no debug slot, so a stopped frame does not list it. The adapter can read it through its staged cell. `crates/nvs-ir/src/lower/mod.rs:2602`
+- No test checks the name an anonymous function's frame reports, and this goal decides how the call stack names it. `crates/nvs-cli/tests/debugger.rs:241`

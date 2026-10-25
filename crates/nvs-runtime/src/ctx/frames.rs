@@ -14,6 +14,11 @@
 //! then polls the safepoint word. A unit compiled without the switch has no
 //! table, no record and no site.
 //!
+//! A function the lowering builds itself, such as an exception's constructor
+//! or a method a `by` delegation forwards, has no slot table, so it keeps no record and
+//! is not in the call stack. That is the view a debugger wants, because it
+//! is not code the user wrote.
+//!
 //! The stop handler is the request tree's, not one context's
 //! (`rule:testing/a-stop-pauses-the-whole-task-tree`). Every context of the
 //! tree runs the same one, a child on its parent's core and a `spawn worker`
