@@ -574,10 +574,15 @@ export function exampleOutput(path: string, source: string, out: Pick<Ran, "stdo
 }
 
 /** `nvs test`'s human report without its timings: the duration that ends each test's line, the
- * summary's ` in N ms` and a bench row's `, wall N ms (advisory)`, which differ on every run. */
+ * summary's ` in N ms` and a bench row's `, wall N ms (advisory)`, which differ on every run. A failed
+ * bench loses its whole counted row: a limit stopped it, and how much work it did before the stack or
+ * memory ran out depends on the build and the operating system. For the same reason a memory-limit
+ * failure's byte figures read `N`. */
 export function testReport(stdout: string): string {
   return stdout
     .replace(/^(\s+[✓✗!-] .*?) +[0-9]+(?:\.[0-9]+)? ms(\r?)$/gmu, "$1$2")
+    .replace(/^(\s+✗ [^\n]*\n)\s+count: [^\n]*(?:\n|$)/gmu, "$1")
+    .replace(/^\s+the program exceeded its memory limit\b.*$/gm, (line) => line.replace(/[0-9]+/g, "N"))
     .replace(/^(\s+[0-9]+ failed, .* flaky) in [0-9]+ ms(\r?)$/gm, "$1$2")
     .replace(/^(\s+count: .*?), wall [0-9]+(?:\.[0-9]+)? ms \(advisory\)(\r?)$/gm, "$1$2");
 }

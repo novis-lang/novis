@@ -102,6 +102,16 @@ describe("a `proof: test` example", () => {
     expect(testReport(row)).toBe("    ✓ b\n      count: statements=6 calls=2 allocations=1 bytes=8 gc=0\n");
   });
 
+  test("a failed bench loses its counted row, since where a limit stopped it differs per build", () => {
+    const row = "    ✗ deep    2.2 ms\n      count: statements=5436 calls=5436 allocations=5462 bytes=1127241 gc=0, wall 2.219 ms (advisory)\n      the call stack is too deep\n";
+    expect(testReport(row)).toBe("    ✗ deep\n      the call stack is too deep\n");
+  });
+
+  test("a memory-limit failure's byte figures read N, since they differ per build", () => {
+    const row = "    ✗ big\n      the program exceeded its memory limit — 266355660 bytes held against a ceiling of 268433479\n";
+    expect(testReport(row)).toBe("    ✗ big\n      the program exceeded its memory limit — N bytes held against a ceiling of N\n");
+  });
+
   test("it runs under `nvs test`, and under `nvs test --mutate` or `--bench` when it says so", () => {
     expect(proofArgv("nvs", "a.nvs", "<?nvs\n// proof: test\n")).toEqual(["nvs", "test", "a.nvs"]);
     expect(proofArgv("nvs", "a.nvs", "<?nvs\n// proof: test --mutate\n")).toEqual(["nvs", "test", "a.nvs", "--mutate"]);
