@@ -72,7 +72,7 @@ interface Manifest {
       type: string;
       languages: string[];
       configurationAttributes: {
-        launch: { required: string[]; properties: Record<string, { enum?: string[] }> };
+        launch: { required: string[]; properties: Record<string, { type?: unknown; enum?: string[] }> };
       };
       initialConfigurations: Record<string, unknown>[];
       configurationSnippets: { label: string; body: Record<string, unknown> }[];
@@ -467,6 +467,7 @@ describe("the debugger", () => {
     assert.deepEqual(launch.required, ["program"]);
     assert.deepEqual(launch.properties.mode.enum, ["run", "test", "serve"]);
     assert.ok(CLIENT.includes("session.configuration.nvsCommand"), "no factory reads nvsCommand");
+    assert.deepEqual(launch.properties.nvsCommand.type, ["string", "array"]);
   });
 
   it("registers a descriptor factory that starts nvs dap", () => {

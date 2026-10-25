@@ -450,8 +450,14 @@
                 "description": "Pairs of folders for a program that reads its files from another folder, such as in a container. Each path in a folder of the editor is changed to the same path in the program's folder, and back."
               },
               "nvsCommand": {
-                "type": "string",
-                "description": "The nvs binary to start for this session. Empty means the nvs that the rest of the extension uses."
+                "type": [
+                  "string",
+                  "array"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "description": "The nvs binary to start for this session, or a command line as a list, such as [\"docker\", \"exec\", \"-i\", \"app\", \"nvs\"]. VS Code adds dap at the end. Empty means the nvs that the rest of the extension uses."
               }
             }
           }

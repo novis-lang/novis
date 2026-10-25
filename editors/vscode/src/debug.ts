@@ -4,7 +4,9 @@
 // `package.json`'s `debuggers` contribution is the `launch.json` schema, and every field it names
 // except `nvsCommand` goes to the adapter as it is written: `nvs dap` reads the launch request
 // itself (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). This file reads `nvsCommand`
-// alone, because it says which binary is started, which is the one thing the adapter cannot.
+// alone, because it says which command starts the adapter, which is the one thing the adapter
+// cannot. That command may be a wrapper, such as `docker exec -i`, so the adapter can run inside a
+// container and still be reached over stdio.
 //
 // The adapter is started through `binary.ts` like every other spawn, so a debug session runs the
 // same build as the server, and never the named file itself
@@ -34,12 +36,29 @@ export function install(context: ExtensionContext): void {
 
 const factory: DebugAdapterDescriptorFactory = {
   async createDebugAdapterDescriptor(session: DebugSession): Promise<DebugAdapterDescriptor> {
-    const named: unknown = session.configuration.nvsCommand;
-    const command = typeof named === "string" && named.trim() !== ""
-      ? await runnableNamed(named.trim())
-      : (await runnable()).command;
+    const [command, ...args] = await commandLine(session.configuration.nvsCommand);
     // In the session's folder, so a relative `cwd`, and a relative `program` with no `cwd`, is
     // read from the workspace folder `launch.json` belongs to.
-    return new DebugAdapterExecutable(command, SUBCOMMAND, { cwd: session.workspaceFolder?.uri.fsPath });
+    return new DebugAdapterExecutable(command, [...args, ...SUBCOMMAND], {
+      cwd: session.workspaceFolder?.uri.fsPath,
+    });
   },
 };
+
+/**
+ * The command line that starts `nvs dap`, without the subcommand.
+ *
+ * A string `nvsCommand` names an `nvs` binary, which is copied like a candidate. An array is a
+ * whole command line, such as `["docker", "exec", "-i", "app", "nvs"]`, and runs as it is written:
+ * its first word is a wrapper and not an `nvs` build, so there is nothing of ours to copy. With
+ * neither, the binary is the one every other spawn runs.
+ */
+async function commandLine(named: unknown): Promise<string[]> {
+  if (typeof named === "string" && named.trim() !== "") {
+    return [await runnableNamed(named.trim())];
+  }
+  if (Array.isArray(named) && named.length > 0 && named.every((word) => typeof word === "string")) {
+    return named as string[];
+  }
+  return [(await runnable()).command];
+}

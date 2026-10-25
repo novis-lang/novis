@@ -266,7 +266,7 @@ In VS Code, you write this in `.vscode/launch.json`, or start it from the Run an
 | `filter` | Under `test`, only the tests whose name contains this text run |
 | `skipFiles` | Glob patterns, such as `"**/vendor/**"`. A step does not stop in a file that matches. Under *All Exceptions*, an exception that such a file catches does not stop the program |
 | `pathMappings` | Pairs of folders, each `{ "localRoot": "<folder in the editor>", "remoteRoot": "<folder the program reads>" }`. Use it when the program reads its files from another folder, such as in a container |
-| `nvsCommand` | The `nvs` binary VS Code starts for this session. Empty means the binary the rest of the extension uses |
+| `nvsCommand` | The `nvs` binary VS Code starts for this session. It can also be a command line as a list, such as `["docker", "exec", "-i", "app", "nvs"]`. VS Code adds `dap` at the end. Empty means the binary the rest of the extension uses |
 
 Under `test`, the tests run one at a time. A stop shows the test that is running.
 
