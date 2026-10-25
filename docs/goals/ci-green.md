@@ -111,10 +111,12 @@ fixed and not pushed: the Windows one-frame test `0b7eadd2c`, Miri `getrusage` `
 bench-counters' goal-end push of `093ab5323` was refused by the website stale guard. Line numbers
 moved in two log example outputs. `f6883f463` restamps the three pages, and the guard is green.
 
-`bun nv ci --check` at `8b28b6cd3` is still red, in the main loop's live `debugger-core` work. The
-main loop was told with `loop say`. rustfmt is red at committed `HEAD` in `emit.rs`,
-`nvs-runtime/src/lib.rs`, `ctx/safepoint.rs` and `nvs-host/src/debug.rs`, which it is still
-committing into. The build is red only in the working tree, at `crates/nvs-host/src/debug.rs:261`.
+`bun nv ci --check` at `ec50be2ae` is red in rustfmt alone, and every other check is green,
+the build too. `ec50be2ae` formats `emit.rs` and `ctx/safepoint.rs`. rustfmt is still red in
+three files the main loop's `debugger-core` session claims: `crates/nvs-runtime/src/lib.rs`,
+`crates/nvs-host/src/debug.rs` and `watchdog.rs`. This session ran rustfmt over `lib.rs` and left
+the change uncommitted, because the claims guard refused to stage it. The main loop was told with
+`loop say` to commit all three rustfmt-clean.
 
 `.agent-tmp/wt-perf`, `wt-csv` and `wt-render` are stray folders with a `.looper` directory that
 Windows keeps while looper runs. `wt-csv` has a `target/` warm at `f6883f463`. Delete all three
