@@ -56,10 +56,10 @@
 // `fmt` and `nvs-fmt` format rather than check, because a red `fmt` was only ever fixed by running the
 // formatter and verifying again. `fmt` runs first, so everything after it compiles the text the commit
 // carries, and its own failure is reported only when every other step passed: a parse error reads
-// better from `build`. `nvs-fmt` runs over only the new or modified `.nvs` files under `tests/` and
-// `examples/`, `tests/fmt/input/` excepted, that it has not formatted as they now stand, so a layout
-// rule that changes what the formatter prints is still `crates/nvs-fmt/tests/identity.rs`'s to judge
-// over the rest. A file the formatter cannot parse is left as it was, and the step is never red. After
+// better from `build`. `nvs-fmt` runs over only the new or modified `.nvs` files the corpus holds
+// (`tools/data/nvs-fmt-corpus.txt`) that it has not formatted as they now stand, so a layout rule that
+// changes what the formatter prints is still `crates/nvs-fmt/tests/identity.rs`'s to judge over the
+// rest, and `bun nv nvs-fmt` is what formats the rest. A file the formatter cannot parse is left as it was, and the step is never red. After
 // either one rewrites a file the change is read again, and an atom that ran before the rewrite and is
 // selected again counts as not run.
 //
@@ -117,6 +117,7 @@ import { basename, dirname, join, relative } from "node:path";
 
 import { COVWS_TARGET, covwsCargo, covwsNvs, hostTriple } from "../lib/covws.ts";
 import { type AddFields, type EndFields, ev, eventsFile } from "../lib/events.ts";
+import { held, readCorpus } from "../lib/nvs-fmt-corpus.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 import { cargoStatus, progress as showProgress } from "../lib/progress.ts";
@@ -177,8 +178,6 @@ const DOC_CHECKS: [string, string[]][] = [
 ];
 /** The script steps, which run at the same time as `build` when they are listed before it. */
 const BESIDE_BUILD = new Set(["lints", "directives", "template", "owners", ...DOC_CHECKS.map(([n]) => n), "nv", "fuzz-lock"]);
-const NVS_FMT_TREES = ["tests", "examples"];
-const NVS_FMT_SKIPS = "tests/fmt/input/";
 const EXTENSION = join(ROOT, "editors", "vscode");
 const FUZZ = join(ROOT, "fuzz");
 /** The `.nvst` trees verify runs. */
@@ -799,11 +798,13 @@ async function runSelftest(r: Run, s: Step): Promise<[number, string]> {
 
 // ---- nvs-fmt ---------------------------------------------------------------------------------------
 
-/** The `.nvs` files git reports as new or modified under `NVS_FMT_TREES`, repo-relative. */
+/** The `.nvs` files the corpus holds that git reports as new or modified, repo-relative. */
 async function changedSources(): Promise<string[]> {
   let p;
+  let corpus;
   try {
-    p = await proc(["git", "status", "--porcelain", "-z", "--untracked-files=all", "--", ...NVS_FMT_TREES]);
+    corpus = readCorpus();
+    p = await proc(["git", "status", "--porcelain", "-z", "--untracked-files=all", "--", ...corpus.trees]);
   } catch {
     return [];
   }
@@ -817,7 +818,7 @@ async function changedSources(): Promise<string[]> {
     const rel = entry.slice(3);
     // `-z` puts the name a rename or copy came from in the next field.
     if (status[0] === "R" || status[0] === "C") i++;
-    if (status.includes("D") || !rel.endsWith(".nvs") || rel.startsWith(NVS_FMT_SKIPS)) continue;
+    if (status.includes("D") || !rel.endsWith(".nvs") || !held(corpus, rel)) continue;
     try {
       if (!statSync(join(ROOT, rel)).isFile()) continue;
     } catch {
@@ -1120,7 +1121,7 @@ function stepsFor(opts: Opts, r: () => Run, built = existsSync(covwsNvs())): Ste
   // Whole-workspace runs only from here on for the steps that run `nvs`: a scoped build leaves no
   // binary the tree can trust.
   if (!opts.fast && !opts.package) {
-    steps.push(step("nvs-fmt", ["fmt", "<each new or modified .nvs under tests/, examples/>"], summaries["nvs-fmt"]!, { exe: nvs, runner: runNvsFmt }));
+    steps.push(step("nvs-fmt", ["fmt", "<each new or modified .nvs the corpus holds>"], summaries["nvs-fmt"]!, { exe: nvs, runner: runNvsFmt }));
   }
   steps.push(step("test", ["test", ...target], summaries.test!, { runner: (s) => runTests(r(), s) }));
   if (!opts.fast) {

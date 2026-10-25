@@ -1,0 +1,29 @@
+# Where the `.nvs` files `nvs fmt` holds to its layout are, one entry per line.
+#
+# `tree <dir>` takes every `.nvs` file under the directory. `skip <path>  --  <why>` leaves out a
+# directory or one file under a tree, which keeps the layout it has.
+#
+# Every `.nvs` file git tracks is under a tree, and `bun nv nvs-fmt --check` fails on one that is not.
+# `crates/nvs-fmt/tests/identity.rs` fails on a file under a tree that the formatter would change, and
+# `bun nv nvs-fmt` formats every such file, which is how a layout rule lands. `crates/nvs-fmt/tests/
+# corpus.rs` walks the trees with the skipped directories put back, and `bun nv verify`'s `nvs-fmt` step
+# formats each new or modified file under a tree. `tools/nv/lib/nvs-fmt-corpus.ts` and
+# `crates/nvs-fmt/tests/common/mod.rs` read this file.
+
+tree apps
+tree benches
+tree crates/nvs-cli/templates
+tree crates/nvs-cli/tests/fixtures
+tree docs/examples
+tree editors/vscode/test
+tree examples
+tree extensions
+tree tests
+tree website/guides
+tree website/snippets
+
+skip benches/compare/generated  --  `bun nv bench-compare` writes it and git ignores it, and the tests walk the disk, not the index
+skip crates/nvs-cli/tests/fixtures/check/secret-in-snippet.nvs  --  its two statements share one line, which is the line the diagnostic `crates/nvs-cli/tests/check.rs` reads quotes
+skip tests/fmt/input  --  each file is wrong about a layout rule on purpose; `crates/nvs-fmt/tests/fixtures.rs` formats it and compares it with its frozen half
+skip editors/vscode/test/coverage/recorded  --  `branches.lcov` and `report.json` beside it are what one run of it recorded, line by line
+skip editors/vscode/test/surfaces/recorded  --  the JSON and text beside it are what one run of it recorded, with positions

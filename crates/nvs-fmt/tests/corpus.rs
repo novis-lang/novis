@@ -7,9 +7,9 @@
 //! exist to catch. `rule:tooling/fmt-is-idempotent` is the first, and the goal's
 //! § *Standing decisions* — "never a semantic change" — is the second.
 //!
-//! The walk is `crates/nvs-fmt/tests/identity.rs`'s, with the one directory that
-//! test steps over put back: `tests/fmt/input` holds files that are wrong about
-//! a rule on purpose, which makes them the most interesting input here. A file
+//! The walk is `crates/nvs-fmt/tests/identity.rs`'s, with the directories that
+//! test skips put back: `tests/fmt/input` holds files that are wrong about a
+//! rule on purpose, which makes them the most interesting input here. A file
 //! that is already formatted proves idempotence over a no-op; a file the
 //! formatter has to move proves it over the move.
 //!
@@ -17,35 +17,18 @@
 //! claim `identity.rs` makes and a file that produces no text has no second
 //! pass to compare.
 
+mod common;
+
 use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use nvs_diagnostics::SourceMap;
 use nvs_fmt::format;
 use nvs_syntax::walk::{self, Field, Node};
 
-/// Every `.nvs` file under `dir`, appended to `out`.
-fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect(&path, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("nvs") {
-            out.push(path);
-        }
-    }
-}
-
-/// Every corpus file, sorted, so a failure names the same file on every machine.
+/// Every corpus file, skipped ones too, sorted.
 fn corpus() -> Vec<PathBuf> {
-    let mut paths = Vec::new();
-    collect(&nvs_repo::path("examples"), &mut paths);
-    collect(&nvs_repo::path("tests"), &mut paths);
-    paths.sort();
-    paths
+    common::files(false)
 }
 
 /// `text` formatted under `name`, or [`None`] for text the formatter refuses.
