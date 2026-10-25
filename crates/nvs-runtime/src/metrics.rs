@@ -1732,6 +1732,10 @@ mod tests {
     /// a thread that had already exited would be indistinguishable from one the
     /// roster never reached.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the process scope reads the resident set through a system call Miri does not model"
+    )]
     fn a_gather_reaches_every_serving_core_and_drops_one_that_ended() {
         const ROUTES: [&str; 2] = ["gather.one", "gather.two"];
         fn counted(route: &str) -> [(&str, &str); 3] {
