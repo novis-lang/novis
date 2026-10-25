@@ -4,6 +4,10 @@
 // the printed instants back. Both tests fail on purpose, because a failing
 // test's output is the output the report prints.
 //
+// Each test sleeps a second. A machine running other test binaries can start a
+// posted test half a second late, and a shorter window then reads as the two
+// tests running one after another.
+//
 // `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
 use Core\Test;
 use Core\Test\AfterClass;
@@ -20,7 +24,7 @@ final class HookOrderTest {
     #[Test]
     public function itRunsBesideItsSibling(): void {
         echo "test-started ", Time::now()->toEpochMicros(), "\n";
-        Time::sleep(300ms);
+        Time::sleep(1s);
         echo "test-ended ", Time::now()->toEpochMicros(), "\n";
         Test::assertSame(1, 2);
     }
@@ -28,7 +32,7 @@ final class HookOrderTest {
     #[Test]
     public function itRunsBesideItsSiblingToo(): void {
         echo "test-started ", Time::now()->toEpochMicros(), "\n";
-        Time::sleep(300ms);
+        Time::sleep(1s);
         echo "test-ended ", Time::now()->toEpochMicros(), "\n";
         Test::assertSame(1, 2);
     }

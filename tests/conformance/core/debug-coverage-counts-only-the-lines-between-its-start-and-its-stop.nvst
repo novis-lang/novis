@@ -1,0 +1,45 @@
+--TEST--
+`Core\Debug::coverage` counts a line only while coverage runs: a stop ends the count, a start adds to the counts already there, and the counts stay readable after the stop — `rule:testing/debug-surface`
+--FILE--
+<?nvs
+// covers: Core\Debug::startCoverage
+// covers: Core\Debug::stopCoverage
+// covers: Core\Debug::coverage
+//
+// The mode starts coverage with the program. Line 17 is the body of `count`.
+// It runs seven times below, and only the four calls inside a window are counted.
+class Tally {
+    public static function hits(): int {
+        foreach (Core\Debug::coverage() as string $path => array<int> $lines) {
+            return Core\Arr::hasKey($lines, "17") ? $lines["17"] : 0;
+        }
+        return 0;
+    }
+
+    public static function count(int $n): int {
+        return $n + 1;
+    }
+}
+
+Tally::count(1);
+Core\Debug::stopCoverage();
+echo "after the stop: ", Tally::hits(), "\n";
+
+Tally::count(2);
+Tally::count(3);
+echo "outside a window: ", Tally::hits(), "\n";
+
+Core\Debug::startCoverage();
+Tally::count(4);
+Tally::count(5);
+Tally::count(6);
+Core\Debug::stopCoverage();
+Tally::count(7);
+echo "after the second window: ", Tally::hits(), "\n";
+--FILE nvs.toml--
+[debug]
+mode = ["coverage"]
+--EXPECT--
+after the stop: 1
+outside a window: 1
+after the second window: 4

@@ -2,20 +2,23 @@
 // Attack: a program tries to write a trace of its calls outside the one folder
 // that `debug.trace` allows. Every attempt below should throw an error and write no file.
 
-class Attack {
+class Attack
+{
     // Returns the path resolved from this file's folder.
-    public static function path(#[Core\Path] string $path): string {
+    public static function path(#[Core\Path] string $path): string
+    {
         return $path;
     }
 
     // Each step catches its error, so the step after it still runs.
-    public static function trace(string $step, string $path): void {
+    public static function trace(string $step, string $path): void
+    {
         try {
             Core\Debug::startTrace($path);
-            echo $step, ": a trace started at ", $path, "\n";
+            echo $step, ': a trace started at ', $path, "\n";
             Core\Debug::stopTrace();
         } catch (Throwable $error) {
-            echo $step, ": ", $error->message, "\n";
+            echo $step, ': ', $error->message, "\n";
         }
     }
 }

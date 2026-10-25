@@ -66,10 +66,6 @@
 //! Nothing here grows with requests served, which is
 //! `rule:programs/memory-priority`'s per-process reading of what an exporter
 //! costs.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-server/src/otlp.rs` lists them.
 
 use std::collections::VecDeque;
 use std::fmt;

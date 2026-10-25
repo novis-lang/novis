@@ -1291,6 +1291,9 @@ mod tests {
     /// on purpose, so a developer's own store is never the one a case writes to.
     const REDIS: u16 = 16379;
 
+    /// How long a lease case waits for the real store to answer one command.
+    const STORE_WAIT: Duration = Duration::from_secs(30);
+
     /// Two clients onto that store and a key no other run holds, or [`None`]
     /// when no store answers there.
     ///
@@ -1311,6 +1314,11 @@ mod tests {
     /// published with nothing behind it, so the connect succeeds and every read
     /// times out. That store cannot be reached either, and the case skips.
     ///
+    /// Each read waits [`STORE_WAIT`], not the five seconds the fake-store cases
+    /// use. A container store beside a gate run that loads every core can take
+    /// longer than five seconds to answer one command, and the wait is not what
+    /// either case asserts.
+    ///
     /// The key carries this process's id so two runs at once are two leases, and
     /// it is deleted on the way in because a run that was killed mid-case leaves
     /// one behind for as long as its TTL.
@@ -1323,7 +1331,7 @@ mod tests {
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, REDIS));
         let mut first = Connection::new(
             Dial::configured(Target::Tcp(address), None, None),
-            Duration::from_secs(5),
+            STORE_WAIT,
         );
         let key = format!("nvs:test:lease:{}:{label}", std::process::id()).into_bytes();
         if let Err(why) = first.ensure().and_then(|()| first.del(&key)) {
@@ -1336,7 +1344,7 @@ mod tests {
         }
         let mut second = Connection::new(
             Dial::configured(Target::Tcp(address), None, None),
-            Duration::from_secs(5),
+            STORE_WAIT,
         );
         second
             .ensure()

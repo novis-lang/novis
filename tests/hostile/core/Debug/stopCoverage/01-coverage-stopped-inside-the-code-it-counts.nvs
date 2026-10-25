@@ -2,9 +2,11 @@
 // Attack: a program stops coverage from inside deep calls and loops, and then tries to
 // start branch coverage after the stop. The runtime should keep running, and the branch start should fail.
 
-class Attack {
+class Attack
+{
     // Calls itself `$depth` times, and stops coverage at the deepest call.
-    public static function deep(int $depth): int {
+    public static function deep(int $depth): int
+    {
         if ($depth == 0) {
             Core\Debug::stopCoverage();
             return 0;
@@ -13,7 +15,8 @@ class Attack {
     }
 
     // Starts coverage at the deepest call, so every call above it returns into it.
-    public static function restart(int $depth): int {
+    public static function restart(int $depth): int
+    {
         if ($depth == 0) {
             Core\Debug::startCoverage();
             return 0;

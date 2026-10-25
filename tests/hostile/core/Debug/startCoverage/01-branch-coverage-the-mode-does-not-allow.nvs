@@ -2,19 +2,22 @@
 // Attack: the mode allows line coverage only, and a program tries to count branches too.
 // It also tries to add `branch` to the mode from code. Every branch start should throw an error.
 
-class Attack {
+class Attack
+{
     // Each step catches its error, so the step after it still runs.
-    public static function branches(string $step): void {
+    public static function branches(string $step): void
+    {
         try {
             Core\Debug::startCoverage(true);
             echo $step, ": branch coverage started\n";
         } catch (Throwable $error) {
-            echo $step, ": ", $error->message, "\n";
+            echo $step, ': ', $error->message, "\n";
         }
     }
 
     // Each step catches its error, so the step after it still runs.
-    public static function set(string $step, string $value): void {
+    public static function set(string $step, string $value): void
+    {
         try {
             echo $step, ': set returned ', Core\Config::set('debug.mode', $value) ? 'true' : 'false', "\n";
         } catch (Throwable $error) {

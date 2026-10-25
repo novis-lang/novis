@@ -1110,7 +1110,9 @@ fn held_by_memory() -> u64 {
     MEMORY
         .iter()
         .map(|shard| {
-            let entries = shard.read().expect("a cache shard's lock is never poisoned");
+            let entries = shard
+                .read()
+                .expect("a cache shard's lock is never poisoned");
             u64::try_from(entries.held).unwrap_or(u64::MAX)
         })
         .sum()
@@ -3433,12 +3435,12 @@ pub(crate) mod tests {
         });
         let cache: f64 = every_core()
             .iter()
-            .filter_map(|registry| {
-                match registry.read("nvs_memory_bytes", &[("scope", "cache")]) {
+            .filter_map(
+                |registry| match registry.read("nvs_memory_bytes", &[("scope", "cache")]) {
                     Some(nvs_runtime::metrics::Value::Gauge(bytes)) => Some(*bytes),
                     _ => None,
-                }
-            })
+                },
+            )
             .sum();
         memory_forget(b"gathered-entry");
         assert!(cache >= 64.0, "the gather read {cache} cache bytes");

@@ -2811,9 +2811,15 @@ That is four pieces of UI infrastructure Novis neither builds nor maintains, whi
 priority applied directly. The extension's own code is the descriptor factory, the schema contribution,
 the test provider and the command that hands a file to a viewer.
 
-**Built:** the `LanguageStatusItem` (`editors/vscode/src/extension.ts`) and coverage as `FileCoverage`
-from the lcov tracefile (`editors/vscode/src/tests.ts`). **Missing:** the speedscope profile and its
-*View Profile* command, and the debugger wiring, since `nvs dap` does not exist.
+**Built:** the `LanguageStatusItem` (`editors/vscode/src/extension.ts`), coverage as `FileCoverage`
+from the lcov tracefile (`editors/vscode/src/tests.ts`), and *View Profile* (`editors/vscode/src/profile.ts`).
+The viewer is the `speedscope` devDependency's built release, which `scripts/viewer.mjs` copies into
+`out/speedscope/` at bundle time. The webview's one resource root is that folder, and its content
+security policy (`editors/vscode/src/viewer.ts`) admits the viewer's own files and one nonce script.
+Nothing may connect. speedscope loads a `profileURL` only from an `http:` or `https:` page, so the
+profile's bytes go into the page and reach the viewer through `loadFileFromBase64`, the door its own
+CLI uses. The profile's folder is therefore never served. Spends: the file and its base64 copy per
+open panel. **Missing:** the debugger wiring, since `nvs dap` does not exist.
 
 **Declined:**
 - **A Novis coverage gutter and a Novis flamegraph renderer.** VS Code's Test Coverage API and the

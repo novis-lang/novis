@@ -623,6 +623,9 @@ nvs_runtime::nvs_helper! {
             return Ok(Value::null());
         };
         let path = sink.path().to_path_buf();
+        // no case can reach this: a write fails only when the disk does, and no
+        // conformance case can fill one. `a_failed_write_throws_at_the_stop`
+        // asserts it instead, against `/dev/full`.
         sink.finish().map_err(|err| {
             Fault::thrown(format!(
                 "Core\\Debug::stopTrace could not write every call to `{}`: {err}.",
@@ -669,6 +672,9 @@ nvs_runtime::nvs_helper! {
             return Ok(Value::null());
         }
         drop(track);
+        // no case can reach this: a write fails only when the disk does, and no
+        // conformance case can fill one. `a_failed_write_throws_at_the_stop`
+        // asserts it instead, against `/dev/full`.
         profiler.finish().map_err(|err| {
             Fault::thrown(format!(
                 "Core\\Debug::stopProfile could not write every call to `{}`: {err}.",
@@ -1189,7 +1195,7 @@ mod tests {
         assert!(branches.is_err(), "`branch` is not in the mode");
         let refused = ctx.take_pending().unwrap_or_default();
         assert!(
-            refused.contains("`branch`") && refused.contains("[debug]"),
+            refused.contains("`\"branch\"`") && refused.contains("[debug]"),
             "{refused}"
         );
         assert_eq!(
@@ -1252,6 +1258,57 @@ mod tests {
         nvs_runtime::call(nvs_core_debug_stop_profile, &mut ctx, &[]).expect("a stop never throws");
         assert!(!ctx.debug_flags().contains(DebugFlags::PROFILE));
         assert_eq!(ctx.profile_sink(), None);
+    }
+
+    /// `rule:testing/debug-surface`: a trace or profile whose file could not take every write
+    /// throws at its stop, naming the file, and the probe is off anyway. `/dev/full` takes the
+    /// create and fails every write, which no conformance case can arrange.
+    // covers: Core\Debug::stopTrace
+    // covers: Core\Debug::stopProfile
+    #[cfg(target_os = "linux")]
+    #[cfg_attr(miri, ignore = "opens a device file, which Miri does not emulate")]
+    #[test]
+    fn a_failed_write_throws_at_the_stop() {
+        let mut ctx = probing(
+            "[debug]\nmode = [\"trace\", \"profile\"]\n\n\
+             [capabilities.debug]\ntrace = ['/dev']\nprofile = ['/dev']\n",
+        );
+        let full = std::path::Path::new("/dev/full");
+        assert_eq!(start_trace_at(&mut ctx, full), None, "the create succeeds");
+        let name = b"Here::call";
+        let at: *mut nvs_runtime::Ctx = &raw mut ctx;
+        #[expect(unsafe_code, reason = "the context and the name outlive both calls")]
+        unsafe {
+            nvs_runtime::nvs_probe_call_enter(at, name.as_ptr(), name.len());
+            nvs_runtime::nvs_probe_call_exit(at, name.as_ptr(), name.len(), 0);
+        }
+        let stopped = nvs_runtime::call(nvs_core_debug_stop_trace, &mut ctx, &[]);
+        assert!(stopped.is_err(), "the call's line never reached the file");
+        let thrown = ctx.take_pending().unwrap_or_default();
+        assert!(
+            thrown.contains("stopTrace could not write every call to `/dev/full`"),
+            "{thrown}"
+        );
+        assert!(!ctx.debug_flags().contains(DebugFlags::TRACE));
+
+        let args = [Value::text("/dev/full")];
+        let started = nvs_runtime::call(nvs_core_debug_start_profile, &mut ctx, &args);
+        #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+        unsafe {
+            args[0].release();
+        }
+        assert!(started.is_ok(), "the create succeeds");
+        let stopped = nvs_runtime::call(nvs_core_debug_stop_profile, &mut ctx, &[]);
+        assert!(
+            stopped.is_err(),
+            "the profile's tail never reached the file"
+        );
+        let thrown = ctx.take_pending().unwrap_or_default();
+        assert!(
+            thrown.contains("stopProfile could not write every call to `/dev/full`"),
+            "{thrown}"
+        );
+        assert!(!ctx.debug_flags().contains(DebugFlags::PROFILE));
     }
 
     /// `rule:testing/debug-surface`: `coverage()` reads the host's table back as path, line and

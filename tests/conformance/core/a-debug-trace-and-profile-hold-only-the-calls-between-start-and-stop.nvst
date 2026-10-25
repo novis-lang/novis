@@ -1,0 +1,64 @@
+--TEST--
+a `Core\Debug` trace and profile each hold only the calls between their start and their stop, and a second stop does nothing — `rule:testing/debug-surface`
+--FILE--
+<?nvs
+// covers: Core\Debug::startTrace
+// covers: Core\Debug::stopTrace
+// covers: Core\Debug::startProfile
+// covers: Core\Debug::stopProfile
+class Job {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+
+    public static function inside(): int {
+        return 1;
+    }
+
+    public static function outside(): int {
+        return 2;
+    }
+}
+
+string $trace = Job::path('./out/calls.jsonl');
+string $profile = Job::path('./out/profile.json');
+
+// The trace has a line per call that returned while it ran.
+Core\Debug::startTrace($trace);
+Job::inside();
+Core\Debug::stopTrace();
+Core\Debug::stopTrace();
+Job::outside();
+foreach (Core\IO::lines($trace) as string $line) {
+    var $call = Core\Json::decode($line) as array<mixed>;
+    echo "traced: ", $call["callee"] as string, "\n";
+}
+
+// The profile names each function it timed in `shared.frames`.
+Core\Debug::startProfile($profile);
+Job::inside();
+Core\Debug::stopProfile();
+Core\Debug::stopProfile();
+Job::outside();
+var $document = Core\Json::decode(Core\IO::read($profile)) as array<mixed>;
+var $frames = ($document["shared"] as array<mixed>)["frames"] as array<mixed>;
+foreach ($frames as mixed $frame) {
+    echo "profiled: ", ($frame as array<mixed>)["name"] as string, "\n";
+}
+--FILE nvs.toml--
+[debug]
+mode = ["trace", "profile"]
+
+[capabilities.debug]
+trace = ["./out"]
+profile = ["./out"]
+
+[capabilities.fs]
+read = ["./out"]
+--FILE out/note.txt--
+note
+--EXPECT--
+traced: Core\Debug::startTrace
+traced: Job::inside
+profiled: Job::inside
+profiled: Core\Debug::stopProfile

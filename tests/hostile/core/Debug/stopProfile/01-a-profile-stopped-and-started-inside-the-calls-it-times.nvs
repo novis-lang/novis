@@ -2,14 +2,17 @@
 // Attack: a program stops and starts its profile from inside the calls being timed,
 // and stops it many times in a row. The runtime should keep running and close every file.
 
-class Attack {
+class Attack
+{
     // Returns the path resolved from this file's folder.
-    public static function path(#[Core\Path] string $path): string {
+    public static function path(#[Core\Path] string $path): string
+    {
         return $path;
     }
 
     // Calls itself `$depth` times, and stops the profile at the deepest call.
-    public static function deep(int $depth): int {
+    public static function deep(int $depth): int
+    {
         if ($depth == 0) {
             Core\Debug::stopProfile();
             return 0;
@@ -18,7 +21,8 @@ class Attack {
     }
 
     // Starts a new profile at the deepest call, so every call above it returns into it.
-    public static function restart(int $depth, string $file): int {
+    public static function restart(int $depth, string $file): int
+    {
         if ($depth == 0) {
             Core\Debug::startProfile($file);
             return 0;
@@ -27,13 +31,15 @@ class Attack {
     }
 
     // Stops the profile, then throws, so the call ends with an error.
-    public static function stopThenThrow(): int {
+    public static function stopThenThrow(): int
+    {
         Core\Debug::stopProfile();
         throw new LogicError('thrown after the stop');
     }
 
     // Deletes the file if it exists.
-    public static function clean(string $file): void {
+    public static function clean(string $file): void
+    {
         if (Core\IO::exists($file)) {
             Core\IO::remove($file);
         }

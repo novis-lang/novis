@@ -1326,6 +1326,18 @@
       "Which option changes the folder where nvs keeps its own files?"
     ]
   },
+  "/reference/cli/profiling/": {
+    "feature": "tools:cli/profiling",
+    "hash": "291506b5b8878db1",
+    "questions": [
+      "How do I find which function makes my program slow?",
+      "Profile a command-line program without changing its code",
+      "Write a Callgrind file to open in KCachegrind",
+      "Measure how long the function calls of each test take",
+      "Where does nvs run save the profile file?",
+      "Why does code with many small calls look slower in a profile?"
+    ]
+  },
   "/reference/cli/the-compile-cache/": {
     "feature": "tools:cli/the-compile-cache",
     "hash": "9d15fee1c8705a2b",
@@ -1340,12 +1352,12 @@
   },
   "/reference/cli/the-vs-code-extension/": {
     "feature": "tools:editor/the-vs-code-extension",
-    "hash": "3b7b844f8d4c806e",
+    "hash": "cc023ec99d180bcc",
     "questions": [
       "How do I install Novis support in Visual Studio Code?",
       "Syntax colours and autocomplete for .nvs files in VS Code",
       "Point VS Code at a specific copy of the nvs binary",
-      "Download the nvs binary from inside the editor",
+      "Open a speedscope profile inside VS Code",
       "Why are passwords blurred in my editor?",
       "Format the HTML inside a template file"
     ]
@@ -4589,12 +4601,24 @@
   },
   "/reference/core/debug/": {
     "feature": "Core\\Debug",
-    "hash": "3e6f5fdea1a40404",
+    "hash": "8415b22322e76f18",
     "questions": [
       "How do I look at a value while debugging?",
       "Show the contents of a variable in a readable form",
       "Debug a program by printing values",
-      "Inspect arrays and objects while a program runs"
+      "Inspect arrays and objects while a program runs",
+      "Count which lines of my program ran",
+      "Profile or trace one part of a program from its code"
+    ]
+  },
+  "/reference/core/debug/coverage/": {
+    "feature": "Core\\Debug::coverage",
+    "hash": "08788c096cca13cb",
+    "questions": [
+      "How many times did each line of my program run?",
+      "Check whether a line of code ever ran",
+      "Read line counts from inside a running program",
+      "Count how often a method is called"
     ]
   },
   "/reference/core/debug/dump/": {
@@ -4617,6 +4641,66 @@
       "Put a readable description of a value into a message",
       "Compare two values by their debug text",
       "Collect debug descriptions and print them at the end"
+    ]
+  },
+  "/reference/core/debug/startcoverage/": {
+    "feature": "Core\\Debug::startCoverage",
+    "hash": "9687aa8bf5ac90fd",
+    "questions": [
+      "Start counting lines in the middle of a program",
+      "How do I count each side of an if condition?",
+      "Which setting turns on line counting in nvs.toml?",
+      "Count only the lines of one part of a program"
+    ]
+  },
+  "/reference/core/debug/startprofile/": {
+    "feature": "Core\\Debug::startProfile",
+    "hash": "a6f49228c2eccbbd",
+    "questions": [
+      "Profile one slow part of my program from code",
+      "Write a speedscope file from inside a program",
+      "Which settings allow a program to write a profile?",
+      "Why does writing a profile need its own permission?"
+    ]
+  },
+  "/reference/core/debug/starttrace/": {
+    "feature": "Core\\Debug::startTrace",
+    "hash": "5f791cb1a4f881d3",
+    "questions": [
+      "Write every function call to a log file as it returns",
+      "Record how long each call took in a JSON lines file",
+      "Which permission does a trace file need in nvs.toml?",
+      "Why does starting a trace throw a RuntimeError?"
+    ]
+  },
+  "/reference/core/debug/stopcoverage/": {
+    "feature": "Core\\Debug::stopCoverage",
+    "hash": "f515a5b82520150b",
+    "questions": [
+      "Stop counting lines but keep the counts so far",
+      "Does stopping coverage clear the line counts?",
+      "Pause line counting while setup code runs",
+      "Is it safe to stop coverage when it is not running?"
+    ]
+  },
+  "/reference/core/debug/stopprofile/": {
+    "feature": "Core\\Debug::stopProfile",
+    "hash": "e2a227a61387e855",
+    "questions": [
+      "Stop timing calls and close the profile file",
+      "Write one profile file for each step of a job",
+      "Stop a profile in a finally block",
+      "Leave the rest of a program out of the profile"
+    ]
+  },
+  "/reference/core/debug/stoptrace/": {
+    "feature": "Core\\Debug::stopTrace",
+    "hash": "9d37dd1ca875750b",
+    "questions": [
+      "Close the trace file so my program can read it",
+      "Stop a trace even when a step throws an error",
+      "Why is a call that was still running missing from the trace?",
+      "What happens when the trace file cannot be written?"
     ]
   },
   "/reference/core/decimal/": {

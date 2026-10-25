@@ -931,9 +931,10 @@ pub fn read_cache_bytes_with(reader: fn() -> u64) {
 pub fn publish_tasks(live: usize) {
     CORE.with_borrow(|core| {
         if let Some(meter) = core.as_ref() {
-            meter
-                .tasks
-                .store(u64::try_from(live).unwrap_or(u64::MAX), atomic::Ordering::Relaxed);
+            meter.tasks.store(
+                u64::try_from(live).unwrap_or(u64::MAX),
+                atomic::Ordering::Relaxed,
+            );
         }
     });
 }
