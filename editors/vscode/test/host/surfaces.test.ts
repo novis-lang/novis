@@ -1,6 +1,6 @@
 // The surfaces this extension puts in an editor, asserted in a real one: the status item, the Tasks
-// and the Problems panel behind them, the AST panel, the concealment of a `secret`, and the
-// completion offered in an `nvs.toml`.
+// and the Problems panel behind them, the AST panel, the concealment of a `secret`, the
+// completion offered in an `nvs.toml`, and a debug session stopped at a breakpoint.
 //
 // None of them can be observed anywhere else. A `LanguageStatusItem` and a decoration are sinks —
 // `setDecorations` takes ranges and hands none back — which is why `activate` returns the read-only
@@ -281,5 +281,64 @@ describe("the surfaces", () => {
     const back = await until("the status item naming a running server", async () =>
       reading.status?.text.includes("lsp") === true ? reading.status : undefined, () => said(reading));
     assert.equal(back.command, "nvs.restartServer");
+  });
+
+  it("stops at a breakpoint set through the editor and shows the frame's variables", async () => {
+    const document = await open("app.nvs");
+    // `echo $total` is the file's last statement, so `$total` and the `secret` `$password` are set.
+    const line = document.getText().split(/\r?\n/).findIndex((text) => text.startsWith("echo $total"));
+    assert.ok(line >= 0, "the fixture has no `echo $total` line");
+    const breakpoint = new vscode.SourceBreakpoint(new vscode.Location(document.uri, new vscode.Position(line, 0)));
+
+    // The tracker sees what the adapter writes, so the stop is an event this test waits on and not
+    // a poll of the call stack view.
+    let stoppedThread: number | undefined;
+    let ended = false;
+    const tracking = vscode.debug.registerDebugAdapterTrackerFactory("nvs", {
+      createDebugAdapterTracker: () => ({
+        onDidSendMessage: (message: { type?: string; event?: string; body?: { threadId?: number } }) => {
+          if (message.type === "event" && message.event === "stopped") {
+            stoppedThread = message.body?.threadId;
+          }
+        },
+      }),
+    });
+    const ending = vscode.debug.onDidTerminateDebugSession((session) => {
+      ended ||= session.type === "nvs";
+    });
+    vscode.debug.addBreakpoints([breakpoint]);
+    try {
+      const started = await vscode.debug.startDebugging(vscode.workspace.workspaceFolders?.[0], {
+        type: "nvs",
+        request: "launch",
+        name: "app.nvs",
+        program: document.uri.fsPath,
+      });
+      assert.ok(started, "the nvs debug session did not start");
+      const thread = await until("a stop at the breakpoint", async () => stoppedThread);
+      const session = vscode.debug.activeDebugSession;
+      assert.ok(session !== undefined && session.type === "nvs", "no nvs debug session is active");
+
+      const trace = await session.customRequest("stackTrace", { threadId: thread });
+      const frame = trace.stackFrames[0];
+      assert.equal(frame.line, line + 1);
+      assert.equal(vscode.Uri.file(frame.source.path).fsPath.toLowerCase(), document.uri.fsPath.toLowerCase());
+      const scopes = await session.customRequest("scopes", { frameId: frame.id });
+      const variables = await session.customRequest("variables", {
+        variablesReference: scopes.scopes[0].variablesReference,
+      });
+      const shown = new Map<string, string>(
+        variables.variables.map((variable: { name: string; value: string }) => [variable.name, variable.value]));
+      assert.equal(shown.get("$total"), "10");
+      assert.ok(shown.has("$password"), `the frame lists no $password: ${[...shown.keys()].join(", ")}`);
+      assert.ok(!shown.get("$password")?.includes(SECOND), "the secret's text reached the variables pane");
+
+      await session.customRequest("continue", { threadId: thread });
+      await until("the debug session ending", async () => ended ? true : undefined);
+    } finally {
+      vscode.debug.removeBreakpoints([breakpoint]);
+      tracking.dispose();
+      ending.dispose();
+    }
   });
 });
