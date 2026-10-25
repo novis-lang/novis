@@ -250,6 +250,7 @@ pub use nvs_stdlib::html::{
     MARKUP_CONCAT_SYMBOL as CORE_HTML_MARKUP_CONCAT, MARKUP_NAME as CORE_HTML_MARKUP_CLASS,
     MARKUP_SYMBOL as CORE_HTML_MARKUP, MARKUP_TEXT_SYMBOL as CORE_HTML_MARKUP_TEXT,
 };
+pub use nvs_stdlib::math::INT_DIV_SYMBOL as CORE_MATH_INT_DIV;
 /// `Core\Regex`'s two engines as `nvs_stdlib::regex::PREPARED_NONE` documents
 /// them, and the zero word beside them — the encoding
 /// `nvs_stdlib::registry::PREPARED_MEMBERS`' argument 0 carries, reached from
@@ -267,7 +268,6 @@ pub use nvs_stdlib::registry::takes_route_attributes as core_takes_route_attribu
 pub use nvs_stdlib::registry::takes_source as core_takes_source;
 pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;
 pub use nvs_stdlib::registry::takes_written_enum as core_takes_written_enum;
-pub use nvs_stdlib::math::INT_DIV_SYMBOL as CORE_MATH_INT_DIV;
 pub use nvs_stdlib::router::link::{
     ABSOLUTE_SYMBOL as CORE_ROUTE_LINK_ABSOLUTE, SIGNED_SYMBOL as CORE_ROUTE_LINK_SIGNED,
     SYMBOL as CORE_ROUTE_LINK,
