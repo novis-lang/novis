@@ -13,7 +13,7 @@ stages:
         rules: [testing/bench-counters, testing/member-perf-ledger, observability/gc-pause-is-its-own-event]
   - id: 2
     title: "`#[Bench]` and `nvs test --bench` report the counted rows"
-    status: open
+    status: done
     context: [crates/nvs-types/src/derive.rs, crates/nvs-types/src/testing.rs, crates/nvs-cli/src/runner.rs, docs/rules/testing/bench-counters.md, docs/examples/lang/testing/chapter.md]
     extra:
       context:
@@ -40,6 +40,13 @@ stages:
       context:
         rules: [testing/probes-on-is-a-tested-configuration, testing/debug-probes, testing/nvst-is-separate]
   - id: 6
+    title: the request-path gaps `request-overhead` handed over are built
+    status: open
+    context: [crates/nvs-host/src/cpuclock.rs, crates/nvs-host/src/isolate.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/stack.rs, crates/nvs-stdlib/src/format.rs, crates/nvs-stdlib/src/math.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/test.rs]
+    extra:
+      context:
+        rules: [programs/memory-priority, testing/member-perf-ledger]
+  - id: 7
     title: the goal is verified once, and every failure is fixed
     status: open
     gate: true
@@ -116,7 +123,14 @@ lane in any order. Stage 1 (`crates/nvs-runtime/`, `crates/nvs-host/src/blocking
 (`crates/nvs-codegen/`, `crates/nvs-cli/src/cache.rs`, `.github/workflows/ci.yml`) share only
 `crates/nvs-cli/src/main.rs` and run in order. Stage 2 waits on `test-surface` stage 1 and stage 5 on
 `trace-timeline` stage 6. Stages 4 and 5 share `crates/nvs-cli/src/main.rs` and the CI workflow, and run
-in that order.
+in that order. Stage 6 touches only `crates/nvs-host/` and `crates/nvs-stdlib/` files no other stage
+names, so it runs as a side lane in any order.
+
+**The eight perf gaps `request-overhead` handed over are built here, as stage 6.** Each is latency on
+the request path, which ranks above simplicity, and each record already states what closes it. No goal
+ahead on the chain is about the request path, so moving them would only defer them. A record whose
+closing turns out to cost an invariant every contributor must remember is struck as a stated bound in
+its module doc instead, with the reason.
 
 ## Stages
 
@@ -147,8 +161,8 @@ user reads*. The session keeps the Rust tests and the rule flip.
 - [x] `#[Bench]` joins the recognized roster with its card, and its methods are collected beside `#[Test]`'s (`rule:testing/test-attribute`). `crates/nvs-types/src/derive.rs:73`, `crates/nvs-types/src/testing.rs:231`
 - [x] `--bench` runs each bench under the counting mode and reports statements, calls, allocations, bytes and GC cycles, with wall time labelled advisory, in the text report and the JSON report, with its help text (`rule:testing/report-formats`). `crates/nvs-cli/src/runner.rs:142`, `crates/nvs-cli/src/runner.rs:2830`
 - [x] A Rust test that a bench's rows are identical across two runs (`rule:testing/bench-counters`). `crates/nvs-cli/src/runner.rs:3458`
-- [ ] A heading for the feature in the testing chapter, and its feature proofs, with `bun nv proofs --id` on its id passing (`rule:testing/feature-proofs`). `docs/examples/lang/testing/chapter.md:15`, `docs/examples/lang/testing/bench-and-nvs-test-bench/about.md:1`
-- [ ] The rule `shipped`, its `**Not on disk.**` paragraph gone. `data/rules/testing/bench-counters.json:3`, `docs/rules/testing/bench-counters.md:17`
+- [x] A heading for the feature in the testing chapter, and its feature proofs, with `bun nv proofs --id` on its id passing (`rule:testing/feature-proofs`). `docs/examples/lang/testing/chapter.md:15`, `docs/examples/lang/testing/bench-and-nvs-test-bench/about.md:1`
+- [x] The rule `shipped`, its `**Not on disk.**` paragraph gone. `data/rules/testing/bench-counters.json:3`, `docs/rules/testing/bench-counters.md:17`
 
 ### 3. a bench ramps an input that is fixed outside its program
 
@@ -189,7 +203,23 @@ line. The session checks each batch and ticks it.
 - [ ] CI runs the conformance suite once with the probes on, beside the existing run; proved locally on `tests/conformance/lang/`. `.github/workflows/ci.yml:228`
 - [ ] The rule `shipped`, its `**Not on disk.**` paragraph gone, and `bun nv owners --closes bench-counters` passes. `data/rules/testing/probes-on-is-a-tested-configuration.json:3`, `docs/rules/testing/probes-on-is-a-tested-configuration.md:18`
 
-### 6. the goal is verified once, and every failure is fixed
+### 6. the request-path gaps `request-overhead` handed over are built
+
+**Does:** each of the eight gap records is built as its own text says, and its record is deleted.
+
+**Split:** the items touch disjoint files, so writing subagents may take them side by side, and none
+of them builds. The session builds once they all end, and checks each against its record.
+
+- [ ] The scheduler's task maps hash `TaskId` with `rustc_hash`, with a comment saying why the key needs no seed. `crates/nvs-host/src/scheduler.rs:382`, `data/gaps/nvs-host/a-task-id-is-hashed-with-siphash.json:1`
+- [ ] `Core\Math::intDiv` is emitted inline, with the same division-by-zero and overflow errors, and its bench declares the calls it makes. `crates/nvs-stdlib/src/math.rs:163`, `data/gaps/nvs-stdlib/math-int-div-is-an-out-of-line-call.json:1`
+- [ ] `Core\Test\Response::body` keeps the checked string after the first call, per response, and its bench declares what it measures. `crates/nvs-stdlib/src/test.rs:1`, `data/gaps/nvs-stdlib/a-test-response-body-copies-its-bytes-on-every-call.json:1`
+- [ ] `Core\Request::jsonAs` decodes with `read_against`, keeping every check `decodeAs` keeps, and every `Core\Request` and `Core\Json` attack gives the same output. `crates/nvs-stdlib/src/request.rs:336`, `data/gaps/nvs-stdlib/request-json-as-builds-arrays-before-its-object.json:1`
+- [ ] A literal `Str::format` template is split while compiling, a tainted argument's result stays tainted, and the bench declares what it measures. `crates/nvs-stdlib/src/format.rs:1`, `data/gaps/nvs-stdlib/a-literal-format-template-is-parsed-on-every-call.json:1`
+- [ ] A cross-tree switch charges `[limits] cpu_time` with a cheaper clock, and every CPU-time limit test stays green. `crates/nvs-host/src/cpuclock.rs:171`, `data/gaps/nvs-host/a-cross-tree-switch-reads-the-cpu-clock-with-a-system-call.json:1`
+- [ ] The hello case's 2.5 µs of isolate start and finish is broken down, and each part that is not isolation is removed or moved out of the request. `crates/nvs-host/src/isolate.rs:1`, `data/gaps/nvs-host/an-isolate-start-and-finish-cost-microseconds-per-request.json:1`
+- [ ] A waiting request's stack and heap are broken down in the module doc, and each part not needed per request is removed. `crates/nvs-host/src/stack.rs:1`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
+
+### 7. the goal is verified once, and every failure is fixed
 
 **Does:** the stages before this one checked with a build alone, so this stage verifies the
 whole goal once and fixes every failure in one pass.
@@ -206,59 +236,46 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 2's first four items are done (`e6d2c775a` and the proofs commit after it). `#[Bench]`
-(`Core\Test\Bench`) is a `TestCase` with `bench` set (`crates/nvs-types/src/testing.rs`'s
-`BENCH_OPTIONS`). `nvs test --bench` runs the benches and no test, one at a time, and a plain run
-counts no bench as left out. Each bench's constructor and call are counted on its own isolate
-(`crates/nvs-cli/src/runner.rs`'s `Rows`), as a `count:` line in text and `counts` and
-`advisoryWallMs` in JSON. A bench passes with no assertion. The rule text says all of it.
+Stage 2 is done. The ten `lang:testing/*` perf proofs are recorded (`data/perf/members.ndjson`),
+`bun nv proofs --gate` is green over the whole roster, and `bun nv proofs --id
+'lang:testing/bench-and-nvs-test-bench'` owes nothing. `rule:testing/bench-counters` is `shipped`,
+guarded by its two `.nvst` cases and `crates/nvs-cli/src/runner.rs`, and its `**Not on disk.**`
+paragraph is now a present-tense pointer to the code.
 
-One trap was paid for: the thread's empty-array singleton is made on the thread's first `[]`, so the
-first bench on a thread counted 96 more bytes. The runner calls `nvs_runtime::prime_empty_array()`
-before each window. `runner::tests::a_bench_reports_the_same_rows_on_every_run` passes.
+The bench diagnostics' wording is fixed (`9b275d9cd`): an unsupplied bench parameter says "the
+#[Bench] method", a stray `#[TestWith]` names what the method is and its help moves or deletes the
+row, and the non-void help no longer says "rather than". The two cases that pin the wording passed.
 
-The feature's proofs are written and committed with this handoff: the folder
-`docs/examples/lang/testing/bench-and-nvs-test-bench/`, two `.nvst` cases, the attack and the member
-bench. `tools/nv/proofs/run.ts` gained `// proof: test --bench`, and `testReport` drops the advisory
-wall time from a `.out`. The feature id is `lang:testing/bench-and-nvs-test-bench`.
+The eight perf gaps `request-overhead` handed over are now stage 6, a side lane (`## Standing
+decisions`), and the gate stage is 7.
 
-Tests expected to go red: none known. The `.nvst` cases and the Rust test passed by name. A snapshot of
-the attribute roster or of `nvs meta --json`'s cards may change with the new card.
+Tests expected to go red: none known. A snapshot of a `#[TestWith]` stray-row help or of the
+non-void help would change, and none was found by grep.
 
-The sweep's findings needed no change: `env-secret-proofs`'s log shows exit 0, and `40075586234` is the
-nightly run the last session already found fixed at HEAD.
+The sweep's findings needed no change: `env-secret-proofs`'s log shows exit 0, and `40075586234` is
+the nightly run an earlier session found fixed at HEAD.
 
 ### Next
 
-**Finish stage 2: the perf proofs, then the rule flip.** Re-rendering `docs/reference/lang/95-testing.md`
-made the perf proof of all ten `lang:testing/*` features stale, so `bun nv proofs --gate` is red on
-them. This session stopped the recording mid-build, and it wrote nothing.
+**Stage 4: `nvs test --opt-level`.**
 
-- [ ] Record the ten stale perf proofs `bun nv proofs --gate` lists with `--record-perf --only`, in the background, then `bun nv scaling --budget --write` if the new bench asks. `benches/members/lang/testing/bench-and-nvs-test-bench.nvs:1`
-- [ ] `bun nv proofs --id 'lang:testing/bench-and-nvs-test-bench'` owes nothing, and `bun nv proofs --gate` is green. `docs/examples/lang/testing/bench-and-nvs-test-bench/about.md:1`
-- [ ] The rule `shipped`, its `**Not on disk.**` paragraph gone, stage 2 `done` in the front matter. `data/rules/testing/bench-counters.json:3`, `docs/rules/testing/bench-counters.md:35`
+- [ ] The rule names `--opt-level`. `docs/rules/testing/probes-on-is-a-tested-configuration.md:18`
+- [ ] Cranelift's level is an ISA parameter in place of `NOVIS_NO_OPTIMISE`, keyed in the cache. `crates/nvs-codegen/src/lib.rs:896`, `crates/nvs-cli/src/cache.rs:1291`
+- [ ] `--opt-level` on `nvs test` with its help, its Rust cache test, and the CI lane. `crates/nvs-cli/src/runner.rs:142`, `.github/workflows/ci.yml:229`
 
-Then stage 4 (`crates/nvs-codegen/src/lib.rs:896`).
+Then stage 5 (`crates/nvs-cli/src/main.rs:2377`).
 
 ### Backlog
 
-- Stage 3 is a side lane any session may take (`tools/nv/cmd/scaling.ts`).
-- Stage 4 is open now that stage 1 is done. It shares `crates/nvs-cli/src/main.rs` with stage 5 only,
-  so it may run before or after stage 2 (`crates/nvs-codegen/src/lib.rs:896`).
+- Stages 3 and 6 are side lanes any session may take (`tools/nv/cmd/scaling.ts`,
+  `crates/nvs-host/src/scheduler.rs:382`). Stage 6's first four items are small and independent.
 - Stage 5's gate holds: `trace-timeline` is retired.
-- `bun nv owners --closes bench-counters` names 8 perf gap records outside this goal's stages, which
-  `931c14a2e` handed over from `request-overhead`: `crates/nvs-host/src/cpuclock.rs`,
-  `crates/nvs-host/src/isolate.rs`, `crates/nvs-host/src/scheduler.rs`, `crates/nvs-host/src/stack.rs`,
-  `crates/nvs-stdlib/src/format.rs`, `crates/nvs-stdlib/src/math.rs`, `crates/nvs-stdlib/src/request.rs`,
-  `crates/nvs-stdlib/src/test.rs`. The acceptance check needs each built or owned by another goal. A
-  session before the gate stage decides which, and adds a stage or moves the records.
+- `bun nv scaling --budget` reports 45 benches over their share, none of them this goal's
+  (`benches/members/core/Metrics/`, `lang/expressions/the-pipeline-operator`, `novis/Spreadsheet-*`).
+  It is not a gate. Whoever owns those benches lowers N or writes the reason. `data/perf/bench-budget.json:1`
 - The gate stage watches the nightly `writeStdin` perf proof on Linux for the leftover one-allocation
   difference seen above the ramp's max.
-- The proofs subagent saw `bytes` differ by 8 between a debug and a `target/proof` build of one
-  example. The rule promises the same rows across machines for one build, so this is not a broken
-  promise, but the proof run's recording pass reports "diverged" on these programs and reruns them.
-  Find the Rust allocation whose size depends on the build profile, or make the proof run compare one
-  profile only. `tools/nv/proofs/run.ts:558`
-- Diagnostic wording on a bench, found by the same subagent: E0736 for a `#[TestWith]` on a bench
-  says "the #[Test] method", and E0738 and the static and return-type help texts use "rather than",
-  which § *Text an end user reads* forbids. `crates/nvs-types/src/testing.rs:1070`
+- `bytes` differs by 8 between a debug and a `target/proof` build of one example, so the proof run's
+  recording pass reports "diverged" on those programs and reruns them. Find the Rust allocation whose
+  size depends on the build profile, or make the proof run compare one profile only.
+  `tools/nv/proofs/run.ts:558`
