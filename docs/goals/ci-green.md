@@ -104,21 +104,24 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `94245fd46`: this session sent the refused push once the main loop committed
-its three rustfmt files and every pre-push check was green. Its Website run 40212810521 is green.
-Its CI run 40212810522 ended red in five jobs, four of them fixed and not pushed:
+`origin/main` is at `49bf05736`, `debugger-core`'s goal end. Its Website run 40229685901 is green.
+Its CI run 40229685931 ended red in two jobs, both fixed and not pushed:
 
-- `asan`, `test / linux-x86_64 (tests)` and `test / windows-x86_64 (tests)`: `backend_policy`'s
-  `a_reference_to_the_units_own_data_is_not_colocated`. The debugger's data reference in
-  `link_frame_record` skipped `clear_colocated`. Fixed in `15ca85538`.
-- `test / linux-aarch64`: `nvs-cli`'s `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`.
-  An idle connection kept 9.8 debug stack pages on aarch64, over a bound of 9 measured on Windows.
-  `58c80e482` makes the bound 11 on aarch64. Linux x86_64 passes under 9 in WSL.
-- `test / macos-aarch64 (tests)`: not fixed. `check_command`'s
-  `two_counted_runs_with_a_collection_print_the_same_line` counted the warm run at one allocation
-  and 64 bytes fewer than the two cold runs, which agreed. It passes on Linux x86_64 in WSL. There is
-  no macOS host here, so the cause is not found. The other test jobs stopped before that test binary,
-  so this run does not say whether Linux aarch64 or Windows fail it too.
+- `five-driver matrix`: `db_stream.rs`'s `names_both_fixes` looked for `{shared: false}`, and
+  `3db2bb905` made every wire driver's message print `{ shared: false }`. Fixed in `947d5b7b3`.
+  Locally its five TCP legs pass. Its three socket legs fail in WSL because the WSL mirror builds
+  under `.agent-tmp-worktrees-fmt-website`, whose socket path is over 107 bytes. CI's socket legs
+  passed, so that is this machine only.
+- `test / windows-x86_64 (tests)`: `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`
+  measured 9.8 idle stack pages on CI's Windows runner, as linux-aarch64 did on the push before.
+  `a78076b26` makes `CONNECTION_STACK_PAGES` 11 on every target.
+
+Every other job is green, `test / macos-aarch64 (tests)` and `test / linux-aarch64` among them, so
+the counted-run test passed on macOS this time and the aarch64 bound of `58c80e482` holds.
+
+`cargo fmt --all --check` is red on the main loop's untracked `crates/nvs-cli/src/dap/` and
+`crates/nvs-cli/tests/dap.rs`. If they are committed as they stand, the next goal end's push is
+refused: see § *Standing decisions* on a refused push.
 
 The push lane skipped the Miri and overload jobs, so the fixes for runs 40158642410 and
 40174915924 are not checked yet. They run in the nightly deep lane.
@@ -132,8 +135,8 @@ when looper is stopped.
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch the next push with `bun nv ci --watch --next`. `tools/nv/cmd/ci.ts:265`
-  Run 40212810522 has ended, so `--next` passes over it. The next goal end's push carries
-  `15ca85538` and `58c80e482`. Watch with no `--past`, and without a pipe into `tail`, which
+  Run 40229685931 has ended, so `--next` passes over it. The next goal end's push carries
+  `947d5b7b3` and `a78076b26`. Watch with no `--past`, and without a pipe into `tail`, which
   hides the exit code. A watch without `--next` exits 1 at once on the newest red run, even an
   old nightly one. If `proofs` fails on perf figures of `math.rs`, `test.rs`, `request.rs` or
   `json.rs`, bench-counters' gate did not record them: record them as below. If a `Core\Process` example fails on another program,
@@ -154,7 +157,8 @@ when looper is stopped.
   --limit 1000` into batches of 45 pages with each page's current questions, and read-only `Explore`
   subagents on `sonnet` report only the pages to change. `--limit 0` there means zero pages.
 - [ ] If the counted-run test fails again on macOS, find the allocation. `crates/nvs-cli/tests/check_command.rs:333`
-  The test is `two_counted_runs_with_a_collection_print_the_same_line`. A second failure is not noise.
+  The test is `two_counted_runs_with_a_collection_print_the_same_line`. It failed on `94245fd46` and
+  passed on `49bf05736`. A second failure is not noise.
   The count window opens at `crates/nvs-cli/src/main.rs:2439`, and its counters are the main
   thread's. A cold run makes one 64-byte allocation in it that a warm run does not, so a warm run
   makes it before the window. Look for state made on first use that a cache load makes and a
@@ -165,7 +169,9 @@ when looper is stopped.
   commits `13004e4f9` and `2b292f862`.
 - [ ] If `five-driver matrix` fails again, read SQL Server's own log. `tools/nv/cmd/db-matrix.ts:367`
   The step now prints `db-matrix: the last 60 lines of `mssql`'s log:` above its error. Fix what
-  that log names, in `tests/db/compose.yaml`'s `mssql` service.
+  that log names, in `tests/db/compose.yaml`'s `mssql` service. When every service is `Healthy` and
+  a leg names a test, the red is that test's, as on `49bf05736`. Check a fix with `bun nv db-matrix`.
+  Docker Desktop runs here.
 - [ ] Fix and commit each other red job. `.github/workflows/ci.yml:1`
   A render red needs a binary built at `HEAD`: the root's `target/debug/nvs.exe` carries the main
   loop's uncommitted edits. Build one with `cargo build --bin nvs` in the scratch worktree.
