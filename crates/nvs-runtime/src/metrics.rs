@@ -112,7 +112,8 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
+use std::sync::atomic::{self, AtomicU64};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, Weak};
 use std::time::Duration;
 
 use nvs_config::{Config, DEFAULT_MAX_SERIES, Exporter, Metering};
@@ -876,17 +877,79 @@ impl Registry {
     }
 }
 
-/// Every serving core's registry, as the weak handle that core filed when it
+/// One core's registry, and the two figures that core publishes for a scrape to
+/// read.
+///
+/// The figures are words beside the lock, not series behind it, because they
+/// change on every task and every after-response tree. A store into a word
+/// only this core writes costs that path nothing measurable, where a series
+/// write would take the lock and look the series up each time. A scrape
+/// reads them as it copies the registry ([`every_core`]).
+struct Meter {
+    registry: Mutex<Registry>,
+    /// `nvs_tasks_in_flight`'s term for this core: its scheduler's live tasks.
+    tasks: AtomicU64,
+    /// `nvs_deferred_trees`'s term for this core:
+    /// [`crate::deferred::trees_in_flight`].
+    trees: AtomicU64,
+}
+
+impl Meter {
+    fn new(registry: Registry) -> Arc<Self> {
+        Arc::new(Self {
+            registry: Mutex::new(registry),
+            tasks: AtomicU64::new(0),
+            trees: AtomicU64::new(0),
+        })
+    }
+}
+
+/// Every serving core's meter, as the weak handle that core filed when it
 /// took one.
 ///
 /// The one process-wide thing in this module, and it holds no series: what is
 /// behind a handle belongs to one core and is written by that core alone. The
 /// module doc § *How a scrape reaches a core it is not running on* owns why the
 /// handles are weak and why there is one lock per core rather than one here.
-static CORES: Mutex<Vec<Weak<Mutex<Registry>>>> = Mutex::new(Vec::new());
+static CORES: Mutex<Vec<Weak<Meter>>> = Mutex::new(Vec::new());
+
+/// What the process's memory cache holds, in bytes, read by whoever owns that
+/// cache. `nvs_stdlib`'s cache registers it as its store is created, since this
+/// crate cannot name that store. Unset in a process that never used it, which
+/// reads `0`.
+static CACHE_BYTES: OnceLock<fn() -> u64> = OnceLock::new();
+
+/// Names the reader `nvs_memory_bytes{scope="cache"}` is filled from. The first
+/// call wins, and a process has one cache, so there is no second.
+pub fn read_cache_bytes_with(reader: fn() -> u64) {
+    let _ = CACHE_BYTES.set(reader);
+}
+
+/// Publishes how many tasks this core's scheduler holds, for
+/// `nvs_tasks_in_flight`. A store into this core's own word, and nothing on a
+/// core with no meter.
+pub fn publish_tasks(live: usize) {
+    CORE.with_borrow(|core| {
+        if let Some(meter) = core.as_ref() {
+            meter
+                .tasks
+                .store(u64::try_from(live).unwrap_or(u64::MAX), atomic::Ordering::Relaxed);
+        }
+    });
+}
+
+/// Publishes how many trees this core holds open for after-response work, for
+/// `nvs_deferred_trees`. As [`publish_tasks`].
+pub(crate) fn publish_trees(open: u64) {
+    CORE.with_borrow(|core| {
+        if let Some(meter) = core.as_ref() {
+            meter.trees.store(open, atomic::Ordering::Relaxed);
+        }
+    });
+}
 
 thread_local! {
-    /// The registry of the core this thread is.
+    /// The meter of the core this thread is.
     ///
     /// A thread-local because that is what "per core" *is* on a runtime which
     /// never migrates a request: the core that accepted a connection is the
@@ -902,7 +965,7 @@ thread_local! {
     ///
     /// `None` on every thread that is not serving, and on every core of a
     /// process whose `[metrics]` names no exporter.
-    static CORE: RefCell<Option<Arc<Mutex<Registry>>>> = const { RefCell::new(None) };
+    static CORE: RefCell<Option<Arc<Meter>>> = const { RefCell::new(None) };
 }
 
 /// A lock taken past a poisoning.
@@ -938,16 +1001,16 @@ pub fn meter_this_core(config: &Config) {
         return;
     };
     CORE.with_borrow_mut(|core| {
-        if let Some(registry) = core.as_ref() {
-            held(registry).adopt(metering);
+        if let Some(meter) = core.as_ref() {
+            held(&meter.registry).adopt(metering);
             return;
         }
-        let registry = Arc::new(Mutex::new(Registry::build(
+        let meter = Meter::new(Registry::build(
             Some(metering.exporter),
             metering.max_series,
-        )));
-        held(&CORES).push(Arc::downgrade(&registry));
-        *core = Some(registry);
+        ));
+        held(&CORES).push(Arc::downgrade(&meter));
+        *core = Some(meter);
     });
 }
 
@@ -958,8 +1021,8 @@ pub fn meter_this_core(config: &Config) {
 /// case is the ordinary one and is a borrow and a branch.
 pub fn count_request(method: &str, status: u16, route: Option<&str>, took: Duration) {
     CORE.with_borrow(|core| {
-        if let Some(registry) = core.as_ref() {
-            held(registry).request(method, status, route, took);
+        if let Some(meter) = core.as_ref() {
+            held(&meter.registry).request(method, status, route, took);
         }
     });
 }
@@ -972,8 +1035,8 @@ pub fn count_request(method: &str, status: u16, route: Option<&str>, took: Durat
 /// handler.
 pub fn count_handler_dropped() {
     CORE.with_borrow(|core| {
-        if let Some(registry) = core.as_ref() {
-            let _ = held(registry).increment("nvs_log_handler_dropped_total", 1, &[]);
+        if let Some(meter) = core.as_ref() {
+            let _ = held(&meter.registry).increment("nvs_log_handler_dropped_total", 1, &[]);
         }
     });
 }
@@ -987,8 +1050,8 @@ pub fn count_handler_dropped() {
 /// never holds it.
 pub fn count_request_peak(route: Option<&str>, peak: usize) {
     CORE.with_borrow(|core| {
-        if let Some(registry) = core.as_ref() {
-            held(registry).request_peak(route, peak);
+        if let Some(meter) = core.as_ref() {
+            held(&meter.registry).request_peak(route, peak);
         }
     });
 }
@@ -1006,15 +1069,15 @@ pub fn count_request_peak(route: Option<&str>, peak: usize) {
 /// Filed in [`CORES`] like any other, so a process that is both serving and
 /// scraping merges what a `Core\Metrics` call wrote alongside what the door
 /// counted.
-fn this_core() -> Arc<Mutex<Registry>> {
+fn this_core() -> Arc<Meter> {
     CORE.with_borrow_mut(|core| {
-        if let Some(registry) = core.as_ref() {
-            return Arc::clone(registry);
+        if let Some(meter) = core.as_ref() {
+            return Arc::clone(meter);
         }
-        let registry = Arc::new(Mutex::new(Registry::new(DEFAULT_MAX_SERIES)));
-        held(&CORES).push(Arc::downgrade(&registry));
-        *core = Some(Arc::clone(&registry));
-        registry
+        let meter = Meter::new(Registry::new(DEFAULT_MAX_SERIES));
+        held(&CORES).push(Arc::downgrade(&meter));
+        *core = Some(Arc::clone(&meter));
+        meter
     })
 }
 
@@ -1039,8 +1102,8 @@ pub fn record(
     written: Written,
     labels: &[(&str, &str)],
 ) -> Result<(), Refused> {
-    let registry = this_core();
-    let mut registry = held(&registry);
+    let meter = this_core();
+    let mut registry = held(&meter.registry);
     if registry.rewrite(name, written, labels) {
         return Ok(());
     }
@@ -1058,7 +1121,7 @@ pub fn record(
 pub fn fixed_at(name: &str) -> Option<String> {
     CORE.with_borrow(|core| {
         core.as_ref()
-            .and_then(|registry| held(registry).fixed_at(name).map(str::to_owned))
+            .and_then(|meter| held(&meter.registry).fixed_at(name).map(str::to_owned))
     })
 }
 
@@ -1071,7 +1134,7 @@ pub fn fixed_at(name: &str) -> Option<String> {
 /// built none.
 #[must_use]
 pub fn on_this_core() -> Option<Registry> {
-    CORE.with_borrow(|core| core.as_ref().map(|registry| held(registry).clone()))
+    CORE.with_borrow(|core| core.as_ref().map(|meter| held(&meter.registry).clone()))
 }
 
 /// A copy of every serving core's series, in no particular order — the one
@@ -1085,32 +1148,53 @@ pub fn on_this_core() -> Option<Registry> {
 /// Empty in a process whose `[metrics]` names no exporter, because no core
 /// there built a registry to file.
 ///
-/// **`nvs_memory_bytes{scope="request"}` is filled here**, on the first copy
-/// alone, from [`crate::budget::held_by_cores`]: what every core holds for its
-/// requests, which is the figure admission reads. It is one sum over the
-/// cores' gauges, so a gather sets it rather than every request writing it, and
-/// the merge's sum counts it once. Nothing writes `cache` or `process` yet.
+/// **The process-wide gauges are filled here**, so no request writes them:
+///
+/// * `nvs_tasks_in_flight` and `nvs_deferred_trees` on each copy, from the
+///   words its core published ([`Meter`]). The merge sums the copies.
+/// * `nvs_memory_bytes` on the first copy alone, so the merge's sum counts it
+///   once. `request` is [`crate::budget::held_by_cores`], the figure admission
+///   reads. `cache` is what the memory cache holds ([`read_cache_bytes_with`]).
+///   `process` is [`crate::os::resident_bytes`], the resident set's high-water
+///   mark, which is one system call per gather.
 #[must_use]
 pub fn every_core() -> Vec<Registry> {
-    let serving: Vec<Arc<Mutex<Registry>>> = {
+    let serving: Vec<Arc<Meter>> = {
         let mut roster = held(&CORES);
         roster.retain(|core| core.strong_count() > 0);
         roster.iter().filter_map(Weak::upgrade).collect()
     };
     let mut copies: Vec<Registry> = serving
         .iter()
-        .map(|registry| held(registry).clone())
+        .map(|meter| {
+            let mut copy = held(&meter.registry).clone();
+            let tasks = meter.tasks.load(atomic::Ordering::Relaxed);
+            let trees = meter.trees.load(atomic::Ordering::Relaxed);
+            // Both families are seeded with no labels, so neither write is refused.
+            let _ = copy.gauge("nvs_tasks_in_flight", gauge_of(tasks), &[]);
+            let _ = copy.gauge("nvs_deferred_trees", gauge_of(trees), &[]);
+            copy
+        })
         .collect();
     if let Some(first) = copies.first_mut() {
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "a gauge is an f64, and a byte count past 2^53 is not a reading anybody takes"
-        )]
-        let held = crate::budget::held_by_cores().max(0) as f64;
-        // The family is seeded with this label, so the write is never refused.
-        let _ = first.gauge("nvs_memory_bytes", held, &[("scope", "request")]);
+        let request = u64::try_from(crate::budget::held_by_cores()).unwrap_or(0);
+        let cache = CACHE_BYTES.get().map_or(0, |read| read());
+        let process = crate::os::resident_bytes().unwrap_or(0);
+        // The family is seeded with these labels, so no write is refused.
+        for (scope, bytes) in [("request", request), ("cache", cache), ("process", process)] {
+            let _ = first.gauge("nvs_memory_bytes", gauge_of(bytes), &[("scope", scope)]);
+        }
     }
     copies
+}
+
+/// A count or a byte figure as a gauge's value.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "a gauge is an f64, and a figure past 2^53 is not a reading anybody takes"
+)]
+fn gauge_of(figure: u64) -> f64 {
+    figure as f64
 }
 
 /// A series key: the name, and the labels sorted by name.
@@ -1283,7 +1367,7 @@ mod tests {
 
     use super::{
         Kind, LATENCY_BUCKETS, MEMORY_BUCKETS, PAUSE_BUCKETS, REFUSED_NAMES, Refused, Registry,
-        Value, count_request, every_core, meter_this_core,
+        Value, count_request, every_core, meter_this_core, publish_tasks, read_cache_bytes_with,
     };
 
     /// A merged tree whose `[metrics]` block writes an exporter and a bound.
@@ -1693,6 +1777,55 @@ mod tests {
                     .iter()
                     .all(|registry| registry.read("nvs_requests_total", &labels).is_none()),
                 "a core that ended was still gathered from"
+            );
+        }
+    }
+
+    /// A gather fills the five process-wide gauges no request writes: a core's
+    /// tasks and open trees, and the cache and process scopes of
+    /// `nvs_memory_bytes`. Each is read as a sum over every gathered core, so
+    /// another test's core can only raise it, and non-zero is what holds.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the process scope reads the resident set through a system call Miri does not model"
+    )]
+    fn a_gather_fills_the_gauges_no_request_writes() {
+        fn summed(cores: &[Registry], name: &str, labels: &[(&str, &str)]) -> f64 {
+            cores
+                .iter()
+                .filter_map(|registry| match registry.read(name, labels) {
+                    Some(Value::Gauge(value)) => Some(*value),
+                    _ => None,
+                })
+                .sum()
+        }
+
+        read_cache_bytes_with(|| 4096);
+        let gate = Arc::new(Barrier::new(2));
+        let core = {
+            let gate = Arc::clone(&gate);
+            thread::spawn(move || {
+                meter_this_core(&configured(Setting::Text("prometheus".to_owned()), None));
+                publish_tasks(2);
+                assert!(crate::deferred::take_tree_slot(8), "a slot under the cap");
+                gate.wait();
+                gate.wait();
+                crate::deferred::give_back_tree_slot();
+            })
+        };
+
+        gate.wait();
+        let gathered = every_core();
+        gate.wait();
+        core.join().expect("the metering thread panicked");
+
+        assert!(summed(&gathered, "nvs_tasks_in_flight", &[]) >= 2.0);
+        assert!(summed(&gathered, "nvs_deferred_trees", &[]) >= 1.0);
+        for scope in ["cache", "process"] {
+            assert!(
+                summed(&gathered, "nvs_memory_bytes", &[("scope", scope)]) > 0.0,
+                "nvs_memory_bytes{{scope={scope:?}}} read 0"
             );
         }
     }

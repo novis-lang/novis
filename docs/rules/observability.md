@@ -203,10 +203,22 @@ Every one is read from instrumentation that already exists — the `query`, `gc`
 kinds and the arena accounting [`programs/memory-priority`](programs.md#programs-memory-priority) already requires — which is
 [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures) applied series by series.
 
-`nvs_memory_bytes{scope="request"}` is what every core holds for its requests, the sum admission
-reads ([`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number)). A scrape or a push reads it once
-as it gathers the cores' series, so no request writes it. The `cache` and `process` scopes are not
-written yet, and neither are `nvs_tasks_in_flight` and `nvs_deferred_trees`, which read `0`.
+Five gauges are filled as a scrape or a push gathers the cores' series, so no request writes them:
+
+- `nvs_memory_bytes{scope="request"}` is what every core holds for its requests, the sum admission
+  reads ([`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number)).
+- `nvs_memory_bytes{scope="cache"}` is what `Core\Cache`'s memory tier holds, as its cap counts it.
+  The gather takes each shard's read lock once.
+- `nvs_memory_bytes{scope="process"}` is the resident set's high-water mark, the reading
+  `Core\Os::residentBytes()` gives ([`observability/memory-is-three-numbers-on-core-budget`](observability.md#observability-memory-is-three-numbers-on-core-budget)).
+  One system call per gather.
+- `nvs_tasks_in_flight` is the sum of each core's live tasks, and `nvs_deferred_trees` the sum of
+  each core's trees open for after-response work.
+
+The last two change on every task and every tree, so each core publishes them into two words of its
+own beside its registry, and the gather reads the words. A store into a word only that core writes
+costs the task path nothing measurable, where a series write would take the registry's lock each
+time. Spends: two `u64` per metered core.
 
 The peak is a **histogram** where the live figure is a gauge, because the two answer different
 questions: a gauge says what is held now, and only a distribution answers what fraction of requests

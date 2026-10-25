@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-runtime/src/metrics.rs",
-  "title": "`nvs_memory_bytes{scope=\"cache\"|\"process\"}`, `nvs_tasks_in_flight` and `nvs_deferred_trees` are seeded and never written.",
-  "text": "`rule:observability/default-series` declares them, so they are present the moment an exporter is configured, and nothing sets them: they read `0` or have no member. `every_core`'s gather is where a process-wide figure can be set without a request writing it. Closing it is writing each one there, and a scrape test that reads a non-zero value for each.",
-  "goal": "trace-timeline"
-}

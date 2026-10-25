@@ -1096,8 +1096,25 @@ const SHARDS: usize = 64;
 /// process's. Creating it allocates nothing at all, since an empty [`HashMap`]
 /// and an empty [`VecDeque`] each hold no heap, so [`arm_memory_tier`] costs
 /// the fleet nothing and buys that no worker is the one that built the map.
-static MEMORY: LazyLock<[Shard; SHARDS]> =
-    LazyLock::new(|| std::array::from_fn(|_| Shard::new(Entries::default())));
+///
+/// Creating it names [`held_by_memory`] as the reader of
+/// `nvs_memory_bytes{scope="cache"}`.
+static MEMORY: LazyLock<[Shard; SHARDS]> = LazyLock::new(|| {
+    nvs_runtime::metrics::read_cache_bytes_with(held_by_memory);
+    std::array::from_fn(|_| Shard::new(Entries::default()))
+});
+
+/// What the memory tier's entries hold together, as the cap counts them. A read
+/// lock on each shard in turn, taken once per metrics gather.
+fn held_by_memory() -> u64 {
+    MEMORY
+        .iter()
+        .map(|shard| {
+            let entries = shard.read().expect("a cache shard's lock is never poisoned");
+            u64::try_from(entries.held).unwrap_or(u64::MAX)
+        })
+        .sum()
+}
 
 /// One piece of [`MEMORY`]: a share of this process's entries under one lock.
 type Shard = RwLock<Entries>;
@@ -3394,6 +3411,37 @@ pub(crate) mod tests {
             "a `get` waited on a read another core was holding, so it took the write lock"
         );
         drop(held);
+    }
+
+    /// What the memory tier holds is `nvs_memory_bytes{scope="cache"}` in a
+    /// gather, because creating the tier names its reader. The gather sums every
+    /// metered core in this binary, so non-zero is what holds.
+    #[test]
+    fn a_gather_reads_what_the_memory_tier_holds() {
+        use nvs_config::tree::Metrics;
+        use nvs_config::{Config, Setting};
+        use nvs_runtime::metrics::{every_core, meter_this_core};
+
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+        memory_put(b"gathered-entry", vec![0; 64], Lifetime::Forever, None);
+        meter_this_core(&Config {
+            metrics: Some(Metrics {
+                exporter: Some(Setting::Text("prometheus".to_owned())),
+                ..Metrics::default()
+            }),
+            ..Config::default()
+        });
+        let cache: f64 = every_core()
+            .iter()
+            .filter_map(|registry| {
+                match registry.read("nvs_memory_bytes", &[("scope", "cache")]) {
+                    Some(nvs_runtime::metrics::Value::Gauge(bytes)) => Some(*bytes),
+                    _ => None,
+                }
+            })
+            .sum();
+        memory_forget(b"gathered-entry");
+        assert!(cache >= 64.0, "the gather read {cache} cache bytes");
     }
 
     /// [`memory_update`] is one step no other core can come between: a read

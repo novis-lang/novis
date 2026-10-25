@@ -417,6 +417,7 @@ impl TaskTree {
         if let Some(node) = parent.and_then(|parent| self.nodes.get_mut(&parent)) {
             node.children.insert(id);
         }
+        nvs_runtime::metrics::publish_tasks(self.nodes.len());
         id
     }
 
@@ -450,6 +451,7 @@ impl TaskTree {
         let Some(node) = self.nodes.remove(&id) else {
             return BTreeSet::new();
         };
+        nvs_runtime::metrics::publish_tasks(self.nodes.len());
         if let Some(parent) = node.parent.and_then(|parent| self.nodes.get_mut(&parent)) {
             parent.children.remove(&id);
         }
@@ -3192,6 +3194,38 @@ mod tests {
         });
         let report = sched.run();
         assert_eq!(report.parked, 1);
+        drop(sched);
+    }
+
+    /// A metered core publishes its live tasks, so a gather's
+    /// `nvs_tasks_in_flight` counts a task that is parked. The reading is a sum
+    /// over every metered core in this binary, so another test can only raise it.
+    #[test]
+    fn a_parked_task_is_counted_in_flight_on_a_metered_core() {
+        use nvs_config::tree::Metrics;
+        use nvs_config::{Config, Setting};
+        use nvs_runtime::metrics::{Value, every_core, meter_this_core};
+
+        meter_this_core(&Config {
+            metrics: Some(Metrics {
+                exporter: Some(Setting::Text("prometheus".to_owned())),
+                ..Metrics::default()
+            }),
+            ..Config::default()
+        });
+        let mut sched = Scheduler::new();
+        sched.spawn(ctx(), TaskRoot::Request, |task_ctx| {
+            suspend(task_ctx, Waiting::Parked);
+        });
+        sched.run();
+        let in_flight: f64 = every_core()
+            .iter()
+            .filter_map(|registry| match registry.read("nvs_tasks_in_flight", &[]) {
+                Some(Value::Gauge(value)) => Some(*value),
+                _ => None,
+            })
+            .sum();
+        assert!(in_flight >= 1.0, "a parked task was not in flight");
         drop(sched);
     }
 

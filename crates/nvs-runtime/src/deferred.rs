@@ -152,6 +152,7 @@ pub(crate) fn take_tree_slot(cap: u64) -> bool {
             return false;
         }
         trees.set(trees.get() + 1);
+        crate::metrics::publish_trees(trees.get());
         true
     })
 }
@@ -159,7 +160,10 @@ pub(crate) fn take_tree_slot(cap: u64) -> bool {
 /// Gives one back, for a tree that has finished its after-response work or
 /// ended without running any.
 pub(crate) fn give_back_tree_slot() {
-    TREES.with(|trees| trees.set(trees.get().saturating_sub(1)));
+    TREES.with(|trees| {
+        trees.set(trees.get().saturating_sub(1));
+        crate::metrics::publish_trees(trees.get());
+    });
 }
 
 /// How many trees this core is holding open for after-response work right now.
