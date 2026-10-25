@@ -638,6 +638,13 @@ describe("the feature scenarios", () => {
       failures: "503 x4; timeout x2",
       p99_ms: null,
     });
+    // `oha` gives `null` for a latency it did not measure, as when no request was answered.
+    expect(steadyResult({ statusCodeDistribution: {}, errorDistribution: { timeout: 50 }, metrics: { latency_ms: { p99: null } } })).toEqual({
+      requests: 0,
+      failed: 50,
+      failures: "timeout x50",
+      p99_ms: null,
+    });
   });
 
   // What the `sed` range `/^\[table\]$/,/^\[/` of `tableEditCommand` changes, so the shipped file is

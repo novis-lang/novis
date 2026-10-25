@@ -1794,8 +1794,11 @@ async function steadyOf(stack: string, env: Record<string, string>, path: string
 /** `oha`'s name for a request still open when `-z` ends. The run cut it, so it is not a failure. */
 const DEADLINE = "aborted due to deadline";
 
-/** The figures `oha`'s JSON gives for a steady run. Every status but `200` and every error but `DEADLINE` failed. */
-export function steadyResult(json: { statusCodeDistribution?: Record<string, number>; errorDistribution?: Record<string, number>; metrics?: { latency_ms?: { p99?: number } } }): Steady {
+/**
+ * The figures `oha`'s JSON gives for a steady run. Every status but `200` and every error but `DEADLINE`
+ * failed. A latency `oha` did not measure is `null` or absent, and both give a `null` p99.
+ */
+export function steadyResult(json: { statusCodeDistribution?: Record<string, number>; errorDistribution?: Record<string, number>; metrics?: { latency_ms?: { p99?: number | null } } }): Steady {
   const failures = [
     ...Object.entries(json.statusCodeDistribution ?? {}).filter(([status]) => status !== "200"),
     ...Object.entries(json.errorDistribution ?? {}).filter(([error]) => error !== DEADLINE),
@@ -1806,7 +1809,7 @@ export function steadyResult(json: { statusCodeDistribution?: Record<string, num
     requests: answered,
     failed: failures.reduce((n, [, count]) => n + count, 0),
     failures: failures.map(([what, count]) => `${what} x${count}`).join("; ") || null,
-    p99_ms: p99 === undefined ? null : Number(p99.toFixed(1)),
+    p99_ms: p99 == null ? null : Number(p99.toFixed(1)),
   };
 }
 
