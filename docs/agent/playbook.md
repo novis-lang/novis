@@ -26,6 +26,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **`bun nv splice` writes past the edit-claim guard, so check `looper status` for a side loop before
+  splicing a file it may have touched.** A side session's claim on `serve.rs` outlived its commit,
+  because the claim is released only when a listing sees the file clean, and the splice dirtied it
+  first. The Edit tool was then refused, and when the side session ended its driver committed the
+  splice's hunks as that session's `wip(loop)` commit, which did not build alone. Splice a file
+  only once Edit would take it. `until: gone tools/looper/src/claims/claims.ts:releaseAsked`
 - **The installed `looper` binary may lack a subcommand the prompt names, such as `decision`.** It
   answers `unrecognized subcommand` with exit 2. The project's copy, `tools/looper/main.ts`, has every command, so run
   `bun tools/looper/main.ts decision close <id>` instead (AGENTS.md § *Novis works without looper*).
