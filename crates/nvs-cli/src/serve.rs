@@ -4495,6 +4495,10 @@ mod tests {
     /// `nvs_host::stack`'s *What a waiting request holds* records. Each probe runs
     /// after a warm-up `/wait` and `/probe`, so the compiled units and the caches a
     /// first request fills are in all three readings.
+    ///
+    /// Each probe also reads `nvs_host::counts::StackPages` in a debug build, so
+    /// the same differences give the pages each part keeps resident on the
+    /// connection's stack and on the program's.
     #[test]
     fn a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap() {
         let dir = nvs_repo::scratch("serve-waiting-heap");
@@ -4592,15 +4596,18 @@ mod tests {
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         // Sized for every reading up front, so its own growth is not counted.
         let readings = Rc::new(std::cell::RefCell::new(Vec::<isize>::with_capacity(8)));
+        let stacks = Rc::new(std::cell::RefCell::new(Vec::with_capacity(8)));
         let handler = Rc::new({
             let compiler = Arc::clone(&compiler);
             let readings = Rc::clone(&readings);
+            let stacks = Rc::clone(&stacks);
             move |request: nvs_server::Request<nvs_server::Incoming>,
                   _origin: nvs_server::Origin| {
                 let path = if request.uri().path() == "/probe" {
                     readings
                         .borrow_mut()
                         .push(nvs_runtime::budget::thread_live_bytes());
+                    stacks.borrow_mut().push(stack_pages());
                     &probes
                 } else {
                     &waits
@@ -4646,11 +4653,42 @@ mod tests {
         let per = |from: isize, to: isize| (to - from) / WAITING;
         let connection = per(nothing, idle);
         let request = per(idle, waiting);
+
         assert!(
             connection <= CONNECTION_HEAP && request <= REQUEST_HEAP,
             "an idle connection held {connection} bytes, over {CONNECTION_HEAP}, or a waiting \
              request {request} more, over {REQUEST_HEAP}: {readings:?}"
         );
+
+        let stacks = stacks.borrow();
+        let [_warm, nothing, idle, waiting] = stacks[..] else {
+            panic!("the probes read {stacks:?}, not four readings");
+        };
+        if cfg!(all(debug_assertions, any(target_os = "linux", windows))) {
+            let waiting_count = WAITING.unsigned_abs();
+            assert!(
+                idle.0 - nothing.0 <= CONNECTION_STACK_PAGES * waiting_count
+                    && waiting.0 - idle.0 <= REQUEST_HOST_STACK_PAGES * waiting_count
+                    && waiting.1 - idle.1 <= REQUEST_PROGRAM_STACK_PAGES * waiting_count,
+                "{WAITING} connections' stacks went from {nothing:?} pages to {idle:?} idle and \
+                 {waiting:?} waiting, as (host, program), over {CONNECTION_STACK_PAGES}, \
+                 {REQUEST_HOST_STACK_PAGES} and {REQUEST_PROGRAM_STACK_PAGES} each"
+            );
+        }
+    }
+
+    /// The pages resident on the stacks of this thread's tasks, as (host, program),
+    /// which only a debug build can read.
+    #[cfg(debug_assertions)]
+    fn stack_pages() -> (usize, usize) {
+        let pages = nvs_host::counts::StackPages::now();
+        (pages.host, pages.program)
+    }
+
+    /// [`stack_pages`] in a release build, which has no reading.
+    #[cfg(not(debug_assertions))]
+    fn stack_pages() -> (usize, usize) {
+        (0, 0)
     }
 
     /// How many connections [`a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`]
@@ -4665,6 +4703,18 @@ mod tests {
     /// connection's: about 3.7 KiB measured, and less than the 8 KiB a head
     /// buffer kept for the whole request would add.
     const REQUEST_HEAP: isize = 6 * 1024;
+
+    /// How many stack pages an idle connection may keep resident in a debug
+    /// build: 13.5 measured on Windows. A release build measured 4.1.
+    const CONNECTION_STACK_PAGES: usize = 15;
+
+    /// How many more pages a waiting request may keep resident on its
+    /// connection's stack in a debug build: 9.6 measured, and 3.9 in release.
+    const REQUEST_HOST_STACK_PAGES: usize = 11;
+
+    /// How many pages a waiting request's program may keep resident on its own
+    /// stack in a debug build: 8 measured, and 2.0 in release.
+    const REQUEST_PROGRAM_STACK_PAGES: usize = 9;
 
     /// An address on the loopback nothing is listening on, taken from the
     /// platform and given straight back so the boot under test is what binds it.

@@ -1,6 +1,6 @@
 {
   "module": "crates/nvs-host/src/stack.rs",
-  "title": "A waiting request's program stack above the host's 8 KiB is not broken down.",
-  "text": "A waiting request's program stack has about 36 KiB resident in a release container, 28 KiB above `KEPT_RESIDENT`. The host's part is 2 pages, so the rest is the compiled code and the `Core` calls the request made before it slept. Its heap is broken down in this module's *What a waiting request holds*. A served count needs `resident_pages` reachable from `nvs-cli`'s serve tests, for example beside `nvs_host::counts` under `debug_assertions`. Boxing the task entry's `Ctx` (1,776 bytes) in `scheduler.rs` may save about one page per task. Closing it is that breakdown written into this module's doc, and each part that is not needed per request removed.",
+  "title": "A waiting request's connection stack is not broken down by frame.",
+  "text": "This module's *What a waiting request holds* measures a waiting request's stack: in release on Windows, an idle connection keeps 4.1 pages resident on its connection's stack, its request 3.9 more there, and its program 2.0 on its own. So three quarters of it is the connection's: the accept loop's spawn, `hyper`'s connection future, and the handler's path while the connection waits for the isolate's answer. `nvs-cli`'s `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap` reads it per step through `nvs_host::counts::StackPages`. Closing it is the deep frames on that path found with a release build's frame sizes, written into this module's doc, and each one not needed while a connection waits made smaller or moved off the parked path.",
   "goal": "bench-counters"
 }

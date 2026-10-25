@@ -18,7 +18,11 @@
 //! for it, and a test running beside it on another thread adds nothing. A poke made from another
 //! thread is counted on that thread.
 //!
-//! Memory: two `u64` per thread, in debug builds.
+//! [`StackPages::now`] is a reading beside the counts: the pages resident on the stacks this
+//! thread's tasks run on, which `nvs-cli`'s waiting-request test divides per request. Its list of
+//! live stacks is `crate::stack`'s, kept under the same `debug_assertions`.
+//!
+//! Memory: two `u64` per thread, and two words per live task stack, in debug builds.
 
 use std::cell::Cell;
 
@@ -53,6 +57,25 @@ impl Counts {
             would_block_reads: self.would_block_reads - earlier.would_block_reads,
             wake_pokes: self.wake_pokes - earlier.wake_pokes,
         }
+    }
+}
+
+/// The pages resident on the stacks this thread's tasks run on now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StackPages {
+    /// On the stacks of the server's own tasks: the accept loop and each connection.
+    pub host: usize,
+    /// On the stacks of compiled Novis code: each isolate and the tasks beneath it.
+    pub program: usize,
+}
+
+impl StackPages {
+    /// This thread's reading now. A query of the working set on Windows and `mincore` on Linux;
+    /// elsewhere every page of a live stack counts as resident.
+    #[must_use]
+    pub fn now() -> Self {
+        let (host, program) = crate::stack::live_resident_pages();
+        Self { host, program }
     }
 }
 

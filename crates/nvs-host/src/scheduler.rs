@@ -914,18 +914,20 @@ impl Scheduler {
         let tree = ctx.tree_key();
         let (base, ceiling) = crate::stack::bounds(&stack);
         ctx.arm_stack_limit(base, ceiling);
-        // Boxed for the crossing and unboxed the instant the coroutine starts,
-        // so what this Rust closure *captures* is a pointer rather than a whole
-        // context: `CORO_TRANSFER_LIMIT` is why, and the assertion below is what
-        // says so when a future field pushes it back over.
+        // Boxed, so what this Rust closure *captures* is a pointer rather than
+        // a whole context: `CORO_TRANSFER_LIMIT` is why, and the assertion below
+        // is what says so when a future field pushes it back over. The box is
+        // kept for the length of the task, so the entry's frame holds a pointer
+        // too: `crate::stack`'s *What a waiting request holds* measured the
+        // context by value as one more resident page on every task's stack.
         let carried = Box::new(ctx);
         // The first resume's argument is ignored: a task that has not started
         // has an empty stack, so a cancelled one is torn down rather than told.
         let entry = move |yielder: &TaskYielder, _first: Resume| {
-            // Back onto this coroutine's own stack, where the context lives for
-            // the length of the task and where every helper reaches it by
-            // pointer; the box is freed here and is not a per-helper cost.
-            let mut ctx = *carried;
+            // Every helper reaches the context by pointer, so its staying on
+            // the heap costs a helper nothing. It leaves the box at the end, in
+            // the task's `Finished`.
+            let mut ctx = carried;
             // The context's ceiling is armed on the stack it runs on, which
             // `Task::resume` started under nothing.
             ctx.arm_on_this_stack();
@@ -950,7 +952,11 @@ impl Scheduler {
             // context.
             ctx.set_yielder(std::ptr::null());
             RUNNING.set(None);
-            Finished { id, ctx, outcome }
+            Finished {
+                id,
+                ctx: *ctx,
+                outcome,
+            }
         };
         assert!(
             std::mem::size_of_val(&entry) <= CORO_TRANSFER_LIMIT,

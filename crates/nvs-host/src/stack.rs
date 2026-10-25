@@ -104,30 +104,43 @@
 //!
 //! # What a sleeping program touches
 //!
-//! A first profile put about 32 KiB of resident program stack under each
-//! waiting request. The host's own part of that is small. An isolate's task
-//! that sleeps as `Core\Time::sleep` does, on a fresh stack, has 2 pages
-//! resident in a release build on Windows and 7 in a debug one. The largest
-//! frame is the task's entry: `corosensei`'s start and the closure in
-//! `Scheduler::start` that holds the task's `Ctx` (1,776 bytes) by value. The
-//! program begins about 6.2 KiB below the base in release and 23 KiB below it
-//! in debug, and 5.6 KiB and 21 KiB of that are the entry. No frame of the
-//! host's path is worth splitting, and [`KEPT_RESIDENT`] covers it whole.
-//!
-//! So the rest of the 32 KiB is pages a served request touched before it
-//! slept: compiled code, the `Core` members it called, and a deeper call that
-//! returned. A pooled stack keeps those pages until the idle trim.
+//! An isolate's task that sleeps as `Core\Time::sleep` does, on a fresh stack,
+//! has 2 pages resident in a release build on Windows and 7 in a debug one. The
+//! largest frame is the task's entry: `corosensei`'s start and the closure in
+//! `Scheduler::start`. The task's `Ctx` stays in the box `start` carries it
+//! in, so that frame holds a pointer to it. No frame of the host's path is
+//! worth splitting, and [`KEPT_RESIDENT`] covers it whole.
 //! `a_sleeping_program_touches_the_pages_its_own_frames_need` holds the host's
-//! part to its count.
+//! part to its count. A pooled stack also keeps the pages a deeper call
+//! touched before it returned, until the idle trim.
 //!
 //! # What a waiting request holds
 //!
-//! A request that sleeps behind 1000 others in a release container has two
-//! stacks resident: its connection's, 8 KiB, and its program's, 36 KiB. The
-//! program's is broken down above. Its heap on the serving core, measured in a
-//! debug build by `nvs-cli`'s
-//! `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`, is
-//! about 26 KiB:
+//! `nvs-cli`'s `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`
+//! opens 32 connections to one core and then sends a request on each whose
+//! program sleeps. It reads the heap and, in a debug build,
+//! [`crate::counts::StackPages`] at each step. A release build measured with
+//! that reading turned on by hand gives the stack figures below; the test holds
+//! the debug ones.
+//!
+//! A waiting request has about 10 pages of stack resident in release, 31 in
+//! debug:
+//!
+//! - **An idle connection, 4.1 pages (13.5 in debug)** on its connection's
+//!   stack: the accept loop's spawn, `hyper`'s connection future and the read
+//!   it is parked in.
+//! - **Its request, 3.9 more pages (9.6)** on the connection's stack, while the
+//!   connection waits for the isolate's answer.
+//! - **Its program, 2.0 pages (8)** on the program's own stack, which is the
+//!   host's path above and little more.
+//!
+//! So three quarters of a waiting request's stack is its connection's. Kept by
+//! value in the task's entry, the `Ctx` cost one more page on every stack: an
+//! idle connection held 5.0. What the box spends: one heap block of a `Ctx`'s
+//! size per live task. It was allocated per task before too, and freed when the
+//! task started.
+//!
+//! Its heap on the serving core is about 26 KiB, measured in a debug build:
 //!
 //! - **The connection, about 22 KiB.** `hyper`'s read buffer and its header
 //!   write buffer, 8 KiB each, sized inside `hyper` with no setting to change
@@ -286,11 +299,21 @@ impl Stacks {
     /// [`StackPool::take`]'s.
     pub(crate) fn take(&mut self, role: Role) -> std::io::Result<DefaultStack> {
         self.taken = true;
-        self.pool(role).take()
+        let stack = self.pool(role).take()?;
+        #[cfg(debug_assertions)]
+        LIVE.with_borrow_mut(|live| live.push((role, stack.base().get())));
+        Ok(stack)
     }
 
     /// A finished task's stack, back to the pool of the role it was taken for.
     pub(crate) fn give(&mut self, role: Role, stack: DefaultStack) {
+        #[cfg(debug_assertions)]
+        LIVE.with_borrow_mut(|live| {
+            let base = stack.base().get();
+            if let Some(at) = live.iter().position(|&(_, live)| live == base) {
+                live.swap_remove(at);
+            }
+        });
         self.pool(role).give(stack);
     }
 
@@ -342,6 +365,94 @@ impl Stacks {
         self.host.refuse_fresh();
         self.program.refuse_fresh();
     }
+}
+
+#[cfg(debug_assertions)]
+thread_local! {
+    /// The role and base of every stack this thread's [`Stacks`] handed to a
+    /// task and has not taken back, for [`live_resident_pages`].
+    static LIVE: RefCell<Vec<(Role, usize)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// How many pages are resident on the stacks this thread's tasks run on now,
+/// the host's and the programs', in that order. A stack whose task was dropped
+/// with its scheduler is still listed, and its range reads as not resident.
+#[cfg(debug_assertions)]
+pub(crate) fn live_resident_pages() -> (usize, usize) {
+    LIVE.with_borrow(|live| {
+        live.iter().fold((0, 0), |(host, program), &(role, base)| {
+            let pages = resident_pages(base - TASK_STACK_SIZE, TASK_STACK_SIZE);
+            match role {
+                Role::Host => (host + pages, program),
+                Role::Program => (host, program + pages),
+            }
+        })
+    })
+}
+
+/// How many pages of the `len` bytes at `start` are resident. A range that is
+/// not mapped has none.
+#[cfg(all(any(test, debug_assertions), target_os = "linux"))]
+pub(crate) fn resident_pages(start: usize, len: usize) -> usize {
+    let page = 4096;
+    let mut flags = vec![0_u8; len.div_ceil(page)];
+    #[expect(
+        unsafe_code,
+        reason = "`mincore` has no `std` spelling; the vector has one byte per page of the range"
+    )]
+    // SAFETY: the range is page aligned, and `flags` has one byte per page of it.
+    // An unmapped range fails with `ENOMEM` and writes nothing.
+    let read = unsafe {
+        libc::mincore(
+            std::ptr::with_exposed_provenance_mut::<libc::c_void>(start),
+            len,
+            flags.as_mut_ptr(),
+        )
+    };
+    if read != 0 {
+        return 0;
+    }
+    flags.iter().filter(|flag| **flag & 1 == 1).count()
+}
+
+/// [`resident_pages`] on Windows, through the working set.
+#[cfg(all(any(test, debug_assertions), windows))]
+pub(crate) fn resident_pages(start: usize, len: usize) -> usize {
+    use windows_sys::Win32::System::ProcessStatus::{
+        K32QueryWorkingSetEx, PSAPI_WORKING_SET_EX_INFORMATION,
+    };
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    let page = 4096;
+    let mut pages: Vec<PSAPI_WORKING_SET_EX_INFORMATION> = (0..len.div_ceil(page))
+        .map(|n| PSAPI_WORKING_SET_EX_INFORMATION {
+            VirtualAddress: std::ptr::with_exposed_provenance_mut(start + n * page),
+            ..Default::default()
+        })
+        .collect();
+    let bytes = u32::try_from(size_of_val(pages.as_slice())).expect("a small query");
+    #[expect(
+        unsafe_code,
+        reason = "`QueryWorkingSetEx` has no `std` spelling; the buffer is `bytes` long"
+    )]
+    // SAFETY: the buffer is live and `bytes` long, and the handle is this process's.
+    let read =
+        unsafe { K32QueryWorkingSetEx(GetCurrentProcess(), pages.as_mut_ptr().cast(), bytes) };
+    assert_ne!(read, 0, "QueryWorkingSetEx failed");
+    #[expect(
+        unsafe_code,
+        reason = "both fields of the union are a `usize` of flags"
+    )]
+    // SAFETY: every bit pattern of the union is valid.
+    pages
+        .iter()
+        .filter(|page| unsafe { page.VirtualAttributes.Flags } & 1 == 1)
+        .count()
+}
+
+/// [`resident_pages`] where there is no query: it counts every page.
+#[cfg(all(any(test, debug_assertions), not(any(target_os = "linux", windows))))]
+pub(crate) fn resident_pages(_start: usize, len: usize) -> usize {
+    len / 4096
 }
 
 /// A stack idle in a pool, and whether its pages may still be resident.
@@ -665,67 +776,6 @@ mod tests {
             "the program pool kept its burst"
         );
         assert_eq!(stacks.pooled(), 4, "a core keeps the cap once per pool");
-    }
-
-    /// How many pages of the `len` bytes at `start` are resident.
-    #[cfg(target_os = "linux")]
-    fn resident_pages(start: usize, len: usize) -> usize {
-        let page = 4096;
-        let mut flags = vec![0_u8; len.div_ceil(page)];
-        #[expect(
-            unsafe_code,
-            reason = "`mincore` has no `std` spelling; the vector has one byte per page of the range"
-        )]
-        // SAFETY: the range is page aligned and mapped, and `flags` is long enough.
-        let read = unsafe {
-            libc::mincore(
-                std::ptr::with_exposed_provenance_mut::<libc::c_void>(start),
-                len,
-                flags.as_mut_ptr(),
-            )
-        };
-        assert_eq!(read, 0, "mincore failed");
-        flags.iter().filter(|flag| **flag & 1 == 1).count()
-    }
-
-    /// [`resident_pages`] on Windows, through the working set.
-    #[cfg(windows)]
-    fn resident_pages(start: usize, len: usize) -> usize {
-        use windows_sys::Win32::System::ProcessStatus::{
-            K32QueryWorkingSetEx, PSAPI_WORKING_SET_EX_INFORMATION,
-        };
-        use windows_sys::Win32::System::Threading::GetCurrentProcess;
-        let page = 4096;
-        let mut pages: Vec<PSAPI_WORKING_SET_EX_INFORMATION> = (0..len.div_ceil(page))
-            .map(|n| PSAPI_WORKING_SET_EX_INFORMATION {
-                VirtualAddress: std::ptr::with_exposed_provenance_mut(start + n * page),
-                ..Default::default()
-            })
-            .collect();
-        let bytes = u32::try_from(size_of_val(pages.as_slice())).expect("a small query");
-        #[expect(
-            unsafe_code,
-            reason = "`QueryWorkingSetEx` has no `std` spelling; the buffer is `bytes` long"
-        )]
-        // SAFETY: the buffer is live and `bytes` long, and the handle is this process's.
-        let read =
-            unsafe { K32QueryWorkingSetEx(GetCurrentProcess(), pages.as_mut_ptr().cast(), bytes) };
-        assert_ne!(read, 0, "QueryWorkingSetEx failed");
-        #[expect(
-            unsafe_code,
-            reason = "both fields of the union are a `usize` of flags"
-        )]
-        // SAFETY: every bit pattern of the union is valid.
-        pages
-            .iter()
-            .filter(|page| unsafe { page.VirtualAttributes.Flags } & 1 == 1)
-            .count()
-    }
-
-    /// [`resident_pages`] where the test has no query: it counts every page.
-    #[cfg(not(any(target_os = "linux", windows)))]
-    fn resident_pages(_start: usize, len: usize) -> usize {
-        len / 4096
     }
 
     #[test]
