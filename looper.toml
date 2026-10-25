@@ -91,16 +91,17 @@ before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 90
 # `tools/nv/lib/site-roadmap.ts`: once a goal is retired, it drops the goal from the public roadmap and
 # commits that, because the retirement commits only the goals directory. A failure pauses the loop,
 # because the roadmap check stays red until it is fixed.
-# `tools/nv/cmd/ci.ts`: then it pushes `main`, and the push starts the CI runs the
-# `ci-green` goal's loop watches. A failed push only warns, so the next goal still starts, and the next
-# retirement pushes again. The timeout covers a fetch and a push.
+# `tools/nv/cmd/ci.ts`: then it runs the pre-push checks and pushes `main`, and the push starts the CI
+# runs the `ci-green` goal's loop watches. A failed or refused push only warns, so the next goal still
+# starts: a refused push leaves its red checks where `ci-green`'s watch reports them, and that loop
+# fixes them and pushes. The timeout covers a cold `cargo build`, the checks, a fetch and a push.
 # `tools/nv/cmd/relink.ts`: then it rebuilds `target/release/nvs`, the binary the user's editor and
 # terminal run, so every goal end leaves it current. It is attached, so the next session's timing checks
 # never share the machine with a release build. A failed build only warns. The timeout covers a cold
 # release build with thin LTO.
 after_retire = [
   { run = ["bun", "nv", "site", "--roadmap", "--retired"], timeout = 120, on_fail = "pause" },
-  { run = ["bun", "nv", "ci", "--push"], timeout = 600, on_fail = "warn" },
+  { run = ["bun", "nv", "ci", "--push"], timeout = 2400, on_fail = "warn" },
   { run = ["bun", "nv", "relink", "--build", "--hook"], timeout = 3600, on_fail = "warn" },
 ]
 

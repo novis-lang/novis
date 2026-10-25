@@ -1,14 +1,22 @@
 // `bun nv ci`: pushes `main` and watches GitHub's CI on it, for the `ci-green` goal and looper's
 // `after_retire` hook.
 //
-//     bun nv ci --push                  # push main, which starts its CI and Website runs
+//     bun nv ci --push                  # run the pre-push checks, then push main, which starts its CI
+//                                       # and Website runs
+//     bun nv ci --check                 # run the pre-push checks alone, and push nothing
 //     bun nv ci --watch [--max-min <n>] [--past <job>]... [--next]
 //                                       # wait for the first failed job, or the next green verdict
 //     bun nv ci --status                # the newest run of each watched workflow, and each failed job
 //     bun nv ci --rerun                 # run the failed jobs of each red newest run again
 //
-// **`--push`** pushes the local `main` to `origin`, and does nothing when `origin` has it already. The
-// push itself starts `ci.yml`'s push lane and the `Website` run, so the command starts no run. It then
+// **`--push`** pushes the local `main` to `origin`, and does nothing when `origin` has it already.
+// Before it pushes, it runs `PRE_PUSH`: each check a CI job runs that judges files rather than running
+// the suites, on the tree as it stands. Together they take about a minute once `cargo build` is warm,
+// and they cover about half of the failures CI finds, which CI reports an hour or two after the push. A red
+// check refuses the push: the command exits 1, prints each red check and its command, and writes them to
+// `REFUSED`, which `--watch` and `--status` report as red until a push goes out. **`--check`** runs
+// the same checks and pushes nothing, for a session before it claims a goal done. The push itself starts
+// `ci.yml`'s push lane and the `Website` run, so the command starts no run. It then
 // cancels every run of a workflow in `WORKFLOWS` still going on `main` for an older commit, so each
 // workflow has one run going on `main` at a time (`rule:testing/one-run-on-main`). The push lane runs
 // every job the diff since the last push reaches, and the nightly deep lane runs the rest
@@ -42,16 +50,16 @@
 // What it spends: one `gh api` call per watched run every 15 seconds while a run is in progress, about
 // 500 calls an hour of GitHub's 5,000, and up to `LOGS_KEPT` job logs on disk.
 
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 
 export const summary =
-  "pushes main and watches GitHub CI: nv ci --push | --watch [--max-min <n>] [--past <job>] [--next] | --status | --rerun";
+  "pushes main and watches GitHub CI: nv ci --push | --check | --watch [--max-min <n>] [--past <job>] [--next] | --status | --rerun";
 
 const USAGE =
-  "usage: bun nv ci --push\n       bun nv ci --watch [--max-min <n>] [--past <job>]... [--next]\n       bun nv ci --status\n       bun nv ci --rerun";
+  "usage: bun nv ci --push\n       bun nv ci --check\n       bun nv ci --watch [--max-min <n>] [--past <job>]... [--next]\n       bun nv ci --status\n       bun nv ci --rerun";
 
 /** The workflows whose runs on `main` are watched, by their `name:`. */
 export const WORKFLOWS = ["CI", "Website"];
@@ -74,6 +82,39 @@ const FAILURE_LINE = /^(FAIL\b|FAILED\b|error(\[E\d+\])?:|test .* \.\.\. FAILED|
 /** A job conclusion that is a failure. */
 const RED = new Set(["failure", "timed_out", "startup_failure"]);
 
+const EXE = process.platform === "win32" ? "nvs.exe" : "nvs";
+/** The binary the checks after `cargo build` read, which that build has just made current. */
+const DEBUG_NVS = `target/debug/${EXE}`;
+
+/** A check `--push` runs first: its name, its command, and the variables it adds. */
+export interface PrePush {
+  name: string;
+  argv: string[];
+  env?: Record<string, string>;
+}
+
+/** The checks `--push` runs before it pushes, cheapest first. Each is the step of a CI job (`ci.yml`'s
+ * `lint`, `attribution`, `supply-chain`, `docs`, `reference` and `proofs` jobs) with the binary
+ * named, so none reads a release binary built before the goal's own changes. */
+export const PRE_PUSH: PrePush[] = [
+  { name: "rustfmt", argv: ["cargo", "fmt", "--all", "--check"] },
+  { name: "lint tables", argv: ["bun", "nv", "lints", "--check"] },
+  { name: "rules", argv: ["bun", "nv", "rules", "--check"] },
+  { name: "rendered files", argv: ["bun", "nv", "render", "--check"] },
+  { name: "third-party attribution", argv: ["bun", "nv", "gen-attribution", "--check"] },
+  { name: "advisories", argv: ["cargo", "deny", "check", "advisories"] },
+  { name: "build", argv: ["cargo", "build"] },
+  { name: "feature proofs", argv: ["bun", "nv", "proofs", "--gate", "--limit", "0", "--nvs", DEBUG_NVS] },
+  { name: "website render", argv: ["bun", "nv", "render", "--website", "--check"], env: { NVS_BIN: DEBUG_NVS } },
+  { name: "website stale guard", argv: ["bun", "nv", "site", "--check", "structure", "snippets", "stale", "questions", "prose", "--nvs", DEBUG_NVS] },
+];
+
+/** Where a refused push leaves its red checks, under the root. */
+export const REFUSED = ".agent-tmp/ci/refused-push.txt";
+/** How many lines of a red check's output are printed and kept, and how many of them from its start. */
+const CHECK_LINES = 30;
+const CHECK_HEAD = 5;
+
 /** What a program printed, and how it exited. */
 export interface Ran {
   code: number;
@@ -86,6 +127,8 @@ export interface CiSeams {
   root: string;
   gh(args: string[]): Promise<Ran>;
   git(args: string[]): Promise<Ran>;
+  /** Runs one `PRE_PUSH` check in the root. */
+  check(c: PrePush): Promise<Ran>;
   sleep(ms: number): Promise<void>;
   now(): number;
   say(line: string): void;
@@ -100,6 +143,11 @@ const REAL: CiSeams = {
   git: async (args) => {
     const r = await proc(["git", ...args], { cwd: ROOT, timeoutMs: 300_000 });
     return { code: r.code, stdout: r.stdout, stderr: r.stderr };
+  },
+  // A cold `cargo build` is the slowest of them.
+  check: async (c) => {
+    const r = await proc(c.argv, { cwd: ROOT, timeoutMs: 1_800_000, env: c.env ?? {} });
+    return { code: r.code, stdout: r.stdout, stderr: r.timedOut ? `${r.stderr}\ntimed out` : r.stderr };
   },
   sleep: (ms) => Bun.sleep(ms),
   now: () => Date.now(),
@@ -258,6 +306,14 @@ function keepLog(root: string, id: number, text: string): string {
 
 // ---- --watch -----------------------------------------------------------------------------------------
 
+/** Prints the red checks of a refused push, if one is waiting, and reports whether one was. */
+function sayRefused(s: CiSeams): boolean {
+  const path = join(s.root, REFUSED);
+  if (!existsSync(path)) return false;
+  s.say(readFileSync(path, "utf8").trimEnd());
+  return true;
+}
+
 /** Whether job `name` is `p` or a job under it, such as `proofs / linux-x86_64` under `proofs`. */
 const under = (name: string, p: string) => name === p || name.startsWith(`${p} / `);
 
@@ -267,6 +323,7 @@ const under = (name: string, p: string) => name === p || name.startsWith(`${p} /
  * ends the watch with 4. With `next`, every run that had ended at the first poll is passed over.
  */
 export async function watch(s: CiSeams, maxMin: number, past: string[] = [], next = false): Promise<number> {
+  if (sayRefused(s)) return 1;
   const until = s.now() + maxMin * 60_000;
   const watched = new Set<number>();
   const before = new Set<number>();
@@ -357,16 +414,52 @@ async function gitOut(s: CiSeams, args: string[]): Promise<string> {
   return r.stdout.trim();
 }
 
+/** What a red check printed, without `bun`'s script lines: all of it up to `CHECK_LINES`, otherwise its
+ * first `CHECK_HEAD` lines, where a verdict's summary is, and its end. */
+export function checkLines(out: string): string[] {
+  const lines = out.split(/\r?\n/).filter((l) => l.trim() !== "" && !/^\$ bun |^error: script "nv" exited/.test(l));
+  if (lines.length <= CHECK_LINES) return lines;
+  return [...lines.slice(0, CHECK_HEAD), "...", ...lines.slice(-(CHECK_LINES - CHECK_HEAD))];
+}
+
+/** Runs every `PRE_PUSH` check, and returns what each red one printed, empty when all are green. A
+ * `cargo deny` that is not installed is passed over with a note, since CI's `supply-chain` job runs it. */
+export async function prePush(s: CiSeams): Promise<string[]> {
+  const reds: string[] = [];
+  for (const c of PRE_PUSH) {
+    const r = await s.check(c);
+    const out = `${r.stdout}\n${r.stderr}`;
+    if (r.code === 0) s.say(`pre-push: ${c.name}: ok`);
+    else if (c.argv[1] === "deny" && /no such (sub)?command/.test(out)) s.say(`pre-push: ${c.name}: cargo-deny is not installed, so CI's supply-chain job is the only check`);
+    else {
+      const lines = checkLines(out);
+      const env = Object.entries(c.env ?? {}).map(([k, v]) => `${k}=${v} `).join("");
+      reds.push([`${c.name}: red (\`${env}${c.argv.join(" ")}\` exited ${r.code})`, ...lines.map((l) => `  ${l}`)].join("\n"));
+      s.say(`pre-push: ${c.name}: red`);
+    }
+  }
+  return reds;
+}
+
 /**
- * Pushes `main` when `origin` does not have it yet, then cancels each run still going on an older
- * commit. The push starts its own runs.
+ * Pushes `main` when `origin` does not have it yet and every `PRE_PUSH` check is green, then cancels
+ * each run still going on an older commit. The push starts its own runs.
  */
 export async function push(s: CiSeams): Promise<number> {
   await gitOut(s, ["fetch", "-q", "origin", BRANCH]);
   const head = await gitOut(s, ["rev-parse", BRANCH]);
   const remote = await gitOut(s, ["rev-parse", `origin/${BRANCH}`]);
+  const refused = join(s.root, REFUSED);
   if (head === remote) s.say(`origin/${BRANCH} is at ${short(head)} already: nothing to push`);
   else {
+    const reds = await prePush(s);
+    if (reds.length > 0) {
+      const text = `the push of ${BRANCH} at ${short(head)} was refused: ${reds.length} pre-push check(s) are red. Fix each, commit, and run \`bun nv ci --push\` again.\n\n${reds.join("\n\n")}\n`;
+      mkdirSync(join(s.root, ".agent-tmp", "ci"), { recursive: true });
+      writeFileSync(refused, text);
+      s.say(text.trimEnd());
+      return 1;
+    }
     const pushed = await s.git(["push", "origin", `${BRANCH}:${BRANCH}`]);
     if (pushed.code !== 0) {
       s.say(`the push failed: ${firstLine(pushed)}`);
@@ -374,6 +467,7 @@ export async function push(s: CiSeams): Promise<number> {
     }
     s.say(`pushed ${BRANCH} at ${short(head)}: the push starts its CI and Website runs`);
   }
+  rmSync(refused, { force: true });
   // The push succeeded whatever GitHub says next, so a failed listing only warns.
   try {
     await cancelSuperseded(s, await listRuns(s), head, new Set());
@@ -387,8 +481,8 @@ export async function push(s: CiSeams): Promise<number> {
 // ---- --status and --rerun ----------------------------------------------------------------------------
 
 async function status(s: CiSeams): Promise<number> {
+  let bad = sayRefused(s) ? 1 : 0;
   const runs = newest(await listRuns(s));
-  let bad = 0;
   for (const r of runs) {
     s.say(runLine(r));
     const jobs = await listJobs(s, r.id);
@@ -422,7 +516,7 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
   let maxMin = MAX_MIN;
   const past: string[] = [];
   let next = false;
-  let bad = ["--push", "--watch", "--status", "--rerun"].includes(mode ?? "") ? "" : "name one mode";
+  let bad = ["--push", "--check", "--watch", "--status", "--rerun"].includes(mode ?? "") ? "" : "name one mode";
   for (let i = 1; i < args.length && bad === ""; i++) {
     const v = args[i + 1];
     if (mode === "--watch" && args[i] === "--max-min" && v !== undefined && /^\d+$/.test(v)) {
@@ -440,6 +534,11 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
   }
   try {
     if (mode === "--push") return await push(s);
+    if (mode === "--check") {
+      const reds = await prePush(s);
+      for (const r of reds) s.say(r);
+      return reds.length > 0 ? 1 : 0;
+    }
     if (mode === "--watch") return await watch(s, maxMin, past, next);
     if (mode === "--status") return await status(s);
     return await rerun(s);

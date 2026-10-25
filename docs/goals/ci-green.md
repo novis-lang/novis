@@ -34,8 +34,11 @@ leave every file you did not write as it is. The claims guard refuses a file ano
 **`main` is pushed only at a goal's end, by `looper.toml`'s `after_retire` hook** (the user's call).
 A goal is verified once, in its last stage, so the local `main` carries unverified commits while a
 goal runs, and CI never sees them. This goal never pushes: it commits each fix, and the fix goes out
-with the next goal end's push. Never `git push`, never `bun nv ci --push`, never a force push, and
-never a push of another branch.
+with the next goal end's push. Never `git push`, never a force push, and never a push of another
+branch. The one exception is a **refused push**: `bun nv ci --push` runs its pre-push checks first,
+and a red one refuses the goal end's push. `--watch` and `--status` then print the red checks and
+exit 1. Fix each, commit, run `bun nv ci --check` until it is green, and then run `bun nv ci --push`
+yourself. That push is the goal end's, a little late.
 
 **`bun nv ci` is the only way the session talks to GitHub.** `--push` pushes, and the push starts the
 CI and Website runs. Never start or cancel a run by hand.
@@ -76,19 +79,21 @@ loop only.
 
 Every session runs this cycle until CI is green or the context reaches 120k:
 
-1. **Never push.** The next goal end pushes, and its push starts the runs the watch waits for.
+1. **Never push**, except to send a refused push once its checks are green. The next goal end
+   pushes, and its push starts the runs the watch waits for.
 2. **Watch:** `bun nv ci --watch` with `run_in_background` and a timeout of 7200000, then end your turn.
    Its exit code starts your next turn. Pass `--past <job>` for each red already handed to the main
    loop, so the watch goes on for the other jobs.
    - **0, green:** write the handoff and the status line `CONTINUE CI green on <sha>`, and stop. The
      next session's watch waits for the next push.
-   - **1, a job failed:** go to step 3.
+   - **1, a job failed, or the goal end's push was refused:** go to step 3.
    - **2, `gh` failed twenty times in a row:** check githubstatus.com and `gh auth status`, then
      watch again. An outage that lasts is reported in the status line with `CONTINUE`.
    - **3, nothing failed in 110 minutes:** watch again in the same session.
    - **4, only the `--past` jobs failed:** write the handoff and the status line `CONTINUE CI green
      on <sha> but for <job>`, and stop.
-3. **Fix:** `bun nv ci --status` lists every job that failed so far. Find each cause in the code,
+3. **Fix:** `bun nv ci --status` lists a refused push's red checks and every job that failed so far.
+   A refused push goes first, as § *Standing decisions* says. Find each cause in the code,
    fix it, check it locally as § *Standing decisions* says, and commit each fix on its own with a
    pathspec.
 4. **Hand off:** write the handoff with the fixes committed and not yet pushed, and the status line

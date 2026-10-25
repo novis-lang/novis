@@ -1,11 +1,12 @@
 // `bun nv ci` with `gh`, `git` and the clock handed in, so nothing is pushed and nothing is asked of
 // GitHub: when `--watch` exits and with which code, what it prints of a failed job, that `--push`
-// pushes and starts no run, and that both cancel a run a newer one replaces.
+// runs its pre-push checks, pushes only when they are green and starts no run, and that both cancel a
+// run a newer one replaces.
 
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { type CiSeams, ci, type Job, POLL_BUSY_MS, POLL_IDLE_MS, type Ran, type Run, tail } from "../cmd/ci.ts";
+import { checkLines, type CiSeams, ci, type Job, POLL_BUSY_MS, POLL_IDLE_MS, PRE_PUSH, type PrePush, type Ran, REFUSED, type Run, tail } from "../cmd/ci.ts";
 import { ROOT } from "../lib/paths.ts";
 
 const TMP = join(ROOT, ".agent-tmp", `ci-test-${process.pid}`);
@@ -29,11 +30,12 @@ interface World {
 }
 
 /** Seams over a scratch root, whose `gh` answers from `world(poll)`, where a sleep ends a poll. */
-function seams(name: string, world: (poll: number) => World | "fail", git: (args: string[]) => Ran = () => ok("")) {
+function seams(name: string, world: (poll: number) => World | "fail", git: (args: string[]) => Ran = () => ok(""), check: (c: PrePush) => Ran = () => ok("")) {
   const root = join(TMP, name);
   mkdirSync(root, { recursive: true });
   const said: string[] = [];
   const asked: string[][] = [];
+  const checked: string[] = [];
   const slept: number[] = [];
   let poll = 0;
   let clock = 0;
@@ -47,6 +49,7 @@ function seams(name: string, world: (poll: number) => World | "fail", git: (args
       poll++;
     },
     git: async (args) => (asked.push(["git", ...args]), git(args)),
+    check: async (c) => (checked.push(c.name), check(c)),
     gh: async (args) => {
       asked.push(args);
       const w = world(poll);
@@ -58,7 +61,7 @@ function seams(name: string, world: (poll: number) => World | "fail", git: (args
       return ok("");
     },
   };
-  return { s, said, asked, slept };
+  return { s, said, asked, checked, slept };
 }
 
 describe("bun nv ci --watch", () => {
@@ -210,6 +213,66 @@ describe("bun nv ci --push", () => {
     expect(await ci(["--push"], w.s)).toBe(1);
     expect(runAsked(w)).toEqual([]);
   });
+
+  test("with nothing to push it runs no pre-push check", async () => {
+    const w = seams("same-unchecked", () => ({ runs: [], jobs: {} }), heads("abc", "abc"));
+    expect(await ci(["--push"], w.s)).toBe(0);
+    expect(w.checked).toEqual([]);
+  });
+
+  test("every pre-push check runs before the push", async () => {
+    const w = seams("checked", () => ({ runs: [], jobs: {} }), heads("new", "old"));
+    expect(await ci(["--push"], w.s)).toBe(0);
+    expect(w.checked).toEqual(PRE_PUSH.map((c) => c.name));
+    expect(w.asked).toContainEqual(["git", "push", "origin", "main:main"]);
+  });
+
+  test("a red pre-push check refuses the push, and --watch and --status report it until a push goes out", async () => {
+    let red = true;
+    const w = seams("pre-push-red", () => ({ runs: [], jobs: {} }), heads("new", "old"), (c) =>
+      red && c.name === "rustfmt" ? { code: 1, stdout: "Diff in crates/a/src/lib.rs:12:", stderr: "" } : ok(""));
+    expect(await ci(["--push"], w.s)).toBe(1);
+    expect(w.asked.some((a) => a[1] === "push")).toBe(false);
+    expect(w.checked).toEqual(PRE_PUSH.map((c) => c.name));
+    const file = join(w.s.root, REFUSED);
+    expect(existsSync(file)).toBe(true);
+    expect(readFileSync(file, "utf8")).toContain("rustfmt: red (`cargo fmt --all --check` exited 1)\n  Diff in crates/a/src/lib.rs:12:");
+    expect(await ci(["--watch"], w.s)).toBe(1);
+    expect(await ci(["--status"], w.s)).toBe(1);
+    red = false;
+    expect(await ci(["--push"], w.s)).toBe(0);
+    expect(existsSync(file)).toBe(false);
+  });
+
+  test("--check runs the checks, exits 1 on a red one, and neither pushes nor leaves a refused push", async () => {
+    const w = seams("check-only", () => ({ runs: [], jobs: {} }), heads("new", "old"), (c) => (c.name === "rules" ? { code: 1, stdout: "a red rule", stderr: "" } : ok("")));
+    expect(await ci(["--check"], w.s)).toBe(1);
+    expect(w.checked).toEqual(PRE_PUSH.map((c) => c.name));
+    expect(w.asked).toEqual([]);
+    expect(existsSync(join(w.s.root, REFUSED))).toBe(false);
+  });
+
+  test("a long red check keeps its first lines, where the summary is, and its end, without bun's script lines", () => {
+    const out = ["$ bun tools/nv/main.ts proofs --gate", "nv proofs gate: 40 of 1516 features owe a proof.", ...Array.from({ length: 40 }, (_, i) => `row ${i}`), 'error: script "nv" exited with code 1'].join("\n");
+    const lines = checkLines(out);
+    expect(lines[0]).toBe("nv proofs gate: 40 of 1516 features owe a proof.");
+    expect(lines).toContain("...");
+    expect(lines.at(-1)).toBe("row 39");
+    expect(lines.length).toBe(31);
+  });
+
+  test("a cargo-deny that is not installed is passed over", async () => {
+    const w = seams("no-deny", () => ({ runs: [], jobs: {} }), heads("new", "old"), (c) =>
+      c.argv[1] === "deny" ? { code: 101, stdout: "", stderr: "error: no such command: `deny`" } : ok(""));
+    expect(await ci(["--push"], w.s)).toBe(0);
+    expect(w.said).toContain("pre-push: advisories: cargo-deny is not installed, so CI's supply-chain job is the only check");
+  });
+
+  test("the checks after `cargo build` read the debug binary it made", () => {
+    const after = PRE_PUSH.slice(PRE_PUSH.findIndex((c) => c.name === "build") + 1);
+    expect(after.length).toBeGreaterThan(0);
+    for (const c of after) expect([...c.argv, ...Object.values(c.env ?? {})].some((a) => a.startsWith("target/debug/nvs"))).toBe(true);
+  });
 });
 
 describe("bun nv ci: the log and the arguments", () => {
@@ -224,5 +287,6 @@ describe("bun nv ci: the log and the arguments", () => {
     const w = seams("usage", () => ({ runs: [], jobs: {} }));
     expect(await ci([], w.s)).toBe(2);
     expect(await ci(["--push", "--max-min", "3"], w.s)).toBe(2);
+    expect(await ci(["--check", "--next"], w.s)).toBe(2);
   });
 });

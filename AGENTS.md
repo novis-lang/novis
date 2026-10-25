@@ -243,8 +243,10 @@ What a loop session owes on top of the block's § *Session workflow*:
   that breaks callers are all design calls.
 - **Before `DONE`, the goal-end gates.** `bun nv verify --doc` and every broken doc link it names
   fixed, then `bun nv owners --closes <slug>` and every gap it names closed or given another owner,
-  then `bun nv proofs --gate` and `bun nv render --website --check`, each red fixed. The last two are
-  also floor checks, so a goal is not reached while CI's `proofs` or website render job would be red.
+  then `bun nv ci --check`, each red fixed. It runs in about a minute the checks the goal end's push
+  runs, which are half of what CI finds: rustfmt, the proofs gate and the website on a binary built from
+  the tree, the license file and the rest. Its proofs gate and website render are also floor checks, so a
+  goal is not reached while CI's `proofs` or website render job would be red.
   A reached goal's file is deleted, so first move each decision only its prose holds to a rule or a
   module doc, and turn each check that proves more than a suite does into a test.
 - **Every goal end rebuilds the local release binary, `target/release/nvs`.** looper's `after_retire`

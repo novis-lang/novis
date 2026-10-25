@@ -626,11 +626,13 @@ blocks back in the order you asked for them.
 ```sh
 bun nv sweep [--keep-runs <n>]                        # sweeps the disk, reads nightly CI: looper's after_session hook
 bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
-bun nv ci --push                                      # looper's after_retire: pushes main, cancels the runs it replaces
+bun nv ci --push                                      # looper's after_retire: pre-push checks, pushes main, cancels the runs it replaces
+bun nv ci --check                                     # the pre-push checks alone, before a goal is claimed done
 bun nv ci --watch | --status | --rerun                # the `ci-green` goal's: waits for a failed job, lists them, reruns them
 bun nv debt [--goal <slug>]                           # pays the floor debt: the floor check `floor-debt`
 
 bun nv legs [--goal <slug>] [--full]                  # the WSL leg and the valgrind sweep over a goal's fixtures
+bun nv linux-test --test <name> [<filter>]            # one filtered cargo test on a Linux build, inside WSL
 bun nv services --up [--goal <slug>]                  # Docker preflight, then the goal's services up and healthy
 bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]   # judge one case tree, with a pass floor
 bun nv benches [--owed]                               # the bench turn by hand
@@ -657,7 +659,8 @@ merges `main` in, runs verify, pauses the other loops and fast-forwards `main`. 
 every goal end, and then `bun nv relink --build --hook`, which rebuilds `target/release/nvs` in the root
 and builds nothing in a side loop's lane (`tools/nv/cmd/relink.ts`). The goal `ci-green` is the one side goal that runs in the root, added with `looper loop
 add --side ci-green --in-root`. It is never reached: its loop watches every CI run on `main`, fixes
-each failure, commits and pushes. No other session pushes or cancels a run. The push starts the runs,
+each failure, and commits. It pushes only a goal end's push that its pre-push checks refused, once
+they are green. No other session pushes or cancels a run. The push starts the runs,
 and the command cancels each run a newer one replaces, so each workflow has one run going on `main`
 (`rule:testing/one-run-on-main`). The goal file is its procedure, and `tools/nv/cmd/ci.ts` the
 command's.
