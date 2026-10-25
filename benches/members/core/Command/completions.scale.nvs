@@ -1,0 +1,51 @@
+<?nvs
+// Prints the `Core\Command::completions` bench with a table of `$size` commands, each with one option.
+// bench: prints
+// bench: start 32
+// bench: max 512
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $commands = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => Core\Str::join([
+            '    #[Core\Command(name: "shop-' . (($n + 1000) as string) . '", about: "Run step ' . (($n + 1000) as string) . ' of the shop")]',
+            '    public static function shop' . (($n + 1000) as string) . '(',
+            '        string $target,',
+            '        #[Core\Option(about: "Print what would happen")] bool $dryRun = false,',
+            '    ): uint {',
+            '        return 0;',
+            '    }',
+            '',
+        ], "\n"));
+        array<string> $lines = [
+            '<?nvs',
+            '',
+            'class Tool {',
+            Core\Str::join($commands, "\n"),
+            '}',
+            '',
+            'class Bench {',
+            '    public static function run(uint $rounds): int {',
+            '        array<Core\Command::Shell> $shells = [',
+            '            Core\Command::Shell::Bash,',
+            '            Core\Command::Shell::Zsh,',
+            '            Core\Command::Shell::Fish,',
+            '        ];',
+            '        int $total = 0;',
+            '        uint $i = 0;',
+            '        while ($i < $rounds) {',
+            '            int $at = $total % 3;',
+            '            var $script = Core\Command::completions($shells[$at]);',
+            '            $total = $total + $at + 1;',
+            '            $i = $i + 1;',
+            '        }',
+            '        return $total;',
+            '    }',
+            '}',
+            '',
+            'echo Bench::run(256), "\n";',
+        ];
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(32);

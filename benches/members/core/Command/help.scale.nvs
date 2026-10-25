@@ -1,0 +1,59 @@
+<?nvs
+// Prints the `Core\Command::help` bench with three commands, each with `$size` options.
+// bench: prints
+// bench: start 8
+// bench: max 128
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $options = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => '        #[Core\Option(about: "Turn on setting ' . (($n + 1000) as string) . ' of the shop")] bool $setting' . (($n + 1000) as string) . ' = false,');
+        string $parameters = Core\Str::join($options, "\n");
+        array<string> $lines = [
+            '<?nvs',
+            '',
+            'class Tool {',
+            '    #[Core\Command(name: "deploy", about: "Push the current build")]',
+            '    public static function deploy(',
+            '        string $target,',
+            $parameters,
+            '    ): uint {',
+            '        return 0;',
+            '    }',
+            '',
+            '    #[Core\Command(name: "migrate", about: "Apply pending migrations")]',
+            '    public static function migrate(',
+            $parameters,
+            '    ): uint {',
+            '        return 0;',
+            '    }',
+            '',
+            '    #[Core\Command(name: "version", about: "Print the version and stop")]',
+            '    public static function version(',
+            $parameters,
+            '    ): uint {',
+            '        return 0;',
+            '    }',
+            '}',
+            '',
+            'class Bench {',
+            '    public static function run(uint $rounds): int {',
+            '        array<string> $names = ["deploy", "migrate", "version"];',
+            '        int $total = 0;',
+            '        uint $i = 0;',
+            '        while ($i < $rounds) {',
+            '            int $at = $total % 3;',
+            '            var $page = Core\Command::help($names[$at]);',
+            '            $total = $total + $at + 1;',
+            '            $i = $i + 1;',
+            '        }',
+            '        return $total;',
+            '    }',
+            '}',
+            '',
+            'echo Bench::run(256), "\n";',
+        ];
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(8);

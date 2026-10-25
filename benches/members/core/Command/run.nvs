@@ -5,7 +5,6 @@
 // with nothing to do.
 // bench: iterations 256
 // bench: complexity linear
-// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: calls 0
 // bench: allocations 17
 

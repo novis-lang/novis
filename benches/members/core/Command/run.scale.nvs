@@ -1,0 +1,44 @@
+<?nvs
+// Prints the `Core\Command::run` bench with a table of `$size` commands, each with one option.
+// bench: prints
+// bench: start 8
+// bench: max 128
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $commands = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => Core\Str::join([
+            '    #[Core\Command(name: "shop-' . (($n + 1000) as string) . '", about: "Run step ' . (($n + 1000) as string) . ' of the shop")]',
+            '    public static function shop' . (($n + 1000) as string) . '(',
+            '        string $target,',
+            '        #[Core\Option(about: "Print what would happen")] bool $dryRun = false,',
+            '    ): uint {',
+            '        return 0;',
+            '    }',
+            '',
+        ], "\n"));
+        array<string> $lines = [
+            '<?nvs',
+            '',
+            'class Tool {',
+            Core\Str::join($commands, "\n"),
+            '}',
+            '',
+            'class Bench {',
+            '    public static function run(uint $rounds): uint {',
+            '        uint $total = 0;',
+            '        uint $i = 0;',
+            '        while ($i < $rounds) {',
+            '            $total = $total + Core\Command::run();',
+            '            $i = $i + 1;',
+            '        }',
+            '        return $total;',
+            '    }',
+            '}',
+            '',
+            'echo Bench::run(256), "\n";',
+        ];
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(8);

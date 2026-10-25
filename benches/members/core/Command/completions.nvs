@@ -3,7 +3,6 @@
 // commands. A program meets this when somebody sets their shell up for it.
 // bench: iterations 256
 // bench: complexity linear
-// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: calls 0
 // bench: allocations 53
 

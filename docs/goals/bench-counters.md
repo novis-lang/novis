@@ -204,7 +204,7 @@ line. The session checks each batch and ticks it.
 - [x] A test of the new form beside the existing ones (`rule:testing/perf-two-mechanisms`). `tools/nv/test/scaling.test.ts:58`
 - [x] Batch 1, a request body: `Request/body`, `bodyStream`, `bytes`, `files`, `headers`, `json`, `jsonAs`, `postAs`, `queryAs`. `benches/members/core/Request/body.nvs:1`
 - [x] Batch 2, a request part and a signed route: `Request-Part/content`, `readAll`, `saveTo`, `Router/signedRoute`. `benches/members/core/Request-Part/content.nvs:1`
-- [ ] Batch 3, standard input, the environment and the command line: `IO/stdin`, `Env/all`, `Command/completions`, `help`, `run`. `benches/members/core/IO/stdin.nvs:1`
+- [x] Batch 3, standard input, the environment and the command line: `IO/stdin`, `Env/all`, `Command/completions`, `help`, `run`. `benches/members/core/IO/stdin.nvs:1`
 - [ ] Batch 4, generated classes: the two `lang/attributes/core-program-implementing*` benches. `benches/members/lang/attributes/core-program-implementing-i-every-class-that-is-an-i.nvs:1`
 - [ ] No bench carries the marker, and the gap record is deleted. `data/gaps/nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program.json:1`
 

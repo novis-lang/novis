@@ -3,7 +3,6 @@
 // starts and collects its settings.
 // bench: iterations 256
 // bench: complexity linear
-// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: calls 0
 
 class Bench {
