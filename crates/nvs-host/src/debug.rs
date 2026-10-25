@@ -732,8 +732,10 @@ impl Shared {
     /// of a step, reports the stop, then parks until a resume.
     fn stop(&self, ctx: &mut Ctx, cause: StopCause, unit: &DebugUnit) -> i32 {
         let site = ctx.frames().next().map(|frame| frame.site);
+        // Compiled code links its record before its first site, so a site
+        // with no frame linked is a host's own call, and it stops as asked.
         let armed = cause == StopCause::Site
-            && ctx.frames().next().is_some_and(|frame| {
+            && ctx.frames().next().is_none_or(|frame| {
                 unit.sites.is_armed(frame.site) && unit.passes(frame.site, frame.slots)
             });
         if cause == StopCause::Site && !armed && !self.step_stops(ctx, site, unit) {
