@@ -124,7 +124,8 @@ fn render(template: &str, arguments: &[Value], out: &mut StrWriter<'_>) -> Resul
 
 /// The symbol one placeholder of a literal `Core\Str::format` template lowers
 /// to, where the checker could not fold the placeholder into plain text
-/// (`nvs_types::expr_table::FormatPiece::Converted`).
+/// (`nvs_types::expr_table::FormatPiece::Converted` and `::Rendered`). With
+/// it, no literal template is parsed at run time.
 ///
 /// Row-less for `crate::html::MARKUP_SYMBOL`'s reason: the call's own
 /// lowering is the only thing that reaches it, and a row would make it

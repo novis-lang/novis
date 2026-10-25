@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/format.rs",
-  "title": "A literal `Str::format` template is parsed on every call, where the compiler could split it once.",
-  "text": "The template is parsed once per call already, so this is the cost of one parse per call. Closing it is the compiler splitting a literal template while compiling and the call taking the parts, with a tainted argument's result still tainted, and the bench declaring what it then measures.",
-  "goal": "bench-counters"
-}

@@ -1440,11 +1440,16 @@ pub enum PreparedFact {
 /// One piece of a `Core\Str::format` call that `nvs-ir` lowers to a string
 /// concatenation instead of a call.
 ///
-/// The checker records a list of these only when the result cannot differ
-/// from the member's: the template is a constant, the placeholders read the
-/// arguments once each, in written order, and no placeholder can throw. So
-/// the arguments are evaluated in the order the call evaluates them, and each
-/// one converts to the same text `nvs_stdlib::format` writes for it.
+/// The checker records a list of these for every constant template that
+/// passes its checks, in one of two forms. When the placeholders read the
+/// arguments once each, in written order, and none can throw, the list is
+/// [`Self::Text`], [`Self::Argument`] and [`Self::Converted`] pieces, and each
+/// argument is evaluated where its piece is. Otherwise it is [`Self::Text`]
+/// and [`Self::Rendered`] pieces alone, and every argument is evaluated
+/// before the first piece, as the call evaluates them. Either way each
+/// placeholder is rendered by `nvs_stdlib::format`'s own code or converts to
+/// the same text, so the result cannot differ from the member's, and the
+/// template is never parsed at run time.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum FormatPiece {
     /// Template text, with each `%%` already replaced by `%`.
@@ -1462,6 +1467,17 @@ pub enum FormatPiece {
         /// The index in the call's argument list.
         argument: usize,
         /// The placeholder as written, with no argument number.
+        spec: String,
+    },
+    /// The argument at this index, already evaluated with every other
+    /// argument, rendered by `nvs_stdlib::format`'s own code for the one
+    /// placeholder `spec`. Any conversion over any value, so the render may
+    /// throw, with the member's own message. An index may appear twice, or
+    /// out of written order, where the template numbers its arguments.
+    Rendered {
+        /// The index in the call's argument list.
+        argument: usize,
+        /// The placeholder as written, with its argument number removed.
         spec: String,
     },
 }

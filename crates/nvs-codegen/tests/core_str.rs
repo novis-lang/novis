@@ -111,11 +111,10 @@ fn format_calls(source: &str) -> usize {
         .count()
 }
 
-/// A literal template whose placeholders read the arguments in order lowers
-/// to a concatenation, when no placeholder can throw. A width, a flag and an
-/// integer conversion over an `int` or a `uint` lower too. An argument number,
-/// a conversion that can throw, a width past four digits and a template that
-/// is not a constant stay a call.
+/// Every literal template lowers to a concatenation: plain placeholders, a
+/// width, a flag, an argument number, a float conversion, a conversion that
+/// can throw and a width past four digits. A template that is not a constant
+/// stays a call.
 #[test]
 fn a_literal_format_template_lowers_to_a_concatenation() {
     let lowered = "<?nvs
@@ -127,19 +126,33 @@ echo Core\\Str::format(\"%d-%s-%s 100%%\", $n, $s, $n);
 
     for (kept, why) in [
         ("Core\\Str::format(\"%05d\", $n)", "nothing: a width lowers"),
-        ("Core\\Str::format('%1$d', $n)", "an argument number"),
+        (
+            "Core\\Str::format('%1$d', $n)",
+            "nothing: an argument number lowers",
+        ),
+        (
+            "Core\\Str::format('%2$s %1$s %2$s', $s, $n)",
+            "nothing: arguments read out of order lower",
+        ),
         ("Core\\Str::format(\"%d\", $u)", "nothing: a `uint` lowers"),
         ("Core\\Str::format(\"%x\", $n)", "nothing: `%x` lowers"),
         (
             "Core\\Str::format(\"%-6.2s|\", $s)",
             "nothing: a precision lowers",
         ),
-        ("Core\\Str::format(\"%.2f\", $f)", "a float conversion"),
-        ("Core\\Str::format(\"%d\", $f)", "a `float` under `%d`"),
+        (
+            "Core\\Str::format(\"%.2f\", $f)",
+            "nothing: a float conversion lowers",
+        ),
+        (
+            "Core\\Str::format(\"%d\", $f)",
+            "nothing: a `float` under `%d` lowers",
+        ),
         (
             "Core\\Str::format(\"%10000d\", $n)",
-            "a width of five digits",
+            "nothing: a width of five digits lowers",
         ),
+        ("Core\\Str::format(\"\")", "an empty template"),
         (
             "Core\\Str::format(\"%s %s\", $s, $s)",
             "nothing: this one lowers",
@@ -190,6 +203,92 @@ foreach ($ints as int $a) {
 echo Core\\Str::format(\"a%db%sc%%d%s!\", -12, \"x\", 5);
 ";
     assert_eq!(output_of(source), "a-12bxc%d5!");
+}
+
+/// A template that numbers its arguments, converts a float or reads a `mixed`
+/// prints what the member prints, for the same values. An argument read twice
+/// is evaluated once. The member is reached through a parameter, which is not
+/// a constant.
+#[test]
+fn a_rendered_template_prints_what_the_member_prints() {
+    let source = "<?nvs
+class Dynamic {
+    public static function render(string $template, float $f, mixed $m, string $s): tainted string {
+        return Core\\Str::format($template, $f, $m, $s);
+    }
+}
+class Count {
+    public static int $calls = 0;
+    public static function once(): string {
+        Count::$calls = Count::$calls + 1;
+        return \"o\";
+    }
+}
+array<float> $floats = [0.0, -1.5, 3.14159, 1e300];
+array<mixed> $mixed = [7, \"x\", true, 2.5];
+foreach ($floats as float $f) {
+    foreach ($mixed as mixed $m) {
+        tainted string $lowered = Core\\Str::format('%3$s|%1$.2f|%2$s|%1$e|%3$5s|%%', $f, $m, \"é\");
+        tainted string $called = Dynamic::render('%3$s|%1$.2f|%2$s|%1$e|%3$5s|%%', $f, $m, \"é\");
+        if ($lowered != $called) {
+            echo \"differs\\n\";
+        }
+    }
+}
+echo Core\\Str::format('%1$s%1$s', Count::once()), \" \", Count::$calls;
+";
+    assert_eq!(output_of(source), "oo 1");
+}
+
+/// A rendered placeholder that throws does so after every argument was
+/// evaluated, with the member's own message, as the member does. The fresh
+/// argument it was given is freed, so the balance does not grow with the loop.
+#[test]
+fn a_rendered_placeholder_throws_after_every_argument_ran() {
+    let source = "<?nvs
+class Side {
+    public static function mark(): string {
+        echo \"evaluated \";
+        return Core\\Str::repeat(\"s\", 3);
+    }
+}
+mixed $m = \"x\";
+try {
+    echo Core\\Str::format(\"%d|%s\", $m, Side::mark());
+} catch (LogicError $error) {
+    echo $error->message;
+}
+";
+    assert_eq!(
+        output_of(source),
+        "evaluated Core\\Str::format(): `%d` has no reading for this value"
+    );
+
+    let balance = |count: usize| {
+        let source = format!(
+            "<?nvs
+mixed $m = \"x\";
+for (int $i = 0; $i < {count}; $i++) {{
+    try {{
+        echo Core\\Str::format('%2$s%1$d', $m, Core\\Str::repeat(\"ab\", 2));
+    }} catch (LogicError $error) {{
+    }}
+}}
+"
+        );
+        let unit = compile(&source).expect("the fixture compiles");
+        let mut ctx = Ctx::buffered();
+        unit.install_in(&mut ctx);
+        let entry = unit.script().expect("the script frame was compiled");
+        let before = nvs_runtime::budget::live_bytes();
+        entry.call(&mut ctx).expect("the script ran to completion");
+        nvs_runtime::budget::live_bytes() - before
+    };
+    assert_eq!(
+        balance(10),
+        balance(1000),
+        "a thrown render left a piece or an argument behind"
+    );
 }
 
 /// A placeholder with a flag, a width or a precision prints what the member

@@ -2405,6 +2405,11 @@ impl<'a> Lowering<'a> {
                         false,
                     )
                 }
+                nvs_types::expr_table::FormatPiece::Rendered { .. } => panic!(
+                    "nvs-ir: a `Core\\Str::format` piece list mixes a rendered piece with an \
+                     argument read in place — nvs_types records either form whole, and \
+                     `Self::lower_rendered_format` lowers the rendered one"
+                ),
             };
             if !piece.1 {
                 if lowered.is_empty() {
@@ -2415,6 +2420,73 @@ impl<'a> Lowering<'a> {
             lowered.push(piece);
         }
         self.join_pieces(&lowered, mark, leading, *cur)
+    }
+
+    /// Lowers a `Core\Str::format` call whose recorded pieces are
+    /// [`nvs_types::expr_table::FormatPiece::Rendered`]: every argument after
+    /// the template first, in written order, as the call evaluates them, and
+    /// then each placeholder rendered from its argument by
+    /// [`Self::render_format_placeholder`], in written order.
+    ///
+    /// Each argument is lowered and accounted as a helper's borrowed argument,
+    /// so a fresh one is staged and released once the result is joined, and a
+    /// placeholder that throws releases it on the way out. The template is a
+    /// constant and argument 0, the `at` of `Core\Str::format`'s intrinsic
+    /// row, so it is not evaluated. The result is one
+    /// [`InstKind::Concat`] over one allocation per placeholder.
+    fn lower_rendered_format(
+        &mut self,
+        pieces: &[nvs_types::expr_table::FormatPiece],
+        args: &[nvs_syntax::ast::Arg],
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let arguments = self.temporaries_mark();
+        let mut values = Vec::with_capacity(args.len());
+        for arg in args.iter().skip(1) {
+            let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
+            let aliasing = self.aliasing_read(&arg.value);
+            self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+            values.push(v);
+        }
+        let mark = self.temporaries_mark();
+        let mut lowered: Vec<(ValueId, bool)> = Vec::with_capacity(pieces.len());
+        let mut leading = None;
+        for piece in pieces {
+            let v = match piece {
+                nvs_types::expr_table::FormatPiece::Text(text) => {
+                    self.emit(*cur, Ty::Str, InstKind::ConstStr(text.clone())).0
+                }
+                nvs_types::expr_table::FormatPiece::Rendered { argument, spec } => {
+                    let value = argument
+                        .checked_sub(1)
+                        .and_then(|at| values.get(at))
+                        .copied()
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "nvs-ir: a `Core\\Str::format` piece reads argument {argument}, \
+                                 and the call has {} — nvs_types records an index into the \
+                                 written list, after the template",
+                                args.len()
+                            )
+                        });
+                    self.render_format_placeholder(spec, value, env, cur)
+                }
+                nvs_types::expr_table::FormatPiece::Argument(_)
+                | nvs_types::expr_table::FormatPiece::Converted { .. } => panic!(
+                    "nvs-ir: a `Core\\Str::format` piece list mixes a rendered piece with an \
+                     argument read in place — nvs_types records either form whole"
+                ),
+            };
+            if lowered.is_empty() {
+                leading = Some(self.temporaries_mark());
+            }
+            self.own_temporary(v);
+            lowered.push((v, false));
+        }
+        let result = self.join_pieces(&lowered, mark, leading, *cur);
+        self.release_temporaries_since(arguments, *cur);
+        result
     }
 
     /// One converted placeholder of a literal `Core\Str::format` template: the
@@ -2434,6 +2506,22 @@ impl<'a> Lowering<'a> {
         if ty == Ty::Str && !self.aliasing_read(value) {
             self.own_temporary(v);
         }
+        let rendered = self.render_format_placeholder(spec, v, env, cur);
+        self.release_temporaries_since(inner, *cur);
+        rendered
+    }
+
+    /// `value`, already lowered, rendered as the placeholder `spec` by
+    /// `nvs_types::CORE_STR_FORMAT_PIECE`. The helper borrows `value`, so the
+    /// caller still owns it. The result is fresh.
+    fn render_format_placeholder(
+        &mut self,
+        spec: &str,
+        v: ValueId,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        let inner = self.temporaries_mark();
         let (spec, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(spec.to_owned()));
         self.own_temporary(spec);
         let (rendered, _) = self.emit_fallible(
@@ -4644,6 +4732,11 @@ impl<'a> Lowering<'a> {
                 && let nvs_syntax::ast::CallArgs::List(list) = args
             {
                 let pieces = pieces.to_vec();
+                if pieces.iter().any(|piece| {
+                    matches!(piece, nvs_types::expr_table::FormatPiece::Rendered { .. })
+                }) {
+                    return self.lower_rendered_format(&pieces, list, env, cur);
+                }
                 return self.lower_format_pieces(&pieces, list, env, cur);
             }
             let sig = ArgSig::of_helper(call);

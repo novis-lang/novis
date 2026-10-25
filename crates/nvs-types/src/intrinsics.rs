@@ -595,6 +595,10 @@ pub(crate) fn check_call(
                                 argument: row.at + 1 + argument,
                                 spec,
                             },
+                            FormatPiece::Rendered { argument, spec } => FormatPiece::Rendered {
+                                argument: row.at + 1 + argument,
+                                spec,
+                            },
                             text @ FormatPiece::Text(_) => text,
                         })
                         .collect(),
@@ -821,7 +825,8 @@ fn tail_types(
 ///
 /// Returns the pieces `nvs-ir` lowers the call to, with argument indices
 /// counted from the first value after the template, when the template passes
-/// every check and [`format_pieces`] accepts it. `None` keeps the call.
+/// every check: [`format_pieces`] where it accepts them, and
+/// [`rendered_pieces`] for every other template. `None` keeps the call.
 fn check_template(
     text: &str,
     pattern: &Expr,
@@ -883,7 +888,54 @@ fn check_template(
             return None;
         }
     }
-    format_pieces(text, &placeholders, values, env)
+    format_pieces(text, &placeholders, values, env).or_else(|| rendered_pieces(text, &placeholders))
+}
+
+/// A checked template as text and [`FormatPiece::Rendered`] pieces, for a
+/// template [`format_pieces`] does not accept: an argument number, a float
+/// conversion, or a value whose conversion may throw.
+///
+/// `nvs-ir` evaluates every argument first, in written order, and then
+/// renders the placeholders in written order, which is what the member does.
+/// So a later argument's side effects happen before an earlier placeholder
+/// throws, and the first placeholder that cannot render throws the member's
+/// own message. An argument number is removed from each placeholder, because
+/// the piece names its argument itself. `None` for an empty template, which
+/// stays a call.
+fn rendered_pieces(
+    text: &str,
+    placeholders: &[nvs_stdlib::format::Placeholder],
+) -> Option<Vec<FormatPiece>> {
+    let mut pieces = Vec::with_capacity(placeholders.len() * 2 + 1);
+    let mut from = 0;
+    for placeholder in placeholders {
+        let between = &text[from..placeholder.written.at];
+        if !between.is_empty() {
+            pieces.push(FormatPiece::Text(between.replace("%%", "%")));
+        }
+        let spec = &text[placeholder.written.at..placeholder.written.at + placeholder.written.len];
+        pieces.push(FormatPiece::Rendered {
+            argument: placeholder.index,
+            spec: without_argument_number(spec),
+        });
+        from = placeholder.written.at + placeholder.written.len;
+    }
+    if from < text.len() {
+        pieces.push(FormatPiece::Text(text[from..].replace("%%", "%")));
+    }
+    (!pieces.is_empty()).then_some(pieces)
+}
+
+/// `spec` with the `1$` of an argument number removed, so `%2$-5s` is
+/// `%-5s`. The number is the digits right after the `%`, so a `$` used as a
+/// padding character, as in `%'$5d`, stays.
+fn without_argument_number(spec: &str) -> String {
+    let after = &spec[1..];
+    let digits = after.bytes().take_while(u8::is_ascii_digit).count();
+    match after[digits..].strip_prefix('$') {
+        Some(rest) if digits > 0 => format!("%{rest}"),
+        _ => spec.to_owned(),
+    }
 }
 
 /// A checked template as text and argument pieces, or `None` when the
