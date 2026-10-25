@@ -48,7 +48,7 @@ stages:
         rules: [programs/memory-priority, testing/member-perf-ledger]
   - id: 7
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-closes
@@ -273,49 +273,41 @@ subagent. Such subagents run side by side, and none of them builds.
 - [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
 - [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
 - [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
-- [ ] Every stale perf figure the goal's perf commits left is recorded before the push, so CI's `proofs` job is green: `bun nv proofs --gate --limit 0` lists them (106 at `977773ab3`: `math.rs`, `test.rs`, `request.rs`, `json.rs`). `tools/nv/proofs/perf.ts:1`
+- [x] Every stale perf figure the goal's perf commits left is recorded before the push, so CI's `proofs` job is green: `bun nv proofs --gate --limit 0` lists them (106 at `977773ab3`: `math.rs`, `test.rs`, `request.rs`, `json.rs`). `tools/nv/proofs/perf.ts:1`
 
 ## Handoff
 
 ### State
 
-Stage 7's gate is green: `bun nv affected --run` passed 22 of 22 verify steps, 3127 conformance
-cases and every bench it reached. Six perf figures are left, then the goal-end gates.
+The goal is reached. Every stage is done, and every goal-end gate is green on `54cc4e88f`:
+`bun nv verify --doc` (every link resolves), `bun nv owners --closes bench-counters` (owns no gap),
+`bun nv proofs --gate --limit 0` (nothing owed in 1516 features) and `bun nv ci --check` (all ten
+pre-push checks ok). Each standing decision is also in its home: `rule:testing/bench-counters`,
+`rule:testing/probes-on-is-a-tested-configuration`, `benches/members/README.md`,
+`crates/nvs-host/src/blocking.rs`, `crates/nvs-cli/src/cache.rs` and `crates/nvs-host/src/cpuclock.rs`.
 
-- **The gate's fixes, one commit each.** `join_tree` keeps a member's share
-  (`crates/nvs-runtime/src/ctx/safepoint.rs:252`). The reactor's ready list starts with its room
-  (`crates/nvs-host/src/reactor.rs:382`). A debug object header's `owner` stamp is not counted in
-  `bytes` (`crates/nvs-runtime/src/budget.rs:1062`). The temporary directory's pid is ten digits
-  (`crates/nvs-runtime/src/capability.rs:1404`). `nv reference` passes a bench example's `--bench`
-  (`tools/nv/cmd/reference.ts:549`). The examples that share a database server take turns
-  (`crates/nvs-cli/tests/examples.rs:210`). Two stale test fixtures, one formatted attack, the fuzz
-  lockfile, and the `no-hand-build` allow list.
-- **The backlog's `bytes` differs by 8 between builds is closed** by the `owner` stamp change.
-- **Perf: 100 of the 106 stale figures are recorded** (`c81520c48`). Six are not, see `### Next`.
-  `data/perf/members.md` was not regenerated; `bun nv proofs --perf-report` writes it.
-- The sweep's reds were stale. The `env-secret-proofs` log shows exit 0. Nightly `40174915924`
-  tested `9be30356e`, 47 commits back, and each of its five failures has a fix on HEAD that is not
-  pushed yet (`c7e5bd3c3`, `901f4855c`, `bd2e51f0a`, `d5aa2be18`, `0b7eadd2c`).
+- **The last six perf figures are recorded** (`54cc4e88f`). `Core\Request::body`, `postAs` and
+  `queryAs` declare `calls 1`, `2` and `2`, and `bodyStream` declares `allocations 9`. Nine is per
+  stream, not per chunk, and the declaration pins it, so no gap record was opened for it.
+- **Callgrind measures each ramp size warm** (`e2d980359`, `tools/nv/cmd/scaling.ts:506`). One plain
+  run fills the compile cache before the measured run. `Core\Test::assertTrue` and `assertSame` are
+  now `unclear`, not a false `grows`: `bytes` still rises by 1 when the echoed total gains a digit.
+- The sweep's reds were stale: `env-secret-proofs` exits 0, and nightly `40174915924` tested `9be30356e`,
+  before the fixes on HEAD that are not pushed yet.
 
 Tests expected to go red: none known.
 
 ### Next
 
-**Stage 7, the last six perf figures, then the goal-end gates.**
-
-- [ ] `Core\Request::body`, `postAs` and `queryAs` declare `calls 0` and make 1, 2 and 2: their `Core\Request` call counts, as `75fd145bc` set for every other bench. Set each `// bench: calls` to the measured figure. `benches/members/core/Request/body.nvs:6`, `benches/members/core/Request/postAs.nvs:5`, `benches/members/core/Request/queryAs.nvs:5`
-- [ ] `Core\Request::bodyStream` declares `allocations 2` and has never met it (13, 13, then 9 in the ledger, under the gap stage 3 closed). Set it to 9, and put lowering it in the backlog. `benches/members/core/Request/bodyStream.nvs:5`
-- [ ] `Core\Test::assertTrue` and `assertSame` are refused as `grows` by callgrind, and the verdict is noise. Their counts are flat, except `bytes` rises by 1 when the echoed total gains a digit, so the ramp asks callgrind. Every ramp size is a new program, so each callgrind run compiles cold. Four cold runs of one program at 64 spread 84,000 instructions (215,713,526 to 215,797,730), as much as the whole 64 to 128 step. Warm runs repeat within 17,000 and give a flat 1,300 per call. Fix the cause in `scaling.ts`'s callgrind leg: warm each size once before the measured run, or judge the increment against the cold spread. Then record both. `tools/nv/cmd/scaling.ts:1137`
-- [ ] `bun nv proofs --record-perf --only 'Core\Request::body' ...` over the six, then `bun nv proofs --perf-report`, and commit. `tools/nv/proofs/perf.ts:1`
-- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes bench-counters`, `bun nv proofs --gate`, `bun nv ci --check`. `tools/nv/cmd/verify.ts:1`
+**Retire the goal.** Nothing is left. The driver runs `owners-closes` and the floor on `DONE`, then retires the goal, and `after_retire` rebuilds `target/release/nvs`. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog
 
 - What a waiting connection still keeps is a stated bound in `stack.rs`: the parked drive's
   7.9 KiB frame, about 5.5 KiB of it temporaries no split moved, and the pages the request's start
   touched before it returned. Running the start on another stack would add a switch per request.
-- `--opt-level` and `--probes` are new `nvs test` flags. The gate stage's `bun nv proofs --gate` says
-  whether either owes a proof of its own.
+- `--opt-level` and `--probes` are new `nvs test` flags, and `bun nv proofs --gate` owes no proof for
+  either.
 - `bun nv scaling --budget` reports 45 benches over their share, none of them this goal's
   (`benches/members/core/Metrics/`, `lang/expressions/the-pipeline-operator`, `novis/Spreadsheet-*`).
   It is not a gate. Whoever owns those benches lowers N or writes the reason. `data/perf/bench-budget.json:1`
