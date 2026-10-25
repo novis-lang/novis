@@ -1,16 +1,19 @@
 // Which `nvs` answers, and which file is run to get it, for every process this extension starts.
 //
-// It has one home because there are five spawns — the server in `extension.ts`, the Tasks, the
-// formatter, the AST panel and the test controller — and a user who points `nvs.path` at a build
-// directory means all of them. A second read with its own fallback is how one of them ends up
-// running a different binary than the others.
+// It has one home because there are six spawns — the server in `extension.ts`, the Tasks, the
+// formatter, the AST panel, the test controller and the debug adapter — and a user who points
+// `nvs.path` at a build directory means all of them. A second read with its own fallback is how
+// one of them ends up running a different binary than the others.
 //
 // There are three candidates, tried in order: `nvs.path`, then `nvs` on `PATH`, then the copy
 // `nvs.downloadBinary` installed in this extension's own storage. The installed copy is last and
 // is never written into `nvs.path`, so a toolchain the user installs later still wins
 // (`rule:ide/the-extension-guides-an-install-and-never-bundles-one`).
 //
-// None of the five runs the file a candidate names. Each asks `runnable` at the moment it spawns and
+// A debug configuration's `nvsCommand` takes the place of all three for that one session, and is
+// copied the same way (`runnableNamed`).
+//
+// None of the six runs the file a candidate names. Each asks `runnable` at the moment it spawns and
 // runs the verified copy that hands back (`rule:ide/the-extension-runs-a-copy-of-the-binary`), so
 // nothing this extension does ever holds the named file, and nothing it starts is an older build
 // than the one on disk: `shadow.ts`'s `Copies` reads the binary's stamp on every call.
@@ -94,6 +97,19 @@ export async function runnable(): Promise<Runnable> {
   }
   const named = binary();
   return { command: named, shown: named, source: undefined, origin: undefined, copy: undefined, held: undefined };
+}
+
+/**
+ * The file to spawn for a command a debug configuration names in `nvsCommand`: its copy, made as
+ * a candidate's is.
+ *
+ * A command that resolves to no file is handed back as it is, so the start fails and the editor
+ * says which command it could not run.
+ */
+export async function runnableNamed(named: string): Promise<string> {
+  // The command stands where `nvs.path` would, so it is found and copied as that setting's is.
+  const found = await candidate(named, "nvs.path");
+  return found?.command ?? named;
 }
 
 /**

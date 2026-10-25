@@ -23,7 +23,8 @@
   ],
   "activationEvents": [
     "onLanguage:nvs",
-    "workspaceContains:**/nvs.toml"
+    "workspaceContains:**/nvs.toml",
+    "onDebugResolve:nvs"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -343,6 +344,164 @@
             "file": 1,
             "line": 2,
             "column": 3
+          }
+        ]
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "nvs"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "nvs",
+        "label": "Novis",
+        "languages": [
+          "nvs"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "run",
+                  "test",
+                  "serve"
+                ],
+                "enumDescriptions": [
+                  "Run the program, as nvs run does.",
+                  "Run the program's #[Test] methods, as nvs test does. The tests run one at a time.",
+                  "Start a server for the program, as nvs serve does. The server runs in development mode."
+                ],
+                "default": "run",
+                "description": "How the program is started."
+              },
+              "program": {
+                "type": "string",
+                "default": "${file}",
+                "description": "The .nvs file to run, test or serve."
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [],
+                "description": "The arguments the program gets. For serve, --listen <address> or --port <port> sets where the server listens."
+              },
+              "cwd": {
+                "type": "string",
+                "default": "${workspaceFolder}",
+                "description": "The folder the program runs in."
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "default": {},
+                "description": "Environment variables for the program. A null value removes the variable."
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "default": false,
+                "description": "Stop at the first statement of the program."
+              },
+              "filter": {
+                "type": "string",
+                "description": "For test, run only the tests whose name contains this text."
+              },
+              "skipFiles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [],
+                "description": "Glob patterns of files a step does not stop in. An exception that one of these files catches does not stop the program."
+              },
+              "pathMappings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "localRoot",
+                    "remoteRoot"
+                  ],
+                  "properties": {
+                    "localRoot": {
+                      "type": "string",
+                      "description": "The folder in the editor."
+                    },
+                    "remoteRoot": {
+                      "type": "string",
+                      "description": "The same folder where the program reads it."
+                    }
+                  }
+                },
+                "default": [],
+                "description": "Pairs of folders for a program that reads its files from another folder, such as in a container. Each path in a folder of the editor is changed to the same path in the program's folder, and back."
+              },
+              "nvsCommand": {
+                "type": "string",
+                "description": "The nvs binary to start for this session. Empty means the nvs that the rest of the extension uses."
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "nvs",
+            "request": "launch",
+            "name": "Run file",
+            "mode": "run",
+            "program": "${file}"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "Novis: Run file",
+            "description": "Run the current .nvs file in the debugger.",
+            "body": {
+              "type": "nvs",
+              "request": "launch",
+              "name": "Run file",
+              "mode": "run",
+              "program": "^\"\\${file}\""
+            }
+          },
+          {
+            "label": "Novis: Run tests",
+            "description": "Run the #[Test] methods of the current .nvs file in the debugger.",
+            "body": {
+              "type": "nvs",
+              "request": "launch",
+              "name": "Run tests",
+              "mode": "test",
+              "program": "^\"\\${file}\""
+            }
+          },
+          {
+            "label": "Novis: Serve",
+            "description": "Start a development server for a .nvs file in the debugger.",
+            "body": {
+              "type": "nvs",
+              "request": "launch",
+              "name": "Serve",
+              "mode": "serve",
+              "program": "^\"\\${workspaceFolder}/${1:main.nvs}\"",
+              "args": [
+                "--port",
+                "8080"
+              ]
+            }
           }
         ]
       }

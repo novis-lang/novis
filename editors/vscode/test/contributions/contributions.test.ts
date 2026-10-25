@@ -67,6 +67,16 @@ interface Manifest {
     semanticTokenScopes?: { language: string; scopes: Record<string, string[]> }[];
     html?: { customData: string[] };
     css?: { customData: string[] };
+    breakpoints?: { language: string }[];
+    debuggers?: {
+      type: string;
+      languages: string[];
+      configurationAttributes: {
+        launch: { required: string[]; properties: Record<string, { enum?: string[] }> };
+      };
+      initialConfigurations: Record<string, unknown>[];
+      configurationSnippets: { label: string; body: Record<string, unknown> }[];
+    }[];
   };
 }
 
@@ -322,12 +332,15 @@ describe("the file types the extension claims", () => {
     }
   });
 
-  it("activates on nvs and on a workspace with an nvs.toml, and on nothing else", () => {
+  it("activates on nvs, on a workspace with an nvs.toml and on an nvs debug session, and on nothing else", () => {
     // A grammar is contributed statically, so colouring a case starts nothing: the second language
     // adds no activation event, and opening one does not start the server. A workspace holding an
     // `nvs.toml` activates it so that the file's completion answers before any `.nvs` is opened
-    // (`rule:ide/the-extension-claims-nvs-only`), and that is an activation and not a claim.
-    assert.deepEqual(manifest.activationEvents, ["onLanguage:nvs", "workspaceContains:**/nvs.toml"]);
+    // (`rule:ide/the-extension-claims-nvs-only`), and that is an activation and not a claim. A
+    // `"type": "nvs"` debug session activates it so the adapter's factory is registered when no
+    // `.nvs` file is open.
+    assert.deepEqual(manifest.activationEvents,
+      ["onLanguage:nvs", "workspaceContains:**/nvs.toml", "onDebugResolve:nvs"]);
   });
 
   it("claims no php file type", () => {
@@ -418,6 +431,57 @@ describe("the frozen identifiers", () => {
     assert.equal(properties["nvs.taint.mark"].default, "off");
     assert.deepEqual(properties["nvs.taint.mark"].enum, ["off", "declaration", "sink"]);
     assert.equal(properties["nvs.stubs.dir"].default, "");
+  });
+});
+
+// The other side of the debugger's schema: the fields `nvs dap`'s `launch` request deserialises,
+// written in Rust's snake case and read by serde in camel case.
+const LAUNCH = readFileSync(
+  join(ROOT, "..", "..", "crates", "nvs-cli", "src", "dap", "protocol.rs"),
+  "utf8",
+);
+
+/** The camel-case name of every field of `LaunchArguments`, which is what a launch may send. */
+function launchFields(): string[] {
+  const body = /pub\(crate\) struct LaunchArguments \{([\s\S]*?)\n\}/.exec(LAUNCH)?.[1] ?? "";
+  return [...body.matchAll(/pub\(crate\) (\w+):/g)]
+    .map(([, field]) => field.replace(/_(\w)/g, (_, letter: string) => letter.toUpperCase()));
+}
+
+describe("the debugger", () => {
+  const debuggers = manifest.contributes.debuggers ?? [];
+
+  it("contributes one nvs debugger for the nvs language, and breakpoints in it", () => {
+    assert.deepEqual(debuggers.map((d) => d.type), ["nvs"]);
+    assert.deepEqual(debuggers[0].languages, ["nvs"]);
+    assert.deepEqual(manifest.contributes.breakpoints, [{ language: "nvs" }]);
+  });
+
+  it("names in its launch schema every field nvs dap reads, and nvsCommand for the factory", () => {
+    // `nvsCommand` is the one field the adapter never sees a use for: the factory in `debug.ts`
+    // reads it to choose the binary it starts.
+    const fields = launchFields();
+    assert.ok(fields.includes("pathMappings"), `LaunchArguments was not read: ${fields.join(", ")}`);
+    const launch = debuggers[0].configurationAttributes.launch;
+    assert.deepEqual(Object.keys(launch.properties).sort(), [...fields, "nvsCommand"].sort());
+    assert.deepEqual(launch.required, ["program"]);
+    assert.deepEqual(launch.properties.mode.enum, ["run", "test", "serve"]);
+    assert.ok(CLIENT.includes("session.configuration.nvsCommand"), "no factory reads nvsCommand");
+  });
+
+  it("registers a descriptor factory that starts nvs dap", () => {
+    assert.match(CLIENT, /registerDebugAdapterDescriptorFactory\(\s*TYPE/);
+    assert.match(CLIENT, /const SUBCOMMAND = \["dap"\]/);
+  });
+
+  it("offers a snippet per mode, each a launch of its own type", () => {
+    const modes = debuggers[0].configurationSnippets.map((snippet) => {
+      assert.equal(snippet.body.type, "nvs", snippet.label);
+      assert.equal(snippet.body.request, "launch", snippet.label);
+      return snippet.body.mode;
+    });
+    assert.deepEqual(modes, ["run", "test", "serve"]);
+    assert.deepEqual(debuggers[0].initialConfigurations.map((c) => c.type), ["nvs"]);
   });
 });
 

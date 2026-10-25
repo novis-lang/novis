@@ -54,6 +54,7 @@ import {
 import * as ast from "./ast";
 import * as badges from "./badges";
 import { Origin, Runnable, install as installCopies, installDirectory, installed, runnable } from "./binary";
+import * as debugAdapter from "./debug";
 import * as directives from "./directives";
 import * as doccomments from "./doccomments";
 import * as format from "./format";
@@ -224,6 +225,9 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
   // The provider is what makes a hand-written `"type": "nvs"` entry in a `tasks.json` resolve;
   // `contributes.taskDefinitions` alone only describes the shape of one.
   tasks.install(context);
+  // The factory that starts `nvs dap`, registered from activation because a debug session can be
+  // started before any `.nvs` file is open.
+  debugAdapter.install(context);
   // The view exists from activation rather than from the first `nvs.showAst`, because a tree view
   // is created once and the editor decides when to draw it; what the command does is fill it.
   ast.install(context);
