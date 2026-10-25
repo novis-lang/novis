@@ -1,11 +1,14 @@
 {
   "title": "`#[Bench]` reports counted semantic work, and CI may gate on the counts but never on wall-clock",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/debug-probes",
     "testing/perf-two-mechanisms",
     "testing/member-perf-ledger"
   ],
-  "guardedBy": [],
-  "goal": "bench-counters"
+  "guardedBy": [
+    "tests/conformance/lang/a-plain-nvs-test-runs-no-bench-and-does-not-count-one-as-left-out.nvst",
+    "tests/conformance/reject/a-bench-has-the-shape-of-a-test-and-takes-only-skip-and-because.nvst",
+    "crates/nvs-cli/src/runner.rs"
+  ]
 }

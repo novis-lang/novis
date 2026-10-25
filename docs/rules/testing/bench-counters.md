@@ -33,13 +33,11 @@ this rule's question; "did Novis get faster" is `rule:testing/perf-two-mechanism
 not overlap. There is no per-member cost table and there will not be one — a hand-written claim
 about what a `Core` member costs is a number with no guard test.
 
-**Not on disk.** The counting mode is built: `nvs run --count` prints statements, calls, allocations,
-bytes and GC cycles at exit, `gc=` last on the line (`DebugFlags::COUNT` in
+`nvs run --count` prints the same rows at exit, `gc=` last on the line (`DebugFlags::COUNT` in
 `crates/nvs-runtime/src/ctx/mod.rs`, the line in `crates/nvs-cli/src/main.rs`). A GC cycle is one run of
-the in-flight collector, counted in `Ctx::collect_if_asked`. `#[Bench]` and `nvs test --bench` are
-built (`crates/nvs-types/src/testing.rs`'s `BENCH_OPTIONS`, `crates/nvs-cli/src/runner.rs`'s
-`Rows`). The feature's proofs are not: no `about.md`, examples, Novis test, attack or bench under
-`docs/examples/lang/testing/bench-and-nvs-test-bench/`.
+the in-flight collector, counted in `Ctx::collect_if_asked`. The attribute's options are
+`crates/nvs-types/src/testing.rs`'s `BENCH_OPTIONS`, and a bench's rows are
+`crates/nvs-cli/src/runner.rs`'s `Rows`.
 
 **Declined:**
 - **Wall-clock benchmarks with statistical treatment.** It is what other languages ship, and it
