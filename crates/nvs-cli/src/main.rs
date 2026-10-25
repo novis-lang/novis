@@ -94,6 +94,8 @@
 //!   (`rule:tooling/fmt-is-one-canonical-style`); no other subcommand runs it
 //!   and an unformatted file is never a diagnostic
 //!   (`rule:tooling/fmt-is-never-a-diagnostic`); see [`fmt`].
+//! * `nvs dap` — the debug adapter on stdio, which launches a program in its own process and
+//!   never attaches (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`); see [`dap`].
 //!
 //! `run` **checks first**: on any diagnostic it reports and exits non-zero
 //! exactly as `check` does, rather than running a program the front end
@@ -143,6 +145,7 @@ mod check;
 mod code;
 mod config;
 mod coverage;
+mod dap;
 #[cfg_attr(
     all(not(test), not(windows)),
     expect(
@@ -289,8 +292,9 @@ struct Cli {
 
     /// Does not create `nvs.toml` in the data folder.
     ///
-    /// Without this option, `run`, `serve`, `test`, `build` and `check` create
-    /// `nvs.toml` in the data folder when they find no configuration file. The
+    /// Without this option, `run`, `serve`, `test`, `build`, `check` and `dap`
+    /// create `nvs.toml` in the data folder when they find no configuration
+    /// file. The
     /// file contains the default settings. With this option, no file is
     /// created, and the command uses the same default settings. Setting
     /// `NOVIS_NO_INIT` in the environment does the same.
@@ -390,7 +394,8 @@ fn started_by_a_manager() -> bool {
 /// sentence rather than by threading a flag through an arm.
 ///
 /// `nvs build` resolves no tree today and so reaches nothing to write; it is named because the
-/// answer for it is decided, not because it currently does anything.
+/// answer for it is decided, not because it currently does anything. `nvs dap` is here because
+/// the program it launches resolves its tree as `nvs run` would.
 fn initializes(command: &Command) -> bool {
     matches!(
         command,
@@ -399,6 +404,7 @@ fn initializes(command: &Command) -> bool {
             | Command::Test(_)
             | Command::Build(_)
             | Command::Check(_)
+            | Command::Dap(_)
     )
 }
 
@@ -428,6 +434,7 @@ fn carries_upload(command: &Command) -> bool {
         | Command::Fmt(_)
         | Command::Lsp(_)
         | Command::LspTest(_)
+        | Command::Dap(_)
         | Command::Info(_)
         | Command::Meta(_)
         | Command::Doc(_)
@@ -465,6 +472,7 @@ enum Command {
     Fmt(fmt::Args),
     Lsp(lsp::Args),
     LspTest(lsp_test::Args),
+    Dap(dap::Args),
     Info(info::Args),
     Meta(meta::Args),
     Doc(doc::Args),
@@ -476,7 +484,7 @@ enum Command {
 /// Every subcommand's name as clap writes it: the closed set a telemetry counter names
 /// (`rule:tooling/telemetry-counters-are-a-closed-set`). A test holds it equal to [`Command`]'s
 /// table, so a new command that is not listed here fails it, and until then counts as `unknown`.
-const COMMAND_NAMES: [&str; 27] = [
+const COMMAND_NAMES: [&str; 28] = [
     "ast",
     "check",
     "run",
@@ -498,6 +506,7 @@ const COMMAND_NAMES: [&str; 27] = [
     "fmt",
     "lsp",
     "lsp-test",
+    "dap",
     "info",
     "meta",
     "doc",
@@ -754,6 +763,7 @@ fn main() -> ExitCode {
         Command::Fmt(args) => args.run(),
         Command::Lsp(args) => args.run(),
         Command::LspTest(args) => args.run(&cli.config),
+        Command::Dap(args) => args.run(&cli.config, init),
         Command::Info(args) => args.run(),
         Command::Meta(args) => args.run(),
         Command::Doc(args) => args.run(),
@@ -3587,6 +3597,7 @@ mod tests {
             &["nvs", "test", "app.nvs"],
             &["nvs", "build", "--openapi", "app.nvs"],
             &["nvs", "check", "app.nvs"],
+            &["nvs", "dap"],
         ] {
             assert!(writes(project), "{project:?}");
             assert!(creates(project), "{project:?}");

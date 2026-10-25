@@ -15,6 +15,7 @@ commands = [
     "check",
     "code",
     "config",
+    "dap",
     "doc",
     "ext",
     "fmt",

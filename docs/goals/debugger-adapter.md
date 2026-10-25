@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/src/serve.rs, crates/nvs-ho
 stages:
   - id: 1
     title: "`nvs dap` speaks DAP over stdio and launches a program"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/src/lsp.rs, crates/nvs-cli/src/run.rs, crates/nvs-lsp/tests/stdout_policy.rs, docs/rules/ide/the-debug-adapter-does-not-wait-for-an-editor.md, docs/rules/ide/stdout-belongs-to-the-protocol.md]
     extra:
       context:
@@ -126,7 +126,16 @@ stopped thread, freed on resume. Usability: VS Code's whole debugger UI, launche
 for scripts, tests and a development server. Simplicity: one new command, no socket, and no UI code in
 the extension.
 
-**Lanes.** Stage 1 runs now. Stage 5 follows it on `crates/nvs-cli/src/dap/`. Stages 2 and 3 both edit
+**The adapter moves the process's standard streams, not the program's sink.** `nvs dap` copies the
+real stdin and stdout for the protocol, then points the process's stdout and stderr at two pipes and
+its stdin at the null device (`crates/nvs-cli/src/dap/stdio.rs`). A pump thread per pipe turns what
+arrives into `output` events. A sink on the program's context would cover `echo` alone, and a
+diagnostic, a panic message or a child process that inherited the stream would still reach the
+protocol. Moving the stream covers all of them, and the program cannot read the client's frames.
+Trade-offs: two pipes and two threads per session, and one audited `dup2` or `SetStdHandle` call per
+stream. `exited` is sent once both pipes have drained, so no output arrives after it.
+
+**Lanes.** Stage 1 is done. Stage 5 follows it on `crates/nvs-cli/src/dap/`. Stages 2 and 3 both edit
 `crates/nvs-codegen/src/emit.rs` and `crates/nvs-cli/src/dap/mod.rs`, and run in that order after 5.
 Stage 4 touches no Rust (`editors/vscode/`, `docs/reference/tools/40-editor.md`), so once stage 5 lands
 it runs as its own lane beside 2 and 3; only its last item, the rule flips, waits for 2 and 3.
@@ -138,11 +147,11 @@ it runs as its own lane beside 2 and 3; only its last item, the rule flips, wait
 **Does:** a DAP client starts `nvs dap`, initializes, launches a script in `run` mode, receives its
 output as events, and disconnects. No gate.
 
-- [ ] `nvs dap` joins the command list beside `nvs lsp`, with its help text (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/main.rs:395`, `crates/nvs-cli/src/main.rs:582`
-- [ ] The serde message types and the `Content-Length` frame reader and writer; stdout carries frames only, as `nvs lsp` does (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-cli/src/dap/protocol.rs:1`, `crates/nvs-cli/src/lsp.rs:37`
-- [ ] `initialize` with the capabilities stage 1 has, `launch` with `mode: run` through the `nvs run` path, `configurationDone`, `disconnect` and `terminate`. `crates/nvs-cli/src/dap/mod.rs:1`, `crates/nvs-cli/src/run.rs:108`
-- [ ] The program's stdout and stderr become `output` events, and its exit an `exited` and a `terminated` event (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-cli/src/dap/mod.rs:1`
-- [ ] A Rust test with a scripted DAP client: a launched script's output arrives as events, and every byte on stdout belongs to a frame even when the program prints a frame-shaped line (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-lsp/tests/stdout_policy.rs:1`, `crates/nvs-cli/src/dap/mod.rs:1`
+- [x] `nvs dap` joins the command list beside `nvs lsp`, with its help text (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/main.rs:395`, `crates/nvs-cli/src/main.rs:582`
+- [x] The serde message types and the `Content-Length` frame reader and writer; stdout carries frames only, as `nvs lsp` does (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-cli/src/dap/protocol.rs:1`, `crates/nvs-cli/src/lsp.rs:37`
+- [x] `initialize` with the capabilities stage 1 has, `launch` with `mode: run` through the `nvs run` path, `configurationDone`, `disconnect` and `terminate`. `crates/nvs-cli/src/dap/mod.rs:1`, `crates/nvs-cli/src/run.rs:108`
+- [x] The program's stdout and stderr become `output` events, and its exit an `exited` and a `terminated` event (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [x] A Rust test with a scripted DAP client: a launched script's output arrives as events, and every byte on stdout belongs to a frame even when the program prints a frame-shaped line (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-lsp/tests/stdout_policy.rs:1`, `crates/nvs-cli/src/dap/mod.rs:1`
 
 ### 5. `nvs dap` launches tests and a development server, and stops at a breakpoint
 
@@ -226,21 +235,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. Stage 1 needs nothing from `debugger-core`. Stages 5, 2 and 3 wait until
-`docs/goals/debugger-core.md` is gone and `crates/nvs-host/src/debug.rs` and
-`crates/nvs-runtime/src/ctx/frames.rs` exist. Stage 4 waits on stage 5. Find `main.rs` anchors by
-name (`Lsp(`, `Command::Lsp`, `fn run_run`).
+Stage 1 is done. `nvs dap` is a command (`crates/nvs-cli/src/dap/`): `protocol.rs` is the frame
+reader and writer and the serde types, `stdio.rs` moves the process's streams into pipes, and
+`mod.rs` answers `initialize`, `launch` (`run` mode only), `configurationDone`, `threads` (one
+`main` thread), `terminate` and `disconnect`. It runs the program through `crate::run_run` on a
+thread of its own. `crates/nvs-cli/tests/dap.rs` is the scripted client, with a strict frame
+reader over all of stdout. It passes on Windows and on Linux (`bun nv linux-test --test dap`). The
+`debugger-core` gate holds: its goal file is gone and both files exist, so stage 5 can start.
+
+`dap` joined `COMMAND_NAMES`, `apps/telemetry/known.toml`, `initializes` and the `--no-init` help,
+and `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` lists it as a project
+command. No existing test is expected to go red.
+
+Not read yet from `launch`: `env`, `stopOnEntry`, `filter`, `skipFiles` and `pathMappings`. A
+`terminate` sends `terminated` and leaves the program running until `disconnect` ends the process.
+Stage 5 can stop it through the controller instead.
+
+For stage 4's attack: `echo` writes a carriage return as `␍`, so a program cannot echo a real frame
+header. The attack still shows the line arriving as an `output` event.
 
 ### Next
 
-**Stage 1: `nvs dap` over stdio**, file set `crates/nvs-cli/src/main.rs`, a new `crates/nvs-cli/src/dap/`,
-`crates/nvs-cli/src/run.rs`. No gate.
+**Stage 5: `test` and `serve` modes, and a breakpoint**, file set `crates/nvs-cli/src/dap/mod.rs`,
+`crates/nvs-cli/src/runner.rs`, `crates/nvs-cli/src/serve.rs`, `crates/nvs-host/src/debug.rs`,
+`crates/nvs-cli/tests/dap.rs`. Gate holds.
 
-- [ ] The command beside `nvs lsp`, with its help text (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/main.rs:395`, `crates/nvs-cli/src/main.rs:582`
-- [ ] The message types and the frame reader and writer (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-cli/src/dap/protocol.rs:1`, `crates/nvs-cli/src/lsp.rs:37`
-- [ ] `initialize`, `launch` in `run` mode, `configurationDone`, `disconnect` and `terminate`. `crates/nvs-cli/src/dap/mod.rs:1`, `crates/nvs-cli/src/run.rs:108`
-- [ ] Output, `exited` and `terminated` events. `crates/nvs-cli/src/dap/mod.rs:1`
-- [ ] The scripted-client test, with the every-byte-is-a-frame check (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [ ] `launch` with `mode: test` and `mode: serve`, and `env` and `stopOnEntry` read; a launched serve starts in `development` (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/dap/mod.rs:204`, `crates/nvs-cli/src/dap/mod.rs:294`, `crates/nvs-cli/src/runner.rs:785`, `crates/nvs-cli/src/serve.rs:227`
+- [ ] Every launch compiles with the debug switch and runs under `debugger-core`'s controller (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-host/src/debug.rs:1`
+- [ ] `setBreakpoints`, `threads`, `stackTrace`, `scopes`, `variables`, `continue` and `pause`, each task of the stopped tree a thread (`rule:testing/a-stop-pauses-the-whole-task-tree`). `crates/nvs-cli/src/dap/mod.rs:155`, `crates/nvs-host/src/scheduler.rs:312`
+- [ ] Scripted-client tests in each mode: a breakpoint stops with the right values, a second request is answered while a served one is stopped, and the stdout check holds in `test` and `serve`. `crates/nvs-cli/tests/dap.rs:1`
 
 ### Backlog
 
@@ -248,3 +271,4 @@ name (`Lsp(`, `Command::Lsp`, `fn run_run`).
 - A condition that may call a pure `Core` function would need a purity mark on `Core` methods (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
 - An `inout` by-reference variable has no debug slot, so a stopped frame does not list it. The adapter can read it through its staged cell. `crates/nvs-ir/src/lower/mod.rs:2602`
 - No test checks the name an anonymous function's frame reports, and this goal decides how the call stack names it. `crates/nvs-cli/tests/debugger.rs:241`
+- A pump waits for every holder of the program's pipes, so a child process the program left running delays `exited` until it ends. `crates/nvs-cli/src/dap/mod.rs:223`

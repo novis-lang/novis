@@ -15,7 +15,7 @@ Four steps, first hit wins:
    write reads the file as it is.
 4. Otherwise the shipped defaults
    (`rule:config/no-configuration-file-is-a-complete-configuration`). A **project command** — `run`,
-   `serve`, `test`, `build` and `check` — first writes the shipped default file as the data folder's
+   `serve`, `test`, `build`, `check` and `dap` — first writes the shipped default file as the data folder's
    `nvs.toml`, the file step 3 looks for, and then reads it. Every key in it is commented out, so it
    resolves to exactly the shipped defaults. `--no-init`, or `NOVIS_NO_INIT` set to any value, turns
    that one write off; the data folder itself is still created. A write the folder refuses is no
