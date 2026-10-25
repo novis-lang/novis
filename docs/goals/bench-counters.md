@@ -245,7 +245,9 @@ of them builds. The session builds once they all end, and checks each against it
   - [x] A debug test measures a waiting request's heap on its core, connection and request apart. `crates/nvs-cli/src/serve.rs:4499`
   - [x] The heap is broken down in `stack.rs`'s *What a waiting request holds*. `crates/nvs-host/src/stack.rs:123`
   - [x] The per-connection read scratch and the head buffer the access line kept are gone, 16 KiB per waiting request. `crates/nvs-server/src/io.rs:508`, `crates/nvs-server/src/serve.rs:1682`
-  - [ ] The program stack's 28 KiB above `KEPT_RESIDENT` is broken down, and a part not needed per request is removed. `crates/nvs-host/src/stack.rs:105`
+  - [x] The stack is counted per part through `nvs_host::counts::StackPages`, and the module doc breaks it down: the program's part is the host's path, and three quarters is the connection's. `crates/nvs-host/src/stack.rs:117`
+  - [x] The task's `Ctx` stays boxed, one page less on every task's stack. `crates/nvs-host/src/scheduler.rs:923`
+  - [ ] The connection's stack, 8 pages while its request waits in release, is broken down by frame, and a frame not needed while it waits is made smaller or moved. `crates/nvs-server/src/serve.rs:1574`
   - [ ] The gap record is deleted. `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
 
 ### 7. the goal is verified once, and every failure is fixed
@@ -265,38 +267,42 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 6's items 1 to 7 are done, and their gap records are deleted. Item 8's heap half is done.
+Stage 6's items 1 to 7 are done, and their gap records are deleted. Item 8's heap is done, and its
+stack is measured per part.
 
-- **A waiting request's heap** is broken down in `crates/nvs-host/src/stack.rs:123`, measured by
-  `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap` (`crates/nvs-cli/src/serve.rs:4499`).
-  It was about 42 KiB and is now about 26 KiB: an idle connection 22 KiB, the request 3.7 KiB more.
-  The read scratch is one per core (`crates/nvs-server/src/io.rs:508`), and the access line copies
-  the path, so `hyper` reuses its read buffer (`crates/nvs-server/src/serve.rs:1682`). The rest of
-  the connection is `hyper`'s two fixed 8 KiB buffers, its 2.4 KiB boxed service future and a `Ctx`.
-Checked: build, clippy and fmt green, and the new heap test ran once, by name.
+- **A waiting request's stack** is counted by `nvs_host::counts::StackPages`
+  (`crates/nvs-host/src/counts.rs:65`, debug only, fed by a live-stack list in `stack.rs`'s
+  `Stacks::take`/`give`). The heap test reads it at each probe and bounds each part
+  (`crates/nvs-cli/src/serve.rs:4503`). In release on Windows, measured by turning the reading on by
+  hand: an idle connection 4.1 pages, its request 3.9 more on the connection's stack, its program 2.0
+  on its own. Debug: 13.5, 9.6 and 8. The container profile's "program 36 KiB" was the connection's
+  stack. The module doc is `crates/nvs-host/src/stack.rs:117`.
+- **The task's `Ctx` stays boxed** (`crates/nvs-host/src/scheduler.rs:923`): an idle connection
+  went from 5.0 to 4.1 pages, and the heap readings did not move.
+- The gap record now names the connection's stack (`data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`).
+Checked: build, clippy and fmt green, and the heap test ran by name in debug and twice in release.
 
-Tests expected to go red: none known. Stage 7 runs `cargo test --lib watchdog` (per-core lock) and
-`nvs-server`'s `io` tests (per-core scratch) first.
+Tests expected to go red: none known. Stage 7 runs `cargo test --lib watchdog` (per-core lock),
+`nvs-server`'s `io` tests (per-core scratch) and `stack::tests` (boxed `Ctx`) first.
 
-The sweep's reds were stale: `env-secret-proofs`' log shows exit 0, and nightly `40075586234`
-(`3ea6f1550`) is green for `supply chain` and `lint` in run `40158642410`, with its three Miri
-tests fixed or skipped under Miri at HEAD.
+The sweep's reds were stale. `env-secret-proofs` exits 0 when run. Nightly `40075586234`'s jobs
+were dealt with last session. The push run `40158642410`'s one red, `serve::tests::sends_to_a_peer_that_stopped_reading_queue_one_frame_at_the_most`
+on Windows, ran at `9be30356e`, before `0b7eadd2c` widened that bound.
 
 ### Next
 
-**Stage 6, item 8, the program stack.** The heap half is done. The program stack is 36 KiB
-resident in a release container, 28 KiB above `KEPT_RESIDENT`, and the host's part is 2 pages.
+**Stage 6, item 8, the connection's stack.** It holds 8 pages in release while its request waits:
+the accept loop's spawn, `hyper`'s connection future (`crates/nvs-server/src/serve.rs:1574`), and
+the handler's path.
 
-- [ ] A waiting request's stack and heap are broken down in the module doc, and each part not needed per request is removed. `crates/nvs-host/src/stack.rs:105`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
+- [ ] The connection's stack is broken down by frame, and a frame not needed while it waits is made smaller or moved. `crates/nvs-server/src/serve.rs:1574`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
 
-Measure it in the heap test's shape: expose a debug-only reading of a parked task's resident stack
-pages beside `nvs_host::counts` (`stack.rs`'s private `resident_pages`, `crates/nvs-host/src/stack.rs:649`),
-and read it in `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`. Note that the
-first request of a unit compiles on the connection's stack (`compiler.compiled` runs in the handler).
-Then find the deep frame with a release build's frame sizes. Boxing the task entry's 1,776-byte `Ctx`
-(`scheduler.rs`) is the gap's other lead. To find the owner of a heap block, a temporary
-size histogram in `budget.rs`'s `Accounting`, with a backtrace for one size, found both 8 KiB parts
-in minutes; remove it before committing.
+To measure in release, change `#[cfg(debug_assertions)]` on `pub mod counts` (`crates/nvs-host/src/lib.rs:128`)
+and in `stack.rs` to an always-true `cfg` by hand, then run `cargo test --release --bin nvs
+a_waiting_request_holds -- --nocapture` with a temporary print. It takes 5 minutes. Revert before
+committing. Frame sizes: a release build's `-Z emit-stack-sizes` needs nightly. Reading the stack
+pointer at the park, against the resident pages, separates a deep frame that returned from a
+frame held while parked.
 
 Stage 3 (`tools/nv/cmd/scaling.ts:919`) stays open as the other side lane.
 
