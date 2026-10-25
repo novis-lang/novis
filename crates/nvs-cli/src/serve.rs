@@ -4484,6 +4484,188 @@ mod tests {
     /// How many bytes the serving thread may gain over [`SOAK_SPAN`] requests.
     const SOAK_DRIFT: isize = 4 * 1024;
 
+    /// What one waiting request holds on the heap of the core that serves it,
+    /// split into its connection's part and its request's part.
+    ///
+    /// The core serves [`WAITING`] connections that first send nothing and then
+    /// each send a request whose program sleeps. A `/probe` request reads
+    /// [`nvs_runtime::budget::live_bytes`] on the serving thread three times: with
+    /// nothing open, with every connection open and idle, and with every request
+    /// asleep. The differences, per connection, are the two parts
+    /// `nvs_host::stack`'s *What a waiting request holds* records. Each probe runs
+    /// after a warm-up `/wait` and `/probe`, so the compiled units and the caches a
+    /// first request fills are in all three readings.
+    #[test]
+    fn a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap() {
+        let dir = nvs_repo::scratch("serve-waiting-heap");
+        let waits = dir.join("wait.nvs");
+        let probes = dir.join("probe.nvs");
+        std::fs::write(
+            &waits,
+            "<?nvs\nCore\\Time::sleep(Core\\Time\\Duration::milliseconds(1500));\necho \"woke\";\n",
+        )
+        .expect("the entry is writable");
+        std::fs::write(&probes, "<?nvs\necho \"probe\";\n").expect("the entry is writable");
+        let waits = waits.to_string_lossy().into_owned();
+        let probes = probes.to_string_lossy().into_owned();
+
+        let mut listener =
+            nvs_host::NvsListener::bind(a_free_address()).expect("the loopback refused a listener");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener knows its own address");
+        let draining = nvs_server::Draining::detached();
+        let drained = draining.clone();
+        let client = std::thread::spawn(move || {
+            let _ends = EndsTheServer(drained);
+            let connect = || {
+                let socket =
+                    std::net::TcpStream::connect(addr).expect("the loopback refused a socket");
+                socket
+                    .set_read_timeout(Some(CLIENT_PATIENCE))
+                    .expect("the socket refused a read timeout");
+                socket
+            };
+            let ask = |socket: &mut std::net::TcpStream, path: &str| {
+                socket
+                    .write_all(
+                        format!(
+                            "GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+                        )
+                        .as_bytes(),
+                    )
+                    .expect("a request could not be written");
+            };
+            let answer = |mut socket: std::net::TcpStream| {
+                let mut reply = Vec::new();
+                socket
+                    .read_to_end(&mut reply)
+                    .expect("a reply could not be read to its end");
+                let reply = String::from_utf8_lossy(&reply).into_owned();
+                assert!(
+                    reply.starts_with("HTTP/1.1 200 "),
+                    "a request failed: {reply}"
+                );
+            };
+            let probe = || {
+                let mut socket = connect();
+                ask(&mut socket, "/probe");
+                answer(socket);
+            };
+            let settle = || std::thread::sleep(Duration::from_millis(300));
+
+            let mut warm = connect();
+            ask(&mut warm, "/wait");
+            answer(warm);
+            probe();
+            settle();
+            probe();
+            let mut open: Vec<_> = (0..WAITING).map(|_| connect()).collect();
+            settle();
+            probe();
+            for socket in &mut open {
+                ask(socket, "/wait");
+            }
+            settle();
+            probe();
+            for socket in open {
+                answer(socket);
+            }
+        });
+
+        let compiler = Arc::new(Compiler::default());
+        let serving = nvs_server::Serving::new(
+            Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
+                &nvs_config::server::Capacity {
+                    configured: u64::MAX,
+                    per_request: None,
+                    budget: None,
+                },
+            ))),
+            Arc::new(nvs_server::Secure::of(None)),
+            Arc::new(nvs_server::Trusted::of(&[]).0),
+            Arc::new(nvs_server::Cors::of(None)),
+            Arc::default(),
+        );
+        let mut sched = nvs_host::Scheduler::new();
+        let installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        // Sized for every reading up front, so its own growth is not counted.
+        let readings = Rc::new(std::cell::RefCell::new(Vec::<isize>::with_capacity(8)));
+        let handler = Rc::new({
+            let compiler = Arc::clone(&compiler);
+            let readings = Rc::clone(&readings);
+            move |request: nvs_server::Request<nvs_server::Incoming>,
+                  _origin: nvs_server::Origin| {
+                let path = if request.uri().path() == "/probe" {
+                    readings
+                        .borrow_mut()
+                        .push(nvs_runtime::budget::thread_live_bytes());
+                    &probes
+                } else {
+                    &waits
+                };
+                let (program, _routes) = compiler.compiled(path).expect("the entry compiles");
+                let inbound = Inbound::new(request.method().as_str(), request.uri().path(), "");
+                nvs_server::Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                    None,
+                    None,
+                )
+            }
+        });
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let draining = draining.clone();
+            move |_ctx| {
+                nvs_server::serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    nvs_config::server::Waits::default(),
+                    &serving,
+                    &draining,
+                    |_note| {},
+                    || ControlFlow::Continue(()),
+                )
+                .expect("the accept loop failed");
+            }
+        });
+        loop {
+            match nvs_host::run_until_idle(&mut sched) {
+                Ok(report) if report.parked > 0 => {}
+                Ok(_) => break,
+                Err(error) => panic!("the scheduler stopped: {error}"),
+            }
+        }
+        drop(installed);
+        client.join().expect("the client thread panicked");
+
+        let readings = readings.borrow();
+        let [_warm, nothing, idle, waiting] = readings[..] else {
+            panic!("the probes read {readings:?}, not four readings");
+        };
+        let per = |from: isize, to: isize| (to - from) / WAITING;
+        let connection = per(nothing, idle);
+        let request = per(idle, waiting);
+        assert!(
+            connection <= CONNECTION_HEAP && request <= REQUEST_HEAP,
+            "an idle connection held {connection} bytes, over {CONNECTION_HEAP}, or a waiting \
+             request {request} more, over {REQUEST_HEAP}: {readings:?}"
+        );
+    }
+
+    /// How many connections [`a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`]
+    /// opens at once.
+    const WAITING: isize = 32;
+
+    /// How many heap bytes an idle connection may hold on its core: about
+    /// 22 KiB measured, and less than the 8 KiB a second read buffer would add.
+    const CONNECTION_HEAP: isize = 24 * 1024;
+
+    /// How many heap bytes a waiting request may hold on its core, beyond its
+    /// connection's: about 3.7 KiB measured, and less than the 8 KiB a head
+    /// buffer kept for the whole request would add.
+    const REQUEST_HEAP: isize = 6 * 1024;
+
     /// An address on the loopback nothing is listening on, taken from the
     /// platform and given straight back so the boot under test is what binds it.
     fn a_free_address() -> SocketAddr {

@@ -1679,9 +1679,12 @@ where
         // less than the branch that would ask.
         let verb = request.method().clone();
         let began = Instant::now();
-        // The request target, for the access line below. A clone of `hyper`'s
-        // `Uri` shares the bytes it was framed from rather than copying them.
-        let target = request.uri().clone();
+        // The request path, for the access line below, copied out of the head.
+        // A clone of `hyper`'s `Uri` would share the buffer the head was read
+        // into, and keep it for the whole request. `hyper` then reads the next
+        // bytes into a second buffer, 8 KiB per waiting request. The copy costs
+        // one allocation of the path's length.
+        let target: Box<str> = request.uri().path().into();
         // The trace the door decided, read off the carrier beside the label
         // below, and the snapshot the program ran under: the access line names
         // the one and reads `[log] access` off the other. Both stay empty for
@@ -1729,7 +1732,7 @@ where
                 &crate::trace::Access {
                     probe,
                     method: verb.as_str(),
-                    path: target.path(),
+                    path: &target,
                     status,
                     took,
                     bytes: response.body().size_hint().exact(),

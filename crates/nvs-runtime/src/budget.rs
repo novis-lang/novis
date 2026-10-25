@@ -972,6 +972,17 @@ pub fn live_bytes() -> isize {
     LIVE.with(Cell::get).wrapping_sub(FOREIGN.with(Cell::get))
 }
 
+/// How many bytes this thread has allocated and not yet freed, whatever task
+/// allocated them.
+///
+/// [`live_bytes`] with every parked task's share left in: the balance the
+/// core's gauge publishes. A test reads it to count what many waiting requests
+/// on one core hold together.
+#[must_use]
+pub fn thread_live_bytes() -> isize {
+    LIVE.with(Cell::get)
+}
+
 /// How many bytes this thread has allocated inside a [`Detached`] bracket and
 /// not yet given back inside one.
 ///

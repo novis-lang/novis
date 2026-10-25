@@ -120,6 +120,29 @@
 //! `a_sleeping_program_touches_the_pages_its_own_frames_need` holds the host's
 //! part to its count.
 //!
+//! # What a waiting request holds
+//!
+//! A request that sleeps behind 1000 others in a release container has two
+//! stacks resident: its connection's, 8 KiB, and its program's, 36 KiB. The
+//! program's is broken down above. Its heap on the serving core, measured in a
+//! debug build by `nvs-cli`'s
+//! `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`, is
+//! about 26 KiB:
+//!
+//! - **The connection, about 22 KiB.** `hyper`'s read buffer and its header
+//!   write buffer, 8 KiB each, sized inside `hyper` with no setting to change
+//!   them. The future that serves the connection's requests, about 2.4 KiB,
+//!   which `hyper` boxes. The connection task's `Ctx`, 1,872 bytes, and about
+//!   1 KiB of small cells and handles.
+//! - **The request, about 3.7 KiB.** The isolate's `Ctx`, 1,872 bytes and
+//!   about 550 more of its own, and the request's parsed head and slots.
+//!
+//! Two 8 KiB parts were not needed per request and are gone. The read scratch
+//! of `nvs_server::io` is one per core, because no read parks while it holds
+//! it. The access line copies the request path out of the head, so `hyper`
+//! reuses its read buffer: a clone of the `Uri` kept that buffer for the whole
+//! request, and `hyper` read the next bytes into a second one.
+//!
 //! # The spare stack
 //!
 //! A parse whose recursion depth is set by its input — `serde_json` takes one

@@ -87,11 +87,11 @@
 //! reading a `408` either.
 //!
 //! **What that spends**, per `rule:programs/memory-priority`:
-//! [`SCRATCH`] bytes of heap per open connection, zeroed once when the
-//! connection is accepted, and one `memcpy` of at most that much per readable
-//! poll. The buffer is the connection's rather than the read's, so a read
-//! touches no fresh stack and zeroes nothing. It is O(in-flight), and
-//! `rule:concurrency/connection-bounds-are-finite` bounds how many there are.
+//! [`SCRATCH`] bytes of heap per core, zeroed once at the core's first read,
+//! and one `memcpy` of at most that much per readable poll. The buffer is the
+//! core's rather than the read's, so a read touches no fresh stack and zeroes
+//! nothing, and it is not the connection's, because no read parks while it
+//! holds the buffer ([`Scratch`]). A connection spends none of it.
 //! AGENTS.md's ordering puts security above latency, and a bounded `memcpy` on
 //! an L1-resident buffer is the cheap side of that trade; if a benchmark ever
 //! says otherwise, the thing to change is the buffer's size, and only then the
@@ -241,9 +241,6 @@ pub struct ConnectionIo {
     /// Whether the last write found the socket full, shared with the
     /// connection loop: [`ConnectionIo::write_parked`].
     write_parked: Rc<Cell<bool>>,
-    /// The [`SCRATCH`] bytes each read lands in before it is copied into
-    /// `hyper`'s cursor, zeroed once here and reused by every read.
-    scratch: Box<[u8]>,
 }
 
 impl ConnectionIo {
@@ -262,7 +259,6 @@ impl ConnectionIo {
             woken_at_drain: None,
             scanner: Scanner::default(),
             write_parked: Rc::new(Cell::new(false)),
-            scratch: vec![0_u8; SCRATCH].into_boxed_slice(),
         }
     }
 
@@ -468,24 +464,60 @@ impl Read for ConnectionIo {
             return Poll::Ready(Ok(()));
         }
         let this = &mut *self;
-        match this.stream.poll_read(&mut this.scratch[..want]) {
-            Poll::Ready(Ok(read)) => {
-                // The first byte after a response is the next request's head,
-                // which ends the keep-alive wait and fixes that head's deadline.
-                // In the head itself this arming moves nothing.
-                if read > 0 {
-                    if this.phase.get() == Phase::KeepAlive {
-                        this.phase.set(Phase::Head);
+        CORE_SCRATCH.with(|scratch| {
+            let mut scratch = scratch.borrow_mut();
+            let scratch = &mut scratch.get_or_insert_with(Scratch::new).0;
+            match this.stream.poll_read(&mut scratch[..want]) {
+                Poll::Ready(Ok(read)) => {
+                    // The first byte after a response is the next request's head,
+                    // which ends the keep-alive wait and fixes that head's deadline.
+                    // In the head itself this arming moves nothing.
+                    if read > 0 {
+                        if this.phase.get() == Phase::KeepAlive {
+                            this.phase.set(Phase::Head);
+                        }
+                        this.arm(true);
                     }
-                    this.arm(true);
+                    this.scanner.feed(&scratch[..read]);
+                    cursor.put_slice(&scratch[..read]);
+                    Poll::Ready(Ok(()))
                 }
-                this.scanner.feed(&this.scratch[..read]);
-                cursor.put_slice(&this.scratch[..read]);
-                Poll::Ready(Ok(()))
+                Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
+                Poll::Pending => Poll::Pending,
             }
-            Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
-            Poll::Pending => Poll::Pending,
-        }
+        })
+    }
+}
+
+thread_local! {
+    /// This core's [`Scratch`], made by its first connection's first read.
+    static CORE_SCRATCH: std::cell::RefCell<Option<Scratch>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// The [`SCRATCH`] bytes every read on one core lands in before it is copied
+/// into `hyper`'s cursor, zeroed once and reused by every connection on the
+/// core.
+///
+/// One per core and not one per connection, because a read fills it and
+/// copies out of it without parking: the socket read does not wait, so no
+/// other connection's read can run in between. Each read copies only the bytes
+/// it just read, so no connection sees another's. Made and freed inside a
+/// [`nvs_runtime::budget::Detached`] bracket, because it is the core's and not
+/// the request's that happened to read first.
+struct Scratch(Box<[u8]>);
+
+impl Scratch {
+    fn new() -> Self {
+        let _core = nvs_runtime::budget::Detached::begin();
+        Self(vec![0_u8; SCRATCH].into_boxed_slice())
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _core = nvs_runtime::budget::Detached::begin();
+        drop(std::mem::take(&mut self.0));
     }
 }
 
