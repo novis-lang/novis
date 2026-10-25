@@ -72,7 +72,8 @@ use nvs_ir::ir::{
 use nvs_runtime::{
     DEBUG_FLAGS_OFFSET, DEBUG_FRAMES_OFFSET, DEPRECATED_OFFSET, Decimal as NvsDecimal,
     FRAME_CALLER_OFFSET, FRAME_FUNCTION_OFFSET, FRAME_RECORD_SIZE, FRAME_SITE_OFFSET,
-    FRAME_SLOT_COUNT_OFFSET, FRAME_SLOTS_OFFSET, OK, SAFEPOINT_OFFSET, STACK_LIMIT_OFFSET, THROWN, Tag, Value as NvsValue,
+    FRAME_SLOT_COUNT_OFFSET, FRAME_SLOTS_OFFSET, OK, SAFEPOINT_OFFSET, STACK_LIMIT_OFFSET, THROWN,
+    Tag, Value as NvsValue,
 };
 use rustc_hash::FxHashMap;
 
@@ -368,10 +369,18 @@ fn link_frame_record(
             .ok()
             .and_then(|slot| slot.checked_mul(VALUE_SIZE))
             .ok_or_else(|| internal("a debug slot past i32"))?;
-        b.ins()
-            .store(trusted(), unset, slots, offset + offset_i32(NvsValue::TAG_OFFSET)?);
-        b.ins()
-            .store(trusted(), zero, slots, offset + offset_i32(NvsValue::BITS_OFFSET)?);
+        b.ins().store(
+            trusted(),
+            unset,
+            slots,
+            offset + offset_i32(NvsValue::TAG_OFFSET)?,
+        );
+        b.ins().store(
+            trusted(),
+            zero,
+            slots,
+            offset + offset_i32(NvsValue::BITS_OFFSET)?,
+        );
     }
     b.ins()
         .store(ctx_word(), slots, record_p, offset_i32(FRAME_SLOTS_OFFSET)?);

@@ -1583,10 +1583,8 @@ mod tests {
     #[test]
     fn a_held_wall_deadline_is_none_and_moves_by_the_time_held() {
         let tree = TreeState::default();
-        tree.wall_time.store(
-            10_000_000_000,
-            std::sync::atomic::Ordering::Relaxed,
-        );
+        tree.wall_time
+            .store(10_000_000_000, std::sync::atomic::Ordering::Relaxed);
         let before = tree.wall_deadline().expect("a wall time");
         tree.hold_deadlines();
         assert_eq!(tree.wall_deadline(), None, "a stopped tree has no deadline");
