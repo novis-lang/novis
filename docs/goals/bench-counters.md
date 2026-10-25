@@ -226,10 +226,10 @@ line. The session checks each batch and ticks it.
 **Split:** the items touch disjoint files, so writing subagents may take them side by side, and none
 of them builds. The session builds once they all end, and checks each against its record.
 
-- [ ] The scheduler's task maps hash `TaskId` with `rustc_hash`, with a comment saying why the key needs no seed. `crates/nvs-host/src/scheduler.rs:382`, `data/gaps/nvs-host/a-task-id-is-hashed-with-siphash.json:1`
-- [ ] `Core\Math::intDiv` is emitted inline, with the same division-by-zero and overflow errors, and its bench declares the calls it makes. `crates/nvs-stdlib/src/math.rs:163`, `data/gaps/nvs-stdlib/math-int-div-is-an-out-of-line-call.json:1`
-- [ ] `Core\Test\Response::body` keeps the checked string after the first call, per response, and its bench declares what it measures. `crates/nvs-stdlib/src/test.rs:1`, `data/gaps/nvs-stdlib/a-test-response-body-copies-its-bytes-on-every-call.json:1`
-- [ ] `Core\Request::jsonAs` decodes with `read_against`, keeping every check `decodeAs` keeps, and every `Core\Request` and `Core\Json` attack gives the same output. `crates/nvs-stdlib/src/request.rs:336`, `data/gaps/nvs-stdlib/request-json-as-builds-arrays-before-its-object.json:1`
+- [x] The scheduler's task maps hash `TaskId` with `rustc_hash`, with a comment saying why the key needs no seed. `crates/nvs-host/src/scheduler.rs:382`, `data/gaps/nvs-host/a-task-id-is-hashed-with-siphash.json:1`
+- [x] `Core\Math::intDiv` is emitted inline, with the same division-by-zero and overflow errors, and its bench declares the calls it makes. `crates/nvs-stdlib/src/math.rs:163`, `data/gaps/nvs-stdlib/math-int-div-is-an-out-of-line-call.json:1`
+- [x] `Core\Test\Response::body` keeps the checked string after the first call, per response, and its bench declares what it measures. `crates/nvs-stdlib/src/test.rs:1`, `data/gaps/nvs-stdlib/a-test-response-body-copies-its-bytes-on-every-call.json:1`
+- [x] `Core\Request::jsonAs` decodes with `read_against`, keeping every check `decodeAs` keeps, and every `Core\Request` and `Core\Json` attack gives the same output. `crates/nvs-stdlib/src/request.rs:336`, `data/gaps/nvs-stdlib/request-json-as-builds-arrays-before-its-object.json:1`
 - [ ] A literal `Str::format` template is split while compiling, a tainted argument's result stays tainted, and the bench declares what it measures. `crates/nvs-stdlib/src/format.rs:1`, `data/gaps/nvs-stdlib/a-literal-format-template-is-parsed-on-every-call.json:1`
 - [ ] A cross-tree switch charges `[limits] cpu_time` with a cheaper clock, and every CPU-time limit test stays green. `crates/nvs-host/src/cpuclock.rs:171`, `data/gaps/nvs-host/a-cross-tree-switch-reads-the-cpu-clock-with-a-system-call.json:1`
 - [ ] The hello case's 2.5 µs of isolate start and finish is broken down, and each part that is not isolation is removed or moved out of the request. `crates/nvs-host/src/isolate.rs:1`, `data/gaps/nvs-host/an-isolate-start-and-finish-cost-microseconds-per-request.json:1`
@@ -252,22 +252,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 5 is done. `nvs test --probes` turns `nvs_runtime::DebugFlags::SITES` on for the whole process
-(`nvs_runtime::probe_every_site`, `crates/nvs-runtime/src/ctx/trace.rs:282`), and every context
-starts with it (`wiring.rs`'s `Ctx::new`). Compiled code tests the whole flags word, so every
-statement, branch and call site calls its helper, and no helper reads the bit: nothing is recorded.
-A `.nvst` case's processes get it as `NOVIS_PROBES` (`crates/nvs-cli/src/main.rs:2833`), which `nvs`
-reads at start beside `NOVIS_OPT_LEVEL` and lists in `nvs --help`. `set_debug_flags` keeps the bit.
-The CI lane `Conformance suite, probes on` runs beside the unoptimised one (`.github/workflows/ci.yml:303`).
-The rule is `shipped`, its `**Not on disk.**` paragraph is gone, and it records the declined
-alternative (every recording bit on). `## Standing decisions` records why.
+Stage 6's first four items are done, one commit each, and their gap records are deleted.
 
-Checked: build and clippy green. `every_site_probed_records_nothing_and_stays_on` and
-`a_probed_run_passes_the_same_cases_and_leaves_no_probe_data` pass. `nvs test --probes
-tests/conformance/lang/` passed 435 of 435.
+- **`TaskId` maps.** `nvs_host::scheduler::TaskMap` is `FxHashMap<TaskId, _>`, and its doc says
+  why the key needs no seed. The task tree, the parked set, the reactor's registrations and the
+  timers' armed deadlines all use it (`crates/nvs-host/src/scheduler.rs:384`). The first profile
+  still showed a SipHash row from the reactor and timer maps, which is why all four use it. The
+  second `bun nv bench-compare --profile hello` shows no hash row among its 33.
+- **`Core\Math::intDiv`** lowers to a new `BinOp::IntDiv` (`crates/nvs-ir/src/lower/expr.rs:4610`),
+  which `emit_truncating_int_div` emits inline with the helper's two `ArithmeticError` messages
+  (`crates/nvs-codegen/src/emit.rs:2020`). A callable value made from the member still calls the
+  helper, and both read the messages from `nvs_stdlib::math`'s constants. The bench counts 0 calls.
+- **`Core\Test\Response::body`** keeps the checked string in a fourth slot, `text`. That string is
+  over the body's own bytes, so no call allocates (`crates/nvs-stdlib/src/test.rs:1051`).
+- **`Core\Request::jsonAs`** calls `json::read_as`, which is `decode_as`'s parse with no context,
+  then `ReadAs::build` (`crates/nvs-stdlib/src/json.rs:2163`). The bench fell from 67 to 32
+  allocations per operation.
 
-`bun nv owners --closes bench-counters` names no designed rule now. It names nine gaps: stage 3's
-one and stage 6's eight.
+Checked: build and clippy green. The three new tests pass by name:
+`a_direct_int_div_call_is_an_inline_division_with_an_error_edge`,
+`body_keeps_the_string_it_checked_and_a_second_call_allocates_nothing` and
+`json_as_refuses_each_bad_body_with_the_message_the_array_path_gave`. The jsonAs test first read
+`ctx.take_pending()`, which is empty for a `ParseError` in a context with no program, so it now
+compares the two routes' faults. `bun nv proofs --run` passed every example and attack of
+`Core\Request`, `Core\Json`, `Core\Math` and `Core\Test\Response`. The two `intDiv` conformance
+cases pass. `--record-perf` recorded the three members.
+
+`bun nv owners --closes bench-counters` should name five gaps: stage 3's one and stage 6's last four.
 
 Tests expected to go red: none known.
 
@@ -276,21 +287,22 @@ the nightly run `40075586234` is on `3ea6f1550`, far behind HEAD.
 
 ### Next
 
-**Stage 6, items 1 to 4.** Each is small, and their files are disjoint, so per the stage's
-`**Split:**` line writing subagents may take them side by side without building; the session builds
-once, checks each against its gap record, and deletes the record.
+**Stage 6, items 5 and 6.** Their files are disjoint, so writing subagents may take them side by
+side without building. The session builds once, checks each against its gap record, and deletes it.
 
-- [ ] `TaskId` maps hash with `rustc_hash`, with the comment on why the key needs no seed. `crates/nvs-host/src/scheduler.rs:382`, `data/gaps/nvs-host/a-task-id-is-hashed-with-siphash.json:1`
-- [ ] `Core\Math::intDiv` emitted inline, same errors. `crates/nvs-stdlib/src/math.rs:163`, `data/gaps/nvs-stdlib/math-int-div-is-an-out-of-line-call.json:1`
-- [ ] `Core\Test\Response::body` keeps the checked string after the first call. `crates/nvs-stdlib/src/test.rs:1`, `data/gaps/nvs-stdlib/a-test-response-body-copies-its-bytes-on-every-call.json:1`
-- [ ] `Core\Request::jsonAs` decodes with `read_against`. `crates/nvs-stdlib/src/request.rs:336`, `data/gaps/nvs-stdlib/request-json-as-builds-arrays-before-its-object.json:1`
+- [ ] A literal `Str::format` template is split while compiling, and a tainted argument's result stays tainted. The checker already takes a literal call apart (`format_pieces`, `crates/nvs-ir/src/lower/expr.rs:4643`): find what is still parsed per call first. `crates/nvs-stdlib/src/format.rs:1`, `data/gaps/nvs-stdlib/a-literal-format-template-is-parsed-on-every-call.json:1`
+- [ ] A cross-tree switch charges `[limits] cpu_time` with a cheaper clock, and every CPU-time limit test stays green. `crates/nvs-host/src/cpuclock.rs:171`, `data/gaps/nvs-host/a-cross-tree-switch-reads-the-cpu-clock-with-a-system-call.json:1`
+
+Items 7 and 8 (the isolate start and finish, and a waiting request's memory) each start with a
+profile from `bun nv bench-compare --profile hello` or `--profile wait`. It builds a Docker image
+in about ten minutes, so run it with `run_in_background`.
 
 Stage 3 (`tools/nv/cmd/scaling.ts:919`) stays open as the other side lane.
 
 ### Backlog
 
 - Stages 3 and 6 are side lanes any session may take (`tools/nv/cmd/scaling.ts`,
-  `crates/nvs-host/src/scheduler.rs:382`). Stage 6's first four items are small and independent.
+  `crates/nvs-host/src/cpuclock.rs:171`). Stage 6's last four items touch disjoint files.
 - `--opt-level` and `--probes` are new `nvs test` flags. The gate stage's `bun nv proofs --gate` says
   whether either owes a proof of its own.
 - `bun nv scaling --budget` reports 45 benches over their share, none of them this goal's
