@@ -1,0 +1,38 @@
+<?nvs
+// `rule:testing/bench-counters`: one bench that makes calls and allocates, one
+// skipped bench, and one test that `--bench` does not run.
+
+use Core\Test;
+use Core\Test\Bench;
+
+class Squares {
+    public function of(int $n): array<int> {
+        array<int> $out = [];
+        for (int $i = 0; $i < $n; $i++) {
+            $out[] = $this->square($i);
+        }
+        return $out;
+    }
+
+    private function square(int $i): int {
+        return $i * $i;
+    }
+}
+
+class SquaresBench {
+    #[Bench]
+    public function buildsAList(): void {
+        Squares $squares = new Squares();
+        for (int $round = 0; $round < 20; $round++) {
+            $squares->of(100);
+        }
+    }
+
+    #[Bench(skip: "measured elsewhere")]
+    public function skipped(): void {}
+
+    #[Test]
+    public function aTest(): void {
+        Test::assertSame(new Squares()->of(3), [0, 1, 4]);
+    }
+}

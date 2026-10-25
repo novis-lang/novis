@@ -1,5 +1,9 @@
 //! `rule:testing/test-attribute`'s `#[Test]` attribute: what its payload may hold.
 //!
+//! `rule:testing/bench-counters`' `#[Bench]` is collected here too, as a [`TestCase`] with
+//! [`TestCase::bench`] set: a bench has a test's shape, fixtures, hooks and inheritance, and
+//! differs only in its options ([`BENCH_OPTIONS`]) and in which run calls it.
+//!
 //! `#[Test]` is one of [`crate::derive::ATTRIBUTES`]' compiler-recognized
 //! names, which is what makes it matched **nominally** rather than by the
 //! shape it satisfies — so it names no `type` alias for
@@ -248,6 +252,12 @@ pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
     ("tags", OptionTy::StrList),
 ];
 
+/// `rule:testing/bench-counters`' option shape for `#[Bench]`: `skip` and `because`, at the
+/// types [`OPTIONS`] gives them. A bench runs once, because its counts are the same on every
+/// run, so no option repeats it.
+pub(crate) const BENCH_OPTIONS: &[(&str, OptionTy)] =
+    &[("skip", OptionTy::Str), ("because", OptionTy::Str)];
+
 /// One `#[Test]` method of one class — `rule:testing/test-attribute`'s table, one row at a
 /// time.
 #[derive(Clone, Debug)]
@@ -288,6 +298,10 @@ pub struct TestCase {
     /// Empty for a test with no rows at all, which is the one call `rule:testing/test-attribute`
     /// describes.
     pub rows: Vec<Vec<Option<ConstArg>>>,
+    /// Whether the method is a `#[Bench]` rather than a `#[Test]`
+    /// (`rule:testing/bench-counters`). A plain `nvs test` runs only the rows where this is
+    /// `false`, and `nvs test --bench` only the rows where it is `true`.
+    pub bench: bool,
 }
 
 /// Where one declared parameter's value comes from — `rule:testing/data-rows`'s "each
@@ -371,6 +385,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         let test = attribute_named(&m.attributes, crate::derive::TEST, ctx, env);
         let fixture = attribute_named(&m.attributes, crate::derive::FIXTURE, ctx, env);
         let property = attribute_named(&m.attributes, crate::derive::PROPERTY, ctx, env);
+        let bench = attribute_named(&m.attributes, crate::derive::BENCH, ctx, env);
         let rows = rows_attached(&m.attributes, ctx, env);
         if crate::test_hooks::is_hook(m, ctx, env) {
             // `crate::test_hooks` checks a hook, and refuses one that is also a
@@ -386,6 +401,8 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
             report_stray_rows(&rows, "is a `#[Property]` rather than a `#[Test]`", env);
             let other = if test.is_some() {
                 Some("#[Test]")
+            } else if bench.is_some() {
+                Some("#[Bench]")
             } else if fixture.is_some() {
                 Some("#[Fixture]")
             } else {
@@ -415,7 +432,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
             }
             continue;
         }
-        if test.is_none() && fixture.is_none() {
+        if test.is_none() && bench.is_none() && fixture.is_none() {
             // `rule:testing/data-rows` attaches a row to a `#[Test]`, and to nothing else: what a
             // row is matched against is that method's parameter list, and a
             // method the runner never calls has no call for one to fill. A
@@ -425,6 +442,21 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
             continue;
         }
         let method = span_text(env.src, m.name).to_owned();
+        if bench.is_some() && (test.is_some() || fixture.is_some()) {
+            // A bench runs only under `--bench` and a test only without it, so one method
+            // cannot be both. A fixture builds a value, and a bench measures work.
+            let other = if test.is_some() { "#[Test]" } else { "#[Fixture]" };
+            report_shape(
+                m,
+                "#[Bench]",
+                &method,
+                &format!("is also a `{other}`"),
+                "`nvs test --bench` runs a benchmark and `nvs test` runs a test, so keep one of \
+                 the two attributes",
+                env,
+            );
+            continue;
+        }
         if test.is_some() && fixture.is_some() {
             // The two shapes are inverted — `rule:testing/test-attribute`'s test is an instance method
             // returning nothing, `rule:testing/fixtures`'s fixture a `static` one returning
@@ -484,20 +516,33 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
             fixture_spans.push(m.name);
             continue;
         }
-        let Some(attr) = test else { continue };
-        check_method_shape(m, &method, "#[Test]", class, env);
+        let (attr, marker, roster) = match (test, bench) {
+            (Some(attr), _) => (attr, "#[Test]", OPTIONS),
+            (None, Some(attr)) => (attr, "#[Bench]", BENCH_OPTIONS),
+            (None, None) => continue,
+        };
+        check_method_shape(m, &method, marker, class, env);
         // A second method of one name is already `E0304` from
         // `crate::signatures`, so it is skipped here with no second report.
         if cases.iter().any(|case| case.method == method) {
             continue;
         }
-        let options = fold_options(&attr.fields.clone(), OPTIONS, env);
+        let options = fold_options(&attr.fields.clone(), roster, env);
+        let rows = match bench {
+            // A bench runs once, so a data row has no second call to fill.
+            Some(_) => {
+                report_stray_rows(&rows, "is a `#[Bench]` rather than a `#[Test]`", env);
+                Vec::new()
+            }
+            None => rows,
+        };
         cases.push(TestCase {
             method,
             span: m.name,
             options,
             params: Vec::new(),
             rows: Vec::new(),
+            bench: bench.is_some(),
         });
         case_rows.push(rows);
     }
@@ -1228,6 +1273,13 @@ pub(crate) fn fold_options(
 pub(crate) fn check_payload(fields: &[AnonObjectField], ctx: &Ctx<'_>, env: &mut Env<'_>) {
     crate::attributes::check_roster("Test", OPTIONS, fields, ctx, env);
     check_retries_state_a_reason(fields, env);
+    check_option_values(fields, env);
+}
+
+/// One `#[Bench]` payload, checked against [`BENCH_OPTIONS`], its reasons held to what
+/// [`check_option_values`] holds a test's to.
+pub(crate) fn check_bench_payload(fields: &[AnonObjectField], ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    crate::attributes::check_roster("Bench", BENCH_OPTIONS, fields, ctx, env);
     check_option_values(fields, env);
 }
 

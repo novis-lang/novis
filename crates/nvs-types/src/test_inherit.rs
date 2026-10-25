@@ -46,9 +46,10 @@ use crate::testing::{Fixture, TestCase, attribute_named};
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
 
-/// The six test attributes, each with the way a diagnostic writes it.
-const MARKERS: [(&str, &str); 6] = [
+/// The seven test attributes, each with the way a diagnostic writes it.
+const MARKERS: [(&str, &str); 7] = [
     (crate::derive::TEST, "`#[Test]`"),
+    (crate::derive::BENCH, "`#[Bench]`"),
     (crate::derive::PROPERTY, "`#[Property]`"),
     (crate::derive::FIXTURE, "`#[Fixture]`"),
     (crate::derive::BEFORE_CLASS, "`#[BeforeClass]`"),
@@ -96,7 +97,10 @@ fn described(marker: &str) -> (&'static str, Code) {
         .iter()
         .find(|(name, _)| *name == marker)
         .map_or("", |(_, written)| *written);
-    let code = if marker == crate::derive::TEST || marker == crate::derive::PROPERTY {
+    let code = if marker == crate::derive::TEST
+        || marker == crate::derive::BENCH
+        || marker == crate::derive::PROPERTY
+    {
         code::E_TEST_METHOD_SHAPE
     } else if marker == crate::derive::FIXTURE {
         code::E_FIXTURE_METHOD_SHAPE
@@ -109,6 +113,7 @@ fn described(marker: &str) -> (&'static str, Code) {
 /// Whether `marker` is one of the three hook attributes.
 fn is_hook(marker: &str) -> bool {
     marker != crate::derive::TEST
+        && marker != crate::derive::BENCH
         && marker != crate::derive::PROPERTY
         && marker != crate::derive::FIXTURE
 }

@@ -176,6 +176,8 @@ pub(crate) fn check_class_hooks(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         }
         let also = if attribute_named(&m.attributes, crate::derive::TEST, ctx, env).is_some() {
             Some("`#[Test]`")
+        } else if attribute_named(&m.attributes, crate::derive::BENCH, ctx, env).is_some() {
+            Some("`#[Bench]`")
         } else if attribute_named(&m.attributes, crate::derive::FIXTURE, ctx, env).is_some() {
             Some("`#[Fixture]`")
         } else {

@@ -64,7 +64,7 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 ///
 /// A name on this roster names no shape, so [`crate::attributes`]'s `rule:attributes/attach-sites-and-forms` rule does not apply to it and what its payload may hold is the
 /// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
-/// module's, `#[Test]` is [`crate::testing`]'s, `#[Property]` is
+/// module's, `#[Test]` and `#[Bench]` are [`crate::testing`]'s, `#[Property]` is
 /// [`crate::property`]'s, `#[BeforeClass]`,
 /// `#[AfterClass]` and `#[AfterEachTest]` are [`crate::test_hooks`]',
 /// `#[Command]`/`#[Option]` are
@@ -77,6 +77,7 @@ pub const ATTRIBUTES: &[&str] = [
     DB_DERIVE,
     DB_FIELD,
     TEST,
+    BENCH,
     FIXTURE,
     TEST_WITH,
     PROPERTY,
@@ -146,8 +147,8 @@ pub(crate) fn sites(name: &str) -> Option<&'static [Site]> {
     Some(match name {
         DERIVE | DB_DERIVE | API_SCHEME => &[Site::Class],
         FIELD | DB_FIELD => &[Site::Property, Site::PromotedParam],
-        TEST | FIXTURE | TEST_WITH | PROPERTY | BEFORE_CLASS | AFTER_CLASS | AFTER_EACH_TEST
-        | COMMAND | ROUTE | ACCESS | API => &[Site::Method],
+        TEST | BENCH | FIXTURE | TEST_WITH | PROPERTY | BEFORE_CLASS | AFTER_CLASS
+        | AFTER_EACH_TEST | COMMAND | ROUTE | ACCESS | API => &[Site::Method],
         OPTION | QUERY => &[Site::Param, Site::PromotedParam],
         _ => return None,
     })
@@ -339,6 +340,24 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
             },
         ],
         short: "Says that this method is a test. `nvs test` runs it and reports the result.",
+        site: "a method",
+    },
+    AttributeDoc {
+        name: BENCH,
+        fields: &[
+            AttributeField {
+                name: "skip",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "because",
+                ty: "string",
+                required: false,
+            },
+        ],
+        short: "Says that this method is a benchmark. `nvs test --bench` runs it once and prints \
+                how many statements, calls, allocations, bytes and garbage collections it used.",
         site: "a method",
     },
     AttributeDoc {
@@ -710,6 +729,12 @@ pub const AFTER_CLASS: &str = r"Core\Test\AfterClass";
 /// `public` instance method run after every attempt of every test, on the
 /// object the test ran on.
 pub const AFTER_EACH_TEST: &str = r"Core\Test\AfterEachTest";
+
+/// `#[Bench(skip?: string, because?: string)]` — `rule:testing/bench-counters`' marker, on a
+/// method of the shape a `#[Test]` has. It sits in the `Core\Test` namespace beside [`FIXTURE`]
+/// and for that entry's reason. [`crate::testing`] collects it as a [`crate::testing::TestCase`]
+/// with `bench` set, so a bench takes fixtures, hooks and inheritance exactly as a test does.
+pub const BENCH: &str = r"Core\Test\Bench";
 
 /// `#[Command(name: string, about?: string)]` — `rule:tooling/commands-are-compiled`'s marker, on a
 /// `static` method. It is the same class the entry point `Core\Command::run`

@@ -1,8 +1,8 @@
 //! `rule:testing/tests-never-reach-a-build`'s test code: which declarations it is, and the
 //! compile error a call into it from other code draws.
 //!
-//! **Test code is a method that carries one of the six testing markers**: `#[Test]`,
-//! `#[Property]`, `#[Fixture]`, `#[BeforeClass]`, `#[AfterClass]` or `#[AfterEachTest]`. Everything else the rule
+//! **Test code is a method that carries one of the seven testing markers**: `#[Test]`,
+//! `#[Bench]`, `#[Property]`, `#[Fixture]`, `#[BeforeClass]`, `#[AfterClass]` or `#[AfterEachTest]`. Everything else the rule
 //! names rides on one of those methods and needs no mark of its own: a data row is an attribute
 //! on a `#[Test]` method, and an assertion message and a double are expressions in its body. The
 //! class that declares them is not test code. Its constructor is the test's setup
@@ -32,9 +32,10 @@ use crate::deprecated::Member;
 use crate::expr_table::ExprInfo;
 use crate::{Env, ProgramFile, span_text};
 
-/// The six markers that make a method test code.
-const MARKERS: [&str; 6] = [
+/// The seven markers that make a method test code.
+const MARKERS: [&str; 7] = [
     crate::derive::TEST,
+    crate::derive::BENCH,
     crate::derive::PROPERTY,
     crate::derive::FIXTURE,
     crate::derive::BEFORE_CLASS,

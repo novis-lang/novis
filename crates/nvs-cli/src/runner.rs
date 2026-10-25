@@ -111,7 +111,7 @@
 //! program's files is a fact only that table can grow. Within a class the
 //! order *is* declaration order, which is what a reader of one file sees.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, VecDeque};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -315,6 +315,17 @@ pub(crate) struct Args {
     // `rule:testing/mutation-testing`.
     #[arg(long, conflicts_with_all = ["list", "update", "watch"])]
     mutate: bool,
+    /// Run the benchmarks instead of the tests.
+    ///
+    /// A benchmark is a method with `#[Bench]`. Each one runs once, and the
+    /// report prints how many statements, calls, allocations, bytes and
+    /// garbage collections it used. These numbers are the same on every run
+    /// and on every machine, so CI can compare them. The report also prints
+    /// the time each benchmark took. The time changes from run to run, so the
+    /// report marks it as advisory. The benchmarks run one at a time.
+    // `rule:testing/bench-counters`.
+    #[arg(long, conflicts_with_all = ["mutate", "jobs"])]
+    bench: bool,
     /// Print each test and the file it is in, without running any test.
     ///
     /// For a program, each `#[Test]` method is printed with its line. The
@@ -360,15 +371,20 @@ impl Args {
                 skip_tags: self.skip_tag,
                 shard: self.shard,
                 only: None,
+                bench: self.bench,
             },
             self.jobs,
             self.format,
             Flags {
                 update: self.update,
                 list: self.list,
-                jobs: self
-                    .jobs
-                    .map_or_else(default_jobs, std::num::NonZeroUsize::get),
+                // One bench at a time, so no other bench shares its core or its wall time.
+                jobs: match self.bench {
+                    true => 1,
+                    false => self
+                        .jobs
+                        .map_or_else(default_jobs, std::num::NonZeroUsize::get),
+                },
                 show_output: self.show_output,
                 shared_worker: self.shared_worker,
                 fail_fast: self.fail_fast,
@@ -627,6 +643,52 @@ struct Case {
     /// when the run has no coverage flag. [`json_document`] turns them into
     /// file lines.
     reached: Option<Vec<usize>>,
+    /// A `#[Bench]`'s rows, or `None` for a test and for a bench that did not run.
+    rows: Option<Rows>,
+}
+
+/// `rule:testing/bench-counters`' rows for one `#[Bench]`: the work its call did, and how long
+/// it took. Every count is the same on every run of the same program, and `wall` is not.
+///
+/// The counts are taken on the bench's own isolate and around the call alone, so the isolate's
+/// own setup is in no bench's rows. A task the bench spawns counts its statements and calls on a
+/// context of its own, which these do not include, as `nvs run --count` does not. **What it
+/// spends:** these six words per bench, in the report.
+#[derive(Clone, Copy, Debug)]
+struct Rows {
+    statements: u64,
+    calls: u64,
+    allocations: usize,
+    bytes: usize,
+    gc: u64,
+    /// Advisory: it changes from run to run, so nothing may gate on it.
+    wall: Duration,
+}
+
+impl Rows {
+    /// The five counts, in the order every report prints them.
+    fn counts(self) -> (u64, u64, usize, usize, u64) {
+        (
+            self.statements,
+            self.calls,
+            self.allocations,
+            self.bytes,
+            self.gc,
+        )
+    }
+
+    /// The counts as `nvs run --count` prints them, then the advisory wall time.
+    fn line(self) -> String {
+        format!(
+            "count: statements={} calls={} allocations={} bytes={} gc={}, wall {:.3} ms (advisory)",
+            self.statements,
+            self.calls,
+            self.allocations,
+            self.bytes,
+            self.gc,
+            millis(self.wall)
+        )
+    }
 }
 
 /// Where one test is written: the file the `-->` header names, and a one-based
@@ -1334,6 +1396,9 @@ pub(crate) struct Selection {
     /// `--rerun-failed`: the `Class::label` of each test the last run failed, or `None` to run
     /// every test the other four select.
     pub(crate) only: Option<BTreeSet<String>>,
+    /// `--bench`: the `#[Bench]` methods run and no `#[Test]` does. Without it, no bench runs
+    /// (`rule:testing/bench-counters`).
+    pub(crate) bench: bool,
 }
 
 impl Selection {
@@ -1350,7 +1415,8 @@ impl Selection {
     /// is in the part the test is in.
     fn selects(&self, class: &str, call: &Invocation<'_>) -> bool {
         let tags = tags_of(call.case);
-        selected(self.filter.as_deref(), class, &call.label)
+        self.runs_its_kind(call)
+            && selected(self.filter.as_deref(), class, &call.label)
             && (self.tags.is_empty() || self.tags.iter().any(|tag| tags.contains(&tag.as_str())))
             && !self
                 .skip_tags
@@ -1363,6 +1429,12 @@ impl Selection {
                 .only
                 .as_ref()
                 .is_none_or(|only| only.contains(&format!("{class}::{}", call.label)))
+    }
+
+    /// Whether `call` is a bench under `--bench`, or a test without it. A call of the other
+    /// kind is not counted as left out, because no selection could have run it.
+    fn runs_its_kind(&self, call: &Invocation<'_>) -> bool {
+        call.case.bench == self.bench
     }
 }
 
@@ -1464,6 +1536,8 @@ struct Attempted {
     /// The generators of a `#[Property]` method, which [`run_property`] calls once per
     /// generated input set. `None` for a `#[Test]` method.
     property: Option<Arc<nvs_types::property::PropertyCase>>,
+    /// Whether the method is a `#[Bench]`, which [`judge`] passes with no assertion.
+    bench: bool,
 }
 
 /// Runs every `#[Test]` and `#[Property]` `checked` declares that `filter` selects, in `rule:testing/runner-is-strict`'s
@@ -1494,7 +1568,7 @@ fn run_suite(
             let stand_ins: Vec<_> = properties.iter().map(stand_in).collect();
             class_calls(tests, properties, &stand_ins)
                 .iter()
-                .filter(|call| !select.selects(class, call))
+                .filter(|call| select.runs_its_kind(call) && !select.selects(class, call))
                 .count()
         })
         .sum();
@@ -1622,6 +1696,7 @@ fn run_suite(
                 label: label.clone(),
                 after_each: hooks.and_then(|hooks| hooks.after_each_test.clone()),
                 property: call.property.map(|property| Arc::new(property.clone())),
+                bench: case.bench,
             };
             let decided = match setup.as_ref().or(unbuilt.as_ref()) {
                 Some(FixtureFailure::Threw(message)) if setup.is_some() => {
@@ -1860,6 +1935,8 @@ struct Ran {
     output: Vec<u8>,
     /// The test's own statement and edge counts, under a coverage flag.
     coverage: Option<(Vec<u64>, Vec<u64>)>,
+    /// A bench's rows ([`Case::rows`]).
+    rows: Option<Rows>,
 }
 
 impl Ran {
@@ -1871,6 +1948,7 @@ impl Ran {
             elapsed: Duration::ZERO,
             output: Vec::new(),
             coverage: None,
+            rows: None,
         }
     }
 }
@@ -1999,7 +2077,7 @@ impl Job {
             ctx.set_debug_flags(ctx.debug_flags() | nvs_runtime::DebugFlags::PROFILE);
         }
         let receiving = ctx.class_table();
-        let (outcome, snapshots) =
+        let (outcome, snapshots, rows) =
             match nvs_runtime::CrossedFixtures::decode(&fixtures, receiving.as_ref()) {
                 Ok(crossed) => run_in_isolate(
                     &unit,
@@ -2019,6 +2097,7 @@ impl Job {
                         test.class, case.method
                     )),
                     Vec::new(),
+                    None,
                 ),
             };
         drop(watched);
@@ -2041,6 +2120,7 @@ impl Job {
             elapsed: began.elapsed(),
             output: ctx.take_buffered_output().unwrap_or_default(),
             coverage: hits.map(|hits| (hits.counts(), hits.edge_counts())),
+            rows,
         }
     }
 }
@@ -2267,6 +2347,7 @@ impl<'a> Queue<'a> {
             elapsed,
             output,
             coverage,
+            rows,
         } = ran;
         let reached = self.hits.as_ref().map(|hits| match coverage {
             Some((counts, edges)) => {
@@ -2292,7 +2373,7 @@ impl<'a> Queue<'a> {
             Outcome::Failed(_) | Outcome::Exited(_) => self.counts.failed += 1,
         }
         if self.format == Format::Human {
-            report(self.ctx, &label, &outcome, elapsed);
+            report(self.ctx, &label, &outcome, elapsed, rows);
         }
         // A passing test's output is dropped with `output`. A failing one's
         // is written in the report's place for that test, and under a machine
@@ -2319,6 +2400,7 @@ impl<'a> Queue<'a> {
             elapsed,
             snapshots,
             reached,
+            rows,
         });
     }
 
@@ -3104,7 +3186,7 @@ fn run_in_isolate(
     row: Option<&[Option<ConstArg>]>,
     crossed: nvs_runtime::CrossedFixtures,
     routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
-) -> (Outcome, Vec<nvs_runtime::SnapshotMismatch>) {
+) -> (Outcome, Vec<nvs_runtime::SnapshotMismatch>, Option<Rows>) {
     // `rule:testing/inline-snapshots`'s mismatches cross the boundary the verdict crosses, in a cell of
     // their own beside it: they are the child's context's and that context is
     // gone by the time this returns, and they are not part of the verdict —
@@ -3114,16 +3196,18 @@ fn run_in_isolate(
     // hands back an empty list without saying so.
     let snapshots: Rc<RefCell<Vec<nvs_runtime::SnapshotMismatch>>> =
         Rc::new(RefCell::new(Vec::new()));
-    let outcome = run_the_test(unit, ctx, test, case, row, crossed, routes, &snapshots);
+    // A bench's rows cross the same way, in a cell of their own.
+    let rows: Rc<Cell<Option<Rows>>> = Rc::new(Cell::new(None));
+    let outcome = run_the_test(unit, ctx, test, case, row, crossed, routes, &snapshots, &rows);
     let taken = std::mem::take(&mut *snapshots.borrow_mut());
-    (outcome, taken)
+    (outcome, taken, rows.get())
 }
 
 /// [`run_in_isolate`]'s body, with the cell it fills passed in — everything
 /// this module's docs say about the isolate is about this function.
 #[expect(
     clippy::too_many_arguments,
-    reason = "the caller's seven, plus the one cell `rule:testing/inline-snapshots`'s mismatches cross in"
+    reason = "the caller's seven, plus the cells `rule:testing/inline-snapshots`'s mismatches and a bench's rows cross in"
 )]
 fn run_the_test(
     unit: &Arc<nvs_codegen::Unit>,
@@ -3134,6 +3218,7 @@ fn run_the_test(
     crossed: nvs_runtime::CrossedFixtures,
     routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
     snapshots: &Rc<RefCell<Vec<nvs_runtime::SnapshotMismatch>>>,
+    rows: &Rc<Cell<Option<Rows>>>,
 ) -> Outcome {
     let class = test.class.as_str();
     if let Some(reason) = skip_reason(case) {
@@ -3199,6 +3284,7 @@ fn run_the_test(
     let filed: Rc<RefCell<Option<Outcome>>> = Rc::new(RefCell::new(None));
     let verdict = Rc::clone(&filed);
     let recorded = Rc::clone(snapshots);
+    let counted = case.bench.then(|| Rc::clone(rows));
     let allowance = retry_allowance(case);
     // `rule:testing/determinism-declared-on-the-test`'s clock, resolved on the parent's side so that a malformed `at:` is
     // this test's own reported failure rather than something the child has to
@@ -3273,6 +3359,19 @@ fn run_the_test(
         // Both owners go down with the isolate, after the call that borrowed
         // their values has returned.
         let (_crossed, _materialized) = (crossed, materialized);
+        // `rule:testing/bench-counters`' counting mode, on the child's own context and around the
+        // call alone. The allocation counters are this thread's, and the child runs on it. The
+        // thread's empty array is made before the window, so a bench's rows do not depend on
+        // whether a bench before it on this thread wrote the first `[]`.
+        let before = counted.as_ref().map(|_| {
+            nvs_runtime::prime_empty_array();
+            child.set_debug_flags(child.debug_flags() | nvs_runtime::DebugFlags::COUNT);
+            (
+                nvs_runtime::budget::allocations(),
+                nvs_runtime::budget::allocated_bytes(),
+                Instant::now(),
+            )
+        });
         let outcome = match transacted.as_deref() {
             None => run_attempts(
                 &child_unit,
@@ -3317,6 +3416,18 @@ fn run_the_test(
                 }
             },
         };
+        if let (Some(cell), Some((allocations, bytes, began))) = (&counted, before) {
+            let wall = began.elapsed();
+            let done = child.counted();
+            cell.set(Some(Rows {
+                statements: done.statements,
+                calls: done.calls,
+                allocations: nvs_runtime::budget::allocations().wrapping_sub(allocations),
+                bytes: nvs_runtime::budget::allocated_bytes().wrapping_sub(bytes),
+                gc: done.gc_cycles,
+                wall,
+            }));
+        }
         // `rule:testing/task-tree-and-virtual-clock`, read off the tree from inside the test's own task and nowhere
         // else: a child spawned here is a child of *this* task, and once this
         // Rust closure returns the scheduler cancels whatever is left rather than
@@ -3780,7 +3891,7 @@ fn run_case(
 ) -> Outcome {
     let mut verdict = None;
     let mut after = |ctx: &mut nvs_runtime::Ctx, receiver, status| {
-        let outcome = judge(ctx, status);
+        let outcome = judge(ctx, status, test.bench);
         verdict = Some(match &test.after_each {
             Some(hook) => after_each_test(ctx, receiver, test, hook, attempt, outcome),
             None => outcome,
@@ -3795,7 +3906,7 @@ fn run_case(
     };
     // No verdict means the method was never called: the constructor threw,
     // so there is no object for the hook to run on.
-    verdict.unwrap_or_else(|| judge(ctx, status))
+    verdict.unwrap_or_else(|| judge(ctx, status, test.bench))
 }
 
 /// `rule:testing/after-each-test`'s call: `hook` on the instance the attempt
@@ -3844,7 +3955,10 @@ fn after_each_test(
 
 /// The verdict of one call to a test method, read off its status and the
 /// ledger, both of which it takes.
-fn judge(ctx: &mut nvs_runtime::Ctx, outcome: Result<(), i32>) -> Outcome {
+///
+/// A `bench` passes with an empty ledger: what it claims is its rows, and a failed assertion
+/// in it still fails it (`rule:testing/bench-counters`).
+fn judge(ctx: &mut nvs_runtime::Ctx, outcome: Result<(), i32>, bench: bool) -> Outcome {
     let thrown = match outcome {
         Ok(()) => None,
         // `exit` is not a verdict about the test at all, and the pending state
@@ -3867,7 +3981,7 @@ fn judge(ctx: &mut nvs_runtime::Ctx, outcome: Result<(), i32>) -> Outcome {
     if let Some(message) = thrown {
         return Outcome::failed(message);
     }
-    if !asserted {
+    if !asserted && !bench {
         // `rule:testing/runner-is-strict`'s first bullet, with the way out that section names: a test
         // whose whole claim is that nothing threw writes
         // `Core\Test::assertDoesNotThrow(callable)`, which records an entry
@@ -3942,6 +4056,7 @@ fn stand_in(property: &nvs_types::property::PropertyCase) -> nvs_types::testing:
         options: property.options.clone(),
         params: Vec::new(),
         rows: Vec::new(),
+        bench: false,
     }
 }
 
@@ -4129,8 +4244,14 @@ impl Counts {
 }
 
 /// `rule:testing/report-formats`'s one line per test: the mark, the method's own name, and how long it
-/// took, written to the suite's own output.
-fn report(ctx: &mut nvs_runtime::Ctx, method: &str, outcome: &Outcome, elapsed: Duration) {
+/// took, written to the suite's own output. A bench's rows follow on a line of their own.
+fn report(
+    ctx: &mut nvs_runtime::Ctx,
+    method: &str,
+    outcome: &Outcome,
+    elapsed: Duration,
+    rows: Option<Rows>,
+) {
     let mark = outcome.mark();
     let mut text = format!(
         "    {mark} {method:<32} {:.1} ms\n",
@@ -4141,6 +4262,9 @@ fn report(ctx: &mut nvs_runtime::Ctx, method: &str, outcome: &Outcome, elapsed: 
         text.push_str(line);
         text.push('\n');
     };
+    if let Some(rows) = rows {
+        line(&rows.line());
+    }
     match outcome {
         Outcome::Passed => {}
         Outcome::Skipped(reason) => line(&format!("skipped: {reason}")),
@@ -4161,9 +4285,13 @@ fn report(ctx: &mut nvs_runtime::Ctx, method: &str, outcome: &Outcome, elapsed: 
 ///
 /// The version is at the root because that section promises a *versioned*
 /// schema, and a consumer that reads it knows what the rest of the keys mean.
-/// What `rule:testing/report-formats` additionally names — a structured diff, `#[Bench]`'s counters
-/// and per-data-row results — is absent because nothing produces any of it yet; each arrives as
-/// a new key beside these, which is the whole of what the version number buys.
+/// What `rule:testing/report-formats` additionally names — a structured diff and per-data-row
+/// results — is absent because nothing produces any of it yet; each arrives as a new key beside
+/// these, which is the whole of what the version number buys.
+///
+/// **A `#[Bench]` has `counts` and `advisoryWallMs`** (`rule:testing/bench-counters`):
+/// `{statements, calls, allocations, bytes, gc}`, then the wall time in milliseconds, named
+/// advisory because it changes from run to run. They are new keys, not a new version.
 ///
 /// **A failed `#[Property]` has `counterexample`**: `{seed, call, inputs, generatedInputs}`,
 /// each input as the report prints it, `inputs` shrunk. It is a new key, not a new version: a
@@ -4258,6 +4386,15 @@ fn json_document(
                 }
             }
             Outcome::Exited(code) => out.push_str(&format!(", \"exitCode\": {code}")),
+        }
+        if let Some(rows) = case.rows {
+            let (statements, calls, allocations, bytes, gc) = rows.counts();
+            out.push_str(&format!(
+                ", \"counts\": {{\"statements\": {statements}, \"calls\": {calls}, \
+                 \"allocations\": {allocations}, \"bytes\": {bytes}, \"gc\": {gc}}}, \
+                 \"advisoryWallMs\": {:.3}",
+                millis(rows.wall)
+            ));
         }
         if let Some(sites) = sites {
             out.push_str(", \"coverage\": {");
@@ -4939,6 +5076,50 @@ mod tests {
         )
         .expect("the suite's own task runs");
         suite
+    }
+
+    /// `rule:testing/bench-counters`: `--bench` runs the benches and no test, a plain run runs
+    /// the test and leaves no bench out, and two runs of one bench report the same rows.
+    #[test]
+    fn a_bench_reports_the_same_rows_on_every_run() {
+        type Counted = (u64, u64, usize, usize, u64);
+        let bench = Selection {
+            bench: true,
+            ..Selection::default()
+        };
+        // `--bench` runs one bench at a time, as `Args::run` sets it.
+        let shape = Shape {
+            jobs: 1,
+            ..collected()
+        };
+        let rows = |suite: super::Suite| -> Vec<(String, Option<Counted>)> {
+            suite
+                .cases
+                .into_iter()
+                .map(|case| (case.method, case.rows.map(super::Rows::counts)))
+                .collect()
+        };
+        let first = rows(ran_shaped("bench.nvs", &bench, shape));
+        let second = rows(ran_shaped("bench.nvs", &bench, shape));
+        let names: Vec<&str> = first.iter().map(|(name, _)| name.as_str()).collect();
+        assert_eq!(names, ["buildsAList", "skipped"]);
+        let Some((_, Some((statements, calls, allocations, bytes, gc)))) = first.first() else {
+            panic!("the bench that ran has rows: {first:?}");
+        };
+        // 20 calls of `of`, each making 100 calls of `square`.
+        assert_eq!(*calls, 2020);
+        assert!(
+            *statements > 0 && *allocations > 0 && *bytes > 0 && *gc == 0,
+            "{first:?}"
+        );
+        assert_eq!(first.get(1).map(|(_, rows)| *rows), Some(None));
+        assert_eq!(first, second, "a bench's rows are the same on every run");
+
+        let plain = ran_shaped("bench.nvs", &Selection::default(), shape);
+        assert_eq!(plain.left_out, 0, "a plain run leaves no bench out");
+        let names: Vec<&str> = plain.cases.iter().map(|case| case.method.as_str()).collect();
+        assert_eq!(names, ["aTest"]);
+        assert!(plain.cases.iter().all(|case| case.rows.is_none()));
     }
 
     /// `rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`: after the first failure

@@ -330,6 +330,8 @@ fn check_recognized(
         let recognized = |want: &str| *qname == nvs_hir::QName::parse(want);
         if recognized(crate::derive::TEST) {
             crate::testing::check_payload(&attr.fields, ctx, env);
+        } else if recognized(crate::derive::BENCH) {
+            crate::testing::check_bench_payload(&attr.fields, ctx, env);
         } else if recognized(crate::derive::PROPERTY) {
             crate::property::check_payload(&attr.fields, ctx, env);
         } else if recognized(crate::derive::COMMAND) {

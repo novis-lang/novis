@@ -2762,6 +2762,11 @@ fn run_test(
         eprintln!("error: `--profile` times a program's `#[Test]` methods, not a `.nvst` tree");
         return ExitCode::FAILURE;
     }
+    if select.bench {
+        // `rule:testing/bench-counters`: a bench is a method of a program, and a case has none.
+        eprintln!("error: `--bench` runs a program's `#[Bench]` methods, not a `.nvst` tree");
+        return ExitCode::FAILURE;
+    }
 
     let only = match &cases {
         Some(named) => match std::fs::read_to_string(named) {
