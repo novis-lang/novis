@@ -373,6 +373,12 @@ pub struct Reactor {
     registrations: TaskMap<Registered>,
     /// The ids the last poll reported, reused across calls so a poll allocates
     /// nothing on the steady path.
+    ///
+    /// Made with [`PENDING_CAPACITY`]'s room, for that constant's reason: a
+    /// list that grew at its first wake would charge a buffer to whichever
+    /// request's turn the first wake landed in, and a counted run would count
+    /// it at a point timing decides. **What it spends:** room for 64 ids per
+    /// core.
     ready: Vec<TaskId>,
     /// The deadlines this core is holding. Here rather than beside the
     /// scheduler because a deadline is enforced as a poll timeout, which is
@@ -433,7 +439,7 @@ impl Reactor {
             poll,
             events: Events::with_capacity(EVENT_CAPACITY),
             registrations: TaskMap::default(),
-            ready: Vec::new(),
+            ready: Vec::with_capacity(PENDING_CAPACITY),
             timers: Timers::default(),
             remote,
             _pinned_to_one_thread: PhantomData,
