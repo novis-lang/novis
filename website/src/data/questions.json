@@ -10599,7 +10599,7 @@
   },
   "/reference/core/process/run/": {
     "feature": "Core\\Process::run",
-    "hash": "7be9dd0387b94423",
+    "hash": "eddc79c83fcd07ac",
     "questions": [
       "How do I run another program and read its output?",
       "Run a command and wait until it finishes",
@@ -10611,7 +10611,7 @@
   },
   "/reference/core/process/spawn/": {
     "feature": "Core\\Process::spawn",
-    "hash": "35d6bb2fb2e26b96",
+    "hash": "f5a01f34ff43814c",
     "questions": [
       "How do I start a program in the background and keep going?",
       "Read a program's output while it is still running",
