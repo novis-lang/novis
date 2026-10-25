@@ -99,24 +99,21 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `9be30356e`, a goal end. Its Website run,
-https://github.com/novis-lang/novis/actions/runs/40158642340, is green. Its CI push run,
-https://github.com/novis-lang/novis/actions/runs/40158642410, is green but for one job, fixed in a
-commit that is not pushed yet. `0bade7ccd`, `f80e28bbb` and `b29b6241f` held: `proofs`,
-`test / linux-aarch64` and the drain-bit test passed.
+`origin/main` is still at `9be30356e`. Its Website run is green. Its CI push run,
+https://github.com/novis-lang/novis/actions/runs/40158642410, and the nightly deep run on the same
+commit, https://github.com/novis-lang/novis/actions/runs/40174915924, are red only in jobs whose
+fixes are committed and not pushed:
 
-- `test / windows-x86_64 (tests)`: `nvs-server`'s one-frame test got 4 frames after 2 sends
-  succeeded. Windows grows a loopback socket's buffers while the peer is not reading, so a send
-  behind a stalled frame flushed it and stalled on its own. `0b7eadd2c` sends 1 MiB chunks and
-  allows up to `FAILURES / 2` extra frames. With the stalled-frame logic in
-  `crates/nvs-server/src/socket.rs:send` turned off, all 8 failed frames arrive and the test fails.
+- `test / windows-x86_64 (tests)`, both runs: the one-frame test, Windows socket buffers. `0b7eadd2c`.
+- `miri units (nvs-runtime 1/2)` and `(nvs-stdlib 10/12)`: gather cases call `getrusage`, which Miri
+  does not model. `901f4855c` and `c7e5bd3c3`. No other gather case runs under Miri.
+- `miri units (nvs-runtime 2/2)`: the traced-loop case timed out at 300 s. `bd2e51f0a`.
+- `overload past capacity`, the flood row: PHP answered nothing, `oha` wrote `"p99": null`, and
+  `steadyResult` threw. `d5aa2be18` gives a `null` p99.
 
-`1b3721caf` stamps the questions of `/reference/core/process/run/` and `/spawn/`, which
-`0bade7ccd`'s examples staled. At `1b3721caf`, `bun nv proofs --gate` owed 50 perf figures from
-trace-timeline's commits (`Core\Debug`, `Core\Script`, `Core\Http`), and `bun nv site --check
-questions` owed `/reference/core/debug/` and its seven member pages, `/reference/cli/profiling/` and
-`/reference/cli/the-vs-code-extension/`. The main loop was told. The run on `9be30356e` was green in
-`proofs`, so its gate recorded them before that push.
+At `f63958552`, `bun nv proofs --gate --limit 0` (which now lists past 30) owed 106 perf figures from
+bench-counters' committed commits: `crates/nvs-stdlib/src/math.rs` 38, `test.rs` 34, `request.rs` 30,
+`json.rs` 4. The main loop was told, and its gate records them. The site check was clean.
 
 `.agent-tmp/wt-perf`, `.agent-tmp/wt-csv` and `.agent-tmp/wt-render` are scratch folders that git
 no longer lists as worktrees. Each contains a `.looper` directory, which Windows will not delete
@@ -128,8 +125,10 @@ while looper runs. `wt-csv` also has an ignored `target/`, warm at `d2a782d60`, 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch the next push with `bun nv ci --watch --next`. `tools/nv/cmd/ci.ts:265`
-  Run 40158642410 has ended, so `--next` passes over it. The next goal end's push carries
-  `0b7eadd2c`. Watch with no `--past`. If a `Core\Process` example fails on another program,
+  Runs 40158642410 and 40174915924 have ended, so `--next` passes over them. The next goal end's
+  push carries the five fixes above. Watch with no `--past`, and without a pipe into `tail`, which
+  hides the exit code. If `proofs` fails on perf figures of `math.rs`, `test.rs`, `request.rs` or
+  `json.rs`, bench-counters' gate did not record them: record them as below. If a `Core\Process` example fails on another program,
   name that program in its folder's `nvs.toml` too. If the one-frame test fails again, the
   message names the frames and the failures. More than half the failed frames arriving, on two runs in a
   row, is a real regression in `crates/nvs-server/src/socket.rs:send`, not a kernel buffer:
