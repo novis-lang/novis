@@ -1,7 +1,7 @@
 <?nvs
-// Reads the body of one test response, as a test does before it checks the text a page wrote.
+// Reads the body of the same test responses many times, as a test does when it checks the text a page wrote.
 // bench: iterations 400000
-// bench: allocations 1
+// bench: allocations 0
 // bench: complexity constant
 
 class Bench {

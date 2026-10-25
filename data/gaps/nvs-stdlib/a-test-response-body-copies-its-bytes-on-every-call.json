@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/test.rs",
-  "title": "`Core\\Test\\Response::body` checks and copies its `bytes` slot into a new string on every call.",
-  "text": "Its bench declares `allocations 1` for that copy. The slot could keep the checked string beside the bytes after the first call, so a later call allocates nothing. Closing it is that cache, which is per response and freed with it, and the bench declaring what it then measures.",
-  "goal": "bench-counters"
-}

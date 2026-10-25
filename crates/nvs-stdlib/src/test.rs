@@ -1018,7 +1018,7 @@ pub(crate) const RESPONSE: CoreClass = CoreClass {
             doc: Some(&RESPONSE_JSON_AS_DOC),
         },
     ],
-    slots: &["status", "body", "headers"],
+    slots: &["status", "body", "headers", "text"],
     constants: &[],
 };
 
@@ -1048,6 +1048,14 @@ const BODY_SLOT: usize = 1;
 /// — `Core\Http\Response`'s header slot's shape, so that class's readers
 /// ([`crate::http::field_lines`]) read this one too.
 const HEADERS_SLOT: usize = 2;
+/// [`RESPONSE`]'s fourth slot: [`BODY_SLOT`]'s bytes as a `string`, once
+/// [`nvs_core_test_response_body`] has checked them, and `null` before that.
+///
+/// The `string` is the body slot's own allocation retagged, so the cache costs
+/// one string reference per response and no copy of the body. It is released
+/// with the response's other slots. A body that is not UTF-8 never fills it,
+/// so every `body()` call on one throws the same error.
+const TEXT_SLOT: usize = 3;
 
 /// `Core\Test\SentRequest`'s fully-qualified name, written once for the same
 /// reason [`NAME`] is.
@@ -3063,6 +3071,7 @@ nvs_runtime::nvs_helper! {
                     Value::int(500),
                     Value::bytes(nvs_runtime::NvsStr::new(b"")),
                     Value::array(nvs_runtime::NvsArray::new()),
+                    Value::null(),
                 ],
             ));
         }
@@ -3081,6 +3090,7 @@ nvs_runtime::nvs_helper! {
                 Value::int(status),
                 body,
                 headers,
+                Value::null(),
             ],
         ))
     }
@@ -3143,13 +3153,46 @@ nvs_runtime::nvs_helper! {
     /// `Core\Test\Response::body(): string` — the bytes the program wrote, as
     /// text.
     ///
+    /// The first call checks the bytes and keeps the `string` in [`TEXT_SLOT`].
+    /// That `string` is the body slot's own allocation retagged, as
+    /// `Core\Http\Response::text` does, so no call allocates, and a later call
+    /// returns the kept `string` without checking the bytes again. Memory: one
+    /// string reference per response, freed with it.
+    ///
     /// # Errors
     ///
-    /// [`body_text`]'s `RuntimeError` for bytes that are not UTF-8.
+    /// [`body_text`]'s `RuntimeError` for bytes that are not UTF-8, on every
+    /// call, since a failed check keeps nothing.
     fn nvs_core_test_response_body(_ctx, args: [1]) {
         let object = crate::instance::receiver(args[0], &RESPONSE, "body")?;
-        let body = crate::instance::slot(object, BODY_SLOT);
-        Ok(Value::text(body_text(&body, "body")?))
+        let kept = crate::instance::slot(object, TEXT_SLOT);
+        if kept.as_text().is_none() {
+            let body = crate::instance::slot(object, BODY_SLOT);
+            body_text(&body, "body")?;
+            let payload = body.buffer_ptr().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{RESPONSE_NAME}::body found a non-`bytes` body slot"
+                ))
+            })?;
+            #[expect(
+                unsafe_code,
+                reason = "the receiver owns a reference for the length of the call, so the \
+                          body slot it holds is live, which is `Value::retain`'s whole \
+                          obligation, and the payload the fresh reference belongs to was \
+                          just checked to be well-formed UTF-8, which is `NvsStr`'s own \
+                          invariant for a `Tag::Str`"
+            )]
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "`body_text` checked these bytes above"
+            )]
+            let text = unsafe {
+                body.retain();
+                Value::str(nvs_runtime::NvsStr::from_raw(payload))
+            };
+            crate::instance::set_slot(object, TEXT_SLOT, text);
+        }
+        crate::instance::read_slot(args, &RESPONSE, TEXT_SLOT, "body")
     }
 }
 
@@ -6744,6 +6787,60 @@ mod tests {
             "both readers throw the same error, each naming itself"
         );
         dropped(answered);
+    }
+
+    /// `body` keeps the `string` it checked, so a second call returns the
+    /// same allocation and allocates nothing, and a body that is not UTF-8
+    /// throws the same error on every call.
+    // covers: Core\Test\Response::body
+    #[test]
+    fn body_keeps_the_string_it_checked_and_a_second_call_allocates_nothing() {
+        fn response(octets: &[u8]) -> Value {
+            crate::instance::build(
+                &RESPONSE,
+                [
+                    Value::int(200),
+                    Value::bytes(nvs_runtime::NvsStr::new(octets)),
+                    Value::array(nvs_runtime::NvsArray::new()),
+                    Value::null(),
+                ],
+            )
+        }
+
+        let mut ctx = Ctx::buffered();
+        let answered = response(b"hello");
+        let first = nvs_runtime::call(nvs_core_test_response_body, &mut ctx, &[answered])
+            .expect("a UTF-8 body reads");
+        let before = nvs_runtime::budget::allocations();
+        let second = nvs_runtime::call(nvs_core_test_response_body, &mut ctx, &[answered])
+            .expect("a UTF-8 body reads twice");
+        assert_eq!(
+            nvs_runtime::budget::allocations() - before,
+            0,
+            "the second `body` call allocated"
+        );
+        assert_eq!(second.as_text(), Some("hello"));
+        assert_eq!(
+            first.buffer_ptr(),
+            second.buffer_ptr(),
+            "both calls return the one kept string"
+        );
+        dropped(first);
+        dropped(second);
+        dropped(answered);
+
+        let broken = response(b"\xff");
+        let mut errors = Vec::new();
+        for _ in 0..2 {
+            assert!(
+                nvs_runtime::call(nvs_core_test_response_body, &mut ctx, &[broken]).is_err(),
+                "`body` throws for octets that are not UTF-8"
+            );
+            errors.push(ctx.take_pending().unwrap_or_default());
+        }
+        assert!(errors[0].contains("not valid UTF-8"), "{}", errors[0]);
+        assert_eq!(errors[0], errors[1], "every call throws the same error");
+        dropped(broken);
     }
 
     /// A unit that answers `body` under `content_type` with `rows` declared, or
