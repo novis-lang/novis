@@ -3419,6 +3419,10 @@ pub(crate) mod tests {
     /// gather, because creating the tier names its reader. The gather sums every
     /// metered core in this binary, so non-zero is what holds.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "the process scope reads the resident set through a system call Miri does not model"
+    )]
     fn a_gather_reads_what_the_memory_tier_holds() {
         use nvs_config::tree::Metrics;
         use nvs_config::{Config, Setting};
