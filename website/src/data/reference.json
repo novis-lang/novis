@@ -905,6 +905,19 @@
     },
     {
       "area": "cli",
+      "slug": "profiling",
+      "url": "/reference/cli/profiling/",
+      "title": "Profiling",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/profiling",
+        "title": "Profiling",
+        "examples": "tools/cli/profiling"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
       "slug": "nvs-build-compile",
       "url": "/reference/cli/nvs-build-compile/",
       "title": "nvs build --compile",

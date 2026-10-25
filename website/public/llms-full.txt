@@ -38299,7 +38299,7 @@ Runs `$fn` and returns everything it printed with `echo`. The printed text does 
 <a id="core-core-debug"></a>
 ### `Core\Debug`
 
-Keywords: dump, inspect, print a value, debug output, render, stderr, diagnostic, dump, render
+Keywords: dump, inspect, print a value, debug output, render, stderr, diagnostic, dump, render, startCoverage, stopCoverage, coverage, startTrace, stopTrace, startProfile, stopProfile
 
 `Core\Debug::dump` renders each argument as a typed record — `int(42)`, `string(2) "42"`, an
 array as `array(n) [ … ]` with its keys, an object as `Class#id (n) { … }` with its declared
@@ -38347,6 +38347,13 @@ the dump went to stderr
 |---|---|
 | [`Core\Debug::dump`](#core-core-debug-dump) | `dump(mixed ...$values): void` |
 | [`Core\Debug::render`](#core-core-debug-render) | `render(mixed $value): Core\Cli\Text` |
+| [`Core\Debug::startCoverage`](#core-core-debug-startcoverage) | `startCoverage(bool $branches = false): void` |
+| [`Core\Debug::stopCoverage`](#core-core-debug-stopcoverage) | `stopCoverage(): void` |
+| [`Core\Debug::coverage`](#core-core-debug-coverage) | `coverage(): array<array<int>>` |
+| [`Core\Debug::startTrace`](#core-core-debug-starttrace) | `startTrace(string $path): void` |
+| [`Core\Debug::stopTrace`](#core-core-debug-stoptrace) | `stopTrace(): void` |
+| [`Core\Debug::startProfile`](#core-core-debug-startprofile) | `startProfile(string $path): void` |
+| [`Core\Debug::stopProfile`](#core-core-debug-stopprofile) | `stopProfile(): void` |
 
 <a id="core-core-debug-dump"></a>
 #### `Core\Debug::dump`
@@ -38377,6 +38384,103 @@ Formats `$value` exactly as `dump` does, and returns it as a `Core\Cli\Text`. It
 | `$value` | `mixed` | The value to format. It is formatted the same way as a value given to `dump`. |
 
 **Returns** `Core\Cli\Text` — The plain text as a `Core\Cli\Text`, wherever the output goes. It has no colour and no newline at the end.
+
+<a id="core-core-debug-startcoverage"></a>
+#### `Core\Debug::startCoverage`
+
+```nvs skip
+Core\Debug::startCoverage(bool $branches = false): void
+```
+
+Starts counting how many times each line runs. Read the counts with `coverage`. `[debug] mode` must include `"coverage"`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$branches` | `bool` (default `false`) | When `true`, each side of every `if` and loop condition is counted too. `coverage` does not return these counts. The coverage report of `nvs test` shows them. `[debug] mode` must then also include `"branch"`. |
+
+**Returns** `void` — Nothing. Counting goes on until `stopCoverage`.
+
+**Throws** `RuntimeError` — `[debug] mode` in `nvs.toml` does not include the name this method needs.
+
+<a id="core-core-debug-stopcoverage"></a>
+#### `Core\Debug::stopCoverage`
+
+```nvs skip
+Core\Debug::stopCoverage(): void
+```
+
+Stops counting lines and branches. The counts so far are kept.
+
+**Returns** `void` — Nothing. It does nothing when coverage is not running.
+
+<a id="core-core-debug-coverage"></a>
+#### `Core\Debug::coverage`
+
+```nvs skip
+Core\Debug::coverage(): array<array<int>>
+```
+
+Returns how many times each line ran. The keys are file paths. Each value is an array from a line number to its count.
+
+**Returns** `array<array<int>>` — Only lines that ran are listed. Lines are counted from the first line when `[debug] mode` includes `"coverage"`, and when `nvs test` runs with a coverage option. Otherwise the array is empty.
+
+<a id="core-core-debug-starttrace"></a>
+#### `Core\Debug::startTrace`
+
+```nvs skip
+Core\Debug::startTrace(string $path): void
+```
+
+Starts writing a trace of every call to the file at `$path`. Each line of the file is one JSON object. `[debug] mode` must include `"trace"`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file to write. The capability `debug.trace` must grant this path. Permission to write files is not enough. |
+
+**Returns** `void` — Nothing. The trace goes on until `stopTrace`.
+
+**Throws** `RuntimeError` — `[debug] mode` in `nvs.toml` does not include the name this method needs.; `RuntimeError` — The configuration does not grant `debug.trace` for this path.; `LogicError` — A trace started by `startTrace` is already running.
+
+<a id="core-core-debug-stoptrace"></a>
+#### `Core\Debug::stopTrace`
+
+```nvs skip
+Core\Debug::stopTrace(): void
+```
+
+Stops the trace and closes its file.
+
+**Returns** `void` — Nothing. It does nothing when no trace is running.
+
+**Throws** `RuntimeError` — Not every call could be written to the file. The trace is stopped anyway.
+
+<a id="core-core-debug-startprofile"></a>
+#### `Core\Debug::startProfile`
+
+```nvs skip
+Core\Debug::startProfile(string $path): void
+```
+
+Starts timing every call, and writes the result to the file at `$path` in the speedscope format. `[debug] mode` must include `"profile"`. Timing every call adds a small cost to each one. So code with many small calls looks slower in the profile than it is.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file to write. The capability `debug.profile` must grant this path. Permission to write files is not enough. |
+
+**Returns** `void` — Nothing. The profile goes on until `stopProfile`.
+
+**Throws** `RuntimeError` — `[debug] mode` in `nvs.toml` does not include the name this method needs.; `RuntimeError` — The configuration does not grant `debug.profile` for this path.; `LogicError` — A profile started by `startProfile` is already running.
+
+<a id="core-core-debug-stopprofile"></a>
+#### `Core\Debug::stopProfile`
+
+```nvs skip
+Core\Debug::stopProfile(): void
+```
+
+Stops timing calls and closes the profile's file.
+
+**Returns** `void` — Nothing. It does nothing when no profile is running.
 
 <a id="core-core-test"></a>
 ### `Core\Test`
@@ -54333,6 +54437,43 @@ Each mutant compiles the program again, so a run costs one compile and a few tes
 mutants run one at a time, and each mutant's tests run across `--jobs` cores. `--mutate` runs a
 program's `#[Test]` methods only. `--format junit`, `--list`, `--update`, `--watch` and a `.nvst`
 tree are each an error beside it.
+
+### Profiling
+
+    nvs run <file> --profile callgrind|speedscope [--profile-out <file>]
+    nvs test <paths>... --profile callgrind|speedscope [--profile-out <file>]
+
+`--profile` measures how long each function call takes. When the program or the tests end, it
+writes the result to a file. You do not change the program for this.
+
+| Format | The file | Open it with |
+|---|---|---|
+| `callgrind` | `callgrind.out.<pid>` | KCachegrind or Webgrind |
+| `speedscope` | `profile.<pid>.speedscope.json` | speedscope, or the *View Profile* command in VS Code |
+
+`<pid>` is the process ID of the run. The file is written in the current folder.
+`--profile-out <file>` writes it to another file instead. At the end, the run prints
+`profile: <path>` on standard error.
+
+A Callgrind file has totals for each function. One total is the time in the function itself. The
+other includes the time of the functions it called. The file also lists who called each function.
+A speedscope file has every call on a timeline, in the order the calls ran.
+
+Under `nvs test`, each test has its own timeline in a speedscope file. A program that `spawn`
+starts also has its own timeline. A Callgrind file adds the totals of all of them together. The
+time a program waits for a spawned program is also in that sum, so the total can be larger than
+the time the run took.
+
+The timing adds a cost to every call. In a speedscope profile, it is about 170 nanoseconds per call
+on a current desktop processor. Every call pays the same cost, so code with many small calls looks
+slower in a profile than it is. A `.nvst` tree has no
+profile. On `nvs run`, `--profile` is an error beside `--dump-ir`, `--dump-asm` or `--count`.
+
+A program can also profile one part of itself. `Core\Debug::startProfile` and
+`Core\Debug::stopProfile` write a speedscope file around the code between them. The configuration
+must allow this. `[debug] mode` must include `"profile"`, and `[capabilities.debug] profile` must
+allow the file's folder. `--profile` needs neither of them, because only the person who runs the
+command can add the flag.
 
 ### nvs build --compile
 

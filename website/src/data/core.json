@@ -10498,6 +10498,217 @@
           "slug": "render",
           "url": "/reference/core/debug/render/",
           "examples": "core/Debug/render"
+        },
+        {
+          "id": "Debug.startCoverage",
+          "name": "startCoverage",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "startCoverage(bool $branches = false): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "branches",
+              "type": "bool",
+              "default": "false",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Starts counting how many times each line runs. Read the counts with <code>coverage</code>. <code>[debug] mode</code> must include <code>&quot;coverage&quot;</code>.",
+            "params": [
+              {
+                "name": "branches",
+                "descHtml": "When <code>true</code>, each side of every <code>if</code> and loop condition is counted too. <code>coverage</code> does not return these counts. The coverage report of <code>nvs test</code> shows them. <code>[debug] mode</code> must then also include <code>&quot;branch&quot;</code>."
+              }
+            ],
+            "returnHtml": "Nothing. Counting goes on until <code>stopCoverage</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>[debug] mode</code> in <code>nvs.toml</code> does not include the name this method needs."
+              }
+            ]
+          },
+          "slug": "startcoverage",
+          "url": "/reference/core/debug/startcoverage/",
+          "examples": "core/Debug/startCoverage"
+        },
+        {
+          "id": "Debug.stopCoverage",
+          "name": "stopCoverage",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "stopCoverage(): void",
+          "params": [],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Stops counting lines and branches. The counts so far are kept.",
+            "returnHtml": "Nothing. It does nothing when coverage is not running."
+          },
+          "slug": "stopcoverage",
+          "url": "/reference/core/debug/stopcoverage/",
+          "examples": "core/Debug/stopCoverage"
+        },
+        {
+          "id": "Debug.coverage",
+          "name": "coverage",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "coverage(): array<array<int>>",
+          "params": [],
+          "options": [],
+          "returnType": "array<array<int>>",
+          "doc": {
+            "shortHtml": "Returns how many times each line ran. The keys are file paths. Each value is an array from a line number to its count.",
+            "returnHtml": "Only lines that ran are listed. Lines are counted from the first line when <code>[debug] mode</code> includes <code>&quot;coverage&quot;</code>, and when <code>nvs test</code> runs with a coverage option. Otherwise the array is empty."
+          },
+          "slug": "coverage",
+          "url": "/reference/core/debug/coverage/",
+          "examples": "core/Debug/coverage"
+        },
+        {
+          "id": "Debug.startTrace",
+          "name": "startTrace",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "startTrace(string $path): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "path",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Starts writing a trace of every call to the file at <code>$path</code>. Each line of the file is one JSON object. <code>[debug] mode</code> must include <code>&quot;trace&quot;</code>.",
+            "params": [
+              {
+                "name": "path",
+                "descHtml": "The file to write. The capability <code>debug.trace</code> must grant this path. Permission to write files is not enough."
+              }
+            ],
+            "returnHtml": "Nothing. The trace goes on until <code>stopTrace</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>[debug] mode</code> in <code>nvs.toml</code> does not include the name this method needs."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The configuration does not grant <code>debug.trace</code> for this path."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "A trace started by <code>startTrace</code> is already running."
+              }
+            ]
+          },
+          "slug": "starttrace",
+          "url": "/reference/core/debug/starttrace/",
+          "examples": "core/Debug/startTrace"
+        },
+        {
+          "id": "Debug.stopTrace",
+          "name": "stopTrace",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "stopTrace(): void",
+          "params": [],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Stops the trace and closes its file.",
+            "returnHtml": "Nothing. It does nothing when no trace is running.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "Not every call could be written to the file. The trace is stopped anyway."
+              }
+            ]
+          },
+          "slug": "stoptrace",
+          "url": "/reference/core/debug/stoptrace/",
+          "examples": "core/Debug/stopTrace"
+        },
+        {
+          "id": "Debug.startProfile",
+          "name": "startProfile",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "startProfile(string $path): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "path",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Starts timing every call, and writes the result to the file at <code>$path</code> in the speedscope format. <code>[debug] mode</code> must include <code>&quot;profile&quot;</code>. Timing every call adds a small cost to each one. So code with many small calls looks slower in the profile than it is.",
+            "params": [
+              {
+                "name": "path",
+                "descHtml": "The file to write. The capability <code>debug.profile</code> must grant this path. Permission to write files is not enough."
+              }
+            ],
+            "returnHtml": "Nothing. The profile goes on until <code>stopProfile</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>[debug] mode</code> in <code>nvs.toml</code> does not include the name this method needs."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The configuration does not grant <code>debug.profile</code> for this path."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "A profile started by <code>startProfile</code> is already running."
+              }
+            ]
+          },
+          "slug": "startprofile",
+          "url": "/reference/core/debug/startprofile/",
+          "examples": "core/Debug/startProfile"
+        },
+        {
+          "id": "Debug.stopProfile",
+          "name": "stopProfile",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "stopProfile(): void",
+          "params": [],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Stops timing calls and closes the profile's file.",
+            "returnHtml": "Nothing. It does nothing when no profile is running."
+          },
+          "slug": "stopprofile",
+          "url": "/reference/core/debug/stopprofile/",
+          "examples": "core/Debug/stopProfile"
         }
       ],
       "slug": "debug",
