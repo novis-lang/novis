@@ -792,3 +792,56 @@ fn a_step_out_of_a_secret_method_shows_its_returned_value_redacted() {
         "a frame carries the secret: {written:#?}"
     );
 }
+
+/// A condition stops a loop only where it holds, a logpoint writes each time and never stops,
+/// and a condition that calls a method leaves its breakpoint unverified with the message.
+#[test]
+fn a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping() {
+    let dir = nvs_repo::scratch_private("dap-condition");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nint $i = 0;\nwhile ($i < 4) {\n    $i = $i + 1;\n    echo $i, \"\\n\";\n}\n",
+    )
+    .unwrap();
+    let main = dir.join("main.nvs");
+
+    let mut client = Client::start(&dir);
+    let (initialized, _) = client.ask("initialize", json!({ "adapterID": "novis" }));
+    assert_eq!(initialized["supportsConditionalBreakpoints"], true);
+    assert_eq!(initialized["supportsHitConditionalBreakpoints"], true);
+    assert_eq!(initialized["supportsLogPoints"], true);
+    let (set, _) = client.ask(
+        "setBreakpoints",
+        json!({ "source": { "path": main }, "breakpoints": [
+            { "line": 2, "condition": "$i->size() > 1" },
+            { "line": 4, "logMessage": "i is {$i}" },
+            { "line": 5, "condition": "$i == 3" },
+        ] }),
+    );
+    let call = set["breakpoints"][0]["id"].clone();
+    client.request("launch", json!({ "mode": "run", "program": main }));
+    client.request("configurationDone", json!({}));
+
+    let ran = client.until_event("stopped");
+    assert!(
+        ran.iter().any(|frame| frame["event"] == "breakpoint"
+            && frame["body"]["breakpoint"]["id"] == call
+            && frame["body"]["breakpoint"]["verified"] == false
+            && frame["body"]["breakpoint"]["message"]
+                == "A condition cannot call a function or a method."),
+        "the call left its breakpoint verified: {ran:#?}"
+    );
+    assert_eq!(output(&ran, "stdout"), "1\n2\n", "{ran:#?}");
+    assert_eq!(output(&ran, "console"), "i is 0\ni is 1\ni is 2\n", "{ran:#?}");
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 5, "{frame:#?}");
+    assert_eq!(variables["$i"], "3", "{variables:#?}");
+
+    client.ask("continue", json!({}));
+    let ran = client.until_event("terminated");
+    assert_eq!(output(&ran, "stdout"), "3\n4\n", "{ran:#?}");
+    assert_eq!(output(&ran, "console"), "i is 3\n", "{ran:#?}");
+    client.request("disconnect", json!({}));
+    let (_, success) = client.finish();
+    assert!(success, "the adapter ended with a failure");
+}

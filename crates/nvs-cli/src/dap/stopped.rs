@@ -279,7 +279,7 @@ fn children(node: &Node) -> Option<Vec<(String, Node)>> {
 }
 
 /// The one line a value shows beside its name.
-fn summary(node: &Node) -> String {
+pub(super) fn summary(node: &Node) -> String {
     match node {
         Node::Scalar(Scalar::Null) => "null".to_owned(),
         Node::Scalar(Scalar::Bool(value)) => value.to_string(),

@@ -77,6 +77,74 @@ pub fn node(value: Value) -> Node {
     node_of(value, &Caps::default(), 0, &mut Seen::default())
 }
 
+/// What [`property`] and [`element`] read.
+#[derive(Clone, Copy, Debug)]
+pub enum Read {
+    /// The value, borrowed from its container: it is not retained.
+    Value(Value),
+    /// A `secret` property, whose value is not read.
+    Secret,
+    /// No such property or element, or a container of another type.
+    Missing,
+}
+
+/// The declared property `name` of `value`, read without running any code. A debugger's
+/// breakpoint condition reads properties this way. A `secret` property is [`Read::Secret`], and
+/// a callable's captures are not properties.
+#[must_use]
+pub fn property(value: Value, name: &str) -> Read {
+    let Some(ptr) = value.obj_ptr() else {
+        return Read::Missing;
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the value owns a reference to a live allocation, so it is live \
+                  for this borrow; the handle is never dropped, so the reference \
+                  is not released twice"
+    )]
+    let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+    if object.class_name().contains("$fn") {
+        return Read::Missing;
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the descriptor is owned by the unit's class table, which \
+                  outlives every instance of the class it describes"
+    )]
+    let desc: &ClassDesc = unsafe { &*object.class() };
+    (0..object.field_count())
+        .find(|&slot| desc.field_name(slot) == Some(name))
+        .map_or(Read::Missing, |slot| {
+            if desc.field_is_secret(slot) {
+                Read::Secret
+            } else {
+                Read::Value(object.field(slot))
+            }
+        })
+}
+
+/// The key of an [`element`].
+#[derive(Clone, Copy, Debug)]
+pub enum Key<'a> {
+    /// An `int` key.
+    Index(i64),
+    /// A `string` key, as its bytes.
+    Name(&'a [u8]),
+}
+
+/// The element of the array `value` at `key`, read without running any code.
+#[must_use]
+pub fn element(value: Value, key: Key<'_>) -> Read {
+    let Some(array) = value.as_array() else {
+        return Read::Missing;
+    };
+    let found = match key {
+        Key::Index(index) => array.get_index(index),
+        Key::Name(name) => array.get(name),
+    };
+    found.map_or(Read::Missing, Read::Value)
+}
+
 /// The objects this walk has already entered, so a graph that points back at
 /// one becomes a [`Node::Cycle`] rather than an infinite traversal.
 ///

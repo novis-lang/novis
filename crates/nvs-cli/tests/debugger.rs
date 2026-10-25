@@ -13,7 +13,8 @@ use std::time::Duration;
 
 use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_host::debug::{
-    DebugFunction, DebugUnit, DebugVariable, Debugger, SiteLine, Stop, StopReason, StoppedFrame,
+    BreakpointSpec, DebugFunction, DebugUnit, DebugVariable, Debugger, SiteLine, Stop, StopReason,
+    StoppedFrame, VariableType,
 };
 use nvs_render::{Node, Scalar};
 
@@ -72,6 +73,7 @@ fn functions(unit: &nvs_codegen::Unit) -> Vec<DebugFunction> {
                 .map(|slot| DebugVariable {
                     name: slot.name.clone(),
                     secret: slot.secret,
+                    ty: VariableType::Other,
                 })
                 .collect(),
         })
@@ -105,7 +107,11 @@ impl Session {
                 .collect();
             let unit = nvs_codegen::compile(&program).expect("the fixture compiles");
             let sites = unit.debug_sites().expect("a debug unit has a site table");
-            let debug = DebugUnit::new(sites.clone(), lines, functions(&unit));
+            let owners = (0u32..)
+                .zip(&program.functions)
+                .flat_map(|(index, f)| std::iter::repeat_n(index, f.stmt_spans.len()))
+                .collect();
+            let debug = DebugUnit::new(sites.clone(), lines, owners, functions(&unit));
             let (debugger, stops) = Debugger::new();
             debugger.load(&debug);
             setup
@@ -206,7 +212,12 @@ echo $order;
 #[test]
 fn a_breakpoint_in_a_method_stops_at_its_line_with_the_parameters_and_locals() {
     let session = Session::start(METHOD);
-    assert!(session.debugger.set_breakpoints(FILE, &[5])[0].verified);
+    assert!(
+        session
+            .debugger
+            .set_breakpoints(FILE, &BreakpointSpec::lines(&[5]))[0]
+            .verified
+    );
     session.run();
 
     let stop = session.next_stop();
@@ -242,7 +253,12 @@ echo $add(10);
 #[test]
 fn a_breakpoint_in_a_closure_stops_at_its_line_with_its_parameter_and_a_captured_variable() {
     let session = Session::start(CLOSURE);
-    assert!(session.debugger.set_breakpoints(FILE, &[5])[0].verified);
+    assert!(
+        session
+            .debugger
+            .set_breakpoints(FILE, &BreakpointSpec::lines(&[5]))[0]
+            .verified
+    );
     session.run();
 
     let stop = session.next_stop();
@@ -277,7 +293,12 @@ foreach (Order::lines(3) as int $line) {
 #[test]
 fn a_breakpoint_in_a_generator_stops_on_a_later_iteration_with_the_loop_variable() {
     let session = Session::start(GENERATOR);
-    assert!(session.debugger.set_breakpoints(FILE, &[6])[0].verified);
+    assert!(
+        session
+            .debugger
+            .set_breakpoints(FILE, &BreakpointSpec::lines(&[6]))[0]
+            .verified
+    );
     session.run();
 
     let first = session.next_stop();
@@ -295,7 +316,9 @@ fn a_breakpoint_in_a_generator_stops_on_a_later_iteration_with_the_loop_variable
     assert_eq!(value(inner, "count"), Some(&int(3)), "{inner:#?}");
 
     // This clears every breakpoint, so the program runs to its end.
-    session.debugger.set_breakpoints(FILE, &[]);
+    session
+        .debugger
+        .set_breakpoints(FILE, &BreakpointSpec::lines(&[]));
     assert_eq!(session.finish(), "10\n20\n30\n");
 }
 
@@ -308,7 +331,12 @@ echo $shop;
 #[test]
 fn a_secret_local_shows_redacted_and_a_plain_local_beside_it_shows_its_value() {
     let session = Session::start(SECRET);
-    assert!(session.debugger.set_breakpoints(FILE, &[4])[0].verified);
+    assert!(
+        session
+            .debugger
+            .set_breakpoints(FILE, &BreakpointSpec::lines(&[4]))[0]
+            .verified
+    );
     session.run();
 
     let stop = session.next_stop();

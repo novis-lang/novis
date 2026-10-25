@@ -172,7 +172,7 @@ use nvs_config::cache::{
     env_hash,
 };
 use nvs_config::tree::Config;
-use nvs_host::debug::{DebugFunction, DebugUnit, DebugVariable, Debugger, SiteLine};
+use nvs_host::debug::{DebugFunction, DebugUnit, DebugVariable, Debugger, SiteLine, VariableType};
 use nvs_runtime::script::{Prepared, Program, Resolver};
 use nvs_runtime::{Ctx, Value};
 
@@ -2065,6 +2065,10 @@ pub(crate) fn debug_unit(
             SiteLine { file, line }
         })
         .collect();
+    let owners = (0u32..)
+        .zip(&program.functions)
+        .flat_map(|(index, function)| std::iter::repeat_n(index, function.stmt_spans.len()))
+        .collect();
     let functions = (0u32..)
         .map_while(|index| unit.debug_function(index))
         .map(|name| DebugFunction {
@@ -2076,11 +2080,24 @@ pub(crate) fn debug_unit(
                 .map(|slot| DebugVariable {
                     name: slot.name.clone(),
                     secret: slot.secret,
+                    ty: variable_type(slot.ty),
                 })
                 .collect(),
         })
         .collect();
-    Some(DebugUnit::new(Arc::clone(sites), lines, functions))
+    Some(DebugUnit::new(Arc::clone(sites), lines, owners, functions))
+}
+
+/// What a breakpoint's condition knows of a slot of representation `ty`.
+fn variable_type(ty: nvs_ir::Ty) -> VariableType {
+    match ty {
+        nvs_ir::Ty::Bool => VariableType::Bool,
+        nvs_ir::Ty::Int => VariableType::Int,
+        nvs_ir::Ty::Uint => VariableType::Uint,
+        nvs_ir::Ty::Float => VariableType::Float,
+        nvs_ir::Ty::Str => VariableType::Str,
+        _ => VariableType::Other,
+    }
 }
 
 /// A context granting `script.spawn` for everything, and nothing else.
@@ -3471,7 +3488,7 @@ mod tests {
 
     #[test]
     fn a_breakpoint_outlives_an_edit_and_a_stopped_request_finishes_on_its_own_unit() {
-        use nvs_host::debug::{Debugger, Stop, StopReason};
+        use nvs_host::debug::{BreakpointSpec, Debugger, Stop, StopReason};
 
         // A guard against a hang, never a wait for something to happen.
         const HANG: std::time::Duration = std::time::Duration::from_secs(60);
@@ -3502,7 +3519,7 @@ mod tests {
             &checking_config("hash", "0s"),
             debugger.clone(),
         ));
-        debugger.set_breakpoints(&file, &[4, 5]);
+        debugger.set_breakpoints(&file, &BreakpointSpec::lines(&[4, 5]));
 
         let old = serve_on_a_core(&compiler, &path);
         let stop = next(&stops);
@@ -3526,7 +3543,7 @@ mod tests {
         debugger.resume();
         assert_eq!(new.join().expect("the new request ended"), "15\n");
 
-        let resolved = debugger.set_breakpoints(&file, &[4, 5]);
+        let resolved = debugger.set_breakpoints(&file, &BreakpointSpec::lines(&[4, 5]));
         assert_eq!(
             resolved.iter().map(|b| b.verified).collect::<Vec<_>>(),
             [true, false],

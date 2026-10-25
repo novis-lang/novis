@@ -18,6 +18,15 @@
 //! and finishes on that unit with its sites and its lines. A breakpoint set
 //! later is armed in every unit still running.
 //!
+//! A breakpoint may carry a [`BreakpointTest`]: its condition, hit count and
+//! log message (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). Each
+//! time a unit arms the breakpoint, the test is bound to the slot table of
+//! every function with a site on its line, and a test that does not bind
+//! leaves the breakpoint unverified with its message and arms no site. At an
+//! armed site the bound test runs over the innermost frame's slots, and the
+//! task stops only where it says so. So a condition costs nothing at a site
+//! no breakpoint armed.
+//!
 //! A stop is the request tree's (`rule:testing/a-stop-pauses-the-whole-task-tree`).
 //! The handler is set on the tree, so every context of it runs the same one,
 //! a `spawn worker` child on another core included. A task that stops at a
@@ -65,7 +74,9 @@
 //! request on it lives, one weak unit per load, freed at the next load once
 //! the unit has ended, one weak safepoint view per
 //! attached request, freed at the next attach once the request has ended, and
-//! one wake per stopped task, freed by the resume. A step holds one entry
+//! one wake per stopped task, freed by the resume. Each loaded unit holds
+//! one bound test per armed site whose breakpoint has one, freed when the
+//! breakpoint is replaced or the unit ends. A step holds one entry
 //! until its task runs on. A stop holds the tree of
 //! every variable of every frame until the session drops it. A program that
 //! is not debugged spends nothing.
@@ -108,16 +119,91 @@ pub struct DebugVariable {
     pub name: String,
     /// Whether its type is `secret`, so its value is never shown.
     pub secret: bool,
+    /// Its representation, which a breakpoint's condition is checked against.
+    pub ty: VariableType,
+}
+
+/// The representation of a [`DebugVariable`], as far as a breakpoint's
+/// condition is checked against it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VariableType {
+    /// `bool`.
+    Bool,
+    /// `int`.
+    Int,
+    /// `uint`.
+    Uint,
+    /// `float`.
+    Float,
+    /// `string`.
+    Str,
+    /// Any other representation: an object, an array, a union.
+    Other,
 }
 
 /// One line of a [`Debugger::set_breakpoints`] call, and whether any stop site
 /// is on it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Breakpoint {
     /// The 1-based line asked for.
     pub line: u32,
-    /// Whether a statement starts on the line, so the breakpoint can stop.
+    /// Whether a statement starts on the line and its test binds there, so
+    /// the breakpoint can stop.
     pub verified: bool,
+    /// Why the breakpoint is not verified, where its test did not bind.
+    pub message: Option<String>,
+}
+
+/// One breakpoint a [`Debugger::set_breakpoints`] call sets: its line, and
+/// what it tests before it stops.
+#[derive(Clone)]
+pub struct BreakpointSpec {
+    /// The 1-based line.
+    pub line: u32,
+    /// Its condition, hit count and log message, or `None` for a breakpoint
+    /// that always stops.
+    pub test: Option<Arc<dyn BreakpointTest>>,
+}
+
+impl BreakpointSpec {
+    /// One breakpoint with no test on each of `lines`.
+    #[must_use]
+    pub fn lines(lines: &[u32]) -> Vec<Self> {
+        lines
+            .iter()
+            .map(|&line| Self { line, test: None })
+            .collect()
+    }
+}
+
+impl std::fmt::Debug for BreakpointSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BreakpointSpec")
+            .field("line", &self.line)
+            .field("test", &self.test.is_some())
+            .finish()
+    }
+}
+
+/// What a breakpoint tests at an armed site before the task stops: its
+/// condition, its hit count and its log message. The session binds it to
+/// the slot table of each function that has a site on its line, once per
+/// loaded unit.
+pub trait BreakpointTest: Send + Sync {
+    /// The test for the sites of `function`, or the message that leaves the
+    /// breakpoint unverified.
+    ///
+    /// # Errors
+    ///
+    /// The message, when the test cannot run against `function`'s slots.
+    fn bind(&self, function: &DebugFunction) -> Result<Arc<dyn SiteTest>, String>;
+}
+
+/// A [`BreakpointTest`] bound to one function's slot table.
+pub trait SiteTest: Send + Sync {
+    /// Whether the task stops, given its innermost frame's slots. Runs on the
+    /// task's own stack, where the slots are valid, and runs no program code.
+    fn stops(&self, slots: &[nvs_runtime::Value]) -> bool;
 }
 
 /// Why a task stopped.
@@ -194,50 +280,147 @@ pub struct Stop {
 /// One compiled unit of a debugged program: its stop sites, where each one is,
 /// and its functions. A recompile gives a new one, and a request runs on the
 /// one it was attached with until it ends.
-#[derive(Debug)]
 pub struct DebugUnit {
     sites: Arc<SiteTable>,
     lines: Vec<SiteLine>,
+    /// The index of the function each site is in, indexed as `lines` is.
+    owners: Vec<u32>,
     functions: Vec<DebugFunction>,
+    /// The bound test of each armed site whose breakpoint has one.
+    tests: Mutex<FxHashMap<u32, Arc<dyn SiteTest>>>,
+}
+
+impl std::fmt::Debug for DebugUnit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DebugUnit")
+            .field("sites", &self.sites)
+            .field("lines", &self.lines)
+            .field("functions", &self.functions)
+            .finish_non_exhaustive()
+    }
 }
 
 impl DebugUnit {
     /// The unit whose stop sites are `sites`. `lines` is where each site is,
-    /// indexed the same way: the caller builds it from
-    /// `nvs_ir::Program::stmt_lines`. `functions` is the unit's functions by
-    /// index, from `nvs_codegen::Unit::debug_function` and
+    /// and `owners` the index of the function each site is in, both indexed
+    /// the same way: the caller builds them from
+    /// `nvs_ir::Program::stmt_lines` and each function's statement count.
+    /// `functions` is the unit's functions by index, from
+    /// `nvs_codegen::Unit::debug_function` and
     /// `nvs_codegen::Unit::debug_slots`.
     #[must_use]
     pub fn new(
         sites: Arc<SiteTable>,
         lines: Vec<SiteLine>,
+        owners: Vec<u32>,
         functions: Vec<DebugFunction>,
     ) -> Arc<Self> {
         debug_assert_eq!(sites.len(), lines.len(), "one line per stop site");
+        debug_assert_eq!(owners.len(), lines.len(), "one owner per stop site");
         Arc::new(Self {
             sites,
             lines,
+            owners,
             functions,
+            tests: Mutex::default(),
         })
     }
 
-    /// Arms or disarms every site of `file` on each of `lines`. Answers one
-    /// [`Breakpoint`] per line, in order.
-    fn arm(&self, file: &str, lines: &[u32], on: bool) -> Vec<Breakpoint> {
-        lines
+    /// Arms or disarms every site of `file` on each breakpoint's line.
+    /// Answers one [`Breakpoint`] per breakpoint, in order. A breakpoint
+    /// whose test does not bind to a function on its line arms no site.
+    fn arm(&self, file: &str, breakpoints: &[BreakpointSpec], on: bool) -> Vec<Breakpoint> {
+        let mut tests = self.tests.lock().unwrap_or_else(PoisonError::into_inner);
+        breakpoints
             .iter()
-            .map(|&line| {
-                let mut verified = false;
-                for (site, _) in (0u32..)
+            .map(|breakpoint| {
+                let line = breakpoint.line;
+                let sites: Vec<u32> = (0u32..)
                     .zip(&self.lines)
                     .filter(|(_, at)| at.file == file && at.line == line)
-                {
-                    self.sites.arm(site, on);
-                    verified = true;
+                    .map(|(site, _)| site)
+                    .collect();
+                if !on {
+                    for &site in &sites {
+                        self.sites.arm(site, false);
+                        tests.remove(&site);
+                    }
+                    return Breakpoint {
+                        line,
+                        verified: false,
+                        message: None,
+                    };
                 }
-                Breakpoint { line, verified }
+                let bound = match self.bind(&sites, breakpoint.test.as_deref()) {
+                    Ok(bound) => bound,
+                    Err(message) => {
+                        return Breakpoint {
+                            line,
+                            verified: false,
+                            message: Some(message),
+                        };
+                    }
+                };
+                for (&site, test) in sites.iter().zip(bound) {
+                    if let Some(test) = test {
+                        tests.insert(site, test);
+                    }
+                    self.sites.arm(site, true);
+                }
+                Breakpoint {
+                    line,
+                    verified: !sites.is_empty(),
+                    message: None,
+                }
             })
             .collect()
+    }
+
+    /// `test` bound to the function of each of `sites`, once per function.
+    fn bind(
+        &self,
+        sites: &[u32],
+        test: Option<&dyn BreakpointTest>,
+    ) -> Result<Vec<Option<Arc<dyn SiteTest>>>, String> {
+        let Some(test) = test else {
+            return Ok(vec![None; sites.len()]);
+        };
+        let mut bound: FxHashMap<u32, Arc<dyn SiteTest>> = FxHashMap::default();
+        sites
+            .iter()
+            .map(|&site| {
+                let owner = usize::try_from(site)
+                    .ok()
+                    .and_then(|site| self.owners.get(site))
+                    .copied()
+                    .unwrap_or(u32::MAX);
+                if let Some(test) = bound.get(&owner) {
+                    return Ok(Some(Arc::clone(test)));
+                }
+                let function = usize::try_from(owner)
+                    .ok()
+                    .and_then(|owner| self.functions.get(owner))
+                    .ok_or_else(|| {
+                        "The breakpoint's function has no variables to test.".to_owned()
+                    })?;
+                let site_test = test.bind(function)?;
+                bound.insert(owner, Arc::clone(&site_test));
+                Ok(Some(site_test))
+            })
+            .collect()
+    }
+
+    /// Whether a task at the armed `site` stops: its breakpoint has no test,
+    /// or the test says so over `slots`.
+    fn passes(&self, site: u32, slots: &[nvs_runtime::Value]) -> bool {
+        let test = self
+            .tests
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&site)
+            .cloned();
+        // Outside the lock: a test may write an `output` event.
+        test.is_none_or(|test| test.stops(slots))
     }
 }
 
@@ -259,8 +442,8 @@ struct Shared {
 
 #[derive(Debug, Default)]
 struct State {
-    /// The lines of each file's breakpoints, as the session set them.
-    breakpoints: FxHashMap<String, Vec<u32>>,
+    /// Each file's breakpoints, as the session set them.
+    breakpoints: FxHashMap<String, Vec<BreakpointSpec>>,
     /// Every unit loaded into the session, the newest last. Weak, because a
     /// unit lives as long as its compiled code and the requests running it.
     units: Vec<Weak<DebugUnit>>,
@@ -352,7 +535,7 @@ impl Debugger {
             let mut resolved: Vec<_> = state
                 .breakpoints
                 .iter()
-                .map(|(file, lines)| (file.clone(), unit.arm(file, lines, true)))
+                .map(|(file, breakpoints)| (file.clone(), unit.arm(file, breakpoints, true)))
                 .collect();
             resolved.sort_by(|(a, _), (b, _)| a.cmp(b));
             (resolved, state.on_load.clone())
@@ -371,26 +554,30 @@ impl Debugger {
         self.shared.lock().on_load = Some(OnLoad(Arc::new(listener)));
     }
 
-    /// Sets the breakpoints of `file` to `lines`, replacing the ones it had,
-    /// and arms every stop site on each line in every loaded unit. Returns
-    /// one [`Breakpoint`] per line, in order, resolved in the newest unit.
-    pub fn set_breakpoints(&self, file: &str, lines: &[u32]) -> Vec<Breakpoint> {
+    /// Sets the breakpoints of `file` to `breakpoints`, replacing the ones it
+    /// had, and arms every stop site on each line in every loaded unit, its
+    /// test bound to each function there. Returns one [`Breakpoint`] per
+    /// breakpoint, in order, resolved in the newest unit.
+    pub fn set_breakpoints(&self, file: &str, breakpoints: &[BreakpointSpec]) -> Vec<Breakpoint> {
         let mut state = self.shared.lock();
         let before = state.breakpoints.remove(file).unwrap_or_default();
         let units: Vec<Arc<DebugUnit>> = state.units.iter().filter_map(Weak::upgrade).collect();
-        let mut answer = lines
+        let mut answer = breakpoints
             .iter()
-            .map(|&line| Breakpoint {
-                line,
+            .map(|breakpoint| Breakpoint {
+                line: breakpoint.line,
                 verified: false,
+                message: None,
             })
             .collect();
         for unit in &units {
             unit.arm(file, &before, false);
-            answer = unit.arm(file, lines, true);
+            answer = unit.arm(file, breakpoints, true);
         }
-        if !lines.is_empty() {
-            state.breakpoints.insert(file.to_owned(), lines.to_vec());
+        if !breakpoints.is_empty() {
+            state
+                .breakpoints
+                .insert(file.to_owned(), breakpoints.to_vec());
         }
         answer
     }
@@ -486,7 +673,10 @@ impl Shared {
     /// of a step, reports the stop, then parks until a resume.
     fn stop(&self, ctx: &mut Ctx, cause: StopCause, unit: &DebugUnit) -> i32 {
         let site = ctx.frames().next().map(|frame| frame.site);
-        let armed = site.is_some_and(|site| unit.sites.is_armed(site));
+        let armed = cause == StopCause::Site
+            && ctx.frames().next().is_some_and(|frame| {
+                unit.sites.is_armed(frame.site) && unit.passes(frame.site, frame.slots)
+            });
         if cause == StopCause::Site && !armed && !self.step_stops(ctx, site, unit) {
             return nvs_runtime::OK;
         }
@@ -646,6 +836,7 @@ mod tests {
         DebugUnit::new(
             Arc::new(SiteTable::new(lines.len())),
             lines.iter().map(at).collect(),
+            vec![0; lines.len()],
             Vec::new(),
         )
     }
@@ -663,6 +854,7 @@ mod tests {
         let variable = |name: &str, secret| DebugVariable {
             name: name.to_owned(),
             secret,
+            ty: VariableType::Int,
         };
         let function = DebugFunction {
             name: "main".to_owned(),
@@ -704,33 +896,35 @@ mod tests {
     fn a_breakpoint_arms_every_site_on_its_line_and_a_new_set_replaces_it() {
         let (debugger, _stops, unit) = session();
         let sites = &unit.sites;
-        let set = debugger.set_breakpoints("a.nvs", &[2, 3]);
+        let set = debugger.set_breakpoints("a.nvs", &BreakpointSpec::lines(&[2, 3]));
         assert_eq!(
             set,
             [
                 Breakpoint {
                     line: 2,
-                    verified: true
+                    verified: true,
+                    message: None,
                 },
                 Breakpoint {
                     line: 3,
-                    verified: false
+                    verified: false,
+                    message: None,
                 },
             ]
         );
         assert!(sites.is_armed(0) && sites.is_armed(1) && !sites.is_armed(2));
 
-        let set = debugger.set_breakpoints("a.nvs", &[4]);
+        let set = debugger.set_breakpoints("a.nvs", &BreakpointSpec::lines(&[4]));
         assert!(set[0].verified);
         assert!(!sites.is_armed(0) && !sites.is_armed(1) && sites.is_armed(2));
-        assert!(!debugger.set_breakpoints("b.nvs", &[4])[0].verified);
+        assert!(!debugger.set_breakpoints("b.nvs", &BreakpointSpec::lines(&[4]))[0].verified);
         assert!(sites.is_armed(2), "another file's set leaves this one's");
     }
 
     #[test]
     fn a_new_unit_takes_every_breakpoint_by_line_and_the_old_unit_keeps_its_own() {
         let (debugger, _stops, old) = session();
-        debugger.set_breakpoints("a.nvs", &[2, 4]);
+        debugger.set_breakpoints("a.nvs", &BreakpointSpec::lines(&[2, 4]));
 
         // The edit moved line 2's statements to line 3, and kept line 4.
         let new = unit(&[3, 4]);
@@ -753,13 +947,13 @@ mod tests {
         );
 
         // A new set reaches both units, and is resolved in the newest.
-        assert!(debugger.set_breakpoints("a.nvs", &[3])[0].verified);
+        assert!(debugger.set_breakpoints("a.nvs", &BreakpointSpec::lines(&[3]))[0].verified);
         assert!(new.sites.is_armed(0) && !new.sites.is_armed(1));
         assert!(!old.sites.is_armed(0) && !old.sites.is_armed(2));
 
         // A unit nothing holds any more is left out.
         drop(old);
-        assert!(debugger.set_breakpoints("a.nvs", &[4])[0].verified);
+        assert!(debugger.set_breakpoints("a.nvs", &BreakpointSpec::lines(&[4]))[0].verified);
         assert!(new.sites.is_armed(1));
     }
 

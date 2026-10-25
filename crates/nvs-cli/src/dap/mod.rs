@@ -34,6 +34,12 @@
 //! controller's stops into `stopped` events, and [`stopped`] answers what a client reads during
 //! one.
 //!
+//! **Conditions, hit counts and logpoints.** A source breakpoint's `condition`, `hitCondition`
+//! and `logMessage` become a [`condition::Rule`]. The controller checks it against each
+//! function's slot table once the unit loads, and a rule that does not check leaves its
+//! breakpoint unverified, with the message in the `breakpoint` event. A logpoint writes to the
+//! debug console as an `output` event of category `console`, and never stops.
+//!
 //! **Ending a session.** `disconnect` ends the adapter, and the program with it, because the
 //! program is this process. `terminate` answers with `terminated` and leaves the program running
 //! until the client's `disconnect` follows, which every client sends.
@@ -43,6 +49,7 @@
 //! A stop holds what [`stopped`] says until its resume. Nothing grows with the length of the
 //! session.
 
+mod condition;
 mod protocol;
 mod stdio;
 mod stopped;
@@ -54,7 +61,7 @@ use std::process::ExitCode;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 
-use nvs_host::debug::{Breakpoint, Debugger};
+use nvs_host::debug::{Breakpoint, BreakpointSpec, BreakpointTest, Debugger};
 use nvs_runtime::StepKind;
 use rustc_hash::FxHashMap;
 use serde_json::{Value, json};
@@ -198,12 +205,21 @@ fn loaded(
                     "breakpoint",
                     Some(json!({
                         "reason": "changed",
-                        "breakpoint": { "id": id, "verified": resolved.verified, "line": line },
+                        "breakpoint": shown_breakpoint(id, resolved),
                     })),
                 );
             }
         }
     }
+}
+
+/// A breakpoint as DAP shows it: its id, its line, whether it is verified, and why not.
+fn shown_breakpoint(id: i64, breakpoint: &Breakpoint) -> Value {
+    let mut shown = json!({ "id": id, "verified": breakpoint.verified, "line": breakpoint.line });
+    if let Some(message) = &breakpoint.message {
+        shown["message"] = json!(message);
+    }
+    shown
 }
 
 /// One session's state: what the client has sent so far, and the program once it runs.
@@ -262,6 +278,9 @@ impl Session {
                 let capabilities = Capabilities {
                     supports_configuration_done_request: true,
                     supports_terminate_request: true,
+                    supports_conditional_breakpoints: true,
+                    supports_hit_conditional_breakpoints: true,
+                    supports_log_points: true,
                 };
                 self.succeed(request, serde_json::to_value(capabilities).ok());
                 self.writer.event("initialized", None);
@@ -350,32 +369,52 @@ impl Session {
     }
 
     /// Sets one file's breakpoints, and gives the `setBreakpoints` body: one breakpoint per line,
-    /// each with a new id.
+    /// each with a new id. A breakpoint's `condition`, `hitCondition` and `logMessage` become its
+    /// [`condition::Rule`].
     fn set_breakpoints(&self, arguments: &Value) -> Result<Value, &'static str> {
         let path = arguments["source"]["path"]
             .as_str()
             .ok_or("The breakpoints name no source file.")?;
-        let lines: Vec<u32> = arguments["breakpoints"]
+        let say: condition::Say = {
+            let writer = Arc::clone(&self.writer);
+            Arc::new(move |text: String| {
+                writer.event(
+                    "output",
+                    Some(json!({ "category": "console", "output": text })),
+                );
+            })
+        };
+        let specs: Vec<BreakpointSpec> = arguments["breakpoints"]
             .as_array()
             .map(|breakpoints| {
                 breakpoints
                     .iter()
-                    .filter_map(|breakpoint| breakpoint["line"].as_u64())
-                    .filter_map(|line| u32::try_from(line).ok())
+                    .filter_map(|breakpoint| {
+                        let line = u32::try_from(breakpoint["line"].as_u64()?).ok()?;
+                        let rule = condition::Rule::new(
+                            breakpoint["condition"].as_str(),
+                            breakpoint["hitCondition"].as_str(),
+                            breakpoint["logMessage"].as_str(),
+                            format!("{}:{line}", shown_file(path)),
+                            Arc::clone(&say),
+                        );
+                        let test = rule.map(|rule| Arc::new(rule) as Arc<dyn BreakpointTest>);
+                        Some(BreakpointSpec { line, test })
+                    })
                     .collect()
             })
             .unwrap_or_default();
         let file = file_key(path);
         // Held across the set, so a load that follows it reads this set's ids.
         let mut breakpoints = lock(&self.breakpoints);
-        let answer = self.debugger.set_breakpoints(&file, &lines);
+        let answer = self.debugger.set_breakpoints(&file, &specs);
         let first = breakpoints.next + 1;
-        breakpoints.next += i64::try_from(lines.len()).unwrap_or(i64::MAX);
-        let known: Vec<(i64, u32)> = (first..).zip(lines.iter().copied()).collect();
+        breakpoints.next += i64::try_from(specs.len()).unwrap_or(i64::MAX);
+        let known: Vec<(i64, u32)> = (first..).zip(specs.iter().map(|spec| spec.line)).collect();
         let shown: Vec<Value> = known
             .iter()
             .zip(&answer)
-            .map(|(&(id, line), set)| json!({ "id": id, "verified": set.verified, "line": line }))
+            .map(|(&(id, _), set)| shown_breakpoint(id, set))
             .collect();
         if known.is_empty() {
             breakpoints.files.remove(&file);

@@ -63,6 +63,9 @@ pub(crate) enum Outgoing<'a> {
 pub(crate) struct Capabilities {
     pub(crate) supports_configuration_done_request: bool,
     pub(crate) supports_terminate_request: bool,
+    pub(crate) supports_conditional_breakpoints: bool,
+    pub(crate) supports_hit_conditional_breakpoints: bool,
+    pub(crate) supports_log_points: bool,
 }
 
 /// The `launch` request's arguments, as `rule:ide/the-debug-adapter-does-not-wait-for-an-editor`
