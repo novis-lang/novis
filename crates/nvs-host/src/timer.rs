@@ -74,7 +74,7 @@
 //! ordering to publish alongside — the value is the whole message — and a
 //! reader one store behind is a watchdog one interval late, not a wrong one.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
@@ -82,7 +82,7 @@ use std::time::{Duration, Instant};
 use nvs_runtime::host::Woken;
 
 use crate::reactor;
-use crate::scheduler::{TaskId, Waiting, current_task, suspend_current};
+use crate::scheduler::{TaskId, TaskMap, Waiting, current_task, suspend_current};
 
 /// The sentinel [`Published::earliest`] carries when no deadline is filed.
 ///
@@ -151,7 +151,7 @@ pub struct Timers {
     due: BTreeSet<(Instant, TaskId)>,
     /// Each task's own deadline, which is what makes [`Timers::disarm`] a
     /// removal rather than a scan.
-    armed: HashMap<TaskId, Instant>,
+    armed: TaskMap<Instant>,
     /// What the first entry of `due` is, for readers off this core. Shared
     /// with every [`DeadlineView`] handed out, which is the only reason any of
     /// it is behind an `Arc`.

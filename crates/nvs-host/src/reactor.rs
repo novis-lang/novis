@@ -134,7 +134,6 @@
 //! refcounts in `nvs-runtime` non-atomic.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -144,7 +143,7 @@ use std::time::{Duration, Instant};
 use mio::{Events, Poll, Token, Waker};
 use nvs_runtime::{Drain, DrainWake};
 
-use crate::scheduler::{RunReport, Scheduler, TaskId};
+use crate::scheduler::{RunReport, Scheduler, TaskId, TaskMap};
 use crate::timer::{DeadlineView, Timers};
 
 pub use mio::Interest;
@@ -371,7 +370,7 @@ pub struct Reactor {
     events: Events,
     /// What each task with a live registration holds: how many, and how many
     /// readiness events this reactor has reported for it.
-    registrations: HashMap<TaskId, Registered>,
+    registrations: TaskMap<Registered>,
     /// The ids the last poll reported, reused across calls so a poll allocates
     /// nothing on the steady path.
     ready: Vec<TaskId>,
@@ -433,7 +432,7 @@ impl Reactor {
         Ok(Self {
             poll,
             events: Events::with_capacity(EVENT_CAPACITY),
-            registrations: HashMap::new(),
+            registrations: TaskMap::default(),
             ready: Vec::new(),
             timers: Timers::default(),
             remote,

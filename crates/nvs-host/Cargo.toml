@@ -69,6 +69,10 @@ base64.workspace = true
 # `src/tls.rs` and `net.rs` sign the certificates their real peers present
 # with it too, on the same `ring` provider.
 rcgen.workspace = true
+# `src/scheduler.rs`'s two task maps hash a `TaskId` with Fx in place of
+# SipHash; that file's `TaskMap` owns why the key needs no seed. Already in
+# this binary through the compiler crates.
+rustc-hash.workspace = true
 
 # `src/cpuclock.rs`: a thread's own CPU time, which `[limits] cpu_time` is
 # measured against and which `std` spells on neither platform.

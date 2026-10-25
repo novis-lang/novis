@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-host/src/scheduler.rs",
-  "title": "The scheduler hashes each `TaskId` with SipHash, which is 1.4% of a hello request and 0.8% of a waiting one.",
-  "text": "A `TaskId` is the scheduler's own number and never a value a request supplies, so no input can grow a bucket and an unkeyed hash is safe there. Closing it is the scheduler's task map on `rustc_hash`, with a comment saying why the key needs no seed, and the hello profile from `bun nv bench-compare --profile hello` showing the SipHash rows gone.",
-  "goal": "bench-counters"
-}

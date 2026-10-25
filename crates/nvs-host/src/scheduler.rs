@@ -167,12 +167,13 @@
 //! stays testable with no I/O in it at all.
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeSet, VecDeque};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
 use corosensei::{Coroutine, CoroutineResult, Yielder};
 use nvs_runtime::{Ctx, TaskPanic, TaskRoot};
+use rustc_hash::FxHashMap;
 
 use crate::stack::{Role, Stacks};
 use crate::tsan::Fiber;
@@ -374,12 +375,22 @@ impl std::fmt::Debug for Pending {
     }
 }
 
+/// A map keyed by [`TaskId`], hashed with Fx and no seed: the task tree's
+/// and the parked set's here, the reactor's registrations and the timers'
+/// armed deadlines.
+///
+/// A seeded hash is there so that no input can choose keys that share a
+/// bucket. A `TaskId` is this scheduler's own counter and never a value a
+/// request supplies, so nothing outside can choose one, and SipHash was 1.4%
+/// of a hello request for no protection. Memory: nothing.
+pub(crate) type TaskMap<V> = FxHashMap<TaskId, V>;
+
 /// The half of a scheduler a running task can reach — the module doc's
 /// *The task tree* section owns why the split is here and not elsewhere.
 #[derive(Debug, Default)]
 struct TaskTree {
     next_id: u64,
-    nodes: HashMap<TaskId, TaskNode>,
+    nodes: TaskMap<TaskNode>,
     pending: Vec<Pending>,
     /// Tasks something has asked to wake, drained into the run queue by
     /// [`Scheduler::run`]. A running task cannot reach the parked set either,
@@ -719,7 +730,7 @@ pub struct Scheduler {
     /// *The task tree* section is that decision's home.
     tree: Rc<RefCell<TaskTree>>,
     ready: VecDeque<Task>,
-    parked: HashMap<TaskId, Task>,
+    parked: TaskMap<Task>,
     /// The **roots** that have ended and have not been taken. [`Finished`]'s
     /// doc owns why a child is never one of them.
     finished: Vec<Finished>,
@@ -820,7 +831,7 @@ impl Scheduler {
         Self {
             tree: Rc::new(RefCell::new(TaskTree::default())),
             ready: VecDeque::new(),
-            parked: HashMap::new(),
+            parked: TaskMap::default(),
             finished: Vec::new(),
             ended: Vec::new(),
             stacks: Stacks::new(),

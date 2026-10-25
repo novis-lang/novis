@@ -3569,6 +3569,7 @@ dependencies = [
  "nvs-repo",
  "nvs-runtime",
  "rcgen",
+ "rustc-hash",
  "rustls",
  "sha2 0.11.1",
  "toml",
