@@ -2,7 +2,6 @@
 // Checks the signed download link a request arrived with, as a download handler does before it sends the file.
 // bench: iterations 256
 // bench: complexity linear
-// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 
 class Files {
     #[Core\Route(path: "/files/{id}", method: Core\Http\Method::Get, name: "Files::download")]

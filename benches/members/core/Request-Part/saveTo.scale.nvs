@@ -1,0 +1,33 @@
+<?nvs
+// Prints the request for the `Core\Request\Part::saveTo` bench, with an uploaded file of `$size` bytes.
+// bench: prints
+// bench: start 1024
+// bench: max 16384
+
+class Bench {
+    public static function run(uint $size): string {
+        string $boundary = "------ShopFormBoundary";
+        array<string> $lines = [
+            "// scaling: file saveTo.nvsr",
+            "--METHOD--",
+            "POST",
+            "--PATH--",
+            "/documents",
+            "--SCHEME--",
+            "https",
+            "--HEADERS--",
+            "host: example.com",
+            "content-type: multipart/form-data; boundary=----ShopFormBoundary",
+            "--BODY_CRLF--",
+            $boundary,
+            "Content-Disposition: form-data; name=\"document\"; filename=\"handbook.txt\"",
+            "Content-Type: text/plain",
+            "",
+            Core\Str::repeat("a", $size),
+            $boundary . "--",
+        ];
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(1024);

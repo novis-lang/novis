@@ -1,0 +1,58 @@
+<?nvs
+// Prints the `Core\Router::signedRoute` bench and its request, with a signed link whose value is `$size` characters long.
+// bench: prints
+// bench: start 256
+// bench: max 4096
+
+class Files {
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::download")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function download(string $name): string { return "one file"; }
+}
+
+class Bench {
+    public static function run(uint $size): string {
+        bytes $raw = "example-key-for-signed-links-001" as bytes;
+        array<secret bytes> $keys = [$raw as secret bytes];
+        string $link = Core\Router::urlSigned("Files::download", ["name" => Core\Str::repeat("a", $size)], {keys: $keys, until: null});
+        array<string> $parts = Core\Str::split($link, "?");
+        array<string> $lines = [
+            '<?nvs',
+            '',
+            'class Files {',
+            '    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::download")]',
+            '    #[Core\Access(allow: Core\Audience::Public)]',
+            '    public function download(string $name): string { return "one file"; }',
+            '}',
+            '',
+            'class Bench {',
+            '    public static function run(uint $rounds): uint {',
+            '        bytes $raw = "example-key-for-signed-links-001" as bytes;',
+            '        array<secret bytes> $keys = [$raw as secret bytes];',
+            '        uint $total = 0;',
+            '        uint $i = 0;',
+            '        while ($i < $rounds) {',
+            '            Core\Router\Match $matched = Core\Router::signedRoute($keys);',
+            '            $total = $total + Core\Str::length($matched->param("name") as string) + $total % 3;',
+            '            $i = $i + 1;',
+            '        }',
+            '        return $total;',
+            '    }',
+            '}',
+            '',
+            'echo Bench::run(256), "\n";',
+            "// scaling: file signedRoute.nvsr",
+            "--METHOD--",
+            "GET",
+            "--PATH--",
+            $parts[0],
+            "--QUERY--",
+            $parts[1],
+            "--HEADERS--",
+            "host: www.example.com",
+        ];
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(256);
