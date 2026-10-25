@@ -2268,6 +2268,8 @@ impl ReadAs<'_> {
                 drop(tree);
                 decoded
             }
+            // `build` takes the read by value and [`read_as`] always fills
+            // it, so this arm is unreachable from source.
             None => Err(Fault::fatal(format!(
                 "internal error: `{member}` built one read twice"
             ))),

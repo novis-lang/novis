@@ -1438,6 +1438,7 @@ mod tests {
                 Value::int(201),
                 Value::text(""),
                 Value::array(nvs_runtime::NvsArray::new()),
+                Value::null(),
             ],
         );
 
