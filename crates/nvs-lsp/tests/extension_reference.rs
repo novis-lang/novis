@@ -136,12 +136,13 @@ fn the_chapter_documents_every_contributed_command_and_no_other() {
     }
 }
 
-/// The extension wakes on a Novis document or a workspace with an `nvs.toml`,
-/// and claims no PHP file.
+/// The extension wakes on a Novis document, a workspace with an `nvs.toml` or
+/// a debug session of type `nvs`, and claims no PHP file.
 ///
-/// The second activation event is not a claim: an `nvs.toml` gets one
-/// completion provider selected by its file name and no language
-/// (`rule:ide/the-extension-claims-nvs-only`).
+/// The second and third activation events are not claims: an `nvs.toml` gets
+/// one completion provider selected by its file name and no language
+/// (`rule:ide/the-extension-claims-nvs-only`), and a debug session of type
+/// `nvs` finds the adapter's factory with no `.nvs` file open.
 ///
 /// What `rule:ide/the-extension-claims-nvs-only` refuses is the *claim* — a
 /// language id, a file extension, an activation event. So what is scanned for
@@ -156,8 +157,13 @@ fn the_chapter_and_the_manifest_agree_the_extension_claims_nvs_alone() {
 
     assert_eq!(
         manifest["activationEvents"],
-        serde_json::json!(["onLanguage:nvs", "workspaceContains:**/nvs.toml"]),
-        "the chapter says the extension wakes on a Novis document or a workspace with an nvs.toml"
+        serde_json::json!([
+            "onLanguage:nvs",
+            "workspaceContains:**/nvs.toml",
+            "onDebugResolve:nvs"
+        ]),
+        "the chapter says the extension wakes on a Novis document, a workspace with an nvs.toml \
+         or a debug session of type nvs"
     );
     for language in manifest["contributes"]["languages"]
         .as_array()
