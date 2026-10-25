@@ -342,6 +342,11 @@ trace-timeline`, `bun nv proofs --gate` (nothing owed in 1515 features), `bun nv
   gaps` block in `otlp.rs` with no record, and a test checking an old message.
 - **The sweep's reds were stale:** `env-secret-proofs` exits 0 on HEAD, and the nightly run
   40075586234 ran on `3ea6f15`, before each job's fix.
+- **`floor-debt`'s last owed atom was a debug-only stack overflow.** The `nvs-check` attack's
+  200-deep expression overflowed a debug `nvs.exe`'s 1 MiB main thread on some runs, so its covws
+  recording run diverged (exit 9 or 253, not 1). `crates/nvs-cli/build.rs`'s `main_thread_stack`
+  now reserves 8 MiB on MSVC, and 20 of 20 recording runs exit 1. `bun nv proofs --id
+  'tools:cli/nvs-check' --run` is green with no divergence.
 
 ### Next
 
