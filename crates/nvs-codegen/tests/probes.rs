@@ -516,7 +516,11 @@ fn run_stopping(
     let seen = std::sync::Arc::clone(&stops);
     let mut ctx = Ctx::buffered();
     ctx.set_debug_stop(Some(std::sync::Arc::new(
-        move |ctx: &mut Ctx, _: nvs_runtime::StopCause| {
+        move |ctx: &mut Ctx, cause: nvs_runtime::StopCause| {
+            // A throw's call at a landing block is not a statement's stop.
+            if cause != nvs_runtime::StopCause::Site {
+                return nvs_runtime::OK;
+            }
             let chain: Vec<_> = ctx.frames().collect();
             let site = chain.first().expect("a stop has a frame").site;
             seen.lock()

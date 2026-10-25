@@ -3519,7 +3519,7 @@ mod tests {
             "debug-edit",
             "int $price = 4;\nint $total = $price * 3;\necho $total, \"\\n\";\necho \"done\\n\";",
         );
-        let file = super::real_path(&path).display().to_string();
+        let file = crate::dap::file_key(&path.to_string_lossy());
         let (debugger, stops) = Debugger::new();
         let compiler = Arc::new(Compiler::debugging(
             &checking_config("hash", "0s"),
