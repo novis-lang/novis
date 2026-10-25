@@ -1,0 +1,26 @@
+{
+  "$schema": "https://www.speedscope.app/file-format-schema.json",
+  "shared": {
+    "frames": [
+      { "name": "main", "file": "app.nvs", "line": 1 },
+      { "name": "App\\Shop::total", "file": "app.nvs", "line": 4 }
+    ]
+  },
+  "profiles": [
+    {
+      "type": "evented",
+      "name": "app.nvs",
+      "unit": "nanoseconds",
+      "startValue": 0,
+      "endValue": 900,
+      "events": [
+        { "type": "O", "frame": 0, "at": 0 },
+        { "type": "O", "frame": 1, "at": 100 },
+        { "type": "C", "frame": 1, "at": 600 },
+        { "type": "C", "frame": 0, "at": 900 }
+      ]
+    }
+  ],
+  "name": "app.nvs",
+  "exporter": "nvs"
+}

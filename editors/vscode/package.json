@@ -216,6 +216,11 @@
         "category": "Novis"
       },
       {
+        "command": "nvs.viewProfile",
+        "title": "View Profile",
+        "category": "Novis"
+      },
+      {
         "command": "nvs.restartServer",
         "title": "Restart Language Server",
         "category": "Novis"
@@ -351,7 +356,7 @@
   },
   "scripts": {
     "compile": "tsc -p ./ && npm run --silent bundle",
-    "bundle": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=es2022 --sourcemap",
+    "bundle": "node scripts/viewer.mjs && esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=es2022 --sourcemap",
     "watch": "npm run --silent bundle -- --watch",
     "lint": "eslint .",
     "test:headless": "tsc -p ./ && node scripts/headless.mjs",
@@ -372,6 +377,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
     "mocha": "^12.0.3",
+    "speedscope": "^1.25.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.2",
     "vscode-oniguruma": "^2.0.1",

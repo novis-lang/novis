@@ -103,6 +103,7 @@ const COMMANDS = [
   "nvs.run",
   "nvs.test",
   "nvs.showAst",
+  "nvs.viewProfile",
   "nvs.restartServer",
   "nvs.revealSecret",
   "nvs.hideSecrets",

@@ -312,6 +312,7 @@ Every one is under the **Novis** category in the command palette.
 | `nvs.run` | Run File | starts the `nvs` task that checks the open file, then compiles and runs it |
 | `nvs.test` | Run Tests | starts the `nvs` task that runs the open file's `#[Test]` methods, or the `.nvst` cases under it |
 | `nvs.showAst` | Show AST | shows the open file's syntax tree, from `nvs ast --json`, in the editor's tree view |
+| `nvs.viewProfile` | View Profile | opens a speedscope profile, such as one from `nvs run --profile=speedscope`, in a viewer inside the editor. The profile stays on your computer |
 | `nvs.downloadBinary` | Download nvs | installs the newest `nvs` release this extension can talk to. See below |
 | `nvs.openReleases` | Open Releases | opens the release page in the browser |
 
