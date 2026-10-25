@@ -45,7 +45,7 @@ Conventions the whole file uses:
 - A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, multi-catch, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, uncaught exception, error handler, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, dump a value, assertion, Core\Test\Failure)*
 - A.9 [Tasks, channels and isolates](#lang-concurrency) — structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing *(Core\Task, all, map, limit, deadline, TimeoutError, sleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, fibers, fork, parallel, concurrent requests, threads, workers, shared state)*
 - A.10 [Attributes, routes, commands and derived codecs](#lang-attributes) — `#[...]` metadata as anonymous objects, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration *(attribute, #[...], Attribute, reflection, read attributes, Core\Attributes, get, all, #[Route], route attribute, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, console command, Json\Derive, Json\Field, JSON encoding, decodeAs, Program::implementing, autoload)*
-- A.11 [Testing](#lang-testing) — `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, generated inputs, the assertion roster, fixed clocks and seeds, and the report formats *(test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, property, Property, property-based testing, generated inputs, random inputs, shrink, counterexample, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output)*
+- A.11 [Testing](#lang-testing) — `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, generated inputs, the assertion roster, fixed clocks and seeds, the report formats, and benchmarks with counted work *(test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, property, Property, property-based testing, generated inputs, random inputs, shrink, counterexample, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output, benchmark, Bench, #[Bench], nvs test --bench, count, allocations)*
 
 ### Part B — The `Core` library
 
@@ -25249,6 +25249,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 - `#[Core\Db\Derive]`
 - `#[Core\Db\Field]`
 - `#[Core\Test]`
+- `#[Core\Test\Bench]`
 - `#[Core\Test\Fixture]`
 - `#[Core\Test\TestWith]`
 - `#[Core\Test\Property]`
@@ -26989,7 +26990,7 @@ foreach (Core\Program::implementingWith<Page, {path: string}>("render") as {inst
 <a id="lang-testing"></a>
 ## A.11 Testing
 
-Keywords: test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, property, Property, property-based testing, generated inputs, random inputs, shrink, counterexample, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output
+Keywords: test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, property, Property, property-based testing, generated inputs, random inputs, shrink, counterexample, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output, benchmark, Bench, #[Bench], nvs test --bench, count, allocations
 
 ### A test is a method marked `#[Test]`
 
@@ -29040,6 +29041,222 @@ echo (Password::isStrongEnough("correct horse battery") ? "strong" : "weak"), " 
 
 ```output
 strong weak weak
+```
+
+### `#[Bench]` and `nvs test --bench`
+
+`#[Bench]` marks a method as a bench. A bench measures how much work a piece of code does.
+`nvs test --bench main.nvs` runs every bench in the program, one at a time. It runs no test, and a
+plain `nvs test` runs no bench.
+
+A bench method has the same shape as a `#[Test]` method. Write `use Core\Test\Bench;` at the top of
+the file, and `#[Bench]` above the method.
+
+The report prints a `count:` line under each bench. It counts statements, calls, allocations,
+allocated bytes and runs of the garbage collector. These counts are the same on every run and on
+every computer. The line also prints the time the bench took, marked `(advisory)`, because that
+time changes on every run.
+
+A bench passes without an assertion. With `--format json`, a build server can compare the counts
+with the last run.
+
+**Good to know:** a new version of Novis can give the same program different counts.
+
+The examples show a bench beside a test, two ways to write the same work, and benches that a build
+server checks.
+
+A bench method is `public`, it is not `static`, and it returns `void`. If an assertion inside a
+bench fails, the bench fails. `#[Bench(skip: "reason")]` skips a bench and prints the reason.
+
+The counts tell you if your code does more work. They do not tell you if Novis got faster.
+
+Each bench runs once. Its counts are the same on every run, so a second run gives no new
+information.
+
+Each bench runs on its own, the same way each test does. A value that one bench puts in a `static`
+property is not there when the next bench runs. So the counts of a bench do not depend on the
+benches that ran before it.
+
+A bench can have a `#[Fixture]` parameter. The fixture is built before the counting starts, so its
+work is not part of the counts.
+
+A bench cannot fix the clock or the random numbers. A bench that reads `Core\Time::now()` or calls
+`Core\Random` can do different work on each run, and then its counts change too.
+
+`#[Bench]` has two options, `skip:` and `because:`. Both are strings. Every other option of
+`#[Test]`, such as `retries:`, `seed:` or `at:`, does not compile on a bench. A `#[TestWith]` row on
+a bench does not compile either. A method that has `#[Bench]` and also `#[Test]` or `#[Fixture]`
+does not compile.
+
+`--filter` works with `--bench` and selects benches by `Class::method`. `--bench` does not work with
+`--jobs` or `--mutate`, and it does not work with a `.nvst` file.
+
+In the JSON report, a bench that ran has `counts` with `statements`, `calls`, `allocations`,
+`bytes` and `gc`. It also has `advisoryWallMs`, the time it took in milliseconds. A skipped bench
+has `reason` and no `counts`.
+
+The exit status is `1` when a bench failed, and `0` otherwise.
+
+#### Example 01: a bench beside a test
+
+```nvs test
+<?nvs
+// Shows a bench beside a test. `nvs test --bench` runs the bench and not the test.
+// proof: test --bench
+
+use Core\Test;
+use Core\Test\Bench;
+
+final class Slug {
+    public static function of(string $title): string {
+        return Core\Str::replace(Core\Str::lower(Core\Str::trim($title)), " ", "-");
+    }
+}
+
+final class SlugTest {
+    // `nvs test` runs this test. `nvs test --bench` does not.
+    #[Test]
+    public function itJoinsTheWordsWithDashes(): void {
+        Test::assertSame(Slug::of(" Hello World "), "hello-world");
+    }
+
+    // A bench needs no assertion. The report prints a `count:` line under it.
+    // `statements` is how many statements ran, and `calls` is how many calls were made.
+    #[Bench]
+    public function slugsOfOneHundredTitles(): void {
+        for (int $i = 0; $i < 100; $i++) {
+            Slug::of("Release Notes " . $i);
+        }
+    }
+}
+```
+
+```output
+  SlugTest
+    ✓ slugsOfOneHundredTitles
+      count: statements=302 calls=400 allocations=505 bytes=26674 gc=0
+
+  0 failed, 1 passed, 0 skipped, 0 flaky
+```
+
+#### Example 02: two ways to build one line
+
+```nvs test
+<?nvs
+// Shows two benches that compare two ways to build one line of a CSV file.
+// proof: test --bench
+
+use Core\Test\Bench;
+
+final class CsvLine {
+    // This method adds one cell at a time, in a loop.
+    public static function byLoop(array<string> $cells): string {
+        string $line = "";
+        foreach ($cells as string $cell) {
+            if ($line != "") {
+                $line = $line . ",";
+            }
+            $line = $line . $cell;
+        }
+        return $line;
+    }
+
+    // This method makes one call to `Core\Str::join`.
+    public static function byJoin(array<string> $cells): string {
+        return Core\Str::join($cells, ",");
+    }
+}
+
+final class CsvLineBench {
+    // Both benches build the same 200 cells first.
+    // So the difference in their counts is the work of building the line.
+    private static function cells(): array<string> {
+        array<string> $cells = [];
+        for (int $i = 0; $i < 200; $i++) {
+            $cells[] = "cell" . $i;
+        }
+        return $cells;
+    }
+
+    #[Bench]
+    public function byLoop(): void {
+        CsvLine::byLoop(CsvLineBench::cells());
+    }
+
+    // This bench runs 1000 fewer statements than the bench above.
+    #[Bench]
+    public function byJoin(): void {
+        CsvLine::byJoin(CsvLineBench::cells());
+    }
+}
+```
+
+```output
+  CsvLineBench
+    ✓ byLoop
+      count: statements=1406 calls=2 allocations=423 bytes=32373 gc=0
+    ✓ byJoin
+      count: statements=406 calls=3 allocations=422 bytes=31681 gc=0
+
+  0 failed, 2 passed, 0 skipped, 0 flaky
+```
+
+#### Example 03: benches a build server checks
+
+```nvs test
+<?nvs
+// Shows benches that a build server checks on every change to the program.
+// proof: test --bench
+
+use Core\Test\Bench;
+use Core\Test\Fixture;
+
+final class Catalog {
+    public function constructor(public array<int> $prices) {}
+
+    public function priceOf(string $sku): ?int {
+        if (!Core\Arr::hasKey($this->prices, $sku)) {
+            return null;
+        }
+        return $this->prices[$sku];
+    }
+}
+
+final class CatalogBench {
+    // A fixture is built before the counting starts.
+    // So the 500 prices it adds are not part of the counts below.
+    #[Fixture]
+    public static function catalog(): Catalog {
+        array<int> $prices = [];
+        for (int $i = 0; $i < 500; $i++) {
+            $prices["sku-" . $i] = 100 + $i;
+        }
+        return new Catalog($prices);
+    }
+
+    // `nvs test --bench --format json` prints a `counts` object for this bench.
+    // The counts are the same on every machine. A build server can compare them with the last run.
+    #[Bench]
+    public function oneHundredLookups(Catalog $catalog): void {
+        for (int $i = 0; $i < 100; $i++) {
+            $catalog->priceOf("sku-" . $i);
+        }
+    }
+
+    // `skip:` stops a bench from running, and the report prints the reason.
+    #[Bench(skip: "the import file is not in this repository")]
+    public function importTheWholeCatalog(): void {}
+}
+```
+
+```output
+  CatalogBench
+    ✓ oneHundredLookups
+      count: statements=402 calls=200 allocations=205 bytes=8902 gc=0
+    - importTheWholeCatalog
+      skipped: the import file is not in this repository
+
+  0 failed, 1 passed, 1 skipped, 0 flaky
 ```
 
 # Part B — The `Core` library

@@ -18,8 +18,11 @@ with no assertion, because what it claims is its rows, and an assertion that fai
 Why once: its counts are the same on every run, so a repeat or iteration option buys nothing
 (simplicity).
 
-The rows are the bench's call alone, counted on its own isolate: the thread's empty array is made
-before the window opens, so a bench's rows do not depend on which benches ran before it. A task
+The rows are the bench's object and call, counted on its own isolate: the constructor is the
+bench's setup and is counted with it, and setup that must not count goes in a `#[Fixture]`, which
+is built before the isolate. The thread's empty array is made before the window opens, so a bench's
+rows do not depend on which benches ran before it. A bench takes no `seed` or `at`, so one that
+reads the clock or `Core\Random` may count differently on each run. A task
 the bench spawns counts on a context of its own, which the rows do not include, as `nvs run
 --count`'s do not. The text report prints them as `nvs run --count` does, under the bench's line,
 and the JSON report gives each bench `counts` and `advisoryWallMs` (`rule:testing/report-formats`).

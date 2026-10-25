@@ -303,6 +303,11 @@ the status `nvs test` ends with when a test failed.
 An example about a mutation run declares `// proof: test --mutate`, and the runner adds `--mutate`
 to the command. The `.out` then ends with the mutants' counts, the score and each survived mutant.
 
+An example about a bench run declares `// proof: test --bench`, and the runner adds `--bench` to the
+command, so the `#[Bench]` methods run and the tests do not. The `.out` keeps each bench's `count:`
+line and drops the `, wall N ms (advisory)` at its end, since only the counts are the same on every
+run.
+
 ## `// requires: unimplemented`
 
 An example for a feature that does not run yet carries that line and is skipped rather than failed.

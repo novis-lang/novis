@@ -238,6 +238,10 @@ const EXAMPLE_TEST_RE = /(?:\/\/|#)\s*proof:\s*test\b/;
 /** `// proof: test --mutate`: a `proof: test` program run under `nvs test --mutate`, whose report ends
  * with the mutation counts (`MUTATION_SUMMARY_RE`). */
 const EXAMPLE_MUTATE_RE = /(?:\/\/|#)\s*proof:\s*test\s+--mutate\b/;
+/** `// proof: test --bench`: a `proof: test` program run under `nvs test --bench`, which runs its
+ * `#[Bench]` methods and no test. Its `.out` keeps each bench's counted row and drops the advisory
+ * wall time beside it (`testReport`), since only the counts are the same on every run. */
+const EXAMPLE_BENCH_RE = /(?:\/\/|#)\s*proof:\s*test\s+--bench\b/;
 /** The counts line a `--mutate` report writes once every mutant has run. */
 const MUTATION_SUMMARY_RE = /^\s*mutants: [0-9]+ killed, [0-9]+ survived, [0-9]+ timed out, [0-9]+ not reached\r?$/m;
 /** The last line of an `nvs test` report, which is written once every test has run. */
@@ -554,18 +558,21 @@ export function exampleOutput(path: string, source: string, out: Pick<Ran, "stdo
   return out.stderr.replaceAll(path.replaceAll("\\", "/"), name).replaceAll(path.replaceAll("/", "\\"), name);
 }
 
-/** `nvs test`'s human report without its timings: the duration that ends each test's line and the
- * summary's ` in N ms`, which differ on every run. */
+/** `nvs test`'s human report without its timings: the duration that ends each test's line, the
+ * summary's ` in N ms` and a bench row's `, wall N ms (advisory)`, which differ on every run. */
 export function testReport(stdout: string): string {
   return stdout
     .replace(/^(\s+[✓✗!-] .*?) +[0-9]+(?:\.[0-9]+)? ms(\r?)$/gmu, "$1$2")
-    .replace(/^(\s+[0-9]+ failed, .* flaky) in [0-9]+ ms(\r?)$/gm, "$1$2");
+    .replace(/^(\s+[0-9]+ failed, .* flaky) in [0-9]+ ms(\r?)$/gm, "$1$2")
+    .replace(/^(\s+count: .*?), wall [0-9]+(?:\.[0-9]+)? ms \(advisory\)(\r?)$/gm, "$1$2");
 }
 
 /** The command line an example or an attack runs with: `nvs test` for a `proof: test` program, with
- * `--mutate` for a `proof: test --mutate` one, and `nvs run` otherwise. */
+ * `--mutate` or `--bench` for a `proof: test --mutate` or `proof: test --bench` one, and `nvs run`
+ * otherwise. */
 export function proofArgv(nvs: string, path: string, source: string): string[] {
   if (EXAMPLE_MUTATE_RE.test(source)) return [nvs, "test", path, "--mutate"];
+  if (EXAMPLE_BENCH_RE.test(source)) return [nvs, "test", path, "--bench"];
   return [nvs, EXAMPLE_TEST_RE.test(source) ? "test" : "run", path];
 }
 

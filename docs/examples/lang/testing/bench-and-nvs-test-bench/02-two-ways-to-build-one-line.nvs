@@ -1,0 +1,47 @@
+<?nvs
+// Shows two benches that compare two ways to build one line of a CSV file.
+// proof: test --bench
+
+use Core\Test\Bench;
+
+final class CsvLine {
+    // This method adds one cell at a time, in a loop.
+    public static function byLoop(array<string> $cells): string {
+        string $line = "";
+        foreach ($cells as string $cell) {
+            if ($line != "") {
+                $line = $line . ",";
+            }
+            $line = $line . $cell;
+        }
+        return $line;
+    }
+
+    // This method makes one call to `Core\Str::join`.
+    public static function byJoin(array<string> $cells): string {
+        return Core\Str::join($cells, ",");
+    }
+}
+
+final class CsvLineBench {
+    // Both benches build the same 200 cells first.
+    // So the difference in their counts is the work of building the line.
+    private static function cells(): array<string> {
+        array<string> $cells = [];
+        for (int $i = 0; $i < 200; $i++) {
+            $cells[] = "cell" . $i;
+        }
+        return $cells;
+    }
+
+    #[Bench]
+    public function byLoop(): void {
+        CsvLine::byLoop(CsvLineBench::cells());
+    }
+
+    // This bench runs 1000 fewer statements than the bench above.
+    #[Bench]
+    public function byJoin(): void {
+        CsvLine::byJoin(CsvLineBench::cells());
+    }
+}

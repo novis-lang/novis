@@ -1,0 +1,38 @@
+--TEST--
+a plain `nvs test` runs the `#[Test]` methods of a class that also has `#[Bench]` methods, runs none of the benches, does not count them as left out, and prints no class that has only benches (`rule:testing/bench-counters`)
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: lang:testing/bench-and-nvs-test-bench
+use Core\Test;
+use Core\Test\Bench;
+
+final class Counter {
+    public static int $runs = 0;
+}
+
+final class MixedTest {
+    #[Test]
+    public function itRunsTheTest(): void {
+        Test::assertSame(Counter::$runs, 0);
+    }
+
+    // A bench that ran would fail the run.
+    #[Bench]
+    public function itIsNotRun(): void {
+        Test::assertSame(1, 2);
+    }
+}
+
+final class OnlyBenches {
+    #[Bench]
+    public function itIsNotRunEither(): void {
+        Test::assertSame(1, 2);
+    }
+}
+--EXPECTF--
+  MixedTest
+    ✓ itRunsTheTest                    %f ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in %d ms

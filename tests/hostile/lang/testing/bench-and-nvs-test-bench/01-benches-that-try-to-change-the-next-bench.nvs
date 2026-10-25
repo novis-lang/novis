@@ -1,0 +1,52 @@
+<?nvs
+// Attack: each bench tries to break the run or change the counts of the bench after it.
+// Every bench should run on its own, and the last bench should count the same work it counts alone.
+// proof: test --bench
+
+use Core\Test\Bench;
+
+final class Cache {
+    public static array<string> $lines = [];
+}
+
+final class Deep {
+    public static function down(int $n): int {
+        return Deep::down($n + 1) + 1;
+    }
+}
+
+final class CacheBench {
+    /// 1. Fills a static cache, so that the next bench finds its work already done.
+    #[Bench]
+    public function step1FillsTheCache(): void {
+        for (int $i = 0; $i < 100; $i++) {
+            Cache::$lines[] = "line " . $i;
+        }
+    }
+
+    /// 2. Calls itself until the call stack is too deep.
+    #[Bench]
+    public function step2CallsItselfForever(): void {
+        Deep::down(0);
+    }
+
+    /// 3. Allocates strings of one megabyte until the memory limit stops it.
+    #[Bench]
+    public function step3FillsTheMemory(): void {
+        array<string> $all = [];
+        string $big = Core\Str::repeat("x", 1048576);
+        while (true) {
+            $all[] = $big . Core\Arr::count($all);
+        }
+    }
+
+    /// 4. Fills the cache only when it is empty. It is empty, because each bench runs on its own.
+    #[Bench]
+    public function step4UsesTheCache(): void {
+        if (Core\Arr::count(Cache::$lines) == 0) {
+            for (int $i = 0; $i < 100; $i++) {
+                Cache::$lines[] = "line " . $i;
+            }
+        }
+    }
+}

@@ -445,14 +445,25 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         if bench.is_some() && (test.is_some() || fixture.is_some()) {
             // A bench runs only under `--bench` and a test only without it, so one method
             // cannot be both. A fixture builds a value, and a bench measures work.
-            let other = if test.is_some() { "#[Test]" } else { "#[Fixture]" };
+            let (other, help) = if test.is_some() {
+                (
+                    "#[Test]",
+                    "`nvs test --bench` runs a benchmark and `nvs test` runs a test, so keep \
+                     one of the two attributes",
+                )
+            } else {
+                (
+                    "#[Fixture]",
+                    "a fixture builds a value for other methods, and a benchmark counts its own \
+                     work, so keep one of the two attributes",
+                )
+            };
             report_shape(
                 m,
                 "#[Bench]",
                 &method,
                 &format!("is also a `{other}`"),
-                "`nvs test --bench` runs a benchmark and `nvs test` runs a test, so keep one of \
-                 the two attributes",
+                help,
                 env,
             );
             continue;

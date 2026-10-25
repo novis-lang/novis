@@ -143,10 +143,10 @@ however its job ends.
 the Novis test, the attack and the bench at the paths `bun nv proofs --id` prints, under § *Text an end
 user reads*. The session keeps the Rust tests and the rule flip.
 
-- [ ] The rule settles the attribute's options and what `--bench` runs, as the standing decision says (`rule:testing/bench-counters`). `docs/rules/testing/bench-counters.md:17`
-- [ ] `#[Bench]` joins the recognized roster with its card, and its methods are collected beside `#[Test]`'s (`rule:testing/test-attribute`). `crates/nvs-types/src/derive.rs:73`, `crates/nvs-types/src/testing.rs:231`
-- [ ] `--bench` runs each bench under the counting mode and reports statements, calls, allocations, bytes and GC cycles, with wall time labelled advisory, in the text report and the JSON report, with its help text (`rule:testing/report-formats`). `crates/nvs-cli/src/runner.rs:142`, `crates/nvs-cli/src/runner.rs:2830`
-- [ ] A Rust test that a bench's rows are identical across two runs (`rule:testing/bench-counters`). `crates/nvs-cli/src/runner.rs:3458`
+- [x] The rule settles the attribute's options and what `--bench` runs, as the standing decision says (`rule:testing/bench-counters`). `docs/rules/testing/bench-counters.md:17`
+- [x] `#[Bench]` joins the recognized roster with its card, and its methods are collected beside `#[Test]`'s (`rule:testing/test-attribute`). `crates/nvs-types/src/derive.rs:73`, `crates/nvs-types/src/testing.rs:231`
+- [x] `--bench` runs each bench under the counting mode and reports statements, calls, allocations, bytes and GC cycles, with wall time labelled advisory, in the text report and the JSON report, with its help text (`rule:testing/report-formats`). `crates/nvs-cli/src/runner.rs:142`, `crates/nvs-cli/src/runner.rs:2830`
+- [x] A Rust test that a bench's rows are identical across two runs (`rule:testing/bench-counters`). `crates/nvs-cli/src/runner.rs:3458`
 - [ ] A heading for the feature in the testing chapter, and its feature proofs, with `bun nv proofs --id` on its id passing (`rule:testing/feature-proofs`). `docs/examples/lang/testing/chapter.md:15`, `docs/examples/lang/testing/bench-and-nvs-test-bench/about.md:1`
 - [ ] The rule `shipped`, its `**Not on disk.**` paragraph gone. `data/rules/testing/bench-counters.json:3`, `docs/rules/testing/bench-counters.md:17`
 
@@ -206,34 +206,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `nvs run --count` prints `gc=<cycles>` last, a blocking call counts the same on every
-run, and a counted run that collects under a ceiling prints the same line cold and warm.
+Stage 2's first four items are done (`e6d2c775a` and the proofs commit after it). `#[Bench]`
+(`Core\Test\Bench`) is a `TestCase` with `bench` set (`crates/nvs-types/src/testing.rs`'s
+`BENCH_OPTIONS`). `nvs test --bench` runs the benches and no test, one at a time, and a plain run
+counts no bench as left out. Each bench's constructor and call are counted on its own isolate
+(`crates/nvs-cli/src/runner.rs`'s `Rows`), as a `count:` line in text and `counts` and
+`advisoryWallMs` in JSON. A bench passes with no assertion. The rule text says all of it.
 
-The cold/warm difference was the thread's random generator. `TraceContext::started` draws with
-`rand::rng()`, which makes the generator on a thread's first draw. A cold compile draws first, so a warm
-run made the generator inside `Ctx::new`, after `memory_base` was read. Every warm run then held 336 more
-bytes (debug, Windows), so each window between collections fit 6 fewer nodes. `Ctx::new` now draws the
-trace ids before it reads the base (`crates/nvs-runtime/src/ctx/wiring.rs:121`). A cold and a warm run
-of the test's program now print the same line, and the gap record is deleted.
+One trap was paid for: the thread's empty-array singleton is made on the thread's first `[]`, so the
+first bench on a thread counted 96 more bytes. The runner calls `nvs_runtime::prime_empty_array()`
+before each window. `runner::tests::a_bench_reports_the_same_rows_on_every_run` passes.
 
-Tests expected to go red: none. `two_counted_runs_with_a_collection_print_the_same_line` now compares two
-cold runs and one warm run, and passes.
+The feature's proofs are written and committed with this handoff: the folder
+`docs/examples/lang/testing/bench-and-nvs-test-bench/`, two `.nvst` cases, the attack and the member
+bench. `tools/nv/proofs/run.ts` gained `// proof: test --bench`, and `testReport` drops the advisory
+wall time from a `.out`. The feature id is `lang:testing/bench-and-nvs-test-bench`.
 
-The sweep's findings needed no change. `env-secret-proofs` passes when run by hand, and its log shows
-exit 0. The nightly run `40075586234` was a `workflow_dispatch` on `3ea6f1550`, and HEAD already fixes
-each job it failed.
+Tests expected to go red: none known. The `.nvst` cases and the Rust test passed by name. A snapshot of
+the attribute roster or of `nvs meta --json`'s cards may change with the new card.
+
+The sweep's findings needed no change: `env-secret-proofs`'s log shows exit 0, and `40075586234` is the
+nightly run the last session already found fixed at HEAD.
 
 ### Next
 
-**Stage 2: `#[Bench]` and `nvs test --bench`.** Its gate holds: `test-surface` is retired, and
-`docs/rules/testing/tests-never-reach-a-build.md` has no `**Not on disk.**` paragraph. The file set is
-`crates/nvs-types/src/derive.rs`, `crates/nvs-types/src/testing.rs`, `crates/nvs-cli/src/runner.rs`,
-`docs/rules/testing/bench-counters.md`. Follow the stage's `**Split:**` line.
+**Finish stage 2: the perf proofs, then the rule flip.** Re-rendering `docs/reference/lang/95-testing.md`
+made the perf proof of all ten `lang:testing/*` features stale, so `bun nv proofs --gate` is red on
+them. This session stopped the recording mid-build, and it wrote nothing.
 
-- [ ] The rule states `#[Bench]`'s `skip` and `because`, and that `--bench` runs benches and no tests. `docs/rules/testing/bench-counters.md:17`
-- [ ] `#[Bench]` joins the roster with its card, and its methods are collected beside `#[Test]`'s. `crates/nvs-types/src/derive.rs:73`, `crates/nvs-types/src/testing.rs:231`
-- [ ] `--bench` runs each bench with `DebugFlags::COUNT` and reports the five counts and an advisory wall time, in text and JSON. `crates/nvs-cli/src/runner.rs:142`, `crates/nvs-cli/src/runner.rs:1478`
-- [ ] A Rust test that a bench's rows are identical across two runs. `crates/nvs-cli/src/runner.rs:3458`
+- [ ] Record the ten stale perf proofs `bun nv proofs --gate` lists with `--record-perf --only`, in the background, then `bun nv scaling --budget --write` if the new bench asks. `benches/members/lang/testing/bench-and-nvs-test-bench.nvs:1`
+- [ ] `bun nv proofs --id 'lang:testing/bench-and-nvs-test-bench'` owes nothing, and `bun nv proofs --gate` is green. `docs/examples/lang/testing/bench-and-nvs-test-bench/about.md:1`
+- [ ] The rule `shipped`, its `**Not on disk.**` paragraph gone, stage 2 `done` in the front matter. `data/rules/testing/bench-counters.json:3`, `docs/rules/testing/bench-counters.md:35`
+
+Then stage 4 (`crates/nvs-codegen/src/lib.rs:896`).
 
 ### Backlog
 
@@ -249,3 +254,11 @@ each job it failed.
   session before the gate stage decides which, and adds a stage or moves the records.
 - The gate stage watches the nightly `writeStdin` perf proof on Linux for the leftover one-allocation
   difference seen above the ramp's max.
+- The proofs subagent saw `bytes` differ by 8 between a debug and a `target/proof` build of one
+  example. The rule promises the same rows across machines for one build, so this is not a broken
+  promise, but the proof run's recording pass reports "diverged" on these programs and reruns them.
+  Find the Rust allocation whose size depends on the build profile, or make the proof run compare one
+  profile only. `tools/nv/proofs/run.ts:558`
+- Diagnostic wording on a bench, found by the same subagent: E0736 for a `#[TestWith]` on a bench
+  says "the #[Test] method", and E0738 and the static and return-type help texts use "rather than",
+  which § *Text an end user reads* forbids. `crates/nvs-types/src/testing.rs:1070`

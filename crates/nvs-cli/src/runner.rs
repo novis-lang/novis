@@ -650,8 +650,8 @@ struct Case {
 /// `rule:testing/bench-counters`' rows for one `#[Bench]`: the work its call did, and how long
 /// it took. Every count is the same on every run of the same program, and `wall` is not.
 ///
-/// The counts are taken on the bench's own isolate and around the call alone, so the isolate's
-/// own setup is in no bench's rows. A task the bench spawns counts its statements and calls on a
+/// The counts are taken on the bench's own isolate, around the constructor and the call, so the
+/// isolate's own setup and the class's fixtures are in no bench's rows. A task the bench spawns counts its statements and calls on a
 /// context of its own, which these do not include, as `nvs run --count` does not. **What it
 /// spends:** these six words per bench, in the report.
 #[derive(Clone, Copy, Debug)]

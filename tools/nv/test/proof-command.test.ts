@@ -97,9 +97,15 @@ describe("a `proof: test` example", () => {
     expect(testReport("  T\ncreate 2 ms\n    ✓ a  1.5 ms\n")).toBe("  T\ncreate 2 ms\n    ✓ a\n");
   });
 
-  test("it runs under `nvs test`, and under `nvs test --mutate` when it says so", () => {
+  test("a bench row keeps its counts and loses its advisory wall time", () => {
+    const row = "    ✓ b    1.0 ms\n      count: statements=6 calls=2 allocations=1 bytes=8 gc=0, wall 0.642 ms (advisory)\n";
+    expect(testReport(row)).toBe("    ✓ b\n      count: statements=6 calls=2 allocations=1 bytes=8 gc=0\n");
+  });
+
+  test("it runs under `nvs test`, and under `nvs test --mutate` or `--bench` when it says so", () => {
     expect(proofArgv("nvs", "a.nvs", "<?nvs\n// proof: test\n")).toEqual(["nvs", "test", "a.nvs"]);
     expect(proofArgv("nvs", "a.nvs", "<?nvs\n// proof: test --mutate\n")).toEqual(["nvs", "test", "a.nvs", "--mutate"]);
+    expect(proofArgv("nvs", "a.nvs", "<?nvs\n// proof: test --bench\n")).toEqual(["nvs", "test", "a.nvs", "--bench"]);
     expect(proofArgv("nvs", "a.nvs", "<?nvs\n")).toEqual(["nvs", "run", "a.nvs"]);
   });
 });

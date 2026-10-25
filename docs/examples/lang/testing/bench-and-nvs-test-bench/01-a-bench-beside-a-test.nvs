@@ -1,0 +1,29 @@
+<?nvs
+// Shows a bench beside a test. `nvs test --bench` runs the bench and not the test.
+// proof: test --bench
+
+use Core\Test;
+use Core\Test\Bench;
+
+final class Slug {
+    public static function of(string $title): string {
+        return Core\Str::replace(Core\Str::lower(Core\Str::trim($title)), " ", "-");
+    }
+}
+
+final class SlugTest {
+    // `nvs test` runs this test. `nvs test --bench` does not.
+    #[Test]
+    public function itJoinsTheWordsWithDashes(): void {
+        Test::assertSame(Slug::of(" Hello World "), "hello-world");
+    }
+
+    // A bench needs no assertion. The report prints a `count:` line under it.
+    // `statements` is how many statements ran, and `calls` is how many calls were made.
+    #[Bench]
+    public function slugsOfOneHundredTitles(): void {
+        for (int $i = 0; $i < 100; $i++) {
+            Slug::of("Release Notes " . $i);
+        }
+    }
+}

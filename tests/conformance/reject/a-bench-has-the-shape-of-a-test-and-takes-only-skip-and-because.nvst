@@ -1,0 +1,91 @@
+--TEST--
+a `#[Bench]` method has a test's shape, takes `skip:` and `because:` alone and no data row, and is never also a `#[Test]` or a `#[Fixture]` (`rule:testing/bench-counters`)
+--FILE--
+<?nvs
+// covers: lang:testing/bench-and-nvs-test-bench
+use Core\Test;
+use Core\Test\Bench;
+use Core\Test\Fixture;
+use Core\Test\TestWith;
+
+final class AcceptedBench {
+    // Accepted: a plain bench, a skipped one, and `because:` beside it.
+    #[Bench]
+    public function itRuns(): void {}
+
+    #[Bench(skip: "measured elsewhere", because: "the import is slow")]
+    public function itIsSkipped(): void {}
+}
+
+final class RefusedBench {
+    // Refused: a bench runs once, so a retry buys nothing.
+    #[Bench(retries: 2, because: "it is slow")]
+    public function itRetries(): void {}
+
+    // Refused: a bench cannot fix the random numbers or the clock.
+    #[Bench(seed: 7)]
+    public function itIsSeeded(): void {}
+
+    #[Bench(at: "2026-01-01T00:00:00Z")]
+    public function itHasAFixedClock(): void {}
+
+    // Refused: a bench and a test on one method.
+    #[Bench]
+    #[Test]
+    public function itIsAlsoATest(): void {}
+
+    // Refused: a bench and a fixture on one method.
+    #[Bench]
+    #[Fixture]
+    public static function itIsAlsoAFixture(): int {
+        return 1;
+    }
+
+    // Refused: a bench is not `static` and returns `void`.
+    #[Bench]
+    public static function itIsStatic(): void {}
+
+    #[Bench]
+    public function itReturnsAValue(): int {
+        return 1;
+    }
+
+    // Refused: the option is a string.
+    #[Bench(skip: 3)]
+    public function itSkipsWithANumber(): void {}
+
+    // Refused: a bench takes no data row.
+    #[Bench]
+    #[TestWith(n: 1)]
+    public function itHasARow(int $n): void {}
+}
+--EXPECTF-ERROR--
+error[E0454]: `retries` is not an option of `#[Bench]`
+   --> case.nvs:19:13
+%A
+error[E0454]: `seed` is not an option of `#[Bench]`
+   --> case.nvs:23:13
+%A
+error[E0454]: `at` is not an option of `#[Bench]`
+   --> case.nvs:26:13
+%A
+error[E0733]: the `#[Bench]` method `itIsAlsoATest` is also a `#[Test]`
+   --> case.nvs:32:21
+%A
+error[E0733]: the `#[Bench]` method `itIsAlsoAFixture` is also a `#[Fixture]`
+   --> case.nvs:37:28
+%A
+error[E0733]: the `#[Bench]` method `itIsStatic` is `static`
+   --> case.nvs:43:28
+%A
+error[E0733]: the `#[Bench]` method `itReturnsAValue` returns `int`
+   --> case.nvs:46:21
+%A
+error[E0401]: expected `string`, found `int`
+   --> case.nvs:51:19
+%A
+error[E0738]: this `#[TestWith]` is on a method that is a `#[Bench]` rather than a `#[Test]`
+   --> case.nvs:56:15
+%A
+error: aborting due to 10 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

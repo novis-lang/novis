@@ -1,0 +1,7 @@
+  CatalogBench
+    ✓ oneHundredLookups
+      count: statements=402 calls=200 allocations=205 bytes=8902 gc=0
+    - importTheWholeCatalog
+      skipped: the import file is not in this repository
+
+  0 failed, 1 passed, 1 skipped, 0 flaky
