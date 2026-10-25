@@ -17,13 +17,6 @@
       ]
     },
     {
-      "title": "Testing",
-      "text": "`nvs test` gets the features a team expects, and tests stay out of your builds. `nvs test --mutate` checks if your tests notice a wrong line. Benchmarks report counted work that CI can check.",
-      "goals": [
-        "bench-counters"
-      ]
-    },
-    {
       "title": "Debugging and profiling",
       "text": "A debugger stops your program at a line and shows its variables, in VS Code too. Novis records requests, and a viewer shows each one with its timeline, logs and errors. The profiler shows where the time goes.",
       "goals": [
