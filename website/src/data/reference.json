@@ -1152,6 +1152,19 @@
     },
     {
       "area": "cli",
+      "slug": "nvs-dap",
+      "url": "/reference/cli/nvs-dap/",
+      "title": "nvs dap",
+      "group": "Editor",
+      "intro": {
+        "id": "tools:editor/nvs-dap",
+        "title": "nvs dap",
+        "examples": "tools/editor/nvs-dap"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
       "slug": "the-vs-code-extension",
       "url": "/reference/cli/the-vs-code-extension/",
       "title": "The VS Code extension",

@@ -1153,6 +1153,18 @@
       "See which file set each configuration value"
     ]
   },
+  "/reference/cli/nvs-dap/": {
+    "feature": "tools:editor/nvs-dap",
+    "hash": "90b163dcf00c5f05",
+    "questions": [
+      "How do I debug a Novis program in VS Code?",
+      "Set a breakpoint that stops only when a condition is true",
+      "Step through a request while my development server runs",
+      "Debug my #[Test] methods one at a time",
+      "Stop the program where an exception is thrown",
+      "Debug a program that runs inside a Docker container"
+    ]
+  },
   "/reference/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin/": {
     "feature": "tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin",
     "hash": "4dbbbca14ffb4393",
@@ -1352,14 +1364,14 @@
   },
   "/reference/cli/the-vs-code-extension/": {
     "feature": "tools:editor/the-vs-code-extension",
-    "hash": "ddf75741a08ccd45",
+    "hash": "9365a0768469eb88",
     "questions": [
       "How do I install Novis support in Visual Studio Code?",
       "Syntax colours and autocomplete for .nvs files in VS Code",
       "Point VS Code at a specific copy of the nvs binary",
       "Open a speedscope profile inside VS Code",
       "Why are passwords blurred in my editor?",
-      "Format the HTML inside a template file"
+      "Start the Novis debugger from launch.json in VS Code"
     ]
   },
   "/reference/config/app/": {
