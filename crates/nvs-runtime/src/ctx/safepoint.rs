@@ -479,8 +479,9 @@ impl Ctx {
     ///
     /// The host's call, never a program's: every bit it turns on also joins the ceiling
     /// [`Self::start_probes`] reads, so `Core\Debug` may stop and start it again.
+    /// [`DebugFlags::SITES`] stays as it was, because only [`crate::probe_every_site`] sets it.
     pub fn set_debug_flags(&mut self, flags: DebugFlags) {
-        self.debug = flags;
+        self.debug = flags | (self.debug & DebugFlags::SITES);
         self.debug_ceiling |= flags;
     }
 

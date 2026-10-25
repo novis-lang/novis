@@ -366,6 +366,16 @@ pub(crate) struct Args {
     // `rule:testing/probes-on-is-a-tested-configuration`.
     #[arg(long, value_name = "LEVEL", conflicts_with = "list")]
     opt_level: Option<OptLevel>,
+    /// Run the tests with the debug probes on.
+    ///
+    /// Novis compiles a probe into each statement, branch and call.
+    /// Coverage and tracing use these probes. With this flag every probe
+    /// runs, and no data is recorded or written. A test that passes
+    /// without this flag and fails with it shows a bug in Novis. For
+    /// `.nvst` cases, every program a case runs has its probes on.
+    // `rule:testing/probes-on-is-a-tested-configuration`.
+    #[arg(long, conflicts_with = "list")]
+    probes: bool,
 }
 
 /// The levels `--opt-level` takes, one for each [`nvs_codegen::OptLevel`].
@@ -394,6 +404,10 @@ impl Args {
         // the level on to each process a `.nvst` case starts.
         if let Some(level) = self.opt_level {
             nvs_codegen::set_opt_level(level.into());
+        }
+        // Before any context is made, and passed on the same way as the level.
+        if self.probes {
+            nvs_runtime::probe_every_site();
         }
         crate::run_test(
             &self.paths,
@@ -3230,7 +3244,9 @@ fn run_in_isolate(
         Rc::new(RefCell::new(Vec::new()));
     // A bench's rows cross the same way, in a cell of their own.
     let rows: Rc<Cell<Option<Rows>>> = Rc::new(Cell::new(None));
-    let outcome = run_the_test(unit, ctx, test, case, row, crossed, routes, &snapshots, &rows);
+    let outcome = run_the_test(
+        unit, ctx, test, case, row, crossed, routes, &snapshots, &rows,
+    );
     let taken = std::mem::take(&mut *snapshots.borrow_mut());
     (outcome, taken, rows.get())
 }
@@ -5149,7 +5165,11 @@ mod tests {
 
         let plain = ran_shaped("bench.nvs", &Selection::default(), shape);
         assert_eq!(plain.left_out, 0, "a plain run leaves no bench out");
-        let names: Vec<&str> = plain.cases.iter().map(|case| case.method.as_str()).collect();
+        let names: Vec<&str> = plain
+            .cases
+            .iter()
+            .map(|case| case.method.as_str())
+            .collect();
         assert_eq!(names, ["aTest"]);
         assert!(plain.cases.iter().all(|case| case.rows.is_none()));
     }

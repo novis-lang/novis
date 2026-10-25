@@ -1,11 +1,14 @@
 {
   "title": "The conformance suite runs with the probes on, and once per optimisation level",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/debug-probes",
     "testing/the-deep-lane",
     "testing/nvst-is-separate"
   ],
-  "guardedBy": [],
-  "goal": "bench-counters"
+  "guardedBy": [
+    ".github/workflows/ci.yml",
+    "crates/nvs-cli/tests/nvst_select.rs",
+    "crates/nvs-codegen/tests/unoptimised.rs"
+  ]
 }

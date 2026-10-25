@@ -34,7 +34,7 @@ stages:
         rules: [testing/probes-on-is-a-tested-configuration, testing/nvst-is-separate, config/the-extension-set-is-in-every-unit-key]
   - id: 5
     title: the conformance suite runs with the probes on
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/ctx/trace.rs, .github/workflows/ci.yml, docs/rules/testing/probes-on-is-a-tested-configuration.md]
     extra:
       context:
@@ -104,9 +104,15 @@ level sits in the unit key's content half (`crates/nvs-cli/src/cache.rs`'s `unit
 level. So the cache stays on at both levels. Request path: nothing, the key is hashed once per unit
 on a cold read. Memory: one artifact per level for a unit that was compiled at both.
 
-**`--probes` waits on `trace-timeline`'s sink.** With `TRACE` on, the call events must go to a sink
-and not grow in memory. **Gate for stage 5:** `docs/goals/trace-timeline.md` shows stage 6 `done` (or
-the file is gone). If it does not hold, stage 4 runs first and stage 5 waits.
+**`--probes` turns on one bit, `DebugFlags::SITES`, that sends every probe site to its helper and
+records nothing.** Turning the recording bits on would change what a case prints: `TRACE` files query
+spans and warns of a missing `debug.trace` grant, and `COVERAGE` counts into a table `Core\Debug`
+reads. The bug class the rule names is the compiled half, a call at every site, and compiled code
+tests the whole flags word, so one bit no helper reads exercises all of it. It is process-wide
+(`nvs_runtime::probe_every_site`, as `set_opt_level` is), so every context the host makes has it,
+and it reaches a case's processes as `NOVIS_PROBES`. `set_debug_flags` keeps it. Request path: one
+relaxed load per context made. Memory: nothing. The rule's last paragraph records the declined
+alternative.
 
 **A CI lane is proved locally by one conformance chapter.** The full suite at each level and with the
 probes on runs only in CI. Locally, `nvs test --opt-level none tests/conformance/lang/` and
@@ -207,11 +213,11 @@ line. The session checks each batch and ticks it.
 
 **Gate:** `trace-timeline` stage 6, as `## Standing decisions` names it.
 
-- [ ] The rule names `--probes` (`rule:testing/probes-on-is-a-tested-configuration`). `docs/rules/testing/probes-on-is-a-tested-configuration.md:18`
-- [ ] Over a `.nvst` tree, `--probes` runs each case with every probe bit on and its data discarded, and output is compared as usual (`rule:testing/debug-probes`). `crates/nvs-cli/src/main.rs:2377`, `crates/nvs-cli/src/main.rs:2433`
-- [ ] A Rust test that a case passes with and without `--probes` and the probe data is discarded (`rule:testing/nvst-is-separate`). `crates/nvs-cli/src/main.rs:2377`
-- [ ] CI runs the conformance suite once with the probes on, beside the existing run; proved locally on `tests/conformance/lang/`. `.github/workflows/ci.yml:228`
-- [ ] The rule `shipped`, its `**Not on disk.**` paragraph gone, and `bun nv owners --closes bench-counters` passes. `data/rules/testing/probes-on-is-a-tested-configuration.json:3`, `docs/rules/testing/probes-on-is-a-tested-configuration.md:18`
+- [x] The rule names `--probes` (`rule:testing/probes-on-is-a-tested-configuration`). `docs/rules/testing/probes-on-is-a-tested-configuration.md:21`
+- [x] Over a `.nvst` tree, `--probes` runs each case with every probe site on and nothing recorded, and output is compared as usual (`rule:testing/debug-probes`, `## Standing decisions`). `crates/nvs-runtime/src/ctx/trace.rs:282`, `crates/nvs-cli/src/main.rs:2833`
+- [x] A Rust test that a case passes with and without `--probes` and writes nothing more, and one that the sites record nothing (`rule:testing/nvst-is-separate`). `crates/nvs-cli/tests/nvst_select.rs:146`, `crates/nvs-runtime/src/ctx/trace.rs:1495`
+- [x] CI runs the conformance suite once with the probes on, beside the existing run; proved locally on `tests/conformance/lang/`. `.github/workflows/ci.yml:303`
+- [x] The rule `shipped` and its `**Not on disk.**` paragraph gone. `bun nv owners --closes bench-counters` names no designed rule; the gaps it names are stages 3's and 6's. `data/rules/testing/probes-on-is-a-tested-configuration.json:3`
 
 ### 6. the request-path gaps `request-overhead` handed over are built
 
@@ -246,40 +252,47 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 4 is done. `nvs test --opt-level none|speed` sets Cranelift's level for the run
-(`crates/nvs-cli/src/runner.rs`, `Args::run`) and passes it to every process a `.nvst` case starts as
-`NOVIS_OPT_LEVEL` (`nvs_test::Options::nvs_env`, `crates/nvs-cli/src/main.rs:2818`). `NOVIS_NO_OPTIMISE`
-is gone. `nvs_codegen::OptLevel` and `set_opt_level` replace `compile_unoptimised`, and `host_isa`
-takes the level as a parameter. The compile cache keys on the level (`cache::unit_key`), so it stays
-on at both levels; the checked build still turns it off. The CI lane runs `test --opt-level none`
-(`.github/workflows/ci.yml:297`), and the rule says so. `## Standing decisions` records why the level
-travels as a variable and why it is in the content half of the key.
+Stage 5 is done. `nvs test --probes` turns `nvs_runtime::DebugFlags::SITES` on for the whole process
+(`nvs_runtime::probe_every_site`, `crates/nvs-runtime/src/ctx/trace.rs:282`), and every context
+starts with it (`wiring.rs`'s `Ctx::new`). Compiled code tests the whole flags word, so every
+statement, branch and call site calls its helper, and no helper reads the bit: nothing is recorded.
+A `.nvst` case's processes get it as `NOVIS_PROBES` (`crates/nvs-cli/src/main.rs:2833`), which `nvs`
+reads at start beside `NOVIS_OPT_LEVEL` and lists in `nvs --help`. `set_debug_flags` keeps the bit.
+The CI lane `Conformance suite, probes on` runs beside the unoptimised one (`.github/workflows/ci.yml:303`).
+The rule is `shipped`, its `**Not on disk.**` paragraph is gone, and it records the declined
+alternative (every recording bit on). `## Standing decisions` records why.
 
-Checked: build and clippy green. `cache::tests::a_unit_cached_at_one_level_is_not_loaded_at_the_other`
-and both tests in `crates/nvs-codegen/tests/unoptimised.rs` pass. `nvs test --opt-level none
+Checked: build and clippy green. `every_site_probed_records_nothing_and_stays_on` and
+`a_probed_run_passes_the_same_cases_and_leaves_no_probe_data` pass. `nvs test --probes
 tests/conformance/lang/` passed 435 of 435.
 
-Tests expected to go red: none known. No snapshot of `nvs --help`'s environment list or of `nvs test
---help` was found by grep.
+`bun nv owners --closes bench-counters` names no designed rule now. It names nine gaps: stage 3's
+one and stage 6's eight.
 
-The sweep's findings needed no change. `bun nv proofs --gate --only 'Core\Env::secret'` exits 0
-when rerun, and the nightly run `40075586234` is on `3ea6f1550`, 171 commits behind HEAD.
+Tests expected to go red: none known.
+
+The sweep's findings needed no change. The `env-secret-proofs` log shows exit 0 on its rerun, and
+the nightly run `40075586234` is on `3ea6f1550`, far behind HEAD.
 
 ### Next
 
-**Stage 5: `nvs test --probes`.** Its gate holds: `trace-timeline` is retired.
+**Stage 6, items 1 to 4.** Each is small, and their files are disjoint, so per the stage's
+`**Split:**` line writing subagents may take them side by side without building; the session builds
+once, checks each against its gap record, and deletes the record.
 
-- [ ] The rule names `--probes`, and its `**Not on disk.**` paragraph goes once the lane exists. `docs/rules/testing/probes-on-is-a-tested-configuration.md:24`
-- [ ] Over a `.nvst` tree, `--probes` turns every probe bit on in each case's processes and discards the data; pass it the way `--opt-level` is passed (`options.nvs_env`). `crates/nvs-cli/src/main.rs:2751`, `crates/nvs-cli/src/main.rs:2818`
-- [ ] A Rust test that a case passes with and without `--probes` and leaves no probe data. `crates/nvs-cli/src/main.rs:2751`
-- [ ] The CI lane beside the unoptimised run; proved locally with `nvs test --probes tests/conformance/lang/`. `.github/workflows/ci.yml:297`
+- [ ] `TaskId` maps hash with `rustc_hash`, with the comment on why the key needs no seed. `crates/nvs-host/src/scheduler.rs:382`, `data/gaps/nvs-host/a-task-id-is-hashed-with-siphash.json:1`
+- [ ] `Core\Math::intDiv` emitted inline, same errors. `crates/nvs-stdlib/src/math.rs:163`, `data/gaps/nvs-stdlib/math-int-div-is-an-out-of-line-call.json:1`
+- [ ] `Core\Test\Response::body` keeps the checked string after the first call. `crates/nvs-stdlib/src/test.rs:1`, `data/gaps/nvs-stdlib/a-test-response-body-copies-its-bytes-on-every-call.json:1`
+- [ ] `Core\Request::jsonAs` decodes with `read_against`. `crates/nvs-stdlib/src/request.rs:336`, `data/gaps/nvs-stdlib/request-json-as-builds-arrays-before-its-object.json:1`
+
+Stage 3 (`tools/nv/cmd/scaling.ts:919`) stays open as the other side lane.
 
 ### Backlog
 
 - Stages 3 and 6 are side lanes any session may take (`tools/nv/cmd/scaling.ts`,
   `crates/nvs-host/src/scheduler.rs:382`). Stage 6's first four items are small and independent.
-- `--opt-level` is a new `nvs test` flag. The gate stage's `bun nv proofs --gate` says whether it
-  owes a proof of its own.
+- `--opt-level` and `--probes` are new `nvs test` flags. The gate stage's `bun nv proofs --gate` says
+  whether either owes a proof of its own.
 - `bun nv scaling --budget` reports 45 benches over their share, none of them this goal's
   (`benches/members/core/Metrics/`, `lang/expressions/the-pipeline-operator`, `novis/Spreadsheet-*`).
   It is not a gate. Whoever owns those benches lowers N or writes the reason. `data/perf/bench-budget.json:1`

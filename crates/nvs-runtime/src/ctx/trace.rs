@@ -270,6 +270,35 @@ fn render_spawn(
 /// filed here, so the ceiling truncates no call.
 pub const SPAN_EVENT_CEILING: usize = 512;
 
+/// Whether every context this process makes starts with [`DebugFlags::SITES`] on, which
+/// [`probe_every_site`] sets once, before anything runs.
+static EVERY_SITE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Turns [`DebugFlags::SITES`] on in every context this process makes from now on —
+/// `nvs test --probes`'s configuration (`rule:testing/probes-on-is-a-tested-configuration`).
+/// Process-wide, as `nvs_codegen::set_opt_level` is, so a context the host makes anywhere in
+/// the run has it, and no host call can leave it out. Request path: one relaxed load per
+/// context made.
+pub fn probe_every_site() {
+    EVERY_SITE.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Whether [`probe_every_site`] ran in this process.
+#[must_use]
+pub fn every_site_probed() -> bool {
+    EVERY_SITE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// The flags a new context starts with: [`DebugFlags::SITES`] after [`probe_every_site`], and
+/// none otherwise.
+pub(crate) fn starting_debug_flags() -> DebugFlags {
+    if every_site_probed() {
+        DebugFlags::SITES
+    } else {
+        DebugFlags::empty()
+    }
+}
+
 impl Ctx {
     /// Whether this run files the events
     /// `rule:observability/four-kinds-become-a-span`'s spans are derived from —
@@ -1458,6 +1487,32 @@ mod tests {
         probe(&mut ctx, &[2, 0, 2, 9]);
         assert_eq!(hits.edge_counts(), [1, 0, 2]);
         assert_eq!(hits.counts(), [0, 0]);
+    }
+
+    /// `SITES` sends every site to its helper, which records nothing for it, and a host call
+    /// that sets the flags keeps it on.
+    #[test]
+    fn every_site_probed_records_nothing_and_stays_on() {
+        let mut ctx = Ctx::buffered();
+        let hits = Arc::new(StmtHits::with_edges(2, 2));
+        ctx.set_stmt_hits(Some(Arc::clone(&hits)));
+        ctx.set_debug_flags(DebugFlags::SITES);
+        let label = b"Shop::total";
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            nvs_probe_stmt(&raw mut ctx, 0);
+            nvs_probe_edge(&raw mut ctx, 1);
+            nvs_probe_call_enter(&raw mut ctx, label.as_ptr(), label.len());
+            nvs_probe_call_exit(&raw mut ctx, label.as_ptr(), label.len(), 0);
+        }
+        assert_eq!(hits.counts(), [0, 0]);
+        assert_eq!(hits.edge_counts(), [0, 0]);
+        assert_eq!(ctx.counted(), Counted::default());
+        assert!(!ctx.records_spans());
+
+        ctx.set_debug_flags(DebugFlags::COUNT);
+        assert_eq!(ctx.debug_flags(), DebugFlags::COUNT | DebugFlags::SITES);
+        assert!(ctx.start_probes(DebugFlags::COVERAGE).is_err());
     }
 
     #[test]

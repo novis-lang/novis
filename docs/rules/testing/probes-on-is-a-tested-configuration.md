@@ -11,16 +11,30 @@ rules say under that one codegen, and this bug class lives only where a probe-at
 build of the same program prints something else. The cost is CI wall-clock proportional to the added
 axes, and nothing at all at run time.
 
-CI runs the conformance suite on every leg three times: at `opt_level` `speed`, again with `nvs test
---opt-level none`, and again with `NOVIS_CHECK_TYPES` set. `--opt-level` sets the level in the test
+CI runs the conformance suite on every leg four times: at `opt_level` `speed`, again with `nvs test
+--opt-level none`, again with `nvs test --probes`, and again with `NOVIS_CHECK_TYPES` set. `--opt-level` sets the level in the test
 process and, as `NOVIS_OPT_LEVEL`, in every process a case starts (`nvs_codegen::set_opt_level`). It
 is a flag so that `nvs test --help` lists it. The artifact cache stays on, because a unit's key
 covers the level (`crates/nvs-cli/src/cache.rs`'s `unit_key`): a unit compiled at one level is never
-loaded at the other. That third run is the
-checked build (`nvs_codegen::compile_checked_types`): each typed read also tests its value against its
-declared type, and a value of another type stops the process naming the line. A case whose output is
-right can still read a value as another type, and only this run sees that.
+loaded at the other.
 
-**Not on disk.** The probes half. The codegen tests compile with probes on
-(`crates/nvs-codegen/tests/probes.rs:276`), but the coverage flags are refused over a `.nvst` tree
-(`crates/nvs-cli/src/main.rs:2394`), so no suite run has probes on.
+`--probes` turns `nvs_runtime::DebugFlags::SITES` on in every context of the test process and, as
+`NOVIS_PROBES`, of every process a case starts (`nvs_runtime::probe_every_site`). Compiled code
+tests the whole flags word, so every statement, branch and call site calls its probe helper, and no
+helper acts on that bit: the run records nothing and writes nothing. The data is the probe helpers'
+half, which their unit tests cover; the compiled half, a call at every site, is the bug class above.
+A program's own `Core\Debug` probes behave as in any run, because `Core\Debug` never starts or
+stops `SITES` and a host call that sets the flags keeps it. Probes change no compiled code, so the
+cache needs no key for them. Request path: one relaxed load per context made, and the bit is off
+outside this run. Memory: nothing.
+
+The fourth run is the checked build (`nvs_codegen::compile_checked_types`): each typed read also
+tests its value against its declared type, and a value of another type stops the process naming the
+line. A case whose output is right can still read a value as another type, and only this run sees
+that.
+
+Why one bit that records nothing, and not every recording bit on with its data discarded: a
+recording bit is observable. `TRACE` files query spans and warns of a missing grant, and
+`COVERAGE` counts into a table a program reads, so a case that tests `Core\Debug` would print
+something else. Declined: turning on `COVERAGE`, `BRANCH`, `TRACE`, `PROFILE` and `COUNT` for the
+run.

@@ -3309,7 +3309,7 @@ mod tests {
                             cache.env(),
                             nvs_codegen::opt_level(),
                         )))
-                            .expect("the cold arm published this artifact"),
+                        .expect("the cold arm published this artifact"),
                     );
 
                     let at = Instant::now();

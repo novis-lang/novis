@@ -297,6 +297,12 @@ jobs:
       - name: Conformance suite, unoptimised
         if: matrix.part != 'tests'
         run: cargo run --quiet -p nvs-cli -- test --opt-level none tests/conformance/
+      # The same suite with every probe site on (`rule:testing/probes-on-is-a-tested-configuration`).
+      # Each statement, branch and call takes its probe's slow path and records nothing, so a case
+      # that fails only here is a probe crossed with compiled code.
+      - name: Conformance suite, probes on
+        if: matrix.part != 'tests'
+        run: cargo run --quiet -p nvs-cli -- test --probes tests/conformance/
       # The same suite under the checked build (`rule:testing/probes-on-is-a-tested-configuration`):
       # each typed read also tests its value against its declared type, and a value of another type
       # stops the case. That is a compiler bug a case's output alone may not show.

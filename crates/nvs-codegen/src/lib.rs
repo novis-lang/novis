@@ -2147,10 +2147,7 @@ struct Signatures {
 /// reference in it must be one a loader can place. Everything else is shared on
 /// purpose — an object emitted under different tuning would be evidence about
 /// some other compiler, not about the one whose output runs.
-fn host_isa(
-    is_pic: bool,
-    level: OptLevel,
-) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> {
+fn host_isa(is_pic: bool, level: OptLevel) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> {
     let mut flags = settings::builder();
     for (name, value) in [
         // A JIT resolves every call through an absolute address, and the

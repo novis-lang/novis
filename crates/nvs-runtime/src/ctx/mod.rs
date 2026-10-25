@@ -320,6 +320,11 @@ bitflags::bitflags! {
         /// nothing per site beyond the increment — `rule:testing/bench-counters`'s
         /// counting mode, which a bench under `nvs run --count` reads at exit.
         const COUNT = 1 << 4;
+        /// Take every probe site's slow path and record nothing. Compiled code tests the
+        /// whole word, so each site calls its helper, and no helper acts on this bit.
+        /// `rule:testing/probes-on-is-a-tested-configuration`'s probes-on run, which
+        /// [`crate::probe_every_site`] turns on for a whole process. Nothing turns it off.
+        const SITES = 1 << 5;
     }
 }
 

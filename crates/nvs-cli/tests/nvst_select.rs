@@ -1,6 +1,7 @@
-//! `nvs test <tree> --cases <file>` and `--record <dir>`, driven through the built binary: a case
-//! list runs only the listed cases of a tree, judged and summed up as a whole-tree run is, and a
-//! recording run leaves each case's footprint log under the case's name.
+//! `nvs test <tree> --cases <file>`, `--record <dir>` and `--probes`, driven through the built
+//! binary: a case list runs only the listed cases of a tree, judged and summed up as a whole-tree
+//! run is, a recording run leaves each case's footprint log under the case's name, and a probed
+//! run passes the same cases and writes nothing more.
 //!
 //! The tree under `tests/fixtures/record/` holds two cases, one in a subdirectory.
 
@@ -121,6 +122,41 @@ fn a_recording_run_leaves_each_cases_log_under_its_name() {
     );
 
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The names of the entries in `dir`, sorted.
+fn entries(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .expect("the scratch directory is readable")
+        .map(|entry| {
+            entry
+                .expect("an entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+/// `rule:testing/probes-on-is-a-tested-configuration`'s probes-on run passes the cases a plain
+/// run passes, and its probes write nothing a plain run does not.
+#[test]
+fn a_probed_run_passes_the_same_cases_and_leaves_no_probe_data() {
+    let plain = scratch("unprobed");
+    let (out, err, ok) = nvs_test(&[], &plain);
+    assert!(ok, "both cases pass: {out}{err}");
+    assert_eq!(out.trim_end(), "2 passed, 0 failed, 0 skipped", "{err}");
+
+    let probed = scratch("probed");
+    let (out, err, ok) = nvs_test(&["--probes".as_ref()], &probed);
+    assert!(ok, "both cases pass with the probes on: {out}{err}");
+    assert_eq!(out.trim_end(), "2 passed, 0 failed, 0 skipped", "{err}");
+    assert_eq!(entries(&probed), entries(&plain));
+
+    let _ = std::fs::remove_dir_all(&plain);
+    let _ = std::fs::remove_dir_all(&probed);
 }
 
 #[test]

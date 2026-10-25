@@ -121,7 +121,7 @@ impl Ctx {
         let trace_context = crate::trace_context::TraceContext::started();
         let mut ctx = Self {
             safepoint: std::ptr::from_ref(&tree.word),
-            debug: DebugFlags::empty(),
+            debug: super::trace::starting_debug_flags(),
             deadline: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
             stack_limit: 0,
             stack_floor: 0,

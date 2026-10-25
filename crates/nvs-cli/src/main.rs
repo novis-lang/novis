@@ -228,6 +228,11 @@ pub(crate) const OPT_LEVEL: &str = "NOVIS_OPT_LEVEL";
 /// (`nvs_codegen::compile_checked_types`). It works on presence, as `NOVIS_NO_FILE_CACHE` does.
 const CHECK_TYPES: &str = "NOVIS_CHECK_TYPES";
 
+/// The variable that turns every probe site of this process on and records nothing
+/// (`nvs_runtime::probe_every_site`). It works on presence, and `nvs test --probes` sets it for
+/// each process a `.nvst` case starts (`rule:testing/probes-on-is-a-tested-configuration`).
+const PROBES: &str = "NOVIS_PROBES";
+
 /// The environment variables `nvs` reads, which `nvs --help` lists below the options.
 const ENVIRONMENT: &str = "\
 Environment:
@@ -238,6 +243,8 @@ Environment:
   NOVIS_CHECK_TYPES    Test each value a program reads against its declared type, and stop with
                        an error at the first value that does not match. A value like that is a
                        bug in Novis. Reads and writes no compiled artifact.
+  NOVIS_PROBES         Run every debug probe of a program, and record nothing.
+                       `nvs test --probes` sets it for the programs a `.nvst` case runs.
   NVS_UPDATE_URL       The address `nvs update-check` reads the latest release from. The default
                        is the GitHub Releases API of the Novis repository.
   NVS_TELEMETRY_URL    The address telemetry is uploaded to. If it is not set, nothing is uploaded.
@@ -686,6 +693,9 @@ fn main() -> ExitCode {
     }
     if std::env::var_os(CHECK_TYPES).is_some() {
         nvs_codegen::compile_checked_types();
+    }
+    if std::env::var_os(PROBES).is_some() {
+        nvs_runtime::probe_every_site();
     }
 
     // A command line that names no command, `--help` and `--version` included, counts
@@ -2819,6 +2829,10 @@ fn run_test(
         OPT_LEVEL.to_owned(),
         nvs_codegen::opt_level().name().to_owned(),
     ));
+    // And has its probes on when `--probes` turned them on here.
+    if nvs_runtime::every_site_probed() {
+        options.nvs_env.push((PROBES.to_owned(), "1".to_owned()));
+    }
     if let Some(jobs) = jobs {
         options.jobs = jobs.get();
     }
