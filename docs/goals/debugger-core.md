@@ -34,7 +34,7 @@ stages:
         rules: [testing/a-debugged-program-is-compiled-with-a-debug-switch, errors/record-transformations, security/redaction-reaches-the-tools-own-renderings]
   - id: 3
     title: a stop pauses the whole task tree, and its deadlines wait
-    status: open
+    status: done
     context: [crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/placed.rs, crates/nvs-host/src/watchdog.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/limits.rs, docs/rules/testing/a-stop-pauses-the-whole-task-tree.md]
     extra:
       context:
@@ -172,11 +172,14 @@ while it is stopped.
 **Split:** once the tree stop and the deadline change land, one writing subagent writes the three tests
 in the last item. The session reviews them.
 
-- [ ] A stop raises `DEBUG_BREAK` on the tree's shared safepoint word, so every task parks at its next stop site and the controller reports each task as a thread (`rule:testing/a-stop-pauses-the-whole-task-tree`). `crates/nvs-runtime/src/ctx/safepoint.rs:574`, `crates/nvs-host/src/scheduler.rs:312`
-- [ ] A `spawn worker` child on another core stops and resumes with its tree (`rule:concurrency/on-worker-runs-the-child-on-another-core`). `crates/nvs-host/src/placed.rs:132`
-- [ ] The time stopped is added to the wall deadline and is not charged as CPU time (`rule:errors/on-limit`). `crates/nvs-runtime/src/ctx/limits.rs:701`, `crates/nvs-runtime/src/ctx/limits.rs:757`, `crates/nvs-runtime/src/ctx/safepoint.rs:684`
-- [ ] The watchdog does not count the stopped tree (`rule:http-server/a-wedged-core-is-detected-by-its-deadline`). `crates/nvs-host/src/watchdog.rs:440`, `crates/nvs-host/src/watchdog.rs:1241`
-- [ ] Rust tests: a stop past the wall limit does not end the request, a second request on the same core is answered while the first is stopped, and a resumed tree finishes with the right output (`rule:testing/a-stop-pauses-the-whole-task-tree`). `crates/nvs-host/src/debug.rs:1`
+- [x] A stop raises `DEBUG_BREAK` on the tree's shared safepoint word, so every task parks at its next stop site and the controller reports each task as a thread (`rule:testing/a-stop-pauses-the-whole-task-tree`). `crates/nvs-runtime/src/ctx/safepoint.rs:574`, `crates/nvs-host/src/scheduler.rs:312`
+  - [x] The stop handler lives in `TreeState`, so every context of the tree runs it.
+  - [x] The poll leaves `DEBUG_BREAK` raised while a handler is set, and the resume lowers it under the session's lock.
+  - [x] Each `Stop` carries its round, and a sibling reports `StopReason::Tree`.
+- [x] A `spawn worker` child on another core stops and resumes with its tree (`rule:concurrency/on-worker-runs-the-child-on-another-core`). `crates/nvs-host/src/placed.rs:132`
+- [x] The time stopped is added to the wall deadline and is not charged as CPU time (`rule:errors/on-limit`). `crates/nvs-runtime/src/ctx/limits.rs:701`, `crates/nvs-runtime/src/ctx/limits.rs:757`, `crates/nvs-runtime/src/ctx/safepoint.rs:684`
+- [x] The watchdog does not count the stopped tree (`rule:http-server/a-wedged-core-is-detected-by-its-deadline`). `crates/nvs-host/src/watchdog.rs:440`, `crates/nvs-host/src/watchdog.rs:1241`
+- [x] Rust tests: a stop past the wall limit does not end the request, a second request on the same core is answered while the first is stopped, and a resumed tree finishes with the right output (`rule:testing/a-stop-pauses-the-whole-task-tree`). `crates/nvs-host/src/debug.rs:1`
 
 ### 4. breakpoints survive a recompile under a development `nvs serve`
 
@@ -204,37 +207,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2 and 6 are done. `nvs_ir::lower::with_debug_slots` is the switch. Each function's
-`debug_slots` table describes its slots (name, type, and a `secret` bit from the checker's
-`ExprTypeTable::local_ty`), and each statement stores its locals, then runs a stop site. The frame
-record (`nvs_runtime::FrameRecord`) has its slot count, and linking it sets every slot unset, so
-`Ctx::frames()` gives a `Frame<'_>` whose `slots` is a bounded `&[Value]`, even at the entry safepoint.
+Stages 1, 5, 2, 6 and 3 are done. `nvs_ir::lower::with_debug_slots` is the switch; each function's
+`debug_slots` table names its slots, and `Ctx::frames()` walks the frame records. The controller is
+`nvs_host::debug::Debugger`: `Debugger::new(sites, lines, functions)` takes one unit's tables
+(`crates/nvs-cli/tests/debugger.rs:63` builds them), and the handler reads each frame's variables on
+the task's stack, then sends a `Stop` and parks.
 
-Both stop paths run `Ctx::run_debug_stop` inside a `HelperFrame`. The controller is
-`nvs_host::debug::Debugger`. `Debugger::new(sites, lines, functions)` takes the unit's
-`DebugFunction`s by index, and gives back the `Receiver<Stop>`. `crates/nvs-cli/tests/debugger.rs:63`
-(`functions`) builds that table from `Unit::debug_function` and `Unit::debug_slots`. The handler
-(`crates/nvs-host/src/debug.rs:273`) reads each frame's name, `SiteLine` and variables on the task's
-stack (`Shared::read`, `debug.rs:311`), each value through `nvs_runtime::record::node` and a `secret`
-one as `Node::Redacted`, then sends the `Stop` and parks. A slot still unset is left out. No existing
-test is expected to go red.
+The stop is the tree's. The `DebugStop` is kept in `TreeState::debug` (`TreeDebug`,
+`crates/nvs-runtime/src/ctx/frames.rs`), so every context of the tree runs it, a `join_tree` child
+on another core included. A stop at a site raises `DEBUG_BREAK` on the tree, the poll leaves it
+raised while a handler is set, and `Debugger::resume` lowers it through
+`WeakSafepointView::release_debug_stop`. While stopped, `TreeState::wall_deadline` is `None`, and the
+resume adds the time held. Tests: four in `crates/nvs-host/src/debug.rs`, one in
+`crates/nvs-host/src/watchdog.rs`. No existing test is expected to go red.
 
 ### Next
 
-**Stage 3: a stop pauses the whole task tree, and its deadlines wait**, file set
-`crates/nvs-host/src/debug.rs`, `crates/nvs-runtime/src/ctx/safepoint.rs`,
-`crates/nvs-runtime/src/ctx/limits.rs`, `crates/nvs-host/src/scheduler.rs`,
-`crates/nvs-host/src/watchdog.rs`. No gate.
+**Stage 4: breakpoints survive a recompile under a development `nvs serve`**, file set
+`crates/nvs-cli/src/script.rs`, `crates/nvs-cli/src/cache.rs`, `crates/nvs-host/src/debug.rs`. No gate.
 
-- [ ] The safepoint word is already the tree's (`Ctx::safepoint_view`, `crates/nvs-runtime/src/ctx/safepoint.rs:432`), so a `pause()` already reaches every task. But the poll lowers `DEBUG_BREAK` before it stops (`safepoint.rs:1069`), so only the first task to poll stops. The stop has to stay raised until the resume, and the handler's own polls must not stop again, for example by a per-context "stopped" bit. `crates/nvs-runtime/src/ctx/safepoint.rs:1061`
-- [ ] A child context starts with no stop handler (`crates/nvs-runtime/src/ctx/wiring.rs:132`), so a child of an attached request never stops. A child must inherit its parent's session, through `spawn_child` (`crates/nvs-host/src/scheduler.rs:1434`) or the context's child constructor, and a stop at a breakpoint must raise `DEBUG_BREAK` on the tree so its siblings park too. `crates/nvs-host/src/debug.rs:249`
-- [ ] The time stopped is added to the wall deadline and not charged as CPU time. `crates/nvs-runtime/src/ctx/limits.rs:920`, `crates/nvs-runtime/src/ctx/limits.rs:945`, `crates/nvs-runtime/src/ctx/limits.rs:965`
-- [ ] Then the `spawn worker` child, the watchdog, and the three tests the stage names, written by one subagent as its `**Split:**` line says. `crates/nvs-host/src/placed.rs:132`, `crates/nvs-host/src/watchdog.rs:440`
+- [ ] The CLI compiles a debug program without reading the artifact cache, whose key does not cover the switch (see the Backlog's first bullet). `crates/nvs-cli/src/cache.rs:1655`
+- [ ] A recompile resolves every breakpoint again by file and line against the new unit's `SiteTable` and lines. `Debugger::new` is per unit today, so a session must take a new unit's sites, lines and functions while requests on the old unit keep theirs. `crates/nvs-host/src/debug.rs:166`, `crates/nvs-cli/src/script.rs:1500`
+- [ ] Attach each served request: `Debugger::attach` sets the handler on the request's tree, and `Ctx::reroot` resets a reused tree, so attach after the reroot. Confirm the served path runs on a core with a reactor, which the module doc of `debug.rs` claims. `crates/nvs-runtime/src/ctx/safepoint.rs:165`, `crates/nvs-host/src/worker.rs:1180`
+- [ ] The Rust test that edits a fixture and stops at the same breakpoint in the new unit, then both rules `shipped` and `bun nv owners --closes debugger-core` green. `crates/nvs-cli/tests/debugger.rs:63`, `data/rules/testing/a-stop-pauses-the-whole-task-tree.json:3`
 
 ### Backlog
 
 - A debug session must compile its units without reading the artifact cache, whose key does not cover the switch. The store half is done (`compile_object` refuses a debug program). The read half belongs to stage 4, the first stage that compiles a program under the switch from the CLI. `crates/nvs-cli/src/cache.rs:1655`
-- A task stopped on a scheduler with no reactor blocks its thread on the condvar. Only `nvs run` and unit tests have no reactor, and stage 3 decides whether a served core can ever reach that path. `crates/nvs-host/src/debug.rs:244`
+- A task stopped on a scheduler with no reactor blocks its thread on the condvar. Only `nvs run` and unit tests have no reactor. A worker core refuses to run without one (`crates/nvs-host/src/worker.rs:1180`), and stage 4 confirms the served path. `crates/nvs-host/src/debug.rs:244`
 - The synthesized functions `nvs-ir` builds itself (`lower/call.rs`, `lower/exception.rs`) have `debug_slots: None`, so they get no frame record and do not show in the call stack. That is the intended view: they are not the user's code.
 - An `inout` by-reference variable has no slot, so the debugger cannot show it yet. `debugger-adapter` can read it through its staged cell. `crates/nvs-ir/src/lower/mod.rs:2602`
 - No test checks the name an anonymous function's frame reports. `debugger-adapter` decides how the call stack names it. `crates/nvs-cli/tests/debugger.rs:241`
