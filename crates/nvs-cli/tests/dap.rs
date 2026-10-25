@@ -849,3 +849,373 @@ fn a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping() {
     let (_, success) = client.finish();
     assert!(success, "the adapter ended with a failure");
 }
+
+/// A method that throws `RuntimeError` when its argument is over 1, called once inside a `try`
+/// that catches it and once inside a `try` that catches only `LogicError`, whose `catch` re-raises
+/// the same object.
+const THROWS: &str = "<?nvs\nclass Shop {\n    public static function check(int $n): int {\n        if ($n > 1) {\n            throw new RuntimeError('too many');\n        }\n        return $n;\n    }\n}\ntry {\n    Shop::check(2);\n} catch (RuntimeError $e) {\n    echo \"caught\\n\";\n}\ntry {\n    Shop::check(3);\n} catch (LogicError $wrong) {\n    echo \"wrong\\n\";\n}\necho \"end\\n\";\n";
+
+/// Starts `nvs dap` in `dir`, turns on the exception `filters` and launches `main.nvs`. Gives the
+/// client and every message up to the first `stopped` or `terminated` event.
+fn launch_with_filters(dir: &Path, filters: Value, launch: Value) -> (Client, Vec<Value>) {
+    let program = dir.join("main.nvs");
+    let mut client = Client::start(dir);
+    client.request("initialize", json!({ "adapterID": "novis" }));
+    client.until_event("initialized");
+    client.ask("setExceptionBreakpoints", json!({ "filters": filters }));
+    let mut arguments = json!({ "mode": "run", "program": program });
+    if let (Some(all), Some(extra)) = (arguments.as_object_mut(), launch.as_object()) {
+        all.extend(extra.clone());
+    }
+    client.request("launch", arguments);
+    client.request("configurationDone", json!({}));
+    let ran = until_stop_or_end(&client);
+    (client, ran)
+}
+
+/// Every message up to and including the first `stopped` or `terminated` event.
+fn until_stop_or_end(client: &Client) -> Vec<Value> {
+    let mut seen = Vec::new();
+    loop {
+        let frame = client
+            .frames
+            .recv()
+            .unwrap_or_else(|_| panic!("stdout ended before a stop or the end: {seen:#?}"));
+        let done = frame["type"] == "event"
+            && (frame["event"] == "stopped" || frame["event"] == "terminated");
+        seen.push(frame);
+        if done {
+            return seen;
+        }
+    }
+}
+
+/// Fails unless `ran` ends in a stop for an exception described as `description`, at `line`,
+/// where `$n` is `n`. `exceptionInfo` names `RuntimeError` and its message.
+fn assert_exception_stop(
+    client: &mut Client,
+    ran: &[Value],
+    description: &str,
+    line: u32,
+    n: &str,
+) {
+    let stopped = ran.last().expect("a message");
+    assert_eq!(stopped["event"], "stopped", "{ran:#?}");
+    assert_eq!(stopped["body"]["reason"], "exception", "{ran:#?}");
+    assert_eq!(stopped["body"]["description"], description, "{ran:#?}");
+    assert_eq!(stopped["body"]["text"], "too many", "{ran:#?}");
+    let (info, _) = client.ask("exceptionInfo", json!({ "threadId": 1 }));
+    assert_eq!(info["exceptionId"], "RuntimeError", "{info:#?}");
+    assert_eq!(info["description"], "too many", "{info:#?}");
+    let (frame, variables) = top_frame(client);
+    assert_eq!(frame["line"], line, "{frame:#?}");
+    assert_eq!(variables["$n"], n, "{variables:#?}");
+}
+
+/// Under `uncaught`, the throw a `catch` handles does not stop. The throw no `catch` matches stops
+/// once at the `throw`, and the `catch (LogicError …)` it passes does not stop it a second time.
+#[test]
+fn the_uncaught_filter_stops_once_at_a_throw_no_frame_catches() {
+    let dir = nvs_repo::scratch_private("dap-uncaught");
+    fs::write(dir.join("main.nvs"), THROWS).unwrap();
+
+    let (mut client, ran) = launch_with_filters(&dir, json!(["uncaught"]), json!({}));
+    assert_eq!(output(&ran, "stdout"), "caught\n", "{ran:#?}");
+    assert_exception_stop(&mut client, &ran, "Uncaught RuntimeError", 5, "3");
+
+    client.ask("continue", json!({}));
+    let ran = client.until_event("terminated");
+    assert!(
+        ran.iter().all(|frame| frame["event"] != "stopped"),
+        "the exception stopped a second time: {ran:#?}"
+    );
+    client.request("disconnect", json!({}));
+    client.finish();
+}
+
+/// Under `thrown`, each of the two throws stops once at the `throw`, the caught one included.
+#[test]
+fn the_thrown_filter_stops_once_at_every_throw() {
+    let dir = nvs_repo::scratch_private("dap-thrown");
+    fs::write(dir.join("main.nvs"), THROWS).unwrap();
+
+    let (mut client, ran) = launch_with_filters(&dir, json!(["thrown"]), json!({}));
+    assert_exception_stop(&mut client, &ran, "Thrown RuntimeError", 5, "2");
+
+    client.ask("continue", json!({}));
+    let ran = until_stop_or_end(&client);
+    assert_eq!(output(&ran, "stdout"), "caught\n", "{ran:#?}");
+    assert_exception_stop(&mut client, &ran, "Uncaught RuntimeError", 5, "3");
+
+    client.ask("continue", json!({}));
+    let ran = client.until_event("terminated");
+    assert!(
+        ran.iter().all(|frame| frame["event"] != "stopped"),
+        "an exception stopped a third time: {ran:#?}"
+    );
+    client.request("disconnect", json!({}));
+    client.finish();
+}
+
+/// Starts `nvs dap` in `dir` with `breakpoints` set on `main.nvs`, launches it with `launch`'s
+/// fields added, and gives the client with the `setBreakpoints` body.
+fn launch_with_breakpoints(dir: &Path, breakpoints: Value, launch: Value) -> (Client, Value) {
+    let main = dir.join("main.nvs");
+    let mut client = Client::start(dir);
+    client.request("initialize", json!({ "adapterID": "novis" }));
+    client.until_event("initialized");
+    let (set, _) = client.ask(
+        "setBreakpoints",
+        json!({ "source": { "path": main }, "breakpoints": breakpoints }),
+    );
+    let mut arguments = json!({ "mode": "run", "program": main });
+    if let (Some(all), Some(extra)) = (arguments.as_object_mut(), launch.as_object()) {
+        all.extend(extra.clone());
+    }
+    client.request("launch", arguments);
+    client.request("configurationDone", json!({}));
+    (client, set)
+}
+
+/// Continues from every stop up to the end. Gives each stop's line and `$i`, every message read,
+/// and ends the adapter.
+fn every_stop(mut client: Client) -> (Vec<(u64, String)>, Vec<Value>) {
+    let mut stops = Vec::new();
+    let mut all = Vec::new();
+    loop {
+        let ran = until_stop_or_end(&client);
+        let end = ran
+            .last()
+            .is_some_and(|frame| frame["event"] == "terminated");
+        all.extend(ran);
+        if end {
+            break;
+        }
+        let (frame, variables) = top_frame(&mut client);
+        stops.push((
+            frame["line"].as_u64().unwrap_or_default(),
+            variables["$i"].as_str().unwrap_or_default().to_owned(),
+        ));
+        client.ask("continue", json!({}));
+    }
+    client.request("disconnect", json!({}));
+    let (_, success) = client.finish();
+    assert!(success, "the adapter ended with a failure");
+    (stops, all)
+}
+
+/// Fails unless `ran` has a `breakpoint` event leaving breakpoint `id` unverified with `message`.
+fn assert_unverified(ran: &[Value], id: &Value, message: &str) {
+    assert!(
+        ran.iter().any(|frame| frame["event"] == "breakpoint"
+            && frame["body"]["breakpoint"]["id"] == *id
+            && frame["body"]["breakpoint"]["verified"] == false
+            && frame["body"]["breakpoint"]["message"] == message),
+        "no unverified breakpoint {id} with {message:?}: {ran:#?}"
+    );
+}
+
+/// A condition may read an array element, a property, arithmetic, `&&` and `!`, and stops only
+/// where it holds. A condition that reads a `secret`, assigns or is not a `bool` leaves its
+/// breakpoint unverified. A logpoint's hole shows a `secret` variable redacted.
+#[test]
+fn each_condition_form_stops_where_it_holds_and_a_logpoint_redacts_a_secret() {
+    const KEY: &str = "dap-key-41c0d2";
+    let dir = nvs_repo::scratch_private("dap-condition-forms");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nclass Item {\n    public int $price = 0;\n}\nsecret string $key = Core\\Env::secret('DAP_KEY') ?? '';\nvar $item = new Item();\narray<int> $prices = [10, 20, 30];\nint $i = 0;\nwhile ($i < 3) {\n    $item->price = $prices[$i];\n    $i = $i + 1;\n    echo $item->price, \"\\n\";\n}\n",
+    )
+    .unwrap();
+
+    let (client, set) = launch_with_breakpoints(
+        &dir,
+        json!([
+            { "line": 6, "condition": "$key == 'x'" },
+            { "line": 7, "condition": "$i = 2" },
+            { "line": 8, "condition": "$i + 1" },
+            { "line": 10, "condition": "$prices[$i] == 20" },
+            { "line": 11, "condition": "$item->price * 2 > 50 && !($i == 0)" },
+            { "line": 12, "logMessage": "price {$item->price} key {$key}" },
+        ]),
+        json!({ "env": { "DAP_KEY": KEY } }),
+    );
+    let ids: Vec<Value> = (0..3)
+        .map(|n| set["breakpoints"][n]["id"].clone())
+        .collect();
+    let transcript = Arc::clone(&client.transcript);
+    let (stops, ran) = every_stop(client);
+    assert_unverified(
+        &ran,
+        &ids[0],
+        "`$key` is secret, so a condition cannot read it.",
+    );
+    assert_unverified(&ran, &ids[1], "A condition cannot change a variable.");
+    assert_unverified(
+        &ran,
+        &ids[2],
+        "A condition must be a `bool`, and this one is `int`.",
+    );
+    assert_eq!(
+        stops,
+        [(10, "1".to_owned()), (11, "2".to_owned())],
+        "{ran:#?}"
+    );
+    assert_eq!(output(&ran, "stdout"), "10\n20\n30\n", "{ran:#?}");
+    assert_eq!(
+        output(&ran, "console"),
+        "price 10 key [redacted]\nprice 20 key [redacted]\nprice 30 key [redacted]\n",
+        "{ran:#?}"
+    );
+    let written = transcript.lock().expect("the transcript is never poisoned");
+    assert!(
+        written.iter().all(|frame| !frame.contains(KEY)),
+        "a frame carries the secret: {written:#?}"
+    );
+}
+
+/// Each hit form counts its own breakpoint's hits: `3` from the third on, `>4` after the fourth,
+/// `==2` at the second, `%3` at every third and `>=6` from the sixth. A hit condition that does
+/// not parse, or `%0`, leaves its breakpoint unverified.
+#[test]
+fn each_hit_condition_form_stops_at_the_hits_it_names() {
+    let dir = nvs_repo::scratch_private("dap-hit-forms");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nint $i = 0;\nwhile ($i < 6) {\n    $i = $i + 1;\n    echo 'a';\n    echo 'b';\n    echo 'c';\n    echo 'd';\n}\necho \"\\n\";\n",
+    )
+    .unwrap();
+
+    let (client, set) = launch_with_breakpoints(
+        &dir,
+        json!([
+            { "line": 2, "hitCondition": "%0" },
+            { "line": 4, "hitCondition": "3" },
+            { "line": 5, "hitCondition": ">4" },
+            { "line": 6, "hitCondition": "==2" },
+            { "line": 7, "hitCondition": "%3" },
+            { "line": 8, "hitCondition": ">=6" },
+            { "line": 10, "hitCondition": "abc" },
+        ]),
+        json!({}),
+    );
+    let never = set["breakpoints"][0]["id"].clone();
+    let wrong = set["breakpoints"][6]["id"].clone();
+    let (stops, ran) = every_stop(client);
+    assert_unverified(&ran, &never, "The hit condition `%0` never stops.");
+    assert_unverified(
+        &ran,
+        &wrong,
+        "The hit condition `abc` is not `N`, `>N`, `>=N`, `==N` or `%N`.",
+    );
+    let at = |line: u64, i: &str| (line, i.to_owned());
+    assert_eq!(
+        stops,
+        [
+            at(6, "2"),
+            at(4, "2"),
+            at(7, "3"),
+            at(4, "3"),
+            at(4, "4"),
+            at(5, "5"),
+            at(4, "5"),
+            at(5, "6"),
+            at(7, "6"),
+            at(8, "6"),
+        ],
+        "{ran:#?}"
+    );
+}
+
+/// Under `thrown`, a throw that a frame in a `skipFiles` file catches does not stop. Without
+/// `skipFiles`, the same throw stops.
+#[test]
+fn a_throw_caught_in_a_skipped_file_does_not_stop_under_thrown() {
+    let dir = nvs_repo::scratch_private("dap-thrown-skip");
+    fs::write(
+        dir.join("lib.nvs"),
+        "<?nvs\nclass Lib {\n    public static function safely(callable(int): int $check, int $n): int {\n        try {\n            return $check($n);\n        } catch (RuntimeError $e) {\n            return 0;\n        }\n    }\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nrequire 'lib.nvs';\nvar $check = fn(int $n): int => {\n    if ($n > 1) {\n        throw new RuntimeError('too many');\n    }\n    return $n;\n};\necho Lib::safely($check, 2), \"\\n\";\n",
+    )
+    .unwrap();
+
+    let (client, ran) = launch_with_filters(
+        &dir,
+        json!(["thrown"]),
+        json!({ "skipFiles": ["**/lib.nvs"] }),
+    );
+    let last = ran.last().expect("a message");
+    assert_eq!(last["event"], "terminated", "the throw stopped: {ran:#?}");
+    assert_eq!(output(&ran, "stdout"), "0\n", "{ran:#?}");
+    client.finish();
+
+    let (mut client, ran) = launch_with_filters(&dir, json!(["thrown"]), json!({}));
+    assert_exception_stop(&mut client, &ran, "Thrown RuntimeError", 5, "2");
+    client.ask("continue", json!({}));
+    let ran = client.until_event("terminated");
+    assert_eq!(output(&ran, "stdout"), "0\n", "{ran:#?}");
+    client.request("disconnect", json!({}));
+    client.finish();
+}
+
+/// Under `uncaught`, a `Core` method's error that nothing catches stops at the statement that
+/// called it, with the frame's variables.
+#[test]
+fn a_core_method_s_uncaught_error_stops_at_the_calling_statement() {
+    let dir = nvs_repo::scratch_private("dap-uncaught-core");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nstring $text = '{';\nvar $parsed = Core\\Json::decode($text);\necho \"end\\n\";\n",
+    )
+    .unwrap();
+
+    let (mut client, ran) = launch_with_filters(&dir, json!(["uncaught"]), json!({}));
+    let stopped = ran.last().expect("a message");
+    assert_eq!(stopped["event"], "stopped", "{ran:#?}");
+    assert_eq!(stopped["body"]["reason"], "exception", "{ran:#?}");
+    assert!(
+        stopped["body"]["description"]
+            .as_str()
+            .is_some_and(|text| text.starts_with("Uncaught ")),
+        "{ran:#?}"
+    );
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 3, "{frame:#?}");
+    assert_eq!(variables["$text"], "\"{\"", "{variables:#?}");
+    client.ask("continue", json!({}));
+    let ran = client.until_event("terminated");
+    assert!(
+        ran.iter().all(|frame| frame["event"] != "stopped"),
+        "the error stopped a second time: {ran:#?}"
+    );
+    client.request("disconnect", json!({}));
+    client.finish();
+}
+
+/// Under `uncaught`, a throw a `catch` expression handles does not stop, and one whose `catch`
+/// expression names another class stops at the `throw`.
+#[test]
+fn a_catch_expression_catches_for_the_uncaught_filter() {
+    let dir = nvs_repo::scratch_private("dap-catch-expression");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nclass Shop {\n    public static function check(int $n): int {\n        if ($n > 1) {\n            throw new RuntimeError('too many');\n        }\n        return $n;\n    }\n}\necho Shop::check(3) catch (RuntimeError $e) => 0, \"\\n\";\necho Shop::check(4) catch (LogicError $e) => 0, \"\\n\";\n",
+    )
+    .unwrap();
+
+    let (mut client, ran) = launch_with_filters(&dir, json!(["uncaught"]), json!({}));
+    assert_eq!(output(&ran, "stdout"), "0\n", "{ran:#?}");
+    assert_exception_stop(&mut client, &ran, "Uncaught RuntimeError", 5, "4");
+    client.ask("continue", json!({}));
+    let ran = client.until_event("terminated");
+    assert!(
+        ran.iter().all(|frame| frame["event"] != "stopped"),
+        "the exception stopped a second time: {ran:#?}"
+    );
+    client.request("disconnect", json!({}));
+    client.finish();
+}

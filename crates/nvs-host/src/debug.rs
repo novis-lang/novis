@@ -959,6 +959,33 @@ mod tests {
     }
 
     #[test]
+    fn a_site_s_catches_are_found_by_site_whatever_order_they_arrive_in() {
+        let classes = |names: &[&str]| names.iter().map(|&n| n.to_owned()).collect::<Vec<_>>();
+        let unit = DebugUnit::new(
+            Arc::new(SiteTable::new(4)),
+            (1..=4)
+                .map(|line| SiteLine {
+                    file: "a.nvs".to_owned(),
+                    line,
+                })
+                .collect(),
+            vec![0; 4],
+            Vec::new(),
+            vec![
+                (3, classes(&["LogicError"])),
+                (1, classes(&["RuntimeError", "IOError"])),
+            ],
+        );
+        assert_eq!(unit.catches_at(1), classes(&["RuntimeError", "IOError"]));
+        assert_eq!(unit.catches_at(3), classes(&["LogicError"]));
+        assert!(unit.catches_at(0).is_empty());
+        assert!(unit.catches_at(2).is_empty());
+        assert!(unit.catches_at(9).is_empty());
+        assert_eq!(unit.file_of(3), Some("a.nvs"));
+        assert_eq!(unit.file_of(9), None);
+    }
+
+    #[test]
     fn a_secret_variable_renders_redacted_and_an_unset_one_is_left_out() {
         let variable = |name: &str, secret| DebugVariable {
             name: name.to_owned(),
