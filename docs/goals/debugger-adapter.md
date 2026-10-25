@@ -111,16 +111,22 @@ slot table. A call is an error the editor shows on the breakpoint. A call at a b
 throw or `await`, and the program would then behave differently under the debugger. Usability cost:
 `count($items) > 3` is not a valid condition.
 
-**"Uncaught" is decided at the throw.** Under the switch, each frame record keeps the classes its
-enclosing `try` blocks catch, so the adapter knows at `nvs_raise` whether the exception will be caught,
-while every frame is still there to show. That is one push and one pop per `try`, under the switch only.
+**"Uncaught" is decided at the throw, from the statement each frame is at.** The lowering records,
+under the switch, which classes the `try` blocks around each statement catch
+(`nvs_ir::ir::Function::debug_catches`, a `catch` expression's classes on its own statement), and a
+frame record already names its statement. Every landing block first calls `nvs_debug_throw`, before
+it releases anything, so the stop sees the exception pending and every frame linked; a flag on the
+context, cleared by a fresh raise and kept by a `catch` that re-raises the same object, makes each
+exception stop once. This replaces a push and pop per `try`: nothing runs when a `try` starts, and a
+helper's fault stops the same way a `throw` does. Cost: one call per landing block a throw passes,
+under the switch only, one `bool` per context, and one class list per statement inside a `try`.
 
 **Evaluating a watch expression is not built.** The rule does not ask for it, and the adapter does not
 report `supportsEvaluateForHovers` or answer `evaluate` beyond a variable's own name. It is in the
 Backlog.
 
 **Trade-offs, all together.** Request path: nothing outside a debug session. Inside one, the switch's
-cost (`debugger-core`), one handler push and pop per `try`, and a condition evaluated only where its
+cost (`debugger-core`), one call per landing block a throw passes, and a condition evaluated only where its
 site is armed. Memory: one entry per breakpoint and one variable reference per expanded value per
 stopped thread, freed on resume. Usability: VS Code's whole debugger UI, launched from `launch.json`,
 for scripts, tests and a development server. Simplicity: one new command, no socket, and no UI code in
@@ -293,8 +299,13 @@ the last item over fixtures. The session reviews them.
 - [x] A logpoint sends an `output` event, with a `secret` value redacted, and does not stop (`rule:security/redaction-reaches-the-tools-own-renderings`). `crates/nvs-cli/src/dap/condition.rs:1`
   - [x] holes rendered by `Val::shown`, a `secret` slot or property as `Node::Redacted`
   - [x] the three capabilities at `initialize`
-- [ ] Under the switch, a `try` pushes the classes it catches onto the frame record and pops them when it ends, and the throw path asks the controller whether to stop for `thrown` or `uncaught` (`rule:errors/escalation-ladder`). `crates/nvs-runtime/src/throwable.rs:1011`, `crates/nvs-runtime/src/throwable.rs:1062`, `crates/nvs-runtime/src/throwable.rs:1138`
-- [ ] A throw caught inside a `skipFiles` file never stops (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [x] Under the switch, the classes the `try` blocks around each statement catch are recorded, and the throw path asks the controller whether to stop for `thrown` or `uncaught` (`rule:errors/escalation-ladder`, `## Standing decisions`). `crates/nvs-runtime/src/ctx/frames.rs:1`
+  - [x] `Function::debug_catches` and `Program::stmt_catches`, filled from `TryFrame::catches` at each statement
+  - [x] `nvs_debug_throw` at every landing block under the switch, and `Ctx::throw_reported`
+  - [x] `StopCause::Throw`, `StopReason::Exception`, `Stop::exception` and `Debugger::exception_filters`
+  - [x] `setExceptionBreakpoints`, `exceptionInfo` and the two filters at `initialize`
+- [x] A throw caught inside a `skipFiles` file never stops (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-host/src/debug.rs:1`
+  - [x] `Shared::throw_stops` reads the catching frame's file through the `skipFiles` test
 - [ ] Rust tests for each condition form, each hit form, a logpoint, both filters, and a condition that tries to call a method. `crates/nvs-cli/src/dap/mod.rs:1`
 
 ### 4. VS Code launches `nvs dap`, and the adapter has its feature proofs
@@ -336,44 +347,38 @@ subagent. Such subagents run side by side, and none of them builds.
 Stages 1, 5 and 2 are done. `launch` reads `mode`, `program`, `args`, `cwd`, `env`,
 `stopOnEntry`, `filter` and `skipFiles`. Not read yet: `pathMappings`.
 
-Stage 3's first three items are in: conditions, hit counts and logpoints. `nvs_types::condition`
-checks a condition or a hole against `ProbeSlot`s, `dap::condition::Rule` is the
-`BreakpointTest` the controller binds per function when a unit arms the line, and its `Bound`
-evaluates the probe over the frame's values at an armed site (`DebugUnit::passes`,
-`crates/nvs-host/src/debug.rs:415`). Three standing decisions are new: a condition is a checked
-probe evaluated over the values, not a compiled function; a plain `N` hit condition is `>=N`; a
-condition may not read a `secret` variable. `DebugUnit::new` now takes each site's owner
-function, and `Debugger::set_breakpoints` takes `BreakpointSpec`s (`BreakpointSpec::lines` for a
-plain list).
+Stage 3's first five items are in; only its tests are owed. The exception filters replace the
+push and pop per `try` (revised decision *"Uncaught" is decided at the throw*): the lowering
+records each statement's caught classes (`crates/nvs-ir/src/lower/mod.rs:4271`,
+`Program::stmt_catches` `crates/nvs-ir/src/ir.rs:59`), every landing block under the switch first
+calls `nvs_debug_throw` (`crates/nvs-codegen/src/emit.rs:1641`,
+`crates/nvs-runtime/src/ctx/frames.rs:517`), and `Shared::throw_stops`
+(`crates/nvs-host/src/debug.rs:836`) applies the filters and `skipFiles`. The adapter offers
+`uncaught` (default on) and `thrown`, and answers `setExceptionBreakpoints` and `exceptionInfo`.
+`DebugUnit::new` takes the catches as a fifth argument. The exception path is built and
+clippy-clean, and has never run.
 
-Tests so far: the checker's units in `crates/nvs-types/src/condition.rs`, the hit forms and the
-arithmetic rows in `crates/nvs-cli/src/dap/condition.rs`, and one protocol test,
-`a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping`
-(`crates/nvs-cli/tests/dap.rs:799`). It covers a condition, a logpoint and a method call that
-leaves its breakpoint unverified. All pass on Windows; no newer `dap.rs` test has run on Linux.
-No existing test is expected to go red.
-
-The sweep's reds are stale: `env-secret-proofs` exits 0, and nightly `40174915924` tested
-`9be30356e`, before the fixes `d5aa2be18`, `901f4855c`, `bd2e51f0a` and `0b7eadd2c`.
+Tests so far: the condition units in `crates/nvs-types/src/condition.rs` and
+`crates/nvs-cli/src/dap/condition.rs`, and one protocol test in `crates/nvs-cli/tests/dap.rs`.
+May go red: a test that counts the runtime symbol table (`nvs_debug_throw` is new) or a debug
+unit's calls at a landing block (`crates/nvs-codegen/tests/probes.rs`). The sweep's reds are
+stale, and nightly `40174915924` is the `side-ci-green` loop's.
 
 ### Next
 
-**Stage 3: the exception filters, then the tests.** Take items 4 and 5 as one group, and write
-checkpoints under each before starting. The anchors:
-
-- The throw hook starts at `nvs_raise`, `nvs_raise_new` and `nvs_raise_site`
-  (`crates/nvs-runtime/src/throwable.rs:1011`, `:1062`, `:1138`). Under the switch, a `try`
-  pushes the classes it catches onto the frame record (`crates/nvs-runtime/src/ctx/frames.rs`),
-  and the codegen emits the push and pop (`crates/nvs-codegen/src/emit.rs`).
-- The stop handler is `Shared::stop` (`crates/nvs-host/src/debug.rs:674`). A throw needs a new
-  `StopCause` and `StopReason::Exception`, and `Debugger` needs the two filter switches.
-- `setExceptionBreakpoints` and the `exceptionBreakpointFilters` capability go in
-  `Session::answer` (`crates/nvs-cli/src/dap/mod.rs`). A throw caught in a `skipFiles` file never
-  stops: the frame that catches it decides, so the hook needs the catching frame's file.
+**Stage 3's last item: the tests.** First run the exception path once by hand: a fixture under
+`dap.rs`'s helpers that throws inside a `try` and outside one, with `setExceptionBreakpoints`
+`["uncaught"]` and then `["thrown"]`. Check that it stops once per exception, at the throwing
+line, with the variables shown. Then check a `catch` that does not match, which re-raises the
+same object and must not stop a second time. Fix what that shows before writing more.
 
 Then item 6 by its `**Split:**` line: one writing subagent writes the remaining tests in
-`crates/nvs-cli/tests/dap.rs` beside `:799` (each condition form, each hit form, a `secret` hole
-redacted, both filters). Review them.
+`crates/nvs-cli/tests/dap.rs` beside
+`a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping`. They cover each
+condition form, each hit form, a `secret` hole redacted, both filters, a throw a `skipFiles`
+file catches, a `Core` method's fault under `uncaught`, and a `catch` expression. Review them,
+and add a unit test of `DebugUnit::catches_at` and `throw_stops` beside
+`crates/nvs-host/src/debug.rs`'s `mod tests`.
 
 Stage 4 touches no Rust and may run as its own lane beside stage 3 (`## Standing decisions`
 § *Lanes*). For its attack: `echo` writes a carriage return as `␍`, so a program cannot echo a
