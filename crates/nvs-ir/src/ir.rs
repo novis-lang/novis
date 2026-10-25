@@ -502,6 +502,10 @@ pub struct Function {
     /// because `nvs-codegen` gives it a frame record and stop sites either way.
     /// Every [`InstKind::DebugLocals`] in the function indexes this table.
     pub debug_slots: Option<Vec<DebugSlot>>,
+    /// Under the debug switch, whether a value this function returns may be
+    /// `secret`, so a debugger shows it redacted. True wherever the written
+    /// return type does not rule it out.
+    pub debug_returns_secret: bool,
 }
 
 /// One variable's described stack slot under the debug switch. The entry at

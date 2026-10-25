@@ -847,6 +847,9 @@ pub fn with_debug_slots<R>(lower: impl FnOnce() -> R) -> R {
 pub(crate) struct DebugSlots {
     slots: Vec<crate::ir::DebugSlot>,
     index: FxHashMap<String, u32>,
+    /// Whether the function's written return type shows it never returns a
+    /// `secret` value. False until a lowering that reads the type sets it.
+    plain_return: bool,
 }
 
 impl DebugSlots {
@@ -865,6 +868,30 @@ impl DebugSlots {
         self.index.insert(name.to_owned(), slot);
         slot
     }
+}
+
+/// Whether a function whose written return type is `ret` may return a
+/// `secret` value: the type names `secret`, or no type is written and the
+/// checker infers it. A debugger shows such a function's returned value
+/// redacted (`rule:security/redaction-reaches-the-tools-own-renderings`).
+pub(crate) fn may_return_secret(ret: Option<&nvs_syntax::ast::Type>) -> bool {
+    fn names_secret(ty: &nvs_syntax::ast::Type) -> bool {
+        use nvs_syntax::ast::{TypeAtom, TypeKind};
+        match &ty.kind {
+            TypeKind::Nullable(inner) | TypeKind::Paren(inner) => names_secret(inner),
+            TypeKind::Union(arms) | TypeKind::Intersection(arms) => arms.iter().any(names_secret),
+            TypeKind::Atom(atom) => matches!(
+                atom,
+                TypeAtom::SecretString
+                    | TypeAtom::SecretBytes
+                    | TypeAtom::SecretTaintedString
+                    | TypeAtom::SecretTaintedBytes
+            ),
+            // A kind added later is redacted until this match names it.
+            _ => true,
+        }
+    }
+    ret.is_none_or(names_secret)
 }
 
 fn lower_program_as(
@@ -1554,6 +1581,9 @@ pub fn lower_method(
     let body = m.body.as_ref().expect(
         "lower_method requires a method with a body — nothing to lower for an abstract one",
     );
+    if let Some(debug) = &mut low.debug {
+        debug.plain_return = !may_return_secret(m.return_type.as_ref());
+    }
     low.lower_stmts(&body.stmts, &mut cur, &mut env);
     // No explicit final `return` — the fallback seals whatever block is still
     // open. Nothing transfers out on this path (there is no return value), so
@@ -1569,6 +1599,7 @@ pub fn lower_method(
     let callables = std::mem::take(&mut low.callables);
     // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
+    let debug_returns_secret = low.debug_returns_secret();
     let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
     let (anon_fns, mut classes) =
         drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
@@ -1583,6 +1614,7 @@ pub fn lower_method(
             stmt_spans,
             edge_spans,
             debug_slots,
+            debug_returns_secret,
         },
         anon_fns,
         classes,
@@ -1927,6 +1959,7 @@ pub fn lower_property_hook(
     let callables = std::mem::take(&mut low.callables);
     // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
+    let debug_returns_secret = low.debug_returns_secret();
     let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
     let (anon_fns, mut classes) =
         drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
@@ -1941,6 +1974,7 @@ pub fn lower_property_hook(
             stmt_spans,
             edge_spans,
             debug_slots,
+            debug_returns_secret,
         },
         anon_fns,
         classes,
@@ -2042,6 +2076,7 @@ pub fn lower_script(
     let callables = std::mem::take(&mut low.callables);
     // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
+    let debug_returns_secret = low.debug_returns_secret();
     let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
     let (anon_fns, mut classes) =
         drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
@@ -2056,6 +2091,7 @@ pub fn lower_script(
             stmt_spans,
             edge_spans,
             debug_slots,
+            debug_returns_secret,
         },
         anon_fns,
         classes,
@@ -4180,6 +4216,12 @@ impl<'a> Lowering<'a> {
     /// every block this lowering creates is expected to reach a terminator
     /// one way or another; hitting this would be a lowering bug, not a
     /// malformed input program.
+    /// [`crate::ir::Function::debug_returns_secret`] for the function being
+    /// lowered.
+    pub(crate) fn debug_returns_secret(&self) -> bool {
+        self.debug.as_ref().is_none_or(|debug| !debug.plain_return)
+    }
+
     pub(crate) fn finish(
         self,
     ) -> (

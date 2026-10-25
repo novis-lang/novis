@@ -551,3 +551,63 @@ fn a_breakpoint_stops_one_served_request_while_another_is_answered() {
     let (_, success) = client.finish();
     assert!(success, "the adapter ended with a failure");
 }
+
+/// Sends `command` for the first thread, and reads up to the `stopped` event it ends in. Fails
+/// unless the stop's reason is `step`.
+fn step(client: &mut Client, command: &str) {
+    let (threads, _) = client.ask("threads", json!({}));
+    let thread = threads["threads"][0]["id"].clone();
+    client.ask(command, json!({ "threadId": thread }));
+    let ran = client.until_event("stopped");
+    let stopped = ran.last().expect("the `stopped` event");
+    assert_eq!(stopped["body"]["reason"], "step", "{ran:#?}");
+}
+
+/// `stepIn` at a call stops at the method's first statement, `next` at its second, and `stepOut`
+/// at the caller's next statement, where the frame shows the value the method returned.
+/// A `next` from the last statement runs the program to its end.
+#[test]
+fn a_step_in_over_and_out_moves_one_statement_and_shows_the_returned_value() {
+    let dir = nvs_repo::scratch_private("dap-step");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nclass Shop {\n    public static function total(int $price, int $count): int {\n        int $sum = $price * $count;\n        int $withTax = $sum + 2;\n        return $withTax;\n    }\n}\nint $order = Shop::total(4, 3);\necho $order, \"\\n\";\n",
+    )
+    .unwrap();
+    let main = dir.join("main.nvs");
+
+    let mut client = Client::start(&dir);
+    client.request("initialize", json!({ "adapterID": "novis" }));
+    client.until_event("initialized");
+    client.ask(
+        "setBreakpoints",
+        json!({ "source": { "path": main }, "breakpoints": [{ "line": 9 }] }),
+    );
+    client.request("launch", json!({ "mode": "run", "program": main }));
+    client.request("configurationDone", json!({}));
+    client.until_event("stopped");
+
+    step(&mut client, "stepIn");
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 4, "{frame:#?}");
+    assert_eq!(variables["$price"], "4", "{variables:#?}");
+
+    step(&mut client, "next");
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 5, "{frame:#?}");
+    assert_eq!(variables["$sum"], "12", "{variables:#?}");
+
+    step(&mut client, "stepOut");
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 10, "{frame:#?}");
+    assert_eq!(variables["Shop::total() returned"], "14", "{variables:#?}");
+
+    let (threads, _) = client.ask("threads", json!({}));
+    let thread = threads["threads"][0]["id"].clone();
+    client.ask("next", json!({ "threadId": thread }));
+    let ran = client.until_event("terminated");
+    assert_eq!(output(&ran, "stdout"), "14\n", "{ran:#?}");
+    client.request("disconnect", json!({}));
+    let (_, success) = client.finish();
+    assert!(success, "the adapter ended with a failure");
+}

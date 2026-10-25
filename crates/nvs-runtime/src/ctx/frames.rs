@@ -19,6 +19,15 @@
 //! is not in the call stack. That is the view a debugger wants, because it
 //! is not code the user wrote.
 //!
+//! A step is one context's, not the tree's
+//! (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). [`Ctx::set_step`]
+//! raises a byte on that context alone, and a site calls [`nvs_debug_site`]
+//! when its armed byte or that one is set, so a step stops no other task. A
+//! return under the switch tests the same byte and calls [`nvs_debug_return`]
+//! while it is set. When the frame the step started in returns, that call
+//! keeps the value it returned ([`Ctx::take_returned`]) and moves the step to
+//! the caller.
+//!
 //! The stop handler is the request tree's, not one context's
 //! (`rule:testing/a-stop-pauses-the-whole-task-tree`). Every context of the
 //! tree runs the same one, a child on its parent's core and a `spawn worker`
@@ -26,8 +35,10 @@
 //!
 //! **What it spends:** under the switch, one record of [`FRAME_RECORD_SIZE`]
 //! bytes per call in flight, on the task's own stack, and one byte per
-//! statement per unit. A normal run spends one null pointer and one flag per
-//! context, and one empty lock per request tree.
+//! statement per unit. A step spends one byte load per site and per return,
+//! and while a step is set, one walk of the frame chain per site and per
+//! return of the task that steps. A normal run spends one null pointer, two
+//! flags and one empty step per context, and one empty lock per request tree.
 
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -125,6 +136,51 @@ impl<'a> Iterator for Frames<'a> {
             slots,
         })
     }
+}
+
+/// Where a step stops, measured from the frame it started in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepKind {
+    /// At the next site of the same frame or of a caller.
+    Over,
+    /// At the next site reached, in any frame.
+    In,
+    /// At the next site of a caller.
+    Out,
+}
+
+/// One context's step in progress: its kind, and how deep the frame chain was
+/// where it started.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Step {
+    /// Where it stops.
+    pub kind: StepKind,
+    /// How many frame records were linked where the step started.
+    pub depth: usize,
+}
+
+impl Step {
+    /// Whether a site reached with `depth` records linked is where this step
+    /// stops.
+    #[must_use]
+    pub fn stops_at(self, depth: usize) -> bool {
+        match self.kind {
+            StepKind::In => true,
+            StepKind::Over => depth <= self.depth,
+            StepKind::Out => depth < self.depth,
+        }
+    }
+}
+
+/// The value the frame a step started in returned, kept until the next stop
+/// shows it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Returned {
+    /// The returning function's index in `nvs_ir::Program::functions`.
+    pub function: u32,
+    /// Its value as a record tree, or [`nvs_render::Node::Redacted`] for a
+    /// `secret` one.
+    pub value: nvs_render::Node,
 }
 
 /// Why a context runs its tree's [`DebugStop`].
@@ -234,6 +290,31 @@ impl Ctx {
     /// replaces. With none set, both run on.
     pub fn set_debug_stop(&mut self, stop: Option<DebugStop>) -> Option<DebugStop> {
         self.tree.debug.set_stop(stop)
+    }
+
+    /// How many frame records are linked: the depth of the call in flight.
+    #[must_use]
+    pub fn frame_depth(&self) -> usize {
+        self.frames().count()
+    }
+
+    /// Sets this context's step, or ends it with `None`. Only this context's
+    /// sites read it, so no other task of the tree stops for it.
+    pub fn set_step(&mut self, step: Option<Step>) {
+        self.step = step;
+        self.stepping = u8::from(step.is_some());
+    }
+
+    /// This context's step in progress.
+    #[must_use]
+    pub fn step(&self) -> Option<Step> {
+        self.step
+    }
+
+    /// The value the step's frame returned since the last call, if it has
+    /// returned.
+    pub fn take_returned(&mut self) -> Option<Returned> {
+        self.returned.take()
     }
 
     /// Whether this tree has a [`DebugStop`] set.
@@ -354,9 +435,65 @@ pub unsafe extern "C" fn nvs_debug_site(ctx: *mut Ctx) -> i32 {
     }
 }
 
+/// A return under the debug switch while [`Ctx::set_step`]'s byte is set,
+/// before the frame unlinks its record. When the returning frame is the one
+/// the step started in, keeps the value at `out` ([`Ctx::take_returned`]) and
+/// moves the step to the caller: a step over or out then stops at the
+/// caller's next site. `secret` is nonzero for a function that may return a
+/// `secret` value, which is kept redacted.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned, and valid for the duration of the call,
+/// and `out` must point at the initialized [`Value`] the function returns.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context and its out-slot; the contract cannot be \
+              expressed in the signature"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_debug_return(ctx: *mut Ctx, out: *const Value, secret: i32) {
+    #[expect(unsafe_code, reason = "the caller's contract, passed on unchanged")]
+    let (ctx, value) = unsafe { (&mut *ctx, *out) };
+    let Some(step) = ctx.step else {
+        return;
+    };
+    let mut frames = ctx.frames();
+    let Some(function) = frames.next().map(|frame| frame.function) else {
+        return;
+    };
+    let depth = 1 + frames.count();
+    if depth != step.depth {
+        return;
+    }
+    let value = if secret == 0 {
+        crate::record::node(value)
+    } else {
+        nvs_render::Node::Redacted
+    };
+    ctx.returned = Some(Returned { function, value });
+    let kind = match step.kind {
+        StepKind::In => StepKind::In,
+        StepKind::Over | StepKind::Out => StepKind::Over,
+    };
+    ctx.step = Some(Step {
+        kind,
+        depth: depth - 1,
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_step_stops_in_its_frame_a_deeper_one_or_a_caller_by_its_kind() {
+        let step = |kind| Step { kind, depth: 3 };
+        assert!(step(StepKind::In).stops_at(4));
+        assert!(step(StepKind::Over).stops_at(3) && step(StepKind::Over).stops_at(2));
+        assert!(!step(StepKind::Over).stops_at(4));
+        assert!(step(StepKind::Out).stops_at(2) && !step(StepKind::Out).stops_at(3));
+    }
 
     #[test]
     fn a_site_table_arms_and_disarms_one_site() {

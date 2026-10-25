@@ -411,6 +411,14 @@ pub struct Ctx {
     /// [`DEBUG_FRAMES_OFFSET`] names, and [`Ctx::frames`] walks it. Cold:
     /// only code compiled with the switch loads it.
     frames: *const FrameRecord,
+    /// Under the debug switch, one while [`Self::step`] is set and zero
+    /// otherwise. Compiled code loads it at the offset [`DEBUG_STEP_OFFSET`]
+    /// names, at every stop site and every return. Cold, like `frames`.
+    stepping: u8,
+    /// This context's step in progress ([`Ctx::set_step`]).
+    step: Option<Step>,
+    /// The value the step's frame returned, until the next stop takes it.
+    returned: Option<Returned>,
     /// Whether this context is running its tree's stop handler, so a poll
     /// inside the handler does not stop it again ([`Ctx::run_debug_stop`]).
     debug_stopping: bool,
@@ -1831,6 +1839,10 @@ pub const DEBUG_FLAGS_OFFSET: usize = std::mem::offset_of!(Ctx, debug);
 /// Byte offset of the head of the debug switch's frame records within [`Ctx`]
 /// — see `frames`'s module docs.
 pub const DEBUG_FRAMES_OFFSET: usize = std::mem::offset_of!(Ctx, frames);
+
+/// Byte offset of the byte a stop site and a return read to see whether this
+/// context steps — see `frames`'s module docs.
+pub const DEBUG_STEP_OFFSET: usize = std::mem::offset_of!(Ctx, stepping);
 
 /// Byte offset of the soft call-stack limit within [`Ctx`] — see the module
 /// docs.

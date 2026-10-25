@@ -295,6 +295,7 @@ pub(crate) fn lower_anon_fn(
             stmt_spans,
             edge_spans,
             debug_slots,
+            debug_returns_secret: super::may_return_secret(fn_expr.return_type.as_ref()),
         },
         std::iter::once(crate::ir::Class {
             label: class.clone(),
@@ -786,6 +787,7 @@ pub(crate) fn lower_callable(
                     stmt_spans,
                     edge_spans,
                     debug_slots,
+                    debug_returns_secret: true,
                 },
                 classes,
             );
@@ -972,6 +974,7 @@ pub(crate) fn lower_callable(
             stmt_spans,
             edge_spans,
             debug_slots,
+            debug_returns_secret: true,
         },
         classes,
     )

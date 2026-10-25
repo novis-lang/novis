@@ -776,6 +776,7 @@ pub(crate) fn lower_generator_factory(
         stmt_spans,
         edge_spans,
         debug_slots,
+        debug_returns_secret: true,
     }
 }
 
@@ -921,6 +922,7 @@ pub(crate) fn lower_generator_advance(
                 stmt_spans,
                 edge_spans,
                 debug_slots,
+                debug_returns_secret: true,
             },
             anon_fns,
             classes,
@@ -1073,6 +1075,7 @@ pub(crate) fn lower_generator_current(
         stmt_spans,
         edge_spans,
         debug_slots,
+        debug_returns_secret: true,
     }
 }
 
@@ -1220,5 +1223,6 @@ pub(crate) fn lower_generator_unwind(
         stmt_spans,
         edge_spans,
         debug_slots,
+        debug_returns_secret: true,
     }
 }

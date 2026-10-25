@@ -15,6 +15,11 @@
 //! `stopOnEntry` stops the program at its first statement, and a `pause` sent before the program
 //! runs does the same ([`Debugger::stop_on_entry`], [`Debugger::pause`]).
 //!
+//! **Steps.** `next`, `stepIn` and `stepOut` step the one thread they name and resume every other
+//! one ([`Debugger::step`]). A step does not stop in a file one of the launch's `skipFiles` globs
+//! matches. A glob is matched against the file's path with `/` between its parts, and on Windows
+//! with no regard to case.
+//!
 //! stdout carries frames and nothing else (`rule:ide/stdout-belongs-to-the-protocol`).
 //! [`stdio`] moves the process's own streams into pipes before anything runs, and a pump thread per
 //! pipe turns what the program writes into `output` events. The program's end is an `exited` and a
@@ -50,6 +55,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 
 use nvs_host::debug::{Breakpoint, Debugger};
+use nvs_runtime::StepKind;
 use rustc_hash::FxHashMap;
 use serde_json::{Value, json};
 
@@ -301,6 +307,26 @@ impl Session {
                 self.debugger.pause();
                 self.succeed(request, None);
             }
+            "next" | "stepIn" | "stepOut" => {
+                let kind = match request.command.as_str() {
+                    "next" => StepKind::Over,
+                    "stepIn" => StepKind::In,
+                    _ => StepKind::Out,
+                };
+                let mut stopped = lock(&self.stopped);
+                match stopped.stop_id(&request.arguments) {
+                    Ok(stop) => {
+                        stopped.clear();
+                        drop(stopped);
+                        self.debugger.step(stop, kind);
+                        self.succeed(request, None);
+                    }
+                    Err(message) => {
+                        drop(stopped);
+                        self.fail(request, &message);
+                    }
+                }
+            }
             "terminate" => {
                 self.succeed(request, None);
                 if self
@@ -368,6 +394,11 @@ impl Session {
             .map_err(|error| format!("The launch configuration is not valid: {error}"))?;
         if arguments.mode == Mode::Serve {
             serve_address(&arguments.args)?;
+        }
+        if !arguments.skip_files.is_empty() {
+            let skip = skip_files(&arguments.skip_files)?;
+            self.debugger
+                .skip_files(move |file| skip.is_match(shown_file(file)));
         }
         if arguments.stop_on_entry {
             self.debugger.stop_on_entry();
@@ -454,6 +485,34 @@ impl Session {
 enum Flow {
     Continue,
     Stop,
+}
+
+/// The launch's `skipFiles` globs as one set, or the message the client shows for one that is not
+/// a glob. On Windows a `\` in a glob is a separator, as it is in the paths the glob is matched
+/// against.
+fn skip_files(globs: &[String]) -> Result<globset::GlobSet, String> {
+    let mut set = globset::GlobSetBuilder::new();
+    for glob in globs {
+        let written = if cfg!(windows) {
+            glob.replace('\\', "/")
+        } else {
+            glob.clone()
+        };
+        let parsed = globset::GlobBuilder::new(&written)
+            .case_insensitive(cfg!(windows))
+            .literal_separator(true)
+            .build()
+            .map_err(|error| format!("`skipFiles` has a glob that is not valid: {error}"))?;
+        set.add(parsed);
+    }
+    set.build()
+        .map_err(|error| format!("`skipFiles` has a glob that is not valid: {error}"))
+}
+
+/// A file key as a glob matches it: Windows's `\\?\` prefix, which a canonical path carries, left
+/// off.
+fn shown_file(file: &str) -> &str {
+    file.strip_prefix(r"\\?\").unwrap_or(file)
 }
 
 /// Sets `env` in this process's environment, which is the program's because the program runs

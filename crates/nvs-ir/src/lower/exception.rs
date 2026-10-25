@@ -1214,5 +1214,6 @@ fn exception_constructor(class: &str, extra: &[(&str, ExtraInit)]) -> Function {
         stmt_spans,
         edge_spans,
         debug_slots: None,
+        debug_returns_secret: true,
     }
 }

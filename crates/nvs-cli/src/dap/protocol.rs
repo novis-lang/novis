@@ -87,6 +87,9 @@ pub(crate) struct LaunchArguments {
     /// The `--filter` of a `test` launch.
     #[serde(default)]
     pub(crate) filter: Option<String>,
+    /// The globs of the files a step does not stop in.
+    #[serde(default)]
+    pub(crate) skip_files: Vec<String>,
 }
 
 /// What a launch runs the program as: `nvs run`, `nvs test` or `nvs serve`.

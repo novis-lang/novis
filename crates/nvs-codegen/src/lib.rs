@@ -2046,6 +2046,9 @@ struct Signatures {
     /// same shape as `safepoint`, kept apart so the two symbols never share
     /// one declaration.
     debug_site: Signature,
+    /// `nvs_debug_return(ctx, out, secret)`, a return's call while the
+    /// context steps. It returns no status, because it cannot fail.
+    debug_return: Signature,
     /// `nvs_stack_check(ctx, sp) -> status` —
     /// `rule:errors/on-limit`'s
     /// slow path. `sp` is `I64` for the reason every other pointer-shaped
@@ -2718,6 +2721,11 @@ impl Signatures {
         debug_site.params.push(AbiParam::new(ptr));
         debug_site.returns.push(AbiParam::new(types::I32));
 
+        let mut debug_return = module.make_signature();
+        debug_return.params.push(AbiParam::new(ptr));
+        debug_return.params.push(AbiParam::new(ptr)); // out
+        debug_return.params.push(AbiParam::new(types::I32)); // secret
+
         let mut stack_check = module.make_signature();
         stack_check.params.push(AbiParam::new(ptr));
         stack_check.params.push(AbiParam::new(types::I64));
@@ -2895,6 +2903,7 @@ impl Signatures {
             helper_variadic,
             safepoint,
             debug_site,
+            debug_return,
             stack_check,
             deprecated,
             probe,

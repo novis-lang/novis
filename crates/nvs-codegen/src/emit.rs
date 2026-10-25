@@ -70,10 +70,10 @@ use nvs_ir::ir::{
     AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, TestedClass, UnOp,
 };
 use nvs_runtime::{
-    DEBUG_FLAGS_OFFSET, DEBUG_FRAMES_OFFSET, DEPRECATED_OFFSET, Decimal as NvsDecimal,
-    FRAME_CALLER_OFFSET, FRAME_FUNCTION_OFFSET, FRAME_RECORD_SIZE, FRAME_SITE_OFFSET,
-    FRAME_SLOT_COUNT_OFFSET, FRAME_SLOTS_OFFSET, OK, SAFEPOINT_OFFSET, STACK_LIMIT_OFFSET, THROWN,
-    Tag, Value as NvsValue,
+    DEBUG_FLAGS_OFFSET, DEBUG_FRAMES_OFFSET, DEBUG_STEP_OFFSET, DEPRECATED_OFFSET,
+    Decimal as NvsDecimal, FRAME_CALLER_OFFSET, FRAME_FUNCTION_OFFSET, FRAME_RECORD_SIZE,
+    FRAME_SITE_OFFSET, FRAME_SLOT_COUNT_OFFSET, FRAME_SLOTS_OFFSET, OK, SAFEPOINT_OFFSET,
+    STACK_LIMIT_OFFSET, THROWN, Tag, Value as NvsValue,
 };
 use rustc_hash::FxHashMap;
 
@@ -1542,8 +1542,9 @@ impl Emitter<'_, '_> {
     /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
     ///
     /// Writes the site's number into the frame record, then tests the site's
-    /// armed byte with one load and one branch to [`nvs_runtime::nvs_debug_site`],
-    /// then the safepoint word with one load and one branch to
+    /// armed byte and the context's step byte with two loads and one branch to
+    /// [`nvs_runtime::nvs_debug_site`], then the safepoint word with one load
+    /// and one branch to
     /// [`nvs_runtime::nvs_safepoint`], so a pending pause stops here too. Both
     /// calls' statuses go to `on_error`, which releases the statement's
     /// variables.
@@ -1561,6 +1562,12 @@ impl Emitter<'_, '_> {
 
         let byte = i32::try_from(site).map_err(|_| internal("a stop site past 2 GiB"))?;
         let armed = self.b.ins().uload8(types::I32, ctx_word(), sites_p, byte);
+        let step_offset = offset_i32(DEBUG_STEP_OFFSET)?;
+        let stepping = self
+            .b
+            .ins()
+            .uload8(types::I32, ctx_word(), self.ctx_p, step_offset);
+        let armed = self.b.ins().bor(armed, stepping);
         let stop = self.b.create_block();
         let poll = self.b.create_block();
         self.b.ins().brif(armed, stop, &[], poll, &[]);
@@ -1590,6 +1597,38 @@ impl Emitter<'_, '_> {
 
         self.b.switch_to_block(cont);
         Ok(cont)
+    }
+
+    /// A value's return under the debug switch, once the value is in the
+    /// out-slot: tests the context's step byte with one load and one branch,
+    /// and while it is set calls [`nvs_runtime::nvs_debug_return`], which
+    /// keeps the value when the frame a step started in returns. It returns
+    /// no status, so nothing is checked after it. Emits nothing without the
+    /// switch.
+    fn emit_debug_return(&mut self) -> Result<(), CodegenError> {
+        if self.debug_frame.is_none() {
+            return Ok(());
+        }
+        let step_offset = offset_i32(DEBUG_STEP_OFFSET)?;
+        let stepping = self
+            .b
+            .ins()
+            .uload8(types::I32, ctx_word(), self.ctx_p, step_offset);
+        let call_block = self.b.create_block();
+        let cont = self.b.create_block();
+        self.b.ins().brif(stepping, call_block, &[], cont, &[]);
+
+        self.b.switch_to_block(call_block);
+        let callee = self.runtime_ref("nvs_debug_return", RuntimeSig::DebugReturn)?;
+        let secret = self
+            .b
+            .ins()
+            .iconst(types::I32, i64::from(self.f.debug_returns_secret));
+        self.b.ins().call(callee, &[self.ctx_p, self.out_p, secret]);
+        self.b.ins().jump(cont, &[]);
+
+        self.b.switch_to_block(cont);
+        Ok(())
     }
 
     /// Returns `status` from the function. Under the debug switch, first puts
@@ -4297,12 +4336,14 @@ impl Emitter<'_, '_> {
         match &block.term {
             Terminator::Return(None) => {
                 self.store_tag_and_bits(self.out_p, 0, Tag::Null, None)?;
+                self.emit_debug_return()?;
                 let ok = self.b.ins().iconst(types::I32, i64::from(OK));
                 self.emit_return(ok);
             }
             Terminator::Return(Some(id)) => {
                 let (value, ty) = self.value(*id)?;
                 self.store_value(self.out_p, 0, value, ty)?;
+                self.emit_debug_return()?;
                 let ok = self.b.ins().iconst(types::I32, i64::from(OK));
                 self.emit_return(ok);
             }
@@ -4638,6 +4679,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::HelperVariadic => &self.sigs.helper_variadic,
             RuntimeSig::Safepoint => &self.sigs.safepoint,
             RuntimeSig::DebugSite => &self.sigs.debug_site,
+            RuntimeSig::DebugReturn => &self.sigs.debug_return,
             RuntimeSig::StackCheck => &self.sigs.stack_check,
             RuntimeSig::Deprecated => &self.sigs.deprecated,
             RuntimeSig::Probe => &self.sigs.probe,
@@ -4702,6 +4744,7 @@ enum RuntimeSig {
     HelperVariadic,
     Safepoint,
     DebugSite,
+    DebugReturn,
     StackCheck,
     Deprecated,
     Probe,

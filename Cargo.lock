@@ -3389,6 +3389,7 @@ version = "0.0.1"
 dependencies = [
  "blake3",
  "clap",
+ "globset",
  "jiff",
  "jsonschema",
  "libc",

@@ -45,6 +45,8 @@ nvs-hir.workspace = true
 # The map type `nvs_hir::resolve_ref` takes its `use` imports in, which
 # `meta.rs` fills to name a user class's parent and interfaces fully qualified.
 rustc-hash.workspace = true
+# `nvs dap`'s `skipFiles` globs.
+globset.workspace = true
 nvs-types.workspace = true
 nvs-ir.workspace = true
 nvs-codegen.workspace = true

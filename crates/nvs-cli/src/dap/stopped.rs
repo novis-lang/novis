@@ -5,6 +5,9 @@
 //! stops has the same round. The first stop of a round is the `stopped` event, with every thread
 //! stopped, and the round's threads are its tasks in the order their stops arrived.
 //!
+//! After a step left a function, the innermost frame's scope starts with the value that function
+//! returned, named `f() returned`.
+//!
 //! **Ids.** A thread id is the task's place in the round, from 1. A frame id is its thread and its
 //! place on that thread's stack. A variables reference is an index into the round's references,
 //! each a frame's scope or a value's children. Every id belongs to one round, and the resume that
@@ -54,6 +57,7 @@ impl Stopped {
             StopReason::Breakpoint => "breakpoint",
             StopReason::Pause | StopReason::Tree => "pause",
             StopReason::Entry => "entry",
+            StopReason::Step => "step",
         };
         self.round = Some(Round {
             number: stop.round,
@@ -78,6 +82,17 @@ impl Stopped {
                 .collect(),
         };
         json!({ "threads": threads })
+    }
+
+    /// The stop of the thread `arguments` names, as [`nvs_host::debug::Debugger::step`] names it.
+    pub(super) fn stop_id(&self, arguments: &Value) -> Result<u64, String> {
+        let round = self.round()?;
+        arguments["threadId"]
+            .as_i64()
+            .and_then(|id| usize::try_from(id - 1).ok())
+            .and_then(|thread| round.stops.get(thread))
+            .map(|stop| stop.id)
+            .ok_or_else(|| "No stopped thread has this id.".to_owned())
     }
 
     /// The `stackTrace` body for the thread `arguments` names, innermost frame first.
@@ -132,11 +147,25 @@ impl Stopped {
             .and_then(|id| usize::try_from(id - 1).ok())
             .and_then(|index| round.refs.get(index))
             .map(|shown| match shown {
-                Ref::Frame { thread, frame } => round.stops[*thread].frames[*frame]
-                    .variables
-                    .iter()
-                    .map(|variable| (format!("${}", variable.name), variable.value.clone()))
-                    .collect(),
+                Ref::Frame { thread, frame } => {
+                    let stop = &round.stops[*thread];
+                    let returned = stop
+                        .returned
+                        .as_ref()
+                        .filter(|_| *frame == 0)
+                        .map(|returned| {
+                            (
+                                format!("{}() returned", returned.function),
+                                returned.value.clone(),
+                            )
+                        });
+                    returned
+                        .into_iter()
+                        .chain(stop.frames[*frame].variables.iter().map(|variable| {
+                            (format!("${}", variable.name), variable.value.clone())
+                        }))
+                        .collect()
+                }
                 Ref::Children(children) => children.clone(),
             })
             .ok_or("No value has this reference.")?;
@@ -296,9 +325,11 @@ mod tests {
 
     fn stop(round: u64, reason: StopReason) -> Stop {
         Stop {
+            id: round,
             task: None,
             reason,
             round,
+            returned: None,
             frames: vec![StoppedFrame {
                 function: 0,
                 name: "<script>".to_owned(),
@@ -362,6 +393,38 @@ mod tests {
             .unwrap();
         assert_eq!(entries["variables"][0]["value"], "7");
         assert_eq!(entries["variables"][0]["type"], "int");
+    }
+
+    /// After a step left a function, the innermost frame's scope shows what it returned first,
+    /// and an outer frame's scope does not show it.
+    #[test]
+    fn a_step_out_shows_the_returned_value_first_in_the_innermost_scope() {
+        let mut stopped = Stopped::default();
+        let mut step = stop(0, StopReason::Step);
+        step.returned = Some(nvs_host::debug::StoppedReturn {
+            function: "total".to_owned(),
+            value: Node::Scalar(Scalar::Int(12)),
+        });
+        let outer = step.frames[0].clone();
+        step.frames.push(outer);
+        assert_eq!(stopped.file(step).unwrap()["reason"], "step");
+        let locals = |stopped: &mut Stopped, frame: usize| {
+            let trace = stopped.stack_trace(&json!({ "threadId": 1 })).unwrap();
+            let id = trace["stackFrames"][frame]["id"].clone();
+            let scopes = stopped.scopes(&json!({ "frameId": id })).unwrap();
+            let reference = scopes["scopes"][0]["variablesReference"].clone();
+            stopped
+                .variables(&json!({ "variablesReference": reference }))
+                .unwrap()["variables"]
+                .clone()
+        };
+        let inner = locals(&mut stopped, 0);
+        assert_eq!(
+            (inner[0]["name"].clone(), inner[0]["value"].clone()),
+            (json!("total() returned"), json!("12"))
+        );
+        assert_eq!(inner[1]["name"], "$items");
+        assert_eq!(locals(&mut stopped, 1)[0]["name"], "$items");
     }
 
     /// Nothing can be read while the program runs.

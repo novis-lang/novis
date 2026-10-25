@@ -46,6 +46,17 @@
 //! [`Node::Redacted`]
 //! (`rule:security/redaction-reaches-the-tools-own-renderings`).
 //!
+//! A step is one task's ([`Debugger::step`]). The session names the stop to
+//! step from, and the resume wakes every task. The task of that stop sets a
+//! [`Step`] on its own context before it runs on, so only its own sites stop
+//! it. At a site that no breakpoint armed, the handler stops the task only
+//! where [`Step::stops_at`] says and the site's file is not one
+//! [`Debugger::skip_files`] skips. A step over or out from a frame that
+//! returns shows the value it returned in the next stop ([`Stop::returned`]).
+//! An `await` needs nothing of its own: the task's stack stays as it was
+//! while it waits, the step stays on its context, and its siblings have
+//! contexts of their own.
+//!
 //! The controller is `Send` and `Sync`, so a session drives it from its own
 //! thread while the program runs on a core.
 //!
@@ -54,7 +65,8 @@
 //! request on it lives, one weak unit per load, freed at the next load once
 //! the unit has ended, one weak safepoint view per
 //! attached request, freed at the next attach once the request has ended, and
-//! one wake per stopped task, freed by the resume. A stop holds the tree of
+//! one wake per stopped task, freed by the resume. A step holds one entry
+//! until its task runs on. A stop holds the tree of
 //! every variable of every frame until the session drops it. A program that
 //! is not debugged spends nothing.
 
@@ -62,7 +74,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, Weak, mpsc};
 
 use nvs_render::Node;
 use nvs_runtime::{
-    Ctx, Fault, Frame, SafepointFlags, SiteTable, StopCause, Tag, WeakSafepointView,
+    Ctx, Fault, Frame, SafepointFlags, SiteTable, Step, StepKind, StopCause, Tag, WeakSafepointView,
 };
 use rustc_hash::FxHashMap;
 
@@ -121,6 +133,18 @@ pub enum StopReason {
     /// [`Debugger::stop_on_entry`] asked the program to stop before it runs,
     /// and this is the first stop site it reached.
     Entry,
+    /// A [`Debugger::step`] of this task reached the site it stops at.
+    Step,
+}
+
+/// The value a function returned, shown at the stop after a step left it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StoppedReturn {
+    /// The function's name, or empty for an index the session was not told.
+    pub function: String,
+    /// The value as a record tree, or [`Node::Redacted`] where it may be
+    /// `secret`.
+    pub value: Node,
 }
 
 /// One call in flight of a stopped task, innermost first in [`Stop::frames`].
@@ -150,6 +174,8 @@ pub struct StoppedVariable {
 /// What a task reports when it stops.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stop {
+    /// This stop's number in the session, which [`Debugger::step`] names.
+    pub id: u64,
     /// The task that stopped, or `None` for a context with no scheduler
     /// beneath it.
     pub task: Option<TaskId>,
@@ -160,6 +186,9 @@ pub struct Stop {
     pub round: u64,
     /// The calls in flight compiled under the debug switch, innermost first.
     pub frames: Vec<StoppedFrame>,
+    /// The value the frame a step started in returned, when the step left
+    /// that frame.
+    pub returned: Option<StoppedReturn>,
 }
 
 /// One compiled unit of a debugged program: its stop sites, where each one is,
@@ -251,12 +280,32 @@ struct State {
     pause_pending: bool,
     /// The wake of every task parked on a core.
     parked: Vec<RemoteWake>,
+    /// How many stops have been sent: the next stop's [`Stop::id`].
+    stops_sent: u64,
+    /// The stop a [`Debugger::step`] steps from, and its kind, until that
+    /// stop's task runs on.
+    step: Option<(u64, StepKind)>,
+    /// The files a step does not stop in.
+    skip: Option<SkipFiles>,
     /// Told each file's breakpoints every time a unit loads.
     on_load: Option<OnLoad>,
 }
 
 /// What [`Debugger::on_load`] calls, after each [`Debugger::load`].
 type LoadListener = dyn Fn(&[(String, Vec<Breakpoint>)]) + Send + Sync;
+
+/// What [`Debugger::skip_files`] calls with a site's file.
+type SkipTest = dyn Fn(&str) -> bool + Send + Sync;
+
+/// The test of [`State::skip`], so `State` can still be printed.
+#[derive(Clone)]
+struct SkipFiles(Arc<SkipTest>);
+
+impl std::fmt::Debug for SkipFiles {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SkipFiles")
+    }
+}
 
 /// The listener of [`State::on_load`], so `State` can still be printed.
 #[derive(Clone)]
@@ -367,9 +416,29 @@ impl Debugger {
         }
     }
 
+    /// Makes a step stop no task in a file `skip` returns `true` for. The
+    /// test gets the file as a breakpoint names it. Replaces the test set
+    /// before.
+    pub fn skip_files(&self, skip: impl Fn(&str) -> bool + Send + Sync + 'static) {
+        self.shared.lock().skip = Some(SkipFiles(Arc::new(skip)));
+    }
+
+    /// Resumes every stopped task, and makes the task of the stop numbered
+    /// `stop` step by `kind` from where it stopped. Every other task runs on
+    /// as [`Self::resume`] makes it.
+    pub fn step(&self, stop: u64, kind: StepKind) {
+        self.shared.lock().step = Some((stop, kind));
+        self.wake_all();
+    }
+
     /// Resumes every stopped task: lowers the stop on every attached request,
     /// adds the time stopped to its wall deadline, and wakes each parked task.
     pub fn resume(&self) {
+        self.shared.lock().step = None;
+        self.wake_all();
+    }
+
+    fn wake_all(&self) {
         let parked = {
             let mut state = self.shared.lock();
             state.resumes += 1;
@@ -413,9 +482,14 @@ impl Shared {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// The stop handler: stops the whole tree at a breakpoint, reports the
-    /// stop, then parks until a resume.
+    /// The stop handler: stops the whole tree at a breakpoint or at the end
+    /// of a step, reports the stop, then parks until a resume.
     fn stop(&self, ctx: &mut Ctx, cause: StopCause, unit: &DebugUnit) -> i32 {
+        let site = ctx.frames().next().map(|frame| frame.site);
+        let armed = site.is_some_and(|site| unit.sites.is_armed(site));
+        if cause == StopCause::Site && !armed && !self.step_stops(ctx, site, unit) {
+            return nvs_runtime::OK;
+        }
         let frames: Vec<StoppedFrame> = ctx.frames().map(|frame| read(unit, frame)).collect();
         let mut state = self.lock();
         let reason = match cause {
@@ -425,7 +499,11 @@ impl Shared {
                 // its next poll until then.
                 ctx.request_safepoint(SafepointFlags::DEBUG_BREAK);
                 state.breakpoint_round = Some(state.resumes);
-                StopReason::Breakpoint
+                if armed {
+                    StopReason::Breakpoint
+                } else {
+                    StopReason::Step
+                }
             }
             // A resume lowered the flag while this task waited for the lock.
             StopCause::Break if !ctx.safepoint_flags().contains(SafepointFlags::DEBUG_BREAK) => {
@@ -439,15 +517,29 @@ impl Shared {
             StopCause::Break => StopReason::Pause,
         };
         state.pause_pending = false;
+        // Any stop ends the task's step, and a later step starts from here.
+        ctx.set_step(None);
+        let returned = ctx.take_returned().map(|returned| StoppedReturn {
+            function: usize::try_from(returned.function)
+                .ok()
+                .and_then(|index| unit.functions.get(index))
+                .map(|function| function.name.clone())
+                .unwrap_or_default(),
+            value: returned.value,
+        });
         ctx.hold_deadlines();
         let stopped_at = state.resumes;
+        let id = state.stops_sent;
+        state.stops_sent += 1;
         // Sent under the lock, so a resume made after the session reads it
         // moves the count this task waits on.
         let _ = self.stops.send(Stop {
+            id,
             task: crate::scheduler::current_task(),
             reason,
             round: stopped_at,
             frames,
+            returned,
         });
         while state.resumes == stopped_at {
             if let Some(wake) = crate::reactor::wake_this_task() {
@@ -467,7 +559,32 @@ impl Shared {
                     .unwrap_or_else(PoisonError::into_inner);
             }
         }
+        if let Some((_, kind)) = state.step.take_if(|(stop, _)| *stop == id) {
+            ctx.set_step(Some(Step {
+                kind,
+                depth: ctx.frame_depth(),
+            }));
+        }
         nvs_runtime::OK
+    }
+
+    /// Whether the step of `ctx` stops at `site`, which no breakpoint armed:
+    /// the step's kind allows the depth, and the site's file is not skipped.
+    fn step_stops(&self, ctx: &Ctx, site: Option<u32>, unit: &DebugUnit) -> bool {
+        let Some(step) = ctx.step() else {
+            return false;
+        };
+        if !step.stops_at(ctx.frame_depth()) {
+            return false;
+        }
+        let at = site
+            .and_then(|site| usize::try_from(site).ok())
+            .and_then(|site| unit.lines.get(site));
+        let skip = self.lock().skip.clone();
+        match (at, skip) {
+            (Some(at), Some(SkipFiles(skip))) => !skip(&at.file),
+            _ => true,
+        }
     }
 }
 
