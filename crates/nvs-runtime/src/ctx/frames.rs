@@ -14,12 +14,19 @@
 //! then polls the safepoint word. A unit compiled without the switch has no
 //! table, no record and no site.
 //!
+//! The stop handler is the request tree's, not one context's
+//! (`rule:testing/a-stop-pauses-the-whole-task-tree`). Every context of the
+//! tree runs the same one, a child on its parent's core and a `spawn worker`
+//! child on another, because each of them shares the tree's state.
+//!
 //! **What it spends:** under the switch, one record of [`FRAME_RECORD_SIZE`]
 //! bytes per call in flight, on the task's own stack, and one byte per
-//! statement per unit. A normal run spends one null pointer and one empty
-//! handler per context.
+//! statement per unit. A normal run spends one null pointer and one flag per
+//! context, and one empty lock per request tree.
 
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 
 use super::Ctx;
 use crate::Value;
@@ -115,19 +122,94 @@ impl<'a> Iterator for Frames<'a> {
     }
 }
 
-/// What a context runs when compiled code reaches an armed stop site. It
+/// Why a context runs its tree's [`DebugStop`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StopCause {
+    /// Compiled code reached an armed stop site ([`nvs_debug_site`]).
+    Site,
+    /// A poll found [`super::SafepointFlags::DEBUG_BREAK`] raised on the
+    /// tree's word ([`super::nvs_safepoint`]).
+    Break,
+}
+
+/// What every context of a request tree runs when it reaches an armed stop
+/// site, or polls with [`super::SafepointFlags::DEBUG_BREAK`] raised. It
 /// returns a status: [`crate::OK`] runs on, and any other ends the request the
 /// way a safepoint's does.
-pub type DebugStop = Box<dyn FnMut(&mut Ctx) -> i32>;
+///
+/// Shared and `Send`, because every context of the tree runs the same one, on
+/// whichever core the context is.
+///
+/// With a handler set, the poll leaves `DEBUG_BREAK` raised, so every task of
+/// the tree stops at its next poll. The handler lowers it, through
+/// [`super::WeakSafepointView::release_debug_stop`], when the stop ends.
+pub type DebugStop = Arc<dyn Fn(&mut Ctx, StopCause) -> i32 + Send + Sync>;
 
-/// The [`DebugStop`] a context holds, if any. A type of its own so the context
-/// can print itself: a closure has no `Debug`.
+/// The debug state a request tree shares: its [`DebugStop`], and how long the
+/// tree has been stopped, which its wall deadline is moved by.
 #[derive(Default)]
-pub(crate) struct StopSlot(Option<DebugStop>);
+pub(crate) struct TreeDebug(Mutex<TreeDebugState>);
 
-impl std::fmt::Debug for StopSlot {
+#[derive(Default)]
+struct TreeDebugState {
+    stop: Option<DebugStop>,
+    /// When the stop in progress began, or `None` while the tree runs.
+    held_since: Option<Instant>,
+    /// The length of every stop that has ended.
+    held_for: Duration,
+}
+
+impl TreeDebug {
+    fn lock(&self) -> MutexGuard<'_, TreeDebugState> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn stop(&self) -> Option<DebugStop> {
+        self.lock().stop.clone()
+    }
+
+    fn set_stop(&self, stop: Option<DebugStop>) -> Option<DebugStop> {
+        std::mem::replace(&mut self.lock().stop, stop)
+    }
+
+    /// Starts a hold on the tree's deadlines, and returns whether one was not
+    /// already in progress.
+    pub(super) fn hold(&self) -> bool {
+        let mut state = self.lock();
+        if state.held_since.is_some() {
+            return false;
+        }
+        state.held_since = Some(Instant::now());
+        true
+    }
+
+    /// Ends the hold in progress and adds its length to the total. Returns
+    /// whether there was one.
+    pub(super) fn release(&self) -> bool {
+        let mut state = self.lock();
+        let Some(since) = state.held_since.take() else {
+            return false;
+        };
+        state.held_for = state.held_for.saturating_add(since.elapsed());
+        true
+    }
+
+    /// The length of every hold that has ended, or `None` while one is in
+    /// progress, when the tree has no deadline to read.
+    pub(super) fn held_for(&self) -> Option<Duration> {
+        let state = self.lock();
+        state.held_since.is_none().then_some(state.held_for)
+    }
+}
+
+impl std::fmt::Debug for TreeDebug {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(if self.0.is_some() { "Some(..)" } else { "None" })
+        let state = self.lock();
+        f.debug_struct("TreeDebug")
+            .field("stop", &state.stop.is_some())
+            .field("held_since", &state.held_since)
+            .field("held_for", &state.held_for)
+            .finish()
     }
 }
 
@@ -143,31 +225,49 @@ impl Ctx {
     }
 
     /// Sets what an armed stop site and a [`super::SafepointFlags::DEBUG_BREAK`]
-    /// poll run, and returns the one it replaces. With none set, both run on.
+    /// poll run in every context of this request tree, and returns the one it
+    /// replaces. With none set, both run on.
     pub fn set_debug_stop(&mut self, stop: Option<DebugStop>) -> Option<DebugStop> {
-        std::mem::replace(&mut self.debug_stop.0, stop)
+        self.tree.debug.set_stop(stop)
     }
 
-    /// Runs the [`DebugStop`] this context has, and returns its status, or
-    /// [`crate::OK`] when none is set. Both ways a task stops come here: an
-    /// armed site ([`nvs_debug_site`]) and a `DEBUG_BREAK` poll
-    /// ([`super::nvs_safepoint`]).
+    /// Whether this tree has a [`DebugStop`] set.
+    pub(crate) fn has_debug_stop(&self) -> bool {
+        self.tree.debug.stop().is_some()
+    }
+
+    /// Holds this tree's deadlines while it is stopped: from here until
+    /// [`super::WeakSafepointView::release_debug_stop`], its wall deadline is
+    /// not reached, and the time between is added to it
+    /// (`rule:testing/a-stop-pauses-the-whole-task-tree`).
+    ///
+    /// CPU time needs no hold: a stopped task is parked or blocked, so its
+    /// thread's clock does not charge it.
+    pub fn hold_deadlines(&self) {
+        self.tree.hold_deadlines();
+    }
+
+    /// Runs the tree's [`DebugStop`], and returns its status, or
+    /// [`crate::OK`] when none is set or this context is already inside it.
+    /// Both ways a task stops come here: an armed site ([`nvs_debug_site`])
+    /// and a `DEBUG_BREAK` poll ([`super::nvs_safepoint`]).
     ///
     /// The handler runs inside a [`crate::HelperFrame`], because it may park
     /// the task with compiled frames above it, and a host may not unwind such
     /// a stack.
-    pub(crate) fn run_debug_stop(&mut self) -> i32 {
-        let Some(mut stop) = self.debug_stop.0.take() else {
+    pub(crate) fn run_debug_stop(&mut self, cause: StopCause) -> i32 {
+        if self.debug_stopping {
+            return crate::OK;
+        }
+        let Some(stop) = self.tree.debug.stop() else {
             return crate::OK;
         };
+        self.debug_stopping = true;
         let status = {
             let _frame = crate::HelperFrame::enter();
-            stop(self)
+            stop(self, cause)
         };
-        // A handler that set another one while it ran keeps that one.
-        if self.debug_stop.0.is_none() {
-            self.debug_stop.0 = Some(stop);
-        }
+        self.debug_stopping = false;
         status
     }
 }
@@ -245,7 +345,7 @@ impl SiteTable {
 pub unsafe extern "C" fn nvs_debug_site(ctx: *mut Ctx) -> i32 {
     #[expect(unsafe_code, reason = "the caller's contract, passed on unchanged")]
     unsafe {
-        crate::abi::contain_panic(ctx, Ctx::run_debug_stop)
+        crate::abi::contain_panic(ctx, |ctx| ctx.run_debug_stop(StopCause::Site))
     }
 }
 

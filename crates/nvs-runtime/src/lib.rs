@@ -310,7 +310,7 @@ pub use ctx::{
     SAFEPOINT_OFFSET, SPAN_EVENT_CEILING, SPEEDSCOPE_SCHEMA, STACK_CEILING, STACK_LIMIT_OFFSET,
     STACK_RESERVE, STATICS_OFFSET, SafepointFlags, SafepointView, Scheme, Session, Settled,
     SiteTable, SnapshotMismatch, SocketAnswer, SocketFrame, SpawnForm, SpecBody, SpecPart, SseSlot,
-    StmtHits, StmtLines, TaskSlot, TraceEvent, TraceKind, TraceSink, TreeState, Upgrade,
+    StmtHits, StmtLines, StopCause, TaskSlot, TraceEvent, TraceKind, TraceSink, TreeState, Upgrade,
     UpgradeSlot, WeakSafepointView, every_site_probed, is_carrier, nvs_debug_site,
     nvs_deprecated_use, nvs_probe_call_enter, nvs_probe_call_exit, nvs_probe_edge, nvs_probe_stmt,
     nvs_safepoint, nvs_stack_check, probe_every_site, stack_pointer, trace_clock, unix_nanos,

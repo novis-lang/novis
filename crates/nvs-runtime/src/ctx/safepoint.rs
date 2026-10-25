@@ -689,6 +689,32 @@ impl WeakSafepointView {
             SafepointFlags::from_bits_retain(tree.word.load(std::sync::atomic::Ordering::Relaxed))
         })
     }
+
+    /// [`SafepointView::request`] on the tree, and whether it is still alive.
+    pub fn request(&self, flags: SafepointFlags) -> bool {
+        self.0.upgrade().is_some_and(|tree| {
+            tree.word
+                .fetch_or(flags.bits(), std::sync::atomic::Ordering::Relaxed);
+            true
+        })
+    }
+
+    /// Ends a debug stop of the tree: lowers [`SafepointFlags::DEBUG_BREAK`]
+    /// and ends the hold [`Ctx::hold_deadlines`] started. Returns whether the
+    /// tree is still alive.
+    ///
+    /// A debug controller holds this weak handle, because the tree holds the
+    /// controller's stop handler, and a strong one would keep both alive.
+    pub fn release_debug_stop(&self) -> bool {
+        self.0.upgrade().is_some_and(|tree| {
+            tree.word.fetch_and(
+                !SafepointFlags::DEBUG_BREAK.bits(),
+                std::sync::atomic::Ordering::Relaxed,
+            );
+            tree.release_deadlines();
+            true
+        })
+    }
 }
 
 /// The state a request **tree** shares: the word every context in it is stopped
@@ -709,8 +735,9 @@ impl WeakSafepointView {
 /// ceiling and the `wall_time`, written when the request's move; the two
 /// off-core counters, which stay zero and unwritten for a tree that places
 /// nothing off its core; the `wall_time`'s watch, an empty lock for a
-/// request whose client stays; an empty cell for the extension host; and the
-/// count of running child isolates.
+/// request whose client stays; an empty cell for the extension host; the
+/// count of running child isolates; and the debug state, an empty lock for a
+/// tree nobody debugs.
 #[derive(Debug, Default)]
 pub struct TreeState {
     /// The safepoint word itself, named by [`Ctx::safepoint`] and polled by
@@ -794,6 +821,11 @@ pub struct TreeState {
     /// counted on the root because a child placed on another core spawns from
     /// there.
     pub(crate) tasks: std::sync::atomic::AtomicU64,
+    /// The stop handler every context of this tree runs, and how long the
+    /// tree has been stopped (`rule:testing/a-stop-pauses-the-whole-task-tree`).
+    /// Locked only at a stop, a pause or a resume, and by a reader of
+    /// [`Self::wall_deadline`] of a request with a `wall_time`.
+    pub(super) debug: super::frames::TreeDebug,
 }
 
 /// One running child isolate, counted in its tree's [`TreeState::tasks`] for as
@@ -863,14 +895,38 @@ impl Default for Started {
 
 impl TreeState {
     /// The instant the request's `[limits] wall_time` runs out, or `None` for a
-    /// request with none.
+    /// request with none, and for one a debugger has stopped.
+    ///
+    /// The time the request spent stopped is added, so a stop never uses up
+    /// the request's time (`rule:testing/a-stop-pauses-the-whole-task-tree`).
     pub(super) fn wall_deadline(&self) -> Option<std::time::Instant> {
         match self.wall_time.load(std::sync::atomic::Ordering::Relaxed) {
             0 => None,
             nanos => self
                 .started
                 .0
-                .checked_add(std::time::Duration::from_nanos(nanos)),
+                .checked_add(std::time::Duration::from_nanos(nanos))?
+                .checked_add(self.debug.held_for()?),
+        }
+    }
+
+    /// Starts holding the tree's deadlines for a debug stop, and wakes
+    /// whoever waits on the wall deadline, so it reads that there is none.
+    pub(super) fn hold_deadlines(&self) {
+        if self.debug.hold()
+            && let Some(wake) = self.wall_time_watch.take()
+        {
+            wake();
+        }
+    }
+
+    /// Ends the hold, and wakes whoever waits on the wall deadline, so it
+    /// reads the deadline the stop moved.
+    fn release_deadlines(&self) {
+        if self.debug.release()
+            && let Some(wake) = self.wall_time_watch.take()
+        {
+            wake();
         }
     }
 }
@@ -929,7 +985,7 @@ pub(super) struct TreeShare {
 /// `rule:errors/escalation-ladder` makes it not
 /// a `Throwable` at the type level, so no Novis `catch` can see it.
 ///
-/// `DEBUG_BREAK` runs the context's debug stop handler, the one an armed stop
+/// `DEBUG_BREAK` runs the tree's debug stop handler, the one an armed stop
 /// site runs ([`Ctx::set_debug_stop`]), and runs on when none is set.
 ///
 /// # Safety
@@ -1059,15 +1115,20 @@ fn safepoint_slow_path(ctx: &mut Ctx) -> i32 {
         }
     }
     if ctx.safepoint_flags().contains(SafepointFlags::DEBUG_BREAK) {
-        // A debug controller asked this request to pause. The handler is the
-        // host's, and it parks the task until the controller resumes it
-        // (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
-        // Below the limit branches for the yield's reason, and above the
-        // cancel branch, which reads a cancellation delivered while it was
-        // stopped. Lowered before the call, so the handler's own polls do not
-        // stop again.
-        ctx.lower_safepoint(SafepointFlags::DEBUG_BREAK);
-        let status = ctx.run_debug_stop();
+        // A debug controller asked this request to pause, or another task of
+        // its tree stopped. The handler is the host's, and it parks the task
+        // until the controller resumes it
+        // (`rule:testing/a-stop-pauses-the-whole-task-tree`). Below the limit
+        // branches for the yield's reason, and above the cancel branch, which
+        // reads a cancellation delivered while it was stopped.
+        //
+        // The flag stays raised while a handler is set, so every task of the
+        // tree stops at its next poll, and the controller lowers it at the
+        // resume. A tree with no handler lowers it here and runs on.
+        if !ctx.has_debug_stop() {
+            ctx.lower_safepoint(SafepointFlags::DEBUG_BREAK);
+        }
+        let status = ctx.run_debug_stop(super::StopCause::Break);
         if status != crate::OK {
             return status;
         }
@@ -1482,32 +1543,57 @@ mod tests {
         assert_eq!(status, crate::OK);
         assert!(ctx.safepoint_flags().is_empty());
 
-        // A handler runs once per request, inside a helper frame, and the
-        // status it returns is the poll's.
-        let stops = std::rc::Rc::new(std::cell::Cell::new(0));
-        let seen = std::rc::Rc::clone(&stops);
-        ctx.set_debug_stop(Some(Box::new(move |ctx: &mut Ctx| {
-            assert!(
-                crate::HelperFrame::on_this_stack(),
-                "a stop runs inside a helper frame"
-            );
-            assert!(!ctx.safepoint_flags().contains(SafepointFlags::DEBUG_BREAK));
-            seen.set(seen.get() + 1);
-            if seen.get() == 1 {
-                crate::OK
-            } else {
-                ctx.set_pending("stopped by the controller");
-                crate::FATAL
-            }
-        })));
+        // A handler runs once per poll, inside a helper frame, with the flag
+        // still raised for the tree, and the status it returns is the poll's.
+        // A poll inside the handler does not run it again.
+        let stops = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let seen = std::sync::Arc::clone(&stops);
+        let weak = ctx.safepoint_view().downgrade();
+        ctx.set_debug_stop(Some(std::sync::Arc::new(
+            move |ctx: &mut Ctx, cause: super::super::StopCause| {
+                assert!(
+                    crate::HelperFrame::on_this_stack(),
+                    "a stop runs inside a helper frame"
+                );
+                assert_eq!(cause, super::super::StopCause::Break);
+                assert!(ctx.safepoint_flags().contains(SafepointFlags::DEBUG_BREAK));
+                #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+                let nested = unsafe { nvs_safepoint(&raw mut *ctx) };
+                assert_eq!(nested, crate::OK);
+                assert!(weak.release_debug_stop());
+                let seen = seen.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                if seen == 1 {
+                    crate::OK
+                } else {
+                    ctx.set_pending("stopped by the controller");
+                    crate::FATAL
+                }
+            },
+        )));
         for want in [crate::OK, crate::FATAL] {
             ctx.request_safepoint(SafepointFlags::DEBUG_BREAK);
             #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
             let status = unsafe { nvs_safepoint(&raw mut ctx) };
             assert_eq!(status, want);
         }
-        assert_eq!(stops.get(), 2);
+        assert_eq!(stops.load(std::sync::atomic::Ordering::Relaxed), 2);
         assert_eq!(ctx.pending().as_deref(), Some("stopped by the controller"));
+    }
+
+    #[test]
+    fn a_held_wall_deadline_is_none_and_moves_by_the_time_held() {
+        let tree = TreeState::default();
+        tree.wall_time.store(
+            10_000_000_000,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+        let before = tree.wall_deadline().expect("a wall time");
+        tree.hold_deadlines();
+        assert_eq!(tree.wall_deadline(), None, "a stopped tree has no deadline");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        tree.release_deadlines();
+        let after = tree.wall_deadline().expect("a wall time again");
+        assert!(after >= before + std::time::Duration::from_millis(5));
     }
 
     #[test]

@@ -129,7 +129,7 @@ impl Ctx {
             deprecated: 0,
             deprecated_logged: std::collections::HashSet::new(),
             frames: std::ptr::null(),
-            debug_stop: super::frames::StopSlot::default(),
+            debug_stopping: false,
             tree,
             cancelled: false,
             exit_code: 0,

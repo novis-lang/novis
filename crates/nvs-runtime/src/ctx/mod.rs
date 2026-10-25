@@ -411,8 +411,9 @@ pub struct Ctx {
     /// [`DEBUG_FRAMES_OFFSET`] names, and [`Ctx::frames`] walks it. Cold:
     /// only code compiled with the switch loads it.
     frames: *const FrameRecord,
-    /// What an armed stop site runs — see [`Ctx::set_debug_stop`].
-    debug_stop: frames::StopSlot,
+    /// Whether this context is running its tree's stop handler, so a poll
+    /// inside the handler does not stop it again ([`Ctx::run_debug_stop`]).
+    debug_stopping: bool,
     /// The state this request tree shares — the safepoint word [`Self::safepoint`]
     /// names, and the counters a member of the tree running on another core
     /// charges into. [`TreeState`] owns what it holds and what it costs.

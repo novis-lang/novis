@@ -497,7 +497,7 @@ fn a_unit_lowered_with_the_debug_switch_has_a_slot_per_local() {
 
 /// What one stop saw: its site, and the function index of every frame record
 /// on the chain, innermost first.
-type Stops = std::rc::Rc<std::cell::RefCell<Vec<(u32, Vec<u32>)>>>;
+type Stops = std::sync::Arc<std::sync::Mutex<Vec<(u32, Vec<u32>)>>>;
 
 /// Compiles `program`, arms every site `arm` names, and runs the script with a
 /// stop handler that records each stop. Returns the unit, what the stops saw
@@ -513,15 +513,18 @@ fn run_stopping(
         sites.arm(site, arm(site));
     }
     let stops = Stops::default();
-    let seen = std::rc::Rc::clone(&stops);
+    let seen = std::sync::Arc::clone(&stops);
     let mut ctx = Ctx::buffered();
-    ctx.set_debug_stop(Some(Box::new(move |ctx: &mut Ctx| {
-        let chain: Vec<_> = ctx.frames().collect();
-        let site = chain.first().expect("a stop has a frame").site;
-        seen.borrow_mut()
-            .push((site, chain.iter().map(|frame| frame.function).collect()));
-        nvs_runtime::OK
-    })));
+    ctx.set_debug_stop(Some(std::sync::Arc::new(
+        move |ctx: &mut Ctx, _: nvs_runtime::StopCause| {
+            let chain: Vec<_> = ctx.frames().collect();
+            let site = chain.first().expect("a stop has a frame").site;
+            seen.lock()
+                .expect("one thread")
+                .push((site, chain.iter().map(|frame| frame.function).collect()));
+            nvs_runtime::OK
+        },
+    )));
     unit.install_in(&mut ctx);
     unit.script()
         .expect("the script frame")
@@ -529,7 +532,7 @@ fn run_stopping(
         .expect("the script ran");
     assert_eq!(ctx.frames().count(), 0, "a frame record is still linked");
     let out = ctx.take_buffered_output().expect("a buffered context");
-    let stops = stops.borrow().clone();
+    let stops = stops.lock().expect("one thread").clone();
     (unit, stops, String::from_utf8(out).expect("UTF-8"))
 }
 

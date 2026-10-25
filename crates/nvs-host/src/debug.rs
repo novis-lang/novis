@@ -9,11 +9,26 @@
 //! site and at a [`SafepointFlags::DEBUG_BREAK`] poll. The handler sends a
 //! [`Stop`] and parks the task on its own stack until [`Debugger::resume`].
 //!
+//! A stop is the request tree's (`rule:testing/a-stop-pauses-the-whole-task-tree`).
+//! The handler is set on the tree, so every context of it runs the same one,
+//! a `spawn worker` child on another core included. A task that stops at a
+//! breakpoint raises [`SafepointFlags::DEBUG_BREAK`] on the tree's word, and
+//! every other task of the tree stops at its next poll. The flag stays raised
+//! until [`Debugger::resume`] lowers it. Each task sends its own [`Stop`], and
+//! every [`Stop`] of one stop has the same [`Stop::round`], so a debugger
+//! tells its client once per round, with each task as a thread.
+//!
+//! While the tree is stopped, its wall deadline is held
+//! ([`Ctx::hold_deadlines`]): the watchdog and `nvs run`'s clock read no
+//! deadline, and the resume adds the time stopped to it. No CPU time is
+//! charged, because a stopped task does not run on its thread.
+//!
 //! A task on a core with a reactor gives the core back while it is stopped, so
 //! the other requests on that core keep running. A context with no reactor
 //! beneath it blocks its thread instead: `nvs run`'s one program, or a unit
-//! test. A stopped task that is cancelled ends at once, through
-//! [`Ctx::cancel`], and runs no more of its code.
+//! test. A served core always has a reactor, so a stop never blocks a core
+//! that serves other requests. A stopped task that is cancelled ends at once,
+//! through [`Ctx::cancel`], and runs no more of its code.
 //!
 //! Each frame of a [`Stop`] has its file, its line and its variables. The
 //! handler reads the variables on the task's own stack, before it parks,
@@ -26,15 +41,18 @@
 //! thread while the program runs on a core.
 //!
 //! **What it spends:** one [`SiteLine`] per statement and one
-//! [`DebugFunction`] per function per session, one safepoint view per attached
-//! request, and one wake per stopped task, freed by the resume. A stop holds
-//! the tree of every variable of every frame until the session drops it. A
-//! program that is not debugged spends nothing.
+//! [`DebugFunction`] per function per session, one weak safepoint view per
+//! attached request, freed at the next attach once the request has ended, and
+//! one wake per stopped task, freed by the resume. A stop holds the tree of
+//! every variable of every frame until the session drops it. A program that
+//! is not debugged spends nothing.
 
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, mpsc};
 
 use nvs_render::Node;
-use nvs_runtime::{Ctx, Fault, Frame, SafepointFlags, SafepointView, SiteTable, Tag};
+use nvs_runtime::{
+    Ctx, Fault, Frame, SafepointFlags, SiteTable, StopCause, Tag, WeakSafepointView,
+};
 use rustc_hash::FxHashMap;
 
 use crate::reactor::RemoteWake;
@@ -86,6 +104,9 @@ pub enum StopReason {
     Breakpoint,
     /// [`Debugger::pause`] asked the task to stop at its next poll.
     Pause,
+    /// Another task of its request tree stopped at a breakpoint, and this one
+    /// stopped at its next poll.
+    Tree,
 }
 
 /// One call in flight of a stopped task, innermost first in [`Stop::frames`].
@@ -120,6 +141,9 @@ pub struct Stop {
     pub task: Option<TaskId>,
     /// Why it stopped.
     pub reason: StopReason,
+    /// Which stop of the session this is. Every task that one breakpoint or
+    /// one pause stops has the same round, and each resume starts the next.
+    pub round: u64,
     /// The calls in flight compiled under the debug switch, innermost first.
     pub frames: Vec<StoppedFrame>,
 }
@@ -147,12 +171,14 @@ struct Shared {
 struct State {
     /// The sites each file's breakpoints armed.
     breakpoints: FxHashMap<String, Vec<u32>>,
-    /// The safepoint word of every attached request, for a pause.
-    requests: FxHashMap<u64, SafepointView>,
-    next_request: u64,
+    /// The safepoint word of every attached request, for a pause and a
+    /// resume. Weak, because each tree holds this session's stop handler.
+    requests: Vec<WeakSafepointView>,
     /// How many resumes there have been. A stopped task runs on once this
     /// moves past the count it stopped at.
     resumes: u64,
+    /// The round a task last stopped at a breakpoint in.
+    breakpoint_round: Option<u64>,
     /// The wake of every task parked on a core.
     parked: Vec<RemoteWake>,
 }
@@ -224,16 +250,21 @@ impl Debugger {
 
     /// Asks every attached request to stop at its next poll.
     pub fn pause(&self) {
-        for view in self.shared.lock().requests.values() {
-            view.request(SafepointFlags::DEBUG_BREAK);
-        }
+        self.shared
+            .lock()
+            .requests
+            .retain(|view| view.request(SafepointFlags::DEBUG_BREAK));
     }
 
-    /// Resumes every stopped task.
+    /// Resumes every stopped task: lowers the stop on every attached request,
+    /// adds the time stopped to its wall deadline, and wakes each parked task.
     pub fn resume(&self) {
         let parked = {
             let mut state = self.shared.lock();
             state.resumes += 1;
+            // Under the lock, so a task that saw the flag and waits for the
+            // lock reads it lowered and runs on.
+            state.requests.retain(WeakSafepointView::release_debug_stop);
             std::mem::take(&mut state.parked)
         };
         self.shared.resumed.notify_all();
@@ -243,23 +274,19 @@ impl Debugger {
         }
     }
 
-    /// Makes `ctx` stop under this session: at an armed site, and at the poll
-    /// after a [`Self::pause`]. The request stays attached until `ctx` is
-    /// dropped or its stop handler is replaced.
+    /// Makes the request tree of `ctx` stop under this session: at an armed
+    /// site, and at the poll after a [`Self::pause`]. Every context of the
+    /// tree stops, a child spawned later included. The request stays attached
+    /// until its tree ends or its stop handler is replaced.
     pub fn attach(&self, ctx: &mut Ctx) {
-        let id = {
+        {
             let mut state = self.shared.lock();
-            let id = state.next_request;
-            state.next_request += 1;
-            state.requests.insert(id, ctx.safepoint_view());
-            id
-        };
-        let attached = Attached {
-            shared: Arc::clone(&self.shared),
-            id,
-        };
-        ctx.set_debug_stop(Some(Box::new(move |ctx: &mut Ctx| {
-            attached.shared.stop(ctx)
+            state.requests.retain(|view| view.flags().is_some());
+            state.requests.push(ctx.safepoint_view().downgrade());
+        }
+        let shared = Arc::clone(&self.shared);
+        ctx.set_debug_stop(Some(Arc::new(move |ctx: &mut Ctx, cause| {
+            shared.stop(ctx, cause)
         })));
     }
 }
@@ -269,20 +296,35 @@ impl Shared {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// The stop handler: reports the stop, then parks until a resume.
-    fn stop(&self, ctx: &mut Ctx) -> i32 {
+    /// The stop handler: stops the whole tree at a breakpoint, reports the
+    /// stop, then parks until a resume.
+    fn stop(&self, ctx: &mut Ctx, cause: StopCause) -> i32 {
         let frames: Vec<StoppedFrame> = ctx.frames().map(|frame| self.read(frame)).collect();
-        let reason = match frames.first() {
-            Some(frame) if self.sites.is_armed(frame.site) => StopReason::Breakpoint,
-            _ => StopReason::Pause,
-        };
         let mut state = self.lock();
+        let reason = match cause {
+            StopCause::Site => {
+                // Raised under the lock, so the resume that ends this stop
+                // lowers it after, and every other task of the tree stops at
+                // its next poll until then.
+                ctx.request_safepoint(SafepointFlags::DEBUG_BREAK);
+                state.breakpoint_round = Some(state.resumes);
+                StopReason::Breakpoint
+            }
+            // A resume lowered the flag while this task waited for the lock.
+            StopCause::Break if !ctx.safepoint_flags().contains(SafepointFlags::DEBUG_BREAK) => {
+                return nvs_runtime::OK;
+            }
+            StopCause::Break if state.breakpoint_round == Some(state.resumes) => StopReason::Tree,
+            StopCause::Break => StopReason::Pause,
+        };
+        ctx.hold_deadlines();
         let stopped_at = state.resumes;
         // Sent under the lock, so a resume made after the session reads it
         // moves the count this task waits on.
         let _ = self.stops.send(Stop {
             task: crate::scheduler::current_task(),
             reason,
+            round: stopped_at,
             frames,
         });
         while state.resumes == stopped_at {
@@ -344,18 +386,6 @@ fn variables(function: &DebugFunction, slots: &[nvs_runtime::Value]) -> Vec<Stop
         .collect()
 }
 
-/// The stop handler's hold on its session, which detaches the request when
-/// the handler is dropped.
-struct Attached {
-    shared: Arc<Shared>,
-    id: u64,
-}
-
-impl Drop for Attached {
-    fn drop(&mut self) {
-        self.shared.lock().requests.remove(&self.id);
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -472,7 +502,7 @@ mod tests {
         });
 
         let stop = stops.recv().expect("the task stopped");
-        assert_eq!(stop.reason, StopReason::Pause, "no frame, so no breakpoint");
+        assert_eq!(stop.reason, StopReason::Breakpoint);
         assert!(stop.task.is_some());
         assert_eq!(after.recv(), Ok("the other task ran"));
         debugger.resume();
@@ -504,9 +534,10 @@ mod tests {
         assert_eq!((stop.task, stop.reason), (None, StopReason::Pause));
         debugger.resume();
         assert_eq!(program.join().expect("the program ended"), nvs_runtime::OK);
+        debugger.pause();
         assert!(
             debugger.shared.lock().requests.is_empty(),
-            "a dropped context detaches"
+            "a pause forgets a request that ended"
         );
     }
 }
