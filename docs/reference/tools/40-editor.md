@@ -1,8 +1,8 @@
 ---
 id: editor
-title: "The editor: nvs lsp, nvs lsp-test and the VS Code extension"
-summary: the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client
-keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation
+title: "The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension"
+summary: the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, `nvs dap`, the debug adapter and its launch configuration, and the VS Code extension that is the reference client
+keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand
 ---
 
 # nvs lsp
@@ -226,6 +226,101 @@ on and is never declared by the case, so the matrix is a reading of the corpus r
 somebody maintains — and a case added to a directory counts the moment it is written, with nothing
 to register.
 
+# nvs dap
+
+    nvs dap
+
+The debug adapter. An editor starts it, and a person does not. It reads Debug Adapter Protocol
+messages on standard input and writes them on standard output. It takes no arguments. Everything
+about the program arrives in the editor's `launch` request.
+
+`nvs dap` runs the program inside its own process. What the program writes to standard output and
+standard error appears in the editor's debug console as text. The program cannot write a protocol
+message, even if it prints one. Its standard input is empty.
+
+`nvs dap` only starts programs. It cannot attach to a program that is already running, and nothing
+in Novis listens for a debugger. A production server cannot be debugged.
+
+## The launch configuration
+
+In VS Code, you write this in `.vscode/launch.json`, or start it from the Run and Debug view:
+
+```json
+{
+  "type": "nvs",
+  "request": "launch",
+  "name": "Run file",
+  "mode": "run",
+  "program": "${file}"
+}
+```
+
+| Field | What it does |
+|---|---|
+| `mode` | `run` runs the program, as `nvs run` does. `test` runs its `#[Test]` methods, as `nvs test` does. `serve` starts a server, as `nvs serve` does. The default is `run` |
+| `program` | The `.nvs` file. This field is required |
+| `args` | The arguments the program gets. Under `serve`, `--listen <address>` or `--port <port>` sets where the server listens. Without them, `[server] listen` applies. Any other argument under `serve` is an error |
+| `cwd` | The folder the program runs in |
+| `env` | Environment variables for the program. A `null` value removes the variable |
+| `stopOnEntry` | `true` stops the program at its first statement |
+| `filter` | Under `test`, only the tests whose name contains this text run |
+| `skipFiles` | Glob patterns, such as `"**/vendor/**"`. A step does not stop in a file that matches. Under *All Exceptions*, an exception that such a file catches does not stop the program |
+| `pathMappings` | Pairs of folders, each `{ "localRoot": "<folder in the editor>", "remoteRoot": "<folder the program reads>" }`. Use it when the program reads its files from another folder, such as in a container |
+| `nvsCommand` | The `nvs` binary VS Code starts for this session. Empty means the binary the rest of the extension uses |
+
+Under `test`, the tests run one at a time. A stop shows the test that is running.
+
+Under `serve`, the server always runs in `development` mode. This is true whatever `[mode] default`
+says. A breakpoint stops the request that reaches it. The server answers other requests while that
+request is stopped. The `listening on` line appears in the debug console, so `--port 0` works too.
+
+With `pathMappings`, each path that starts with a `localRoot` is changed to start with its
+`remoteRoot` before `nvs dap` uses it. This is true for `program`, `cwd` and each breakpoint. Each
+path in the Call Stack view is changed back. The longest root that matches is used. `skipFiles`
+patterns are matched against the editor's path.
+
+## What you can do while debugging
+
+- **Breakpoints**, with a condition, a hit count or a log message. The next section explains each.
+- **Step over, step into and step out.** A step stops at the next statement. A step into a `Core`
+  method steps over it. A step over an `await` stops at the next statement of the same function,
+  and other tasks run while it waits.
+- **The returned value.** After a step out, the Variables view shows the value the function
+  returned, first, as `f() returned`. If the function has no return type written, the value is
+  shown redacted, because it may be `secret`.
+- **Pause.** A pause stops the program at its next statement.
+- **Exceptions.** *Uncaught Exceptions* is on by default. It stops where an exception is thrown that
+  no `catch` handles. *All Exceptions* stops at every `throw`. Each exception stops the program once.
+- **Threads.** Each task of the program is a thread in the Call Stack view. When one task stops,
+  every task of the same request stops.
+
+A `secret` value is shown redacted in the Variables view.
+
+## Conditions, hit counts and log messages
+
+A condition is an expression over the variables of the function where the breakpoint is. It may read
+variables, properties and array elements. It may use literals, operators and comparisons. Its type
+must be `bool`. It may not call a function or a method, assign a value, or `await`. So a breakpoint
+never changes what the program does.
+
+    $count > 3 && $user->name == 'admin'
+
+That condition is valid. `count($items) > 3` is not valid, because it calls a function. A condition
+that is not valid leaves its breakpoint unverified, and the editor shows the error on it. A
+condition may not read a `secret` variable.
+
+If a condition cannot be evaluated when the program reaches it, the program stops there. The debug
+console says why.
+
+A hit count is `N`, `>N`, `>=N`, `==N` or `%N`. `N` alone means `>=N`. A hit is counted only when the
+condition is true.
+
+A log message writes a line to the debug console, and the program does not stop. A part in `{}` is
+an expression, with the same rules as a condition. It may read a `secret` variable, and shows it
+redacted:
+
+    total is {$total} for {$user->name}
+
 # The VS Code extension
 
     editors/vscode
@@ -243,8 +338,14 @@ one first.
 
 ## What it claims
 
-`.nvs`, and nothing else. It starts when you open a Novis document, or when the workspace has a
-file named `nvs.toml`. In any other window it does not start.
+`.nvs`, and nothing else. It starts when you open a Novis document, when the workspace has a file
+named `nvs.toml`, or when you start a debug session of type `nvs`. In any other window it does not
+start.
+
+It adds breakpoints to `.nvs` files and a debugger of type `nvs`. A debug session starts
+`nvs dap`, described above, with the same binary the language server uses, or with the launch
+configuration's `nvsCommand`. VS Code offers a configuration for each `mode` when you add one to
+`launch.json`.
 
 A file named `nvs.toml` gets completion and nothing else. After a `[`, you get the block headers. On an
 empty line under a header, you get the keys of that block, with the default and the comment from the
@@ -424,8 +525,8 @@ No language logic, which is the rule the whole client is shaped by: no parser, n
 table of what a construct means. What it may depend on is an allowlist, and a test enforces the list
 rather than a reviewer.
 
-No UI of its own where the editor already has one. Server health is the language-status item, and
-the surfaces still to come are the same bargain — coverage through VS Code's own Testing API, a
-profile handed to a viewer that reads the open format, a debugger that is DAP's existing interface.
-None of them is a panel Novis builds and maintains.
+No UI of its own where the editor already has one. Server health is the language-status item.
+Coverage uses VS Code's own Testing API. A profile opens in a viewer that reads the open format.
+The debugger is VS Code's own debug view over `nvs dap`. None of them is a panel Novis builds and
+maintains.
 
