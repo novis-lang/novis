@@ -192,6 +192,22 @@ arrow function does not show its value.
 **`skipFiles` is a `globset` set,** matched against the file's path with `/` between its parts, and
 on Windows with no regard to case. `globset` is already in the graph through `ignore`.
 
+**A condition is a checked probe evaluated over the frame's values, not a compiled function.**
+`nvs_types::condition` parses it with the language's parser and checks it against the slot table's
+representations, and `dap::condition` evaluates it through `nvs_runtime::record::property` and
+`element`, which run no program code. Compiling it would need each slot's checker type, which the IR
+erased, and the program's classes to type a property, so each condition would recompile the program.
+A property's type is therefore checked when the probe runs. Arithmetic follows
+`rule:types/arithmetic`'s rows in the evaluator. A failed evaluation stops the program and writes why
+to the console. Security: a probe reads and never runs code. Memory: one checked tree per breakpoint
+per function per unit. Simplicity cost: a small second evaluator of the operators a condition may use.
+
+**A plain hit condition `N` means `>=N`,** as the JavaScript and PHP adapters read it. A hit is
+counted only where the condition holds, and the count is the breakpoint's across sites and units.
+
+**A condition may not read a `secret` variable; a logpoint's hole may, and shows it redacted.** A
+condition that stops by a secret's value would tell the person debugging something about it.
+
 ## Stages
 
 ### 1. `nvs dap` speaks DAP over stdio and launches a program
@@ -265,9 +281,18 @@ stop, and the two exception filters stop at a throw.
 **Split:** once the condition compiler and the throw hook land, one writing subagent writes the tests in
 the last item over fixtures. The session reviews them.
 
-- [ ] A condition and a logpoint's `{…}` holes are type-checked against the frame's slot table when the breakpoint is set, through a new entry beside `check_program`, and any call, assignment or `await` in them is an error. Each is compiled by the same compiler as a function whose parameters are the frame's slots. A breakpoint whose condition fails to compile is unverified, with the message (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-types/src/check.rs:84`
-- [ ] The condition runs only where its site is armed, and hit conditions `N`, `>N`, `>=N`, `==N` and `%N` are counted per breakpoint (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/mod.rs:1`
-- [ ] A logpoint sends an `output` event, with a `secret` value redacted, and does not stop (`rule:security/redaction-reaches-the-tools-own-renderings`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [x] A condition and a logpoint's `{…}` holes are type-checked against the frame's slot table when the breakpoint is set, through a new entry beside `check_program`, and any call, assignment or `await` in them is an error. Each is a checked probe evaluated over the frame's values (`## Standing decisions`). A breakpoint whose condition fails to check is unverified, with the message (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-types/src/condition.rs:1`
+  - [x] `nvs_types::condition::check_condition` and `check_log_message` over `ProbeSlot`s, through the language's parser
+  - [x] `BreakpointSpec` and `BreakpointTest`, bound per function when a unit arms the line, `Breakpoint::message` when it does not bind
+  - [x] `DebugUnit::new` takes each site's owner function, and `DebugVariable::ty` its representation
+  - [x] `Breakpoint::message` reaches the `setBreakpoints` body and the `breakpoint` event
+- [x] The condition runs only where its site is armed, and hit conditions `N`, `>N`, `>=N`, `==N` and `%N` are counted per breakpoint (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/condition.rs:1`
+  - [x] `DebugUnit::passes` runs the bound `SiteTest` at an armed site only
+  - [x] `HitCondition`, counted on the `Rule`'s counter across sites and units
+  - [x] the evaluator over `record::property` and `record::element`, an evaluation error stops and says why
+- [x] A logpoint sends an `output` event, with a `secret` value redacted, and does not stop (`rule:security/redaction-reaches-the-tools-own-renderings`). `crates/nvs-cli/src/dap/condition.rs:1`
+  - [x] holes rendered by `Val::shown`, a `secret` slot or property as `Node::Redacted`
+  - [x] the three capabilities at `initialize`
 - [ ] Under the switch, a `try` pushes the classes it catches onto the frame record and pops them when it ends, and the throw path asks the controller whether to stop for `thrown` or `uncaught` (`rule:errors/escalation-ladder`). `crates/nvs-runtime/src/throwable.rs:1011`, `crates/nvs-runtime/src/throwable.rs:1062`, `crates/nvs-runtime/src/throwable.rs:1138`
 - [ ] A throw caught inside a `skipFiles` file never stops (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/mod.rs:1`
 - [ ] Rust tests for each condition form, each hit form, a logpoint, both filters, and a condition that tries to call a method. `crates/nvs-cli/src/dap/mod.rs:1`
@@ -311,40 +336,48 @@ subagent. Such subagents run side by side, and none of them builds.
 Stages 1, 5 and 2 are done. `launch` reads `mode`, `program`, `args`, `cwd`, `env`,
 `stopOnEntry`, `filter` and `skipFiles`. Not read yet: `pathMappings`.
 
-Stage 2's four tests are in `crates/nvs-cli/tests/dap.rs`, from `:664` on: a `next` over an
-`await`, a `stepIn` through a callable variable, into `Core\Arr::map`'s callback and over a
-`Core` method, a `stepIn` past a `skipFiles` file, and a `stepOut` of a `: secret string` method.
-They use the new `stopped_at` and `run_to_the_end` helpers (`:627`), and the `Client`'s
-`transcript` keeps every frame the adapter wrote. All four passed on Windows the first time, so the
-controller needed no fix. None of the `dap.rs` tests after the `run` breakpoint test has run on
-Linux. No existing test is expected to go red.
+Stage 3's first three items are in: conditions, hit counts and logpoints. `nvs_types::condition`
+checks a condition or a hole against `ProbeSlot`s, `dap::condition::Rule` is the
+`BreakpointTest` the controller binds per function when a unit arms the line, and its `Bound`
+evaluates the probe over the frame's values at an armed site (`DebugUnit::passes`,
+`crates/nvs-host/src/debug.rs:415`). Three standing decisions are new: a condition is a checked
+probe evaluated over the values, not a compiled function; a plain `N` hit condition is `>=N`; a
+condition may not read a `secret` variable. `DebugUnit::new` now takes each site's owner
+function, and `Debugger::set_breakpoints` takes `BreakpointSpec`s (`BreakpointSpec::lines` for a
+plain list).
 
-The acceptance sweep's reds were stale. `env-secret-proofs`'s log says exit 0. Nightly
-`40174915924` tested `9be30356e`, and HEAD already has a fix for each of its five jobs:
-`d5aa2be18` (bench `null` p99), `901f4855c` (Miri `getrusage`), `bd2e51f0a` (Miri trace loop)
-and `0b7eadd2c` (the Windows stalled-peer bound).
+Tests so far: the checker's units in `crates/nvs-types/src/condition.rs`, the hit forms and the
+arithmetic rows in `crates/nvs-cli/src/dap/condition.rs`, and one protocol test,
+`a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping`
+(`crates/nvs-cli/tests/dap.rs:799`). It covers a condition, a logpoint and a method call that
+leaves its breakpoint unverified. All pass on Windows; no newer `dap.rs` test has run on Linux.
+No existing test is expected to go red.
 
-For stage 4's attack: `echo` writes a carriage return as `␍`, so a program cannot echo a real
-frame header. The attack shows the line arriving as an `output` event.
+The sweep's reds are stale: `env-secret-proofs` exits 0, and nightly `40174915924` tested
+`9be30356e`, before the fixes `d5aa2be18`, `901f4855c`, `bd2e51f0a` and `0b7eadd2c`.
 
 ### Next
 
-**Stage 3: conditions, hit counts, logpoints and exception filters.** Take its first two items as
-one group: they share `crates/nvs-host/src/debug.rs` and `crates/nvs-cli/src/dap/mod.rs`. Write
+**Stage 3: the exception filters, then the tests.** Take items 4 and 5 as one group, and write
 checkpoints under each before starting. The anchors:
 
-- `Session::set_breakpoints` reads each source breakpoint (`crates/nvs-cli/src/dap/mod.rs:354`).
-  It has to read `condition`, `hitCondition` and `logMessage`, and answer `verified: false` with
-  the compiler's message for a condition that does not compile.
-- `DebugUnit::arm` arms a breakpoint's sites (`crates/nvs-host/src/debug.rs:226`). A condition
-  belongs to the breakpoint, and it runs in the stop handler only at an armed site.
-- `check_program` (`crates/nvs-types/src/check.rs:84`) is what the new condition entry goes beside.
-  The frame's slot table is what types the condition's variables.
 - The throw hook starts at `nvs_raise`, `nvs_raise_new` and `nvs_raise_site`
-  (`crates/nvs-runtime/src/throwable.rs:1011`, `:1062`, `:1138`).
+  (`crates/nvs-runtime/src/throwable.rs:1011`, `:1062`, `:1138`). Under the switch, a `try`
+  pushes the classes it catches onto the frame record (`crates/nvs-runtime/src/ctx/frames.rs`),
+  and the codegen emits the push and pop (`crates/nvs-codegen/src/emit.rs`).
+- The stop handler is `Shared::stop` (`crates/nvs-host/src/debug.rs:674`). A throw needs a new
+  `StopCause` and `StopReason::Exception`, and `Debugger` needs the two filter switches.
+- `setExceptionBreakpoints` and the `exceptionBreakpointFilters` capability go in
+  `Session::answer` (`crates/nvs-cli/src/dap/mod.rs`). A throw caught in a `skipFiles` file never
+  stops: the frame that catches it decides, so the hook needs the catching frame's file.
+
+Then item 6 by its `**Split:**` line: one writing subagent writes the remaining tests in
+`crates/nvs-cli/tests/dap.rs` beside `:799` (each condition form, each hit form, a `secret` hole
+redacted, both filters). Review them.
 
 Stage 4 touches no Rust and may run as its own lane beside stage 3 (`## Standing decisions`
-§ *Lanes*).
+§ *Lanes*). For its attack: `echo` writes a carriage return as `␍`, so a program cannot echo a
+real frame header, and the attack shows the line arriving as an `output` event.
 
 ### Backlog
 
