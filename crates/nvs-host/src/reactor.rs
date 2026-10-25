@@ -194,13 +194,14 @@ struct Remote {
     waker: Waker,
     /// The ids waiting to be woken: pushed off the core, drained on it.
     ///
-    /// A `Mutex<Vec<_>>` rather than a channel. This is the only shared mutable
-    /// state in the crate, the lock is held for a push or a `Vec::append` and
-    /// never across a syscall, and a channel would be a second mechanism saying
-    /// the same thing with a second allocation per wake. Contention is bounded
-    /// by the size of the pool, which `rule:http-server/a-core-is-never-blocked-on-a-syscall` bounds at twice the core
-    /// count.
-    pending: Mutex<Vec<TaskId>>,
+    /// A `Mutex` over a `Vec` rather than a channel. This is the only shared
+    /// mutable state in the crate, the lock is held for a push or a
+    /// `Vec::append` and never across a syscall, and a channel would be a
+    /// second mechanism saying the same thing with a second allocation per
+    /// wake. Contention is bounded by the size of the pool, which
+    /// `rule:http-server/a-core-is-never-blocked-on-a-syscall` bounds at twice
+    /// the core count.
+    pending: Mutex<Queued>,
     /// How many [`RemoteWake`] handles this core has issued and not yet
     /// collected.
     ///
@@ -218,6 +219,22 @@ struct Remote {
     /// boundary at all, not because two threads write it; `Relaxed` is enough
     /// for the same reason.
     outstanding: AtomicUsize,
+}
+
+/// The ids [`Remote::pending`] holds, and how many wakes were merged into them.
+///
+/// **A wake for the id already last in the queue is merged, not pushed.** A
+/// blocking call's wake is dropped on the pool thread whether or not the task
+/// parked, so a task whose answers keep landing before it parks queues one id
+/// per call until its core next polls. Pushed, those ids grow the queue with
+/// the calls made and not with the tasks waiting, and the core's ready list
+/// grows with them at whichever poll timing picks. Merged, a task in that loop
+/// keeps one id queued. The merged count comes off [`Remote::outstanding`]
+/// when the core drains, so both ends of that count stay on the core.
+#[derive(Debug)]
+struct Queued {
+    ids: Vec<TaskId>,
+    merged: usize,
 }
 
 impl Remote {
@@ -297,12 +314,21 @@ impl RemoteWake {
         }
         // The id goes into the queue before the poke, never after. A poke that
         // arrived first would end the core's poll, find an empty queue, and
-        // leave the task parked until something else happened to wake it.
-        self.remote
-            .pending
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push(self.id);
+        // leave the task parked until something else happened to wake it. The
+        // poke still goes out for a merged wake, so a failed earlier poke is
+        // retried here as it is for any other wake.
+        {
+            let mut pending = self
+                .remote
+                .pending
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if pending.ids.last() == Some(&self.id) {
+                pending.merged += 1;
+            } else {
+                pending.ids.push(self.id);
+            }
+        }
         #[cfg(debug_assertions)]
         crate::counts::wake_poke();
         self.remote.waker.wake()
@@ -422,7 +448,10 @@ impl Reactor {
         let waker = Waker::new(poll.registry(), WAKE_TOKEN)?;
         let remote = Arc::new(Remote {
             waker,
-            pending: Mutex::new(Vec::with_capacity(PENDING_CAPACITY)),
+            pending: Mutex::new(Queued {
+                ids: Vec::with_capacity(PENDING_CAPACITY),
+                merged: 0,
+            }),
             outstanding: AtomicUsize::new(0),
         });
         // Locked once here so the lock's own allocation is the core's too. On
@@ -614,8 +643,8 @@ impl Reactor {
             .pending
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        let taken = pending.len();
-        self.ready.append(&mut pending);
+        let taken = pending.ids.len() + std::mem::take(&mut pending.merged);
+        self.ready.append(&mut pending.ids);
         drop(pending);
         self.remote.collected(taken);
     }
@@ -1331,6 +1360,44 @@ mod tests {
         );
         assert_eq!(reactor.remote_waits(), 0);
         assert_eq!(sched.run().finished, 1);
+    }
+
+    /// Wakes for one task that land before its core polls, the way a run of
+    /// blocking calls answered before each park delivers them, keep one id
+    /// queued. The core still collects every handle when it drains.
+    #[test]
+    fn remote_wakes_for_one_task_in_a_row_queue_one_id() {
+        let mut sched = Scheduler::new();
+        let mut reactor = Reactor::new().expect("the OS refused a poll");
+
+        let id = sched.spawn(ctx(), TaskRoot::Worker, |ctx| {
+            suspend(ctx, Waiting::Parked);
+        });
+        sched.run();
+        for _ in 0..200 {
+            let wake = reactor.remote_wake(id);
+            std::thread::spawn(move || wake.wake().expect("the poke failed"))
+                .join()
+                .expect("the waking thread panicked");
+        }
+        assert_eq!(
+            lock_pending(&reactor).ids.len(),
+            1,
+            "each wake queued an id of its own"
+        );
+        assert_eq!(reactor.remote_waits(), 200);
+
+        assert_eq!(reactor.turn(&mut sched).expect("a turn failed"), 1);
+        assert_eq!(reactor.remote_waits(), 0, "a merged wake was never collected");
+        assert_eq!(sched.run().finished, 1);
+    }
+
+    fn lock_pending(reactor: &Reactor) -> std::sync::MutexGuard<'_, Queued> {
+        reactor
+            .remote
+            .pending
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     /// The other drop: the task a handle names lets it go while it is running.
