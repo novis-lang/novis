@@ -4,7 +4,6 @@
 // table or list of plug-ins it builds.
 // bench: iterations 256
 // bench: complexity linear
-// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: calls 2
 
 type Label = {text: string};

@@ -1,0 +1,44 @@
+<?nvs
+// Prints the `Core\Program::implementing` bench with `$size` classes that implement `Check`.
+// bench: prints
+// bench: start 8
+// bench: max 128
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $classes = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => Core\Str::join([
+            'class Shop' . (($n + 1000) as string) . 'Check implements Check {',
+            '    public function name(): string {',
+            '        return "shop' . (($n + 1000) as string) . '";',
+            '    }',
+            '}',
+            '',
+        ], "\n"));
+        array<string> $lines = [
+            '<?nvs',
+            '',
+            'interface Check {',
+            '    public function name(): string;',
+            '}',
+            '',
+            Core\Str::join($classes, "\n"),
+            'class Bench {',
+            '    public static function run(uint $rounds): uint {',
+            '        uint $total = 0;',
+            '        uint $i = 0;',
+            '        while ($i < $rounds) {',
+            '            array<Check> $checks = Core\Program::implementing<Check>();',
+            '            $total = $total + Core\Str::length($checks[($total % 3) as int]->name());',
+            '            $i = $i + 1;',
+            '        }',
+            '        return $total;',
+            '    }',
+            '}',
+            '',
+            'echo Bench::run(256), "\n";',
+        ];
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(8);

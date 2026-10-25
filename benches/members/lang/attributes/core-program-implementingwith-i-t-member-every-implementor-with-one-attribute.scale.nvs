@@ -1,0 +1,48 @@
+<?nvs
+// Prints the `Core\Program::implementingWith` bench with `$size` classes that implement `Check` and have a `Label`.
+// bench: prints
+// bench: start 4
+// bench: max 64
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $classes = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => Core\Str::join([
+            'class Shop' . (($n + 1000) as string) . 'Check implements Check {',
+            '    #[Label(text: "shop' . (($n + 1000) as string) . '")]',
+            '    public function name(): string {',
+            '        return "shop' . (($n + 1000) as string) . '";',
+            '    }',
+            '}',
+            '',
+        ], "\n"));
+        array<string> $lines = [
+            '<?nvs',
+            '',
+            'type Label = {text: string};',
+            '',
+            'interface Check {',
+            '    public function name(): string;',
+            '}',
+            '',
+            Core\Str::join($classes, "\n"),
+            'class Bench {',
+            '    public static function run(uint $rounds): uint {',
+            '        uint $total = 0;',
+            '        uint $i = 0;',
+            '        while ($i < $rounds) {',
+            '            array<{instance: Check, attribute: ?Label}> $rows =',
+            '                Core\Program::implementingWith<Check, Label>("name");',
+            '            $total = $total + Core\Str::length($rows[($total % 3) as int]->instance->name());',
+            '            $i = $i + 1;',
+            '        }',
+            '        return $total;',
+            '    }',
+            '}',
+            '',
+            'echo Bench::run(256), "\n";',
+        ];
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(4);

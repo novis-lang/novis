@@ -20,8 +20,8 @@ stages:
         rules: [testing/bench-counters, testing/test-attribute, testing/report-formats, testing/tests-never-reach-a-build, testing/feature-proofs]
   - id: 3
     title: a bench ramps an input that is fixed outside its program
-    status: open
-    context: [tools/nv/cmd/scaling.ts, tools/nv/test/scaling.test.ts, data/gaps/nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program.json]
+    status: done
+    context: [tools/nv/cmd/scaling.ts, tools/nv/test/scaling.test.ts, benches/members/README.md]
     extra:
       context:
         rules: [testing/member-perf-ledger, testing/perf-two-mechanisms]
@@ -155,6 +155,14 @@ Debian and Ubuntu `perf_event_paranoid` default refuse it, so the clock `[limits
 enforced on would gain a second path that CI does not run. Security and request isolation rank above
 latency. A wall clock between switches and skipping the reads around the core's wait both charge a
 request for time it did not spend. `crates/nvs-host/src/cpuclock.rs:49` is the home.
+**An input fixed outside a bench is ramped by a sibling that prints it, and the bench is what is
+measured.** A `.scale.nvs` sibling with `// bench: prints` returns, at each size, the bench's `.nvsr`,
+`.in`, `.env` or program after `// scaling: file` lines (`tools/nv/cmd/scaling.ts`'s `printBeside`).
+The ramp then measures the bench's own copy at its own `iterations`. Why: one mechanism covers a request,
+standard input, the environment and generated classes, and it reuses the printed-program split that
+`compile` ladders already use (simplicity). A template language in the tool, or one input kind per
+input, was declined: each is more tool for the same reach. `.env` is a new proof sibling read by
+`spawnProof` and hashed into the proof's definition. Request path: nothing. Memory: nothing.
 
 ## Stages
 
@@ -205,8 +213,8 @@ line. The session checks each batch and ticks it.
 - [x] Batch 1, a request body: `Request/body`, `bodyStream`, `bytes`, `files`, `headers`, `json`, `jsonAs`, `postAs`, `queryAs`. `benches/members/core/Request/body.nvs:1`
 - [x] Batch 2, a request part and a signed route: `Request-Part/content`, `readAll`, `saveTo`, `Router/signedRoute`. `benches/members/core/Request-Part/content.nvs:1`
 - [x] Batch 3, standard input, the environment and the command line: `IO/stdin`, `Env/all`, `Command/completions`, `help`, `run`. `benches/members/core/IO/stdin.nvs:1`
-- [ ] Batch 4, generated classes: the two `lang/attributes/core-program-implementing*` benches. `benches/members/lang/attributes/core-program-implementing-i-every-class-that-is-an-i.nvs:1`
-- [ ] No bench carries the marker, and the gap record is deleted. `data/gaps/nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program.json:1`
+- [x] Batch 4, generated classes: the two `lang/attributes/core-program-implementing*` benches. `benches/members/lang/attributes/core-program-implementing-i-every-class-that-is-an-i.nvs:1`
+- [x] No bench carries the marker, and the gap record is deleted. `data/gaps/nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program.json:1`
 
 ### 4. the conformance suite runs at each optimisation level
 
@@ -271,38 +279,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 6 is done: all eight items, and every gap record it owned is deleted. Stage 3 is the one
-stage left before the gate.
+Stages 1 to 6 are done. Stage 7, the gate, is the one stage left.
 
-- **A waiting request's stack went from 10 pages to 7 in release** (19 in debug, from 31). The
-  breakdown by frame is `crates/nvs-host/src/stack.rs:118`.
-- **A task's `Ctx` is boxed from the spawn to its `Finished`** (`crates/nvs-host/src/scheduler.rs:362`,
-  `Pending::ctx` and `Finished::ctx` are `Box<Ctx>`, and `spawn_child_ordered` takes one). Every
-  task's entry frame went from 4.1 KiB to 0.4 KiB, and `Isolate::start`'s from 10.3 to 4.6
-  (`crates/nvs-host/src/isolate.rs:756`). The box is the one the scheduler allocated already, made
-  earlier, and `hand_over_its_making` credits its bytes to the child.
-- **The connection drive's tail is out of line** (`nvs_server`'s `after_the_drive`,
-  `crates/nvs-server/src/serve.rs:2531`): 1.2 KiB less in the frame a connection parks in.
-- Both stack tests' bounds are tightened. Checked: build, clippy and fmt green, both ran by name.
+- **Stage 3 landed the `// bench: prints` sibling form** (`## Standing decisions`,
+  `tools/nv/cmd/scaling.ts:580`, `benches/members/README.md:118`) and a `.env` proof sibling
+  (`tools/nv/proofs/run.ts:311`, hashed in `tools/nv/select/atoms.ts`'s `proofDef`). All twenty
+  benches the gap named have a `.scale.nvs` sibling whose ramp is flat under `complexity linear`, the
+  marker is gone from each, and the gap record is deleted. `bun nv owners --closes bench-counters`
+  names nothing.
+- Checked: `tsc` over the tools green, the new `scaling.test.ts` case ran by name, and every
+  sibling's `bun nv scaling --growth --all <bench>` ran `ok`, `files` twice.
+- `data/perf/members.ndjson` and `members.md` still record those twenty benches as known-gap. The
+  gate's perf recording rewrites them.
 
-Tests expected to go red: none known. Stage 7 runs `cargo test --lib watchdog`, `nvs-server`'s `io`
-tests, `stack::tests` and `scheduler::tests` (boxed `Ctx`) first.
+Tests expected to go red: none known. From stage 6, the gate runs `cargo test --lib watchdog`,
+`nvs-server`'s `io` tests, `stack::tests` and `scheduler::tests` (boxed `Ctx`) first.
 
-The sweep's reds were stale. `env-secret-proofs` exits 0 when run. Nightly `40075586234`'s jobs
-were dealt with last session. The push run `40158642410`'s one red, `serve::tests::sends_to_a_peer_that_stopped_reading_queue_one_frame_at_the_most`
-on Windows, ran at `9be30356e`, before `0b7eadd2c` widened that bound.
+The sweep's reds were stale. The `env-secret-proofs` log shows exit 0, and nightly `40075586234` is
+the run the session before dealt with.
+
+Another session was editing `ci-green` files in this tree (`looper.toml`, `tools/nv/cmd/ci.ts` and
+others). This session committed none of them.
 
 ### Next
 
-**Stage 3, the sibling form whose `N` sizes an input fixed outside the program.** Its first two
-items come first, and then the four batches, each by a writing subagent, one after another.
+**Stage 7, the gate.** Start `bun nv affected --run` with `run_in_background`, then group and fix.
 
-- [ ] A sibling form whose `N` sizes the input the program reads, such as a `.nvsr` or `.in` the ramp writes at each size (`rule:testing/member-perf-ledger`). `tools/nv/cmd/scaling.ts:919`
-- [ ] A test of the new form beside the existing ones (`rule:testing/perf-two-mechanisms`). `tools/nv/test/scaling.test.ts:58`
-
-The gap's text names every bench that waits on it
-(`data/gaps/nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program.json:1`). Once stage 3 is
-done, stage 7 is the gate.
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every stale perf figure the goal's perf commits left is recorded before the push. The user counted 106 at `977773ab3` (`math.rs` 38, `test.rs` 34, `request.rs` 30, `json.rs` 4), and CI's `proofs` job is red until they are. `bun nv proofs --gate --limit 0` lists them, and `bun nv proofs --record-perf --only <id>` records them. `tools/nv/proofs/perf.ts:1`
+- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes bench-counters`, `bun nv proofs --gate`, `bun nv render --website --check`. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog
 
