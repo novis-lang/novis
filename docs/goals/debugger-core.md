@@ -208,20 +208,21 @@ subagent. Such subagents run side by side, and none of them builds.
 ### State
 
 Every stage is done, and the goal is reached. The controller is `nvs_host::debug::Debugger`, and
-`Compiler::debugging` (`crates/nvs-cli/src/script.rs:614`) is what `nvs dap` will call. The gate stage's first `bun nv affected --run` found
-two causes. The first was two empty `Known gaps` blocks in `nvs-ir` and `nvs-runtime`, whose last
-records this goal closed (b333faf4d). The second was a load flake in
-`blocking::tests::calls_one_after_another_use_one_thread_and_allocate_the_same`. A blocking call's
-answer that landed before the task parked still queued its wake, so the reactor's remote queue grew
-by one id per call. A wake for the id already last in the queue is now merged, and
-`reactor::tests::remote_wakes_for_one_task_in_a_row_queue_one_id` pins that (4146bc86a). The second
-run was 22 of 22 green. `bun nv verify --doc`, `bun nv owners --closes debugger-core` and
-`bun nv ci --check` are green.
-
-The decisions this file held are in `rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`,
+`Compiler::debugging` (`crates/nvs-cli/src/script.rs:614`) is what `nvs dap` will call. The gate
+stage's verify is green, as are `bun nv verify --doc`, `bun nv owners --closes debugger-core` and
+`bun nv ci --check`. The decisions this file held are in
+`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`,
 `rule:testing/a-stop-pauses-the-whole-task-tree`, and the module docs of
-`crates/nvs-runtime/src/ctx/frames.rs` and `crates/nvs-host/src/debug.rs`. The adapter's open
-items are in `docs/goals/debugger-adapter.md` § *Backlog*. No test is expected to go red.
+`crates/nvs-runtime/src/ctx/frames.rs` and `crates/nvs-host/src/debug.rs`. No test is expected to
+go red.
+
+The first DONE was refused for `floor-debt` and `website-render`, and neither was a fault in the tree.
+`fmt-website` was fast-forwarded into `main` at 19:27, inside the hour-long sweep. The sweep's proof
+binary, built at 19:13, still printed a shape as `{x: int, y: int}` against the merged `.out`, and
+the render was checked while the merge was landing. A proof binary rebuilt from the tree prints the
+`.out` of `docs/examples/lang/types/callable-classes-object-shapes/02-describe-a-value-by-the-fields-it-has.nvs`,
+and `website-render` is green. The release binary is relinked. The nightly failures of run
+40174915924 are `ci-green`'s, whose fixes wait for the nightly lane (`docs/goals/ci-green.md:123`).
 
 ### Next
 
