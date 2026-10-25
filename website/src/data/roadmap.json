@@ -20,7 +20,6 @@
       "title": "Debugging and profiling",
       "text": "A debugger stops your program at a line and shows its variables, in VS Code too. Novis records requests, and a viewer shows each one with its timeline, logs and errors. The profiler shows where the time goes.",
       "goals": [
-        "debugger-core",
         "debugger-adapter",
         "debug-service",
         "debug-viewer",
