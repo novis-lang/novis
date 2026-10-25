@@ -609,10 +609,6 @@
 //! `nvs_runtime::object` already builds, in place of the name, so the lookup is
 //! an index. It waits for a measured program whose overridden calls show up in
 //! a profile.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-ir/src/lib.rs` lists them.
 
 pub mod ids;
 pub mod ir;

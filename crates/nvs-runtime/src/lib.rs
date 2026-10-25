@@ -190,10 +190,6 @@
 //! `rule:errors/on-limit`'s memory ceiling asks for. That module's docs are the
 //! home of the walk, of the two moments it is worth running, and of what each
 //! spends.
-//!
-//! ## Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-runtime/src/lib.rs` lists them.
 
 mod abi;
 // Compiled where it is used: by the `#[global_allocator]` below in an
