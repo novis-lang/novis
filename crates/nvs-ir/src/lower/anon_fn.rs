@@ -284,7 +284,7 @@ pub(crate) fn lower_anon_fn(
     // here rather than in the enclosing function, so it rides out beside the
     // environment class — see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
-    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
     (
         Function {
             name: label,
@@ -295,6 +295,7 @@ pub(crate) fn lower_anon_fn(
             stmt_spans,
             edge_spans,
             debug_slots,
+            debug_catches,
             debug_returns_secret: super::may_return_secret(fn_expr.return_type.as_ref()),
         },
         std::iter::once(crate::ir::Class {
@@ -776,7 +777,7 @@ pub(crate) fn lower_callable(
             low.seal(cur, Terminator::Return(Some(value)));
             let mut classes = vec![thunk_class(class, false, false, *span, exprs)];
             classes.append(&mut low.shapes);
-            let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
+            let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
             return (
                 Function {
                     name: label,
@@ -787,6 +788,7 @@ pub(crate) fn lower_callable(
                     stmt_spans,
                     edge_spans,
                     debug_slots,
+                    debug_catches,
                     debug_returns_secret: true,
                 },
                 classes,
@@ -963,7 +965,7 @@ pub(crate) fn lower_callable(
         exprs,
     )];
     classes.append(&mut low.shapes);
-    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
     (
         Function {
             name: label,
@@ -974,6 +976,7 @@ pub(crate) fn lower_callable(
             stmt_spans,
             edge_spans,
             debug_slots,
+            debug_catches,
             debug_returns_secret: true,
         },
         classes,

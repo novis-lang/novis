@@ -66,6 +66,19 @@ pub(crate) struct Capabilities {
     pub(crate) supports_conditional_breakpoints: bool,
     pub(crate) supports_hit_conditional_breakpoints: bool,
     pub(crate) supports_log_points: bool,
+    pub(crate) supports_exception_info_request: bool,
+    pub(crate) exception_breakpoint_filters: [ExceptionFilter; 2],
+}
+
+/// One switch of the editor's exception breakpoints, at `initialize`.
+#[derive(Serialize)]
+pub(crate) struct ExceptionFilter {
+    /// The id `setExceptionBreakpoints` names it by.
+    pub(crate) filter: &'static str,
+    pub(crate) label: &'static str,
+    pub(crate) description: &'static str,
+    /// Whether the switch starts on.
+    pub(crate) default: bool,
 }
 
 /// The `launch` request's arguments, as `rule:ide/the-debug-adapter-does-not-wait-for-an-editor`

@@ -66,11 +66,19 @@
 //! while it waits, the step stays on its context, and its siblings have
 //! contexts of their own.
 //!
+//! A thrown exception stops its task where it is thrown, while every frame is
+//! still linked, when [`Debugger::exception_filters`] says so: every throw,
+//! or only one that no frame of the task catches. Each unit knows which
+//! classes the `try` blocks around each site catch, so the handler reads off
+//! the frame chain which frame catches the exception, if any. A throw that a
+//! frame in a [`Debugger::skip_files`] file catches never stops.
+//!
 //! The controller is `Send` and `Sync`, so a session drives it from its own
 //! thread while the program runs on a core.
 //!
 //! **What it spends:** one [`SiteLine`] per statement and one
-//! [`DebugFunction`] per function per unit, held while the compiled unit or a
+//! [`DebugFunction`] per function per unit, one list of caught classes per
+//! site inside a `try`, held while the compiled unit or a
 //! request on it lives, one weak unit per load, freed at the next load once
 //! the unit has ended, one weak safepoint view per
 //! attached request, freed at the next attach once the request has ended, and
@@ -221,6 +229,20 @@ pub enum StopReason {
     Entry,
     /// A [`Debugger::step`] of this task reached the site it stops at.
     Step,
+    /// An exception was thrown, and [`Debugger::exception_filters`] says to
+    /// stop for it. [`Stop::exception`] says which.
+    Exception,
+}
+
+/// The exception a task stopped for, at [`StopReason::Exception`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoppedException {
+    /// Its class's name.
+    pub class: String,
+    /// Its message.
+    pub message: String,
+    /// Whether no frame of the task catches it.
+    pub uncaught: bool,
 }
 
 /// The value a function returned, shown at the stop after a step left it.
@@ -275,6 +297,8 @@ pub struct Stop {
     /// The value the frame a step started in returned, when the step left
     /// that frame.
     pub returned: Option<StoppedReturn>,
+    /// The exception the task stopped for, at [`StopReason::Exception`].
+    pub exception: Option<StoppedException>,
 }
 
 /// One compiled unit of a debugged program: its stop sites, where each one is,
@@ -286,6 +310,9 @@ pub struct DebugUnit {
     /// The index of the function each site is in, indexed as `lines` is.
     owners: Vec<u32>,
     functions: Vec<DebugFunction>,
+    /// The classes the `try` blocks around a site catch, for each site
+    /// inside one, sorted by site.
+    catches: Vec<(u32, Vec<String>)>,
     /// The bound test of each armed site whose breakpoint has one.
     tests: Mutex<FxHashMap<u32, Arc<dyn SiteTest>>>,
 }
@@ -307,23 +334,41 @@ impl DebugUnit {
     /// `nvs_ir::Program::stmt_lines` and each function's statement count.
     /// `functions` is the unit's functions by index, from
     /// `nvs_codegen::Unit::debug_function` and
-    /// `nvs_codegen::Unit::debug_slots`.
+    /// `nvs_codegen::Unit::debug_slots`. `catches` is
+    /// `nvs_ir::Program::stmt_catches`: the classes the `try` blocks around
+    /// each site catch, for each site inside one.
     #[must_use]
     pub fn new(
         sites: Arc<SiteTable>,
         lines: Vec<SiteLine>,
         owners: Vec<u32>,
         functions: Vec<DebugFunction>,
+        mut catches: Vec<(u32, Vec<String>)>,
     ) -> Arc<Self> {
         debug_assert_eq!(sites.len(), lines.len(), "one line per stop site");
         debug_assert_eq!(owners.len(), lines.len(), "one owner per stop site");
+        catches.sort_by_key(|(site, _)| *site);
         Arc::new(Self {
             sites,
             lines,
             owners,
             functions,
+            catches,
             tests: Mutex::default(),
         })
+    }
+
+    /// The classes the `try` blocks around `site` catch.
+    fn catches_at(&self, site: u32) -> &[String] {
+        self.catches
+            .binary_search_by_key(&site, |(at, _)| *at)
+            .map_or(&[][..], |index| self.catches[index].1.as_slice())
+    }
+
+    /// The file `site` is in, or `None` for a site the session was not told.
+    fn file_of(&self, site: u32) -> Option<&str> {
+        let site = usize::try_from(site).ok()?;
+        self.lines.get(site).map(|at| at.file.as_str())
     }
 
     /// Arms or disarms every site of `file` on each breakpoint's line.
@@ -470,6 +515,10 @@ struct State {
     step: Option<(u64, StepKind)>,
     /// The files a step does not stop in.
     skip: Option<SkipFiles>,
+    /// Whether every thrown exception stops a task.
+    stop_on_thrown: bool,
+    /// Whether an exception no frame of its task catches stops the task.
+    stop_on_uncaught: bool,
     /// Told each file's breakpoints every time a unit loads.
     on_load: Option<OnLoad>,
 }
@@ -610,6 +659,16 @@ impl Debugger {
         self.shared.lock().skip = Some(SkipFiles(Arc::new(skip)));
     }
 
+    /// Sets the two exception filters. With `thrown`, every exception stops
+    /// its task where it is thrown, except one a frame in a skipped file
+    /// catches. With `uncaught`, an exception stops its task where it is
+    /// thrown when no frame of that task catches it. Both start off.
+    pub fn exception_filters(&self, thrown: bool, uncaught: bool) {
+        let mut state = self.shared.lock();
+        state.stop_on_thrown = thrown;
+        state.stop_on_uncaught = uncaught;
+    }
+
     /// Resumes every stopped task, and makes the task of the stop numbered
     /// `stop` step by `kind` from where it stopped. Every other task runs on
     /// as [`Self::resume`] makes it.
@@ -680,16 +739,26 @@ impl Shared {
         if cause == StopCause::Site && !armed && !self.step_stops(ctx, site, unit) {
             return nvs_runtime::OK;
         }
+        let exception = if cause == StopCause::Throw {
+            match self.throw_stops(ctx, unit) {
+                Some(exception) => Some(exception),
+                None => return nvs_runtime::OK,
+            }
+        } else {
+            None
+        };
         let frames: Vec<StoppedFrame> = ctx.frames().map(|frame| read(unit, frame)).collect();
         let mut state = self.lock();
         let reason = match cause {
-            StopCause::Site => {
+            StopCause::Site | StopCause::Throw => {
                 // Raised under the lock, so the resume that ends this stop
                 // lowers it after, and every other task of the tree stops at
                 // its next poll until then.
                 ctx.request_safepoint(SafepointFlags::DEBUG_BREAK);
                 state.breakpoint_round = Some(state.resumes);
-                if armed {
+                if exception.is_some() {
+                    StopReason::Exception
+                } else if armed {
                     StopReason::Breakpoint
                 } else {
                     StopReason::Step
@@ -730,6 +799,7 @@ impl Shared {
             round: stopped_at,
             frames,
             returned,
+            exception,
         });
         while state.resumes == stopped_at {
             if let Some(wake) = crate::reactor::wake_this_task() {
@@ -756,6 +826,44 @@ impl Shared {
             }));
         }
         nvs_runtime::OK
+    }
+
+    /// The exception pending on `ctx`, when the filters say a task stops for
+    /// it. The innermost frame whose statement is inside a `try` that catches
+    /// its class catches it. One in a skipped file never stops the task, and
+    /// with no such frame the exception is uncaught. Runs on the task's
+    /// stack, where its frames are linked.
+    fn throw_stops(&self, ctx: &Ctx, unit: &DebugUnit) -> Option<StoppedException> {
+        let (thrown, uncaught, skip) = {
+            let state = self.lock();
+            (
+                state.stop_on_thrown,
+                state.stop_on_uncaught,
+                state.skip.clone(),
+            )
+        };
+        if !thrown && !uncaught {
+            return None;
+        }
+        let catcher = ctx.frames().find(|frame| {
+            unit.catches_at(frame.site)
+                .iter()
+                .any(|class| ctx.pending_conforms_to(class))
+        });
+        if let Some(frame) = catcher {
+            let skipped = match (unit.file_of(frame.site), skip) {
+                (Some(file), Some(SkipFiles(skip))) => skip(file),
+                _ => false,
+            };
+            if !thrown || skipped {
+                return None;
+            }
+        }
+        Some(StoppedException {
+            class: ctx.pending_class().unwrap_or_default(),
+            message: ctx.pending().map(String::from).unwrap_or_default(),
+            uncaught: catcher.is_none(),
+        })
     }
 
     /// Whether the step of `ctx` stops at `site`, which no breakpoint armed:
@@ -837,6 +945,7 @@ mod tests {
             Arc::new(SiteTable::new(lines.len())),
             lines.iter().map(at).collect(),
             vec![0; lines.len()],
+            Vec::new(),
             Vec::new(),
         )
     }

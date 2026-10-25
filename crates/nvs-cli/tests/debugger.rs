@@ -111,7 +111,13 @@ impl Session {
                 .zip(&program.functions)
                 .flat_map(|(index, f)| std::iter::repeat_n(index, f.stmt_spans.len()))
                 .collect();
-            let debug = DebugUnit::new(sites.clone(), lines, owners, functions(&unit));
+            let debug = DebugUnit::new(
+                sites.clone(),
+                lines,
+                owners,
+                functions(&unit),
+                program.stmt_catches(),
+            );
             let (debugger, stops) = Debugger::new();
             debugger.load(&debug);
             setup

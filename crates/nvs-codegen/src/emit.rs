@@ -673,6 +673,7 @@ impl Emitter<'_, '_> {
                 } else {
                     None
                 };
+            self.emit_debug_throw()?;
 
             let mut cur = start;
             for inst in &block.insts[phis..] {
@@ -1628,6 +1629,25 @@ impl Emitter<'_, '_> {
         self.b.ins().jump(cont, &[]);
 
         self.b.switch_to_block(cont);
+        Ok(())
+    }
+
+    /// A landing block's first call under the debug switch, before the block
+    /// releases anything: [`nvs_runtime::nvs_debug_throw`], which stops a
+    /// debugger at the throw while the frame's variables are still in place.
+    /// The status it returns replaces the block's. Emits nothing outside a
+    /// landing block or without the switch, and costs nothing on the path
+    /// where no call failed.
+    fn emit_debug_throw(&mut self) -> Result<(), CodegenError> {
+        let Some(status) = self.landing_status else {
+            return Ok(());
+        };
+        if self.debug_frame.is_none() {
+            return Ok(());
+        }
+        let callee = self.runtime_ref("nvs_debug_throw", RuntimeSig::DebugThrow)?;
+        let call = self.b.ins().call(callee, &[self.ctx_p, status]);
+        self.landing_status = Some(self.b.inst_results(call)[0]);
         Ok(())
     }
 
@@ -4680,6 +4700,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::Safepoint => &self.sigs.safepoint,
             RuntimeSig::DebugSite => &self.sigs.debug_site,
             RuntimeSig::DebugReturn => &self.sigs.debug_return,
+            RuntimeSig::DebugThrow => &self.sigs.debug_throw,
             RuntimeSig::StackCheck => &self.sigs.stack_check,
             RuntimeSig::Deprecated => &self.sigs.deprecated,
             RuntimeSig::Probe => &self.sigs.probe,
@@ -4745,6 +4766,7 @@ enum RuntimeSig {
     Safepoint,
     DebugSite,
     DebugReturn,
+    DebugThrow,
     StackCheck,
     Deprecated,
     Probe,

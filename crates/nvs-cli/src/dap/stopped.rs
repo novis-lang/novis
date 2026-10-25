@@ -8,6 +8,9 @@
 //! After a step left a function, the innermost frame's scope starts with the value that function
 //! returned, named `f() returned`.
 //!
+//! A stop for an exception names its class in the `stopped` event's `description`, as `Uncaught`
+//! or `Thrown` and the class, with its message as the `text`. `exceptionInfo` gives the same.
+//!
 //! **Ids.** A thread id is the task's place in the round, from 1. A frame id is its thread and its
 //! place on that thread's stack. A variables reference is an index into the round's references,
 //! each a frame's scope or a value's children. Every id belongs to one round, and the resume that
@@ -58,13 +61,45 @@ impl Stopped {
             StopReason::Pause | StopReason::Tree => "pause",
             StopReason::Entry => "entry",
             StopReason::Step => "step",
+            StopReason::Exception => "exception",
         };
+        let mut event = json!({ "reason": reason, "threadId": 1, "allThreadsStopped": true });
+        if let Some(exception) = &stop.exception {
+            let kind = if exception.uncaught {
+                "Uncaught"
+            } else {
+                "Thrown"
+            };
+            event["description"] = json!(format!("{kind} {}", exception.class));
+            event["text"] = json!(exception.message);
+        }
         self.round = Some(Round {
             number: stop.round,
             stops: vec![stop],
             refs: Vec::new(),
         });
-        Some(json!({ "reason": reason, "threadId": 1, "allThreadsStopped": true }))
+        Some(event)
+    }
+
+    /// The `exceptionInfo` body for the thread `arguments` names, which stopped for an exception.
+    pub(super) fn exception_info(&self, arguments: &Value) -> Result<Value, String> {
+        let round = self.round()?;
+        let exception = arguments["threadId"]
+            .as_i64()
+            .and_then(|id| usize::try_from(id - 1).ok())
+            .and_then(|thread| round.stops.get(thread))
+            .and_then(|stop| stop.exception.as_ref())
+            .ok_or("This thread did not stop for an exception.")?;
+        let mode = if exception.uncaught {
+            "unhandled"
+        } else {
+            "always"
+        };
+        Ok(json!({
+            "exceptionId": exception.class,
+            "description": exception.message,
+            "breakMode": mode,
+        }))
     }
 
     /// Forgets the round. Called before the resume, so a stop of the next round is never cleared.
@@ -330,6 +365,7 @@ mod tests {
             reason,
             round,
             returned: None,
+            exception: None,
             frames: vec![StoppedFrame {
                 function: 0,
                 name: "<script>".to_owned(),

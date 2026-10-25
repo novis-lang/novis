@@ -40,6 +40,12 @@
 //! breakpoint unverified, with the message in the `breakpoint` event. A logpoint writes to the
 //! debug console as an `output` event of category `console`, and never stops.
 //!
+//! **Exceptions.** `initialize` offers two exception filters, `uncaught` and `thrown`, and
+//! `setExceptionBreakpoints` turns them on ([`Debugger::exception_filters`]). With `uncaught`, a
+//! task stops where it throws an exception no frame of the task catches. With `thrown`, it stops
+//! at every throw, except one that a frame in a `skipFiles` file catches. `exceptionInfo` names
+//! the exception a thread stopped for.
+//!
 //! **Ending a session.** `disconnect` ends the adapter, and the program with it, because the
 //! program is this process. `terminate` answers with `terminated` and leaves the program running
 //! until the client's `disconnect` follows, which every client sends.
@@ -67,8 +73,13 @@ use rustc_hash::FxHashMap;
 use serde_json::{Value, json};
 
 use crate::config;
-use protocol::{Capabilities, Incoming, LaunchArguments, Mode, Outgoing};
+use protocol::{Capabilities, ExceptionFilter, Incoming, LaunchArguments, Mode, Outgoing};
 use stopped::Stopped;
+
+/// The exception filter that stops at a throw no frame catches.
+const UNCAUGHT: &str = "uncaught";
+/// The exception filter that stops at every throw.
+const THROWN: &str = "thrown";
 
 /// The text a file is named by in the session: its canonical path, so the path an editor sends
 /// and the path the compiler read are the same. A path that does not resolve is kept as written.
@@ -281,6 +292,21 @@ impl Session {
                     supports_conditional_breakpoints: true,
                     supports_hit_conditional_breakpoints: true,
                     supports_log_points: true,
+                    supports_exception_info_request: true,
+                    exception_breakpoint_filters: [
+                        ExceptionFilter {
+                            filter: UNCAUGHT,
+                            label: "Uncaught Exceptions",
+                            description: "Stops where an exception is thrown that no `catch` handles.",
+                            default: true,
+                        },
+                        ExceptionFilter {
+                            filter: THROWN,
+                            label: "All Exceptions",
+                            description: "Stops where any exception is thrown.",
+                            default: false,
+                        },
+                    ],
                 };
                 self.succeed(request, serde_json::to_value(capabilities).ok());
                 self.writer.event("initialized", None);
@@ -301,6 +327,18 @@ impl Session {
                 Ok(body) => self.succeed(request, Some(body)),
                 Err(message) => self.fail(request, message),
             },
+            "setExceptionBreakpoints" => {
+                let filters = request.arguments["filters"].as_array();
+                let on = |name: &str| {
+                    filters.is_some_and(|filters| filters.iter().any(|filter| filter == name))
+                };
+                self.debugger.exception_filters(on(THROWN), on(UNCAUGHT));
+                self.succeed(request, None);
+            }
+            "exceptionInfo" => {
+                let body = lock(&self.stopped).exception_info(&request.arguments);
+                self.reply(request, body);
+            }
             "threads" => {
                 let body = lock(&self.stopped).threads();
                 self.succeed(request, Some(body));

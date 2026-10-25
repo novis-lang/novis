@@ -2085,7 +2085,13 @@ pub(crate) fn debug_unit(
                 .collect(),
         })
         .collect();
-    Some(DebugUnit::new(Arc::clone(sites), lines, owners, functions))
+    Some(DebugUnit::new(
+        Arc::clone(sites),
+        lines,
+        owners,
+        functions,
+        program.stmt_catches(),
+    ))
 }
 
 /// What a breakpoint's condition knows of a slot of representation `ty`.

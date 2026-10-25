@@ -832,7 +832,11 @@ fn a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping() {
         "the call left its breakpoint verified: {ran:#?}"
     );
     assert_eq!(output(&ran, "stdout"), "1\n2\n", "{ran:#?}");
-    assert_eq!(output(&ran, "console"), "i is 0\ni is 1\ni is 2\n", "{ran:#?}");
+    assert_eq!(
+        output(&ran, "console"),
+        "i is 0\ni is 1\ni is 2\n",
+        "{ran:#?}"
+    );
     let (frame, variables) = top_frame(&mut client);
     assert_eq!(frame["line"], 5, "{frame:#?}");
     assert_eq!(variables["$i"], "3", "{variables:#?}");

@@ -289,6 +289,10 @@ struct TryFrame<'a> {
     /// [`Lowering::run_pending_finallys`] for why duplication is the shape
     /// chosen over a subroutine.
     finally: Option<&'a Block>,
+    /// Under the debug switch, the classes this region's `catch` clauses
+    /// name. Empty without the switch, and for a frame around a clause body
+    /// or a `finally`, which catch nothing.
+    catches: Vec<String>,
 }
 
 /// The class labelled `label`'s armed field slots, resolved against its own
@@ -841,6 +845,16 @@ pub fn with_debug_slots<R>(lower: impl FnOnce() -> R) -> R {
     lower()
 }
 
+/// What [`Lowering::finish`] gives: the blocks, the statement and edge spans,
+/// the debug slots and the debug catches of one function.
+pub(crate) type Finished = (
+    Vec<BasicBlock>,
+    Vec<Span>,
+    Vec<Span>,
+    Option<Vec<crate::ir::DebugSlot>>,
+    Vec<crate::ir::DebugCatch>,
+);
+
 /// One function's debug slots while it is lowered: the table
 /// [`crate::ir::Function::debug_slots`] receives, and each name's index in it.
 #[derive(Default)]
@@ -850,6 +864,8 @@ pub(crate) struct DebugSlots {
     /// Whether the function's written return type shows it never returns a
     /// `secret` value. False until a lowering that reads the type sets it.
     plain_return: bool,
+    /// The table [`crate::ir::Function::debug_catches`] receives.
+    catches: Vec<crate::ir::DebugCatch>,
 }
 
 impl DebugSlots {
@@ -1600,7 +1616,7 @@ pub fn lower_method(
     // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let debug_returns_secret = low.debug_returns_secret();
-    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
     let (anon_fns, mut classes) =
         drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
     classes.extend(shapes);
@@ -1615,6 +1631,7 @@ pub fn lower_method(
             edge_spans,
             debug_slots,
             debug_returns_secret,
+            debug_catches,
         },
         anon_fns,
         classes,
@@ -1960,7 +1977,7 @@ pub fn lower_property_hook(
     // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let debug_returns_secret = low.debug_returns_secret();
-    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
     let (anon_fns, mut classes) =
         drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
     classes.extend(shapes);
@@ -1975,6 +1992,7 @@ pub fn lower_property_hook(
             edge_spans,
             debug_slots,
             debug_returns_secret,
+            debug_catches,
         },
         anon_fns,
         classes,
@@ -2077,7 +2095,7 @@ pub fn lower_script(
     // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let debug_returns_secret = low.debug_returns_secret();
-    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
     let (anon_fns, mut classes) =
         drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
     classes.extend(shapes);
@@ -2092,6 +2110,7 @@ pub fn lower_script(
             edge_spans,
             debug_slots,
             debug_returns_secret,
+            debug_catches,
         },
         anon_fns,
         classes,
@@ -4222,16 +4241,12 @@ impl<'a> Lowering<'a> {
         self.debug.as_ref().is_none_or(|debug| !debug.plain_return)
     }
 
-    pub(crate) fn finish(
-        self,
-    ) -> (
-        Vec<BasicBlock>,
-        Vec<Span>,
-        Vec<Span>,
-        Option<Vec<crate::ir::DebugSlot>>,
-    ) {
+    pub(crate) fn finish(self) -> Finished {
         let (stmt_spans, edge_spans) = self.ids.into_spans();
-        let debug_slots = self.debug.map(|debug| debug.slots);
+        let (debug_slots, debug_catches) = match self.debug {
+            Some(debug) => (Some(debug.slots), debug.catches),
+            None => (None, Vec::new()),
+        };
         let blocks = self
             .block_ids
             .into_iter()
@@ -4248,7 +4263,62 @@ impl<'a> Lowering<'a> {
                 }),
             })
             .collect();
-        (blocks, stmt_spans, edge_spans, debug_slots)
+        (blocks, stmt_spans, edge_spans, debug_slots, debug_catches)
+    }
+
+    /// Under the debug switch, records the classes the enclosing `try`
+    /// blocks catch for `stmt`, when there are any.
+    pub(crate) fn note_catches(&mut self, stmt: crate::ids::StmtId) {
+        let Some(debug) = &mut self.debug else {
+            return;
+        };
+        let classes: Vec<String> = self
+            .try_stack
+            .iter()
+            .rev()
+            .flat_map(|frame| frame.catches.iter().cloned())
+            .collect();
+        if !classes.is_empty() {
+            debug.catches.push(crate::ir::DebugCatch {
+                stmt: stmt.index(),
+                classes,
+            });
+        }
+    }
+
+    /// Under the debug switch, the classes `types` name, for a [`TryFrame`].
+    /// Empty without the switch.
+    pub(crate) fn catch_labels<'t>(
+        &self,
+        types: impl IntoIterator<Item = &'t Type>,
+    ) -> Vec<String> {
+        if self.debug.is_none() {
+            return Vec::new();
+        }
+        types
+            .into_iter()
+            .map(|ty| self.caught_class_label(ty))
+            .collect()
+    }
+
+    /// Under the debug switch, adds `classes` to the statement being lowered:
+    /// what a `catch` expression catches has no statement of its own.
+    pub(crate) fn note_expr_catches(&mut self, classes: &[String]) {
+        let Some(stmt) = self.ids.last_stmt() else {
+            return;
+        };
+        let Some(debug) = &mut self.debug else {
+            return;
+        };
+        match debug.catches.last_mut() {
+            Some(last) if last.stmt == stmt.index() => {
+                last.classes.splice(0..0, classes.iter().cloned());
+            }
+            _ => debug.catches.push(crate::ir::DebugCatch {
+                stmt: stmt.index(),
+                classes: classes.to_vec(),
+            }),
+        }
     }
 }
 

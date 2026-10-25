@@ -34,8 +34,9 @@ hole that does not compile leaves its breakpoint unverified, with the compiler's
 condition is `N`, `>N`, `>=N`, `==N` or `%N`, counted per breakpoint.
 
 **"Uncaught" is decided where the exception is thrown,** while every frame is still there to show. Under
-the switch each frame record keeps the classes its enclosing `try` blocks catch, so the adapter knows at
-the throw whether any frame of that task will catch it.
+the switch the compiler records which classes the `try` blocks around each statement catch, and each
+frame record names the statement it is at, so the adapter knows at the throw whether any frame of that
+task will catch it. A frame in a `skipFiles` file that catches it means the throw does not stop.
 
 A fixture session exercises each of these, and `nvs dap` reports each capability at `initialize`.
 

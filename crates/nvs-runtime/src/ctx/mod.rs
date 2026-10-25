@@ -422,6 +422,10 @@ pub struct Ctx {
     /// Whether this context is running its tree's stop handler, so a poll
     /// inside the handler does not stop it again ([`Ctx::run_debug_stop`]).
     debug_stopping: bool,
+    /// Whether [`nvs_debug_throw`] has already run the stop handler for the
+    /// pending exception. A new exception clears it, so one exception stops
+    /// once while it travels through every frame.
+    throw_reported: bool,
     /// The state this request tree shares — the safepoint word [`Self::safepoint`]
     /// names, and the counters a member of the tree running on another core
     /// charges into. [`TreeState`] owns what it holds and what it costs.

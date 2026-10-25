@@ -2049,6 +2049,10 @@ struct Signatures {
     /// `nvs_debug_return(ctx, out, secret)`, a return's call while the
     /// context steps. It returns no status, because it cannot fail.
     debug_return: Signature,
+    /// `nvs_debug_throw(ctx, status) -> status`, the first call of a landing
+    /// block under the debug switch. It returns the status the block goes on
+    /// with.
+    debug_throw: Signature,
     /// `nvs_stack_check(ctx, sp) -> status` —
     /// `rule:errors/on-limit`'s
     /// slow path. `sp` is `I64` for the reason every other pointer-shaped
@@ -2726,6 +2730,11 @@ impl Signatures {
         debug_return.params.push(AbiParam::new(ptr)); // out
         debug_return.params.push(AbiParam::new(types::I32)); // secret
 
+        let mut debug_throw = module.make_signature();
+        debug_throw.params.push(AbiParam::new(ptr));
+        debug_throw.params.push(AbiParam::new(types::I32)); // status
+        debug_throw.returns.push(AbiParam::new(types::I32));
+
         let mut stack_check = module.make_signature();
         stack_check.params.push(AbiParam::new(ptr));
         stack_check.params.push(AbiParam::new(types::I64));
@@ -2904,6 +2913,7 @@ impl Signatures {
             safepoint,
             debug_site,
             debug_return,
+            debug_throw,
             stack_check,
             deprecated,
             probe,

@@ -1017,7 +1017,9 @@ pub unsafe extern "C" fn nvs_raise(ctx: *mut Ctx, thrown: *mut ObjHeader, source
     unsafe {
         let thrown = Thrown::from_raw(thrown);
         let seeded = thrown.capture_site(source);
-        (*ctx).raise_sited(thrown, seeded);
+        // A raise with no site is a `catch` matching nothing, which hands the
+        // same exception onward.
+        (*ctx).raise_sited(thrown, seeded, !source.is_null());
     }
 }
 
@@ -1097,7 +1099,7 @@ pub unsafe extern "C" fn nvs_raise_new(
         // no site renders neither and takes [`Ctx::raise`], so the provisional
         // mark left by whatever failed before it goes with that failure.
         if thrown.capture_site(source) {
-            (*ctx).raise_sited(thrown, true);
+            (*ctx).raise_sited(thrown, true, true);
         } else {
             (*ctx).raise(thrown);
         }

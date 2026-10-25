@@ -28,6 +28,14 @@
 //! keeps the value it returned ([`Ctx::take_returned`]) and moves the step to
 //! the caller.
 //!
+//! A throw stops at its first landing block. Under the switch, every landing
+//! block first calls [`nvs_debug_throw`], so the handler runs with the
+//! exception pending and the frame that threw still linked. A debugger tells
+//! whether a frame catches it from the statement the frame is at, because
+//! the lowering records which classes the `try` blocks around each statement
+//! catch (`nvs_ir::ir::Function::debug_catches`). Nothing is pushed when a
+//! `try` starts.
+//!
 //! The stop handler is the request tree's, not one context's
 //! (`rule:testing/a-stop-pauses-the-whole-task-tree`). Every context of the
 //! tree runs the same one, a child on its parent's core and a `spawn worker`
@@ -37,8 +45,10 @@
 //! bytes per call in flight, on the task's own stack, and one byte per
 //! statement per unit. A step spends one byte load per site and per return,
 //! and while a step is set, one walk of the frame chain per site and per
-//! return of the task that steps. A normal run spends one null pointer, two
-//! flags and one empty step per context, and one empty lock per request tree.
+//! return of the task that steps. A throw spends one call per landing block
+//! it passes, on the path where something failed. A normal run spends one
+//! null pointer, three flags and one empty step per context, and one empty
+//! lock per request tree.
 
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -191,6 +201,9 @@ pub enum StopCause {
     /// A poll found [`super::SafepointFlags::DEBUG_BREAK`] raised on the
     /// tree's word ([`super::nvs_safepoint`]).
     Break,
+    /// An exception reached the first landing block on its way out
+    /// ([`nvs_debug_throw`]). It is still pending on the context.
+    Throw,
 }
 
 /// What every context of a request tree runs when it reaches an armed stop
@@ -480,6 +493,38 @@ pub unsafe extern "C" fn nvs_debug_return(ctx: *mut Ctx, out: *const Value, secr
         kind,
         depth: depth - 1,
     });
+}
+
+/// The first thing every landing block does under the debug switch, while the
+/// frame's record and variables are still in place. For a `THROWN` `status`
+/// whose exception has not stopped yet, runs the tree's [`DebugStop`] with
+/// [`StopCause::Throw`]. Returns the status the landing block goes on with:
+/// `status` itself, or the handler's when it ends the task.
+///
+/// The innermost frame the exception reaches runs it first, and a raise of a
+/// new exception clears the mark, so each exception stops once. A `catch`
+/// that matches nothing raises the same object again, which keeps the mark.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned, and valid for the duration of the call.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context pointer; the contract cannot be \
+              expressed in the signature"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_debug_throw(ctx: *mut Ctx, status: i32) -> i32 {
+    #[expect(unsafe_code, reason = "the caller's contract, passed on unchanged")]
+    let ctx = unsafe { &mut *ctx };
+    if status != crate::THROWN || ctx.throw_reported {
+        return status;
+    }
+    ctx.throw_reported = true;
+    match ctx.run_debug_stop(StopCause::Throw) {
+        crate::OK => status,
+        ended => ended,
+    }
 }
 
 #[cfg(test)]

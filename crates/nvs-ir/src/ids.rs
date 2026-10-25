@@ -101,6 +101,13 @@ impl IdGen {
         id
     }
 
+    /// The statement id allocated last, or `None` before the first.
+    #[must_use]
+    pub fn last_stmt(&self) -> Option<StmtId> {
+        let count = u32::try_from(self.stmt_spans.len()).ok()?;
+        count.checked_sub(1).map(StmtId)
+    }
+
     /// Allocates the next conditional-edge id, recording `span`.
     ///
     /// # Panics

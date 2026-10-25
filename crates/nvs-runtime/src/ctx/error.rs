@@ -245,6 +245,7 @@ impl Ctx {
     /// tree's classes a `catch` will see — [`ThrownClass`] owns the roster.
     pub fn set_pending_as(&mut self, class: ThrownClass, message: impl Into<Cow<'static, str>>) {
         self.pending = Some(Pending::Message(class, message.into()));
+        self.throw_reported = false;
         // A message has no object yet and so no frame to supersede: whatever
         // failure [`Self::raise_sited`] marked one for is the one this replaces.
         self.site_frame_pending = false;
@@ -537,6 +538,7 @@ impl Ctx {
     /// one replaces, and the mark goes with it.
     pub fn raise(&mut self, thrown: Thrown) {
         self.pending = Some(Pending::Thrown(thrown));
+        self.throw_reported = false;
         self.site_frame_pending = false;
         self.pending_fatal = false;
     }
@@ -552,8 +554,14 @@ impl Ctx {
     /// clause, handing the very same object onward, so the frame this context
     /// seeded at the original throw is still the innermost one and is still
     /// the one the compiler's own rendering supersedes.
-    pub(crate) fn raise_sited(&mut self, thrown: Thrown, seeded: bool) {
+    ///
+    /// `fresh` is false for that same re-raise, and keeps the mark that the
+    /// exception has already stopped a debugger ([`super::nvs_debug_throw`]).
+    pub(crate) fn raise_sited(&mut self, thrown: Thrown, seeded: bool, fresh: bool) {
         self.pending = Some(Pending::Thrown(thrown));
+        if fresh {
+            self.throw_reported = false;
+        }
         self.site_frame_pending |= seeded;
         self.pending_fatal = false;
     }

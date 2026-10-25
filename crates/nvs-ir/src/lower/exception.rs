@@ -369,10 +369,12 @@ impl<'a> Lowering<'a> {
         let handler_block = self.new_block();
         let after_block = self.new_block();
 
+        let caught_classes = self.catch_labels(catches.iter().map(|clause| &clause.ty));
         self.try_stack.push(TryFrame {
             handler: Some(handler_block),
             edges: Vec::new(),
             finally,
+            catches: caught_classes,
         });
         let mut body_env = env.clone();
         let mut body_cur = *cur;
@@ -472,6 +474,7 @@ impl<'a> Lowering<'a> {
                 handler: reraise,
                 edges: Vec::new(),
                 finally,
+                catches: Vec::new(),
             });
             self.lower_stmts(&clause.body.stmts, &mut handler_cur, &mut handler_env);
             let clause_frame = self
@@ -606,6 +609,7 @@ impl<'a> Lowering<'a> {
             handler: Some(chain),
             edges: Vec::new(),
             finally: None,
+            catches: Vec::new(),
         });
         self.lower_stmts(&finally.stmts, cur, env);
         let frame = self
@@ -791,10 +795,13 @@ impl<'a> Lowering<'a> {
         let merge_block = self.new_block();
         let pre_env = env.clone();
 
+        let caught_classes = self.catch_labels(arms.iter().map(|arm| &arm.ty));
+        self.note_expr_catches(&caught_classes);
         self.try_stack.push(TryFrame {
             handler: Some(handler_block),
             edges: Vec::new(),
             finally: None,
+            catches: caught_classes,
         });
         let mut guard_env = pre_env.clone();
         let mut guard_cur = *cur;
@@ -1215,5 +1222,6 @@ fn exception_constructor(class: &str, extra: &[(&str, ExtraInit)]) -> Function {
         edge_spans,
         debug_slots: None,
         debug_returns_secret: true,
+        debug_catches: Vec::new(),
     }
 }

@@ -133,6 +133,7 @@ impl Ctx {
             step: None,
             returned: None,
             debug_stopping: false,
+            throw_reported: false,
             tree,
             cancelled: false,
             exit_code: 0,

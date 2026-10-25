@@ -82,6 +82,7 @@ impl<'a> Lowering<'a> {
     }
     pub(crate) fn lower_stmt(&mut self, stmt: &'a Stmt, cur: &mut BlockId, env: &mut Env) {
         let stmt_id = self.ids.next_stmt(stmt.span);
+        self.note_catches(stmt_id);
         self.cur_stmt_span = stmt.span;
         self.emit_stmt_marker(*cur, stmt_id, env);
         match &stmt.kind {

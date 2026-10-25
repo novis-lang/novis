@@ -41,6 +41,7 @@ impl<'a> Lowering<'a> {
             // and to the statement counts, as a nested `If` would be.
             if i > 0 {
                 let stmt_id = self.ids.next_stmt(arm.span);
+                self.note_catches(stmt_id);
                 self.cur_stmt_span = arm.span;
                 self.emit_stmt_marker(*cur, stmt_id, env);
             }

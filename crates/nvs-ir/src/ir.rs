@@ -52,6 +52,26 @@ impl Program {
             .collect()
     }
 
+    /// The classes the `try` blocks around a statement catch, for each
+    /// statement inside one, numbered as [`Self::stmt_spans`] numbers it and
+    /// in that order. Empty for a program lowered without the debug switch.
+    #[must_use]
+    pub fn stmt_catches(&self) -> Vec<(u32, Vec<String>)> {
+        let mut base = 0u32;
+        let mut catches = Vec::new();
+        for function in &self.functions {
+            catches.extend(
+                function
+                    .debug_catches
+                    .iter()
+                    .map(|catch| (base.saturating_add(catch.stmt), catch.classes.clone())),
+            );
+            let count = u32::try_from(function.stmt_spans.len()).unwrap_or(u32::MAX);
+            base = base.saturating_add(count);
+        }
+        catches
+    }
+
     /// Whether the program was lowered under the debug switch
     /// ([`crate::lower::with_debug_slots`]). The artifact cache neither
     /// writes nor reads such a program, because its key does not cover the
@@ -506,6 +526,23 @@ pub struct Function {
     /// `secret`, so a debugger shows it redacted. True wherever the written
     /// return type does not rule it out.
     pub debug_returns_secret: bool,
+    /// Under the debug switch, the classes the `try` blocks around a
+    /// statement catch, one entry per statement inside a `try` that has a
+    /// `catch`, in statement order. Empty without the switch. A debugger reads
+    /// it at a throw to tell whether a frame catches the exception
+    /// (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`).
+    pub debug_catches: Vec<DebugCatch>,
+}
+
+/// The classes the `try` blocks around one statement catch, under the debug
+/// switch: an entry of [`Function::debug_catches`].
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DebugCatch {
+    /// The statement, as [`crate::ids::StmtId::index`] numbers it.
+    pub stmt: u32,
+    /// Each class a `catch` around the statement names, the innermost `try`
+    /// first, labelled as a class test labels it.
+    pub classes: Vec<String>,
 }
 
 /// One variable's described stack slot under the debug switch. The entry at
