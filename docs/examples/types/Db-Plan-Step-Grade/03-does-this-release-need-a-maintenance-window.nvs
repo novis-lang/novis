@@ -2,10 +2,12 @@
 // This program checks whether a release can go out at any time. The answer
 // depends on the worst grade of any step in the release.
 
-class Release {
+class Release
+{
     // `rank` gives each grade a number, so two grades can be compared.
     // A higher number means a riskier step.
-    public static function rank(Core\Db\Plan\Step::Grade $grade): int {
+    public static function rank(Core\Db\Plan\Step::Grade $grade): int
+    {
         return match ($grade) {
             Core\Db\Plan\Step::Grade::Safe => 0,
             Core\Db\Plan\Step::Grade::Locking => 1,
@@ -13,7 +15,8 @@ class Release {
         };
     }
 
-    public static function worst(array<Core\Db\Plan\Step::Grade> $plan): Core\Db\Plan\Step::Grade {
+    public static function worst(array<Core\Db\Plan\Step::Grade> $plan): Core\Db\Plan\Step::Grade
+    {
         Core\Db\Plan\Step::Grade $worst = Core\Db\Plan\Step::Grade::Safe;
         foreach ($plan as Core\Db\Plan\Step::Grade $grade) {
             if (Release::rank($grade) > Release::rank($worst)) {
@@ -23,11 +26,12 @@ class Release {
         return $worst;
     }
 
-    public static function verdict(array<Core\Db\Plan\Step::Grade> $plan): string {
+    public static function verdict(array<Core\Db\Plan\Step::Grade> $plan): string
+    {
         return match (Release::worst($plan)) {
-            Core\Db\Plan\Step::Grade::Safe => "ship it whenever you like",
-            Core\Db\Plan\Step::Grade::Locking => "book a quiet hour: writes may wait on this one",
-            Core\Db\Plan\Step::Grade::Destructive => "someone has to sign this off, and take a backup first",
+            Core\Db\Plan\Step::Grade::Safe => 'ship it whenever you like',
+            Core\Db\Plan\Step::Grade::Locking => 'book a quiet hour: writes may wait on this one',
+            Core\Db\Plan\Step::Grade::Destructive => 'someone has to sign this off, and take a backup first',
         };
     }
 }
@@ -46,5 +50,5 @@ array<Core\Db\Plan\Step::Grade> $cleanup = [
     Core\Db\Plan\Step::Grade::Locking,
 ];
 
-echo "this afternoon: ", Release::verdict($small), "\n";
-echo "next week:      ", Release::verdict($cleanup), "\n";
+echo 'this afternoon: ', Release::verdict($small), "\n";
+echo 'next week:      ', Release::verdict($cleanup), "\n";

@@ -4,11 +4,11 @@
 
 // The proxy added the address of the client to `X-Forwarded-For`.
 // `clientIp` returns that address. This prints "203.0.113.7".
-echo "client: ", Core\Request::clientIp() ?? "none", "\n";
+echo 'client: ', Core\Request::clientIp() ?? 'none', "\n";
 
 // The proxy also sent `X-Forwarded-Proto: https`. This prints "https".
-echo "scheme: ", Core\Request::scheme(), "\n";
+echo 'scheme: ', Core\Request::scheme(), "\n";
 
 // The header has two addresses. The client wrote the first one itself,
 // and the server does not use it.
-echo "header: ", Core\Request::header("x-forwarded-for") ?? "none", "\n";
+echo 'header: ', Core\Request::header('x-forwarded-for') ?? 'none', "\n";

@@ -8,10 +8,10 @@ use Core\Test;
 // `Core\Env::context()` returns `Request`, and this part writes the answer.
 if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
-    echo "Hello from ", $path;
+    echo 'Hello from ', $path;
 } else {
     // From the command line, this part sends the request and reads the answer.
-    var $response = Test::request(Method::Get, "/hello");
+    var $response = Test::request(Method::Get, '/hello');
 
     // The program set no status, so this prints `200`.
     echo $response->status(), "\n";

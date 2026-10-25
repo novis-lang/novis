@@ -4,4 +4,4 @@
 Core\Env::Context $context = Core\Env::context();
 
 // You run this file from the command line, so this prints `in a request: no`.
-echo "in a request: ", $context == Core\Env::Context::Request ? "yes" : "no", "\n";
+echo 'in a request: ', $context == Core\Env::Context::Request ? 'yes' : 'no', "\n";

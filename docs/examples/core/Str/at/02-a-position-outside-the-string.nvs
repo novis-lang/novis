@@ -1,7 +1,7 @@
 <?nvs
 // Shows what happens when the position is outside the string.
 
-string $code = "AB7";
+string $code = 'AB7';
 
 // The string has 3 characters, so the last position is 2. This prints `7`.
 echo Core\Str::at($code, 2), "\n";
@@ -16,7 +16,7 @@ try {
 
 // An empty string has no characters at all, so position 0 throws too.
 // Check the length first when the string can be empty. This prints `(empty)`.
-string $name = "";
+string $name = '';
 if (Core\Str::length($name) > 0) {
     echo Core\Str::at($name, 0), "\n";
 } else {

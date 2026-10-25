@@ -2,15 +2,15 @@
 // Shows how to change the scope of a group from global to universal in one call.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Managers,OU=Company,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Managers,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // A group has one scope, so clear `global` and set `universal` together.
-    var $universal = $type->with({global: false, universal: true});
+    var $universal = $type->with({ global: false, universal: true });
 
     // This prints `global: false, universal: true` and then `-2147483640`.
-    echo "global: ", $universal->global() ? "true" : "false";
-    echo ", universal: ", $universal->universal() ? "true" : "false", "\n";
+    echo 'global: ', $universal->global() ? 'true' : 'false';
+    echo ', universal: ', $universal->universal() ? 'true' : 'false', "\n";
     echo $universal->bits(), "\n";
 }

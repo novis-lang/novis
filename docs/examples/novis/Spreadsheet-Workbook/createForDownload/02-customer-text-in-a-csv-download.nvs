@@ -2,12 +2,12 @@
 // Shows how a CSV download writes text that customers typed.
 use Novis\Spreadsheet\Workbook;
 
-var $book = Workbook::createForDownload("customers.csv");
-$book->sheet("Customers")->addAll([
+var $book = Workbook::createForDownload('customers.csv');
+$book->sheet('Customers')->addAll([
     // A value with a comma or a quote is put in quotes, so it stays one field.
-    ["name" => "Example, Ltd", "note" => "Call \"before\" noon"],
+    ['name' => 'Example, Ltd', 'note' => "Call \"before\" noon"],
     // A value that starts with `=`, `+`, `-` or `@` gets a `'` in front.
     // A spreadsheet program then shows it as text and does not run it as a formula.
-    ["name" => "=HYPERLINK(\"https://example.com\")", "note" => "-5 points"],
+    ['name' => "=HYPERLINK(\"https://example.com\")", 'note' => '-5 points'],
 ]);
 $book->finish();

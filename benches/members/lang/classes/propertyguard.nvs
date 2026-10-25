@@ -5,18 +5,23 @@
 // bench: allocations 0
 // bench: complexity constant
 
-final class Checked implements PropertyGuard {
+final class Checked implements PropertyGuard
+{
     public int $level = 1;
 
-    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void
+    {
     }
 
-    public function beforePropertyUnset(string $name, array<string> $keys): void {
+    public function beforePropertyUnset(string $name, array<string> $keys): void
+    {
     }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         var $checked = new Checked();
         int $i = 0;
         while ($i < $rounds) {

@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to turn column names like `OrderTotal` into JSON keys like `orderTotal`.
 
-array<string> $columns = ["OrderId", "OrderTotal", "ShippingAddress"];
+array<string> $columns = ['OrderId', 'OrderTotal', 'ShippingAddress'];
 
 // Only the first letter changes, so the other capitals stay where they are.
 // This prints `orderId,orderTotal,shippingAddress`.
@@ -9,4 +9,4 @@ array<string> $keys = [];
 foreach ($columns as string $column) {
     $keys[] = Core\Str::lowerFirst($column);
 }
-echo Core\Str::join($keys, ","), "\n";
+echo Core\Str::join($keys, ','), "\n";

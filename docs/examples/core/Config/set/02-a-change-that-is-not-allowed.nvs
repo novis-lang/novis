@@ -4,10 +4,10 @@
 // program that needs to know reads the result.
 
 // Only the person who runs the server may set this one.
-echo Core\Config::set("opcache.file_cache_dir", "/tmp/nvs") ? "changed" : "not allowed", "\n";
+echo Core\Config::set('opcache.file_cache_dir', '/tmp/nvs') ? 'changed' : 'not allowed', "\n";
 
 // This name is no setting at all.
-echo Core\Config::set("my.own.setting", "1") ? "changed" : "not allowed", "\n";
+echo Core\Config::set('my.own.setting', '1') ? 'changed' : 'not allowed', "\n";
 
 // A memory limit is a size, so this value cannot be read as one.
-echo Core\Config::set("memory", "as much as you like") ? "changed" : "not allowed", "\n";
+echo Core\Config::set('memory', 'as much as you like') ? 'changed' : 'not allowed', "\n";

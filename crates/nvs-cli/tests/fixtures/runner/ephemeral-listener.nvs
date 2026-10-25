@@ -9,9 +9,11 @@
 // run that answers one (`rule:core-classes/env-context`). This program declares
 // no `#[Route]`, so a real request matches nothing and still gets an answer,
 // which is `rule:routing/the-servers-match-dispatches-nothing`.
-class Wire {
+class Wire
+{
     #[Core\Test(server: true)]
-    public function itReachesItsOwnListenerOverTheWire(): void {
+    public function itReachesItsOwnListenerOverTheWire(): void
+    {
         var $url = Core\Test::serverUrl();
         Core\Test::assertTrue($url != null);
         if ($url == null) {
@@ -21,11 +23,12 @@ class Wire {
         // the whole of why `rule:testing/in-process-request` has two mechanisms rather than one.
         var $answered = Core\Http\Client::get($url);
         Core\Test::assertEquals($answered->status(), 200);
-        Core\Test::assertEquals($answered->text(), "on the wire");
+        Core\Test::assertEquals($answered->text(), 'on the wire');
     }
 
     #[Core\Test]
-    public function itHasNoListenerWithoutTheOption(): void {
+    public function itHasNoListenerWithoutTheOption(): void
+    {
         // `rule:testing/isolate-per-test`'s boundary, stated on the address: a sibling that asked for no
         // listener cannot read the port the test above bound, because the URL
         // is on that test's own context and not on the process.
@@ -37,8 +40,8 @@ class Wire {
 if (Core\Env::context() == Core\Env::Context::Request) {
     var $matched = Core\Request::route();
     if ($matched == null) {
-        echo "on the wire";
+        echo 'on the wire';
     } else {
-        echo "routed";
+        echo 'routed';
     }
 }

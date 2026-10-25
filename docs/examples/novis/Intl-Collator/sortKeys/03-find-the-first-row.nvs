@@ -2,8 +2,8 @@
 // Shows how to find the row that sorts first by using its key.
 use Novis\Intl\Collator;
 
-array<string> $products = ["Zucker", "Äpfel", "Mehl", "Butter"];
-array<bytes> $keys = Collator::sortKeys($products, "de");
+array<string> $products = ['Zucker', 'Äpfel', 'Mehl', 'Butter'];
+array<bytes> $keys = Collator::sortKeys($products, 'de');
 
 // This loop keeps the position of the smallest key.
 int $first = 0;

@@ -3,31 +3,38 @@
 
 use Core\Http\Method;
 
-class Blog {
+class Blog
+{
     // This method returns the page. It does not send it.
-    #[Core\Route(path: "/post", method: Core\Http\Method::Get, name: "Blog::post")]
+    #[Core\Route(path: '/post', method: Core\Http\Method::Get, name: 'Blog::post')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function post(): Core\Html\Markup {
-        string $title = "Tea & cake";
+    public function post(): Core\Html\Markup
+    {
+        string $title = 'Tea & cake';
         return html`<h1>{$title}</h1>`;
     }
 }
 
-class Gate implements Core\Router\Responder {
-    public function allows(Core\Router\Match $route): bool {
+class Gate implements Core\Router\Responder
+{
+    public function allows(Core\Router\Match $route): bool
+    {
         return true;
     }
 
-    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
-        echo "you cannot open this page";
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'you cannot open this page';
     }
 
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
-        echo "sorry, something went wrong";
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'sorry, something went wrong';
     }
 
     // `dispatch` calls this with the page that the route method returned.
-    public function respond(Core\Router\Match $route, mixed $value): void {
+    public function respond(Core\Router\Match $route, mixed $value): void
+    {
         if ($value is Core\Html\Markup) {
             Core\Response::html($value);
         }
@@ -39,7 +46,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
 } else {
     // This prints `200`, the content type of the page, and the page.
     // The `&` in the title is escaped.
-    var $post = Core\Test::request(Method::Get, "/post");
-    echo $post->status(), " ", $post->header("Content-Type"), "\n";
+    var $post = Core\Test::request(Method::Get, '/post');
+    echo $post->status(), ' ', $post->header('Content-Type'), "\n";
     echo $post->body(), "\n";
 }

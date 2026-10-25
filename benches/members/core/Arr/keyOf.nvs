@@ -6,22 +6,24 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $routes = ["home" => "/", "help" => "/help", "shop" => "/products"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $routes = ['home' => '/', 'help' => '/help', 'shop' => '/products'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Last round's total decides which path this round looks for, so no
             // round can be reused. Both searches read every entry.
             if ($total % 2 == 0) {
-                if (Core\Arr::keyOf($routes, "/products") == null) {
+                if (Core\Arr::keyOf($routes, '/products') == null) {
                     $total = $total + 2;
                 } else {
                     $total = $total + 1;
                 }
             } else {
-                if (Core\Arr::keyOf($routes, "/cart") == null) {
+                if (Core\Arr::keyOf($routes, '/cart') == null) {
                     $total = $total + 3;
                 } else {
                     $total = $total + 4;

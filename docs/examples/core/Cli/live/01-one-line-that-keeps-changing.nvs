@@ -8,10 +8,10 @@ uint $checked = Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
     while ($at < 3) {
         $at = $at + 1;
         // `set` replaces what the region shows. It does not add a line.
-        $screen->set([Core\Cli\Text::plain(Core\Str::format("checking file %d of 3", $at))]);
+        $screen->set([Core\Cli\Text::plain(Core\Str::format('checking file %d of 3', $at))]);
     }
     return $at;
 });
 
 // The region is closed by now, so this is written under it. This prints 3.
-echo "checked ", $checked, " files\n";
+echo 'checked ', $checked, " files\n";

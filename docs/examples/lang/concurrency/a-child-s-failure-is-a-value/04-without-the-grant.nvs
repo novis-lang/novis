@@ -4,11 +4,11 @@
 
 // The path starts at the folder of this file. The script never runs.
 try {
-    var $handle = spawn script "jobs/send-receipts.nvs";
+    var $handle = spawn script 'jobs/send-receipts.nvs';
     var $result = await $handle;
 } catch (RuntimeError $denied) {
     // The message goes on with the full path of the script.
     // `Core\Str::before` keeps only the text before it.
-    echo Core\Str::before($denied->message, " for "), "\n";
+    echo Core\Str::before($denied->message, ' for '), "\n";
 }
 echo "this program is still running\n";

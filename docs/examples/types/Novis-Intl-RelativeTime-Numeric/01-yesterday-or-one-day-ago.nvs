@@ -2,14 +2,14 @@
 // Shows the difference between `RelativeTime::Numeric::Always` and `RelativeTime::Numeric::Auto` for nearby days.
 use Novis\Intl\RelativeTime;
 
-array<{count: int, unit: RelativeTime::Unit}> $days = [
-    {count: -1, unit: RelativeTime::Unit::Day},
-    {count: 0, unit: RelativeTime::Unit::Day},
-    {count: 1, unit: RelativeTime::Unit::Day},
+array<{ count: int, unit: RelativeTime::Unit }> $days = [
+    { count: -1, unit: RelativeTime::Unit::Day },
+    { count: 0, unit: RelativeTime::Unit::Day },
+    { count: 1, unit: RelativeTime::Unit::Day },
 ];
 
 // `Always` is the default and always writes a number.
-echo Core\Str::join(RelativeTime::format($days, "en", {numeric: RelativeTime::Numeric::Always}), " | "), "\n";
+echo Core\Str::join(RelativeTime::format($days, 'en', { numeric: RelativeTime::Numeric::Always }), ' | '), "\n";
 
 // `Auto` writes a word where the language has one.
-echo Core\Str::join(RelativeTime::format($days, "en", {numeric: RelativeTime::Numeric::Auto}), " | "), "\n";
+echo Core\Str::join(RelativeTime::format($days, 'en', { numeric: RelativeTime::Numeric::Auto }), ' | '), "\n";

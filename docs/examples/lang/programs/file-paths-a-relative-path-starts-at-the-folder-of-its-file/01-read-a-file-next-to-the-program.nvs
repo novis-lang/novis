@@ -3,4 +3,4 @@
 
 // The path starts at the folder of this file. `nvs run` gives the same result
 // from any folder. This prints the two lines of `data/prices.txt`.
-echo Core\IO::read("data/prices.txt");
+echo Core\IO::read('data/prices.txt');

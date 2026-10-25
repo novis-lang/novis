@@ -1,7 +1,9 @@
 <?nvs
 // This is the file one-failure-child.nvs. With `args: true`, it calls itself until the call stack is too deep.
-class Down {
-    public static function forever(int $n): int {
+class Down
+{
+    public static function forever(int $n): int
+    {
         return Down::forever($n + 1) + 1;
     }
 }

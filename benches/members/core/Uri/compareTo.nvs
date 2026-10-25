@@ -3,12 +3,14 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Uri> $pages = [
-            Core\Uri::parse("https://example.com/shop/cart?step=2"),
-            Core\Uri::parse("https://EXAMPLE.com/shop/./cart?step=2"),
-            Core\Uri::parse("https://example.com/blog/../shop/%63art?step=3"),
+            Core\Uri::parse('https://example.com/shop/cart?step=2'),
+            Core\Uri::parse('https://EXAMPLE.com/shop/./cart?step=2'),
+            Core\Uri::parse('https://example.com/blog/../shop/%63art?step=3'),
         ];
         uint $total = 0;
         uint $i = 0;

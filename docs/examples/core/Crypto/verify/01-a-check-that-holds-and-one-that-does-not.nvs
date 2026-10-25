@@ -3,20 +3,20 @@
 // It returns nothing, so the error is the whole answer.
 
 Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
-bytes $message = "meeting at 14:00" as bytes;
+bytes $message = 'meeting at 14:00' as bytes;
 bytes $signature = Core\Crypto::sign($message, $pair);
 
 // The check holds, so this line returns and the next one runs.
 Core\Crypto::verify($message, $signature, $pair->publicKey());
-echo "the message is the one that was signed", "\n";
+echo 'the message is the one that was signed', "\n";
 
 // A message somebody changed on the way. Handle the error in a `catch` block
 // and refuse the message there.
 try {
-    Core\Crypto::verify("meeting at 15:00" as bytes, $signature, $pair->publicKey());
-    echo "the changed message passed", "\n";
+    Core\Crypto::verify('meeting at 15:00' as bytes, $signature, $pair->publicKey());
+    echo 'the changed message passed', "\n";
 } catch (Throwable $e) {
-    echo "the changed message was refused", "\n";
+    echo 'the changed message was refused', "\n";
 }
 
 // A signature made under a different key. This is the same error, because the
@@ -24,7 +24,7 @@ try {
 Core\Crypto\KeyPair $stranger = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
 try {
     Core\Crypto::verify($message, Core\Crypto::sign($message, $stranger), $pair->publicKey());
-    echo "the other key passed", "\n";
+    echo 'the other key passed', "\n";
 } catch (Throwable $e) {
-    echo "the other key was refused", "\n";
+    echo 'the other key was refused', "\n";
 }

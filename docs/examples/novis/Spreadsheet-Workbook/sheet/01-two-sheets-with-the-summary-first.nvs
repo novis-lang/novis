@@ -1,22 +1,22 @@
 <?nvs
+use Novis\Spreadsheet\Reader;
 // Shows how to add two sheets and show the second one as the first tab.
 use Novis\Spreadsheet\Workbook;
-use Novis\Spreadsheet\Reader;
 
 var $book = Workbook::createInMemory();
 
 // The orders are written first. The totals are known only after the last order.
-$book->sheet("Orders")->addAll([
-    ["order" => 1042, "total" => 19.9],
-    ["order" => 1043, "total" => 5.0],
+$book->sheet('Orders')->addAll([
+    ['order' => 1042, 'total' => 19.9],
+    ['order' => 1043, 'total' => 5.0],
 ]);
 
 // `position: 0` puts the summary at the first tab. A new sheet finishes the sheet before it.
-$book->sheet("Summary", {position: 0})->add(["orders" => 2, "total" => 24.9]);
+$book->sheet('Summary', { position: 0 })->add(['orders' => 2, 'total' => 24.9]);
 
 var $written = $book->finish();
 if ($written->bytes != null) {
     foreach (Reader::open($written->bytes)->sheets() as var $sheet) {
-        echo $sheet->position, " ", $sheet->name, "\n";
+        echo $sheet->position, ' ', $sheet->name, "\n";
     }
 }

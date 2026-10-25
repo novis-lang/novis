@@ -4,12 +4,14 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Test\Response> $responses = [
-            Core\Test::request(Core\Http\Method::Get, "/"),
-            Core\Test::request(Core\Http\Method::Get, "/bbb"),
-            Core\Test::request(Core\Http\Method::Get, "/cccccc"),
+            Core\Test::request(Core\Http\Method::Get, '/'),
+            Core\Test::request(Core\Http\Method::Get, '/bbb'),
+            Core\Test::request(Core\Http\Method::Get, '/cccccc'),
         ];
         uint $total = 0;
         uint $i = 0;
@@ -27,7 +29,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     uint $n = 0;
     while ($n < Core\Str::length($path)) {
-        Core\Response::setHeader("X-Part-" . $n, "yes");
+        Core\Response::setHeader('X-Part-' . $n, 'yes');
         $n = $n + 1;
     }
 } else {

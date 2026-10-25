@@ -5,17 +5,20 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
+class Bench
+{
     enum Level { Low = 1, Mid = 5, High = 9 }
 
-    public static function raise(Level $l): Level {
+    public static function raise(Level $l): Level
+    {
         if (($l as int) < 5) {
             return Level::Mid;
         }
         return Level::High;
     }
 
-    public static function run(int $rounds): int {
+    public static function run(int $rounds): int
+    {
         array<Level> $levels = [Level::Low, Level::Mid];
         int $total = 0;
         int $i = 0;

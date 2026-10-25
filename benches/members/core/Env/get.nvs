@@ -5,15 +5,17 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $names = ["PATH", "NVS_BENCH_NOT_SET"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $names = ['PATH', 'NVS_BENCH_NOT_SET'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The name read in each round is chosen by the round before it, so no round
             // can be left out.
-            var $value = Core\Env::get($names[($total % 2) as int]) ?? "";
+            var $value = Core\Env::get($names[($total % 2) as int]) ?? '';
             $total = $total + Core\Str::length($value) + 1;
             $i = $i + 1;
         }

@@ -1,16 +1,18 @@
 <?nvs
 // Shows how to count how many times each object appears in a list.
 
-final class User {
+final class User
+{
     public string $name;
 
-    public function constructor(string $name) {
+    public function constructor(string $name)
+    {
         $this->name = $name;
     }
 }
 
-User $ana = new User("Ana");
-User $li = new User("Li");
+User $ana = new User('Ana');
+User $li = new User('Li');
 array<User> $visits = [$ana, $li, $ana, $ana, $li];
 
 Core\ObjectMap<User, int> $count = new Core\ObjectMap<User, int>();
@@ -21,5 +23,5 @@ foreach ($visits as User $user) {
 
 // This prints "Ana 3" and "Li 2".
 foreach ($count as User $user) {
-    echo $user->name, " ", $count->get($user) ?? 0, "\n";
+    echo $user->name, ' ', $count->get($user) ?? 0, "\n";
 }

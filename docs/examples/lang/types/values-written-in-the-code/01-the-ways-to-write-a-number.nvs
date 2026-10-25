@@ -8,7 +8,7 @@ int $mask = 0xFF;
 int $flags = 0b1011;
 int $mode = 0o644;
 
-echo $seats, " ", $mask, " ", $flags, " ", $mode, "\n";
+echo $seats, ' ', $mask, ' ', $flags, ' ', $mode, "\n";
 
 // A zero at the front is only a zero, so `017` is seventeen.
 // PHP and C read `017` as base eight, which is fifteen.
@@ -22,4 +22,4 @@ float $half = .5;
 float $five = 5.;
 float $thousand = 1e3;
 
-echo $half, " ", $five, " ", $thousand, "\n";
+echo $half, ' ', $five, ' ', $thousand, "\n";

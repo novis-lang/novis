@@ -2,18 +2,18 @@
 // Shows what `string` does with an attribute that has several values.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["memberOf"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['memberOf'] });
 
 if ($person != null) {
     // Anna Berg is in two groups, so `memberOf` has two values.
     // `string` throws a `LogicError`, and its message names `strings`.
     try {
-        echo $person->string("memberOf"), "\n";
+        echo $person->string('memberOf'), "\n";
     } catch (LogicError $refusal) {
         echo $refusal->message, "\n";
     }
 
     // `strings` returns both values. This prints `2`.
-    echo Core\Arr::count($person->strings("memberOf") ?? []), "\n";
+    echo Core\Arr::count($person->strings('memberOf') ?? []), "\n";
 }

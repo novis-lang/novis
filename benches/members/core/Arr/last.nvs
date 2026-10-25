@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<uint> $indoors = [4, 1];
         array<uint> $outdoors = [3, 2];
         uint $total = 0;

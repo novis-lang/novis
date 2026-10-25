@@ -1,15 +1,17 @@
 <?nvs
 // Shows that a class only lists the attributes written in its own declaration.
 
-type Table = {name: string};
+type Table = { name: string };
 
-#[Table(name: "documents")]
-class Document {
-    public string $title = "";
+#[Table(name: 'documents')]
+class Document
+{
+    public string $title = '';
 }
 
-class Invoice extends Document {
-    #[{format: "money"}]
+class Invoice extends Document
+{
+    #[{format: 'money'}]
     public int $total = 0;
 }
 
@@ -24,7 +26,7 @@ echo Core\Arr::count($invoice->attributes()), "\n";
 // To find the table of an `Invoice`, read the attributes of its parent class.
 // This prints "documents".
 foreach ($document->attributes() as Core\Reflect\AttributeInfo $attribute) {
-    if ($attribute->name() == "Table") {
-        echo $attribute->field("name") as string, "\n";
+    if ($attribute->name() == 'Table') {
+        echo $attribute->field('name') as string, "\n";
     }
 }

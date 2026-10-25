@@ -4,8 +4,10 @@
 // other refusal will fail the same way however many times you send it, so a
 // retry there only makes the outage longer.
 
-class Retry {
-    public static function worthIt(Core\Db\DbError::Kind $kind): bool {
+class Retry
+{
+    public static function worthIt(Core\Db\DbError::Kind $kind): bool
+    {
         return match ($kind) {
             Core\Db\DbError::Kind::Deadlock => true,
             Core\Db\DbError::Kind::SerializationFailure => true,
@@ -26,10 +28,10 @@ uint $attempt = 0;
 foreach ($attempts as Core\Db\DbError::Kind $kind) {
     $attempt = $attempt + 1;
     if (Retry::worthIt($kind)) {
-        echo "attempt ", $attempt, ": lost a race, sending it again\n";
+        echo 'attempt ', $attempt, ": lost a race, sending it again\n";
     } else {
         // This one is the program's own mistake, so it is handed on rather
         // than repeated. The transfer has already been rolled back.
-        echo "attempt ", $attempt, ": that will not get better, giving up\n";
+        echo 'attempt ', $attempt, ": that will not get better, giving up\n";
     }
 }

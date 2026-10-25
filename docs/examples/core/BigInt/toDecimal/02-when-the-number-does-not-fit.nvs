@@ -2,7 +2,7 @@
 // Shows what `toDecimal` does with a number no `decimal` holds. The largest
 // one is 79228162514264337593543950335.
 
-var $largest = Core\BigInt::parse("79228162514264337593543950335");
+var $largest = Core\BigInt::parse('79228162514264337593543950335');
 
 // This number fits, so it is returned unchanged.
 echo $largest->toDecimal(), "\n";

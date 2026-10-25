@@ -17,7 +17,7 @@ foreach ($document->children() as Core\Xml\Node $root) {
         }
         // The value is the text of the text node inside the element.
         // An empty element like `<password/>` has no text node, so its value stays "".
-        tainted string $value = "";
+        tainted string $value = '';
         foreach ($setting->children() as Core\Xml\Node $child) {
             $value = $value . $child->text();
         }
@@ -27,5 +27,5 @@ foreach ($document->children() as Core\Xml\Node $root) {
 
 // This prints host = db.example.com, port = 5432 and password = with nothing after it.
 foreach ($settings as tainted string $name => tainted string $value) {
-    echo $name, " = ", $value, "\n";
+    echo $name, ' = ', $value, "\n";
 }

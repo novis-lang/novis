@@ -5,7 +5,7 @@ Core\Time\TimeOfDay $start = Core\Time\TimeOfDay::at(8, 15);
 
 // `yyyy` is the year. A `TimeOfDay` has no date, so `format` throws a `LogicError`.
 try {
-    echo $start->format("yyyy HH:mm"), "\n";
+    echo $start->format('yyyy HH:mm'), "\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }

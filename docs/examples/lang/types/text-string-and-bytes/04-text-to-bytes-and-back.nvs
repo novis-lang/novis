@@ -2,11 +2,11 @@
 // Converts text to bytes and back, and shows the error for bytes that are not text.
 
 // `as bytes` gives the UTF-8 bytes of a string. This always works.
-bytes $name = "nvs" as bytes;
-echo Core\Encoding::toHex($name), " is ", $name as string, "\n";
+bytes $name = 'nvs' as bytes;
+echo Core\Encoding::toHex($name), ' is ', $name as string, "\n";
 
 // `fromHex` gives any bytes, here the two bytes `ff` and `00`.
-bytes $raw = Core\Encoding::fromHex("ff00");
+bytes $raw = Core\Encoding::fromHex('ff00');
 echo Core\Bytes::length($raw), " bytes\n";
 
 // `ff` is not valid UTF-8, so `as string` throws a `RuntimeError`.

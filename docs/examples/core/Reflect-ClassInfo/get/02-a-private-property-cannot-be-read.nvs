@@ -1,9 +1,10 @@
 <?nvs
 // Shows the two errors `get` throws for a property you cannot read.
 
-class Account {
-    public string $email = "ana@example.com";
-    private string $password = "secret";
+class Account
+{
+    public string $email = 'ana@example.com';
+    private string $password = 'secret';
 }
 
 var $account = new Account();
@@ -12,15 +13,15 @@ var $info = Core\Reflect::forObject($account);
 // `$password` is private. Code outside the class cannot read it, so `get`
 // throws a `RuntimeError`. This prints "private".
 try {
-    echo $info->get($account, "password") as string, "\n";
+    echo $info->get($account, 'password') as string, "\n";
 } catch (RuntimeError $error) {
-    echo "private", "\n";
+    echo 'private', "\n";
 }
 
 // The class has no property "emial". A wrong name throws a `LogicError`.
 // This prints "no such property".
 try {
-    echo $info->get($account, "emial") as string, "\n";
+    echo $info->get($account, 'emial') as string, "\n";
 } catch (LogicError $wrongName) {
-    echo "no such property", "\n";
+    echo 'no such property', "\n";
 }

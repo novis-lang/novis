@@ -4,7 +4,8 @@
 // and assign the variable back.
 // proof: compile-error
 
-class Box {
+class Box
+{
     public array<int> $xs {
         get => $this->xs;
         set (array<int> $v) {
@@ -12,7 +13,8 @@ class Box {
         }
     }
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->xs = [];
     }
 }

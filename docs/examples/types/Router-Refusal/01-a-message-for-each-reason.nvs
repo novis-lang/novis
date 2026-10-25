@@ -5,14 +5,14 @@ use Core\Router\Refusal;
 
 class Shop
 {
-    #[Core\Route(path: "/products/{id}", method: Method::Get, name: "Shop::product")]
+    #[Core\Route(path: '/products/{id}', method: Method::Get, name: 'Shop::product')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function product(int $id): void
     {
         echo 'product ', $id;
     }
 
-    #[Core\Route(path: "/admin", method: Method::Get, name: "Shop::admin")]
+    #[Core\Route(path: '/admin', method: Method::Get, name: 'Shop::admin')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function admin(): void
     {

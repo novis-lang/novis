@@ -7,21 +7,46 @@ use Core\Str;
 
 // Draws the charts of the report as SVG images, from the numbers in the data.
 // The report adds each image as an asset, so the PDF contains it as a vector drawing.
-final class Chart {
+final class Chart
+{
     // The size of each chart and of the area inside its axes.
-    private static function width(): int { return 520; }
-    private static function height(): int { return 210; }
-    private static function left(): int { return 46; }
-    private static function right(): int { return 512; }
-    private static function top(): int { return 18; }
-    private static function bottom(): int { return 184; }
+    private static function width(): int
+    {
+        return 520;
+    }
+
+    private static function height(): int
+    {
+        return 210;
+    }
+
+    private static function left(): int
+    {
+        return 46;
+    }
+
+    private static function right(): int
+    {
+        return 512;
+    }
+
+    private static function top(): int
+    {
+        return 18;
+    }
+
+    private static function bottom(): int
+    {
+        return 184;
+    }
 
     // A bar chart with one bar for each value. The last bar is dark blue, so you find the newest value quickly.
-    public static function bars(array<Sample::Point> $points, int $max, int $step): string {
+    public static function bars(array<Sample::Point> $points, int $max, int $step): string
+    {
         string $svg = Chart::open() . Chart::grid(0, $max, $step);
         int $count = Core\Arr::count($points) as int;
         decimal $slot = Brand::divide(Chart::right() - Chart::left(), $count, 2);
-        decimal $bar = "30" as decimal;
+        decimal $bar = '30' as decimal;
         int $index = 0;
         foreach ($points as Sample::Point $point) {
             bool $last = $index == $count - 1;
@@ -29,25 +54,26 @@ final class Chart {
             decimal $y = Chart::y($point->value, 0, $max);
             decimal $height = (Chart::bottom() as decimal) - $y;
             decimal $middle = $x + Decimal::divRound($bar, 2, 2, RoundMode::HalfUp);
-            string $fill = $last ? "#1d3557" : "#b9cbe0";
-            string $weight = $last ? "700" : "400";
+            string $fill = $last ? '#1d3557' : '#b9cbe0';
+            string $weight = $last ? '700' : '400';
             string $value = Brand::number($point->value);
             $svg .= "<rect x=\"{$x}\" y=\"{$y}\" width=\"{$bar}\" height=\"{$height}\" rx=\"2\" fill=\"{$fill}\"/>";
-            $svg .= Chart::text($middle, $y - ("5" as decimal), $value, "middle", "#1f2937", $weight);
-            $svg .= Chart::text($middle, (Chart::bottom() + 16) as decimal, $point->name, "middle", "#6b7280", $weight);
+            $svg .= Chart::text($middle, $y - ('5' as decimal), $value, 'middle', '#1f2937', $weight);
+            $svg .= Chart::text($middle, (Chart::bottom() + 16) as decimal, $point->name, 'middle', '#6b7280', $weight);
             $index++;
         }
-        return $svg . "</svg>";
+        return $svg . '</svg>';
     }
 
     // A line chart of this year's values and last year's values. Last year's line is grey and dashed.
-    public static function lines(array<Sample::Compare> $points, int $min, int $max, int $step): string {
+    public static function lines(array<Sample::Compare> $points, int $min, int $max, int $step): string
+    {
         string $svg = Chart::open() . Chart::grid($min, $max, $step);
         int $count = Core\Arr::count($points) as int;
         decimal $gap = Brand::divide(Chart::right() - Chart::left() - 16, $count - 1, 2);
         array<string> $now = [];
         array<string> $last = [];
-        string $dots = "";
+        string $dots = '';
         int $index = 0;
         foreach ($points as Sample::Compare $point) {
             decimal $x = ((Chart::left() + 8) as decimal) + $gap * ($index as decimal);
@@ -56,47 +82,51 @@ final class Chart {
             $last[] = "{$x}," . Chart::y($point->last, $min, $max);
             $dots .= "<circle cx=\"{$x}\" cy=\"{$y}\" r=\"2.6\" fill=\"#ffffff\" stroke=\"#2a9d8f\" stroke-width=\"1.6\"/>";
             if ($index % 2 == 0) {
-                $svg .= Chart::text($x, (Chart::bottom() + 16) as decimal, $point->name, "middle", "#6b7280", "400");
+                $svg .= Chart::text($x, (Chart::bottom() + 16) as decimal, $point->name, 'middle', '#6b7280', '400');
             }
             $index++;
         }
-        $svg .= "<polyline points=\"" . Str::join($last, " ") . "\" fill=\"none\" stroke=\"#9aa5b4\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/>";
-        $svg .= "<polyline points=\"" . Str::join($now, " ") . "\" fill=\"none\" stroke=\"#2a9d8f\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>";
+        $svg .= "<polyline points=\"" . Str::join($last, ' ') . "\" fill=\"none\" stroke=\"#9aa5b4\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/>";
+        $svg .= "<polyline points=\"" . Str::join($now, ' ') . "\" fill=\"none\" stroke=\"#2a9d8f\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>";
         $svg .= $dots;
         // The legend explains the two lines.
         $svg .= "<line x1=\"60\" y1=\"8\" x2=\"80\" y2=\"8\" stroke=\"#2a9d8f\" stroke-width=\"2.4\"/>";
-        $svg .= Chart::text("86" as decimal, "11" as decimal, "2026", "start", "#1f2937", "700");
+        $svg .= Chart::text('86' as decimal, '11' as decimal, '2026', 'start', '#1f2937', '700');
         $svg .= "<line x1=\"130\" y1=\"8\" x2=\"150\" y2=\"8\" stroke=\"#9aa5b4\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/>";
-        $svg .= Chart::text("156" as decimal, "11" as decimal, "2025", "start", "#6b7280", "400");
-        return $svg . "</svg>";
+        $svg .= Chart::text('156' as decimal, '11' as decimal, '2025', 'start', '#6b7280', '400');
+        return $svg . '</svg>';
     }
 
-    private static function open(): string {
+    private static function open(): string
+    {
         int $width = Chart::width();
         int $height = Chart::height();
         return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{$width}\" height=\"{$height}\" viewBox=\"0 0 {$width} {$height}\">";
     }
 
     // The horizontal lines of the chart, each with its value on the left.
-    private static function grid(int $min, int $max, int $step): string {
-        string $svg = "";
+    private static function grid(int $min, int $max, int $step): string
+    {
+        string $svg = '';
         int $right = Chart::right();
         for (int $value = $min; $value <= $max; $value = $value + $step) {
             decimal $y = Chart::y($value, $min, $max);
-            string $color = $value == $min ? "#9aa5b4" : "#e3e7ee";
+            string $color = $value == $min ? '#9aa5b4' : '#e3e7ee';
             $svg .= "<line x1=\"" . Chart::left() . "\" y1=\"{$y}\" x2=\"{$right}\" y2=\"{$y}\" stroke=\"{$color}\" stroke-width=\"0.8\"/>";
-            $svg .= Chart::text((Chart::left() - 8) as decimal, $y + ("3" as decimal), Brand::number($value), "end", "#6b7280", "400");
+            $svg .= Chart::text((Chart::left() - 8) as decimal, $y + ('3' as decimal), Brand::number($value), 'end', '#6b7280', '400');
         }
         return $svg;
     }
 
     // The height of a value in the chart. A larger value is higher, so it has a smaller `y`.
-    private static function y(int $value, int $min, int $max): decimal {
+    private static function y(int $value, int $min, int $max): decimal
+    {
         int $span = Chart::bottom() - Chart::top();
         return (Chart::bottom() as decimal) - Brand::divide(($value - $min) * $span, $max - $min, 2);
     }
 
-    private static function text(decimal $x, decimal $y, string $text, string $anchor, string $color, string $weight): string {
+    private static function text(decimal $x, decimal $y, string $text, string $anchor, string $color, string $weight): string
+    {
         return "<text x=\"{$x}\" y=\"{$y}\" text-anchor=\"{$anchor}\" font-family=\"Liberation Sans\" font-size=\"9\" font-weight=\"{$weight}\" fill=\"{$color}\">{$text}</text>";
     }
 }

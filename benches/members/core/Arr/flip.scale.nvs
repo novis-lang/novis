@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        array<string> $formats = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "f" . ($n as string));
+        array<string> $formats = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => 'f' . ($n as string));
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

@@ -1,15 +1,17 @@
 <?nvs
 // Shows how a savings calculator checks its result before it shows it.
 
-class Savings {
+class Savings
+{
     // Prints what the savings are worth after some years, with interest added each year.
     // A very long time gives a number too big for a `float`, so it prints an error message.
-    public static function printValue(float $start, float $rate, float $years): void {
+    public static function printValue(float $start, float $rate, float $years): void
+    {
         float $value = $start * (1.0 + $rate) ** $years;
         if (Core\Math::isFinite($value)) {
-            echo "After ", $years, " years: ", Core\Math::round($value, {precision: 2}), "\n";
+            echo 'After ', $years, ' years: ', Core\Math::round($value, { precision: 2 }), "\n";
         } else {
-            echo "After ", $years, " years: too big to show\n";
+            echo 'After ', $years, " years: too big to show\n";
         }
     }
 }

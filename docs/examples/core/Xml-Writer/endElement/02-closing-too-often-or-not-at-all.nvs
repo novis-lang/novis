@@ -3,8 +3,8 @@
 
 Core\Xml\Writer $writer = Core\Xml::writer();
 $writer->startDocument();
-$writer->startElement("list");
-$writer->startElement("entry");
+$writer->startElement('list');
+$writer->startElement('entry');
 
 // `entry` is still open, so the document is not finished. This prints the error message.
 try {

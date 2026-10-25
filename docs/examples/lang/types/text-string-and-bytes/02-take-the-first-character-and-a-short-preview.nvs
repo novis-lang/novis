@@ -3,12 +3,12 @@
 // `Core\Str::at` returns one character, and `Core\Str::slice` returns several.
 // Both return whole characters. A letter like `ö` is never cut in half.
 
-array<string> $titles = ["Größenwahn", "Ölzweig", "Straße am Fluss"];
+array<string> $titles = ['Größenwahn', 'Ölzweig', 'Straße am Fluss'];
 
 foreach ($titles as string $title) {
     string $initial = Core\Str::at($title, 0);
     string $preview = Core\Str::length($title) > 8
-        ? Core\Str::slice($title, 0, 8) . "…"
+        ? Core\Str::slice($title, 0, 8) . '…'
         : $title;
-    echo $initial, "  ", $preview, "\n";
+    echo $initial, '  ', $preview, "\n";
 }

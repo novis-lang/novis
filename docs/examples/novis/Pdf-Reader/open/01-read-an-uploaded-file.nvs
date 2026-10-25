@@ -11,8 +11,8 @@ var $upload = Document::fromHtml("<html><head><title>Order 1042</title><meta nam
 // `Reader::open` reads the file once. This prints `2 pages`, then the title and the author.
 var $reader = Reader::open($upload);
 echo $reader->pageCount, " pages\n";
-echo "title: ", $reader->metadata->title, "\n";
-echo "author: ", $reader->metadata->author, "\n";
+echo 'title: ', $reader->metadata->title, "\n";
+echo 'author: ', $reader->metadata->author, "\n";
 
 // A value the file does not have is `null`.
-echo "subject: ", $reader->metadata->subject ?? "none", "\n";
+echo 'subject: ', $reader->metadata->subject ?? 'none', "\n";

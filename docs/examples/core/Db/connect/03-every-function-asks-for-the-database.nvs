@@ -3,13 +3,16 @@
 // the same name gives back the same connection, so a function does not have to
 // take the connection as a parameter.
 
-class Notes {
-    public static function add(string $text): void {
+class Notes
+{
+    public static function add(string $text): void
+    {
         var $db = Core\Db::connect('notes');
         $db->execute('insert into notes (text) values (?)', [$text]);
     }
 
-    public static function count(): int {
+    public static function count(): int
+    {
         var $db = Core\Db::connect('notes');
         int $total = 0;
         foreach ($db->query('select count(*) as n from notes', []) as Core\Db\Row $row) {

@@ -1,14 +1,18 @@
 <?nvs
 // Shows how to print the name of every method of a class.
 
-class Invoice {
-    public function constructor(public int $net) {}
+class Invoice
+{
+    public function constructor(public int $net)
+    {}
 
-    public function total(): int {
+    public function total(): int
+    {
         return $this->net + $this->shipping();
     }
 
-    private function shipping(): int {
+    private function shipping(): int
+    {
         return 5;
     }
 }

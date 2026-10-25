@@ -5,30 +5,39 @@
 // bench: complexity linear
 // bench: calls 2
 
-interface Check {
+interface Check
+{
     public function name(): string;
 }
 
-class DiskCheck implements Check {
-    public function name(): string {
-        return "disk";
+class DiskCheck implements Check
+{
+    public function name(): string
+    {
+        return 'disk';
     }
 }
 
-class MailCheck implements Check {
-    public function name(): string {
-        return "mail";
+class MailCheck implements Check
+{
+    public function name(): string
+    {
+        return 'mail';
     }
 }
 
-class QueueCheck implements Check {
-    public function name(): string {
-        return "queue";
+class QueueCheck implements Check
+{
+    public function name(): string
+    {
+        return 'queue';
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

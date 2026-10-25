@@ -3,10 +3,12 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $urls = ["wss://chat.example.com/room", "wss://feed.example.com/*", "wss://prices.example.com/live"];
-        array<string> $frames = ["ready", "tick", "done"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $urls = ['wss://chat.example.com/room', 'wss://feed.example.com/*', 'wss://prices.example.com/live'];
+        array<string> $frames = ['ready', 'tick', 'done'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -9,23 +9,26 @@ use Novis\Pdf\Page;
 use Novis\Pdf\Rendered;
 
 // A confidential quarterly report with a cover, a table of contents, charts and tables.
-final class Report {
+final class Report
+{
     // The password of the report. The home page shows it, so you can open the file.
-    public static function password(): string {
-        return "novis";
+    public static function password(): string
+    {
+        return 'novis';
     }
 
     // Renders the report. With a password, the file is encrypted, and a PDF viewer needs the password to open it.
-    public static function render(?string $password): Rendered {
+    public static function render(?string $password): Rendered
+    {
         var $document = Document::fromHtml(Report::html())
-            ->asset("logo.svg", Brand::logo())
-            ->asset("revenue.svg", Chart::bars(Sample::quarters(), 6000, 1000) as bytes)
-            ->asset("orders.svg", Chart::lines(Sample::weeks(), 2000, 3600, 400) as bytes)
-            ->header(fn(Page $page): Markup => Report::header($page), {height: "22mm"})
-            ->footer(fn(Page $page): Markup => Report::footer($page), {height: "20mm"})
+            ->asset('logo.svg', Brand::logo())
+            ->asset('revenue.svg', Chart::bars(Sample::quarters(), 6000, 1000) as bytes)
+            ->asset('orders.svg', Chart::lines(Sample::weeks(), 2000, 3600, 400) as bytes)
+            ->header(fn(Page $page): Markup => Report::header($page), { height: '22mm' })
+            ->footer(fn(Page $page): Markup => Report::footer($page), { height: '20mm' })
             // PDF/UA is the standard for accessible files. A screen reader can read this report aloud.
             ->standard(Document::Standard::PdfUa1)
-            ->created(Core\Time::fromIso(Sample::reportDate()->format("yyyy-MM-dd") . "T16:00:00Z"));
+            ->created(Core\Time::fromIso(Sample::reportDate()->format('yyyy-MM-dd') . 'T16:00:00Z'));
         if ($password != null) {
             $document = $document->password($password);
         }
@@ -34,11 +37,12 @@ final class Report {
 
     // The header shows the name of the chapter. The chapter heading saves its text with `string-set`.
     // The cover is on the page named `cover`, and it has no header.
-    private static function header(Page $page): Markup {
-        if ($page->name == "cover") {
+    private static function header(Page $page): Markup
+    {
+        if ($page->name == 'cover') {
             return html``;
         }
-        string $chapter = $page->string("chapter") ?? "";
+        string $chapter = $page->string('chapter') ?? '';
         return html`<div style="font-family: 'Liberation Sans', sans-serif; font-size: 7.5pt; color: #6b7280; display: flex; justify-content: space-between; padding-top: 11mm; padding-bottom: 2mm; border-bottom: 0.75pt solid #e3e7ee">
 <div><b style="color: #1d3557">Shop GmbH</b> · Quarterly report Q3 2026</div>
 <div style="color: #1d3557; font-weight: bold">{$chapter}</div>
@@ -46,8 +50,9 @@ final class Report {
     }
 
     // The footer says that the report is confidential, and gives the page number.
-    private static function footer(Page $page): Markup {
-        if ($page->name == "cover") {
+    private static function footer(Page $page): Markup
+    {
+        if ($page->name == 'cover') {
             return html``;
         }
         return html`<div style="font-family: 'Liberation Sans', sans-serif; font-size: 7.5pt; color: #6b7280; display: flex; justify-content: space-between; padding-top: 6mm">
@@ -56,8 +61,9 @@ final class Report {
 </div>`;
     }
 
-    private static function html(): Markup {
-        string $written = Sample::reportDate()->format("d MMMM yyyy");
+    private static function html(): Markup
+    {
+        string $written = Sample::reportDate()->format('d MMMM yyyy');
         return html`<!doctype html>
 <html lang="en">
 <head>
@@ -189,7 +195,8 @@ final class Report {
     }
 
     // One tile for each key figure. The tiles are in a CSS grid with three columns.
-    private static function kpis(): Markup {
+    private static function kpis(): Markup
+    {
         var $tiles = html``;
         foreach (Sample::kpis() as Sample::Kpi $kpi) {
             $tiles = $tiles + html`<div class="kpi"><div class="label">{$kpi->label}</div><div class="value">{$kpi->value}</div><div class="change">{$kpi->change}</div><div class="note">{$kpi->note}</div></div>
@@ -199,7 +206,8 @@ final class Report {
     }
 
     // One row for each month or region, with the change to last year. The last row is the total.
-    private static function compareRows(array<Sample::Compare> $rows, bool $withShare): Markup {
+    private static function compareRows(array<Sample::Compare> $rows, bool $withShare): Markup
+    {
         int $total = 0;
         int $totalLast = 0;
         foreach ($rows as Sample::Compare $row) {
@@ -208,16 +216,17 @@ final class Report {
         }
         var $html = html``;
         foreach ($rows as Sample::Compare $row) {
-            $html = $html + Report::compareRow($row->name, $row->value, $row->last, $withShare ? $total : 0, "");
+            $html = $html + Report::compareRow($row->name, $row->value, $row->last, $withShare ? $total : 0, '');
         }
-        return $html + Report::compareRow("Total", $total, $totalLast, $withShare ? $total : 0, "total");
+        return $html + Report::compareRow('Total', $total, $totalLast, $withShare ? $total : 0, 'total');
     }
 
-    private static function compareRow(string $name, int $value, int $last, int $total, string $class): Markup {
+    private static function compareRow(string $name, int $value, int $last, int $total, string $class): Markup
+    {
         string $now = Brand::number($value);
         string $before = Brand::number($last);
         string $change = Report::change($value, $last);
-        string $direction = $value >= $last ? "up" : "down";
+        string $direction = $value >= $last ? 'up' : 'down';
         if ($total == 0) {
             return html`<tr class="{$class}"><td>{$name}</td><td class="num">{$now}</td><td class="num">{$before}</td><td class="num {$direction}">{$change}</td></tr>
 `;
@@ -230,27 +239,30 @@ final class Report {
     }
 
     // The change from last year in percent, with one decimal, such as `+12.4 %`.
-    private static function change(int $value, int $last): string {
+    private static function change(int $value, int $last): string
+    {
         int $difference = $value >= $last ? $value - $last : $last - $value;
         decimal $percent = Brand::divide($difference * 100, $last, 1);
-        string $sign = $value >= $last ? "+" : "−";
+        string $sign = $value >= $last ? '+' : '−';
         return "{$sign}{$percent} %";
     }
 
-    private static function productRows(): Markup {
+    private static function productRows(): Markup
+    {
         var $html = html``;
         int $position = 0;
         foreach (Sample::products() as Sample::Product $product) {
             $position++;
             string $units = Brand::number($product->units);
-            string $revenue = "€" . Brand::number($product->revenue);
+            string $revenue = '€' . Brand::number($product->revenue);
             $html = $html + html`<tr><td class="num muted">{$position}</td><td>{$product->name}</td><td class="muted">{$product->line}</td><td class="num">{$units}</td><td class="num">{$revenue}</td><td class="num">{$product->margin} %</td></tr>
 `;
         }
         return $html;
     }
 
-    private static function css(): Markup {
+    private static function css(): Markup
+    {
         return html`<style>
 @page { size: A4; margin: 0 20mm; }
 @page cover { margin: 0; }

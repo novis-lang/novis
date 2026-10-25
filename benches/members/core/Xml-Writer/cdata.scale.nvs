@@ -10,7 +10,7 @@ class Bench
         string $html = Core\Str::repeat('<b>Sale</b> & more ', $size);
         Core\Xml\Writer $writer = Core\Xml::writer();
         $writer->startDocument();
-        $writer->startElement("feed");
+        $writer->startElement('feed');
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

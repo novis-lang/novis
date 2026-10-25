@@ -7,5 +7,5 @@ array<DateFormat::Length> $lengths = [DateFormat::Length::Short, DateFormat::Len
 
 // This prints 01.03.26, then 01.03.2026, then 1. März 2026.
 foreach ($lengths as DateFormat::Length $length) {
-    echo DateFormat::dates([$start], "de", {length: $length})[0], "\n";
+    echo DateFormat::dates([$start], 'de', { length: $length })[0], "\n";
 }

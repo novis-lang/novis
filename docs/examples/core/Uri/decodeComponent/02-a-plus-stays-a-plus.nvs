@@ -2,7 +2,7 @@
 // Shows that `Core\Uri::decodeComponent` keeps a `+` as a `+`.
 
 // A path segment can contain a `+`. Here it is part of the name of a page.
-string $segment = "C++%20tips";
+string $segment = 'C++%20tips';
 
 // This prints C++ tips.
 echo (Core\Uri::decodeComponent($segment) as string), "\n";

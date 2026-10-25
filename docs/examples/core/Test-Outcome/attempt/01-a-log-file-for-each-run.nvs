@@ -26,7 +26,7 @@ class PaymentTest
     }
 
     // A payment service on the network can be slow, so this test may run 3 times.
-    #[Test(retries: 2, because: "the payment sandbox is sometimes slow")]
+    #[Test(retries: 2, because: 'the payment sandbox is sometimes slow')]
     public function itChargesTheCard(): void
     {
         IO::write($this->log, "charge 1990 cents\n");

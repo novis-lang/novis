@@ -3,9 +3,9 @@
 // three jobs have written, reported as text and added up.
 
 array<string> $written = [
-    "8070450532247928832",
-    "8070450532247928832",
-    "1152921504606846976",
+    '8070450532247928832',
+    '8070450532247928832',
+    '1152921504606846976',
 ];
 
 var $total = Core\BigInt::of(0);

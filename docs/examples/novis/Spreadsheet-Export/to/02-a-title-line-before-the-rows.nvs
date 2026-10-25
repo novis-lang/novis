@@ -2,13 +2,13 @@
 // Shows how to write your own line to a file first, and the rows after it.
 use Novis\Spreadsheet\Workbook;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "stock.csv");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'stock.csv');
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
 $file->write("# Stock count, warehouse 2\n");
 
 // `to` writes from where the file is now, so the rows come after the first line.
-var $written = Workbook::fromRows([["item" => "Pen", "count" => 120], ["item" => "Pad", "count" => 45]], {format: "csv"})->to($file);
+var $written = Workbook::fromRows([['item' => 'Pen', 'count' => 120], ['item' => 'Pad', 'count' => 45]], { format: 'csv' })->to($file);
 $file->close();
 
 echo Core\IO::readText($path);
-echo $written->rows["Sheet1"], " rows\n";
+echo $written->rows['Sheet1'], " rows\n";

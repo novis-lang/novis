@@ -3,20 +3,22 @@
 // statements instead of returning a value, and `break` ends an arm. An arm
 // without `break` runs on into the arm below it.
 
-class Work {
+class Work
+{
     enum Stage { Placed, Paid, Shipped }
 
-    public static function next(Stage $stage): string {
-        string $todo = "";
+    public static function next(Stage $stage): string
+    {
+        string $todo = '';
         switch ($stage) {
             case Stage::Placed:
-                $todo = $todo . "take the payment; ";
-                // No `break` here, so a new order is also packed.
+                $todo = $todo . 'take the payment; ';
+            // No `break` here, so a new order is also packed.
             case Stage::Paid:
-                $todo = $todo . "pack the box";
+                $todo = $todo . 'pack the box';
                 break;
             case Stage::Shipped:
-                $todo = $todo . "send the tracking number";
+                $todo = $todo . 'send the tracking number';
                 break;
         }
         return $todo;

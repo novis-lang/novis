@@ -2,16 +2,20 @@
 // This program has a class and a test for it. `nvs test` runs the test.
 use Core\Test;
 
-class Cart {
-    public static function total(int $price, int $count): int {
+class Cart
+{
+    public static function total(int $price, int $count): int
+    {
         return $price * $count;
     }
 }
 
-final class CartTest {
+final class CartTest
+{
     // `#[Test]` makes this method a test. You do not install a package for it.
     #[Test]
-    public function multipliesPriceByCount(): void {
+    public function multipliesPriceByCount(): void
+    {
         Test::assertSame(Cart::total(250, 4), 1000);
     }
 }

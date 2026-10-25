@@ -2,12 +2,14 @@
 // Shows how to send a large export that never has to fit in memory.
 use Novis\Spreadsheet\Workbook;
 
-class Orders {
+class Orders
+{
     // This generator gives one order at a time. A real program reads them from a database, page by page.
-    public static function all(int $count): Iterator<array<mixed>> {
+    public static function all(int $count): Iterator<array<mixed>>
+    {
         int $id = 1;
         while ($id <= $count) {
-            yield ["order" => 1000 + $id, "total" => $id * 2.5];
+            yield ['order' => 1000 + $id, 'total' => $id * 2.5];
             $id = $id + 1;
         }
     }
@@ -15,6 +17,6 @@ class Orders {
 
 // `addAll` takes the rows from the generator. Each part of the file is sent when it is ready.
 // Add `format: "csv"` when the name does not end in `.csv`.
-var $book = Workbook::createForDownload("export", {format: "csv"});
-$book->sheet("Orders")->addAll(Orders::all(5));
+var $book = Workbook::createForDownload('export', { format: 'csv' });
+$book->sheet('Orders')->addAll(Orders::all(5));
 $book->finish();

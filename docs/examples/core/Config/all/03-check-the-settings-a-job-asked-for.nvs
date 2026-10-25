@@ -5,9 +5,9 @@
 
 // A worker picks the settings for one long job.
 array<string> $wanted = [
-    "limits.memory" => "384M",
-    "limits.wall_time" => "120s",
-    "limits.max_tasks" => "8",
+    'limits.memory' => '384M',
+    'limits.wall_time' => '120s',
+    'limits.max_tasks' => '8',
 ];
 
 foreach ($wanted as string $name => string $value) {
@@ -20,8 +20,8 @@ array<string> $inForce = Core\Config::all();
 // program to change is reported as not changed.
 foreach ($wanted as string $name => string $value) {
     if (Core\Arr::hasKey($inForce, $name) && $inForce[$name] == $value) {
-        echo $name, " is ", $value, "\n";
+        echo $name, ' is ', $value, "\n";
     } else {
-        echo $name, " was not changed", "\n";
+        echo $name, ' was not changed', "\n";
     }
 }

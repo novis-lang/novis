@@ -3,8 +3,10 @@
 // A call on a subclass would get the wrong class, so this does not compile.
 // proof: compile-error
 
-class Builder {
-    public function copy(): static {
+class Builder
+{
+    public function copy(): static
+    {
         return new self();
     }
 }

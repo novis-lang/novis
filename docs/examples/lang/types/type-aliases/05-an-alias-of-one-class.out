@@ -1,7 +1,7 @@
 error[E0307]: a `type` alias may not name a single class, interface or enum on its own
-   --> 05-an-alias-of-one-class.nvs:10:12
+   --> 05-an-alias-of-one-class.nvs:11:12
    |
-10 | type Bar = Foo;
+11 | type Bar = Foo;
    |            ^^^ aliases exactly one class-shaped atom
    = help: a class already has its own name, so write the class name. An alias can name a union, an intersection or an `array<...>`
 

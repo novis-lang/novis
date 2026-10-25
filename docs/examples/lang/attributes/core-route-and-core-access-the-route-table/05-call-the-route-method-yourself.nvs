@@ -3,44 +3,53 @@
 // itself. `Core\Router::match` finds the route for an HTTP method and a path,
 // so this example runs without a server.
 
-class Users {
-    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+class Users
+{
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(uint $id): string { return "user " . $id; }
+    public function show(uint $id): string
+    {
+        return 'user ' . $id;
+    }
 
-    #[Core\Route(path: "/users", method: Core\Http\Method::Post, name: "Users::create")]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Post, name: 'Users::create')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function create(): string { return "created"; }
+    public function create(): string
+    {
+        return 'created';
+    }
 }
 
-class App {
-    public static function answer(Core\Http\Method $method, string $path): string {
+class App
+{
+    public static function answer(Core\Http\Method $method, string $path): string
+    {
         var $match = Core\Router::match($method, $path);
 
         // `match` returns `null` when no route has this method and path. An empty
         // array from `methodsFor` means the path does not exist.
         if ($match == null) {
-            return Core\Router::methodsFor($path) == [] ? "404" : "405";
+            return Core\Router::methodsFor($path) == [] ? '404' : '405';
         }
 
         // The server does not check the `allow:` value. Your program checks it.
         if ($match->accessAs<Core\Audience>() != Core\Audience::Public) {
-            return "403";
+            return '403';
         }
 
         var $users = new Users();
         switch ($match->name()) {
-            case "Users::show":
-                return $users->show($match->param("id") as uint);
-            case "Users::create":
+            case 'Users::show':
+                return $users->show($match->param('id') as uint);
+            case 'Users::create':
                 return $users->create();
         }
-        return "404";
+        return '404';
     }
 }
 
 // This prints `user 7`, `created`, `405` and `404`.
-echo App::answer(Core\Http\Method::Get, "/users/7"), "\n";
-echo App::answer(Core\Http\Method::Post, "/users"), "\n";
-echo App::answer(Core\Http\Method::Delete, "/users"), "\n";
-echo App::answer(Core\Http\Method::Get, "/nothing"), "\n";
+echo App::answer(Core\Http\Method::Get, '/users/7'), "\n";
+echo App::answer(Core\Http\Method::Post, '/users'), "\n";
+echo App::answer(Core\Http\Method::Delete, '/users'), "\n";
+echo App::answer(Core\Http\Method::Get, '/nothing'), "\n";

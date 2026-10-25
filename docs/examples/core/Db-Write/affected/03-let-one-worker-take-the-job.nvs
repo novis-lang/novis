@@ -6,7 +6,8 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table jobs (id integer primary key, taken boolean not null)', []);
 $db->execute('insert into jobs (taken) values (?)', [false]);
 
-class Worker {
+class Worker
+{
     // The statement takes the job only while nobody holds it. So the count is 1
     // for the worker that got it, and 0 for every worker after that.
     public static function take(Core\Db\Connection $db, int $job): bool

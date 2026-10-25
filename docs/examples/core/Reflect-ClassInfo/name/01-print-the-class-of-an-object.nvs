@@ -1,12 +1,14 @@
 <?nvs
 // Shows how to print the name of the class of an object.
 
-class Invoice {
+class Invoice
+{
     public int $number = 1042;
 }
 
-class Customer {
-    public string $email = "ada@example.com";
+class Customer
+{
+    public string $email = 'ada@example.com';
 }
 
 // `forObject` describes the class of an object. `name` returns the class name.

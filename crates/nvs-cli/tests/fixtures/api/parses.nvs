@@ -18,19 +18,19 @@ class Slug implements Parses
 
 class Posts
 {
-    #[Core\Route(path: "/posts/{slug}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Route(path: '/posts/{slug}', method: Core\Http\Method::Get, name: 'Posts::show')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(Slug $slug, #[Core\Query] Slug $related): string
     {
-        return "one post";
+        return 'one post';
     }
 
-    #[Core\Route(path: "/posts/by-id/{id}", method: Core\Http\Method::Get, name: "Posts::byId")]
+    #[Core\Route(path: '/posts/by-id/{id}', method: Core\Http\Method::Get, name: 'Posts::byId')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function byId(Core\Uuid $id): string
     {
-        return "one post";
+        return 'one post';
     }
 }
 
-echo "GET /posts/hello-world -> Posts::show", "\n";
+echo 'GET /posts/hello-world -> Posts::show', "\n";

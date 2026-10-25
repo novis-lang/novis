@@ -2,32 +2,32 @@
 // Shows how to move a user account to another unit when a person changes teams.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $sales = "OU=Sales 2,DC=example,DC=test";
-string $support = "OU=Support 2,DC=example,DC=test";
+var $corp = Core\Ldap::connect('corp-accounts');
+string $sales = 'OU=Sales 2,DC=example,DC=test';
+string $support = 'OU=Support 2,DC=example,DC=test';
 
 // A run that stopped early can leave the accounts behind, so the program deletes them first.
-array<string> $leftovers = ["CN=Nora Haas," . $sales, "CN=Nora Haas," . $support, $sales, $support];
+array<string> $leftovers = ['CN=Nora Haas,' . $sales, 'CN=Nora Haas,' . $support, $sales, $support];
 foreach ($leftovers as string $left) {
     try {
         $corp->delete($left);
     } catch (Core\Ldap\LdapError $missing) {
     }
 }
-$corp->add($sales, ["objectClass" => "organizationalUnit"]);
-$corp->add($support, ["objectClass" => "organizationalUnit"]);
-$corp->add("CN=Nora Haas," . $sales, ["objectClass" => "user", "sAMAccountName" => "nora.haas"]);
+$corp->add($sales, ['objectClass' => 'organizationalUnit']);
+$corp->add($support, ['objectClass' => 'organizationalUnit']);
+$corp->add('CN=Nora Haas,' . $sales, ['objectClass' => 'user', 'sAMAccountName' => 'nora.haas']);
 
 // The new DN has another parent, so the account moves. Its login name stays the same.
-$corp->rename("CN=Nora Haas," . $sales, "CN=Nora Haas," . $support);
+$corp->rename('CN=Nora Haas,' . $sales, 'CN=Nora Haas,' . $support);
 
 // This prints the new DN and `nora.haas`.
-var $moved = $corp->read("CN=Nora Haas," . $support, {select: ["sAMAccountName"]});
+var $moved = $corp->read('CN=Nora Haas,' . $support, { select: ['sAMAccountName'] });
 if ($moved != null) {
     echo $moved->dn()->toString(), "\n";
-    echo $moved->string("sAMAccountName") ?? "", "\n";
+    echo $moved->string('sAMAccountName') ?? '', "\n";
 }
 
-$corp->delete("CN=Nora Haas," . $support);
+$corp->delete('CN=Nora Haas,' . $support);
 $corp->delete($sales);
 $corp->delete($support);

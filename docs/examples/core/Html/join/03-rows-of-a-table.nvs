@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to build the rows of an HTML table from a list of orders.
 
-array<string> $customers = ["Ada & Co", "Grace <Ltd>", "Hopper's"];
+array<string> $customers = ['Ada & Co', 'Grace <Ltd>', "Hopper's"];
 array<int> $totals = [120, 45, 300];
 
 // Each row is built with `+`, and `+` only adds `Markup` to `Markup`.
@@ -9,11 +9,11 @@ array<int> $totals = [120, 45, 300];
 array<Core\Html\Markup> $rows = [];
 int $i = 0;
 while ($i < 3) {
-    $rows[] = ("<tr><td>" as Core\Html\Markup)
+    $rows[] = ('<tr><td>' as Core\Html\Markup)
         + Core\Html::escape($customers[$i])
-        + ("</td><td>" as Core\Html\Markup)
+        + ('</td><td>' as Core\Html\Markup)
         + Core\Html::escape(Core\Str::format('%d', $totals[$i]))
-        + ("</td></tr>" as Core\Html\Markup);
+        + ('</td></tr>' as Core\Html\Markup);
     $i = $i + 1;
 }
 

@@ -2,8 +2,8 @@
 // Shows how to add a new unit to the directory and read it back.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Garden Add 1,DC=example,DC=test";
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Garden Add 1,DC=example,DC=test';
 
 // A run that stopped early can leave the unit behind, so the program deletes it first.
 try {
@@ -12,9 +12,9 @@ try {
 }
 
 // The array has one attribute per key. Every entry needs an `objectClass`.
-$corp->add($unit, ["objectClass" => "organizationalUnit", "description" => "Plants and seeds"]);
+$corp->add($unit, ['objectClass' => 'organizationalUnit', 'description' => 'Plants and seeds']);
 
 // This prints `Plants and seeds`.
-echo $corp->read($unit, {select: ["description"]})?->string("description") ?? "not found", "\n";
+echo $corp->read($unit, { select: ['description'] })?->string('description') ?? 'not found', "\n";
 
 $corp->delete($unit);

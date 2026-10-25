@@ -3,8 +3,10 @@
 // Remove `implements Countable` and keep the method.
 // proof: compile-error
 
-class Bag implements Countable {
-    public function count(): int {
+class Bag implements Countable
+{
+    public function count(): int
+    {
         return 1;
     }
 }

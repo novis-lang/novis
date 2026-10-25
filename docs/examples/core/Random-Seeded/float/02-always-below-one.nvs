@@ -20,4 +20,4 @@ while ($i < 100000) {
 echo $outside, "\n";
 
 // The highest result is close to 1, but below it. This prints "yes".
-echo $highest > 0.99 && $highest < 1.0 ? "yes" : "no", "\n";
+echo $highest > 0.99 && $highest < 1.0 ? 'yes' : 'no', "\n";

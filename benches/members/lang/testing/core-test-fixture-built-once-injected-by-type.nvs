@@ -9,29 +9,36 @@
 use Core\Test;
 use Core\Test\Fixture;
 
-class Counter {
+class Counter
+{
     public uint $seen = 0;
 
-    public function countOne(): void {
+    public function countOne(): void
+    {
         // Chained: the number written here is the one the round before wrote.
         $this->seen = $this->seen + 1;
     }
 }
 
-class InjectedTest {
+class InjectedTest
+{
     #[Fixture]
-    public static function counter(): Counter {
+    public static function counter(): Counter
+    {
         return new Counter();
     }
 
     #[Test]
-    public function countsWhatItWasGiven(Counter $counter): void {
+    public function countsWhatItWasGiven(Counter $counter): void
+    {
         $counter->countOne();
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // Built once for the whole class, the way the runner builds the fixture.
         var $counter = new Counter();
         uint $i = 0;

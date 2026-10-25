@@ -3,8 +3,10 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -16,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "no folder was made", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'no folder was made', "\n";

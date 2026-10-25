@@ -3,11 +3,11 @@
 // `fs.read` for one directory, so reading a file there works. Writing a file
 // needs `fs.write`, and this program does not have it.
 
-echo Core\Str::trim(Core\IO::read("data/notice.txt")), "\n";
+echo Core\Str::trim(Core\IO::read('data/notice.txt')), "\n";
 
 try {
-    Core\IO::write("data/notice.txt", "The shop is open all night.");
+    Core\IO::write('data/notice.txt', 'The shop is open all night.');
 } catch (RuntimeError $denied) {
     // The message names the full path of the file. This prints the part before it.
-    echo Core\Str::before($denied->message, " for "), "\n";
+    echo Core\Str::before($denied->message, ' for '), "\n";
 }

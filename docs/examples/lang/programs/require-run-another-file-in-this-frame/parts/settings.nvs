@@ -3,7 +3,7 @@
 // them without reading the program that uses them.
 
 return [
-    "host" => "db.example.test",
-    "port" => "5432",
-    "timeout" => "30",
+    'host' => 'db.example.test',
+    'port' => '5432',
+    'timeout' => '30',
 ];

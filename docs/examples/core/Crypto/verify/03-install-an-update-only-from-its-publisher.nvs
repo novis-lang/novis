@@ -15,15 +15,15 @@ bytes $signature = Core\Crypto::sign($update, $publisher);
 Core\Crypto\PublicKey $trusted = Core\Crypto\PublicKey::read(
     $published,
     Core\Crypto\KeyKind::Ed25519,
-    Core\Crypto\PublicKey::Format::Spki
+    Core\Crypto\PublicKey::Format::Spki,
 );
 
 // Check first, use afterwards. A file that does not check out is never used.
 try {
     Core\Crypto::verify($update, $signature, $trusted);
-    echo "installing the update", "\n";
+    echo 'installing the update', "\n";
 } catch (Throwable $e) {
-    echo "this update did not come from the publisher", "\n";
+    echo 'this update did not come from the publisher', "\n";
 }
 
 // The same program, with a file somebody replaced on the way. The signature is
@@ -31,7 +31,7 @@ try {
 bytes $swapped = "print('version 3'); steal()" as bytes;
 try {
     Core\Crypto::verify($swapped, $signature, $trusted);
-    echo "installing the update", "\n";
+    echo 'installing the update', "\n";
 } catch (Throwable $e) {
-    echo "this update did not come from the publisher", "\n";
+    echo 'this update did not come from the publisher', "\n";
 }

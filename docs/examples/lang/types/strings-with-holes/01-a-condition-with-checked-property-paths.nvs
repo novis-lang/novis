@@ -1,36 +1,42 @@
 <?nvs
 // Shows a query condition whose property names are checked when the program compiles.
 
-class Customer {
-    public string $name = "Ada";
-    public string $email = "ada@example.com";
+class Customer
+{
+    public string $name = 'Ada';
+    public string $email = 'ada@example.com';
 }
 
-class Order {
+class Order
+{
     public Customer $customer;
     public int $total = 40;
-    public string $status = "paid";
+    public string $status = 'paid';
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->customer = new Customer();
     }
 }
 
-class Query {
+class Query
+{
     // Each hole in `$condition` is a property path of `Order`.
     // A string written in the call needs no `as`.
-    public static function where(string<propertyPath<Order>> $condition): string {
-        return "WHERE " . ($condition as string);
+    public static function where(string<propertyPath<Order>> $condition): string
+    {
+        return 'WHERE ' . ($condition as string);
     }
 
     // Each hole in `$list` is a property name of `Customer`.
-    public static function select(string<property<Customer>> $list): string {
-        return "SELECT " . ($list as string);
+    public static function select(string<property<Customer>> $list): string
+    {
+        return 'SELECT ' . ($list as string);
     }
 }
 
-echo Query::select("{name}, {email}"), "\n";
-echo Query::where("{total} > 100 AND {customer.email} LIKE ?"), "\n";
+echo Query::select('{name}, {email}'), "\n";
+echo Query::where('{total} > 100 AND {customer.email} LIKE ?'), "\n";
 
 // The text between the holes is not checked. Only the holes are checked.
 echo Query::where("{status} IN ('paid', 'sent')"), "\n";

@@ -5,7 +5,7 @@ use Core\Queue\Id;
 
 // On a real server, `nvs queue migrate` creates the queue tables.
 // This database is in memory, so the example creates them itself.
-var $db = Core\Db::connect("jobs");
+var $db = Core\Db::connect('jobs');
 var $jobs = <<<'SQL'
 create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
     script text not null, args text, state smallint not null, attempts integer not null,
@@ -25,10 +25,10 @@ $db->execute($jobs, []);
 $db->execute($dead, []);
 
 // When the user signed up, the program added three reminders and kept their ids.
-array<string> $days = ["day 1", "day 3", "day 7"];
+array<string> $days = ['day 1', 'day 3', 'day 7'];
 array<Id> $reminders = [];
 foreach ($days as string $day) {
-    $reminders[] = Queue::push("jobs/send-reminder.nvs", {queue: "mail", args: ["day" => $day]});
+    $reminders[] = Queue::push('jobs/send-reminder.nvs', { queue: 'mail', args: ['day' => $day] });
 }
 
 // Earlier, the user turned off the first reminder, so it is already cancelled.

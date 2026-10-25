@@ -3,20 +3,24 @@
 // from somewhere slow. These are ordinary functions, so the page can ask for them at
 // the same time or one at a time. The functions are written the same way either way.
 
-class Store {
-    public static function customer(): string {
+class Store
+{
+    public static function customer(): string
+    {
         Core\Time::sleep(5ms);
-        return "Ada Lovelace";
+        return 'Ada Lovelace';
     }
 
-    public static function orders(): array<string> {
+    public static function orders(): array<string>
+    {
         Core\Time::sleep(5ms);
-        return ["A-1001", "A-1002"];
+        return ['A-1001', 'A-1002'];
     }
 
-    public static function banner(): string {
+    public static function banner(): string
+    {
         Core\Time::sleep(5ms);
-        return "Free delivery this week";
+        return 'Free delivery this week';
     }
 }
 
@@ -29,7 +33,7 @@ var $page = Core\Task::all({
 echo $page->customer, "\n";
 
 foreach ($page->orders as string $order) {
-    echo "order ", $order, "\n";
+    echo 'order ', $order, "\n";
 }
 
 // The same kind of function, called on its own line.

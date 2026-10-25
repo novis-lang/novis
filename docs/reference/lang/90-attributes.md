@@ -64,11 +64,12 @@ the order you wrote them.
 // front of the brackets is a `type` alias for a shape, and your values are
 // checked against that shape.
 
-type Table = {name: string};
+type Table = { name: string };
 
-#[Table(name: "users")]
-class User {
-    public string $email = "";
+#[Table(name: 'users')]
+class User
+{
+    public string $email = '';
 }
 
 // `Core\Attributes::get` returns the values attached to the class, or `null`
@@ -80,7 +81,8 @@ if ($table != null) {
 }
 
 // A class with no attribute on it. The result is `null`.
-class Session {}
+class Session
+{}
 
 ?Table $none = Core\Attributes::get<Table>(Session::constructor(...));
 echo $none == null ? "no table name\n" : "a table name\n";
@@ -99,15 +101,17 @@ no table name
 // `#[Name(...)]` checks your values against the shape `Name`. `#[{...}]` has no
 // name in front of it, so there is nothing to check it against.
 
-type Tag = {label: string};
+type Tag = { label: string };
 
-#[Tag(label: "billing")]
-#[Tag(label: "nightly")]
-class Invoice {
-    #[Tag(label: "money")]
+#[Tag(label: 'billing')]
+#[Tag(label: 'nightly')]
+class Invoice
+{
+    #[Tag(label: 'money')]
     public int $cents = 0;
 
-    public function send(#[{from: "config"}] string $to): string {
+    public function send(#[{from: 'config'}] string $to): string
+    {
         return $to;
     }
 }
@@ -122,14 +126,14 @@ foreach ($tags as Tag $tag) {
 
 // A property and a parameter can carry an attribute too. The second argument is
 // the name of the property or the parameter. This prints `money`.
-?Tag $onProperty = Core\Attributes::get<Tag>(Invoice::constructor(...), "cents");
+?Tag $onProperty = Core\Attributes::get<Tag>(Invoice::constructor(...), 'cents');
 if ($onProperty != null) {
     echo $onProperty->label, "\n";
 }
 
 // The attribute on the parameter `$to` was written without a name. You read it
 // back by writing the shape you expect. This prints `config`.
-?{from: string} $onParameter = Core\Attributes::get<{from: string}>(Invoice::send(...), "to");
+?{ from: string } $onParameter = Core\Attributes::get<{ from: string }>(Invoice::send(...), 'to');
 if ($onParameter != null) {
     echo $onParameter->from, "\n";
 }
@@ -151,47 +155,62 @@ config
 // how often it runs, so adding a job means writing one class. There is no
 // second list to keep up to date.
 
-class Every {
+class Every
+{
     public const int HOUR = 60;
     public const int QUARTER_HOUR = 15;
 }
 
 // The enum and the shape are declared inside the interface every job implements.
 // Outside the interface, you write them as `Job::Level` and `Job::Meta`.
-interface Job {
-    enum Level: int {
+interface Job
+{
+    enum Level: int
+    {
         Normal = 1,
         Urgent = 2,
     }
 
-    type Meta = {name: string, everyMinutes: int, level: Level};
+    type Meta = { name: string, everyMinutes: int, level: Level };
 }
 
 // A class constant and an enum case are both allowed in an attribute, because
 // their values are known while the program is compiled.
-#[Job::Meta(name: "send invoices", everyMinutes: Every::HOUR, level: Job::Level::Normal)]
-class SendInvoices implements Job {
-    public static function run(): string { return "12 invoices sent"; }
+#[Job::Meta(name: 'send invoices', everyMinutes: Every::HOUR, level: Job::Level::Normal)]
+class SendInvoices implements Job
+{
+    public static function run(): string
+    {
+        return '12 invoices sent';
+    }
 }
 
-#[Job::Meta(name: "clean sessions", everyMinutes: Every::QUARTER_HOUR, level: Job::Level::Normal)]
-class CleanSessions implements Job {
-    public static function run(): string { return "84 sessions removed"; }
+#[Job::Meta(name: 'clean sessions', everyMinutes: Every::QUARTER_HOUR, level: Job::Level::Normal)]
+class CleanSessions implements Job
+{
+    public static function run(): string
+    {
+        return '84 sessions removed';
+    }
 }
 
-#[Job::Meta(name: "charge cards", everyMinutes: Every::HOUR, level: Job::Level::Urgent)]
-class ChargeCards implements Job {
-    public static function run(): string { return "3 cards charged"; }
+#[Job::Meta(name: 'charge cards', everyMinutes: Every::HOUR, level: Job::Level::Urgent)]
+class ChargeCards implements Job
+{
+    public static function run(): string
+    {
+        return '3 cards charged';
+    }
 }
 
 array<Job::Meta> $schedule = [];
-$schedule[] = Core\Attributes::get<Job::Meta>(SendInvoices::constructor(...)) ?? throw new RuntimeError("no job");
-$schedule[] = Core\Attributes::get<Job::Meta>(CleanSessions::constructor(...)) ?? throw new RuntimeError("no job");
-$schedule[] = Core\Attributes::get<Job::Meta>(ChargeCards::constructor(...)) ?? throw new RuntimeError("no job");
+$schedule[] = Core\Attributes::get<Job::Meta>(SendInvoices::constructor(...)) ?? throw new RuntimeError('no job');
+$schedule[] = Core\Attributes::get<Job::Meta>(CleanSessions::constructor(...)) ?? throw new RuntimeError('no job');
+$schedule[] = Core\Attributes::get<Job::Meta>(ChargeCards::constructor(...)) ?? throw new RuntimeError('no job');
 
 foreach ($schedule as Job::Meta $job) {
-    string $mark = $job->level == Job::Level::Urgent ? " (urgent)" : "";
-    echo $job->name, ": every ", $job->everyMinutes as string, " minutes", $mark, "\n";
+    string $mark = $job->level == Job::Level::Urgent ? ' (urgent)' : '';
+    echo $job->name, ': every ', $job->everyMinutes as string, ' minutes', $mark, "\n";
 }
 ```
 
@@ -209,20 +228,24 @@ charge cards: every 60 minutes (urgent)
 // compiled. `$host` is a variable, so this program does not compile.
 // proof: compile-error
 
-type Cache = {key: string};
-string $host = "example.test";
+type Cache = { key: string };
+string $host = 'example.test';
 
-class Page {
-    #[Cache(key: "host-" . $host)]
-    public function show(): int { return 1; }
+class Page
+{
+    #[Cache(key: 'host-' . $host)]
+    public function show(): int
+    {
+        return 1;
+    }
 }
 ```
 
 ```output
 error[E0725]: an attribute's field value is not a compile-time constant
-   --> main.nvs:10:18
+   --> main.nvs:11:18
    |
-10 |     #[Cache(key: "host-" . $host)]
+11 |     #[Cache(key: 'host-' . $host)]
    |                  ^^^^^^^^^^^^^^^ this is computed when the program runs
    = help: an attribute's value is a literal, a class constant or an enum case. It is fixed when the program compiles, so it cannot be a variable, a call or a `new`
 
@@ -286,15 +309,22 @@ returns.
 // Shows how to read every attribute attached to one declaration.
 // `Core\Attributes::all` returns them in the order they are written.
 
-type Tag = {name: string};
+type Tag = { name: string };
 
-class Article {
-    #[Tag(name: "news")]
-    #[Tag(name: "sport")]
-    #[Tag(name: "local")]
-    public function publish(): int { return 1; }
+class Article
+{
+    #[Tag(name: 'news')]
+    #[Tag(name: 'sport')]
+    #[Tag(name: 'local')]
+    public function publish(): int
+    {
+        return 1;
+    }
 
-    public function archive(): int { return 2; }
+    public function archive(): int
+    {
+        return 2;
+    }
 }
 
 // This prints `news`, `sport` and `local`, one per line, in that order.
@@ -322,35 +352,37 @@ local
 // Shows the second argument of `Core\Attributes::get`. It names one property
 // or one parameter, and you then get the attributes on that one.
 
-type Column = {name: string};
-type Range = {min: int, max: int};
+type Column = { name: string };
+type Range = { min: int, max: int };
 
-class Product {
-    #[Column(name: "product_title")]
-    public string $title = "";
+class Product
+{
+    #[Column(name: 'product_title')]
+    public string $title = '';
 
-    public function discount(#[Range(min: 0, max: 90)] int $percent): int {
+    public function discount(#[Range(min: 0, max: 90)] int $percent): int
+    {
         return $percent;
     }
 }
 
 // A property of a class. `Product::constructor(...)` names the class, and
 // `"title"` names the property. This prints `product_title`.
-?Column $column = Core\Attributes::get<Column>(Product::constructor(...), "title");
+?Column $column = Core\Attributes::get<Column>(Product::constructor(...), 'title');
 if ($column != null) {
     echo $column->name, "\n";
 }
 
 // A parameter of a method. `Product::discount(...)` names the method, and
 // `"percent"` names the parameter. This prints `0 to 90`.
-?Range $range = Core\Attributes::get<Range>(Product::discount(...), "percent");
+?Range $range = Core\Attributes::get<Range>(Product::discount(...), 'percent');
 if ($range != null) {
-    echo $range->min, " to ", $range->max, "\n";
+    echo $range->min, ' to ', $range->max, "\n";
 }
 
 // The name must be written out, as it is above. If you write a variable there,
 // the result is `null`.
-string $field = "title";
+string $field = 'title';
 ?Column $computed = Core\Attributes::get<Column>(Product::constructor(...), $field);
 echo $computed == null ? "null\n" : "a column name\n";
 ```
@@ -369,39 +401,51 @@ null
 // which permission it needs, so adding a method means writing one attribute.
 // There is no second list to keep up to date.
 
-type Requires = {permission: string};
+type Requires = { permission: string };
 
-class Orders {
+class Orders
+{
     // This attribute has one field more than `Requires`. Matching is by shape,
     // so it still matches.
-    #[{permission: "orders.read", audit: true}]
-    public static function show(): string { return "order 1042"; }
+    #[{permission: 'orders.read', audit: true}]
+    public static function show(): string
+    {
+        return 'order 1042';
+    }
 
-    #[Requires(permission: "orders.write")]
-    public static function cancel(): string { return "order 1042 cancelled"; }
+    #[Requires(permission: 'orders.write')]
+    public static function cancel(): string
+    {
+        return 'order 1042 cancelled';
+    }
 
-    public static function ping(): string { return "ok"; }
-}
-
-class Access {
-    public static function check(string $action, ?Requires $needs, array<string> $granted): string {
-        if ($needs == null) {
-            return $action . ": open to everyone";
-        }
-        if (Core\Arr::contains($granted, $needs->permission)) {
-            return $action . ": allowed";
-        }
-        return $action . ": needs " . $needs->permission;
+    public static function ping(): string
+    {
+        return 'ok';
     }
 }
 
-array<string> $granted = ["orders.read"];
+class Access
+{
+    public static function check(string $action, ?Requires $needs, array<string> $granted): string
+    {
+        if ($needs == null) {
+            return $action . ': open to everyone';
+        }
+        if (Core\Arr::contains($granted, $needs->permission)) {
+            return $action . ': allowed';
+        }
+        return $action . ': needs ' . $needs->permission;
+    }
+}
+
+array<string> $granted = ['orders.read'];
 
 // This prints one line per action: `show` is allowed, `cancel` needs a
 // permission this user does not have, and `ping` needs none at all.
-echo Access::check("show", Core\Attributes::get<Requires>(Orders::show(...)), $granted), "\n";
-echo Access::check("cancel", Core\Attributes::get<Requires>(Orders::cancel(...)), $granted), "\n";
-echo Access::check("ping", Core\Attributes::get<Requires>(Orders::ping(...)), $granted), "\n";
+echo Access::check('show', Core\Attributes::get<Requires>(Orders::show(...)), $granted), "\n";
+echo Access::check('cancel', Core\Attributes::get<Requires>(Orders::cancel(...)), $granted), "\n";
+echo Access::check('ping', Core\Attributes::get<Requires>(Orders::ping(...)), $granted), "\n";
 ```
 
 ```output
@@ -418,20 +462,21 @@ ping: open to everyone
 // `Tag` attributes, so this program does not compile. Use `all` instead.
 // proof: compile-error
 
-type Tag = {label: string};
+type Tag = { label: string };
 
-#[Tag(label: "fast")]
-#[Tag(label: "safe")]
-class Engine {}
+#[Tag(label: 'fast')]
+#[Tag(label: 'safe')]
+class Engine
+{}
 
 ?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor(...));
 ```
 
 ```output
 error[E0728]: `Engine::constructor` has 2 attribute payloads that match this shape
-   --> main.nvs:12:13
+   --> main.nvs:13:13
    |
-12 | ?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor(...));
+13 | ?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor(...));
    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
    = help: write `Core\Attributes::all<T>(…)`, which returns every match
 
@@ -486,23 +531,28 @@ Each of these attributes belongs on one kind of declaration. A `#[Core\Command]`
 
 use Core\Command;
 
-type Row = {name: string, about: string};
+type Row = { name: string, about: string };
 
-class Jobs {
-    #[Core\Command(name: "import", about: "Read rows from a file")]
-    public static function import(): void {}
+class Jobs
+{
+    #[Core\Command(name: 'import', about: 'Read rows from a file')]
+    public static function import(): void
+    {}
 
     // The `use Core\Command;` above makes this short spelling the same attribute.
-    #[Command(name: "export", about: "Write rows to a file")]
-    public static function export(): void {}
+    #[Command(name: 'export', about: 'Write rows to a file')]
+    public static function export(): void
+    {}
 }
 
-class Help {
-    public static function line(?Row $row): string {
+class Help
+{
+    public static function line(?Row $row): string
+    {
         if ($row == null) {
-            return "(no command here)";
+            return '(no command here)';
         }
-        return $row->name . ": " . $row->about;
+        return $row->name . ': ' . $row->about;
     }
 }
 
@@ -524,26 +574,30 @@ export: Write rows to a file
 // `#[Core\Command]` declares a command. The `#[Command]` below is your own
 // type, so it is metadata you store and read back yourself.
 
-type Command = {name: string, note: string};
+type Command = { name: string, note: string };
 
-class Jobs {
+class Jobs
+{
     // Novis reads this one. The command table now has a command called `import`.
-    #[Core\Command(name: "import", about: "Read rows from a file")]
-    public static function import(): void {}
+    #[Core\Command(name: 'import', about: 'Read rows from a file')]
+    public static function import(): void
+    {}
 }
 
-class Reports {
+class Reports
+{
     // Your own `Command` type. This method is not a command, so the word
     // `import` is free to use again here.
-    #[Command(name: "import", note: "runs every night")]
-    public static function daily(): void {}
+    #[Command(name: 'import', note: 'runs every night')]
+    public static function daily(): void
+    {}
 }
 
 ?Command $mine = Core\Attributes::get<Command>(Reports::daily(...));
 
 // This prints `import runs every night`.
 if ($mine != null) {
-    echo $mine->name, " ", $mine->note, "\n";
+    echo $mine->name, ' ', $mine->note, "\n";
 }
 ```
 
@@ -560,21 +614,23 @@ import runs every night
 // class. `#[Audited]` is your own type, so Novis stores it and your own code
 // reads it back.
 
-type Audited = {by: string, since: string};
+type Audited = { by: string, since: string };
 
 #[Core\Json\Derive]
-#[Audited(by: "payments", since: "2026-01-14")]
-class Payment {
+#[Audited(by: 'payments', since: '2026-01-14')]
+class Payment
+{
     public string $reference;
     public uint $cents;
 
-    public function constructor(string $reference, uint $cents) {
+    public function constructor(string $reference, uint $cents)
+    {
         $this->reference = $reference;
         $this->cents = $cents;
     }
 }
 
-var $payment = new Payment("PAY-1042", 2599);
+var $payment = new Payment('PAY-1042', 2599);
 
 // The encoder comes from the attribute. This prints the payment as JSON.
 echo Core\Json::encode($payment), "\n";
@@ -582,7 +638,7 @@ echo Core\Json::encode($payment), "\n";
 // Your own attribute is read with `Core\Attributes::get`.
 ?Audited $owner = Core\Attributes::get<Audited>(Payment::constructor(...));
 if ($owner != null) {
-    echo "owned by ", $owner->by, " since ", $owner->since, "\n";
+    echo 'owned by ', $owner->by, ' since ', $owner->since, "\n";
 }
 ```
 
@@ -599,20 +655,22 @@ owned by payments since 2026-01-14
 // `Core\Route` has no `colour` option, so this program does not compile.
 // proof: compile-error
 
-class Home {
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, colour: "red")]
+class Home
+{
+    #[Core\Route(path: '/', method: Core\Http\Method::Get, colour: 'red')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(): string {
-        return "home";
+    public function show(): string
+    {
+        return 'home';
     }
 }
 ```
 
 ```output
 error[E0454]: `colour` is not an option of `#[Route]`
-  --> main.nvs:7:60
+  --> main.nvs:8:60
   |
-7 |     #[Core\Route(path: "/", method: Core\Http\Method::Get, colour: "red")]
+8 |     #[Core\Route(path: '/', method: Core\Http\Method::Get, colour: 'red')]
   |                                                            ^^^^^^^^^^^^^ no such option
   = help: the options are: path: string, method: Core\Http\Method, name: string, slotted: bool
 
@@ -696,12 +754,14 @@ your code unchanged.
 use Core\Json;
 
 #[Core\Json\Derive]
-class Point {
+class Point
+{
     public int $x;
     public int $y;
 
     // Every property is a constructor parameter of the same name and type.
-    public function constructor(int $x, int $y) {
+    public function constructor(int $x, int $y)
+    {
         $this->x = $x;
         $this->y = $y;
     }
@@ -712,11 +772,13 @@ class Point {
 echo Json::encode(new Point(3, 4)), "\n";
 
 #[Core\Json\Derive]
-class Line {
+class Line
+{
     public Point $from;
     public Point $to;
 
-    public function constructor(Point $from, Point $to) {
+    public function constructor(Point $from, Point $to)
+    {
         $this->from = $from;
         $this->to = $to;
     }
@@ -744,11 +806,12 @@ use Core\Json;
 use Core\Json\Field;
 
 #[Core\Json\Derive]
-class Article {
+class Article
+{
     public string $title;
 
     // The JSON key is `published_at`, and the property is `$publishedAt`.
-    #[Field(name: "published_at")]
+    #[Field(name: 'published_at')]
     public string $publishedAt;
 
     // A skipped property needs no constructor parameter, and it never appears
@@ -756,7 +819,8 @@ class Article {
     #[Field(skip: true)]
     public uint $viewCount;
 
-    public function constructor(string $title, string $publishedAt) {
+    public function constructor(string $title, string $publishedAt)
+    {
         $this->title = $title;
         $this->publishedAt = $publishedAt;
         $this->viewCount = 0;
@@ -764,12 +828,12 @@ class Article {
 }
 
 // This prints {"title":"Novis 1.0","published_at":"2026-03-01"}.
-echo Json::encode(new Article("Novis 1.0", "2026-03-01")), "\n";
+echo Json::encode(new Article('Novis 1.0', '2026-03-01')), "\n";
 
 // Decoding reads the `published_at` key, and `$viewCount` gets the value the
 // constructor sets. This prints `2026-03-01 0`.
 var $article = Json::decodeAs<Article>("{\"title\":\"Novis 1.0\",\"published_at\":\"2026-03-01\"}");
-echo $article->publishedAt, " ", $article->viewCount, "\n";
+echo $article->publishedAt, ' ', $article->viewCount, "\n";
 ```
 
 ```output
@@ -789,23 +853,27 @@ use Core\Json;
 use Core\Json\Field;
 
 #[Core\Json\Derive]
-class Address {
+class Address
+{
     public string $city;
 
-    public function constructor(string $city) {
+    public function constructor(string $city)
+    {
         $this->city = $city;
     }
 }
 
 #[Core\Json\Derive]
-class Signup {
+class Signup
+{
     public string $email;
     public uint $age;
-    #[Field(name: "accepts_mail")]
+    #[Field(name: 'accepts_mail')]
     public bool $acceptsMail;
     public Address $address;
 
-    public function constructor(string $email, uint $age, bool $acceptsMail, Address $address) {
+    public function constructor(string $email, uint $age, bool $acceptsMail, Address $address)
+    {
         $this->email = $email;
         $this->age = $age;
         $this->acceptsMail = $acceptsMail;
@@ -819,7 +887,7 @@ string $body = "{\"email\":\"ada@example.com\",\"age\":36,\"accepts_mail\":true,
 // A key the class does not declare is ignored, so `sent_at` changes nothing.
 // This prints `ada@example.com lives in london`.
 var $signup = Json::decodeAs<Signup>($body);
-echo $signup->email, " lives in ", $signup->address->city, "\n";
+echo $signup->email, ' lives in ', $signup->address->city, "\n";
 
 // Now a body that the client got wrong. The decode builds nothing and throws.
 try {
@@ -827,8 +895,8 @@ try {
 } catch (ParseError $bad) {
     // Each issue names the key it is about. A key inside `address` is written
     // with the path that reaches it, as `address.city`.
-    foreach ($bad->issues as {path: string, message: string} $issue) {
-        echo $issue->path, ": ", $issue->message, "\n";
+    foreach ($bad->issues as { path: string, message: string } $issue) {
+        echo $issue->path, ': ', $issue->message, "\n";
     }
 }
 ```
@@ -848,13 +916,15 @@ address.city: required field missing
 // A `bool` property does not, so `null` there is an issue.
 
 #[Core\Json\Derive]
-class Row {
+class Row
+{
     public string $name;
     public ?int $rank;
-    #[Core\Json\Field(name: "is_live")]
+    #[Core\Json\Field(name: 'is_live')]
     public bool $live;
 
-    public function constructor(string $name, ?int $rank, bool $live) {
+    public function constructor(string $name, ?int $rank, bool $live)
+    {
         $this->name = $name;
         $this->rank = $rank;
         $this->live = $live;
@@ -864,14 +934,14 @@ class Row {
 // The key `extra` is not a property of `Row`, so the decode ignores it.
 // This prints `ada unranked`.
 var $row = Core\Json::decodeAs<Row>("{\"name\":\"ada\",\"rank\":null,\"is_live\":true,\"extra\":1}");
-echo $row->name, " ", $row->rank ?? "unranked", "\n";
+echo $row->name, ' ', $row->rank ?? 'unranked', "\n";
 
 // This document has three bad fields, and the error lists all three.
 try {
     Core\Json::decodeAs<Row>("{\"rank\":\"first\",\"is_live\":null}");
 } catch (ParseError $bad) {
-    foreach ($bad->issues as {path: string, message: string} $issue) {
-        echo $issue->path, ": ", $issue->message, "\n";
+    foreach ($bad->issues as { path: string, message: string } $issue) {
+        echo $issue->path, ': ', $issue->message, "\n";
     }
 }
 ```
@@ -892,12 +962,14 @@ is_live: null is not permitted
 // proof: compile-error
 
 #[Core\Json\Derive]
-class User {
+class User
+{
     public string $name;
     public int $age;
 
-    public function constructor(int $age) {
-        $this->name = "";
+    public function constructor(int $age)
+    {
+        $this->name = '';
         $this->age = $age;
     }
 }
@@ -905,9 +977,9 @@ class User {
 
 ```output
 error[E0460]: `$name` has no constructor parameter, so `#[Json\Derive]` cannot decode it
-  --> main.nvs:8:19
+  --> main.nvs:9:19
   |
-8 |     public string $name;
+9 |     public string $name;
   |                   ^^^^^ nothing decodes into this
   = help: the decoder builds the object with `new`, so every property needs a constructor parameter with the same name. Add one, or write `#[Json\Field(skip: true)]`
 
@@ -925,30 +997,32 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 enum Level { Low, High }
 
 #[Core\Json\Derive]
-class Alert {
+class Alert
+{
     public Level $level;
     public array<string> $tags;
 
-    public function constructor(Level $level, array<string> $tags) {
+    public function constructor(Level $level, array<string> $tags)
+    {
         $this->level = $level;
         $this->tags = $tags;
     }
 }
 
 // `Level::High` is the number 1. This prints {"level":1,"tags":["disk","full"]}.
-echo Core\Json::encode(new Alert(Level::High, ["disk", "full"])), "\n";
+echo Core\Json::encode(new Alert(Level::High, ['disk', 'full'])), "\n";
 
 // This prints `true full`.
 var $alert = Core\Json::decodeAs<Alert>("{\"level\":1,\"tags\":[\"disk\",\"full\"]}");
-echo $alert->level == Level::High ? "true" : "false", " ", $alert->tags[1], "\n";
+echo $alert->level == Level::High ? 'true' : 'false', ' ', $alert->tags[1], "\n";
 
 // 7 is not a case of `Level`, and the second tag is not a string.
 // The path of an array element ends with its index, as `tags.1`.
 try {
     Core\Json::decodeAs<Alert>("{\"level\":7,\"tags\":[\"disk\",2]}");
 } catch (ParseError $bad) {
-    foreach ($bad->issues as {path: string, message: string} $issue) {
-        echo $issue->path, ": ", $issue->message, "\n";
+    foreach ($bad->issues as { path: string, message: string } $issue) {
+        echo $issue->path, ': ', $issue->message, "\n";
     }
 }
 ```
@@ -1060,25 +1134,28 @@ origin = "https://example.test"
 // method a path, and `#[Core\Access]` says who may reach it. Every route needs
 // both. `Core\Router::url` builds the link for a route from its name.
 
-class Users {
-    #[Core\Route(path: "/users", method: Core\Http\Method::Get, name: "Users::index")]
+class Users
+{
+    #[Core\Route(path: '/users', method: Core\Http\Method::Get, name: 'Users::index')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function index(): string {
-        return "all users";
+    public function index(): string
+    {
+        return 'all users';
     }
 
     // `{id}` is a capture. It fills one segment of the path, and the parameter
     // `$id` says the value there is a whole number.
-    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(uint $id): string {
-        return "user " . $id;
+    public function show(uint $id): string
+    {
+        return 'user ' . $id;
     }
 }
 
 // This prints `/users` and then `/users/7`.
-echo Core\Router::url("Users::index", []), "\n";
-echo Core\Router::url("Users::show", ["id" => 7]), "\n";
+echo Core\Router::url('Users::index', []), "\n";
+echo Core\Router::url('Users::show', ['id' => 7]), "\n";
 
 // A route method is an ordinary method. You can call it yourself.
 echo (new Users())->show(7), "\n";
@@ -1105,34 +1182,37 @@ origin = "https://example.test"
 // string. The type you declare for a parameter is what its part of the path
 // converts to.
 
-class Docs {
+class Docs
+{
     enum Lang { En, De }
 
     // `{page?}` matches one segment or none, so `$page` needs a default value.
     // `#[Core\Query]` fills `$q` from the query string instead of the path.
-    #[Core\Route(path: "/{lang}/docs/{page?}", method: Core\Http\Method::Get, name: "docs")]
+    #[Core\Route(path: '/{lang}/docs/{page?}', method: Core\Http\Method::Get, name: 'docs')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function page(Lang $lang, uint $page = 1, #[Core\Query] string $q = ""): string {
-        return "docs";
+    public function page(Lang $lang, uint $page = 1, #[Core\Query] string $q = ''): string
+    {
+        return 'docs';
     }
 
     // `{path...}` matches everything that is left, the `/` characters included.
-    #[Core\Route(path: "/files/{path...}", method: Core\Http\Method::Get, name: "file")]
+    #[Core\Route(path: '/files/{path...}', method: Core\Http\Method::Get, name: 'file')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function file(string $path): string {
-        return "file";
+    public function file(string $path): string
+    {
+        return 'file';
     }
 }
 
 // A value you leave out drops its segment. This prints `/De/docs`.
-echo Core\Router::url("docs", ["lang" => Docs::Lang::De]), "\n";
+echo Core\Router::url('docs', ['lang' => Docs::Lang::De]), "\n";
 
 // A key that is not a capture becomes the query string, and the space in `a b`
 // is encoded. This prints `/En/docs/3?q=a+b`.
-echo Core\Router::url("docs", ["lang" => Docs::Lang::En, "page" => 3, "q" => "a b"]), "\n";
+echo Core\Router::url('docs', ['lang' => Docs::Lang::En, 'page' => 3, 'q' => 'a b']), "\n";
 
 // This prints `/files/a/b%20c.txt`.
-echo Core\Router::url("file", ["path" => "a/b c.txt"]), "\n";
+echo Core\Router::url('file', ['path' => 'a/b c.txt']), "\n";
 ```
 
 ```output
@@ -1155,17 +1235,20 @@ origin = "https://example.test"
 // The routes of example 04. This file has no code that runs by itself.
 namespace App;
 
-class Users {
-    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+class Users
+{
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(uint $id): string {
-        return "user " . $id;
+    public function show(uint $id): string
+    {
+        return 'user ' . $id;
     }
 
-    #[Core\Route(path: "/users", method: Core\Http\Method::Post, name: "Users::create")]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Post, name: 'Users::create')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function create(): string {
-        return "created";
+    public function create(): string
+    {
+        return 'created';
     }
 }
 ```
@@ -1177,24 +1260,28 @@ class Users {
 
 enum Role { Customer, Staff }
 
-class Products {
-    #[Core\Route(path: "/products", method: Core\Http\Method::Get, name: "products")]
+class Products
+{
+    #[Core\Route(path: '/products', method: Core\Http\Method::Get, name: 'products')]
     #[Core\Access(allow: Role::Customer)]
-    public function list(#[Core\Query] uint $page = 1, #[Core\Query] string $sort = "name"): string {
-        return "products";
+    public function list(#[Core\Query] uint $page = 1, #[Core\Query] string $sort = 'name'): string
+    {
+        return 'products';
     }
 
-    #[Core\Route(path: "/products/{sku}", method: Core\Http\Method::Get, name: "product")]
+    #[Core\Route(path: '/products/{sku}', method: Core\Http\Method::Get, name: 'product')]
     #[Core\Access(allow: Role::Customer)]
-    public function show(string $sku): string {
+    public function show(string $sku): string
+    {
         return $sku;
     }
 
     // `allow:` takes any constant, and `Role::Staff` is this program's own.
     // Novis records the decision and does not read what it means.
-    #[Core\Route(path: "/products/{sku}", method: Core\Http\Method::Delete, name: "product.delete")]
+    #[Core\Route(path: '/products/{sku}', method: Core\Http\Method::Delete, name: 'product.delete')]
     #[Core\Access(allow: Role::Staff)]
-    public function delete(string $sku): string {
+    public function delete(string $sku): string
+    {
         return $sku;
     }
 }
@@ -1202,12 +1289,12 @@ class Products {
 uint $page = 2;
 
 // The link to the next page of the list, sorted by price.
-echo Core\Router::url("products", ["page" => $page + 1, "sort" => "price"]), "\n";
+echo Core\Router::url('products', ['page' => $page + 1, 'sort' => 'price']), "\n";
 
 // The link to one product, and the link that deletes it. Both paths are the
 // same, because the two routes differ in their HTTP method.
-echo Core\Router::url("product", ["sku" => "cup-01"]), "\n";
-echo Core\Router::url("product.delete", ["sku" => "cup-01"]), "\n";
+echo Core\Router::url('product', ['sku' => 'cup-01']), "\n";
+echo Core\Router::url('product.delete', ['sku' => 'cup-01']), "\n";
 ```
 
 ```output
@@ -1230,17 +1317,20 @@ origin = "https://example.test"
 // The routes of example 04. This file has no code that runs by itself.
 namespace App;
 
-class Users {
-    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+class Users
+{
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(uint $id): string {
-        return "user " . $id;
+    public function show(uint $id): string
+    {
+        return 'user ' . $id;
     }
 
-    #[Core\Route(path: "/users", method: Core\Http\Method::Post, name: "Users::create")]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Post, name: 'Users::create')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function create(): string {
-        return "created";
+    public function create(): string
+    {
+        return 'created';
     }
 }
 ```
@@ -1253,12 +1343,12 @@ class Users {
 autoload 'App' from './routes';
 
 // This prints `/users/7` and then `/users`.
-echo Core\Router::url("Users::show", ["id" => 7]), "\n";
-echo Core\Router::url("Users::create", []), "\n";
+echo Core\Router::url('Users::show', ['id' => 7]), "\n";
+echo Core\Router::url('Users::create', []), "\n";
 
 // `urlAbsolute` puts the `origin` setting from `nvs.toml` in front of the path.
 // This prints `https://example.test/users/7`.
-echo Core\Router::urlAbsolute("Users::show", ["id" => 7]), "\n";
+echo Core\Router::urlAbsolute('Users::show', ['id' => 7]), "\n";
 ```
 
 ```output
@@ -1282,47 +1372,56 @@ origin = "https://example.test"
 // itself. `Core\Router::match` finds the route for an HTTP method and a path,
 // so this example runs without a server.
 
-class Users {
-    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+class Users
+{
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(uint $id): string { return "user " . $id; }
+    public function show(uint $id): string
+    {
+        return 'user ' . $id;
+    }
 
-    #[Core\Route(path: "/users", method: Core\Http\Method::Post, name: "Users::create")]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Post, name: 'Users::create')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function create(): string { return "created"; }
+    public function create(): string
+    {
+        return 'created';
+    }
 }
 
-class App {
-    public static function answer(Core\Http\Method $method, string $path): string {
+class App
+{
+    public static function answer(Core\Http\Method $method, string $path): string
+    {
         var $match = Core\Router::match($method, $path);
 
         // `match` returns `null` when no route has this method and path. An empty
         // array from `methodsFor` means the path does not exist.
         if ($match == null) {
-            return Core\Router::methodsFor($path) == [] ? "404" : "405";
+            return Core\Router::methodsFor($path) == [] ? '404' : '405';
         }
 
         // The server does not check the `allow:` value. Your program checks it.
         if ($match->accessAs<Core\Audience>() != Core\Audience::Public) {
-            return "403";
+            return '403';
         }
 
         var $users = new Users();
         switch ($match->name()) {
-            case "Users::show":
-                return $users->show($match->param("id") as uint);
-            case "Users::create":
+            case 'Users::show':
+                return $users->show($match->param('id') as uint);
+            case 'Users::create':
                 return $users->create();
         }
-        return "404";
+        return '404';
     }
 }
 
 // This prints `user 7`, `created`, `405` and `404`.
-echo App::answer(Core\Http\Method::Get, "/users/7"), "\n";
-echo App::answer(Core\Http\Method::Post, "/users"), "\n";
-echo App::answer(Core\Http\Method::Delete, "/users"), "\n";
-echo App::answer(Core\Http\Method::Get, "/nothing"), "\n";
+echo App::answer(Core\Http\Method::Get, '/users/7'), "\n";
+echo App::answer(Core\Http\Method::Post, '/users'), "\n";
+echo App::answer(Core\Http\Method::Delete, '/users'), "\n";
+echo App::answer(Core\Http\Method::Get, '/nothing'), "\n";
 ```
 
 ```output
@@ -1347,17 +1446,21 @@ origin = "https://example.test"
 // program does not compile.
 // proof: compile-error
 
-class Users {
-    #[Core\Route(path: "/users", method: Core\Http\Method::Get, name: "Users::index")]
-    public function index(): string { return "users"; }
+class Users
+{
+    #[Core\Route(path: '/users', method: Core\Http\Method::Get, name: 'Users::index')]
+    public function index(): string
+    {
+        return 'users';
+    }
 }
 ```
 
 ```output
 error[E0762]: the route `Users::index` declares no access decision
-  --> main.nvs:7:7
+  --> main.nvs:8:7
   |
-7 |     #[Core\Route(path: "/users", method: Core\Http\Method::Get, name: "Users::index")]
+8 |     #[Core\Route(path: '/users', method: Core\Http\Method::Get, name: 'Users::index')]
   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this route has no sibling `#[Access]`
   = help: § 3 gives an omission no default, because a route that is open by decision and one that is open by oversight would otherwise read alike — write `#[Access(allow: Core\Audience::Public)]` on the method if it is genuinely open
 
@@ -1438,14 +1541,16 @@ the operation's `security` list, with an empty list of scopes. Each name in `sec
 // this operation in a named group, so a reader finds it beside the other
 // invoice operations.
 
-class Invoices {
+class Invoices
+{
     // The `///` line below is the summary and the description of this operation.
     /// Show one invoice. Looks the invoice up by its number.
-    #[Core\Route(path: "/invoices/{number}", method: Core\Http\Method::Get, name: "Invoices::show")]
+    #[Core\Route(path: '/invoices/{number}', method: Core\Http\Method::Get, name: 'Invoices::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[Core\Api(tags: ["Invoices"])]
-    public function show(uint $number): string {
-        return "invoice " . $number;
+    #[Core\Api(tags: ['Invoices'])]
+    public function show(uint $number): string
+    {
+        return 'invoice ' . $number;
     }
 }
 
@@ -1468,24 +1573,28 @@ invoice 1042
 // generated API document. Novis checks that the class you name exists.
 
 // `#[Core\Api\Scheme]` declares the scheme that `security:` names.
-#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer", format: "JWT")]
-class Auth {}
+#[Core\Api\Scheme(name: 'bearer', type: Core\Api\SchemeType::Http, scheme: 'bearer', format: 'JWT')]
+class Auth
+{}
 
-class NotFound extends RuntimeError {}
+class NotFound extends RuntimeError
+{}
 
-class Payments {
+class Payments
+{
     /// Show one payment. Returns the amount in cents.
-    #[Core\Route(path: "/payments/{id}", method: Core\Http\Method::Get, name: "Payments::show")]
+    #[Core\Route(path: '/payments/{id}', method: Core\Http\Method::Get, name: 'Payments::show')]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(
-        tags: ["Payments"],
+        tags: ['Payments'],
         // A client of this API sends a bearer token with every request.
-        security: ["bearer"],
-        errors: [{status: 404, type: NotFound::class}],
+        security: ['bearer'],
+        errors: [{ status: 404, type: NotFound::class }],
     )]
-    public function show(uint $id): uint {
+    public function show(uint $id): uint
+    {
         if ($id == 0) {
-            throw new NotFound("there is no payment 0");
+            throw new NotFound('there is no payment 0');
         }
         return $id * 100;
     }
@@ -1500,7 +1609,7 @@ echo $payments->show(7), "\n";
 try {
     echo $payments->show(0), "\n";
 } catch (NotFound $error) {
-    echo "not found: ", $error->message, "\n";
+    echo 'not found: ', $error->message, "\n";
 }
 ```
 
@@ -1519,49 +1628,54 @@ not found: there is no payment 0
 // turns that document into a client library.
 
 // The client sends a bearer token. The document describes it once, here.
-#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer")]
-class Auth {}
+#[Core\Api\Scheme(name: 'bearer', type: Core\Api\SchemeType::Http, scheme: 'bearer')]
+class Auth
+{}
 
-class Order {
+class Order
+{
     public uint $id = 0;
-    public string $customer = "";
+    public string $customer = '';
     public uint $totalCents = 0;
 }
 
-class Orders {
+class Orders
+{
     /// Count the open orders. Returns how many are waiting to be shipped.
-    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::index")]
+    #[Core\Route(path: '/orders', method: Core\Http\Method::Get, name: 'Orders::index')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[Core\Api(tags: ["Orders"], security: ["bearer"])]
-    public function index(): uint {
+    #[Core\Api(tags: ['Orders'], security: ['bearer'])]
+    public function index(): uint
+    {
         return 3;
     }
 
     /// Show one order. Looks the order up by its id.
-    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(
-        tags: ["Orders"],
-        security: ["bearer"],
+        tags: ['Orders'],
+        security: ['bearer'],
         // Every key here must be a property of the return type. Novis checks
         // this, so the example in the document cannot go out of date.
-        example: {id: 7, customer: "Ada Lovelace", totalCents: 4250},
+        example: { id: 7, customer: 'Ada Lovelace', totalCents: 4250 },
     )]
-    public function show(uint $id): Order {
+    public function show(uint $id): Order
+    {
         Order $order = new Order();
         $order->id = $id;
-        $order->customer = "Ada Lovelace";
+        $order->customer = 'Ada Lovelace';
         $order->totalCents = 4250;
         return $order;
     }
 }
 
 Orders $orders = new Orders();
-echo "open orders: ", $orders->index(), "\n";
+echo 'open orders: ', $orders->index(), "\n";
 
 Order $order = $orders->show(7);
-echo "order ", $order->id, " for ", $order->customer, "\n";
-echo "total: ", $order->totalCents, " cents\n";
+echo 'order ', $order->id, ' for ', $order->customer, "\n";
+echo 'total: ', $order->totalCents, " cents\n";
 ```
 
 ```output
@@ -1578,15 +1692,18 @@ total: 4250 cents
 // `price` property, so the program does not compile.
 // proof: compile-error
 
-class Order {
+class Order
+{
     public uint $id = 0;
 }
 
-class Orders {
-    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
+class Orders
+{
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[Core\Api(example: {id: 7, price: 4250})]
-    public function show(uint $id): Order {
+    #[Core\Api(example: { id: 7, price: 4250 })]
+    public function show(uint $id): Order
+    {
         return new Order();
     }
 }
@@ -1594,10 +1711,10 @@ class Orders {
 
 ```output
 error[E0771]: `Order` declares no `price`
-   --> main.nvs:13:33
+   --> main.nvs:15:34
    |
-13 |     #[Core\Api(example: {id: 7, price: 4250})]
-   |                                 ^^^^^^^^^^^ no such field
+15 |     #[Core\Api(example: { id: 7, price: 4250 })]
+   |                                  ^^^^^^^^^^^ no such field
    = help: `example` is decoded as the return type. Every key must be a property of that class
 
 error: aborting due to 1 error
@@ -1658,30 +1775,32 @@ parameter takes the name of a case, written exactly, so `Fast` works and `fast` 
 // a static method as a command and gives it a name and a short description. The
 // compiler collects every command into one table and checks it.
 
-class Backup {
+class Backup
+{
     // `$directory` is a positional argument. A parameter is positional unless
     // it carries `#[Core\Option]`.
-    #[Core\Command(name: "backup", about: "Copy the database to a file")]
+    #[Core\Command(name: 'backup', about: 'Copy the database to a file')]
     public static function backup(
         tainted string $directory,
-        #[Core\Option(short: "z", about: "Compress the file")] bool $compress,
-    ): uint {
-        echo "writing to ", $directory, $compress ? "/dump.sql.gz" : "/dump.sql", "\n";
+        #[Core\Option(short: 'z', about: 'Compress the file')] bool $compress,
+    ): uint
+    {
+        echo 'writing to ', $directory, $compress ? '/dump.sql.gz' : '/dump.sql', "\n";
         return 0;
     }
 }
 
 // You can read the table back with `Core\Attributes::get`. This prints
 // `backup: Copy the database to a file`.
-type Command = {name: string, about: string};
+type Command = { name: string, about: string };
 ?Command $command = Core\Attributes::get<Command>(Backup::backup(...));
 if ($command != null) {
-    echo $command->name, ": ", $command->about, "\n";
+    echo $command->name, ': ', $command->about, "\n";
 }
 
 // The command is a static method. You can call it yourself.
-uint $status = Backup::backup("/var/backups", true);
-echo "exit status ", $status, "\n";
+uint $status = Backup::backup('/var/backups', true);
+echo 'exit status ', $status, "\n";
 ```
 
 ```output
@@ -1698,15 +1817,17 @@ exit status 0
 // and `long:` is the word form. Without `long:` the word form is the parameter's
 // own name. A `bool` option is a flag, and every other type takes a value.
 
-type Option = {short: string, long: string, about: string};
+type Option = { short: string, long: string, about: string };
 
-class Serve {
-    #[Core\Command(name: "serve", about: "Run the web server")]
+class Serve
+{
+    #[Core\Command(name: 'serve', about: 'Run the web server')]
     public static function serve(
-        #[Core\Option(short: "p", long: "port", about: "The port to listen on")] uint $listenPort,
-        #[Core\Option(short: "q", long: "quiet", about: "Print nothing")] bool $silent,
-    ): uint {
-        echo "listening on ", $listenPort, $silent ? " (quiet)" : "", "\n";
+        #[Core\Option(short: 'p', long: 'port', about: 'The port to listen on')] uint $listenPort,
+        #[Core\Option(short: 'q', long: 'quiet', about: 'Print nothing')] bool $silent,
+    ): uint
+    {
+        echo 'listening on ', $listenPort, $silent ? ' (quiet)' : '', "\n";
         return 0;
     }
 }
@@ -1716,15 +1837,15 @@ class Serve {
 array<Option> $options = [];
 // Write the parameter name here. A name you compute is not looked up, and the
 // result is `null`.
-$options[] = Core\Attributes::get<Option>(Serve::serve(...), "listenPort") ?? throw new RuntimeError("no option");
-$options[] = Core\Attributes::get<Option>(Serve::serve(...), "silent") ?? throw new RuntimeError("no option");
+$options[] = Core\Attributes::get<Option>(Serve::serve(...), 'listenPort') ?? throw new RuntimeError('no option');
+$options[] = Core\Attributes::get<Option>(Serve::serve(...), 'silent') ?? throw new RuntimeError('no option');
 
 foreach ($options as Option $option) {
-    echo "  -", $option->short, ", --", $option->long, "  ", $option->about, "\n";
+    echo '  -', $option->short, ', --', $option->long, '  ', $option->about, "\n";
 }
 
 uint $status = Serve::serve(8080, false);
-echo "exit status ", $status, "\n";
+echo 'exit status ', $status, "\n";
 ```
 
 ```output
@@ -1743,62 +1864,90 @@ exit status 0
 // `Core\Program::implementing` finds every class that implements the interface,
 // sorted by name.
 
-interface Tool {
+interface Tool
+{
     public function command(): string;
 }
 
-type Command = {name: string, about: string};
+type Command = { name: string, about: string };
 
-class Migrate implements Tool {
-    #[Core\Command(name: "migrate", about: "Apply pending migrations")]
+class Migrate implements Tool
+{
+    #[Core\Command(name: 'migrate', about: 'Apply pending migrations')]
     public static function migrate(
-        #[Core\Option(short: "n", about: "Print what would happen")] bool $pretend,
-    ): uint {
-        if ($pretend) { return 0; }
+        #[Core\Option(short: 'n', about: 'Print what would happen')] bool $pretend,
+    ): uint
+    {
+        if ($pretend) {
+            return 0;
+        }
         return 1;
     }
 
-    public function command(): string { return "migrate"; }
+    public function command(): string
+    {
+        return 'migrate';
+    }
 }
 
-class Purge implements Tool {
-    #[Core\Command(name: "purge", about: "Delete the expired rows")]
+class Purge implements Tool
+{
+    #[Core\Command(name: 'purge', about: 'Delete the expired rows')]
     public static function purge(
-        #[Core\Option(short: "f", about: "Do not ask first")] bool $force,
-    ): uint {
-        if ($force) { return 0; }
+        #[Core\Option(short: 'f', about: 'Do not ask first')] bool $force,
+    ): uint
+    {
+        if ($force) {
+            return 0;
+        }
         return 1;
     }
 
-    public function command(): string { return "purge"; }
+    public function command(): string
+    {
+        return 'purge';
+    }
 }
 
-class Seed implements Tool {
-    #[Core\Command(name: "seed", about: "Fill the database with test data")]
+class Seed implements Tool
+{
+    #[Core\Command(name: 'seed', about: 'Fill the database with test data')]
     public static function seed(
-        #[Core\Option(short: "r", about: "How many rows")] uint $rows,
-    ): uint {
-        if ($rows > 0) { return 0; }
+        #[Core\Option(short: 'r', about: 'How many rows')] uint $rows,
+    ): uint
+    {
+        if ($rows > 0) {
+            return 0;
+        }
         return 1;
     }
 
-    public function command(): string { return "seed"; }
+    public function command(): string
+    {
+        return 'seed';
+    }
 }
 
-echo "Usage: app <command> [options]", "\n";
+echo 'Usage: app <command> [options]', "\n";
 echo "\n";
-echo "Commands:", "\n";
+echo 'Commands:', "\n";
 
 foreach (Core\Program::implementing<Tool>() as Tool $tool) {
     string $name = $tool->command();
     // Each class says which command it describes, and the description comes
     // from the attribute rather than from a second string.
     ?Command $command = null;
-    if ($name == "migrate") { $command = Core\Attributes::get<Command>(Migrate::migrate(...)); }
-    if ($name == "purge") { $command = Core\Attributes::get<Command>(Purge::purge(...)); }
-    if ($name == "seed") { $command = Core\Attributes::get<Command>(Seed::seed(...)); }
+    if ($name == 'migrate') {
+        $command = Core\Attributes::get<Command>(Migrate::migrate(...));
+    }
+    if ($name == 'purge') {
+        $command = Core\Attributes::get<Command>(Purge::purge(...));
+    }
+    if ($name == 'seed') {
+        $command = Core\Attributes::get<Command>(Seed::seed(...));
+    }
     if ($command != null) {
-        echo "  ", Core\Str::padEnd($command->name, 10), $command->about, "\n";
+        echo '  ', Core\Str::padEnd($command->name, 10), $command->about, "\n";
     }
 }
 ```
@@ -1820,17 +1969,19 @@ Commands:
 // is not allowed, so the program does not compile.
 // proof: compile-error
 
-class Deploy {
-    #[Core\Command(name: "deploy", about: "Push the build")]
-    public static function deploy(#[Core\Option] float $ratio): void {}
+class Deploy
+{
+    #[Core\Command(name: 'deploy', about: 'Push the build')]
+    public static function deploy(#[Core\Option] float $ratio): void
+    {}
 }
 ```
 
 ```output
 error[E0746]: `float` is not a type an option of `deploy` can be given at
-  --> main.nvs:8:35
+  --> main.nvs:9:35
   |
-8 |     public static function deploy(#[Core\Option] float $ratio): void {}
+9 |     public static function deploy(#[Core\Option] float $ratio): void
   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^ no conversion from an argument's text
   = help: an argument arrives as text and its type comes from the parameter, so an option declares `string`, `int`, `uint`, `decimal`, `bool`, an enum, a set of allowed values like `'a'|'b'`, or a class implementing `Parses`
 
@@ -1892,25 +2043,32 @@ under each `autoload` folder, even when no code names those classes or their fil
 // the classes while it compiles your program, so a new class joins the list by
 // existing.
 
-interface Check {
+interface Check
+{
     public function describe(): string;
 }
 
-class DiskSpace implements Check {
-    public function describe(): string {
-        return "disk space is fine";
+class DiskSpace implements Check
+{
+    public function describe(): string
+    {
+        return 'disk space is fine';
     }
 }
 
-class Certificates implements Check {
-    public function describe(): string {
-        return "certificates are valid";
+class Certificates implements Check
+{
+    public function describe(): string
+    {
+        return 'certificates are valid';
     }
 }
 
-class Backups implements Check {
-    public function describe(): string {
-        return "backups ran last night";
+class Backups implements Check
+{
+    public function describe(): string
+    {
+        return 'backups ran last night';
     }
 }
 
@@ -1935,38 +2093,48 @@ disk space is fine
 // the interface and `new` needs no arguments for it. An interface no class
 // implements gives you an empty array.
 
-interface Check {
+interface Check
+{
     public function name(): string;
 }
 
 // An `abstract` class cannot be created with `new`, so it is not in the list.
-abstract class BaseCheck implements Check {
-    public function name(): string {
-        return "base";
+abstract class BaseCheck implements Check
+{
+    public function name(): string
+    {
+        return 'base';
     }
 }
 
 // This one extends the abstract class, so it implements `Check` as well.
-class DiskCheck extends BaseCheck {
-    public function name(): string {
-        return "disk";
+class DiskCheck extends BaseCheck
+{
+    public function name(): string
+    {
+        return 'disk';
     }
 }
 
-class MailCheck implements Check {
-    public function name(): string {
-        return "mail";
+class MailCheck implements Check
+{
+    public function name(): string
+    {
+        return 'mail';
     }
 }
 
 // This class has the same method and implements nothing, so it stays out.
-class Report {
-    public function name(): string {
-        return "report";
+class Report
+{
+    public function name(): string
+    {
+        return 'report';
     }
 }
 
-interface Rule {
+interface Rule
+{
     public function apply(): string;
 }
 
@@ -1993,54 +2161,64 @@ mail
 // adding a class. There is no list of formats to keep up to date, and nothing
 // has to be registered.
 
-interface Exporter {
+interface Exporter
+{
     public function format(): string;
     public function render(array<string> $rows): string;
 }
 
-class CsvExporter implements Exporter {
-    public function format(): string {
-        return "csv";
+class CsvExporter implements Exporter
+{
+    public function format(): string
+    {
+        return 'csv';
     }
 
-    public function render(array<string> $rows): string {
-        string $out = "";
+    public function render(array<string> $rows): string
+    {
+        string $out = '';
         foreach ($rows as string $row) {
-            $out = $out == "" ? $row : $out . "," . $row;
+            $out = $out == '' ? $row : $out . ',' . $row;
         }
         return $out;
     }
 }
 
-class JsonExporter implements Exporter {
-    public function format(): string {
-        return "json";
+class JsonExporter implements Exporter
+{
+    public function format(): string
+    {
+        return 'json';
     }
 
-    public function render(array<string> $rows): string {
+    public function render(array<string> $rows): string
+    {
         return Core\Json::encode($rows);
     }
 }
 
-class TextExporter implements Exporter {
-    public function format(): string {
-        return "text";
+class TextExporter implements Exporter
+{
+    public function format(): string
+    {
+        return 'text';
     }
 
-    public function render(array<string> $rows): string {
-        string $out = "";
+    public function render(array<string> $rows): string
+    {
+        string $out = '';
         foreach ($rows as string $row) {
-            $out = $out . "- " . $row . " ";
+            $out = $out . '- ' . $row . ' ';
         }
         return Core\Str::trim($out);
     }
 }
 
-array<string> $rows = ["cup", "plate", "bowl"];
+array<string> $rows = ['cup', 'plate', 'bowl'];
 
 // One line per format, in alphabetical order by class name.
 foreach (Core\Program::implementing<Exporter>() as Exporter $exporter) {
-    echo $exporter->format(), ": ", $exporter->render($rows), "\n";
+    echo $exporter->format(), ': ', $exporter->render($rows), "\n";
 }
 ```
 
@@ -2058,34 +2236,40 @@ text: - cup - plate - bowl
 // `SmtpSender` needs a host name, so this program does not compile.
 // proof: compile-error
 
-interface Sender {
+interface Sender
+{
     public function send(string $text): string;
 }
 
-class LogSender implements Sender {
-    public function send(string $text): string {
-        return "logged: " . $text;
+class LogSender implements Sender
+{
+    public function send(string $text): string
+    {
+        return 'logged: ' . $text;
     }
 }
 
-class SmtpSender implements Sender {
-    public function constructor(private string $host) {}
+class SmtpSender implements Sender
+{
+    public function constructor(private string $host)
+    {}
 
-    public function send(string $text): string {
-        return "sent to " . $this->host . ": " . $text;
+    public function send(string $text): string
+    {
+        return 'sent to ' . $this->host . ': ' . $text;
     }
 }
 
 foreach (Core\Program::implementing<Sender>() as Sender $sender) {
-    echo $sender->send("hello"), "\n";
+    echo $sender->send('hello'), "\n";
 }
 ```
 
 ```output
 error[E0744]: `SmtpSender` is a `Sender` and its constructor takes 1 required argument(s)
-   --> main.nvs:24:10
+   --> main.nvs:30:10
    |
-24 | foreach (Core\Program::implementing<Sender>() as Sender $sender) {
+30 | foreach (Core\Program::implementing<Sender>() as Sender $sender) {
    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this enumeration would write `new SmtpSender()`
    = help: every class in the result is created with no arguments. Give `SmtpSender` a `constructor` with no required parameters. Or use `Core\Program::constructors<Sender, callable(...): Sender>()`, which passes the arguments you give it
 
@@ -2154,26 +2338,35 @@ When no class implements `I`, the result is `[]`, whatever `$member` is.
 // Shows how to read one attribute from every class that implements an
 // interface. Each row holds the object and the attribute found on it.
 
-type Label = {text: string};
+type Label = { text: string };
 
-interface Report {
+interface Report
+{
     public function rows(): int;
 }
 
-class SalesReport implements Report {
-    #[Label(text: "Sales")]
-    public function rows(): int { return 12; }
+class SalesReport implements Report
+{
+    #[Label(text: 'Sales')]
+    public function rows(): int
+    {
+        return 12;
+    }
 }
 
-class StockReport implements Report {
-    #[Label(text: "Stock")]
-    public function rows(): int { return 7; }
+class StockReport implements Report
+{
+    #[Label(text: 'Stock')]
+    public function rows(): int
+    {
+        return 7;
+    }
 }
 
 // The rows are sorted by class name, so `SalesReport` comes first.
 // This prints `Sales: 12` and then `Stock: 7`.
-foreach (Core\Program::implementingWith<Report, Label>("rows") as {instance: Report, attribute: ?Label} $row) {
-    echo $row->attribute?->text ?? "(none)", ": ", $row->instance->rows(), "\n";
+foreach (Core\Program::implementingWith<Report, Label>('rows') as { instance: Report, attribute: ?Label } $row) {
+    echo $row->attribute?->text ?? '(none)', ': ', $row->instance->rows(), "\n";
 }
 ```
 
@@ -2189,25 +2382,34 @@ Stock: 7
 // Shows the two things that are not a method attribute: an empty member name,
 // which reads the attributes on the class itself, and a class carrying none.
 
-type Owner = {team: string};
+type Owner = { team: string };
 
-interface Job {
+interface Job
+{
     public function run(): string;
 }
 
-#[Owner(team: "billing")]
-class Invoices implements Job {
-    public function run(): string { return "invoices"; }
+#[Owner(team: 'billing')]
+class Invoices implements Job
+{
+    public function run(): string
+    {
+        return 'invoices';
+    }
 }
 
-class Cleanup implements Job {
-    public function run(): string { return "cleanup"; }
+class Cleanup implements Job
+{
+    public function run(): string
+    {
+        return 'cleanup';
+    }
 }
 
 // `Cleanup` has no `#[Owner]`, so its attribute is `null` and `??` supplies
 // the text instead. This prints `cleanup: nobody` and then `invoices: billing`.
-foreach (Core\Program::implementingWith<Job, Owner>("") as {instance: Job, attribute: ?Owner} $row) {
-    echo $row->instance->run(), ": ", $row->attribute?->team ?? "nobody", "\n";
+foreach (Core\Program::implementingWith<Job, Owner>('') as { instance: Job, attribute: ?Owner } $row) {
+    echo $row->instance->run(), ': ', $row->attribute?->team ?? 'nobody', "\n";
 }
 ```
 
@@ -2223,34 +2425,47 @@ invoices: billing
 // Shows what a framework does with this: every page in the program, beside the
 // menu entry that page declares for itself.
 
-type Menu = {title: string, order: int};
+type Menu = { title: string, order: int };
 
-interface AdminPage {
+interface AdminPage
+{
     public function path(): string;
 }
 
-class Dashboard implements AdminPage {
-    #[Menu(title: "Dashboard", order: 1)]
-    public function path(): string { return "/admin"; }
+class Dashboard implements AdminPage
+{
+    #[Menu(title: 'Dashboard', order: 1)]
+    public function path(): string
+    {
+        return '/admin';
+    }
 }
 
-class Users implements AdminPage {
-    #[Menu(title: "Users", order: 2)]
-    public function path(): string { return "/admin/users"; }
+class Users implements AdminPage
+{
+    #[Menu(title: 'Users', order: 2)]
+    public function path(): string
+    {
+        return '/admin/users';
+    }
 }
 
-class Health implements AdminPage {
+class Health implements AdminPage
+{
     // This page is reachable and stays out of the menu, because it declares
     // no `#[Menu]`.
-    public function path(): string { return "/admin/health"; }
+    public function path(): string
+    {
+        return '/admin/health';
+    }
 }
 
 // Adding a page to the menu is adding the attribute to the page, and no list
 // of pages can go out of date. This prints `1. Dashboard -> /admin` first.
-foreach (Core\Program::implementingWith<AdminPage, Menu>("path") as {instance: AdminPage, attribute: ?Menu} $row) {
+foreach (Core\Program::implementingWith<AdminPage, Menu>('path') as { instance: AdminPage, attribute: ?Menu } $row) {
     ?Menu $entry = $row->attribute;
     if ($entry != null) {
-        echo $entry->order, ". ", $entry->title, " -> ", $row->instance->path(), "\n";
+        echo $entry->order, '. ', $entry->title, ' -> ', $row->instance->path(), "\n";
     }
 }
 ```
@@ -2268,28 +2483,37 @@ foreach (Core\Program::implementingWith<AdminPage, Menu>("path") as {instance: A
 // `Archive` has no `rows` method, so this program does not compile.
 // proof: compile-error
 
-type Label = {text: string};
+type Label = { text: string };
 
-interface Report {
+interface Report
+{
 }
 
-class Sales implements Report {
-    #[Label(text: "Sales")]
-    public function rows(): int { return 12; }
+class Sales implements Report
+{
+    #[Label(text: 'Sales')]
+    public function rows(): int
+    {
+        return 12;
+    }
 }
 
-class Archive implements Report {
-    public function count(): int { return 3; }
+class Archive implements Report
+{
+    public function count(): int
+    {
+        return 3;
+    }
 }
 
-var $rows = Core\Program::implementingWith<Report, Label>("rows");
+var $rows = Core\Program::implementingWith<Report, Label>('rows');
 ```
 
 ```output
 error[E0798]: `Core\Program::implementingWith` names `rows`, which `Archive` does not declare
-   --> main.nvs:20:59
+   --> main.nvs:29:59
    |
-20 | var $rows = Core\Program::implementingWith<Report, Label>("rows");
+29 | var $rows = Core\Program::implementingWith<Report, Label>('rows');
    |                                                           ^^^^^^ no method, parameter or property of that name
    = help: the name is checked against every class that implements `Report`. Write a method or property that `Report` declares. Write an empty string for the attributes of the class itself
 
@@ -2304,36 +2528,43 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // Shows how to read the path of each page's `#[Core\Route]`, so each path is
 // written only once.
 
-interface Page {
+interface Page
+{
     public function render(): string;
 }
 
-class Index implements Page {
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "index")]
+class Index implements Page
+{
+    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'index')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function render(): string {
-        return "home";
+    public function render(): string
+    {
+        return 'home';
     }
 }
 
-class Contact implements Page {
-    #[Core\Route(path: "/contact", method: Core\Http\Method::Get, name: "contact")]
+class Contact implements Page
+{
+    #[Core\Route(path: '/contact', method: Core\Http\Method::Get, name: 'contact')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function render(): string {
-        return "contact us";
+    public function render(): string
+    {
+        return 'contact us';
     }
 }
 
-class Draft implements Page {
-    public function render(): string {
-        return "not routed";
+class Draft implements Page
+{
+    public function render(): string
+    {
+        return 'not routed';
     }
 }
 
 // `Draft` has no route, so its `attribute` is `null`.
 // This prints `/contact -> contact us` first, because `Contact` comes first.
-foreach (Core\Program::implementingWith<Page, {path: string}>("render") as {instance: Page, attribute: ?{path: string}} $row) {
-    echo $row->attribute?->path ?? "(no route)", " -> ", $row->instance->render(), "\n";
+foreach (Core\Program::implementingWith<Page, { path: string }>('render') as { instance: Page, attribute: ?{ path: string } } $row) {
+    echo $row->attribute?->path ?? '(no route)', ' -> ', $row->instance->render(), "\n";
 }
 ```
 

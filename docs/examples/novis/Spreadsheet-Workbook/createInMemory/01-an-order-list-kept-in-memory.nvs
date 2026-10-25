@@ -1,21 +1,21 @@
 <?nvs
+use Novis\Spreadsheet\Reader;
 // Shows how to make an Excel file in memory and read it back.
 use Novis\Spreadsheet\Workbook;
-use Novis\Spreadsheet\Reader;
 
 var $book = Workbook::createInMemory();
-$book->sheet("Orders")->addAll([
-    ["order" => 1042, "customer" => "Ada", "total" => 19.9],
-    ["order" => 1043, "customer" => "Alan", "total" => 5.0],
+$book->sheet('Orders')->addAll([
+    ['order' => 1042, 'customer' => 'Ada', 'total' => 19.9],
+    ['order' => 1043, 'customer' => 'Alan', 'total' => 5.0],
 ]);
 
 // `finish` returns a `Written`. Its `bytes` is the whole xlsx file.
 var $written = $book->finish();
-echo $written->rows["Orders"], " rows\n";
+echo $written->rows['Orders'], " rows\n";
 
 // `Reader::open` reads the file again. The first row has the keys, as a header.
 if ($written->bytes != null) {
-    foreach (Reader::open($written->bytes)->rows("Orders") as var $row) {
+    foreach (Reader::open($written->bytes)->rows('Orders') as var $row) {
         echo Core\Json::encode($row->values), "\n";
     }
 }

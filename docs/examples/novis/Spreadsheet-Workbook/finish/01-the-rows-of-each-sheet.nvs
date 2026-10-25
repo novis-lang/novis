@@ -3,14 +3,14 @@
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-$book->sheet("Orders")->addAll([["order" => 1042], ["order" => 1043], ["order" => 1044]]);
-$book->sheet("Returns")->add(["order" => 1040]);
+$book->sheet('Orders')->addAll([['order' => 1042], ['order' => 1043], ['order' => 1044]]);
+$book->sheet('Returns')->add(['order' => 1040]);
 
 // `rows` has the number of rows of each sheet, by sheet name. The header row is not counted.
 var $written = $book->finish();
 foreach ($written->rows as string $sheet => int $count) {
-    echo $sheet, ": ", $count, "\n";
+    echo $sheet, ': ', $count, "\n";
 }
 
 // `size` is the length of the file in bytes.
-echo $written->size == Core\Bytes::length($written->bytes ?? Core\Bytes::fill(0, 0)) ? "the size matches the file" : "the size is wrong", "\n";
+echo $written->size == Core\Bytes::length($written->bytes ?? Core\Bytes::fill(0, 0)) ? 'the size matches the file' : 'the size is wrong', "\n";

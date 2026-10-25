@@ -7,10 +7,10 @@ var $html = "<table><tbody><tr><td>Delivery</td><td><slot name=\"note\"></slot><
 
 // The slot keeps the height of its row. Three paragraphs are taller than one row.
 var $slots = fn(Page $page): array<Core\Html\Markup> =>
-    ["note" => html`<p>Ring the bell.</p><p>Leave the parcel at the door.</p><p>Call 0123 456.</p>`];
+    ['note' => html`<p>Ring the bell.</p><p>Leave the parcel at the door.</p><p>Call 0123 456.</p>`];
 var $rendered = Document::fromHtml($html)->slots($slots)->render();
 
 // The render cuts the HTML off at the cell and lists it in `overflows`, with the slot name as its area.
 foreach ($rendered->overflows as var $overflow) {
-    echo "page ", $overflow->page, ": the slot `", $overflow->area, "` is too tall\n";
+    echo 'page ', $overflow->page, ': the slot `', $overflow->area, "` is too tall\n";
 }

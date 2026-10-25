@@ -4,16 +4,18 @@
 // bench: complexity constant
 use Novis\Intl\RelativeTime;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<array<{count: int, unit: RelativeTime::Unit}>> $lists = [
-            [{count: -3, unit: RelativeTime::Unit::Day}, {count: -1, unit: RelativeTime::Unit::Hour}, {count: -20, unit: RelativeTime::Unit::Minute}],
-            [{count: -1, unit: RelativeTime::Unit::Year}, {count: -2, unit: RelativeTime::Unit::Week}, {count: 5, unit: RelativeTime::Unit::Second}],
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<array<{ count: int, unit: RelativeTime::Unit }>> $lists = [
+            [{ count: -3, unit: RelativeTime::Unit::Day }, { count: -1, unit: RelativeTime::Unit::Hour }, { count: -20, unit: RelativeTime::Unit::Minute }],
+            [{ count: -1, unit: RelativeTime::Unit::Year }, { count: -2, unit: RelativeTime::Unit::Week }, { count: 5, unit: RelativeTime::Unit::Second }],
         ];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            array<string> $written = RelativeTime::format($lists[$total % 2], "en");
+            array<string> $written = RelativeTime::format($lists[$total % 2], 'en');
             $total = $total + Core\Str::length($written[0]) % 3;
             $i = $i + 1;
         }

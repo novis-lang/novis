@@ -4,8 +4,10 @@
 
 namespace Shipping;
 
-class Label {
-    public static function forOrder(int $order, string $town): string {
-        return "SHIP-" . $order . " to " . $town;
+class Label
+{
+    public static function forOrder(int $order, string $town): string
+    {
+        return 'SHIP-' . $order . ' to ' . $town;
     }
 }

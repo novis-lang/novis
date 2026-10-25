@@ -8,7 +8,7 @@ string $log = "10:00 INFO server started\n"
 
 uint $errors = 0;
 foreach (Core\Str::lines($log) as string $line) {
-    if (Core\Str::contains($line, " ERROR ")) {
+    if (Core\Str::contains($line, ' ERROR ')) {
         echo $line, "\n";
         $errors = $errors + 1;
     }

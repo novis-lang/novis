@@ -4,23 +4,29 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Letters implements Iterator<int> {
+class Letters implements Iterator<int>
+{
     private int $at = -1;
 
-    public function constructor(private array<int> $items) {}
+    public function constructor(private array<int> $items)
+    {}
 
-    public function advance(): bool {
+    public function advance(): bool
+    {
         $this->at = $this->at + 1;
         return $this->at < 8;
     }
 
-    public function current(): int {
+    public function current(): int
+    {
         return $this->items[$this->at];
     }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         array<int> $values = [3, 1, 4, 1, 5, 9, 2, 6];
         int $total = 0;
         int $r = 0;

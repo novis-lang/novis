@@ -15,7 +15,7 @@ error[E0466]: `string` and `int` are disjoint; no value is both, so this compari
 error[E0715]: `<` has no meaning for `string`
    --> 06-a-string-in-arithmetic.nvs:10:15
    |
-10 | bool $first = $name < "Bob";
+10 | bool $first = $name < 'Bob';
    |               ^^^^^^^^^^^^^ ordered here
    = help: to compare two strings, use `Core\Str::compare($a, $b)`. The operators `<`, `<=`, `>`, `>=` and `<=>` work only on numbers
 

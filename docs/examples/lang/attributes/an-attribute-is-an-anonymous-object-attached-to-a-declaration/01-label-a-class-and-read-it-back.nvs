@@ -3,11 +3,12 @@
 // front of the brackets is a `type` alias for a shape, and your values are
 // checked against that shape.
 
-type Table = {name: string};
+type Table = { name: string };
 
-#[Table(name: "users")]
-class User {
-    public string $email = "";
+#[Table(name: 'users')]
+class User
+{
+    public string $email = '';
 }
 
 // `Core\Attributes::get` returns the values attached to the class, or `null`
@@ -19,7 +20,8 @@ if ($table != null) {
 }
 
 // A class with no attribute on it. The result is `null`.
-class Session {}
+class Session
+{}
 
 ?Table $none = Core\Attributes::get<Table>(Session::constructor(...));
 echo $none == null ? "no table name\n" : "a table name\n";

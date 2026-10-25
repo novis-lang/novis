@@ -44,7 +44,7 @@ where the first one stopped. After a complete loop, the second loop gets no valu
 // Shows the two ways a `foreach` loop walks an array: the values alone, and the keys
 // together with the values.
 
-var $scores = ["ada" => 31, "bob" => 27, "cleo" => 44];
+var $scores = ['ada' => 31, 'bob' => 27, 'cleo' => 44];
 
 // The loop gives one value per step. `var $score` gets the type of the values, `int`.
 var $total = 0;
@@ -56,7 +56,7 @@ echo $total, "\n";
 
 // An array also has keys. `string $name => int $score` gets both, and writes their types.
 foreach ($scores as string $name => int $score) {
-    echo $name, " scored ", $score, "\n";
+    echo $name, ' scored ', $score, "\n";
 }
 ```
 
@@ -74,18 +74,22 @@ cleo scored 44
 // Shows the other two subjects a `foreach` loop accepts: an object whose class
 // implements `Iterable`, and an `Iterator` returned by a method that contains `yield`.
 
-class Weekdays implements Iterable<string> {
+class Weekdays implements Iterable<string>
+{
     // `foreach` calls `iterate()` once and walks the iterator it returns.
-    public function iterate(): Iterator<string> {
-        yield "Monday";
-        yield "Tuesday";
-        yield "Wednesday";
+    public function iterate(): Iterator<string>
+    {
+        yield 'Monday';
+        yield 'Tuesday';
+        yield 'Wednesday';
     }
 }
 
-class Steps {
+class Steps
+{
     // A method with `yield` returns an `Iterator`, which `foreach` walks directly.
-    public static function upTo(int $last): Iterator<int> {
+    public static function upTo(int $last): Iterator<int>
+    {
         int $i = 1;
         while ($i <= $last) {
             yield $i;
@@ -124,22 +128,27 @@ Wednesday
 // so it walks any class that can be walked and never needs to know how the cart stores
 // its items.
 
-class Item {
+class Item
+{
     public function constructor(
         public string $name,
         public int $cents,
         public int $quantity,
-    ) {}
+    )
+    {}
 }
 
-class Cart implements Iterable<Item> {
+class Cart implements Iterable<Item>
+{
     private array<Item> $items = [];
 
-    public function add(Item $item): void {
+    public function add(Item $item): void
+    {
         $this->items[] = $item;
     }
 
-    public function iterate(): Iterator<Item> {
+    public function iterate(): Iterator<Item>
+    {
         // `var $item` is an `Item`, because `$this->items` is an `array<Item>`.
         foreach ($this->items as var $item) {
             yield $item;
@@ -147,8 +156,10 @@ class Cart implements Iterable<Item> {
     }
 }
 
-class Checkout {
-    public static function total(Iterable<Item> $items): int {
+class Checkout
+{
+    public static function total(Iterable<Item> $items): int
+    {
         int $cents = 0;
         foreach ($items as Item $item) {
             $cents = $cents + $item->cents * $item->quantity;
@@ -158,8 +169,8 @@ class Checkout {
 }
 
 var $cart = new Cart();
-$cart->add(new Item("Coffee", 749, 2));
-$cart->add(new Item("Filter", 399, 1));
+$cart->add(new Item('Coffee', 749, 2));
+$cart->add(new Item('Filter', 399, 1));
 
 // This prints 1897, the price of the whole cart in cents.
 echo Checkout::total($cart), "\n";
@@ -176,11 +187,13 @@ echo Checkout::total($cart), "\n";
 // Shows that a second loop over the same `Iterator` starts where the first
 // loop stopped. A loop over an `Iterable` starts again from the first value.
 
-class Queue implements Iterable<string> {
-    public function iterate(): Iterator<string> {
-        yield "first";
-        yield "second";
-        yield "third";
+class Queue implements Iterable<string>
+{
+    public function iterate(): Iterator<string>
+    {
+        yield 'first';
+        yield 'second';
+        yield 'third';
     }
 }
 
@@ -255,25 +268,29 @@ advance() returned true`.
 // Shows the `Iterator<T>` interface. A class that has `advance()` and `current()` can be
 // walked by a `foreach` loop, and by a `while` loop that calls the two methods itself.
 
-class Letters implements Iterator<string> {
+class Letters implements Iterator<string>
+{
     // The cursor starts before the first element, so the first `advance()` reaches it.
     private int $at = -1;
 
-    public function constructor(private array<string> $items) {}
+    public function constructor(private array<string> $items)
+    {}
 
     // Moves to the next element. The result is `false` once there are none left.
-    public function advance(): bool {
+    public function advance(): bool
+    {
         $this->at = $this->at + 1;
         return $this->at < (Core\Arr::count($this->items) as int);
     }
 
     // Returns the element the last `advance()` moved to.
-    public function current(): string {
+    public function current(): string
+    {
         return $this->items[$this->at];
     }
 }
 
-array<string> $abc = ["a", "b", "c"];
+array<string> $abc = ['a', 'b', 'c'];
 
 // The two methods are the whole protocol, so this loop does what a `foreach` does.
 var $byHand = new Letters($abc);
@@ -301,11 +318,14 @@ abc
 // Shows the `Iterable<T>` interface. Its one method `iterate()` returns a cursor, and
 // `foreach` calls it once per loop. Every loop therefore starts at the beginning.
 
-class Countdown implements Iterable<int> {
-    public function constructor(private int $from) {}
+class Countdown implements Iterable<int>
+{
+    public function constructor(private int $from)
+    {}
 
     // A method with `yield` returns an `Iterator<int>`, which is what this must give.
-    public function iterate(): Iterator<int> {
+    public function iterate(): Iterator<int>
+    {
         int $i = $this->from;
         while ($i > 0) {
             yield $i;
@@ -330,7 +350,7 @@ echo "\n";
 // prints all nine pairs.
 foreach ($three as int $outer) {
     foreach ($three as int $inner) {
-        echo $outer, $inner, " ";
+        echo $outer, $inner, ' ';
     }
 }
 echo "\n";
@@ -350,10 +370,13 @@ echo "\n";
 // so the program reading the names never handles a page itself. A page the loop does not
 // reach is never read.
 
-class Results implements Iterable<string> {
-    public function constructor(private array<array<string>> $pages) {}
+class Results implements Iterable<string>
+{
+    public function constructor(private array<array<string>> $pages)
+    {}
 
-    public function iterate(): Iterator<string> {
+    public function iterate(): Iterator<string>
+    {
         foreach ($this->pages as array<string> $page) {
             echo "(reading a page)\n";
             foreach ($page as string $name) {
@@ -364,9 +387,9 @@ class Results implements Iterable<string> {
 }
 
 var $results = new Results([
-    ["Ada Lovelace", "Alan Turing"],
-    ["Grace Hopper", "Edsger Dijkstra"],
-    ["Barbara Liskov"],
+    ['Ada Lovelace', 'Alan Turing'],
+    ['Grace Hopper', 'Edsger Dijkstra'],
+    ['Barbara Liskov'],
 ]);
 
 // The loop stops after three names, so the third page is never read.
@@ -396,8 +419,10 @@ Grace Hopper
 // compile. Write `as int $v` alone, or count the steps in your own variable.
 // proof: compile-error
 
-class Steps {
-    public static function upTo(int $n): Iterator<int> {
+class Steps
+{
+    public static function upTo(int $n): Iterator<int>
+    {
         int $i = 0;
         while ($i < $n) {
             yield $i;
@@ -407,15 +432,15 @@ class Steps {
 }
 
 foreach (Steps::upTo(3) as string $k => int $v) {
-    echo $k, "=", $v, "\n";
+    echo $k, '=', $v, "\n";
 }
 ```
 
 ```output
 error[E0444]: an `Iterable`/`Iterator` subject has no key to bind
-   --> main.nvs:16:28
+   --> main.nvs:18:28
    |
-16 | foreach (Steps::upTo(3) as string $k => int $v) {
+18 | foreach (Steps::upTo(3) as string $k => int $v) {
    |                            ^^^^^^^^^ no key exists here
    = help: an iterator has values but no keys. Remove the `$k =>`, or loop over an `array<T>`
 
@@ -502,9 +527,11 @@ way. A generator stored in a `mixed` variable is an `Iterator<T>` for `is`. A `f
 // Shows how to write a generator: a method whose body contains `yield`. It gives
 // out one value at a time, and the body runs only as far as the loop asks.
 
-class Countdown {
+class Countdown
+{
     // A generator declares `Iterator<T>` as its return type. Each `yield` gives one `T`.
-    public static function from(int $start): Iterator<int> {
+    public static function from(int $start): Iterator<int>
+    {
         echo "the body starts\n";
         int $n = $start;
         while ($n > 0) {
@@ -541,9 +568,11 @@ the body ends
 // Shows a generator whose loop has no end. The body runs one step per value, so a
 // sequence without an end is safe to write and safe to walk.
 
-class Backoff {
+class Backoff
+{
     // Every wait is twice the one before it: 1, 2, 4, 8, and so on.
-    public static function delays(int $first): Iterator<int> {
+    public static function delays(int $first): Iterator<int>
+    {
         int $wait = $first;
         while (true) {
             yield $wait;
@@ -579,9 +608,11 @@ attempt 4 waits 8s
 // keeps the lines that matter. A program uses this shape to scan a long report while
 // holding one line at a time.
 
-class Report {
+class Report
+{
     // Gives out the lines of the text, one per `yield`.
-    public static function lines(string $text): Iterator<string> {
+    public static function lines(string $text): Iterator<string>
+    {
         foreach (Core\Str::lines($text) as string $line) {
             yield $line;
         }
@@ -589,9 +620,10 @@ class Report {
 
     // Reads the generator above and keeps only the failures. A `foreach` with a
     // `yield` inside it is how one generator reads another.
-    public static function failures(Iterator<string> $lines): Iterator<string> {
+    public static function failures(Iterator<string> $lines): Iterator<string>
+    {
         foreach ($lines as string $line) {
-            if (Core\Str::startsWith($line, "ERROR")) {
+            if (Core\Str::startsWith($line, 'ERROR')) {
                 yield $line;
             }
         }
@@ -619,8 +651,10 @@ ERROR timeout
 // Shows that each call gives a new cursor, that `return;` ends the values early,
 // and that a cursor is walked once.
 
-class Numbers {
-    public static function count(int $n): Iterator<int> {
+class Numbers
+{
+    public static function count(int $n): Iterator<int>
+    {
         int $i = 0;
         while ($i < $n) {
             yield $i;
@@ -628,7 +662,8 @@ class Numbers {
         }
     }
 
-    public static function early(bool $stop): Iterator<int> {
+    public static function early(bool $stop): Iterator<int>
+    {
         yield 1;
         if ($stop) {
             return;
@@ -680,8 +715,10 @@ echo "\n";
 // Shows that a `finally` block in a generator runs when the body ends, and also
 // when the loop stops early with `break`.
 
-class Rows {
-    public static function read(int $n): Iterator<int> {
+class Rows
+{
+    public static function read(int $n): Iterator<int>
+    {
         try {
             int $i = 0;
             while ($i < $n) {
@@ -689,7 +726,7 @@ class Rows {
                 $i = $i + 1;
             }
         } finally {
-            echo "[closed]";
+            echo '[closed]';
         }
     }
 }
@@ -721,12 +758,14 @@ echo "\n";
 <?nvs
 // Shows that an error thrown in a generator reaches the loop that reads it.
 
-class Feed {
-    public static function upTo(int $n): Iterator<int> {
+class Feed
+{
+    public static function upTo(int $n): Iterator<int>
+    {
         int $i = 0;
         while ($i < $n) {
             if ($i == 2) {
-                throw new RuntimeError("bad element 2");
+                throw new RuntimeError('bad element 2');
             }
             yield $i;
             $i = $i + 1;
@@ -738,10 +777,10 @@ class Feed {
 // so this prints 0;1;caught: bad element 2.
 try {
     foreach (Feed::upTo(5) as int $v) {
-        echo $v, ";";
+        echo $v, ';';
     }
 } catch (RuntimeError $e) {
-    echo "caught: ", $e->message, "\n";
+    echo 'caught: ', $e->message, "\n";
 }
 ```
 
@@ -757,12 +796,15 @@ try {
 // generator, loop over it and `yield` each value.
 // proof: compile-error
 
-class Pages {
-    public static function first(): Iterator<int> {
+class Pages
+{
+    public static function first(): Iterator<int>
+    {
         yield 1;
     }
 
-    public static function all(): Iterator<int> {
+    public static function all(): Iterator<int>
+    {
         yield from Pages::first();
     }
 }
@@ -770,9 +812,9 @@ class Pages {
 
 ```output
 error[E0448]: `yield from` does not exist in Novis
-   --> main.nvs:12:9
+   --> main.nvs:15:9
    |
-12 |         yield from Pages::first();
+15 |         yield from Pages::first();
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^ this delegation form
    = help: write `foreach ($inner as T $v) { yield $v; }`
 
@@ -788,8 +830,10 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // Write `return;` to stop, or `yield 5;` to give the value to the loop.
 // proof: compile-error
 
-class Totals {
-    public static function sums(): Iterator<int> {
+class Totals
+{
+    public static function sums(): Iterator<int>
+    {
         yield 1;
         return 5;
     }
@@ -798,11 +842,11 @@ class Totals {
 
 ```output
 error[E0447]: a generator cannot return a value
-  --> main.nvs:9:16
-  |
-9 |         return 5;
-  |                ^ this value has nowhere to go
-  = help: write `return;` to stop the generator, or `yield` this value
+   --> main.nvs:11:16
+   |
+11 |         return 5;
+   |                ^ this value has nowhere to go
+   = help: write `return;` to stop the generator, or `yield` this value
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -846,9 +890,9 @@ values. Values sent before `close` are still given to the loop.
 // Shows how to walk a `Core\ObjectSet` and a `Core\ObjectMap` with `foreach`.
 
 var $tags = new Core\ObjectSet<string>();
-$tags->add("blue");
-$tags->add("green");
-$tags->add("blue");
+$tags->add('blue');
+$tags->add('green');
+$tags->add('blue');
 
 // A set holds each value once, so "blue" is in it once. The loop gives you the
 // members in the order you added them. This prints blue and then green.
@@ -857,12 +901,12 @@ foreach ($tags as string $tag) {
 }
 
 var $stock = new Core\ObjectMap<string, int>();
-$stock->set("apples", 12);
-$stock->set("pears", 4);
+$stock->set('apples', 12);
+$stock->set('pears', 4);
 
 // A loop over a map gives you the keys. Use `get` to read the value for a key.
 foreach ($stock as string $name) {
-    echo $name, " ", $stock->get($name), "\n";
+    echo $name, ' ', $stock->get($name), "\n";
 }
 ```
 
@@ -911,8 +955,9 @@ echo $costs->pop(), "\n";
 <?nvs
 // Shows a worker task taking its jobs from a `Core\Task\Channel` with `foreach`.
 
-class Report {
-    public static string $done = "";
+class Report
+{
+    public static string $done = '';
 }
 
 // The channel holds 2 jobs at a time. A sender waits while it is full, so a fast
@@ -921,7 +966,7 @@ var $jobs = new Core\Task\Channel<string>(2);
 
 Core\Task::all({
     fill: fn(): int => {
-        array<string> $queue = ["resize-logo", "resize-banner", "resize-icon"];
+        array<string> $queue = ['resize-logo', 'resize-banner', 'resize-icon'];
         foreach ($queue as string $job) {
             $jobs->send($job);
         }
@@ -932,7 +977,7 @@ Core\Task::all({
     work: fn(): int => {
         // The loop gives you each job that was sent, in the order it was sent.
         foreach ($jobs as string $job) {
-            Report::$done = Report::$done . $job . " ";
+            Report::$done = Report::$done . $job . ' ';
         }
         return 0;
     },
@@ -993,8 +1038,10 @@ An error thrown by a generator reaches the code that called `Core\Arr::from`.
 <?nvs
 // Shows how to collect the values of a generator into a plain array.
 
-class Fibonacci {
-    public static function first(int $many): Iterator<int> {
+class Fibonacci
+{
+    public static function first(int $many): Iterator<int>
+    {
         int $a = 1;
         int $b = 1;
         int $n = 0;
@@ -1032,9 +1079,11 @@ echo Core\Arr::sum($numbers), "\n";
 <?nvs
 // Shows the `limit` option, which stops the walk after the number of values you name.
 
-class Ids {
+class Ids
+{
     // This generator has no end.
-    public static function forever(string $prefix): Iterator<string> {
+    public static function forever(string $prefix): Iterator<string>
+    {
         int $n = 1;
         while (true) {
             yield "{$prefix}-{$n}";
@@ -1044,7 +1093,7 @@ class Ids {
 }
 
 // `limit` is what makes this call return. It stops the walk after three values.
-array<string> $batch = Core\Arr::from(Ids::forever("order"), {limit: 3});
+array<string> $batch = Core\Arr::from(Ids::forever('order'), { limit: 3 });
 
 // This prints order-1, order-2 and order-3.
 foreach ($batch as string $id) {
@@ -1066,10 +1115,10 @@ order-3
 // when it gathers values while it works and puts them in order at the end.
 
 var $seen = new Core\ObjectSet<string>();
-$seen->add("marta");
-$seen->add("ada");
-$seen->add("kofi");
-$seen->add("ada");
+$seen->add('marta');
+$seen->add('ada');
+$seen->add('kofi');
+$seen->add('ada');
 
 // A set gives its members in the order you added them, and keeps each one once.
 // This prints 3.
@@ -1128,15 +1177,18 @@ properties.
 // Shows the replacement for PHP's `IteratorAggregate` and `Traversable`. A class becomes
 // walkable by implementing `Iterable<T>` and writing one method, `iterate()`.
 
-class Playlist implements Iterable<string> {
+class Playlist implements Iterable<string>
+{
     private array<string> $tracks = [];
 
-    public function add(string $title): void {
+    public function add(string $title): void
+    {
         $this->tracks[] = $title;
     }
 
     // This replaces `getIterator()`. The return type names what the loop reads.
-    public function iterate(): Iterator<string> {
+    public function iterate(): Iterator<string>
+    {
         foreach ($this->tracks as string $title) {
             yield $title;
         }
@@ -1144,8 +1196,8 @@ class Playlist implements Iterable<string> {
 }
 
 var $playlist = new Playlist();
-$playlist->add("Blue in Green");
-$playlist->add("So What");
+$playlist->add('Blue in Green');
+$playlist->add('So What');
 
 // The object is now a subject a `foreach` loop accepts.
 foreach ($playlist as string $title) {
@@ -1165,8 +1217,10 @@ So What
 // Shows the replacements for PHP's `iterator_to_array` and `count`. Both live on `Core\Arr`,
 // so there is no free function to call.
 
-class Series {
-    public static function squares(int $upTo): Iterator<int> {
+class Series
+{
+    public static function squares(int $upTo): Iterator<int>
+    {
         int $i = 1;
         while ($i <= $upTo) {
             yield $i * $i;
@@ -1177,7 +1231,7 @@ class Series {
 
 // `Core\Arr::from` reads a sequence into an array. This replaces `iterator_to_array`.
 array<int> $squares = Core\Arr::from(Series::squares(5));
-echo $squares[0], ",", $squares[4], "\n";
+echo $squares[0], ',', $squares[4], "\n";
 
 // `Core\Arr::count` returns the number of elements. This replaces `count`.
 echo Core\Arr::count($squares), "\n";
@@ -1196,28 +1250,35 @@ echo Core\Arr::count($squares), "\n";
 // neither interface, so the class names its own methods. A reader of this code sees what
 // each one does without looking the interface up.
 
-class Line {
-    public function constructor(public string $sku, public int $quantity) {}
+class Line
+{
+    public function constructor(public string $sku, public int $quantity)
+    {}
 }
 
-class Basket implements Iterable<Line> {
+class Basket implements Iterable<Line>
+{
     private array<Line> $lines = [];
 
-    public function put(string $sku, int $quantity): void {
+    public function put(string $sku, int $quantity): void
+    {
         $this->lines[] = new Line($sku, $quantity);
     }
 
     // This replaces `offsetGet`, and the name says which line it returns.
-    public function lineAt(int $position): Line {
+    public function lineAt(int $position): Line
+    {
         return $this->lines[$position];
     }
 
     // This replaces `count`, and it returns the number of lines.
-    public function size(): int {
+    public function size(): int
+    {
         return Core\Arr::count($this->lines) as int;
     }
 
-    public function iterate(): Iterator<Line> {
+    public function iterate(): Iterator<Line>
+    {
         foreach ($this->lines as Line $line) {
             yield $line;
         }
@@ -1225,15 +1286,15 @@ class Basket implements Iterable<Line> {
 }
 
 var $basket = new Basket();
-$basket->put("COFFEE-1KG", 2);
-$basket->put("FILTER-100", 1);
+$basket->put('COFFEE-1KG', 2);
+$basket->put('FILTER-100', 1);
 
 // This prints 2 lines, then COFFEE-1KG.
 echo $basket->size(), " lines\n";
 echo $basket->lineAt(0)->sku, "\n";
 
 foreach ($basket as Line $line) {
-    echo $line->sku, " x", $line->quantity, "\n";
+    echo $line->sku, ' x', $line->quantity, "\n";
 }
 ```
 
@@ -1252,8 +1313,10 @@ FILTER-100 x1
 // Remove `implements Countable` and keep the method.
 // proof: compile-error
 
-class Bag implements Countable {
-    public function count(): int {
+class Bag implements Countable
+{
+    public function count(): int
+    {
         return 1;
     }
 }
@@ -1263,7 +1326,7 @@ class Bag implements Countable {
 error[E0303]: `Countable` is not declared
   --> main.nvs:6:22
   |
-6 | class Bag implements Countable {
+6 | class Bag implements Countable
   |                      ^^^^^^^^^ no matching declaration
 
 error: aborting due to 1 error
@@ -1278,8 +1341,10 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // Write `Core\Arr::from(Numbers::upTo(3))` instead.
 // proof: compile-error
 
-class Numbers {
-    public static function upTo(int $n): Iterator<int> {
+class Numbers
+{
+    public static function upTo(int $n): Iterator<int>
+    {
         int $i = 1;
         while ($i <= $n) {
             yield $i;
@@ -1293,9 +1358,9 @@ var $all = iterator_to_array(Numbers::upTo(3));
 
 ```output
 error[E0320]: `iterator_to_array` is not a function that exists
-   --> main.nvs:16:12
+   --> main.nvs:18:12
    |
-16 | var $all = iterator_to_array(Numbers::upTo(3));
+18 | var $all = iterator_to_array(Numbers::upTo(3));
    |            ^^^^^^^^^^^^^^^^^ no free function has this name
    = help: every function is a method of a class. The built-in functions are in the `Core` namespace. Write `Core\Str::length($s)`, or write `use Core\Str;` and then `Str::length($s)`
 

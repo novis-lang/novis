@@ -2,24 +2,26 @@
 // Shows that the same rows always give the same file, so a test can compare the bytes.
 use Novis\Spreadsheet\Workbook;
 
-class Report {
+class Report
+{
     // This function writes the monthly sales report and returns the file.
-    public static function sales(array<array<mixed>> $rows): bytes {
-        var $book = Workbook::createInMemory({properties: {title: "Sales", author: "Shop"}});
-        $book->sheet("Sales")->addAll($rows);
+    public static function sales(array<array<mixed>> $rows): bytes
+    {
+        var $book = Workbook::createInMemory({ properties: { title: 'Sales', author: 'Shop' } });
+        $book->sheet('Sales')->addAll($rows);
         return $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
     }
 }
 
 array<array<mixed>> $rows = [
-    ["month" => "January", "sales" => 1200],
-    ["month" => "February", "sales" => 950],
+    ['month' => 'January', 'sales' => 1200],
+    ['month' => 'February', 'sales' => 950],
 ];
 
 // The file has no creation time unless you set one, so two runs give the same bytes.
 bytes $saved = Report::sales($rows);
-echo Report::sales($rows) == $saved ? "the report is unchanged" : "the report changed", "\n";
+echo Report::sales($rows) == $saved ? 'the report is unchanged' : 'the report changed', "\n";
 
 // One changed number gives a different file.
-$rows[1]["sales"] = 951;
-echo Report::sales($rows) == $saved ? "the report is unchanged" : "the report changed", "\n";
+$rows[1]['sales'] = 951;
+echo Report::sales($rows) == $saved ? 'the report is unchanged' : 'the report changed', "\n";

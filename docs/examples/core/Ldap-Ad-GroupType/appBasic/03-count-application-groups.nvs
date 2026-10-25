@@ -2,10 +2,10 @@
 // Shows how to count the application groups that a search finds.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 var $found = $corp->search(
-    Core\Ldap\Filter::equals("objectClass", "group"),
-    {base: "OU=Company,DC=example,DC=test", select: ["groupType"]},
+    Core\Ldap\Filter::equals('objectClass', 'group'),
+    { base: 'OU=Company,DC=example,DC=test', select: ['groupType'] },
 );
 
 uint $count = 0;

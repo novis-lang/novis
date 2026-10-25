@@ -5,11 +5,13 @@
 // scaling: max 1048576
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): uint {
+class Bench
+{
+    public static function run(uint $size): uint
+    {
         // The server's address comes from the environment, so it is checked before the request is sent.
-        tainted string $base = Core\Env::get("NVS_SCALING_URL") ?? "http://127.0.0.1:8000";
-        Core\Http\Target $url = Core\Http::allowUrl($base . "/?bytes=" . $size);
+        tainted string $base = Core\Env::get('NVS_SCALING_URL') ?? 'http://127.0.0.1:8000';
+        Core\Http\Target $url = Core\Http::allowUrl($base . '/?bytes=' . $size);
         Core\Http\Response $response = Core\Http\Client::get($url);
         return Core\Str::length($response->text());
     }

@@ -8,8 +8,8 @@ class Bench
     public static function run(uint $size): uint
     {
         string $path = Core\Str::repeat('/shop', $size);
-        Core\Uri $left = Core\Uri::parse("https://example.com" . $path . "?step=2");
-        Core\Uri $right = Core\Uri::parse("https://EXAMPLE.com" . $path . "/./?step=2");
+        Core\Uri $left = Core\Uri::parse('https://example.com' . $path . '?step=2');
+        Core\Uri $right = Core\Uri::parse('https://EXAMPLE.com' . $path . '/./?step=2');
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

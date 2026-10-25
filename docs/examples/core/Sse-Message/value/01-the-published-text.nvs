@@ -3,7 +3,7 @@
 
 // The `.nvse` file beside this example publishes one value on `chat`.
 Core\Sse $sse = Core\Sse::current();
-Core\Topic::subscribe("chat");
+Core\Topic::subscribe('chat');
 
 ?Core\Sse\Message $message = $sse->receive();
 if ($message != null) {

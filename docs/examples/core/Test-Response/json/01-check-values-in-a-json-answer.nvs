@@ -6,14 +6,14 @@ use Core\Test;
 
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. It sends one product as JSON.
-    Core\Response::json(["sku" => "mug-7", "price" => 12, "tags" => ["blue", "kitchen"]]);
+    Core\Response::json(['sku' => 'mug-7', 'price' => 12, 'tags' => ['blue', 'kitchen']]);
 } else {
     // This part is the test.
-    var $response = Test::request(Method::Get, "/products/mug-7");
+    var $response = Test::request(Method::Get, '/products/mug-7');
 
     // `json()` returns the decoded body. A JSON object is an array with string keys.
     var $product = $response->json() as array<mixed>;
 
     // This prints `mug-7 12 2`.
-    echo $product["sku"], " ", $product["price"], " ", Core\Arr::count($product["tags"] as array<mixed>), "\n";
+    echo $product['sku'], ' ', $product['price'], ' ', Core\Arr::count($product['tags'] as array<mixed>), "\n";
 }

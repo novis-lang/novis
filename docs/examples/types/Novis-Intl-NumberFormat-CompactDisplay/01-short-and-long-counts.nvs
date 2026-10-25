@@ -5,7 +5,7 @@ use Novis\Intl\NumberFormat;
 array<int> $followers = [1200, 3400000];
 
 // `Short` is the default and fits a small label.
-echo Core\Str::join(NumberFormat::compact($followers, "en", {display: NumberFormat::CompactDisplay::Short}), " | "), "\n";
+echo Core\Str::join(NumberFormat::compact($followers, 'en', { display: NumberFormat::CompactDisplay::Short }), ' | '), "\n";
 
 // `Long` writes the word in full.
-echo Core\Str::join(NumberFormat::compact($followers, "en", {display: NumberFormat::CompactDisplay::Long}), " | "), "\n";
+echo Core\Str::join(NumberFormat::compact($followers, 'en', { display: NumberFormat::CompactDisplay::Long }), ' | '), "\n";

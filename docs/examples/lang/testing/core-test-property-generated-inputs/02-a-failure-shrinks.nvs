@@ -6,9 +6,11 @@
 use Core\Test;
 use Core\Test\Property;
 
-final class Volume {
+final class Volume
+{
     // This method has a bug. The highest level is 10, but the check uses 100.
-    public static function limit(int $level): int {
+    public static function limit(int $level): int
+    {
         if ($level > 100) {
             return 10;
         }
@@ -16,11 +18,13 @@ final class Volume {
     }
 }
 
-final class VolumeTest {
+final class VolumeTest
+{
     // The generated level can be any number from 0 to 1000.
     // The report shows that 11 is the smallest level that fails.
-    #[Property(seed: 7, gen: {level: "0..1000"})]
-    public function itNeverGoesAboveTen(int $level): void {
+    #[Property(seed: 7, gen: { level: '0..1000' })]
+    public function itNeverGoesAboveTen(int $level): void
+    {
         Test::assertTrue(Volume::limit($level) <= 10);
     }
 }

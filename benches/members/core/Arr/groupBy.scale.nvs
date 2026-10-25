@@ -9,9 +9,9 @@ class Bench
     {
         array<string> $orders = Core\Arr::map(
             Core\Arr::range(1, $size as int),
-            fn(int $n): string => $n % 2 == 0 ? "paid" : "open",
+            fn(int $n): string => $n % 2 == 0 ? 'paid' : 'open',
         );
-        array<string> $prefixes = ["x-", "y-", "z-"];
+        array<string> $prefixes = ['x-', 'y-', 'z-'];
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

@@ -11,7 +11,7 @@ foreach ($groups as string $text) {
     int $rid = Core\Ldap\Sid::parse($text)->rid();
     if ($rid == 512) {
         echo "Domain Admins\n";
-    } else if ($rid == 513) {
+    } elseif ($rid == 513) {
         echo "Domain Users\n";
     } else {
         echo "other\n";

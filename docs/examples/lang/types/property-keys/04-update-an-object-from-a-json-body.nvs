@@ -3,12 +3,14 @@
 
 // Text from a request is tainted, which means it came from outside your program.
 // A key can write tainted text only when every public property is `tainted string`.
-class Profile {
-    public tainted string $name = "Ada";
-    public tainted string $city = "London";
-    private string $role = "member";
+class Profile
+{
+    public tainted string $name = 'Ada';
+    public tainted string $city = 'London';
+    private string $role = 'member';
 
-    public function role(): string {
+    public function role(): string
+    {
         return $this->role;
     }
 }
@@ -22,11 +24,11 @@ foreach ($changes as tainted string $field => mixed $value) {
     // "role" is a private property, so `as ?property<Profile>` gives `null`.
     ?property<Profile> $key = $field as ?property<Profile>;
     if ($key == null) {
-        echo "skipped: ", $field, "\n";
+        echo 'skipped: ', $field, "\n";
         continue;
     }
     $profile->$key = $value as tainted string;
-    echo "updated: ", $field, "\n";
+    echo 'updated: ', $field, "\n";
 }
 
-echo $profile->name, ", ", $profile->city, ", ", $profile->role(), "\n";
+echo $profile->name, ', ', $profile->city, ', ', $profile->role(), "\n";

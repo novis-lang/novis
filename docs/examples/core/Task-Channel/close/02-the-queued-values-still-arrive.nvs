@@ -29,4 +29,4 @@ Core\Task::all({
 });
 
 // This prints 5.
-echo "values read after the close: ", Tally::$seen, "\n";
+echo 'values read after the close: ', Tally::$seen, "\n";

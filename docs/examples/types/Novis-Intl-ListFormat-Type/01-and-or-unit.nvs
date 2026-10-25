@@ -2,10 +2,10 @@
 // Shows how each `ListFormat::Type` joins the same three items in English.
 use Novis\Intl\ListFormat;
 
-array<array<string>> $lists = [["tea", "coffee", "water"]];
+array<array<string>> $lists = [['tea', 'coffee', 'water']];
 
-echo ListFormat::join($lists, "en", {type: ListFormat::Type::And})[0], "\n";
-echo ListFormat::join($lists, "en", {type: ListFormat::Type::Or})[0], "\n";
+echo ListFormat::join($lists, 'en', { type: ListFormat::Type::And })[0], "\n";
+echo ListFormat::join($lists, 'en', { type: ListFormat::Type::Or })[0], "\n";
 
 // `Unit` joins amounts, such as the parts of a length.
-echo ListFormat::join([["5 feet", "11 inches"]], "en", {type: ListFormat::Type::Unit})[0], "\n";
+echo ListFormat::join([['5 feet', '11 inches']], 'en', { type: ListFormat::Type::Unit })[0], "\n";

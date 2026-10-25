@@ -3,8 +3,10 @@
 // contents, an object compares its identity, and a value that may be missing
 // is tested against `null`.
 
-class Customer {
-    public function constructor(public string $email) {}
+class Customer
+{
+    public function constructor(public string $email)
+    {}
 }
 
 // Two arrays are equal when they hold the same keys in the same order with
@@ -17,8 +19,8 @@ echo ($wanted == $reversed) as string, "\n";
 
 // Two objects are equal only when they are the same object. Two customers
 // built from the same address are two objects, so this prints an empty line.
-Customer $signedUp = new Customer("ada@example.com");
-Customer $justRead = new Customer("ada@example.com");
+Customer $signedUp = new Customer('ada@example.com');
+Customer $justRead = new Customer('ada@example.com');
 echo ($signedUp == $justRead) as string, "\n";
 
 // To ask whether they describe the same person, compare what they hold. This
@@ -33,5 +35,5 @@ if ($coupon == null) {
 } else {
     // In this branch the coupon is known to be there, so you can use it
     // without testing it again.
-    echo "coupon of ", Core\Str::length($coupon), " characters\n";
+    echo 'coupon of ', Core\Str::length($coupon), " characters\n";
 }

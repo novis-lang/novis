@@ -3,8 +3,8 @@
 
 // The `.nvse` file beside this example publishes on `prices` and on `news`.
 Core\Sse $sse = Core\Sse::current();
-Core\Topic::subscribe("prices");
-Core\Topic::subscribe("news");
+Core\Topic::subscribe('prices');
+Core\Topic::subscribe('news');
 
 ?Core\Sse\Message $message = $sse->receive();
 while ($message != null) {

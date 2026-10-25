@@ -7,8 +7,8 @@ Core\Session::start();
 
 // This visitor has no session yet, so `start()` opened a new, empty one.
 // `get()` returns `null`, and `??` gives 0.
-int $visits = (Core\Session::get("visits") ?? 0) as int;
-Core\Session::set("visits", $visits + 1);
+int $visits = (Core\Session::get('visits') ?? 0) as int;
+Core\Session::set('visits', $visits + 1);
 
 // This prints `visits: 1`.
-echo "visits: ", Core\Session::get("visits") as int, "\n";
+echo 'visits: ', Core\Session::get('visits') as int, "\n";

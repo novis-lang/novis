@@ -3,8 +3,10 @@
 // bench: iterations 2048
 // bench: complexity constant
 
-class Bench {
-    public static function run(Core\Socket $conn, uint $rounds): uint {
+class Bench
+{
+    public static function run(Core\Socket $conn, uint $rounds): uint
+    {
         array<Core\Socket\Message> $messages = [];
         ?Core\Socket\Message $message = $conn->receive();
         while ($message != null) {

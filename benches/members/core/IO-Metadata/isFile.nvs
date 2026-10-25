@@ -4,8 +4,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(array<Core\IO\Metadata> $infos, uint $rounds): uint {
+class Bench
+{
+    public static function run(array<Core\IO\Metadata> $infos, uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -22,7 +24,7 @@ class Bench {
 }
 
 string $dir = Core\IO::temporaryDir();
-string $path = Core\Path::join($dir, "is-file.dat");
-Core\IO::write($path, "x");
+string $path = Core\Path::join($dir, 'is-file.dat');
+Core\IO::write($path, 'x');
 array<Core\IO\Metadata> $infos = [Core\IO::stat($path), Core\IO::stat($dir)];
 echo Bench::run($infos, 1024), "\n";

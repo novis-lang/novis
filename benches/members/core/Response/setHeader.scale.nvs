@@ -11,7 +11,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            Core\Response::setHeader("Cache-Control", $value);
+            Core\Response::setHeader('Cache-Control', $value);
             $total = $total + Core\Str::length($value);
             $i = $i + 1;
         }

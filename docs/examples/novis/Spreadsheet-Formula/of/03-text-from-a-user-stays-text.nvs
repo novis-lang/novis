@@ -4,10 +4,10 @@ use Novis\Spreadsheet\Formula;
 use Novis\Spreadsheet\Workbook;
 
 // A user typed this comment. In a spreadsheet, it would start a formula.
-string $comment = "=1+1";
+string $comment = '=1+1';
 
 // In CSV, the text gets a `'` in front, so a spreadsheet program shows it as text.
 echo Workbook::fromRows([
-    ["kind" => "comment", "value" => $comment],
-    ["kind" => "formula", "value" => Formula::of("1+1")],
-], {format: "csv"})->bytes() as string;
+    ['kind' => 'comment', 'value' => $comment],
+    ['kind' => 'formula', 'value' => Formula::of('1+1')],
+], { format: 'csv' })->bytes() as string;

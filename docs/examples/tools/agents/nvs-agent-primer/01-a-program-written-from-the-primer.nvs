@@ -3,7 +3,7 @@
 // Each comment names the syntax and says what the step prints.
 
 // A variable has its type before its name. The type never changes.
-array<string> $fields = ["12", "7", "n/a", "30"];
+array<string> $fields = ['12', '7', 'n/a', '30'];
 
 // A `foreach` loop gives its variable a type too.
 array<int> $quantities = [];
@@ -18,7 +18,7 @@ foreach ($fields as string $field) {
 
 // Options are written as `{key: value}` after the last argument.
 // This prints `[30,12,7]`.
-array<int> $ordered = Core\Arr::sort($quantities, {order: Core\Arr::Order::Desc});
+array<int> $ordered = Core\Arr::sort($quantities, { order: Core\Arr::Order::Desc });
 echo Core\Json::encode($ordered), "\n";
 
 // Every built-in function is a method of a `Core` class. This prints `49`.

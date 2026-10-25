@@ -3,14 +3,16 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {
             // Chained: the number written this round depends on last round's total.
             float $amount = 1234.5 + ($total % 1000) * 0.01;
-            string $text = Core\Math::format($amount, {decimals: 2, groupSeparator: ","});
+            string $text = Core\Math::format($amount, { decimals: 2, groupSeparator: ',' });
             $total = $total + (Core\Str::length($text) as int);
             $i = $i + 1;
         }

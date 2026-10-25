@@ -11,5 +11,5 @@ try {
     echo "The pattern is valid.\n";
 } catch (RuntimeError $e) {
     echo "The pattern is not valid.\n";
-    echo "The message names it: ", Core\Str::contains($e->message, $pattern) ? "yes" : "no", "\n";
+    echo 'The message names it: ', Core\Str::contains($e->message, $pattern) ? 'yes' : 'no', "\n";
 }

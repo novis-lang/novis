@@ -4,8 +4,10 @@
 // bench: complexity constant
 use Novis\Pdf\Document;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $report = Document::fromHtml("<html lang=\"en\"><head><title>Report</title></head><body><h1>Report</h1></body></html>");
         array<Document::Standard> $standards = [Document::Standard::PdfA2b, Document::Standard::PdfA3b, Document::Standard::PdfUa1];
         array<Document> $documents = [];

@@ -2,15 +2,15 @@
 // Shows that a change to the array from `toArray` does not change the entry.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Dora Lind,OU=Company,DC=example,DC=test", {select: ["mail"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Dora Lind,OU=Company,DC=example,DC=test', { select: ['mail'] });
 
 if ($person != null) {
     // This removes every value of `mail` from the copy. Then it prints `0`.
     array<array<tainted bytes>> $copy = $person->toArray();
-    $copy["mail"] = [];
-    echo Core\Arr::count($copy["mail"]), "\n";
+    $copy['mail'] = [];
+    echo Core\Arr::count($copy['mail']), "\n";
 
     // The entry still has its value. This prints `dora.lind@example.test`.
-    echo $person->string("mail") ?? "no mail address", "\n";
+    echo $person->string('mail') ?? 'no mail address', "\n";
 }

@@ -1,7 +1,7 @@
 error[E0499]: `static::` does not resolve a static property
-   --> 09-static-on-a-static-property.nvs:10:16
+   --> 09-static-on-a-static-property.nvs:12:16
    |
-10 |         return static::$n;
+12 |         return static::$n;
    |                ^^^^^^ the called class is only known at run time
    = help: write `self::` for the class this is declared in, or name the class whose storage is meant
 

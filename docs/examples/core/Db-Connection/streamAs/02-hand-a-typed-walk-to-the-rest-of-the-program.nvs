@@ -4,7 +4,8 @@
 use Core\Db\Derive;
 
 #[Derive]
-class Order {
+class Order
+{
     public uint $id;
     public tainted string $customer;
     public int $cents;
@@ -17,7 +18,8 @@ class Order {
     }
 }
 
-class Orders {
+class Orders
+{
     // `Core\Db\Stream<Order>` is a walk over `Order` objects. The caller reads
     // it like any other loop and never sees a column name.
     public static function large(Core\Db\Connection $db, int $cents): Core\Db\Stream<Order>

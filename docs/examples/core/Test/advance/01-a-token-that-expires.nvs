@@ -6,21 +6,27 @@ use Core\Test;
 use Core\Time;
 use Core\Time\Instant;
 
-class ResetToken {
-    public function constructor(public Instant $expiresAt) {}
+class ResetToken
+{
+    public function constructor(public Instant $expiresAt)
+    {}
 
-    public static function issue(): ResetToken {
+    public static function issue(): ResetToken
+    {
         return new ResetToken(Time::now()->plus(15m));
     }
 
-    public function isValid(): bool {
+    public function isValid(): bool
+    {
         return Time::now()->compareTo($this->expiresAt) < 0;
     }
 }
 
-class ResetTokenTest {
-    #[Test(at: "2026-03-01T09:00:00Z")]
-    public function itExpiresAfterFifteenMinutes(): void {
+class ResetTokenTest
+{
+    #[Test(at: '2026-03-01T09:00:00Z')]
+    public function itExpiresAfterFifteenMinutes(): void
+    {
         ResetToken $token = ResetToken::issue();
         Test::assertTrue($token->isValid());
 
@@ -36,4 +42,4 @@ class ResetTokenTest {
 
 // `nvs test` runs the test above. This line runs under `nvs run` and prints
 // `true`, because a new token is valid.
-echo ResetToken::issue()->isValid() ? "true" : "false", "\n";
+echo ResetToken::issue()->isValid() ? 'true' : 'false', "\n";

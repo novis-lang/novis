@@ -3,23 +3,35 @@
 // bench: iterations 512
 // bench: complexity linear
 
-class Shop {
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Shop::home")]
+class Shop
+{
+    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Shop::home')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function home(): string { return "home"; }
+    public function home(): string
+    {
+        return 'home';
+    }
 
-    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get, name: 'Shop::product')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function product(uint $id): string { return "one product"; }
+    public function product(uint $id): string
+    {
+        return 'one product';
+    }
 
-    #[Core\Route(path: "/cart", method: Core\Http\Method::Post, name: "Shop::cart")]
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Post, name: 'Shop::cart')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function cart(): string { return "the cart"; }
+    public function cart(): string
+    {
+        return 'the cart';
+    }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $paths = ["/", "/products/42", "/cart"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $paths = ['/', '/products/42', '/cart'];
         array<Core\Http\Method> $verbs = [Core\Http\Method::Get, Core\Http\Method::Get, Core\Http\Method::Post];
         uint $total = 0;
         uint $i = 0;

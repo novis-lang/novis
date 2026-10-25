@@ -4,9 +4,11 @@
 // bench: complexity constant
 use Novis\Image\QrCode;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $links = ["https://example.com/a", "https://example.com/ccc", "https://example.com/hh"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $links = ['https://example.com/a', 'https://example.com/ccc', 'https://example.com/hh'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

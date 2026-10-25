@@ -5,18 +5,20 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        Core\Config::set("memory", "256M");
-        Core\Config::set("max_tasks", "16");
-        array<string> $names = ["memory", "max_tasks"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Core\Config::set('memory', '256M');
+        Core\Config::set('max_tasks', '16');
+        array<string> $names = ['memory', 'max_tasks'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The name of every round is chosen by the round before it, so no
             // round can be left out.
             string $name = $names[(($total + $i) % 2) as int];
-            $total = $total + Core\Str::length(Core\Config::get($name) ?? "");
+            $total = $total + Core\Str::length(Core\Config::get($name) ?? '');
             $i = $i + 1;
         }
         return $total;

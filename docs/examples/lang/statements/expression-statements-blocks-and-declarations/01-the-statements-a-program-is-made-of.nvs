@@ -20,7 +20,7 @@ $total = $total + 7;
 
 // This call is a statement. The program runs it for what it prints, and the
 // number it returns is thrown away.
-Report::line("counted");
+Report::line('counted');
 
 // A `;` on its own is an empty statement. It does nothing.
 ;

@@ -2,11 +2,11 @@
 // Shows that `with` returns a new object, and the object you call it on does not change.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Dora Lind,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Dora Lind,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
-    var $enabled = $flags->with({disabled: false});
+    var $enabled = $flags->with({ disabled: false });
 
     // This prints `514` and then `512`.
     echo $flags->bits(), "\n";

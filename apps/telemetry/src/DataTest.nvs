@@ -7,9 +7,11 @@ use Core\Str;
 use Core\Test;
 
 // Tests for the downloads. They use the database `scratch`, which is kept in memory.
-final class DataTest {
+final class DataTest
+{
     #[Test]
-    public function theJsonHasEveryRowOfBothTables(): void {
+    public function theJsonHasEveryRowOfBothTables(): void
+    {
         var $totals = PagesTest::twoWeeks();
         var $json = Json::encode(Data::json($totals));
         // The fields of a JSON object are in the order of their names, so `counters` comes first.
@@ -26,17 +28,19 @@ final class DataTest {
     }
 
     #[Test]
-    public function oneWeekHasOnlyItsRows(): void {
+    public function oneWeekHasOnlyItsRows(): void
+    {
         var $totals = PagesTest::twoWeeks();
-        mixed $week = Data::json($totals, "2026-W37");
+        mixed $week = Data::json($totals, '2026-W37');
         var $json = Json::encode($week);
         Test::assertTrue(Str::contains($json, "\"2026-W37\""));
         Test::assertTrue(!Str::contains($json, "\"2026-W42\""));
-        Test::assertSame(Json::encode(Data::json($totals, "2026-W40")), "{\"counters\":[],\"reports\":[]}");
+        Test::assertSame(Json::encode(Data::json($totals, '2026-W40')), "{\"counters\":[],\"reports\":[]}");
     }
 
     #[Test]
-    public function theCsvHasEveryRowOfBothTables(): void {
+    public function theCsvHasEveryRowOfBothTables(): void
+    {
         var $totals = PagesTest::twoWeeks();
         var $csv = Data::csv($totals);
         Test::assertSame($csv, "table,week,version,os,arch,reports,first_reports,active_1,active_2,active_3,active_4,active_5,active_6,active_7,counter,total\n"
@@ -49,24 +53,27 @@ final class DataTest {
     }
 
     #[Test]
-    public function aFileNameIsAWeekOnlyInTheFormOfAWeek(): void {
-        Test::assertSame(Data::weekOf("2026-W42.json"), "2026-W42");
-        Test::assertSame(Data::weekOf("2026-W42.csv"), null);
-        Test::assertSame(Data::weekOf("2026-42.json"), null);
-        Test::assertSame(Data::weekOf("20x6-W42.json"), null);
-        Test::assertSame(Data::weekOf("../W42.json"), null);
+    public function aFileNameIsAWeekOnlyInTheFormOfAWeek(): void
+    {
+        Test::assertSame(Data::weekOf('2026-W42.json'), '2026-W42');
+        Test::assertSame(Data::weekOf('2026-W42.csv'), null);
+        Test::assertSame(Data::weekOf('2026-42.json'), null);
+        Test::assertSame(Data::weekOf('20x6-W42.json'), null);
+        Test::assertSame(Data::weekOf('../W42.json'), null);
     }
 
     // No report is sent in these tests, so these weeks have no rows.
     #[Test]
-    public function aWeekWithNoRowsGets404(): void {
-        Test::assertSame(Test::request(Method::Get, "/data/1999-W01.json")->status(), 404);
-        Test::assertSame(Test::request(Method::Get, "/data/latest.json")->status(), 404);
+    public function aWeekWithNoRowsGets404(): void
+    {
+        Test::assertSame(Test::request(Method::Get, '/data/1999-W01.json')->status(), 404);
+        Test::assertSame(Test::request(Method::Get, '/data/latest.json')->status(), 404);
     }
 
     #[Test]
-    public function theDownloadsHaveTheirTypes(): void {
-        Test::assertSame(Test::request(Method::Get, "/data/totals.json")->header("content-type"), "application/json");
-        Test::assertSame(Test::request(Method::Get, "/data/totals.csv")->header("content-type"), "text/csv; charset=utf-8");
+    public function theDownloadsHaveTheirTypes(): void
+    {
+        Test::assertSame(Test::request(Method::Get, '/data/totals.json')->header('content-type'), 'application/json');
+        Test::assertSame(Test::request(Method::Get, '/data/totals.csv')->header('content-type'), 'text/csv; charset=utf-8');
     }
 }

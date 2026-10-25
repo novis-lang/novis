@@ -8,8 +8,10 @@
 
 enum Mode { Read = 1, Write = 2, Exec = 3 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         array<Mode> $modes = [Mode::Read, Mode::Write, Mode::Exec];
         int $total = 0;
         int $i = 0;

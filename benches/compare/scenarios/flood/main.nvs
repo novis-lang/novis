@@ -1,10 +1,10 @@
 <?nvs
 // `/hold` keeps 8 MiB for 300 ms and then prints `held`.
 // Every other path prints `ok`.
-if (Core\Request::path() == "/hold") {
-    string $held = Core\Str::repeat("x", 8388608);
+if (Core\Request::path() == '/hold') {
+    string $held = Core\Str::repeat('x', 8388608);
     Core\Time::sleep(Core\Time\Duration::milliseconds(300));
-    if (Core\Str::endsWith($held, "x")) {
+    if (Core\Str::endsWith($held, 'x')) {
         echo "held\n";
     }
 } else {

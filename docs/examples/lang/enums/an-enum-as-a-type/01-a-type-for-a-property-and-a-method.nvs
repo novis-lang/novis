@@ -3,18 +3,21 @@
 // a parameter and of a return value. Each of them accepts the three cases of
 // `Level` and no other value.
 
-class Gate {
+class Gate
+{
     enum Level { Low = 1, Mid = 5, High = 9 }
 
     // This property stores one case of `Level`.
     public Level $level;
 
-    public function constructor(Level $level) {
+    public function constructor(Level $level)
+    {
         $this->level = $level;
     }
 
     // The parameter and the return type are both `Level`.
-    public function raise(Level $to): Level {
+    public function raise(Level $to): Level
+    {
         if (($to as int) > ($this->level as int)) {
             $this->level = $to;
         }

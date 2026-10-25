@@ -4,27 +4,32 @@
 // bench: iterations 256
 // bench: complexity constant
 
-final class Money implements Stringable {
+final class Money implements Stringable
+{
     public int $cents;
 
-    public function constructor(int $cents) {
+    public function constructor(int $cents)
+    {
         $this->cents = $cents;
     }
 
-    public function toString(): string {
-        return $this->cents . " c";
+    public function toString(): string
+    {
+        return $this->cents . ' c';
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $money = new Money(1);
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: the amount this round renders comes from the last one.
             $money->cents = ($total % 1000003) as int;
-            string $line = "price " . $money;
+            string $line = 'price ' . $money;
             $total = $total + Core\Str::length($line);
             $i = $i + 1;
         }

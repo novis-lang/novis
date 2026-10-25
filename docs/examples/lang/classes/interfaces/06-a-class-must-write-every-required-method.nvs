@@ -3,9 +3,11 @@
 // `Empty` does not write `count`, so it does not compile.
 // proof: compile-error
 
-interface Counts {
+interface Counts
+{
     public function count(): int;
 }
 
-class Empty implements Counts {
+class Empty implements Counts
+{
 }

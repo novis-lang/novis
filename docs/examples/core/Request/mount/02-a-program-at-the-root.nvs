@@ -7,7 +7,7 @@ Core\Request\Mount $mount = Core\Request::mount();
 echo "prefix: '", $mount->prefix(), "'\n";
 
 // This mount has no pattern, so `captures()` returns an empty array. This prints "captures: 0".
-echo "captures: ", Core\Arr::count($mount->captures()), "\n";
+echo 'captures: ', Core\Arr::count($mount->captures()), "\n";
 
 // The same code for a link works here too. This prints "/orders/1042".
-echo $mount->prefix(), "/orders/1042", "\n";
+echo $mount->prefix(), '/orders/1042', "\n";

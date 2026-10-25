@@ -3,12 +3,14 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // Both replies come from this table, so nothing is sent over a network.
-        Core\Test::answerHttp("https://feed.example.com/a", 200, {body: "data: one\n\nevent: tick\ndata: two\n\n"});
-        Core\Test::answerHttp("https://feed.example.com/b", 200, {body: "id: 4\ndata: three\n\ndata: four\ndata: five\n\n"});
-        array<string> $urls = ["https://feed.example.com/a", "https://feed.example.com/b"];
+        Core\Test::answerHttp('https://feed.example.com/a', 200, { body: "data: one\n\nevent: tick\ndata: two\n\n" });
+        Core\Test::answerHttp('https://feed.example.com/b', 200, { body: "id: 4\ndata: three\n\ndata: four\ndata: five\n\n" });
+        array<string> $urls = ['https://feed.example.com/a', 'https://feed.example.com/b'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

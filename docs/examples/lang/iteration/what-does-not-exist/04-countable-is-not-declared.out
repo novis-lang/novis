@@ -1,7 +1,7 @@
 error[E0303]: `Countable` is not declared
   --> 04-countable-is-not-declared.nvs:6:22
   |
-6 | class Bag implements Countable {
+6 | class Bag implements Countable
   |                      ^^^^^^^^^ no matching declaration
 
 error: aborting due to 1 error

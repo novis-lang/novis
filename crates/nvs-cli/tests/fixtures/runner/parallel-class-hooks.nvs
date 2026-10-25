@@ -14,31 +14,36 @@ use Core\Test\AfterClass;
 use Core\Test\BeforeClass;
 use Core\Time;
 
-final class HookOrderTest {
+final class HookOrderTest
+{
     #[BeforeClass]
-    public static function prepare(): void {
+    public static function prepare(): void
+    {
         Time::sleep(200ms);
-        echo "before-class-returned ", Time::now()->toEpochMicros(), "\n";
+        echo 'before-class-returned ', Time::now()->toEpochMicros(), "\n";
     }
 
     #[Test]
-    public function itRunsBesideItsSibling(): void {
-        echo "test-started ", Time::now()->toEpochMicros(), "\n";
+    public function itRunsBesideItsSibling(): void
+    {
+        echo 'test-started ', Time::now()->toEpochMicros(), "\n";
         Time::sleep(1s);
-        echo "test-ended ", Time::now()->toEpochMicros(), "\n";
+        echo 'test-ended ', Time::now()->toEpochMicros(), "\n";
         Test::assertSame(1, 2);
     }
 
     #[Test]
-    public function itRunsBesideItsSiblingToo(): void {
-        echo "test-started ", Time::now()->toEpochMicros(), "\n";
+    public function itRunsBesideItsSiblingToo(): void
+    {
+        echo 'test-started ', Time::now()->toEpochMicros(), "\n";
         Time::sleep(1s);
-        echo "test-ended ", Time::now()->toEpochMicros(), "\n";
+        echo 'test-ended ', Time::now()->toEpochMicros(), "\n";
         Test::assertSame(1, 2);
     }
 
     #[AfterClass]
-    public static function cleanUp(): void {
-        echo "after-class-started ", Time::now()->toEpochMicros(), "\n";
+    public static function cleanUp(): void
+    {
+        echo 'after-class-started ', Time::now()->toEpochMicros(), "\n";
     }
 }

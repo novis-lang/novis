@@ -1,9 +1,9 @@
 error[E0708]: `Rock` is not a `Animal`, so this can never be a `class<Animal>`
-  --> 07-a-class-name-outside-the-hierarchy.nvs:9:20
-  |
-9 | class<Animal> $c = 'Rock' as class<Animal>;
-  |                    ^^^^^^^^^^^^^^^^^^^^^^^ converted here
-  = help: make `Rock` extend or implement `Animal`. Or write a class in `class<…>` that `Rock` already extends
+   --> 07-a-class-name-outside-the-hierarchy.nvs:11:20
+   |
+11 | class<Animal> $c = 'Rock' as class<Animal>;
+   |                    ^^^^^^^^^^^^^^^^^^^^^^^ converted here
+   = help: make `Rock` extend or implement `Animal`. Or write a class in `class<…>` that `Rock` already extends
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

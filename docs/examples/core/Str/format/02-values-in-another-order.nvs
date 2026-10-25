@@ -6,5 +6,5 @@ string $english = "%1\$s has %2\$d new messages\n";
 string $german = "%2\$d neue Nachrichten für %1\$s\n";
 
 // This prints `Ada has 4 new messages` and then `4 neue Nachrichten für Ada`.
-echo Core\Str::format($english, "Ada", 4);
-echo Core\Str::format($german, "Ada", 4);
+echo Core\Str::format($english, 'Ada', 4);
+echo Core\Str::format($german, 'Ada', 4);

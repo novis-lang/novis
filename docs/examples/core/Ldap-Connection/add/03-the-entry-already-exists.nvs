@@ -2,24 +2,24 @@
 // Shows what happens when an entry with the same DN is already in the directory.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Library Add 3,DC=example,DC=test";
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Library Add 3,DC=example,DC=test';
 
 // A run that stopped early can leave the unit behind, so the program deletes it first.
 try {
     $corp->delete($unit);
 } catch (Core\Ldap\LdapError $missing) {
 }
-$corp->add($unit, ["objectClass" => "organizationalUnit", "description" => "Books"]);
+$corp->add($unit, ['objectClass' => 'organizationalUnit', 'description' => 'Books']);
 
 // The second `add` uses the same DN, so it throws an error. This prints `AlreadyExists`.
 try {
-    $corp->add($unit, ["objectClass" => "organizationalUnit", "description" => "Films"]);
+    $corp->add($unit, ['objectClass' => 'organizationalUnit', 'description' => 'Films']);
 } catch (Core\Ldap\LdapError $error) {
-    echo $error->kind == Core\Ldap\LdapError::Kind::AlreadyExists ? "AlreadyExists" : "another error", "\n";
+    echo $error->kind == Core\Ldap\LdapError::Kind::AlreadyExists ? 'AlreadyExists' : 'another error', "\n";
 }
 
 // The first entry did not change. This prints `Books`.
-echo $corp->read($unit, {select: ["description"]})?->string("description") ?? "not found", "\n";
+echo $corp->read($unit, { select: ['description'] })?->string('description') ?? 'not found', "\n";
 
 $corp->delete($unit);

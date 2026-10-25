@@ -4,8 +4,10 @@
 // bench: complexity linear
 // bench: allocations 9
 
-class Bench {
-    public static function run(): uint {
+class Bench
+{
+    public static function run(): uint
+    {
         // The upload is the body in the file `bodyStream.nvsr` beside this one.
         // A request body can be read in pieces only once.
         uint $total = 0;
@@ -16,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run() > 0 ? "done" : "no body was read", "\n";
+echo Bench::run() > 0 ? 'done' : 'no body was read', "\n";

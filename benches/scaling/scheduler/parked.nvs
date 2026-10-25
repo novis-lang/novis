@@ -4,8 +4,10 @@
 // scaling: max 128
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): uint {
+class Bench
+{
+    public static function run(uint $size): uint
+    {
         array<Core\Task\Channel<uint>> $idle = [];
         uint $i = 0;
         while ($i < $size) {

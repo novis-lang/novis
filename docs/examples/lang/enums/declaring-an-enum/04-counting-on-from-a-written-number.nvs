@@ -8,10 +8,10 @@ enum Mask: uint { None = 0, All = 18446744073709551615 }
 
 // `Go` is one more than `Stop`, and `After` is one more than `Wait`.
 // This prints `10,11,30,31`.
-echo Signal::Stop as int, ",", Signal::Go as int, ",", Signal::Wait as int, ",", Signal::After as int, "\n";
+echo Signal::Stop as int, ',', Signal::Go as int, ',', Signal::Wait as int, ',', Signal::After as int, "\n";
 
 // Counting also works from a negative number. This prints `-2,-1,0,1`.
-echo Dir::Back as int, ",", Dir::Left as int, ",", Dir::Still as int, ",", Dir::Right as int, "\n";
+echo Dir::Back as int, ',', Dir::Left as int, ',', Dir::Still as int, ',', Dir::Right as int, "\n";
 
 // A `uint` enum converts with `as uint`. This prints 18446744073709551615.
 echo Mask::All as uint, "\n";

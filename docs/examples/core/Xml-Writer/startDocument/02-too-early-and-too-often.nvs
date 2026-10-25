@@ -5,7 +5,7 @@ Core\Xml\Writer $writer = Core\Xml::writer();
 
 // The document is not started yet. This prints the error message.
 try {
-    $writer->startElement("note");
+    $writer->startElement('note');
 } catch (LogicError $error) {
     echo $error->message, "\n";
 }
@@ -19,7 +19,7 @@ try {
     echo $error->message, "\n";
 }
 
-$writer->startElement("note");
+$writer->startElement('note');
 $writer->endElement();
 echo $writer->endDocument(), "\n";
 

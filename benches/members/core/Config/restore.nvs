@@ -5,11 +5,13 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        Core\Config::set("memory", "256M");
-        Core\Config::set("max_tasks", "16");
-        array<string> $names = ["memory", "max_tasks"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Core\Config::set('memory', '256M');
+        Core\Config::set('max_tasks', '16');
+        array<string> $names = ['memory', 'max_tasks'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

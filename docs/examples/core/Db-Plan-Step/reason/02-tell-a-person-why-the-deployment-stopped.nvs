@@ -46,6 +46,6 @@ foreach ($schema->planAgainst($db)->steps() as Step $step) {
     $waiting = $waiting + 1;
 }
 
-echo $ran, " step ran, ", $waiting, " step waits for a person\n";
+echo $ran, ' step ran, ', $waiting, " step waits for a person\n";
 
 $db->close();

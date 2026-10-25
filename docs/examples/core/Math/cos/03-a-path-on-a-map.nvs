@@ -1,11 +1,13 @@
 <?nvs
 // Shows how a hiking app finds how long a sloped path is on a flat map.
 
-class Trail {
+class Trail
+{
     // The length on the map is the real length times the cosine of the slope.
-    public static function mapLength(float $meters, float $slopeDegrees): float {
+    public static function mapLength(float $meters, float $slopeDegrees): float
+    {
         float $flat = $meters * Core\Math::cos(Core\Math::toRadians($slopeDegrees));
-        return Core\Math::round($flat, {precision: 1});
+        return Core\Math::round($flat, { precision: 1 });
     }
 }
 

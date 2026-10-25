@@ -7,5 +7,5 @@ array<tainted string> $words = Core\Cli::arguments();
 // This prints `Usage: nvs run 03-a-usage-message-with-the-file-name.nvs <file>`.
 if (Core\Arr::count($words) == 0) {
     string $name = Core\Path::basename(Core\Path::thisFile());
-    echo "Usage: nvs run ", $name, " <file>\n";
+    echo 'Usage: nvs run ', $name, " <file>\n";
 }

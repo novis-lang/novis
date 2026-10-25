@@ -4,23 +4,23 @@
 
 // Each check is a shell test. `test` ends with `0` when the test is true.
 array<string> $checks = [
-    "the examples folder exists" => "test -d docs/examples",
-    "the settings file exists" => "test -f nvs.toml",
-    "the backup folder exists" => "test -d /no-such-backup-folder",
+    'the examples folder exists' => 'test -d docs/examples',
+    'the settings file exists' => 'test -f nvs.toml',
+    'the backup folder exists' => 'test -d /no-such-backup-folder',
 ];
 
 int $failed = 0;
 foreach ($checks as string $name => string $check) {
-    int $code = Core\Process::run("/bin/sh", ["-c", $check])->exitCode();
+    int $code = Core\Process::run('/bin/sh', ['-c', $check])->exitCode();
     if ($code == 0) {
-        echo "ok:     ", $name, "\n";
+        echo 'ok:     ', $name, "\n";
     } else {
-        echo "failed: ", $name, " (exit code ", $code, ")\n";
+        echo 'failed: ', $name, ' (exit code ', $code, ")\n";
         $failed = $failed + 1;
     }
 }
 
 // One check failed, so this prints that the job does not start.
 if ($failed > 0) {
-    echo "The job does not start: ", $failed, " check failed.\n";
+    echo 'The job does not start: ', $failed, " check failed.\n";
 }

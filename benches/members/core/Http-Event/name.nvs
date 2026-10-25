@@ -4,12 +4,14 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The reply comes from this table, so nothing is sent over a network.
-        Core\Test::answerHttp("https://feed.example.com/live", 200, {body: "event: created\ndata: 1\n\ndata: 2\n\nevent: paid\ndata: 3\n\n"});
+        Core\Test::answerHttp('https://feed.example.com/live', 200, { body: "event: created\ndata: 1\n\ndata: 2\n\nevent: paid\ndata: 3\n\n" });
         array<Core\Http\Event> $events = [];
-        Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, "https://feed.example.com/live");
+        Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/live');
         foreach ($feed->events() as Core\Http\Event $event) {
             $events[] = $event;
         }

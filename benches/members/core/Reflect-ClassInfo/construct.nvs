@@ -3,19 +3,23 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Point {
+class Point
+{
     public int $x;
     public int $y;
 
-    public function constructor(int $x, int $y) {
+    public function constructor(int $x, int $y)
+    {
         $this->x = $x;
         $this->y = $y;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $found = Core\Reflect::forClass("Point");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $found = Core\Reflect::forClass('Point');
         if ($found == null) {
             return 0;
         }

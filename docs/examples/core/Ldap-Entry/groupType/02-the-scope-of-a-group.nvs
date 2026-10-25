@@ -2,20 +2,20 @@
 // Shows how to read the scope of a group: global, domain local or universal.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $group = $corp->read("CN=Managers,OU=Company,DC=example,DC=test", {select: ["groupType"]});
+var $corp = Core\Ldap::connect('corp');
+var $group = $corp->read('CN=Managers,OU=Company,DC=example,DC=test', { select: ['groupType'] });
 var $type = $group?->groupType();
 
 if ($type != null) {
     // A global group has members from its own domain only.
     // This prints `global`.
-    string $scope = "unknown";
+    string $scope = 'unknown';
     if ($type->global()) {
-        $scope = "global";
+        $scope = 'global';
     } elseif ($type->domainLocal()) {
-        $scope = "domain local";
+        $scope = 'domain local';
     } elseif ($type->universal()) {
-        $scope = "universal";
+        $scope = 'universal';
     }
     echo $scope, "\n";
 

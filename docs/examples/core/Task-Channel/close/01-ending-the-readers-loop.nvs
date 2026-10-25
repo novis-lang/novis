@@ -16,7 +16,7 @@ Core\Task::all({
     },
     consume: fn(): int => {
         foreach ($chan as int $value) {
-            echo "got ", $value, "\n";
+            echo 'got ', $value, "\n";
         }
         // This line is reached because the channel was closed.
         echo "the channel is closed\n";

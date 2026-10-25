@@ -1,39 +1,45 @@
 <?nvs
 // Shows a list of orders sorted by a property that the web address names.
 
-class Customer {
+class Customer
+{
     public string $name;
-    private string $password = "x9f2";
+    private string $password = 'x9f2';
 
-    public function constructor(string $name) {
+    public function constructor(string $name)
+    {
         $this->name = $name;
     }
 }
 
-class Order {
+class Order
+{
     public Customer $customer;
     public int $total;
 
-    public function constructor(string $name, int $total) {
+    public function constructor(string $name, int $total)
+    {
         $this->customer = new Customer($name);
         $this->total = $total;
     }
 }
 
-class Table {
-    public static function sortBy(?tainted string $field): string {
+class Table
+{
+    public static function sortBy(?tainted string $field): string
+    {
         // `as ?propertyPath<Order>` checks each name of the path while the program runs.
         // If one name is wrong, the result is `null`.
         ?propertyPath<Order> $path = $field as ?propertyPath<Order>;
         if ($path == null) {
-            return "not a property path, sorted by total";
+            return 'not a property path, sorted by total';
         }
-        return "sorted by " . ($path as string);
+        return 'sorted by ' . ($path as string);
     }
 }
 
 // The address is `/orders?sort=customer.name&other=customer.password`.
-echo Table::sortBy(Core\Request::query("sort")), "\n";
+echo Table::sortBy(Core\Request::query('sort')), "\n";
 
 // `password` is a private property, so it is not part of any path.
-echo Table::sortBy(Core\Request::query("other")), "\n";
+echo Table::sortBy(Core\Request::query('other')), "\n";

@@ -3,10 +3,10 @@
 
 // `Unknown` is only for a system that has no case of its own. Windows, macOS and
 // Linux each have their own case, so this prints `known platform: yes`.
-echo "known platform: ", Core\Env::OS != Core\Env::Platform::Unknown ? "yes" : "no", "\n";
+echo 'known platform: ', Core\Env::OS != Core\Env::Platform::Unknown ? 'yes' : 'no', "\n";
 
 // Windows separates folders in a path with `\`. The other platforms use `/`.
-string $separator = Core\Env::OS == Core\Env::Platform::Windows ? "\\" : "/";
+string $separator = Core\Env::OS == Core\Env::Platform::Windows ? "\\" : '/';
 
 // The separator is one character on every platform, so this prints `separator length: 1`.
-echo "separator length: ", Core\Str::length($separator), "\n";
+echo 'separator length: ', Core\Str::length($separator), "\n";

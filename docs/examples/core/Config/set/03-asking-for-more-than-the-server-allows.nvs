@@ -3,12 +3,12 @@
 // ceiling for a limit, and a request cannot go above it.
 
 // This prints: 8G is more than this server allows.
-if (Core\Config::set("memory", "8G")) {
-    echo "this job may use 8G", "\n";
+if (Core\Config::set('memory', '8G')) {
+    echo 'this job may use 8G', "\n";
 } else {
-    echo "8G is more than this server allows", "\n";
+    echo '8G is more than this server allows', "\n";
 }
 
 // A value under the ceiling is allowed, so the job runs in smaller parts.
-Core\Config::set("memory", "384M");
-echo "the job runs inside ", Core\Config::get("memory") ?? "no limit", "\n";
+Core\Config::set('memory', '384M');
+echo 'the job runs inside ', Core\Config::get('memory') ?? 'no limit', "\n";

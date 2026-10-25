@@ -7,16 +7,22 @@
 // bench: calls 2
 // bench: complexity constant
 
-type Route = {path: string, name: string};
+type Route = { path: string, name: string };
 
-#[Route(path: "/orders/{id}", name: "orders.show")]
-class Orders {
-    #[Route(path: "/orders", name: "orders.index")]
-    public function index(): int { return 1; }
+#[Route(path: '/orders/{id}', name: 'orders.show')]
+class Orders
+{
+    #[Route(path: '/orders', name: 'orders.index')]
+    public function index(): int
+    {
+        return 1;
+    }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

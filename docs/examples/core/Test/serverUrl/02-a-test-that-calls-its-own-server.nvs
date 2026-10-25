@@ -4,25 +4,27 @@
 use Core\Http\Client;
 use Core\Test;
 
-class PingTest {
+class PingTest
+{
     // `server: true` starts a server for this test only.
     #[Test(server: true)]
-    public function itAnswersOverTheNetwork(): void {
-        string $base = Test::serverUrl() ?? "";
+    public function itAnswersOverTheNetwork(): void
+    {
+        string $base = Test::serverUrl() ?? '';
 
         // The address has no `/` at the end, so the path is added directly.
-        var $response = Client::get($base . "/ping");
+        var $response = Client::get($base . '/ping');
         Test::assertEquals($response->status(), 200);
-        Test::assertSame($response->text(), "pong");
+        Test::assertSame($response->text(), 'pong');
     }
 }
 
 if (Core\Env::context() == Core\Env::Context::Request) {
     // The server runs this file for each request, and this part writes the answer.
     var $path = Core\Request::path();
-    echo $path == "/ping" ? "pong" : "unknown page";
+    echo $path == '/ping' ? 'pong' : 'unknown page';
 } else {
     // `nvs test` runs the test above. Under `nvs run` there is no server,
     // so this prints `no server`.
-    echo Test::serverUrl() ?? "no server", "\n";
+    echo Test::serverUrl() ?? 'no server', "\n";
 }

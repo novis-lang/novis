@@ -11,7 +11,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            uint $reached = Core\Topic::publish("orders", ["id" => $i, "note" => $note]);
+            uint $reached = Core\Topic::publish('orders', ['id' => $i, 'note' => $note]);
             $total = $total + $reached + 1;
             $i = $i + 1;
         }

@@ -2,25 +2,28 @@
 // A class that implements `Comparable` has a `compareTo` method. `Core\Arr::min`,
 // `Core\Arr::max` and `Core\Arr::sort` use it to order a list of those objects.
 
-final class Reading implements Comparable {
+final class Reading implements Comparable
+{
     public string $city;
     public int $celsius;
 
-    public function constructor(string $city, int $celsius) {
+    public function constructor(string $city, int $celsius)
+    {
         $this->city = $city;
         $this->celsius = $celsius;
     }
 
-    public function compareTo(Reading $other): int {
+    public function compareTo(Reading $other): int
+    {
         return $this->celsius - $other->celsius;
     }
 }
 
 array<Reading> $readings = [
-    new Reading("Lisbon", 24),
-    new Reading("Reykjavik", 6),
-    new Reading("Cairo", 37),
-    new Reading("Vienna", 19),
+    new Reading('Lisbon', 24),
+    new Reading('Reykjavik', 6),
+    new Reading('Cairo', 37),
+    new Reading('Vienna', 19),
 ];
 
 // `Core\Arr::min` and `Core\Arr::max` return the coldest and warmest reading. For
@@ -28,15 +31,15 @@ array<Reading> $readings = [
 var $coldest = Core\Arr::min($readings);
 var $warmest = Core\Arr::max($readings);
 if ($coldest != null) {
-    echo "coldest: ", $coldest->city, "\n";
+    echo 'coldest: ', $coldest->city, "\n";
 }
 if ($warmest != null) {
-    echo "warmest: ", $warmest->city, "\n";
+    echo 'warmest: ', $warmest->city, "\n";
 }
 
 // `Core\Arr::sort` returns a sorted copy and leaves `$readings` as it is.
 // The loop prints the copy, from the coldest city to the warmest.
 array<Reading> $sorted = Core\Arr::sort($readings);
 foreach ($sorted as Reading $reading) {
-    echo $reading->city, " ", $reading->celsius, "\n";
+    echo $reading->city, ' ', $reading->celsius, "\n";
 }

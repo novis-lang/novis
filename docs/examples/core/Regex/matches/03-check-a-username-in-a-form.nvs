@@ -3,9 +3,9 @@
 
 // A username has 3 to 16 characters: letters, digits and `_`.
 // `caseInsensitive` makes `[a-z]` match upper case letters too.
-Core\Regex\Pattern $username = Core\Regex::compile('^[a-z0-9_]{3,16}$', {caseInsensitive: true});
+Core\Regex\Pattern $username = Core\Regex::compile('^[a-z0-9_]{3,16}$', { caseInsensitive: true });
 
-array<string> $inputs = ["Anna_92", "jo", "bob smith"];
+array<string> $inputs = ['Anna_92', 'jo', 'bob smith'];
 // "Anna_92" is valid. "jo" is too short, and "bob smith" has a space.
 foreach ($inputs as string $input) {
     if (Core\Regex::matches($input, $username)) {

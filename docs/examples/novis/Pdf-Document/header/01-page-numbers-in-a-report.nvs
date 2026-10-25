@@ -3,13 +3,13 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
-string $html = "<h1>Orders in March</h1>"
-    . Core\Str::repeat("<p>Order 1042 was sent on time, and the customer paid by card.</p>", 120);
+string $html = '<h1>Orders in March</h1>'
+    . Core\Str::repeat('<p>Order 1042 was sent on time, and the customer paid by card.</p>', 120);
 
 // `render` calls the function once for each page, with that page as a `Page`.
 // `$page->number` is the page and `$page->count` is the number of pages.
 var $header = fn(Page $page): Core\Html\Markup => {
-    echo "header for page ", $page->number, "\n";
+    echo 'header for page ', $page->number, "\n";
     return html`<p style="text-align: right">Page {$page->number} of {$page->count}</p>`;
 };
 

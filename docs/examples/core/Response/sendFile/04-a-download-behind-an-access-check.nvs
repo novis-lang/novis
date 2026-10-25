@@ -2,17 +2,17 @@
 // Shows how to send a file only to a visitor who may have it, under a download name.
 
 // A real server already has this file. The example writes it first, so that it has a file to send.
-string $path = Core\Path::join(Core\IO::temporaryDir(), "invoice-1042.csv");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'invoice-1042.csv');
 Core\IO::write($path, "item,price\nTea,4.50\nCups,12.00\n");
 
 // The check comes before `sendFile`. A visitor without the right key gets a 403 status and no file.
 // A real program checks the user who is logged in. This example checks a header.
-?tainted string $key = Core\Request::header("x-download-key");
+?tainted string $key = Core\Request::header('x-download-key');
 
-if ($key == "letmein") {
+if ($key == 'letmein') {
     // `Content-Disposition` makes the browser save the file as `invoice.csv`.
     // The browser can also resume this download if the connection stops.
-    Core\Response::setHeader("Content-Disposition", "attachment; filename=\"invoice.csv\"");
+    Core\Response::setHeader('Content-Disposition', "attachment; filename=\"invoice.csv\"");
     Core\Response::sendFile($path);
 } else {
     Core\Response::setStatus(403);

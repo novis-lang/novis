@@ -5,9 +5,11 @@
 
 use Core\Test;
 
-final class NetworkTest {
+final class NetworkTest
+{
     #[Test(retries: 2)]
-    public function itReachesTheServer(): void {
+    public function itReachesTheServer(): void
+    {
         Test::assertTrue(true);
     }
 }

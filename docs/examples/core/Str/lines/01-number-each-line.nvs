@@ -8,9 +8,9 @@ string $poem = "Roses are red,\nviolets are blue,\n\nsugar is sweet.\n";
 array<string> $lines = Core\Str::lines($poem);
 uint $number = 1;
 foreach ($lines as string $line) {
-    echo $number, ": ", $line, "\n";
+    echo $number, ': ', $line, "\n";
     $number = $number + 1;
 }
 
 // An empty text has no lines. This prints `0`.
-echo Core\Arr::count(Core\Str::lines("")), "\n";
+echo Core\Arr::count(Core\Str::lines('')), "\n";

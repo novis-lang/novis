@@ -6,9 +6,11 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $names = ["fs.read", "fs.write", "net.connect"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $names = ['fs.read', 'fs.write', 'net.connect'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

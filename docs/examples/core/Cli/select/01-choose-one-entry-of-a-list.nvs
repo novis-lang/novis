@@ -3,10 +3,10 @@
 // in a terminal to choose yourself. There is no terminal here, so the answer is
 // the default.
 
-array<string> $regions = ["eu-west", "us-east", "ap-south"];
+array<string> $regions = ['eu-west', 'us-east', 'ap-south'];
 
-string $region = Core\Cli::select("Where should this run?", $regions, {default: "us-east"});
+string $region = Core\Cli::select('Where should this run?', $regions, { default: 'us-east' });
 
 // `Core\Cli::select` returns the entry itself, not the number that was typed.
 // The default here is "us-east", so this prints "deploying to us-east".
-echo "deploying to ", $region, "\n";
+echo 'deploying to ', $region, "\n";

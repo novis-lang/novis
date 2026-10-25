@@ -4,16 +4,16 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
 // Page 1 is a title page. Page 3 has no `h2`, because the long text of page 2 goes on.
-var $html = "<style>h1 { break-after: page } h2 { string-set: Chapter content() }</style>"
-    . "<h1>Shop handbook</h1><h2>Orders</h2>"
-    . Core\Str::repeat("<p>Each order has a number. Search for the number to find the order.</p>", 40);
+var $html = '<style>h1 { break-after: page } h2 { string-set: Chapter content() }</style>'
+    . '<h1>Shop handbook</h1><h2>Orders</h2>'
+    . Core\Str::repeat('<p>Each order has a number. Search for the number to find the order.</p>', 40);
 
 // The name is compared without case, so `chapter` finds the value saved as `Chapter`.
 // Before the first `h2`, the result is `null`.
 var $header = fn(Page $page): Core\Html\Markup => {
-    ?string $title = $page->string("chapter");
-    echo "page ", $page->number, ": ", $title ?? "null", "\n";
-    return html`<p>{$title ?? "Shop handbook"}</p>`;
+    ?string $title = $page->string('chapter');
+    echo 'page ', $page->number, ': ', $title ?? 'null', "\n";
+    return html`<p>{$title ?? 'Shop handbook'}</p>`;
 };
 
 Document::fromHtml($html)->header($header)->render();

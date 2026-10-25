@@ -4,8 +4,10 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Core\Debug::startCoverage();
         uint $total = 1;
         uint $i = 0;

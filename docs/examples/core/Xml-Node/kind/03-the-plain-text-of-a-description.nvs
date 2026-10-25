@@ -1,14 +1,16 @@
 <?nvs
 // Shows how to get the plain text of a product description that is written as XHTML.
 
-class PlainText {
+class PlainText
+{
     // This joins the text of every text node below `$node`.
     // It skips comments and processing instructions.
-    public static function of(Core\Xml\Node $node): tainted string {
+    public static function of(Core\Xml\Node $node): tainted string
+    {
         if ($node->kind() == Core\Xml\Node::Kind::Text) {
             return $node->text();
         }
-        tainted string $text = "";
+        tainted string $text = '';
         foreach ($node->children() as Core\Xml\Node $child) {
             Core\Xml\Node::Kind $kind = $child->kind();
             if ($kind == Core\Xml\Node::Kind::Text || $kind == Core\Xml\Node::Kind::Element) {

@@ -5,20 +5,22 @@
 // scaling: max 4096
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): string {
-        array<string> $lines = ["<?nvs", "class Codes {", "    public static function pick(int \$code): int {", "        if (\$code == 0) {", "            return 0;"];
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        array<string> $lines = ['<?nvs', 'class Codes {', "    public static function pick(int \$code): int {", "        if (\$code == 0) {", '            return 0;'];
         uint $i = 1;
         while ($i < $size) {
             $lines[] = "        } elseif (\$code == {$i}) {";
-            $lines[] = "            return " . ($i * 2) . ";";
+            $lines[] = '            return ' . ($i * 2) . ';';
             $i = $i + 1;
         }
-        $lines[] = "        }";
-        $lines[] = "        return -1;";
-        $lines[] = "    }";
-        $lines[] = "}";
-        $lines[] = "echo Codes::pick(" . ($size - 1) . "), \"\\n\";";
+        $lines[] = '        }';
+        $lines[] = '        return -1;';
+        $lines[] = '    }';
+        $lines[] = '}';
+        $lines[] = 'echo Codes::pick(' . ($size - 1) . "), \"\\n\";";
         return Core\Str::join($lines, "\n") . "\n";
     }
 }

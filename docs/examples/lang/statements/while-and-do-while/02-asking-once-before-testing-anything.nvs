@@ -21,7 +21,7 @@ int $size = 0;
 do {
     $size = Pages::sizeOf($page);
     $rows = $rows + $size;
-    echo "page ", $page, " gave ", $size, " rows\n";
+    echo 'page ', $page, ' gave ', $size, " rows\n";
     $page = $page + 1;
 } while ($size == 100);
 

@@ -5,42 +5,44 @@
 // scaling: max 128
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): string {
-        array<string> $lines = ["<?nvs", "use Core\\Test;"];
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        array<string> $lines = ['<?nvs', "use Core\\Test;"];
         uint $i = 0;
         while ($i < 4) {
             $lines[] = "final class Price{$i} {";
             $lines[] = "    public static function cap(int \$x): int {";
             $lines[] = "        if (\$x > 100) {";
-            $lines[] = "            return 100;";
-            $lines[] = "        }";
+            $lines[] = '            return 100;';
+            $lines[] = '        }';
             $lines[] = "        return \$x + {$i};";
-            $lines[] = "    }";
-            $lines[] = "}";
+            $lines[] = '    }';
+            $lines[] = '}';
             $lines[] = "final class Price{$i}Test {";
-            $lines[] = "    #[Test]";
-            $lines[] = "    public function caps(): void {";
+            $lines[] = '    #[Test]';
+            $lines[] = '    public function caps(): void {';
             $lines[] = "        Test::assertSame(Price{$i}::cap(500), 100);";
             $lines[] = "        Test::assertSame(Price{$i}::cap(100), 100 + {$i});";
             $lines[] = "        Test::assertSame(Price{$i}::cap(5), 5 + {$i});";
-            $lines[] = "    }";
-            $lines[] = "}";
+            $lines[] = '    }';
+            $lines[] = '}';
             $i = $i + 1;
         }
         $i = 0;
         while ($i < $size) {
             $lines[] = "final class Label{$i} {";
-            $lines[] = "    public static function text(): string {";
+            $lines[] = '    public static function text(): string {';
             $lines[] = "        return \"item {$i}\";";
-            $lines[] = "    }";
-            $lines[] = "}";
+            $lines[] = '    }';
+            $lines[] = '}';
             $lines[] = "final class Label{$i}Test {";
-            $lines[] = "    #[Test]";
-            $lines[] = "    public function names(): void {";
+            $lines[] = '    #[Test]';
+            $lines[] = '    public function names(): void {';
             $lines[] = "        Test::assertSame(Label{$i}::text(), \"item {$i}\");";
-            $lines[] = "    }";
-            $lines[] = "}";
+            $lines[] = '    }';
+            $lines[] = '}';
             $i = $i + 1;
         }
         return Core\Str::join($lines, "\n") . "\n";

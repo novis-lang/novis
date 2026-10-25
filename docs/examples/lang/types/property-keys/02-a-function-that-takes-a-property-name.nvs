@@ -1,36 +1,40 @@
 <?nvs
 // Shows a function whose parameter accepts a property key or any string.
 
-class User {
+class User
+{
     public string $name;
     public string $email;
-    private string $passwordHash = "x9f2";
+    private string $passwordHash = 'x9f2';
 
-    public function constructor(string $name, string $email) {
+    public function constructor(string $name, string $email)
+    {
         $this->name = $name;
         $this->email = $email;
     }
 }
 
-class Page {
+class Page
+{
     // The type `property<User>|string` accepts a key or any string. In the
     // editor, a string written here offers the property names of `User`.
-    public static function field(User $user, property<User>|string $name): string {
+    public static function field(User $user, property<User>|string $name): string
+    {
         ?property<User> $key = $name as ?property<User>;
         if ($key == null) {
-            return "no property named " . ($name as string);
+            return 'no property named ' . ($name as string);
         }
-        return ($key as string) . ": " . $user->$key;
+        return ($key as string) . ': ' . $user->$key;
     }
 }
 
-User $user = new User("Ada", "ada@example.com");
+User $user = new User('Ada', 'ada@example.com');
 
-echo Page::field($user, "email"), "\n";
+echo Page::field($user, 'email'), "\n";
 
 // "passwordHash" is a private property, so the function does not show it.
-echo Page::field($user, "passwordHash"), "\n";
+echo Page::field($user, 'passwordHash'), "\n";
 
 // A key made with `as` is accepted too.
-property<User> $key = "name" as property<User>;
+property<User> $key = 'name' as property<User>;
 echo Page::field($user, $key), "\n";

@@ -1,34 +1,37 @@
 <?nvs
 // Shows how a string built while the program runs is checked with `as`.
 
-class Order {
+class Order
+{
     public int $total = 40;
-    public string $status = "paid";
+    public string $status = 'paid';
 }
 
-class Filter {
-    public static function check(string $text): string {
+class Filter
+{
+    public static function check(string $text): string
+    {
         // `as ?string<propertyPath<Order>>` checks each hole. If one is wrong, the result is `null`.
         ?string<propertyPath<Order>> $condition = $text as ?string<propertyPath<Order>>;
         if ($condition == null) {
-            return "not valid: " . $text;
+            return 'not valid: ' . $text;
         }
-        return "valid: " . ($condition as string);
+        return 'valid: ' . ($condition as string);
     }
 }
 
-string $field = "status";
-echo Filter::check("{" . $field . "} = 'paid'"), "\n";
+string $field = 'status';
+echo Filter::check('{' . $field . "} = 'paid'"), "\n";
 
 // `Order` has no property `price`.
-echo Filter::check("{price} > 10"), "\n";
+echo Filter::check('{price} > 10'), "\n";
 
 // A `{` with no `}` after it is not valid.
-echo Filter::check("{total > 10"), "\n";
+echo Filter::check('{total > 10'), "\n";
 
 // `as string<propertyPath<Order>>` throws an error that names the wrong hole.
 try {
-    var $bad = ("{total.amount}" . " > 1") as string<propertyPath<Order>>;
+    var $bad = ('{total.amount}' . ' > 1') as string<propertyPath<Order>>;
 } catch (RuntimeError $e) {
     echo $e->message, "\n";
 }

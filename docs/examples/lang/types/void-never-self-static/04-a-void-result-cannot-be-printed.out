@@ -1,7 +1,7 @@
 error[E0707]: `void` has no string form
-   --> 04-a-void-result-cannot-be-printed.nvs:10:6
+   --> 04-a-void-result-cannot-be-printed.nvs:12:6
    |
-10 | echo Helper::nothing();
+12 | echo Helper::nothing();
    |      ^^^^^^^^^^^^^^^^^ converted to `string` here
    = help: a call that returns `void` has no value at all, so there is nothing here to print
 

@@ -2,14 +2,14 @@
 // Shows how `serverTrustAccount` and the number change on a copy made with `with`.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // An account has one type, so the copy clears `normalAccount` and sets the new type.
-    var $controller = $flags->with({normalAccount: false, serverTrustAccount: true});
+    var $controller = $flags->with({ normalAccount: false, serverTrustAccount: true });
 
     // This prints `512 false` and then `8192 true`.
-    echo $flags->bits(), $flags->serverTrustAccount() ? " true" : " false", "\n";
-    echo $controller->bits(), $controller->serverTrustAccount() ? " true" : " false", "\n";
+    echo $flags->bits(), $flags->serverTrustAccount() ? ' true' : ' false', "\n";
+    echo $controller->bits(), $controller->serverTrustAccount() ? ' true' : ' false', "\n";
 }

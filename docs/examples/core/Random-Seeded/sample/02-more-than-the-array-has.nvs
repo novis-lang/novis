@@ -1,7 +1,7 @@
 <?nvs
 // Shows what happens when you ask for none of the values, and for more values than the array has.
 
-array<string> $colors = ["red", "green", "blue"];
+array<string> $colors = ['red', 'green', 'blue'];
 Core\Random\Seeded $generator = new Core\Random\Seeded(42);
 
 // A count of 0 returns an empty list. This prints [].
@@ -11,5 +11,5 @@ echo Core\Json::encode($generator->sample($colors, 0)), "\n";
 try {
     echo Core\Json::encode($generator->sample($colors, 4)), "\n";
 } catch (Throwable $e) {
-    echo "Error: ", $e->message, "\n";
+    echo 'Error: ', $e->message, "\n";
 }

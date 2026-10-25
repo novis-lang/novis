@@ -1,33 +1,39 @@
 <?nvs
 // Shows `compareTo(covariant Price $other)` in a subclass of a `Comparable` class.
 
-class Amount implements Comparable {
-    public function constructor(public int $cents) {}
+class Amount implements Comparable
+{
+    public function constructor(public int $cents)
+    {}
 
-    public function compareTo(self $other): int {
+    public function compareTo(self $other): int
+    {
         return $this->cents <=> $other->cents;
     }
 }
 
-class Price extends Amount {
-    public function constructor(int $cents, public string $currency) {
+class Price extends Amount
+{
+    public function constructor(int $cents, public string $currency)
+    {
         parent::constructor($cents);
     }
 
     // A `Price` compares only with another `Price`, so it can read `currency`.
-    public function compareTo(covariant Price $other): int {
+    public function compareTo(covariant Price $other): int
+    {
         if ($this->currency != $other->currency) {
-            throw new LogicError("The two prices have different currencies.");
+            throw new LogicError('The two prices have different currencies.');
         }
         return $this->cents <=> $other->cents;
     }
 }
 
-Price $tea = new Price(250, "EUR");
-Price $cake = new Price(400, "EUR");
+Price $tea = new Price(250, 'EUR');
+Price $cake = new Price(400, 'EUR');
 
 // `<` calls `compareTo` on two `Price` objects. This prints `true`.
-echo $tea < $cake ? "true" : "false", "\n";
+echo $tea < $cake ? 'true' : 'false', "\n";
 
 // A call through the type `Amount` can pass a plain `Amount`.
 // `Price::compareTo` takes only a `Price`, so the call throws.

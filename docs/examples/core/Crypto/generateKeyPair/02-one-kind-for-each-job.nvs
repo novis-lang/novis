@@ -21,4 +21,4 @@ foreach ($pairs as Core\Crypto\KeyPair $pair) {
 Core\Crypto\KeyPair $peer = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
 secret bytes $mine = Core\Crypto::agree($x25519, $peer->publicKey());
 secret bytes $theirs = Core\Crypto::agree($peer, $x25519->publicKey());
-echo "one secret from two X25519 pairs: ", ($mine == $theirs ? "yes" : "no"), "\n";
+echo 'one secret from two X25519 pairs: ', ($mine == $theirs ? 'yes' : 'no'), "\n";

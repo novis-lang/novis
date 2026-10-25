@@ -2,7 +2,8 @@
 // Shows a class with no constructor. Every property has a default, so `new`
 // takes no arguments.
 
-class Counter {
+class Counter
+{
     public int $n = 0;
 }
 

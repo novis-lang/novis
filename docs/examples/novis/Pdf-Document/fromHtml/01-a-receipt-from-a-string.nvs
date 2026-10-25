@@ -3,8 +3,8 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
-string $html = "<h1>Receipt 1042</h1><p>Shop, 1 Example Street</p>"
-    . "<table><tr><td>Tea</td><td>2.50 EUR</td></tr><tr><td>Cake</td><td>3.20 EUR</td></tr></table>";
+string $html = '<h1>Receipt 1042</h1><p>Shop, 1 Example Street</p>'
+    . '<table><tr><td>Tea</td><td>2.50 EUR</td></tr><tr><td>Cake</td><td>3.20 EUR</td></tr></table>';
 
 // `fromHtml` starts the document, and `render` makes the PDF file.
 var $rendered = Document::fromHtml($html)->render();

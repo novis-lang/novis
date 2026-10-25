@@ -4,14 +4,16 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $dir = Core\IO::temporaryDir();
-        Core\IO::write(Core\Path::join($dir, "a.txt"), "x");
+        Core\IO::write(Core\Path::join($dir, 'a.txt'), 'x');
         array<string> $paths = [
-            Core\Path::join($dir, "a.txt"),
+            Core\Path::join($dir, 'a.txt'),
             $dir,
-            Core\Path::join($dir, "missing"),
+            Core\Path::join($dir, 'missing'),
         ];
         uint $total = 0;
         uint $i = 0;
@@ -26,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "nothing readable", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'nothing readable', "\n";

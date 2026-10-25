@@ -1,9 +1,10 @@
 --START--
 <?nvs
-class User {
-    public string $name = "Ada";
-    public string $email = "ada@example.com";
-    private string $passwordHash = "x9f2";
+class User
+{
+    public string $name = 'Ada';
+    public string $email = 'ada@example.com';
+    private string $passwordHash = 'x9f2';
 }
 
 User $user = new User();

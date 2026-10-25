@@ -5,6 +5,6 @@ use Novis\Intl\DateFormat;
 array<Core\Time\Date> $dates = [Core\Time\Date::at(2026, 3, 1)];
 
 // `Medium` is the default.
-echo DateFormat::dates($dates, "en-US", {length: DateFormat::Length::Short})[0], "\n";
-echo DateFormat::dates($dates, "en-US", {length: DateFormat::Length::Medium})[0], "\n";
-echo DateFormat::dates($dates, "en-US", {length: DateFormat::Length::Long})[0], "\n";
+echo DateFormat::dates($dates, 'en-US', { length: DateFormat::Length::Short })[0], "\n";
+echo DateFormat::dates($dates, 'en-US', { length: DateFormat::Length::Medium })[0], "\n";
+echo DateFormat::dates($dates, 'en-US', { length: DateFormat::Length::Long })[0], "\n";

@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         callable $step = fn(int $seen): int => $seen * 3 % 1009 + 1;
         int $carry = 1;
         uint $i = 0;

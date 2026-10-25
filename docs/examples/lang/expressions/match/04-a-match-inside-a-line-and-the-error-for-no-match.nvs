@@ -3,20 +3,20 @@
 
 int $n = 2;
 string $size = match ($n) {
-    1, 2 => "low",
-    3 => "three",
-    default => "other",
+    1, 2 => 'low',
+    3 => 'three',
+    default => 'other',
 };
 
 // This prints: low mid
-echo $size, " ", match (true) { $n > 5 => "big", $n > 1 => "mid", default => "small" }, "\n";
+echo $size, ' ', match (true) { $n > 5 => 'big', $n > 1 => 'mid', default => 'small' }, "\n";
 
 // This prints: n is two
-echo "n is " . match ($n) { 2 => "two", default => "many" } . "\n";
+echo 'n is ' . match ($n) { 2 => 'two', default => 'many' } . "\n";
 
 // No arm matches 2 and there is no `default`, so `match` throws a `LogicError`.
 try {
-    echo match ($n) { 1 => "one" }, "\n";
+    echo match ($n) { 1 => 'one' }, "\n";
 } catch (LogicError $e) {
     // This prints: no `match` arm matched the subject
     echo $e->message, "\n";

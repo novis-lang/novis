@@ -2,13 +2,13 @@
 // Shows a job that sends emails, at most 3 per second. The emails that
 // are not allowed stay in the queue for the next run.
 
-array<string> $queue = ["ana@example.com", "ben@example.com", "chen@example.com", "dev@example.com", "eli@example.com"];
+array<string> $queue = ['ana@example.com', 'ben@example.com', 'chen@example.com', 'dev@example.com', 'eli@example.com'];
 array<string> $later = [];
 
 foreach ($queue as string $address) {
-    var $decision = Core\RateLimit::shed("mail:outgoing", 3, 1s);
+    var $decision = Core\RateLimit::shed('mail:outgoing', 3, 1s);
     if ($decision->allowed()) {
-        echo "sent to ", $address, "\n";
+        echo 'sent to ', $address, "\n";
     } else {
         $later[] = $address;
     }

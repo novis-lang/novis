@@ -4,11 +4,13 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $paths = [
-            "/srv/shop/invoices",
-            "storage/logs",
+            '/srv/shop/invoices',
+            'storage/logs',
             "C:\\Users\\shop\\uploads",
         ];
         uint $total = 0;

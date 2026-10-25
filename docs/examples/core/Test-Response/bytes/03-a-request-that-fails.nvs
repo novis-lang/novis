@@ -6,10 +6,10 @@ use Core\Test;
 
 if (Core\Env::context() == Core\Env::Context::Request) {
     // The program writes some text, and then throws an error it does not catch.
-    echo "The first half of the file";
-    throw new RuntimeError("the disk is full");
+    echo 'The first half of the file';
+    throw new RuntimeError('the disk is full');
 } else {
-    var $response = Test::request(Method::Get, "/export");
+    var $response = Test::request(Method::Get, '/export');
 
     // The server sends no body for a failed request, so `bytes()` returns
     // empty `bytes`. This prints `0`.

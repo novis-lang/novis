@@ -4,8 +4,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         var $first = Core\Time\Date::at(2023, 12, 31);
         var $second = Core\Time\Date::at(2024, 1, 1);
         var $third = Core\Time\Date::at(2024, 6, 15);

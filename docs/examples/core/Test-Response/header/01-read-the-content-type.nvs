@@ -7,11 +7,11 @@ use Core\Test;
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. `Core\Response::json` sends the array
     // as JSON and sets the content type.
-    Core\Response::json(["ok" => true]);
+    Core\Response::json(['ok' => true]);
 } else {
     // This part is the test.
-    var $response = Test::request(Method::Get, "/health");
+    var $response = Test::request(Method::Get, '/health');
 
     // Upper and lower case do not matter. This prints `application/json`.
-    echo $response->header("content-type"), "\n";
+    echo $response->header('content-type'), "\n";
 }

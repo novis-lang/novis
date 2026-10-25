@@ -3,7 +3,7 @@
 
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     // This prints "status 0".
-    echo "status ", $report->status(), "\n";
+    echo 'status ', $report->status(), "\n";
 });
 
 echo "the report is ready\n";

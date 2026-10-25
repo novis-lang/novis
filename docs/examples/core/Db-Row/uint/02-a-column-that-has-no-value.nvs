@@ -5,7 +5,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table uploads (name text not null, size bigint)', []);
 $db->execute(
     'insert into uploads (name, size) values (?, ?), (?, ?)',
-    ['logo.png', 18432, 'draft.txt', null]
+    ['logo.png', 18432, 'draft.txt', null],
 );
 
 // The result is `null` when the column has no value in this row. The type you

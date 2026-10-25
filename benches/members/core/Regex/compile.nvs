@@ -3,8 +3,10 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $patterns = ['^\d{5}$', '^[A-Z]{2}-\d+$', '^[a-z0-9._-]+@[a-z0-9.-]+$'];
         uint $total = 0;
         uint $i = 0;

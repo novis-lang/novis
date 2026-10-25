@@ -2,7 +2,8 @@
 // Shows a class that fills itself from a row. Write a `fromRow` method, and
 // `streamAs` calls it once for each row it reads.
 
-class Line {
+class Line
+{
     public tainted string $what;
     public int $cents;
 

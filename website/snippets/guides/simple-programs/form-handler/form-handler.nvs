@@ -1,12 +1,14 @@
 <?nvs
 // This program reads a contact form, checks it, and returns an HTML page.
 #[Core\Json\Derive]
-class Contact {
+class Contact
+{
     public tainted string $name;
     public tainted string $email;
     public tainted string $message;
 
-    public function constructor(tainted string $name, tainted string $email, tainted string $message) {
+    public function constructor(tainted string $name, tainted string $email, tainted string $message)
+    {
         $this->name = $name;
         $this->email = $email;
         $this->message = $message;

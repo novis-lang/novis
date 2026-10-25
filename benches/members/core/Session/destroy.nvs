@@ -4,13 +4,15 @@
 // bench: complexity constant
 // requires: redis
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             Core\Session::start();
-            Core\Session::set("user", $total);
+            Core\Session::set('user', $total);
             Core\Session::destroy();
             $total = $total + 1;
             $i = $i + 1;

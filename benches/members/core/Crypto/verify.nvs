@@ -5,14 +5,16 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
         Core\Crypto\PublicKey $key = $pair->publicKey();
         array<bytes> $messages = [
-            "order 1042 shipped" as bytes,
-            "order 1043 shipped" as bytes,
-            "order 1044 shipped" as bytes,
+            'order 1042 shipped' as bytes,
+            'order 1043 shipped' as bytes,
+            'order 1044 shipped' as bytes,
         ];
         array<bytes> $signatures = [
             Core\Crypto::sign($messages[0], $pair),

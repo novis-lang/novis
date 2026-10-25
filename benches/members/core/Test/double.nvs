@@ -3,12 +3,15 @@
 // bench: iterations 256
 // bench: complexity constant
 
-interface Clock {
+interface Clock
+{
     public function hour(): int;
 }
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

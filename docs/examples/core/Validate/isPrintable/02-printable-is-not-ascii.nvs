@@ -2,11 +2,11 @@
 // Shows that `isPrintable` and `isAscii` check two different things.
 
 // "café" has a letter that is not ASCII. "a\tb" is all ASCII, but a tab is a control character.
-array<string> $texts = ["cafe", "café", "a\tb"];
+array<string> $texts = ['cafe', 'café', "a\tb"];
 
 // This prints "ascii yes, printable yes", then "ascii no, printable yes",
 // then "ascii yes, printable no".
 foreach ($texts as string $text) {
-    echo "ascii ", Core\Validate::isAscii($text) ? "yes" : "no";
-    echo ", printable ", Core\Validate::isPrintable($text) ? "yes" : "no", "\n";
+    echo 'ascii ', Core\Validate::isAscii($text) ? 'yes' : 'no';
+    echo ', printable ', Core\Validate::isPrintable($text) ? 'yes' : 'no', "\n";
 }

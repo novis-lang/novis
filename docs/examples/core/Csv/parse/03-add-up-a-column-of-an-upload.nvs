@@ -7,7 +7,7 @@ string $upload = "product;count;price\n"
     . "Beans, dried;3;4.10\n"
     . "\"Salt; coarse\";2;1.50\n";
 
-var $lines = Core\Csv::parse($upload, {separator: ";", header: true});
+var $lines = Core\Csv::parse($upload, { separator: ';', header: true });
 
 float $total = 0.0;
 foreach ($lines as array<string> $line) {

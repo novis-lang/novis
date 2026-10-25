@@ -23,7 +23,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            Core\Test::assertCalled($mailer, Mailer::send, {times: $size, with: ['ada@example.com']});
+            Core\Test::assertCalled($mailer, Mailer::send, { times: $size, with: ['ada@example.com'] });
             $total = $total + 1 + ($total % 2);
             $i = $i + 1;
         }

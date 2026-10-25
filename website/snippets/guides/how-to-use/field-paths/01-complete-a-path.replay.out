@@ -1,11 +1,11 @@
-completion 1 23:23
+completion 1 27:23
 createdAt	property	string
 customer	property	null|Customer
 id	property	int
 status	property	string
 total	property	int
 
-completion 5 23:32
+completion 5 27:32
 city	property	string
 email	property	string
 name	property	string

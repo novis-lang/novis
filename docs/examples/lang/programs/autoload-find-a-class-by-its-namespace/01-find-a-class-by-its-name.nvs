@@ -7,5 +7,5 @@ autoload 'App' from './app';
 
 use App\Text\Greeter;
 
-echo Greeter::hello("Alice"), "\n";
-echo App\Text\Greeter::hello("Bo"), "\n";
+echo Greeter::hello('Alice'), "\n";
+echo App\Text\Greeter::hello('Bo'), "\n";

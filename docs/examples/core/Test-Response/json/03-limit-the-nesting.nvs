@@ -7,17 +7,17 @@ use Core\Test;
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. The JSON is an object inside an object,
     // so its depth is 3.
-    Core\Response::json(["order" => ["id" => 7]]);
+    Core\Response::json(['order' => ['id' => 7]]);
 } else {
-    var $response = Test::request(Method::Get, "/orders/7");
+    var $response = Test::request(Method::Get, '/orders/7');
 
     // A depth of 3 is allowed, so this prints `{"order":{"id":7}}`.
-    echo Core\Json::encode($response->json({maxDepth: 3})), "\n";
+    echo Core\Json::encode($response->json({ maxDepth: 3 })), "\n";
 
     // A depth of 2 is not enough, so `json()` throws a `ParseError`.
     // This prints `too deep`.
     try {
-        $response->json({maxDepth: 2});
+        $response->json({ maxDepth: 2 });
     } catch (ParseError $error) {
         echo "too deep\n";
     }

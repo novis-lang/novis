@@ -5,7 +5,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table people (name text not null, nickname text)', []);
 $db->execute(
     'insert into people (name, nickname) values (?, ?), (?, ?)',
-    ['Amina', 'Mina', 'Bruno', null]
+    ['Amina', 'Mina', 'Bruno', null],
 );
 
 // `string` returns a `tainted string`, or `null` when the column has no value in

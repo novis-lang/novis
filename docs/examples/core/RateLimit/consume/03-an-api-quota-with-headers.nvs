@@ -2,22 +2,24 @@
 // Shows an API quota of 1000 units per hour for each API key. The response
 // headers tell the client how much is left.
 
-class Quota {
-    public static function charge(string $apiKey, uint $cost): Core\RateLimit\Decision {
+class Quota
+{
+    public static function charge(string $apiKey, uint $cost): Core\RateLimit\Decision
+    {
         try {
-            return Core\RateLimit::consume("api:" . $apiKey, 1000, 1h, {cost: $cost});
+            return Core\RateLimit::consume('api:' . $apiKey, 1000, 1h, { cost: $cost });
         } catch (Throwable $away) {
             // `shed` counts in this server process only, so the limit is less exact.
             // The API keeps working while the shared store cannot be reached.
-            return Core\RateLimit::shed("api:" . $apiKey, 1000, 1h, {cost: $cost});
+            return Core\RateLimit::shed('api:' . $apiKey, 1000, 1h, { cost: $cost });
         }
     }
 }
 
 // An export is expensive, so it costs 10 units. This prints 1000 and 990.
-var $decision = Quota::charge("key-51", 10);
-echo "RateLimit-Limit: ", $decision->limit(), "\n";
-echo "RateLimit-Remaining: ", $decision->remaining(), "\n";
+var $decision = Quota::charge('key-51', 10);
+echo 'RateLimit-Limit: ', $decision->limit(), "\n";
+echo 'RateLimit-Remaining: ', $decision->remaining(), "\n";
 
 // `retryAfter` is `null` when the call was allowed.
 var $wait = $decision->retryAfter();
@@ -25,5 +27,5 @@ if ($wait == null) {
     echo "status: 200\n";
 } else {
     echo "status: 429\n";
-    echo "Retry-After: ", $wait->toSeconds(), "\n";
+    echo 'Retry-After: ', $wait->toSeconds(), "\n";
 }

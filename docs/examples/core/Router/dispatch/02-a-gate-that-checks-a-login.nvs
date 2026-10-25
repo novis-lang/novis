@@ -4,46 +4,54 @@
 use Core\Http\Method;
 use Core\Router\Refusal;
 
-enum Role {
+enum Role
+{
     Visitor = 1,
     Admin = 2,
 }
 
-class Pages {
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Pages::home")]
+class Pages
+{
+    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Pages::home')]
     #[Core\Access(allow: Role::Visitor)]
-    public function home(): void {
-        echo "home page";
+    public function home(): void
+    {
+        echo 'home page';
     }
 
-    #[Core\Route(path: "/admin", method: Core\Http\Method::Get, name: "Pages::admin")]
+    #[Core\Route(path: '/admin', method: Core\Http\Method::Get, name: 'Pages::admin')]
     #[Core\Access(allow: Role::Admin)]
-    public function admin(): void {
-        echo "admin page";
+    public function admin(): void
+    {
+        echo 'admin page';
     }
 }
 
-class Gate implements Core\Router\Gate {
+class Gate implements Core\Router\Gate
+{
     // `accessAs<Role>()` returns the `allow:` value of the route.
     // An admin route runs only when the request has the right token.
-    public function allows(Core\Router\Match $route): bool {
+    public function allows(Core\Router\Match $route): bool
+    {
         if ($route->accessAs<Role>() == Role::Visitor) {
             return true;
         }
-        return Core\Request::header("x-admin-token") == "letmein";
+        return Core\Request::header('x-admin-token') == 'letmein';
     }
 
     // When `allows` returns `false`, the reason is `Refusal::Denied` and the status is 403.
-    public function refused(Refusal $reason, ?Core\Router\Match $route): void {
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void
+    {
         if ($reason == Refusal::Denied) {
-            echo "please log in";
+            echo 'please log in';
         } else {
-            echo "no page here";
+            echo 'no page here';
         }
     }
 
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
-        echo "something went wrong";
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'something went wrong';
     }
 }
 
@@ -51,12 +59,12 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Router::dispatch(new Gate());
 } else {
     // This prints `200 home page`, then `403 please log in`, then `200 admin page`.
-    var $home = Core\Test::request(Method::Get, "/");
-    echo $home->status(), " ", $home->body(), "\n";
-    var $denied = Core\Test::request(Method::Get, "/admin");
-    echo $denied->status(), " ", $denied->body(), "\n";
-    var $admin = Core\Test::request(Method::Get, "/admin", {
-        headers: ["X-Admin-Token" => "letmein"],
+    var $home = Core\Test::request(Method::Get, '/');
+    echo $home->status(), ' ', $home->body(), "\n";
+    var $denied = Core\Test::request(Method::Get, '/admin');
+    echo $denied->status(), ' ', $denied->body(), "\n";
+    var $admin = Core\Test::request(Method::Get, '/admin', {
+        headers: ['X-Admin-Token' => 'letmein'],
     });
-    echo $admin->status(), " ", $admin->body(), "\n";
+    echo $admin->status(), ' ', $admin->body(), "\n";
 }

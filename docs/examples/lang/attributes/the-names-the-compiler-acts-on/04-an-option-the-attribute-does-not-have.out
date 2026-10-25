@@ -1,7 +1,7 @@
 error[E0454]: `colour` is not an option of `#[Route]`
-  --> 04-an-option-the-attribute-does-not-have.nvs:7:60
+  --> 04-an-option-the-attribute-does-not-have.nvs:8:60
   |
-7 |     #[Core\Route(path: "/", method: Core\Http\Method::Get, colour: "red")]
+8 |     #[Core\Route(path: '/', method: Core\Http\Method::Get, colour: 'red')]
   |                                                            ^^^^^^^^^^^^^ no such option
   = help: the options are: path: string, method: Core\Http\Method, name: string, slotted: bool
 

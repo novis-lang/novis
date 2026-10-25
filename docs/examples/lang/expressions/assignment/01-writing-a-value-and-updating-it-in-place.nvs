@@ -3,24 +3,24 @@
 // already there. `$x += 1` is `$x = $x + 1` written once.
 
 uint $attempts = 0;
-string $log = "start";
+string $log = 'start';
 
 // Each of these reads the variable, applies the operator and writes the
 // result back.
 $attempts += 1;
 $attempts += 1;
-$log .= " -> retry";
+$log .= ' -> retry';
 
 // This prints: 2 start -> retry
-echo $attempts, " ", $log, "\n";
+echo $attempts, ' ', $log, "\n";
 
 // The operator keeps the type of the variable it writes into. These all stay
 // `int`, and this prints: 7 21 1
 int $budget = 10;
 $budget -= 3;
-echo $budget, " ";
+echo $budget, ' ';
 $budget *= 3;
-echo $budget, " ";
+echo $budget, ' ';
 $budget %= 4;
 echo $budget, "\n";
 
@@ -31,4 +31,4 @@ int $right = 0;
 $left = $right = 3;
 int $sum = $left + $right;
 // This prints: 3 3 6
-echo $left, " ", $right, " ", $sum, "\n";
+echo $left, ' ', $right, ' ', $sum, "\n";

@@ -4,11 +4,11 @@
 Core\Time\TimeOfDay $late = Core\Time\TimeOfDay::at(23, 30);
 
 // This prints 01:30.
-echo $late->plus(2, Core\Unit::Hour)->format("HH:mm"), "\n";
+echo $late->plus(2, Core\Unit::Hour)->format('HH:mm'), "\n";
 
 // A day is not a unit a time of day can move, so this throws a `LogicError`.
 try {
-    echo $late->plus(1, Core\Unit::Day)->format("HH:mm"), "\n";
+    echo $late->plus(1, Core\Unit::Day)->format('HH:mm'), "\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }

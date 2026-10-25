@@ -4,12 +4,14 @@
 // proof: compile-error
 
 #[Core\Json\Derive]
-class User {
+class User
+{
     public string $name;
     public int $age;
 
-    public function constructor(int $age) {
-        $this->name = "";
+    public function constructor(int $age)
+    {
+        $this->name = '';
         $this->age = $age;
     }
 }

@@ -3,25 +3,31 @@
 // bench: iterations 512
 // bench: complexity linear
 
-class Line {
-    public function constructor(public string $sku, public int $quantity) {}
+class Line
+{
+    public function constructor(public string $sku, public int $quantity)
+    {}
 }
 
-class Order {
-    public function constructor(public string $customer, public array<Line> $lines) {}
+class Order
+{
+    public function constructor(public string $customer, public array<Line> $lines)
+    {}
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Order> $orders = [
-            new Order("customer-1", [new Line("tea", 2), new Line("cup", 1)]),
-            new Order("customer-2", [new Line("pot", 1)]),
-            new Order("customer-3", [new Line("tea", 1), new Line("cup", 4), new Line("pot", 1)]),
+            new Order('customer-1', [new Line('tea', 2), new Line('cup', 1)]),
+            new Order('customer-2', [new Line('pot', 1)]),
+            new Order('customer-3', [new Line('tea', 1), new Line('cup', 4), new Line('pot', 1)]),
         ];
         array<Order> $copies = [
-            new Order("customer-1", [new Line("tea", 2), new Line("cup", 1)]),
-            new Order("customer-2", [new Line("pot", 1)]),
-            new Order("customer-3", [new Line("tea", 1), new Line("cup", 4), new Line("pot", 1)]),
+            new Order('customer-1', [new Line('tea', 2), new Line('cup', 1)]),
+            new Order('customer-2', [new Line('pot', 1)]),
+            new Order('customer-3', [new Line('tea', 1), new Line('cup', 4), new Line('pot', 1)]),
         ];
         uint $total = 0;
         uint $i = 0;

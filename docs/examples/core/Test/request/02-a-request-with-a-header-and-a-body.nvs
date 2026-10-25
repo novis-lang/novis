@@ -7,17 +7,17 @@ use Core\Test;
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers the request. It reads one header and the body,
     // and sets the status to 201.
-    var $language = Core\Request::header("accept-language") ?? "none";
+    var $language = Core\Request::header('accept-language') ?? 'none';
     var $body = Core\Request::body();
     Core\Response::setStatus(201);
-    echo "language ", $language, ", note ", $body;
+    echo 'language ', $language, ', note ', $body;
 } else {
     // This part sends a `POST` request with one header and a body.
-    var $response = Test::request(Method::Post, "/notes", {
-        headers: ["Accept-Language" => "de"],
-        body: "Buy milk",
+    var $response = Test::request(Method::Post, '/notes', {
+        headers: ['Accept-Language' => 'de'],
+        body: 'Buy milk',
     });
 
     // This prints `201 language de, note Buy milk`.
-    echo $response->status(), " ", $response->body(), "\n";
+    echo $response->status(), ' ', $response->body(), "\n";
 }

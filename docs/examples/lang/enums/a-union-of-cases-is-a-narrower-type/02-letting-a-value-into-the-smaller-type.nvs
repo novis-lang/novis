@@ -3,11 +3,13 @@
 // throws an error when the value is not one of the named cases, the other
 // returns `null`.
 
-class File {
+class File
+{
     enum Mode { Read, Write, Append, Exec }
 
-    public static function open(Mode::Read|Mode::Write $mode): string {
-        return "opened in mode " . (($mode as int) as string);
+    public static function open(Mode::Read|Mode::Write $mode): string
+    {
+        return 'opened in mode ' . (($mode as int) as string);
     }
 }
 
@@ -21,7 +23,7 @@ try {
     echo File::open($other as File::Mode::Read|File::Mode::Write), "\n";
 } catch (RuntimeError $error) {
     // The message names every case the type accepts.
-    echo "stopped: ", $error->message, "\n";
+    echo 'stopped: ', $error->message, "\n";
 }
 
 // `as ?File::Mode::Read|File::Mode::Write` returns `null` for a value outside

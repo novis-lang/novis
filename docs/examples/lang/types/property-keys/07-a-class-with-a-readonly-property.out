@@ -1,7 +1,7 @@
 error[E0782]: `Order::$id` is `readonly`, so only `Order`'s constructor writes it
-   --> 07-a-class-with-a-readonly-property.nvs:17:1
+   --> 07-a-class-with-a-readonly-property.nvs:19:1
    |
-17 | $order->$key = "paid";
+19 | $order->$key = 'paid';
    | ^^^^^^^^^^^^ a `property<Order>` may name any of Order's public properties, and this write cannot know which one it holds
    = help: write the property out to name a different one, or drop the modifier if the property is meant to be assignable
 

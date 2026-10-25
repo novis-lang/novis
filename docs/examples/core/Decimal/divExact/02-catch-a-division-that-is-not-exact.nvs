@@ -8,7 +8,7 @@ array<decimal> $people = [4, 9, 0];
 foreach ($people as decimal $count) {
     try {
         decimal $share = Core\Decimal::divExact($bill, $count);
-        echo "each of ", $count, " pays ", $share, "\n";
+        echo 'each of ', $count, ' pays ', $share, "\n";
     } catch (ArithmeticError $notExact) {
         // 84 divided by 9 repeats forever, and nothing can be divided by zero.
         echo $notExact->message, "\n";

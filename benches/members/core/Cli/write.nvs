@@ -6,16 +6,18 @@
 // bench: allocations 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $rows = ["read", "save", "done"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $rows = ['read', 'save', 'done'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The row of each round is picked by the round before it, so no
             // round can be left out.
             int $pick = ($total % 3) as int;
-            Core\Cli::write($rows[$pick], {newline: true});
+            Core\Cli::write($rows[$pick], { newline: true });
             $total = $total + Core\Str::length($rows[$pick]);
             $i = $i + 1;
         }

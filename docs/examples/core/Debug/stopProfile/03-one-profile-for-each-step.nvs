@@ -1,12 +1,15 @@
 <?nvs
 // Writes one profile for each step of a backup job, so you can compare the steps.
 
-class Backup {
-    public static function collect(): int {
+class Backup
+{
+    public static function collect(): int
+    {
         return 40;
     }
 
-    public static function compress(int $files): int {
+    public static function compress(int $files): int
+    {
         return $files * 3;
     }
 }
@@ -26,7 +29,7 @@ Core\Debug::stopProfile();
 // No profile is running now, so this stop does nothing.
 Core\Debug::stopProfile();
 
-echo "collected ", $files, " files into ", $parts, " parts\n";
+echo 'collected ', $files, ' files into ', $parts, " parts\n";
 
 // This deletes the profile files, so the next run starts with an empty folder.
 array<string> $profiles = [$collectFile, $compressFile];

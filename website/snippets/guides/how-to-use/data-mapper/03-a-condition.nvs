@@ -1,21 +1,25 @@
 <?nvs
 // This program builds a query condition. The compiler checks its property names.
 
-class Customer {
-    public string $name = "";
+class Customer
+{
+    public string $name = '';
 }
 
-class Order {
+class Order
+{
     public int $total = 0;
     public ?Customer $customer = null;
 }
 
-class Mapper {
+class Mapper
+{
     // `string<propertyPath<Order>>` is a string with holes.
     // Each `{...}` in it is a property path of `Order`.
-    public static function where(string<propertyPath<Order>> $condition): string {
-        return "SELECT * FROM orders WHERE " . ($condition as string);
+    public static function where(string<propertyPath<Order>> $condition): string
+    {
+        return 'SELECT * FROM orders WHERE ' . ($condition as string);
     }
 }
 
-echo Mapper::where("{total} = ? AND {customer.name} = ?"), "\n";
+echo Mapper::where('{total} = ? AND {customer.name} = ?'), "\n";

@@ -4,15 +4,17 @@
 // scaling: max 64000
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): uint {
+class Bench
+{
+    public static function run(uint $size): uint
+    {
         array<string> $pairs = [];
         uint $i = 0;
         while ($i < $size) {
-            $pairs[] = "field" . $i . "=red+shoes";
+            $pairs[] = 'field' . $i . '=red+shoes';
             $i = $i + 1;
         }
-        array<mixed> $params = Core\Uri::parseQuery(Core\Str::join($pairs, "&"));
+        array<mixed> $params = Core\Uri::parseQuery(Core\Str::join($pairs, '&'));
         return Core\Arr::count($params);
     }
 }

@@ -7,16 +7,18 @@
 // bench: allocations 3
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $questions = ["run the migrations?", "restart the server?", "drop the table?"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $questions = ['run the migrations?', 'restart the server?', 'drop the table?'];
         uint $taken = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The question of each round is picked by the round before it, so
             // no round can be left out.
             int $pick = ($taken % 3) as int;
-            if (Core\Cli::confirm($questions[$pick], {default: true})) {
+            if (Core\Cli::confirm($questions[$pick], { default: true })) {
                 $taken = $taken + 1;
             }
             $i = $i + 1;

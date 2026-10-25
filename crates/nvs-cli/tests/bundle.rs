@@ -149,7 +149,7 @@ fn a_bundle_carries_the_statically_resolved_require_graph_as_source() {
     // Source, not artifacts — § 2's whole trade. Each file's own text is in
     // there byte for byte, which is also what makes a bundle inspectable.
     assert!(
-        files[0].1.contains("require \"lib/greet.nvs\";"),
+        files[0].1.contains("require 'lib/greet.nvs';"),
         "the entry's own source: {:?}",
         files[0].1
     );

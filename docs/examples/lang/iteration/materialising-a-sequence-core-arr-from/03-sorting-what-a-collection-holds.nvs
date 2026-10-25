@@ -3,10 +3,10 @@
 // when it gathers values while it works and puts them in order at the end.
 
 var $seen = new Core\ObjectSet<string>();
-$seen->add("marta");
-$seen->add("ada");
-$seen->add("kofi");
-$seen->add("ada");
+$seen->add('marta');
+$seen->add('ada');
+$seen->add('kofi');
+$seen->add('ada');
 
 // A set gives its members in the order you added them, and keeps each one once.
 // This prints 3.

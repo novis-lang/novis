@@ -5,31 +5,38 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Invoices {
-    #[Core\Route(path: "/invoices/{number}", method: Core\Http\Method::Get, name: "Invoices::show")]
+class Invoices
+{
+    #[Core\Route(path: '/invoices/{number}', method: Core\Http\Method::Get, name: 'Invoices::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(uint $number): string { return "one invoice"; }
+    public function show(uint $number): string
+    {
+        return 'one invoice';
+    }
 }
 
-class Bench {
-    public static function loop(Core\Router\Match $first, Core\Router\Match $second, uint $rounds): uint {
+class Bench
+{
+    public static function loop(Core\Router\Match $first, Core\Router\Match $second, uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Last round's total decides which match this round reads.
             if ($total % 2 == 0) {
-                $total = $total + ($first->param("number") as uint);
+                $total = $total + ($first->param('number') as uint);
             } else {
-                $total = $total + ($second->param("number") as uint);
+                $total = $total + ($second->param('number') as uint);
             }
             $i = $i + 1;
         }
         return $total;
     }
 
-    public static function run(uint $rounds): uint {
-        ?Core\Router\Match $first = Core\Router::match(Core\Http\Method::Get, "/invoices/1001");
-        ?Core\Router\Match $second = Core\Router::match(Core\Http\Method::Get, "/invoices/1002");
+    public static function run(uint $rounds): uint
+    {
+        ?Core\Router\Match $first = Core\Router::match(Core\Http\Method::Get, '/invoices/1001');
+        ?Core\Router\Match $second = Core\Router::match(Core\Http\Method::Get, '/invoices/1002');
         if ($first != null) {
             if ($second != null) {
                 return Bench::loop($first, $second, $rounds);

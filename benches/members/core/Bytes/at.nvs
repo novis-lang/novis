@@ -7,9 +7,11 @@
 // bench: statements 3
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        bytes $data = "Novis" as bytes;
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        bytes $data = 'Novis' as bytes;
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

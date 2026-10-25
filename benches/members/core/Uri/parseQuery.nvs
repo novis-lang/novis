@@ -3,12 +3,14 @@
 // bench: iterations 512
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $queries = [
-            "q=red+shoes&page=2",
-            "size[]=M&size[]=L&filter[color]=red",
-            "next=%2Faccount%2Forders&lang=en",
+            'q=red+shoes&page=2',
+            'size[]=M&size[]=L&filter[color]=red',
+            'next=%2Faccount%2Forders&lang=en',
         ];
         uint $total = 0;
         uint $i = 0;

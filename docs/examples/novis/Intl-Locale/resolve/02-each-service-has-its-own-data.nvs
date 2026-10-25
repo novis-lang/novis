@@ -3,7 +3,7 @@
 use Novis\Intl\Locale;
 
 // German has its own date rules. This prints de.
-echo Locale::resolve(["de-AT"], Locale::Service::Dates)[0], "\n";
+echo Locale::resolve(['de-AT'], Locale::Service::Dates)[0], "\n";
 
 // German sorts text with the general rules. This prints und.
-echo Locale::resolve(["de-AT"], Locale::Service::Collation)[0], "\n";
+echo Locale::resolve(['de-AT'], Locale::Service::Collation)[0], "\n";

@@ -4,7 +4,7 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 use Novis\Pdf\Reader;
 
-var $html = "<style>p { break-after: page }</style><p>First page</p><p>Second page</p>";
+var $html = '<style>p { break-after: page }</style><p>First page</p><p>Second page</p>';
 
 // The header is empty on the first page.
 var $header = fn(Page $page): Core\Html\Markup => $page->isFirst() ? html`` : html`<p>Shop letter</p>`;
@@ -13,5 +13,5 @@ var $header = fn(Page $page): Core\Html\Markup => $page->isFirst() ? html`` : ht
 // The PDF file stores the header after the body, so the header text comes last.
 var $pdf = Document::fromHtml($html)->header($header)->render()->bytes;
 var $reader = Reader::open($pdf);
-echo "page 1: ", Core\Str::replace($reader->text(1), "\n", " / "), "\n";
-echo "page 2: ", Core\Str::replace($reader->text(2), "\n", " / "), "\n";
+echo 'page 1: ', Core\Str::replace($reader->text(1), "\n", ' / '), "\n";
+echo 'page 2: ', Core\Str::replace($reader->text(2), "\n", ' / '), "\n";

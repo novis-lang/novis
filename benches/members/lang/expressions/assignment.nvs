@@ -6,10 +6,12 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Tally {
+class Tally
+{
     public uint $seen = 0;
 
-    public static function run(uint $rounds): uint {
+    public static function run(uint $rounds): uint
+    {
         Tally $tally = new Tally();
         array<uint> $slots = [0, 0, 0, 0];
         uint $running = 1;

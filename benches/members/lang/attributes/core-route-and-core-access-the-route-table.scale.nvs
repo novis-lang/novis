@@ -3,10 +3,12 @@
 // bench: start 256
 // bench: max 4096
 
-class Products {
-    #[Core\Route(path: "/products/{sku}", method: Core\Http\Method::Get, name: "product")]
+class Products
+{
+    #[Core\Route(path: '/products/{sku}', method: Core\Http\Method::Get, name: 'product')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(string $sku): string {
+    public function show(string $sku): string
+    {
         return $sku;
     }
 }
@@ -19,7 +21,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            string $url = Core\Router::url("product", ["sku" => $sku]);
+            string $url = Core\Router::url('product', ['sku' => $sku]);
             $total = $total + Core\Str::length($url);
             $i = $i + 1;
         }

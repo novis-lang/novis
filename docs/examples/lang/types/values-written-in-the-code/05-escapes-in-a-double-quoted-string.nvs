@@ -2,7 +2,7 @@
 // Shows the escapes of a double-quoted string, and what is printed for each one.
 
 // `\t` is a tab, `\"` is a quote, `\$` is a dollar sign and `\\` is one backslash.
-string $who = "Ada";
+string $who = 'Ada';
 echo "tab[\t] quote[\"] dollar[\$who] backslash[\\]\n";
 
 // `\101` (octal), `\x41` (hex) and `\u{41}` (a code point) all print `A`.

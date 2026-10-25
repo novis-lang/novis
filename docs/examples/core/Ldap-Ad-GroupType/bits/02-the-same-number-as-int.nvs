@@ -2,12 +2,12 @@
 // Shows that `bits` returns the same number that `int` reads from `groupType`.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $group = $corp->read("CN=Managers,OU=Company,DC=example,DC=test", {select: ["groupType"]});
+var $corp = Core\Ldap::connect('corp');
+var $group = $corp->read('CN=Managers,OU=Company,DC=example,DC=test', { select: ['groupType'] });
 var $type = $group?->groupType();
 
 if ($group != null && $type != null) {
     // This prints `-2147483646` twice.
     echo $type->bits(), "\n";
-    echo $group->int("groupType") ?? 0, "\n";
+    echo $group->int('groupType') ?? 0, "\n";
 }

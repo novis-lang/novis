@@ -6,10 +6,12 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class HTTPXMLPayloadCounterForTheWholeBillingDepartment {
+class HTTPXMLPayloadCounterForTheWholeBillingDepartment
+{
     public const int THE_NUMBER_OF_ROUNDS_THIS_BENCHMARK_RUNS = 4000000;
 
-    public static function countEveryPayloadThisDepartmentEverReceived(int $roundCount): int {
+    public static function countEveryPayloadThisDepartmentEverReceived(int $roundCount): int
+    {
         int $theRunningTotalOfEveryPayloadSoFar = 0;
         int $whatTheLastRoundLeftBehind = 1;
         int $theIndexOfTheRoundBeingCountedRightNow = 0;
@@ -27,5 +29,5 @@ class HTTPXMLPayloadCounterForTheWholeBillingDepartment {
 }
 
 echo HTTPXMLPayloadCounterForTheWholeBillingDepartment::countEveryPayloadThisDepartmentEverReceived(
-    HTTPXMLPayloadCounterForTheWholeBillingDepartment::THE_NUMBER_OF_ROUNDS_THIS_BENCHMARK_RUNS
+    HTTPXMLPayloadCounterForTheWholeBillingDepartment::THE_NUMBER_OF_ROUNDS_THIS_BENCHMARK_RUNS,
 ), "\n";

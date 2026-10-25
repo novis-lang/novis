@@ -59,27 +59,32 @@ flaky`, and the exit status is `0`.
 
 use Core\Test;
 
-class Slug {
-    public static function of(string $title): string {
-        return Core\Str::replace(Core\Str::lower($title), " ", "-");
+class Slug
+{
+    public static function of(string $title): string
+    {
+        return Core\Str::replace(Core\Str::lower($title), ' ', '-');
     }
 }
 
-class SlugTest {
+class SlugTest
+{
     #[Test]
-    public function spacesBecomeDashes(): void {
-        Test::assertSame(Slug::of("Hello World"), "hello-world");
+    public function spacesBecomeDashes(): void
+    {
+        Test::assertSame(Slug::of('Hello World'), 'hello-world');
     }
 
     #[Test]
-    public function capitalsBecomeSmallLetters(): void {
-        Test::assertSame(Slug::of("ORDER Form"), "order-form");
+    public function capitalsBecomeSmallLetters(): void
+    {
+        Test::assertSame(Slug::of('ORDER Form'), 'order-form');
     }
 }
 
 // `nvs run` runs the program and leaves the tests alone.
 // This prints `hello-world`.
-echo Slug::of("Hello World"), "\n";
+echo Slug::of('Hello World'), "\n";
 ```
 
 ```output
@@ -95,8 +100,10 @@ hello-world
 
 use Core\Test;
 
-class Basket {
-    public static function shippingCents(int $totalCents): int {
+class Basket
+{
+    public static function shippingCents(int $totalCents): int
+    {
         if ($totalCents >= 5000) {
             return 0;
         }
@@ -104,12 +111,14 @@ class Basket {
     }
 
     #[Test]
-    public function aSmallBasketPaysForShipping(): void {
+    public function aSmallBasketPaysForShipping(): void
+    {
         Test::assertSame(Basket::shippingCents(1200), 499);
     }
 
     #[Test]
-    public function theLimitItselfShipsFree(): void {
+    public function theLimitItselfShipsFree(): void
+    {
         Test::assertSame(Basket::shippingCents(5000), 0);
     }
 }
@@ -134,44 +143,51 @@ echo Basket::shippingCents(9900), "\n";
 
 use Core\Test;
 
-class PasswordPolicy {
-    public static function problem(string $password): string {
+class PasswordPolicy
+{
+    public static function problem(string $password): string
+    {
         if (Core\Str::length($password) < 12) {
-            return "too short";
+            return 'too short';
         }
         if (Core\Str::lower($password) == $password) {
-            return "needs a capital letter";
+            return 'needs a capital letter';
         }
-        return "none";
+        return 'none';
     }
 }
 
-class PasswordPolicyTest {
+class PasswordPolicyTest
+{
     #[Test]
-    public function aShortPasswordIsRefused(): void {
-        Test::assertSame($this->problemFor("Short1"), "too short");
+    public function aShortPasswordIsRefused(): void
+    {
+        Test::assertSame($this->problemFor('Short1'), 'too short');
     }
 
     #[Test]
-    public function aPasswordWithoutCapitalsIsRefused(): void {
-        Test::assertSame($this->problemFor("correcthorsebattery"), "needs a capital letter");
+    public function aPasswordWithoutCapitalsIsRefused(): void
+    {
+        Test::assertSame($this->problemFor('correcthorsebattery'), 'needs a capital letter');
     }
 
     #[Test]
-    public function aLongPasswordWithACapitalLetterPasses(): void {
-        Test::assertSame($this->problemFor("CorrectHorseBattery"), "none");
+    public function aLongPasswordWithACapitalLetterPasses(): void
+    {
+        Test::assertSame($this->problemFor('CorrectHorseBattery'), 'none');
     }
 
     // This method has no `#[Test]`, so `nvs test` does not run it. The tests
     // above call it like any other method.
-    private function problemFor(string $password): string {
+    private function problemFor(string $password): string
+    {
         return PasswordPolicy::problem($password);
     }
 }
 
 // This prints `too short` and then `none`.
-echo PasswordPolicy::problem("Short1"), "\n";
-echo PasswordPolicy::problem("CorrectHorseBattery"), "\n";
+echo PasswordPolicy::problem('Short1'), "\n";
+echo PasswordPolicy::problem('CorrectHorseBattery'), "\n";
 ```
 
 ```output
@@ -190,28 +206,32 @@ none
 
 use Core\Test;
 
-final class ArithmeticTest {
+final class ArithmeticTest
+{
     // The report shows `✓` for this test.
     #[Test]
-    public function additionCommutes(): void {
+    public function additionCommutes(): void
+    {
         Test::assertSame(2 + 3, 3 + 2);
     }
 
     // The report shows `-` for this test, and prints the reason.
-    #[Test(skip: "division is not written yet")]
-    public function divisionRounds(): void {
+    #[Test(skip: 'division is not written yet')]
+    public function divisionRounds(): void
+    {
         Test::assertSame(7 / 2, 4.0);
     }
 
     // The report shows `✗` for this test, and prints both values.
     #[Test]
-    public function thisOneFails(): void {
+    public function thisOneFails(): void
+    {
         Test::assertSame(2 + 2, 5);
     }
 }
 
 // `nvs test` does not run this line.
-echo "this line runs only under nvs run", "\n";
+echo 'this line runs only under nvs run', "\n";
 ```
 
 ```output
@@ -235,9 +255,11 @@ echo "this line runs only under nvs run", "\n";
 
 use Core\Test;
 
-final class ShapeTest {
+final class ShapeTest
+{
     #[Test]
-    public static function aTestIsNotStatic(): void {
+    public static function aTestIsNotStatic(): void
+    {
         Test::assertTrue(true);
     }
 }
@@ -245,9 +267,9 @@ final class ShapeTest {
 
 ```output
 error[E0733]: the `#[Test]` method `aTestIsNotStatic` is `static`
-   --> main.nvs:10:28
+   --> main.nvs:11:28
    |
-10 |     public static function aTestIsNotStatic(): void {
+11 |     public static function aTestIsNotStatic(): void
    |                            ^^^^^^^^^^^^^^^^ is `static`
    = help: a test is run against a fresh instance, so drop the `static`
 
@@ -294,19 +316,23 @@ so a test that uses them does not fail this way.
 
 use Core\Test;
 
-class Counter {
+class Counter
+{
     public static int $hits = 0;
 }
 
-class CounterTest {
+class CounterTest
+{
     #[Test]
-    public function theFirstTestWrites(): void {
+    public function theFirstTestWrites(): void
+    {
         Counter::$hits = Counter::$hits + 1;
         Test::assertSame(Counter::$hits, 1);
     }
 
     #[Test]
-    public function theSecondTestStartsFresh(): void {
+    public function theSecondTestStartsFresh(): void
+    {
         // The test above added one. This test reads `0` again.
         Test::assertSame(Counter::$hits, 0);
     }
@@ -332,44 +358,51 @@ echo Counter::$hits, "\n";
 
 use Core\Test;
 
-class Basket {
+class Basket
+{
     public array<string> $items;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->items = [];
     }
 
-    public function add(string $item): void {
+    public function add(string $item): void
+    {
         $this->items[] = $item;
     }
 }
 
-class BasketTest {
+class BasketTest
+{
     private Basket $basket;
 
     // This runs again before each test below, so each test gets a new basket.
-    public function constructor() {
+    public function constructor()
+    {
         $this->basket = new Basket();
-        $this->basket->add("bread");
+        $this->basket->add('bread');
     }
 
     #[Test]
-    public function itStartsWithThePreparedItem(): void {
+    public function itStartsWithThePreparedItem(): void
+    {
         Test::assertCount($this->basket->items, 1);
     }
 
     #[Test]
-    public function itAddsToThePreparedItem(): void {
+    public function itAddsToThePreparedItem(): void
+    {
         // The item this test adds is gone before the next test starts.
-        $this->basket->add("milk");
+        $this->basket->add('milk');
         Test::assertCount($this->basket->items, 2);
     }
 }
 
 // This prints `2`.
 var $basket = new Basket();
-$basket->add("bread");
-$basket->add("milk");
+$basket->add('bread');
+$basket->add('milk');
 echo Core\Arr::count($basket->items), "\n";
 ```
 
@@ -386,37 +419,43 @@ echo Core\Arr::count($basket->items), "\n";
 
 use Core\Test;
 
-class Registry {
+class Registry
+{
     public static array<string> $accounts = [];
 
-    public static function register(string $email): void {
+    public static function register(string $email): void
+    {
         Registry::$accounts[] = $email;
     }
 
-    public static function count(): uint {
+    public static function count(): uint
+    {
         return Core\Arr::count(Registry::$accounts);
     }
 }
 
-class RegistryTest {
+class RegistryTest
+{
     #[Test]
-    public function itRegistersAnAddress(): void {
-        Registry::register("ada@example.com");
+    public function itRegistersAnAddress(): void
+    {
+        Registry::register('ada@example.com');
         Test::assertSame(Registry::count(), 1);
     }
 
     // The same address again. This test starts with an empty registry, so it
     // needs no code to remove what the test above registered.
     #[Test]
-    public function itRegistersTheSameAddressAgain(): void {
-        Registry::register("ada@example.com");
+    public function itRegistersTheSameAddressAgain(): void
+    {
+        Registry::register('ada@example.com');
         Test::assertSame(Registry::count(), 1);
     }
 }
 
 // Outside a test the registry keeps both addresses. This prints `2`.
-Registry::register("ada@example.com");
-Registry::register("grace@example.com");
+Registry::register('ada@example.com');
+Registry::register('grace@example.com');
 echo Registry::count(), "\n";
 ```
 
@@ -484,31 +523,36 @@ rolls it back after the test. The test sees the database as it was, and leaves n
 
 use Core\Test;
 
-class Coupon {
-    public static function percentFor(string $code): uint {
-        if ($code == "SPRING24") {
+class Coupon
+{
+    public static function percentFor(string $code): uint
+    {
+        if ($code == 'SPRING24') {
             return 15;
         }
         return 0;
     }
 }
 
-class CouponTest {
+class CouponTest
+{
     #[Test]
-    public function itGivesFifteenPercentForTheSpringCode(): void {
-        Test::assertSame(Coupon::percentFor("SPRING24"), 15);
+    public function itGivesFifteenPercentForTheSpringCode(): void
+    {
+        Test::assertSame(Coupon::percentFor('SPRING24'), 15);
     }
 
     // The reason is part of the report, so anybody reading a run sees why
     // this test did not run.
-    #[Test(skip: "the refund table is not written yet")]
-    public function itGivesNothingOnARefundedOrder(): void {
-        Test::assertSame(Coupon::percentFor("SPRING24"), 0);
+    #[Test(skip: 'the refund table is not written yet')]
+    public function itGivesNothingOnARefundedOrder(): void
+    {
+        Test::assertSame(Coupon::percentFor('SPRING24'), 0);
     }
 }
 
 // This prints `15 0`.
-echo Coupon::percentFor("SPRING24"), " ", Coupon::percentFor("AUTUMN24"), "\n";
+echo Coupon::percentFor('SPRING24'), ' ', Coupon::percentFor('AUTUMN24'), "\n";
 ```
 
 ```output
@@ -525,29 +569,33 @@ echo Coupon::percentFor("SPRING24"), " ", Coupon::percentFor("AUTUMN24"), "\n";
 use Core\Test;
 use Core\Time;
 
-class Receipt {
-    public static function stampedAt(string $iso): string {
-        return "receipt at " . $iso;
+class Receipt
+{
+    public static function stampedAt(string $iso): string
+    {
+        return 'receipt at ' . $iso;
     }
 }
 
-class ReceiptTest {
+class ReceiptTest
+{
     // The clock stands still at this instant, for this test only.
-    #[Test(at: "2026-01-01T00:00:00Z")]
-    public function itStampsTheTimeTheClockShows(): void {
+    #[Test(at: '2026-01-01T00:00:00Z')]
+    public function itStampsTheTimeTheClockShows(): void
+    {
         string $first = Receipt::stampedAt(Time::now()->toIso());
-        Test::assertSame($first, "receipt at 2026-01-01T00:00:00Z");
+        Test::assertSame($first, 'receipt at 2026-01-01T00:00:00Z');
 
         // This moves the fixed clock forward by 90 minutes.
         Test::advance(90m);
 
         string $later = Receipt::stampedAt(Time::now()->toIso());
-        Test::assertSame($later, "receipt at 2026-01-01T01:30:00Z");
+        Test::assertSame($later, 'receipt at 2026-01-01T01:30:00Z');
     }
 }
 
 // This prints `receipt at 2026-01-01T00:00:00Z`, the text the test checks first.
-echo Receipt::stampedAt("2026-01-01T00:00:00Z"), "\n";
+echo Receipt::stampedAt('2026-01-01T00:00:00Z'), "\n";
 ```
 
 ```output
@@ -561,50 +609,58 @@ receipt at 2026-01-01T00:00:00Z
 // Shows the options a real test class uses: a fixed clock, a fixed seed, an
 // allowance of extra attempts with the reason for it, and a skip.
 
+use Core\Random;
 use Core\Test;
 use Core\Time;
-use Core\Random;
 
-class Invite {
-    public static function code(string $draw): string {
-        return "INV-" . $draw;
+class Invite
+{
+    public static function code(string $draw): string
+    {
+        return 'INV-' . $draw;
     }
 
-    public static function isWellFormed(string $code): bool {
+    public static function isWellFormed(string $code): bool
+    {
         return Core\Str::length($code) == 8;
     }
 }
 
-class InviteTest {
+class InviteTest
+{
     // With `at:` this test reads the same time on every run.
-    #[Test(at: "2026-03-01T09:00:00Z")]
-    public function itReadsOneFixedTime(): void {
-        Test::assertSame(Time::now()->toIso(), "2026-03-01T09:00:00Z");
+    #[Test(at: '2026-03-01T09:00:00Z')]
+    public function itReadsOneFixedTime(): void
+    {
+        Test::assertSame(Time::now()->toIso(), '2026-03-01T09:00:00Z');
     }
 
     // With `seed:` `Core\Random` draws the same numbers on every run.
     #[Test(seed: 42)]
-    public function itBuildsACodeFromADrawnNumber(): void {
+    public function itBuildsACodeFromADrawnNumber(): void
+    {
         int $draw = Random::int(1000, 9999);
         Test::assertTrue(Invite::isWellFormed(Invite::code($draw as string)));
     }
 
     // The payment sandbox fails now and then, so this test gets two more
     // attempts. `because:` is what a reader of the report has instead of the run.
-    #[Test(retries: 2, because: "the payment sandbox is slow to start")]
-    public function itAcceptsACodeTheSandboxReturns(): void {
-        Test::assertTrue(Invite::isWellFormed("INV-1234"));
+    #[Test(retries: 2, because: 'the payment sandbox is slow to start')]
+    public function itAcceptsACodeTheSandboxReturns(): void
+    {
+        Test::assertTrue(Invite::isWellFormed('INV-1234'));
     }
 
     // This test waits for work that is not done. It is reported as skipped.
-    #[Test(skip: "the refund endpoint is not built yet")]
-    public function itRefundsAnInvite(): void {
-        Test::assertTrue(Invite::isWellFormed("INV-0000"));
+    #[Test(skip: 'the refund endpoint is not built yet')]
+    public function itRefundsAnInvite(): void
+    {
+        Test::assertTrue(Invite::isWellFormed('INV-0000'));
     }
 }
 
 // This prints `INV-1234`.
-echo Invite::code("1234"), "\n";
+echo Invite::code('1234'), "\n";
 ```
 
 ```output
@@ -619,36 +675,41 @@ INV-1234
 // attempt. The report shows `!` for that test, because it is flaky.
 // proof: test
 
+use Core\Random;
 use Core\Test;
 use Core\Time;
-use Core\Random;
 
-final class DeterminismTest {
+final class DeterminismTest
+{
     // `Core\Test::advance` moves the fixed clock forward by 90 minutes.
-    #[Test(at: "2026-01-01T00:00:00Z")]
-    public function theClockIsFixedAndMovable(): void {
-        Test::assertSame(Time::now()->toIso(), "2026-01-01T00:00:00Z");
+    #[Test(at: '2026-01-01T00:00:00Z')]
+    public function theClockIsFixedAndMovable(): void
+    {
+        Test::assertSame(Time::now()->toIso(), '2026-01-01T00:00:00Z');
         Test::advance(90m);
-        Test::assertSame(Time::now()->toIso(), "2026-01-01T01:30:00Z");
+        Test::assertSame(Time::now()->toIso(), '2026-01-01T01:30:00Z');
     }
 
     // With the same seed, `Random::int` returns the same number on every run.
     #[Test(seed: 42)]
-    public function aSeedIsRepeatable(): void {
+    public function aSeedIsRepeatable(): void
+    {
         int $first = Random::int(0, 999);
         Test::assertTrue($first >= 0);
     }
 
     // The attempts of one test share their `static` values. The first
     // attempt fails, and the second one passes.
-    #[Test(retries: 2, because: "a counter replaces a slow network")]
-    public function itPassesOnTheSecondAttempt(): void {
+    #[Test(retries: 2, because: 'a counter replaces a slow network')]
+    public function itPassesOnTheSecondAttempt(): void
+    {
         Attempts::$n = Attempts::$n + 1;
         Test::assertSame(Attempts::$n, 2);
     }
 }
 
-final class Attempts {
+final class Attempts
+{
     public static int $n = 0;
 }
 ```
@@ -674,9 +735,11 @@ final class Attempts {
 
 use Core\Test;
 
-final class NetworkTest {
+final class NetworkTest
+{
     #[Test(retries: 2)]
-    public function itReachesTheServer(): void {
+    public function itReachesTheServer(): void
+    {
         Test::assertTrue(true);
     }
 }
@@ -684,11 +747,11 @@ final class NetworkTest {
 
 ```output
 error[E0734]: `retries` is given with no `because`
-  --> main.nvs:9:12
-  |
-9 |     #[Test(retries: 2)]
-  |            ^^^^^^^^^^ retried for no stated reason
-  = help: a test that passes only after a retry is reported as flaky. Write the reason for the retries: `#[Test(retries: 2, because: "real DNS")]`
+   --> main.nvs:10:12
+   |
+10 |     #[Test(retries: 2)]
+   |            ^^^^^^^^^^ retried for no stated reason
+   = help: a test that passes only after a retry is reported as flaky. Write the reason for the retries: `#[Test(retries: 2, because: "real DNS")]`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -705,8 +768,10 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 use Core\Test;
 
-class Basket {
-    public static function total(array<int> $prices): int {
+class Basket
+{
+    public static function total(array<int> $prices): int
+    {
         int $sum = 0;
         foreach ($prices as int $price) {
             $sum = $sum + $price;
@@ -715,16 +780,19 @@ class Basket {
     }
 }
 
-class BasketTest {
+class BasketTest
+{
     // This test finishes long before its limit of 2 seconds.
-    #[Test(timeout: "2s")]
-    public function itAddsThePrices(): void {
+    #[Test(timeout: '2s')]
+    public function itAddsThePrices(): void
+    {
         Test::assertSame(Basket::total([4, 8, 15]), 27);
     }
 
     // This loop never ends. The test is stopped after 50 milliseconds.
-    #[Test(timeout: "50ms")]
-    public function itStopsALoopThatNeverEnds(): void {
+    #[Test(timeout: '50ms')]
+    public function itStopsALoopThatNeverEnds(): void
+    {
         int $count = 0;
         while (true) {
             $count = $count + 1;
@@ -752,22 +820,27 @@ class BasketTest {
 
 use Core\Test;
 
-class Order {
-    public static function withShipping(int $cents): int {
+class Order
+{
+    public static function withShipping(int $cents): int
+    {
         return $cents + 500;
     }
 }
 
-class OrderTest {
+class OrderTest
+{
     // A test without `tags:` runs when no `--tag` is given.
     #[Test]
-    public function itAddsTheShippingCost(): void {
+    public function itAddsTheShippingCost(): void
+    {
         Test::assertSame(Order::withShipping(1000), 1500);
     }
 
     // A test may have several tags. `--tag db` and `--tag slow` both select it.
-    #[Test(tags: ["db", "slow"])]
-    public function itAddsShippingToEveryStoredOrder(): void {
+    #[Test(tags: ['db', 'slow'])]
+    public function itAddsShippingToEveryStoredOrder(): void
+    {
         array<int> $stored = [500, 1000, 2500];
         int $total = 0;
         foreach ($stored as int $cents) {
@@ -777,8 +850,9 @@ class OrderTest {
     }
 
     // `--skip-tag slow` leaves out this test.
-    #[Test(tags: ["slow"])]
-    public function itAddsShippingToAMillionOrders(): void {
+    #[Test(tags: ['slow'])]
+    public function itAddsShippingToAMillionOrders(): void
+    {
         int $total = 0;
         for (int $i = 0; $i < 1000000; $i++) {
             $total = $total + Order::withShipping(100);
@@ -846,31 +920,38 @@ it. A call from other code is the compile error `E0889`. `nvs run` and `nvs buil
 use Core\Test;
 use Core\Test\Fixture;
 
-class ShippingRates {
-    public function constructor(public int $baseCents, public int $perItemCents) {}
+class ShippingRates
+{
+    public function constructor(public int $baseCents, public int $perItemCents)
+    {}
 
-    public function totalCents(int $items): int {
+    public function totalCents(int $items): int
+    {
         return $this->baseCents + $this->perItemCents * $items;
     }
 }
 
-class ShippingRatesTest {
+class ShippingRatesTest
+{
     // This method runs once for the whole class. Every test below that declares
     // a `ShippingRates` parameter is called with what it returns.
     #[Fixture]
-    public static function rates(): ShippingRates {
+    public static function rates(): ShippingRates
+    {
         return new ShippingRates(499, 120);
     }
 
     #[Test]
-    public function threeItemsPayTheBaseAndThreeItems(ShippingRates $rates): void {
+    public function threeItemsPayTheBaseAndThreeItems(ShippingRates $rates): void
+    {
         Test::assertSame($rates->totalCents(3), 859);
     }
 
     // The type of the parameter says which fixture fills it. The name is yours
     // to choose.
     #[Test]
-    public function anEmptyOrderPaysTheBase(ShippingRates $anyNameYouLike): void {
+    public function anEmptyOrderPaysTheBase(ShippingRates $anyNameYouLike): void
+    {
         Test::assertSame($anyNameYouLike->totalCents(0), 499);
     }
 }
@@ -894,46 +975,56 @@ echo $rates->totalCents(3), "\n";
 use Core\Test;
 use Core\Test\Fixture;
 
-class Settings {
-    public function constructor(public string $host) {}
+class Settings
+{
+    public function constructor(public string $host)
+    {}
 }
 
-class Mailer {
-    public function constructor(public Settings $settings) {}
+class Mailer
+{
+    public function constructor(public Settings $settings)
+    {}
 
-    public function route(string $address): string {
-        return $address . " via " . $this->settings->host;
+    public function route(string $address): string
+    {
+        return $address . ' via ' . $this->settings->host;
     }
 }
 
-class MailerTest {
+class MailerTest
+{
     #[Fixture]
-    public static function settings(): Settings {
-        return new Settings("smtp.example.com");
+    public static function settings(): Settings
+    {
+        return new Settings('smtp.example.com');
     }
 
     // This fixture needs a `Settings`, so it is built after the one above. The
     // order you write the two methods in does not matter.
     #[Fixture]
-    public static function mailer(Settings $settings): Mailer {
+    public static function mailer(Settings $settings): Mailer
+    {
         return new Mailer($settings);
     }
 
     #[Test]
-    public function itRoutesThroughTheConfiguredHost(Mailer $mailer): void {
-        Test::assertSame($mailer->route("ana@example.com"), "ana@example.com via smtp.example.com");
+    public function itRoutesThroughTheConfiguredHost(Mailer $mailer): void
+    {
+        Test::assertSame($mailer->route('ana@example.com'), 'ana@example.com via smtp.example.com');
     }
 
     // A test may declare both. Each parameter is filled from its own type.
     #[Test]
-    public function bothFixturesReachOneTest(Mailer $mailer, Settings $settings): void {
+    public function bothFixturesReachOneTest(Mailer $mailer, Settings $settings): void
+    {
         Test::assertSame($mailer->settings->host, $settings->host);
     }
 }
 
 // This prints `ana@example.com via smtp.example.com`.
-Mailer $mailer = new Mailer(new Settings("smtp.example.com"));
-echo $mailer->route("ana@example.com"), "\n";
+Mailer $mailer = new Mailer(new Settings('smtp.example.com'));
+echo $mailer->route('ana@example.com'), "\n";
 ```
 
 ```output
@@ -951,41 +1042,49 @@ use Core\Test;
 use Core\Test\Fixture;
 
 // A user as a login form checks it: a name and a stored password hash.
-class Account {
-    public function constructor(public string $name, public string $hash) {}
+class Account
+{
+    public function constructor(public string $name, public string $hash)
+    {}
 
-    public function logIn(secret string $typed): bool {
+    public function logIn(secret string $typed): bool
+    {
         return Core\Password::verify($typed, $this->hash);
     }
 }
 
-class AccountTest {
+class AccountTest
+{
     // `Core\Password::hash` takes a long time, so guessing a password is slow.
     // This fixture runs it once. Without the fixture, every test runs it.
     #[Fixture]
-    public static function account(): Account {
-        return new Account("ada", Core\Password::hash("correct horse"));
+    public static function account(): Account
+    {
+        return new Account('ada', Core\Password::hash('correct horse'));
     }
 
     #[Test]
-    public function theRightPasswordLogsIn(Account $account): void {
-        Test::assertTrue($account->logIn("correct horse"));
+    public function theRightPasswordLogsIn(Account $account): void
+    {
+        Test::assertTrue($account->logIn('correct horse'));
     }
 
     #[Test]
-    public function aWrongPasswordDoesNotLogIn(Account $account): void {
-        Test::assertSame($account->logIn("wrong horse"), false);
+    public function aWrongPasswordDoesNotLogIn(Account $account): void
+    {
+        Test::assertSame($account->logIn('wrong horse'), false);
     }
 
     #[Test]
-    public function anEmptyPasswordDoesNotLogIn(Account $account): void {
-        Test::assertSame($account->logIn(""), false);
+    public function anEmptyPasswordDoesNotLogIn(Account $account): void
+    {
+        Test::assertSame($account->logIn(''), false);
     }
 }
 
 // This prints `true`.
-Account $account = new Account("ada", Core\Password::hash("correct horse"));
-echo $account->logIn("correct horse") ? "true" : "false", "\n";
+Account $account = new Account('ada', Core\Password::hash('correct horse'));
+echo $account->logIn('correct horse') ? 'true' : 'false', "\n";
 ```
 
 ```output
@@ -1036,31 +1135,35 @@ each row gets its own attempts.
 use Core\Test;
 use Core\Test\TestWith;
 
-class Band {
-    public static function of(uint $orders): string {
+class Band
+{
+    public static function of(uint $orders): string
+    {
         if ($orders >= 100) {
-            return "gold";
+            return 'gold';
         }
         if ($orders >= 10) {
-            return "silver";
+            return 'silver';
         }
-        return "bronze";
+        return 'bronze';
     }
 }
 
-class BandTest {
+class BandTest
+{
     // Each field of a row names one parameter below. The values are constants.
-    #[TestWith(orders: 0, want: "bronze")]
-    #[TestWith(orders: 10, want: "silver")]
-    #[TestWith(orders: 100, want: "gold")]
+    #[TestWith(orders: 0, want: 'bronze')]
+    #[TestWith(orders: 10, want: 'silver')]
+    #[TestWith(orders: 100, want: 'gold')]
     #[Test]
-    public function itNamesTheBandOfAnOrderCount(uint $orders, string $want): void {
+    public function itNamesTheBandOfAnOrderCount(uint $orders, string $want): void
+    {
         Test::assertSame(Band::of($orders), $want);
     }
 }
 
 // This prints `bronze silver gold`.
-echo Band::of(0), " ", Band::of(10), " ", Band::of(100), "\n";
+echo Band::of(0), ' ', Band::of(10), ' ', Band::of(100), "\n";
 ```
 
 ```output
@@ -1078,19 +1181,24 @@ use Core\Test;
 use Core\Test\Fixture;
 use Core\Test\TestWith;
 
-class Vat {
-    public function constructor(public int $percent) {}
+class Vat
+{
+    public function constructor(public int $percent)
+    {}
 
     // The tax on an amount in cents. 19 percent of 1000 cents is 190 cents.
-    public function on(int $cents): int {
+    public function on(int $cents): int
+    {
         return Core\Math::intDiv($cents * $this->percent, 100);
     }
 }
 
-class VatTest {
+class VatTest
+{
     // The same rate for every row, built once for the whole class.
     #[Fixture]
-    public static function vat(): Vat {
+    public static function vat(): Vat
+    {
         return new Vat(19);
     }
 
@@ -1099,7 +1207,8 @@ class VatTest {
     #[TestWith(cents: 1000, want: 190)]
     #[TestWith(cents: 0, want: 0)]
     #[Test]
-    public function itTaxesAnAmountInCents(int $cents, int $want, Vat $vat): void {
+    public function itTaxesAnAmountInCents(int $cents, int $want, Vat $vat): void
+    {
         Test::assertSame($vat->on($cents), $want);
     }
 }
@@ -1123,31 +1232,35 @@ echo $vat->on(1000), "\n";
 use Core\Test;
 use Core\Test\TestWith;
 
-class Access {
+class Access
+{
     // An editor may change any article. Anybody else may change only their own.
-    public static function canEdit(string $role, bool $isAuthor): bool {
-        if ($role == "editor") {
+    public static function canEdit(string $role, bool $isAuthor): bool
+    {
+        if ($role == 'editor') {
             return true;
         }
         return $isAuthor;
     }
 }
 
-class AccessTest {
+class AccessTest
+{
     // Four rows for the four combinations, so no case is left untested.
-    #[TestWith(role: "editor", isAuthor: true, want: true)]
-    #[TestWith(role: "editor", isAuthor: false, want: true)]
-    #[TestWith(role: "writer", isAuthor: true, want: true)]
-    #[TestWith(role: "writer", isAuthor: false, want: false)]
+    #[TestWith(role: 'editor', isAuthor: true, want: true)]
+    #[TestWith(role: 'editor', isAuthor: false, want: true)]
+    #[TestWith(role: 'writer', isAuthor: true, want: true)]
+    #[TestWith(role: 'writer', isAuthor: false, want: false)]
     #[Test]
-    public function itAnswersEveryCombination(string $role, bool $isAuthor, bool $want): void {
+    public function itAnswersEveryCombination(string $role, bool $isAuthor, bool $want): void
+    {
         Test::assertSame(Access::canEdit($role, $isAuthor), $want);
     }
 }
 
 // This prints `true` and then `false`.
-echo Access::canEdit("editor", false) ? "true" : "false", "\n";
-echo Access::canEdit("writer", false) ? "true" : "false", "\n";
+echo Access::canEdit('editor', false) ? 'true' : 'false', "\n";
+echo Access::canEdit('writer', false) ? 'true' : 'false', "\n";
 ```
 
 ```output
@@ -1167,19 +1280,23 @@ false
 use Core\Test;
 use Core\Test\TestWith;
 
-final class Slug {
-    public static function of(string $title): string {
-        return Core\Str::lower(Core\Str::replace(Core\Str::trim($title), " ", "-"));
+final class Slug
+{
+    public static function of(string $title): string
+    {
+        return Core\Str::lower(Core\Str::replace(Core\Str::trim($title), ' ', '-'));
     }
 }
 
-final class SlugTest {
+final class SlugTest
+{
     // The report names the rows `itSlugs#0`, `itSlugs#1` and `itSlugs#2`.
-    #[TestWith(title: "Hello World", want: "hello-world")]
-    #[TestWith(title: "  padded ", want: "padded")]
-    #[TestWith(title: "Mixed Case", want: "mixed case")]
+    #[TestWith(title: 'Hello World', want: 'hello-world')]
+    #[TestWith(title: '  padded ', want: 'padded')]
+    #[TestWith(title: 'Mixed Case', want: 'mixed case')]
     #[Test]
-    public function itSlugs(string $title, string $want): void {
+    public function itSlugs(string $title, string $want): void
+    {
         Test::assertSame(Slug::of($title), $want);
     }
 }
@@ -1243,16 +1360,20 @@ it inherits, the same way it runs an inherited `#[Test]`.
 use Core\Test;
 use Core\Test\Property;
 
-final class Money {
-    public static function add(int $a, int $b): int {
+final class Money
+{
+    public static function add(int $a, int $b): int
+    {
         return $a + $b;
     }
 }
 
-final class MoneyTest {
+final class MoneyTest
+{
     // `$a` and `$b` are whole numbers from -1000 to 1000. The test runs 100 times.
-    #[Property(gen: {a: "-1000..1000", b: "-1000..1000"})]
-    public function itAddsInEitherOrder(int $a, int $b): void {
+    #[Property(gen: { a: '-1000..1000', b: '-1000..1000' })]
+    public function itAddsInEitherOrder(int $a, int $b): void
+    {
         Test::assertSame(Money::add($a, $b), Money::add($b, $a));
     }
 }
@@ -1276,9 +1397,11 @@ final class MoneyTest {
 use Core\Test;
 use Core\Test\Property;
 
-final class Volume {
+final class Volume
+{
     // This method has a bug. The highest level is 10, but the check uses 100.
-    public static function limit(int $level): int {
+    public static function limit(int $level): int
+    {
         if ($level > 100) {
             return 10;
         }
@@ -1286,11 +1409,13 @@ final class Volume {
     }
 }
 
-final class VolumeTest {
+final class VolumeTest
+{
     // The generated level can be any number from 0 to 1000.
     // The report shows that 11 is the smallest level that fails.
-    #[Property(seed: 7, gen: {level: "0..1000"})]
-    public function itNeverGoesAboveTen(int $level): void {
+    #[Property(seed: 7, gen: { level: '0..1000' })]
+    public function itNeverGoesAboveTen(int $level): void
+    {
         Test::assertTrue(Volume::limit($level) <= 10);
     }
 }
@@ -1316,16 +1441,19 @@ final class VolumeTest {
 use Core\Test;
 use Core\Test\Property;
 
-final class SeedTest {
+final class SeedTest
+{
     // Both tests use the seed 42, so both get the same inputs.
     // The report shows the same generated input for each failure.
-    #[Property(seed: 42, gen: {n: "0..1000"})]
-    public function itFailsOnce(int $n): void {
+    #[Property(seed: 42, gen: { n: '0..1000' })]
+    public function itFailsOnce(int $n): void
+    {
         Test::assertTrue($n < 500);
     }
 
-    #[Property(seed: 42, gen: {n: "0..1000"})]
-    public function itFailsTheSameWay(int $n): void {
+    #[Property(seed: 42, gen: { n: '0..1000' })]
+    public function itFailsTheSameWay(int $n): void
+    {
         Test::assertTrue($n < 500);
     }
 }
@@ -1410,38 +1538,44 @@ use Core\Path;
 use Core\Test;
 use Core\Test\AfterEachTest;
 
-class ShoppingList {
-    public static function text(array<string> $items): string {
-        string $text = "";
+class ShoppingList
+{
+    public static function text(array<string> $items): string
+    {
+        string $text = '';
         foreach ($items as string $item) {
-            $text = $text . "- " . $item . "\n";
+            $text = $text . '- ' . $item . "\n";
         }
         return $text;
     }
 }
 
-class ShoppingListTest {
+class ShoppingListTest
+{
     public string $file;
 
-    public function constructor() {
-        $this->file = Path::fromCwd("shopping-list-test.txt");
+    public function constructor()
+    {
+        $this->file = Path::fromCwd('shopping-list-test.txt');
     }
 
     #[Test]
-    public function itWritesOneLinePerItem(): void {
-        IO::write($this->file, ShoppingList::text(["bread", "milk"]));
+    public function itWritesOneLinePerItem(): void
+    {
+        IO::write($this->file, ShoppingList::text(['bread', 'milk']));
         Test::assertSame(IO::readText($this->file), "- bread\n- milk\n");
     }
 
     // This runs after the test, also when the test fails.
     #[AfterEachTest]
-    public function removeTheFile(): void {
+    public function removeTheFile(): void
+    {
         IO::remove($this->file);
     }
 }
 
 // This prints `- bread`, then `- milk`.
-echo ShoppingList::text(["bread", "milk"]);
+echo ShoppingList::text(['bread', 'milk']);
 ```
 
 ```output
@@ -1461,45 +1595,51 @@ use Core\Test;
 use Core\Test\AfterClass;
 use Core\Test\BeforeClass;
 
-class Seed {
+class Seed
+{
     // This builds one `insert` statement for many products.
-    public static function insertProducts(array<string> $names): string {
-        string $values = "";
+    public static function insertProducts(array<string> $names): string
+    {
+        string $values = '';
         foreach ($names as string $name) {
-            if ($values != "") {
-                $values = $values . ", ";
+            if ($values != '') {
+                $values = $values . ', ';
             }
             $values = $values . "('" . $name . "')";
         }
-        return "insert into products (name) values " . $values;
+        return 'insert into products (name) values ' . $values;
     }
 }
 
-class ProductTest {
+class ProductTest
+{
     // The table is outside every test, so a hook creates it one time.
     #[BeforeClass]
-    public static function createTable(): void {
-        var $db = Db::connect("test");
-        $db->execute("create table products (name text)", []);
-        $db->execute(Seed::insertProducts(["tea", "cake"]), []);
+    public static function createTable(): void
+    {
+        var $db = Db::connect('test');
+        $db->execute('create table products (name text)', []);
+        $db->execute(Seed::insertProducts(['tea', 'cake']), []);
     }
 
     // `db: "test"` undoes what the test writes, so every test sees two rows.
-    #[Test(db: "test")]
-    public function itFindsTheSeededProducts(): void {
-        var $rows = Db::connect("test")->query("select name from products", []);
+    #[Test(db: 'test')]
+    public function itFindsTheSeededProducts(): void
+    {
+        var $rows = Db::connect('test')->query('select name from products', []);
         Test::assertCount($rows->all(), 2);
     }
 
     // This runs after the last test, also when a test failed.
     #[AfterClass]
-    public static function dropTable(): void {
-        Db::connect("test")->execute("drop table products", []);
+    public static function dropTable(): void
+    {
+        Db::connect('test')->execute('drop table products', []);
     }
 }
 
 // This prints the statement `createTable` runs.
-echo Seed::insertProducts(["tea", "cake"]), "\n";
+echo Seed::insertProducts(['tea', 'cake']), "\n";
 ```
 
 ```output
@@ -1521,22 +1661,27 @@ use Core\Test\AfterEachTest;
 use Core\Test\Outcome;
 use Core\Test\Summary;
 
-class Evidence {
+class Evidence
+{
     // A retry is a new attempt, so the attempt number is part of the name.
-    public static function fileName(string $class, string $test, int $attempt): string {
-        return $class . "-" . $test . "-" . $attempt . ".log";
+    public static function fileName(string $class, string $test, int $attempt): string
+    {
+        return $class . '-' . $test . '-' . $attempt . '.log';
     }
 }
 
-class CheckoutTest {
+class CheckoutTest
+{
     public string $log;
 
-    public function constructor() {
-        $this->log = Path::fromCwd("checkout-test.log");
+    public function constructor()
+    {
+        $this->log = Path::fromCwd('checkout-test.log');
     }
 
     #[Test]
-    public function itAddsTheShippingCost(): void {
+    public function itAddsTheShippingCost(): void
+    {
         // The prices are in cents.
         IO::write($this->log, "total 1250, shipping 490\n");
         Test::assertSame(1250 + 490, 1740);
@@ -1544,7 +1689,8 @@ class CheckoutTest {
 
     // `Outcome` says which test ran and whether it passed.
     #[AfterEachTest]
-    public function keepTheLogIfItFailed(Outcome $outcome): void {
+    public function keepTheLogIfItFailed(Outcome $outcome): void
+    {
         if ($outcome->passed()) {
             IO::remove($this->log);
         } else {
@@ -1555,13 +1701,14 @@ class CheckoutTest {
 
     // `Summary` has the counts for the whole class.
     #[AfterClass]
-    public static function report(Summary $summary): void {
+    public static function report(Summary $summary): void
+    {
         echo $summary->failed(), " failed, their logs are kept\n";
     }
 }
 
 // This prints `CheckoutTest-itAddsTheShippingCost-2.log`.
-echo Evidence::fileName("CheckoutTest", "itAddsTheShippingCost", 2), "\n";
+echo Evidence::fileName('CheckoutTest', 'itAddsTheShippingCost', 2), "\n";
 ```
 
 ```output
@@ -1583,31 +1730,37 @@ use Core\Test\BeforeClass;
 use Core\Test\Outcome;
 use Core\Test\Summary;
 
-final class HookTest {
+final class HookTest
+{
     #[BeforeClass]
-    public static function createTable(): void {
+    public static function createTable(): void
+    {
         echo "create the table\n";
     }
 
     #[AfterClass]
-    public static function dropTable(Summary $summary): void {
-        echo "drop the table, ", $summary->passed(), " passed\n";
+    public static function dropTable(Summary $summary): void
+    {
+        echo 'drop the table, ', $summary->passed(), " passed\n";
     }
 
     // This hook runs after each test. Its output is shown only when the
     // test fails, so this run does not print it.
     #[AfterEachTest]
-    public function removeFiles(Outcome $outcome): void {
-        echo "remove the files of ", $outcome->name(), "\n";
+    public function removeFiles(Outcome $outcome): void
+    {
+        echo 'remove the files of ', $outcome->name(), "\n";
     }
 
     #[Test]
-    public function first(): void {
+    public function first(): void
+    {
         Test::assertSame(1 + 1, 2);
     }
 
     #[Test]
-    public function second(): void {
+    public function second(): void
+    {
         Test::assertSame(2 + 2, 4);
     }
 }
@@ -1685,22 +1838,27 @@ the program ends with exit status `1`.
 
 use Core\Test;
 
-class Order {
+class Order
+{
     public array<string> $lines = [];
     public ?string $couponCode = null;
 
-    public function add(string $line): void {
+    public function add(string $line): void
+    {
         $this->lines[] = $line;
     }
 
-    public function isEmpty(): bool {
+    public function isEmpty(): bool
+    {
         return Core\Arr::count($this->lines) == 0;
     }
 }
 
-class OrderTest {
+class OrderTest
+{
     #[Test]
-    public function aNewOrderIsEmpty(): void {
+    public function aNewOrderIsEmpty(): void
+    {
         var $order = new Order();
         Test::assertTrue($order->isEmpty());
         Test::assertCount($order->lines, 0);
@@ -1708,16 +1866,17 @@ class OrderTest {
     }
 
     #[Test]
-    public function addingALineKeepsItsText(): void {
+    public function addingALineKeepsItsText(): void
+    {
         var $order = new Order();
-        $order->add("2 x Coffee");
+        $order->add('2 x Coffee');
         Test::assertCount($order->lines, 1);
-        Test::assertSame($order->lines[0], "2 x Coffee");
+        Test::assertSame($order->lines[0], '2 x Coffee');
     }
 }
 
 var $order = new Order();
-$order->add("2 x Coffee");
+$order->add('2 x Coffee');
 
 // This prints `2 x Coffee`.
 echo $order->lines[0], "\n";
@@ -1745,15 +1904,15 @@ try {
 
 // A trailing `{message: "..."}` puts your own sentence in front of the report.
 try {
-    Test::assertSame(0, 1, {message: "a fresh counter is one"});
+    Test::assertSame(0, 1, { message: 'a fresh counter is one' });
 } catch (Core\Test\Failure $f) {
     echo $f->message, "\n";
 }
 
 // `assertEqualsDeep` compares two arrays entry by entry. The message names the
 // first place where they differ.
-array<string> $sent = ["Berlin", "10115"];
-array<string> $stored = ["Berlin", "10117"];
+array<string> $sent = ['Berlin', '10115'];
+array<string> $stored = ['Berlin', '10117'];
 try {
     Test::assertEqualsDeep($sent, $stored);
 } catch (Core\Test\Failure $f) {
@@ -1777,23 +1936,25 @@ Core\Test::assertEqualsDeep failed: the two differ at `$actual["1"]`: `$actual` 
 
 use Core\Test;
 
-class Age {
-    public static function fromText(string $text): int {
+class Age
+{
+    public static function fromText(string $text): int
+    {
         ?int $value = $text as ?int;
         if ($value == null) {
-            throw new ParseError("`" . $text . "` is not a number");
+            throw new ParseError('`' . $text . '` is not a number');
         }
         return $value;
     }
 }
 
 // The call throws `ParseError`, so this assertion passes and prints nothing.
-Test::assertThrows(fn (): void => { Age::fromText("tomorrow"); }, ParseError::class);
-echo "bad input throws", "\n";
+Test::assertThrows(fn (): void => { Age::fromText('tomorrow'); }, ParseError::class);
+echo 'bad input throws', "\n";
 
 // The call returns a number, so this assertion passes too.
-Test::assertDoesNotThrow(fn (): void => { Age::fromText("41"); });
-echo "good input does not throw", "\n";
+Test::assertDoesNotThrow(fn (): void => { Age::fromText('41'); });
+echo 'good input does not throw', "\n";
 ```
 
 ```output
@@ -1810,19 +1971,21 @@ good input does not throw
 
 use Core\Test;
 
-final class Checks {
-    public static function assertEven(int $n): void {
+final class Checks
+{
+    public static function assertEven(int $n): void
+    {
         try {
             Test::assertSame($n % 2, 0);
         } catch (Core\Test\Failure $inner) {
-            throw new Core\Test\Failure($n . " is odd: " . $inner->message);
+            throw new Core\Test\Failure($n . ' is odd: ' . $inner->message);
         }
     }
 }
 
 // 4 is even, so this assertion passes and returns.
 Checks::assertEven(4);
-echo "4 passed", "\n";
+echo '4 passed', "\n";
 
 // 3 is odd. The message starts with your own text.
 try {
@@ -1833,14 +1996,14 @@ try {
 
 // `{message: …}` puts your own sentence in front of the report.
 try {
-    Test::assertEquals(1, 2, {message: "a new counter is one"});
+    Test::assertEquals(1, 2, { message: 'a new counter is one' });
 } catch (Core\Test\Failure $f) {
     echo $f->message, "\n";
 }
 
 // A `ParseError` is a `RuntimeError`, so this assertion passes.
-Test::assertThrows(fn (): void => { throw new ParseError("bad input"); }, RuntimeError::class);
-echo "a ParseError is a RuntimeError", "\n";
+Test::assertThrows(fn (): void => { throw new ParseError('bad input'); }, RuntimeError::class);
+echo 'a ParseError is a RuntimeError', "\n";
 ```
 
 ```output
@@ -1920,30 +2083,35 @@ The exit status is `1` when a test failed, and `0` otherwise. It is the same in 
 
 use Core\Test;
 
-class Greeting {
-    public static function forName(string $name): string {
-        if ($name == "") {
-            return "Hello!";
+class Greeting
+{
+    public static function forName(string $name): string
+    {
+        if ($name == '') {
+            return 'Hello!';
         }
-        return "Hello, " . $name . "!";
+        return 'Hello, ' . $name . '!';
     }
 }
 
-class GreetingTest {
+class GreetingTest
+{
     #[Test]
-    public function itGreetsSomebodyByName(): void {
-        Test::assertSame(Greeting::forName("Ada"), "Hello, Ada!");
+    public function itGreetsSomebodyByName(): void
+    {
+        Test::assertSame(Greeting::forName('Ada'), 'Hello, Ada!');
     }
 
     #[Test]
-    public function itGreetsSomebodyWithNoName(): void {
-        Test::assertSame(Greeting::forName(""), "Hello!");
+    public function itGreetsSomebodyWithNoName(): void
+    {
+        Test::assertSame(Greeting::forName(''), 'Hello!');
     }
 }
 
 // The lines outside a class do not run under `nvs test`. Under `nvs run` they
 // do, and this prints `Hello, Ada! Hello!`.
-echo Greeting::forName("Ada"), " ", Greeting::forName(""), "\n";
+echo Greeting::forName('Ada'), ' ', Greeting::forName(''), "\n";
 ```
 
 ```output
@@ -1960,8 +2128,10 @@ Hello, Ada! Hello!
 
 use Core\Test;
 
-class Cart {
-    public static function total(array<uint> $prices): uint {
+class Cart
+{
+    public static function total(array<uint> $prices): uint
+    {
         uint $sum = 0;
         foreach ($prices as uint $price) {
             $sum = $sum + $price;
@@ -1970,8 +2140,10 @@ class Cart {
     }
 }
 
-class Shipping {
-    public static function costFor(uint $total): uint {
+class Shipping
+{
+    public static function costFor(uint $total): uint
+    {
         if ($total >= 5000) {
             return 0;
         }
@@ -1979,34 +2151,40 @@ class Shipping {
     }
 }
 
-class CartTest {
+class CartTest
+{
     #[Test]
-    public function itAddsNothingForAnEmptyCart(): void {
+    public function itAddsNothingForAnEmptyCart(): void
+    {
         Test::assertSame(Cart::total([]), 0);
     }
 
     #[Test]
-    public function itAddsOnePrice(): void {
+    public function itAddsOnePrice(): void
+    {
         Test::assertSame(Cart::total([1250]), 1250);
     }
 
     #[Test]
-    public function itAddsSeveralPrices(): void {
+    public function itAddsSeveralPrices(): void
+    {
         Test::assertSame(Cart::total([1250, 750, 3000]), 5000);
     }
 }
 
-class ShippingTest {
+class ShippingTest
+{
     // `--filter CartTest::` does not run this test, and its class is not
     // printed at all.
     #[Test]
-    public function itShipsALargeOrderForFree(): void {
+    public function itShipsALargeOrderForFree(): void
+    {
         Test::assertSame(Shipping::costFor(5000), 0);
     }
 }
 
 // This prints `5000 0`.
-echo Cart::total([1250, 750, 3000]), " ", Shipping::costFor(5000), "\n";
+echo Cart::total([1250, 750, 3000]), ' ', Shipping::costFor(5000), "\n";
 ```
 
 ```output
@@ -2023,34 +2201,40 @@ echo Cart::total([1250, 750, 3000]), " ", Shipping::costFor(5000), "\n";
 
 use Core\Test;
 
-class Password {
-    public static function isStrongEnough(string $text): bool {
+class Password
+{
+    public static function isStrongEnough(string $text): bool
+    {
         return Core\Str::length($text) >= 12;
     }
 }
 
-class PasswordTest {
+class PasswordTest
+{
     #[Test]
-    public function itAcceptsALongPassword(): void {
-        Test::assertSame(Password::isStrongEnough("correct horse battery"), true);
+    public function itAcceptsALongPassword(): void
+    {
+        Test::assertSame(Password::isStrongEnough('correct horse battery'), true);
     }
 
     #[Test]
-    public function itRejectsAShortPassword(): void {
-        Test::assertSame(Password::isStrongEnough("horse"), false);
+    public function itRejectsAShortPassword(): void
+    {
+        Test::assertSame(Password::isStrongEnough('horse'), false);
     }
 
     // `--list` prints this test and where it is written, without running it.
     #[Test]
-    public function itRejectsAnEmptyPassword(): void {
-        Test::assertSame(Password::isStrongEnough(""), false);
+    public function itRejectsAnEmptyPassword(): void
+    {
+        Test::assertSame(Password::isStrongEnough(''), false);
     }
 }
 
 // This prints `strong weak weak`.
-echo (Password::isStrongEnough("correct horse battery") ? "strong" : "weak"), " ",
-     (Password::isStrongEnough("horse") ? "strong" : "weak"), " ",
-     (Password::isStrongEnough("") ? "strong" : "weak"), "\n";
+echo (Password::isStrongEnough('correct horse battery') ? 'strong' : 'weak'), ' ',
+     (Password::isStrongEnough('horse') ? 'strong' : 'weak'), ' ',
+     (Password::isStrongEnough('') ? 'strong' : 'weak'), "\n";
 ```
 
 ```output
@@ -2121,25 +2305,30 @@ The exit status is `1` when a bench failed, and `0` otherwise.
 use Core\Test;
 use Core\Test\Bench;
 
-final class Slug {
-    public static function of(string $title): string {
-        return Core\Str::replace(Core\Str::lower(Core\Str::trim($title)), " ", "-");
+final class Slug
+{
+    public static function of(string $title): string
+    {
+        return Core\Str::replace(Core\Str::lower(Core\Str::trim($title)), ' ', '-');
     }
 }
 
-final class SlugTest {
+final class SlugTest
+{
     // `nvs test` runs this test. `nvs test --bench` does not.
     #[Test]
-    public function itJoinsTheWordsWithDashes(): void {
-        Test::assertSame(Slug::of(" Hello World "), "hello-world");
+    public function itJoinsTheWordsWithDashes(): void
+    {
+        Test::assertSame(Slug::of(' Hello World '), 'hello-world');
     }
 
     // A bench needs no assertion. The report prints a `count:` line under it.
     // `statements` is how many statements ran, and `calls` is how many calls were made.
     #[Bench]
-    public function slugsOfOneHundredTitles(): void {
+    public function slugsOfOneHundredTitles(): void
+    {
         for (int $i = 0; $i < 100; $i++) {
-            Slug::of("Release Notes " . $i);
+            Slug::of('Release Notes ' . $i);
         }
     }
 }
@@ -2162,13 +2351,15 @@ final class SlugTest {
 
 use Core\Test\Bench;
 
-final class CsvLine {
+final class CsvLine
+{
     // This method adds one cell at a time, in a loop.
-    public static function byLoop(array<string> $cells): string {
-        string $line = "";
+    public static function byLoop(array<string> $cells): string
+    {
+        string $line = '';
         foreach ($cells as string $cell) {
-            if ($line != "") {
-                $line = $line . ",";
+            if ($line != '') {
+                $line = $line . ',';
             }
             $line = $line . $cell;
         }
@@ -2176,30 +2367,35 @@ final class CsvLine {
     }
 
     // This method makes one call to `Core\Str::join`.
-    public static function byJoin(array<string> $cells): string {
-        return Core\Str::join($cells, ",");
+    public static function byJoin(array<string> $cells): string
+    {
+        return Core\Str::join($cells, ',');
     }
 }
 
-final class CsvLineBench {
+final class CsvLineBench
+{
     // Both benches build the same 200 cells first.
     // So the difference in their counts is the work of building the line.
-    private static function cells(): array<string> {
+    private static function cells(): array<string>
+    {
         array<string> $cells = [];
         for (int $i = 0; $i < 200; $i++) {
-            $cells[] = "cell" . $i;
+            $cells[] = 'cell' . $i;
         }
         return $cells;
     }
 
     #[Bench]
-    public function byLoop(): void {
+    public function byLoop(): void
+    {
         CsvLine::byLoop(CsvLineBench::cells());
     }
 
     // This bench runs 1000 fewer statements than the bench above.
     #[Bench]
-    public function byJoin(): void {
+    public function byJoin(): void
+    {
         CsvLine::byJoin(CsvLineBench::cells());
     }
 }
@@ -2225,10 +2421,13 @@ final class CsvLineBench {
 use Core\Test\Bench;
 use Core\Test\Fixture;
 
-final class Catalog {
-    public function constructor(public array<int> $prices) {}
+final class Catalog
+{
+    public function constructor(public array<int> $prices)
+    {}
 
-    public function priceOf(string $sku): ?int {
+    public function priceOf(string $sku): ?int
+    {
         if (!Core\Arr::hasKey($this->prices, $sku)) {
             return null;
         }
@@ -2236,14 +2435,16 @@ final class Catalog {
     }
 }
 
-final class CatalogBench {
+final class CatalogBench
+{
     // A fixture is built before the counting starts.
     // So the 500 prices it adds are not part of the counts below.
     #[Fixture]
-    public static function catalog(): Catalog {
+    public static function catalog(): Catalog
+    {
         array<int> $prices = [];
         for (int $i = 0; $i < 500; $i++) {
-            $prices["sku-" . $i] = 100 + $i;
+            $prices['sku-' . $i] = 100 + $i;
         }
         return new Catalog($prices);
     }
@@ -2251,15 +2452,17 @@ final class CatalogBench {
     // `nvs test --bench --format json` prints a `counts` object for this bench.
     // The counts are the same on every machine. A build server can compare them with the last run.
     #[Bench]
-    public function oneHundredLookups(Catalog $catalog): void {
+    public function oneHundredLookups(Catalog $catalog): void
+    {
         for (int $i = 0; $i < 100; $i++) {
-            $catalog->priceOf("sku-" . $i);
+            $catalog->priceOf('sku-' . $i);
         }
     }
 
     // `skip:` stops a bench from running, and the report prints the reason.
-    #[Bench(skip: "the import file is not in this repository")]
-    public function importTheWholeCatalog(): void {}
+    #[Bench(skip: 'the import file is not in this repository')]
+    public function importTheWholeCatalog(): void
+    {}
 }
 ```
 

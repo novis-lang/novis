@@ -9,10 +9,10 @@ array<secret bytes> $keys = [$key];
 Core\Session::start();
 
 // `setSecret()` encrypts the token with the first key and saves it.
-secret string $token = "at-7f3c9b21";
-Core\Session::setSecret("access-token", $token, $keys);
+secret string $token = 'at-7f3c9b21';
+Core\Session::setSecret('access-token', $token, $keys);
 
 // `getSecret()` decrypts it with the same keys. This prints `the token is saved`.
-echo (Core\Session::getSecret("access-token", $keys) ?? "") == $token
-    ? "the token is saved"
-    : "the token is missing", "\n";
+echo (Core\Session::getSecret('access-token', $keys) ?? '') == $token
+    ? 'the token is saved'
+    : 'the token is missing', "\n";

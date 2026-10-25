@@ -4,13 +4,15 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $lines = ["host=example.com", "port=8080", "user=admin", "mode=fast"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $lines = ['host=example.com', 'port=8080', 'user=admin', 'mode=fast'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            ?string $key = Core\Str::before($lines[($total % 4) as int], "=");
+            ?string $key = Core\Str::before($lines[($total % 4) as int], '=');
             if ($key != null) {
                 $total = $total + 1;
             }

@@ -1,28 +1,33 @@
 <?nvs
 // Shows the property and the type of each part of a property path.
 
-class Address {
-    public string $city = "";
+class Address
+{
+    public string $city = '';
 }
 
-class Customer {
-    public string $name = "";
+class Customer
+{
+    public string $name = '';
     public ?Address $address = null;
 }
 
-class Order {
+class Order
+{
     public int $total = 0;
     public ?Customer $customer = null;
 }
 
-class Show {
-    public static function steps(propertyPath<Order> $path): void {
+class Show
+{
+    public static function steps(propertyPath<Order> $path): void
+    {
         // `Core\Reflect::steps` returns one entry for each part of the path.
         foreach (Core\Reflect::steps($path) as var $step) {
-            echo $step->name(), ": ", $step->type() ?? "no type", "\n";
+            echo $step->name(), ': ', $step->type() ?? 'no type', "\n";
         }
     }
 }
 
 // This prints three lines: `customer: ?Customer`, `address: ?Address` and `city: string`.
-Show::steps("customer.address.city");
+Show::steps('customer.address.city');

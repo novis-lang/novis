@@ -1,21 +1,41 @@
 <?nvs
 // Shows how to call a method that every class of a union declares.
 
-final class Card {
-    public function constructor(public string $last4) { }
-    public function fee(int $cents): int { return $cents >= 5000 ? 0 : 30; }
-    public function describe(): string { return "card ending " . $this->last4; }
+final class Card
+{
+    public function constructor(public string $last4)
+    { }
+
+    public function fee(int $cents): int
+    {
+        return $cents >= 5000 ? 0 : 30;
+    }
+
+    public function describe(): string
+    {
+        return 'card ending ' . $this->last4;
+    }
 }
 
-final class Transfer {
-    public function constructor(public string $bank) { }
-    public function fee(int $cents): int { return $cents >= 100000 ? 0 : 50; }
-    public function describe(): string { return "transfer from " . $this->bank; }
+final class Transfer
+{
+    public function constructor(public string $bank)
+    { }
+
+    public function fee(int $cents): int
+    {
+        return $cents >= 100000 ? 0 : 50;
+    }
+
+    public function describe(): string
+    {
+        return 'transfer from ' . $this->bank;
+    }
 }
 
 // Each call runs `fee` and `describe` of the class the value is.
 // For 10000 cents, the card fee is `0` and the transfer fee is `50`.
-array<Card|Transfer> $payments = [new Card("4242"), new Transfer("City Bank")];
+array<Card|Transfer> $payments = [new Card('4242'), new Transfer('City Bank')];
 foreach ($payments as Card|Transfer $payment) {
-    echo $payment->describe(), ": fee ", $payment->fee(10000), " cents\n";
+    echo $payment->describe(), ': fee ', $payment->fee(10000), " cents\n";
 }

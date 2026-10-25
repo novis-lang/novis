@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to go through an XML document one node at a time and print its elements.
 
-Core\Xml\Reader $reader = Core\Xml::reader("<menu><item>Soup</item><item>Salad</item></menu>");
+Core\Xml\Reader $reader = Core\Xml::reader('<menu><item>Soup</item><item>Salad</item></menu>');
 
 // `read` returns the next node, and `null` at the end of the document.
 // `depth` is how many elements are open around that node.
@@ -12,6 +12,6 @@ while (true) {
     }
     // This prints `menu`, then `item` twice, one step further in.
     if ($node->kind() == Core\Xml\Node::Kind::Element) {
-        echo Core\Str::repeat("  ", $reader->depth()), $node->name(), "\n";
+        echo Core\Str::repeat('  ', $reader->depth()), $node->name(), "\n";
     }
 }

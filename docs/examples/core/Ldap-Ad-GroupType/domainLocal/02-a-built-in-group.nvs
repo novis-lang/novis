@@ -2,11 +2,11 @@
 // Shows that a built-in group is domain local, and was created by the system.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Users,CN=Builtin,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Users,CN=Builtin,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // This prints `domainLocal: true, system: true`.
-    echo "domainLocal: ", $type->domainLocal() ? "true" : "false";
-    echo ", system: ", $type->system() ? "true" : "false", "\n";
+    echo 'domainLocal: ', $type->domainLocal() ? 'true' : 'false';
+    echo ', system: ', $type->system() ? 'true' : 'false', "\n";
 }

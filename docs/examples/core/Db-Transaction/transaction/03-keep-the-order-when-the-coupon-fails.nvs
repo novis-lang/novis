@@ -10,7 +10,8 @@ $db->execute('create table orders (id integer primary key, email text not null, 
 $db->execute('create table coupons (code text not null, remaining int not null)', []);
 $db->execute('insert into coupons (code, remaining) values (?, ?), (?, ?)', ['SPRING', 3, 'GONE', 0]);
 
-class Checkout {
+class Checkout
+{
     public static function place(Core\Db\Connection $db, string $email, int $cents, string $code): void
     {
         $db->transaction(fn (Transaction $order): void => {

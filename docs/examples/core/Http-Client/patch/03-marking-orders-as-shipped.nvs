@@ -3,8 +3,8 @@
 
 // Each order number has the tracking number of its parcel.
 array<string> $shipped = [
-    "A-1042" => "JD0146000031",
-    "A-1043" => "JD0146000032",
+    'A-1042' => 'JD0146000031',
+    'A-1043' => 'JD0146000032',
 ];
 
 uint $updated = 0;
@@ -13,11 +13,11 @@ foreach ($shipped as string $order => string $tracking) {
     try {
         // Only the two fields that change are sent. The key is the same on every
         // attempt, so the service changes the order once.
-        Core\Http\Response $response = Core\Http\Client::patch("https://192.168.1.20/orders/" . $order, {
-            json: ["status" => "shipped", "tracking" => $tracking],
+        Core\Http\Response $response = Core\Http\Client::patch('https://192.168.1.20/orders/' . $order, {
+            json: ['status' => 'shipped', 'tracking' => $tracking],
             deadline: 10s,
             retryAttempts: 3,
-            retryIdempotencyKey: "ship-" . $order,
+            retryIdempotencyKey: 'ship-' . $order,
         });
         // 200 and 204 mean the service changed the order.
         if ($response->status() == 200 || $response->status() == 204) {
@@ -27,10 +27,10 @@ foreach ($shipped as string $order => string $tracking) {
         }
     } catch (RuntimeError $error) {
         // The job keeps going and tries the next order.
-        echo "not updated: ", $error->message, "\n";
+        echo 'not updated: ', $error->message, "\n";
         $failed = $failed + 1;
     }
 }
 
 // The service is at a private address, so this prints `updated: 0, failed: 2`.
-echo "updated: ", $updated, ", failed: ", $failed, "\n";
+echo 'updated: ', $updated, ', failed: ', $failed, "\n";

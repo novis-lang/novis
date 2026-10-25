@@ -3,16 +3,21 @@
 // bench: iterations 1024
 // bench: complexity constant
 
-class CheckoutController {
-    #[{method: "POST", path: "/checkout"}]
-    public function pay(): void {}
+class CheckoutController
+{
+    #[{method: 'POST', path: '/checkout'}]
+    public function pay(): void
+    {}
 
-    #[{method: "GET", path: "/checkout/done", cache: 60}]
-    public function done(): void {}
+    #[{method: 'GET', path: '/checkout/done', cache: 60}]
+    public function done(): void
+    {}
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\AttributeInfo> $attributes =
             Core\Reflect::forObject(new CheckoutController())->attributes();
         uint $total = 0;

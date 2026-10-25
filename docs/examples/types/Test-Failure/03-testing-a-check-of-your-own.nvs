@@ -6,11 +6,13 @@
 use Core\Test;
 use Core\Test\Failure;
 
-final class Money {
+final class Money
+{
     // This is the check under test. An amount in cents must not be
     // below zero.
-    public static function assertValidCents(int $amount): void {
-        Test::assertTrue($amount >= 0, {message: 'an amount cannot be negative'});
+    public static function assertValidCents(int $amount): void
+    {
+        Test::assertTrue($amount >= 0, { message: 'an amount cannot be negative' });
     }
 }
 

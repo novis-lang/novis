@@ -11,7 +11,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            array<mixed> $fields = Core\Bytes::unpack($message, "C*");
+            array<mixed> $fields = Core\Bytes::unpack($message, 'C*');
             $total = $total + ($fields[1] as uint) + Core\Arr::count($fields);
             $i = $i + 1;
         }

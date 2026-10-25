@@ -1,14 +1,15 @@
 <?nvs
 // Shows how to check the keys of a configuration against the constant names of a class.
 
-class Defaults {
+class Defaults
+{
     public const int TIMEOUT = 30;
     public const int RETRIES = 3;
     public const int PORT = 8080;
 }
 
 // These keys come from a configuration file. `RETRY` is a typing mistake.
-array<string> $keys = ["TIMEOUT", "RETRY", "PORT"];
+array<string> $keys = ['TIMEOUT', 'RETRY', 'PORT'];
 
 var $info = Core\Reflect::forObject(new Defaults());
 
@@ -21,7 +22,7 @@ foreach ($info->constants() as Core\Reflect\ConstantInfo $constant) {
 // A known key prints its default value. An unknown key prints an error line.
 foreach ($keys as string $key) {
     if (Core\Arr::contains($known, $key)) {
-        echo $key, " defaults to ", $info->constant($key) as int, "\n";
+        echo $key, ' defaults to ', $info->constant($key) as int, "\n";
     } else {
         echo $key, " is not a setting\n";
     }

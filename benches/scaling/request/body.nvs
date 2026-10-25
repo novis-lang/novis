@@ -7,4 +7,4 @@
 // scaling: expect linear
 
 tainted string $body = Core\Request::body();
-echo Core\Str::length($body) > 0 ? "ok" : "empty", "\n";
+echo Core\Str::length($body) > 0 ? 'ok' : 'empty', "\n";

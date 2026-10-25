@@ -2,10 +2,10 @@
 // Shows that `mnsLogonAccount` returns `false` for the account of a person.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `mns: false`.
-    echo "mns: ", $flags->mnsLogonAccount() ? "true" : "false", "\n";
+    echo 'mns: ', $flags->mnsLogonAccount() ? 'true' : 'false', "\n";
 }

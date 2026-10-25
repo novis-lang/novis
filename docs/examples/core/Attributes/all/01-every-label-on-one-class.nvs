@@ -1,12 +1,13 @@
 <?nvs
 // Shows how to read every attribute of one shape that is attached to a class.
 
-type Tag = {name: string};
+type Tag = { name: string };
 
-#[Tag(name: "users")]
-#[Tag(name: "audited")]
-class User {
-    public string $email = "";
+#[Tag(name: 'users')]
+#[Tag(name: 'audited')]
+class User
+{
+    public string $email = '';
 }
 
 // `Core\Attributes::all` returns the matching attributes in the order they were
@@ -21,6 +22,7 @@ foreach ($tags as Tag $tag) {
 
 // A class with no attribute on it. The result is an empty array, so this loop
 // runs no times and the count is 0.
-class Session {}
+class Session
+{}
 
 echo Core\Arr::count(Core\Attributes::all<Tag>(Session::constructor(...))), "\n";

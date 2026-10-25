@@ -7,12 +7,12 @@ class Bench
 {
     public static function run(Core\Sse $sse, uint $size): uint
     {
-        Core\Topic::subscribe("feed:updates");
+        Core\Topic::subscribe('feed:updates');
         string $update = Core\Str::repeat('a', $size);
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            Core\Topic::publish("feed:updates", $update);
+            Core\Topic::publish('feed:updates', $update);
             ?Core\Sse\Message $message = $sse->receive();
             tainted string $posted =$message?->value() as string;
             $total = $total + Core\Str::length($posted) % 7 + 1;

@@ -14,4 +14,4 @@ uint $imported = Core\Cli::progress(3, fn(Core\Cli\Progress $bar): uint => {
 });
 
 // The bar is closed by now, so this is written under it. This prints 3.
-echo "imported ", $imported, " files\n";
+echo 'imported ', $imported, " files\n";

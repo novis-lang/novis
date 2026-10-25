@@ -8,7 +8,7 @@ Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P2
 // secret and a reason, and gives you plain bytes your program can store.
 bytes $stored = Core\Secret::revealBytes(
     $pair->write(),
-    "the server key is written to disk and read back at the next start"
+    'the server key is written to disk and read back at the next start',
 );
 string $onDisk = Core\Encoding::toHex($stored);
 
@@ -16,11 +16,11 @@ string $onDisk = Core\Encoding::toHex($stored);
 // do not say which kind you expect.
 Core\Crypto\KeyPair $again = Core\Crypto\KeyPair::read(
     Core\Encoding::fromHex($onDisk),
-    Core\Crypto\KeyKind::P256
+    Core\Crypto\KeyKind::P256,
 );
 
 // It is the same pair, so it has the same public key. Clients that already know
 // this server can still check its signatures.
 bytes $before = $pair->publicKey()->write(Core\Crypto\PublicKey::Format::Spki);
 bytes $after = $again->publicKey()->write(Core\Crypto\PublicKey::Format::Spki);
-echo "the same key came back: ", ($before == $after ? "yes" : "no"), "\n";
+echo 'the same key came back: ', ($before == $after ? 'yes' : 'no'), "\n";

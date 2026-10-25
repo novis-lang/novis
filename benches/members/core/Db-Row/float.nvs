@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $db = Core\Db::connect('notes');
         $db->execute('create table readings (id integer primary key, celsius real not null, humidity real not null)', []);
         $db->execute('insert into readings (celsius, humidity) values (?, ?)', [21.5, 0.62]);

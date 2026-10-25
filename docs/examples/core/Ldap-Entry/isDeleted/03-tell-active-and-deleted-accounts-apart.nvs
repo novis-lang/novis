@@ -2,48 +2,48 @@
 // Shows how a program checks a saved list of accounts and finds the ones that were deleted.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Former Staff 3,DC=example,DC=test";
-array<string> $people = ["Mia Klein", "Paul Brandt"];
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Former Staff 3,DC=example,DC=test';
+array<string> $people = ['Mia Klein', 'Paul Brandt'];
 
 // A run that stopped early can leave the accounts behind, so the program deletes them first.
-array<string> $leftovers = ["CN=Mia Klein," . $unit, "CN=Paul Brandt," . $unit, $unit];
+array<string> $leftovers = ['CN=Mia Klein,' . $unit, 'CN=Paul Brandt,' . $unit, $unit];
 foreach ($leftovers as string $left) {
     try {
         $corp->delete($left);
     } catch (Core\Ldap\LdapError $missing) {
     }
 }
-$corp->add($unit, ["objectClass" => "organizationalUnit"]);
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
 
 // The program saves the SID of each account, with the person's name.
 array<string> $saved = [];
 foreach ($people as string $person) {
-    string $user = "CN=" . $person . "," . $unit;
-    string $login = Core\Str::lower(Core\Str::replace($person, " ", "."));
-    $corp->add($user, ["objectClass" => "user", "sAMAccountName" => $login]);
-    var $found = $corp->read($user, {select: ["objectSid"]});
-    $saved[$found?->sid("objectSid")?->toString() ?? ""] = $person;
+    string $user = 'CN=' . $person . ',' . $unit;
+    string $login = Core\Str::lower(Core\Str::replace($person, ' ', '.'));
+    $corp->add($user, ['objectClass' => 'user', 'sAMAccountName' => $login]);
+    var $found = $corp->read($user, { select: ['objectSid'] });
+    $saved[$found?->sid('objectSid')?->toString() ?? ''] = $person;
 }
 
 // Later, Paul Brandt's account is deleted.
-$corp->delete("CN=Paul Brandt," . $unit);
+$corp->delete('CN=Paul Brandt,' . $unit);
 
 array<Core\Ldap\Filter> $filters = [];
 foreach ($saved as string $sid => string $person) {
-    $filters[] = Core\Ldap\Filter::equals("objectSid", $sid);
+    $filters[] = Core\Ldap\Filter::equals('objectSid', $sid);
 }
 
 // A search returns entries in no fixed order, so the lines are sorted.
 // This prints `Mia Klein: active` and `Paul Brandt: deleted`.
 array<string> $lines = [];
-foreach ($corp->search(Core\Ldap\Filter::any(...$filters), {select: ["objectSid"], showDeleted: true}) as Core\Ldap\Entry $account) {
-    string $name = $saved[$account->sid("objectSid")?->toString() ?? ""] ?? "unknown";
-    $lines[] = $name . ": " . ($account->isDeleted() ? "deleted" : "active");
+foreach ($corp->search(Core\Ldap\Filter::any(...$filters), { select: ['objectSid'], showDeleted: true }) as Core\Ldap\Entry $account) {
+    string $name = $saved[$account->sid('objectSid')?->toString() ?? ''] ?? 'unknown';
+    $lines[] = $name . ': ' . ($account->isDeleted() ? 'deleted' : 'active');
 }
 foreach (Core\Arr::sort($lines) as string $line) {
     echo $line, "\n";
 }
 
-$corp->delete("CN=Mia Klein," . $unit);
+$corp->delete('CN=Mia Klein,' . $unit);
 $corp->delete($unit);

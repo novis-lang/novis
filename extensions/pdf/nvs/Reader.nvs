@@ -4,8 +4,8 @@ namespace Novis\Pdf;
 /// An existing PDF file opened for reading: its page count, its metadata, its attached files and its text.
 final class Reader
 {
-    type Metadata = {title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string};
-    type Attachment = {name: string, data: bytes};
+    type Metadata = { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string };
+    type Attachment = { name: string, data: bytes };
 
     private function constructor(
         private readonly bytes $pdf,
@@ -13,7 +13,8 @@ final class Reader
         public readonly Metadata $metadata,
         private readonly array<Attachment> $files,
         private readonly ?string $invoice,
-    ) {}
+    )
+    {}
 
     /// `Reader::open` reads the page count, the metadata and the attached files of a PDF file.
     /// A file that is encrypted or does not parse throws a `ParseError`.

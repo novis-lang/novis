@@ -2,18 +2,18 @@
 // Shows how to use `objectGUID` to know that two entries are the same person.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 
 // The first read finds the person by the DN.
-var $byDn = $corp->read("CN=Ben Kohl,OU=Company,DC=example,DC=test", {select: ["objectGUID"]});
-string $first = $byDn?->uuid("objectGUID")?->toString() ?? "none";
+var $byDn = $corp->read('CN=Ben Kohl,OU=Company,DC=example,DC=test', { select: ['objectGUID'] });
+string $first = $byDn?->uuid('objectGUID')?->toString() ?? 'none';
 
 // The second search finds the person by the login name.
-string $second = "none";
-var $found = $corp->search(Core\Ldap\Filter::equals("sAMAccountName", "ben.kohl"), {select: ["objectGUID"]});
+string $second = 'none';
+var $found = $corp->search(Core\Ldap\Filter::equals('sAMAccountName', 'ben.kohl'), { select: ['objectGUID'] });
 foreach ($found as Core\Ldap\Entry $person) {
-    $second = $person->uuid("objectGUID")?->toString() ?? "none";
+    $second = $person->uuid('objectGUID')?->toString() ?? 'none';
 }
 
 // Both have the same `objectGUID`. This prints `same person`.
-echo $first == $second ? "same person" : "different people", "\n";
+echo $first == $second ? 'same person' : 'different people', "\n";

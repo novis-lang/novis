@@ -7,7 +7,7 @@ var $db = Core\Db::connect('notes');
 
 $db->execute(
     'create table notes (id integer primary key, title text not null, weight real, paidAt datetime)',
-    []
+    [],
 );
 
 var $rows = $db->query('select id, title, weight, paidAt from notes', []);

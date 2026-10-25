@@ -6,13 +6,13 @@ class Sitemap
     // Writes one `url` element for each page, and returns the finished document.
     public static function of(string $site, array<string> $pages): string
     {
-        Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+        Core\Xml\Writer $writer = Core\Xml::writer({ indent: '  ' });
         $writer->startDocument();
-        $writer->startElement("urlset");
-        $writer->attribute("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
+        $writer->startElement('urlset');
+        $writer->attribute('xmlns', 'http://www.sitemaps.org/schemas/sitemap/0.9');
         foreach ($pages as string $page) {
-            $writer->startElement("url");
-            $writer->startElement("loc");
+            $writer->startElement('url');
+            $writer->startElement('loc');
             $writer->content($site . $page);
             $writer->endElement();
             $writer->endElement();
@@ -22,7 +22,7 @@ class Sitemap
     }
 }
 
-string $sitemap = Sitemap::of("https://example.com", ["/", "/shop", "/contact"]);
+string $sitemap = Sitemap::of('https://example.com', ['/', '/shop', '/contact']);
 echo $sitemap, "\n";
 
 // The string is a complete document. `Core\Xml::parse` reads it without an error.

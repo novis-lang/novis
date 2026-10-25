@@ -5,8 +5,10 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         bytes $frame = Core\Bytes::fill(4096, 97);
         uint $total = 0;
         uint $i = 0;

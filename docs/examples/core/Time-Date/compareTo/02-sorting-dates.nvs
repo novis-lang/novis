@@ -13,5 +13,5 @@ array<Core\Time\Date> $sorted = Core\Arr::sort($deliveries, {
 });
 // This prints 2023-12-24, then 2024-02-09, then 2024-11-02.
 foreach ($sorted as Core\Time\Date $day) {
-    echo $day->format("yyyy-MM-dd"), "\n";
+    echo $day->format('yyyy-MM-dd'), "\n";
 }

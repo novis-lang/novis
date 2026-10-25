@@ -5,9 +5,11 @@
 // bench: calls 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $hosts = ["shop.example.com", "-bad.example.com", "mail.example.org"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $hosts = ['shop.example.com', '-bad.example.com', 'mail.example.org'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

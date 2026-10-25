@@ -3,14 +3,16 @@
 // bench: iterations 200000
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $values = ["no-store", "max-age=60", "max-age=300", "private"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $values = ['no-store', 'max-age=60', 'max-age=300', 'private'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             string $value = $values[($total % 4) as int];
-            Core\Response::setHeader("Cache-Control", $value);
+            Core\Response::setHeader('Cache-Control', $value);
             $total = $total + Core\Str::length($value);   // chained: the next value depends on this one
             $i = $i + 1;
         }

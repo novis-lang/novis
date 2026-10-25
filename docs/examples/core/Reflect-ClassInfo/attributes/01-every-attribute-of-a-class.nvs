@@ -1,15 +1,17 @@
 <?nvs
 // Shows every attribute written on a class and where each one is written.
 
-type Route = {path: string};
+type Route = { path: string };
 
-#[Route(path: "/users")]
-class UserController {
-    #[{column: "user_name"}]
-    public string $name = "";
+#[Route(path: '/users')]
+class UserController
+{
+    #[{column: 'user_name'}]
+    public string $name = '';
 
-    #[Route(path: "/show")]
-    public function show(#[{from: "query"}] int $id): int {
+    #[Route(path: '/show')]
+    public function show(#[{from: 'query'}] int $id): int
+    {
         return $id;
     }
 }
@@ -21,9 +23,9 @@ var $info = Core\Reflect::forObject(new UserController());
 echo Core\Arr::count($info->attributes()), "\n";
 foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
     // `target()` is empty for an attribute on the class itself.
-    string $where = $attribute->target() == "" ? "the class" : $attribute->target();
-    if ($attribute->parameter() != "") {
-        $where = $where . ", parameter $" . $attribute->parameter();
+    string $where = $attribute->target() == '' ? 'the class' : $attribute->target();
+    if ($attribute->parameter() != '') {
+        $where = $where . ', parameter $' . $attribute->parameter();
     }
     echo $where, "\n";
 }

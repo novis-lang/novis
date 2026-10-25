@@ -2,19 +2,19 @@
 // Shows what `sids` does with one value, with no value, and with values that are not SIDs.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Carla Diaz,OU=Company,DC=example,DC=test", {select: ["objectSid", "memberOf"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Carla Diaz,OU=Company,DC=example,DC=test', { select: ['objectSid', 'memberOf'] });
 
 if ($person != null) {
     // `objectSid` has one value, so the array has one item. This prints `1`.
-    echo Core\Arr::count($person->sids("objectSid") ?? []), "\n";
+    echo Core\Arr::count($person->sids('objectSid') ?? []), "\n";
 
     // The read did not select `tokenGroups`, so `sids` returns `null`. This prints `no value`.
-    echo $person->sids("tokenGroups") == null ? "no value" : "has a value", "\n";
+    echo $person->sids('tokenGroups') == null ? 'no value' : 'has a value', "\n";
 
     // `memberOf` is a list of DNs, not SIDs. `sids` throws a `LogicError` that names the attribute.
     try {
-        echo Core\Arr::count($person->sids("memberOf") ?? []), "\n";
+        echo Core\Arr::count($person->sids('memberOf') ?? []), "\n";
     } catch (LogicError $error) {
         echo $error->message, "\n";
     }

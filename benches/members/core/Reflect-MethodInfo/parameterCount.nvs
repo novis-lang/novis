@@ -4,22 +4,28 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Tasks {
-    public function clearCache(): bool {
+class Tasks
+{
+    public function clearCache(): bool
+    {
         return true;
     }
 
-    public function sendReport(string $email, int $days): bool {
+    public function sendReport(string $email, int $days): bool
+    {
         return true;
     }
 
-    public function rotateLogs(int $keep): bool {
+    public function rotateLogs(int $keep): bool
+    {
         return true;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\MethodInfo> $list = Core\Reflect::forObject(new Tasks())->methods();
         uint $total = 0;
         uint $i = 0;

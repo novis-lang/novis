@@ -4,8 +4,10 @@
 
 use Core\Test;
 
-class Basket {
-    public static function shippingCents(int $totalCents): int {
+class Basket
+{
+    public static function shippingCents(int $totalCents): int
+    {
         if ($totalCents >= 5000) {
             return 0;
         }
@@ -13,12 +15,14 @@ class Basket {
     }
 
     #[Test]
-    public function aSmallBasketPaysForShipping(): void {
+    public function aSmallBasketPaysForShipping(): void
+    {
         Test::assertSame(Basket::shippingCents(1200), 499);
     }
 
     #[Test]
-    public function theLimitItselfShipsFree(): void {
+    public function theLimitItselfShipsFree(): void
+    {
         Test::assertSame(Basket::shippingCents(5000), 0);
     }
 }

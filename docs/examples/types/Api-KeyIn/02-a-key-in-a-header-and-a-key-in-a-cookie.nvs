@@ -2,18 +2,21 @@
 // Declares two key schemes, one in a header and one in a cookie, and a route that accepts both.
 
 // `parameter` is the name of the header or the cookie. `name` is the name of the scheme.
-#[Core\Api\Scheme(name: "partnerKey", type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Header, parameter: "X-Partner-Key")]
-#[Core\Api\Scheme(name: "session", type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Cookie, parameter: "shop_session")]
-class Auth {}
+#[Core\Api\Scheme(name: 'partnerKey', type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Header, parameter: 'X-Partner-Key')]
+#[Core\Api\Scheme(name: 'session', type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Cookie, parameter: 'shop_session')]
+class Auth
+{}
 
-class Products {
+class Products
+{
     /// List the products.
-    #[Core\Route(path: "/products", method: Core\Http\Method::Get, name: "Products::list")]
+    #[Core\Route(path: '/products', method: Core\Http\Method::Get, name: 'Products::list')]
     #[Core\Access(allow: Core\Audience::Public)]
     // A partner sends its key in a header. A browser sends the session cookie.
-    #[Core\Api(security: ["partnerKey", "session"])]
-    public function list(): string {
-        return "tea, coffee";
+    #[Core\Api(security: ['partnerKey', 'session'])]
+    public function list(): string
+    {
+        return 'tea, coffee';
     }
 }
 

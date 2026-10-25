@@ -1,7 +1,8 @@
 <?nvs
 // Shows how to get the class name of an object.
 
-class Parcel {
+class Parcel
+{
     public float $weight = 2.5;
 }
 

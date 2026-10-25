@@ -4,11 +4,11 @@
 
 class Items
 {
-    #[Core\Api(tags: ["Items"])]
+    #[Core\Api(tags: ['Items'])]
     public function helper(): string
     {
-        return "not an operation";
+        return 'not an operation';
     }
 }
 
-echo "no routes here", "\n";
+echo 'no routes here', "\n";

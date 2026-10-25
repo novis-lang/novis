@@ -8,30 +8,34 @@ use Throwable;
 
 // The gate of the app. `Core\Router::dispatch` calls it for every request.
 // It decides if a route method may run, and it shows the error pages.
-final class Gate implements Core\Router\Gate {
+final class Gate implements Core\Router\Gate
+{
     // Runs before each route method. The method runs only when this returns `true`.
     // Every route of this app is public, so this checks for `Audience::Public`.
-    public function allows(Core\Router\Match $route): bool {
+    public function allows(Core\Router\Match $route): bool
+    {
         return $route->accessAs<Audience>() == Audience::Public;
     }
 
     // Shows a page when no route method can handle the request.
     // `dispatch` has already set the status code, such as 404 or 405.
-    public function refused(Refusal $reason, ?Core\Router\Match $route): void {
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void
+    {
         if ($reason == Refusal::NotFound) {
             Response::html(Home::notFound());
             return;
         }
         string $text = match ($reason) {
-            Refusal::MethodNotAllowed => "This address only opens a document. Use a link on the home page.",
-            default => "This request is not allowed.",
+            Refusal::MethodNotAllowed => 'This address only opens a document. Use a link on the home page.',
+            default => 'This request is not allowed.',
         };
-        Response::html(Home::problem("Not possible", $text));
+        Response::html(Home::problem('Not possible', $text));
     }
 
     // Shows a page when a route method throws an error, or when the app needs too much memory or time.
     // The status code is 500.
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
-        Response::html(Home::problem("Something went wrong", "The document could not be made. Please try again later."));
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        Response::html(Home::problem('Something went wrong', 'The document could not be made. Please try again later.'));
     }
 }

@@ -8,4 +8,4 @@ array<Core\Html\Markup> $links = [
 ];
 
 // The separator ` | ` goes between two links, and not after the last one.
-echo Core\Html::join($links, " | " as Core\Html\Markup), "\n";
+echo Core\Html::join($links, ' | ' as Core\Html\Markup), "\n";

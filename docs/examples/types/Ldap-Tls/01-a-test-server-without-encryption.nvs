@@ -5,9 +5,9 @@
 // `Tls::None` sends the password and every result as plain text. The host must be listed
 // in `[capabilities.ldap] cleartext` in `nvs.toml`. Without `tls`, the value is `Tls::Required`.
 var $test = Core\Ldap::open({
-    url: "ldap://127.0.0.1:16389",
-    user: "CN=Reader,OU=Company,DC=example,DC=test",
-    password: "Novis-reader-1",
+    url: 'ldap://127.0.0.1:16389',
+    user: 'CN=Reader,OU=Company,DC=example,DC=test',
+    password: 'Novis-reader-1',
     tls: Core\Ldap::Tls::None,
 });
 

@@ -6,5 +6,5 @@
 try {
     Core\Response::setStatus(600);
 } catch (LogicError $error) {
-    Core\Response::text("Status 200. The error was: " . $error->message . "\n");
+    Core\Response::text('Status 200. The error was: ' . $error->message . "\n");
 }

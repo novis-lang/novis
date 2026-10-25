@@ -3,14 +3,16 @@
 // bench: iterations 20000
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $tokens = ["k3v9Qx7wLm2p", "Zr8TqB1nYd4s", "p0Hs6WcE2uVa"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $tokens = ['k3v9Qx7wLm2p', 'Zr8TqB1nYd4s', 'p0Hs6WcE2uVa'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             string $token = $tokens[($total % 3) as int];
-            Core\Response::addCookie("sid", $token);
+            Core\Response::addCookie('sid', $token);
             $total = $total + Core\Str::length($token) + 1;   // chained: the next token depends on this one
             $i = $i + 1;
         }

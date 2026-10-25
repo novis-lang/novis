@@ -2,9 +2,11 @@
 // Shows how to write a generator: a method whose body contains `yield`. It gives
 // out one value at a time, and the body runs only as far as the loop asks.
 
-class Countdown {
+class Countdown
+{
     // A generator declares `Iterator<T>` as its return type. Each `yield` gives one `T`.
-    public static function from(int $start): Iterator<int> {
+    public static function from(int $start): Iterator<int>
+    {
         echo "the body starts\n";
         int $n = $start;
         while ($n > 0) {

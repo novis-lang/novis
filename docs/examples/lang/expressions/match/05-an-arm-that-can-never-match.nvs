@@ -4,6 +4,6 @@
 
 int $n = 1;
 echo match ($n) {
-    "1" => "one",
-    default => "other",
+    '1' => 'one',
+    default => 'other',
 }, "\n";

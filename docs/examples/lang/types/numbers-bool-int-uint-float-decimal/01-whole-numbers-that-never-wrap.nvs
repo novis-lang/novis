@@ -12,8 +12,8 @@ echo $stock, "\n";
 try {
     echo $stock + 1, "\n";
 } catch (ArithmeticError $e) {
-    echo "out of room: ", $e->message, "\n";
+    echo 'out of room: ', $e->message, "\n";
 }
 
 bool $owing = $balance < 0;
-echo $owing ? "owing" : "clear", "\n";
+echo $owing ? 'owing' : 'clear', "\n";

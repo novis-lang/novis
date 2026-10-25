@@ -2,14 +2,14 @@
 // Shows how to print every attribute of an entry with its number of values.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["mail", "department", "title", "memberOf"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['mail', 'department', 'title', 'memberOf'] });
 
 if ($person != null) {
     // The server sends the attributes in no fixed order, so the lines are sorted.
     array<tainted string> $lines = [];
     foreach ($person->toArray() as tainted string $name => array<tainted bytes> $values) {
-        $lines[] = $name . ": " . (Core\Arr::count($values) as string);
+        $lines[] = $name . ': ' . (Core\Arr::count($values) as string);
     }
 
     // This prints four lines. `memberOf` has 2 values, and the others have 1.

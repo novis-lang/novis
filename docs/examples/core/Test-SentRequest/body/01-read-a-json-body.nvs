@@ -4,8 +4,8 @@
 use Core\Http\Client;
 use Core\Test;
 
-Test::answerHttp("https://api.example.com/notes", 201);
-Client::post("https://api.example.com/notes", {json: ["title" => "Shopping", "done" => false]});
+Test::answerHttp('https://api.example.com/notes', 201);
+Client::post('https://api.example.com/notes', { json: ['title' => 'Shopping', 'done' => false] });
 
 // `body()` returns `bytes`. `as string` reads the bytes as text.
 // This prints `{"title":"Shopping","done":false}`.

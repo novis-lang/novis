@@ -9,23 +9,23 @@ use LogicError;
 /// The other methods add merged cells, links, notes, tables and more. They can use any row you already added.
 final class Sheet
 {
-    type RowOptions = ?{height?: float, hidden?: bool, level?: uint, style?: Style};
-    type Bounds = {min?: int|float|string, max?: int|float|string};
-    type Validation = {list?: array<string>, whole?: Bounds, decimal?: Bounds, date?: Bounds, length?: Bounds, formula?: string, input?: string, inputTitle?: string, error?: string, errorTitle?: string, allowEmpty?: bool};
-    type TableOptions = ?{name?: string, style?: string, banded?: bool, filter?: bool, totals?: array<string|Formula>};
-    type Conditional = {kind: string, operator?: string, values?: array<string>, colors?: array<string>, icons?: string, rank?: uint, percent?: bool, style?: Style};
-    type Part = {merge: string}
-        |{anchor: string, target: string, text: ?string, tooltip: ?string}
-        |{noted: string, note: string, author: ?string}
-        |{validated: string, kind: RuleKind, operator: ?Operator, values: array<string>, inputTitle: ?string, inputMessage: ?string, errorTitle: ?string, errorMessage: ?string, allowEmpty: bool}
-        |{grouped: string, collapsed: bool}
-        |{table: string, name: ?string, style: ?string, banded: bool, filter: bool, totals: array<{column: string, function: ?TotalFunction, formula: ?string}>}
-        |{formatted: string, kind: ConditionalKind, operator: ?Operator, values: array<string>, colors: array<string>, icons: ?string, rank: ?uint, percent: bool, style: ?{font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool}}
-        |{at: string, image: bytes, width: ?float, height: ?float, offsetX: ?float, offsetY: ?float}
-        |{placed: string, layers: array<{kind: ChartKind, series: array<{values: string, categories: ?string, name: ?string, color: ?string}>}>, title: ?string, xTitle: ?string, yTitle: ?string, legend: Legend, labels: bool, width: ?float, height: ?float}
-        |{orientation: ?Orientation, fitWidth: ?uint, fitHeight: ?uint, margins: ?{top: float, right: float, bottom: float, left: float}, header: ?string, footer: ?string, repeatRows: ?string, area: ?string}
-        |{password: ?string, allow: array<string>};
-    type PrintOptions ={orientation?: string, fitToPage?: {width?: uint, height?: uint}, margins?: {top: float, right: float, bottom: float, left: float}, header?: string, footer?: string, repeatRows?: string, area?: string};
+    type RowOptions = ?{ height?: float, hidden?: bool, level?: uint, style?: Style };
+    type Bounds = { min?: int|float|string, max?: int|float|string };
+    type Validation = { list?: array<string>, whole?: Bounds, decimal?: Bounds, date?: Bounds, length?: Bounds, formula?: string, input?: string, inputTitle?: string, error?: string, errorTitle?: string, allowEmpty?: bool };
+    type TableOptions = ?{ name?: string, style?: string, banded?: bool, filter?: bool, totals?: array<string|Formula> };
+    type Conditional = { kind: string, operator?: string, values?: array<string>, colors?: array<string>, icons?: string, rank?: uint, percent?: bool, style?: Style };
+    type Part = { merge: string }
+        |{ anchor: string, target: string, text: ?string, tooltip: ?string }
+        |{ noted: string, note: string, author: ?string }
+        |{ validated: string, kind: RuleKind, operator: ?Operator, values: array<string>, inputTitle: ?string, inputMessage: ?string, errorTitle: ?string, errorMessage: ?string, allowEmpty: bool }
+        |{ grouped: string, collapsed: bool }
+        |{ table: string, name: ?string, style: ?string, banded: bool, filter: bool, totals: array<{ column: string, function: ?TotalFunction, formula: ?string }> }
+        |{ formatted: string, kind: ConditionalKind, operator: ?Operator, values: array<string>, colors: array<string>, icons: ?string, rank: ?uint, percent: bool, style: ?{ font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{ top: ?Line, right: ?Line, bottom: ?Line, left: ?Line }, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool } }
+        |{ at: string, image: bytes, width: ?float, height: ?float, offsetX: ?float, offsetY: ?float }
+        |{ placed: string, layers: array<{ kind: ChartKind, series: array<{ values: string, categories: ?string, name: ?string, color: ?string }> }>, title: ?string, xTitle: ?string, yTitle: ?string, legend: Legend, labels: bool, width: ?float, height: ?float }
+        |{ orientation: ?Orientation, fitWidth: ?uint, fitHeight: ?uint, margins: ?{ top: float, right: float, bottom: float, left: float }, header: ?string, footer: ?string, repeatRows: ?string, area: ?string }
+        |{ password: ?string, allow: array<string> };
+    type PrintOptions ={ orientation?: string, fitToPage?: { width?: uint, height?: uint }, margins?: { top: float, right: float, bottom: float, left: float }, header?: string, footer?: string, repeatRows?: string, area?: string };
 
     /// `new Sheet` makes a sheet of a workbook. `Workbook::sheet` makes one for you.
     /// `$add` adds a row. `$ready` sends the rows that wait and checks that the sheet is still open. `$position` finds the column of a key.
@@ -36,7 +36,8 @@ final class Sheet
         private readonly callable(uint, ?uint): void $ready,
         private readonly callable(bytes): void $send,
         private readonly callable(uint, string): uint $position,
-    ) {}
+    )
+    {}
 
     /// `add` adds one row to the end of the sheet. A value goes to the column of its key, or by position from column `A`.
     /// `height` is the row height in points. `hidden` hides the row. `level` puts it in an outline group. `style` is its `Style`.
@@ -90,20 +91,20 @@ final class Sheet
     /// `merge` joins the cells of `$range`, such as `'A1:C1'`, into one cell.
     public function merge(string $range): Sheet
     {
-        return $this->part({merge: $range});
+        return $this->part({ merge: $range });
     }
 
     /// `link` makes the cell `$cell` a link to `$target`. The target is an `http:` or `https:` address, a `mailto:` address, or a cell such as `'Totals!A1'`.
     /// `text` is the text the cell shows. `tooltip` is the text a person sees over the link.
-    public function link(string $cell, string $target, ?{text?: string, tooltip?: string} $options = null): Sheet
+    public function link(string $cell, string $target, ?{ text?: string, tooltip?: string } $options = null): Sheet
     {
-        return $this->part({anchor: $cell, target: $target, text: $options?->text ?? null, tooltip: $options?->tooltip ?? null});
+        return $this->part({ anchor: $cell, target: $target, text: $options?->text ?? null, tooltip: $options?->tooltip ?? null });
     }
 
     /// `note` adds the note `$text` to the cell `$cell`. `author` is the name the note shows.
-    public function note(string $cell, string $text, ?{author?: string} $options = null): Sheet
+    public function note(string $cell, string $text, ?{ author?: string } $options = null): Sheet
     {
-        return $this->part({noted: $cell, note: $text, author: $options?->author ?? null});
+        return $this->part({ noted: $cell, note: $text, author: $options?->author ?? null });
     }
 
     /// `validate` checks what a person types into `$range` in Excel. Give one of `list`, `whole`, `decimal`, `date`, `length` or `formula`.
@@ -184,23 +185,23 @@ final class Sheet
 
     /// `group` puts the rows `$rows`, such as `'5:9'`, or the columns, such as `'B:D'`, in an outline group.
     /// Add a group of rows before its rows, and a group of columns before the first row. `collapsed` hides the group.
-    public function group(string $rows, ?{collapsed?: bool} $options = null): Sheet
+    public function group(string $rows, ?{ collapsed?: bool } $options = null): Sheet
     {
-        return $this->part({grouped: $rows, collapsed: $options?->collapsed ?? false});
+        return $this->part({ grouped: $rows, collapsed: $options?->collapsed ?? false });
     }
 
     /// `table` makes the cells of `$range`, such as `'A1:C9'`, an Excel table. Its first row is the header row.
     /// `totals` adds a row after the table. It maps a header to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`.
     public function table(string $range, TableOptions $options = null): Sheet
     {
-        array<{column: string, function: ?TotalFunction, formula: ?string}> $totals = [];
+        array<{ column: string, function: ?TotalFunction, formula: ?string }> $totals = [];
         array<string|Formula> $asked = $options?->totals ?? [];
         foreach ($asked as tainted string $tainted => string|Formula $total) {
-            string $column = Core\Taint::assertTrusted($tainted, "a header name finds the column of a total, and the engine escapes it");
+            string $column = Core\Taint::assertTrusted($tainted, 'a header name finds the column of a total, and the engine escapes it');
             if ($total is Formula) {
-                $totals[] = {column: $column, function: null, formula: Core\Taint::assertTrusted($total->text, "a Formula is written as a formula only when the program passes one")};
+                $totals[] = { column: $column, function: null, formula: Core\Taint::assertTrusted($total->text, 'a Formula is written as a formula only when the program passes one') };
             } elseif ($total is string) {
-                $totals[] = {column: $column, function: self::total($column, $total), formula: null};
+                $totals[] = { column: $column, function: self::total($column, $total), formula: null };
             }
         }
         ?uint $after = null;
@@ -239,7 +240,7 @@ final class Sheet
 
     /// `image` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format throws a `LogicError`.
     /// `width` and `height` are in pixels. `offsetX` and `offsetY` move the image from the corner of the cell.
-    public function image(string $cell, bytes $data, ?{width?: float, height?: float, offsetX?: float, offsetY?: float} $options = null): Sheet
+    public function image(string $cell, bytes $data, ?{ width?: float, height?: float, offsetX?: float, offsetY?: float } $options = null): Sheet
     {
         return $this->part({
             at: $cell,
@@ -253,9 +254,9 @@ final class Sheet
 
     /// `chart` puts `$chart` at the cell `$cell`. `width` and `height` are in pixels. The chart is 480 by 288 pixels if you do not set them.
     /// A series range from `column` grows with the sheet, so a chart you add before the last row still shows every row.
-    public function chart(string $cell, Chart $chart, ?{width?: float, height?: float} $options = null): Sheet
+    public function chart(string $cell, Chart $chart, ?{ width?: float, height?: float } $options = null): Sheet
     {
-        array<{kind: ChartKind, series: array<{values: string, categories: ?string, name: ?string, color: ?string}>}> $layers = [{kind: $chart->kind, series: $chart->series}];
+        array<{ kind: ChartKind, series: array<{ values: string, categories: ?string, name: ?string, color: ?string }> }> $layers = [{ kind: $chart->kind, series: $chart->series }];
         foreach ($chart->combined as var $layer) {
             $layers[] = $layer;
         }
@@ -278,9 +279,9 @@ final class Sheet
     {
         ?Orientation $orientation = null;
         ?string $named = $options->orientation ?? null;
-        if ($named == "portrait") {
+        if ($named == 'portrait') {
             $orientation = Orientation::Portrait;
-        } elseif ($named == "landscape") {
+        } elseif ($named == 'landscape') {
             $orientation = Orientation::Landscape;
         } elseif ($named != null) {
             throw new LogicError("The print option `orientation` is `'portrait'` or `'landscape'`. It has `'{$named}'`.");
@@ -300,9 +301,9 @@ final class Sheet
 
     /// `protect` locks the layout of the sheet, so a person cannot change it in Excel. It is not a security feature: any tool can remove the password.
     /// `allow` names what a person can still do, such as `'sort'` or `'autoFilter'`.
-    public function protect(?{password?: string, allow?: array<string>} $options = null): Sheet
+    public function protect(?{ password?: string, allow?: array<string> } $options = null): Sheet
     {
-        return $this->part({password: $options?->password ?? null, allow: $options?->allow ?? []});
+        return $this->part({ password: $options?->password ?? null, allow: $options?->allow ?? [] });
     }
 
     private function part(Part $part): Sheet
@@ -346,19 +347,19 @@ final class Sheet
 
     private static function total(string $column, string $name): TotalFunction
     {
-        if ($name == "sum") {
+        if ($name == 'sum') {
             return TotalFunction::Sum;
         }
-        if ($name == "average") {
+        if ($name == 'average') {
             return TotalFunction::Average;
         }
-        if ($name == "count") {
+        if ($name == 'count') {
             return TotalFunction::Count;
         }
-        if ($name == "min") {
+        if ($name == 'min') {
             return TotalFunction::Min;
         }
-        if ($name == "max") {
+        if ($name == 'max') {
             return TotalFunction::Max;
         }
         throw new LogicError("The total of `{$column}` is `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`. It has `'{$name}'`.");
@@ -366,31 +367,31 @@ final class Sheet
 
     private static function conditionalKind(string $name): ConditionalKind
     {
-        if ($name == "cell") {
+        if ($name == 'cell') {
             return ConditionalKind::Cell;
         }
-        if ($name == "formula") {
+        if ($name == 'formula') {
             return ConditionalKind::Formula;
         }
-        if ($name == "colorScale") {
+        if ($name == 'colorScale') {
             return ConditionalKind::ColorScale;
         }
-        if ($name == "dataBar") {
+        if ($name == 'dataBar') {
             return ConditionalKind::DataBar;
         }
-        if ($name == "iconSet") {
+        if ($name == 'iconSet') {
             return ConditionalKind::IconSet;
         }
-        if ($name == "top") {
+        if ($name == 'top') {
             return ConditionalKind::Top;
         }
-        if ($name == "bottom") {
+        if ($name == 'bottom') {
             return ConditionalKind::Bottom;
         }
-        if ($name == "duplicates") {
+        if ($name == 'duplicates') {
             return ConditionalKind::Duplicates;
         }
-        if ($name == "unique") {
+        if ($name == 'unique') {
             return ConditionalKind::Unique;
         }
         throw new LogicError("The conditional format `kind` is `'cell'`, `'formula'`, `'colorScale'`, `'dataBar'`, `'iconSet'`, `'top'`, `'bottom'`, `'duplicates'` or `'unique'`. It has `'{$name}'`.");
@@ -398,28 +399,28 @@ final class Sheet
 
     private static function operator(string $name): Operator
     {
-        if ($name == "between") {
+        if ($name == 'between') {
             return Operator::Between;
         }
-        if ($name == "notBetween") {
+        if ($name == 'notBetween') {
             return Operator::NotBetween;
         }
-        if ($name == "equal") {
+        if ($name == 'equal') {
             return Operator::Equal;
         }
-        if ($name == "notEqual") {
+        if ($name == 'notEqual') {
             return Operator::NotEqual;
         }
-        if ($name == "greater") {
+        if ($name == 'greater') {
             return Operator::Greater;
         }
-        if ($name == "greaterOrEqual") {
+        if ($name == 'greaterOrEqual') {
             return Operator::GreaterOrEqual;
         }
-        if ($name == "less") {
+        if ($name == 'less') {
             return Operator::Less;
         }
-        if ($name == "lessOrEqual") {
+        if ($name == 'lessOrEqual') {
             return Operator::LessOrEqual;
         }
         throw new LogicError("The `operator` is `'between'`, `'notBetween'`, `'equal'`, `'notEqual'`, `'greater'`, `'greaterOrEqual'`, `'less'` or `'lessOrEqual'`. It has `'{$name}'`.");

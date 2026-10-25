@@ -5,41 +5,48 @@
 
 use Core\Test;
 
-class PasswordPolicy {
-    public static function problem(string $password): string {
+class PasswordPolicy
+{
+    public static function problem(string $password): string
+    {
         if (Core\Str::length($password) < 12) {
-            return "too short";
+            return 'too short';
         }
         if (Core\Str::lower($password) == $password) {
-            return "needs a capital letter";
+            return 'needs a capital letter';
         }
-        return "none";
+        return 'none';
     }
 }
 
-class PasswordPolicyTest {
+class PasswordPolicyTest
+{
     #[Test]
-    public function aShortPasswordIsRefused(): void {
-        Test::assertSame($this->problemFor("Short1"), "too short");
+    public function aShortPasswordIsRefused(): void
+    {
+        Test::assertSame($this->problemFor('Short1'), 'too short');
     }
 
     #[Test]
-    public function aPasswordWithoutCapitalsIsRefused(): void {
-        Test::assertSame($this->problemFor("correcthorsebattery"), "needs a capital letter");
+    public function aPasswordWithoutCapitalsIsRefused(): void
+    {
+        Test::assertSame($this->problemFor('correcthorsebattery'), 'needs a capital letter');
     }
 
     #[Test]
-    public function aLongPasswordWithACapitalLetterPasses(): void {
-        Test::assertSame($this->problemFor("CorrectHorseBattery"), "none");
+    public function aLongPasswordWithACapitalLetterPasses(): void
+    {
+        Test::assertSame($this->problemFor('CorrectHorseBattery'), 'none');
     }
 
     // This method has no `#[Test]`, so `nvs test` does not run it. The tests
     // above call it like any other method.
-    private function problemFor(string $password): string {
+    private function problemFor(string $password): string
+    {
         return PasswordPolicy::problem($password);
     }
 }
 
 // This prints `too short` and then `none`.
-echo PasswordPolicy::problem("Short1"), "\n";
-echo PasswordPolicy::problem("CorrectHorseBattery"), "\n";
+echo PasswordPolicy::problem('Short1'), "\n";
+echo PasswordPolicy::problem('CorrectHorseBattery'), "\n";

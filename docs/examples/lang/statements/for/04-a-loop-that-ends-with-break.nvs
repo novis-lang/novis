@@ -6,7 +6,7 @@ int $tries = 0;
 
 for (;;) {
     $tries++;
-    echo "try ", $tries, "\n";
+    echo 'try ', $tries, "\n";
     if ($tries == 3) {
         break;
     }

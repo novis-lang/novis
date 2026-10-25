@@ -3,37 +3,40 @@
 // depends on what could go wrong if another transaction changed the same data.
 // You pass the result as the `isolation` option of a transaction.
 
-class Work {
-    public static function levelFor(string $job): Core\Db\Isolation {
+class Work
+{
+    public static function levelFor(string $job): Core\Db\Isolation
+    {
         return match ($job) {
             // A transfer changes two accounts. No other transaction may
             // change them between the two updates.
-            "moving money between accounts" => Core\Db\Isolation::Serializable,
+            'moving money between accounts' => Core\Db\Isolation::Serializable,
             // A long report reads many tables. Every statement in it must
             // see the same data.
-            "the month-end report" => Core\Db\Isolation::RepeatableRead,
+            'the month-end report' => Core\Db\Isolation::RepeatableRead,
             // Other work only needs to read data that is committed.
             default => Core\Db\Isolation::ReadCommitted,
         };
     }
 
-    public static function name(Core\Db\Isolation $level): string {
+    public static function name(Core\Db\Isolation $level): string
+    {
         return match ($level) {
-            Core\Db\Isolation::ReadUncommitted => "ReadUncommitted",
-            Core\Db\Isolation::ReadCommitted => "ReadCommitted",
-            Core\Db\Isolation::RepeatableRead => "RepeatableRead",
-            Core\Db\Isolation::Snapshot => "Snapshot",
-            Core\Db\Isolation::Serializable => "Serializable",
+            Core\Db\Isolation::ReadUncommitted => 'ReadUncommitted',
+            Core\Db\Isolation::ReadCommitted => 'ReadCommitted',
+            Core\Db\Isolation::RepeatableRead => 'RepeatableRead',
+            Core\Db\Isolation::Snapshot => 'Snapshot',
+            Core\Db\Isolation::Serializable => 'Serializable',
         };
     }
 }
 
 array<string> $jobs = [
-    "moving money between accounts",
-    "the month-end report",
+    'moving money between accounts',
+    'the month-end report',
     "counting today's orders",
 ];
 
 foreach ($jobs as string $job) {
-    echo $job, " -> ", Work::name(Work::levelFor($job)), "\n";
+    echo $job, ' -> ', Work::name(Work::levelFor($job)), "\n";
 }

@@ -2,7 +2,7 @@
 // Shows how to read the last byte of a `bytes` value, and what happens when
 // the position is outside it.
 
-bytes $data = "abc" as bytes;
+bytes $data = 'abc' as bytes;
 
 // A negative position counts from the end. -1 is the last byte, so this
 // prints 99, the number for "c".

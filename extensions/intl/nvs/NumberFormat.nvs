@@ -7,7 +7,7 @@ use RuntimeError;
 /// a locale tag, such as `"de"` or `"en-IN"`, and formats the whole list in one call.
 final class NumberFormat
 {
-    type DigitOptions = {minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool};
+    type DigitOptions = { minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool };
 
     /// `NumberFormat::decimal` returns each number with the locale's separators, and by default up
     /// to 3 fraction digits. A float that is not finite throws a `RuntimeError`.
@@ -41,7 +41,7 @@ final class NumberFormat
 
     /// `NumberFormat::currency` returns each amount as money in `$currency`, a three-letter code
     /// such as `"EUR"`. The amount is rounded to the digits the currency uses, such as 2 for euros.
-    public static function currency(array<int|float|decimal> $amounts, string $currency, string $locale, ?{display?: CurrencyDisplay} $options = null): array<string>
+    public static function currency(array<int|float|decimal> $amounts, string $currency, string $locale, ?{ display?: CurrencyDisplay } $options = null): array<string>
     {
         return Icu::formatNumbers(NumberFormat::texts($amounts), $locale, {
             style: Style::Currency,
@@ -56,7 +56,7 @@ final class NumberFormat
 
     /// `NumberFormat::compact` returns each number in a short form, such as "1.2K" or
     /// "1.2 thousand" in English.
-    public static function compact(array<int|float|decimal> $numbers, string $locale, ?{display?: CompactDisplay} $options = null): array<string>
+    public static function compact(array<int|float|decimal> $numbers, string $locale, ?{ display?: CompactDisplay } $options = null): array<string>
     {
         return Icu::formatNumbers(NumberFormat::texts($numbers), $locale, {
             style: Style::Compact,

@@ -8,74 +8,74 @@ final class QrCode
 {
     /// `QrCode::render` returns `data` as a square QR code image. By default it is a PNG of 256 by 256 pixels.
     /// Data too long for the `level`, or a `size` too small for the code, throws a `LogicError`.
-    public static function render(string $data, ?{size?: uint, margin?: uint, level?: Level, format?: Format} $options = null): bytes
+    public static function render(string $data, ?{ size?: uint, margin?: uint, level?: Level, format?: Format } $options = null): bytes
     {
         ?uint $size = $options?->size ?? null;
         ?uint $margin = $options?->margin ?? null;
         ?Level $level = $options?->level ?? null;
         ?Format $format = $options?->format ?? null;
-        return Codec::qr($data, {size: $size, margin: $margin, level: $level, format: $format});
+        return Codec::qr($data, { size: $size, margin: $margin, level: $level, format: $format });
     }
 
     /// `QrCode::svg` returns `data` as an SVG document of a QR code, 256 by 256 pixels.
     /// An SVG stays sharp at any size. Data too long for the `level` throws a `LogicError`.
-    public static function svg(string $data, ?{margin?: uint, level?: Level} $options = null): string
+    public static function svg(string $data, ?{ margin?: uint, level?: Level } $options = null): string
     {
         ?uint $margin = $options?->margin ?? null;
         ?Level $level = $options?->level ?? null;
-        bytes $svg = Codec::qr($data, {size: null, margin: $margin, level: $level, format: Format::Svg});
+        bytes $svg = Codec::qr($data, { size: null, margin: $margin, level: $level, format: Format::Svg });
         return Core\Encoding::decodeText($svg, Core\Charset::Utf8);
     }
 
     /// `QrCode::giroCode` returns the text of a SEPA bank transfer, for a QR code that a banking app reads.
     /// A wrong IBAN, a field that is too long or has a line break, or both `reference` and `text` throw a `LogicError`.
-    public static function giroCode({name: string, iban: string, amount?: decimal, bic?: string, reference?: string, text?: string} $payment): string
+    public static function giroCode({ name: string, iban: string, amount?: decimal, bic?: string, reference?: string, text?: string } $payment): string
     {
-        string $iban = Core\Str::upper(Core\Str::replace($payment->iban, " ", ""));
+        string $iban = Core\Str::upper(Core\Str::replace($payment->iban, ' ', ''));
         if (!QrCode::validIban($iban)) {
             throw new LogicError("`{$payment->iban}` is not a valid IBAN");
         }
         string $name = $payment->name;
         if (Core\Str::isEmpty($name) || Core\Str::length($name) > 70) {
-            throw new LogicError("the name of the payee is 1 to 70 characters long");
+            throw new LogicError('the name of the payee is 1 to 70 characters long');
         }
-        string $bic = Core\Str::upper($payment?->bic ?? "");
+        string $bic = Core\Str::upper($payment?->bic ?? '');
         if (!Core\Str::isEmpty($bic) && Core\Str::length($bic) != 8 && Core\Str::length($bic) != 11) {
             throw new LogicError("a BIC is 8 or 11 characters long, and `{$bic}` is not");
         }
-        string $reference = $payment?->reference ?? "";
-        string $text = $payment?->text ?? "";
+        string $reference = $payment?->reference ?? '';
+        string $text = $payment?->text ?? '';
         array<string> $fields = [$name, $bic, $reference, $text];
         foreach ($fields as string $field) {
             if (Core\Str::contains($field, "\n") || Core\Str::contains($field, "\r")) {
-                throw new LogicError("a field of a payment cannot contain a line break");
+                throw new LogicError('a field of a payment cannot contain a line break');
             }
         }
         if (Core\Str::length($reference) > 35) {
-            throw new LogicError("a payment reference is at most 35 characters long");
+            throw new LogicError('a payment reference is at most 35 characters long');
         }
         if (Core\Str::length($text) > 140) {
-            throw new LogicError("the text of a payment is at most 140 characters long");
+            throw new LogicError('the text of a payment is at most 140 characters long');
         }
         if (!Core\Str::isEmpty($reference) && !Core\Str::isEmpty($text)) {
-            throw new LogicError("a payment has a `reference` or a `text`, not both");
+            throw new LogicError('a payment has a `reference` or a `text`, not both');
         }
-        string $amount = "";
+        string $amount = '';
         ?decimal $value = $payment?->amount ?? null;
         if ($value != null) {
             decimal $cents = Core\Decimal::round($value, Core\RoundMode::HalfUp, 2);
             if ($cents != $value || $cents < 0.01 || $cents > 999999999.99) {
-                throw new LogicError("an amount is from 0.01 to 999999999.99 euros, with at most 2 decimals");
+                throw new LogicError('an amount is from 0.01 to 999999999.99 euros, with at most 2 decimals');
             }
             $amount = "EUR{$cents}";
         }
-        return Core\Str::join(["BCD", "002", "1", "SCT", $bic, $name, $iban, $amount, "", $reference, $text], "\n");
+        return Core\Str::join(['BCD', '002', '1', 'SCT', $bic, $name, $iban, $amount, '', $reference, $text], "\n");
     }
 
     /// `true` when `iban` has a country code, two check digits and a checksum that is correct.
     private static function validIban(string $iban): bool
     {
-        string $digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        string $digits = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
         uint $length = Core\Str::length($iban);
         if ($length < 15 || $length > 34) {
             return false;

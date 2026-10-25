@@ -2,11 +2,11 @@
 // Shows that `accountFlags` returns `null` for an entry that is not an account, such as a group.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $group = $corp->read("CN=Employees,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]});
+var $corp = Core\Ldap::connect('corp');
+var $group = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] });
 
 if ($group != null) {
     // A group has no `userAccountControl`. This prints `no account flags`.
     var $flags = $group->accountFlags();
-    echo $flags == null ? "no account flags" : "an account", "\n";
+    echo $flags == null ? 'no account flags' : 'an account', "\n";
 }

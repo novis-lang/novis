@@ -1,7 +1,7 @@
 error[E0715]: `<` has no meaning for `string`
   --> 05-two-strings-with-less-than.nvs:5:7
   |
-5 | echo ("apple" < "banana") ? "apple first" : "banana first", "\n";
+5 | echo ('apple' < 'banana') ? 'apple first' : 'banana first', "\n";
   |       ^^^^^^^^^^^^^^^^^^ ordered here
   = help: to compare two strings, use `Core\Str::compare($a, $b)`. The operators `<`, `<=`, `>`, `>=` and `<=>` work only on numbers
 

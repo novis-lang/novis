@@ -26,7 +26,7 @@ should end its line says so, by writing the newline itself.
 // The whole program. Save it as `hello.nvs` and run `nvs run hello.nvs`.
 // There is nothing else to write: no starting function, no build step.
 
-echo "Hello, World!", "\n";
+echo 'Hello, World!', "\n";
 ```
 
 ```output
@@ -41,10 +41,10 @@ Hello, World!
 // `echo` takes as many values as you like and writes them one after another,
 // with nothing in between. Spaces and line breaks are yours to write.
 
-string $name = "Ada";
+string $name = 'Ada';
 int $messages = 3;
 
-echo "Hi ", $name, ", you have ", $messages, " new messages.", "\n";
+echo 'Hi ', $name, ', you have ', $messages, ' new messages.', "\n";
 
 // `print` writes a single value, and is handy when there is only one.
 print "That is all for now.\n";
@@ -75,9 +75,11 @@ foreach ($minutes as int $spent) {
 echo "-----\n";
 echo Report::line(Core\Arr::sum($minutes) as int), " in total\n";
 
-class Report {
-    public static function line(int $minutes): string {
-        return "- " . ($minutes as string) . " min";
+class Report
+{
+    public static function line(int $minutes): string
+    {
+        return '- ' . ($minutes as string) . ' min';
     }
 }
 ```
@@ -120,14 +122,14 @@ with the one option that `sort` accepts, and building a JSON reply.
 // Every name says its type once, where it is created. `as` is how a piece of
 // text becomes a number.
 
-array<string> $quantities = ["3", "11", "7"];
+array<string> $quantities = ['3', '11', '7'];
 
 int $total = 0;
 foreach ($quantities as string $quantity) {
     $total = $total + ($quantity as int);
 }
 
-echo "items ordered: ", $total, "\n";
+echo 'items ordered: ', $total, "\n";
 ```
 
 ```output
@@ -144,11 +146,11 @@ items ordered: 21
 // out of the list.
 
 array<int> $scores = [1420, 880, 2310, 1105];
-array<int> $ranked = Core\Arr::sort($scores, {order: Core\Arr::Order::Desc});
+array<int> $ranked = Core\Arr::sort($scores, { order: Core\Arr::Order::Desc });
 
 int $place = 1;
 foreach ($ranked as int $score) {
-    echo $place, ". ", $score, "\n";
+    echo $place, '. ', $score, "\n";
     $place = $place + 1;
 }
 ```
@@ -169,14 +171,14 @@ foreach ($ranked as int $score) {
 // answer is a call on `Core\Json`: everything Novis gives you is a class
 // member, so there is no loose `json_encode` to remember.
 
-array<string> $lineItems = ["2", "10", "1"];
+array<string> $lineItems = ['2', '10', '1'];
 
 int $units = 0;
 foreach ($lineItems as string $quantity) {
     $units = $units + ($quantity as int);
 }
 
-echo Core\Json::encode({lines: Core\Arr::count($lineItems), units: $units}), "\n";
+echo Core\Json::encode({ lines: Core\Arr::count($lineItems), units: $units }), "\n";
 ```
 
 ```output
@@ -217,7 +219,7 @@ the page. A `Core\Html\Markup` value is written as it is. You build one with an 
 <?nvs
 // Everything outside the tags is written out exactly as it stands. This part
 // is code, and it runs.
-string $who = "world";
+string $who = 'world';
 ?>
 <p>Hello, <?= $who ?>!</p>
 </body></html>
@@ -235,7 +237,7 @@ string $who = "world";
 <?nvs
 // Shows a loop that starts and ends in code, with plain HTML in between.
 // The HTML is not written as strings inside the program.
-array<string> $products = ["pen", "ink", "paper"];
+array<string> $products = ['pen', 'ink', 'paper'];
 ?>
 <ul>
 <?nvs foreach ($products as string $name) { ?>
@@ -258,7 +260,7 @@ array<string> $products = ["pen", "ink", "paper"];
 <?nvs
 // A real page: a heading, one row per item, a total, and a different message
 // when there is nothing to show. The page text stays page text throughout.
-array<string> $items = ["Fountain pen", "Ink, blue", "Paper, 100 sheets"];
+array<string> $items = ['Fountain pen', 'Ink, blue', 'Paper, 100 sheets'];
 array<int> $cents = [4900, 1250, 899];
 
 int $total = 0;
@@ -274,12 +276,12 @@ foreach ($cents as int $price) {
 <?nvs
     int $row = 0;
     foreach ($items as string $name) {
-?>
+        ?>
   <tr><td><?= $name ?></td><td><?= $cents[$row] ?></td></tr>
 <?nvs
         $row = $row + 1;
     }
-?>
+    ?>
 </table>
 <p>Total: <?= $total ?> cents</p>
 <?nvs } ?>
@@ -317,17 +319,17 @@ another.
 // `//` and `#` both run to the end of the line. `/* */` covers any span.
 
 # Either spelling works on a line of its own.
-string $city = "Vienna"; // ... or after code, to explain that line.
+string $city = 'Vienna'; // ... or after code, to explain that line.
 
 /* A block comment is the one to reach for when the note is longer
    than a line, and it can stop in the middle of one. */
-echo "Weather for ", $city, "\n";
+echo 'Weather for ', $city, "\n";
 
-echo /* even here, between two values */ "sunny", "\n";
+echo /* even here, between two values */ 'sunny', "\n";
 
 // The markers only count outside text. Inside a string they are characters
 // like any other.
-echo "the // and the /* stay put", "\n";
+echo 'the // and the /* stay put', "\n";
 ```
 
 ```output
@@ -344,17 +346,19 @@ the // and the /* stay put
 // line under it, and your editor shows it to whoever types that name.
 
 /// One greeting, written the same way everywhere in the program.
-class Greeting {
+class Greeting
+{
     /// Greets `$name` by name.
     /// The name is used as it arrives, so capitalise it before you pass it in.
-    public static function forName(string $name): string {
+    public static function forName(string $name): string
+    {
         //// Four or more slashes make an ordinary comment.
         //// Your editor does not show it as documentation.
-        return "Hello, " . $name . "!";
+        return 'Hello, ' . $name . '!';
     }
 }
 
-echo Greeting::forName("Ada"), "\n";
+echo Greeting::forName('Ada'), "\n";
 ```
 
 ```output
@@ -385,9 +389,9 @@ if ($total >= 10000) {
 // This line is turned off until finance checks the new rate.
 // $shippingCents = $shippingCents * 2;
 
-echo "Items:    ", $total, "\n";
-echo "Shipping: ", $shippingCents, "\n";
-echo "Total:    ", $total + $shippingCents, "\n";
+echo 'Items:    ', $total, "\n";
+echo 'Shipping: ', $shippingCents, "\n";
+echo 'Total:    ', $total + $shippingCents, "\n";
 ```
 
 ```output
@@ -435,13 +439,15 @@ prints the warning `W1011`. A line of four or more slashes is an ordinary commen
 // belongs to the declaration on the line under it.
 
 /// A price in cents. A whole number of cents never needs rounding.
-final class Price {
+final class Price
+{
     /// The lowest price a shop may set.
     public const int MIN = 0;
 
     /// Doubles a price.
     /// Several `///` lines in a row make one doc comment.
-    public static function double(int $cents): int {
+    public static function double(int $cents): int
+    {
         return $cents * 2;
     }
 }
@@ -466,13 +472,14 @@ echo Price::double(125), "\n";
 // comment, which is where the meaning of a status belongs.
 
 /// How far an order has got.
-enum Status {
+enum Status
+{
     /// The customer has ordered and has not paid yet.
     Pending,
     /// The money has arrived.
     Paid,
     /// The goods have left the building.
-    Shipped
+    Shipped,
 }
 
 Status $order = Status::Paid;
@@ -494,18 +501,21 @@ echo $order as int, "\n";
 
 /// One customer invoice. Every amount in it is in cents.
 /// @see Invoice::total
-final class Invoice {
+final class Invoice
+{
     /// The amount of each line of the invoice, in cents.
     public array<int> $lines;
 
     /// Builds an invoice from its lines.
-    public function constructor(array<int> $lines) {
+    public function constructor(array<int> $lines)
+    {
         $this->lines = $lines;
     }
 
     /// Adds up the lines and returns the total in cents.
     /// @see Invoice::$lines
-    public function total(): int {
+    public function total(): int
+    {
         int $sum = 0;
         foreach ($this->lines as int $line) {
             $sum = $sum + $line;
@@ -597,25 +607,28 @@ the program does not compile (`E0122`).
 // One small class using every kind of name there is, each spelled the way
 // its kind is spelled.
 
-class OrderLine {
+class OrderLine
+{
     public const int MAX_QUANTITY = 10;
 
     public int $quantity = 0;
 
-    public function constructor(int $quantity) {
+    public function constructor(int $quantity)
+    {
         $this->quantity = $quantity;
     }
 
-    public function isTooLarge(): bool {
+    public function isTooLarge(): bool
+    {
         return $this->quantity > OrderLine::MAX_QUANTITY;
     }
 }
 
 OrderLine $line = new OrderLine(12);
 
-echo "quantity: ", $line->quantity, "\n";
+echo 'quantity: ', $line->quantity, "\n";
 if ($line->isTooLarge()) {
-    echo "over the limit of ", OrderLine::MAX_QUANTITY, "\n";
+    echo 'over the limit of ', OrderLine::MAX_QUANTITY, "\n";
 }
 ```
 
@@ -631,14 +644,18 @@ over the limit of 10
 // The compiler checks the first letter of a name and that it has no underscore.
 // An abbreviation can keep the capitals people write it with.
 
-class HTTPClient {
-    public static function parseXMLPayload(string $body): uint {
+class HTTPClient
+{
+    public static function parseXMLPayload(string $body): uint
+    {
         return Core\Str::length($body);
     }
 }
 
-class HttpHeader {
-    public static function forName(string $name): string {
+class HttpHeader
+{
+    public static function forName(string $name): string
+    {
         return Core\Str::upper($name);
     }
 }
@@ -648,7 +665,7 @@ class HttpHeader {
 uint $payloadID = HTTPClient::parseXMLPayload("<order id='7'/>");
 
 echo $payloadID, "\n";
-echo HttpHeader::forName("content-type"), "\n";
+echo HttpHeader::forName('content-type'), "\n";
 ```
 
 ```output
@@ -666,11 +683,13 @@ CONTENT-TYPE
 
 namespace App\Billing;
 
-class ShippingQuote {
+class ShippingQuote
+{
     public const int FREE_OVER_CENTS = 5000;
     public const int FLAT_RATE_CENTS = 499;
 
-    public static function forOrder(int $totalCents): int {
+    public static function forOrder(int $totalCents): int
+    {
         if ($totalCents >= ShippingQuote::FREE_OVER_CENTS) {
             return 0;
         }
@@ -682,7 +701,7 @@ array<int> $baskets = [1200, 5000, 9900];
 
 foreach ($baskets as int $totalCents) {
     int $shippingCents = ShippingQuote::forOrder($totalCents);
-    echo "basket ", $totalCents, " ships for ", $shippingCents, "\n";
+    echo 'basket ', $totalCents, ' ships for ', $shippingCents, "\n";
 }
 ```
 
@@ -700,7 +719,8 @@ basket 9900 ships for 0
 // does not compile. The message gives the name to write instead.
 // proof: compile-error
 
-class order_line {
+class order_line
+{
     public int $quantity = 1;
 }
 
@@ -712,7 +732,7 @@ echo $line->quantity, "\n";
 error[E0110]: `order_line` must be PascalCase, e.g. `OrderLine`
   --> main.nvs:6:7
   |
-6 | class order_line {
+6 | class order_line
   |       ^^^^^^^^^^ class name must be PascalCase
   = suggestion: rename to `OrderLine`: `OrderLine`
 
@@ -759,16 +779,18 @@ or an interface body. It has no `public` or other modifier in front of it (`E013
 
 namespace App;
 
-class Greeter {
-    public static function greet(string $name): string {
-        return "Hello, " . $name . "!";
+class Greeter
+{
+    public static function greet(string $name): string
+    {
+        return 'Hello, ' . $name . '!';
     }
 }
 
 // The short name is looked for in the file's own namespace, so this is
 // `App\Greeter`. Writing the name out in full means exactly the same class.
-echo Greeter::greet("Ada"), "\n";
-echo App\Greeter::greet("Bo"), "\n";
+echo Greeter::greet('Ada'), "\n";
+echo App\Greeter::greet('Bo'), "\n";
 ```
 
 ```output
@@ -785,10 +807,10 @@ Hello, Bo!
 
 namespace App;
 
-use Core\Str;
 use Core\Arr;
+use Core\Str;
 
-array<string> $words = ["order", "invoice", "receipt"];
+array<string> $words = ['order', 'invoice', 'receipt'];
 
 // `Str` and `Arr` are the imports above.
 echo Str::upper($words[0]), "\n";
@@ -796,7 +818,7 @@ echo Arr::count($words), "\n";
 
 // You never have to import anything. A name written out in full works the
 // same, imported or not.
-echo Core\Str::lower("QUIET"), "\n";
+echo Core\Str::lower('QUIET'), "\n";
 ```
 
 ```output
@@ -815,14 +837,16 @@ quiet
 
 namespace App\Billing;
 
-class Json {
-    public static function forInvoice(int $number, int $totalCents): string {
-        return Core\Json::encode({invoice: $number, total: $totalCents});
+class Json
+{
+    public static function forInvoice(int $number, int $totalCents): string
+    {
+        return Core\Json::encode({ invoice: $number, total: $totalCents });
     }
 }
 
 echo Json::forInvoice(1042, 5990), "\n";
-echo Core\Json::encode({ok: 1}), "\n";
+echo Core\Json::encode({ ok: 1 }), "\n";
 ```
 
 ```output
@@ -865,9 +889,11 @@ twice.
 // The one line that names an order. The packing slip and the confirmation
 // email both print it, so the wording is kept in one place.
 
-class OrderLabel {
-    public static function line(int $number, string $customer, string $town): string {
-        return "Order #" . $number . " - " . $customer . ", " . $town;
+class OrderLabel
+{
+    public static function line(int $number, string $customer, string $town): string
+    {
+        return 'Order #' . $number . ' - ' . $customer . ', ' . $town;
     }
 }
 ```
@@ -878,14 +904,15 @@ class OrderLabel {
 // requires this file fills in `Section` first. Variables do not cross between
 // files, so a class is how you hand something over.
 
-class Section {
-    public static string $title = "";
+class Section
+{
+    public static string $title = '';
     public static array<string> $rows = [];
 }
 
 echo Section::$title, "\n";
 foreach (Section::$rows as string $row) {
-    echo "  ", $row, "\n";
+    echo '  ', $row, "\n";
 }
 ```
 
@@ -895,9 +922,9 @@ foreach (Section::$rows as string $row) {
 // them without reading the program that uses them.
 
 return [
-    "host" => "db.example.test",
-    "port" => "5432",
-    "timeout" => "30",
+    'host' => 'db.example.test',
+    'port' => '5432',
+    'timeout' => '30',
 ];
 ```
 
@@ -909,8 +936,8 @@ return [
 
 array<tainted string> $settings = (require 'parts/settings.nvs') as array<string>;
 
-echo "connecting to ", $settings["host"], ":", $settings["port"], "\n";
-echo "giving up after ", $settings["timeout"], " seconds\n";
+echo 'connecting to ', $settings['host'], ':', $settings['port'], "\n";
+echo 'giving up after ', $settings['timeout'], " seconds\n";
 ```
 
 ```output
@@ -925,9 +952,11 @@ giving up after 30 seconds
 // The one line that names an order. The packing slip and the confirmation
 // email both print it, so the wording is kept in one place.
 
-class OrderLabel {
-    public static function line(int $number, string $customer, string $town): string {
-        return "Order #" . $number . " - " . $customer . ", " . $town;
+class OrderLabel
+{
+    public static function line(int $number, string $customer, string $town): string
+    {
+        return 'Order #' . $number . ' - ' . $customer . ', ' . $town;
     }
 }
 ```
@@ -938,14 +967,15 @@ class OrderLabel {
 // requires this file fills in `Section` first. Variables do not cross between
 // files, so a class is how you hand something over.
 
-class Section {
-    public static string $title = "";
+class Section
+{
+    public static string $title = '';
     public static array<string> $rows = [];
 }
 
 echo Section::$title, "\n";
 foreach (Section::$rows as string $row) {
-    echo "  ", $row, "\n";
+    echo '  ', $row, "\n";
 }
 ```
 
@@ -955,9 +985,9 @@ foreach (Section::$rows as string $row) {
 // them without reading the program that uses them.
 
 return [
-    "host" => "db.example.test",
-    "port" => "5432",
-    "timeout" => "30",
+    'host' => 'db.example.test',
+    'port' => '5432',
+    'timeout' => '30',
 ];
 ```
 
@@ -969,8 +999,8 @@ return [
 
 require 'parts/order-label.nvs';
 
-echo OrderLabel::line(1042, "Alice Mercier", "Lyon"), "\n";
-echo OrderLabel::line(1043, "Bo Nilsson", "Malmo"), "\n";
+echo OrderLabel::line(1042, 'Alice Mercier', 'Lyon'), "\n";
+echo OrderLabel::line(1043, 'Bo Nilsson', 'Malmo'), "\n";
 ```
 
 ```output
@@ -985,9 +1015,11 @@ Order #1043 - Bo Nilsson, Malmo
 // The one line that names an order. The packing slip and the confirmation
 // email both print it, so the wording is kept in one place.
 
-class OrderLabel {
-    public static function line(int $number, string $customer, string $town): string {
-        return "Order #" . $number . " - " . $customer . ", " . $town;
+class OrderLabel
+{
+    public static function line(int $number, string $customer, string $town): string
+    {
+        return 'Order #' . $number . ' - ' . $customer . ', ' . $town;
     }
 }
 ```
@@ -998,14 +1030,15 @@ class OrderLabel {
 // requires this file fills in `Section` first. Variables do not cross between
 // files, so a class is how you hand something over.
 
-class Section {
-    public static string $title = "";
+class Section
+{
+    public static string $title = '';
     public static array<string> $rows = [];
 }
 
 echo Section::$title, "\n";
 foreach (Section::$rows as string $row) {
-    echo "  ", $row, "\n";
+    echo '  ', $row, "\n";
 }
 ```
 
@@ -1015,9 +1048,9 @@ foreach (Section::$rows as string $row) {
 // them without reading the program that uses them.
 
 return [
-    "host" => "db.example.test",
-    "port" => "5432",
-    "timeout" => "30",
+    'host' => 'db.example.test',
+    'port' => '5432',
+    'timeout' => '30',
 ];
 ```
 
@@ -1029,12 +1062,12 @@ return [
 
 echo "Support, this morning\n\n";
 
-Section::$title = "Open tickets";
-Section::$rows = ["#41 printer jam", "#42 badge reader"];
+Section::$title = 'Open tickets';
+Section::$rows = ['#41 printer jam', '#42 badge reader'];
 require 'parts/section.nvs';
 
-Section::$title = "Waiting on a customer";
-Section::$rows = ["#38 refund address"];
+Section::$title = 'Waiting on a customer';
+Section::$rows = ['#38 refund address'];
 require 'parts/section.nvs';
 ```
 
@@ -1099,9 +1132,11 @@ uses it too: it finds each class that implements the interface `I`, even when no
 
 namespace App\Text;
 
-class Greeter {
-    public static function hello(string $who): string {
-        return "Hello, " . $who . "!";
+class Greeter
+{
+    public static function hello(string $who): string
+    {
+        return 'Hello, ' . $who . '!';
     }
 }
 ```
@@ -1116,8 +1151,8 @@ autoload 'App' from './app';
 
 use App\Text\Greeter;
 
-echo Greeter::hello("Alice"), "\n";
-echo App\Text\Greeter::hello("Bo"), "\n";
+echo Greeter::hello('Alice'), "\n";
+echo App\Text\Greeter::hello('Bo'), "\n";
 ```
 
 ```output
@@ -1134,9 +1169,11 @@ Hello, Bo!
 
 namespace Acme\Pdf;
 
-class Writer {
-    public static function describe(): string {
-        return "writer: our patched copy";
+class Writer
+{
+    public static function describe(): string
+    {
+        return 'writer: our patched copy';
     }
 }
 ```
@@ -1148,9 +1185,11 @@ class Writer {
 
 namespace Acme\Pdf;
 
-class Reader {
-    public static function describe(): string {
-        return "reader: the installed copy";
+class Reader
+{
+    public static function describe(): string
+    {
+        return 'reader: the installed copy';
     }
 }
 ```
@@ -1162,9 +1201,11 @@ class Reader {
 
 namespace Acme\Pdf;
 
-class Writer {
-    public static function describe(): string {
-        return "writer: the installed copy";
+class Writer
+{
+    public static function describe(): string
+    {
+        return 'writer: the installed copy';
     }
 }
 ```
@@ -1177,8 +1218,8 @@ class Writer {
 
 autoload 'Acme' from './fixes', './vendor';
 
-use Acme\Pdf\Writer;
 use Acme\Pdf\Reader;
+use Acme\Pdf\Writer;
 
 echo Writer::describe(), "\n";
 echo Reader::describe(), "\n";
@@ -1198,9 +1239,11 @@ reader: the installed copy
 
 namespace Billing;
 
-class Invoice {
-    public static function number(int $order): string {
-        return "INV-" . $order;
+class Invoice
+{
+    public static function number(int $order): string
+    {
+        return 'INV-' . $order;
     }
 }
 ```
@@ -1212,9 +1255,11 @@ class Invoice {
 
 namespace Shipping;
 
-class Label {
-    public static function forOrder(int $order, string $town): string {
-        return "SHIP-" . $order . " to " . $town;
+class Label
+{
+    public static function forOrder(int $order, string $town): string
+    {
+        return 'SHIP-' . $order . ' to ' . $town;
     }
 }
 ```
@@ -1231,7 +1276,7 @@ use Billing\Invoice;
 use Shipping\Label;
 
 echo Invoice::number(1042), "\n";
-echo Label::forOrder(1042, "Lyon"), "\n";
+echo Label::forOrder(1042, 'Lyon'), "\n";
 ```
 
 ```output
@@ -1256,7 +1301,7 @@ class Home
 {
     public static function title(): string
     {
-        return "Blog home";
+        return 'Blog home';
     }
 }
 ```
@@ -1276,7 +1321,7 @@ class Home
 {
     public static function title(): string
     {
-        return "Shop home";
+        return 'Shop home';
     }
 }
 ```
@@ -1342,7 +1387,7 @@ tea 2.80
 
 // The path starts at the folder of this file. `nvs run` gives the same result
 // from any folder. This prints the two lines of `data/prices.txt`.
-echo Core\IO::read("data/prices.txt");
+echo Core\IO::read('data/prices.txt');
 ```
 
 ```output
@@ -1360,16 +1405,18 @@ Hello, {name}! Your order is on its way.
 <?nvs
 // Shows how to make a parameter of your own method a file path.
 
-class Mail {
+class Mail
+{
     // `#[Core\Path]` says that `$template` is a file path. A path in quotes
     // passed here starts at the folder of the file that calls the method.
-    public static function render(#[Core\Path] string $template, string $name): string {
-        return Core\Str::replace(Core\IO::read($template), "{name}", $name);
+    public static function render(#[Core\Path] string $template, string $name): string
+    {
+        return Core\Str::replace(Core\IO::read($template), '{name}', $name);
     }
 }
 
 // This prints "Hello, Ada! Your order is on its way.".
-echo Mail::render("templates/welcome.txt", "Ada");
+echo Mail::render('templates/welcome.txt', 'Ada');
 ```
 
 ```output
@@ -1523,9 +1570,9 @@ checked 2, problems 0
 // The last line does not run.
 // proof: exit 3
 
-echo "stopping", "\n";
+echo 'stopping', "\n";
 exit(3);
-echo "not reached", "\n";
+echo 'not reached', "\n";
 ```
 
 ```output

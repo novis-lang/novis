@@ -5,21 +5,25 @@
 // bench: iterations 512
 // bench: complexity constant
 
-class Levels {
+class Levels
+{
     enum Level { Debug, Info, Warn, Error }
 
-    public static function name(Level $l): string {
+    public static function name(Level $l): string
+    {
         return match ($l) {
-            Level::Debug => "debug",
-            Level::Info => "info",
-            Level::Warn => "warn",
-            Level::Error => "error",
+            Level::Debug => 'debug',
+            Level::Info => 'info',
+            Level::Warn => 'warn',
+            Level::Error => 'error',
         };
     }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {

@@ -4,9 +4,11 @@
 // bench: complexity constant
 use Novis\Pdf\Rendered;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<bytes> $files = ["%PDF-1.7A" as bytes, "%PDF-1.7 ABC" as bytes, "%PDF-1.7 ABCDEF" as bytes];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<bytes> $files = ['%PDF-1.7A' as bytes, '%PDF-1.7 ABC' as bytes, '%PDF-1.7 ABCDEF' as bytes];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

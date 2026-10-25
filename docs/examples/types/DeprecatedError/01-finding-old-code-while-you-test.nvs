@@ -1,13 +1,16 @@
 <?nvs
 // Shows how to find calls to deprecated code while you test a program.
 
-class Cart {
-    #[Core\Deprecated(since: "2.0", replace: 'Cart::total($prices)')]
-    public static function sum(array<int> $prices): int {
+class Cart
+{
+    #[Core\Deprecated(since: '2.0', replace: 'Cart::total($prices)')]
+    public static function sum(array<int> $prices): int
+    {
         return Cart::total($prices);
     }
 
-    public static function total(array<int> $prices): int {
+    public static function total(array<int> $prices): int
+    {
         int $result = 0;
         foreach ($prices as int $price) {
             $result = $result + $price;

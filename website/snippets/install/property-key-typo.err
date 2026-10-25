@@ -1,7 +1,7 @@
 error[E0405]: `User` has no public property `$emial`
-  --> property-key-typo.nvs:8:23
+  --> property-key-typo.nvs:9:23
   |
-8 | property<User> $key = 'emial' as property<User>;
+9 | property<User> $key = 'emial' as property<User>;
   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^ converted here
   = help: a property name written in the code is checked when the program compiles. The public properties of `User` are: `$email`, `$name`
 

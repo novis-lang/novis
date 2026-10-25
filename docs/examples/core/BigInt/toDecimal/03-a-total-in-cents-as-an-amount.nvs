@@ -3,7 +3,7 @@
 // amount of money. The parts are added as a `Core\BigInt`, where no total is
 // ever too large, and converted once at the end.
 
-array<string> $cents = ["4500000000", "129900000000", "77000", "1"];
+array<string> $cents = ['4500000000', '129900000000', '77000', '1'];
 
 var $total = Core\BigInt::of(0);
 foreach ($cents as string $part) {

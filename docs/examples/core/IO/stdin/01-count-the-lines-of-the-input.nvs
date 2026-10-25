@@ -8,8 +8,8 @@ tainted string $input = Core\IO::stdin();
 
 // `Core\Str::lines` splits the text into lines. This prints 3 and 53.
 array<tainted string> $lines = Core\Str::lines($input);
-echo "lines: ", Core\Arr::count($lines), "\n";
-echo "characters: ", Core\Str::length($input), "\n";
+echo 'lines: ', Core\Arr::count($lines), "\n";
+echo 'characters: ', Core\Str::length($input), "\n";
 
 // The last line of the input is printed as it is.
-echo "last line: ", $lines[Core\Arr::count($lines) - 1], "\n";
+echo 'last line: ', $lines[Core\Arr::count($lines) - 1], "\n";

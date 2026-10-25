@@ -2,10 +2,10 @@
 // Shows how to undo a change to a setting. `Core\Config::restore` puts back the
 // value the configuration file gives, or the built-in default.
 
-Core\Config::set("max_regex_steps", "5000");
+Core\Config::set('max_regex_steps', '5000');
 
 // This prints 5000 and then 1000000. The configuration file here does not set
 // this limit, so `restore` puts back its built-in default.
-echo Core\Config::get("max_regex_steps") ?? "no limit", "\n";
-Core\Config::restore("max_regex_steps");
-echo Core\Config::get("max_regex_steps") ?? "no limit", "\n";
+echo Core\Config::get('max_regex_steps') ?? 'no limit', "\n";
+Core\Config::restore('max_regex_steps');
+echo Core\Config::get('max_regex_steps') ?? 'no limit', "\n";

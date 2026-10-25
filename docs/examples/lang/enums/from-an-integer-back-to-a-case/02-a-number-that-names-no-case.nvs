@@ -16,10 +16,10 @@ try {
 ?Level $maybe = 9 as ?Level;
 
 // This prints `no such level`.
-echo $maybe == null ? "no such level" : "found one", "\n";
+echo $maybe == null ? 'no such level' : 'found one', "\n";
 
 // Text that is not a number gives `null` as well.
-?Level $fromText = "loud" as ?Level;
+?Level $fromText = 'loud' as ?Level;
 
 // This prints `no such level`.
-echo $fromText == null ? "no such level" : "found one", "\n";
+echo $fromText == null ? 'no such level' : 'found one', "\n";

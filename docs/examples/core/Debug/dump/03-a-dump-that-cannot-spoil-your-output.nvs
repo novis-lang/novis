@@ -4,8 +4,8 @@
 // stays valid JSON.
 
 array<string> $report = [
-    "status" => "ok",
-    "region" => "eu-central",
+    'status' => 'ok',
+    'region' => 'eu-central',
 ];
 
 // This line goes to standard error only. A command such as

@@ -5,8 +5,8 @@
 
 autoload 'Acme' from './fixes', './vendor';
 
-use Acme\Pdf\Writer;
 use Acme\Pdf\Reader;
+use Acme\Pdf\Writer;
 
 echo Writer::describe(), "\n";
 echo Reader::describe(), "\n";

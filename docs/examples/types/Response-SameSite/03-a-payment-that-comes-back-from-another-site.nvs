@@ -4,19 +4,19 @@
 // another site, so the browser does not send the `Lax` sign-in cookie with it.
 // A second cookie with `None` carries the order number instead.
 
-string $order = "ORD-1042";
+string $order = 'ORD-1042';
 
 // The sign-in cookie uses the default, `Lax`. A link from another site arrives signed in.
 // A form on another site that posts to you does not get this cookie.
-Core\Response::addCookie("session", "s-88f1");
+Core\Response::addCookie('session', 's-88f1');
 echo "session: Lax, so the provider's post does not carry it\n";
 
 // This cookie contains only the order number. `None` lets it arrive with the provider's post.
 // `None` needs `secure: true`, and `maxAge: 30m` makes it expire after 30 minutes.
-Core\Response::addCookie("checkout", $order, {sameSite: Core\Response::SameSite::None, secure: true, maxAge: 30m});
+Core\Response::addCookie('checkout', $order, { sameSite: Core\Response::SameSite::None, secure: true, maxAge: 30m });
 echo "checkout: None with secure, so the provider's post does carry it\n";
 
 // After the payment, the checkout cookie is not needed. `maxAge: 0s`
 // tells the browser to delete it.
-Core\Response::addCookie("checkout", "", {sameSite: Core\Response::SameSite::None, secure: true, maxAge: 0s});
-echo "checkout: taken back once ", $order, " was paid for\n";
+Core\Response::addCookie('checkout', '', { sameSite: Core\Response::SameSite::None, secure: true, maxAge: 0s });
+echo 'checkout: taken back once ', $order, " was paid for\n";

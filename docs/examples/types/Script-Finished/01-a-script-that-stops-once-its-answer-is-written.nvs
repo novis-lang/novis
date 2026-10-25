@@ -3,8 +3,10 @@
 // The code after the call does not run. A `finally` block still runs,
 // so a file that is open is still closed.
 
-class Export {
-    public static function run(array<string> $rows): void {
+class Export
+{
+    public static function run(array<string> $rows): void
+    {
         echo "opening the export file\n";
         try {
             if (Core\Arr::count($rows) == 0) {
@@ -12,7 +14,7 @@ class Export {
                 Core\Script::finish();
             }
             foreach ($rows as string $row) {
-                echo "writing ", $row, "\n";
+                echo 'writing ', $row, "\n";
             }
         } finally {
             // Runs whether the export finished its rows or stopped early.

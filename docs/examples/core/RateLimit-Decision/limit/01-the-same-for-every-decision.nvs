@@ -3,7 +3,7 @@
 
 // The limit is 1 call per hour. The first call is allowed and the second
 // is not, but both decisions have the same limit. This prints `1` twice.
-var $first = Core\RateLimit::shed("password:reset", 1, 1h);
-var $second = Core\RateLimit::shed("password:reset", 1, 1h);
+var $first = Core\RateLimit::shed('password:reset', 1, 1h);
+var $second = Core\RateLimit::shed('password:reset', 1, 1h);
 echo $first->limit(), "\n";
 echo $second->limit(), "\n";

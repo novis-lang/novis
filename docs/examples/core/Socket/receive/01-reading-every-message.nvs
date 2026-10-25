@@ -10,7 +10,7 @@ Core\Socket $conn = Core\Socket::current();
 uint $count = 0;
 ?Core\Socket\Message $message = $conn->receive();
 while ($message != null) {
-    echo "client: ", $message->text() ?? "", "\n";
+    echo 'client: ', $message->text() ?? '', "\n";
     $count = $count + 1;
     $message = $conn->receive();
 }

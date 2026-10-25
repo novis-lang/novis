@@ -5,16 +5,18 @@
 // scaling: max 1600
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): string {
-        array<string> $lines = ["<?nvs", "class Base {", "    public static function price(int \$x): int {", "        return \$x * 2;", "    }", "}"];
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        array<string> $lines = ['<?nvs', 'class Base {', "    public static function price(int \$x): int {", "        return \$x * 2;", '    }', '}'];
         uint $i = 0;
         while ($i < $size) {
             $lines[] = "class Item{$i} {";
             $lines[] = "    public static function total(int \$x): int {";
             $lines[] = "        return Base::price(\$x) + {$i};";
-            $lines[] = "    }";
-            $lines[] = "}";
+            $lines[] = '    }';
+            $lines[] = '}';
             $i = $i + 1;
         }
         $lines[] = "echo Base::pr<|>ice(1), \"\\n\";";

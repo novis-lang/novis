@@ -2,8 +2,10 @@
 // Shows which `catch` arm takes a failed assertion. `Core\Test\Failure` is not
 // a `RuntimeError`.
 
-class Cart {
-    public static function total(array<int> $prices): int {
+class Cart
+{
+    public static function total(array<int> $prices): int
+    {
         int $sum = 0;
         foreach ($prices as int $price) {
             $sum = $sum + $price;

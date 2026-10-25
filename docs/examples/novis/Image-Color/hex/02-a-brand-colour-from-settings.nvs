@@ -5,7 +5,7 @@ use Novis\Image\Format;
 use Novis\Image\Image;
 
 // The colour as it might be stored in a setting or a style sheet.
-string $brand = "#2a6f97";
+string $brand = '#2a6f97';
 
 // A new PNG image of 64 by 64 pixels in that colour.
 bytes $png = Image::create(64, 64, Color::hex($brand))->format(Format::Png)->encode();

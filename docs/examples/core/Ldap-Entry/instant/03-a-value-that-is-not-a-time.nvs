@@ -2,13 +2,13 @@
 // Shows what `instant` does with a value that is not a time.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Ben Kohl,OU=Company,DC=example,DC=test", {select: ["department"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Ben Kohl,OU=Company,DC=example,DC=test', { select: ['department'] });
 
 if ($person != null) {
     // `department` is the text `Warehouse`. `instant` throws a `LogicError` that names the attribute.
     try {
-        echo $person->instant("department")?->toIso() ?? "no time", "\n";
+        echo $person->instant('department')?->toIso() ?? 'no time', "\n";
     } catch (LogicError $error) {
         echo $error->message, "\n";
     }

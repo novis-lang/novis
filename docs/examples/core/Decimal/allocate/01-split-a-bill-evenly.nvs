@@ -15,4 +15,4 @@ foreach (Core\Decimal::allocate($bill, $evenly) as decimal $part) {
 }
 
 // This prints 20.05. The cent that does not divide went to the first person.
-echo "total: ", $paid, "\n";
+echo 'total: ', $paid, "\n";

@@ -4,7 +4,7 @@ namespace Novis\Pdf;
 /// One page of a document. `Document::render` calls a header or footer function once for each page, with that page's `Page`.
 final class Page
 {
-    type Named = {name: string, value: string};
+    type Named = { name: string, value: string };
 
     /// `new Page` makes a page from its values. `Document::render` makes one for you.
     /// `marks` has the `data-mark` values of every page of the document, one list for each page.
@@ -14,7 +14,8 @@ final class Page
         public readonly ?string $name,
         private readonly array<Named> $strings,
         private readonly array<array<Named>> $marks,
-    ) {}
+    )
+    {}
 
     /// `isFirst` returns `true` on the first page.
     public function isFirst(): bool

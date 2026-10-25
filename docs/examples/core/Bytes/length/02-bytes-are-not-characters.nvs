@@ -2,7 +2,7 @@
 // Shows the difference between bytes and characters. The text here is written
 // in UTF-8, where some letters need more than one byte.
 
-string $word = "Größe";
+string $word = 'Größe';
 
 // `Core\Str::length` counts what a person sees. This prints 5.
 echo Core\Str::length($word), "\n";

@@ -3,9 +3,11 @@
 // bench: iterations 400000
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $types = ["text/csv", "text/plain; charset=utf-8", "application/x-ndjson"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $types = ['text/csv', 'text/plain; charset=utf-8', 'application/x-ndjson'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -18,5 +20,5 @@ class Bench {
     }
 }
 
-Core\Response\Stream $body = Core\Response::stream("text/plain; charset=utf-8");
+Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8');
 $body->write((Bench::run(400000) as string) . "\n");

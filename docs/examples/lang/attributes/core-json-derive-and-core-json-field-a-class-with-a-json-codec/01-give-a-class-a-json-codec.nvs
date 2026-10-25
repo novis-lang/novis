@@ -5,12 +5,14 @@
 use Core\Json;
 
 #[Core\Json\Derive]
-class Point {
+class Point
+{
     public int $x;
     public int $y;
 
     // Every property is a constructor parameter of the same name and type.
-    public function constructor(int $x, int $y) {
+    public function constructor(int $x, int $y)
+    {
         $this->x = $x;
         $this->y = $y;
     }
@@ -21,11 +23,13 @@ class Point {
 echo Json::encode(new Point(3, 4)), "\n";
 
 #[Core\Json\Derive]
-class Line {
+class Line
+{
     public Point $from;
     public Point $to;
 
-    public function constructor(Point $from, Point $to) {
+    public function constructor(Point $from, Point $to)
+    {
         $this->from = $from;
         $this->to = $to;
     }

@@ -12,32 +12,37 @@ use Core\Path;
 use Core\Test;
 use Core\Test\AfterEachTest;
 
-final class ScratchFileTest {
-    public string $file = "";
+final class ScratchFileTest
+{
+    public string $file = '';
 
-    public function constructor() {
-        string $folder = Config::get("io.temp_root") ?? "";
-        Test::assertTrue($folder != "");
+    public function constructor()
+    {
+        string $folder = Config::get('io.temp_root') ?? '';
+        Test::assertTrue($folder != '');
         $this->file = $folder;
     }
 
     #[Test]
-    public function itWritesAFile(): void {
-        $this->file = Path::join($this->file, "passed.txt");
+    public function itWritesAFile(): void
+    {
+        $this->file = Path::join($this->file, 'passed.txt');
         IO::write($this->file, "written by a passing test\n");
         Test::assertTrue(IO::exists($this->file));
     }
 
     #[Test]
-    public function itWritesAFileAndFails(): void {
-        $this->file = Path::join($this->file, "failed.txt");
+    public function itWritesAFileAndFails(): void
+    {
+        $this->file = Path::join($this->file, 'failed.txt');
         IO::write($this->file, "written by a failing test\n");
         Test::assertTrue(IO::exists($this->file));
         Test::assertSame(1, 2);
     }
 
     #[AfterEachTest]
-    public function removeTheFile(): void {
+    public function removeTheFile(): void
+    {
         IO::remove($this->file);
         Test::assertTrue(!IO::exists($this->file));
     }

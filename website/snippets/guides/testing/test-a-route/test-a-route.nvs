@@ -3,26 +3,32 @@
 use Core\Http\Method;
 use Core\Test;
 
-class Shop {
-    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+class Shop
+{
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get, name: 'Shop::product')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function product(uint $id): void {
-        echo "product ", $id;
+    public function product(uint $id): void
+    {
+        echo 'product ', $id;
     }
 }
 
 // The gate checks each request before a route method runs, and it writes the error pages.
-class Gate implements Core\Router\Gate {
-    public function allows(Core\Router\Match $route): bool {
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
         return $route->accessAs<Core\Audience>() == Core\Audience::Public;
     }
 
-    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
-        echo "not found";
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'not found';
     }
 
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
-        echo "something went wrong";
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'something went wrong';
     }
 }
 
@@ -31,11 +37,11 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Router::dispatch(new Gate());
 } else {
     // From the command line, this part runs. It sends two requests and checks each response.
-    var $found = Test::request(Method::Get, "/products/7");
+    var $found = Test::request(Method::Get, '/products/7');
     Test::assertEquals($found->status(), 200);
-    Test::assertSame($found->body(), "product 7");
+    Test::assertSame($found->body(), 'product 7');
 
-    var $missing = Test::request(Method::Get, "/basket");
+    var $missing = Test::request(Method::Get, '/basket');
     Test::assertEquals($missing->status(), 404);
 
     echo "both pages return the right status\n";

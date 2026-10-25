@@ -9,4 +9,4 @@ var $footer = fn(Page $page): Core\Html\Markup => html`<p>Page {$page->number} o
 var $page = new Page(2, 5, null, [], []);
 
 // This prints `<p>Page 2 of 5</p>`.
-echo Core\Html::toSource($footer($page), "the example prints the markup"), "\n";
+echo Core\Html::toSource($footer($page), 'the example prints the markup'), "\n";

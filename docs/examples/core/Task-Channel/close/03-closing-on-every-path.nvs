@@ -12,9 +12,9 @@ var $lines = new Core\Task\Channel<string>(2);
 
 Core\Task::all({
     read: fn(): int => {
-        array<string> $input = ["alice,3", "bob,5", "", "carol,2"];
+        array<string> $input = ['alice,3', 'bob,5', '', 'carol,2'];
         foreach ($input as string $line) {
-            if ($line == "") {
+            if ($line == '') {
                 // The empty line ends the input. The channel is closed here too.
                 $lines->close();
                 return 0;
@@ -33,4 +33,4 @@ Core\Task::all({
 });
 
 // This prints 2, because the empty third line ended the input.
-echo "rows: ", Report::$rows, "\n";
+echo 'rows: ', Report::$rows, "\n";

@@ -3,8 +3,10 @@
 // bench: iterations 20000
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Html\Markup> $pages = [
             html`<p>Your order is on its way.</p>`,
             html`<p>Your basket is empty.</p>`,

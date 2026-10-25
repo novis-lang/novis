@@ -4,16 +4,16 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
 string $html = "<html lang=\"en\"><head><title>Certificate</title>"
-    . "<style>@page { size: A4 landscape } body { text-align: center }</style></head>"
-    . "<body><h1>Certificate</h1><p>Ada Lovelace finished the course Bookkeeping for Shops.</p></body></html>";
+    . '<style>@page { size: A4 landscape } body { text-align: center }</style></head>'
+    . '<body><h1>Certificate</h1><p>Ada Lovelace finished the course Bookkeeping for Shops.</p></body></html>';
 
 // PDF/A needs a creation time, so the program sets one with `created`.
 var $rendered = Document::fromHtml($html)
     ->standard(Document::Standard::PdfA2b)
-    ->created(Core\Time::fromIso("2026-03-01T09:00:00Z"))
+    ->created(Core\Time::fromIso('2026-03-01T09:00:00Z'))
     ->render();
 
 // This prints the page count and the title in the file.
 var $reader = Reader::open($rendered->bytes);
 echo $reader->pageCount, " page\n";
-echo $reader->metadata->title ?? "no title", "\n";
+echo $reader->metadata->title ?? 'no title', "\n";

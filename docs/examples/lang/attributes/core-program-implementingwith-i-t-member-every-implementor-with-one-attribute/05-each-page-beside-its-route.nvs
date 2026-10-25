@@ -2,34 +2,41 @@
 // Shows how to read the path of each page's `#[Core\Route]`, so each path is
 // written only once.
 
-interface Page {
+interface Page
+{
     public function render(): string;
 }
 
-class Index implements Page {
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "index")]
+class Index implements Page
+{
+    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'index')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function render(): string {
-        return "home";
+    public function render(): string
+    {
+        return 'home';
     }
 }
 
-class Contact implements Page {
-    #[Core\Route(path: "/contact", method: Core\Http\Method::Get, name: "contact")]
+class Contact implements Page
+{
+    #[Core\Route(path: '/contact', method: Core\Http\Method::Get, name: 'contact')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function render(): string {
-        return "contact us";
+    public function render(): string
+    {
+        return 'contact us';
     }
 }
 
-class Draft implements Page {
-    public function render(): string {
-        return "not routed";
+class Draft implements Page
+{
+    public function render(): string
+    {
+        return 'not routed';
     }
 }
 
 // `Draft` has no route, so its `attribute` is `null`.
 // This prints `/contact -> contact us` first, because `Contact` comes first.
-foreach (Core\Program::implementingWith<Page, {path: string}>("render") as {instance: Page, attribute: ?{path: string}} $row) {
-    echo $row->attribute?->path ?? "(no route)", " -> ", $row->instance->render(), "\n";
+foreach (Core\Program::implementingWith<Page, { path: string }>('render') as { instance: Page, attribute: ?{ path: string } } $row) {
+    echo $row->attribute?->path ?? '(no route)', ' -> ', $row->instance->render(), "\n";
 }

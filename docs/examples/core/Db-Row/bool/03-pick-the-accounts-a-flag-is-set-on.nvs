@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table accounts (email text not null, newsletter int not null, verified int not null)', []);
 $db->execute(
     'insert into accounts (email, newsletter, verified) values (?, ?, ?), (?, ?, ?), (?, ?, ?)',
-    ['ana@example.com', 1, 1, 'bo@example.com', 1, 0, 'cy@example.com', 0, 1]
+    ['ana@example.com', 1, 1, 'bo@example.com', 1, 0, 'cy@example.com', 0, 1],
 );
 
 // `bool` reads a whole number column holding 0 or 1 as a truth value. An

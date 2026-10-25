@@ -2,24 +2,28 @@
 // Shows how the lifetime a token endpoint reports becomes the lifetime of the
 // entry, so the program never guesses how long its token lasts.
 
-class Login {
-    public secret string $token = "";
+class Login
+{
+    public secret string $token = '';
 
     // The number of seconds the endpoint said the token is good for.
     public uint $expiresIn = 0;
 }
 
-class Service {
+class Service
+{
     // A real program sends a request here and reads the answer. An OAuth token
     // endpoint reports the lifetime in a field called `expires_in`.
-    public static function login(): Login {
+    public static function login(): Login
+    {
         var $answer = new Login();
-        $answer->token = "at-7f3c9b21";
+        $answer->token = 'at-7f3c9b21';
         $answer->expiresIn = 3600;
         return $answer;
     }
 
-    public static function entry(): Core\Cache\SecretEntry {
+    public static function entry(): Core\Cache\SecretEntry
+    {
         var $answer = Service::login();
 
         // Ninety seconds are taken off, so the token is replaced before it runs
@@ -37,12 +41,12 @@ var $fill = fn (): Core\Cache\SecretEntry => Service::entry();
 
 // The first call logs in and stores the token for the time the endpoint
 // reported. This prints the token is ready.
-var $token = $cache->getSecret("service-token", $keys, {fill: $fill});
-echo $token == null ? "the token is missing" : "the token is ready", "\n";
+var $token = $cache->getSecret('service-token', $keys, { fill: $fill });
+echo $token == null ? 'the token is missing' : 'the token is ready', "\n";
 
 // Every later call in this process reads that entry. This prints the same
 // token came back.
-var $again = $cache->getSecret("service-token", $keys, {fill: $fill});
-echo ($again ?? "") == ($token ?? "-")
-    ? "the same token came back"
-    : "another token came back", "\n";
+var $again = $cache->getSecret('service-token', $keys, { fill: $fill });
+echo ($again ?? '') == ($token ?? '-')
+    ? 'the same token came back'
+    : 'another token came back', "\n";

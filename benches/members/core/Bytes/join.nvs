@@ -5,11 +5,13 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<bytes> $parts = ["id=" as bytes, "1042" as bytes, "&status=paid" as bytes];
-        bytes $short = "&" as bytes;
-        bytes $long = "&&" as bytes;
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<bytes> $parts = ['id=' as bytes, '1042' as bytes, '&status=paid' as bytes];
+        bytes $short = '&' as bytes;
+        bytes $long = '&&' as bytes;
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

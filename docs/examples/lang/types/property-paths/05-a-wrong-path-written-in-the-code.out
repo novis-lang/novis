@@ -1,7 +1,7 @@
 error[E0405]: `Customer` has no public property `$nme`
-   --> 05-a-wrong-path-written-in-the-code.nvs:24:31
+   --> 05-a-wrong-path-written-in-the-code.nvs:29:31
    |
-24 | echo Report::sortBy("customer.nme"), "\n";
+29 | echo Report::sortBy('customer.nme'), "\n";
    |                               ^^^ this part of the path is checked here
    = help: each part of a property path names a public property of the class the path has reached: `Customer` has `$name`
 

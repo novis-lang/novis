@@ -15,7 +15,7 @@ float $total = 0.0;
 while ($next < Core\Arr::count($todo)) {
     Core\Xml\Node $node = $todo[$next];
     $next = $next + 1;
-    if ($node->name() == "price") {
+    if ($node->name() == 'price') {
         foreach ($node->children() as Core\Xml\Node $text) {
             $total = $total + ($text->text() as ?float ?? 0.0);
         }

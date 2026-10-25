@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table orders (label text not null, status text not null)', []);
 $db->execute(
     'insert into orders (label, status) values (?, ?), (?, ?), (?, ?), (?, ?)',
-    ['one tea', 'paid', 'two coffees', 'open', 'a sandwich', 'paid', 'a cake', 'sent']
+    ['one tea', 'paid', 'two coffees', 'open', 'a sandwich', 'paid', 'a cake', 'sent'],
 );
 
 // Every key of this array is a status, and every value is a count.

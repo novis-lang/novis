@@ -1,15 +1,23 @@
 <?nvs
+use Novis\Image\Format;
 // Finds the file extension of a format, as a program does when it names a stored image.
 // bench: iterations 400000
 // bench: complexity constant
 use Novis\Image\Image;
-use Novis\Image\Format;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Format> $formats = [
-            Format::Jpeg, Format::Png, Format::Webp, Format::Gif,
-            Format::Avif, Format::Jxl, Format::Svg, Format::Pdf,
+            Format::Jpeg,
+            Format::Png,
+            Format::Webp,
+            Format::Gif,
+            Format::Avif,
+            Format::Jxl,
+            Format::Svg,
+            Format::Pdf,
         ];
         uint $total = 0;
         uint $i = 0;

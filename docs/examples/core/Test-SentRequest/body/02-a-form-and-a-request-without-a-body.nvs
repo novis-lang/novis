@@ -4,9 +4,9 @@
 use Core\Http\Client;
 use Core\Test;
 
-Test::answerHttp("https://api.example.com/*", 200);
-Client::post("https://api.example.com/login", {form: ["user" => "ada", "note" => "a b"]});
-Client::get("https://api.example.com/home");
+Test::answerHttp('https://api.example.com/*', 200);
+Client::post('https://api.example.com/login', { form: ['user' => 'ada', 'note' => 'a b'] });
+Client::get('https://api.example.com/home');
 
 // A form body is encoded text. This prints `user=ada&note=a+b`.
 echo Test::sentHttp()[0]->body() as string, "\n";

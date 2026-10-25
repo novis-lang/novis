@@ -4,13 +4,15 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: the value set this round depends on last round's total.
-            Core\Metrics::gauge("jobs_waiting", ($total % 100) as float);
+            Core\Metrics::gauge('jobs_waiting', ($total % 100) as float);
             $total = $total + $i % 7;
             $i = $i + 1;
         }

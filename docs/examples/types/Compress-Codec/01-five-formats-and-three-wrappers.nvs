@@ -3,14 +3,16 @@
 // few bytes around it. This program compresses one text with each of them and
 // prints the difference in size.
 
-class Format {
-    public static function name(Core\Compress::Codec $codec): string {
+class Format
+{
+    public static function name(Core\Compress::Codec $codec): string
+    {
         return match ($codec) {
-            Core\Compress::Codec::Gzip => "Gzip",
-            Core\Compress::Codec::Zlib => "Zlib",
-            Core\Compress::Codec::Deflate => "Deflate",
-            Core\Compress::Codec::Brotli => "Brotli",
-            Core\Compress::Codec::Zstd => "Zstd",
+            Core\Compress::Codec::Gzip => 'Gzip',
+            Core\Compress::Codec::Zlib => 'Zlib',
+            Core\Compress::Codec::Deflate => 'Deflate',
+            Core\Compress::Codec::Brotli => 'Brotli',
+            Core\Compress::Codec::Zstd => 'Zstd',
         };
     }
 }
@@ -23,8 +25,8 @@ uint $gzip = Core\Bytes::length(Core\Compress::compress($payload, Core\Compress:
 uint $zlib = Core\Bytes::length(Core\Compress::compress($payload, Core\Compress::Codec::Zlib));
 
 echo "Deflate is the stream with nothing around it\n";
-echo "Gzip is that same stream plus ", $gzip - $bare, " octets\n";
-echo "Zlib is that same stream plus ", $zlib - $bare, " octets\n";
+echo 'Gzip is that same stream plus ', $gzip - $bare, " octets\n";
+echo 'Zlib is that same stream plus ', $zlib - $bare, " octets\n";
 
 // Brotli and Zstd are different compression algorithms. With each of the five
 // codecs, `decompress` returns exactly the original bytes.
@@ -38,9 +40,9 @@ array<Core\Compress::Codec> $codecs = [
 
 foreach ($codecs as Core\Compress::Codec $codec) {
     bytes $frame = Core\Compress::compress($payload, $codec);
-    echo Format::name($codec), ": ",
+    echo Format::name($codec), ': ',
         Core\Hash::equals(Core\Compress::decompress($frame, $codec), $payload)
-            ? "reads back"
-            : "differs",
+            ? 'reads back'
+            : 'differs',
         "\n";
 }

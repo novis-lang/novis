@@ -5,7 +5,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table people (name text not null, nickname text)', []);
 $db->execute(
     'insert into people (name, nickname) values (?, ?), (?, ?)',
-    ['Ada', 'Addy', 'Bo', null]
+    ['Ada', 'Addy', 'Bo', null],
 );
 
 foreach ($db->query('select name, nickname from people order by name', []) as Core\Db\Row $row) {

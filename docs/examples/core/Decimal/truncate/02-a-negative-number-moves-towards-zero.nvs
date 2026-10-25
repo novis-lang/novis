@@ -11,4 +11,4 @@ foreach ($values as decimal $value) {
 
 // `Core\Decimal::floor` moves towards the smaller number and
 // `Core\Decimal::ceil` towards the larger one. For -2.7 this prints -3 and -2.
-echo Core\Decimal::floor(-2.7), " ", Core\Decimal::ceil(-2.7), "\n";
+echo Core\Decimal::floor(-2.7), ' ', Core\Decimal::ceil(-2.7), "\n";

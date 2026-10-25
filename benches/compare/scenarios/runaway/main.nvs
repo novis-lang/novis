@@ -1,16 +1,16 @@
 <?nvs
 // Loops forever for `/loop`, and adds 1 MiB to an array forever for `/alloc`.
 // Every other path prints `ok`.
-if (Core\Request::path() == "/loop") {
+if (Core\Request::path() == '/loop') {
     int $turns = 0;
     while (true) {
         $turns = $turns + 1;
     }
 }
-if (Core\Request::path() == "/alloc") {
+if (Core\Request::path() == '/alloc') {
     array<string> $chunks = [];
     while (true) {
-        $chunks[] = Core\Str::repeat("x", 1048576);
+        $chunks[] = Core\Str::repeat('x', 1048576);
     }
 }
 echo "ok\n";

@@ -3,22 +3,27 @@
 // so it walks any class that can be walked and never needs to know how the cart stores
 // its items.
 
-class Item {
+class Item
+{
     public function constructor(
         public string $name,
         public int $cents,
         public int $quantity,
-    ) {}
+    )
+    {}
 }
 
-class Cart implements Iterable<Item> {
+class Cart implements Iterable<Item>
+{
     private array<Item> $items = [];
 
-    public function add(Item $item): void {
+    public function add(Item $item): void
+    {
         $this->items[] = $item;
     }
 
-    public function iterate(): Iterator<Item> {
+    public function iterate(): Iterator<Item>
+    {
         // `var $item` is an `Item`, because `$this->items` is an `array<Item>`.
         foreach ($this->items as var $item) {
             yield $item;
@@ -26,8 +31,10 @@ class Cart implements Iterable<Item> {
     }
 }
 
-class Checkout {
-    public static function total(Iterable<Item> $items): int {
+class Checkout
+{
+    public static function total(Iterable<Item> $items): int
+    {
         int $cents = 0;
         foreach ($items as Item $item) {
             $cents = $cents + $item->cents * $item->quantity;
@@ -37,8 +44,8 @@ class Checkout {
 }
 
 var $cart = new Cart();
-$cart->add(new Item("Coffee", 749, 2));
-$cart->add(new Item("Filter", 399, 1));
+$cart->add(new Item('Coffee', 749, 2));
+$cart->add(new Item('Filter', 399, 1));
 
 // This prints 1897, the price of the whole cart in cents.
 echo Checkout::total($cart), "\n";

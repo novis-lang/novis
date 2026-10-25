@@ -4,9 +4,9 @@ use Novis\Image\Barcode;
 use Novis\Image\Image;
 
 // `text: true` adds the number as a `<text>` element under the bars.
-string $code = Barcode::svg("4006381333931", Barcode::Symbology::Ean13, {height: 50, text: true});
-echo Core\Str::contains($code, ">4006381333931</text>") ? "the number is under the bars" : "no number", "\n";
+string $code = Barcode::svg('4006381333931', Barcode::Symbology::Ean13, { height: 50, text: true });
+echo Core\Str::contains($code, '>4006381333931</text>') ? 'the number is under the bars' : 'no number', "\n";
 
 // The SVG also opens as an image. This prints its size in pixels.
 var $image = Image::open($code as bytes)->raw();
-echo $image->width, " by ", $image->height, " pixels\n";
+echo $image->width, ' by ', $image->height, " pixels\n";

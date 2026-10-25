@@ -4,14 +4,16 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: the amount added this round depends on last round's total.
             uint $by = $total % 3 + 1;
-            Core\Metrics::increment("orders_total", {by: $by});
+            Core\Metrics::increment('orders_total', { by: $by });
             $total = $total + $by;
             $i = $i + 1;
         }

@@ -7,7 +7,8 @@ use Core\Math;
 
 // Draws the charts of the pages as SVG inside the HTML. The page needs no script and no image file.
 // The stylesheet `/style.css` sets the colors.
-final class Charts {
+final class Charts
+{
     private const int WIDTH = 600;
     private const int HEIGHT = 200;
     private const int ROW = 24;
@@ -15,7 +16,8 @@ final class Charts {
     private const int BAR_WIDTH = 360;
 
     // A line with one point for each week. The points of the weeks in `$arriving` are drawn hollow.
-    public static function line(string $title, array<Count> $weeks, array<string> $arriving): Markup {
+    public static function line(string $title, array<Count> $weeks, array<string> $arriving): Markup
+    {
         int $count = Arr::count($weeks) as int;
         if ($count == 0) {
             return html`<p>No reports have arrived yet.</p>`;
@@ -24,7 +26,7 @@ final class Charts {
         // The line uses the space between y = 20 and y = 170. The labels go below it.
         int $top = 20;
         int $bottom = 170;
-        string $path = "";
+        string $path = '';
         var $dots = html``;
         int $i = 0;
         foreach ($weeks as Count $week) {
@@ -32,7 +34,7 @@ final class Charts {
             int $y = $bottom - Math::intDiv($week->value * ($bottom - $top), $max);
             $i = $i + 1;
             $path = $path . "{$x},{$y} ";
-            string $class = Pages::isArriving($arriving, $week->label) ? "arriving" : "final";
+            string $class = Pages::isArriving($arriving, $week->label) ? 'arriving' : 'final';
             tainted string $label = $week->label;
             int $value = $week->value;
             $dots = $dots + html`<circle class="{$class}" cx="{$x}" cy="{$y}" r="4"><title>{$label}: {$value}</title></circle>`;
@@ -54,7 +56,8 @@ final class Charts {
     }
 
     // A list of horizontal bars, one for each count. The longest bar is the largest count.
-    public static function bars(string $title, array<Count> $counts): Markup {
+    public static function bars(string $title, array<Count> $counts): Markup
+    {
         int $count = Arr::count($counts) as int;
         if ($count == 0) {
             return html`<p>None in this week.</p>`;
@@ -82,7 +85,8 @@ final class Charts {
 {$rows}</svg>`;
     }
 
-    private static function largest(array<Count> $counts): int {
+    private static function largest(array<Count> $counts): int
+    {
         int $max = 0;
         foreach ($counts as Count $item) {
             $max = Math::max($max, $item->value);

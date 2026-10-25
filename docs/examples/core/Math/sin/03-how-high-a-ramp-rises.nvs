@@ -1,11 +1,13 @@
 <?nvs
 // Shows how a building tool finds how high a ramp rises.
 
-class Ramp {
+class Ramp
+{
     // The height is the length of the ramp times the sine of its angle.
-    public static function rise(float $meters, float $angleDegrees): float {
+    public static function rise(float $meters, float $angleDegrees): float
+    {
         float $height = $meters * Core\Math::sin(Core\Math::toRadians($angleDegrees));
-        return Core\Math::round($height, {precision: 2});
+        return Core\Math::round($height, { precision: 2 });
     }
 }
 

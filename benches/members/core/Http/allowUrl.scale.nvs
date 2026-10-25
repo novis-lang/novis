@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $url = "https://203.0.113.10/" . Core\Str::repeat("a", $size);
+        string $url = 'https://203.0.113.10/' . Core\Str::repeat('a', $size);
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

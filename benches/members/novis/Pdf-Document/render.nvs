@@ -4,19 +4,23 @@
 // bench: complexity linear
 use Novis\Pdf\Document;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             string $quantity = (1 + $total % 3) as string;
-            string $html = "<style>@page { size: A4; margin: 20mm } td { padding: 2mm }</style>"
-                . "<h1>Invoice 1024</h1><p>Shop, 1 Example Street</p>"
-                . "<table><thead><tr><th>Item</th><th>Quantity</th><th>Price</th></tr></thead><tbody>"
-                . "<tr><td>Tea</td><td>" . $quantity . "</td><td>2.50 EUR</td></tr>"
-                . "<tr><td>Coffee</td><td>1</td><td>4.00 EUR</td></tr>"
-                . "<tr><td>Cake</td><td>2</td><td>3.20 EUR</td></tr>"
-                . "</tbody></table><p>Thank you for your order.</p>";
+            string $html = '<style>@page { size: A4; margin: 20mm } td { padding: 2mm }</style>'
+                . '<h1>Invoice 1024</h1><p>Shop, 1 Example Street</p>'
+                . '<table><thead><tr><th>Item</th><th>Quantity</th><th>Price</th></tr></thead><tbody>'
+                . '<tr><td>Tea</td><td>'
+                . $quantity
+                . '</td><td>2.50 EUR</td></tr>'
+                . '<tr><td>Coffee</td><td>1</td><td>4.00 EUR</td></tr>'
+                . '<tr><td>Cake</td><td>2</td><td>3.20 EUR</td></tr>'
+                . '</tbody></table><p>Thank you for your order.</p>';
             $total = $total + Document::fromHtml($html)->render()->pageCount;
             $i = $i + 1;
         }

@@ -5,8 +5,10 @@
 // bench: calls 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<bytes> $frames = [
             Core\Compress::compress('{"id":1042,"city":"Berlin","state":"shipped"}', Core\Compress::Codec::Zstd),
             Core\Compress::compress('{"id":1043,"city":"Lisbon","state":"packed"}', Core\Compress::Codec::Zstd),

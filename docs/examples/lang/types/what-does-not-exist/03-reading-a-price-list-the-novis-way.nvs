@@ -1,14 +1,16 @@
 <?nvs
 // Shows a program that reads a price list with `as`, `Core\Str::split` and `Core\Str::compare`.
 
-class PriceList {
-    public static function summarise(array<string> $lines): string {
+class PriceList
+{
+    public static function summarise(array<string> $lines): string
+    {
         int $total = 0;
-        string $firstName = "";
+        string $firstName = '';
 
         foreach ($lines as string $line) {
             // This takes the array apart. Each variable has its own type.
-            [string $name, string $amount] = Core\Str::split($line, ",");
+            [string $name, string $amount] = Core\Str::split($line, ',');
 
             // For text that is not a number, the result is `null`.
             // So the line "plums,not a price" is skipped.
@@ -19,13 +21,13 @@ class PriceList {
             $total = $total + $price;
 
             // `Core\Str::compare` orders two strings. It is less than 0 when `$name` comes first.
-            if ($firstName == "" || Core\Str::compare($name, $firstName) < 0) {
+            if ($firstName == '' || Core\Str::compare($name, $firstName) < 0) {
                 $firstName = $name;
             }
         }
 
-        return "total " . ($total as string) . ", first name " . $firstName;
+        return 'total ' . ($total as string) . ', first name ' . $firstName;
     }
 }
 
-echo PriceList::summarise(["pears,220", "apples,150", "plums,not a price"]), "\n";
+echo PriceList::summarise(['pears,220', 'apples,150', 'plums,not a price']), "\n";

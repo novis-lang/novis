@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $label = Core\Str::repeat("a" . Core\Str::fromCodePoint(27), $size);
+        string $label = Core\Str::repeat('a' . Core\Str::fromCodePoint(27), $size);
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

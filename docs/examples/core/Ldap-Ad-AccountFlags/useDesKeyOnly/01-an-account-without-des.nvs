@@ -2,10 +2,10 @@
 // Shows that `useDesKeyOnly` returns `false` for an account that uses modern keys.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `des only: false`.
-    echo "des only: ", $flags->useDesKeyOnly() ? "true" : "false", "\n";
+    echo 'des only: ', $flags->useDesKeyOnly() ? 'true' : 'false', "\n";
 }

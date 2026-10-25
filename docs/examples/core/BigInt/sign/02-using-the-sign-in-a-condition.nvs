@@ -3,9 +3,9 @@
 // compare it directly.
 
 array<Core\BigInt> $balances = [
-    Core\BigInt::parse("-250000000000000000000"),
+    Core\BigInt::parse('-250000000000000000000'),
     Core\BigInt::of(0),
-    Core\BigInt::parse("120000000000000000000"),
+    Core\BigInt::parse('120000000000000000000'),
 ];
 
 // This prints "in debt", "empty" and "in credit".

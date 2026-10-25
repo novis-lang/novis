@@ -5,12 +5,12 @@
 use Geo\Atlas;
 
 // `main.txt` is in `data/geo/roads/`, so this prints one road.
-echo Atlas::read("main.txt");
+echo Atlas::read('main.txt');
 
 // `cities.txt` is in `data/geo/`. The extension may read that folder, but this program may not.
 // So the call throws a `RuntimeError`.
 try {
-    echo Atlas::read("../cities.txt");
+    echo Atlas::read('../cities.txt');
 } catch (RuntimeError $denied) {
     echo $denied->message, "\n";
 }

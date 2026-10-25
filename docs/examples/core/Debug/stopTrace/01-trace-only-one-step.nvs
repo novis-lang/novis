@@ -1,13 +1,16 @@
 <?nvs
 // Traces one step of a nightly job, and stops the trace before the next step.
 
-class Nightly {
-    public static function importOrders(): int {
+class Nightly
+{
+    public static function importOrders(): int
+    {
         return 12;
     }
 
-    public static function sendReport(int $orders): string {
-        return "report: " . $orders . " orders";
+    public static function sendReport(int $orders): string
+    {
+        return 'report: ' . $orders . ' orders';
     }
 }
 
@@ -23,7 +26,7 @@ echo Nightly::sendReport($orders), "\n";
 // The file has no line for `sendReport`, because it ran after the stop.
 foreach (Core\IO::lines($file) as string $line) {
     var $call = Core\Json::decode($line) as array<mixed>;
-    echo "traced: ", $call["callee"] as string, "\n";
+    echo 'traced: ', $call['callee'] as string, "\n";
 }
 
 // This deletes the trace file, so the next run starts with an empty folder.

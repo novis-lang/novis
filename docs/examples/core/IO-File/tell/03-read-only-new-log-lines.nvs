@@ -2,14 +2,14 @@
 // Shows how to read only the lines that were added to a log file since the last time.
 // The program saves the position with `tell`, and later starts there with `seek`.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "events.log");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'events.log');
 Core\IO::write($path, "user 1 signed in\nuser 2 signed in\n");
 
 // The first run reads every line, then saves where it stopped.
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 ?string $line = $file->readLine();
 while ($line != null) {
-    echo "first run: ", $line, "\n";
+    echo 'first run: ', $line, "\n";
     $line = $file->readLine();
 }
 uint $saved = $file->tell();
@@ -23,7 +23,7 @@ $file = Core\IO::open($path, Core\IO::FileMode::Read);
 $file->seek($saved);
 $line = $file->readLine();
 while ($line != null) {
-    echo "next run: ", $line, "\n";
+    echo 'next run: ', $line, "\n";
     $line = $file->readLine();
 }
 $file->close();

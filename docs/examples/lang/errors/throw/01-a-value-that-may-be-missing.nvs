@@ -3,16 +3,18 @@
 // there. When it is missing, the `throw` on the right stops the method with an
 // error.
 
-final class Rows {
-    public static function email(array<string> $row): string {
+final class Rows
+{
+    public static function email(array<string> $row): string
+    {
         // `??` gives the value stored under `"email"`. If the row has no such
         // key, `throw` raises a `LogicError` and the method returns nothing.
-        return $row["email"] ?? throw new LogicError("the row has no email");
+        return $row['email'] ?? throw new LogicError('the row has no email');
     }
 }
 
-array<string> $complete = ["id" => "7", "email" => "ada@example.com"];
-array<string> $partial = ["id" => "8"];
+array<string> $complete = ['id' => '7', 'email' => 'ada@example.com'];
+array<string> $partial = ['id' => '8'];
 
 // This prints ada@example.com.
 echo Rows::email($complete), "\n";

@@ -1,12 +1,14 @@
 <?nvs
 // Shows how to turn a number of seconds into minutes and seconds, as a video player does.
 
-class Duration {
+class Duration
+{
     // `Core\Math::intDiv` counts the full minutes. The `%` operator gives the seconds left over.
-    public static function describe(int $seconds): void {
+    public static function describe(int $seconds): void
+    {
         int $minutes = Core\Math::intDiv($seconds, 60);
         int $rest = $seconds % 60;
-        echo $seconds, " seconds is ", $minutes, " minutes and ", $rest, " seconds\n";
+        echo $seconds, ' seconds is ', $minutes, ' minutes and ', $rest, " seconds\n";
     }
 }
 

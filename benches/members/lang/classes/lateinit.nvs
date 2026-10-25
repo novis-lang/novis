@@ -5,16 +5,20 @@
 // bench: allocations 0
 // bench: complexity constant
 
-final class Lazy implements LateInit {
+final class Lazy implements LateInit
+{
     public lateinit int $level;
 
-    public function initProperty(string $name): void {
+    public function initProperty(string $name): void
+    {
         $this->level = 1;
     }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         var $lazy = new Lazy();
         int $sum = 0;
         int $i = 0;

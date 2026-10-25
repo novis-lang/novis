@@ -4,17 +4,20 @@
 // importer going until the machine gave out. Instead the call is stopped, that
 // feed is written off, and the next one is still imported.
 
-class Feed {
+class Feed
+{
     // Stands in for the call to the supplier: it answers with the next cursor,
     // or with zero once the feed is finished.
-    public static function next(string $name, uint $cursor): uint {
-        if ($name == "orders" && $cursor == 3) {
+    public static function next(string $name, uint $cursor): uint
+    {
+        if ($name == 'orders' && $cursor == 3) {
             return 0;
         }
         return $cursor + 1;
     }
 
-    public static function import(string $name, uint $cursor): uint {
+    public static function import(string $name, uint $cursor): uint
+    {
         uint $next = Feed::next($name, $cursor);
         if ($next == 0) {
             return 1;
@@ -23,12 +26,12 @@ class Feed {
     }
 }
 
-array<string> $feeds = ["orders", "prices"];
+array<string> $feeds = ['orders', 'prices'];
 
 foreach ($feeds as string $name) {
     try {
         uint $pages = Feed::import($name, 0);
-        echo $name, ": ", $pages, " pages imported\n";
+        echo $name, ': ', $pages, " pages imported\n";
     } catch (RecursionError $endless) {
         // Worth an alert to whoever owns the supplier, and no reason to stop.
         echo $name, ": the pages never end, so nothing was imported\n";

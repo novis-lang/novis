@@ -5,7 +5,7 @@
 var $memory = Core\Cache::memory();
 
 // Every cache returns `null` for a key that nothing wrote. This prints null.
-var $missing = $memory->get("never-written") ?? "null";
+var $missing = $memory->get('never-written') ?? 'null';
 echo $missing as string, "\n";
 
 // A shared store that the server cannot reach throws an error. Your program

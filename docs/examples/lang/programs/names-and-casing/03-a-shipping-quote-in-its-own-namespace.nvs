@@ -5,11 +5,13 @@
 
 namespace App\Billing;
 
-class ShippingQuote {
+class ShippingQuote
+{
     public const int FREE_OVER_CENTS = 5000;
     public const int FLAT_RATE_CENTS = 499;
 
-    public static function forOrder(int $totalCents): int {
+    public static function forOrder(int $totalCents): int
+    {
         if ($totalCents >= ShippingQuote::FREE_OVER_CENTS) {
             return 0;
         }
@@ -21,5 +23,5 @@ array<int> $baskets = [1200, 5000, 9900];
 
 foreach ($baskets as int $totalCents) {
     int $shippingCents = ShippingQuote::forOrder($totalCents);
-    echo "basket ", $totalCents, " ships for ", $shippingCents, "\n";
+    echo 'basket ', $totalCents, ' ships for ', $shippingCents, "\n";
 }

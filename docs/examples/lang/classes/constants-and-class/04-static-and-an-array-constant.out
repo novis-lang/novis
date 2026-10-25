@@ -1,7 +1,7 @@
 error[E0832]: `static::STEPS` reads `Retry::STEPS`, which is `array<int>` and has no scalar value
-   --> 04-static-and-an-array-constant.nvs:10:32
+   --> 04-static-and-an-array-constant.nvs:12:32
    |
-10 |         return Core\Arr::count(static::STEPS);
+12 |         return Core\Arr::count(static::STEPS);
    |                                ^^^^^^^^^^^^^ read through `static::`
    = help: a `static::` constant is read when the program runs, and only a `string`, `int`, `uint`, `bool` or `float` constant can be read that way. Write `self::` or the class name, or make the constant one of those types
 

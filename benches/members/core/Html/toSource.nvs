@@ -5,19 +5,21 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Html\Markup> $cards = [
-            Core\Html::escape("Tom & Jerry"),
-            Core\Html::escape("Ada Lovelace"),
-            Core\Html::escape("<b>Grace</b>"),
+            Core\Html::escape('Tom & Jerry'),
+            Core\Html::escape('Ada Lovelace'),
+            Core\Html::escape('<b>Grace</b>'),
         ];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The value read in each round is chosen by the round before, so no round can be left out.
             $total = $total + Core\Str::length(
-                Core\Html::toSource($cards[(($total + $i) % 3) as int], "measuring the stored card"),
+                Core\Html::toSource($cards[(($total + $i) % 3) as int], 'measuring the stored card'),
             );
             $i = $i + 1;
         }

@@ -2,8 +2,10 @@
 // Shows a `get` hook alone. The property stores nothing of its own. It works
 // its value out from the other properties every time it is read.
 
-class Cart {
-    public function constructor(public int $unitCents, public int $quantity) {}
+class Cart
+{
+    public function constructor(public int $unitCents, public int $quantity)
+    {}
 
     // `get => expr;` is short for `get { return expr; }`.
     public int $totalCents {

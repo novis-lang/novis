@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $names = ["report.csv", "logs/../exports/2026-09.csv"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $names = ['report.csv', 'logs/../exports/2026-09.csv'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -16,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "empty", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'empty', "\n";

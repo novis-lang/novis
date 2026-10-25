@@ -5,7 +5,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table orders (id uuid not null, label text not null)', []);
 $db->execute(
     'insert into orders (id, label) values (?, ?), (?, ?)',
-    ['3f2504e0-4f89-41d3-9a0c-0305e82c3301', 'one tea', 'b8c1a0de-2f7a-4d3b-8a91-6f1f2c7d4455', 'two coffees']
+    ['3f2504e0-4f89-41d3-9a0c-0305e82c3301', 'one tea', 'b8c1a0de-2f7a-4d3b-8a91-6f1f2c7d4455', 'two coffees'],
 );
 
 // `uuid` reads the named column as a `Core\Uuid`, and `toString` writes that id

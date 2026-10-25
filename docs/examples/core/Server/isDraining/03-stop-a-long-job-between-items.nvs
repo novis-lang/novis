@@ -1,7 +1,7 @@
 <?nvs
 // Shows a long job that stops between two items when the server shuts down.
 
-array<string> $invoices = ["INV-1001", "INV-1002", "INV-1003", "INV-1004"];
+array<string> $invoices = ['INV-1001', 'INV-1002', 'INV-1003', 'INV-1004'];
 uint $sent = 0;
 
 foreach ($invoices as string $invoice) {
@@ -10,7 +10,7 @@ foreach ($invoices as string $invoice) {
         echo "The server is shutting down. The next run sends the rest.\n";
         break;
     }
-    echo "Sent ", $invoice, "\n";
+    echo 'Sent ', $invoice, "\n";
     $sent = $sent + 1;
 }
 

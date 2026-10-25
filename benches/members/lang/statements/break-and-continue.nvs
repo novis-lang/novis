@@ -8,8 +8,10 @@
 // bench: calls 0
 // bench: complexity linear
 
-class Scan {
-    public static function run(int $rounds): int {
+class Scan
+{
+    public static function run(int $rounds): int
+    {
         array<int> $rows = [3, 8, 11, 4, 19, 6, 25, 7];
         int $acc = 1;
         int $i = 0;

@@ -10,4 +10,4 @@ if (Core\Arr::count($jobs) == 0) {
 }
 
 // This line never runs, because the `return` above ended the program.
-echo "running ", Core\Arr::count($jobs), " jobs\n";
+echo 'running ', Core\Arr::count($jobs), " jobs\n";

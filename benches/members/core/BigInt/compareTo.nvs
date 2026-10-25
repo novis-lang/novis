@@ -5,12 +5,14 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\BigInt> $amounts = [
-            Core\BigInt::parse("-123456789012345678901234567890"),
-            Core\BigInt::parse("123456789012345678901234567891"),
-            Core\BigInt::parse("123456789012345678901234567890"),
+            Core\BigInt::parse('-123456789012345678901234567890'),
+            Core\BigInt::parse('123456789012345678901234567891'),
+            Core\BigInt::parse('123456789012345678901234567890'),
         ];
         uint $total = 0;
         int $pick = 0;

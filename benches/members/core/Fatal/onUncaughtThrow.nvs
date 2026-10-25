@@ -6,8 +6,10 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         var $first = fn (Throwable $e): void => { echo "first\n"; };
         var $second = fn (Throwable $e): void => { echo "second\n"; };
         int $total = 0;

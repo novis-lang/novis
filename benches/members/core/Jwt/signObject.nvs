@@ -5,24 +5,28 @@
 // bench: complexity linear
 
 #[Core\Json\Derive]
-final class Access {
+final class Access
+{
     public string $sub;
     public array<string> $scopes;
 
-    public function constructor(string $sub, array<string> $scopes) {
+    public function constructor(string $sub, array<string> $scopes)
+    {
         $this->sub = $sub;
         $this->scopes = $scopes;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The claims in each round depend on the round before, so no round can be left out.
-            Access $access = new Access("user" . $total, ["orders:read"]);
+            Access $access = new Access('user' . $total, ['orders:read']);
             string $token = Core\Jwt::signObject($access, 1h, $pair);
             $total = $total + Core\Str::length($token);
             $i = $i + 1;

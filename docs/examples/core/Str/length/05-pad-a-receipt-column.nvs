@@ -3,9 +3,9 @@
 // prices line up whether the item name is plain ASCII or not.
 
 array<array<string>> $items = [
-    ["Espresso", "2.40"],
-    ["Café crème", "3.10"],
-    ["Brötchen", "1.20"],
+    ['Espresso', '2.40'],
+    ['Café crème', '3.10'],
+    ['Brötchen', '1.20'],
 ];
 
 uint $width = 0;
@@ -18,5 +18,5 @@ foreach ($items as array<string> $item) {
 
 foreach ($items as array<string> $item) {
     var $pad = $width - Core\Str::length($item[0]);
-    echo $item[0], Core\Str::repeat(" ", $pad), "  ", $item[1], "\n";
+    echo $item[0], Core\Str::repeat(' ', $pad), '  ', $item[1], "\n";
 }

@@ -1,7 +1,7 @@
 <?nvs
 // Shows that two generators with the same seed choose the same three values.
 
-array<string> $names = ["Ana", "Ben", "Chen", "Dara", "Emil", "Fay"];
+array<string> $names = ['Ana', 'Ben', 'Chen', 'Dara', 'Emil', 'Fay'];
 Core\Random\Seeded $first = new Core\Random\Seeded(42);
 Core\Random\Seeded $second = new Core\Random\Seeded(42);
 

@@ -3,17 +3,19 @@
 // so `sortBy` does not need to check its argument. For any other word, `as` throws
 // an error before the method is called.
 
-class Report {
-    public static function sortBy("newest"|"oldest"|"name" $order): string {
-        return "sorting by " . $order;
+class Report
+{
+    public static function sortBy("newest"|"oldest"|"name" $order): string
+    {
+        return 'sorting by ' . $order;
     }
 }
 
-array<string> $asked = ["newest", "name", "sideways"];
+array<string> $asked = ['newest', 'name', 'sideways'];
 foreach ($asked as string $one) {
     try {
         echo Report::sortBy($one as "newest"|"oldest"|"name"), "\n";
     } catch (Throwable $e) {
-        echo "not a sort order: ", $one, "\n";
+        echo 'not a sort order: ', $one, "\n";
     }
 }

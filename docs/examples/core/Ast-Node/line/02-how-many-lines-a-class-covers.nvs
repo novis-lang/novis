@@ -27,5 +27,5 @@ foreach (Core\Ast::parse($source)->children() as Core\Ast\Node $class) {
             $last = $node->line();
         }
     }
-    echo "lines ", $first, " to ", $last, "\n";
+    echo 'lines ', $first, ' to ', $last, "\n";
 }

@@ -4,10 +4,12 @@
 // bench: iterations 20
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         bytes $salt = Core\Bytes::fill(16, 65);
-        array<string> $passwords = ["correct horse battery staple", "hunter2 and then some"];
+        array<string> $passwords = ['correct horse battery staple', 'hunter2 and then some'];
         array<secret bytes> $known = [
             Core\Crypto::deriveKey($passwords[0], $salt, 100000),
             Core\Crypto::deriveKey($passwords[1], $salt, 100000),

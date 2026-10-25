@@ -3,13 +3,13 @@
 
 // Every character of a content type must be printable ASCII. `é` is not,
 // so `bytes` throws a `LogicError` and sends nothing.
-string $answer = "";
+string $answer = '';
 try {
-    Core\Response::bytes("Hello" as bytes, "text/plain; name=café");
-    $answer = "sent";
+    Core\Response::bytes('Hello' as bytes, 'text/plain; name=café');
+    $answer = 'sent';
 } catch (LogicError $error) {
     $answer = $error->message;
 }
 
 // This content type is allowed, so this body is sent. It prints the error message.
-Core\Response::bytes(($answer . "\n") as bytes, "text/plain; charset=utf-8");
+Core\Response::bytes(($answer . "\n") as bytes, 'text/plain; charset=utf-8');

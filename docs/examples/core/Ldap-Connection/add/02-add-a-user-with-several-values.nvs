@@ -2,9 +2,9 @@
 // Shows how to add a user account with a list of values and a DN as a value.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Bakery Add 2,DC=example,DC=test";
-string $person = "CN=Lena Vogt," . $unit;
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Bakery Add 2,DC=example,DC=test';
+string $person = 'CN=Lena Vogt,' . $unit;
 
 // A run that stopped early can leave the entries behind, so the program deletes them first.
 array<string> $leftovers = [$person, $unit];
@@ -14,23 +14,23 @@ foreach ($leftovers as string $left) {
     } catch (Core\Ldap\LdapError $missing) {
     }
 }
-$corp->add($unit, ["objectClass" => "organizationalUnit"]);
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
 
 // A list writes one value per element. A `Dn` is written as its text.
 $corp->add($person, [
-    "objectClass" => "user",
-    "sAMAccountName" => "lena.add",
-    "title" => "Baker",
-    "otherTelephone" => ["+43 1 555 0101", "+43 1 555 0102"],
-    "manager" => Core\Ldap\Dn::parse("CN=Anna Berg,OU=Company,DC=example,DC=test"),
+    'objectClass' => 'user',
+    'sAMAccountName' => 'lena.add',
+    'title' => 'Baker',
+    'otherTelephone' => ['+43 1 555 0101', '+43 1 555 0102'],
+    'manager' => Core\Ldap\Dn::parse('CN=Anna Berg,OU=Company,DC=example,DC=test'),
 ]);
 
 // This prints `Baker`, `2 phone numbers` and the DN of the manager.
-var $entry = $corp->read($person, {select: ["title", "otherTelephone", "manager"]});
+var $entry = $corp->read($person, { select: ['title', 'otherTelephone', 'manager'] });
 if ($entry != null) {
-    echo $entry->string("title") ?? "", "\n";
-    echo Core\Arr::count($entry->strings("otherTelephone") ?? []), " phone numbers\n";
-    echo $entry->string("manager") ?? "", "\n";
+    echo $entry->string('title') ?? '', "\n";
+    echo Core\Arr::count($entry->strings('otherTelephone') ?? []), " phone numbers\n";
+    echo $entry->string('manager') ?? '', "\n";
 }
 
 $corp->delete($person);

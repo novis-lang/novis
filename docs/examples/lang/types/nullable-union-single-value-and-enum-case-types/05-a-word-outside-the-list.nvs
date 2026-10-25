@@ -3,5 +3,5 @@
 // `"delete"` is not one of them, so this program does not compile.
 // proof: compile-error
 
-"read"|"write" $mode = "read";
-$mode = "delete";
+"read"|"write" $mode = 'read';
+$mode = 'delete';

@@ -2,24 +2,29 @@
 // Shows an interface that extends another one. A class that implements
 // `Titled` must write the methods of both interfaces.
 
-interface Named {
+interface Named
+{
     public function name(): string;
 }
 
-interface Titled extends Named {
+interface Titled extends Named
+{
     public function title(): string;
 }
 
-class Doc implements Titled {
-    public function name(): string {
-        return "doc";
+class Doc implements Titled
+{
+    public function name(): string
+    {
+        return 'doc';
     }
 
-    public function title(): string {
-        return "Doc";
+    public function title(): string
+    {
+        return 'Doc';
     }
 }
 
 // A `Doc` is a `Named` too. This prints `doc 1`.
 Named $n = new Doc();
-echo $n->name(), " ", ($n is Titled) as string, "\n";
+echo $n->name(), ' ', ($n is Titled) as string, "\n";

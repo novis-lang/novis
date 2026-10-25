@@ -4,7 +4,7 @@
   "languageTests": 3100,
   "rustTests": 7600,
   "examples": 4400,
-  "benchmarks": 1600,
+  "benchmarks": 1700,
   "editorTests": 550,
   "crates": 21,
   "cratesWithoutUnsafe": 14,

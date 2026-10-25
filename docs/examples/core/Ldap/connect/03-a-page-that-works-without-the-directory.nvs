@@ -2,15 +2,17 @@
 // Shows how a page can still show a name when the directory has no answer for it.
 // requires: samba-ad
 
-class People {
+class People
+{
     // Returns the full name of a person from the `[ldap.corp]` directory, or the login name.
     // The result is `tainted`, because a value from the directory comes from outside the program.
-    public static function displayName(string $login): tainted string {
+    public static function displayName(string $login): tainted string
+    {
         try {
-            var $corp = Core\Ldap::connect("corp");
-            var $people = $corp->search(Core\Ldap\Filter::equals("sAMAccountName", $login), {select: ["displayName"]});
+            var $corp = Core\Ldap::connect('corp');
+            var $people = $corp->search(Core\Ldap\Filter::equals('sAMAccountName', $login), { select: ['displayName'] });
             foreach ($people as Core\Ldap\Entry $person) {
-                return $person->string("displayName") ?? $login;
+                return $person->string('displayName') ?? $login;
             }
         } catch (Core\Ldap\LdapError $error) {
             // The directory did not answer. The login name below is the result.
@@ -20,6 +22,6 @@ class People {
 }
 
 // This prints `Hello, Anna Berg`.
-echo "Hello, ", People::displayName("anna.berg"), "\n";
+echo 'Hello, ', People::displayName('anna.berg'), "\n";
 // The directory has no person with this login, so this prints `Hello, guest`.
-echo "Hello, ", People::displayName("guest"), "\n";
+echo 'Hello, ', People::displayName('guest'), "\n";

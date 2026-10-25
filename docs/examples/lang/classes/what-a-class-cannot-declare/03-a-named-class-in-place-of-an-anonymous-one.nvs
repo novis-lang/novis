@@ -2,33 +2,41 @@
 // Shows a named class where PHP would write `new class { … }`. Novis has no
 // anonymous classes, so a one-off implementation of an interface gets a name.
 
-interface Notifier {
+interface Notifier
+{
     public function notify(string $text): string;
 }
 
 // This class is declared at the top level of the file, like every other class.
-class ConsoleNotifier implements Notifier {
-    public function notify(string $text): string {
-        return "console: " . $text;
+class ConsoleNotifier implements Notifier
+{
+    public function notify(string $text): string
+    {
+        return 'console: ' . $text;
     }
 }
 
 // A second one. A test uses this in place of the real notifier and then reads
 // what it collected.
-class RecordingNotifier implements Notifier {
-    public string $last = "";
+class RecordingNotifier implements Notifier
+{
+    public string $last = '';
 
-    public function notify(string $text): string {
+    public function notify(string $text): string
+    {
         $this->last = $text;
-        return "recorded: " . $text;
+        return 'recorded: ' . $text;
     }
 }
 
-class Job {
-    public function constructor(private Notifier $notifier) {}
+class Job
+{
+    public function constructor(private Notifier $notifier)
+    {}
 
-    public function run(): string {
-        return $this->notifier->notify("job finished");
+    public function run(): string
+    {
+        return $this->notifier->notify('job finished');
     }
 }
 

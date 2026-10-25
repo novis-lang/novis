@@ -1,7 +1,7 @@
 error[E0410]: `Child` extends another class, but a path through its constructor never calls `parent::constructor(...)`
-   --> 04-a-subclass-must-call-the-parent-constructor.nvs:11:21
+   --> 04-a-subclass-must-call-the-parent-constructor.nvs:14:21
    |
-11 |     public function constructor(public int $b) {}
+14 |     public function constructor(public int $b)
    |                     ^^^^^^^^^^^ missing call on some path
 
 error: aborting due to 1 error

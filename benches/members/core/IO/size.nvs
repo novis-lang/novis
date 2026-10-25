@@ -4,17 +4,19 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $dir = Core\IO::temporaryDir();
         array<string> $paths = [
-            Core\Path::join($dir, "small.txt"),
-            Core\Path::join($dir, "medium.txt"),
-            Core\Path::join($dir, "large.txt"),
+            Core\Path::join($dir, 'small.txt'),
+            Core\Path::join($dir, 'medium.txt'),
+            Core\Path::join($dir, 'large.txt'),
         ];
-        Core\IO::write($paths[0], "x");
-        Core\IO::write($paths[1], Core\Str::repeat("x", 100));
-        Core\IO::write($paths[2], Core\Str::repeat("x", 10000));
+        Core\IO::write($paths[0], 'x');
+        Core\IO::write($paths[1], Core\Str::repeat('x', 100));
+        Core\IO::write($paths[2], Core\Str::repeat('x', 10000));
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -26,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "every file was empty", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'every file was empty', "\n";

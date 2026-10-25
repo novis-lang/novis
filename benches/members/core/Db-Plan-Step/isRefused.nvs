@@ -6,8 +6,10 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $db = Core\Db::connect('notes');
         // A table the schema below does not name, beside a table it does: the
         // plan is one step to run and one step reported.

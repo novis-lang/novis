@@ -4,22 +4,28 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Controller {
-    public function home(): string {
-        return "home";
+class Controller
+{
+    public function home(): string
+    {
+        return 'home';
     }
 
-    protected function layout(): string {
-        return "layout";
+    protected function layout(): string
+    {
+        return 'layout';
     }
 
-    private function prices(): string {
-        return "prices";
+    private function prices(): string
+    {
+        return 'prices';
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\MethodInfo> $list = Core\Reflect::forObject(new Controller())->methods();
         uint $total = 0;
         uint $i = 0;

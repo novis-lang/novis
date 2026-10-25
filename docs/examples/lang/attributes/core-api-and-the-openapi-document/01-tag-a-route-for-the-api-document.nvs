@@ -4,14 +4,16 @@
 // this operation in a named group, so a reader finds it beside the other
 // invoice operations.
 
-class Invoices {
+class Invoices
+{
     // The `///` line below is the summary and the description of this operation.
     /// Show one invoice. Looks the invoice up by its number.
-    #[Core\Route(path: "/invoices/{number}", method: Core\Http\Method::Get, name: "Invoices::show")]
+    #[Core\Route(path: '/invoices/{number}', method: Core\Http\Method::Get, name: 'Invoices::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[Core\Api(tags: ["Invoices"])]
-    public function show(uint $number): string {
-        return "invoice " . $number;
+    #[Core\Api(tags: ['Invoices'])]
+    public function show(uint $number): string
+    {
+        return 'invoice ' . $number;
     }
 }
 

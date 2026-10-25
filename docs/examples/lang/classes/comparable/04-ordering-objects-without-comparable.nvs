@@ -3,7 +3,8 @@
 // not implement it, so this program does not compile.
 // proof: compile-error
 
-class Point {
+class Point
+{
     public int $x = 1;
 }
 

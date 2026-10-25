@@ -3,12 +3,14 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Core\Net\Datagram $socket = Core\Net::bindDatagram("127.0.0.1", 0);
+            Core\Net\Datagram $socket = Core\Net::bindDatagram('127.0.0.1', 0);
             // Each round adds the port it closed, so no round can be skipped.
             $total = $total + $socket->port() % 2;
             $socket->close();
@@ -18,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) <= 2000 ? "done" : "wrong", "\n";
+echo Bench::run(256) <= 2000 ? 'done' : 'wrong', "\n";

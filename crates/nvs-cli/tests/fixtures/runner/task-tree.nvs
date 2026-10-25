@@ -10,9 +10,11 @@
 use Core\Task;
 use Core\Test;
 
-final class TaskTreeTest {
+final class TaskTreeTest
+{
     #[Test]
-    public function itRunsInsideATaskOfTheRunners(): void {
+    public function itRunsInsideATaskOfTheRunners(): void
+    {
         var $answers = Task::all({
             first:  fn(): int => 1,
             second: fn(): int => 2,
@@ -21,7 +23,8 @@ final class TaskTreeTest {
     }
 
     #[Test]
-    public function itLeavesAnUnawaitedChildRunning(): void {
+    public function itLeavesAnUnawaitedChildRunning(): void
+    {
         var $orphan = spawn script 'task-tree-child.nvs';
         // The one assertion the ledger needs, so that the only thing this test
         // is reported for is the child it never awaited.

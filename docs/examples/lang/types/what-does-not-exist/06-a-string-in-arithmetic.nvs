@@ -3,9 +3,9 @@
 // Convert it with `as int`, and order two strings with `Core\Str::compare`.
 // proof: compile-error
 
-string $count = "3";
-string $name = "Ada";
+string $count = '3';
+string $name = 'Ada';
 int $double = $count * 2;
 bool $same = $count == 3;
-bool $first = $name < "Bob";
+bool $first = $name < 'Bob';
 string $initial = $name[0];

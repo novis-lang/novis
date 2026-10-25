@@ -3,11 +3,11 @@
 use Novis\Image\Image;
 use Novis\Image\QrCode;
 
-string $code = QrCode::svg("https://example.com/orders/1042");
+string $code = QrCode::svg('https://example.com/orders/1042');
 
 // The result is a string that starts with an `<svg>` tag.
 echo Core\Str::slice($code, 0, 39), "\n";
 
 // The SVG also opens as an image of 256 by 256 pixels.
 var $image = Image::open($code as bytes)->raw();
-echo $image->width, " by ", $image->height, " pixels\n";
+echo $image->width, ' by ', $image->height, " pixels\n";

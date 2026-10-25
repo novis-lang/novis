@@ -6,15 +6,19 @@ use Core\Test;
 use Core\Time;
 use Core\Time\Instant;
 
-class Uptime {
-    public static function seconds(Instant $start): int {
+class Uptime
+{
+    public static function seconds(Instant $start): int
+    {
         return Time::now()->toEpochSeconds() - $start->toEpochSeconds();
     }
 }
 
-class UptimeTest {
-    #[Test(at: "2026-03-01T00:00:00Z")]
-    public function itCountsFromTheStart(): void {
+class UptimeTest
+{
+    #[Test(at: '2026-03-01T00:00:00Z')]
+    public function itCountsFromTheStart(): void
+    {
         Instant $start = Time::now();
 
         // This loop moves the clock forward 20 seconds, three times.
@@ -37,5 +41,5 @@ class UptimeTest {
 try {
     Test::advance(20s);
 } catch (LogicError $error) {
-    echo "LogicError", "\n";
+    echo 'LogicError', "\n";
 }

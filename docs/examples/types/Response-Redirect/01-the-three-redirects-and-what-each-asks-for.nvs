@@ -3,18 +3,21 @@
 // They differ in two ways. Does the browser send the same request again?
 // Is the new address the one to use from now on?
 
-class Redirects {
-    public static function label(Core\Response::Redirect $kind): string {
+class Redirects
+{
+    public static function label(Core\Response::Redirect $kind): string
+    {
         return match ($kind) {
-            Core\Response::Redirect::SeeOther => "SeeOther ",
-            Core\Response::Redirect::Temporary => "Temporary",
-            Core\Response::Redirect::Permanent => "Permanent",
+            Core\Response::Redirect::SeeOther => 'SeeOther ',
+            Core\Response::Redirect::Temporary => 'Temporary',
+            Core\Response::Redirect::Permanent => 'Permanent',
         };
     }
 
     // `Temporary` and `Permanent` make the browser send the request again, with the same method and body.
     // `SeeOther` makes the browser load the new page with a plain `GET`.
-    public static function repeatsTheRequest(Core\Response::Redirect $kind): bool {
+    public static function repeatsTheRequest(Core\Response::Redirect $kind): bool
+    {
         return match ($kind) {
             Core\Response::Redirect::SeeOther => false,
             Core\Response::Redirect::Temporary => true,
@@ -23,7 +26,8 @@ class Redirects {
     }
 
     // Only `Permanent` tells the browser that the old address is gone for good.
-    public static function isForGood(Core\Response::Redirect $kind): bool {
+    public static function isForGood(Core\Response::Redirect $kind): bool
+    {
         return match ($kind) {
             Core\Response::Redirect::SeeOther => false,
             Core\Response::Redirect::Temporary => false,
@@ -40,7 +44,7 @@ array<Core\Response::Redirect> $kinds = [
 
 foreach ($kinds as Core\Response::Redirect $kind) {
     echo Redirects::label($kind),
-        "  repeats the request: ", Redirects::repeatsTheRequest($kind) ? "yes" : "no ",
-        "  the new address is the one from now on: ", Redirects::isForGood($kind) ? "yes" : "no",
+        '  repeats the request: ', Redirects::repeatsTheRequest($kind) ? 'yes' : 'no ',
+        '  the new address is the one from now on: ', Redirects::isForGood($kind) ? 'yes' : 'no',
         "\n";
 }

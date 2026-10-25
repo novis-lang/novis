@@ -8,5 +8,5 @@ tainted bytes $upload = Core\Request::bytes();
 // The same file always gives the same checksum.
 string $checksum = Core\Encoding::toHex(Core\Hash::of($upload, Core\Hash::Digest::Sha256));
 
-echo "received ", Core\Bytes::length($upload), " bytes\n";
-echo "sha-256 ", $checksum, "\n";
+echo 'received ', Core\Bytes::length($upload), " bytes\n";
+echo 'sha-256 ', $checksum, "\n";

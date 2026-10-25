@@ -5,13 +5,16 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function wait(uint $n): uint {
+class Bench
+{
+    public static function wait(uint $n): uint
+    {
         Core\Time::sleep(0ms);
         return $n + 1;
     }
 
-    public static function run(uint $rounds): uint {
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

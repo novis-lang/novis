@@ -3,14 +3,16 @@
 // line under it, and your editor shows it to whoever types that name.
 
 /// One greeting, written the same way everywhere in the program.
-class Greeting {
+class Greeting
+{
     /// Greets `$name` by name.
     /// The name is used as it arrives, so capitalise it before you pass it in.
-    public static function forName(string $name): string {
+    public static function forName(string $name): string
+    {
         //// Four or more slashes make an ordinary comment.
         //// Your editor does not show it as documentation.
-        return "Hello, " . $name . "!";
+        return 'Hello, ' . $name . '!';
     }
 }
 
-echo Greeting::forName("Ada"), "\n";
+echo Greeting::forName('Ada'), "\n";

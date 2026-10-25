@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to write a file through a handle, close it, and then read the whole file.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "shopping.txt");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'shopping.txt');
 
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
 $file->write("bread\n");

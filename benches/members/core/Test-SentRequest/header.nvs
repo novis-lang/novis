@@ -6,19 +6,21 @@
 use Core\Http\Client;
 use Core\Test\SentRequest;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        Core\Test::answerHttp("https://api.example.com/*", 200);
-        Client::get("https://api.example.com/users/7", {headers: [
-            "Authorization" => "Bearer t-123",
-            "Accept" => "application/json",
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Core\Test::answerHttp('https://api.example.com/*', 200);
+        Client::get('https://api.example.com/users/7', {headers: [
+            'Authorization' => 'Bearer t-123',
+            'Accept' => 'application/json',
         ]});
         SentRequest $request = Core\Test::sentHttp()[0];
-        array<string> $names = ["Authorization", "accept", "X-Missing"];
+        array<string> $names = ['Authorization', 'accept', 'X-Missing'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            string $value = $request->header($names[($total % 3) as int]) ?? "";
+            string $value = $request->header($names[($total % 3) as int]) ?? '';
             $total = $total + Core\Str::length($value) + 1;
             $i = $i + 1;
         }

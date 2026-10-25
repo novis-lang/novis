@@ -3,9 +3,9 @@
 // requires: unix
 
 // Only the orders service is started here. Nothing listens at the cache socket file.
-Core\Net\Listener $orders = Core\Net::listenLocal("/tmp/novis-orders.sock");
+Core\Net\Listener $orders = Core\Net::listenLocal('/tmp/novis-orders.sock');
 
-array<string> $services = ["orders" => "/tmp/novis-orders.sock", "cache" => "/tmp/novis-cache.sock"];
+array<string> $services = ['orders' => '/tmp/novis-orders.sock', 'cache' => '/tmp/novis-cache.sock'];
 
 // `connectLocal` throws an `IOError` when nothing listens at the path.
 // This prints `orders: running` and then `cache: not running`.
@@ -20,4 +20,4 @@ foreach ($services as string $name => string $path) {
 }
 
 $orders->close();
-Core\IO::remove("/tmp/novis-orders.sock");
+Core\IO::remove('/tmp/novis-orders.sock');

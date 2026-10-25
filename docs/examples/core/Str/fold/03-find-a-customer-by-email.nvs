@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to find a customer by email address, however the address was typed.
 
-array<string> $customers = ["Ada.Lovelace@Example.com", "bob@example.com"];
+array<string> $customers = ['Ada.Lovelace@Example.com', 'bob@example.com'];
 
 // The array uses the folded address as its key. Each address is folded once, here.
 array<string> $byEmail = [];
@@ -11,11 +11,11 @@ foreach ($customers as string $email) {
 
 // A login form sends the address in another case. Folding it finds the same key.
 // This prints `found Ada.Lovelace@Example.com` and then `not found`.
-array<string> $typed = ["ADA.LOVELACE@example.COM", "eve@example.com"];
+array<string> $typed = ['ADA.LOVELACE@example.COM', 'eve@example.com'];
 foreach ($typed as string $login) {
     string $key = Core\Str::fold($login);
     if (Core\Arr::hasKey($byEmail, $key)) {
-        echo "found ", $byEmail[$key], "\n";
+        echo 'found ', $byEmail[$key], "\n";
     } else {
         echo "not found\n";
     }

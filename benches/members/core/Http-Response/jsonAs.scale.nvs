@@ -14,7 +14,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            var $user = $reply->jsonAs<tainted {name: string, id: int}>();
+            var $user = $reply->jsonAs<tainted { name: string, id: int }>();
             $total = $total + ($user->id as uint);
             $i = $i + 1;
         }

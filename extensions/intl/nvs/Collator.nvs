@@ -5,7 +5,7 @@ namespace Novis\Intl;
 /// a locale tag, such as `"de"` or `"sv-SE"`, and sorts the whole list in one call.
 final class Collator
 {
-    type CollateOptions = {strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool};
+    type CollateOptions = { strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool };
 
     /// `Collator::sort` returns the strings sorted by the rules of `$locale`. Equal strings
     /// keep their order. A locale tag that is not valid throws a `LogicError`.

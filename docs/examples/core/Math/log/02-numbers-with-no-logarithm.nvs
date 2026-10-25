@@ -14,7 +14,7 @@ if (Core\Math::isNan(Core\Math::log(-5.0))) {
 
 // A base of zero or below throws a `RuntimeError`.
 try {
-    echo Core\Math::log(8.0, {base: 0.0}), "\n";
+    echo Core\Math::log(8.0, { base: 0.0 }), "\n";
 } catch (RuntimeError $error) {
     echo "The base must be greater than zero.\n";
 }

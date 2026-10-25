@@ -3,14 +3,14 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
-string $rows = "";
+string $rows = '';
 for (int $n = 1; $n <= 50; $n++) {
     $rows .= "<tr data-mark=\"amount:1.50\"><td>Tea {$n}</td><td>1.50</td></tr>";
 }
 
 // The `tfoot` rows repeat at the bottom of each page that the table is on.
 // `data-repeat="continued"` shows a row where the table goes on. `data-repeat="last"` shows it on the last page.
-var $html = "<style>@page { size: 105mm 148mm; margin: 10mm } body { font-size: 10pt }</style>"
+var $html = '<style>@page { size: 105mm 148mm; margin: 10mm } body { font-size: 10pt }</style>'
     . "<table><thead><tr><th>Item</th><th>EUR</th></tr></thead><tbody>{$rows}</tbody><tfoot>"
     . "<tr data-repeat=\"continued\"><td>Carried forward</td><td><slot name=\"carried\"></slot></td></tr>"
     . "<tr data-repeat=\"last\"><td>Total</td><td><slot name=\"total\"></slot></td></tr></tfoot></table>";
@@ -19,16 +19,16 @@ var $html = "<style>@page { size: 105mm 148mm; margin: 10mm } body { font-size: 
 // A fill does not use the styles of the document, so it sets the font size of the table.
 var $slots = fn(Page $page): array<Core\Html\Markup> => {
     decimal $total = 0.0;
-    foreach ($page->marksUpTo("amount") as string $amount) {
+    foreach ($page->marksUpTo('amount') as string $amount) {
         $total = $total + (($amount as ?decimal) ?? 0.0 as decimal);
     }
-    echo "page ", $page->number, " of ", $page->count, ": ", $total, "\n";
+    echo 'page ', $page->number, ' of ', $page->count, ': ', $total, "\n";
     return [
-        "carried" => html`<style>body { font-size: 10pt }</style>{$total}`,
-        "total" => html`<style>body { font-size: 10pt }</style><b>{$total}</b>`,
+        'carried' => html`<style>body { font-size: 10pt }</style>{$total}`,
+        'total' => html`<style>body { font-size: 10pt }</style><b>{$total}</b>`,
     ];
 };
 
 // Every fill fits in its cell, so this prints `0`.
 var $rendered = Document::fromHtml($html)->slots($slots)->render();
-echo "fills that do not fit: ", Core\Arr::count($rendered->overflows), "\n";
+echo 'fills that do not fit: ', Core\Arr::count($rendered->overflows), "\n";

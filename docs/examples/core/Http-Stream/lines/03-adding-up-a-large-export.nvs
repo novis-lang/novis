@@ -3,11 +3,11 @@
 
 // Each line of this export is one order: its id and its price in cents.
 // The first line names the columns.
-Core\Test::answerHttp("https://shop.example.com/export/orders.csv", 200, {
+Core\Test::answerHttp('https://shop.example.com/export/orders.csv', 200, {
     body: "id,cents\nA-1,1250\nA-2,899\nA-3,4000\n",
 });
 
-Core\Http\Stream $export = Core\Http\Client::stream(Core\Http\Method::Get, "https://shop.example.com/export/orders.csv");
+Core\Http\Stream $export = Core\Http\Client::stream(Core\Http\Method::Get, 'https://shop.example.com/export/orders.csv');
 bool $first = true;
 uint $orders = 0;
 int $total = 0;
@@ -17,11 +17,11 @@ foreach ($export->lines() as tainted string $line) {
         $first = false;
         continue;
     }
-    array<tainted string> $fields = Core\Str::split($line, ",");
+    array<tainted string> $fields = Core\Str::split($line, ',');
     // `as int` converts the text to a whole number. Text that is not a number throws an error.
     $total = $total + ($fields[1] as int);
     $orders = $orders + 1;
 }
 
 // This prints "3 orders, 6149 cents".
-echo $orders, " orders, ", $total, " cents\n";
+echo $orders, ' orders, ', $total, " cents\n";

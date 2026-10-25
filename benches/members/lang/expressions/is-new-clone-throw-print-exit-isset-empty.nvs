@@ -8,10 +8,12 @@
 // bench: calls 0
 // bench: complexity constant
 
-class Probe {
-    public static function run(int $rounds): int {
-        ?string $host = "db.internal";
-        string $label = "";
+class Probe
+{
+    public static function run(int $rounds): int
+    {
+        ?string $host = 'db.internal';
+        string $label = '';
         mixed $value = 1;
         int $acc = 1;
         int $i = 0;

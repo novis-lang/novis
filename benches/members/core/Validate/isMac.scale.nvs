@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $text = Core\Str::repeat('00:1a:', $size) . "2b";
+        string $text = Core\Str::repeat('00:1a:', $size) . '2b';
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

@@ -1,23 +1,26 @@
 <?nvs
 // Shows how an API checks the property names a client asked for before it reads them.
 
-class Product {
-    public string $sku = "A-100";
-    public string $name = "Desk lamp";
-    public string $colour = "black";
+class Product
+{
+    public string $sku = 'A-100';
+    public string $name = 'Desk lamp';
+    public string $colour = 'black';
 }
 
-class Fields {
-    public static function pick(Product $product, array<string> $asked): tainted string {
+class Fields
+{
+    public static function pick(Product $product, array<string> $asked): tainted string
+    {
         var $info = Core\Reflect::forObject($product);
-        tainted string $out = "";
+        tainted string $out = '';
         foreach ($asked as string $field) {
             // A property the class does not have is reported to the client, and nothing is read.
             if (!$info->hasProperty($field)) {
-                $out = $out . "unknown property: " . $field . "\n";
+                $out = $out . 'unknown property: ' . $field . "\n";
                 continue;
             }
-            $out = $out . $field . "=" . ($info->get($product, $field) as string) . "\n";
+            $out = $out . $field . '=' . ($info->get($product, $field) as string) . "\n";
         }
         return $out;
     }
@@ -25,4 +28,4 @@ class Fields {
 
 // The client asked for `?fields=name,price,colour`. This prints the name, an error for
 // `price`, and the colour.
-echo Fields::pick(new Product(), ["name", "price", "colour"]);
+echo Fields::pick(new Product(), ['name', 'price', 'colour']);

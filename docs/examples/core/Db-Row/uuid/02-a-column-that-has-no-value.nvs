@@ -5,7 +5,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table orders (label text not null, paid_by uuid)', []);
 $db->execute(
     'insert into orders (label, paid_by) values (?, ?), (?, ?)',
-    ['one tea', '3f2504e0-4f89-41d3-9a0c-0305e82c3301', 'two coffees', null]
+    ['one tea', '3f2504e0-4f89-41d3-9a0c-0305e82c3301', 'two coffees', null],
 );
 
 // The result is `null` when the column has no value in this row. The type you

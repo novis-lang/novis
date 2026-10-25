@@ -3,24 +3,29 @@
 // the short name `Lines`. Outside it, you write `Basket::Lines`.
 // A subclass does not inherit the alias.
 
-final class Basket {
+final class Basket
+{
     type Lines = array<string>;
 
-    public function constructor(public Lines $lines) {}
+    public function constructor(public Lines $lines)
+    {}
 
-    public function add(string $line): Lines {
+    public function add(string $line): Lines
+    {
         $this->lines[] = $line;
         return $this->lines;      // inside the class: the short name
     }
 }
 
-class Printer {
-    public static function show(Basket::Lines $lines): void {      // outside the class: the class name first
+class Printer
+{
+    public static function show(Basket::Lines $lines): void
+    {      // outside the class: the class name first
         foreach ($lines as string $line) {
-            echo "- ", $line, "\n";
+            echo '- ', $line, "\n";
         }
     }
 }
 
-Basket $basket = new Basket(["two coffees"]);
-Printer::show($basket->add("one tea"));
+Basket $basket = new Basket(['two coffees']);
+Printer::show($basket->add('one tea'));

@@ -7,7 +7,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table notes (title text not null, note text, due text)', []);
 $db->execute(
     'insert into notes (title, note, due) values (?, ?, ?)',
-    ['buy milk', null, '2026-01-09']
+    ['buy milk', null, '2026-01-09'],
 );
 
 var $rows = $db->query('select title, note, due from notes', []);

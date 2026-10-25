@@ -2,15 +2,17 @@
 // Shows a page that calls a service with the user's access token, or asks the user to sign in.
 // requires: redis
 
-class Calendar {
-    public static function page(array<secret bytes> $keys): string {
+class Calendar
+{
+    public static function page(array<secret bytes> $keys): string
+    {
         // `null` means the user has not signed in to the service yet.
-        var $token =Core\Session::getSecret("calendar-token", $keys);
+        var $token =Core\Session::getSecret('calendar-token', $keys);
         if ($token == null) {
-            return "please connect your calendar";
+            return 'please connect your calendar';
         }
         // A real program sends the token to the service here.
-        return "showing your calendar";
+        return 'showing your calendar';
     }
 }
 
@@ -23,7 +25,7 @@ Core\Session::start();
 echo Calendar::page($keys), "\n";
 
 // The user connects the calendar, and the program saves the token it got.
-Core\Session::setSecret("calendar-token", "at-2d40c8e7", $keys);
+Core\Session::setSecret('calendar-token', 'at-2d40c8e7', $keys);
 
 // This prints `showing your calendar`.
 echo Calendar::page($keys), "\n";

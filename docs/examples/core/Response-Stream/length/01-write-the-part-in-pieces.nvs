@@ -2,7 +2,7 @@
 // Shows how to write the part in pieces whose sizes add up to `length()`.
 
 bytes $text = "One, two, three, four, five.\n" as bytes;
-Core\Response\Stream $body = Core\Response::stream("text/plain; charset=utf-8", Core\Bytes::length($text) as int);
+Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8', Core\Bytes::length($text) as int);
 
 // Each piece is 8 bytes or less. The loop stops when exactly `length()` bytes are written.
 int $written = 0;

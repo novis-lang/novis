@@ -8,7 +8,7 @@ uint $before = Core\Budget::memoryHeld();
 array<string> $names = [];
 int $i = 0;
 while ($i < 10000) {
-    $names[] = "customer number " . $i;
+    $names[] = 'customer number ' . $i;
     $i = $i + 1;
 }
 

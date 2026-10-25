@@ -6,7 +6,8 @@
 use Core\Db\Derive;
 
 #[Derive]
-class Note {
+class Note
+{
     public uint $id;
     public int $n;
 
@@ -17,8 +18,10 @@ class Note {
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         var $db = Core\Db::connect('notes');
         $db->execute('create table notes (id integer primary key, n int not null)', []);
         uint $written = 0;

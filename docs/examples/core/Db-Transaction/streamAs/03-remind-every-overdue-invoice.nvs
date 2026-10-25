@@ -5,7 +5,8 @@
 use Core\Db\Derive;
 
 #[Derive]
-class Invoice {
+class Invoice
+{
     public uint $id;
     public tainted string $customer;
     public int $daysLate;

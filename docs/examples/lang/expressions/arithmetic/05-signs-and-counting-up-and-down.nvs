@@ -4,20 +4,20 @@
 int $n = 3;
 
 // `-` changes the sign, `+` keeps it, and `~` flips every bit. This prints `-3 3 -4`.
-echo -$n, " ", +$n, " ", ~$n, "\n";
+echo -$n, ' ', +$n, ' ', ~$n, "\n";
 
 // `$n++` gives the old value and then adds one. This prints `3 4`.
-echo $n++, " ", $n, "\n";
+echo $n++, ' ', $n, "\n";
 
 // `++$n` adds one and then gives the new value. This prints `5 4`.
-echo ++$n, " ", --$n, "\n";
+echo ++$n, ' ', --$n, "\n";
 
 // `++` also works on a `float`, a `decimal` and an array element. This prints `2.5 11`.
 float $f = 1.5;
 $f++;
 array<int> $counts = [10];
 $counts[0]++;
-echo $f, " ", $counts[0], "\n";
+echo $f, ' ', $counts[0], "\n";
 
 // `++` on the largest `int` throws. This prints `Integer addition overflowed`.
 int $largest = 9223372036854775807;

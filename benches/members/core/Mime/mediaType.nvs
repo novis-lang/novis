@@ -3,8 +3,10 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Mime::Type> $types = [Core\Mime::Type::Png, Core\Mime::Type::Pdf, Core\Mime::Type::Unknown];
         uint $total = 0;
         uint $i = 0;

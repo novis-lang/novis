@@ -4,10 +4,12 @@
 // bench: complexity constant
 // bench: calls 2
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The form is in the file `postArray.nvsr` beside this one.
-        array<string> $names = ["item", "size", "note"];
+        array<string> $names = ['item', 'size', 'note'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

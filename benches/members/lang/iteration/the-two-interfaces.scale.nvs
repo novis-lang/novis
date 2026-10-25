@@ -4,23 +4,29 @@
 // bench: start 256
 // bench: max 4096
 
-class Letters implements Iterator<int> {
+class Letters implements Iterator<int>
+{
     private int $at = -1;
 
-    public function constructor(private array<int> $items, private int $count) {}
+    public function constructor(private array<int> $items, private int $count)
+    {}
 
-    public function advance(): bool {
+    public function advance(): bool
+    {
         $this->at = $this->at + 1;
         return $this->at < $this->count;
     }
 
-    public function current(): int {
+    public function current(): int
+    {
         return $this->items[$this->at];
     }
 }
 
-class Bench {
-    public static function run(uint $size): int {
+class Bench
+{
+    public static function run(uint $size): int
+    {
         int $n = $size as int;
         array<int> $values = [];
         int $i = 0;

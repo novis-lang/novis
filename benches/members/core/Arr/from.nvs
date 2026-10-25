@@ -5,8 +5,10 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         array<int> $source = [3, 1, 4, 1, 5, 9];
         int $total = 0;
         uint $i = 0;

@@ -5,8 +5,10 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $db = Core\Db::connect('notes');
         $db->execute('create table seatings (id integer primary key, seats int not null, label text not null)', []);
         $db->execute('insert into seatings (seats, label) values (?, ?), (?, ?)', [4, 'north', 2, 'east']);

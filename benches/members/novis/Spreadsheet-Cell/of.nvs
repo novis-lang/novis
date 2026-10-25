@@ -5,9 +5,11 @@
 use Novis\Spreadsheet\Cell;
 use Novis\Spreadsheet\Style;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $red = Style::of({color: "#FF0000"});
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $red = Style::of({ color: '#FF0000' });
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

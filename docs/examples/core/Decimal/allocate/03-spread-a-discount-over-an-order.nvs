@@ -13,10 +13,10 @@ decimal $given = 0.00;
 uint $line = 0;
 foreach ($prices as decimal $price) {
     decimal $cut = $cuts[$line];
-    echo $price, " - ", $cut, " = ", $price - $cut, "\n";
+    echo $price, ' - ', $cut, ' = ', $price - $cut, "\n";
     $given = $given + $cut;
     $line = $line + 1;
 }
 
 // This prints 10.00. The whole discount was given out, to the cent.
-echo "discount given: ", $given, "\n";
+echo 'discount given: ', $given, "\n";

@@ -8,11 +8,11 @@ class Twice
     public static function run(): string
     {
         try {
-            throw new LogicError("x");
+            throw new LogicError('x');
         } catch (LogicError $e) {
-            return "a";
+            return 'a';
         } catch (Throwable $e) {
-            return "b";
+            return 'b';
         }
     }
 }

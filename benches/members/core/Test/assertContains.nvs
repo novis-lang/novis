@@ -3,9 +3,11 @@
 // bench: iterations 1024 -- callgrind's count per call settles only from a batch of 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $roles = ["reader", "editor", "admin", "owner"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $roles = ['reader', 'editor', 'admin', 'owner'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

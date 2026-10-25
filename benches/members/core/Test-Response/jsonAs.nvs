@@ -4,22 +4,26 @@
 // bench: complexity linear
 
 #[Core\Json\Derive]
-class Product {
+class Product
+{
     public string $sku;
     public int $price;
 
-    public function constructor(string $sku, int $price) {
+    public function constructor(string $sku, int $price)
+    {
         $this->sku = $sku;
         $this->price = $price;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Test\Response> $responses = [
-            Core\Test::request(Core\Http\Method::Get, "/"),
-            Core\Test::request(Core\Http\Method::Get, "/bbb"),
-            Core\Test::request(Core\Http\Method::Get, "/cccccc"),
+            Core\Test::request(Core\Http\Method::Get, '/'),
+            Core\Test::request(Core\Http\Method::Get, '/bbb'),
+            Core\Test::request(Core\Http\Method::Get, '/cccccc'),
         ];
         uint $total = 0;
         uint $i = 0;
@@ -35,8 +39,8 @@ class Bench {
 // Each request runs this file again. In that run, this part sends one product.
 // The `sku` has one `x` for each character of the path.
 if (Core\Env::context() == Core\Env::Context::Request) {
-    var $sku = Core\Str::repeat("x", Core\Str::length(Core\Request::path()));
-    Core\Response::json(["sku" => $sku, "price" => 12]);
+    var $sku = Core\Str::repeat('x', Core\Str::length(Core\Request::path()));
+    Core\Response::json(['sku' => $sku, 'price' => 12]);
 } else {
     echo Bench::run(100000), "\n";
 }

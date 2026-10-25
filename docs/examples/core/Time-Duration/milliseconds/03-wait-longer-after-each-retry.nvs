@@ -12,7 +12,7 @@ while ($attempt <= 6) {
     }
 
     // The wait doubles each time. This prints 100ms, 200ms, 400ms, 800ms, 1s600ms and 2s.
-    echo "attempt ", $attempt, ": wait ", $wait->toString(), "\n";
+    echo 'attempt ', $attempt, ': wait ', $wait->toString(), "\n";
     $delayMillis = $delayMillis * 2;
     $attempt = $attempt + 1;
 }

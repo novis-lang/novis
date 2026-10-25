@@ -1,13 +1,15 @@
 <?nvs
+use Novis\Image\Color;
 // Turns a small image and reads its pixels, as a program does when it turns a scanned page upright.
 // bench: iterations 256
 // bench: complexity constant
 use Novis\Image\Image;
-use Novis\Image\Color;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        Image $page = Image::create(4, 2, Color::hex("#336699"));
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Image $page = Image::create(4, 2, Color::hex('#336699'));
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

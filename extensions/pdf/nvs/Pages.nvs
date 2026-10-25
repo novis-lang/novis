@@ -7,7 +7,8 @@ final class Pages
     private function constructor(
         private readonly bytes $pdf,
         private readonly ?array<uint> $pages,
-    ) {}
+    )
+    {}
 
     /// `Pages::of` chooses pages of a PDF file, in the order of `$pages`. Pages count from 1.
     /// Without `$pages`, every page is chosen. A page listed twice is used twice, and a page not listed is left out.
@@ -20,9 +21,9 @@ final class Pages
     /// A page number past the end of its file throws a `LogicError`. A file that is encrypted or does not parse throws a `ParseError`.
     public static function merge(array<Pages> $parts): bytes
     {
-        array<{data: bytes, pages: ?array<uint>}> $sources = [];
+        array<{ data: bytes, pages: ?array<uint> }> $sources = [];
         foreach ($parts as Pages $part) {
-            $sources[] = {data: $part->pdf, pages: $part->pages};
+            $sources[] = { data: $part->pdf, pages: $part->pages };
         }
         return Engine::merge($sources);
     }

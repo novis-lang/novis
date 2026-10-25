@@ -4,13 +4,15 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $dir = Core\IO::temporaryDir();
-        array<string> $sources = [Core\Path::join($dir, "a.ini"), Core\Path::join($dir, "b.ini")];
-        Core\IO::write($sources[0], Core\Str::repeat("a", 64));
-        Core\IO::write($sources[1], Core\Str::repeat("b", 96));
-        string $to = Core\Path::join($dir, "copy.ini");
+        array<string> $sources = [Core\Path::join($dir, 'a.ini'), Core\Path::join($dir, 'b.ini')];
+        Core\IO::write($sources[0], Core\Str::repeat('a', 64));
+        Core\IO::write($sources[1], Core\Str::repeat('b', 96));
+        string $to = Core\Path::join($dir, 'copy.ini');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

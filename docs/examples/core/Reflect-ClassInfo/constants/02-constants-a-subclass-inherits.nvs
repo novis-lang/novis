@@ -1,16 +1,19 @@
 <?nvs
 // Shows which constants a subclass has: its own, then the ones it inherits.
 
-interface HasVersion {
+interface HasVersion
+{
     public const int VERSION = 2;
 }
 
-class Plan implements HasVersion {
+class Plan implements HasVersion
+{
     public const int USERS = 5;
-    public const string SUPPORT = "email";
+    public const string SUPPORT = 'email';
 }
 
-class TeamPlan extends Plan {
+class TeamPlan extends Plan
+{
     public const int USERS = 50;
 }
 
@@ -21,4 +24,4 @@ foreach (Core\Reflect::forObject(new TeamPlan())->constants() as Core\Reflect\Co
 }
 
 // The value of `USERS` is the one `TeamPlan` declares. This prints 50.
-echo Core\Reflect::forObject(new TeamPlan())->constant("USERS") as int, "\n";
+echo Core\Reflect::forObject(new TeamPlan())->constant('USERS') as int, "\n";

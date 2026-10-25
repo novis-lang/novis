@@ -12,4 +12,4 @@ echo $project->toString(), "\n";
 echo $project->toSeconds(), "\n";
 
 // The same length written as days is the same duration. This prints "same".
-echo $project->compareTo(Core\Time\Duration::days(84)) == 0 ? "same" : "different", "\n";
+echo $project->compareTo(Core\Time\Duration::days(84)) == 0 ? 'same' : 'different', "\n";

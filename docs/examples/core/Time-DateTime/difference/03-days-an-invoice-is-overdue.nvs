@@ -1,20 +1,22 @@
 <?nvs
 // Shows how to find the invoices that are overdue, and by how many days.
 
-class Invoice {
+class Invoice
+{
     public function constructor(
         public string $number,
         public Core\Time\DateTime $due,
-    ) {}
+    )
+    {}
 }
 
-var $shop = Core\Time\Zone::of("Europe/Berlin");
-var $today = Core\Time::at(2024, 11, 20, $shop, {hour: 9});
+var $shop = Core\Time\Zone::of('Europe/Berlin');
+var $today = Core\Time::at(2024, 11, 20, $shop, { hour: 9 });
 
 array<Invoice> $invoices = [
-    new Invoice("A-100", Core\Time::at(2024, 11, 4, $shop)),
-    new Invoice("A-101", Core\Time::at(2024, 11, 19, $shop)),
-    new Invoice("A-102", Core\Time::at(2024, 12, 1, $shop)),
+    new Invoice('A-100', Core\Time::at(2024, 11, 4, $shop)),
+    new Invoice('A-101', Core\Time::at(2024, 11, 19, $shop)),
+    new Invoice('A-102', Core\Time::at(2024, 12, 1, $shop)),
 ];
 
 // `difference` counts days from the due date to today. A-102 is due later, so its result is negative.
@@ -22,6 +24,6 @@ array<Invoice> $invoices = [
 foreach ($invoices as Invoice $invoice) {
     int $days = $invoice->due->difference($today, Core\Unit::Day);
     if ($days > 0) {
-        echo $invoice->number, " days overdue: ", $days, "\n";
+        echo $invoice->number, ' days overdue: ', $days, "\n";
     }
 }

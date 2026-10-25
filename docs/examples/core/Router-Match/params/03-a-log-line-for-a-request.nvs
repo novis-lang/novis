@@ -1,10 +1,14 @@
 <?nvs
 // Shows how to write one log line with the route name and every capture of the request.
 
-class Orders {
-    #[Core\Route(path: "/orders/{order}/items/{item}", method: Core\Http\Method::Get, name: "Orders::item")]
+class Orders
+{
+    #[Core\Route(path: '/orders/{order}/items/{item}', method: Core\Http\Method::Get, name: 'Orders::item')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function item(uint $order, uint $item): string { return "one item"; }
+    public function item(uint $order, uint $item): string
+    {
+        return 'one item';
+    }
 }
 
 // The request is `GET /orders/1042/items/3`.
@@ -12,9 +16,9 @@ class Orders {
 if ($matched != null) {
     // The loop adds each capture as `name=value`.
     // This prints `Orders::item order=1042 item=3`.
-    echo $matched->name() ?? "unnamed";
+    echo $matched->name() ?? 'unnamed';
     foreach ($matched->params() as tainted string $name => mixed $value) {
-        echo " ", $name, "=", $value as string;
+        echo ' ', $name, '=', $value as string;
     }
     echo "\n";
 }

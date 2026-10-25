@@ -11,9 +11,11 @@ type Slot = int;
 type Answer = int|string;
 type Answers = array<Answer>;
 
-class Bench {
-    public static function run(uint $rounds): int {
-        Answers $answers = [1, "two", 3, "four", 5];
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        Answers $answers = [1, 'two', 3, 'four', 5];
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -1,6 +1,6 @@
 <?nvs
 // Throws an error for the path `/crash`, and prints `ok` for every other path.
-if (Core\Request::path() == "/crash") {
-    throw new RuntimeError("the handler failed");
+if (Core\Request::path() == '/crash') {
+    throw new RuntimeError('the handler failed');
 }
 echo "ok\n";

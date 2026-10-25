@@ -1,11 +1,13 @@
 <?nvs
 // Shows how a planning tool finds how far a cable between two poles hangs down in the middle.
 
-class Cable {
+class Cable
+{
     // `$tension` is a number for how tight the cable is. A bigger number means a tighter cable.
-    public static function sag(float $span, float $tension): float {
+    public static function sag(float $span, float $tension): float
+    {
         float $drop = $tension * (Core\Math::cosh($span / (2.0 * $tension)) - 1.0);
-        return Core\Math::round($drop, {precision: 2});
+        return Core\Math::round($drop, { precision: 2 });
     }
 }
 

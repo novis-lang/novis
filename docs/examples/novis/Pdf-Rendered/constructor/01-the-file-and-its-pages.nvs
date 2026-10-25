@@ -2,7 +2,7 @@
 // Shows the PDF file and the page count that a render returns.
 use Novis\Pdf\Document;
 
-var $html = "<style>p { break-after: page }</style><p>Order 1042</p><p>Order 1043</p>";
+var $html = '<style>p { break-after: page }</style><p>Order 1042</p><p>Order 1043</p>';
 var $rendered = Document::fromHtml($html)->render();
 
 // `bytes` is the PDF file. Every PDF file starts with `%PDF-`.
@@ -10,6 +10,6 @@ echo Core\Bytes::slice($rendered->bytes, 0, 5) as string, "\n";
 echo $rendered->pageCount, " pages\n";
 
 // The three lists are empty, because the render drew everything.
-echo Core\Arr::count($rendered->dropped), " dropped, ";
-echo Core\Arr::count($rendered->missingGlyphs), " missing glyphs, ";
+echo Core\Arr::count($rendered->dropped), ' dropped, ';
+echo Core\Arr::count($rendered->missingGlyphs), ' missing glyphs, ';
 echo Core\Arr::count($rendered->overflows), " overflows\n";

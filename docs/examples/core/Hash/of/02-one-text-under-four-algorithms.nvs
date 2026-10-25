@@ -11,6 +11,6 @@ array<Core\Hash::Digest> $algorithms = [
 // Each algorithm gives a digest of its own fixed size.
 // This prints 4, 16, 32 and 64 bytes.
 foreach ($algorithms as Core\Hash::Digest $digest) {
-    bytes $result = Core\Hash::of("abc", $digest);
-    echo Core\Bytes::length($result), " bytes: ", Core\Encoding::toHex($result), "\n";
+    bytes $result = Core\Hash::of('abc', $digest);
+    echo Core\Bytes::length($result), ' bytes: ', Core\Encoding::toHex($result), "\n";
 }

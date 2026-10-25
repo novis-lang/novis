@@ -1,27 +1,31 @@
 --START--
 <?nvs
-class Customer {
-    public string $name = "Ada";
-    public string $email = "ada@example.com";
-    public string $phone = "555-0100";
-    public string $city = "London";
+class Customer
+{
+    public string $name = 'Ada';
+    public string $email = 'ada@example.com';
+    public string $phone = '555-0100';
+    public string $city = 'London';
 }
 
-class Order {
+class Order
+{
     public int $id = 1;
     public int $total = 40;
-    public string $status = "paid";
-    public string $createdAt = "2026-01-15";
+    public string $status = 'paid';
+    public string $createdAt = '2026-01-15';
     public ?Customer $customer = null;
 }
 
-class Mapper {
-    public static function orderBy(propertyPath<Order> $path): string {
-        return "ORDER BY " . ($path as string);
+class Mapper
+{
+    public static function orderBy(propertyPath<Order> $path): string
+    {
+        return 'ORDER BY ' . ($path as string);
     }
 }
 
-echo Mapper::orderBy("customer<|>"), "\n";
+echo Mapper::orderBy('customer<|>'), "\n";
 --STEPS--
 type .
 type em

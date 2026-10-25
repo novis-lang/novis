@@ -11,5 +11,5 @@ NVS;
 
 // This prints orders.nvs:2, then orders.nvs:4.
 foreach (Core\Ast::parse($source)->children() as Core\Ast\Node $part) {
-    echo "orders.nvs:", $part->line(), "\n";
+    echo 'orders.nvs:', $part->line(), "\n";
 }

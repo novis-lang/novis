@@ -7,38 +7,40 @@ string $xml = '<orders>
   <order id="1044"/>
 </orders>';
 
-class Report {
-    public static function order(tainted string $id, int $lines): void {
-        echo "order ", $id, ": ", $lines, "\n";
+class Report
+{
+    public static function order(tainted string $id, int $lines): void
+    {
+        echo 'order ', $id, ': ', $lines, "\n";
     }
 }
 
 Core\Xml\Reader $reader = Core\Xml::reader($xml);
-tainted string $order = "";
+tainted string $order = '';
 int $lines = 0;
 
 // A closing tag is not a node. An order has depth 1, so it ends when the next node has depth 1 or 0.
 // This prints order 1042: 2, order 1043: 1 and order 1044: 0.
 ?Core\Xml\Node $node = $reader->read();
 while ($node != null) {
-    if ($reader->depth() <= 1 && $order != "") {
+    if ($reader->depth() <= 1 && $order != '') {
         Report::order($order, $lines);
-        $order = "";
+        $order = '';
     }
-    if ($node->name() == "order") {
+    if ($node->name() == 'order') {
         foreach ($node->attributes() as tainted string $name => tainted string $value) {
-            if ($name == "id") {
+            if ($name == 'id') {
                 $order = $value;
             }
         }
         $lines = 0;
-    } elseif ($node->name() == "line") {
+    } elseif ($node->name() == 'line') {
         $lines = $lines + 1;
     }
     $node = $reader->read();
 }
 
 // The last order also ends when the document ends.
-if ($order != "") {
+if ($order != '') {
     Report::order($order, $lines);
 }

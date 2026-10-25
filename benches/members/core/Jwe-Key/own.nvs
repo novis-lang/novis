@@ -3,8 +3,10 @@
 // bench: iterations 512
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Crypto\KeyPair> $pairs = [
             Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519),
             Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256),

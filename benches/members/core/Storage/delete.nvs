@@ -3,15 +3,17 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $keys = ["bench-delete-a.tmp", "bench-delete-b.tmp", "bench-delete-c.tmp"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $keys = ['bench-delete-a.tmp', 'bench-delete-b.tmp', 'bench-delete-c.tmp'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             string $key = $keys[($total % 3) as int];
-            Core\Storage::put("bench", $key, "x" as bytes);
-            Core\Storage::delete("bench", $key);
+            Core\Storage::put('bench', $key, 'x' as bytes);
+            Core\Storage::delete('bench', $key);
             $total = $total + 1 + $i % 2;
             $i = $i + 1;
         }

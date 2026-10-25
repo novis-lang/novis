@@ -8,14 +8,14 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        Core\Net\Datagram $sender = Core\Net::bindDatagram("127.0.0.1", 0);
-        Core\Net\Datagram $target = Core\Net::bindDatagram("127.0.0.1", 0);
+        Core\Net\Datagram $sender = Core\Net::bindDatagram('127.0.0.1', 0);
+        Core\Net\Datagram $target = Core\Net::bindDatagram('127.0.0.1', 0);
         uint $port = $target->port();
-        bytes $message = Core\Str::repeat("a", $size) as bytes;
+        bytes $message = Core\Str::repeat('a', $size) as bytes;
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            $total = $total + $sender->send("127.0.0.1", $port, $message, 1s);
+            $total = $total + $sender->send('127.0.0.1', $port, $message, 1s);
             $i = $i + 1;
         }
         $sender->close();

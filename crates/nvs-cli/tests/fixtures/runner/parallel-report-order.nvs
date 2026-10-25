@@ -7,27 +7,32 @@
 use Core\Test;
 use Core\Time;
 
-final class ReportOrderTest {
+final class ReportOrderTest
+{
     #[Test]
-    public function itFinishesLast(): void {
+    public function itFinishesLast(): void
+    {
         Time::sleep(450ms);
         Test::assertTrue(true);
     }
 
     #[Test]
-    public function itFinishesThird(): void {
+    public function itFinishesThird(): void
+    {
         Time::sleep(300ms);
         Test::assertTrue(true);
     }
 
     #[Test]
-    public function itFinishesSecond(): void {
+    public function itFinishesSecond(): void
+    {
         Time::sleep(150ms);
         Test::assertTrue(true);
     }
 
     #[Test]
-    public function itFinishesFirst(): void {
+    public function itFinishesFirst(): void
+    {
         Test::assertTrue(true);
     }
 }

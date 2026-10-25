@@ -4,13 +4,15 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
-        var $zone = Core\Time\Zone::of("Europe/Berlin");
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        var $zone = Core\Time\Zone::of('Europe/Berlin');
         array<Core\Time\DateTime> $times = [
             Core\Time::at(2024, 1, 3, $zone),
-            Core\Time::at(2024, 7, 16, $zone, {hour: 9}),
-            Core\Time::at(2023, 12, 29, $zone, {hour: 23}),
+            Core\Time::at(2024, 7, 16, $zone, { hour: 9 }),
+            Core\Time::at(2023, 12, 29, $zone, { hour: 23 }),
         ];
         int $total = 0;
         uint $i = 0;

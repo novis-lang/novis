@@ -11,20 +11,20 @@ class Bench
     public static function run(uint $size): uint
     {
         var $design = Workbook::createInMemory();
-        $design->sheet("Invoice")->addAll([
-            ["Invoice {{number}}", "{{customer}}"],
-            ["Item", "Qty", "Price", "Total"],
-            ["{{items.name}}", "{{items.qty}}", "{{items.price}}", Formula::of("B3*C3")],
-            ["Sum", null, null, Formula::of("SUM(D3:D3)")],
+        $design->sheet('Invoice')->addAll([
+            ['Invoice {{number}}', '{{customer}}'],
+            ['Item', 'Qty', 'Price', 'Total'],
+            ['{{items.name}}', '{{items.qty}}', '{{items.price}}', Formula::of('B3*C3')],
+            ['Sum', null, null, Formula::of('SUM(D3:D3)')],
         ]);
         bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
         array<array<mixed>> $items = [];
         uint $n = 1;
         while ($n <= $size) {
-            $items[] = ["name" => "Item", "qty" => $n % 5 + 1, "price" => ($n as float) * 1.25];
+            $items[] = ['name' => 'Item', 'qty' => $n % 5 + 1, 'price' => ($n as float) * 1.25];
             $n = $n + 1;
         }
-        array<mixed> $data = ["number" => 1, "customer" => "Shop", "items" => $items];
+        array<mixed> $data = ['number' => 1, 'customer' => 'Shop', 'items' => $items];
         return Core\Bytes::length(Template::open($template)->fill($data)->bytes());
     }
 }

@@ -2,16 +2,16 @@
 // Shows what happens when a CSV export tries to add a second sheet.
 use Novis\Spreadsheet\Workbook;
 
-var $book = Workbook::createInMemory({format: "csv"});
-$book->sheet("Orders")->add(["order" => 1042, "total" => 19.9]);
+var $book = Workbook::createInMemory({ format: 'csv' });
+$book->sheet('Orders')->add(['order' => 1042, 'total' => 19.9]);
 
 // A CSV file has only one sheet, so `sheet` throws a `LogicError` here.
 try {
-    $book->sheet("Returns");
+    $book->sheet('Returns');
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }
 
 // The first sheet is still complete, and `finish` writes it.
 var $written = $book->finish();
-echo $written->rows["Orders"], " row\n";
+echo $written->rows['Orders'], " row\n";

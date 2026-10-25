@@ -10,7 +10,7 @@ class CsvReport implements Renders
 {
     public static function extension(): string
     {
-        return "csv";
+        return 'csv';
     }
 }
 
@@ -18,6 +18,6 @@ class CsvReport implements Renders
 class<Renders> $fallback = 'CsvReport' as class<Renders>;
 
 // No class `PdfReport` exists, so `as ?class<Renders>` gives `null`, and `??` uses the default.
-string $setting = "PdfReport";
+string $setting = 'PdfReport';
 class<Renders> $format = ($setting as ?class<Renders>) ?? $fallback;
 echo $format::extension(), "\n";

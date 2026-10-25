@@ -2,9 +2,9 @@
 // Shows how to tell the user that a search did not find everything on this server.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $entries = $corp->search(Core\Ldap\Filter::equals("objectClass", "container"), {
-    select: ["cn"],
+var $corp = Core\Ldap::connect('corp');
+var $entries = $corp->search(Core\Ldap\Filter::equals('objectClass', 'container'), {
+    select: ['cn'],
 });
 
 uint $found = 0;
@@ -17,7 +17,7 @@ echo $found > 0 ? "Found some containers.\n" : "Found no containers.\n";
 // This search starts at the top of the directory, so the list is not empty.
 uint $elsewhere = Core\Arr::count($entries->references());
 if ($elsewhere > 0) {
-    echo "Some entries are in ", $elsewhere, " other parts of the directory.\n";
+    echo 'Some entries are in ', $elsewhere, " other parts of the directory.\n";
 } else {
     echo "Every entry is on this server.\n";
 }

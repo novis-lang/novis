@@ -1,7 +1,7 @@
 error[E0746]: `float` is not a type an option of `deploy` can be given at
-  --> 04-an-option-needs-a-type-text-converts-to.nvs:8:35
+  --> 04-an-option-needs-a-type-text-converts-to.nvs:9:35
   |
-8 |     public static function deploy(#[Core\Option] float $ratio): void {}
+9 |     public static function deploy(#[Core\Option] float $ratio): void
   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^ no conversion from an argument's text
   = help: an argument arrives as text and its type comes from the parameter, so an option declares `string`, `int`, `uint`, `decimal`, `bool`, an enum, a set of allowed values like `'a'|'b'`, or a class implementing `Parses`
 

@@ -3,7 +3,7 @@
 
 // `Core\Request::scheme()` returns "https" for this request.
 tainted string $scheme = Core\Request::scheme();
-tainted string $host = Core\Request::host() ?? "localhost";
+tainted string $host = Core\Request::host() ?? 'localhost';
 
 // This prints "https://shop.example.com/orders".
-echo $scheme, "://", $host, Core\Request::path(), "\n";
+echo $scheme, '://', $host, Core\Request::path(), "\n";

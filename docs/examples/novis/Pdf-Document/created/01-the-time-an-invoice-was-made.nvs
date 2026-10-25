@@ -2,12 +2,12 @@
 // Shows how to write the time an invoice was made into the PDF file.
 use Novis\Pdf\Document;
 
-var $invoice = Document::fromHtml("<h1>Invoice 1042</h1><p>Total: 5.70 EUR</p>");
+var $invoice = Document::fromHtml('<h1>Invoice 1042</h1><p>Total: 5.70 EUR</p>');
 
 // Without `created`, the file has no creation time. This prints `false`.
 bytes $plain = $invoice->render()->bytes;
-echo Core\Bytes::contains($plain, "/CreationDate" as bytes) ? "true" : "false", "\n";
+echo Core\Bytes::contains($plain, '/CreationDate' as bytes) ? 'true' : 'false', "\n";
 
 // With `created`, the file has the time you give. A program usually gives `Core\Time::now()`.
-bytes $dated = $invoice->created(Core\Time::fromIso("2026-03-01T09:30:00Z"))->render()->bytes;
-echo Core\Bytes::contains($dated, "/CreationDate" as bytes) ? "true" : "false", "\n";
+bytes $dated = $invoice->created(Core\Time::fromIso('2026-03-01T09:30:00Z'))->render()->bytes;
+echo Core\Bytes::contains($dated, '/CreationDate' as bytes) ? 'true' : 'false', "\n";

@@ -2,16 +2,18 @@
 // Shows how to give a child a value with `args:`. A file reads it with
 // `Core\Script::args()`. A static method gets it as its arguments.
 
-class Report {
-    public static function title(string $month, int $year): string {
-        return "Sales for " . $month . " " . ($year as string);
+class Report
+{
+    public static function title(string $month, int $year): string
+    {
+        return 'Sales for ' . $month . ' ' . ($year as string);
     }
 }
 
 // The child gets a copy of the array.
-var $sum = await spawn script "jobs/add-up.nvs" with(args: [10, 20, 30]);
-echo "total: ", $sum->value as int, "\n";
+var $sum = await spawn script 'jobs/add-up.nvs' with(args: [10, 20, 30]);
+echo 'total: ', $sum->value as int, "\n";
 
 // Each key of the array is the name of one parameter.
-var $report = await spawn script Report::title(...) with(args: ["month" => "July", "year" => 2026]);
+var $report = await spawn script Report::title(...) with(args: ['month' => 'July', 'year' => 2026]);
 echo $report->value as string, "\n";

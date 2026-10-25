@@ -3,7 +3,7 @@
 
 // This adds the header `Set-Cookie: theme=dark; Path=/; Secure; HttpOnly; SameSite=Lax`.
 // The options you leave out come from `[http.cookies]` in `nvs.toml`.
-Core\Response::addCookie("theme", "dark");
+Core\Response::addCookie('theme', 'dark');
 
 // The cookie is in the headers, so the body prints only this line.
 Core\Response::text("Your theme is saved.\n");

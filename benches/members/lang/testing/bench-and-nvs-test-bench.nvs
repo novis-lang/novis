@@ -4,31 +4,38 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Meter {
+class Meter
+{
     public static uint $ran = 0;
 
-    public static function slugOf(uint $n): string {
-        return "post-" . $n;
+    public static function slugOf(uint $n): string
+    {
+        return 'post-' . $n;
     }
 }
 
-class SlugBench {
+class SlugBench
+{
     public uint $started;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->started = Meter::$ran;
     }
 
     // The full name of the attribute is written here, because this file has its own class `Bench`.
     #[Core\Test\Bench]
-    public function slugsOfOnePost(): void {
+    public function slugsOfOnePost(): void
+    {
         Meter::slugOf($this->started);
         Meter::$ran = Meter::$ran + 1;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $i = 0;
         while ($i < $rounds) {
             var $bench = new SlugBench();

@@ -3,21 +3,23 @@
 // in it is how the script ended. This one just says so. The script below ends
 // by running out of lines, which is the ending called `Normal`.
 
-class Ending {
-    public static function words(Core\Script\ExitReport::Reason $reason): string {
+class Ending
+{
+    public static function words(Core\Script\ExitReport::Reason $reason): string
+    {
         return match ($reason) {
-            Core\Script\ExitReport::Reason::Normal => "the script ran to the end",
-            Core\Script\ExitReport::Reason::ExitCall => "something called exit",
-            Core\Script\ExitReport::Reason::UncaughtThrow => "something was thrown and nobody caught it",
-            Core\Script\ExitReport::Reason::Finish => "the script stopped itself on purpose",
+            Core\Script\ExitReport::Reason::Normal => 'the script ran to the end',
+            Core\Script\ExitReport::Reason::ExitCall => 'something called exit',
+            Core\Script\ExitReport::Reason::UncaughtThrow => 'something was thrown and nobody caught it',
+            Core\Script\ExitReport::Reason::Finish => 'the script stopped itself on purpose',
         };
     }
 }
 
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
-    echo "on the way out: ", Ending::words($report->reason()), "\n";
-    echo "status: ", $report->status(), "\n";
-    echo "error: ", $report->error() == null ? "none" : "one", "\n";
+    echo 'on the way out: ', Ending::words($report->reason()), "\n";
+    echo 'status: ', $report->status(), "\n";
+    echo 'error: ', $report->error() == null ? 'none' : 'one', "\n";
 });
 
 echo "doing the work\n";

@@ -4,4 +4,4 @@
 
 // `conf.d` has two files. They are read in filename order, and the last value wins.
 // So this prints `512M`.
-echo Core\Config::get("memory"), "\n";
+echo Core\Config::get('memory'), "\n";

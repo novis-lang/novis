@@ -4,12 +4,14 @@
 // `#[Core\Json\Derive]` lets `postAs` fill the class. Each public property reads the form field with the same name.
 // The form comes from the client, so a string property must be `tainted string`.
 #[Core\Json\Derive]
-class SignUp {
+class SignUp
+{
     public tainted string $name;
     public tainted string $email;
     public uint $age;
 
-    public function constructor(tainted string $name, tainted string $email, uint $age) {
+    public function constructor(tainted string $name, tainted string $email, uint $age)
+    {
         $this->name = $name;
         $this->email = $email;
         $this->age = $age;
@@ -21,4 +23,4 @@ class SignUp {
 var $form = Core\Request::postAs<SignUp>();
 
 // This prints "Ada Lovelace <ada@example.com>, 36".
-echo $form->name, " <", $form->email, ">, ", $form->age, "\n";
+echo $form->name, ' <', $form->email, '>, ', $form->age, "\n";

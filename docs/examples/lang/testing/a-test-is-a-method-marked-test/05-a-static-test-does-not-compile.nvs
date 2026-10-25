@@ -5,9 +5,11 @@
 
 use Core\Test;
 
-final class ShapeTest {
+final class ShapeTest
+{
     #[Test]
-    public static function aTestIsNotStatic(): void {
+    public static function aTestIsNotStatic(): void
+    {
         Test::assertTrue(true);
     }
 }

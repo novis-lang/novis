@@ -5,11 +5,13 @@
 // bench: allocations 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
-        var $zone = Core\Time\Zone::of("Europe/Berlin");
-        var $first = Core\Time::at(2024, 3, 30, $zone, {hour: 23});
-        var $second = Core\Time::at(2024, 12, 31, $zone, {hour: 12});
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        var $zone = Core\Time\Zone::of('Europe/Berlin');
+        var $first = Core\Time::at(2024, 3, 30, $zone, { hour: 23 });
+        var $second = Core\Time::at(2024, 12, 31, $zone, { hour: 12 });
         var $third = Core\Time::at(2025, 1, 1, $zone);
         var $newYear = Core\Time\Date::at(2025, 1, 1);
         int $total = 0;

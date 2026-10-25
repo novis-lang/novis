@@ -3,20 +3,20 @@
 
 Core\Xml\Writer $writer = Core\Xml::writer();
 $writer->startDocument();
-$writer->startElement("note");
-$writer->attribute("lang", "en");
+$writer->startElement('note');
+$writer->attribute('lang', 'en');
 
 // An element can have each attribute name only once.
 try {
-    $writer->attribute("lang", "de");
+    $writer->attribute('lang', 'de');
 } catch (LogicError $error) {
     echo $error->message, "\n";
 }
 
 // After you write text inside an element, you cannot add an attribute to it.
-$writer->content("Back at noon.");
+$writer->content('Back at noon.');
 try {
-    $writer->attribute("author", "Sam");
+    $writer->attribute('author', 'Sam');
 } catch (LogicError $error) {
     echo $error->message, "\n";
 }

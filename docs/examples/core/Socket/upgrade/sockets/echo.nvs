@@ -5,6 +5,6 @@
 Core\Socket $conn = Core\Socket::current();
 ?Core\Socket\Message $message = $conn->receive();
 while ($message != null) {
-    $conn->send("you said " . ($message->text() ?? ""));
+    $conn->send('you said ' . ($message->text() ?? ''));
     $message = $conn->receive();
 }

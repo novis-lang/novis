@@ -3,16 +3,16 @@
 // group of keys is a loop over the keys your program wrote.
 
 var $cache = Core\Cache::memory();
-array<string> $ids = ["4711", "4712", "4713"];
+array<string> $ids = ['4711', '4712', '4713'];
 
 foreach ($ids as string $id) {
-    $cache->put("profile-" . $id, "the profile of user " . $id);
+    $cache->put('profile-' . $id, 'the profile of user ' . $id);
 }
 
 // All three values are in the store. This prints 3.
 uint $stored = 0;
 foreach ($ids as string $id) {
-    if ($cache->get("profile-" . $id) != null) {
+    if ($cache->get('profile-' . $id) != null) {
         $stored = $stored + 1;
     }
 }
@@ -20,11 +20,11 @@ echo $stored, "\n";
 
 // One `forget` for each key. This prints 0.
 foreach ($ids as string $id) {
-    $cache->forget("profile-" . $id);
+    $cache->forget('profile-' . $id);
 }
 uint $left = 0;
 foreach ($ids as string $id) {
-    if ($cache->get("profile-" . $id) != null) {
+    if ($cache->get('profile-' . $id) != null) {
         $left = $left + 1;
     }
 }

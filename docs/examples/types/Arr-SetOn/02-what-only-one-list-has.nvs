@@ -3,12 +3,12 @@
 // The `on` option says what to compare: values, keys, or both.
 // The result keeps the keys and the order of the first array.
 
-array<int> $mine = ["x" => 1, "y" => 2, "z" => 3];
-array<int> $theirs = ["p" => 2, "z" => 9];
+array<int> $mine = ['x' => 1, 'y' => 2, 'z' => 3];
+array<int> $theirs = ['p' => 2, 'z' => 9];
 
-echo "values:  ", Core\Json::encode(Core\Arr::diff($mine, $theirs)), "\n";
-echo "names:   ", Core\Json::encode(Core\Arr::diff($mine, $theirs, {on: Core\Arr::SetOn::Keys})), "\n";
-echo "both:    ", Core\Json::encode(Core\Arr::diff($mine, $theirs, {on: Core\Arr::SetOn::Both})), "\n";
+echo 'values:  ', Core\Json::encode(Core\Arr::diff($mine, $theirs)), "\n";
+echo 'names:   ', Core\Json::encode(Core\Arr::diff($mine, $theirs, { on: Core\Arr::SetOn::Keys })), "\n";
+echo 'both:    ', Core\Json::encode(Core\Arr::diff($mine, $theirs, { on: Core\Arr::SetOn::Both })), "\n";
 
 // With `Both`, the result has every entry. No entry matches on key and value together.
 // `z` is in both arrays, but its value is `3` in one and `9` in the other.

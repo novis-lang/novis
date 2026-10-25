@@ -12,4 +12,4 @@ echo $count * 2, "\n";
 
 // A `uint` reaches one bit further up than an `int` does. This prints
 // 18446744073709551615, the largest number a `uint` holds.
-echo Core\BigInt::parse("18446744073709551615")->toUint(), "\n";
+echo Core\BigInt::parse('18446744073709551615')->toUint(), "\n";

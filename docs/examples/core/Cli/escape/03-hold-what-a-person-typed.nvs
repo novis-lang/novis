@@ -6,12 +6,12 @@
 
 // There is no terminal here, so `ask` returns the default. The default ends with
 // a control sequence that clears the screen.
-string $clear = Core\Str::fromCodePoint(27) . "[2J";
-tainted string $typed = Core\Cli::ask("Who is the order for?", {default: "ada" . $clear});
+string $clear = Core\Str::fromCodePoint(27) . '[2J';
+tainted string $typed = Core\Cli::ask('Who is the order for?', { default: 'ada' . $clear });
 
 // The result is a plain `string`, not a tainted one, and nothing in it can
 // control a terminal.
 string $safe = Core\Cli::escape($typed);
 
-echo "order for ", $safe, "\n";
-echo "the name takes ", Core\Cli::displayWidth($safe), " columns\n";
+echo 'order for ', $safe, "\n";
+echo 'the name takes ', Core\Cli::displayWidth($safe), " columns\n";

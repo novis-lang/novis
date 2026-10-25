@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table shops (name text not null, opens time not null, closes time not null)', []);
 $db->execute(
     'insert into shops (name, opens, closes) values (?, ?, ?), (?, ?, ?), (?, ?, ?)',
-    ['the bakery', '06:30:00', '13:00:00', 'the tea shop', '09:00:00', '18:00:00', 'the bookshop', '10:00:00', '19:00:00']
+    ['the bakery', '06:30:00', '13:00:00', 'the tea shop', '09:00:00', '18:00:00', 'the bookshop', '10:00:00', '19:00:00'],
 );
 
 var $nine = Core\Time\TimeOfDay::at(9, 0);

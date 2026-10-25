@@ -7,13 +7,15 @@
 // bench: statements 3
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         bytes $message = "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n" as bytes;
         array<bytes> $needles = [
-            Core\Encoding::fromHex("0d0a0d0a"),
-            "Host:" as bytes,
-            "Cookie:" as bytes,
+            Core\Encoding::fromHex('0d0a0d0a'),
+            'Host:' as bytes,
+            'Cookie:' as bytes,
         ];
         uint $total = 0;
         uint $i = 0;

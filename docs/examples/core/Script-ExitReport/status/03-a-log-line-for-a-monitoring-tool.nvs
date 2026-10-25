@@ -4,13 +4,13 @@
 // proof: exit 2
 
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
-    string $state = $report->status() == 0 ? "green" : "red";
+    string $state = $report->status() == 0 ? 'green' : 'red';
     // This prints "job=backup status=2 state=red".
-    echo "job=backup status=", $report->status(), " state=", $state, "\n";
+    echo 'job=backup status=', $report->status(), ' state=', $state, "\n";
 });
 
 int $failed = 2;
-echo "copied 40 files, ", $failed, " failed\n";
+echo 'copied 40 files, ', $failed, " failed\n";
 if ($failed > 0) {
     // The status 2 means "some files were not copied".
     exit(2);

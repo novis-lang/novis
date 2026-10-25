@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         int $acc = 1;
         for (int $i = 0; $i < $rounds; $i++) {
             // Chained: this round's subject comes out of the last round.

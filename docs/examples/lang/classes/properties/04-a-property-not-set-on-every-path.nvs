@@ -3,10 +3,12 @@
 // leaves it with no value, so this program does not compile.
 // proof: compile-error
 
-class Box {
+class Box
+{
     public int $n;
 
-    public function constructor(bool $big) {
+    public function constructor(bool $big)
+    {
         if ($big) {
             $this->n = 10;
         }

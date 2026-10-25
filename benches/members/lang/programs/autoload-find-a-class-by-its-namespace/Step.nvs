@@ -4,8 +4,10 @@
 
 namespace Loaded;
 
-class Step {
-    public static function next(uint $seen): uint {
+class Step
+{
+    public static function next(uint $seen): uint
+    {
         return $seen + 1;
     }
 }

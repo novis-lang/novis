@@ -5,16 +5,18 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $fields = ["17", "42", "308"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $fields = ['17', '42', '308'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             string $field = $fields[($total % 3) as int];
             $total = $total + ($field as uint);
             $total = $total + Core\Str::length(Core\Str::at($field, 0));
-            if (Core\Str::compare($field, "42") < 0) {
+            if (Core\Str::compare($field, '42') < 0) {
                 $total = $total + 1;
             }
             $i = $i + 1;

@@ -11,10 +11,10 @@ uint $pieces = 0;
 uint $size = 0;
 ?Core\Socket\Message $message = $conn->receive();
 while ($message != null) {
-    tainted bytes $piece = $message->bytes() ?? "" as bytes;
+    tainted bytes $piece = $message->bytes() ?? '' as bytes;
     // A PDF file starts with the four bytes `%PDF`. The first piece must start with them.
-    if ($pieces == 0 && !Core\Bytes::startsWith($piece, "%PDF" as bytes)) {
-        $conn->send("this is not a PDF file");
+    if ($pieces == 0 && !Core\Bytes::startsWith($piece, '%PDF' as bytes)) {
+        $conn->send('this is not a PDF file');
         break;
     }
     $pieces = $pieces + 1;
@@ -22,5 +22,5 @@ while ($message != null) {
     $message = $conn->receive();
 }
 if ($pieces > 0) {
-    $conn->send("received " . $pieces . " pieces, " . $size . " bytes");
+    $conn->send('received ' . $pieces . ' pieces, ' . $size . ' bytes');
 }

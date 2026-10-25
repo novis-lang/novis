@@ -5,9 +5,11 @@
 // bench: calls 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $addresses = ["ada.lovelace@example.com", "grace@@example.org", "bob+news@mail.example.net"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $addresses = ['ada.lovelace@example.com', 'grace@@example.org', 'bob+news@mail.example.net'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

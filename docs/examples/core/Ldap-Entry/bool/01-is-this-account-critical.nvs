@@ -2,13 +2,13 @@
 // Shows how to read a yes-or-no value of an entry.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $admin = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["isCriticalSystemObject"]});
+var $corp = Core\Ldap::connect('corp');
+var $admin = $corp->read('CN=Administrator,CN=Users,DC=example,DC=test', { select: ['isCriticalSystemObject'] });
 
 if ($admin != null) {
     // The domain needs the account `Administrator`, so the value is `TRUE`.
     // This prints `Do not delete this account.`
-    if ($admin->bool("isCriticalSystemObject") ?? false) {
+    if ($admin->bool('isCriticalSystemObject') ?? false) {
         echo "Do not delete this account.\n";
     }
 }

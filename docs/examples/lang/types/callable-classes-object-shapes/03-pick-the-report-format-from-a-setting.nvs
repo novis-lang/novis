@@ -3,30 +3,39 @@
 // `as class<Renders>` converts a class name to a class reference.
 // The program uses the reference to create the report and to call the static method `extension`.
 
-interface Renders {
+interface Renders
+{
     public function render(array<string> $rows): string;
     public static function extension(): string;
 }
 
-class CsvReport implements Renders {
-    public function render(array<string> $rows): string {
-        return Core\Str::join($rows, ",");
+class CsvReport implements Renders
+{
+    public function render(array<string> $rows): string
+    {
+        return Core\Str::join($rows, ',');
     }
-    public static function extension(): string {
-        return "csv";
+
+    public static function extension(): string
+    {
+        return 'csv';
     }
 }
 
-class LinesReport implements Renders {
-    public function render(array<string> $rows): string {
+class LinesReport implements Renders
+{
+    public function render(array<string> $rows): string
+    {
         return Core\Str::join($rows, "\n");
     }
-    public static function extension(): string {
-        return "txt";
+
+    public static function extension(): string
+    {
+        return 'txt';
     }
 }
 
-array<string> $rows = ["north", "south"];
+array<string> $rows = ['north', 'south'];
 
 // A class name written in quotes is checked when the program compiles.
 // If `CsvReport` did not implement `Renders`, the program would not compile.
@@ -34,12 +43,12 @@ class<Renders> $default = 'CsvReport' as class<Renders>;
 
 // A name from a setting is checked when the program runs. `as ?class<Renders>` gives `null`
 // for a name that is not a `Renders` class. Then `??` uses the default format.
-array<string> $settings = ["LinesReport", "PdfReport"];
+array<string> $settings = ['LinesReport', 'PdfReport'];
 
 foreach ($settings as string $setting) {
     class<Renders> $format = ($setting as ?class<Renders>) ?? $default;
     Renders $report = new $format();
 
-    echo $setting, " writes a .", $format::extension(), " file:\n";
+    echo $setting, ' writes a .', $format::extension(), " file:\n";
     echo $report->render($rows), "\n";
 }

@@ -3,11 +3,11 @@
 // Every name says its type once, where it is created. `as` is how a piece of
 // text becomes a number.
 
-array<string> $quantities = ["3", "11", "7"];
+array<string> $quantities = ['3', '11', '7'];
 
 int $total = 0;
 foreach ($quantities as string $quantity) {
     $total = $total + ($quantity as int);
 }
 
-echo "items ordered: ", $total, "\n";
+echo 'items ordered: ', $total, "\n";

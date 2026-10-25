@@ -2,19 +2,19 @@
 // Shows how to keep the DN of an entry and use it to read more attributes later.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 
 // The first search reads only the DN of the account `ben.kohl`.
 array<Core\Ldap\Dn> $found = [];
-var $accounts = $corp->search(Core\Ldap\Filter::equals("sAMAccountName", "ben.kohl"), {select: ["cn"]});
+var $accounts = $corp->search(Core\Ldap\Filter::equals('sAMAccountName', 'ben.kohl'), { select: ['cn'] });
 foreach ($accounts as Core\Ldap\Entry $account) {
     $found[] = $account->dn();
 }
 
 // `read` accepts the `Dn` directly. This prints `ben.kohl@example.test`.
 foreach ($found as Core\Ldap\Dn $dn) {
-    var $person = $corp->read($dn, {select: ["mail"]});
+    var $person = $corp->read($dn, { select: ['mail'] });
     if ($person != null) {
-        echo $person->string("mail") ?? "no mail address", "\n";
+        echo $person->string('mail') ?? 'no mail address', "\n";
     }
 }

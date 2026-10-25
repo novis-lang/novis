@@ -6,15 +6,18 @@
 // `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
 use Core\Test;
 
-final class OutputTest {
+final class OutputTest
+{
     #[Test]
-    public function itPasses(): void {
+    public function itPasses(): void
+    {
         echo "printed by the passing test\n";
         Test::assertTrue(true);
     }
 
     #[Test]
-    public function itFails(): void {
+    public function itFails(): void
+    {
         echo "printed by the failing test\n";
         Test::assertSame(1, 2);
     }

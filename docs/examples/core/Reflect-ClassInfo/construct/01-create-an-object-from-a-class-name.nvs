@@ -1,18 +1,22 @@
 <?nvs
 // Shows how to create an object when the name of its class is in a string.
 
-class Point {
+class Point
+{
     public int $x;
     public int $y;
 
-    public function constructor(int $x, int $y) {
+    public function constructor(int $x, int $y)
+    {
         $this->x = $x;
         $this->y = $y;
     }
 }
 
-class Factory {
-    public static function make(string $className, array<mixed> $arguments): mixed {
+class Factory
+{
+    public static function make(string $className, array<mixed> $arguments): mixed
+    {
         var $info = Core\Reflect::forClass($className);
         if ($info == null) {
             return null;
@@ -23,5 +27,5 @@ class Factory {
 }
 
 // The result has the type `mixed`, so `as Point` converts it. This prints "3, 4".
-var $point = Factory::make("Point", [3, 4]) as Point;
-echo $point->x, ", ", $point->y, "\n";
+var $point = Factory::make('Point', [3, 4]) as Point;
+echo $point->x, ', ', $point->y, "\n";

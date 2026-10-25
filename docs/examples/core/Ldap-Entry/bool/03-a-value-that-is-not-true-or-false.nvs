@@ -2,13 +2,13 @@
 // Shows what `bool` does with a value that is not `TRUE` or `FALSE`.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Carla Diaz,OU=Company,DC=example,DC=test", {select: ["department"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Carla Diaz,OU=Company,DC=example,DC=test', { select: ['department'] });
 
 if ($person != null) {
     // `department` is the text `Sales`. `bool` throws a `LogicError` that names the attribute.
     try {
-        echo ($person->bool("department") ?? false) ? "true" : "false", "\n";
+        echo ($person->bool('department') ?? false) ? 'true' : 'false', "\n";
     } catch (LogicError $error) {
         echo $error->message, "\n";
     }

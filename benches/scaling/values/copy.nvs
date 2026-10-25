@@ -4,13 +4,16 @@
 // scaling: max 64000
 // scaling: expect linear
 
-class Bench {
-    private static function raise(array<uint> $prices): array<uint> {
+class Bench
+{
+    private static function raise(array<uint> $prices): array<uint>
+    {
         $prices[0] = $prices[0] + 1;
         return $prices;
     }
 
-    public static function run(uint $size): uint {
+    public static function run(uint $size): uint
+    {
         array<uint> $prices = [];
         uint $i = 0;
         while ($i < $size) {

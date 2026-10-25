@@ -2,17 +2,21 @@
 // Shows a value assigned to a wider type with no `as`: a nullable type, a union
 // and `mixed`.
 
-interface Sends {
+interface Sends
+{
     public function send(): string;
 }
 
-class Email implements Sends {
-    public function send(): string {
-        return "sent by e-mail";
+class Email implements Sends
+{
+    public function send(): string
+    {
+        return 'sent by e-mail';
     }
 }
 
-class Invoice extends Email {}
+class Invoice extends Email
+{}
 
 int $count = 3;
 
@@ -20,7 +24,7 @@ int $count = 3;
 int|string $either = $count;
 mixed $anything = $count;
 
-echo $optional ?? 0, " ", $either as string, " ", $anything as string, "\n";
+echo $optional ?? 0, ' ', $either as string, ' ', $anything as string, "\n";
 
 // An object is assigned to its parent class, to an interface its class
 // implements, and to `object`.

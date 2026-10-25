@@ -4,9 +4,11 @@
 // bench: complexity constant
 // requires: unix
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $paths = ["/tmp/novis-bench-connect.sock"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $paths = ['/tmp/novis-bench-connect.sock'];
         Core\Net\Listener $server = Core\Net::listenLocal($paths[0]);
         uint $total = 0;
         uint $i = 0;

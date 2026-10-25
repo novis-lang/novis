@@ -1,11 +1,12 @@
 error[E0741]: a body declaring `static` returns a value that is not the called class
-  --> 05-static-must-return-the-called-class.nvs:7:29
-  |
-7 |     public function copy(): static {
-  |                             ------ declared `static` here
-8 |         return new self();
-  |                ^^^^^^^^^^ not the called class
-  = help: `static` is the class the call named, which a subclass may be — return `$this` or `new static(...)`, or declare `self` if the declaring class is what is meant
+   --> 05-static-must-return-the-called-class.nvs:8:29
+   |
+ 8 |     public function copy(): static
+   |                             ------ declared `static` here
+...
+10 |         return new self();
+   |                ^^^^^^^^^^ not the called class
+   = help: `static` is the class the call named, which a subclass may be — return `$this` or `new static(...)`, or declare `self` if the declaring class is what is meant
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

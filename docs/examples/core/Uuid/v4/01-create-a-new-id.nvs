@@ -12,7 +12,7 @@ echo Core\Str::slice($id, 14, 1), "\n";
 
 // The groups are always 8, 4, 4, 4 and 12 digits long. This prints 8 4 4 4 12.
 array<string> $lengths = [];
-foreach (Core\Str::split($id, "-") as string $group) {
+foreach (Core\Str::split($id, '-') as string $group) {
     $lengths[] = Core\Str::length($group) as string;
 }
-echo Core\Str::join($lengths, " "), "\n";
+echo Core\Str::join($lengths, ' '), "\n";

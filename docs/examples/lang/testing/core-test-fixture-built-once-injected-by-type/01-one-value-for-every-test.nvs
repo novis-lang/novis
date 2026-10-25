@@ -5,31 +5,38 @@
 use Core\Test;
 use Core\Test\Fixture;
 
-class ShippingRates {
-    public function constructor(public int $baseCents, public int $perItemCents) {}
+class ShippingRates
+{
+    public function constructor(public int $baseCents, public int $perItemCents)
+    {}
 
-    public function totalCents(int $items): int {
+    public function totalCents(int $items): int
+    {
         return $this->baseCents + $this->perItemCents * $items;
     }
 }
 
-class ShippingRatesTest {
+class ShippingRatesTest
+{
     // This method runs once for the whole class. Every test below that declares
     // a `ShippingRates` parameter is called with what it returns.
     #[Fixture]
-    public static function rates(): ShippingRates {
+    public static function rates(): ShippingRates
+    {
         return new ShippingRates(499, 120);
     }
 
     #[Test]
-    public function threeItemsPayTheBaseAndThreeItems(ShippingRates $rates): void {
+    public function threeItemsPayTheBaseAndThreeItems(ShippingRates $rates): void
+    {
         Test::assertSame($rates->totalCents(3), 859);
     }
 
     // The type of the parameter says which fixture fills it. The name is yours
     // to choose.
     #[Test]
-    public function anEmptyOrderPaysTheBase(ShippingRates $anyNameYouLike): void {
+    public function anEmptyOrderPaysTheBase(ShippingRates $anyNameYouLike): void
+    {
         Test::assertSame($anyNameYouLike->totalCents(0), 499);
     }
 }

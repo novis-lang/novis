@@ -3,7 +3,8 @@
 // This program does not compile.
 // proof: compile-error
 
-class Foo {
+class Foo
+{
     public int $n = 1;
 }
 

@@ -4,20 +4,24 @@
 // bench: complexity linear
 
 #[Core\Json\Derive]
-class Item {
+class Item
+{
     public string $sku;
     public int $count;
     public bool $gift;
 
-    public function constructor(string $sku, int $count, bool $gift) {
+    public function constructor(string $sku, int $count, bool $gift)
+    {
         $this->sku = $sku;
         $this->count = $count;
         $this->gift = $gift;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $bodies = [
             "{\"sku\":\"T-1\",\"count\":2,\"gift\":false}",
             "{\"sku\":\"CUP-40\",\"count\":1,\"gift\":true}",

@@ -3,21 +3,24 @@
 // and the loop tries again. The third one is sent on, because there is nothing
 // left to try.
 
-final class Payments {
+final class Payments
+{
     public static int $calls = 0;
 
-    public static function charge(int $order): string {
+    public static function charge(int $order): string
+    {
         Payments::$calls = Payments::$calls + 1;
-        throw new TimeoutError("the payment service did not answer");
+        throw new TimeoutError('the payment service did not answer');
     }
 
-    public static function chargeWithRetries(int $order, int $tries): string {
+    public static function chargeWithRetries(int $order, int $tries): string
+    {
         int $attempt = 1;
         while ($attempt <= $tries) {
             try {
                 return Payments::charge($order);
             } catch (TimeoutError $slow) {
-                echo "attempt ", $attempt, " timed out\n";
+                echo 'attempt ', $attempt, " timed out\n";
                 if ($attempt == $tries) {
                     // The last attempt sends the error on unchanged.
                     throw $slow;
@@ -25,12 +28,12 @@ final class Payments {
             }
             $attempt = $attempt + 1;
         }
-        return "not reached";
+        return 'not reached';
     }
 }
 
 try {
     echo Payments::chargeWithRetries(4021, 3), "\n";
 } catch (TimeoutError $gaveUp) {
-    echo "gave up after ", Payments::$calls, " calls: ", $gaveUp->message, "\n";
+    echo 'gave up after ', Payments::$calls, ' calls: ', $gaveUp->message, "\n";
 }

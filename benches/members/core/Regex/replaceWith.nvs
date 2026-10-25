@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $lines = ["12 usd and 3 eur", "Total 40 gbp", "no amount here"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $lines = ['12 usd and 3 eur', 'Total 40 gbp', 'no amount here'];
         Core\Regex\Pattern $amount = Core\Regex::compile('\d+ [a-z]{3}');
         uint $total = 0;
         uint $i = 0;

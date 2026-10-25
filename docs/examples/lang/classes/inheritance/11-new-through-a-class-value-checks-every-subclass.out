@@ -1,7 +1,7 @@
 error[E0794]: `new` over `class<Formatter>` cannot check its arguments
-   --> 11-new-through-a-class-value-checks-every-subclass.nvs:17:19
+   --> 11-new-through-a-class-value-checks-every-subclass.nvs:21:19
    |
-17 | Formatter $made = new $cls("p: ");
+21 | Formatter $made = new $cls('p: ');
    |                   ^^^^^^^^^^^^^^^ `Strict::constructor` is not compatible with `Formatter::constructor`
    = help: a class reference may hold any implementor, so every one of them has to accept the arguments written here — give `Strict` a constructor compatible with `Formatter`'s, or narrow this to `as class<Strict>` and instantiate that
 

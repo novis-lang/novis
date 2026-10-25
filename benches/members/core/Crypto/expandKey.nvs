@@ -6,11 +6,13 @@
 // bench: allocations 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         secret bytes $material = Core\Crypto::generateKey();
         bytes $salt = Core\Bytes::fill(16, 65);
-        array<string> $uses = ["client to server", "server to client"];
+        array<string> $uses = ['client to server', 'server to client'];
         array<secret bytes> $known = [
             Core\Crypto::expandKey($material, $salt, $uses[0]),
             Core\Crypto::expandKey($material, $salt, $uses[1]),

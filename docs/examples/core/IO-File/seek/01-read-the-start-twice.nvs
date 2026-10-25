@@ -1,8 +1,8 @@
 <?nvs
 // Shows how to move the handle of an open file, so the next read starts at another byte.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "greeting.txt");
-Core\IO::write($path, "Hello, world");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'greeting.txt');
+Core\IO::write($path, 'Hello, world');
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 
 // This reads the first 5 bytes and prints "Hello". The handle is now after them.

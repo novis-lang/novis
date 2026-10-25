@@ -2,14 +2,14 @@
 // Shows how to check that a user belongs to this domain.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $domain = $corp->read("DC=example,DC=test", {select: ["objectSid"]});
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["objectSid"]});
+var $corp = Core\Ldap::connect('corp');
+var $domain = $corp->read('DC=example,DC=test', { select: ['objectSid'] });
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['objectSid'] });
 
 if ($domain != null && $person != null) {
     // `domain` returns the SID without its last number. For a user, that is the SID of the domain.
-    string $ofDomain = $domain->sid("objectSid")?->toString() ?? "none";
-    string $ofPerson = $person->sid("objectSid")?->domain()?->toString() ?? "none";
+    string $ofDomain = $domain->sid('objectSid')?->toString() ?? 'none';
+    string $ofPerson = $person->sid('objectSid')?->domain()?->toString() ?? 'none';
 
     // This prints `Anna Berg is in this domain.`
     if ($ofDomain == $ofPerson) {

@@ -3,13 +3,15 @@
 // belongs to the declaration on the line under it.
 
 /// A price in cents. A whole number of cents never needs rounding.
-final class Price {
+final class Price
+{
     /// The lowest price a shop may set.
     public const int MIN = 0;
 
     /// Doubles a price.
     /// Several `///` lines in a row make one doc comment.
-    public static function double(int $cents): int {
+    public static function double(int $cents): int
+    {
         return $cents * 2;
     }
 }

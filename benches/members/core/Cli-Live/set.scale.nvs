@@ -10,7 +10,7 @@ class Bench
         array<Core\Cli\Text> $rows = [];
         uint $row = 0;
         while ($row < $size) {
-            $rows[] = Core\Cli\Text::plain("reading");
+            $rows[] = Core\Cli\Text::plain('reading');
             $row = $row + 1;
         }
         return Core\Cli::live(fn(Core\Cli\Live $screen): int => {

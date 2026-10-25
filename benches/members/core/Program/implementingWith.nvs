@@ -5,35 +5,50 @@
 // bench: calls 3
 // bench: complexity constant
 
-type Route = {path: string};
+type Route = { path: string };
 
-interface Page {
+interface Page
+{
     public function render(): string;
 }
 
-class Home implements Page {
-    #[Route(path: "/")]
-    public function render(): string { return "home"; }
+class Home implements Page
+{
+    #[Route(path: '/')]
+    public function render(): string
+    {
+        return 'home';
+    }
 }
 
-class Contact implements Page {
-    #[Route(path: "/contact")]
-    public function render(): string { return "contact"; }
+class Contact implements Page
+{
+    #[Route(path: '/contact')]
+    public function render(): string
+    {
+        return 'contact';
+    }
 }
 
-class Draft implements Page {
-    public function render(): string { return "draft"; }
+class Draft implements Page
+{
+    public function render(): string
+    {
+        return 'draft';
+    }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            foreach (Core\Program::implementingWith<Page, Route>("render") as {instance: Page, attribute: ?Route} $row) {
+            foreach (Core\Program::implementingWith<Page, Route>('render') as { instance: Page, attribute: ?Route } $row) {
                 // Chained: the length counted this round is added to the total
                 // carried out of the round before.
-                $total = $total + Core\Str::length($row->attribute?->path ?? "") + $total % 2;
+                $total = $total + Core\Str::length($row->attribute?->path ?? '') + $total % 2;
             }
             $i = $i + 1;
         }

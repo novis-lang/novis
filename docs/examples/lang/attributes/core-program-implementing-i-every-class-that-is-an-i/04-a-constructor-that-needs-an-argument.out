@@ -1,7 +1,7 @@
 error[E0744]: `SmtpSender` is a `Sender` and its constructor takes 1 required argument(s)
-   --> 04-a-constructor-that-needs-an-argument.nvs:24:10
+   --> 04-a-constructor-that-needs-an-argument.nvs:30:10
    |
-24 | foreach (Core\Program::implementing<Sender>() as Sender $sender) {
+30 | foreach (Core\Program::implementing<Sender>() as Sender $sender) {
    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this enumeration would write `new SmtpSender()`
    = help: every class in the result is created with no arguments. Give `SmtpSender` a `constructor` with no required parameters. Or use `Core\Program::constructors<Sender, callable(...): Sender>()`, which passes the arguments you give it
 

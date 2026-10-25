@@ -3,43 +3,50 @@
 // their shell, and the program writes the script to standard output. The user
 // can redirect it into a file with one command.
 
-class Tool {
-    #[Core\Command(name: "deploy", about: "Push the current build")]
-    public static function deploy(string $target): uint {
+class Tool
+{
+    #[Core\Command(name: 'deploy', about: 'Push the current build')]
+    public static function deploy(string $target): uint
+    {
         return 0;
     }
 
-    #[Core\Command(name: "completions", about: "Write a completion script for your shell")]
-    public static function completions(string $shell): uint {
+    #[Core\Command(name: 'completions', about: 'Write a completion script for your shell')]
+    public static function completions(string $shell): uint
+    {
         ?Core\Command::Shell $which = match ($shell) {
-            "bash" => Core\Command::Shell::Bash,
-            "zsh" => Core\Command::Shell::Zsh,
-            "fish" => Core\Command::Shell::Fish,
-            "pwsh" => Core\Command::Shell::Pwsh,
-            "powershell" => Core\Command::Shell::Pwsh,
+            'bash' => Core\Command::Shell::Bash,
+            'zsh' => Core\Command::Shell::Zsh,
+            'fish' => Core\Command::Shell::Fish,
+            'pwsh' => Core\Command::Shell::Pwsh,
+            'powershell' => Core\Command::Shell::Pwsh,
             default => null,
         };
 
         // An unknown shell name prints an error to standard error, and the
         // method returns status `2`.
         if ($which == null) {
-            Core\Cli::write("no completion script is written for " . $shell,
-                            {stream: Core\Cli::Stream::Err, newline: true});
+            Core\Cli::write(
+                'no completion script is written for ' . $shell,
+                { stream: Core\Cli::Stream::Err, newline: true },
+            );
             return 2;
         }
 
         // The script goes to standard output. The note about it goes to
         // standard error, so a redirect writes only the script to the file.
         Core\Cli::write(Core\Command::completions($which));
-        Core\Cli::write("save that where " . $shell . " looks for completions",
-                        {stream: Core\Cli::Stream::Err, newline: true});
+        Core\Cli::write(
+            'save that where ' . $shell . ' looks for completions',
+            { stream: Core\Cli::Stream::Err, newline: true },
+        );
         return 0;
     }
 }
 
 // In a real program, `Core\Command::run()` calls this method with what the user
 // typed. Here the code calls it twice, with `tcsh` and with `fish`.
-uint $refused = Tool::completions("tcsh");
-Core\Cli::write("tcsh ended with status " . $refused, {stream: Core\Cli::Stream::Err, newline: true});
+uint $refused = Tool::completions('tcsh');
+Core\Cli::write('tcsh ended with status ' . $refused, { stream: Core\Cli::Stream::Err, newline: true });
 
-Tool::completions("fish");
+Tool::completions('fish');

@@ -3,7 +3,7 @@
 // as an `int`. The amounts are in cents, and the database column holds an
 // `int`, so the total has to fit before the program can store it.
 
-array<string> $amounts = ["4500000000", "129900000000", "77000"];
+array<string> $amounts = ['4500000000', '129900000000', '77000'];
 
 var $total = Core\BigInt::of(0);
 foreach ($amounts as string $amount) {

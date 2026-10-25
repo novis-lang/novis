@@ -3,21 +3,24 @@
 // backticks is written to the page as it is. Every hole is escaped, so a
 // value cannot add a tag of its own.
 
-class Shop {
-    public const string NAME = "Kettle & Co";
+class Shop
+{
+    public const string NAME = 'Kettle & Co';
 
-    public static function price(int $cents): string {
-        return Core\Str::format("%d.%02d €", $cents / 100, $cents % 100);
+    public static function price(int $cents): string
+    {
+        return Core\Str::format('%d.%02d €', $cents / 100, $cents % 100);
     }
 
-    public static function badge(): Core\Html\Markup {
+    public static function badge(): Core\Html\Markup
+    {
         return html`<span class="badge">new</span>`;
     }
 }
 
 // `{$name}` is a hole for a variable. It prints `&lt;b&gt;Ann&lt;/b&gt;`,
 // so the `<b>` stays text on the page.
-tainted string $name = "<b>Ann</b>";
+tainted string $name = '<b>Ann</b>';
 echo html`<p>Welcome, {$name}</p>`, "\n";
 
 // `<?= ... ?>` is a hole for any expression: a constant, a method call, a

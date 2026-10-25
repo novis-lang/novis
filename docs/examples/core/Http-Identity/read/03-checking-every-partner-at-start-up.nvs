@@ -30,9 +30,9 @@ FXPwqQ0biQfTzl+cQ+Cc/2cw72NUT8a7Jg==
 PEM;
 
 // The certificate for each partner, and the key file installed beside it.
-array<string> $chains = ["bank" => $bankChain, "insurer" => $insurerChain];
+array<string> $chains = ['bank' => $bankChain, 'insurer' => $insurerChain];
 // A mistake in the setup: the insurer's certificate was installed with the bank's key.
-array<string> $keyFiles = ["bank" => $bankKey, "insurer" => $bankKey];
+array<string> $keyFiles = ['bank' => $bankKey, 'insurer' => $bankKey];
 
 array<Core\Http\Identity> $identities = [];
 uint $problems = 0;
@@ -42,9 +42,9 @@ foreach ($chains as string $partner => string $chain) {
         Core\Crypto\KeyPair $key = Core\Crypto\KeyPair::read($keyFile, Core\Crypto\KeyKind::Ed25519);
         // Each identity is kept. Later requests to this partner pass it as the `identity` option.
         $identities[$partner] = Core\Http\Identity::read($chain as bytes, $key);
-        echo $partner, ": ready", "\n";
+        echo $partner, ': ready', "\n";
     } catch (LogicError $error) {
-        echo $partner, ": not ready: ", $error->message, "\n";
+        echo $partner, ': not ready: ', $error->message, "\n";
         $problems = $problems + 1;
     }
 }
@@ -52,5 +52,5 @@ foreach ($chains as string $partner => string $chain) {
 // The service starts only when every partner is ready. Here one is not, so this prints
 // `1 partner(s) not ready, the service does not start`.
 if ($problems > 0) {
-    echo $problems, " partner(s) not ready, the service does not start", "\n";
+    echo $problems, ' partner(s) not ready, the service does not start', "\n";
 }

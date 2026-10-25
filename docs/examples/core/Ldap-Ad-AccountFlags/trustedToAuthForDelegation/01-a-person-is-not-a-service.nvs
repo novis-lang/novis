@@ -2,10 +2,10 @@
 // Shows that `trustedToAuthForDelegation` returns `false` for the account of a person.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `acts without password: false`.
-    echo "acts without password: ", $flags->trustedToAuthForDelegation() ? "true" : "false", "\n";
+    echo 'acts without password: ', $flags->trustedToAuthForDelegation() ? 'true' : 'false', "\n";
 }

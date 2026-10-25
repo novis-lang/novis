@@ -1,7 +1,7 @@
 error[E0401]: expected `int`, found `string`
   --> 04-a-variable-keeps-its-type.nvs:7:10
   |
-7 | $count = "two";
+7 | $count = 'two';
   |          ^^^^^ this is `string`
 
 error: aborting due to 1 error

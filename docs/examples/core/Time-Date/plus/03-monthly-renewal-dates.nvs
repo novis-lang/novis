@@ -6,10 +6,10 @@
 var $start = Core\Time\Date::at(2024, 1, 31);
 int $month = 1;
 while ($month <= 4) {
-    echo "Renewal ", $month, ": ", $start->plus($month, Core\Unit::Month)->format("yyyy-MM-dd"), "\n";
+    echo 'Renewal ', $month, ': ', $start->plus($month, Core\Unit::Month)->format('yyyy-MM-dd'), "\n";
     $month = $month + 1;
 }
 
 // Adding one month to the previous renewal gives a different result.
 // The day stays at the 29th. This prints 2024-03-29.
-echo $start->plus(1, Core\Unit::Month)->plus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "\n";
+echo $start->plus(1, Core\Unit::Month)->plus(1, Core\Unit::Month)->format('yyyy-MM-dd'), "\n";

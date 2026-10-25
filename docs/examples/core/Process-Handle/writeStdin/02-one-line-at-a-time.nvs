@@ -4,13 +4,13 @@
 
 // This program reads one line at a time and replies to each line at once.
 var $program = Core\Process::spawn(
-    "/bin/sh",
-    ["-c", 'while read line; do echo "got: $line"; done'],
+    '/bin/sh',
+    ['-c', 'while read line; do echo "got: $line"; done'],
 );
 
 // Each line is sent, and then the reply to it is read.
 // This prints `got: hello` and then `got: goodbye`.
-array<string> $lines = ["hello", "goodbye"];
+array<string> $lines = ['hello', 'goodbye'];
 foreach ($lines as string $line) {
     $program->writeStdin(($line . "\n") as bytes);
     ?bytes $reply = $program->readStdout();
@@ -20,4 +20,4 @@ foreach ($lines as string $line) {
 }
 
 // `wait()` closes the input, so the loop in the program ends. The exit code is `0`.
-echo "exit code: ", $program->wait()->exitCode(), "\n";
+echo 'exit code: ', $program->wait()->exitCode(), "\n";

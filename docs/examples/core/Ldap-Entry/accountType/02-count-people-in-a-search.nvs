@@ -2,10 +2,10 @@
 // Shows how to count the people among the entries of a search.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 var $found = $corp->search(
-    Core\Ldap\Filter::present("sAMAccountType"),
-    {base: "OU=Company,DC=example,DC=test", select: ["sAMAccountType"]},
+    Core\Ldap\Filter::present('sAMAccountType'),
+    { base: 'OU=Company,DC=example,DC=test', select: ['sAMAccountType'] },
 );
 
 // `OU=Company` has five users and three groups.
@@ -19,4 +19,4 @@ foreach ($found as Core\Ldap\Entry $entry) {
         $other = $other + 1;
     }
 }
-echo $people, " people, ", $other, " other entries\n";
+echo $people, ' people, ', $other, " other entries\n";

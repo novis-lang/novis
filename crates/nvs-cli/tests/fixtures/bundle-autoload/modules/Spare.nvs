@@ -8,6 +8,6 @@ class Spare implements Part
 {
     public function tag(): string
     {
-        return "spare";
+        return 'spare';
     }
 }

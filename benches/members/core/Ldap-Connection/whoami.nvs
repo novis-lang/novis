@@ -5,9 +5,11 @@
 // bench: complexity constant
 // requires: samba-ad
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $corp = Core\Ldap::connect("corp");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $corp = Core\Ldap::connect('corp');
         // The length of each result is added, so the loop cannot be left out.
         uint $total = 0;
         uint $i = 0;

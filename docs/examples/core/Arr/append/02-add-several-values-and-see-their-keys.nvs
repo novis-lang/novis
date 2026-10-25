@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to add several values in one call, and which key each one gets.
 
-array<int> $stock = ["apples" => 5, "bread" => 2];
+array<int> $stock = ['apples' => 5, 'bread' => 2];
 
 // The keys you already have are kept. An added value gets a number as its key.
 // These two keys are words, so the numbering starts at "0".

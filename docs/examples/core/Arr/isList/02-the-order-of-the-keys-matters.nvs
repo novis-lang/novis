@@ -3,13 +3,13 @@
 // and so on, and they have to be put in in that order.
 
 array<string> $backwards = [];
-$backwards[1] = "second";
-$backwards[0] = "first";
+$backwards[1] = 'second';
+$backwards[0] = 'first';
 
 // Both keys are there, but 1 was put in before 0. This prints no.
-echo Core\Arr::isList($backwards) ? "yes" : "no", "\n";
+echo Core\Arr::isList($backwards) ? 'yes' : 'no', "\n";
 
 array<string> $empty = [];
 
 // An array with no entries at all is a list. This prints yes.
-echo Core\Arr::isList($empty) ? "yes" : "no", "\n";
+echo Core\Arr::isList($empty) ? 'yes' : 'no', "\n";

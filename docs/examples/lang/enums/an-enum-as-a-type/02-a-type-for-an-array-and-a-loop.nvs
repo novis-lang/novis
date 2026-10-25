@@ -3,11 +3,13 @@
 // variable. `array<Deck::Suit>` is an array where every element is one case of
 // `Deck::Suit`.
 
-class Deck {
+class Deck
+{
     enum Suit { Clubs, Hearts, Spades }
 
     // A generator declared `Iterator<Suit>` gives one case at a time.
-    public static function red(): Iterator<Suit> {
+    public static function red(): Iterator<Suit>
+    {
         yield Suit::Hearts;
     }
 }

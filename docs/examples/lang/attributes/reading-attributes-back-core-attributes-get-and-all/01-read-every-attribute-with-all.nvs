@@ -2,15 +2,22 @@
 // Shows how to read every attribute attached to one declaration.
 // `Core\Attributes::all` returns them in the order they are written.
 
-type Tag = {name: string};
+type Tag = { name: string };
 
-class Article {
-    #[Tag(name: "news")]
-    #[Tag(name: "sport")]
-    #[Tag(name: "local")]
-    public function publish(): int { return 1; }
+class Article
+{
+    #[Tag(name: 'news')]
+    #[Tag(name: 'sport')]
+    #[Tag(name: 'local')]
+    public function publish(): int
+    {
+        return 1;
+    }
 
-    public function archive(): int { return 2; }
+    public function archive(): int
+    {
+        return 2;
+    }
 }
 
 // This prints `news`, `sport` and `local`, one per line, in that order.

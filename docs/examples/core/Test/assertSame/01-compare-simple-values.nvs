@@ -7,7 +7,7 @@ int $total = 4 + 5 + 6;
 Core\Test::assertSame($total, 15);
 
 // Strings are the same when they have the same characters.
-string $name = Core\Str::upper("ada");
-Core\Test::assertSame($name, "ADA");
+string $name = Core\Str::upper('ada');
+Core\Test::assertSame($name, 'ADA');
 
 echo "both checks passed\n";

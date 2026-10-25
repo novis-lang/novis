@@ -6,7 +6,7 @@ Core\Session::start();
 
 // The user signed in. `regenerate()` replaces the identifier in the session cookie.
 Core\Session::regenerate();
-Core\Session::set("user", "ada");
+Core\Session::set('user', 'ada');
 
 // The session works as before. This prints `signed in as ada`.
-echo "signed in as ", Core\Session::get("user") ?? "(nobody)", "\n";
+echo 'signed in as ', Core\Session::get('user') ?? '(nobody)', "\n";

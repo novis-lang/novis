@@ -3,20 +3,20 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
-var $locked = Document::fromHtml("<p>Salary list</p>")->password("example-password")->render()->bytes;
+var $locked = Document::fromHtml('<p>Salary list</p>')->password('example-password')->render()->bytes;
 
 // A file with a password throws a `ParseError`.
 try {
     Reader::open($locked);
     echo "opened\n";
 } catch (ParseError $encrypted) {
-    echo "ParseError: ", $encrypted->message, "\n";
+    echo 'ParseError: ', $encrypted->message, "\n";
 }
 
 // These bytes are text and not a PDF file, so they throw a `ParseError` too.
 try {
-    Reader::open("Hello" as bytes);
+    Reader::open('Hello' as bytes);
     echo "opened\n";
 } catch (ParseError $broken) {
-    echo "ParseError: ", $broken->message, "\n";
+    echo 'ParseError: ', $broken->message, "\n";
 }

@@ -5,19 +5,23 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Customer {
-    public string $name = "";
+class Customer
+{
+    public string $name = '';
 }
 
-class Order {
+class Order
+{
     public ?Customer $customer = null;
     public int $total = 0;
-    public string $status = "";
+    public string $status = '';
 }
 
-class Bench {
-    public static function run(int $rounds): int {
-        array<string> $conditions = ["{total} > 100", "{customer.name} = ? AND {status} = 'paid'", "{status} IN ('paid', 'sent')"];
+class Bench
+{
+    public static function run(int $rounds): int
+    {
+        array<string> $conditions = ['{total} > 100', "{customer.name} = ? AND {status} = 'paid'", "{status} IN ('paid', 'sent')"];
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {

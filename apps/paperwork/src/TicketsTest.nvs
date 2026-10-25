@@ -7,16 +7,19 @@ use Core\Test;
 use Novis\Pdf\Reader;
 
 // Tests for the tickets. The file of the order has the summary on page 1 and one ticket on each page after it.
-final class TicketsTest {
+final class TicketsTest
+{
     #[Test]
-    public function theOrderHasOnePageForEachTicket(): void {
+    public function theOrderHasOnePageForEachTicket(): void
+    {
         var $reader = Reader::open(Tickets::order());
         Test::assertEquals($reader->pageCount, Arr::count(Sample::order()->attendees) + 1);
-        Test::assertTrue(Str::contains($reader->text(1), "FWC-2026-0417"));
+        Test::assertTrue(Str::contains($reader->text(1), 'FWC-2026-0417'));
     }
 
     #[Test]
-    public function eachTicketPageHasItsAttendee(): void {
+    public function eachTicketPageHasItsAttendee(): void
+    {
         var $reader = Reader::open(Tickets::order());
         uint $page = 1;
         foreach (Sample::order()->attendees as Sample::Attendee $attendee) {
@@ -27,7 +30,8 @@ final class TicketsTest {
     }
 
     #[Test]
-    public function nothingIsDroppedOrCutOff(): void {
+    public function nothingIsDroppedOrCutOff(): void
+    {
         array<Novis\Pdf\Rendered> $files = [Tickets::summary()];
         foreach (Sample::order()->attendees as Sample::Attendee $attendee) {
             $files[] = Tickets::ticket($attendee);

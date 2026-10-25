@@ -4,9 +4,11 @@
 use Core\Test;
 use Example\Greeting;
 
-class GreetingTest {
+class GreetingTest
+{
     #[Test]
-    public function helloGreetsByName(): void {
-        Test::assertSame(Greeting::hello("Ada"), "Hello, Ada!");
+    public function helloGreetsByName(): void
+    {
+        Test::assertSame(Greeting::hello('Ada'), 'Hello, Ada!');
     }
 }

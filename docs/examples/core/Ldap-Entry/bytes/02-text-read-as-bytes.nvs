@@ -2,13 +2,13 @@
 // Shows that `bytes` also reads a text value, and returns its UTF-8 bytes.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["mail"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['mail'] });
 
 if ($person != null) {
     // `anna.berg@example.test` has 22 characters and 22 bytes.
     // This prints `22`.
-    ?tainted bytes $mail = $person->bytes("mail");
+    ?tainted bytes $mail = $person->bytes('mail');
     if ($mail != null) {
         echo Core\Bytes::length($mail), "\n";
     }

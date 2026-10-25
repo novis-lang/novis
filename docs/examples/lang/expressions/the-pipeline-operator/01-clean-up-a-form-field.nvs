@@ -4,7 +4,7 @@
 // where the value goes. The steps run from left to right.
 // The first address prints as ada@example.com.
 
-array<string> $submitted = ["  Ada@Example.COM ", "BOB@example.com", " carol@Example.Com  "];
+array<string> $submitted = ['  Ada@Example.COM ', 'BOB@example.com', ' carol@Example.Com  '];
 
 foreach ($submitted as string $raw) {
     string $email = $raw |> Core\Str::trim($_) |> Core\Str::lower($_);

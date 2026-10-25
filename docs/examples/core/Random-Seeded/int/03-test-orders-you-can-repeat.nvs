@@ -9,10 +9,10 @@ int $order = 1;
 while ($order <= 10) {
     int $quantity = $generator->int(1, 5);
     int $cents = $generator->int(199, 4999);
-    echo "order ", $order, ": ", $quantity, " x ", $cents, " cents\n";
+    echo 'order ', $order, ': ', $quantity, ' x ', $cents, " cents\n";
     $total = $total + $quantity * $cents;
     $order = $order + 1;
 }
 
 // The test can check this total, because it never changes.
-echo "total: ", $total, " cents\n";
+echo 'total: ', $total, " cents\n";

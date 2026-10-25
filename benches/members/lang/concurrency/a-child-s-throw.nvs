@@ -5,9 +5,11 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $reasons = ["no price in the row", "the service is down"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $reasons = ['no price in the row', 'the service is down'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

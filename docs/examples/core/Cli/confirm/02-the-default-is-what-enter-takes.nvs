@@ -3,8 +3,8 @@
 // `[y/N]`, and the capital letter is the default. At a terminal the `Enter` key
 // takes it. There is no terminal here, so both answers are the defaults.
 
-bool $logs = Core\Cli::confirm("Send the logs with the report?", {default: true});
-bool $email = Core\Cli::confirm("Send an email as well?", {default: false});
+bool $logs = Core\Cli::confirm('Send the logs with the report?', { default: true });
+bool $email = Core\Cli::confirm('Send an email as well?', { default: false });
 
 if ($logs) {
     echo "the report carries the logs\n";

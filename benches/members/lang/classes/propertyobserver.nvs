@@ -5,22 +5,28 @@
 // bench: allocations 0
 // bench: complexity constant
 
-final class Tracked implements PropertyObserver {
+final class Tracked implements PropertyObserver
+{
     public int $level;
 
-    public function constructor(int $start) {
+    public function constructor(int $start)
+    {
         $this->level = $start;
     }
 
-    public function onPropertyGet(string $name, mixed $value): void {
+    public function onPropertyGet(string $name, mixed $value): void
+    {
     }
 
-    public function onPropertySet(string $name, mixed $value): void {
+    public function onPropertySet(string $name, mixed $value): void
+    {
     }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         var $tracked = new Tracked(1);
         int $i = 0;
         while ($i < $rounds) {

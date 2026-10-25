@@ -7,31 +7,38 @@
 
 use Core\Test;
 
-class Meter {
+class Meter
+{
     public static uint $checked = 0;
 
-    public static function checkOne(uint $started): void {
+    public static function checkOne(uint $started): void
+    {
         // Chained: the count checked here is the one the round before wrote.
         Test::assertSame($started, Meter::$checked);
         Meter::$checked = Meter::$checked + 1;
     }
 }
 
-class RunTest {
+class RunTest
+{
     public uint $started;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->started = Meter::$checked;
     }
 
     #[Test]
-    public function itChecksOneThing(): void {
+    public function itChecksOneThing(): void
+    {
         Meter::checkOne($this->started);
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $i = 0;
         while ($i < $rounds) {
             var $test = new RunTest();

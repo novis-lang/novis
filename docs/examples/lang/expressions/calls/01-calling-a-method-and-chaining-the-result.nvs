@@ -3,33 +3,37 @@
 // on the class and an instance method on an object. You can call a method on
 // the object that a call returns directly.
 
-class Greeting {
-    public function constructor(private string $word) {}
+class Greeting
+{
+    public function constructor(private string $word)
+    {}
 
     // Builds a greeting so the caller does not have to know the word for each
     // language.
-    public static function in(string $language): Greeting {
+    public static function in(string $language): Greeting
+    {
         return new Greeting(match ($language) {
-            "de" => "Hallo",
-            "fr" => "Bonjour",
-            default => "Hello",
+            'de' => 'Hallo',
+            'fr' => 'Bonjour',
+            default => 'Hello',
         });
     }
 
-    public function to(string $name): string {
-        return $this->word . ", " . $name . "!";
+    public function to(string $name): string
+    {
+        return $this->word . ', ' . $name . '!';
     }
 }
 
 // The static call returns an object, and `->to` is called on it.
 // This prints: Bonjour, Ada!
-echo Greeting::in("fr")->to("Ada"), "\n";
+echo Greeting::in('fr')->to('Ada'), "\n";
 
 // `new` chains in the same place, with no brackets around it.
 // This prints: Hello, Bob!
-echo new Greeting("Hello")->to("Bob"), "\n";
+echo new Greeting('Hello')->to('Bob'), "\n";
 
 // When you need the object more than once, store it in a variable first.
 // This prints: Hallo, Cem! Hallo, Dara!
-Greeting $german = Greeting::in("de");
-echo $german->to("Cem"), " ", $german->to("Dara"), "\n";
+Greeting $german = Greeting::in('de');
+echo $german->to('Cem'), ' ', $german->to('Dara'), "\n";

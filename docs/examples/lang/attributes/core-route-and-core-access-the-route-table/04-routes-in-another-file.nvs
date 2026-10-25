@@ -5,9 +5,9 @@
 autoload 'App' from './routes';
 
 // This prints `/users/7` and then `/users`.
-echo Core\Router::url("Users::show", ["id" => 7]), "\n";
-echo Core\Router::url("Users::create", []), "\n";
+echo Core\Router::url('Users::show', ['id' => 7]), "\n";
+echo Core\Router::url('Users::create', []), "\n";
 
 // `urlAbsolute` puts the `origin` setting from `nvs.toml` in front of the path.
 // This prints `https://example.test/users/7`.
-echo Core\Router::urlAbsolute("Users::show", ["id" => 7]), "\n";
+echo Core\Router::urlAbsolute('Users::show', ['id' => 7]), "\n";

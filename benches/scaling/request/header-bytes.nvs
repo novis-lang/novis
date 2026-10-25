@@ -6,4 +6,4 @@
 // scaling: max 65536
 // scaling: expect linear
 
-echo Core\Str::length(Core\Request::header("x-field") ?? ""), "\n";
+echo Core\Str::length(Core\Request::header('x-field') ?? ''), "\n";

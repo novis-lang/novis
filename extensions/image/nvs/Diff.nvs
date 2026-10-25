@@ -12,5 +12,6 @@ final class Diff
         public readonly uint $maxDelta,
         public readonly float $ssim,
         public readonly ?bytes $diff,
-    ) {}
+    )
+    {}
 }

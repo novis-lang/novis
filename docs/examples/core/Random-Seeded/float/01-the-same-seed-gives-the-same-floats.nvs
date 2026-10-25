@@ -5,5 +5,5 @@ Core\Random\Seeded $first = new Core\Random\Seeded(42);
 Core\Random\Seeded $second = new Core\Random\Seeded(42);
 
 // Both lines are the same on every run.
-echo $first->float(), " ", $first->float(), " ", $first->float(), "\n";
-echo $second->float(), " ", $second->float(), " ", $second->float(), "\n";
+echo $first->float(), ' ', $first->float(), ' ', $first->float(), "\n";
+echo $second->float(), ' ', $second->float(), ' ', $second->float(), "\n";

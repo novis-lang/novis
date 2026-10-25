@@ -3,14 +3,17 @@
 // bench: iterations 4096
 // bench: complexity constant
 
-type Route = {path: string};
+type Route = { path: string };
 
-#[Route(path: "/orders")]
+#[Route(path: '/orders')]
 #[{cache: 60}]
-class OrderController {}
+class OrderController
+{}
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\AttributeInfo> $attributes =
             Core\Reflect::forObject(new OrderController())->attributes();
         uint $total = 0;

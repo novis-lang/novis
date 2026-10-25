@@ -2,13 +2,13 @@
 // Shows the three ways to add the time zone to a date and time.
 use Novis\Intl\DateFormat;
 
-var $meeting = Core\Time::at(2026, 3, 1, Core\Time\Zone::of("Europe/Vienna"), {hour: 21, minute: 30});
+var $meeting = Core\Time::at(2026, 3, 1, Core\Time\Zone::of('Europe/Vienna'), { hour: 21, minute: 30 });
 
 // `DateFormat::ZoneStyle::Offset` adds the difference to UTC. This prints Mar 1, 2026, 9:30 PM GMT+1.
-echo DateFormat::dateTimes([$meeting], "en-US", {zone: DateFormat::ZoneStyle::Offset})[0], "\n";
+echo DateFormat::dateTimes([$meeting], 'en-US', { zone: DateFormat::ZoneStyle::Offset })[0], "\n";
 
 // `DateFormat::ZoneStyle::Location` adds the place. This prints Mar 1, 2026, 9:30 PM Austria Time.
-echo DateFormat::dateTimes([$meeting], "en-US", {zone: DateFormat::ZoneStyle::Location})[0], "\n";
+echo DateFormat::dateTimes([$meeting], 'en-US', { zone: DateFormat::ZoneStyle::Location })[0], "\n";
 
 // `DateFormat::ZoneStyle::Generic` adds the zone's name. This prints Mar 1, 2026, 9:30 PM Central European Time.
-echo DateFormat::dateTimes([$meeting], "en-US", {zone: DateFormat::ZoneStyle::Generic})[0], "\n";
+echo DateFormat::dateTimes([$meeting], 'en-US', { zone: DateFormat::ZoneStyle::Generic })[0], "\n";

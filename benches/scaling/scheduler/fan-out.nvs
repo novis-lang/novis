@@ -4,8 +4,10 @@
 // scaling: max 4096
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): uint {
+class Bench
+{
+    public static function run(uint $size): uint
+    {
         array<uint> $items = [];
         uint $i = 0;
         while ($i < $size) {

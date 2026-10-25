@@ -19,15 +19,17 @@
 use Core\Db;
 use Core\Db\Transaction;
 
-class Rows {
+class Rows
+{
     // § 6's typed reader answers `?T`, a `null` being a NULL column, so the
     // unwrap happens once here rather than at each of the four places below.
-    public static function count(Core\Db\Connection $db): int {
-        var $row = $db->query("select count(*) as n from nvs_test_db_rollback", [])->first();
+    public static function count(Core\Db\Connection $db): int
+    {
+        var $row = $db->query('select count(*) as n from nvs_test_db_rollback', [])->first();
         if ($row == null) {
             return -1;
         }
-        var $n = $row->int("n");
+        var $n = $row->int('n');
         if ($n == null) {
             return -1;
         }
@@ -37,15 +39,16 @@ class Rows {
     // Whether the table is there at all, which is a different question from how
     // many rows it holds — the last case has nothing to count and still has
     // something to assert (`rule:testing/runner-is-strict`).
-    public static function tables(Core\Db\Connection $db): int {
+    public static function tables(Core\Db\Connection $db): int
+    {
         var $row = $db->query(
             "select count(*) as n from information_schema.tables where table_name = 'nvs_test_db_rollback'",
-            []
+            [],
         )->first();
         if ($row == null) {
             return -1;
         }
-        var $n = $row->int("n");
+        var $n = $row->int('n');
         if ($n == null) {
             return -1;
         }
@@ -53,31 +56,34 @@ class Rows {
     }
 }
 
-class Rollback {
+class Rollback
+{
     // No `db:`, so no transaction: what this writes is committed and is still
     // there for the two cases below. It is also the drop-and-create, so a run
     // that ended badly last time starts from the same place this one does.
     #[Core\Test]
-    public function itPreparesATableOutsideAnyTransaction(): void {
-        var $db = Db::connect("test");
-        $db->execute("drop table if exists nvs_test_db_rollback", []);
-        $db->execute("create table nvs_test_db_rollback (id integer primary key)", []);
+    public function itPreparesATableOutsideAnyTransaction(): void
+    {
+        var $db = Db::connect('test');
+        $db->execute('drop table if exists nvs_test_db_rollback', []);
+        $db->execute('create table nvs_test_db_rollback (id integer primary key)', []);
         Core\Test::assertEquals(Rows::count($db), 0);
     }
 
     // The write half. Everything here happens inside the runner's transaction,
     // including the nested one — `rule:testing/db-transaction`'s second sentence — so the `rollBack`
     // below undoes its own `SAVEPOINT` and leaves the row written above it.
-    #[Core\Test(db: "test")]
-    public function itWritesInsideTheRunnersTransaction(): void {
-        var $db = Db::connect("test");
-        $db->execute("insert into nvs_test_db_rollback (id) values (1)", []);
+    #[Core\Test(db: 'test')]
+    public function itWritesInsideTheRunnersTransaction(): void
+    {
+        var $db = Db::connect('test');
+        $db->execute('insert into nvs_test_db_rollback (id) values (1)', []);
         Core\Test::assertEquals(Rows::count($db), 1);
 
         try {
             $db->transaction(fn (Transaction $tx): void => {
-                $tx->execute("insert into nvs_test_db_rollback (id) values (2)", []);
-                $tx->rollBack("the savepoint is undone and the row above it is not");
+                $tx->execute('insert into nvs_test_db_rollback (id) values (2)', []);
+                $tx->rollBack('the savepoint is undone and the row above it is not');
             });
         } catch (Core\Db\RolledBack $rolled) {
             // Expected: `rollBack` throws out of the owning `transaction()`.
@@ -91,18 +97,20 @@ class Rollback {
 
     // The rollback half, and the assertion the whole fixture exists for: the
     // row the case above wrote is gone, with no cleanup written anywhere.
-    #[Core\Test(db: "test")]
-    public function itSeesNothingTheLastTestWrote(): void {
-        var $db = Db::connect("test");
+    #[Core\Test(db: 'test')]
+    public function itSeesNothingTheLastTestWrote(): void
+    {
+        var $db = Db::connect('test');
         Core\Test::assertEquals(Rows::count($db), 0);
     }
 
     // No `db:` again, so this commits — which is what makes the fixture leave
     // nothing behind.
     #[Core\Test]
-    public function itDropsTheTableOutsideAnyTransaction(): void {
-        var $db = Db::connect("test");
-        $db->execute("drop table if exists nvs_test_db_rollback", []);
+    public function itDropsTheTableOutsideAnyTransaction(): void
+    {
+        var $db = Db::connect('test');
+        $db->execute('drop table if exists nvs_test_db_rollback', []);
         Core\Test::assertEquals(Rows::tables($db), 0);
     }
 }

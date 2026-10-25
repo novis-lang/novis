@@ -2,24 +2,29 @@
 // Shows what the return type `static` means. `parse` is written once, and each
 // subclass that inherits it gets an object of its own class.
 
-class Code implements Parses {
-    public function constructor(public tainted string $text) {}
+class Code implements Parses
+{
+    public function constructor(public tainted string $text)
+    {}
 
-    public static function parse(tainted string $s): static {
+    public static function parse(tainted string $s): static
+    {
         if (Core\Str::length($s) == 0) {
-            throw new ParseError("a code is not empty");
+            throw new ParseError('a code is not empty');
         }
         // `new static` builds the class the call named, not `Code`.
         return new static($s);
     }
 }
 
-class CustomerCode extends Code {}
+class CustomerCode extends Code
+{}
 
-class SupplierCode extends Code {}
+class SupplierCode extends Code
+{}
 
-var $customer = CustomerCode::parse("C-77");
-var $supplier = SupplierCode::parse("S-12");
+var $customer = CustomerCode::parse('C-77');
+var $supplier = SupplierCode::parse('S-12');
 
 // `$value is SomeClass` tests the class of an object.
 if ($customer is CustomerCode) {

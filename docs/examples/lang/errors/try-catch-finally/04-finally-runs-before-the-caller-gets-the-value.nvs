@@ -2,32 +2,34 @@
 // Shows when `finally` runs for a function that returns. It runs before the
 // caller gets the value, so "checked" prints first.
 
-final class Loader {
+final class Loader
+{
     public static int $reads = 0;
 
-    public static function load(string $key): string {
+    public static function load(string $key): string
+    {
         try {
-            if ($key == "bad") {
-                throw new IOError("cannot read " . $key);
+            if ($key == 'bad') {
+                throw new IOError('cannot read ' . $key);
             }
-            return "value-of-" . $key;
+            return 'value-of-' . $key;
         } finally {
             Loader::$reads = Loader::$reads + 1;
-            echo "checked ", $key, "\n";
+            echo 'checked ', $key, "\n";
         }
     }
 }
 
-echo Loader::load("host"), "\n";
+echo Loader::load('host'), "\n";
 
 // The `IOError` passes the `LogicError` clause. The second clause catches it.
 try {
-    echo Loader::load("bad"), "\n";
+    echo Loader::load('bad'), "\n";
 } catch (LogicError $wrongClause) {
     echo "not this one\n";
 } catch (IOError $io) {
-    echo "io: ", $io->message, "\n";
+    echo 'io: ', $io->message, "\n";
 }
 
 // The `finally` block ran for both calls, so this prints 2.
-echo "reads: ", Loader::$reads, "\n";
+echo 'reads: ', Loader::$reads, "\n";

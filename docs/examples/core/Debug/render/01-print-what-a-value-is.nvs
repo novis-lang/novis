@@ -3,8 +3,8 @@
 // returns it, so you can print it as part of your own output.
 
 array<string> $row = [
-    "name" => "Ada Lovelace",
-    "email" => "ada@example.com",
+    'name' => 'Ada Lovelace',
+    'email' => 'ada@example.com',
 ];
 
 // `render` returns the same text `Core\Debug::dump` writes, without a line

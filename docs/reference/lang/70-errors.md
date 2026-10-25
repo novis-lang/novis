@@ -55,8 +55,8 @@ class cannot extend it: that is the error `E0303`.
 // of problem it is, so you can catch only the kind you can handle.
 
 int $zero = 0;
-array<int> $stock = ["mugs" => 4];
-mixed $text = "abc";
+array<int> $stock = ['mugs' => 4];
+mixed $text = 'abc';
 
 // Division by zero is an `ArithmeticError`.
 try {
@@ -67,7 +67,7 @@ try {
 
 // A key that is not in the array is a `RuntimeError`.
 try {
-    echo $stock["plates"], "\n";
+    echo $stock['plates'], "\n";
 } catch (RuntimeError $missing) {
     echo $missing->message, "\n";
 }
@@ -82,7 +82,7 @@ try {
 // A `match` with no arm for the value is a bug in the program, so it is a
 // `LogicError`.
 try {
-    echo match ($zero) { 1 => "one" }, "\n";
+    echo match ($zero) { 1 => 'one' }, "\n";
 } catch (LogicError $noArm) {
     echo $noArm->message, "\n";
 }
@@ -102,29 +102,31 @@ no `match` arm matched the subject
 // Shows that a `catch` arm also catches every class under the one it names.
 // `IOError`, `ParseError` and `TimeoutError` are kinds of `RuntimeError`.
 
-final class Feed {
-    public static function fetch(string $source): tainted string {
-        if ($source == "slow") {
-            throw new TimeoutError("the feed did not answer in time");
+final class Feed
+{
+    public static function fetch(string $source): tainted string
+    {
+        if ($source == 'slow') {
+            throw new TimeoutError('the feed did not answer in time');
         }
-        if ($source == "gone") {
-            throw new IOError("the feed file is missing");
+        if ($source == 'gone') {
+            throw new IOError('the feed file is missing');
         }
         return Core\Json::encode(Core\Json::decode($source));
     }
 }
 
-array<string> $sources = ["{\"ok\": true}", "slow", "gone", "{\"ok\": }"];
+array<string> $sources = ["{\"ok\": true}", 'slow', 'gone', "{\"ok\": }"];
 foreach ($sources as string $source) {
     try {
         echo Feed::fetch($source), "\n";
     } catch (ParseError $bad) {
         // The narrow arm goes first. It takes the parse errors and nothing else.
-        echo "bad input: ", $bad->message, "\n";
+        echo 'bad input: ', $bad->message, "\n";
     } catch (RuntimeError $other) {
         // The wide arm takes the rest of the branch, here a timeout and a
         // missing file.
-        echo "the feed said no: ", $other->message, "\n";
+        echo 'the feed said no: ', $other->message, "\n";
     }
 }
 ```
@@ -144,23 +146,25 @@ bad input: Core\Json::decode(): expected value at line 1 column 8
 // `RuntimeError` is bad input, so the job reports the line and carries on. A
 // `LogicError` is a bug in the program, so the job stops.
 
-final class Cart {
-    public static function total(array<int> $line): int {
+final class Cart
+{
+    public static function total(array<int> $line): int
+    {
         // A field that is not there throws a `RuntimeError`.
-        int $price = $line["price"];
-        int $count = $line["count"];
+        int $price = $line['price'];
+        int $count = $line['count'];
         if ($count < 0) {
             // A count below zero can only come from our own code.
-            throw new LogicError("a line with a count below zero");
+            throw new LogicError('a line with a count below zero');
         }
         return $price * $count;
     }
 }
 
 array<array<int>> $lines = [
-    ["price" => 250, "count" => 2],
-    ["price" => 400],
-    ["price" => 100, "count" => 0 - 1],
+    ['price' => 250, 'count' => 2],
+    ['price' => 400],
+    ['price' => 100, 'count' => 0 - 1],
 ];
 
 int $sum = 0;
@@ -168,13 +172,13 @@ foreach ($lines as array<int> $line) {
     try {
         $sum = $sum + Cart::total($line);
     } catch (RuntimeError $input) {
-        echo "skipped a line: ", $input->message, "\n";
+        echo 'skipped a line: ', $input->message, "\n";
     } catch (LogicError $bug) {
-        echo "stopping, this is a bug: ", $bug->message, "\n";
+        echo 'stopping, this is a bug: ', $bug->message, "\n";
         break;
     }
 }
-echo "total ", $sum, "\n";
+echo 'total ', $sum, "\n";
 ```
 
 ```output
@@ -191,7 +195,8 @@ total 500
 // `LogicError` instead.
 // proof: compile-error
 
-class ConfigError extends Exception {
+class ConfigError extends Exception
+{
 }
 ```
 
@@ -199,7 +204,7 @@ class ConfigError extends Exception {
 error[E0303]: `Exception` is not declared
   --> main.nvs:6:27
   |
-6 | class ConfigError extends Exception {
+6 | class ConfigError extends Exception
   |                           ^^^^^^^^^ no matching declaration
 
 error: aborting due to 1 error
@@ -256,32 +261,35 @@ properties.
 // file and the line of the `throw`. `backtrace` has one line per function the
 // throw came out of, the innermost one first.
 
-final class Prices {
-    public static function of(string $item): int {
-        throw new RuntimeError("no price for " . $item);
+final class Prices
+{
+    public static function of(string $item): int
+    {
+        throw new RuntimeError('no price for ' . $item);
     }
 
-    public static function totalOf(string $item): int {
+    public static function totalOf(string $item): int
+    {
         return Prices::of($item) * 2;
     }
 }
 
 try {
-    echo Prices::totalOf("blue mug"), "\n";
+    echo Prices::totalOf('blue mug'), "\n";
 } catch (RuntimeError $failed) {
     echo $failed->message, "\n";
-    echo "thrown at ", $failed->location, "\n";
+    echo 'thrown at ', $failed->location, "\n";
     foreach ($failed->backtrace as string $frame) {
-        echo "  ", $frame, "\n";
+        echo '  ', $frame, "\n";
     }
 }
 ```
 
 ```output
 no price for blue mug
-thrown at main.nvs:8
-  Prices::of() at main.nvs:8
-  Prices::totalOf() at main.nvs:12
+thrown at main.nvs:10
+  Prices::of() at main.nvs:10
+  Prices::totalOf() at main.nvs:15
 ```
 
 ## Example 02: every problem in one list
@@ -292,16 +300,16 @@ thrown at main.nvs:8
 // problem the parser found. This form has two bad fields, and both of them are
 // in the list.
 
-array<string> $form = ["name" => "Ada", "age" => "not a number", "active" => "yes"];
+array<string> $form = ['name' => 'Ada', 'age' => 'not a number', 'active' => 'yes'];
 
 try {
-    Core\Arr::shapeAs<{name: string, age: int, active: bool}>($form);
+    Core\Arr::shapeAs<{ name: string, age: int, active: bool }>($form);
     echo "the form is good\n";
 } catch (ParseError $bad) {
     echo $bad->message, "\n";
-    foreach ($bad->issues as ({path: string, message: string}) $issue) {
+    foreach ($bad->issues as ({ path: string, message: string }) $issue) {
         // `path` names the field, and `message` says what is wrong with it.
-        echo "  ", $issue->path, ": ", $issue->message, "\n";
+        echo '  ', $issue->path, ': ', $issue->message, "\n";
     }
 }
 ```
@@ -320,26 +328,30 @@ Core\Arr::shapeAs(): 2 value(s) of `$shape{active,age,name}` did not match
 // where it was thrown, and which error caused it. The chain is followed to the
 // first cause.
 
-class CheckoutFailed extends RuntimeError {
-    public function constructor(string $message, ?Throwable $cause) {
-        parent::constructor($message, {previous: $cause});
+class CheckoutFailed extends RuntimeError
+{
+    public function constructor(string $message, ?Throwable $cause)
+    {
+        parent::constructor($message, { previous: $cause });
     }
 }
 
-final class Checkout {
-    public static function pay(string $order): string {
+final class Checkout
+{
+    public static function pay(string $order): string
+    {
         try {
-            throw new TimeoutError("the payment service did not answer");
+            throw new TimeoutError('the payment service did not answer');
         } catch (TimeoutError $slow) {
-            throw new CheckoutFailed("order " . $order . " was not paid", $slow);
+            throw new CheckoutFailed('order ' . $order . ' was not paid', $slow);
         }
     }
 }
 
 try {
-    echo Checkout::pay("4021"), "\n";
+    echo Checkout::pay('4021'), "\n";
 } catch (Throwable $failed) {
-    string $line = $failed->message . " at " . $failed->location;
+    string $line = $failed->message . ' at ' . $failed->location;
     var $cause = $failed->previous;
     bool $more = true;
     while ($more) {
@@ -349,17 +361,17 @@ try {
         if ($here == null) {
             $more = false;
         } else {
-            $line = $line . ", caused by: " . $here->message;
+            $line = $line . ', caused by: ' . $here->message;
             $cause = $here->previous;
         }
     }
     echo $line, "\n";
-    echo "frames: ", Core\Arr::count($failed->backtrace), "\n";
+    echo 'frames: ', Core\Arr::count($failed->backtrace), "\n";
 }
 ```
 
 ```output
-order 4021 was not paid at main.nvs:17, caused by: the payment service did not answer
+order 4021 was not paid at main.nvs:21, caused by: the payment service did not answer
 frames: 1
 ```
 
@@ -372,7 +384,7 @@ frames: 1
 // proof: compile-error
 
 try {
-    throw new LogicError("boom");
+    throw new LogicError('boom');
 } catch (Throwable $e) {
     echo $e->getMessage();
 }
@@ -432,22 +444,25 @@ constructor of its own.
 // and writes no constructor, so it uses the one it inherits. You pass a message
 // to `new` and nothing else.
 
-class OutOfStock extends Throwable {
+class OutOfStock extends Throwable
+{
 }
 
-final class Warehouse {
-    public static function pack(string $item, int $inStock): string {
+final class Warehouse
+{
+    public static function pack(string $item, int $inStock): string
+    {
         if ($inStock == 0) {
-            throw new OutOfStock("no " . $item . " left");
+            throw new OutOfStock('no ' . $item . ' left');
         }
-        return "packed one " . $item;
+        return 'packed one ' . $item;
     }
 }
 
 try {
     // This prints `packed one blue mug`.
-    echo Warehouse::pack("blue mug", 4), "\n";
-    echo Warehouse::pack("red mug", 0), "\n";
+    echo Warehouse::pack('blue mug', 4), "\n";
+    echo Warehouse::pack('red mug', 0), "\n";
 } catch (OutOfStock $empty) {
     // `message` is the text you passed to `new`. This prints `no red mug left`.
     echo $empty->message, "\n";
@@ -455,7 +470,7 @@ try {
 
 // The message may also be passed by name.
 try {
-    throw new OutOfStock(message: "the shelf is empty");
+    throw new OutOfStock(message: 'the shelf is empty');
 } catch (OutOfStock $shelf) {
     echo $shelf->message, "\n";
 }
@@ -474,36 +489,40 @@ the shelf is empty
 // Shows an error class that writes its own constructor. It adds two properties
 // and passes the message to the class it extends.
 
-class HttpError extends RuntimeError {
+class HttpError extends RuntimeError
+{
     // `public int $status` and `public string $url` declare the properties and
     // fill them from the arguments in one step.
-    public function constructor(string $message, public int $status, public string $url) {
+    public function constructor(string $message, public int $status, public string $url)
+    {
         parent::constructor($message);
     }
 }
 
-final class Api {
-    public static function get(string $url, int $status): string {
+final class Api
+{
+    public static function get(string $url, int $status): string
+    {
         if ($status >= 400) {
-            throw new HttpError("the server said no", $status, $url);
+            throw new HttpError('the server said no', $status, $url);
         }
-        return "body of " . $url;
+        return 'body of ' . $url;
     }
 }
 
 try {
-    echo Api::get("/health", 200), "\n";
-    echo Api::get("/orders/91", 404), "\n";
+    echo Api::get('/health', 200), "\n";
+    echo Api::get('/orders/91', 404), "\n";
 } catch (HttpError $failed) {
     // This prints `404 /orders/91: the server said no`.
-    echo $failed->status, " ", $failed->url, ": ", $failed->message, "\n";
+    echo $failed->status, ' ', $failed->url, ': ', $failed->message, "\n";
 }
 
 // `HttpError` extends `RuntimeError`, so a `RuntimeError` arm catches it too.
 try {
-    echo Api::get("/orders/92", 503), "\n";
+    echo Api::get('/orders/92', 503), "\n";
 } catch (RuntimeError $any) {
-    echo "as a runtime error: ", $any->message, "\n";
+    echo 'as a runtime error: ', $any->message, "\n";
 }
 ```
 
@@ -521,31 +540,35 @@ as a runtime error: the server said no
 // the error from the JSON reader and throws its own, with the first one kept as
 // the cause. The person reading the log then sees both.
 
-class ConfigError extends RuntimeError {
-    public function constructor(string $message, public string $file, ?Throwable $cause) {
+class ConfigError extends RuntimeError
+{
+    public function constructor(string $message, public string $file, ?Throwable $cause)
+    {
         // `{previous: $cause}` is the options bag of the inherited constructor.
-        parent::constructor($message, {previous: $cause});
+        parent::constructor($message, { previous: $cause });
     }
 }
 
-final class Settings {
-    public static function read(string $file, string $text): mixed {
+final class Settings
+{
+    public static function read(string $file, string $text): mixed
+    {
         try {
             return Core\Json::decode($text);
         } catch (ParseError $bad) {
-            throw new ConfigError("cannot start without " . $file, $file, $bad);
+            throw new ConfigError('cannot start without ' . $file, $file, $bad);
         }
     }
 }
 
 try {
-    echo Core\Json::encode(Settings::read("app.json", "{\"port\": 8080}")), "\n";
-    echo Core\Json::encode(Settings::read("cache.json", "{\"port\": }")), "\n";
+    echo Core\Json::encode(Settings::read('app.json', "{\"port\": 8080}")), "\n";
+    echo Core\Json::encode(Settings::read('cache.json', "{\"port\": }")), "\n";
 } catch (ConfigError $stop) {
     echo $stop->message, "\n";
-    echo "the file is ", $stop->file, "\n";
+    echo 'the file is ', $stop->file, "\n";
     // `previous` is the error that was caught inside `read`.
-    echo "caused by: ", $stop->previous?->message ?? "nothing", "\n";
+    echo 'caused by: ', $stop->previous?->message ?? 'nothing', "\n";
 }
 ```
 
@@ -600,16 +623,18 @@ return type `never` and always throw.
 // there. When it is missing, the `throw` on the right stops the method with an
 // error.
 
-final class Rows {
-    public static function email(array<string> $row): string {
+final class Rows
+{
+    public static function email(array<string> $row): string
+    {
         // `??` gives the value stored under `"email"`. If the row has no such
         // key, `throw` raises a `LogicError` and the method returns nothing.
-        return $row["email"] ?? throw new LogicError("the row has no email");
+        return $row['email'] ?? throw new LogicError('the row has no email');
     }
 }
 
-array<string> $complete = ["id" => "7", "email" => "ada@example.com"];
-array<string> $partial = ["id" => "8"];
+array<string> $complete = ['id' => '7', 'email' => 'ada@example.com'];
+array<string> $partial = ['id' => '8'];
 
 // This prints ada@example.com.
 echo Rows::email($complete), "\n";
@@ -634,29 +659,31 @@ the row has no email
 // Shows `throw` in a `match` arm. Every status the program knows has an arm of
 // its own. An unknown status reaches the `default` arm, and that arm throws.
 
-final class Orders {
-    public static function nextStep(string $status): string {
+final class Orders
+{
+    public static function nextStep(string $status): string
+    {
         return match ($status) {
-            "paid" => "pack the order",
-            "packed" => "print the label",
-            "shipped" => "nothing left to do",
+            'paid' => 'pack the order',
+            'packed' => 'print the label',
+            'shipped' => 'nothing left to do',
             // A `match` arm may be a `throw`. The method then returns nothing
             // for this subject, and the caller gets the error.
-            default => throw new LogicError("unknown order status: " . $status),
+            default => throw new LogicError('unknown order status: ' . $status),
         };
     }
 }
 
-array<string> $statuses = ["paid", "packed", "returned"];
+array<string> $statuses = ['paid', 'packed', 'returned'];
 
 // The first two lines print a step. The third prints the error message,
 // because "returned" has no arm.
 foreach ($statuses as string $status) {
     try {
         string $step = Orders::nextStep($status);
-        echo $status, ": ", $step, "\n";
+        echo $status, ': ', $step, "\n";
     } catch (LogicError $unknown) {
-        echo $status, ": ", $unknown->message, "\n";
+        echo $status, ': ', $unknown->message, "\n";
     }
 }
 ```
@@ -674,23 +701,25 @@ returned: unknown order status: returned
 // Shows the checks a program runs before it ships an order. Each check either
 // gives a value or throws, so the last line can use both values.
 
-final class Shipment {
-    public static function forOrder(int $quantity, ?string $address): string {
+final class Shipment
+{
+    public static function forOrder(int $quantity, ?string $address): string
+    {
         // The ternary gives `$quantity` when it is positive. For 0 it throws.
         int $items = $quantity > 0
             ? $quantity
-            : throw new LogicError("an order needs at least one item");
+            : throw new LogicError('an order needs at least one item');
         // `??` covers the second case: an address nobody filled in.
-        string $to = $address ?? throw new LogicError("an order needs an address");
-        return "ship " . $items . " item(s) to " . $to;
+        string $to = $address ?? throw new LogicError('an order needs an address');
+        return 'ship ' . $items . ' item(s) to ' . $to;
     }
 }
 
 // This prints: ship 3 item(s) to 12 Baker Street
-echo Shipment::forOrder(3, "12 Baker Street"), "\n";
+echo Shipment::forOrder(3, '12 Baker Street'), "\n";
 
 try {
-    echo Shipment::forOrder(0, "12 Baker Street"), "\n";
+    echo Shipment::forOrder(0, '12 Baker Street'), "\n";
 } catch (LogicError $empty) {
     echo $empty->message, "\n";
 }
@@ -720,7 +749,7 @@ class Age
     public static function of(int $birthYear, int $thisYear): int
     {
         if ($birthYear > $thisYear) {
-            throw new RuntimeError("a birth year in the future: " . $birthYear);
+            throw new RuntimeError('a birth year in the future: ' . $birthYear);
         }
         return $thisYear - $birthYear;
     }
@@ -734,7 +763,7 @@ try {
     echo "this line is never reached\n";
 } catch (RuntimeError $e) {
     // This prints: cannot use that row: a birth year in the future: 2040
-    echo "cannot use that row: ", $e->message, "\n";
+    echo 'cannot use that row: ', $e->message, "\n";
 }
 ```
 
@@ -812,28 +841,30 @@ lost.
 // kind of `RuntimeError`, so the narrow clause is written first. A
 // `RuntimeError` clause written first would take both errors.
 
-final class Feed {
-    public static function read(string $name): string {
-        if ($name == "slow") {
-            throw new TimeoutError("the feed did not answer");
+final class Feed
+{
+    public static function read(string $name): string
+    {
+        if ($name == 'slow') {
+            throw new TimeoutError('the feed did not answer');
         }
-        if ($name == "gone") {
-            throw new RuntimeError("the feed is not there");
+        if ($name == 'gone') {
+            throw new RuntimeError('the feed is not there');
         }
-        return "3 rows";
+        return '3 rows';
     }
 }
 
-array<string> $names = ["daily", "slow", "gone"];
+array<string> $names = ['daily', 'slow', 'gone'];
 
 foreach ($names as string $name) {
     try {
         string $rows = Feed::read($name);
-        echo $name, ": ", $rows, "\n";
+        echo $name, ': ', $rows, "\n";
     } catch (TimeoutError $slow) {
-        echo $name, ": timed out, ", $slow->message, "\n";
+        echo $name, ': timed out, ', $slow->message, "\n";
     } catch (RuntimeError $other) {
-        echo $name, ": failed, ", $other->message, "\n";
+        echo $name, ': failed, ', $other->message, "\n";
     }
 }
 ```
@@ -852,32 +883,34 @@ gone: failed, the feed is not there
 // own and gives the caught one as the cause. That new error leaves the `try` it
 // was thrown in, and the caller handles it.
 
-final class Settings {
-    public static function port(array<string> $raw): int {
+final class Settings
+{
+    public static function port(array<string> $raw): int
+    {
         try {
-            return $raw["port"] as int;
+            return $raw['port'] as int;
         } catch (RuntimeError $unusable) {
-            throw new LogicError("the port setting is unusable", {previous: $unusable});
+            throw new LogicError('the port setting is unusable', { previous: $unusable });
         }
     }
 }
 
-array<string> $withoutPort = ["host" => "localhost"];
-array<string> $withText = ["port" => "eight"];
+array<string> $withoutPort = ['host' => 'localhost'];
+array<string> $withText = ['port' => 'eight'];
 
 try {
     echo Settings::port($withoutPort), "\n";
 } catch (LogicError $first) {
     echo $first->message, "\n";
     // The cause says what the inner error was.
-    echo "caused by: ", $first->previous?->message ?? "nothing", "\n";
+    echo 'caused by: ', $first->previous?->message ?? 'nothing', "\n";
 }
 
 try {
     echo Settings::port($withText), "\n";
 } catch (LogicError $second) {
     echo $second->message, "\n";
-    echo "caused by: ", $second->previous?->message ?? "nothing", "\n";
+    echo 'caused by: ', $second->previous?->message ?? 'nothing', "\n";
 }
 ```
 
@@ -896,17 +929,19 @@ caused by: cannot convert string "eight" to `int`
 // a `finally` of its own, and the whole job has one around it. The inner block
 // runs first.
 
-final class Import {
+final class Import
+{
     public static int $rowsClosed = 0;
     public static int $jobsClosed = 0;
 
-    public static function rows(array<string> $lines): int {
+    public static function rows(array<string> $lines): int
+    {
         try {
             int $total = 0;
             foreach ($lines as string $line) {
                 try {
-                    if ($line == "") {
-                        throw new RuntimeError("an empty row stopped the job");
+                    if ($line == '') {
+                        throw new RuntimeError('an empty row stopped the job');
                     }
                     $total = $total + 1;
                 } finally {
@@ -920,8 +955,8 @@ final class Import {
     }
 }
 
-array<string> $complete = ["a", "b", "c"];
-array<string> $withHole = ["a", "", "c"];
+array<string> $complete = ['a', 'b', 'c'];
+array<string> $withHole = ['a', '', 'c'];
 
 // This prints 3.
 echo Import::rows($complete), "\n";
@@ -933,8 +968,8 @@ try {
 }
 
 // The failed job closed its row and then itself, so both counts went up.
-echo "rows closed: ", Import::$rowsClosed, "\n";
-echo "jobs closed: ", Import::$jobsClosed, "\n";
+echo 'rows closed: ', Import::$rowsClosed, "\n";
+echo 'jobs closed: ', Import::$jobsClosed, "\n";
 ```
 
 ```output
@@ -951,35 +986,37 @@ jobs closed: 2
 // Shows when `finally` runs for a function that returns. It runs before the
 // caller gets the value, so "checked" prints first.
 
-final class Loader {
+final class Loader
+{
     public static int $reads = 0;
 
-    public static function load(string $key): string {
+    public static function load(string $key): string
+    {
         try {
-            if ($key == "bad") {
-                throw new IOError("cannot read " . $key);
+            if ($key == 'bad') {
+                throw new IOError('cannot read ' . $key);
             }
-            return "value-of-" . $key;
+            return 'value-of-' . $key;
         } finally {
             Loader::$reads = Loader::$reads + 1;
-            echo "checked ", $key, "\n";
+            echo 'checked ', $key, "\n";
         }
     }
 }
 
-echo Loader::load("host"), "\n";
+echo Loader::load('host'), "\n";
 
 // The `IOError` passes the `LogicError` clause. The second clause catches it.
 try {
-    echo Loader::load("bad"), "\n";
+    echo Loader::load('bad'), "\n";
 } catch (LogicError $wrongClause) {
     echo "not this one\n";
 } catch (IOError $io) {
-    echo "io: ", $io->message, "\n";
+    echo 'io: ', $io->message, "\n";
 }
 
 // The `finally` block ran for both calls, so this prints 2.
-echo "reads: ", Loader::$reads, "\n";
+echo 'reads: ', Loader::$reads, "\n";
 ```
 
 ```output
@@ -1036,13 +1073,13 @@ class Amount
     {
         ?int $value = $text as ?int;
         if ($value == null) {
-            throw new RuntimeError("not a whole number: " . $text);
+            throw new RuntimeError('not a whole number: ' . $text);
         }
         return $value;
     }
 }
 
-array<string> $rows = ["12", "seven", "30"];
+array<string> $rows = ['12', 'seven', '30'];
 int $total = 0;
 
 foreach ($rows as string $row) {
@@ -1050,7 +1087,7 @@ foreach ($rows as string $row) {
         $total = $total + Amount::of($row);
     } catch (RuntimeError $e) {
         // This prints: skipped: not a whole number: seven
-        echo "skipped: ", $e->message, "\n";
+        echo 'skipped: ', $e->message, "\n";
     }
 }
 
@@ -1076,11 +1113,11 @@ class Twice
     public static function run(): string
     {
         try {
-            throw new LogicError("x");
+            throw new LogicError('x');
         } catch (LogicError $e) {
-            return "a";
+            return 'a';
         } catch (Throwable $e) {
-            return "b";
+            return 'b';
         }
     }
 }
@@ -1117,9 +1154,9 @@ while ($i < 3) {
             // The rest of the block is skipped, but `finally` still runs.
             continue;
         }
-        echo "body", $i, " ";
+        echo 'body', $i, ' ';
     } finally {
-        echo "fin", $i, " ";
+        echo 'fin', $i, ' ';
     }
 }
 
@@ -1169,10 +1206,12 @@ the error output names the function that threw first.
 // Shows a plain rethrow. `throw $io;` inside the `catch` sends the same object
 // on, so the handler further out reads the same message and the same class.
 
-final class Relay {
-    public static function go(): void {
+final class Relay
+{
+    public static function go(): void
+    {
         try {
-            throw new IOError("the socket closed");
+            throw new IOError('the socket closed');
         } catch (IOError $io) {
             echo "the relay saw it\n";
             throw $io;
@@ -1184,15 +1223,15 @@ try {
     Relay::go();
 } catch (Throwable $sent) {
     echo $sent->message, "\n";
-    // `location` is the line of the rethrow, which is line 11 here.
-    echo "sent on at ", $sent->location, "\n";
+    // `location` is the line of the rethrow, which is line 13 here.
+    echo 'sent on at ', $sent->location, "\n";
 }
 ```
 
 ```output
 the relay saw it
 the socket closed
-sent on at main.nvs:11
+sent on at main.nvs:13
 ```
 
 ## Example 02: do something first
@@ -1202,32 +1241,34 @@ sent on at main.nvs:11
 // Shows the common reason to rethrow. This code counts the failure and writes a
 // line about it. It cannot decide what to do next, so it sends the error on.
 
-final class Uploads {
+final class Uploads
+{
     public static int $failures = 0;
 
-    public static function send(string $name): string {
+    public static function send(string $name): string
+    {
         try {
-            if ($name == "photo.raw") {
-                throw new IOError("the upload was cut off");
+            if ($name == 'photo.raw') {
+                throw new IOError('the upload was cut off');
             }
-            return "sent " . $name;
+            return 'sent ' . $name;
         } catch (IOError $cut) {
             Uploads::$failures = Uploads::$failures + 1;
-            echo "upload ", $name, " failed\n";
+            echo 'upload ', $name, " failed\n";
             throw $cut;
         }
     }
 }
 
-echo Uploads::send("notes.txt"), "\n";
+echo Uploads::send('notes.txt'), "\n";
 
 try {
-    echo Uploads::send("photo.raw"), "\n";
+    echo Uploads::send('photo.raw'), "\n";
 } catch (IOError $failed) {
-    echo "giving up: ", $failed->message, "\n";
+    echo 'giving up: ', $failed->message, "\n";
 }
 
-echo "failures so far: ", Uploads::$failures, "\n";
+echo 'failures so far: ', Uploads::$failures, "\n";
 ```
 
 ```output
@@ -1245,21 +1286,24 @@ failures so far: 1
 // and the loop tries again. The third one is sent on, because there is nothing
 // left to try.
 
-final class Payments {
+final class Payments
+{
     public static int $calls = 0;
 
-    public static function charge(int $order): string {
+    public static function charge(int $order): string
+    {
         Payments::$calls = Payments::$calls + 1;
-        throw new TimeoutError("the payment service did not answer");
+        throw new TimeoutError('the payment service did not answer');
     }
 
-    public static function chargeWithRetries(int $order, int $tries): string {
+    public static function chargeWithRetries(int $order, int $tries): string
+    {
         int $attempt = 1;
         while ($attempt <= $tries) {
             try {
                 return Payments::charge($order);
             } catch (TimeoutError $slow) {
-                echo "attempt ", $attempt, " timed out\n";
+                echo 'attempt ', $attempt, " timed out\n";
                 if ($attempt == $tries) {
                     // The last attempt sends the error on unchanged.
                     throw $slow;
@@ -1267,14 +1311,14 @@ final class Payments {
             }
             $attempt = $attempt + 1;
         }
-        return "not reached";
+        return 'not reached';
     }
 }
 
 try {
     echo Payments::chargeWithRetries(4021, 3), "\n";
 } catch (TimeoutError $gaveUp) {
-    echo "gave up after ", Payments::$calls, " calls: ", $gaveUp->message, "\n";
+    echo 'gave up after ', Payments::$calls, ' calls: ', $gaveUp->message, "\n";
 }
 ```
 
@@ -1329,9 +1373,11 @@ The exit status is 1 for every uncaught throw.
 // the line that threw, with exit status 1.
 // proof: exit 1
 
-class Repo {
-    public static function get(int $id): string {
-        throw new RuntimeError("no row " . $id);
+class Repo
+{
+    public static function get(int $id): string
+    {
+        throw new RuntimeError('no row ' . $id);
     }
 }
 
@@ -1360,24 +1406,26 @@ loading order 7
 // This anonymous function runs when a throw reaches the top of the program and nothing
 // caught it. The program still ends, and the exit status is still 1.
 Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
-    echo "import stopped: ", $e->message, "\n";
+    echo 'import stopped: ', $e->message, "\n";
     echo "check your file, then run the import again\n";
 });
 
-class Import {
-    public static function row(string $line): string {
+class Import
+{
+    public static function row(string $line): string
+    {
         if (Core\Str::length($line) == 0) {
-            throw new RuntimeError("an empty line is not a row");
+            throw new RuntimeError('an empty line is not a row');
         }
         return $line;
     }
 }
 
-echo Import::row("ada,lovelace"), "\n";
+echo Import::row('ada,lovelace'), "\n";
 
 // The second row is empty, so this throw ends the program. The anonymous function above
 // runs first and prints the two lines you wrote for your user.
-echo Import::row(""), "\n";
+echo Import::row(''), "\n";
 ```
 
 ```output
@@ -1393,34 +1441,37 @@ check your file, then run the import again
 // Shows how to write a summary line even when an error ends the program.
 // proof: exit 1
 
-final class Counter {
+final class Counter
+{
     public static int $written = 0;
 }
 
 // This anonymous function runs at every ending: a normal one, an `exit`, and an error
 // that nothing caught. `status()` is 1 for an ending an error caused.
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
-    echo "--- rows written: ", Counter::$written, "\n";
-    echo "--- exit status: ", $report->status(), "\n";
-    echo "--- error: ", $report->error()?->message ?? "none", "\n";
+    echo '--- rows written: ', Counter::$written, "\n";
+    echo '--- exit status: ', $report->status(), "\n";
+    echo '--- error: ', $report->error()?->message ?? 'none', "\n";
 });
 
-class Rows {
-    public static function write(string $row): void {
+class Rows
+{
+    public static function write(string $row): void
+    {
         if (Core\Str::length($row) == 0) {
-            throw new RuntimeError("row " . Counter::$written . " is empty");
+            throw new RuntimeError('row ' . Counter::$written . ' is empty');
         }
         Counter::$written = Counter::$written + 1;
-        echo "wrote ", $row, "\n";
+        echo 'wrote ', $row, "\n";
     }
 }
 
-Rows::write("ada,lovelace");
-Rows::write("grace,hopper");
+Rows::write('ada,lovelace');
+Rows::write('grace,hopper');
 
 // This row is empty, so the program ends here. The summary above is still
 // printed, and it reports the two rows that did get written.
-Rows::write("");
+Rows::write('');
 ```
 
 ```output
@@ -1442,7 +1493,7 @@ wrote grace,hopper
 echo "start\n";
 
 try {
-    throw new RuntimeError("the job failed");
+    throw new RuntimeError('the job failed');
 } finally {
     // This line runs before the program ends.
     echo "clean-up done\n";
@@ -1500,8 +1551,10 @@ You may throw a `RecursionError` yourself with `new RecursionError("…")`.
 // the depth limit with a `RecursionError`, the `catch` handles it, and the
 // program carries on.
 
-final class Down {
-    public static function forever(int $n): int {
+final class Down
+{
+    public static function forever(int $n): int
+    {
         return Down::forever($n + 1) + 1;
     }
 }
@@ -1510,7 +1563,7 @@ try {
     echo Down::forever(0), "\n";
 } catch (RecursionError $tooDeep) {
     // This prints "stopped: the call stack is too deep".
-    echo "stopped: ", $tooDeep->message, "\n";
+    echo 'stopped: ', $tooDeep->message, "\n";
 }
 
 echo "the program carries on\n";
@@ -1529,8 +1582,10 @@ the program carries on
 // times before it returns, which stays inside the limit, so it finishes and
 // prints its result.
 
-final class Sum {
-    public static function upTo(int $n): int {
+final class Sum
+{
+    public static function upTo(int $n): int
+    {
         if ($n == 0) {
             return 0;
         }
@@ -1554,24 +1609,26 @@ echo Sum::upTo(1000), "\n";
 // point at each other make the walk endless, and the depth limit turns that
 // into an error you can report.
 
-final class Links {
-    public static function follow(array<string> $targets, string $from): string {
-        string $next = $targets[$from] ?? "";
-        if ($next == "") {
+final class Links
+{
+    public static function follow(array<string> $targets, string $from): string
+    {
+        string $next = $targets[$from] ?? '';
+        if ($next == '') {
             return $from;
         }
         return Links::follow($targets, $next);
     }
 }
 
-array<string> $plain = ["/old" => "/new", "/new" => "/home"];
-array<string> $loop = ["/a" => "/b", "/b" => "/a"];
+array<string> $plain = ['/old' => '/new', '/new' => '/home'];
+array<string> $loop = ['/a' => '/b', '/b' => '/a'];
 
 // This prints /home.
-echo Links::follow($plain, "/old"), "\n";
+echo Links::follow($plain, '/old'), "\n";
 
 try {
-    echo Links::follow($loop, "/a"), "\n";
+    echo Links::follow($loop, '/a'), "\n";
 } catch (RecursionError $endless) {
     echo "the redirect chain does not end\n";
 }
@@ -1589,10 +1646,12 @@ the redirect chain does not end
 // Shows a `catch` in one of the calls of a deep recursion. The calls inside it
 // are gone. The calls outside it go on and return a value.
 
-final class Down {
+final class Down
+{
     public static int $caughtAt = -1;
 
-    public static function count(int $depth): int {
+    public static function count(int $depth): int
+    {
         int $next = $depth + 1;
         if ($depth == 100) {
             try {
@@ -1608,7 +1667,7 @@ final class Down {
 
 // The call at depth 100 returns 0, and each of the 100 calls outside it adds 1.
 // This prints "100 calls returned, caught at depth 100".
-echo Down::count(0), " calls returned, caught at depth ", Down::$caughtAt, "\n";
+echo Down::count(0), ' calls returned, caught at depth ', Down::$caughtAt, "\n";
 ```
 
 ```output
@@ -1675,7 +1734,7 @@ try {
     array<string> $ballast = [];
     int $slab = 0;
     while ($slab < 4) {
-        $ballast[] = Core\Str::repeat("x", 8388608);
+        $ballast[] = Core\Str::repeat('x', 8388608);
         $slab = $slab + 1;
     }
     echo "not reached\n";
@@ -1710,7 +1769,7 @@ memory = "16M"
 // proof: exit 1
 
 Core\Fatal::onLimit(fn (array<string> $report): void => {
-    echo "stopped by the ", $report["limit"], " limit\n";
+    echo 'stopped by the ', $report['limit'], " limit\n";
 });
 
 echo "working\n";
@@ -1718,7 +1777,7 @@ echo "working\n";
 array<string> $ballast = [];
 int $slab = 0;
 while ($slab < 4) {
-    $ballast[] = Core\Str::repeat("x", 8388608);
+    $ballast[] = Core\Str::repeat('x', 8388608);
     $slab = $slab + 1;
 }
 
@@ -1749,20 +1808,20 @@ final class Job
 {
     // The handler reads this. An anonymous function copies the variables it
     // captures when it is written, so a variable would still have its first value here.
-    public static string $current = "none";
+    public static string $current = 'none';
 }
 
 Core\Fatal::onLimit(fn (array<string> $report): void => {
-    echo "stopped on order ", Job::$current, ", limit: ", $report["limit"], "\n";
+    echo 'stopped on order ', Job::$current, ', limit: ', $report['limit'], "\n";
 });
 
-array<string> $orders = ["A-1001", "A-1002", "A-1003", "A-1004"];
+array<string> $orders = ['A-1001', 'A-1002', 'A-1003', 'A-1004'];
 array<string> $labels = [];
 
 foreach ($orders as string $order) {
     Job::$current = $order;
-    echo "packing ", $order, "\n";
-    $labels[] = Core\Str::repeat("x", 8388608);
+    echo 'packing ', $order, "\n";
+    $labels[] = Core\Str::repeat('x', 8388608);
 }
 
 echo "not reached\n";
@@ -1831,15 +1890,15 @@ read = []
 // keeps running.
 
 try {
-    echo Core\IO::read("orders.csv");
+    echo Core\IO::read('orders.csv');
 } catch (RuntimeError $denied) {
     // The message names the method, the capability and the full path of the file.
     // This prints the part before the path.
-    echo Core\Str::before($denied->message, " for "), "\n";
+    echo Core\Str::before($denied->message, ' for '), "\n";
     // The second line of the message is the line to add to `nvs.toml`.
     // It also contains the full path of the folder. This prints `...` in its place.
-    string $help = Core\Str::after($denied->message, "\n") ?? "";
-    echo Core\Str::before($help, "\""), "...]", Core\Str::after($help, "\"]"), "\n";
+    string $help = Core\Str::after($denied->message, "\n") ?? '';
+    echo Core\Str::before($help, "\""), '...]', Core\Str::after($help, "\"]"), "\n";
 }
 
 echo "still running\n";
@@ -1873,13 +1932,13 @@ write = []
 // `fs.read` for one directory, so reading a file there works. Writing a file
 // needs `fs.write`, and this program does not have it.
 
-echo Core\Str::trim(Core\IO::read("data/notice.txt")), "\n";
+echo Core\Str::trim(Core\IO::read('data/notice.txt')), "\n";
 
 try {
-    Core\IO::write("data/notice.txt", "The shop is open all night.");
+    Core\IO::write('data/notice.txt', 'The shop is open all night.');
 } catch (RuntimeError $denied) {
     // The message names the full path of the file. This prints the part before it.
-    echo Core\Str::before($denied->message, " for "), "\n";
+    echo Core\Str::before($denied->message, ' for '), "\n";
 }
 ```
 
@@ -1904,10 +1963,10 @@ write = []
 // Shows a program that does its work without a capability. It saves a report
 // to a file. Writing is not allowed here, so it prints the report instead.
 
-string $report = "orders: 3, total: 41.50";
+string $report = 'orders: 3, total: 41.50';
 
 try {
-    Core\IO::write("report.txt", $report);
+    Core\IO::write('report.txt', $report);
     echo "the report is in report.txt\n";
 } catch (RuntimeError $denied) {
     echo "report.txt cannot be written, so here is the report\n";
@@ -1963,17 +2022,17 @@ try {
 
 // The `message` option puts your own sentence in front of that text.
 try {
-    Core\Test::assertTrue(false, {message: "the flag should be set"});
+    Core\Test::assertTrue(false, { message: 'the flag should be set' });
 } catch (Core\Test\Failure $failure) {
     echo $failure->message, "\n";
 }
 
 // `location` is the file and the line of the assertion that failed.
 try {
-    Core\Test::assertCount(["order", "customer"], 3);
+    Core\Test::assertCount(['order', 'customer'], 3);
 } catch (Core\Test\Failure $failure) {
     echo $failure->message, "\n";
-    echo "raised at ", $failure->location, "\n";
+    echo 'raised at ', $failure->location, "\n";
 }
 ```
 
@@ -1991,8 +2050,10 @@ raised at main.nvs:21
 // Shows which `catch` arm takes a failed assertion. `Core\Test\Failure` is not
 // a `RuntimeError`.
 
-class Cart {
-    public static function total(array<int> $prices): int {
+class Cart
+{
+    public static function total(array<int> $prices): int
+    {
         int $sum = 0;
         foreach ($prices as int $price) {
             $sum = $sum + $price;
@@ -2026,7 +2087,7 @@ Core\Test::assertEquals failed: `$actual` is 350, `$expected` is 999
 // ends with exit status 1.
 // proof: exit 1
 
-array<string> $config = ["host" => "localhost", "port" => "5432"];
+array<string> $config = ['host' => 'localhost', 'port' => '5432'];
 
 echo "checking the configuration\n";
 
@@ -2035,8 +2096,10 @@ Core\Test::assertCount($config, 2);
 
 // This one fails. Outside a `#[Test]` method a failure is an ordinary throw,
 // so it ends the program here and the error output gets the message.
-Core\Test::assertTrue(Core\Arr::hasKey($config, "password"),
-    {message: "the password is missing"});
+Core\Test::assertTrue(
+    Core\Arr::hasKey($config, 'password'),
+    { message: 'the password is missing' },
+);
 
 echo "this line never runs\n";
 ```
@@ -2096,15 +2159,17 @@ kept only when `[log] level` is `"Debug"`.
 // this program prints it. Every value says what type it is, and a string says
 // how many bytes it has.
 
-final class Order {
-    public function constructor(public int $id, public string $customer) {
+final class Order
+{
+    public function constructor(public int $id, public string $customer)
+    {
     }
 }
 
-echo Core\Debug::render(new Order(1042, "Ada")), "\n";
+echo Core\Debug::render(new Order(1042, 'Ada')), "\n";
 
 // A tab inside a string is shown as `\t`, so you can see it.
-echo Core\Debug::render(["paid" => true, "note" => "two\tcolumns"]), "\n";
+echo Core\Debug::render(['paid' => true, 'note' => "two\tcolumns"]), "\n";
 ```
 
 ```output
@@ -2126,8 +2191,10 @@ array(2) [
 // terminal while the program's own output stays unchanged. The lines below are
 // the output; the two renderings arrive on standard error.
 
-final class Basket {
-    public function constructor(public int $items, public int $cents) {
+final class Basket
+{
+    public function constructor(public int $items, public int $cents)
+    {
     }
 }
 
@@ -2136,10 +2203,10 @@ var $basket = new Basket(3, 4599);
 Core\Debug::dump($basket);
 
 // One call takes several values and renders each of them.
-Core\Debug::dump($basket->items, $basket->cents, "still here");
+Core\Debug::dump($basket->items, $basket->cents, 'still here');
 
-echo "total: ", $basket->cents, " cents\n";
-echo "items: ", $basket->items, "\n";
+echo 'total: ', $basket->cents, " cents\n";
+echo 'items: ', $basket->items, "\n";
 ```
 
 ```output
@@ -2155,16 +2222,18 @@ items: 3
 // is printed as `[redacted]`. You can inspect a configuration object without
 // putting its password in your terminal or your log file.
 
-final class DbConfig {
+final class DbConfig
+{
     public function constructor(
         public string $host,
         public string $user,
         public secret string $password,
-    ) {
+    )
+    {
     }
 }
 
-var $config = new DbConfig("db.internal", "orders", "hunter2");
+var $config = new DbConfig('db.internal', 'orders', 'hunter2');
 
 // The host and the user are shown. The password is not.
 echo Core\Debug::render($config), "\n";

@@ -5,8 +5,10 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $store = Core\Cache::memory();
         uint $total = 0;
         uint $i = 0;
@@ -14,7 +16,7 @@ class Bench {
             // The value written in one round is built from the round before
             // it, so no round can be left out.
             $total = $total + 1;
-            $store->put("round", $total);
+            $store->put('round', $total);
             $i = $i + 1;
         }
         return $total;

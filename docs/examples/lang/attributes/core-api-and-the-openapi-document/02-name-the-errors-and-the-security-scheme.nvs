@@ -4,24 +4,28 @@
 // generated API document. Novis checks that the class you name exists.
 
 // `#[Core\Api\Scheme]` declares the scheme that `security:` names.
-#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer", format: "JWT")]
-class Auth {}
+#[Core\Api\Scheme(name: 'bearer', type: Core\Api\SchemeType::Http, scheme: 'bearer', format: 'JWT')]
+class Auth
+{}
 
-class NotFound extends RuntimeError {}
+class NotFound extends RuntimeError
+{}
 
-class Payments {
+class Payments
+{
     /// Show one payment. Returns the amount in cents.
-    #[Core\Route(path: "/payments/{id}", method: Core\Http\Method::Get, name: "Payments::show")]
+    #[Core\Route(path: '/payments/{id}', method: Core\Http\Method::Get, name: 'Payments::show')]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(
-        tags: ["Payments"],
+        tags: ['Payments'],
         // A client of this API sends a bearer token with every request.
-        security: ["bearer"],
-        errors: [{status: 404, type: NotFound::class}],
+        security: ['bearer'],
+        errors: [{ status: 404, type: NotFound::class }],
     )]
-    public function show(uint $id): uint {
+    public function show(uint $id): uint
+    {
         if ($id == 0) {
-            throw new NotFound("there is no payment 0");
+            throw new NotFound('there is no payment 0');
         }
         return $id * 100;
     }
@@ -36,5 +40,5 @@ echo $payments->show(7), "\n";
 try {
     echo $payments->show(0), "\n";
 } catch (NotFound $error) {
-    echo "not found: ", $error->message, "\n";
+    echo 'not found: ', $error->message, "\n";
 }

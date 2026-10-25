@@ -4,7 +4,7 @@ namespace Novis\Spreadsheet;
 /// A whole workbook from `Workbook::fromRows` or `Template::fill`. The method you call on it sets where the file goes.
 final class Export
 {
-    type Options = ?{zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant}};
+    type Options = ?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant } };
 
     /// `new Export` makes an export that adds its rows with `$write`. `Workbook::fromRows` and `Template::fill` make one for you.
     /// `$fill` writes a filled template instead. It sends each part of the file to its first argument, and keeps the whole file in `Written::bytes` when its second argument is `true`.
@@ -12,14 +12,15 @@ final class Export
         private readonly callable(Workbook): void $write,
         private readonly Options $options,
         private readonly ?callable(callable(bytes): void, bool): Written $fill = null,
-    ) {}
+    )
+    {}
 
     /// `download` sends the file to the browser as a download named `$name`.
     public function download(string $name): void
     {
         if ($this->fill != null) {
-            Core\Response::setHeader("Content-Disposition", self::disposition($name));
-            var $response = Core\Response::stream("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            Core\Response::setHeader('Content-Disposition', self::disposition($name));
+            var $response = Core\Response::stream('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             $this->filled(fn (bytes $chunk): void => {
                 $response->write($chunk);
             }, false);
@@ -82,12 +83,12 @@ final class Export
     // The same header as `Workbook::createForDownload` sends. A name that is not plain ASCII is also sent encoded, in `filename*`.
     private static function disposition(string $name): string
     {
-        string $plain = "";
+        string $plain = '';
         foreach (Core\Str::codePoints($name) as uint $code) {
             if ($code >= 32 && $code < 127 && $code != 34 && $code != 92) {
                 $plain = $plain . Core\Str::fromCodePoint($code);
             } else {
-                $plain = $plain . "_";
+                $plain = $plain . '_';
             }
         }
         return "attachment; filename=\"{$plain}\"; filename*=UTF-8''" . Core\Uri::encodeComponent($name);

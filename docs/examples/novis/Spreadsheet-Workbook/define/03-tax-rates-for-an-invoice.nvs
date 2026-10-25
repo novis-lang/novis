@@ -1,23 +1,23 @@
 <?nvs
-// Shows an invoice whose formulas use named tax rates instead of cell addresses.
-use Novis\Spreadsheet\Workbook;
 use Novis\Spreadsheet\Formula;
 use Novis\Spreadsheet\Reader;
+// Shows an invoice whose formulas use named tax rates instead of cell addresses.
+use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-$book->sheet("Rates")->addAll([["rate" => "standard", "value" => 0.2], ["rate" => "reduced", "value" => 0.05]]);
+$book->sheet('Rates')->addAll([['rate' => 'standard', 'value' => 0.2], ['rate' => 'reduced', 'value' => 0.05]]);
 
 // `define` returns the workbook, so you can define several names in a row.
-$book->define("Standard", "Rates!\$B\$2")->define("Reduced", "Rates!\$B\$3");
+$book->define('Standard', "Rates!\$B\$2")->define('Reduced', "Rates!\$B\$3");
 
 // `cached` is the result a program that reads the file sees. Excel calculates the formula again.
-var $invoice = $book->sheet("Invoice");
-$invoice->add(["item" => "Book", "price" => 20.0, "tax" => Formula::of("B2*Reduced", {cached: 1.0})]);
-$invoice->add(["item" => "Lamp", "price" => 40.0, "tax" => Formula::of("B3*Standard", {cached: 8.0})]);
+var $invoice = $book->sheet('Invoice');
+$invoice->add(['item' => 'Book', 'price' => 20.0, 'tax' => Formula::of('B2*Reduced', { cached: 1.0 })]);
+$invoice->add(['item' => 'Lamp', 'price' => 40.0, 'tax' => Formula::of('B3*Standard', { cached: 8.0 })]);
 
 var $written = $book->finish();
 if ($written->bytes != null) {
-    foreach (Reader::open($written->bytes)->rows("Invoice", {header: true}) as var $row) {
-        echo $row->values["item"], " tax: ", $row->values["tax"], "\n";
+    foreach (Reader::open($written->bytes)->rows('Invoice', { header: true }) as var $row) {
+        echo $row->values['item'], ' tax: ', $row->values['tax'], "\n";
     }
 }

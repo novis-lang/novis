@@ -4,14 +4,17 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Limits {
+class Limits
+{
     public const int SMALL = 1;
     public const int LARGE = 2;
-    private const string KEY = "k";
+    private const string KEY = 'k';
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\ConstantInfo> $list = Core\Reflect::forObject(new Limits())->constants();
         uint $total = 0;
         uint $i = 0;

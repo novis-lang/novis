@@ -4,7 +4,7 @@
 // The `nvs.toml` beside this example does not allow `/tmp/other.sock`.
 // So this call throws a `RuntimeError`, and no socket file is created.
 try {
-    Core\Net::listenLocal("/tmp/other.sock");
+    Core\Net::listenLocal('/tmp/other.sock');
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";
 }

@@ -5,8 +5,10 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function relay(IOError $error): void {
+class Bench
+{
+    public static function relay(IOError $error): void
+    {
         try {
             throw $error;
         } catch (IOError $caught) {
@@ -14,8 +16,9 @@ class Bench {
         }
     }
 
-    public static function run(uint $rounds): uint {
-        var $error = new IOError("the socket closed");
+    public static function run(uint $rounds): uint
+    {
+        var $error = new IOError('the socket closed');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

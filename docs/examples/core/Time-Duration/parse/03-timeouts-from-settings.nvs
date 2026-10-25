@@ -1,7 +1,7 @@
 <?nvs
 // Reads timeouts from settings, and uses a default when a setting is not a valid duration.
 
-array<string> $settings = ["connect" => "5s", "read" => "2m30s", "idle" => "ten minutes"];
+array<string> $settings = ['connect' => '5s', 'read' => '2m30s', 'idle' => 'ten minutes'];
 Core\Time\Duration $default = 30s;
 
 // "idle" is not a valid duration, so it gets the default of 30 seconds.
@@ -11,7 +11,7 @@ foreach ($settings as string $name => string $text) {
     try {
         $timeout = Core\Time\Duration::parse($text);
     } catch (ParseError $e) {
-        echo "The setting ", $name, " is not valid, so the default is used.\n";
+        echo 'The setting ', $name, " is not valid, so the default is used.\n";
     }
-    echo $name, ": ", $timeout->toMilliseconds(), " ms\n";
+    echo $name, ': ', $timeout->toMilliseconds(), " ms\n";
 }

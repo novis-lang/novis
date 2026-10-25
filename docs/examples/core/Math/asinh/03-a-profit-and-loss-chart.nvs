@@ -2,12 +2,14 @@
 // Shows how a sales report draws the profit and loss of each day as a bar.
 // Some days lose money, so the scale must work for negative numbers and zero.
 
-class Chart {
+class Chart
+{
     // Returns the height of a bar, with one decimal place.
-    public static function height(float $amount): float {
+    public static function height(float $amount): float
+    {
         // `Core\Math::asinh` makes big amounts small and keeps the sign.
         // A day that lost money gets a bar below zero.
-        return Core\Math::round(Core\Math::asinh($amount / 10.0), {precision: 1});
+        return Core\Math::round(Core\Math::asinh($amount / 10.0), { precision: 1 });
     }
 }
 

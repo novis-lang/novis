@@ -10,4 +10,4 @@ echo Ledger::echoInt(42), "\n";
 // The block belongs to the person who runs the server. A program cannot change it,
 // so `Core\Config::set` returns `false`. This prints "refused".
 bool $changed = Core\Config::set('ext.ledger.currency', 'EUR');
-echo $changed ? "changed" : "refused", "\n";
+echo $changed ? 'changed' : 'refused', "\n";

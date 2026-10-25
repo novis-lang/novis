@@ -5,7 +5,7 @@ use Core\Queue;
 
 // On a real server, `nvs queue migrate` creates the queue tables.
 // This database is in memory, so the example creates them itself.
-var $db = Core\Db::connect("jobs");
+var $db = Core\Db::connect('jobs');
 var $jobs = <<<'SQL'
 create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
     script text not null, args text, state smallint not null, attempts integer not null,
@@ -24,36 +24,36 @@ SQL;
 $db->execute($jobs, []);
 $db->execute($dead, []);
 
-var $shop = Core\Db::connect("shop");
-$shop->execute("create table orders (id integer primary key)", []);
+var $shop = Core\Db::connect('shop');
+$shop->execute('create table orders (id integer primary key)', []);
 
 // The order is rolled back, but the job was already saved in the `jobs` database.
 try {
     $shop->transaction(fn(Transaction $tx): void => {
-        $tx->execute("insert into orders (id) values (?)", [1]);
-        Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
-        $tx->rollBack("payment declined");
+        $tx->execute('insert into orders (id) values (?)', [1]);
+        Queue::push('jobs/send-receipt.nvs', { queue: 'mail' });
+        $tx->rollBack('payment declined');
     });
 } catch (Core\Db\RolledBack $e) {
-    echo "rolled back: ", $e->reason, "\n";
+    echo 'rolled back: ', $e->reason, "\n";
 }
 
 // This prints `waiting: 1, pushed in another transaction: 1`.
-var $stats = Queue::stats("mail");
-echo "waiting: ", $stats->pending(), ", pushed in another transaction: ";
+var $stats = Queue::stats('mail');
+echo 'waiting: ', $stats->pending(), ', pushed in another transaction: ';
 echo $stats->nonTransactional(), "\n";
 
 // A transaction on the `jobs` database contains the push. A rollback deletes the job too.
 try {
     $db->transaction(fn(Transaction $tx): void => {
-        Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
-        $tx->rollBack("payment declined");
+        Queue::push('jobs/send-receipt.nvs', { queue: 'mail' });
+        $tx->rollBack('payment declined');
     });
 } catch (Core\Db\RolledBack $e) {
-    echo "rolled back: ", $e->reason, "\n";
+    echo 'rolled back: ', $e->reason, "\n";
 }
 
 // The numbers did not change. This prints `waiting: 1, pushed in another transaction: 1`.
-$stats = Queue::stats("mail");
-echo "waiting: ", $stats->pending(), ", pushed in another transaction: ";
+$stats = Queue::stats('mail');
+echo 'waiting: ', $stats->pending(), ', pushed in another transaction: ';
 echo $stats->nonTransactional(), "\n";

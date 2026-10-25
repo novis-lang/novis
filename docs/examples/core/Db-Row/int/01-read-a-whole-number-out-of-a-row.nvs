@@ -5,7 +5,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table tables (name text not null, seats int not null)', []);
 $db->execute(
     'insert into tables (name, seats) values (?, ?), (?, ?)',
-    ['by the window', 4, 'in the corner', 2]
+    ['by the window', 4, 'in the corner', 2],
 );
 
 // `int` reads the named column as a whole number. This prints one line for

@@ -4,20 +4,23 @@
 // bench: allocations 0
 // bench: complexity constant
 
-enum Rating: int {
+enum Rating: int
+{
     Poor = 1,
     Good = 3,
     Great = 5,
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Rating::class);
         if ($found == null) {
             return 0;
         }
         Core\Reflect\EnumInfo $info = $found;
-        array<string> $cases = ["Poor", "Good", "Great"];
+        array<string> $cases = ['Poor', 'Good', 'Great'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

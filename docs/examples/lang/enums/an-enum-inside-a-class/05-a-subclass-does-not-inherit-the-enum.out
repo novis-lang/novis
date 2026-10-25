@@ -1,7 +1,7 @@
 error[E0309]: `Refund` has no enum named `Status`
-   --> 05-a-subclass-does-not-inherit-the-enum.nvs:13:6
+   --> 05-a-subclass-does-not-inherit-the-enum.nvs:15:6
    |
-13 | echo Refund::Status::Paid as int, "\n";
+15 | echo Refund::Status::Paid as int, "\n";
    |      ^^^^^^^^^^^^^^ referenced here
    = help: `Order::Status` is where it is declared. An enum in a class body is used through that class. A subclass does not inherit it
 

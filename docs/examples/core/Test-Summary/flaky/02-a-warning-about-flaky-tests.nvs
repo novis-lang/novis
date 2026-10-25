@@ -19,7 +19,7 @@ class FlakyWarning
 
 class CacheTest
 {
-    #[Test(retries: 1, because: "the cache entry may not be written yet")]
+    #[Test(retries: 1, because: 'the cache entry may not be written yet')]
     public function itReturnsTheStoredValue(): void
     {
         Test::assertSame('cart:42', 'cart:42');

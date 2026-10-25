@@ -14,8 +14,8 @@ array<Core\Time\Date> $orders = [
 // This prints "valid" twice and then "expired".
 foreach ($orders as Core\Time\Date $ordered) {
     if ($ordered->compareTo($lastDay) <= 0) {
-        echo $ordered->format("yyyy-MM-dd"), ": valid\n";
+        echo $ordered->format('yyyy-MM-dd'), ": valid\n";
     } else {
-        echo $ordered->format("yyyy-MM-dd"), ": expired\n";
+        echo $ordered->format('yyyy-MM-dd'), ": expired\n";
     }
 }

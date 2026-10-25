@@ -19,10 +19,10 @@ class Basket
     }
 }
 
-echo "three at the usual price: ", Basket::total(3), "\n";
-echo "three at four each: ", Basket::total(3, 4), "\n";
-echo "three at four each, plus two surcharges: ", Basket::total(3, 4, 2, 7), "\n";
+echo 'three at the usual price: ', Basket::total(3), "\n";
+echo 'three at four each: ', Basket::total(3, 4), "\n";
+echo 'three at four each, plus two surcharges: ', Basket::total(3, 4, 2, 7), "\n";
 
 // `...` passes the values of an array you already have as separate arguments.
 var $surcharges = [2, 7];
-echo "the same two, out of a list: ", Basket::total(3, 4, ...$surcharges), "\n";
+echo 'the same two, out of a list: ', Basket::total(3, 4, ...$surcharges), "\n";

@@ -11,7 +11,7 @@ foreach ($countdown as int $number) {
 
 // A step of 2 puts a distance of 2 between neighbours. This prints 1, 3, 5, 7
 // and 9. A step of 2 from 9 passes 10, so the list stops at 9.
-array<int> $odd = Core\Arr::range(1, 10, {step: 2});
+array<int> $odd = Core\Arr::range(1, 10, { step: 2 });
 foreach ($odd as int $number) {
     echo $number, "\n";
 }

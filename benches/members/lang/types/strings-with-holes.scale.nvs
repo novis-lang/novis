@@ -3,17 +3,20 @@
 // bench: start 256
 // bench: max 4096
 
-class Order {
+class Order
+{
     public int $total = 0;
 }
 
-class Bench {
-    public static function run(uint $size): uint {
-        string $text = Core\Str::repeat("{total} > 1 AND ", $size);
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $text = Core\Str::repeat('{total} > 1 AND ', $size);
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            string<propertyPath<Order>> $condition = ($text . "") as string<propertyPath<Order>>;
+            string<propertyPath<Order>> $condition = ($text . '') as string<propertyPath<Order>>;
             $total = $total + Core\Str::length($condition as string);
             $i = $i + 1;
         }

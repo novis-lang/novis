@@ -1,14 +1,16 @@
 <?nvs
 // Shows how to call a method with values from a configuration, matched to its parameters by name.
 
-class Pool {
-    public function open(int $size, int $timeout): string {
-        return "pool of " . $size . ", timeout " . $timeout . "s";
+class Pool
+{
+    public function open(int $size, int $timeout): string
+    {
+        return 'pool of ' . $size . ', timeout ' . $timeout . 's';
     }
 }
 
 // The keys are in a different order than the parameters.
-array<int> $config = ["timeout" => 30, "size" => 8];
+array<int> $config = ['timeout' => 30, 'size' => 8];
 
 var $pool = new Pool();
 var $info = Core\Reflect::forObject($pool);

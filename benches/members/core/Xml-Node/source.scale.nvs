@@ -8,7 +8,7 @@ class Bench
     public static function run(uint $size): uint
     {
         Core\Xml\Node $document = Core\Xml::parse(
-            '<order id="7">' . Core\Str::repeat('<line qty="2">Mug &amp; saucer</line>', $size) . '</order>'
+            '<order id="7">' . Core\Str::repeat('<line qty="2">Mug &amp; saucer</line>', $size) . '</order>',
         );
         uint $total = 0;
         uint $i = 0;

@@ -4,8 +4,10 @@
 
 namespace Billing;
 
-class Invoice {
-    public static function number(int $order): string {
-        return "INV-" . $order;
+class Invoice
+{
+    public static function number(int $order): string
+    {
+        return 'INV-' . $order;
     }
 }

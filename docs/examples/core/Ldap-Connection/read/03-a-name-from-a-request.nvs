@@ -2,21 +2,23 @@
 // Shows how to read an entry when the name comes from a request.
 // requires: samba-ad
 
-class Profile {
+class Profile
+{
     // `read` does not accept tainted text, so `child` adds the name to a `Dn`.
     // `child` escapes the special characters of the name.
-    public static function department(Core\Ldap\Connection $corp, tainted string $name): tainted string {
-        var $company = Core\Ldap\Dn::parse("OU=Company,DC=example,DC=test");
-        var $person = $corp->read($company->child("CN", $name), {select: ["department"]});
-        return $person?->string("department") ?? "(no such person)";
+    public static function department(Core\Ldap\Connection $corp, tainted string $name): tainted string
+    {
+        var $company = Core\Ldap\Dn::parse('OU=Company,DC=example,DC=test');
+        var $person = $corp->read($company->child('CN', $name), { select: ['department'] });
+        return $person?->string('department') ?? '(no such person)';
     }
 }
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 
 // This prints `Sales`.
-echo Profile::department($corp, "Carla Diaz"), "\n";
+echo Profile::department($corp, 'Carla Diaz'), "\n";
 
 // The `,` is escaped, so this name does not reach another entry.
 // This prints `(no such person)`.
-echo Profile::department($corp, "Carla Diaz,OU=Company"), "\n";
+echo Profile::department($corp, 'Carla Diaz,OU=Company'), "\n";

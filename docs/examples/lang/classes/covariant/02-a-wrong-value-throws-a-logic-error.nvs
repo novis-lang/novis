@@ -1,19 +1,26 @@
 <?nvs
 // Shows the `LogicError` a `covariant` parameter throws when the value has the wrong type.
 
-class Animal {}
-class Dog extends Animal {}
-class Cat extends Animal {}
+class Animal
+{}
+class Dog extends Animal
+{}
+class Cat extends Animal
+{}
 
-class Shelter {
-    public function admit(Animal $a): string {
-        return "admitted";
+class Shelter
+{
+    public function admit(Animal $a): string
+    {
+        return 'admitted';
     }
 }
 
-class DogShelter extends Shelter {
-    public function admit(covariant Dog $a): string {
-        return "a dog is admitted";
+class DogShelter extends Shelter
+{
+    public function admit(covariant Dog $a): string
+    {
+        return 'a dog is admitted';
     }
 }
 

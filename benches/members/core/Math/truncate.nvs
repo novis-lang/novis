@@ -4,8 +4,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(int $rounds): float {
+class Bench
+{
+    public static function run(int $rounds): float
+    {
         float $value = 0.0;
         float $total = 0.0;
         int $i = 0;

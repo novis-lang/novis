@@ -13,7 +13,7 @@ try {
 
 // The option `message` adds your own text at the start of the message.
 try {
-    Core\Test::assertEquals($itemsInCart, 3, {message: "the cart has three items after checkout"});
+    Core\Test::assertEquals($itemsInCart, 3, { message: 'the cart has three items after checkout' });
 } catch (Core\Test\Failure $failure) {
     echo $failure->message, "\n";
 }

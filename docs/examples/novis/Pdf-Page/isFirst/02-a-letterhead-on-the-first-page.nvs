@@ -3,17 +3,17 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
-var $letter = "<p>Dear customer,</p>" . Core\Str::repeat("<p>Thank you for your order. It is on its way.</p>", 60);
+var $letter = '<p>Dear customer,</p>' . Core\Str::repeat('<p>Thank you for your order. It is on its way.</p>', 60);
 
 // The first page gets the full address. Every other page gets one short line.
 var $header = fn(Page $page): Core\Html\Markup => {
     if ($page->isFirst()) {
-        echo "page ", $page->number, ": full address\n";
+        echo 'page ', $page->number, ": full address\n";
         return html`<p><b>Shop</b><br>1 Example Street<br>shop@example.com</p>`;
     }
-    echo "page ", $page->number, ": short header\n";
+    echo 'page ', $page->number, ": short header\n";
     return html`<p>Shop, page {$page->number}</p>`;
 };
 
 // `height` makes the top margin tall enough for the address.
-Document::fromHtml($letter)->header($header, {height: "3cm"})->render();
+Document::fromHtml($letter)->header($header, { height: '3cm' })->render();

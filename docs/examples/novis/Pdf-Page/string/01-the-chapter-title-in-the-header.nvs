@@ -4,14 +4,14 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
 // Each `h2` starts a new page and saves its text under the name `chapter`.
-var $html = "<style>h2 { break-before: page; string-set: chapter content() }</style>"
-    . "<h2>Getting started</h2><p>Install the app.</p>"
-    . "<h2>Orders</h2><p>Find an order.</p>"
-    . "<h2>Returns</h2><p>Send an item back.</p>";
+var $html = '<style>h2 { break-before: page; string-set: chapter content() }</style>'
+    . '<h2>Getting started</h2><p>Install the app.</p>'
+    . '<h2>Orders</h2><p>Find an order.</p>'
+    . '<h2>Returns</h2><p>Send an item back.</p>';
 
 var $header = fn(Page $page): Core\Html\Markup => {
-    string $title = $page->string("chapter") ?? "";
-    echo "page ", $page->number, ": ", $title, "\n";
+    string $title = $page->string('chapter') ?? '';
+    echo 'page ', $page->number, ': ', $title, "\n";
     return html`<p>Shop handbook, {$title}</p>`;
 };
 

@@ -3,10 +3,12 @@
 // bench: iterations 20000
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<bytes> $bodies = ["id,name,total" as bytes, "GIF89a" as bytes, "%PDF-1.7" as bytes];
-        array<string> $types = ["text/csv; charset=utf-8", "image/gif", "application/pdf"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<bytes> $bodies = ['id,name,total' as bytes, 'GIF89a' as bytes, '%PDF-1.7' as bytes];
+        array<string> $types = ['text/csv; charset=utf-8', 'image/gif', 'application/pdf'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

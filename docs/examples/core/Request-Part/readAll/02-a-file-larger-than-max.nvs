@@ -4,7 +4,7 @@
 foreach (Core\Request::files() as Core\Request\Part $part) {
     try {
         // `max` is the largest size in bytes. A larger file throws a `RuntimeError`.
-        tainted bytes $content = $part->readAll({max: 40});
+        tainted bytes $content = $part->readAll({ max: 40 });
         echo $part->filename(), ': ', Core\Bytes::length($content), " bytes\n";
     } catch (RuntimeError $tooLarge) {
         // The next file in the loop can still be read.

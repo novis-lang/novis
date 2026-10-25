@@ -6,20 +6,20 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     string $body = Core\Str::repeat("<li>Order 1042 shipped to Berlin</li>\n", 80);
 
     // The answer depends on `Accept-Encoding`, so `Vary` tells caches to keep one copy per value.
-    Core\Response::setHeader("Vary", "Accept-Encoding");
+    Core\Response::setHeader('Vary', 'Accept-Encoding');
 
     // A browser lists the formats it can read in `Accept-Encoding`.
-    tainted string $accepted = Core\Request::header("Accept-Encoding") ?? "";
-    if (Core\Str::contains($accepted, "gzip")) {
+    tainted string $accepted = Core\Request::header('Accept-Encoding') ?? '';
+    if (Core\Str::contains($accepted, 'gzip')) {
         // The browser needs `Content-Encoding` to read the compressed body.
-        Core\Response::setHeader("Content-Encoding", "gzip");
-        Core\Response::bytes(Core\Compress::compress($body, Core\Compress::Codec::Gzip), "text/html");
+        Core\Response::setHeader('Content-Encoding', 'gzip');
+        Core\Response::bytes(Core\Compress::compress($body, Core\Compress::Codec::Gzip), 'text/html');
     } else {
-        Core\Response::bytes($body as bytes, "text/html");
+        Core\Response::bytes($body as bytes, 'text/html');
     }
 } else {
     // This browser can read gzip, so the body is compressed. This prints `gzip`.
-    var $gzip = Core\Test::request(Method::Get, '/orders', {headers: ['accept-encoding' => 'gzip, br']});
+    var $gzip = Core\Test::request(Method::Get, '/orders', { headers: ['accept-encoding' => 'gzip, br'] });
     echo 'gzip offered: ', $gzip->header('Content-Encoding') ?? 'none', "\n";
 
     // This client sends no `Accept-Encoding`, so the body is plain text. This prints `none`.

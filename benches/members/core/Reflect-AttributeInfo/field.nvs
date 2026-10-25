@@ -3,17 +3,20 @@
 // bench: iterations 1024
 // bench: complexity constant
 
-type Cache = {seconds: int, shared: bool};
+type Cache = { seconds: int, shared: bool };
 
 #[Cache(seconds: 3600, shared: true)]
-class PageController {}
+class PageController
+{}
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\AttributeInfo> $attributes =
             Core\Reflect::forObject(new PageController())->attributes();
         Core\Reflect\AttributeInfo $attribute = $attributes[0];
-        array<string> $names = ["seconds", "shared"];
+        array<string> $names = ['seconds', 'shared'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

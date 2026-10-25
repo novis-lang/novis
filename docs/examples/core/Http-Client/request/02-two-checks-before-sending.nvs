@@ -3,7 +3,7 @@
 
 // A `GET` request has no body. So a `GET` request with `json` throws a `RuntimeError`.
 try {
-    var $search = Core\Http\Client::request(Core\Http\Method::Get, "https://203.0.113.10/search", {json: ["term" => "shoes"]});
+    var $search = Core\Http\Client::request(Core\Http\Method::Get, 'https://203.0.113.10/search', { json: ['term' => 'shoes'] });
 } catch (RuntimeError $noBody) {
     echo $noBody->message, "\n";
 }
@@ -11,7 +11,7 @@ try {
 // A `POST` request that is sent again can create a second order. So a `POST` with
 // `retryAttempts` also needs `retryIdempotencyKey`. Without it, the call throws a `RuntimeError`.
 try {
-    var $order = Core\Http\Client::request(Core\Http\Method::Post, "https://203.0.113.10/orders", {json: ["item" => "shoes"], retryAttempts: 3});
+    var $order = Core\Http\Client::request(Core\Http\Method::Post, 'https://203.0.113.10/orders', { json: ['item' => 'shoes'], retryAttempts: 3 });
 } catch (RuntimeError $noKey) {
     echo $noKey->message, "\n";
 }

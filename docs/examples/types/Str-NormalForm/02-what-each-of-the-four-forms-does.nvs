@@ -2,16 +2,16 @@
 // This program converts one word to all four forms. The word has an accented
 // letter and `ﬁ`. `ﬁ` is one character that some typefaces use for `f` and `i`.
 
-string $subject = "ﬁancé";
+string $subject = 'ﬁancé';
 
-array<string> $forms = ["as typed" => $subject];
-$forms["Nfc"] = Core\Str::normalize($subject, Core\Str::NormalForm::Nfc);
-$forms["Nfd"] = Core\Str::normalize($subject, Core\Str::NormalForm::Nfd);
-$forms["Nfkc"] = Core\Str::normalize($subject, Core\Str::NormalForm::Nfkc);
-$forms["Nfkd"] = Core\Str::normalize($subject, Core\Str::NormalForm::Nfkd);
+array<string> $forms = ['as typed' => $subject];
+$forms['Nfc'] = Core\Str::normalize($subject, Core\Str::NormalForm::Nfc);
+$forms['Nfd'] = Core\Str::normalize($subject, Core\Str::NormalForm::Nfd);
+$forms['Nfkc'] = Core\Str::normalize($subject, Core\Str::NormalForm::Nfkc);
+$forms['Nfkd'] = Core\Str::normalize($subject, Core\Str::NormalForm::Nfkd);
 
 foreach ($forms as string $name => string $text) {
-    echo $name, ": ", $text, " (", Core\Str::length($text), " characters)\n";
+    echo $name, ': ', $text, ' (', Core\Str::length($text), " characters)\n";
 }
 
 // `Nfc` and `Nfd` store the accent in different ways, but both print 5 characters.

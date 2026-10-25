@@ -10,31 +10,37 @@ use Core\Test\BeforeClass;
 use Core\Test\Outcome;
 use Core\Test\Summary;
 
-final class HookTest {
+final class HookTest
+{
     #[BeforeClass]
-    public static function createTable(): void {
+    public static function createTable(): void
+    {
         echo "create the table\n";
     }
 
     #[AfterClass]
-    public static function dropTable(Summary $summary): void {
-        echo "drop the table, ", $summary->passed(), " passed\n";
+    public static function dropTable(Summary $summary): void
+    {
+        echo 'drop the table, ', $summary->passed(), " passed\n";
     }
 
     // This hook runs after each test. Its output is shown only when the
     // test fails, so this run does not print it.
     #[AfterEachTest]
-    public function removeFiles(Outcome $outcome): void {
-        echo "remove the files of ", $outcome->name(), "\n";
+    public function removeFiles(Outcome $outcome): void
+    {
+        echo 'remove the files of ', $outcome->name(), "\n";
     }
 
     #[Test]
-    public function first(): void {
+    public function first(): void
+    {
         Test::assertSame(1 + 1, 2);
     }
 
     #[Test]
-    public function second(): void {
+    public function second(): void
+    {
         Test::assertSame(2 + 2, 4);
     }
 }

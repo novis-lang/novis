@@ -5,13 +5,13 @@ use Novis\Pdf\Pages;
 use Novis\Pdf\Reader;
 
 // A report of four pages.
-var $report = Document::fromHtml("<style>p { break-after: page }</style>"
-    . "<p>Summary</p><p>Sales</p><p>Costs</p><p>Notes</p>")->render()->bytes;
+var $report = Document::fromHtml('<style>p { break-after: page }</style>'
+    . '<p>Summary</p><p>Sales</p><p>Costs</p><p>Notes</p>')->render()->bytes;
 
 // The new file has page 4 first, then pages 1 and 2. Page 3 is left out.
 var $pdf = Pages::merge([Pages::of($report, [4, 1, 2])]);
 
 var $reader = Reader::open($pdf);
 for (uint $page = 1; $page <= $reader->pageCount; $page++) {
-    echo "page ", $page, ": ", $reader->text($page), "\n";
+    echo 'page ', $page, ': ', $reader->text($page), "\n";
 }

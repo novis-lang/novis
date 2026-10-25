@@ -1,31 +1,36 @@
 <?nvs
 // Shows one method in a parent class that takes a path for each child class.
 
-class Model {
+class Model
+{
     // `propertyPath<static>` is a path that starts at the class the call names.
     // `Category::orderBy` takes paths of `Category`.
-    public static function orderBy(propertyPath<static> $path): string {
-        return "ORDER BY " . $path;
+    public static function orderBy(propertyPath<static> $path): string
+    {
+        return 'ORDER BY ' . $path;
     }
 }
 
-class Category extends Model {
-    public string $name = "Books";
+class Category extends Model
+{
+    public string $name = 'Books';
     public ?Category $parent = null;
 }
 
-class Product extends Model {
+class Product extends Model
+{
     public Category $category;
     public int $price = 5;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->category = new Category();
     }
 }
 
-echo Category::orderBy("parent.name"), "\n";
+echo Category::orderBy('parent.name'), "\n";
 
 // A path can come back to the same class many times.
-echo Category::orderBy("parent.parent.parent.name"), "\n";
+echo Category::orderBy('parent.parent.parent.name'), "\n";
 
-echo Product::orderBy("category.name"), "\n";
+echo Product::orderBy('category.name'), "\n";

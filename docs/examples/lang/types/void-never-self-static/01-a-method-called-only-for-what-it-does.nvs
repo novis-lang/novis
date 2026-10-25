@@ -2,17 +2,20 @@
 // A method that returns no value has the return type `void`.
 // Each call below is a statement of its own.
 
-class Audit {
-    public static function note(string $what, uint $count): void {
-        echo "[audit] ", $what, " x", $count, "\n";
+class Audit
+{
+    public static function note(string $what, uint $count): void
+    {
+        echo '[audit] ', $what, ' x', $count, "\n";
     }
 
-    public static function line(string $text): void {
+    public static function line(string $text): void
+    {
         echo $text, "\n";
     }
 }
 
-Audit::line("import starting");
-Audit::note("rows read", 120);
-Audit::note("rows skipped", 3);
-Audit::line("import finished");
+Audit::line('import starting');
+Audit::note('rows read', 120);
+Audit::note('rows skipped', 3);
+Audit::line('import finished');

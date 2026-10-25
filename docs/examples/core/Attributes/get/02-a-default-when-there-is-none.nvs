@@ -2,16 +2,20 @@
 // Shows the usual way to use an optional attribute: read it, and use a default
 // value when the result is `null`.
 
-type PageSize = {rows: int};
+type PageSize = { rows: int };
 
 #[PageSize(rows: 100)]
-class Invoices {}
+class Invoices
+{}
 
-class Customers {}
+class Customers
+{}
 
-class Listing {
+class Listing
+{
     // Returns the number of rows the class asks for, or 25 when it asks for none.
-    public static function rowsOf(?PageSize $size): int {
+    public static function rowsOf(?PageSize $size): int
+    {
         if ($size == null) {
             return 25;
         }

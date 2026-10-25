@@ -3,9 +3,9 @@
 // counts every byte it has sent since the machine started. That number grows
 // past what an `int` holds, so it arrives as text.
 
-array<string> $readings = ["18446744073712000000", "18446744073800000000"];
+array<string> $readings = ['18446744073712000000', '18446744073800000000'];
 
-var $previous = Core\BigInt::parse("18446744073709551615");
+var $previous = Core\BigInt::parse('18446744073709551615');
 var $current = $previous;
 foreach ($readings as string $reading) {
     $current = Core\BigInt::parse($reading);

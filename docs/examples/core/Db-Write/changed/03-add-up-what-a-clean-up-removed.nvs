@@ -8,7 +8,8 @@ $db->execute('create table logs (id integer primary key, day int not null)', [])
 $db->execute('insert into sessions (seen) values (?), (?), (?)', [1, 2, 9]);
 $db->execute('insert into logs (day) values (?), (?)', [1, 9]);
 
-class Cleanup {
+class Cleanup
+{
     // The count is a `?uint`, so it is tested for `null` before it is added. A
     // server that reports no count adds nothing, and the total still comes out.
     public static function remove(Core\Db\Connection $db, string $sql, int $before): uint

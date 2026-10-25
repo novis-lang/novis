@@ -2,8 +2,10 @@
 // Shows that each call gives a new cursor, that `return;` ends the values early,
 // and that a cursor is walked once.
 
-class Numbers {
-    public static function count(int $n): Iterator<int> {
+class Numbers
+{
+    public static function count(int $n): Iterator<int>
+    {
         int $i = 0;
         while ($i < $n) {
             yield $i;
@@ -11,7 +13,8 @@ class Numbers {
         }
     }
 
-    public static function early(bool $stop): Iterator<int> {
+    public static function early(bool $stop): Iterator<int>
+    {
         yield 1;
         if ($stop) {
             return;

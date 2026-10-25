@@ -4,18 +4,22 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Limits {
+class Limits
+{
     public const int SMALL = 1;
     public const int LARGE = 2;
-    private const string KEY = "k";
+    private const string KEY = 'k';
 }
 
-class Sizes {
+class Sizes
+{
     public const int MAX = 3;
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\ClassInfo> $infos = [
             Core\Reflect::forObject(new Limits()),
             Core\Reflect::forObject(new Sizes()),

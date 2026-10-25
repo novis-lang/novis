@@ -5,7 +5,7 @@ use Core\Queue;
 
 // On a real server, `nvs queue migrate` creates the queue tables.
 // This database is in memory, so the example creates them itself.
-var $db = Core\Db::connect("jobs");
+var $db = Core\Db::connect('jobs');
 var $jobs = <<<'SQL'
 create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
     script text not null, args text, state smallint not null, attempts integer not null,
@@ -25,19 +25,19 @@ $db->execute($jobs, []);
 $db->execute($dead, []);
 
 // The orders are in the `shop` database. The jobs are in the `jobs` database.
-var $shop = Core\Db::connect("shop");
-$shop->execute("create table orders (id integer primary key)", []);
+var $shop = Core\Db::connect('shop');
+$shop->execute('create table orders (id integer primary key)', []);
 
 // This push is not inside a transaction. This prints `pushed in another transaction: 0`.
-Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
-echo "pushed in another transaction: ", Queue::stats("mail")->nonTransactional(), "\n";
+Queue::push('jobs/send-receipt.nvs', { queue: 'mail' });
+echo 'pushed in another transaction: ', Queue::stats('mail')->nonTransactional(), "\n";
 
 // This push is inside a transaction of the `shop` database.
 // The job is saved in the `jobs` database at once, so it is counted.
 $shop->transaction(fn(Transaction $tx): void => {
-    $tx->execute("insert into orders (id) values (?)", [1]);
-    Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
+    $tx->execute('insert into orders (id) values (?)', [1]);
+    Queue::push('jobs/send-receipt.nvs', { queue: 'mail' });
 });
 
 // This prints `pushed in another transaction: 1`.
-echo "pushed in another transaction: ", Queue::stats("mail")->nonTransactional(), "\n";
+echo 'pushed in another transaction: ', Queue::stats('mail')->nonTransactional(), "\n";

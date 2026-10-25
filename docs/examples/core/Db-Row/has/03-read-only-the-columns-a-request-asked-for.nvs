@@ -5,7 +5,7 @@
 var $db = Core\Db::connect('notes');
 $db->execute(
     'create table stock (item text not null, on_hand int not null, reserved int not null)',
-    []
+    [],
 );
 $db->execute('insert into stock (item, on_hand, reserved) values (?, ?, ?)', ['tea', 40, 12]);
 

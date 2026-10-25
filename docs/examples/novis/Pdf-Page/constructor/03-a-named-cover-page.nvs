@@ -4,17 +4,17 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
 // CSS `page: cover` puts the first block on a page named `cover`.
-var $html = "<style>@page cover { margin: 40mm } .cover { page: cover } h2 { break-before: page }</style>"
+var $html = '<style>@page cover { margin: 40mm } .cover { page: cover } h2 { break-before: page }</style>'
     . "<div class=\"cover\"><h1>Annual report</h1></div>"
-    . "<h2>Sales</h2><p>Sales grew.</p><h2>Costs</h2><p>Costs fell.</p>";
+    . '<h2>Sales</h2><p>Sales grew.</p><h2>Costs</h2><p>Costs fell.</p>';
 
 // `name` is `cover` on the cover page and `null` on the other pages.
 var $footer = fn(Page $page): Core\Html\Markup => {
-    if ($page->name == "cover") {
-        echo "page ", $page->number, ": no footer\n";
+    if ($page->name == 'cover') {
+        echo 'page ', $page->number, ": no footer\n";
         return html``;
     }
-    echo "page ", $page->number, ": footer\n";
+    echo 'page ', $page->number, ": footer\n";
     return html`<p>Annual report, page {$page->number}</p>`;
 };
 

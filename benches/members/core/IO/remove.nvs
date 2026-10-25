@@ -3,20 +3,22 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $dir = Core\IO::temporaryDir();
         array<string> $files = [
-            Core\Path::join($dir, "a.tmp"),
-            Core\Path::join($dir, "b.tmp"),
-            Core\Path::join($dir, "c.tmp"),
+            Core\Path::join($dir, 'a.tmp'),
+            Core\Path::join($dir, 'b.tmp'),
+            Core\Path::join($dir, 'c.tmp'),
         ];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The file in each round depends on the round before, so no round can be left out.
             string $file = $files[($total % 3) as int];
-            Core\IO::write($file, "x");
+            Core\IO::write($file, 'x');
             Core\IO::remove($file);
             $total = $total + ($i % 2) + 1;
             $i = $i + 1;
@@ -25,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "no file was deleted", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'no file was deleted', "\n";

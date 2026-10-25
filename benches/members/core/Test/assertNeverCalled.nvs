@@ -3,18 +3,21 @@
 // bench: iterations 256
 // bench: complexity constant
 
-interface Files {
+interface Files
+{
     public function read(string $path): string;
     public function delete(string $path): void;
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Files $files = Core\Test::double<Files>({
-            read: fn(string $path): string => "data",
+            read: fn(string $path): string => 'data',
             delete: fn(string $path): void => {},
         });
-        $files->read("a.txt");
+        $files->read('a.txt');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

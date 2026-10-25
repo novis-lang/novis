@@ -3,13 +3,15 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $dir = Core\IO::temporaryDir();
         array<string> $files = [
-            Core\Path::join($dir, "greeting.txt"),
-            Core\Path::join($dir, "footer.html"),
-            Core\Path::join($dir, "settings.env"),
+            Core\Path::join($dir, 'greeting.txt'),
+            Core\Path::join($dir, 'footer.html'),
+            Core\Path::join($dir, 'settings.env'),
         ];
         Core\IO::write($files[0], "Hello {name},\nyour order is on its way.\n");
         Core\IO::write($files[1], "<footer>Shop Ltd, 1 Main Street</footer>\n");
@@ -25,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "no file was read", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'no file was read', "\n";

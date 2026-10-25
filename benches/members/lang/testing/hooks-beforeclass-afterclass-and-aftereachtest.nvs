@@ -9,39 +9,48 @@
 use Core\Test;
 use Core\Test\AfterEachTest;
 
-class Scratch {
+class Scratch
+{
     public uint $written = 0;
     public uint $removed = 0;
 
-    public function write(): void {
+    public function write(): void
+    {
         $this->written = $this->written + 1;
     }
 
-    public function remove(): void {
+    public function remove(): void
+    {
         $this->removed = $this->removed + 1;
     }
 }
 
-class CleanupTest {
+class CleanupTest
+{
     private Scratch $scratch;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->scratch = new Scratch();
     }
 
     #[Test]
-    public function writesSomething(): void {
+    public function writesSomething(): void
+    {
         $this->scratch->write();
     }
 
     #[AfterEachTest]
-    public function removesIt(): void {
+    public function removesIt(): void
+    {
         $this->scratch->remove();
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // One object for every round, so the counts carry from one round to the next.
         var $scratch = new Scratch();
         uint $i = 0;

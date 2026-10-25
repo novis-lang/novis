@@ -18,4 +18,4 @@ string $clean = Core\Str::fromCodePoints($kept);
 
 // This prints `admin` and then `true`.
 echo $clean, "\n";
-echo $clean == "admin" ? "true" : "false", "\n";
+echo $clean == 'admin' ? 'true' : 'false', "\n";

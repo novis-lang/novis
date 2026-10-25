@@ -1,11 +1,19 @@
 <?nvs
 // Shows `clone`, `is`, `isset`, `empty`, `print` and `throw` in one short program.
 
-class Inner { public int $v = 1; }
-class Outer {
+class Inner
+{
+    public int $v = 1;
+}
+class Outer
+{
     public Inner $in;
     public array<int> $list = [];
-    public function constructor() { $this->in = new Inner(); $this->list[] = 1; }
+    public function constructor()
+    {
+        $this->in = new Inner();
+        $this->list[] = 1;
+    }
 }
 
 // The copy has its own array, so `$a->list` still has one element.
@@ -15,25 +23,27 @@ Outer $b = clone $a;
 $b->list[] = 2;
 $b->in->v = 9;
 // This prints: 12 9 |
-echo Core\Arr::count($a->list), Core\Arr::count($b->list), " ", $a->in->v, " ", ($a == $b) as string, "|\n";
+echo Core\Arr::count($a->list), Core\Arr::count($b->list), ' ', $a->in->v, ' ', ($a == $b) as string, "|\n";
 
 // Inside the `if`, `$m` is an `Inner`, so `$m->v` works. This prints: inner 1
 mixed $m = new Inner();
-if ($m is Inner) { echo "inner ", $m->v, "\n"; }
+if ($m is Inner) {
+    echo 'inner ', $m->v, "\n";
+}
 
 // `isset` is true only for the key `"j"`. A key set to `null` and a missing key are both false.
 ?int $none = null;
-array<?int> $arr = ["k" => null, "j" => 1];
-echo isset($none) as string, isset($arr["k"]) as string, isset($arr["j"]) as string, isset($arr["zz"]) as string, "|";
+array<?int> $arr = ['k' => null, 'j' => 1];
+echo isset($none) as string, isset($arr['k']) as string, isset($arr['j']) as string, isset($arr['zz']) as string, '|';
 
 // `print` writes `p` and a newline, and gives `1`. `echo` prints that `1` at the start of the next line.
 // This line and the one above print: 1|11|p
-echo empty($none) as string, empty($arr["zz"]) as string, "|", print "p\n";
+echo empty($none) as string, empty($arr['zz']) as string, '|', print "p\n";
 
 // `$name` is `null`, so `??` runs the `throw`. This prints: no name
 ?string $name = null;
 try {
-    string $s = $name ?? throw new LogicError("no name");
+    string $s = $name ?? throw new LogicError('no name');
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }

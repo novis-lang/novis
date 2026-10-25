@@ -3,8 +3,10 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $documents = [
             '<order id="1"><item sku="A-100" qty="2"/></order>',
             '<order id="2"><item sku="B-200" qty="1"/><item sku="C-300" qty="5"/></order>',

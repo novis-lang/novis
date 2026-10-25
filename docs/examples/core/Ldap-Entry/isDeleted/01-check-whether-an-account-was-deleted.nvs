@@ -2,9 +2,9 @@
 // Shows how to check whether a user account was deleted, with the SID a program saved earlier.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Former Staff 1,DC=example,DC=test";
-string $user = "CN=Lena Vogt," . $unit;
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Former Staff 1,DC=example,DC=test';
+string $user = 'CN=Lena Vogt,' . $unit;
 
 // A run that stopped early can leave the account behind, so the program deletes it first.
 array<string> $leftovers = [$user, $unit];
@@ -14,18 +14,18 @@ foreach ($leftovers as string $left) {
     } catch (Core\Ldap\LdapError $missing) {
     }
 }
-$corp->add($unit, ["objectClass" => "organizationalUnit"]);
-$corp->add($user, ["objectClass" => "user", "sAMAccountName" => "lena.vogt"]);
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
+$corp->add($user, ['objectClass' => 'user', 'sAMAccountName' => 'lena.vogt']);
 
 // The SID of an account never changes, so a program can save it and use it later.
-var $found = $corp->read($user, {select: ["objectSid"]});
-string $sid = $found?->sid("objectSid")?->toString() ?? "";
+var $found = $corp->read($user, { select: ['objectSid'] });
+string $sid = $found?->sid('objectSid')?->toString() ?? '';
 $corp->delete($user);
 
 // `showDeleted: true` also finds deleted accounts. This prints `deleted: yes`.
-var $bySid = Core\Ldap\Filter::equals("objectSid", $sid);
-foreach ($corp->search($bySid, {showDeleted: true}) as Core\Ldap\Entry $account) {
-    echo "deleted: ", $account->isDeleted() ? "yes" : "no", "\n";
+var $bySid = Core\Ldap\Filter::equals('objectSid', $sid);
+foreach ($corp->search($bySid, { showDeleted: true }) as Core\Ldap\Entry $account) {
+    echo 'deleted: ', $account->isDeleted() ? 'yes' : 'no', "\n";
 }
 
 $corp->delete($unit);

@@ -3,9 +3,9 @@
 use Novis\Spreadsheet\Workbook;
 
 array<array<mixed>> $orders = [
-    ["order" => 1042, "customer" => "Ada", "total" => 19.9],
-    ["order" => 1043, "customer" => "Alan", "total" => 5.0],
+    ['order' => 1042, 'customer' => 'Ada', 'total' => 19.9],
+    ['order' => 1043, 'customer' => 'Alan', 'total' => 5.0],
 ];
 
 // `download` sends the file with the name `orders.csv`. The name sets the format.
-Workbook::fromRows($orders)->download("orders.csv");
+Workbook::fromRows($orders)->download('orders.csv');

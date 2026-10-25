@@ -5,17 +5,19 @@
 // scaling: max 4000
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): uint {
+class Bench
+{
+    public static function run(uint $size): uint
+    {
         array<mixed> $fields = [];
         uint $i = 0;
         while ($i < $size) {
-            $fields["key" . $i] = "value " . $i;
+            $fields['key' . $i] = 'value ' . $i;
             $i = $i + 1;
         }
         uint $calls = 0;
         while ($calls < $size) {
-            Core\Log::write(Core\Log::Level::Debug, "step " . $calls, $fields);
+            Core\Log::write(Core\Log::Level::Debug, 'step ' . $calls, $fields);
             $calls = $calls + 1;
         }
         return $calls + Core\Arr::count($fields);

@@ -5,7 +5,7 @@ use Novis\Image\Barcode;
 // Code 39 contains only digits, capital letters, the space and `-.$/+%`.
 // The small letters in `order` throw a `LogicError`.
 try {
-    Barcode::svg("order-42", Barcode::Symbology::Code39);
+    Barcode::svg('order-42', Barcode::Symbology::Code39);
     echo "made a barcode\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";
@@ -13,7 +13,7 @@ try {
 
 // An EAN-8 has exactly 8 digits, so 7 digits throw a `LogicError`.
 try {
-    Barcode::svg("9638507", Barcode::Symbology::Ean8);
+    Barcode::svg('9638507', Barcode::Symbology::Ean8);
     echo "made a barcode\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";

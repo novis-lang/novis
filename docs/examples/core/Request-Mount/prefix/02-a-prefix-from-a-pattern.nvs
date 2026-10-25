@@ -6,7 +6,7 @@
 Core\Request\Mount $mount = Core\Request::mount();
 
 // `prefix()` returns the whole prefix, in lower case. This prints "prefix: /acme".
-echo "prefix: ", $mount->prefix(), "\n";
+echo 'prefix: ', $mount->prefix(), "\n";
 
 // `captures()` returns the folder name. This prints "customer: Acme".
-echo "customer: ", $mount->captures()[0], "\n";
+echo 'customer: ', $mount->captures()[0], "\n";

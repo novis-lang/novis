@@ -7,27 +7,33 @@
 
 use Core\Test;
 
-class Meter {
+class Meter
+{
     public static uint $built = 0;
 }
 
-class BasketTest {
+class BasketTest
+{
     private array<string> $items;
 
-    public function constructor() {
+    public function constructor()
+    {
         // Chained: the count written here is the one the round before wrote.
         Meter::$built = Meter::$built + 1;
-        $this->items = ["bread"];
+        $this->items = ['bread'];
     }
 
     #[Test]
-    public function itStartsWithThePreparedItem(): void {
+    public function itStartsWithThePreparedItem(): void
+    {
         Test::assertCount($this->items, 1);
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $i = 0;
         while ($i < $rounds) {
             var $test = new BasketTest();

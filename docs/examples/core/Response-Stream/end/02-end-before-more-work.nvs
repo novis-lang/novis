@@ -1,7 +1,7 @@
 <?nvs
 // Shows that the program can go on running after `end()`.
 
-Core\Response\Stream $body = Core\Response::stream("text/plain; charset=utf-8");
+Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8');
 $body->write("Your report is ready.\n");
 
 // The client receives the end of the body now and does not wait for the work below.
@@ -13,4 +13,4 @@ int $total = 0;
 foreach ($values as int $value) {
     $total = $total + $value;
 }
-Core\Log::write(Core\Log::Level::Info, "report sent", ["total" => $total]);
+Core\Log::write(Core\Log::Level::Info, 'report sent', ['total' => $total]);

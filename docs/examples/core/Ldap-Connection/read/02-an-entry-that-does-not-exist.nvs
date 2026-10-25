@@ -2,12 +2,12 @@
 // Shows what `read` returns when there is no entry with the DN.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-array<string> $names = ["Ben Kohl", "Nobody"];
+var $corp = Core\Ldap::connect('corp');
+array<string> $names = ['Ben Kohl', 'Nobody'];
 
 // There is no entry for `Nobody`, so `read` returns `null`.
 // This prints `Ben Kohl: found` and `Nobody: not found`.
 foreach ($names as string $name) {
-    var $person = $corp->read("CN=" . $name . ",OU=Company,DC=example,DC=test", {select: ["cn"]});
-    echo $name, ": ", $person == null ? "not found" : "found", "\n";
+    var $person = $corp->read('CN=' . $name . ',OU=Company,DC=example,DC=test', { select: ['cn'] });
+    echo $name, ': ', $person == null ? 'not found' : 'found', "\n";
 }

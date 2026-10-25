@@ -6,4 +6,4 @@ uint $rows = Core\Cli::height();
 
 // This prints 24, because this program runs without a terminal and 24 is the
 // height it falls back to.
-echo "the screen shows ", $rows, " rows\n";
+echo 'the screen shows ', $rows, " rows\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to read a group of each match inside the function.
 
-string $prices = "Price: 12 USD, shipping: 3 USD";
+string $prices = 'Price: 12 USD, shipping: 3 USD';
 
 // `(\d+) USD` matches an amount, and group 1 is the number. The function puts
 // a `$` sign before the number. This prints "Price: $12, shipping: $3".

@@ -5,7 +5,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table people (name text not null, city text not null)', []);
 $db->execute(
     'insert into people (name, city) values (?, ?), (?, ?)',
-    ['Amina', 'Graz', 'Bruno', 'Lisboa']
+    ['Amina', 'Graz', 'Bruno', 'Lisboa'],
 );
 
 // `string` reads the named column as text. This prints one line for each person.

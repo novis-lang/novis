@@ -6,4 +6,4 @@ bytes $octets = $id->toBytes();
 var $again = Core\Uuid::fromBytes($octets);
 
 // Both UUIDs have the same text. This prints "same".
-echo $again->toString() == $id->toString() ? "same" : "different", "\n";
+echo $again->toString() == $id->toString() ? 'same' : 'different', "\n";

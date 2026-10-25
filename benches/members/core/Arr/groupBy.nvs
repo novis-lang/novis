@@ -4,10 +4,12 @@
 // bench: calls 5
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $orders = ["paid", "open", "paid"];
-        array<string> $prefixes = ["x-", "y-", "z-"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $orders = ['paid', 'open', 'paid'];
+        array<string> $prefixes = ['x-', 'y-', 'z-'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -4,9 +4,11 @@
 // bench: start 256
 // bench: max 4096
 
-class Bench {
-    public static function run(uint $size): string {
-        array<string> $orders = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "order-" . ($n as string) . ";customer-" . (($n % 100) as string) . ";" . (($n * 37) as string));
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        array<string> $orders = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => 'order-' . ($n as string) . ';customer-' . (($n % 100) as string) . ';' . (($n * 37) as string));
         return "// scaling: file stdin.in\n" . Core\Str::join($orders, "\n") . "\n";
     }
 }

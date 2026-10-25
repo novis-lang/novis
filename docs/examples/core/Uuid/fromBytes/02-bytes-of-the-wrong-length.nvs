@@ -2,7 +2,7 @@
 // Shows what happens when the bytes are not exactly sixteen long.
 
 // These are twelve bytes. A UUID needs sixteen.
-bytes $short = Core\Encoding::fromHex("f9168c5eceb24faab6bf329b");
+bytes $short = Core\Encoding::fromHex('f9168c5eceb24faab6bf329b');
 
 // `fromBytes` throws a `RuntimeError`. The message gives the length, 12.
 try {

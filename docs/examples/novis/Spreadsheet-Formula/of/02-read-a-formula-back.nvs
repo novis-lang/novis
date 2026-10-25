@@ -5,14 +5,14 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Workbook;
 
 // The `=` at the start is allowed. `Formula::of` removes it.
-bytes $file = Workbook::fromRows([["price" => 2.5, "count" => 4, "total" => Formula::of("=A2*B2", {cached: 10})]])->bytes();
+bytes $file = Workbook::fromRows([['price' => 2.5, 'count' => 4, 'total' => Formula::of('=A2*B2', { cached: 10 })]])->bytes();
 
 // With `formulas: true`, a formula cell is read as a `Formula`.
-foreach (Reader::open($file)->rows("Sheet1", {header: true, formulas: true}) as var $row) {
-    mixed $total = $row->values["total"];
+foreach (Reader::open($file)->rows('Sheet1', { header: true, formulas: true }) as var $row) {
+    mixed $total = $row->values['total'];
     if ($total is Formula) {
         // `text` is tainted, because a file can come from a user. This program wrote the file itself.
-        echo "formula: ", Core\Taint::assertTrusted($total->text, "this program wrote the file"), "\n";
-        echo "cached: ", $total->cached, "\n";
+        echo 'formula: ', Core\Taint::assertTrusted($total->text, 'this program wrote the file'), "\n";
+        echo 'cached: ', $total->cached, "\n";
     }
 }

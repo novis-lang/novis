@@ -2,23 +2,25 @@
 // `Core\Db\Column::Type` is the type a column was declared with in the database.
 // This program prints every case and what it means.
 
-class Describe {
-    public static function plainly(Core\Db\Column::Type $type): string {
+class Describe
+{
+    public static function plainly(Core\Db\Column::Type $type): string
+    {
         return match ($type) {
-            Core\Db\Column::Type::Int => "Int is a whole number, which may be negative",
-            Core\Db\Column::Type::Uint => "Uint is a whole number that is never negative",
-            Core\Db\Column::Type::Float => "Float is a number with a fractional part, rounded",
-            Core\Db\Column::Type::Decimal => "Decimal is an exact amount, such as a price",
-            Core\Db\Column::Type::Text => "Text is text",
-            Core\Db\Column::Type::Bytes => "Bytes is raw bytes, such as a stored file",
-            Core\Db\Column::Type::Bool => "Bool is true or false",
-            Core\Db\Column::Type::Date => "Date is a calendar day, with no time on it",
-            Core\Db\Column::Type::Time => "Time is a time of day, with no date on it",
-            Core\Db\Column::Type::DateTime => "DateTime is a date and a time, with no time zone",
-            Core\Db\Column::Type::Instant => "Instant is a moment in time, carrying its own offset",
-            Core\Db\Column::Type::Uuid => "Uuid is a UUID",
-            Core\Db\Column::Type::Json => "Json is text the database knows is JSON",
-            Core\Db\Column::Type::Other => "Other is anything else, including every array column",
+            Core\Db\Column::Type::Int => 'Int is a whole number, which may be negative',
+            Core\Db\Column::Type::Uint => 'Uint is a whole number that is never negative',
+            Core\Db\Column::Type::Float => 'Float is a number with a fractional part, rounded',
+            Core\Db\Column::Type::Decimal => 'Decimal is an exact amount, such as a price',
+            Core\Db\Column::Type::Text => 'Text is text',
+            Core\Db\Column::Type::Bytes => 'Bytes is raw bytes, such as a stored file',
+            Core\Db\Column::Type::Bool => 'Bool is true or false',
+            Core\Db\Column::Type::Date => 'Date is a calendar day, with no time on it',
+            Core\Db\Column::Type::Time => 'Time is a time of day, with no date on it',
+            Core\Db\Column::Type::DateTime => 'DateTime is a date and a time, with no time zone',
+            Core\Db\Column::Type::Instant => 'Instant is a moment in time, carrying its own offset',
+            Core\Db\Column::Type::Uuid => 'Uuid is a UUID',
+            Core\Db\Column::Type::Json => 'Json is text the database knows is JSON',
+            Core\Db\Column::Type::Other => 'Other is anything else, including every array column',
         };
     }
 }
@@ -46,6 +48,6 @@ foreach ($everything as Core\Db\Column::Type $type) {
 
 // A Text column and a Json column both give your program a string.
 // They are still different cases, so this prints `no`.
-echo "Text and Json are the same case: ",
-    Core\Db\Column::Type::Text == Core\Db\Column::Type::Json ? "yes" : "no",
+echo 'Text and Json are the same case: ',
+    Core\Db\Column::Type::Text == Core\Db\Column::Type::Json ? 'yes' : 'no',
     "\n";

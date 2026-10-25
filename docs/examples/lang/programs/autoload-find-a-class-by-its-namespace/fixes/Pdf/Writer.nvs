@@ -4,8 +4,10 @@
 
 namespace Acme\Pdf;
 
-class Writer {
-    public static function describe(): string {
-        return "writer: our patched copy";
+class Writer
+{
+    public static function describe(): string
+    {
+        return 'writer: our patched copy';
     }
 }

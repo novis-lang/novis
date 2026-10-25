@@ -16,7 +16,7 @@ int $previous = 0;
 // This prints one report, for line 2.
 foreach (Core\Ast::parse($source)->children() as Core\Ast\Node $part) {
     if ($part->line() == $previous) {
-        echo "line ", $part->line(), " holds more than one statement\n";
+        echo 'line ', $part->line(), " holds more than one statement\n";
     }
     $previous = $part->line();
 }

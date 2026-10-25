@@ -4,35 +4,41 @@
 
 use Core\Test;
 
-class Registry {
+class Registry
+{
     public static array<string> $accounts = [];
 
-    public static function register(string $email): void {
+    public static function register(string $email): void
+    {
         Registry::$accounts[] = $email;
     }
 
-    public static function count(): uint {
+    public static function count(): uint
+    {
         return Core\Arr::count(Registry::$accounts);
     }
 }
 
-class RegistryTest {
+class RegistryTest
+{
     #[Test]
-    public function itRegistersAnAddress(): void {
-        Registry::register("ada@example.com");
+    public function itRegistersAnAddress(): void
+    {
+        Registry::register('ada@example.com');
         Test::assertSame(Registry::count(), 1);
     }
 
     // The same address again. This test starts with an empty registry, so it
     // needs no code to remove what the test above registered.
     #[Test]
-    public function itRegistersTheSameAddressAgain(): void {
-        Registry::register("ada@example.com");
+    public function itRegistersTheSameAddressAgain(): void
+    {
+        Registry::register('ada@example.com');
         Test::assertSame(Registry::count(), 1);
     }
 }
 
 // Outside a test the registry keeps both addresses. This prints `2`.
-Registry::register("ada@example.com");
-Registry::register("grace@example.com");
+Registry::register('ada@example.com');
+Registry::register('grace@example.com');
 echo Registry::count(), "\n";

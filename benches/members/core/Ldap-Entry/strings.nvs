@@ -5,17 +5,19 @@
 // bench: complexity constant
 // requires: samba-ad
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $corp = Core\Ldap::connect("corp");
-        var $found = $corp->read("CN=Employees,OU=Company,DC=example,DC=test", {select: ["member", "mail"]});
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $corp = Core\Ldap::connect('corp');
+        var $found = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['member', 'mail'] });
         if ($found == null) {
             return 0;
         }
         Core\Ldap\Entry $group = $found;
         // The count so far chooses the attribute, so the loop cannot be left out.
         // `member` has five values and `mail` has none.
-        array<string> $names = ["member", "mail"];
+        array<string> $names = ['member', 'mail'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

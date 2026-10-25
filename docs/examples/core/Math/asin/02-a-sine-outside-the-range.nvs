@@ -6,7 +6,7 @@
 echo Core\Math::asin(2.0), "\n";
 
 // `Core\Math::isNan` tests for that result. This prints "not an angle".
-echo Core\Math::isNan(Core\Math::asin(2.0)) ? "not an angle" : "an angle", "\n";
+echo Core\Math::isNan(Core\Math::asin(2.0)) ? 'not an angle' : 'an angle', "\n";
 
 // A calculation can end a tiny bit below -1.0 because of rounding.
 float $sine = -1.0000000000000002;

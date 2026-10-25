@@ -7,11 +7,11 @@ class Widget implements Part
 {
     public static function line(): string
     {
-        return "greeting from the autoload root";
+        return 'greeting from the autoload root';
     }
 
     public function tag(): string
     {
-        return "widget";
+        return 'widget';
     }
 }

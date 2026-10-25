@@ -4,15 +4,17 @@
 // bench: calls 3
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // `/bin/sh` runs `cat` on Linux and macOS, and `cmd.exe` runs a loop on Windows.
         // Both print each line of input back as soon as they read it.
-        string $path = "/bin/sh";
-        array<string> $arguments = ["-c", "exec cat"];
+        string $path = '/bin/sh';
+        array<string> $arguments = ['-c', 'exec cat'];
         if (Core\Env::OS == Core\Env::Platform::Windows) {
             $path = "C:\\Windows\\System32\\cmd.exe";
-            $arguments = ["/v:on", "/c", "for /l %i in (0,0,1) do @(set /p line=& <nul set /p =!line!)"];
+            $arguments = ['/v:on', '/c', 'for /l %i in (0,0,1) do @(set /p line=& <nul set /p =!line!)'];
         }
         var $program = Core\Process::spawn($path, $arguments);
         bytes $line = "a line of output\n" as bytes;

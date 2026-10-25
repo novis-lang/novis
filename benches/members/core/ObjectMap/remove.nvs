@@ -4,16 +4,20 @@
 // bench: allocations 0
 // bench: complexity constant
 
-final class Key {
+final class Key
+{
     public int $id;
 
-    public function constructor(int $id) {
+    public function constructor(int $id)
+    {
         $this->id = $id;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Key> $stored = [new Key(1), new Key(2), new Key(3)];
         array<Key> $others = [new Key(4), new Key(5), new Key(6)];
         Core\ObjectMap<Key, int> $map = new Core\ObjectMap<Key, int>();

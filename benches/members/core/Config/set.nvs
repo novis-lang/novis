@@ -5,16 +5,18 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $values = ["96M", "256M"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $values = ['96M', '256M'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The value of every round is chosen by the round before it, so no
             // round can be left out.
             string $value = $values[(($total + $i) % 2) as int];
-            Core\Config::set("memory", $value);
+            Core\Config::set('memory', $value);
             $total = $total + Core\Str::length($value);
             $i = $i + 1;
         }

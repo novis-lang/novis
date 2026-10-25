@@ -2,11 +2,11 @@
 // Shows how to read the SID of an account and its last number.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $admin = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["objectSid"]});
+var $corp = Core\Ldap::connect('corp');
+var $admin = $corp->read('CN=Administrator,CN=Users,DC=example,DC=test', { select: ['objectSid'] });
 
 if ($admin != null) {
     // The first part of a SID is different in every domain. The last number, the RID,
     // is always 500 for the account `Administrator`. This prints `500`.
-    echo $admin->sid("objectSid")?->rid() ?? 0, "\n";
+    echo $admin->sid('objectSid')?->rid() ?? 0, "\n";
 }

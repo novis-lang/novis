@@ -1,17 +1,19 @@
 <?nvs
 // Shows how to find the values that are in one set and not in another.
 
-final class Tag {
+final class Tag
+{
     public string $name;
 
-    public function constructor(string $name) {
+    public function constructor(string $name)
+    {
         $this->name = $name;
     }
 }
 
-Tag $red = new Tag("red");
-Tag $blue = new Tag("blue");
-Tag $green = new Tag("green");
+Tag $red = new Tag('red');
+Tag $blue = new Tag('blue');
+Tag $green = new Tag('green');
 
 Core\ObjectSet<Tag> $all = new Core\ObjectSet<Tag>();
 $all->add($red);
@@ -29,4 +31,4 @@ foreach ($unused as Tag $tag) {
 }
 
 // `$all` and `$used` do not change. This prints "3 1".
-echo $all->count(), " ", $used->count(), "\n";
+echo $all->count(), ' ', $used->count(), "\n";

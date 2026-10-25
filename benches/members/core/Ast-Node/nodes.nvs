@@ -5,8 +5,10 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Core\Ast\Node $file = Core\Ast::parse('<?nvs echo 1; if (1) { echo 2; } while (0) { echo 3; }');
         array<Core\Ast\Node> $top = $file->children();
         uint $total = 0;

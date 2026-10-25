@@ -2,12 +2,12 @@
 // Shows how to read the id of an entry as a UUID.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["objectGUID"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['objectGUID'] });
 
 if ($person != null) {
     // `objectGUID` is different in every directory, so this prints only the length
     // of its text: `36`.
-    ?Core\Uuid $id = $person->uuid("objectGUID");
-    echo Core\Str::length($id?->toString() ?? ""), "\n";
+    ?Core\Uuid $id = $person->uuid('objectGUID');
+    echo Core\Str::length($id?->toString() ?? ''), "\n";
 }

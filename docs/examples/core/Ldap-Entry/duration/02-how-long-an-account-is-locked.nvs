@@ -2,16 +2,16 @@
 // Shows how to use a length of time from the directory in a calculation.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $domain = $corp->read("DC=example,DC=test", {select: ["lockoutDuration"]});
+var $corp = Core\Ldap::connect('corp');
+var $domain = $corp->read('DC=example,DC=test', { select: ['lockoutDuration'] });
 
 if ($domain != null) {
-    ?Core\Time\Duration $locked = $domain->duration("lockoutDuration");
+    ?Core\Time\Duration $locked = $domain->duration('lockoutDuration');
     if ($locked != null) {
         // A locked account opens again after this time. This prints `1800`.
         echo $locked->toSeconds(), "\n";
 
         // `plus` adds the time to an `Instant`. This prints `2024-03-01T12:30:00Z`.
-        echo Core\Time::fromIso("2024-03-01T12:00:00Z")->plus($locked)->toIso(), "\n";
+        echo Core\Time::fromIso('2024-03-01T12:00:00Z')->plus($locked)->toIso(), "\n";
     }
 }

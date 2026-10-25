@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
-        array<string> $texts = ["2024-06-01T09:30:00Z", "2024-06-01T11:30:00.250+02:00", "2024-05-31T23:59:59-05:00"];
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<string> $texts = ['2024-06-01T09:30:00Z', '2024-06-01T11:30:00.250+02:00', '2024-05-31T23:59:59-05:00'];
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

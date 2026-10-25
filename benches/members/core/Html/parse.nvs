@@ -3,11 +3,13 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $pieces = [
-            "<p>Hello, <b>world</b>",
-            "<ul><li>Apples<li>Pears<li>Plums</ul>",
+            '<p>Hello, <b>world</b>',
+            '<ul><li>Apples<li>Pears<li>Plums</ul>',
             "<nav><a href=\"/\">Home</a> <a href=\"/help\">Help</a></nav>",
         ];
         uint $total = 0;

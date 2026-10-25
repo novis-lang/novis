@@ -3,19 +3,21 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $comments = [
-            "<p>I <b>really</b> like this!</p>",
+            '<p>I <b>really</b> like this!</p>',
             "<a href=\"https://example.com\" onclick=\"steal()\">Look</a>",
-            "Nice<script>alert(1)</script> <em>post</em>",
+            'Nice<script>alert(1)</script> <em>post</em>',
         ];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The comment cleaned in each round is chosen by the round before, so no round can be left out.
             $total = $total + Core\Str::length(
-                Core\Html::toSource(Core\Html::sanitize($comments[($total % 3) as int]), "measuring the cleaned comment"),
+                Core\Html::toSource(Core\Html::sanitize($comments[($total % 3) as int]), 'measuring the cleaned comment'),
             ) + $i % 2;
             $i = $i + 1;
         }

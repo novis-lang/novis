@@ -8,24 +8,25 @@
 // as it does for an application's own. `bearer` is declared below, so the
 // `security` name resolves.
 
-#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer", format: "JWT")]
-class Auth {}
+#[Core\Api\Scheme(name: 'bearer', type: Core\Api\SchemeType::Http, scheme: 'bearer', format: 'JWT')]
+class Auth
+{}
 
 class Item
 {
-    public string $name = "";
+    public string $name = '';
     public uint $count = 0;
 }
 
 class Items
 {
-    #[Core\Route(path: "/items/{id}", method: Core\Http\Method::Get, name: "Items::show")]
+    #[Core\Route(path: '/items/{id}', method: Core\Http\Method::Get, name: 'Items::show')]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(
-        tags: ["Items"],
-        errors: [{status: 500, type: RuntimeError::class}],
-        security: ["bearer"],
-        example: {name: "a thing", count: 3},
+        tags: ['Items'],
+        errors: [{ status: 500, type: RuntimeError::class }],
+        security: ['bearer'],
+        example: { name: 'a thing', count: 3 },
     )]
     public function show(uint $id): Item
     {
@@ -36,7 +37,7 @@ class Items
     // four are additions, so this operation carries none of the four members
     // rather than empty ones — and the two rows sit in one document so a reader
     // of the emitter's output sees both answers at once.
-    #[Core\Route(path: "/items", method: Core\Http\Method::Get, name: "Items::index")]
+    #[Core\Route(path: '/items', method: Core\Http\Method::Get, name: 'Items::index')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): uint
     {
@@ -44,5 +45,5 @@ class Items
     }
 }
 
-echo "GET /items/{id} -> Items::show", "\n";
-echo "GET /items -> Items::index", "\n";
+echo 'GET /items/{id} -> Items::show', "\n";
+echo 'GET /items -> Items::index', "\n";

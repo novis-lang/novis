@@ -7,33 +7,37 @@ use Core\Db\Transaction;
 
 // The weekly totals. A report is added to them, and the report itself is not saved.
 // A row is for one week, version, system and processor. `reports` counts reports, and `counters` adds up counters.
-final class Totals {
+final class Totals
+{
     private Connection $db;
 
-    public function constructor(Connection $db) {
+    public function constructor(Connection $db)
+    {
         $this->db = $db;
     }
 
     // Creates the two tables if they do not exist yet.
-    public function setUp(): void {
+    public function setUp(): void
+    {
         $this->db->execute(
-            "create table if not exists reports (week text not null, version text not null, os text not null, arch text not null, "
-            . "reports integer not null, first_reports integer not null, "
-            . "active_1 integer not null, active_2 integer not null, active_3 integer not null, active_4 integer not null, "
-            . "active_5 integer not null, active_6 integer not null, active_7 integer not null, "
-            . "primary key (week, version, os, arch))",
+            'create table if not exists reports (week text not null, version text not null, os text not null, arch text not null, '
+                . 'reports integer not null, first_reports integer not null, '
+                . 'active_1 integer not null, active_2 integer not null, active_3 integer not null, active_4 integer not null, '
+                . 'active_5 integer not null, active_6 integer not null, active_7 integer not null, '
+                . 'primary key (week, version, os, arch))',
             [],
         );
         $this->db->execute(
-            "create table if not exists counters (week text not null, version text not null, os text not null, arch text not null, "
-            . "counter text not null, total integer not null, reports integer not null, "
-            . "primary key (week, version, os, arch, counter))",
+            'create table if not exists counters (week text not null, version text not null, os text not null, arch text not null, '
+                . 'counter text not null, total integer not null, reports integer not null, '
+                . 'primary key (week, version, os, arch, counter))',
             [],
         );
     }
 
     // Adds one report to both tables. Both tables change, or neither does.
-    public function add(Report $report): void {
+    public function add(Report $report): void
+    {
         $this->db->transaction(fn (Transaction $tx): void => {
             // `active_1` to `active_7` count the reports by their `days_active`. This report adds 1 to one of them.
             array<mixed> $row = [$report->week, $report->version, $report->os, $report->arch, $report->first ? 1 : 0];
@@ -41,21 +45,21 @@ final class Totals {
                 $row[] = $report->daysActive == $day ? 1 : 0;
             }
             $tx->execute(
-                "insert into reports values (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?) "
-                . "on conflict (week, version, os, arch) do update set reports = reports + 1, "
-                . "first_reports = first_reports + excluded.first_reports, "
-                . "active_1 = active_1 + excluded.active_1, active_2 = active_2 + excluded.active_2, "
-                . "active_3 = active_3 + excluded.active_3, active_4 = active_4 + excluded.active_4, "
-                . "active_5 = active_5 + excluded.active_5, active_6 = active_6 + excluded.active_6, "
-                . "active_7 = active_7 + excluded.active_7",
+                'insert into reports values (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?) '
+                    . 'on conflict (week, version, os, arch) do update set reports = reports + 1, '
+                    . 'first_reports = first_reports + excluded.first_reports, '
+                    . 'active_1 = active_1 + excluded.active_1, active_2 = active_2 + excluded.active_2, '
+                    . 'active_3 = active_3 + excluded.active_3, active_4 = active_4 + excluded.active_4, '
+                    . 'active_5 = active_5 + excluded.active_5, active_6 = active_6 + excluded.active_6, '
+                    . 'active_7 = active_7 + excluded.active_7',
                 $row,
             );
             // A counter with the value 0 adds nothing, so it gets no row.
             foreach ($report->counters as string $counter => int $count) {
                 if ($count > 0) {
                     $tx->execute(
-                        "insert into counters values (?, ?, ?, ?, ?, ?, 1) "
-                        . "on conflict (week, version, os, arch, counter) do update set total = total + excluded.total, reports = reports + 1",
+                        'insert into counters values (?, ?, ?, ?, ?, ?, 1) '
+                            . 'on conflict (week, version, os, arch, counter) do update set total = total + excluded.total, reports = reports + 1',
                         [$report->week, $report->version, $report->os, $report->arch, $counter, $count],
                     );
                 }
@@ -64,61 +68,72 @@ final class Totals {
     }
 
     // The columns of the table `reports`, in order.
-    public static function reportColumns(): array<string> {
-        return ["week", "version", "os", "arch", "reports", "first_reports", "active_1", "active_2", "active_3", "active_4", "active_5", "active_6", "active_7"];
+    public static function reportColumns(): array<string>
+    {
+        return ['week', 'version', 'os', 'arch', 'reports', 'first_reports', 'active_1', 'active_2', 'active_3', 'active_4', 'active_5', 'active_6', 'active_7'];
     }
 
     // The columns of the table `counters`, in order.
-    public static function counterColumns(): array<string> {
-        return ["week", "version", "os", "arch", "counter", "total", "reports"];
+    public static function counterColumns(): array<string>
+    {
+        return ['week', 'version', 'os', 'arch', 'counter', 'total', 'reports'];
     }
 
     // Returns the rows of the table `reports`. With a week, such as `2026-W42`, it returns only the rows of that week.
-    public function reports(?tainted string $week = null): array<Row> {
-        return $this->rows("reports", "week, version, os, arch", $week);
+    public function reports(?tainted string $week = null): array<Row>
+    {
+        return $this->rows('reports', 'week, version, os, arch', $week);
     }
 
     // Returns the rows of the table `counters`. With a week, it returns only the rows of that week.
-    public function counters(?tainted string $week = null): array<Row> {
-        return $this->rows("counters", "week, version, os, arch, counter", $week);
+    public function counters(?tainted string $week = null): array<Row>
+    {
+        return $this->rows('counters', 'week, version, os, arch, counter', $week);
     }
 
     // Returns the number of reports in each week, oldest week first.
-    public function reportsPerWeek(): array<Count> {
-        return $this->counts("select week as label, sum(reports) as value from reports group by week order by week", []);
+    public function reportsPerWeek(): array<Count>
+    {
+        return $this->counts('select week as label, sum(reports) as value from reports group by week order by week', []);
     }
 
     // Returns the number of first reports in each week, oldest week first. A first report comes from a new install.
-    public function firstReportsPerWeek(): array<Count> {
-        return $this->counts("select week as label, sum(first_reports) as value from reports group by week order by week", []);
+    public function firstReportsPerWeek(): array<Count>
+    {
+        return $this->counts('select week as label, sum(first_reports) as value from reports group by week order by week', []);
     }
 
     // Returns the number of reports from each version in one week, largest number first.
-    public function versions(tainted string $week): array<Count> {
-        return $this->counts("select version as label, sum(reports) as value from reports where week = ? group by version order by value desc, label", [$week]);
+    public function versions(tainted string $week): array<Count>
+    {
+        return $this->counts('select version as label, sum(reports) as value from reports where week = ? group by version order by value desc, label', [$week]);
     }
 
     // Returns the number of reports from each operating system and processor in one week, such as `linux x86_64`.
-    public function systems(tainted string $week): array<Count> {
+    public function systems(tainted string $week): array<Count>
+    {
         return $this->counts("select os || ' ' || arch as label, sum(reports) as value from reports where week = ? group by os, arch order by value desc, label", [$week]);
     }
 
     // Returns how many installs used each command in one week. The label is the command, such as `run`.
-    public function commands(tainted string $week): array<Count> {
+    public function commands(tainted string $week): array<Count>
+    {
         // `invocation.` has 11 characters, so the command starts at character 12.
         return $this->counts("select substr(counter, 12) as label, sum(reports) as value from counters where week = ? and counter like 'invocation.%' "
-            . "group by counter order by value desc, label", [$week]);
+            . 'group by counter order by value desc, label', [$week]);
     }
 
     // Returns the number of internal errors of each command in one week.
-    public function internalErrors(tainted string $week): array<Count> {
+    public function internalErrors(tainted string $week): array<Count>
+    {
         // `internal-error.` has 15 characters, so the command starts at character 16.
         return $this->counts("select substr(counter, 16) as label, sum(total) as value from counters where week = ? and counter like 'internal-error.%' "
-            . "group by counter order by value desc, label", [$week]);
+            . 'group by counter order by value desc, label', [$week]);
     }
 
     // Returns how many reports in one week had each value of `days_active`, from 1 day to 7 days.
-    public function daysActive(tainted string $week): array<Count> {
+    public function daysActive(tainted string $week): array<Count>
+    {
         array<Count> $days = [];
         foreach (Core\Arr::range(1, 7) as int $day) {
             var $counts = $this->counts("select '{$day}' as label, coalesce(sum(active_{$day}), 0) as value from reports where week = ?", [$week]);
@@ -127,17 +142,19 @@ final class Totals {
         return $days;
     }
 
-    private function rows(string $table, string $order, ?tainted string $week): array<Row> {
+    private function rows(string $table, string $order, ?tainted string $week): array<Row>
+    {
         if ($week == null) {
             return Core\Arr::from($this->db->query("select * from {$table} order by {$order}", []));
         }
         return Core\Arr::from($this->db->query("select * from {$table} where week = ? order by {$order}", [$week]));
     }
 
-    private function counts(string $sql, array<mixed> $values): array<Count> {
+    private function counts(string $sql, array<mixed> $values): array<Count>
+    {
         array<Count> $counts = [];
         foreach ($this->db->query($sql, $values) as Row $row) {
-            $counts[] = new Count($row->string("label") ?? "", $row->int("value") ?? 0);
+            $counts[] = new Count($row->string('label') ?? '', $row->int('value') ?? 0);
         }
         return $counts;
     }

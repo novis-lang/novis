@@ -5,14 +5,18 @@
 // bench: allocations 1
 // bench: complexity constant
 
-class Handler {
+class Handler
+{
     public const int WEIGHT = 2;
 }
 
-class Retry extends Handler {}
+class Retry extends Handler
+{}
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         var $plain = new Handler();
         var $retry = new Retry();
         // Declared as the parent class, so the name is read at run time

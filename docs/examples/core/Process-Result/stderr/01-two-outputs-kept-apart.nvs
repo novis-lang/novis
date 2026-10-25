@@ -3,7 +3,7 @@
 // requires: unix
 
 // The script prints a result, then a warning with `>&2`, then a second result.
-var $result = Core\Process::run("/bin/sh", ["-c", "echo 12; echo 'warning: slow disk' >&2; echo 30"]);
+var $result = Core\Process::run('/bin/sh', ['-c', "echo 12; echo 'warning: slow disk' >&2; echo 30"]);
 
 // `stdout()` has only the two results. This prints `12` and `30`.
 echo $result->stdout() as string;

@@ -3,12 +3,12 @@
 // If that is not possible, the result is `null` and the program continues.
 // Only "30" converts here. The other three give `null`.
 
-array<string> $answers = ["30", "thirty", "30.5", ""];
+array<string> $answers = ['30', 'thirty', '30.5', ''];
 
 // `??` replaces `null` with a default value. Here the default is 14 days.
 foreach ($answers as string $answer) {
     int $days = ($answer as ?int) ?? 14;
-    echo "a trial of ", $days, " days\n";
+    echo 'a trial of ', $days, " days\n";
 }
 
 // To tell the user which answers were wrong, compare the result with `null` yourself.

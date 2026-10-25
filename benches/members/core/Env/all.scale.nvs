@@ -4,9 +4,11 @@
 // bench: start 64
 // bench: max 1024
 
-class Bench {
-    public static function run(uint $size): string {
-        array<string> $settings = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "SHOP_SETTING_" . ($n as string) . "=value " . ($n as string));
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        array<string> $settings = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => 'SHOP_SETTING_' . ($n as string) . '=value ' . ($n as string));
         return "// scaling: file all.env\n" . Core\Str::join($settings, "\n") . "\n";
     }
 }

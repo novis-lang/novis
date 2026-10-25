@@ -4,9 +4,9 @@
 
 // The server usually writes this in the configuration file. This example sets
 // it, so that it prints the same value everywhere.
-Core\Config::set("max_tasks", "16");
+Core\Config::set('max_tasks', '16');
 
-string $written = Core\Config::get("max_tasks") ?? "1";
+string $written = Core\Config::get('max_tasks') ?? '1';
 
 // This prints 16 and then 17. `as ?int` converts text to a whole number, and
 // the result is `null` for text that is not one.

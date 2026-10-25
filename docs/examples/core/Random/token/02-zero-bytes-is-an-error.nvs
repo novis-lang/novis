@@ -9,5 +9,5 @@ try {
     string $token = Core\Random::token($size);
     echo $token, "\n";
 } catch (Throwable $e) {
-    echo "Error: ", $e->message, "\n";
+    echo 'Error: ', $e->message, "\n";
 }

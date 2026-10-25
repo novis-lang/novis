@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(string $folder, uint $rounds): uint {
-        array<string> $names = ["invoice-17.pdf", "photos/cat.jpg", "photos/../notes.txt"];
+class Bench
+{
+    public static function run(string $folder, uint $rounds): uint
+    {
+        array<string> $names = ['invoice-17.pdf', 'photos/cat.jpg', 'photos/../notes.txt'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -18,5 +20,5 @@ class Bench {
 }
 
 string $folder = Core\IO::temporaryDir();
-Core\IO::makeDir(Core\Path::join($folder, "photos"));
-echo Bench::run($folder, 256) > 0 ? "done" : "no path was checked", "\n";
+Core\IO::makeDir(Core\Path::join($folder, 'photos'));
+echo Bench::run($folder, 256) > 0 ? 'done' : 'no path was checked', "\n";

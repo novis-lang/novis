@@ -2,17 +2,17 @@
 // Shows that `total` is `null` for a search without the `window` option.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 
 // This search reads every person page by page. It has no `window`.
-var $people = $corp->search(Core\Ldap\Filter::equals("objectClass", "user"), {
-    base: "OU=Company,DC=example,DC=test",
-    select: ["cn"],
+var $people = $corp->search(Core\Ldap\Filter::equals('objectClass', 'user'), {
+    base: 'OU=Company,DC=example,DC=test',
+    select: ['cn'],
 });
 
 // The server did not count the entries, so this prints "not counted".
 ?int $total = $people->total();
-echo $total == null ? "not counted" : "counted", "\n";
+echo $total == null ? 'not counted' : 'counted', "\n";
 
 // To count them, read them all. This prints 5.
 int $count = 0;

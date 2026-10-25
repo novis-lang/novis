@@ -10,13 +10,14 @@ final class Formula
     public function constructor(
         public readonly tainted string $text,
         public readonly string|int|float|null $cached,
-    ) {}
+    )
+    {}
 
     /// `Formula::of` makes a formula from its Excel text, such as `'SUM(C2:C9)'`. You can write the text with or without `=` at the start.
     /// `cached` is the result the file has for a program that does not calculate. Excel calculates every formula again when it opens the file.
-    public static function of(string $text, ?{cached?: string|int|float} $options = null): Formula
+    public static function of(string $text, ?{ cached?: string|int|float } $options = null): Formula
     {
-        string $plain = Core\Str::startsWith($text, "=") ? Core\Str::slice($text, 1) : $text;
+        string $plain = Core\Str::startsWith($text, '=') ? Core\Str::slice($text, 1) : $text;
         return new Formula($plain, $options?->cached ?? null);
     }
 }

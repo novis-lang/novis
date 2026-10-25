@@ -2,20 +2,20 @@
 // Shows how to check if the password of each person has expired.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 array<string> $dns = [
-    "CN=Anna Berg,OU=Company,DC=example,DC=test",
-    "CN=Ben Kohl,OU=Company,DC=example,DC=test",
-    "CN=Carla Diaz,OU=Company,DC=example,DC=test",
+    'CN=Anna Berg,OU=Company,DC=example,DC=test',
+    'CN=Ben Kohl,OU=Company,DC=example,DC=test',
+    'CN=Carla Diaz,OU=Company,DC=example,DC=test',
 ];
 
 foreach ($dns as string $dn) {
-    var $person = $corp->read($dn, {select: ["userAccountControl"]});
+    var $person = $corp->read($dn, { select: ['userAccountControl'] });
     var $flags = $person?->accountFlags();
     if ($person == null || $flags == null) {
         continue;
     }
     // Carla Diaz must set a new password, so Active Directory reports it as expired.
     // This prints `Anna Berg: valid`, `Ben Kohl: valid` and `Carla Diaz: expired`.
-    echo $person->dn()->rdnValue(), ": ", $flags->passwordExpired() ? "expired" : "valid", "\n";
+    echo $person->dn()->rdnValue(), ': ', $flags->passwordExpired() ? 'expired' : 'valid', "\n";
 }

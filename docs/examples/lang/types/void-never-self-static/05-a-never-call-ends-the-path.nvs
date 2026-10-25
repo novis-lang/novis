@@ -1,16 +1,19 @@
 <?nvs
 // `first` needs no `return` after `Report::fail`, because `fail` returns `never`.
 
-class Report {
-    public static function fail(string $why): never {
+class Report
+{
+    public static function fail(string $why): never
+    {
         throw new RuntimeError($why);
     }
 
-    public static function first(array<int> $rows): int {
+    public static function first(array<int> $rows): int
+    {
         if (Core\Arr::count($rows) > 0) {
             return $rows[0];
         }
-        Report::fail("no rows");
+        Report::fail('no rows');
     }
 }
 
@@ -19,5 +22,5 @@ echo Report::first([3, 4]), "\n";
 try {
     Report::first([]);
 } catch (RuntimeError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }

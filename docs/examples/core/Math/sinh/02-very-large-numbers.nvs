@@ -11,4 +11,4 @@ echo Core\Math::sinh(710.0), "\n";
 echo Core\Math::sinh(711.0), "\n";
 
 // At -711 the result is equal to `-Core\Math::INFINITY`. This prints yes.
-echo Core\Math::sinh(-711.0) == -Core\Math::INFINITY ? "yes" : "no", "\n";
+echo Core\Math::sinh(-711.0) == -Core\Math::INFINITY ? 'yes' : 'no', "\n";

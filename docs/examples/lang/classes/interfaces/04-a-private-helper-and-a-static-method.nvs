@@ -2,47 +2,58 @@
 // Shows the parts an interface can have: a required method, a default method,
 // a private helper, a constant and a static method.
 
-interface Greets {
+interface Greets
+{
     public const int MAX_LEN = 20;
 
     public function name(): string;
 
-    public function greet(): string {
-        return $this->prefix() . $this->name() . "!";
+    public function greet(): string
+    {
+        return $this->prefix() . $this->name() . '!';
     }
 
     // Only the methods of `Greets` can call this one.
-    private function prefix(): string {
-        return "Hello, ";
+    private function prefix(): string
+    {
+        return 'Hello, ';
     }
 
-    public static function kind(): string {
-        return "greeter";
+    public static function kind(): string
+    {
+        return 'greeter';
     }
 }
 
-interface Counts {
+interface Counts
+{
     public function count(): int;
 }
 
-class Person implements Greets, Counts {
-    public function constructor(private string $who) {}
+class Person implements Greets, Counts
+{
+    public function constructor(private string $who)
+    {}
 
-    public function name(): string {
+    public function name(): string
+    {
         return $this->who;
     }
 
-    public function count(): int {
+    public function count(): int
+    {
         return 1;
     }
 }
 
 // `parent::greet()` runs the default method that `Person` got from `Greets`.
-class Loud extends Person {
-    public function greet(): string {
+class Loud extends Person
+{
+    public function greet(): string
+    {
         return Core\Str::upper(parent::greet());
     }
 }
 
-echo (new Person("ada"))->greet(), " ", Greets::MAX_LEN, " ", Person::kind(), "\n";
-echo (new Loud("bob"))->greet(), "\n";
+echo (new Person('ada'))->greet(), ' ', Greets::MAX_LEN, ' ', Person::kind(), "\n";
+echo (new Loud('bob'))->greet(), "\n";

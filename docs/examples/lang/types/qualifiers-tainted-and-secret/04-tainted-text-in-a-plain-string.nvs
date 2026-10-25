@@ -3,6 +3,6 @@
 // Convert it with `as` or check it first. This program does not compile.
 // proof: compile-error
 
-tainted string $input = "Ada";
+tainted string $input = 'Ada';
 string $name = $input;
 echo $name, "\n";

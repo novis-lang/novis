@@ -2,11 +2,11 @@
 // Shows the first run of a sync: it returns every matching entry, and then a cookie.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 
 // There is no cookie yet, so the result has every person in Sales.
-var $sales = $corp->changes(Core\Ldap\Filter::equals("department", "Sales"), {
-    select: ["cn"],
+var $sales = $corp->changes(Core\Ldap\Filter::equals('department', 'Sales'), {
+    select: ['cn'],
 });
 
 array<tainted string> $names = [];

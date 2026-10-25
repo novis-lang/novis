@@ -5,8 +5,10 @@
 // bench: allocations 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $previous = Core\Random::token();
         uint $total = 0;
         uint $i = 0;

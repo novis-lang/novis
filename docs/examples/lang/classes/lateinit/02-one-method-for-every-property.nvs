@@ -2,17 +2,19 @@
 // Shows one `initProperty` method that sets several properties of different
 // types. The method tests `$name` to know which property to set.
 
-class Page implements LateInit {
+class Page implements LateInit
+{
     public lateinit int $views;
     public lateinit array<string> $tags;
     public lateinit ?string $note;
 
-    public function initProperty(string $name): void {
-        echo "init ", $name, "\n";
-        if ($name == "views") {
+    public function initProperty(string $name): void
+    {
+        echo 'init ', $name, "\n";
+        if ($name == 'views') {
             $this->views = 0;
-        } elseif ($name == "tags") {
-            $this->tags = ["news"];
+        } elseif ($name == 'tags') {
+            $this->tags = ['news'];
         } else {
             $this->note = null;
         }
@@ -22,14 +24,14 @@ class Page implements LateInit {
 var $page = new Page();
 
 // `isinit` tests the property without reading it, so it calls nothing.
-echo isinit($page->views) ? "set" : "not set", "\n";
+echo isinit($page->views) ? 'set' : 'not set', "\n";
 echo $page->views, "\n";
-echo isinit($page->views) ? "set" : "not set", "\n";
+echo isinit($page->views) ? 'set' : 'not set', "\n";
 
 // A write to one element calls `initProperty` first, then adds the element.
-$page->tags[] = "tech";
+$page->tags[] = 'tech';
 echo Core\Json::encode($page->tags), "\n";
 
 // `null` is a value too, so this read calls `initProperty` only once.
-echo $page->note ?? "no note", "\n";
-echo $page->note ?? "no note", "\n";
+echo $page->note ?? 'no note', "\n";
+echo $page->note ?? 'no note', "\n";

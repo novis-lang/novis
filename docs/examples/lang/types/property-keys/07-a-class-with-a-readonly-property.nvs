@@ -3,15 +3,17 @@
 // The key could name `$id`, so the write does not compile.
 // proof: compile-error
 
-class Order {
+class Order
+{
     public readonly int $id;
-    public string $status = "new";
+    public string $status = 'new';
 
-    public function constructor(int $id) {
+    public function constructor(int $id)
+    {
         $this->id = $id;
     }
 }
 
 Order $order = new Order(7);
-property<Order> $key = "status" as property<Order>;
-$order->$key = "paid";
+property<Order> $key = 'status' as property<Order>;
+$order->$key = 'paid';

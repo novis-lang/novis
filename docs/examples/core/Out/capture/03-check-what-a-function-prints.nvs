@@ -1,20 +1,22 @@
 <?nvs
 // Shows how a test checks what a function prints.
 
-final class Receipt {
-    public static function print(array<string> $items): void {
+final class Receipt
+{
+    public static function print(array<string> $items): void
+    {
         foreach ($items as string $item) {
-            echo "- ", $item, "\n";
+            echo '- ', $item, "\n";
         }
-        echo "Items: ", Core\Arr::count($items), "\n";
+        echo 'Items: ', Core\Arr::count($items), "\n";
     }
 }
 
 // `as string` converts the collected output to a `string`, so you can compare it.
 string $printed = Core\Out::capture(fn (): void => {
-    Receipt::print(["Coffee", "Bread"]);
+    Receipt::print(['Coffee', 'Bread']);
 }) as string;
 
 // The receipt is what the test expects. This prints `pass`.
 string $expected = "- Coffee\n- Bread\nItems: 2\n";
-echo $printed == $expected ? "pass" : "fail", "\n";
+echo $printed == $expected ? 'pass' : 'fail', "\n";

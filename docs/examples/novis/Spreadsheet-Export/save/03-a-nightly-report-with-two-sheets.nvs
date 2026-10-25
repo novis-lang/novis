@@ -3,14 +3,14 @@
 use Novis\Spreadsheet\Export;
 use Novis\Spreadsheet\Workbook;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "nightly.xlsx");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'nightly.xlsx');
 
 // The function adds the sheets. It runs when `save` is called.
 var $report = new Export(fn (Workbook $book): void => {
-    $book->sheet("Orders")->addAll([["order" => 1042, "total" => 19.9], ["order" => 1043, "total" => 5.0]]);
-    $book->sheet("Returns")->add(["order" => 1042, "reason" => "damaged"]);
+    $book->sheet('Orders')->addAll([['order' => 1042, 'total' => 19.9], ['order' => 1043, 'total' => 5.0]]);
+    $book->sheet('Returns')->add(['order' => 1042, 'reason' => 'damaged']);
 }, null);
 
 var $written = $report->save($path);
-echo "Orders: ", $written->rows["Orders"], " rows\n";
-echo "Returns: ", $written->rows["Returns"], " rows\n";
+echo 'Orders: ', $written->rows['Orders'], " rows\n";
+echo 'Returns: ', $written->rows['Returns'], " rows\n";

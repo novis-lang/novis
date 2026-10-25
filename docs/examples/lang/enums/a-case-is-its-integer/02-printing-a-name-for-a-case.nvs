@@ -2,15 +2,17 @@
 // Shows how to print an enum case. A case has no text form, so this program
 // writes a function that returns a name, and prints the number beside it.
 
-class Levels {
+class Levels
+{
     enum Level { Low, Mid, High }
 
     // Returns a name a person can read for one case.
-    public static function name(Level $level): string {
+    public static function name(Level $level): string
+    {
         return match ($level) {
-            Level::Low => "low",
-            Level::Mid => "mid",
-            Level::High => "high",
+            Level::Low => 'low',
+            Level::Mid => 'mid',
+            Level::High => 'high',
         };
     }
 }
@@ -18,5 +20,5 @@ class Levels {
 array<Levels::Level> $seen = [Levels::Level::High, Levels::Level::Low, Levels::Level::Mid];
 // This prints `high 2`, then `low 0`, then `mid 1`.
 foreach ($seen as Levels::Level $level) {
-    echo Levels::name($level), " ", $level as int, "\n";
+    echo Levels::name($level), ' ', $level as int, "\n";
 }

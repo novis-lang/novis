@@ -10,7 +10,7 @@ try {
     array<string> $ballast = [];
     int $slab = 0;
     while ($slab < 4) {
-        $ballast[] = Core\Str::repeat("x", 8388608);
+        $ballast[] = Core\Str::repeat('x', 8388608);
         $slab = $slab + 1;
     }
     echo "not reached\n";

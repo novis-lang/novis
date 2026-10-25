@@ -3,5 +3,6 @@
 // `LogicError` instead.
 // proof: compile-error
 
-class ConfigError extends Exception {
+class ConfigError extends Exception
+{
 }

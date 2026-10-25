@@ -2,7 +2,7 @@
 // Reads a file that is already on the `files` disk.
 
 // The result is `tainted`, because a visitor may have written the file.
-?tainted bytes $welcome = Core\Storage::get("files", "welcome.txt");
+?tainted bytes $welcome = Core\Storage::get('files', 'welcome.txt');
 
 // The file exists, so the result is its bytes. This prints `Welcome to the shop!`.
-echo ($welcome ?? "" as bytes) as string;
+echo ($welcome ?? '' as bytes) as string;

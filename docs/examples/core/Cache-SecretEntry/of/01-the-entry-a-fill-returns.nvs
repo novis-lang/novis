@@ -11,16 +11,16 @@ var $cache = Core\Cache::memory();
 // entry, and the store seals what the entry carries.
 var $fetch = fn (): Core\Cache\SecretEntry => {
     echo "asking the service\n";
-    return Core\Cache\SecretEntry::of("at-7f3c9b21", 15m);
+    return Core\Cache\SecretEntry::of('at-7f3c9b21', 15m);
 };
 
 // This prints asking the service, then the fill supplied the token.
-var $token = $cache->getSecret("api-token", $keys, {fill: $fetch});
-echo $token == null ? "the fill supplied nothing" : "the fill supplied the token", "\n";
+var $token = $cache->getSecret('api-token', $keys, { fill: $fetch });
+echo $token == null ? 'the fill supplied nothing' : 'the fill supplied the token', "\n";
 
 // You read the secret out of `getSecret` and never out of the entry. This
 // prints the same token came back.
-var $again = $cache->getSecret("api-token", $keys, {fill: $fetch});
-echo ($again ?? "") == ($token ?? "-")
-    ? "the same token came back"
-    : "another token came back", "\n";
+var $again = $cache->getSecret('api-token', $keys, { fill: $fetch });
+echo ($again ?? '') == ($token ?? '-')
+    ? 'the same token came back'
+    : 'another token came back', "\n";

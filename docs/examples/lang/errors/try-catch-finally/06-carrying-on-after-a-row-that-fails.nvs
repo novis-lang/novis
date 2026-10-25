@@ -8,13 +8,13 @@ class Amount
     {
         ?int $value = $text as ?int;
         if ($value == null) {
-            throw new RuntimeError("not a whole number: " . $text);
+            throw new RuntimeError('not a whole number: ' . $text);
         }
         return $value;
     }
 }
 
-array<string> $rows = ["12", "seven", "30"];
+array<string> $rows = ['12', 'seven', '30'];
 int $total = 0;
 
 foreach ($rows as string $row) {
@@ -22,7 +22,7 @@ foreach ($rows as string $row) {
         $total = $total + Amount::of($row);
     } catch (RuntimeError $e) {
         // This prints: skipped: not a whole number: seven
-        echo "skipped: ", $e->message, "\n";
+        echo 'skipped: ', $e->message, "\n";
     }
 }
 

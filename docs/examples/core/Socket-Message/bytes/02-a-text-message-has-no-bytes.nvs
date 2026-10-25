@@ -12,7 +12,7 @@ while ($message != null) {
     if ($data == null) {
         echo "no bytes: this is a text message\n";
     } else {
-        echo "binary: ", Core\Bytes::length($data), " bytes\n";
+        echo 'binary: ', Core\Bytes::length($data), " bytes\n";
     }
     $message = $conn->receive();
 }

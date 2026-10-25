@@ -4,9 +4,11 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $messages = ["Free shipping on all orders", "Your order has been sent", "Café au lait, extra warm"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $messages = ['Free shipping on all orders', 'Your order has been sent', 'Café au lait, extra warm'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -2,7 +2,7 @@
 // Shows a program written from lines that `nvs agent find` printed.
 // Each step names the command and the line that the step uses.
 
-array<string> $tags = ["urgent", "billing", "eu"];
+array<string> $tags = ['urgent', 'billing', 'eu'];
 
 // `nvs agent find count` lists `Core\Arr::count(array<T> $a): uint`.
 // This prints `3 tags`.
@@ -10,7 +10,7 @@ echo Core\Arr::count($tags), " tags\n";
 
 // `nvs agent find join` lists `Core\Str::join(array<string> $parts, string $separator = ""): string`.
 // The part `= ""` is a default value, so the second argument is optional.
-echo Core\Str::join($tags, ", "), "\n";
+echo Core\Str::join($tags, ', '), "\n";
 echo Core\Str::join($tags), "\n";
 
 // `nvs agent find strtoupper` prints nothing. No function has that name.

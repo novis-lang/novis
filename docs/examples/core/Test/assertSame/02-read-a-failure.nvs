@@ -1,14 +1,16 @@
 <?nvs
 // Shows what happens when the values are not the same, and how to add your own message.
 
-final class Point {
-    public function constructor(public int $x, public int $y) {}
+final class Point
+{
+    public function constructor(public int $x, public int $y)
+    {}
 }
 
 // "10" and "010" are different strings, so the check throws a `Core\Test\Failure`.
 // The message shows both values.
 try {
-    Core\Test::assertSame("010", "10");
+    Core\Test::assertSame('010', '10');
 } catch (Core\Test\Failure $failure) {
     echo $failure->message, "\n";
 }
@@ -23,7 +25,7 @@ try {
 
 // The option `message` adds your own text at the start of the message.
 try {
-    Core\Test::assertSame(3, 4, {message: "the cart has three items"});
+    Core\Test::assertSame(3, 4, { message: 'the cart has three items' });
 } catch (Core\Test\Failure $failure) {
     echo $failure->message, "\n";
 }

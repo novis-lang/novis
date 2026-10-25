@@ -5,7 +5,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table tables (name text not null, seats int)', []);
 $db->execute(
     'insert into tables (name, seats) values (?, ?), (?, ?)',
-    ['by the window', 4, 'on the terrace', null]
+    ['by the window', 4, 'on the terrace', null],
 );
 
 // The result is `null` when the column has no value in this row. The type you

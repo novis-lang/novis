@@ -6,25 +6,25 @@ $writer->startDocument();
 
 // A name cannot start with a digit. This prints the error message.
 try {
-    $writer->doctype("2024-report");
+    $writer->doctype('2024-report');
 } catch (LogicError $error) {
     echo $error->message, "\n";
 }
 
-$writer->doctype("report");
+$writer->doctype('report');
 
 // A document has only one declaration. This prints the error message.
 try {
-    $writer->doctype("report");
+    $writer->doctype('report');
 } catch (LogicError $error) {
     echo $error->message, "\n";
 }
 
-$writer->startElement("report");
+$writer->startElement('report');
 
 // The root element is already started, so it is too late. This prints the error message.
 try {
-    $writer->doctype("report");
+    $writer->doctype('report');
 } catch (LogicError $error) {
     echo $error->message, "\n";
 }

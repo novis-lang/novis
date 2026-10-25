@@ -1,7 +1,7 @@
 error[E0881]: `Pickup` has no property `$tracking`
-   --> 03-a-member-one-class-lacks.nvs:17:6
+   --> 03-a-member-one-class-lacks.nvs:21:6
    |
-17 | echo $ship->tracking, "\n";
+21 | echo $ship->tracking, "\n";
    |      ^^^^^^^^^^^^^^^ used through `Courier|Pickup` here
    = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
 

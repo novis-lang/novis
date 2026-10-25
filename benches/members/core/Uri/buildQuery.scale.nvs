@@ -11,7 +11,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            array<mixed> $search = ["q" => $text, "page" => $total % 9];
+            array<mixed> $search = ['q' => $text, 'page' => $total % 9];
             $total = $total + Core\Str::length(Core\Uri::buildQuery($search));
             $i = $i + 1;
         }

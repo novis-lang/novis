@@ -4,8 +4,10 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function steps(int $n): Iterator<int> {
+class Bench
+{
+    public static function steps(int $n): Iterator<int>
+    {
         int $i = 0;
         while ($i < $n) {
             yield $i;
@@ -13,7 +15,8 @@ class Bench {
         }
     }
 
-    public static function run(int $rounds): int {
+    public static function run(int $rounds): int
+    {
         int $total = 0;
         int $r = 0;
         while ($r < $rounds) {

@@ -19,5 +19,5 @@ class Bench
     }
 }
 
-Core\Response::redirect("/done");
+Core\Response::redirect('/done');
 echo Bench::run(256), "\n";

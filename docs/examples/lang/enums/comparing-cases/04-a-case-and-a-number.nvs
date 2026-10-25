@@ -4,4 +4,4 @@
 // proof: compile-error
 
 enum Rank { Bronze, Silver }
-echo (Rank::Bronze == 0) ? "bronze" : "other", "\n";
+echo (Rank::Bronze == 0) ? 'bronze' : 'other', "\n";

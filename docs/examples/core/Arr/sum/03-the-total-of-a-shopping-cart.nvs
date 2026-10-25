@@ -11,7 +11,7 @@ array<array<int>> $cart = [
 // `Core\Arr::map` turns every line into what that line costs.
 array<int> $lines = Core\Arr::map(
     $cart,
-    fn(array<int> $line): int => $line['price'] * $line['quantity']
+    fn(array<int> $line): int => $line['price'] * $line['quantity'],
 );
 
 // This prints 4097.

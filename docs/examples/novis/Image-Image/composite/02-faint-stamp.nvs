@@ -1,13 +1,13 @@
 <?nvs
+use Novis\Image\Color;
 // Shows how to draw a half-transparent stamp at an exact position.
 use Novis\Image\Image;
-use Novis\Image\Color;
 
-Image $page = Image::create(100, 100, Color::hex("#ffffff"));
-Image $stamp = Image::create(30, 10, Color::hex("#ff0000"));
+Image $page = Image::create(100, 100, Color::hex('#ffffff'));
+Image $stamp = Image::create(30, 10, Color::hex('#ff0000'));
 
 // The top-left corner of the stamp is at x 5 and y 5.
-var $raw = $page->composite($stamp, {x: 5, y: 5, opacity: 0.5})->raw();
+var $raw = $page->composite($stamp, { x: 5, y: 5, opacity: 0.5 })->raw();
 
 // Half red and half white gives pink. This prints ff8080ff.
 int $offset = (5 * 100 + 5) * 4;

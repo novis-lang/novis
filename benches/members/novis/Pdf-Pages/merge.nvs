@@ -5,9 +5,11 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Pages;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        bytes $contract = Document::fromHtml("<h1>Contract</h1><p>Shop rents a bike to a customer for one week.</p>")->render()->bytes;
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        bytes $contract = Document::fromHtml('<h1>Contract</h1><p>Shop rents a bike to a customer for one week.</p>')->render()->bytes;
         bytes $terms = Document::fromHtml("<p style=\"break-after: page\">Terms, part 1</p><p>Terms, part 2</p>")->render()->bytes;
         array<array<uint>> $lists = [[1, 2], [2, 1], [1]];
         uint $total = 0;

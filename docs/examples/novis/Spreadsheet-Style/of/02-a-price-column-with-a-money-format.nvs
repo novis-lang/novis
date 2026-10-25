@@ -5,14 +5,14 @@ use Novis\Spreadsheet\Style;
 use Novis\Spreadsheet\Workbook;
 
 // `money` is a short name for the format `#,##0.00`. `align` moves the text to the right.
-var $money = Style::of({format: "money", align: "right"});
+var $money = Style::of({ format: 'money', align: 'right' });
 
 bytes $file = Workbook::fromRows(
-    [["item" => "Desk", "price" => 1249.5], ["item" => "Lamp", "price" => 35.0]],
-    {columns: ["price" => {style: $money}]},
+    [['item' => 'Desk', 'price' => 1249.5], ['item' => 'Lamp', 'price' => 35.0]],
+    { columns: ['price' => { style: $money }] },
 )->bytes();
 
 // The cell keeps the number. `text: true` reads each cell as Excel shows it.
-foreach (Reader::open($file)->rows("Sheet1", {header: true, text: true}) as var $row) {
-    echo $row->values["item"], ": ", $row->values["price"], "\n";
+foreach (Reader::open($file)->rows('Sheet1', { header: true, text: true }) as var $row) {
+    echo $row->values['item'], ': ', $row->values['price'], "\n";
 }

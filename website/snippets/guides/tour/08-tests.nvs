@@ -2,33 +2,39 @@
 // This program has a class and two tests for it. `nvs test` runs the tests.
 use Core\Test;
 
-class Task {
+class Task
+{
     public string $title;
     public bool $done = false;
 
-    public function constructor(string $title) {
+    public function constructor(string $title)
+    {
         $this->title = $title;
     }
 
-    public function line(): string {
-        return ($this->done ? "[x] " : "[ ] ") . $this->title;
+    public function line(): string
+    {
+        return ($this->done ? '[x] ' : '[ ] ') . $this->title;
     }
 }
 
-final class TaskTest {
+final class TaskTest
+{
     // `#[Test]` makes this method a test.
     #[Test]
-    public function newTaskIsOpen(): void {
-        Test::assertSame((new Task("Buy milk"))->line(), "[ ] Buy milk");
+    public function newTaskIsOpen(): void
+    {
+        Test::assertSame((new Task('Buy milk'))->line(), '[ ] Buy milk');
     }
 
     #[Test]
-    public function doneTaskIsChecked(): void {
-        var $task = new Task("Buy milk");
+    public function doneTaskIsChecked(): void
+    {
+        var $task = new Task('Buy milk');
         $task->done = true;
-        Test::assertSame($task->line(), "[x] Buy milk");
+        Test::assertSame($task->line(), '[x] Buy milk');
     }
 }
 
 // `nvs run` runs this line and not the tests.
-echo (new Task("Buy milk"))->line(), "\n";
+echo (new Task('Buy milk'))->line(), "\n";

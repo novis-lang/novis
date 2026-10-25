@@ -1,10 +1,10 @@
 <?nvs
 // Shows an anonymous function that returns an anonymous object.
 
-type Point = {x: int, y: int};
+type Point = { x: int, y: int };
 
 // After `=>`, a `{` starts a block. The parentheses make it an object.
-var $onXAxis = fn(int $x): Point => ({x: $x, y: 0});
+var $onXAxis = fn(int $x): Point => ({ x: $x, y: 0 });
 
 Point $p = $onXAxis(5);
 $p->y = 7;
@@ -12,4 +12,4 @@ echo $p->x + $p->y, "\n";
 
 // Each call creates a new object, so `==` gives `false` here.
 Point $q = $onXAxis(5);
-echo ($p == $p) ? "same" : "different", " ", ($p == $q) ? "same" : "different", "\n";
+echo ($p == $p) ? 'same' : 'different', ' ', ($p == $q) ? 'same' : 'different', "\n";

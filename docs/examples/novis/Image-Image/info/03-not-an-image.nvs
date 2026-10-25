@@ -9,5 +9,5 @@ try {
     Image::info($upload);
     echo "an image\n";
 } catch (Throwable $e) {
-    echo "rejected: ", $e->message, "\n";
+    echo 'rejected: ', $e->message, "\n";
 }

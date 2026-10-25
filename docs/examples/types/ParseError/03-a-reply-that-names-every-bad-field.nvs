@@ -4,11 +4,13 @@
 // rather than fixing one field per attempt.
 
 #[Core\Json\Derive]
-class Signup {
+class Signup
+{
     public string $email;
     public int $age;
     public bool $terms;
-    public function constructor(string $email, int $age, bool $terms) {
+    public function constructor(string $email, int $age, bool $terms)
+    {
         $this->email = $email;
         $this->age = $age;
         $this->terms = $terms;
@@ -19,12 +21,12 @@ string $body = "{\"email\":\"ada@example.com\",\"age\":\"thirty six\",\"terms\":
 
 try {
     var $signup = Core\Json::decodeAs<Signup>($body);
-    echo "welcome ", $signup->email, "\n";
+    echo 'welcome ', $signup->email, "\n";
 } catch (ParseError $bad) {
     // One entry becomes one field of the answer, keyed by the field it is about.
     array<string> $fields = [];
-    foreach ($bad->issues as ({path: string, message: string}) $issue) {
+    foreach ($bad->issues as ({ path: string, message: string }) $issue) {
         $fields[$issue->path] = $issue->message;
     }
-    echo Core\Json::encode({status: "invalid", fields: $fields}), "\n";
+    echo Core\Json::encode({ status: 'invalid', fields: $fields }), "\n";
 }

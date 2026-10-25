@@ -3,13 +3,15 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $dir = Core\IO::temporaryDir();
         array<string> $files = [
-            Core\Path::join($dir, "a.lock"),
-            Core\Path::join($dir, "b.lock"),
-            Core\Path::join($dir, "c.lock"),
+            Core\Path::join($dir, 'a.lock'),
+            Core\Path::join($dir, 'b.lock'),
+            Core\Path::join($dir, 'c.lock'),
         ];
         uint $total = 0;
         uint $i = 0;
@@ -25,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "no lock was taken", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'no lock was taken', "\n";

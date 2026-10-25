@@ -3,14 +3,18 @@
 // `Pickup` has no `$tracking`, so this program does not compile.
 // proof: compile-error
 
-final class Courier {
-    public string $tracking = "TR-1001";
-    public function constructor() { }
+final class Courier
+{
+    public string $tracking = 'TR-1001';
+    public function constructor()
+    { }
 }
 
-final class Pickup {
-    public string $shop = "Main Street";
-    public function constructor() { }
+final class Pickup
+{
+    public string $shop = 'Main Street';
+    public function constructor()
+    { }
 }
 
 Courier|Pickup $ship = new Pickup();

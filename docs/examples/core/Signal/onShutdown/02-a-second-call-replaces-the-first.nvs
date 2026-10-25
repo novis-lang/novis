@@ -11,4 +11,4 @@ Core\Signal::onShutdown(fn (): void => {
 });
 
 // Registering a function does not start a shutdown. This prints `false`.
-echo "draining: ", Core\Server::isDraining() ? "true" : "false", "\n";
+echo 'draining: ', Core\Server::isDraining() ? 'true' : 'false', "\n";

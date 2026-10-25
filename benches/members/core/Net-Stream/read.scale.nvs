@@ -8,10 +8,10 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
-        Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+        Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
+        Core\Net\Stream $client = Core\Net::connect('127.0.0.1', $server->port(), 5s);
         Core\Net\Stream $connection = $server->accept(5s);
-        bytes $message = Core\Str::repeat("a", $size) as bytes;
+        bytes $message = Core\Str::repeat('a', $size) as bytes;
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

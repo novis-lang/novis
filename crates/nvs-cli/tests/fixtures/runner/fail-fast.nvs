@@ -4,38 +4,46 @@
 use Core\Test;
 use Core\Test\TestWith;
 
-final class AlphaTest {
+final class AlphaTest
+{
     #[Test]
-    public function itPassesFirst(): void {
+    public function itPassesFirst(): void
+    {
         Test::assertTrue(true);
     }
 
     #[Test]
-    public function itFails(): void {
+    public function itFails(): void
+    {
         Test::assertSame(1 + 1, 3);
     }
 
-    #[TestWith(words: 0, want: "empty")]
-    #[TestWith(words: 3, want: "empty")]
+    #[TestWith(words: 0, want: 'empty')]
+    #[TestWith(words: 3, want: 'empty')]
     #[Test]
-    public function itNamesALength(uint $words, string $want): void {
-        Test::assertSame($words == 0 ? "empty" : "short", $want);
+    public function itNamesALength(uint $words, string $want): void
+    {
+        Test::assertSame($words == 0 ? 'empty' : 'short', $want);
     }
 
     #[Test]
-    public function itPassesLast(): void {
+    public function itPassesLast(): void
+    {
         Test::assertTrue(true);
     }
 }
 
-final class BetaTest {
+final class BetaTest
+{
     #[Test]
-    public function itPublishes(): void {
+    public function itPublishes(): void
+    {
         Test::assertTrue(true);
     }
 
     #[Test]
-    public function itArchives(): void {
+    public function itArchives(): void
+    {
         Test::assertTrue(true);
     }
 }

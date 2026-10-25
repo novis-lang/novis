@@ -1,7 +1,7 @@
 error[E0401]: expected `Mode::Read|Mode::Write`, found `Mode`
-   --> 04-a-case-outside-the-type.nvs:14:17
+   --> 04-a-case-outside-the-type.nvs:16:17
    |
-14 | echo Open::file(Mode::Exec), "\n";
+16 | echo Open::file(Mode::Exec), "\n";
    |                 ^^^^^^^^^^ this is `Mode`
 
 error: aborting due to 1 error

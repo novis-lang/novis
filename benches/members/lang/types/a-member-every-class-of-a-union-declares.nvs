@@ -5,23 +5,31 @@
 // bench: calls 0
 // bench: complexity constant
 
-final class Courier {
+final class Courier
+{
     public int $weight = 4;
-    public function constructor() { }
+    public function constructor()
+    { }
 }
 
-final class Pickup {
+final class Pickup
+{
     public int $weight = 7;
-    public function constructor() { }
+    public function constructor()
+    { }
 }
 
-final class Freight {
+final class Freight
+{
     public int $weight = 1;
-    public function constructor() { }
+    public function constructor()
+    { }
 }
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         array<Courier|Pickup|Freight> $parcels = [new Courier(), new Pickup(), new Freight()];
         int $total = 0;
         uint $i = 0;

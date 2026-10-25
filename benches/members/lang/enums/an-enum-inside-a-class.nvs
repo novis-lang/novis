@@ -6,12 +6,15 @@
 // bench: allocations 0
 // bench: complexity constant
 
-final class Order {
+final class Order
+{
     enum Status { Open, Paid, Shipped = 10, Cancelled }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {

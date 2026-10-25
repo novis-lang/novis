@@ -4,26 +4,31 @@
 use Core\Test;
 use Core\Test\TestWith;
 
-final class Price {
+final class Price
+{
     // Adds a tax in percent to a price in cents.
-    public static function withTax(int $cents, int $percent): int {
+    public static function withTax(int $cents, int $percent): int
+    {
         return $cents + Core\Math::intDiv($cents * $percent, 100);
     }
 }
 
-final class PriceTest {
+final class PriceTest
+{
     // Each `#[TestWith]` line is one test with its own values. `nvs test` reports three tests.
     #[TestWith(cents: 1000, percent: 20, want: 1200)]
     #[TestWith(cents: 999, percent: 10, want: 1098)]
     #[TestWith(cents: 0, percent: 20, want: 0)]
     #[Test]
-    public function taxIsAdded(int $cents, int $percent, int $want): void {
+    public function taxIsAdded(int $cents, int $percent, int $want): void
+    {
         Test::assertSame(Price::withTax($cents, $percent), $want);
     }
 
     // `skip:` needs a reason. `nvs test` does not run this test, and it prints the reason.
-    #[Test(skip: "refunds are not written yet")]
-    public function aRefundGivesTheTaxBack(): void {
+    #[Test(skip: 'refunds are not written yet')]
+    public function aRefundGivesTheTaxBack(): void
+    {
         Test::assertSame(Price::withTax(-1000, 20), -1200);
     }
 }

@@ -14,4 +14,4 @@ echo Step::Delivered as int, "\n";
 Step $current = Step::Packed;
 
 // This prints `packed`.
-echo $current == Step::Packed ? "packed" : "somewhere else", "\n";
+echo $current == Step::Packed ? 'packed' : 'somewhere else', "\n";

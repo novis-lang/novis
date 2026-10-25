@@ -2,13 +2,19 @@
 // Shows that a narrower parameter type without `covariant` does not compile.
 // proof: compile-error
 
-class Animal {}
-class Dog extends Animal {}
+class Animal
+{}
+class Dog extends Animal
+{}
 
-class Shelter {
-    public function admit(Animal $a): void {}
+class Shelter
+{
+    public function admit(Animal $a): void
+    {}
 }
 
-class DogShelter extends Shelter {
-    public function admit(Dog $a): void {}
+class DogShelter extends Shelter
+{
+    public function admit(Dog $a): void
+    {}
 }

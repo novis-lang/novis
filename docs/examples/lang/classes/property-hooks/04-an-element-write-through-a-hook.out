@@ -1,7 +1,7 @@
 error[E0478]: an array element cannot be written through the hooked property `xs`
-   --> 04-an-element-write-through-a-hook.nvs:21:1
+   --> 04-an-element-write-through-a-hook.nvs:23:1
    |
-21 | $b->xs[0] = 1;
+23 | $b->xs[0] = 1;
    | ^^^^^^ reading this runs its `get` hook
    = help: a property with hooks is read and written through its hooks. Read it into a variable, write the element there, and assign the variable back to the property
 

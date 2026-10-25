@@ -8,7 +8,7 @@ Core\Crypto\PublicKey $published = $partner->publicKey();
 
 // `Core\Jwe\Key::recipient` makes a key that encrypts for the owner of this public key.
 // The data is a JSON document with the customer's details.
-string $details = Core\Json::encode({customer: 1042, iban: "AT61 1904 3002 3457 3201"});
+string $details = Core\Json::encode({ customer: 1042, iban: 'AT61 1904 3002 3457 3201' });
 string $token = Core\Jwe::encrypt($details, Core\Jwe\Key::recipient($published));
 
 // Only the partner's key pair can read the token. `Core\Jwe\Key::own` makes that key.

@@ -4,4 +4,4 @@
 bool $onCommandLine = Core\Env::context() == Core\Env::Context::Command;
 
 // You run this file from the command line, so this prints `command line: yes`.
-echo "command line: ", $onCommandLine ? "yes" : "no", "\n";
+echo 'command line: ', $onCommandLine ? 'yes' : 'no', "\n";

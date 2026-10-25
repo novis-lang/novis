@@ -3,13 +3,15 @@
 // its header and its body. The header ends with an empty line, which is the
 // four bytes 13, 10, 13, 10.
 
-final class Message {
+final class Message
+{
     // Returns the body of the message. The body is empty while the header has
     // not arrived in full.
-    public static function body(bytes $received): bytes {
-        var $at = Core\Bytes::indexOf($received, Core\Encoding::fromHex("0d0a0d0a"));
+    public static function body(bytes $received): bytes
+    {
+        var $at = Core\Bytes::indexOf($received, Core\Encoding::fromHex('0d0a0d0a'));
         if ($at == null) {
-            return Core\Encoding::fromHex("");
+            return Core\Encoding::fromHex('');
         }
         // The search returns a byte position and `Core\Bytes::slice` takes
         // one. The body starts 4 bytes after the empty line begins.

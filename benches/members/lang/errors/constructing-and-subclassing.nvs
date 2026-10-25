@@ -5,20 +5,24 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Wrapped extends RuntimeError {
-    public function constructor(string $message, public uint $code, ?Throwable $cause) {
-        parent::constructor($message, {previous: $cause});
+class Wrapped extends RuntimeError
+{
+    public function constructor(string $message, public uint $code, ?Throwable $cause)
+    {
+        parent::constructor($message, { previous: $cause });
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $cause = new IOError("the disk went away");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $cause = new IOError('the disk went away');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: the code of this round comes from the last round's total.
-            var $error = new Wrapped("cannot read the settings", $total % 7, $cause);
+            var $error = new Wrapped('cannot read the settings', $total % 7, $cause);
             $total = $total + $error->code + 1;
             $i = $i + 1;
         }

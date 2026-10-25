@@ -10,7 +10,7 @@ array<array<string>> $rows = [
 
 // `indexBy` names the key whose value becomes the key of the result. Here that
 // is ['7' => 'Ada', '9' => 'Bo', '12' => 'Cy'].
-array<string> $nameById = Core\Arr::column($rows, 'name', {indexBy: 'id'});
+array<string> $nameById = Core\Arr::column($rows, 'name', { indexBy: 'id' });
 
 array<string> $shown = ['12', '7', '9'];
 

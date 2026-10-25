@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $db = Core\Db::connect('notes');
         $db->execute('create table orders (row_id integer primary key, id uuid not null, customer uuid not null)', []);
         $db->execute('insert into orders (id, customer) values (?, ?)', ['3f2504e0-4f89-41d3-9a0c-0305e82c3301', '9f8e7d6c-5b4a-4938-8271-6a5b4c3d2e1f']);

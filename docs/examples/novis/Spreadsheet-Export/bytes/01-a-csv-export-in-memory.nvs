@@ -3,11 +3,11 @@
 use Novis\Spreadsheet\Workbook;
 
 array<array<mixed>> $orders = [
-    ["order" => 1042, "customer" => "Ada", "total" => 19.9],
-    ["order" => 1043, "customer" => "Alan", "total" => 5.0],
+    ['order' => 1042, 'customer' => 'Ada', 'total' => 19.9],
+    ['order' => 1043, 'customer' => 'Alan', 'total' => 5.0],
 ];
 
 // `bytes` returns the whole file. CSV is text, so `as string` prints it.
-bytes $file = Workbook::fromRows($orders, {format: "csv"})->bytes();
+bytes $file = Workbook::fromRows($orders, { format: 'csv' })->bytes();
 echo Core\Bytes::length($file), " bytes\n";
 echo $file as string;

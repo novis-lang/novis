@@ -7,16 +7,21 @@
 // bench: allocations 1
 // bench: complexity constant
 
-final class Point {
-    public function constructor(public int $x, public int $y) {}
+final class Point
+{
+    public function constructor(public int $x, public int $y)
+    {}
 
-    public function sum(): int {
+    public function sum(): int
+    {
         return $this->x + $this->y;
     }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         int $acc = 1;
         int $i = 0;
         while ($i < $rounds) {

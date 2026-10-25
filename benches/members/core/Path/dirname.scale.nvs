@@ -8,7 +8,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $path = "/srv/" . Core\Str::repeat("a", $size) . "/report.csv";
+        string $path = '/srv/' . Core\Str::repeat('a', $size) . '/report.csv';
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

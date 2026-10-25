@@ -10,7 +10,7 @@ Core\Script::onExit(fn (): void => {
 // A function may also take the report. `status()` returns the exit status,
 // so this prints "second: status 0".
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
-    echo "second: status ", $report->status(), "\n";
+    echo 'second: status ', $report->status(), "\n";
 });
 
 // This line prints before both functions.

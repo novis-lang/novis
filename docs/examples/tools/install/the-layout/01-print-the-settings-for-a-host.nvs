@@ -2,12 +2,14 @@
 // Shows the simplest layout as a script. Each line of the input is the binary folder of one host.
 // The script prints the two settings in `nvs.toml` that set the cache folder and the log file.
 
-class Layout {
-    public static function settings(tainted string $folder): void {
+class Layout
+{
+    public static function settings(tainted string $folder): void
+    {
         // A path in `nvs.toml` is written with `/`, on Windows too.
-        tainted string $base = Core\Str::trimEnd(Core\Str::replace($folder, "\\", "/"), {characters: "/"});
+        tainted string $base = Core\Str::trimEnd(Core\Str::replace($folder, "\\", '/'), { characters: '/' });
 
-        echo "# ", $base, "/config/nvs.toml\n";
+        echo '# ', $base, "/config/nvs.toml\n";
         echo "[opcache]\n";
         echo "file_cache_dir = \"", $base, "/cache\"\n";
         echo "\n";
@@ -21,7 +23,7 @@ class Layout {
 // It has one Windows folder and one Linux folder.
 foreach (Core\Str::lines(Core\IO::stdin()) as tainted string $folder) {
     // A `"` ends a string in `nvs.toml`, so a folder with one is skipped.
-    if ($folder == "" || Core\Str::contains($folder, "\"")) {
+    if ($folder == '' || Core\Str::contains($folder, "\"")) {
         continue;
     }
     Layout::settings($folder);

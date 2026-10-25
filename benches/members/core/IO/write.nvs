@@ -4,10 +4,12 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $texts = ["ok\n", "pending\n", "the job is done\n"];
-        string $path = Core\Path::join(Core\IO::temporaryDir(), "bench-status.txt");
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'bench-status.txt');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -22,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "nothing was written", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'nothing was written', "\n";

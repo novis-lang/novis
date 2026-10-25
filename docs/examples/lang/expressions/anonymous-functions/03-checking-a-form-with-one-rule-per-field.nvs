@@ -3,17 +3,19 @@
 // array. Each rule is an anonymous function that returns the message for a bad
 // value. The same loop then checks any form, so adding a field is adding a line.
 
-class Form {
+class Form
+{
     // Each rule gets the value of its field. It returns an empty string when
     // the value is fine.
-    public static function check(array<string> $values, array<callable> $rules): array<tainted string> {
+    public static function check(array<string> $values, array<callable> $rules): array<tainted string>
+    {
         array<tainted string> $problems = [];
 
         foreach ($rules as string $field => callable $rule) {
-            tainted string $message = $rule($values[$field] ?? "") as string;
+            tainted string $message = $rule($values[$field] ?? '') as string;
 
-            if ($message != "") {
-                $problems = Core\Arr::append($problems, $field . ": " . $message);
+            if ($message != '') {
+                $problems = Core\Arr::append($problems, $field . ': ' . $message);
             }
         }
 
@@ -25,26 +27,26 @@ class Form {
 int $shortest = 8;
 
 array<callable> $rules = [
-    "name" => fn(string $value): string => $value == "" ? "please give a name" : "",
-    "email" => fn(string $value): string => Core\Str::contains($value, "@") ? "" : "needs an @",
-    "password" => fn(string $value): string =>
-        Core\Str::length($value) < $shortest ? "needs " . $shortest . " characters" : "",
+    'name' => fn(string $value): string => $value == '' ? 'please give a name' : '',
+    'email' => fn(string $value): string => Core\Str::contains($value, '@') ? '' : 'needs an @',
+    'password' => fn(string $value): string =>
+        Core\Str::length($value) < $shortest ? 'needs ' . $shortest . ' characters' : '',
 ];
 
 array<string> $filled = [
-    "name" => "Ada",
-    "email" => "ada@example.com",
-    "password" => "correct horse",
+    'name' => 'Ada',
+    'email' => 'ada@example.com',
+    'password' => 'correct horse',
 ];
 
 // Nothing is wrong with this one, so the list of problems is empty.
 // This prints: filled in: 0 problem(s)
-echo "filled in: ", Core\Arr::count(Form::check($filled, $rules)), " problem(s)\n";
+echo 'filled in: ', Core\Arr::count(Form::check($filled, $rules)), " problem(s)\n";
 
 array<string> $empty = [
-    "name" => "",
-    "email" => "ada.example.com",
-    "password" => "short",
+    'name' => '',
+    'email' => 'ada.example.com',
+    'password' => 'short',
 ];
 
 // This prints one line per field that failed its rule.

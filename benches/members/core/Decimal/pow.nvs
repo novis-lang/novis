@@ -4,8 +4,10 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<decimal> $factors = [1.05, 1.10, 1.02, 1.25];
         decimal $threshold = 1.6;
         uint $pick = 0;

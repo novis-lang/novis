@@ -2,16 +2,16 @@
 // Shows that `instant` returns `null` for a time that Active Directory writes as "never".
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Carla Diaz,OU=Company,DC=example,DC=test", {select: ["accountExpires", "pwdLastSet"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Carla Diaz,OU=Company,DC=example,DC=test', { select: ['accountExpires', 'pwdLastSet'] });
 
 if ($person != null) {
     // The account of Carla Diaz never expires. This prints `never expires`.
-    ?Core\Time\Instant $expires = $person->instant("accountExpires");
-    echo $expires == null ? "never expires" : "expires", "\n";
+    ?Core\Time\Instant $expires = $person->instant('accountExpires');
+    echo $expires == null ? 'never expires' : 'expires', "\n";
 
     // Carla Diaz must set a new password, so `pwdLastSet` is 0.
     // `instant` returns `null`. This prints `must set a password`.
-    ?Core\Time\Instant $passwordSet = $person->instant("pwdLastSet");
-    echo $passwordSet == null ? "must set a password" : "has a password", "\n";
+    ?Core\Time\Instant $passwordSet = $person->instant('pwdLastSet');
+    echo $passwordSet == null ? 'must set a password' : 'has a password', "\n";
 }

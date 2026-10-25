@@ -6,12 +6,15 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function shifted(float $x): float {
+class Bench
+{
+    public static function shifted(float $x): float
+    {
         return $x + 1.0;
     }
 
-    public static function run(uint $rounds): int {
+    public static function run(uint $rounds): int
+    {
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

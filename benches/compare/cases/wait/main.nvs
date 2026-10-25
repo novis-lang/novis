@@ -2,7 +2,7 @@
 // Waits 50 ms on a timer, then answers. This measures the cost of many
 // requests in flight at once, as when a page waits for another service.
 
-if (Core\Request::path() != "/wait") {
+if (Core\Request::path() != '/wait') {
     Core\Response::setStatus(404);
     Core\Response::text("not found\n");
 } else {

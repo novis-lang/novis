@@ -4,14 +4,16 @@
 // bench: complexity constant
 use Novis\Intl\Locale;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $offered = ["en", "de", "fr", "pt-BR"];
-        array<string> $headers = ["de-AT, de;q=0.9, en;q=0.5", "fr-CA, fr;q=0.8, en;q=0.3"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $offered = ['en', 'de', 'fr', 'pt-BR'];
+        array<string> $headers = ['de-AT, de;q=0.9, en;q=0.5', 'fr-CA, fr;q=0.8, en;q=0.3'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            string $chosen = Locale::negotiate($headers[$total % 2], $offered, "en");
+            string $chosen = Locale::negotiate($headers[$total % 2], $offered, 'en');
             $total = $total + Core\Str::length($chosen) % 7 + 1;
             $i = $i + 1;
         }

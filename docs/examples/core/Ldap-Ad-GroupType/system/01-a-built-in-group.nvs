@@ -2,10 +2,10 @@
 // Shows that `system` returns `true` for a group that came with the domain.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Administrators,CN=Builtin,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Administrators,CN=Builtin,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // This prints `system: true`.
-    echo "system: ", $type->system() ? "true" : "false", "\n";
+    echo 'system: ', $type->system() ? 'true' : 'false', "\n";
 }

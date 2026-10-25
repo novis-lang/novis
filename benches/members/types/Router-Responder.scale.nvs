@@ -4,32 +4,41 @@
 // bench: start 256
 // bench: max 4096
 
-class Blog {
-    #[Core\Route(path: "/post/{slug}", method: Core\Http\Method::Get, name: "Blog::post")]
+class Blog
+{
+    #[Core\Route(path: '/post/{slug}', method: Core\Http\Method::Get, name: 'Blog::post')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function post(string $slug): Core\Html\Markup {
+    public function post(string $slug): Core\Html\Markup
+    {
         return html`<h1>{$slug}</h1>`;
     }
 }
 
-class Gate implements Core\Router\Responder {
-    public function allows(Core\Router\Match $route): bool {
+class Gate implements Core\Router\Responder
+{
+    public function allows(Core\Router\Match $route): bool
+    {
         return true;
     }
 
-    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {}
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {}
 
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {}
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {}
 
-    public function respond(Core\Router\Match $route, mixed $value): void {
+    public function respond(Core\Router\Match $route, mixed $value): void
+    {
         if ($value is Core\Html\Markup) {
             Core\Response::html($value);
         }
     }
 }
 
-class Bench {
-    public static function run(uint $size): uint {
+class Bench
+{
+    public static function run(uint $size): uint
+    {
         string $path = '/post/' . Core\Str::repeat('a', $size);
         uint $total = 0;
         uint $i = 0;
@@ -46,5 +55,5 @@ class Bench {
 if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Router::dispatch(new Gate());
 } else {
-echo Bench::run(256), "\n";
+    echo Bench::run(256), "\n";
 }

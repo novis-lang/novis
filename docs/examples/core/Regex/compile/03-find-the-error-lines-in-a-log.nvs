@@ -8,7 +8,7 @@ string $log = "INFO server started\n"
 
 // `multiline: true` makes `^` and `$` match at the start and end of each line.
 // Without it, `^` matches only at the start of the whole text.
-Core\Regex\Pattern $errorLine = Core\Regex::compile('^ERROR (.+)$', {multiline: true});
+Core\Regex\Pattern $errorLine = Core\Regex::compile('^ERROR (.+)$', { multiline: true });
 
 // `matchAll` returns one match for each line. `group(1)` is the text after "ERROR ".
 // This prints "disk is full" and "database timeout".

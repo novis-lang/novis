@@ -1,7 +1,7 @@
 error[E0110]: `order_line` must be PascalCase, e.g. `OrderLine`
   --> 04-a-class-name-in-snake-case.nvs:6:7
   |
-6 | class order_line {
+6 | class order_line
   |       ^^^^^^^^^^ class name must be PascalCase
   = suggestion: rename to `OrderLine`: `OrderLine`
 

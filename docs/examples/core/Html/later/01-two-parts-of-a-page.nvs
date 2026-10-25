@@ -20,6 +20,6 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     echo html`<h1>Welcome back</h1>`, "\n", $posts, "\n", $offers, "\n";
 } else {
     // From the command line, this part sends the request and prints the page.
-    var $page = Core\Test::request(Core\Http\Method::Get, "/");
+    var $page = Core\Test::request(Core\Http\Method::Get, '/');
     echo $page->body();
 }

@@ -4,17 +4,17 @@ use Novis\Image\QrCode;
 
 // The `viewBox` of the SVG counts the squares across the code, with its border.
 // The default border is 4 squares, so this code is 29 squares wide.
-string $plain = QrCode::svg("Shop");
+string $plain = QrCode::svg('Shop');
 echo Core\Str::slice($plain, 65, 19), "\n";
 
 // `margin: 1` makes the border 1 square wide, so this code is 23 squares wide.
 // `level: QrCode::Level::High` lets a scanner read the code even when part of it is covered.
-string $strong = QrCode::svg("Shop", {margin: 1, level: QrCode::Level::High});
+string $strong = QrCode::svg('Shop', { margin: 1, level: QrCode::Level::High });
 echo Core\Str::slice($strong, 65, 19), "\n";
 
 // A QR code contains at most a few thousand characters, so 5000 throw a `LogicError`.
 try {
-    QrCode::svg(Core\Str::repeat("a", 5000));
+    QrCode::svg(Core\Str::repeat('a', 5000));
     echo "made a code\n";
 } catch (LogicError $e) {
     echo "too long: LogicError\n";

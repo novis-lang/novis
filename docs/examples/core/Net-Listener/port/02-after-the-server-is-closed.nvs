@@ -1,7 +1,7 @@
 <?nvs
 // Shows that a closed server has no port.
 
-Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
 $server->close();
 
 // `close()` gives the port back to the operating system, so `port()` throws a `RuntimeError`.

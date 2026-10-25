@@ -4,15 +4,17 @@
 // bench: calls 3
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $names = ["Tom & Jerry", "Ada Lovelace", "<b>Grace</b>"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $names = ['Tom & Jerry', 'Ada Lovelace', '<b>Grace</b>'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The name escaped in each round is chosen by the round before, so no round can be left out.
             $total = $total + Core\Str::length(
-                Core\Html::toSource(Core\Html::escape($names[($total % 3) as int]), "measuring the escaped name"),
+                Core\Html::toSource(Core\Html::escape($names[($total % 3) as int]), 'measuring the escaped name'),
             );
             $i = $i + 1;
         }

@@ -4,13 +4,15 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        tainted bytes $saved = "a saved cart!" as tainted bytes;
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        tainted bytes $saved = 'a saved cart!' as tainted bytes;
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            bytes $mine = Core\Taint::assertTrustedBytes($saved, "this program encoded the cart");
+            bytes $mine = Core\Taint::assertTrustedBytes($saved, 'this program encoded the cart');
             $total = $total + Core\Bytes::length($mine) % ($i % 3 + 2);
             $i = $i + 1;
         }

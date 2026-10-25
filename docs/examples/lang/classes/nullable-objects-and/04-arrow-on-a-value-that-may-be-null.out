@@ -1,7 +1,7 @@
 error[E0459]: `null|Box` may be `null`, so `->` cannot reach a member of it
-   --> 04-arrow-on-a-value-that-may-be-null.nvs:11:6
+   --> 04-arrow-on-a-value-that-may-be-null.nvs:12:6
    |
-11 | echo $none->count, "\n";
+12 | echo $none->count, "\n";
    |      ^^^^^ this receiver is nullable
    = help: test it first — inside `if ($x != null) { … }` the receiver is no longer nullable — or use `?->`, which answers `null` instead of reaching the member
 

@@ -2,18 +2,22 @@
 // Shows the error when `initProperty` returns and the property still has no
 // value. `Post` sets `$author` but not `$views`.
 
-class Author {
-    public function constructor(public string $name) {}
+class Author
+{
+    public function constructor(public string $name)
+    {}
 }
 
-class Post implements LateInit {
+class Post implements LateInit
+{
     public lateinit Author $author;
     public lateinit int $views;
 
-    public function initProperty(string $name): void {
-        echo "initProperty ", $name, "\n";
-        if ($name == "author") {
-            $this->author = new Author("Ada");
+    public function initProperty(string $name): void
+    {
+        echo 'initProperty ', $name, "\n";
+        if ($name == 'author') {
+            $this->author = new Author('Ada');
         }
     }
 }

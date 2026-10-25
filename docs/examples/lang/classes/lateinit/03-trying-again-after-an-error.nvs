@@ -2,17 +2,19 @@
 // Shows what happens when `initProperty` throws an error. The property still
 // has no value, so the next read calls `initProperty` again.
 
-class Settings implements LateInit {
+class Settings implements LateInit
+{
     public lateinit string $theme;
     public int $tries = 0;
 
-    public function initProperty(string $name): void {
+    public function initProperty(string $name): void
+    {
         $this->tries = $this->tries + 1;
         // The first try fails, for example because a server did not answer.
         if ($this->tries == 1) {
-            throw new RuntimeError("the settings server did not answer");
+            throw new RuntimeError('the settings server did not answer');
         }
-        $this->theme = "dark";
+        $this->theme = 'dark';
     }
 }
 
@@ -20,9 +22,9 @@ var $settings = new Settings();
 try {
     echo $settings->theme, "\n";
 } catch (RuntimeError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }
 
 // This read calls `initProperty` a second time, and it works.
 echo $settings->theme, "\n";
-echo "tries: ", $settings->tries, "\n";
+echo 'tries: ', $settings->tries, "\n";

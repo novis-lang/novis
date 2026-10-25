@@ -4,16 +4,16 @@
 // gives the Friday a week later.
 
 var $utc = Core\Time\Zone::UTC;
-var $day = "yyyy-MM-dd";
+var $day = 'yyyy-MM-dd';
 var $friday = Core\Time::at(2024, 5, 17, $utc);
 
-echo "today is             ", $friday->format($day), ", a Friday\n";
-echo "next Friday          ", $friday->next(Core\Time\DateTime::Weekday::Friday)->format($day), "\n";
-echo "next Monday          ", $friday->next(Core\Time\DateTime::Weekday::Monday)->format($day), "\n";
-echo "the Monday just gone ", $friday->previous(Core\Time\DateTime::Weekday::Monday)->format($day), "\n\n";
+echo 'today is             ', $friday->format($day), ", a Friday\n";
+echo 'next Friday          ', $friday->next(Core\Time\DateTime::Weekday::Friday)->format($day), "\n";
+echo 'next Monday          ', $friday->next(Core\Time\DateTime::Weekday::Monday)->format($day), "\n";
+echo 'the Monday just gone ', $friday->previous(Core\Time\DateTime::Weekday::Monday)->format($day), "\n\n";
 
 // To keep today when it is already a Friday, check `weekday()` first.
 // This code calls `next` only when today is a different day.
 var $wanted = Core\Time\DateTime::Weekday::Friday;
 var $thisOrNext = $friday->weekday() == $wanted ? $friday : $friday->next($wanted);
-echo "this Friday, or the next one: ", $thisOrNext->format($day), "\n";
+echo 'this Friday, or the next one: ', $thisOrNext->format($day), "\n";

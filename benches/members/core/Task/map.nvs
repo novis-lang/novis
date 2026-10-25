@@ -3,15 +3,17 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $labels = ["order", "customer", "shipping address"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $labels = ['order', 'customer', 'shipping address'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             uint $shift = $total % 3;
             var $sizes = Core\Task::map($labels, fn (string $label): uint => Core\Str::length($label) + $shift);
-            $total = $total + $sizes["0"] + $sizes["1"] + $sizes["2"];
+            $total = $total + $sizes['0'] + $sizes['1'] + $sizes['2'];
             $i = $i + 1;
         }
         return $total;

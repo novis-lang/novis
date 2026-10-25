@@ -1,7 +1,7 @@
 error[E0460]: `$name` has no constructor parameter, so `#[Json\Derive]` cannot decode it
-  --> 05-a-property-needs-a-constructor-parameter.nvs:8:19
+  --> 05-a-property-needs-a-constructor-parameter.nvs:9:19
   |
-8 |     public string $name;
+9 |     public string $name;
   |                   ^^^^^ nothing decodes into this
   = help: the decoder builds the object with `new`, so every property needs a constructor parameter with the same name. Add one, or write `#[Json\Field(skip: true)]`
 

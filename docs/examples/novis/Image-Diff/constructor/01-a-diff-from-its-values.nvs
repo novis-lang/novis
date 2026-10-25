@@ -5,8 +5,8 @@ use Novis\Image\Diff;
 // 12 pixels differ, and no picture of the changes is stored, so `diff` is `null`.
 Diff $result = new Diff(false, 12, 40, 0.98, null);
 
-echo "identical: ", $result->identical ? "yes" : "no", "\n";
-echo "differing pixels: ", $result->differingPixels, "\n";
-echo "largest delta: ", $result->maxDelta, "\n";
-echo "similarity: ", $result->ssim, "\n";
-echo "has a picture: ", $result->diff == null ? "no" : "yes", "\n";
+echo 'identical: ', $result->identical ? 'yes' : 'no', "\n";
+echo 'differing pixels: ', $result->differingPixels, "\n";
+echo 'largest delta: ', $result->maxDelta, "\n";
+echo 'similarity: ', $result->ssim, "\n";
+echo 'has a picture: ', $result->diff == null ? 'no' : 'yes', "\n";

@@ -5,12 +5,14 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<bytes> $fields = [
-            Core\Encoding::fromHex("4f726465722031303432"),
-            Core\Encoding::fromHex("c3a974616c6f6e"),
-            Core\Encoding::fromHex("4f7264657220c3"),
+            Core\Encoding::fromHex('4f726465722031303432'),
+            Core\Encoding::fromHex('c3a974616c6f6e'),
+            Core\Encoding::fromHex('4f7264657220c3'),
         ];
         uint $total = 0;
         uint $i = 0;

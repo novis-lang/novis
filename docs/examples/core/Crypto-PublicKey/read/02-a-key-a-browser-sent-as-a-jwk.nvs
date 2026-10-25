@@ -9,7 +9,7 @@ string $sentByTheBrowser = "{\"key_ops\":[\"verify\"],\"ext\":true,\"alg\":\"Ed2
 Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
     $sentByTheBrowser as bytes,
     Core\Crypto\KeyKind::Ed25519,
-    Core\Crypto\PublicKey::Format::Jwk
+    Core\Crypto\PublicKey::Format::Jwk,
 );
 
 // One key has one spelling in each encoding. The same key sent as `Raw` or as

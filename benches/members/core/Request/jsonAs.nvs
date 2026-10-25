@@ -4,12 +4,14 @@
 // bench: complexity linear
 
 #[Core\Json\Derive]
-class Line {
+class Line
+{
     public tainted string $sku;
     public int $cents;
     public int $count;
 
-    public function constructor(tainted string $sku, int $cents, int $count) {
+    public function constructor(tainted string $sku, int $cents, int $count)
+    {
         $this->sku = $sku;
         $this->cents = $cents;
         $this->count = $count;
@@ -17,24 +19,28 @@ class Line {
 }
 
 #[Core\Json\Derive]
-class Order {
+class Order
+{
     public tainted string $customer;
     public array<Line> $items;
 
-    public function constructor(tainted string $customer, array<Line> $items) {
+    public function constructor(tainted string $customer, array<Line> $items)
+    {
         $this->customer = $customer;
         $this->items = $items;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The request is in the file `jsonAs.nvsr` beside this one.
         // Every call creates new objects from the body.
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            var $order = Core\Request::jsonAs<Order>({maxDepth: 64 + $total % 2});
+            var $order = Core\Request::jsonAs<Order>({ maxDepth: 64 + $total % 2 });
             $total = $total + Core\Arr::count($order->items);
             $i = $i + 1;
         }

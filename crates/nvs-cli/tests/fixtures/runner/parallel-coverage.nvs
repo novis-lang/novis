@@ -7,16 +7,19 @@
 use Core\Test;
 use Core\Time;
 
-final class CoverageTest {
+final class CoverageTest
+{
     #[Test]
-    public function itRunsTheFirstLine(): void {
+    public function itRunsTheFirstLine(): void
+    {
         Time::sleep(300ms);
         var $first = 1; // only the first test
         Test::assertSame($first, 1);
     }
 
     #[Test]
-    public function itRunsTheSecondLine(): void {
+    public function itRunsTheSecondLine(): void
+    {
         Time::sleep(300ms);
         var $second = 2; // only the second test
         Test::assertSame($second, 2);

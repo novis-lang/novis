@@ -1,39 +1,48 @@
 <?nvs
 // Shows how to choose between a `404` and a `405` status when a request matches no route.
 
-class Invoices {
-    #[Core\Route(path: "/invoices", method: Core\Http\Method::Get, name: "Invoices::list")]
+class Invoices
+{
+    #[Core\Route(path: '/invoices', method: Core\Http\Method::Get, name: 'Invoices::list')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function list(): string { return "all invoices"; }
+    public function list(): string
+    {
+        return 'all invoices';
+    }
 
-    #[Core\Route(path: "/invoices", method: Core\Http\Method::Post, name: "Invoices::create")]
+    #[Core\Route(path: '/invoices', method: Core\Http\Method::Post, name: 'Invoices::create')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function create(): string { return "a new invoice"; }
+    public function create(): string
+    {
+        return 'a new invoice';
+    }
 }
 
-class NoRoute {
+class NoRoute
+{
     // A server calls this when `Core\Request::route()` returns `null`.
-    public static function describe(string $path): string {
+    public static function describe(string $path): string
+    {
         array<Core\Http\Method> $verbs = Core\Router::methodsFor($path);
         // No methods means that the path does not exist, so the status is `404`.
         if (Core\Arr::count($verbs) == 0) {
-            return "404 Not Found";
+            return '404 Not Found';
         }
         // The path exists for other methods, so the status is `405`.
         // The `Allow` header lists those methods.
-        string $allow = "";
+        string $allow = '';
         foreach ($verbs as Core\Http\Method $verb) {
-            if ($allow != "") {
-                $allow = $allow . ", ";
+            if ($allow != '') {
+                $allow = $allow . ', ';
             }
             // `Core\Http::methodName` converts the method to text, for example `GET`.
             $allow = $allow . Core\Http::methodName($verb);
         }
-        return "405 Method Not Allowed, Allow: " . $allow;
+        return '405 Method Not Allowed, Allow: ' . $allow;
     }
 }
 
 // A `Delete` to `/invoices` matches no route. A `Get` to `/bills` also matches no route.
 // These two lines print the status the server sends for each one.
-echo NoRoute::describe("/invoices"), "\n";
-echo NoRoute::describe("/bills"), "\n";
+echo NoRoute::describe('/invoices'), "\n";
+echo NoRoute::describe('/bills'), "\n";

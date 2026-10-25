@@ -2,9 +2,9 @@
 // Shows how to check the login and password a person typed into a login form.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Login Form 1,DC=example,DC=test";
-string $user = "CN=Max Brandt," . $unit;
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Login Form 1,DC=example,DC=test';
+string $user = 'CN=Max Brandt,' . $unit;
 
 // A run that stopped early can leave the account behind, so the program deletes it first.
 array<string> $leftovers = [$user, $unit];
@@ -14,14 +14,16 @@ foreach ($leftovers as string $left) {
     } catch (Core\Ldap\LdapError $missing) {
     }
 }
-$corp->add($unit, ["objectClass" => "organizationalUnit"]);
-$corp->add($user, ["objectClass" => "user", "sAMAccountName" => "max.brandt"]);
-$corp->setPassword($user, "Garden-gate-81");
-$corp->modify($user, [Core\Ldap\Change::replace("userAccountControl", 512)]);
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
+$corp->add($user, ['objectClass' => 'user', 'sAMAccountName' => 'max.brandt']);
+$corp->setPassword($user, 'Garden-gate-81');
+$corp->modify($user, [Core\Ldap\Change::replace('userAccountControl', 512)]);
 
-class LoginForm {
+class LoginForm
+{
     // `authenticate` returns nothing when the login is right, and throws an error when it is wrong.
-    public static function canLogIn(Core\Ldap\Connection $corp, tainted string $login, secret tainted string $password): bool {
+    public static function canLogIn(Core\Ldap\Connection $corp, tainted string $login, secret tainted string $password): bool
+    {
         try {
             $corp->authenticate($login, $password);
             return true;
@@ -34,8 +36,8 @@ class LoginForm {
 // A login from a form is `tainted`, and `authenticate` accepts it.
 // This prints `yes` and then `no`.
 tainted string $login = "EXAMPLE\\max.brandt";
-echo LoginForm::canLogIn($corp, $login, "Garden-gate-81") ? "yes" : "no", "\n";
-echo LoginForm::canLogIn($corp, $login, "garden-gate-81") ? "yes" : "no", "\n";
+echo LoginForm::canLogIn($corp, $login, 'Garden-gate-81') ? 'yes' : 'no', "\n";
+echo LoginForm::canLogIn($corp, $login, 'garden-gate-81') ? 'yes' : 'no', "\n";
 
 $corp->delete($user);
 $corp->delete($unit);

@@ -1,14 +1,16 @@
 <?nvs
 // Shows a test of a function that splits a list of products into pages.
 
-class Pages {
+class Pages
+{
     // Returns the products on page `$page`. The first page is 1.
-    public static function of(array<string> $products, int $page, int $perPage): array<string> {
+    public static function of(array<string> $products, int $page, int $perPage): array<string>
+    {
         return Core\Arr::slice($products, ($page - 1) * $perPage, $perPage);
     }
 }
 
-array<string> $products = ["lamp", "desk", "chair", "shelf", "rug", "mirror", "clock"];
+array<string> $products = ['lamp', 'desk', 'chair', 'shelf', 'rug', 'mirror', 'clock'];
 
 // Seven products with three per page give pages of 3, 3 and 1 products.
 Core\Test::assertCount(Pages::of($products, 1, 3), 3);

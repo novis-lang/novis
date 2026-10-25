@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to take a lock on a file, write to it, and release the lock with `close`.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "stock.txt");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'stock.txt');
 
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
 $file->lock();

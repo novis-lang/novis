@@ -5,22 +5,24 @@
 // scaling: max 1600
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): string {
-        array<string> $lines = ["<?nvs", "class Prices {", "    public static function of(int \$x): int { return 100 + \$x * 7; }", "}"];
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        array<string> $lines = ['<?nvs', 'class Prices {', "    public static function of(int \$x): int { return 100 + \$x * 7; }", '}'];
         uint $i = 0;
         while ($i < $size) {
             $lines[] = "class Page{$i} {";
             $lines[] = "    #[Core\\Route(path: \"/p{$i}\", method: Core\\Http\\Method::Get, name: \"Page{$i}::index\")]";
             $lines[] = "    #[Core\\Access(allow: Core\\Audience::Public)]";
-            $lines[] = "    public function index(): string {";
+            $lines[] = '    public function index(): string {';
             $lines[] = "        string \$code = \"TEA-{$i}\";";
             $lines[] = "        if (Core\\Validate::isAscii(\$code)) {";
             $lines[] = "            return Core\\Json::encode({ code: \$code, price: Prices::of({$i}) });";
-            $lines[] = "        }";
+            $lines[] = '        }';
             $lines[] = "        return \"\";";
-            $lines[] = "    }";
-            $lines[] = "}";
+            $lines[] = '    }';
+            $lines[] = '}';
             $i = $i + 1;
         }
         $lines[] = "echo Prices::o<|>f(1), \"\\n\";";

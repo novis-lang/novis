@@ -4,12 +4,12 @@
 
 // This program writes its result to the output, and a note to the error output.
 var $program = Core\Process::spawn(
-    "/bin/sh",
-    ["-c", 'echo "42"; echo "note: this took 3 tries" >&2'],
+    '/bin/sh',
+    ['-c', 'echo "42"; echo "note: this took 3 tries" >&2'],
 );
 
 // `readStdout()` returns only the result. The note is not in it.
-string $result = "";
+string $result = '';
 ?bytes $part = $program->readStdout();
 while ($part != null) {
     $result = $result . ($part as string);
@@ -17,7 +17,7 @@ while ($part != null) {
 }
 
 // `readStderr()` returns only the note.
-string $note = "";
+string $note = '';
 $part = $program->readStderr();
 while ($part != null) {
     $note = $note . ($part as string);
@@ -26,5 +26,5 @@ while ($part != null) {
 $program->wait();
 
 // This prints `result: 42` and then the note.
-echo "result: ", $result;
-echo "error output: ", $note;
+echo 'result: ', $result;
+echo 'error output: ', $note;

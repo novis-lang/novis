@@ -2,38 +2,41 @@
 // `Core\Heap` orders its jobs with the `compareTo` method of the class. `pop`
 // always returns the most urgent job. This is also true for a job pushed later.
 
-final class Job implements Comparable {
+final class Job implements Comparable
+{
     public string $name;
     // Minutes left before this job is late. The fewer, the more urgent.
     public int $minutesLeft;
 
-    public function constructor(string $name, int $minutesLeft) {
+    public function constructor(string $name, int $minutesLeft)
+    {
         $this->name = $name;
         $this->minutesLeft = $minutesLeft;
     }
 
-    public function compareTo(Job $other): int {
+    public function compareTo(Job $other): int
+    {
         return $this->minutesLeft - $other->minutesLeft;
     }
 }
 
 // No comparison function is given, so the heap uses `Job::compareTo`.
 var $queue = new Core\Heap<Job>();
-$queue->push(new Job("send invoices", 45));
-$queue->push(new Job("rebuild search index", 120));
-$queue->push(new Job("charge expiring card", 10));
+$queue->push(new Job('send invoices', 45));
+$queue->push(new Job('rebuild search index', 120));
+$queue->push(new Job('charge expiring card', 10));
 
 var $next = $queue->peek();
-echo "next up: ", $next->name, "\n";
+echo 'next up: ', $next->name, "\n";
 
 // After the first job, the loop pushes a job with 2 minutes left. The next
 // `pop` returns that job before the older ones.
 var $worked = 0;
 while (!$queue->isEmpty()) {
     var $job = $queue->pop();
-    echo "worked ", $job->name, " with ", $job->minutesLeft, " minutes left\n";
+    echo 'worked ', $job->name, ' with ', $job->minutesLeft, " minutes left\n";
     $worked = $worked + 1;
     if ($worked == 1) {
-        $queue->push(new Job("retry failed payout", 2));
+        $queue->push(new Job('retry failed payout', 2));
     }
 }

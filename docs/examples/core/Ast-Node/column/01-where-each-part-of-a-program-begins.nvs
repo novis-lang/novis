@@ -10,5 +10,5 @@ if (1) {
 NVS;
 
 foreach (Core\Ast::parse($source)->nodes() as Core\Ast\Node $node) {
-    echo $node->kind(), " on line ", $node->line(), ", column ", $node->column(), "\n";
+    echo $node->kind(), ' on line ', $node->line(), ', column ', $node->column(), "\n";
 }

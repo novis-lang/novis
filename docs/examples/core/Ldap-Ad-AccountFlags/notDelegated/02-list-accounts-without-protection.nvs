@@ -2,10 +2,10 @@
 // Shows how to list the accounts that a service may act for.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 var $found = $corp->search(
-    Core\Ldap\Filter::equals("objectClass", "user"),
-    {base: "OU=Company,DC=example,DC=test", select: ["userAccountControl"]},
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    { base: 'OU=Company,DC=example,DC=test', select: ['userAccountControl'] },
 );
 
 array<tainted string> $names = [];

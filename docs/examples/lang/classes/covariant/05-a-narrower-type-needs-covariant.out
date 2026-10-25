@@ -1,7 +1,7 @@
 error[E0404]: `DogShelter::admit` cannot replace `Shelter::admit`
-   --> 05-a-narrower-type-needs-covariant.nvs:13:21
+   --> 05-a-narrower-type-needs-covariant.nvs:18:21
    |
-13 |     public function admit(Dog $a): void {}
+18 |     public function admit(Dog $a): void
    |                     ^^^^^ `$a` is `Dog`, and a call to `Shelter::admit` passes `Animal`
    = help: a call through `Shelter` passes what `Shelter::admit` takes and reads what it returns. Keep its parameters, its `static` and its visibility. Each parameter may accept a wider type, and the return type may be narrower. To take a narrower type, write `covariant` before it. Each value is then tested when the method is called
 

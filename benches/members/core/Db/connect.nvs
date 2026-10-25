@@ -5,8 +5,10 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The count so far chooses the name, so the loop cannot be left out.
         // Both entries name one block, so every round asks for that connection.
         array<string> $names = ['notes', 'notes'];

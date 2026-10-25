@@ -17,7 +17,7 @@ while ($done < 8) {
     $batch = [];
     int $row = 0;
     while ($row < 5000) {
-        $batch[] = "invoice row " . $row;
+        $batch[] = 'invoice row ' . $row;
         $row = $row + 1;
     }
     $done = $done + 1;

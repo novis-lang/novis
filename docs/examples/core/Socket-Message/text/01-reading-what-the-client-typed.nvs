@@ -9,7 +9,7 @@ Core\Socket $conn = Core\Socket::current();
 // This prints `hello (5 characters)`, then `good night (10 characters)`.
 ?Core\Socket\Message $message = $conn->receive();
 while ($message != null) {
-    tainted string $text = $message->text() ?? "";
-    echo $text, " (", Core\Str::length($text), " characters)\n";
+    tainted string $text = $message->text() ?? '';
+    echo $text, ' (', Core\Str::length($text), " characters)\n";
     $message = $conn->receive();
 }

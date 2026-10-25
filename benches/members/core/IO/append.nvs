@@ -4,10 +4,12 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $lines = ["ok\n", "retry\n", "request done\n"];
-        string $log = Core\Path::join(Core\IO::temporaryDir(), "bench.log");
+        string $log = Core\Path::join(Core\IO::temporaryDir(), 'bench.log');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

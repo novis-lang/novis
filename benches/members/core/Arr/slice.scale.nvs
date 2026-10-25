@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        array<string> $found = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "Lamp");
+        array<string> $found = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => 'Lamp');
         int $length = ($size as int) - 1;
         uint $total = 0;
         uint $i = 0;

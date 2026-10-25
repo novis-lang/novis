@@ -1,7 +1,7 @@
 <?nvs
 // This program converts text to an older encoding, for a system that cannot read UTF-8.
 
-string $name = "Café Größenwahn";
+string $name = 'Café Größenwahn';
 
 // `encodeText` converts the text to Windows-1252 bytes. Each accented letter is
 // one byte in Windows-1252. In UTF-8 it is two bytes.
@@ -11,7 +11,7 @@ echo Core\Encoding::toHex($written), "\n";
 // A character that Windows-1252 cannot write throws an error. The message
 // names the character and its position in the text.
 try {
-    echo Core\Encoding::toHex(Core\Encoding::encodeText("Crab 🦀", Core\Charset::Windows1252)), "\n";
+    echo Core\Encoding::toHex(Core\Encoding::encodeText('Crab 🦀', Core\Charset::Windows1252)), "\n";
 } catch (Throwable $missing) {
     echo $missing->message, "\n";
 }

@@ -5,29 +5,31 @@
 enum Level { Low, High }
 
 #[Core\Json\Derive]
-class Alert {
+class Alert
+{
     public Level $level;
     public array<string> $tags;
 
-    public function constructor(Level $level, array<string> $tags) {
+    public function constructor(Level $level, array<string> $tags)
+    {
         $this->level = $level;
         $this->tags = $tags;
     }
 }
 
 // `Level::High` is the number 1. This prints {"level":1,"tags":["disk","full"]}.
-echo Core\Json::encode(new Alert(Level::High, ["disk", "full"])), "\n";
+echo Core\Json::encode(new Alert(Level::High, ['disk', 'full'])), "\n";
 
 // This prints `true full`.
 var $alert = Core\Json::decodeAs<Alert>("{\"level\":1,\"tags\":[\"disk\",\"full\"]}");
-echo $alert->level == Level::High ? "true" : "false", " ", $alert->tags[1], "\n";
+echo $alert->level == Level::High ? 'true' : 'false', ' ', $alert->tags[1], "\n";
 
 // 7 is not a case of `Level`, and the second tag is not a string.
 // The path of an array element ends with its index, as `tags.1`.
 try {
     Core\Json::decodeAs<Alert>("{\"level\":7,\"tags\":[\"disk\",2]}");
 } catch (ParseError $bad) {
-    foreach ($bad->issues as {path: string, message: string} $issue) {
-        echo $issue->path, ": ", $issue->message, "\n";
+    foreach ($bad->issues as { path: string, message: string } $issue) {
+        echo $issue->path, ': ', $issue->message, "\n";
     }
 }

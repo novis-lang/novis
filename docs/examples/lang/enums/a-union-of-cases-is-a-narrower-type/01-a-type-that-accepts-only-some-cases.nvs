@@ -5,11 +5,13 @@
 // `Mode` stays outside the classes, because `File` and `Log` both use it.
 enum Mode { Read, Write, Append, Exec }
 
-class File {
+class File
+{
     // This parameter accepts `Mode::Read` and `Mode::Write`. No other case of
     // `Mode` compiles here.
-    public static function open(Mode::Read|Mode::Write $mode): string {
-        return "opened in mode " . (($mode as int) as string);
+    public static function open(Mode::Read|Mode::Write $mode): string
+    {
+        return 'opened in mode ' . (($mode as int) as string);
     }
 }
 
@@ -18,9 +20,11 @@ echo File::open(Mode::Read), "\n";
 echo File::open(Mode::Write), "\n";
 
 // A value of the smaller type fits everywhere the whole enum is wanted.
-class Log {
-    public static function line(Mode $mode): string {
-        return "mode=" . (($mode as int) as string);
+class Log
+{
+    public static function line(Mode $mode): string
+    {
+        return 'mode=' . (($mode as int) as string);
     }
 }
 

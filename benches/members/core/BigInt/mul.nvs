@@ -5,11 +5,13 @@
 // bench: complexity karatsuba
 // bench: calls 2
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\BigInt> $prices = [
-            Core\BigInt::parse("123456789012345678901234567890"),
-            Core\BigInt::parse("987654321098765432109876543210"),
+            Core\BigInt::parse('123456789012345678901234567890'),
+            Core\BigInt::parse('987654321098765432109876543210'),
         ];
         var $quantity = Core\BigInt::of(1200);
         uint $total = 0;

@@ -6,9 +6,9 @@ uint $sent = 0;
 
 foreach ($batches as uint $size) {
     // `by` adds the size of the batch. After the loop the counter is 60.
-    Core\Metrics::increment("emails_sent_total", {by: $size});
+    Core\Metrics::increment('emails_sent_total', { by: $size });
     $sent = $sent + $size;
 }
 
 // This prints 60.
-echo "emails sent: ", $sent, "\n";
+echo 'emails sent: ', $sent, "\n";

@@ -2,10 +2,10 @@
 // Shows the everyday use: the parts of a JSON Web Token are URL-safe base64,
 // and your program reads what is inside them.
 
-string $jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEiLCJhZG1pbiI6dHJ1ZX0.c2lnbmF0dXJl";
+string $jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEiLCJhZG1pbiI6dHJ1ZX0.c2lnbmF0dXJl';
 
 // The three parts are separated by `.`. This prints 3.
-array<string> $parts = Core\Str::split($jwt, ".");
+array<string> $parts = Core\Str::split($jwt, '.');
 echo Core\Arr::count($parts), "\n";
 
 // The first part says how the token was signed. This prints {"alg":"HS256"}.

@@ -4,11 +4,13 @@
 // `#[Core\Json\Derive]` lets `queryAs` fill the class. Each public property reads the parameter with the same name.
 // The address comes from the client, so a string property must be `tainted string`.
 #[Core\Json\Derive]
-class Search {
+class Search
+{
     public tainted string $q;
     public uint $page;
 
-    public function constructor(tainted string $q, uint $page) {
+    public function constructor(tainted string $q, uint $page)
+    {
         $this->q = $q;
         $this->page = $page;
     }
@@ -19,4 +21,4 @@ class Search {
 var $search = Core\Request::queryAs<Search>();
 
 // This prints "red shoes, page 2".
-echo $search->q, ", page ", $search->page, "\n";
+echo $search->q, ', page ', $search->page, "\n";

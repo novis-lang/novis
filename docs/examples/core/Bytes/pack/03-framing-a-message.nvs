@@ -7,7 +7,7 @@ bytes $body = "{\"id\":1042}" as bytes;
 
 // `N` writes the length in four bytes, and `a` with no width writes the whole
 // of the next value. Both ends agree that the body starts at byte five.
-bytes $frame = Core\Bytes::pack("Na", Core\Bytes::length($body), $body);
+bytes $frame = Core\Bytes::pack('Na', Core\Bytes::length($body), $body);
 
 // The frame is the body and four bytes more. This prints 15.
 echo Core\Bytes::length($frame), "\n";

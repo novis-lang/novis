@@ -5,7 +5,7 @@ bytes $report = "month,total\nJanuary,1200\nFebruary,950\n" as bytes;
 
 // The third argument is sent as the `ETag` header. Give a new name when the bytes change.
 // A browser that resumes a download with an old name gets the whole body again.
-Core\Response\Stream $body = Core\Response::stream("text/csv", Core\Bytes::length($report) as int, "report-2");
+Core\Response\Stream $body = Core\Response::stream('text/csv', Core\Bytes::length($report) as int, 'report-2');
 
 // This request asks for no part, so `length()` is the size of the whole report.
 $body->write(Core\Bytes::slice($report, $body->offset(), $body->length()));

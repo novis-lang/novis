@@ -2,7 +2,7 @@
 // Shows how `Core\Html::sanitize` keeps simple formatting and removes a script.
 
 // A comment that a visitor wrote with a few HTML tags.
-tainted string $comment = "<p>I <b>really</b> like this <em>recipe</em>!<script>alert(1)</script></p>";
+tainted string $comment = '<p>I <b>really</b> like this <em>recipe</em>!<script>alert(1)</script></p>';
 
 // The `p`, `b` and `em` tags are kept. The `script` element is removed with its content.
 // This prints `<p>I <b>really</b> like this <em>recipe</em>!</p>`.

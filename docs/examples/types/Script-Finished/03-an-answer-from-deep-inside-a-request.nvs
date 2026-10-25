@@ -4,16 +4,20 @@
 // `Core\Script::finish()` skips the rest of the work.
 // The outer `finally` block still runs and writes the log line.
 
-class Cache {
-    public static function isFresh(string $sent, string $current): bool {
+class Cache
+{
+    public static function isFresh(string $sent, string $current): bool
+    {
         return $sent == $current;
     }
 }
 
-class Page {
-    public static function render(string $sentVersion): void {
+class Page
+{
+    public static function render(string $sentVersion): void
+    {
         echo "looking up the article\n";
-        if (Cache::isFresh($sentVersion, "v7")) {
+        if (Cache::isFresh($sentVersion, 'v7')) {
             echo "304 not modified\n";
             Core\Script::finish();
         }
@@ -21,8 +25,10 @@ class Page {
     }
 }
 
-class Request {
-    public static function handle(string $sentVersion): void {
+class Request
+{
+    public static function handle(string $sentVersion): void
+    {
         try {
             Page::render($sentVersion);
             echo "200 ok\n";
@@ -32,6 +38,6 @@ class Request {
     }
 }
 
-Request::handle("v7");
+Request::handle('v7');
 
 echo "this line is never reached\n";

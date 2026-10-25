@@ -2,9 +2,11 @@
 // Shows how a delivery app finds the angle between the direction a driver is
 // going and the direction of the next stop.
 
-class Heading {
+class Heading
+{
     // Returns the angle between two directions, in whole degrees.
-    public static function turn(float $ax, float $ay, float $bx, float $by): float {
+    public static function turn(float $ax, float $ay, float $bx, float $by): float
+    {
         // The cosine of the angle is the dot product divided by both lengths.
         float $cosine = ($ax * $bx + $ay * $by)
             / (Core\Math::hypot($ax, $ay) * Core\Math::hypot($bx, $by));

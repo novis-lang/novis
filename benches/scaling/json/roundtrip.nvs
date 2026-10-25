@@ -4,12 +4,14 @@
 // scaling: max 64000
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): uint {
-        array<{id: uint, name: string, paid: bool, items: array<uint>}> $orders = [];
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<{ id: uint, name: string, paid: bool, items: array<uint> }> $orders = [];
         uint $i = 0;
         while ($i < $size) {
-            $orders[] = {id: $i, name: "Ada", paid: $i % 2 == 0, items: [$i % 7, $i % 11]};
+            $orders[] = { id: $i, name: 'Ada', paid: $i % 2 == 0, items: [$i % 7, $i % 11] };
             $i = $i + 1;
         }
         string $text = Core\Json::encode($orders);

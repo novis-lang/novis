@@ -4,7 +4,7 @@
 
 // Each element of the array is one argument. The program is started directly, without a shell,
 // so the `;` and the spaces are only text.
-var $result = Core\Process::run("/bin/echo", ["Hello; rm -rf /", "and goodbye"]);
+var $result = Core\Process::run('/bin/echo', ['Hello; rm -rf /', 'and goodbye']);
 
 // `stdout()` returns `bytes`. `as string` converts them to text.
 echo $result->stdout() as string;

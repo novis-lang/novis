@@ -24,5 +24,5 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Response::addCookie('theme', 'dark');
     Core\Response::addCookie('sid', Core\Str::repeat('x', Core\Str::length(Core\Request::path())));
 } else {
-echo Bench::run(256), "\n";
+    echo Bench::run(256), "\n";
 }

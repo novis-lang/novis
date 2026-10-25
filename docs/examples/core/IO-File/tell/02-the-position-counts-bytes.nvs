@@ -2,8 +2,8 @@
 // Shows that `tell` counts bytes, not characters.
 // A character such as "é" uses 2 bytes.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "cafe.txt");
-Core\IO::write($path, "café au lait");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'cafe.txt');
+Core\IO::write($path, 'café au lait');
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 
 // "café" is 4 characters and 5 bytes, so this prints "café" and then 5.

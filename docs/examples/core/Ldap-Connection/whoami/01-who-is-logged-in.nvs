@@ -2,7 +2,7 @@
 // Shows how to ask the directory which account the connection is logged in as.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 
 // The `corp` block logs in as the account `Reader` in the domain `EXAMPLE`.
 // This prints `u:EXAMPLE\Reader`.

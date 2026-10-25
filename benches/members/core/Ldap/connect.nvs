@@ -5,11 +5,13 @@
 // bench: calls 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The count so far chooses the name, so the loop cannot be left out.
         // No block has either name, so every round throws an error.
-        array<string> $names = ["hr", "sales"];
+        array<string> $names = ['hr', 'sales'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

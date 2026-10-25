@@ -2,10 +2,10 @@
 // Shows that `temporaryDuplicateAccount` returns `false` for an ordinary user account.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `temporary duplicate: false`.
-    echo "temporary duplicate: ", $flags->temporaryDuplicateAccount() ? "true" : "false", "\n";
+    echo 'temporary duplicate: ', $flags->temporaryDuplicateAccount() ? 'true' : 'false', "\n";
 }

@@ -7,17 +7,17 @@ use Core\Test;
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. The old address redirects to the new one.
     var $path = Core\Request::path();
-    if ($path == "/old-page") {
-        Core\Response::redirect("/new-page");
+    if ($path == '/old-page') {
+        Core\Response::redirect('/new-page');
     }
 } else {
     // This part is the test.
-    var $response = Test::request(Method::Get, "/old-page");
+    var $response = Test::request(Method::Get, '/old-page');
 
     // A redirect sets the status and the `Location` header. This prints `303 /new-page`.
-    echo $response->status(), " ", $response->header("Location"), "\n";
+    echo $response->status(), ' ', $response->header('Location'), "\n";
 
     // The answer has no `Retry-After` header, so the result is `null`.
     // This prints `none`.
-    echo $response->header("Retry-After") ?? "none", "\n";
+    echo $response->header('Retry-After') ?? 'none', "\n";
 }

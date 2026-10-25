@@ -2,11 +2,13 @@
 // Shows how to answer a client whose JSON body does not match your class.
 
 #[Core\Json\Derive]
-class NewUser {
+class NewUser
+{
     public tainted string $name;
     public int $age;
 
-    public function constructor(tainted string $name, int $age) {
+    public function constructor(tainted string $name, int $age)
+    {
         $this->name = $name;
         $this->age = $age;
     }
@@ -19,8 +21,8 @@ try {
     echo "201: created\n";
 } catch (ParseError $error) {
     // This prints "422: 2 wrong fields", and then the path of each field.
-    echo "422: ", Core\Arr::count($error->issues), " wrong fields\n";
-    foreach ($error->issues as {path: string, message: string} $issue) {
-        echo "  ", $issue->path, "\n";
+    echo '422: ', Core\Arr::count($error->issues), " wrong fields\n";
+    foreach ($error->issues as { path: string, message: string } $issue) {
+        echo '  ', $issue->path, "\n";
     }
 }

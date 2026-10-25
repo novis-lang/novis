@@ -3,8 +3,9 @@
 // `Page::title()` has no body, so this does not compile.
 // proof: compile-error
 
-abstract class Page {
-    public abstract static function title(): string;
+abstract class Page
+{
+    abstract public static function title(): string;
 }
 
 echo Page::title(), "\n";

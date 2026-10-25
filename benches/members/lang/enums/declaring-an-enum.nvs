@@ -8,8 +8,10 @@
 
 enum Step { Ordered, Packed, Shipped = 10, Delivered }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {

@@ -2,9 +2,11 @@
 // Shows what happens to the cookie when a loop stops before the last entry.
 // requires: samba-ad
 
-class Count {
+class Count
+{
     // Reads every entry of the changes and returns how many there were.
-    public static function all(Core\Ldap\Changes $changes): uint {
+    public static function all(Core\Ldap\Changes $changes): uint
+    {
         uint $count = 0;
         foreach ($changes as Core\Ldap\Entry $entry) {
             $count = $count + 1;
@@ -13,21 +15,21 @@ class Count {
     }
 }
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 var $sales = Core\Ldap\Filter::all(
-    Core\Ldap\Filter::equals("objectClass", "user"),
-    Core\Ldap\Filter::equals("department", "Sales"),
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    Core\Ldap\Filter::equals('department', 'Sales'),
 );
 
 // This loop stops after the first of the two people in Sales.
-var $first = $corp->changes($sales, {select: ["department"]});
+var $first = $corp->changes($sales, { select: ['department'] });
 foreach ($first as Core\Ldap\Entry $person) {
     break;
 }
 
 // The cookie covers only what the loop read. So the next call returns both people again.
-var $next = $corp->changes($sales, {select: ["department"], cookie: $first->cookie()});
-echo "people returned again: ", Count::all($next), "\n";
+var $next = $corp->changes($sales, { select: ['department'], cookie: $first->cookie() });
+echo 'people returned again: ', Count::all($next), "\n";
 
 // That loop read every entry, so this cookie is complete. This prints `0`.
-echo "people after that: ", Count::all($corp->changes($sales, {select: ["department"], cookie: $next->cookie()})), "\n";
+echo 'people after that: ', Count::all($corp->changes($sales, { select: ['department'], cookie: $next->cookie() })), "\n";

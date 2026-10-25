@@ -2,17 +2,19 @@
 // Shows how to read an attribute that is attached to one parameter. The second
 // argument is the name of the parameter.
 
-type MaxLength = {max: int};
+type MaxLength = { max: int };
 
-class Signup {
-    public static function register(#[MaxLength(max: 64)] string $email): string {
+class Signup
+{
+    public static function register(#[MaxLength(max: 64)] string $email): string
+    {
         return $email;
     }
 }
 
 // `Signup::register(...)` names the method, and `"email"` picks the parameter out
 // of it. This prints 64.
-?MaxLength $limit = Core\Attributes::get<MaxLength>(Signup::register(...), "email");
+?MaxLength $limit = Core\Attributes::get<MaxLength>(Signup::register(...), 'email');
 if ($limit != null) {
     echo $limit->max, "\n";
 }

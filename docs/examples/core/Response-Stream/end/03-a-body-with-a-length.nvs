@@ -2,8 +2,8 @@
 // Shows `end()` on a body with a known length.
 
 // The body is 5 bytes long, so the response has the header `Content-Length: 5`.
-Core\Response\Stream $body = Core\Response::stream("text/plain; charset=utf-8", 5);
-$body->write("Hello");
+Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8', 5);
+$body->write('Hello');
 
 // All 5 bytes are written, so `end()` ends a complete body.
 $body->end();

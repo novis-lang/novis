@@ -6,22 +6,26 @@
 // `Method` stays outside the classes, because `Cache` and `Router` both use it.
 enum Method { Get, Head, Post, Put, Delete }
 
-class Cache {
+class Cache
+{
     // Only a request that reads can be served from a cache, so this parameter
     // accepts those two cases and nothing else.
-    public static function serve(Method::Get|Method::Head $method): string {
+    public static function serve(Method::Get|Method::Head $method): string
+    {
         if ($method == Method::Head) {
-            return "sent the headers";
+            return 'sent the headers';
         }
-        return "sent the page";
+        return 'sent the page';
     }
 }
 
-class Router {
-    public static function handle(Method $method): string {
+class Router
+{
+    public static function handle(Method $method): string
+    {
         var $readOnly = $method as ?Method::Get|Method::Head;
         if ($readOnly == null) {
-            return "passed to the application";
+            return 'passed to the application';
         }
         return Cache::serve($readOnly);
     }

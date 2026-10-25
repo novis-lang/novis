@@ -7,15 +7,18 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function step(int $row): int {
+class Bench
+{
+    public static function step(int $row): int
+    {
         if ($row < 0) {
-            throw new RuntimeError("a negative row");
+            throw new RuntimeError('a negative row');
         }
         return $row * 3;
     }
 
-    public static function run(int $rounds): int {
+    public static function run(int $rounds): int
+    {
         int $acc = 1;
         int $i = 0;
         while ($i < $rounds) {

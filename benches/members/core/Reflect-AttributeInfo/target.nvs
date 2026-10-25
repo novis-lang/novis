@@ -3,16 +3,19 @@
 // bench: iterations 2048
 // bench: complexity constant
 
-class Signup {
+class Signup
+{
     #[{required: true}]
-    public string $email = "";
+    public string $email = '';
 
     #[{maxLength: 40}]
-    public string $nickname = "";
+    public string $nickname = '';
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\AttributeInfo> $attributes =
             Core\Reflect::forObject(new Signup())->attributes();
         uint $total = 0;

@@ -3,15 +3,15 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
-var $invoice = Document::fromHtml("<style>p { break-after: page }</style>"
-    . "<p>Invoice 1042</p><p>Items: 3 bikes</p><p>Total: 1,250.00 EUR</p>")->render()->bytes;
+var $invoice = Document::fromHtml('<style>p { break-after: page }</style>'
+    . '<p>Invoice 1042</p><p>Items: 3 bikes</p><p>Total: 1,250.00 EUR</p>')->render()->bytes;
 
 // This loop checks each line of each page. It prints the line that starts with `Total`.
 var $reader = Reader::open($invoice);
 for (uint $page = 1; $page <= $reader->pageCount; $page++) {
     foreach (Core\Str::lines($reader->text($page)) as string $line) {
-        if (Core\Str::startsWith($line, "Total")) {
-            echo "page ", $page, ": ", $line, "\n";
+        if (Core\Str::startsWith($line, 'Total')) {
+            echo 'page ', $page, ': ', $line, "\n";
         }
     }
 }

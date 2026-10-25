@@ -8,8 +8,10 @@
 // bench: calls 0
 // bench: complexity constant
 
-class Route {
-    public static function run(int $rounds): int {
+class Route
+{
+    public static function run(int $rounds): int
+    {
         int $acc = 1;
         int $i = 0;
         while ($i < $rounds) {

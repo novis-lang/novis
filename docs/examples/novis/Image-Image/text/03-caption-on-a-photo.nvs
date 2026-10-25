@@ -5,14 +5,14 @@ use Novis\Image\Image;
 
 require 'fonts/box-font.nvs';
 
-bytes $photo = Image::create(80, 60, Color::hex("#336699"))->encode();
+bytes $photo = Image::create(80, 60, Color::hex('#336699'))->encode();
 
 // `maxWidth` breaks the caption into lines at spaces.
 // `Image::Gravity::South` puts the text at the bottom, in the middle.
 bytes $card = Image::open($photo)
-    ->text("New shoes in the shop", BoxFont::load(), {
+    ->text('New shoes in the shop', BoxFont::load(), {
         size: 10.0,
-        color: Color::hex("#ffffff"),
+        color: Color::hex('#ffffff'),
         gravity: Image::Gravity::South,
         maxWidth: 70,
     })
@@ -20,4 +20,4 @@ bytes $card = Image::open($photo)
 
 // The caption changes pixels, and the size of the photo stays the same. This prints 80 and true.
 echo Image::info($card)->width, "\n";
-echo Image::compare($photo, $card)->differingPixels > 0 ? "true" : "false", "\n";
+echo Image::compare($photo, $card)->differingPixels > 0 ? 'true' : 'false', "\n";

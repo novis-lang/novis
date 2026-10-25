@@ -2,10 +2,10 @@
 // Shows that `groupType` returns `null` for an entry that is not a group.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["groupType"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['groupType'] });
 
 if ($person != null) {
     // A user has no `groupType`. This prints `not a group`.
-    echo $person->groupType() == null ? "not a group" : "a group", "\n";
+    echo $person->groupType() == null ? 'not a group' : 'a group', "\n";
 }

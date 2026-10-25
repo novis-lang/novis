@@ -4,8 +4,10 @@
 // bench: start 8
 // bench: max 128
 
-class Bench {
-    public static function run(uint $size): string {
+class Bench
+{
+    public static function run(uint $size): string
+    {
         array<string> $options = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => '        #[Core\Option(about: "Turn on setting ' . (($n + 1000) as string) . ' of the shop")] bool $setting' . (($n + 1000) as string) . ' = false,');
         string $parameters = Core\Str::join($options, "\n");
         array<string> $lines = [

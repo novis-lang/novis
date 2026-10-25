@@ -3,7 +3,7 @@
 
 // The `.nvse` file beside this example publishes two values on `orders`.
 Core\Sse $sse = Core\Sse::current();
-Core\Topic::subscribe("orders");
+Core\Topic::subscribe('orders');
 
 ?Core\Sse\Message $message = $sse->receive();
 while ($message != null) {

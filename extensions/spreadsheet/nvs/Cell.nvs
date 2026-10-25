@@ -8,7 +8,8 @@ final class Cell
     public function constructor(
         public readonly mixed $value,
         public readonly Style $style,
-    ) {}
+    )
+    {}
 
     /// `Cell::of` gives `$value` the style `$style`. The cell uses each field of `$style` first, then the fields of its row and its column.
     public static function of(mixed $value, Style $style): Cell

@@ -4,19 +4,19 @@ use Novis\Image\Image;
 use Novis\Image\QrCode;
 
 string $payment = QrCode::giroCode({
-    name: "Shop GmbH",
-    iban: "DE89370400440532013000",
-    bic: "COBADEFFXXX",
+    name: 'Shop GmbH',
+    iban: 'DE89370400440532013000',
+    bic: 'COBADEFFXXX',
     amount: 129.0,
-    reference: "RF18539007547034",
+    reference: 'RF18539007547034',
 });
 
 // `QrCode::render` draws the text as a QR code. The result is a PNG for the invoice.
-bytes $image = QrCode::render($payment, {size: 200});
+bytes $image = QrCode::render($payment, { size: 200 });
 var $info = Image::info($image);
-echo $info->width, " by ", $info->height, " pixels\n";
+echo $info->width, ' by ', $info->height, " pixels\n";
 echo Image::mime($info->format), "\n";
 
 // `QrCode::svg` draws the same code for an invoice page in HTML.
-string $html = "<p>Scan to pay:</p>" . QrCode::svg($payment);
+string $html = '<p>Scan to pay:</p>' . QrCode::svg($payment);
 echo Core\Str::slice($html, 0, 23), "\n";

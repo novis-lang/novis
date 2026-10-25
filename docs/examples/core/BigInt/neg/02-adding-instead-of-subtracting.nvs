@@ -3,7 +3,7 @@
 // subtracting it, and flipping the sign twice gives the number you started
 // with.
 
-var $balance = Core\BigInt::parse("184467440737095516150");
+var $balance = Core\BigInt::parse('184467440737095516150');
 var $fee = Core\BigInt::of(250);
 
 // Both lines print 184467440737095515900.

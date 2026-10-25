@@ -6,23 +6,28 @@
 
 use Core\Command;
 
-type Row = {name: string, about: string};
+type Row = { name: string, about: string };
 
-class Jobs {
-    #[Core\Command(name: "import", about: "Read rows from a file")]
-    public static function import(): void {}
+class Jobs
+{
+    #[Core\Command(name: 'import', about: 'Read rows from a file')]
+    public static function import(): void
+    {}
 
     // The `use Core\Command;` above makes this short spelling the same attribute.
-    #[Command(name: "export", about: "Write rows to a file")]
-    public static function export(): void {}
+    #[Command(name: 'export', about: 'Write rows to a file')]
+    public static function export(): void
+    {}
 }
 
-class Help {
-    public static function line(?Row $row): string {
+class Help
+{
+    public static function line(?Row $row): string
+    {
         if ($row == null) {
-            return "(no command here)";
+            return '(no command here)';
         }
-        return $row->name . ": " . $row->about;
+        return $row->name . ': ' . $row->about;
     }
 }
 

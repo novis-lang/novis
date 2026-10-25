@@ -4,13 +4,13 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 use Novis\Pdf\Reader;
 
-var $html = "<style>h2 { break-before: page }</style>"
-    . "<h1>Contract</h1><p>Shop rents a room.</p><h2>Terms</h2><p>The rent is due each month.</p>";
+var $html = '<style>h2 { break-before: page }</style>'
+    . '<h1>Contract</h1><p>Shop rents a room.</p><h2>Terms</h2><p>The rent is due each month.</p>';
 
 var $footer = fn(Page $page): Core\Html\Markup => $page->isLast() ? html`<p>Signature: ________</p>` : html``;
 
 // This reads the text of each page back from the PDF file.
 // The PDF file stores the footer after the body, so the footer text comes last.
 var $reader = Reader::open(Document::fromHtml($html)->footer($footer)->render()->bytes);
-echo "page 1: ", Core\Str::replace($reader->text(1), "\n", " / "), "\n";
-echo "page 2: ", Core\Str::replace($reader->text(2), "\n", " / "), "\n";
+echo 'page 1: ', Core\Str::replace($reader->text(1), "\n", ' / '), "\n";
+echo 'page 2: ', Core\Str::replace($reader->text(2), "\n", ' / '), "\n";

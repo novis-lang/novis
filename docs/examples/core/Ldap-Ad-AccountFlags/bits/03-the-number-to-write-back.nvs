@@ -2,12 +2,12 @@
 // Shows how to get the number for changed flags, for example to write it back to the directory.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // `with` disables the account. `bits` returns the new number.
     // This prints `512` and then `514`.
     echo $flags->bits(), "\n";
-    echo $flags->with({disabled: true})->bits(), "\n";
+    echo $flags->with({ disabled: true })->bits(), "\n";
 }

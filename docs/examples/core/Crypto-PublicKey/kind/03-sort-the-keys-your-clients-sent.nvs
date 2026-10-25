@@ -5,22 +5,22 @@
 
 array<Core\Crypto\PublicKey> $sent = [
     Core\Crypto\PublicKey::read(
-        Core\Encoding::fromHex("9c7be3a9c961ce008340674cd3d468fc5be27c98b65a35262ca2d05573d0585e"),
+        Core\Encoding::fromHex('9c7be3a9c961ce008340674cd3d468fc5be27c98b65a35262ca2d05573d0585e'),
         Core\Crypto\KeyKind::X25519,
-        Core\Crypto\PublicKey::Format::Raw
+        Core\Crypto\PublicKey::Format::Raw,
     ),
     Core\Crypto\PublicKey::read(
-        Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
+        Core\Encoding::fromHex('fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac'),
         Core\Crypto\KeyKind::Ed25519,
-        Core\Crypto\PublicKey::Format::Raw
+        Core\Crypto\PublicKey::Format::Raw,
     ),
 ];
 
 // The first key agrees a shared secret, the second one checks signatures.
 foreach ($sent as Core\Crypto\PublicKey $key) {
     if ($key->kind() == Core\Crypto\KeyKind::X25519) {
-        echo "agree a shared secret", "\n";
+        echo 'agree a shared secret', "\n";
     } else {
-        echo "check a signature", "\n";
+        echo 'check a signature', "\n";
     }
 }

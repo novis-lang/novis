@@ -3,11 +3,13 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): int {
-        array<string> $patterns = ["yyyy-MM-dd HH:mm:ss", "EEE, dd MMM yyyy HH:mm:ss 'GMT'", "h:mm a XXX"];
-        var $at = Core\Time::at(2024, 4, 5, Core\Time\Zone::of("Europe/Berlin"), {hour: 9, minute: 30});
-        string $previous = "";
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<string> $patterns = ['yyyy-MM-dd HH:mm:ss', "EEE, dd MMM yyyy HH:mm:ss 'GMT'", 'h:mm a XXX'];
+        var $at = Core\Time::at(2024, 4, 5, Core\Time\Zone::of('Europe/Berlin'), { hour: 9, minute: 30 });
+        string $previous = '';
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

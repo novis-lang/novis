@@ -1,8 +1,8 @@
 error[E0771]: `Order` declares no `price`
-   --> 04-an-example-must-match-the-return-type.nvs:13:33
+   --> 04-an-example-must-match-the-return-type.nvs:15:34
    |
-13 |     #[Core\Api(example: {id: 7, price: 4250})]
-   |                                 ^^^^^^^^^^^ no such field
+15 |     #[Core\Api(example: { id: 7, price: 4250 })]
+   |                                  ^^^^^^^^^^^ no such field
    = help: `example` is decoded as the return type. Every key must be a property of that class
 
 error: aborting due to 1 error

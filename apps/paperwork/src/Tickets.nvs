@@ -10,9 +10,11 @@ use Novis\Pdf\Rendered;
 
 // The tickets of one order. Each ticket is its own PDF file, so each person can get their own ticket.
 // The buyer gets one file with a summary of the order and all the tickets.
-final class Tickets {
+final class Tickets
+{
     // Returns the file for the buyer: the summary of the order, then one page for each ticket.
-    public static function order(): bytes {
+    public static function order(): bytes
+    {
         var $order = Sample::order();
         array<Pages> $parts = [Pages::of(Tickets::summary()->bytes)];
         foreach ($order->attendees as Sample::Attendee $attendee) {
@@ -23,14 +25,15 @@ final class Tickets {
     }
 
     // Renders the ticket of one person.
-    public static function ticket(Sample::Attendee $attendee): Rendered {
+    public static function ticket(Sample::Attendee $attendee): Rendered
+    {
         var $event = Sample::event();
         var $order = Sample::order();
         string $price = Brand::money($attendee->price);
         string $title = "Ticket {$attendee->id}";
         // The QR code and the barcode both contain the ticket number. A scanner at the entrance reads either one.
-        string $qr = QrCode::svg($attendee->id, {margin: 0});
-        string $barcode = Barcode::svg($attendee->id, Barcode::Symbology::Code128, {height: 40, margin: 0});
+        string $qr = QrCode::svg($attendee->id, { margin: 0 });
+        string $barcode = Barcode::svg($attendee->id, Barcode::Symbology::Code128, { height: 40, margin: 0 });
         var $html = html`<!doctype html>
 <html lang="en">
 <head>
@@ -69,17 +72,18 @@ final class Tickets {
 </body>
 </html>`;
         return Document::fromHtml($html)
-            ->asset("qr.svg", $qr as bytes)
-            ->asset("barcode.svg", $barcode as bytes)
+            ->asset('qr.svg', $qr as bytes)
+            ->asset('barcode.svg', $barcode as bytes)
             ->created(Tickets::created())
             ->render();
     }
 
     // Renders the summary of the order: who bought the tickets, each ticket and its price, and the total.
-    public static function summary(): Rendered {
+    public static function summary(): Rendered
+    {
         var $order = Sample::order();
         var $event = Sample::event();
-        decimal $total = "0.00" as decimal;
+        decimal $total = '0.00' as decimal;
         var $rows = html``;
         foreach ($order->attendees as Sample::Attendee $attendee) {
             $total = $total + $attendee->price;
@@ -88,9 +92,9 @@ final class Tickets {
 `;
         }
         // The prices include VAT of 19 %. This is the VAT part of the total.
-        string $vat = Brand::money(Core\Decimal::divRound($total * ("19" as decimal), "119" as decimal, 2, Core\RoundMode::HalfUp));
+        string $vat = Brand::money(Core\Decimal::divRound($total * ('19' as decimal), '119' as decimal, 2, Core\RoundMode::HalfUp));
         string $sum = Brand::money($total);
-        string $placed = $order->placed->format("d MMMM yyyy");
+        string $placed = $order->placed->format('d MMMM yyyy');
         string $title = "Order {$order->number}";
         var $html = html`<!doctype html>
 <html lang="en">
@@ -130,11 +134,13 @@ final class Tickets {
     }
 
     // The time of the order is the creation time of each file, so the same order always gives the same files.
-    private static function created(): Core\Time\Instant {
-        return Core\Time::fromIso(Sample::order()->placed->format("yyyy-MM-dd") . "T10:30:00Z");
+    private static function created(): Core\Time\Instant
+    {
+        return Core\Time::fromIso(Sample::order()->placed->format('yyyy-MM-dd') . 'T10:30:00Z');
     }
 
-    private static function css(): Markup {
+    private static function css(): Markup
+    {
         return html`<style>
 @page { size: A5 landscape; margin: 9mm; }
 .banner { background-image: linear-gradient(120deg, #1d3557 0%, #23577a 50%, #2a9d8f 100%); color: #ffffff; padding: 6mm 8mm 5mm 8mm; border-radius: 8pt 0 0 0; }

@@ -2,14 +2,14 @@
 // Shows how to check which people have a job title in the directory.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $people = $corp->search(Core\Ldap\Filter::present("department"), {base: "OU=Company,DC=example,DC=test", select: ["cn", "title"]});
+var $corp = Core\Ldap::connect('corp');
+var $people = $corp->search(Core\Ldap\Filter::present('department'), { base: 'OU=Company,DC=example,DC=test', select: ['cn', 'title'] });
 
 // A search returns entries in no fixed order, so the lines are sorted.
 array<tainted string> $lines = [];
 foreach ($people as Core\Ldap\Entry $person) {
-    string $answer = $person->has("title") ? "has a job title" : "has no job title";
-    $lines[] = $person->dn()->rdnValue() . ": " . $answer;
+    string $answer = $person->has('title') ? 'has a job title' : 'has no job title';
+    $lines[] = $person->dn()->rdnValue() . ': ' . $answer;
 }
 
 // Only Anna Berg has a job title.

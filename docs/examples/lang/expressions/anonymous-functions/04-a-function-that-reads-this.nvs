@@ -2,27 +2,31 @@
 // Shows an anonymous function that reads `$this`, one that captures a variable,
 // and one with a block body.
 
-class Counter {
+class Counter
+{
     public int $base = 10;
 
     // Inside a method, the function can read `$this`.
-    public function adder(): callable {
+    public function adder(): callable
+    {
         return fn(int $x): int => $this->base + $x;
     }
 }
 
 // The function copies `$prefix` when it is written, so it still uses "one".
-string $prefix = "one";
-callable $tag = fn(string $s): string => $prefix . ":" . $s;
-$prefix = "two";
+string $prefix = 'one';
+callable $tag = fn(string $s): string => $prefix . ':' . $s;
+$prefix = 'two';
 
 callable $sum = fn(array<int> $xs): int => {
     int $t = 0;
-    foreach ($xs as int $x) { $t += $x; }
+    foreach ($xs as int $x) {
+        $t += $x;
+    }
     return $t;
 };
 
 // This prints one:x 6 15.
 array<int> $ns = [1, 2, 3];
 Counter $c = new Counter();
-echo $tag("x"), " ", $sum($ns), " ", $c->adder()(5), "\n";
+echo $tag('x'), ' ', $sum($ns), ' ', $c->adder()(5), "\n";

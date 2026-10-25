@@ -5,4 +5,4 @@
 
 array<int> $scores = [3, 1, 2];
 
-echo Core\Arr::count(Core\Arr::sort($scores, {order: 1})), "\n";
+echo Core\Arr::count(Core\Arr::sort($scores, { order: 1 })), "\n";

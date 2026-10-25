@@ -4,8 +4,10 @@
 // bench: iterations 512
 // bench: complexity linear
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         array<int> $values = [3, 1, 4, 1, 5, 9, 2, 6];
         int $total = 0;
         int $r = 0;

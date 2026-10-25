@@ -6,11 +6,13 @@
 use Core\Http\Client;
 use Core\Test\SentRequest;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        Core\Test::answerHttp("https://api.example.com/*", 201);
-        Client::post("https://api.example.com/orders", {json: ["sku" => "mug", "count" => 2]});
-        Client::get("https://api.example.com/orders");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Core\Test::answerHttp('https://api.example.com/*', 201);
+        Client::post('https://api.example.com/orders', { json: ['sku' => 'mug', 'count' => 2] });
+        Client::get('https://api.example.com/orders');
         array<SentRequest> $sent = Core\Test::sentHttp();
         uint $total = 0;
         uint $i = 0;

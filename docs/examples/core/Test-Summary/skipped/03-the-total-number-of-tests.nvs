@@ -32,7 +32,7 @@ class SignupTest
         Test::assertTrue(Core\Str::contains('ada@example.com', '@'));
     }
 
-    #[Test(skip: "the captcha service has no test mode")]
+    #[Test(skip: 'the captcha service has no test mode')]
     public function itChecksTheCaptcha(): void
     {
         Test::assertTrue(false);

@@ -4,7 +4,7 @@
 // draws nothing and only the report is printed.
 
 uint $steps = Core\Cli::progress(3, fn(Core\Cli\Progress $bar): uint => {
-    array<string> $work = ["read the file", "check the rows", "write the report"];
+    array<string> $work = ['read the file', 'check the rows', 'write the report'];
     uint $done = 0;
 
     foreach ($work as string $step) {
@@ -18,4 +18,4 @@ uint $steps = Core\Cli::progress(3, fn(Core\Cli\Progress $bar): uint => {
 });
 
 // This prints 3. The bar was full when the call ended.
-echo "finished ", $steps, " steps\n";
+echo 'finished ', $steps, " steps\n";

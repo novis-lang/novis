@@ -8,4 +8,4 @@ if (Core\Request::method() == Core\Http\Method::Get) {
 }
 
 // `Core\Request::isHead` returns `true` only for a `HEAD` request. This prints "isHead is true".
-echo "isHead is ", Core\Request::isHead() ? "true" : "false", "\n";
+echo 'isHead is ', Core\Request::isHead() ? 'true' : 'false', "\n";

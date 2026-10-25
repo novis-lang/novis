@@ -3,13 +3,13 @@
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $orders = $book->sheet("Orders");
-$orders->add(["order" => 1042, "total" => 19.9]);
+var $orders = $book->sheet('Orders');
+$orders->add(['order' => 1042, 'total' => 19.9]);
 $book->finish();
 
 // Each call after `finish` throws a `LogicError`.
 try {
-    $orders->add(["order" => 1043, "total" => 5.0]);
+    $orders->add(['order' => 1043, 'total' => 5.0]);
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }

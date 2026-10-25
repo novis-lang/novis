@@ -5,7 +5,8 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Gauge {
+class Gauge
+{
     public int $level {
         get => $this->level;
         set (int $v) {
@@ -17,13 +18,16 @@ class Gauge {
         get => $this->level + $this->level;
     }
 
-    public function constructor(int $start) {
+    public function constructor(int $start)
+    {
         $this->level = $start;
     }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         var $gauge = new Gauge(1);
         int $i = 0;
         while ($i < $rounds) {

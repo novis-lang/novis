@@ -3,6 +3,6 @@
 // The last line does not run.
 // proof: exit 3
 
-echo "stopping", "\n";
+echo 'stopping', "\n";
 exit(3);
-echo "not reached", "\n";
+echo 'not reached', "\n";

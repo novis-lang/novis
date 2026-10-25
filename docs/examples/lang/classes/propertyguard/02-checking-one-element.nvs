@@ -2,41 +2,44 @@
 // Shows the keys a guard gets for a write to one element. `Profile` allows
 // at most three tags and does not allow a program to remove the tag "user".
 
-class Profile implements PropertyGuard {
+class Profile implements PropertyGuard
+{
     public array<string> $tags = [];
 
     // For `$p->tags[] = "x"`, `$keys` is the next index and `$value` is "x".
-    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
-        echo "set ", $name, " ", Core\Json::encode($keys), " = ", $value, "\n";
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void
+    {
+        echo 'set ', $name, ' ', Core\Json::encode($keys), ' = ', $value, "\n";
         if (Core\Arr::count($this->tags) >= 3) {
-            throw new LogicError("a profile has at most three tags");
+            throw new LogicError('a profile has at most three tags');
         }
     }
 
     // For `unset($p->tags[0])`, `$keys` is `["0"]`.
-    public function beforePropertyUnset(string $name, array<string> $keys): void {
-        echo "unset ", $name, " ", Core\Json::encode($keys), "\n";
-        if ($this->tags[$keys[0]] == "user") {
-            throw new LogicError("the tag user cannot be removed");
+    public function beforePropertyUnset(string $name, array<string> $keys): void
+    {
+        echo 'unset ', $name, ' ', Core\Json::encode($keys), "\n";
+        if ($this->tags[$keys[0]] == 'user') {
+            throw new LogicError('the tag user cannot be removed');
         }
     }
 }
 
 var $profile = new Profile();
-$profile->tags[] = "user";
-$profile->tags[] = "admin";
-$profile->tags[] = "beta";
+$profile->tags[] = 'user';
+$profile->tags[] = 'admin';
+$profile->tags[] = 'beta';
 
 try {
-    $profile->tags[] = "extra";
+    $profile->tags[] = 'extra';
 } catch (LogicError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }
 
 try {
     unset($profile->tags[0]);
 } catch (LogicError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }
 
 echo Core\Json::encode($profile->tags), "\n";

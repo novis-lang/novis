@@ -4,28 +4,33 @@
 
 use Core\Test;
 
-class Coupon {
-    public static function percentFor(string $code): uint {
-        if ($code == "SPRING24") {
+class Coupon
+{
+    public static function percentFor(string $code): uint
+    {
+        if ($code == 'SPRING24') {
             return 15;
         }
         return 0;
     }
 }
 
-class CouponTest {
+class CouponTest
+{
     #[Test]
-    public function itGivesFifteenPercentForTheSpringCode(): void {
-        Test::assertSame(Coupon::percentFor("SPRING24"), 15);
+    public function itGivesFifteenPercentForTheSpringCode(): void
+    {
+        Test::assertSame(Coupon::percentFor('SPRING24'), 15);
     }
 
     // The reason is part of the report, so anybody reading a run sees why
     // this test did not run.
-    #[Test(skip: "the refund table is not written yet")]
-    public function itGivesNothingOnARefundedOrder(): void {
-        Test::assertSame(Coupon::percentFor("SPRING24"), 0);
+    #[Test(skip: 'the refund table is not written yet')]
+    public function itGivesNothingOnARefundedOrder(): void
+    {
+        Test::assertSame(Coupon::percentFor('SPRING24'), 0);
     }
 }
 
 // This prints `15 0`.
-echo Coupon::percentFor("SPRING24"), " ", Coupon::percentFor("AUTUMN24"), "\n";
+echo Coupon::percentFor('SPRING24'), ' ', Coupon::percentFor('AUTUMN24'), "\n";

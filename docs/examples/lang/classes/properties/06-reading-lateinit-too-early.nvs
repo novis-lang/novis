@@ -2,16 +2,20 @@
 // Shows what happens when code reads a `lateinit` property before it has a
 // value. The read throws a `LogicError`.
 
-class Logger {
-    public function name(): string {
-        return "log";
+class Logger
+{
+    public function name(): string
+    {
+        return 'log';
     }
 }
 
-class Widget {
+class Widget
+{
     public lateinit Logger $logger;
 
-    public function attach(Logger $l): void {
+    public function attach(Logger $l): void
+    {
         $this->logger = $l;
     }
 }
@@ -22,7 +26,7 @@ var $w = new Widget();
 try {
     echo $w->logger->name(), "\n";
 } catch (Throwable $e) {
-    echo "threw: ", $e->message, "\n";
+    echo 'threw: ', $e->message, "\n";
 }
 
 // After `attach`, the read works. This prints `log`.

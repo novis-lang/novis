@@ -3,18 +3,22 @@
 // It checks the kind of each node. It keeps text nodes and skips comments
 // and processing instructions.
 
-class Reader {
-    public static function words(Core\Xml\Node $node): tainted string {
+class Reader
+{
+    public static function words(Core\Xml\Node $node): tainted string
+    {
         if ($node->kind() == Core\Xml\Node::Kind::Text) {
             return $node->text();
         }
         // A comment or an instruction gives an empty string.
         // An element or the document gives the text of all its children.
-        if ($node->kind() == Core\Xml\Node::Kind::Comment
-            || $node->kind() == Core\Xml\Node::Kind::ProcessingInstruction) {
-            return "";
+        if (
+            $node->kind() == Core\Xml\Node::Kind::Comment
+            || $node->kind() == Core\Xml\Node::Kind::ProcessingInstruction
+        ) {
+            return '';
         }
-        tainted string $said = "";
+        tainted string $said = '';
         foreach ($node->children() as Core\Xml\Node $child) {
             $said = $said . Reader::words($child);
         }
@@ -22,7 +26,7 @@ class Reader {
     }
 }
 
-var $doc = Core\Xml::parse("<page><?render draft?><h1>Opening hours</h1><!-- check before Easter --> <p>Every day from <b>9</b> until <b>17</b>.</p></page>");
+var $doc = Core\Xml::parse('<page><?render draft?><h1>Opening hours</h1><!-- check before Easter --> <p>Every day from <b>9</b> until <b>17</b>.</p></page>');
 
 // The space between the comment and `<p>` is a text node too,
 // so it is part of the result.

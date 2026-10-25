@@ -6,25 +6,27 @@ use Novis\Spreadsheet\Chart;
 use Novis\Spreadsheet\Style;
 use Novis\Spreadsheet\Workbook;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        Style $money = Style::of({format: "#,##0.00", color: "#1F4E79"});
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Style $money = Style::of({ format: '#,##0.00', color: '#1F4E79' });
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             var $book = Workbook::createInMemory();
-            var $sales = $book->sheet("Sales", {columns: [
-                "month" => {header: "Month", width: 12},
-                "sales" => {header: "Sales", style: $money},
-                "costs" => {header: "Costs", style: $money},
+            var $sales = $book->sheet('Sales', {columns: [
+                'month' => { header: 'Month', width: 12 },
+                'sales' => { header: 'Sales', style: $money },
+                'costs' => { header: 'Costs', style: $money },
             ]});
-            var $chart = Chart::column({title: "Sales by month", legend: "bottom"})
-                ->series($sales->column("sales"), {categories: $sales->column("month"), name: "Sales"})
-                ->combine(Chart::line()->series($sales->column("costs"), {categories: $sales->column("month"), name: "Costs"}));
-            $sales->chart("E2", $chart);
+            var $chart = Chart::column({ title: 'Sales by month', legend: 'bottom' })
+                ->series($sales->column('sales'), { categories: $sales->column('month'), name: 'Sales' })
+                ->combine(Chart::line()->series($sales->column('costs'), { categories: $sales->column('month'), name: 'Costs' }));
+            $sales->chart('E2', $chart);
             uint $n = 1;
             while ($n <= 50) {
-                $sales->add(["month" => "Month " . ($n as string), "sales" => ($n as float) * 120.5, "costs" => ($n as float) * 80.25]);
+                $sales->add(['month' => 'Month ' . ($n as string), 'sales' => ($n as float) * 120.5, 'costs' => ($n as float) * 80.25]);
                 $n = $n + 1;
             }
             uint $size = Core\Bytes::length($book->finish()->bytes ?? Core\Bytes::fill(0, 0));

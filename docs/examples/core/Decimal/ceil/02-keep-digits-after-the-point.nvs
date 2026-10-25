@@ -16,4 +16,4 @@ echo Core\Decimal::ceil($fee, 3), "\n";
 
 // The answer always carries the number of digits you asked for, even when
 // nothing had to move. This prints 12.3456 and 12.34560.
-echo Core\Decimal::ceil($fee, 4), " ", Core\Decimal::ceil($fee, 5), "\n";
+echo Core\Decimal::ceil($fee, 4), ' ', Core\Decimal::ceil($fee, 5), "\n";

@@ -4,16 +4,16 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
 // Each row has a mark with the name `order` and the order number as its value.
-string $rows = "";
+string $rows = '';
 for (int $n = 1001; $n <= 1060; $n++) {
     $rows .= "<tr data-mark=\"order:{$n}\"><td>Order {$n}</td><td>Shipped</td></tr>";
 }
 var $html = "<h1>Orders</h1><table><tbody>{$rows}</tbody></table>";
 
 var $footer = fn(Page $page): Core\Html\Markup => {
-    array<string> $orders = $page->marks("order");
+    array<string> $orders = $page->marks('order');
     uint $count = Core\Arr::count($orders);
-    echo "page ", $page->number, ": ", $count, " orders, the first is ", $orders[0], "\n";
+    echo 'page ', $page->number, ': ', $count, ' orders, the first is ', $orders[0], "\n";
     return html`<p>{$count} orders on this page</p>`;
 };
 

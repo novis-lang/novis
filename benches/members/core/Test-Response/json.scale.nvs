@@ -25,5 +25,5 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     var $sku = Core\Str::repeat('x', Core\Str::length(Core\Request::path()));
     Core\Response::json(['sku' => $sku, 'price' => 12, 'tags' => ['blue', 'kitchen']]);
 } else {
-echo Bench::run(256), "\n";
+    echo Bench::run(256), "\n";
 }

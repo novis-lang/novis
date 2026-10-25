@@ -7,7 +7,7 @@ class Store
     // Writes one batch and returns how many rows it held.
     public static function write(array<int> $rows): uint
     {
-        echo "writing ", Core\Json::encode($rows), "\n";
+        echo 'writing ', Core\Json::encode($rows), "\n";
         return Core\Arr::count($rows);
     }
 }

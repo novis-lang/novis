@@ -3,17 +3,19 @@
 
 // On Windows, `dirname` writes `\`. This example replaces it with `/`,
 // so the output is the same on every platform.
-class Show {
-    public static function folder(string $path): string {
-        return Core\Str::replace(Core\Path::dirname($path), Core\Path::SEPARATOR, "/");
+class Show
+{
+    public static function folder(string $path): string
+    {
+        return Core\Str::replace(Core\Path::dirname($path), Core\Path::SEPARATOR, '/');
     }
 }
 
 // This prints `/srv/shop/invoices`.
-echo Show::folder("/srv/shop/invoices/invoice-1042.pdf"), "\n";
+echo Show::folder('/srv/shop/invoices/invoice-1042.pdf'), "\n";
 
 // A file name with no folder is in the current folder. This prints `.`.
-echo Show::folder("report.pdf"), "\n";
+echo Show::folder('report.pdf'), "\n";
 
 // The root is its own folder. This prints `/`.
-echo Show::folder("/"), "\n";
+echo Show::folder('/'), "\n";

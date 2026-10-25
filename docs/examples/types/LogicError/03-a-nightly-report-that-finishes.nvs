@@ -3,22 +3,25 @@
 // One setting has base 40. A base must be 2 to 36, so `format` throws a `LogicError`.
 // The run catches it, counts that row as a setting to fix, and prints the other rows.
 
-final class Nightly {
-    public static function reference(int $order, uint $base): string {
-        return Core\BigInt::of($order)->format({radix: $base});
+final class Nightly
+{
+    public static function reference(int $order, uint $base): string
+    {
+        return Core\BigInt::of($order)->format({ radix: $base });
     }
 
     // The code is built before the line is printed. A row that throws prints
     // only the "skipped" line.
-    public static function run(array<string> $customers, array<uint> $bases, array<int> $orders): uint {
+    public static function run(array<string> $customers, array<uint> $bases, array<int> $orders): uint
+    {
         uint $toFix = 0;
         uint $row = 0;
         while ($row < 3) {
             try {
                 string $code = Nightly::reference($orders[$row], $bases[$row]);
-                echo $customers[$row], ": ", $code, "\n";
+                echo $customers[$row], ': ', $code, "\n";
             } catch (LogicError $badSetting) {
-                echo $customers[$row], ": skipped, ", $badSetting->message, "\n";
+                echo $customers[$row], ': skipped, ', $badSetting->message, "\n";
                 $toFix = $toFix + 1;
             }
             $row = $row + 1;
@@ -27,9 +30,9 @@ final class Nightly {
     }
 }
 
-array<string> $customers = ["Ferngrove", "Hallbeck", "Ostrander"];
+array<string> $customers = ['Ferngrove', 'Hallbeck', 'Ostrander'];
 array<uint> $bases = [16, 40, 36];
 array<int> $orders = [4021, 1204, 9000000];
 
 uint $toFix = Nightly::run($customers, $bases, $orders);
-echo "settings to fix: ", $toFix, "\n";
+echo 'settings to fix: ', $toFix, "\n";

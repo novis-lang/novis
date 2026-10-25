@@ -8,14 +8,16 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $rows = "";
+        string $rows = '';
         uint $i = 0;
         while ($i < $size) {
-            $rows = $rows . "<tr><td>Order " . ($i as string) . "</td><td>Shop</td><td>12.50 EUR</td></tr>";
+            $rows = $rows . '<tr><td>Order ' . ($i as string) . '</td><td>Shop</td><td>12.50 EUR</td></tr>';
             $i = $i + 1;
         }
-        string $html = "<h1>Orders</h1><table><thead><tr><th>Order</th><th>Customer</th><th>Total</th></tr></thead>"
-            . "<tbody>" . $rows . "</tbody></table>";
+        string $html = '<h1>Orders</h1><table><thead><tr><th>Order</th><th>Customer</th><th>Total</th></tr></thead>'
+            . '<tbody>'
+            . $rows
+            . '</tbody></table>';
         return Document::fromHtml($html)->render()->pageCount;
     }
 }

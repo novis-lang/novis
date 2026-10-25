@@ -4,10 +4,12 @@ namespace Paperwork;
 use Core\Html\Markup;
 
 // Builds the HTML pages of the app. Each `{$value}` in an `html` template is escaped.
-final class Home {
+final class Home
+{
     // The home page: one link for each document, with its address.
-    public static function page(string $password): Markup {
-        return Home::layout("Paperwork", html`<h1>Paperwork</h1>
+    public static function page(string $password): Markup
+    {
+        return Home::layout('Paperwork', html`<h1>Paperwork</h1>
 <p>This app makes three PDF documents, the way a business needs them. Open one to see it.</p>
 <ul class="documents">
 <li><a href="/invoice.pdf">Invoice</a> <code>GET /invoice.pdf</code>
@@ -20,16 +22,19 @@ final class Home {
     }
 
     // The page for a path that has no route.
-    public static function notFound(): Markup {
-        return Home::problem("Not found", "There is no page at this address.");
+    public static function notFound(): Markup
+    {
+        return Home::problem('Not found', 'There is no page at this address.');
     }
 
     // A page with a title, one sentence and a link to the home page.
-    public static function problem(string $title, string $text): Markup {
+    public static function problem(string $title, string $text): Markup
+    {
         return Home::layout($title, html`<h1>{$title}</h1><p>{$text}</p><p><a href="/">All documents</a></p>`);
     }
 
-    private static function layout(string $title, Markup $content): Markup {
+    private static function layout(string $title, Markup $content): Markup
+    {
         return html`<!doctype html>
 <html lang="en">
 <head>

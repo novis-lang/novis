@@ -5,31 +5,37 @@
 
 use Core\Test;
 
-class Password {
-    public static function isStrongEnough(string $text): bool {
+class Password
+{
+    public static function isStrongEnough(string $text): bool
+    {
         return Core\Str::length($text) >= 12;
     }
 }
 
-class PasswordTest {
+class PasswordTest
+{
     #[Test]
-    public function itAcceptsALongPassword(): void {
-        Test::assertSame(Password::isStrongEnough("correct horse battery"), true);
+    public function itAcceptsALongPassword(): void
+    {
+        Test::assertSame(Password::isStrongEnough('correct horse battery'), true);
     }
 
     #[Test]
-    public function itRejectsAShortPassword(): void {
-        Test::assertSame(Password::isStrongEnough("horse"), false);
+    public function itRejectsAShortPassword(): void
+    {
+        Test::assertSame(Password::isStrongEnough('horse'), false);
     }
 
     // `--list` prints this test and where it is written, without running it.
     #[Test]
-    public function itRejectsAnEmptyPassword(): void {
-        Test::assertSame(Password::isStrongEnough(""), false);
+    public function itRejectsAnEmptyPassword(): void
+    {
+        Test::assertSame(Password::isStrongEnough(''), false);
     }
 }
 
 // This prints `strong weak weak`.
-echo (Password::isStrongEnough("correct horse battery") ? "strong" : "weak"), " ",
-     (Password::isStrongEnough("horse") ? "strong" : "weak"), " ",
-     (Password::isStrongEnough("") ? "strong" : "weak"), "\n";
+echo (Password::isStrongEnough('correct horse battery') ? 'strong' : 'weak'), ' ',
+     (Password::isStrongEnough('horse') ? 'strong' : 'weak'), ' ',
+     (Password::isStrongEnough('') ? 'strong' : 'weak'), "\n";

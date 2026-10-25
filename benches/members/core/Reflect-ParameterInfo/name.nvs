@@ -4,14 +4,18 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Pool {
-    public function open(int $size, int $timeout, string $host): bool {
+class Pool
+{
+    public function open(int $size, int $timeout, string $host): bool
+    {
         return true;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\MethodInfo> $methods = Core\Reflect::forObject(new Pool())->methods();
         array<Core\Reflect\ParameterInfo> $list = $methods[0]->parameters();
         uint $total = 0;

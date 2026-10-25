@@ -4,14 +4,17 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class User {
-    public string $name = "Ada";
+class User
+{
+    public string $name = 'Ada';
     protected bool $isAdmin = false;
-    private string $passwordHash = "x9f2";
+    private string $passwordHash = 'x9f2';
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\PropertyInfo> $list = Core\Reflect::forObject(new User())->properties();
         uint $total = 0;
         uint $i = 0;

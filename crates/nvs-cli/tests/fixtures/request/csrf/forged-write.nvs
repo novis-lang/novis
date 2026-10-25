@@ -3,7 +3,7 @@
 // `refused` for a CSRF refusal.
 class Notes
 {
-    #[Core\Route(path: "/notes", method: Core\Http\Method::Post, name: "save")]
+    #[Core\Route(path: '/notes', method: Core\Http\Method::Post, name: 'save')]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function save(): void
     {

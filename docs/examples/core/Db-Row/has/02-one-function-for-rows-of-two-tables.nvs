@@ -7,10 +7,12 @@ $db->execute('create table songs (title text not null, seconds int not null)', [
 $db->execute('insert into books (title, pages) values (?, ?)', ['The Long Road', 412]);
 $db->execute('insert into songs (title, seconds) values (?, ?)', ['Morning Light', 218]);
 
-class Library {
+class Library
+{
     // The row comes from one table or the other, so the function tests each
     // column name before it reads that column.
-    public static function describe(Core\Db\Row $row): void {
+    public static function describe(Core\Db\Row $row): void
+    {
         echo $row->string('title') ?? '';
         if ($row->has('pages')) {
             echo ', ', $row->int('pages') ?? 0, " pages\n";

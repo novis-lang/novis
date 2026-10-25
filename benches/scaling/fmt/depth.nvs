@@ -5,9 +5,11 @@
 // scaling: max 320
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): string {
-        array<string> $lines = ["<?nvs", "class Deep {"];
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        array<string> $lines = ['<?nvs', 'class Deep {'];
         uint $m = 0;
         while ($m < $size) {
             $lines[] = "public static function run{$m}(int \$x):int{";
@@ -19,14 +21,14 @@ class Bench {
             }
             $i = 0;
             while ($i < 40) {
-                $lines[] = "}";
+                $lines[] = '}';
                 $i = $i + 1;
             }
             $lines[] = "return \$x;";
-            $lines[] = "}";
+            $lines[] = '}';
             $m = $m + 1;
         }
-        $lines[] = "}";
+        $lines[] = '}';
         return Core\Str::join($lines, "\n") . "\n";
     }
 }

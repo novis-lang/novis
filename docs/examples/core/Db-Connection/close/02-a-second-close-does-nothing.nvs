@@ -2,8 +2,10 @@
 // Shows that a second close is allowed. A step that ends early can close the
 // database, and the cleanup at the end can close it again.
 
-class Import {
-    public static function run(Core\Db\Connection $db, array<string> $lines): int {
+class Import
+{
+    public static function run(Core\Db\Connection $db, array<string> $lines): int
+    {
         int $written = 0;
         foreach ($lines as string $line) {
             if (Core\Str::length($line) == 0) {

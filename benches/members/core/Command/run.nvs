@@ -8,23 +8,28 @@
 // bench: calls 0
 // bench: allocations 17
 
-class Tool {
-    #[Core\Command(name: "deploy", about: "Push the current build")]
+class Tool
+{
+    #[Core\Command(name: 'deploy', about: 'Push the current build')]
     public static function deploy(
         string $target,
-        #[Core\Option(short: "n", about: "Print what would happen")] bool $dryRun = false,
-    ): uint {
+        #[Core\Option(short: 'n', about: 'Print what would happen')] bool $dryRun = false,
+    ): uint
+    {
         return 0;
     }
 
-    #[Core\Command(name: "version", about: "Print the version and stop")]
-    public static function version(): uint {
+    #[Core\Command(name: 'version', about: 'Print the version and stop')]
+    public static function version(): uint
+    {
         return 0;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

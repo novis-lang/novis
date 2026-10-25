@@ -1,17 +1,19 @@
 <?nvs
 // Shows how to tell an ordinary number, an infinity and `NaN` apart.
 
-class Kind {
+class Kind
+{
     // Returns "a number", "infinite" or "NaN".
     // An infinity is the only value that is not finite and not `NaN`.
-    public static function of(float $n): string {
+    public static function of(float $n): string
+    {
         if (Core\Math::isFinite($n)) {
-            return "a number";
+            return 'a number';
         }
         if (Core\Math::isNan($n)) {
-            return "NaN";
+            return 'NaN';
         }
-        return "infinite";
+        return 'infinite';
     }
 }
 

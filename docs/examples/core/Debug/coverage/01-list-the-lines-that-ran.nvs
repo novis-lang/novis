@@ -1,9 +1,9 @@
 <?nvs
 // Shows how to list the lines of a program that ran, with a count for each line.
 
-array<string> $names = ["Ada", "Grace", "Alan"];
+array<string> $names = ['Ada', 'Grace', 'Alan'];
 foreach ($names as string $name) {
-    echo "Hello, ", $name, "\n";
+    echo 'Hello, ', $name, "\n";
 }
 
 // `coverage` returns an array with one entry for each file. The key is the path.
@@ -11,6 +11,6 @@ foreach ($names as string $name) {
 foreach (Core\Debug::coverage() as string $path => array<int> $lines) {
     echo Core\Path::basename($path), "\n";
     foreach ($lines as string $line => int $count) {
-        echo "  line ", $line, ": ", $count, "\n";
+        echo '  line ', $line, ': ', $count, "\n";
     }
 }

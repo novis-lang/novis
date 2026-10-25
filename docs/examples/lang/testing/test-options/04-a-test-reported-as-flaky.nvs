@@ -3,35 +3,40 @@
 // attempt. The report shows `!` for that test, because it is flaky.
 // proof: test
 
+use Core\Random;
 use Core\Test;
 use Core\Time;
-use Core\Random;
 
-final class DeterminismTest {
+final class DeterminismTest
+{
     // `Core\Test::advance` moves the fixed clock forward by 90 minutes.
-    #[Test(at: "2026-01-01T00:00:00Z")]
-    public function theClockIsFixedAndMovable(): void {
-        Test::assertSame(Time::now()->toIso(), "2026-01-01T00:00:00Z");
+    #[Test(at: '2026-01-01T00:00:00Z')]
+    public function theClockIsFixedAndMovable(): void
+    {
+        Test::assertSame(Time::now()->toIso(), '2026-01-01T00:00:00Z');
         Test::advance(90m);
-        Test::assertSame(Time::now()->toIso(), "2026-01-01T01:30:00Z");
+        Test::assertSame(Time::now()->toIso(), '2026-01-01T01:30:00Z');
     }
 
     // With the same seed, `Random::int` returns the same number on every run.
     #[Test(seed: 42)]
-    public function aSeedIsRepeatable(): void {
+    public function aSeedIsRepeatable(): void
+    {
         int $first = Random::int(0, 999);
         Test::assertTrue($first >= 0);
     }
 
     // The attempts of one test share their `static` values. The first
     // attempt fails, and the second one passes.
-    #[Test(retries: 2, because: "a counter replaces a slow network")]
-    public function itPassesOnTheSecondAttempt(): void {
+    #[Test(retries: 2, because: 'a counter replaces a slow network')]
+    public function itPassesOnTheSecondAttempt(): void
+    {
         Attempts::$n = Attempts::$n + 1;
         Test::assertSame(Attempts::$n, 2);
     }
 }
 
-final class Attempts {
+final class Attempts
+{
     public static int $n = 0;
 }

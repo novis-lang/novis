@@ -3,13 +3,15 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Core\Time\Instant $now = Core\Time::fromEpoch(1709294400);
         array<Core\Time\Zone> $zones = [
             Core\Time\Zone::UTC,
-            Core\Time\Zone::of("Europe/Berlin"),
-            Core\Time\Zone::of("America/New_York"),
+            Core\Time\Zone::of('Europe/Berlin'),
+            Core\Time\Zone::of('America/New_York'),
         ];
         uint $total = 0;
         uint $i = 0;

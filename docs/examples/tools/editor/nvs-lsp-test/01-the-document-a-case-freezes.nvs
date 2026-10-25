@@ -9,7 +9,7 @@ final class Cart
 
     public function summary(): string
     {
-        return Core\Str::format("%d items, %d cents", $this->items, $this->cents);
+        return Core\Str::format('%d items, %d cents', $this->items, $this->cents);
     }
 }
 

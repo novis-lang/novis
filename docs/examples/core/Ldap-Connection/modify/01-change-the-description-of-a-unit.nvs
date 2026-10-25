@@ -2,20 +2,20 @@
 // Shows how to change one attribute of an entry.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Garden 1,DC=example,DC=test";
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Garden 1,DC=example,DC=test';
 
 // A run that stopped early can leave the unit behind, so the program deletes it first.
 try {
     $corp->delete($unit);
 } catch (Core\Ldap\LdapError $missing) {
 }
-$corp->add($unit, ["objectClass" => "organizationalUnit", "description" => "Plants and seeds"]);
+$corp->add($unit, ['objectClass' => 'organizationalUnit', 'description' => 'Plants and seeds']);
 
 // `Change::replace` removes the old value and writes the new one.
-$corp->modify($unit, [Core\Ldap\Change::replace("description", "Plants, seeds and tools")]);
+$corp->modify($unit, [Core\Ldap\Change::replace('description', 'Plants, seeds and tools')]);
 
 // This prints `Plants, seeds and tools`.
-echo $corp->read($unit, {select: ["description"]})?->string("description") ?? "not found", "\n";
+echo $corp->read($unit, { select: ['description'] })?->string('description') ?? 'not found', "\n";
 
 $corp->delete($unit);

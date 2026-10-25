@@ -3,17 +3,17 @@
 
 Core\Xml\Writer $out = Core\Xml::writer();
 $out->startDocument();
-$out->startElement("note");
+$out->startElement('note');
 // `"`, `<`, `>` and `&` are written as entities, so they stay text and do not become markup.
-$out->attribute("title", "Tom's \"best\" <idea>");
-$out->content("1 < 2 & 3 > 2");
+$out->attribute('title', "Tom's \"best\" <idea>");
+$out->content('1 < 2 & 3 > 2');
 $out->endElement();
 echo $out->endDocument(), "\n";
 
 // This writer opens an element and never closes it. `endDocument` throws a `LogicError`.
 Core\Xml\Writer $open = Core\Xml::writer();
 $open->startDocument();
-$open->startElement("list");
+$open->startElement('list');
 try {
     echo $open->endDocument(), "\n";
 } catch (LogicError $error) {

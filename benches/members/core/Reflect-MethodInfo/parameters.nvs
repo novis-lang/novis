@@ -4,22 +4,28 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Handlers {
-    public function signup(string $email, string $name, string $country): bool {
+class Handlers
+{
+    public function signup(string $email, string $name, string $country): bool
+    {
         return true;
     }
 
-    public function login(string $email, string $password): bool {
+    public function login(string $email, string $password): bool
+    {
         return true;
     }
 
-    public function logout(): bool {
+    public function logout(): bool
+    {
         return true;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\MethodInfo> $list = Core\Reflect::forObject(new Handlers())->methods();
         uint $total = 0;
         uint $i = 0;

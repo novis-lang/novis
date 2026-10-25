@@ -6,14 +6,14 @@ use Core\Test;
 
 if (Core\Env::context() == Core\Env::Context::Request) {
     // The program writes some text, and then throws an error it does not catch.
-    echo "The first half of the page";
-    throw new RuntimeError("the database is not available");
+    echo 'The first half of the page';
+    throw new RuntimeError('the database is not available');
 } else {
-    var $response = Test::request(Method::Get, "/report");
+    var $response = Test::request(Method::Get, '/report');
 
     // The server sends no body for a failed request, so `body()` returns
     // an empty string. This prints `[]`.
-    echo "[", $response->body(), "]\n";
+    echo '[', $response->body(), "]\n";
 
     // The status of a failed request is 500. This prints `500`.
     echo $response->status(), "\n";

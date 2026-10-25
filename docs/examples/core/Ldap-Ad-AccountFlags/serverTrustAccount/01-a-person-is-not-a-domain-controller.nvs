@@ -2,10 +2,10 @@
 // Shows that `serverTrustAccount` returns `false` for the account of a person.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `domain controller: false`.
-    echo "domain controller: ", $flags->serverTrustAccount() ? "true" : "false", "\n";
+    echo 'domain controller: ', $flags->serverTrustAccount() ? 'true' : 'false', "\n";
 }

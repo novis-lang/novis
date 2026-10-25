@@ -5,10 +5,17 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $events = [
-            'signed up', 'paid', 'shipped', 'delivered', 'reviewed', 'returned',
+            'signed up',
+            'paid',
+            'shipped',
+            'delivered',
+            'reviewed',
+            'returned',
         ];
         uint $total = 0;
         uint $i = 0;

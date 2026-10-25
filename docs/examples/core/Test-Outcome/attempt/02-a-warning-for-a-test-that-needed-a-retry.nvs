@@ -20,7 +20,7 @@ class Warning
 
 class MailTest
 {
-    #[Test(retries: 1, because: "the local mail server starts slowly")]
+    #[Test(retries: 1, because: 'the local mail server starts slowly')]
     public function itSendsTheReceipt(): void
     {
         Test::assertSame('receipt sent', 'receipt sent');

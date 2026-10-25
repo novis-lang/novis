@@ -3,19 +3,21 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         secret bytes $key = Core\Crypto::generateKey();
         array<string> $tokens = [
-            Core\Jwt::sign(["sub" => "1042", "role" => "editor"], 1h, $key),
-            Core\Jwt::sign(["sub" => "7", "role" => "reader"], 1h, $key),
+            Core\Jwt::sign(['sub' => '1042', 'role' => 'editor'], 1h, $key),
+            Core\Jwt::sign(['sub' => '7', 'role' => 'reader'], 1h, $key),
         ];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Each round checks the token the round before chose, so no round can be left out.
             array<tainted string> $claims = Core\Jwt::verify($tokens[($total % 2) as int], $key);
-            $total = $total + Core\Str::length($claims["sub"]);
+            $total = $total + Core\Str::length($claims['sub']);
             $i = $i + 1;
         }
         return $total;

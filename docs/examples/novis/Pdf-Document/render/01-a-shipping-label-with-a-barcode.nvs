@@ -5,14 +5,14 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
 // `Barcode::svg` returns an SVG image as a string, so it can go straight into the HTML.
-string $barcode = Barcode::svg("SHIP-2026-0042", Barcode::Symbology::Code128, {height: 60});
+string $barcode = Barcode::svg('SHIP-2026-0042', Barcode::Symbology::Code128, { height: 60 });
 
 // `@page` sets the size of the label: 100mm by 150mm.
-string $html = "<style>@page { size: 100mm 150mm; margin: 5mm }</style>"
-    . "<h2>Ada Lovelace</h2><p>1 Example Street<br>12345 Example City</p>"
+string $html = '<style>@page { size: 100mm 150mm; margin: 5mm }</style>'
+    . '<h2>Ada Lovelace</h2><p>1 Example Street<br>12345 Example City</p>'
     . "<div>{$barcode}</div><p>Parcel SHIP-2026-0042</p>";
 
 // `render` returns the file as `bytes`. A program sends them to the printer or saves them.
 var $label = Document::fromHtml($html)->render();
-echo $label->pageCount, " page, ", Core\Arr::count($label->dropped), " CSS rules dropped\n";
+echo $label->pageCount, ' page, ', Core\Arr::count($label->dropped), " CSS rules dropped\n";
 echo Reader::open($label->bytes)->text(1), "\n";

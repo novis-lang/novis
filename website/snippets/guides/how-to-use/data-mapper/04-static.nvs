@@ -1,23 +1,27 @@
 <?nvs
 // This program writes one method in a parent class that checks paths for each child class.
 
-class Model {
+class Model
+{
     // `static` is the class that the call names.
     // `Order::where` checks paths of `Order`, and `Customer::where` checks paths of `Customer`.
-    public static function where(string<propertyPath<static>> $condition): string {
-        return "WHERE " . $condition;
+    public static function where(string<propertyPath<static>> $condition): string
+    {
+        return 'WHERE ' . $condition;
     }
 }
 
-class Customer extends Model {
-    public string $name = "";
-    public string $email = "";
+class Customer extends Model
+{
+    public string $name = '';
+    public string $email = '';
 }
 
-class Order extends Model {
+class Order extends Model
+{
     public int $total = 0;
     public ?Customer $customer = null;
 }
 
-echo Order::where("{customer.email} LIKE ?"), "\n";
-echo Customer::where("{name} = ?"), "\n";
+echo Order::where('{customer.email} LIKE ?'), "\n";
+echo Customer::where('{name} = ?'), "\n";

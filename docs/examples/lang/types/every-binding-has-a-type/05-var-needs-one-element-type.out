@@ -1,9 +1,9 @@
 error[E0414]: `var` cannot infer an array whose elements have different types
   --> 05-var-needs-one-element-type.nvs:6:11
   |
-6 | var $xs = [1, "two", 3];
+6 | var $xs = [1, 'two', 3];
   |           ^^^^^^^^^^^^^ the elements are `int` and `string`
-  = help: write the type: `array<int|string> $xs = [1, "two", 3];`
+  = help: write the type: `array<int|string> $xs = [1, 'two', 3];`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

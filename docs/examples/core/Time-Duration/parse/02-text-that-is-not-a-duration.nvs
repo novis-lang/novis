@@ -1,7 +1,7 @@
 <?nvs
 // Shows what happens when a text is not a valid duration.
 
-array<string> $texts = ["45s", "1.5h", "30min", ""];
+array<string> $texts = ['45s', '1.5h', '30min', ''];
 
 // `parse` throws a `ParseError` when the text is not valid. The message says what is wrong.
 // Only "45s" is valid here.

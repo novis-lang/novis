@@ -5,12 +5,14 @@
 
 class Line
 {
-    public function constructor(public string $sku, public int $quantity) {}
+    public function constructor(public string $sku, public int $quantity)
+    {}
 }
 
 class Order
 {
-    public function constructor(public string $customer, public array<Line> $lines) {}
+    public function constructor(public string $customer, public array<Line> $lines)
+    {}
 }
 
 class Bench

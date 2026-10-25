@@ -3,13 +3,15 @@
 // bench: iterations 200
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+            Core\Net\Stream $client = Core\Net::connect('127.0.0.1', $server->port(), 5s);
             Core\Net\Stream $connection = $server->accept(5s);
             // Each round adds to a total, so no round can be skipped.
             $total = $total + ($server->port() + $i) % 2;
@@ -22,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200) <= 200 ? "done" : "wrong", "\n";
+echo Bench::run(200) <= 200 ? 'done' : 'wrong', "\n";

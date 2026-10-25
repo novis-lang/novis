@@ -4,4 +4,4 @@
 // proof: compile-error
 
 int $count = 1;
-$count = "two";
+$count = 'two';

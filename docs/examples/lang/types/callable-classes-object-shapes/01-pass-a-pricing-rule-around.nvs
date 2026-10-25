@@ -5,8 +5,10 @@
 
 callable $tenPercentOff = fn(int $cents): int => $cents - Core\Math::intDiv($cents, 10);
 
-class Till {
-    public static function apply(callable $rule, array<int> $prices): int {
+class Till
+{
+    public static function apply(callable $rule, array<int> $prices): int
+    {
         int $total = 0;
         foreach ($prices as int $price) {
             int $charged = $rule($price) as int;

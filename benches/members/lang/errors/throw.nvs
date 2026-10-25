@@ -6,13 +6,16 @@
 // bench: calls 3
 // bench: complexity constant
 
-class Bench {
-    public static function email(array<string> $row): string {
-        return $row["email"] ?? throw new LogicError("the row has no email");
+class Bench
+{
+    public static function email(array<string> $row): string
+    {
+        return $row['email'] ?? throw new LogicError('the row has no email');
     }
 
-    public static function run(uint $rounds): uint {
-        array<string> $row = ["id" => "7"];
+    public static function run(uint $rounds): uint
+    {
+        array<string> $row = ['id' => '7'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -2,14 +2,14 @@
 // Describes each field of a decoded JSON document. Each field is a `mixed` value.
 // `is` tests the type of a value and does not convert it.
 
-array<mixed> $payload = ["id" => 4102, "name" => "Ada", "paid" => true, "note" => null];
+array<mixed> $payload = ['id' => 4102, 'name' => 'Ada', 'paid' => true, 'note' => null];
 
 foreach ($payload as tainted string $field => mixed $value) {
     if ($value is int) {
         echo $field, " is a whole number\n";
-    } else if ($value is string) {
+    } elseif ($value is string) {
         echo $field, " is text\n";
-    } else if ($value is bool) {
+    } elseif ($value is bool) {
         echo $field, " is a yes or no\n";
     } else {
         echo $field, " was not sent\n";

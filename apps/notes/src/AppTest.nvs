@@ -7,64 +7,72 @@ use Core\Test;
 
 // Tests that send requests to the app. `Test::request` runs the app without a server.
 // These requests do not save a note, so the file `notes.sqlite` stays the same.
-final class AppTest {
+final class AppTest
+{
     #[Test]
-    public function theHomePageShowsTheForm(): void {
-        var $response = Test::request(Method::Get, "/");
+    public function theHomePageShowsTheForm(): void
+    {
+        var $response = Test::request(Method::Get, '/');
         Test::assertEquals($response->status(), 200);
         Test::assertTrue(Str::contains($response->body(), "<form method=\"post\" action=\"/notes\">"));
     }
 
     #[Test]
-    public function aFormWithNoTitleShowsTheProblem(): void {
-        array<string> $headers = ["content-type" => "application/x-www-form-urlencoded"];
-        var $response = Test::request(Method::Post, "/notes", {headers: $headers, body: "title=&body=Buy+two"});
+    public function aFormWithNoTitleShowsTheProblem(): void
+    {
+        array<string> $headers = ['content-type' => 'application/x-www-form-urlencoded'];
+        var $response = Test::request(Method::Post, '/notes', { headers: $headers, body: 'title=&body=Buy+two' });
         Test::assertEquals($response->status(), 422);
-        Test::assertTrue(Str::contains($response->body(), "Please enter a title."));
+        Test::assertTrue(Str::contains($response->body(), 'Please enter a title.'));
     }
 
     #[Test]
-    public function theApiChecksTheJson(): void {
-        array<string> $headers = ["content-type" => "application/json"];
-        var $response = Test::request(Method::Post, "/api/notes", {headers: $headers, body: "{\"title\": \"\", \"body\": \"\"}"});
+    public function theApiChecksTheJson(): void
+    {
+        array<string> $headers = ['content-type' => 'application/json'];
+        var $response = Test::request(Method::Post, '/api/notes', { headers: $headers, body: "{\"title\": \"\", \"body\": \"\"}" });
         Test::assertEquals($response->status(), 422);
         Test::assertSame($response->body(), "{\"errors\":[\"Please enter a title.\"]}");
     }
 
     #[Test]
-    public function aMissingNoteIsNotFound(): void {
-        Test::assertEquals(Test::request(Method::Get, "/api/notes/999999")->status(), 404);
-        var $response = Test::request(Method::Get, "/no-such-page");
+    public function aMissingNoteIsNotFound(): void
+    {
+        Test::assertEquals(Test::request(Method::Get, '/api/notes/999999')->status(), 404);
+        var $response = Test::request(Method::Get, '/no-such-page');
         Test::assertEquals($response->status(), 404);
-        Test::assertTrue(Str::contains($response->body(), "There is no page at this address."));
+        Test::assertTrue(Str::contains($response->body(), 'There is no page at this address.'));
     }
 
     #[Test]
-    public function anErrorShowsTheFailurePage(): void {
+    public function anErrorShowsTheFailurePage(): void
+    {
         // This number is too large for the database, so `App::show` throws an error.
-        var $response = Test::request(Method::Get, "/notes/18446744073709551615");
+        var $response = Test::request(Method::Get, '/notes/18446744073709551615');
         Test::assertEquals($response->status(), 500);
-        Test::assertTrue(Str::contains($response->body(), "Something went wrong"));
+        Test::assertTrue(Str::contains($response->body(), 'Something went wrong'));
     }
 
     #[Test]
-    public function aWrongMethodIsNotAllowed(): void {
+    public function aWrongMethodIsNotAllowed(): void
+    {
         // The path `/notes` has only a `POST` route. The `allow` header lists the methods it has.
-        var $response = Test::request(Method::Delete, "/notes");
+        var $response = Test::request(Method::Delete, '/notes');
         Test::assertEquals($response->status(), 405);
-        Test::assertEquals($response->header("allow"), "POST");
-        Test::assertTrue(Str::contains($response->body(), "This address does not accept this kind of request."));
+        Test::assertEquals($response->header('allow'), 'POST');
+        Test::assertTrue(Str::contains($response->body(), 'This address does not accept this kind of request.'));
     }
 
     #[Test]
-    public function aFormFromAnotherSiteIsRefused(): void {
+    public function aFormFromAnotherSiteIsRefused(): void
+    {
         // The `origin` header shows that another website sent the form.
         array<string> $headers = [
-            "content-type" => "application/x-www-form-urlencoded",
-            "origin" => "https://example.com",
+            'content-type' => 'application/x-www-form-urlencoded',
+            'origin' => 'https://example.com',
         ];
-        var $response = Test::request(Method::Post, "/notes", {headers: $headers, body: "title=Milk&body=Buy+two"});
+        var $response = Test::request(Method::Post, '/notes', { headers: $headers, body: 'title=Milk&body=Buy+two' });
         Test::assertEquals($response->status(), 403);
-        Test::assertTrue(Str::contains($response->body(), "The form was not sent from this website"));
+        Test::assertTrue(Str::contains($response->body(), 'The form was not sent from this website'));
     }
 }

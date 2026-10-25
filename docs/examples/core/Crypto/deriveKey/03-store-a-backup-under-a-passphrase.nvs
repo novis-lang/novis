@@ -3,15 +3,15 @@
 // later. The salt and the number of rounds are stored next to the sealed bytes.
 // All three are needed to make the same key a second time.
 
-secret string $passphrase = "a long sentence only I know";
+secret string $passphrase = 'a long sentence only I know';
 bytes $salt = Core\Random::bytes(16);
 uint $rounds = 200000;
 
 secret bytes $key = Core\Crypto::deriveKey($passphrase, $salt, $rounds);
 bytes $sealed = Core\Crypto::seal(
-    "account: 12345, pin: 6789" as bytes,
+    'account: 12345, pin: 6789' as bytes,
     $key,
-    Core\Crypto::Cipher::XChaCha20Poly1305
+    Core\Crypto::Cipher::XChaCha20Poly1305,
 );
 
 // These three go into the file together. The passphrase is the only part that
@@ -24,10 +24,10 @@ string $storedBackup = Core\Encoding::toHex($sealed);
 secret bytes $opened = Core\Crypto::deriveKey(
     $passphrase,
     Core\Encoding::fromHex($storedSalt),
-    $storedRounds
+    $storedRounds,
 );
 echo Core\Crypto::open(
     Core\Encoding::fromHex($storedBackup),
     $opened,
-    Core\Crypto::Cipher::XChaCha20Poly1305
+    Core\Crypto::Cipher::XChaCha20Poly1305,
 ) as string, "\n";

@@ -2,21 +2,24 @@
 // A week, Monday first. Each date is asked which day of the week it falls on,
 // and the answer is one of the seven cases.
 
-class Week {
-    public static function name(Core\Time\DateTime::Weekday $day): string {
+class Week
+{
+    public static function name(Core\Time\DateTime::Weekday $day): string
+    {
         return match ($day) {
-            Core\Time\DateTime::Weekday::Monday => "Monday",
-            Core\Time\DateTime::Weekday::Tuesday => "Tuesday",
-            Core\Time\DateTime::Weekday::Wednesday => "Wednesday",
-            Core\Time\DateTime::Weekday::Thursday => "Thursday",
-            Core\Time\DateTime::Weekday::Friday => "Friday",
-            Core\Time\DateTime::Weekday::Saturday => "Saturday",
-            Core\Time\DateTime::Weekday::Sunday => "Sunday",
+            Core\Time\DateTime::Weekday::Monday => 'Monday',
+            Core\Time\DateTime::Weekday::Tuesday => 'Tuesday',
+            Core\Time\DateTime::Weekday::Wednesday => 'Wednesday',
+            Core\Time\DateTime::Weekday::Thursday => 'Thursday',
+            Core\Time\DateTime::Weekday::Friday => 'Friday',
+            Core\Time\DateTime::Weekday::Saturday => 'Saturday',
+            Core\Time\DateTime::Weekday::Sunday => 'Sunday',
         };
     }
 
     // The two days at the end of the week are the ones most offices are shut.
-    public static function isWeekend(Core\Time\DateTime::Weekday $day): bool {
+    public static function isWeekend(Core\Time\DateTime::Weekday $day): bool
+    {
         return $day == Core\Time\DateTime::Weekday::Saturday || $day == Core\Time\DateTime::Weekday::Sunday;
     }
 }
@@ -28,8 +31,8 @@ int $step = 0;
 while ($step < 7) {
     var $date = $monday->plus($step, Core\Unit::Day);
     var $day = $date->weekday();
-    echo $date->format("yyyy-MM-dd"), " is a ", Week::name($day),
-        Week::isWeekend($day) ? " (weekend)" : "",
+    echo $date->format('yyyy-MM-dd'), ' is a ', Week::name($day),
+        Week::isWeekend($day) ? ' (weekend)' : '',
         "\n";
     $step = $step + 1;
 }

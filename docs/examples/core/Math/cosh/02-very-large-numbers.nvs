@@ -11,4 +11,4 @@ echo Core\Math::cosh(710.0), "\n";
 echo Core\Math::cosh(711.0), "\n";
 
 // The result is equal to `Core\Math::INFINITY`. This prints yes.
-echo Core\Math::cosh(-711.0) == Core\Math::INFINITY ? "yes" : "no", "\n";
+echo Core\Math::cosh(-711.0) == Core\Math::INFINITY ? 'yes' : 'no', "\n";

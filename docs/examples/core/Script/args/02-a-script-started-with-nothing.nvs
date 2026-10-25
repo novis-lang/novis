@@ -5,9 +5,9 @@
 // You start this script from the command line, and no other script started it.
 // So the result is `null`, and this prints "given: nothing".
 var $given = Core\Script::args();
-echo "given: ", $given == null ? "nothing" : "a value", "\n";
+echo 'given: ', $given == null ? 'nothing' : 'a value', "\n";
 
 // This child is started with no `args:`. It reads `null` too, and it prints
 // "Hello, everyone!".
-var $child = spawn script "scripts/greet.nvs" with(output: "capture");
+var $child = spawn script 'scripts/greet.nvs' with(output: 'capture');
 echo (await $child)->output;

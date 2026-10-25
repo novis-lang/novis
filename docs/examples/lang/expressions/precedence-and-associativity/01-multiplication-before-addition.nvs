@@ -17,4 +17,4 @@ echo $price * ($quantity + $shipping), "\n";
 // `||`. This prints `free shipping`.
 bool $isMember = false;
 bool $hasCoupon = true;
-echo $isMember || $hasCoupon && $price * $quantity > 50 ? "free shipping" : "pay shipping", "\n";
+echo $isMember || $hasCoupon && $price * $quantity > 50 ? 'free shipping' : 'pay shipping', "\n";

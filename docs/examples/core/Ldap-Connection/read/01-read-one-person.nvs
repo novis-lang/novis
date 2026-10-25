@@ -2,13 +2,13 @@
 // Shows how to read one person from the directory by the DN of the entry.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 
 // `select` names the attributes the entry should have.
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["department", "mail"]});
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['department', 'mail'] });
 
 if ($person != null) {
     // This prints `Sales` and `anna.berg@example.test`.
-    echo $person->string("department") ?? "no department", "\n";
-    echo $person->string("mail") ?? "no address", "\n";
+    echo $person->string('department') ?? 'no department', "\n";
+    echo $person->string('mail') ?? 'no address', "\n";
 }

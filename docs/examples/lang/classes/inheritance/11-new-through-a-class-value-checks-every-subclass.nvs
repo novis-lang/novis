@@ -3,16 +3,20 @@
 // `Strict` needs two arguments, so this `new` with one does not compile.
 // proof: compile-error
 
-class Formatter {
-    public function constructor(public string $prefix) {}
+class Formatter
+{
+    public function constructor(public string $prefix)
+    {}
 }
 
-class Strict extends Formatter {
-    public function constructor(string $prefix, public int $width) {
+class Strict extends Formatter
+{
+    public function constructor(string $prefix, public int $width)
+    {
         parent::constructor($prefix);
     }
 }
 
 class<Formatter> $cls = Formatter::class as class<Formatter>;
-Formatter $made = new $cls("p: ");
+Formatter $made = new $cls('p: ');
 echo $made->prefix, "\n";

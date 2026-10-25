@@ -4,8 +4,10 @@
 // bench: start 32
 // bench: max 512
 
-class Bench {
-    public static function run(uint $size): string {
+class Bench
+{
+    public static function run(uint $size): string
+    {
         array<string> $commands = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => Core\Str::join([
             '    #[Core\Command(name: "shop-' . (($n + 1000) as string) . '", about: "Run step ' . (($n + 1000) as string) . ' of the shop")]',
             '    public static function shop' . (($n + 1000) as string) . '(',

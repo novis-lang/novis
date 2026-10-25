@@ -7,8 +7,10 @@
 
 use Core\Db\Schema;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $schema = Schema::fromArray([
             'tables' => [
                 [

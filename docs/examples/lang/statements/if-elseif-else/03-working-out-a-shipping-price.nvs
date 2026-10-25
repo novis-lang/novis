@@ -9,7 +9,7 @@ class Shipping
     {
         if ($isMember && $grams <= 2000) {
             return 0;
-        } elseif ($country != "DE") {
+        } elseif ($country != 'DE') {
             return 1490;
         } elseif ($grams > 10000) {
             return 990;
@@ -21,10 +21,10 @@ class Shipping
 }
 
 // This prints 0. The member rule is first, so it wins over every rule below it.
-echo Shipping::priceFor("DE", 800, true), "\n";
+echo Shipping::priceFor('DE', 800, true), "\n";
 // This prints 1490. A parcel outside Germany takes the same price at any weight.
-echo Shipping::priceFor("FR", 800, false), "\n";
+echo Shipping::priceFor('FR', 800, false), "\n";
 // This prints 990.
-echo Shipping::priceFor("DE", 12000, false), "\n";
+echo Shipping::priceFor('DE', 12000, false), "\n";
 // This prints 390. No arm matched, so the line after the chain decides.
-echo Shipping::priceFor("DE", 800, false), "\n";
+echo Shipping::priceFor('DE', 800, false), "\n";

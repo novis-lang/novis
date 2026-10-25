@@ -4,18 +4,22 @@
 // bench: allocations 0
 // bench: complexity constant
 
-enum Permission: uint {
+enum Permission: uint
+{
     Read = 1,
     Write = 2,
 }
 
-enum Offset: int {
+enum Offset: int
+{
     Before = -1,
     After = 1,
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\EnumInfo> $infos = [];
         array<string> $names = [Permission::class, Offset::class];
         foreach ($names as string $name) {

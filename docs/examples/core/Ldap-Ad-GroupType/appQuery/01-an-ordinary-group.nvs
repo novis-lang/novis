@@ -2,10 +2,10 @@
 // Shows that `appQuery` returns `false` for an ordinary group.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Managers,OU=Company,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Managers,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // This prints `appQuery: false`.
-    echo "appQuery: ", $type->appQuery() ? "true" : "false", "\n";
+    echo 'appQuery: ', $type->appQuery() ? 'true' : 'false', "\n";
 }

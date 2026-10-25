@@ -3,7 +3,7 @@
 use Novis\Image\Color;
 use Novis\Image\Image;
 
-bytes $photo = Image::create(16, 16, Color::hex("#2563eb"))->encode();
+bytes $photo = Image::create(16, 16, Color::hex('#2563eb'))->encode();
 
 // A `Perceptual` hash is 8 bytes and an `Average` hash is 32 bytes.
 bytes $perceptual = Image::hash($photo, Image::HashKind::Perceptual);
@@ -13,5 +13,5 @@ bytes $average = Image::hash($photo, Image::HashKind::Average);
 try {
     echo Image::hashDistance($perceptual, $average), "\n";
 } catch (LogicError $e) {
-    echo "LogicError: ", $e->message, "\n";
+    echo 'LogicError: ', $e->message, "\n";
 }

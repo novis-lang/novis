@@ -6,7 +6,7 @@
 class Limits
 {
     public const uint ATTEMPTS = 3;
-    public const string QUEUE = "outbound";
+    public const string QUEUE = 'outbound';
     public const float BACKOFF = 1.5;
 }
 
@@ -22,14 +22,14 @@ class Delivery
     }
 }
 
-echo "queue ", Limits::QUEUE, ", up to ", Limits::ATTEMPTS, " attempts, backing off by ", Limits::BACKOFF, "\n";
+echo 'queue ', Limits::QUEUE, ', up to ', Limits::ATTEMPTS, ' attempts, backing off by ', Limits::BACKOFF, "\n";
 
 Delivery $one = new Delivery();
 Delivery $two = new Delivery();
 $two->left = $two->left - 1;
 
-echo "first has ", $one->left, " attempts left, second has ", $two->left, "\n";
+echo 'first has ', $one->left, ' attempts left, second has ', $two->left, "\n";
 
 // A static property belongs to the class, not to one object.
 // Both constructors added 1 to the same `Delivery::$made`, so this prints `2`.
-echo "deliveries made: ", Delivery::$made, "\n";
+echo 'deliveries made: ', Delivery::$made, "\n";

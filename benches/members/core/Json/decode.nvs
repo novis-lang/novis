@@ -3,8 +3,10 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $bodies = [
             "{\"id\":7,\"name\":\"Ada\",\"tags\":[\"admin\",\"editor\"],\"active\":true}",
             "{\"order\":1042,\"items\":[{\"sku\":\"T-1\",\"count\":2}],\"paid\":false,\"note\":null}",

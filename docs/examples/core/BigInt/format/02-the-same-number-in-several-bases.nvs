@@ -7,5 +7,5 @@ array<uint> $bases = [2, 8, 16, 36];
 // Each line prints the base and the text `format` gives for it. The four texts
 // are 11111111, 377, ff and 73.
 foreach ($bases as uint $base) {
-    echo "base ", $base, ": ", $value->format({radix: $base}), "\n";
+    echo 'base ', $base, ': ', $value->format({ radix: $base }), "\n";
 }

@@ -8,8 +8,8 @@ array<int> $rowCounts = [2, 3000000000];
 foreach ($rowCounts as int $rows) {
     try {
         int $total = $bytesPerRow * $rows;
-        echo $rows, " rows: ", $total, " bytes\n";
+        echo $rows, ' rows: ', $total, " bytes\n";
     } catch (ArithmeticError $tooLarge) {
-        echo $rows, " rows: ", $tooLarge->message, "\n";
+        echo $rows, ' rows: ', $tooLarge->message, "\n";
     }
 }

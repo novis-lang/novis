@@ -11,7 +11,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            Core\Cli::write($row, {newline: true});
+            Core\Cli::write($row, { newline: true });
             $total = $total + Core\Str::length($row);
             $i = $i + 1;
         }

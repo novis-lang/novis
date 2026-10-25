@@ -7,28 +7,35 @@
 use Core\Test;
 use Core\Test\Property;
 
-class Money {
+class Money
+{
     public static uint $checked = 0;
 
-    public static function add(int $a, int $b): int {
+    public static function add(int $a, int $b): int
+    {
         return $a + $b;
     }
 
-    public static function checkOne(int $a, int $b): void {
+    public static function checkOne(int $a, int $b): void
+    {
         Test::assertSame(Money::add($a, $b), Money::add($b, $a));
         Money::$checked = Money::$checked + 1;
     }
 }
 
-class MoneyTest {
-    #[Property(gen: {a: "-1000..1000", b: "-1000..1000"})]
-    public function itAddsInEitherOrder(int $a, int $b): void {
+class MoneyTest
+{
+    #[Property(gen: { a: '-1000..1000', b: '-1000..1000' })]
+    public function itAddsInEitherOrder(int $a, int $b): void
+    {
         Money::checkOne($a, $b);
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $i = 0;
         while ($i < $rounds) {
             var $test = new MoneyTest();

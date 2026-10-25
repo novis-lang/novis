@@ -6,8 +6,10 @@
 // bench: allocations 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // A short magnitude and one of 60 bits, so both a one-word number and a
         // number near the top of the range are measured.
         array<Core\BigInt> $values = [

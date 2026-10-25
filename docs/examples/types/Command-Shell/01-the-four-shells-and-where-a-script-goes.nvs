@@ -3,23 +3,26 @@
 // belongs. Whichever one somebody uses, your program has to be told which,
 // so the shell is a case you pick and never a guess.
 
-class Completions {
-    public static function shellName(Core\Command::Shell $shell): string {
+class Completions
+{
+    public static function shellName(Core\Command::Shell $shell): string
+    {
         return match ($shell) {
-            Core\Command::Shell::Bash => "bash",
-            Core\Command::Shell::Zsh => "zsh",
-            Core\Command::Shell::Fish => "fish",
-            Core\Command::Shell::Pwsh => "powershell",
+            Core\Command::Shell::Bash => 'bash',
+            Core\Command::Shell::Zsh => 'zsh',
+            Core\Command::Shell::Fish => 'fish',
+            Core\Command::Shell::Pwsh => 'powershell',
         };
     }
 
     // Where the generated file belongs, which is what somebody needs to be
     // told once they have one. The program here is called `tool`.
-    public static function home(Core\Command::Shell $shell): string {
+    public static function home(Core\Command::Shell $shell): string
+    {
         return match ($shell) {
-            Core\Command::Shell::Bash => "~/.local/share/bash-completion/completions/tool",
-            Core\Command::Shell::Zsh => "~/.zsh/completions/_tool",
-            Core\Command::Shell::Fish => "~/.config/fish/completions/tool.fish",
+            Core\Command::Shell::Bash => '~/.local/share/bash-completion/completions/tool',
+            Core\Command::Shell::Zsh => '~/.zsh/completions/_tool',
+            Core\Command::Shell::Fish => '~/.config/fish/completions/tool.fish',
             Core\Command::Shell::Pwsh => "the file \$PROFILE names",
         };
     }
@@ -33,5 +36,5 @@ array<Core\Command::Shell> $everything = [
 ];
 
 foreach ($everything as Core\Command::Shell $shell) {
-    echo Completions::shellName($shell), " -> ", Completions::home($shell), "\n";
+    echo Completions::shellName($shell), ' -> ', Completions::home($shell), "\n";
 }

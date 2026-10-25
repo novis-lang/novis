@@ -4,26 +4,28 @@
 
 // `#[Core\Path]` says that a parameter is a file path. A relative path in
 // quotes passed to it starts at the folder of this file.
-class Here {
-    public static function path(#[Core\Path] string $path): string {
+class Here
+{
+    public static function path(#[Core\Path] string $path): string
+    {
         return $path;
     }
 }
 
 // `$jobs` is a full path, so a path built from it works from any folder.
-string $jobs = Here::path("jobs");
-array<string> $names = ["import-orders", "build-invoices", "send-receipts"];
+string $jobs = Here::path('jobs');
+array<string> $names = ['import-orders', 'build-invoices', 'send-receipts'];
 
 int $failed = 0;
 foreach ($names as string $name) {
-    string $path = Core\Path::join($jobs, $name . ".nvs");
-    var $handle = spawn script $path with(output: "capture");
+    string $path = Core\Path::join($jobs, $name . '.nvs');
+    var $handle = spawn script $path with(output: 'capture');
     var $result = await $handle;
     // A failed job is a result you can read, so the loop goes on to the next.
     if ($result->ok) {
         echo $name, ": done\n";
     } else {
-        echo $name, ": failed, ", $result->error?->message, "\n";
+        echo $name, ': failed, ', $result->error?->message, "\n";
         $failed = $failed + 1;
     }
 }

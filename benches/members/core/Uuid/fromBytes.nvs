@@ -3,12 +3,14 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<bytes> $keys = [
-            Core\Encoding::fromHex("0190d1e68e3c7c2a9a4b1f2e3d4c5b6a"),
-            Core\Encoding::fromHex("f9168c5eceb24faab6bf329bf39fa1e4"),
-            Core\Encoding::fromHex("00112233445566778899aabbccddeeff"),
+            Core\Encoding::fromHex('0190d1e68e3c7c2a9a4b1f2e3d4c5b6a'),
+            Core\Encoding::fromHex('f9168c5eceb24faab6bf329bf39fa1e4'),
+            Core\Encoding::fromHex('00112233445566778899aabbccddeeff'),
         ];
         uint $total = 0;
         uint $i = 0;

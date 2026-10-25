@@ -1,7 +1,7 @@
 <?nvs
 // A real page: a heading, one row per item, a total, and a different message
 // when there is nothing to show. The page text stays page text throughout.
-array<string> $items = ["Fountain pen", "Ink, blue", "Paper, 100 sheets"];
+array<string> $items = ['Fountain pen', 'Ink, blue', 'Paper, 100 sheets'];
 array<int> $cents = [4900, 1250, 899];
 
 int $total = 0;
@@ -17,12 +17,12 @@ foreach ($cents as int $price) {
 <?nvs
     int $row = 0;
     foreach ($items as string $name) {
-?>
+        ?>
   <tr><td><?= $name ?></td><td><?= $cents[$row] ?></td></tr>
 <?nvs
         $row = $row + 1;
     }
-?>
+    ?>
 </table>
 <p>Total: <?= $total ?> cents</p>
 <?nvs } ?>

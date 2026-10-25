@@ -6,10 +6,12 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
+class Bench
+{
     public static uint $seed = 0;
 
-    public static function run(uint $rounds): uint {
+    public static function run(uint $rounds): uint
+    {
         uint $i = 0;
         while ($i < $rounds) {
             mixed $next = require 'require-run-another-file-in-this-frame/part.nvs';

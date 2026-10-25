@@ -6,4 +6,4 @@ uint $columns = Core\Cli::width();
 
 // This prints 80, because this program runs without a terminal and 80 is the
 // width it falls back to.
-echo "the screen is ", $columns, " columns wide\n";
+echo 'the screen is ', $columns, " columns wide\n";

@@ -2,7 +2,8 @@
 // Shows the order of the calls when a class has a guard, a `set` hook and an
 // observer. The guard runs first, and a write it stops reaches nothing else.
 
-class Contact implements PropertyGuard, PropertyObserver {
+class Contact implements PropertyGuard, PropertyObserver
+{
     public string $email {
         set(string $value) {
             echo "  set hook\n";
@@ -10,37 +11,42 @@ class Contact implements PropertyGuard, PropertyObserver {
         }
     }
 
-    public function constructor(string $email) {
+    public function constructor(string $email)
+    {
         $this->email = $email;
     }
 
     // The guard gets the value the program wrote, before the hook changes it.
-    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
-        echo "  guard ", $value, "\n";
-        if ($value is string && !Core\Str::contains($value, "@")) {
-            throw new LogicError("an email needs an @");
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void
+    {
+        echo '  guard ', $value, "\n";
+        if ($value is string && !Core\Str::contains($value, '@')) {
+            throw new LogicError('an email needs an @');
         }
     }
 
-    public function beforePropertyUnset(string $name, array<string> $keys): void {
+    public function beforePropertyUnset(string $name, array<string> $keys): void
+    {
     }
 
-    public function onPropertyGet(string $name, mixed $value): void {
+    public function onPropertyGet(string $name, mixed $value): void
+    {
     }
 
     // The observer gets the value that was stored.
-    public function onPropertySet(string $name, mixed $value): void {
-        echo "  observer ", $value, "\n";
+    public function onPropertySet(string $name, mixed $value): void
+    {
+        echo '  observer ', $value, "\n";
     }
 }
 
 echo "new:\n";
-var $contact = new Contact("Ada@Example.com");
+var $contact = new Contact('Ada@Example.com');
 
 echo "a bad write:\n";
 try {
-    $contact->email = "nobody";
+    $contact->email = 'nobody';
 } catch (LogicError $e) {
-    echo "  error: ", $e->message, "\n";
+    echo '  error: ', $e->message, "\n";
 }
 echo $contact->email, "\n";

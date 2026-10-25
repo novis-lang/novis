@@ -1,27 +1,35 @@
 <?nvs
 // Shows a subclass method that takes a narrower parameter type with `covariant`.
 
-class Animal {
-    public function constructor(public string $name) {}
+class Animal
+{
+    public function constructor(public string $name)
+    {}
 }
 
-class Dog extends Animal {
-    public function bark(): string {
-        return $this->name . " barks";
+class Dog extends Animal
+{
+    public function bark(): string
+    {
+        return $this->name . ' barks';
     }
 }
 
-class Shelter {
-    public function admit(Animal $a): string {
-        return $a->name . " is admitted";
+class Shelter
+{
+    public function admit(Animal $a): string
+    {
+        return $a->name . ' is admitted';
     }
 }
 
-class DogShelter extends Shelter {
+class DogShelter extends Shelter
+{
     // `covariant Dog` means this method takes only a `Dog`.
     // Inside the body, `$a` is a `Dog`, so `bark` can be called.
-    public function admit(covariant Dog $a): string {
-        return $a->bark() . " and is admitted";
+    public function admit(covariant Dog $a): string
+    {
+        return $a->bark() . ' and is admitted';
     }
 }
 
@@ -29,4 +37,4 @@ class DogShelter extends Shelter {
 Shelter $shelter = new DogShelter();
 
 // A `Dog` passes the check, so this prints "Rex barks and is admitted".
-echo $shelter->admit(new Dog("Rex")), "\n";
+echo $shelter->admit(new Dog('Rex')), "\n";

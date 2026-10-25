@@ -1,7 +1,7 @@
 error[E0479]: `?->` cannot be written through
-   --> 05-writing-through-the-nullsafe-operator.nvs:10:1
+   --> 05-writing-through-the-nullsafe-operator.nvs:11:1
    |
-10 | $p?->x = 2;
+11 | $p?->x = 2;
    | ^^^^^^ this yields `null` when the receiver is `null`
    = help: test the receiver for `null` first, then assign to it: `if ($x != null) { $x->p = …; }`
 

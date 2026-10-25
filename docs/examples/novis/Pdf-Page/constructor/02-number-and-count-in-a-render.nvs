@@ -4,12 +4,12 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
 // Each `h2` starts a new page, so the document has three pages.
-var $html = "<style>h2 { break-before: page }</style>"
-    . "<h1>Shop catalogue</h1><h2>Books</h2><p>A book</p><h2>Toys</h2><p>A ball</p>";
+var $html = '<style>h2 { break-before: page }</style>'
+    . '<h1>Shop catalogue</h1><h2>Books</h2><p>A book</p><h2>Toys</h2><p>A ball</p>';
 
 // `render` calls the header function once for each page.
 var $header = fn(Page $page): Core\Html\Markup => {
-    echo "header of page ", $page->number, " of ", $page->count, "\n";
+    echo 'header of page ', $page->number, ' of ', $page->count, "\n";
     return html`<p>Shop catalogue, page {$page->number} of {$page->count}</p>`;
 };
 

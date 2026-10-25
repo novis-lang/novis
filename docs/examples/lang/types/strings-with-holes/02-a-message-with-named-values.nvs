@@ -1,16 +1,18 @@
 <?nvs
 // Shows a message template whose holes must be one of a few names.
 
-class Message {
+class Message
+{
     // A hole in `$template` is `{name}` or `{count}`. Any other hole does not compile.
-    public static function fill(string<'name'|'count'> $template, string $name, int $count): string {
-        string $text = "";
+    public static function fill(string<'name'|'count'> $template, string $name, int $count): string
+    {
+        string $text = '';
         bool $hole = false;
         // `Core\Str::parts` gives the text and the holes in turn, starting with text.
         foreach (Core\Str::parts($template) as var $part) {
             if (!$hole) {
                 $text = $text . ($part as string);
-            } else if ($part == "name") {
+            } elseif ($part == 'name') {
                 $text = $text . $name;
             } else {
                 $text = $text . ($count as string);
@@ -21,7 +23,7 @@ class Message {
     }
 }
 
-echo Message::fill("Hello {name}, you have {count} new messages.", "Ada", 3), "\n";
+echo Message::fill('Hello {name}, you have {count} new messages.', 'Ada', 3), "\n";
 
 // `{{` is one `{` and `}}` is one `}`. They are text, not holes.
-echo Message::fill("{{name}} is replaced by {name}.", "Ada", 0), "\n";
+echo Message::fill('{{name}} is replaced by {name}.', 'Ada', 0), "\n";

@@ -12,4 +12,4 @@ while ($request < 100000) {
 }
 
 // The exact count changes on every run, but it is always close to 10000.
-echo $logged > 9000 && $logged < 11000 ? "about one in ten" : "far from one in ten", "\n";
+echo $logged > 9000 && $logged < 11000 ? 'about one in ten' : 'far from one in ten', "\n";

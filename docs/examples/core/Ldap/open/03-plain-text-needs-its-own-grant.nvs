@@ -5,13 +5,13 @@
 
 try {
     Core\Ldap::open({
-        url: "ldap://127.0.0.1:1",
-        user: "CN=Reader,CN=Users,DC=example,DC=test",
-        password: "Example-Pw1",
+        url: 'ldap://127.0.0.1:1',
+        user: 'CN=Reader,CN=Users,DC=example,DC=test',
+        password: 'Example-Pw1',
         tls: Core\Ldap::Tls::None,
     });
     echo "The directory is open.\n";
 } catch (Core\Ldap\LdapError $error) {
     // This prints `EncryptionRequired`.
-    echo $error->kind == Core\Ldap\LdapError::Kind::EncryptionRequired ? "EncryptionRequired" : "another reason", "\n";
+    echo $error->kind == Core\Ldap\LdapError::Kind::EncryptionRequired ? 'EncryptionRequired' : 'another reason', "\n";
 }

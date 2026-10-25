@@ -5,14 +5,16 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // Both replies are answered from this table, so nothing is sent over a network.
-        Core\Test::answerHttp("https://api.example.com/found", 200, {});
-        Core\Test::answerHttp("https://api.example.com/missing", 404, {});
+        Core\Test::answerHttp('https://api.example.com/found', 200, {});
+        Core\Test::answerHttp('https://api.example.com/missing', 404, {});
         array<Core\Http\Response> $replies = [
-            Core\Http\Client::get("https://api.example.com/found"),
-            Core\Http\Client::get("https://api.example.com/missing"),
+            Core\Http\Client::get('https://api.example.com/found'),
+            Core\Http\Client::get('https://api.example.com/missing'),
         ];
         uint $total = 0;
         uint $i = 0;

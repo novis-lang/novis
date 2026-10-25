@@ -9,4 +9,4 @@ string $version = Core\Str::slice(Core\Program::id(), 0, 12);
 echo Core\Str::length($version), "\n";
 
 // The label is the start of the full id. This prints `true`.
-echo Core\Str::startsWith(Core\Program::id(), $version) ? "true" : "false", "\n";
+echo Core\Str::startsWith(Core\Program::id(), $version) ? 'true' : 'false', "\n";

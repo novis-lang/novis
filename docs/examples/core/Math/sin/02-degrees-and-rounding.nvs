@@ -9,4 +9,4 @@ echo Core\Math::sin(Core\Math::toRadians(30.0)), "\n";
 echo Core\Math::sin(Core\Math::toRadians(180.0)), "\n";
 
 // Rounding to 10 digits after the point gives zero. This prints 0.
-echo Core\Math::round(Core\Math::sin(Core\Math::toRadians(180.0)), {precision: 10}), "\n";
+echo Core\Math::round(Core\Math::sin(Core\Math::toRadians(180.0)), { precision: 10 }), "\n";

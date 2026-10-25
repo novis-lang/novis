@@ -1,32 +1,35 @@
 <?nvs
 // Shows the order of `!` with `is`, of `|>` with other operators, and of a method call on `new`.
 
-class Coupon {
-    public function constructor(public int $percent) {}
+class Coupon
+{
+    public function constructor(public int $percent)
+    {}
 
-    public function label(): string {
-        return $this->percent . "% off";
+    public function label(): string
+    {
+        return $this->percent . '% off';
     }
 }
 
 // `is` runs before `!`, so this tests "not a `Coupon`". This prints `false`.
 mixed $value = new Coupon(10);
-echo !$value is Coupon ? "true" : "false", "\n";
+echo !$value is Coupon ? 'true' : 'false', "\n";
 
 // The minus sign runs before `|>`, so the pipeline gets -5. This prints 5.
 int $change = 5;
 echo -$change |> Core\Math::abs($_), "\n";
 
 // `|>` runs before `.`, so only `$code` goes into the pipeline. This prints `code: SPRING`.
-string $code = "spring";
-echo "code: " . $code |> Core\Str::upper($_), "\n";
+string $code = 'spring';
+echo 'code: ' . $code |> Core\Str::upper($_), "\n";
 
 // `<<` runs before `.`, so `1 << 2` is 4 and is then joined to "x". This prints `4x`.
-echo 1 << 2 . "x", "\n";
+echo 1 << 2 . 'x', "\n";
 
 // A method call on `new` needs no parentheses. This prints `25% off`.
 echo new Coupon(25)->label(), "\n";
 
 // A ternary inside another one groups to the right. This prints `small`.
 int $total = 40;
-echo $total > 100 ? "large" : $total > 20 ? "small" : "tiny", "\n";
+echo $total > 100 ? 'large' : $total > 20 ? 'small' : 'tiny', "\n";

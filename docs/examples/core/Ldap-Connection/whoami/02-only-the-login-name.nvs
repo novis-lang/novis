@@ -2,27 +2,29 @@
 // Shows how to take only the login name out of the result of `whoami`.
 // requires: samba-ad
 
-class Login {
+class Login
+{
     // The result starts with `u:` and a login name, or with `dn:` and a DN.
     // A login name can start with a domain and `\`, so the domain is cut off too.
-    public static function name(string $who): string {
-        if (Core\Str::startsWith($who, "u:")) {
-            string $login = Core\Str::after($who, "u:") ?? "";
-            return Core\Str::after($login, "\\", {last: true}) ?? $login;
+    public static function name(string $who): string
+    {
+        if (Core\Str::startsWith($who, 'u:')) {
+            string $login = Core\Str::after($who, 'u:') ?? '';
+            return Core\Str::after($login, "\\", { last: true }) ?? $login;
         }
-        if (Core\Str::startsWith($who, "dn:")) {
-            return Core\Str::after($who, "dn:") ?? "";
+        if (Core\Str::startsWith($who, 'dn:')) {
+            return Core\Str::after($who, 'dn:') ?? '';
         }
-        return "(not logged in)";
+        return '(not logged in)';
     }
 }
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 
 // This prints `Reader`.
 echo Login::name($corp->whoami()), "\n";
 
 // These two lines show the other forms. They print `CN=Reader,DC=example,DC=test`
 // and `(not logged in)`.
-echo Login::name("dn:CN=Reader,DC=example,DC=test"), "\n";
-echo Login::name(""), "\n";
+echo Login::name('dn:CN=Reader,DC=example,DC=test'), "\n";
+echo Login::name(''), "\n";

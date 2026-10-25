@@ -2,7 +2,7 @@
 // Shows a report that is sent one line at a time. Every `write` returns,
 // also when the client is gone.
 
-Core\Response\Stream $report = Core\Response::stream("text/plain");
+Core\Response\Stream $report = Core\Response::stream('text/plain');
 
 // If the client is gone, `write` returns at once and the line is thrown away.
 // The loop still adds every amount.
@@ -10,8 +10,8 @@ array<uint> $amounts = [1990, 500, 1250];
 uint $total = 0;
 foreach ($amounts as uint $amount) {
     $total = $total + $amount;
-    $report->write("amount: " . $amount . "\n");
+    $report->write('amount: ' . $amount . "\n");
 }
 
 // This prints `total: 3740`.
-$report->write("total: " . $total . "\n");
+$report->write('total: ' . $total . "\n");

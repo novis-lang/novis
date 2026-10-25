@@ -5,5 +5,5 @@
 
 require 'parts/order-label.nvs';
 
-echo OrderLabel::line(1042, "Alice Mercier", "Lyon"), "\n";
-echo OrderLabel::line(1043, "Bo Nilsson", "Malmo"), "\n";
+echo OrderLabel::line(1042, 'Alice Mercier', 'Lyon'), "\n";
+echo OrderLabel::line(1043, 'Bo Nilsson', 'Malmo'), "\n";

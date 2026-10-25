@@ -2,12 +2,15 @@
 // Prints the calls of a checkout as a tree, in the order they ran.
 // `nvs run --profile speedscope` writes the same kind of file for a whole program.
 
-class Checkout {
-    public static function total(array<int> $cart): int {
+class Checkout
+{
+    public static function total(array<int> $cart): int
+    {
         return Checkout::subtotal($cart) + Checkout::shipping();
     }
 
-    public static function subtotal(array<int> $cart): int {
+    public static function subtotal(array<int> $cart): int
+    {
         int $sum = 0;
         foreach ($cart as int $cents) {
             $sum = $sum + Checkout::withDeposit($cents);
@@ -16,11 +19,13 @@ class Checkout {
     }
 
     // Each bottle in the cart has a deposit of 25 cents.
-    public static function withDeposit(int $cents): int {
+    public static function withDeposit(int $cents): int
+    {
         return $cents + 25;
     }
 
-    public static function shipping(): int {
+    public static function shipping(): int
+    {
         return 490;
     }
 }
@@ -31,20 +36,20 @@ Core\Debug::startProfile($file);
 int $total = Checkout::total([1000, 2500]);
 Core\Debug::stopProfile();
 
-echo "total: ", $total, "\n";
+echo 'total: ', $total, "\n";
 
 var $profile = Core\Json::decode(Core\IO::read($file)) as array<mixed>;
-var $frames = ($profile["shared"] as array<mixed>)["frames"] as array<mixed>;
-var $events = (($profile["profiles"] as array<mixed>)[0] as array<mixed>)["events"] as array<mixed>;
+var $frames = ($profile['shared'] as array<mixed>)['frames'] as array<mixed>;
+var $events = (($profile['profiles'] as array<mixed>)[0] as array<mixed>)['events'] as array<mixed>;
 
 // An `"O"` event starts a call, and a `"C"` event ends it.
 // A call that starts while another call runs is inside it, so it is indented one step more.
 uint $depth = 0;
 foreach ($events as mixed $event) {
     var $row = $event as array<mixed>;
-    if ($row["type"] as string == "O") {
-        var $name = ($frames[$row["frame"] as int] as array<mixed>)["name"] as string;
-        echo Core\Str::repeat("  ", $depth), $name, "\n";
+    if ($row['type'] as string == 'O') {
+        var $name = ($frames[$row['frame'] as int] as array<mixed>)['name'] as string;
+        echo Core\Str::repeat('  ', $depth), $name, "\n";
         $depth = $depth + 1;
     } else {
         $depth = $depth - 1;

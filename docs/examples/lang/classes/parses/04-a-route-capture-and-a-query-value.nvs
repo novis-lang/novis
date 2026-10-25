@@ -2,29 +2,34 @@
 // Shows a `Parses` class used as the type of a route capture and of a query
 // value. The router calls `Slug::parse` for both.
 
-final class Slug implements Parses {
-    public function constructor(public tainted string $text) {}
+final class Slug implements Parses
+{
+    public function constructor(public tainted string $text)
+    {}
 
-    public static function parse(tainted string $s): static {
+    public static function parse(tainted string $s): static
+    {
         if ($s != Core\Str::lower($s)) {
-            throw new ParseError("a slug is written in lower case");
+            throw new ParseError('a slug is written in lower case');
         }
         return new static($s);
     }
 }
 
-class Posts {
-    #[Core\Route(path: "/posts/{slug}", method: Core\Http\Method::Get, name: "Posts::show")]
+class Posts
+{
+    #[Core\Route(path: '/posts/{slug}', method: Core\Http\Method::Get, name: 'Posts::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(Slug $slug, #[Core\Query] Slug $tag): string {
-        return "one post";
+    public function show(Slug $slug, #[Core\Query] Slug $tag): string
+    {
+        return 'one post';
     }
 }
 
 // Your code can call `parse` too. The second call throws `ParseError`.
-echo Slug::parse("hello-world")->text, "\n";
+echo Slug::parse('hello-world')->text, "\n";
 try {
-    echo Slug::parse("Hello-World")->text, "\n";
+    echo Slug::parse('Hello-World')->text, "\n";
 } catch (ParseError $e) {
     echo $e->message, "\n";
 }

@@ -6,5 +6,5 @@
 array<int> $years = [1900, 2000, 2100];
 foreach ($years as int $year) {
     var $day = Core\Time::at($year, 1, 1, Core\Time\Zone::UTC);
-    echo $year, ": ", $day->isLeapYear() ? "yes" : "no", "\n";
+    echo $year, ': ', $day->isLeapYear() ? 'yes' : 'no', "\n";
 }

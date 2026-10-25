@@ -3,23 +3,26 @@
 // bench: iterations 256
 // bench: complexity linear
 
-interface Mailer {
+interface Mailer
+{
     public function send(string $to): bool;
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Mailer $mailer = Core\Test::double<Mailer>({
             send: fn(string $to): bool => true,
         });
-        array<string> $recipients = ["ada@example.com", "bob@example.com", "eve@example.com"];
+        array<string> $recipients = ['ada@example.com', 'bob@example.com', 'eve@example.com'];
         foreach ($recipients as string $to) {
             $mailer->send($to);
         }
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Core\Test::assertCalled($mailer, Mailer::send, {times: 1, with: [$recipients[($total % 3) as int]]});
+            Core\Test::assertCalled($mailer, Mailer::send, { times: 1, with: [$recipients[($total % 3) as int]] });
             $total = $total + 1 + ($total % 2);
             $i = $i + 1;
         }

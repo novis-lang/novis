@@ -1,9 +1,11 @@
 <?nvs
 // Counts how many times each function runs in an order import, to find the one that runs most.
 
-class Import {
+class Import
+{
     // Each order is the country it ships to.
-    public static function run(array<string> $countries): int {
+    public static function run(array<string> $countries): int
+    {
         int $shipping = 0;
         foreach ($countries as string $country) {
             $shipping = $shipping + Import::shippingFor($country);
@@ -12,28 +14,30 @@ class Import {
     }
 
     // This looks up the zone again for every order, even for the same country.
-    public static function shippingFor(string $country): int {
-        return Import::zoneOf($country) == "home" ? 490 : 1290;
+    public static function shippingFor(string $country): int
+    {
+        return Import::zoneOf($country) == 'home' ? 490 : 1290;
     }
 
-    public static function zoneOf(string $country): string {
-        return $country == "DE" ? "home" : "abroad";
+    public static function zoneOf(string $country): string
+    {
+        return $country == 'DE' ? 'home' : 'abroad';
     }
 }
 
 string $file = Core\Path::thisDir('import.speedscope.json');
 
 Core\Debug::startProfile($file);
-int $shipping = Import::run(["DE", "DE", "FR", "DE", "AT"]);
+int $shipping = Import::run(['DE', 'DE', 'FR', 'DE', 'AT']);
 Core\Debug::stopProfile();
 
-echo "shipping: ", $shipping, "\n";
+echo 'shipping: ', $shipping, "\n";
 
 // The file is JSON. `shared.frames` has the function names.
 // Each `"O"` event is one call, and `frame` is the index of its name.
 var $profile = Core\Json::decode(Core\IO::read($file)) as array<mixed>;
-var $frames = ($profile["shared"] as array<mixed>)["frames"] as array<mixed>;
-var $events = (($profile["profiles"] as array<mixed>)[0] as array<mixed>)["events"] as array<mixed>;
+var $frames = ($profile['shared'] as array<mixed>)['frames'] as array<mixed>;
+var $events = (($profile['profiles'] as array<mixed>)[0] as array<mixed>)['events'] as array<mixed>;
 
 // This counts the calls of each function. The call to `stopProfile` is in the profile too.
 int $index = 0;
@@ -41,11 +45,11 @@ foreach ($frames as mixed $frame) {
     int $calls = 0;
     foreach ($events as mixed $event) {
         var $row = $event as array<mixed>;
-        if ($row["type"] as string == "O" && $row["frame"] as int == $index) {
+        if ($row['type'] as string == 'O' && $row['frame'] as int == $index) {
             $calls = $calls + 1;
         }
     }
-    echo ($frame as array<mixed>)["name"] as string, ": ", $calls, "\n";
+    echo ($frame as array<mixed>)['name'] as string, ': ', $calls, "\n";
     $index = $index + 1;
 }
 

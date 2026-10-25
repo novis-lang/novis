@@ -5,15 +5,17 @@
 // scaling: max 4096
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): string {
-        array<string> $lines = ["<?nvs", "class Base {}"];
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        array<string> $lines = ['<?nvs', 'class Base {}'];
         uint $i = 0;
         while ($i < $size) {
             $lines[] = "class K{$i} extends Base {}";
             $i = $i + 1;
         }
-        $lines[] = "class Loader {";
+        $lines[] = 'class Loader {';
         $lines[] = "    public static function count(string \$name): int {";
         $lines[] = "        int \$found = 0;";
         $i = 0;
@@ -22,8 +24,8 @@ class Bench {
             $i = $i + 1;
         }
         $lines[] = "        return \$found;";
-        $lines[] = "    }";
-        $lines[] = "}";
+        $lines[] = '    }';
+        $lines[] = '}';
         $lines[] = "echo Loader::count(\"K0\"), \"\\n\";";
         return Core\Str::join($lines, "\n") . "\n";
     }

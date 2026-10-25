@@ -2,10 +2,13 @@
 // Shows that the right side of `is` cannot be a `string`. Convert the name with `as class<T>` first.
 // proof: compile-error
 
-class Box {}
+class Box
+{}
 
-class Check {
-    public static function test(mixed $v, string $name): bool {
+class Check
+{
+    public static function test(mixed $v, string $name): bool
+    {
         return $v is $name;
     }
 }

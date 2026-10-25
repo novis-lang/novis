@@ -3,15 +3,15 @@
 // from the key itself, so the key stays the same. This program reads DER, writes
 // the raw point and JSON, and reads both back.
 
-string $der = "3059301306072a8648ce3d020106082a8648ce3d030107034200"
-    . "0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c49"
-    . "3781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686fa"
-    . "eeba6850b16fdb2572ff0e89";
+string $der = '3059301306072a8648ce3d020106082a8648ce3d030107034200'
+    . '0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c49'
+    . '3781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686fa'
+    . 'eeba6850b16fdb2572ff0e89';
 
 Core\Crypto\PublicKey $stored = Core\Crypto\PublicKey::read(
     Core\Encoding::fromHex($der),
     Core\Crypto\KeyKind::P256,
-    Core\Crypto\PublicKey::Format::Spki
+    Core\Crypto\PublicKey::Format::Spki,
 );
 
 // The browser gets the raw point and sends it back later. `PublicKey::read`
@@ -20,24 +20,24 @@ bytes $forTheBrowser = $stored->write(Core\Crypto\PublicKey::Format::Raw);
 Core\Crypto\PublicKey $returned = Core\Crypto\PublicKey::read(
     $forTheBrowser,
     Core\Crypto\KeyKind::P256,
-    Core\Crypto\PublicKey::Format::Raw
+    Core\Crypto\PublicKey::Format::Raw,
 );
 
 if (Core\Encoding::toHex($returned->write(Core\Crypto\PublicKey::Format::Spki)) == $der) {
-    echo "the raw point wrote back the DER we started from", "\n";
+    echo 'the raw point wrote back the DER we started from', "\n";
 } else {
-    echo "the raw point came back as another key", "\n";
+    echo 'the raw point came back as another key', "\n";
 }
 
 // The same test with JSON, the format for keys published on the web.
 Core\Crypto\PublicKey $viaJson = Core\Crypto\PublicKey::read(
     $stored->write(Core\Crypto\PublicKey::Format::Jwk),
     Core\Crypto\KeyKind::P256,
-    Core\Crypto\PublicKey::Format::Jwk
+    Core\Crypto\PublicKey::Format::Jwk,
 );
 
 if (Core\Encoding::toHex($viaJson->write(Core\Crypto\PublicKey::Format::Spki)) == $der) {
-    echo "and so did the JSON one", "\n";
+    echo 'and so did the JSON one', "\n";
 } else {
-    echo "the JSON one came back as another key", "\n";
+    echo 'the JSON one came back as another key', "\n";
 }

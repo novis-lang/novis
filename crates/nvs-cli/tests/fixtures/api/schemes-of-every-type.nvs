@@ -9,30 +9,35 @@ use Core\Api\KeyIn;
 use Core\Api\Scheme;
 use Core\Api\SchemeType;
 
-#[Scheme(name: "openid", type: SchemeType::OpenIdConnect, url: "https://example.com/.well-known/openid-configuration")]
-#[Scheme(name: "bearer", type: SchemeType::Http, scheme: "bearer", format: "JWT", description: "A token from the login route.")]
-#[Scheme(name: "key", type: SchemeType::ApiKey, in: KeyIn::Header, parameter: "X-Api-Key")]
-class Auth {}
+#[Scheme(name: 'openid', type: SchemeType::OpenIdConnect, url: 'https://example.com/.well-known/openid-configuration')]
+#[Scheme(name: 'bearer', type: SchemeType::Http, scheme: 'bearer', format: 'JWT', description: 'A token from the login route.')]
+#[Scheme(name: 'key', type: SchemeType::ApiKey, in: KeyIn::Header, parameter: 'X-Api-Key')]
+class Auth
+{}
 
-#[Core\Api\Scheme(name: "mtls", type: Core\Api\SchemeType::MutualTls)]
+#[Core\Api\Scheme(name: 'mtls', type: Core\Api\SchemeType::MutualTls)]
 #[Core\Api\Scheme(
-    name: "oauth",
+    name: 'oauth',
     type: Core\Api\SchemeType::OAuth2,
     flows: {
         authorizationCode: {
-            authorizationUrl: "https://example.com/authorize",
-            tokenUrl: "https://example.com/token",
-            scopes: ["orders:read" => "Read orders", "orders:write" => "Change orders"],
+            authorizationUrl: 'https://example.com/authorize',
+            tokenUrl: 'https://example.com/token',
+            scopes: ['orders:read' => 'Read orders', 'orders:write' => 'Change orders'],
         },
-        clientCredentials: {tokenUrl: "https://example.com/token", scopes: []},
+        clientCredentials: { tokenUrl: 'https://example.com/token', scopes: [] },
     },
 )]
-class Partners {}
+class Partners
+{}
 
 class Items
 {
-    #[Core\Route(path: "/items", method: Core\Http\Method::Get, name: "Items::index")]
+    #[Core\Route(path: '/items', method: Core\Http\Method::Get, name: 'Items::index')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[Api(security: ["bearer", "oauth"])]
-    public function index(): uint { return 0; }
+    #[Api(security: ['bearer', 'oauth'])]
+    public function index(): uint
+    {
+        return 0;
+    }
 }

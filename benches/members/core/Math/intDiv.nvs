@@ -5,8 +5,10 @@
 // bench: calls 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {

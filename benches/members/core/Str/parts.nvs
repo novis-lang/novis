@@ -4,17 +4,21 @@
 // bench: calls 3
 // bench: complexity linear
 
-class Order {
+class Order
+{
     public int $total = 0;
-    public string $status = "";
+    public string $status = '';
 }
 
-class Bench {
-    public static function count(string<property<Order>> $condition): uint {
+class Bench
+{
+    public static function count(string<property<Order>> $condition): uint
+    {
         return Core\Arr::count(Core\Str::parts($condition));
     }
 
-    public static function run(uint $rounds): uint {
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

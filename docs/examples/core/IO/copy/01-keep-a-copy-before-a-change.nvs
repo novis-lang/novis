@@ -2,8 +2,8 @@
 // Shows how to keep a copy of a settings file before a program changes it.
 
 string $dir = Core\IO::temporaryDir();
-string $settings = Core\Path::join($dir, "settings.ini");
-string $backup = Core\Path::join($dir, "settings.ini.bak");
+string $settings = Core\Path::join($dir, 'settings.ini');
+string $backup = Core\Path::join($dir, 'settings.ini.bak');
 Core\IO::write($settings, "mode = test\n");
 
 Core\IO::copy($settings, $backup);

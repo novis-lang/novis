@@ -1,7 +1,7 @@
 error[E0489]: a `...` argument has no variadic parameter to spread into
-   --> 05-spreading-an-array-into-fixed-parameters.nvs:12:16
+   --> 05-spreading-an-array-into-fixed-parameters.nvs:14:16
    |
-12 | echo Pair::add(...$xs), "\n";
+14 | echo Pair::add(...$xs), "\n";
    |                ^^^^^^ this call's target declares no `...` parameter
    = help: a `...` only ever supplies a `...$rest` tail, because how many entries an array holds is a run-time fact and a fixed parameter list has to be counted — write the arguments out
 

@@ -2,14 +2,14 @@
 // Shows how to get the group type of a mailing list turned into a security group.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Newsletter,OU=Company,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Newsletter,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // `with` sets the flags you name and keeps every other flag.
-    var $changed = $type->with({security: true});
+    var $changed = $type->with({ security: true });
 
     // The group stays global. This prints `security: true, global: true`.
-    echo "security: ", $changed->security() ? "true" : "false";
-    echo ", global: ", $changed->global() ? "true" : "false", "\n";
+    echo 'security: ', $changed->security() ? 'true' : 'false';
+    echo ', global: ', $changed->global() ? 'true' : 'false', "\n";
 }

@@ -1,22 +1,22 @@
 <?nvs
-// Shows how to give a range of cells a name, and use the name in a formula.
-use Novis\Spreadsheet\Workbook;
 use Novis\Spreadsheet\Formula;
 use Novis\Spreadsheet\Reader;
+// Shows how to give a range of cells a name, and use the name in a formula.
+use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $orders = $book->sheet("Orders");
+var $orders = $book->sheet('Orders');
 $orders->addAll([
-    ["order" => 1042, "total" => 19.9],
-    ["order" => 1043, "total" => 5.0],
-    ["order" => 1044, "total" => 12.5],
+    ['order' => 1042, 'total' => 19.9],
+    ['order' => 1043, 'total' => 5.0],
+    ['order' => 1044, 'total' => 12.5],
 ]);
 
 // The totals are in the cells `B2` to `B4`. The `$` signs make each address fixed.
-$book->define("Totals", "Orders!\$B\$2:\$B\$4");
+$book->define('Totals', "Orders!\$B\$2:\$B\$4");
 
 // A formula in another sheet can now use the name `Totals`.
-$book->sheet("Summary")->add(["sum" => Formula::of("SUM(Totals)")]);
+$book->sheet('Summary')->add(['sum' => Formula::of('SUM(Totals)')]);
 
 var $written = $book->finish();
 if ($written->bytes != null) {
@@ -24,7 +24,7 @@ if ($written->bytes != null) {
     // filter, and each of those names belongs to one sheet.
     foreach (Reader::open($written->bytes)->names() as var $name) {
         if ($name->sheet == null) {
-            echo $name->name, " = ", $name->reference, "\n";
+            echo $name->name, ' = ', $name->reference, "\n";
         }
     }
 }

@@ -2,10 +2,12 @@
 // Shows how a program checks if the machine is too busy before it starts a
 // large job, such as a report that runs every night.
 
-class Machine {
+class Machine
+{
     // The average over the last minute is divided by the number of cores.
     // A result above 1.0 means some processes are waiting for a core.
-    public static function isBusy(): bool {
+    public static function isBusy(): bool
+    {
         try {
             float $load = Core\Os::loadAverage()[0];
             return $load / (Core\Os::cpuCount() as float) > 1.0;
@@ -16,8 +18,8 @@ class Machine {
     }
 }
 
-string $plan = Machine::isBusy() ? "wait" : "start";
+string $plan = Machine::isBusy() ? 'wait' : 'start';
 
 // The plan depends on how busy the machine is right now. It is always one of
 // the two words, so this prints `yes`.
-echo $plan == "start" || $plan == "wait" ? "yes" : "no", "\n";
+echo $plan == 'start' || $plan == 'wait' ? 'yes' : 'no', "\n";

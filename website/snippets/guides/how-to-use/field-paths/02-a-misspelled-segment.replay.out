@@ -1,8 +1,8 @@
-completion 1 23:32
+completion 1 27:32
 city	property	string
 email	property	string
 name	property	string
 phone	property	string
 
-diagnostic 4 23:32+5 E0405
+diagnostic 4 27:32+5 E0405
   `Customer` has no public property `$emial`

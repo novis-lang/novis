@@ -4,21 +4,25 @@
 // bench: allocations 0
 // bench: complexity constant
 
-enum Status: int {
+enum Status: int
+{
     Open = 1,
     Paid = 2,
     Shipped = 3,
 }
 
-enum Size: int {
+enum Size: int
+{
     Small,
     Medium,
     Large,
     Huge,
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\EnumInfo> $infos = [];
         array<string> $names = [Status::class, Size::class];
         foreach ($names as string $name) {

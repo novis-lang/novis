@@ -5,11 +5,11 @@
 array<string> $rows = [];
 int $i = 0;
 while ($i < 10000) {
-    string $country = $i % 4 == 0 ? "AT" : "DE";
+    string $country = $i % 4 == 0 ? 'AT' : 'DE';
     $rows[] = "<customer id=\"" . $i as string . "\" country=\"" . $country . "\"/>";
     $i = $i + 1;
 }
-string $export = "<customers>" . Core\Str::join($rows, "") . "</customers>";
+string $export = '<customers>' . Core\Str::join($rows, '') . '</customers>';
 
 // The reader keeps only the current node, so the memory it uses stays small.
 Core\Xml\Reader $reader = Core\Xml::reader($export);
@@ -19,10 +19,10 @@ while (true) {
     if ($node == null) {
         break;
     }
-    if ($node->name() == "customer" && $node->attributes()["country"] == "AT") {
+    if ($node->name() == 'customer' && $node->attributes()['country'] == 'AT') {
         $austria = $austria + 1;
     }
 }
 
 // Every fourth customer is from Austria, so this prints 2500.
-echo "customers in AT: ", $austria, "\n";
+echo 'customers in AT: ', $austria, "\n";

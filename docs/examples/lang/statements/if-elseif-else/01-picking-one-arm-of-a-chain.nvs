@@ -7,13 +7,13 @@ class Band
     public static function of(int $score): string
     {
         if ($score >= 90) {
-            return "excellent";
+            return 'excellent';
         } elseif ($score >= 75) {
-            return "good";
+            return 'good';
         } elseif ($score >= 50) {
-            return "pass";
+            return 'pass';
         } else {
-            return "fail";
+            return 'fail';
         }
     }
 }
@@ -22,5 +22,5 @@ array<int> $scores = [95, 80, 60, 20];
 
 foreach ($scores as int $score) {
     // This prints one line per score: 95 excellent, 80 good, 60 pass, 20 fail.
-    echo $score, " ", Band::of($score), "\n";
+    echo $score, ' ', Band::of($score), "\n";
 }

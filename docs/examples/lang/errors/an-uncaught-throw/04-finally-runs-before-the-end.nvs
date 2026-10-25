@@ -6,7 +6,7 @@
 echo "start\n";
 
 try {
-    throw new RuntimeError("the job failed");
+    throw new RuntimeError('the job failed');
 } finally {
     // This line runs before the program ends.
     echo "clean-up done\n";

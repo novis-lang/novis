@@ -24,9 +24,9 @@ int $round = 0;
 while ($round < 3) {
     // The first two calls are allowed, the third is not.
     if (Retry::attempt(2)) {
-        echo "attempt ", Retry::attempts(), ": allowed\n";
+        echo 'attempt ', Retry::attempts(), ": allowed\n";
     } else {
-        echo "attempt ", Retry::attempts(), ": too many\n";
+        echo 'attempt ', Retry::attempts(), ": too many\n";
     }
     $round = $round + 1;
 }

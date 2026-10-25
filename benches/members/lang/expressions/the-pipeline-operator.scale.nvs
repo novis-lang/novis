@@ -4,9 +4,11 @@
 // bench: start 256
 // bench: max 4096
 
-class Bench {
-    public static function run(uint $size): int {
-        string $label = "  " . Core\Str::repeat('A', $size) . " ";
+class Bench
+{
+    public static function run(uint $size): int
+    {
+        string $label = '  ' . Core\Str::repeat('A', $size) . ' ';
         var $total = 0;
         var $i = 0;
         while ($i < 64) {

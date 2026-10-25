@@ -2,7 +2,7 @@
 // Shows how `Nfkc` changes full-width digits, which some Asian keyboards type,
 // into the digits `0` to `9`.
 
-string $typed = "１２３";
+string $typed = '１２３';
 
 // `as ?int` converts a value to a whole number. `１２３` is not written with
 // the digits `0` to `9`, so the result is `null`, and this prints `0`.

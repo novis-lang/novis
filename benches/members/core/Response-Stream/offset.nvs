@@ -5,8 +5,10 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(Core\Response\Stream $body, uint $rounds): int {
+class Bench
+{
+    public static function run(Core\Response\Stream $body, uint $rounds): int
+    {
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -17,5 +19,5 @@ class Bench {
     }
 }
 
-Core\Response\Stream $video = Core\Response::stream("text/plain", 1);
+Core\Response\Stream $video = Core\Response::stream('text/plain', 1);
 $video->write((Bench::run($video, 2048) % 10) as string);

@@ -16,7 +16,7 @@ for (int $i = 0; $i < 3; $i = $i + 1) {
 NVS;
 
 // The four names the language uses for its loops.
-array<string> $loops = ["For", "Foreach", "While", "DoWhile"];
+array<string> $loops = ['For', 'Foreach', 'While', 'DoWhile'];
 uint $found = 0;
 
 foreach (Core\Ast::parse($source)->nodes() as Core\Ast\Node $node) {
@@ -26,4 +26,4 @@ foreach (Core\Ast::parse($source)->nodes() as Core\Ast\Node $node) {
 }
 
 // This prints 3.
-echo "loops in this file: ", $found, "\n";
+echo 'loops in this file: ', $found, "\n";

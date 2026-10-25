@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to read the whole content of a text file into one string.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "notes.txt");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'notes.txt');
 Core\IO::write($path, "Buy milk\nCall Ada\n");
 
 // `read` returns the file exactly as it is, also the line break at the end.

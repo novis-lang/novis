@@ -8,30 +8,34 @@ use Core\Str;
 
 // Builds the downloads: both tables as JSON and as CSV, and the rows of one week as JSON.
 // The data is CC0, so anyone can copy and publish it.
-final class Data {
+final class Data
+{
     // Returns both tables as one JSON value: `{"counters": [...], "reports": [...]}`.
     // With a week, such as `2026-W42`, it has only the rows of that week.
-    public static function json(Totals $totals, ?tainted string $week = null): mixed {
-        return {reports: Data::maps($totals->reports($week)), counters: Data::maps($totals->counters($week))};
+    public static function json(Totals $totals, ?tainted string $week = null): mixed
+    {
+        return { reports: Data::maps($totals->reports($week)), counters: Data::maps($totals->counters($week)) };
     }
 
     // Returns both tables as CSV text. The first column is `table`, which is `reports` or `counters`.
     // A column that the row's table does not have is empty.
-    public static function csv(Totals $totals): tainted string {
+    public static function csv(Totals $totals): tainted string
+    {
         array<string> $columns = Data::csvColumns();
         array<array<tainted string>> $lines = [];
         foreach ($totals->reports() as Row $row) {
-            $lines[] = Data::line("reports", $row, $columns);
+            $lines[] = Data::line('reports', $row, $columns);
         }
         foreach ($totals->counters() as Row $row) {
-            $lines[] = Data::line("counters", $row, $columns);
+            $lines[] = Data::line('counters', $row, $columns);
         }
-        return Csv::format($lines, {header: $columns});
+        return Csv::format($lines, { header: $columns });
     }
 
     // Returns the columns of the CSV file: `table`, and then each column of both tables once.
-    public static function csvColumns(): array<string> {
-        array<string> $columns = ["table"];
+    public static function csvColumns(): array<string>
+    {
+        array<string> $columns = ['table'];
         foreach (Totals::reportColumns() as string $column) {
             $columns[] = $column;
         }
@@ -44,14 +48,15 @@ final class Data {
     }
 
     // Returns the week of a file name such as `2026-W42.json`, or `null` when the name is not a week.
-    public static function weekOf(tainted string $file): ?tainted string {
-        if (Str::length($file) != 13 || !Str::endsWith($file, ".json") || Str::slice($file, 4, 2) != "-W") {
+    public static function weekOf(tainted string $file): ?tainted string
+    {
+        if (Str::length($file) != 13 || !Str::endsWith($file, '.json') || Str::slice($file, 4, 2) != '-W') {
             return null;
         }
         tainted string $week = Str::slice($file, 0, 8);
         array<int> $digits = [0, 1, 2, 3, 6, 7];
         foreach ($digits as int $at) {
-            if (!Str::contains("0123456789", Str::slice($week, $at, 1))) {
+            if (!Str::contains('0123456789', Str::slice($week, $at, 1))) {
                 return null;
             }
         }
@@ -59,14 +64,15 @@ final class Data {
     }
 
     // The columns `week`, `version`, `os`, `arch` and `counter` are text. Every other column is a whole number.
-    private static function line(string $table, Row $row, array<string> $columns): array<tainted string> {
-        array<string> $text = ["week", "version", "os", "arch", "counter"];
+    private static function line(string $table, Row $row, array<string> $columns): array<tainted string>
+    {
+        array<string> $text = ['week', 'version', 'os', 'arch', 'counter'];
         array<tainted string> $line = [$table];
         foreach (Arr::slice($columns, 1) as string $column) {
             if (!$row->has($column)) {
-                $line[] = "";
-            } else if (Arr::contains($text, $column)) {
-                $line[] = $row->string($column) ?? "";
+                $line[] = '';
+            } elseif (Arr::contains($text, $column)) {
+                $line[] = $row->string($column) ?? '';
             } else {
                 int $value = $row->int($column) ?? 0;
                 $line[] = "{$value}";
@@ -75,7 +81,8 @@ final class Data {
         return $line;
     }
 
-    private static function maps(array<Row> $rows): array<mixed> {
+    private static function maps(array<Row> $rows): array<mixed>
+    {
         array<mixed> $maps = [];
         foreach ($rows as Row $row) {
             $maps[] = $row->toArray();

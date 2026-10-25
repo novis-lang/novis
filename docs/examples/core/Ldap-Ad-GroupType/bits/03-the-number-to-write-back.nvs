@@ -2,12 +2,12 @@
 // Shows how to get the number for a changed group type, for example to write it back to the directory.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Newsletter,OU=Company,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Newsletter,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // `with` turns the mailing list into a security group. `bits` returns the new number.
     // This prints `2` and then `-2147483646`.
     echo $type->bits(), "\n";
-    echo $type->with({security: true})->bits(), "\n";
+    echo $type->with({ security: true })->bits(), "\n";
 }

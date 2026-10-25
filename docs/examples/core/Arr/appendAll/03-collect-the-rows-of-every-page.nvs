@@ -3,9 +3,9 @@
 // does after reading an API one page at a time.
 
 array<array<string>> $pages = [
-    ["order-1001", "order-1002"],
-    ["order-1003"],
-    ["order-1004", "order-1005"],
+    ['order-1001', 'order-1002'],
+    ['order-1003'],
+    ['order-1004', 'order-1005'],
 ];
 
 array<string> $all = [];

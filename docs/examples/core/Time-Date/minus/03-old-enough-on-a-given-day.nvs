@@ -5,7 +5,7 @@
 // This prints 2006-06-15.
 var $today = Core\Time\Date::at(2024, 6, 15);
 var $latest = $today->minus(18, Core\Unit::Year);
-echo "Born on or before ", $latest->format("yyyy-MM-dd"), "\n";
+echo 'Born on or before ', $latest->format('yyyy-MM-dd'), "\n";
 
 // `compareTo` returns 1 when a birthday is later than `$latest`.
 array<Core\Time\Date> $birthdays = [
@@ -15,8 +15,8 @@ array<Core\Time\Date> $birthdays = [
 ];
 foreach ($birthdays as Core\Time\Date $born) {
     if ($born->compareTo($latest) > 0) {
-        echo $born->format("yyyy-MM-dd"), ": too young\n";
+        echo $born->format('yyyy-MM-dd'), ": too young\n";
     } else {
-        echo $born->format("yyyy-MM-dd"), ": old enough\n";
+        echo $born->format('yyyy-MM-dd'), ": old enough\n";
     }
 }

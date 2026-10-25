@@ -9,4 +9,4 @@ echo Core\Math::cos(Core\Math::toRadians(60.0)), "\n";
 echo Core\Math::cos(Core\Math::toRadians(90.0)), "\n";
 
 // Rounding to 10 digits after the point gives zero. This prints 0.
-echo Core\Math::round(Core\Math::cos(Core\Math::toRadians(90.0)), {precision: 10}), "\n";
+echo Core\Math::round(Core\Math::cos(Core\Math::toRadians(90.0)), { precision: 10 }), "\n";

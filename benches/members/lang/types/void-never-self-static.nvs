@@ -8,25 +8,33 @@
 // bench: calls 5
 // bench: complexity constant
 
-class Row {
-    public function constructor(public int $n) {}
+class Row
+{
+    public function constructor(public int $n)
+    {}
 
-    public static function make(int $n): static {
+    public static function make(int $n): static
+    {
         return new static($n);
     }
 
-    public function add(int $k): self {
+    public function add(int $k): self
+    {
         $this->n = $this->n + $k;
         return $this;
     }
 
-    public static function seen(int $v): void {}
+    public static function seen(int $v): void
+    {}
 }
 
-final class Total extends Row {}
+final class Total extends Row
+{}
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -3,9 +3,9 @@
 
 // `Core\Test::answerHttp` gives a fixed reply to this address, so the example runs
 // without a network.
-Core\Test::answerHttp("https://api.example.com/health", 200, {body: "ok"});
+Core\Test::answerHttp('https://api.example.com/health', 200, { body: 'ok' });
 
-Core\Http\Response $response = Core\Http\Client::get("https://api.example.com/health");
+Core\Http\Response $response = Core\Http\Client::get('https://api.example.com/health');
 
 // `status()` returns the code as an `int`. This prints 200.
 echo $response->status(), "\n";

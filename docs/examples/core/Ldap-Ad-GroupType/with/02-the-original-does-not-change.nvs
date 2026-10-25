@@ -2,11 +2,11 @@
 // Shows that `with` returns a new object, and the object you call it on does not change.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Employees,OU=Company,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
-    var $list = $type->with({security: false});
+    var $list = $type->with({ security: false });
 
     // This prints `-2147483646` and then `2`.
     echo $type->bits(), "\n";

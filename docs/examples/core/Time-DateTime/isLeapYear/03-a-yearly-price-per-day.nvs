@@ -8,10 +8,10 @@ int $yearlyCents = 3660000;
 // and drops the fraction. This prints 10000 cents per day in 2024 and 10027 in 2025.
 array<int> $years = [2024, 2025];
 foreach ($years as int $year) {
-    var $start = Core\Time::at($year, 1, 1, Core\Time\Zone::of("Europe/Paris"));
+    var $start = Core\Time::at($year, 1, 1, Core\Time\Zone::of('Europe/Paris'));
     int $days = 365;
     if ($start->isLeapYear()) {
         $days = 366;
     }
-    echo $year, ": ", Core\Math::intDiv($yearlyCents, $days), " cents per day\n";
+    echo $year, ': ', Core\Math::intDiv($yearlyCents, $days), " cents per day\n";
 }

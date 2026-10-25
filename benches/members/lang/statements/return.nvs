@@ -5,15 +5,18 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function step(int $acc): int {
+class Bench
+{
+    public static function step(int $acc): int
+    {
         if ($acc % 7 == 0) {
             return ($acc + 5) % 1000003;
         }
         return ($acc + 3) % 1000003;
     }
 
-    public static function run(int $rounds): int {
+    public static function run(int $rounds): int
+    {
         int $acc = 1;
         for (int $i = 0; $i < $rounds; $i++) {
             // Chained: this round's value comes out of the last round.

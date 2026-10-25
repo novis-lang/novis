@@ -3,10 +3,14 @@
 // when the parent has a constructor. This one does not, so it does not compile.
 // proof: compile-error
 
-class Base {
-    public function constructor(public int $a) {}
+class Base
+{
+    public function constructor(public int $a)
+    {}
 }
 
-class Child extends Base {
-    public function constructor(public int $b) {}
+class Child extends Base
+{
+    public function constructor(public int $b)
+    {}
 }

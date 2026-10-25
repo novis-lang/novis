@@ -2,16 +2,16 @@
 // Shows what `int` does with a value that is not a whole number.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["primaryGroupID", "department"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['primaryGroupID', 'department'] });
 
 if ($person != null) {
     // `primaryGroupID` is a number. 513 is the group `Domain Users`. This prints `513`.
-    echo $person->int("primaryGroupID") ?? 0, "\n";
+    echo $person->int('primaryGroupID') ?? 0, "\n";
 
     // `department` is the text `Sales`. `int` throws a `LogicError` that names the attribute.
     try {
-        echo $person->int("department") ?? 0, "\n";
+        echo $person->int('department') ?? 0, "\n";
     } catch (LogicError $error) {
         echo $error->message, "\n";
     }

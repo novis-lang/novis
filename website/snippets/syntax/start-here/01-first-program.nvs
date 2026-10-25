@@ -8,5 +8,5 @@ foreach ($prices as int $price) {
 }
 
 // `Core\Arr::count` returns the number of items in an array.
-echo "Items: ", Core\Arr::count($prices), "\n";
-echo "Total: ", $total, " cents\n";
+echo 'Items: ', Core\Arr::count($prices), "\n";
+echo 'Total: ', $total, " cents\n";

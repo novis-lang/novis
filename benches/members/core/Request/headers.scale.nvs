@@ -4,19 +4,21 @@
 // bench: start 16
 // bench: max 256
 
-class Bench {
-    public static function run(uint $size): string {
-        array<string> $headers = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "x-shop-" . ($n as string) . ": value " . ($n as string));
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        array<string> $headers = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => 'x-shop-' . ($n as string) . ': value ' . ($n as string));
         array<string> $lines = [
-            "// scaling: file headers.nvsr",
-            "--METHOD--",
-            "GET",
-            "--PATH--",
-            "/api/orders",
-            "--SCHEME--",
-            "https",
-            "--HEADERS--",
-            "host: example.com",
+            '// scaling: file headers.nvsr',
+            '--METHOD--',
+            'GET',
+            '--PATH--',
+            '/api/orders',
+            '--SCHEME--',
+            'https',
+            '--HEADERS--',
+            'host: example.com',
             Core\Str::join($headers, "\n"),
         ];
         return Core\Str::join($lines, "\n") . "\n";

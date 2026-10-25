@@ -13,7 +13,7 @@ class Bench
         while ($i < 64) {
             Core\Xml\Writer $writer = Core\Xml::writer();
             $writer->startDocument();
-            $writer->startElement("reply");
+            $writer->startElement('reply');
             $writer->content($text);
             $writer->endElement();
             $total = $total + (Core\Str::length($writer->endDocument()) as uint);

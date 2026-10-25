@@ -3,13 +3,13 @@
 
 // A real server already has these files. The example writes them first, so that it has files to send.
 string $folder = Core\IO::temporaryDir();
-Core\IO::write(Core\Path::join($folder, "kettle.txt"), "Kettle: fill with water, then press the switch.\n");
-Core\IO::write(Core\Path::join($folder, "toaster.txt"), "Toaster: put the bread in, then push the lever.\n");
+Core\IO::write(Core\Path::join($folder, 'kettle.txt'), "Kettle: fill with water, then press the switch.\n");
+Core\IO::write(Core\Path::join($folder, 'toaster.txt'), "Toaster: put the bread in, then push the lever.\n");
 
 // Text from a request is tainted, and `sendFile` does not compile with a tainted path.
 // So the program uses `?product=kettle` only to find a file name in its own list.
-array<string> $manuals = ["kettle" => "kettle.txt", "toaster" => "toaster.txt"];
-tainted string $product = Core\Request::query("product") ?? "";
+array<string> $manuals = ['kettle' => 'kettle.txt', 'toaster' => 'toaster.txt'];
+tainted string $product = Core\Request::query('product') ?? '';
 
 if (isset($manuals[$product])) {
     Core\Response::sendFile(Core\Path::join($folder, $manuals[$product]));

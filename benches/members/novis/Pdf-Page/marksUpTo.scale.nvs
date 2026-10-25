@@ -8,13 +8,13 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        array<array<{name: string, value: string}>> $marks = [];
+        array<array<{ name: string, value: string }>> $marks = [];
         uint $i = 0;
         while ($i < $size) {
-            $marks[] = [{name: "amount", value: "1.50"}, {name: "tax", value: "0.28"}];
+            $marks[] = [{ name: 'amount', value: '1.50' }, { name: 'tax', value: '0.28' }];
             $i = $i + 1;
         }
-        return Core\Arr::count((new Page($size, $size, null, [], $marks))->marksUpTo("amount"));
+        return Core\Arr::count((new Page($size, $size, null, [], $marks))->marksUpTo('amount'));
     }
 }
 

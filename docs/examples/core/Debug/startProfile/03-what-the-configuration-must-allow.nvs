@@ -4,7 +4,7 @@
 // A temporary folder is not in `[capabilities.debug] profile`, so this start throws a `RuntimeError`.
 // A program run with `nvs run` may write files there, but that is not enough for a profile.
 try {
-    Core\Debug::startProfile(Core\Path::join(Core\IO::temporaryDir(), "app.speedscope.json"));
+    Core\Debug::startProfile(Core\Path::join(Core\IO::temporaryDir(), 'app.speedscope.json'));
     echo "profile started\n";
 } catch (RuntimeError $denied) {
     echo "not allowed: the folder is not in [capabilities.debug] profile\n";

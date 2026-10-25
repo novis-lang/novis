@@ -1,41 +1,48 @@
 <?nvs
 // Shows how to keep a list of users who are online, and remove each one when they log out.
 
-final class User {
+final class User
+{
     public string $name;
 
-    public function constructor(string $name) {
+    public function constructor(string $name)
+    {
         $this->name = $name;
     }
 }
 
-final class Presence {
+final class Presence
+{
     public Core\ObjectSet<User> $online;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->online = new Core\ObjectSet<User>();
     }
 
-    public function logIn(User $user): void {
+    public function logIn(User $user): void
+    {
         $this->online->add($user);
     }
 
-    public function logOut(User $user): void {
+    public function logOut(User $user): void
+    {
         $this->online->remove($user);
     }
 
-    public function names(): string {
-        string $list = "";
+    public function names(): string
+    {
+        string $list = '';
         foreach ($this->online as User $user) {
-            $list = $list . $user->name . " ";
+            $list = $list . $user->name . ' ';
         }
         return $list;
     }
 }
 
-User $ana = new User("Ana");
-User $li = new User("Li");
-User $sam = new User("Sam");
+User $ana = new User('Ana');
+User $li = new User('Li');
+User $sam = new User('Sam');
 
 Presence $chat = new Presence();
 $chat->logIn($ana);

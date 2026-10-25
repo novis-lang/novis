@@ -16,4 +16,4 @@ foreach ($readings as float $reading) {
 }
 
 // Three readings are left, and their average is 22. This prints "3 readings, average 22".
-echo $count, " readings, average ", $sum / $count, "\n";
+echo $count, ' readings, average ', $sum / $count, "\n";

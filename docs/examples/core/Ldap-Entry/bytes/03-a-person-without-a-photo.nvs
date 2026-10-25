@@ -2,16 +2,16 @@
 // Shows how a program checks for a photo before it sends one.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Carla Diaz,OU=Company,DC=example,DC=test", {select: ["jpegPhoto"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Carla Diaz,OU=Company,DC=example,DC=test', { select: ['jpegPhoto'] });
 
 if ($person != null) {
     // Carla Diaz has no photo, so `bytes` returns `null`.
     // This prints `no photo, show the default picture`.
-    ?tainted bytes $photo = $person->bytes("jpegPhoto");
+    ?tainted bytes $photo = $person->bytes('jpegPhoto');
     if ($photo == null) {
         echo "no photo, show the default picture\n";
     } else {
-        echo "photo of ", Core\Bytes::length($photo), " bytes\n";
+        echo 'photo of ', Core\Bytes::length($photo), " bytes\n";
     }
 }

@@ -15,7 +15,7 @@ class Bench
         uint $unit = ($size / 1000) as uint;
         foreach ($parts as uint $part) {
             var $wide = $one->shl($unit * $part)->sub($one);
-            $digits = $digits + Core\Str::length($wide->format({radix: 36}));
+            $digits = $digits + Core\Str::length($wide->format({ radix: 36 }));
         }
         return $digits;
     }

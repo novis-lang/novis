@@ -3,7 +3,7 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
-var $letter = Document::fromHtml("<p>Thank you for your order.</p>")->render()->bytes;
+var $letter = Document::fromHtml('<p>Thank you for your order.</p>')->render()->bytes;
 
 // The letter has no attached files, so this prints `0 files`.
 var $files = Reader::open($letter)->attachments();

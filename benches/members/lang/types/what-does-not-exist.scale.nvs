@@ -4,10 +4,12 @@
 // bench: start 256
 // bench: max 4096
 
-class Bench {
-    public static function run(uint $size): uint {
-        string $field = Core\Str::repeat('4', $size) . "1";
-        string $other = Core\Str::repeat('4', $size) . "2";
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $field = Core\Str::repeat('4', $size) . '1';
+        string $other = Core\Str::repeat('4', $size) . '2';
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

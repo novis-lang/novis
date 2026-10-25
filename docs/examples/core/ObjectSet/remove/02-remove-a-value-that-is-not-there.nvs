@@ -1,16 +1,18 @@
 <?nvs
 // Shows that `remove` does nothing when the set does not have the value.
 
-final class Card {
+final class Card
+{
     public string $number;
 
-    public function constructor(string $number) {
+    public function constructor(string $number)
+    {
         $this->number = $number;
     }
 }
 
-Card $saved = new Card("4111");
-Card $copy = new Card("4111");
+Card $saved = new Card('4111');
+Card $copy = new Card('4111');
 
 Core\ObjectSet<Card> $wallet = new Core\ObjectSet<Card>();
 $wallet->add($saved);

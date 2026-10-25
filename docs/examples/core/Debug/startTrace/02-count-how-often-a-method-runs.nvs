@@ -1,14 +1,17 @@
 <?nvs
 // Uses a trace to find a method that runs more often than you expect.
 
-class Catalog {
+class Catalog
+{
     // In a real shop, this lookup reads a database, so each call is slow.
-    public static function priceOf(string $sku): int {
-        return $sku == "tea" ? 450 : 900;
+    public static function priceOf(string $sku): int
+    {
+        return $sku == 'tea' ? 450 : 900;
     }
 
     // This loop looks up the price again for every single unit.
-    public static function invoice(array<int> $cart): int {
+    public static function invoice(array<int> $cart): int
+    {
         int $sum = 0;
         foreach ($cart as string $sku => int $count) {
             for (int $i = 0; $i < $count; $i = $i + 1) {
@@ -22,20 +25,20 @@ class Catalog {
 string $file = Core\Path::thisDir('invoice.jsonl');
 
 Core\Debug::startTrace($file);
-int $sum = Catalog::invoice(["tea" => 3, "honey" => 2]);
+int $sum = Catalog::invoice(['tea' => 3, 'honey' => 2]);
 Core\Debug::stopTrace();
 
-echo "invoice: ", $sum, "\n";
+echo 'invoice: ', $sum, "\n";
 
 // This counts the lines for `priceOf`. The cart has five units, so this prints `5`.
 int $lookups = 0;
 foreach (Core\IO::lines($file) as string $line) {
     var $call = Core\Json::decode($line) as array<mixed>;
-    if ($call["callee"] as string == "Catalog::priceOf") {
+    if ($call['callee'] as string == 'Catalog::priceOf') {
         $lookups = $lookups + 1;
     }
 }
-echo "price lookups: ", $lookups, "\n";
+echo 'price lookups: ', $lookups, "\n";
 
 // This deletes the trace file, so the next run starts with an empty folder.
 Core\IO::remove($file);

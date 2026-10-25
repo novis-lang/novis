@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         array<int> $totals = [400, 1200, 250, 3000, 90];
         int $acc = 1;
         int $i = 0;

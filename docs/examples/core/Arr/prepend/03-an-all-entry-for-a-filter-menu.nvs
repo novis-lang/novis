@@ -2,11 +2,11 @@
 // Shows how a shop builds the filter menu above a product list. The categories
 // come from storage, and the menu needs an entry for "all of them" at the top.
 
-array<string> $categories = ["Shoes", "Bags", "Hats"];
+array<string> $categories = ['Shoes', 'Bags', 'Hats'];
 
-array<string> $menu = Core\Arr::prepend($categories, "All products");
+array<string> $menu = Core\Arr::prepend($categories, 'All products');
 
 // This prints the four entries with their position, starting at 0.
 foreach ($menu as string $key => string $entry) {
-    echo $key, ": ", $entry, "\n";
+    echo $key, ': ', $entry, "\n";
 }

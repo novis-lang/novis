@@ -22,7 +22,7 @@ class InvoiceTest
         Test::assertSame(Invoice::number(2026, 7), 'INV-2026-0007');
     }
 
-    #[Test(skip: "the credit note format is not decided yet")]
+    #[Test(skip: 'the credit note format is not decided yet')]
     public function itNumbersACreditNote(): void
     {
         Test::assertSame(Invoice::number(2026, 8), 'CN-2026-0008');

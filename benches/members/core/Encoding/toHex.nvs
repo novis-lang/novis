@@ -5,12 +5,14 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<bytes> $digests = [
-            Core\Hash::of(Core\Encoding::encodeText("one", Core\Charset::Utf8), Core\Hash::Digest::Sha256),
-            Core\Hash::of(Core\Encoding::encodeText("two", Core\Charset::Utf8), Core\Hash::Digest::Sha256),
-            Core\Hash::of(Core\Encoding::encodeText("three", Core\Charset::Utf8), Core\Hash::Digest::Sha256),
+            Core\Hash::of(Core\Encoding::encodeText('one', Core\Charset::Utf8), Core\Hash::Digest::Sha256),
+            Core\Hash::of(Core\Encoding::encodeText('two', Core\Charset::Utf8), Core\Hash::Digest::Sha256),
+            Core\Hash::of(Core\Encoding::encodeText('three', Core\Charset::Utf8), Core\Hash::Digest::Sha256),
         ];
         uint $total = 0;
         uint $i = 0;

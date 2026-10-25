@@ -3,16 +3,18 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The reply comes from this table, so nothing is sent over a network.
-        array<string> $cookies = ["session=abc123; Path=/", "cart=7; Max-Age=600"];
-        Core\Test::answerHttp("https://shop.example.com/login", 200, {
-            body: "",
-            headers: ["content-type" => "text/plain", "set-cookie" => $cookies],
+        array<string> $cookies = ['session=abc123; Path=/', 'cart=7; Max-Age=600'];
+        Core\Test::answerHttp('https://shop.example.com/login', 200, {
+            body: '',
+            headers: ['content-type' => 'text/plain', 'set-cookie' => $cookies],
         });
-        Core\Http\Stream $login = Core\Http\Client::stream(Core\Http\Method::Post, "https://shop.example.com/login");
-        array<string> $names = ["set-cookie", "content-type", "etag"];
+        Core\Http\Stream $login = Core\Http\Client::stream(Core\Http\Method::Post, 'https://shop.example.com/login');
+        array<string> $names = ['set-cookie', 'content-type', 'etag'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

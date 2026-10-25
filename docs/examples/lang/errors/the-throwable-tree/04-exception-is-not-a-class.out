@@ -1,7 +1,7 @@
 error[E0303]: `Exception` is not declared
   --> 04-exception-is-not-a-class.nvs:6:27
   |
-6 | class ConfigError extends Exception {
+6 | class ConfigError extends Exception
   |                           ^^^^^^^^^ no matching declaration
 
 error: aborting due to 1 error

@@ -5,8 +5,8 @@
 
 array<int> $days = [1, 7, 30];
 
-int $keep = Core\Cli::select("How long should a backup be kept?", $days, {
-    labels: fn(int $day): string => Core\Str::format("%d day(s)", $day),
+int $keep = Core\Cli::select('How long should a backup be kept?', $days, {
+    labels: fn(int $day): string => Core\Str::format('%d day(s)', $day),
     default: 7,
 });
 

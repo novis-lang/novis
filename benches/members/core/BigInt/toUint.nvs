@@ -6,13 +6,15 @@
 // bench: allocations 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // A short magnitude and one of 64 bits, so both a small number and one
         // above what an `int` holds are measured.
         array<Core\BigInt> $values = [
             Core\BigInt::of(7),
-            Core\BigInt::parse("18446744073709551614"),
+            Core\BigInt::parse('18446744073709551614'),
         ];
         uint $total = 0;
         int $pick = 0;

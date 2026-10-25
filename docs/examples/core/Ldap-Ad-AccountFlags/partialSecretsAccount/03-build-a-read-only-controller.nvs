@@ -2,8 +2,8 @@
 // Shows how to build the flags of a read-only domain controller on a copy made with `with`.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // A read-only domain controller is a computer account with two more flags.
@@ -15,6 +15,6 @@ if ($flags != null) {
     });
 
     // This prints `512 false` and then `83890176 true`.
-    echo $flags->bits(), $flags->partialSecretsAccount() ? " true" : " false", "\n";
-    echo $controller->bits(), $controller->partialSecretsAccount() ? " true" : " false", "\n";
+    echo $flags->bits(), $flags->partialSecretsAccount() ? ' true' : ' false', "\n";
+    echo $controller->bits(), $controller->partialSecretsAccount() ? ' true' : ' false', "\n";
 }

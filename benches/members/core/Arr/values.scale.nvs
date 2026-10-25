@@ -8,7 +8,7 @@ class Bench
     public static function run(uint $size): uint
     {
         array<int> $values = Core\Arr::range(1, $size as int);
-        array<string> $names = Core\Arr::map($values, fn(int $n): string => "k" . ($n as string));
+        array<string> $names = Core\Arr::map($values, fn(int $n): string => 'k' . ($n as string));
         array<int> $sent = Core\Arr::fromKeysAndValues($names, $values);
         uint $total = 0;
         uint $i = 0;

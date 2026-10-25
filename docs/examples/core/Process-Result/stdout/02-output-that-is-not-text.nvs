@@ -3,7 +3,7 @@
 // requires: unix
 
 // `printf` writes three bytes here. The last one, `\377`, is not valid UTF-8.
-var $result = Core\Process::run("/usr/bin/printf", ["AB\\377"]);
+var $result = Core\Process::run('/usr/bin/printf', ["AB\\377"]);
 bytes $data = $result->stdout();
 
 // `bytes` can contain any data. This prints `3`.
@@ -14,5 +14,5 @@ try {
     string $text = $data as string;
     echo $text, "\n";
 } catch (RuntimeError $notText) {
-    echo "not text: ", $notText->message, "\n";
+    echo 'not text: ', $notText->message, "\n";
 }

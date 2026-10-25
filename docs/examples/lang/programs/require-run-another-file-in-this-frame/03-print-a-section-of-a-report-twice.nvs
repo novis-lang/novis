@@ -5,10 +5,10 @@
 
 echo "Support, this morning\n\n";
 
-Section::$title = "Open tickets";
-Section::$rows = ["#41 printer jam", "#42 badge reader"];
+Section::$title = 'Open tickets';
+Section::$rows = ['#41 printer jam', '#42 badge reader'];
 require 'parts/section.nvs';
 
-Section::$title = "Waiting on a customer";
-Section::$rows = ["#38 refund address"];
+Section::$title = 'Waiting on a customer';
+Section::$rows = ['#38 refund address'];
 require 'parts/section.nvs';

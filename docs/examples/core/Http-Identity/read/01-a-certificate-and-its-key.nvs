@@ -23,4 +23,4 @@ Core\Crypto\KeyPair $key = Core\Crypto\KeyPair::read($keyFile, Core\Crypto\KeyKi
 Core\Http\Identity $identity = Core\Http\Identity::read($chain as bytes, $key);
 
 // The key matches, so no error is thrown and this line prints.
-echo "the certificate and the key belong together", "\n";
+echo 'the certificate and the key belong together', "\n";

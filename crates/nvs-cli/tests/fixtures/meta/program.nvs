@@ -12,37 +12,42 @@
 ///
 /// @see Greeter::greet
 /// @example examples/greeting.nvs
-class Greeter {
+class Greeter
+{
     /// What a rendered greeting is: its text and how loudly to say it.
-    type Card = {text: string, volume: int};
+    type Card = { text: string, volume: int };
 
     /// The word every greeting opens with.
-    public const string OPENING = "Hello";
+    public const string OPENING = 'Hello';
 
     /// Who the last greeting named.
     public string $last;
 
-    public function constructor() {
-        $this->last = "";
+    public function constructor()
+    {
+        $this->last = '';
     }
 
     /// Greets `$who`, and remembers the name.
     ///
     /// @see Core\Str::length
     /// @example examples/greeting.nvs
-    public function greet(string $who): string {
+    public function greet(string $who): string
+    {
         $this->last = $who;
-        return self::OPENING . ", " . $who;
+        return self::OPENING . ', ' . $who;
     }
 
     /// Greets nobody in particular.
-    public static function anyone(): string {
-        return self::OPENING . ", world";
+    public static function anyone(): string
+    {
+        return self::OPENING . ', world';
     }
 }
 
 /// How loudly to greet.
-enum Volume: int {
+enum Volume: int
+{
     type Pair = array<Volume>;
 
     /// Barely audible.
@@ -55,6 +60,6 @@ enum Volume: int {
 type Greeting = string;
 
 var $greeter = new Greeter();
-var $greeting = $greeter->greet("world") as Greeting;
+var $greeting = $greeter->greet('world') as Greeting;
 echo $greeting, "\n";
-echo "volume=" . (Volume::Normal as int) . "\n";
+echo 'volume=' . (Volume::Normal as int) . "\n";

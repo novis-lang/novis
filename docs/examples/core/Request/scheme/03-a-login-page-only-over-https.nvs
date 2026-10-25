@@ -3,7 +3,7 @@
 
 // A password sent over plain `http` can be read by anybody on the network.
 // This request came over `http`, so the program shows a message instead of the form.
-if (Core\Request::scheme() == "https") {
+if (Core\Request::scheme() == 'https') {
     echo "<form method=\"post\">password: <input type=\"password\"></form>\n";
 } else {
     // This prints the message below.

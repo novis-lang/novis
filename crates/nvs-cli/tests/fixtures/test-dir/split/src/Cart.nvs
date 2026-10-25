@@ -3,13 +3,16 @@ namespace Shop;
 
 use Core\Test;
 
-final class Cart {
-    public function total(): int {
+final class Cart
+{
+    public function total(): int
+    {
         return 3;
     }
 
     #[Test]
-    public function totalIsThree(): void {
+    public function totalIsThree(): void
+    {
         Test::assertSame(3, $this->total());
     }
 }

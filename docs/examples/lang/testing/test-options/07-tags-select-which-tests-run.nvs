@@ -5,22 +5,27 @@
 
 use Core\Test;
 
-class Order {
-    public static function withShipping(int $cents): int {
+class Order
+{
+    public static function withShipping(int $cents): int
+    {
         return $cents + 500;
     }
 }
 
-class OrderTest {
+class OrderTest
+{
     // A test without `tags:` runs when no `--tag` is given.
     #[Test]
-    public function itAddsTheShippingCost(): void {
+    public function itAddsTheShippingCost(): void
+    {
         Test::assertSame(Order::withShipping(1000), 1500);
     }
 
     // A test may have several tags. `--tag db` and `--tag slow` both select it.
-    #[Test(tags: ["db", "slow"])]
-    public function itAddsShippingToEveryStoredOrder(): void {
+    #[Test(tags: ['db', 'slow'])]
+    public function itAddsShippingToEveryStoredOrder(): void
+    {
         array<int> $stored = [500, 1000, 2500];
         int $total = 0;
         foreach ($stored as int $cents) {
@@ -30,8 +35,9 @@ class OrderTest {
     }
 
     // `--skip-tag slow` leaves out this test.
-    #[Test(tags: ["slow"])]
-    public function itAddsShippingToAMillionOrders(): void {
+    #[Test(tags: ['slow'])]
+    public function itAddsShippingToAMillionOrders(): void
+    {
         int $total = 0;
         for (int $i = 0; $i < 1000000; $i++) {
             $total = $total + Order::withShipping(100);

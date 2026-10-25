@@ -17,12 +17,12 @@ string $header = Core\Encoding::toHex(Core\Crypto::sign($body as bytes, $sender)
 Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
     $published,
     Core\Crypto\KeyKind::Ed25519,
-    Core\Crypto\PublicKey::Format::Spki
+    Core\Crypto\PublicKey::Format::Spki,
 );
 // ...and checks the body it just received against the header.
 try {
     Core\Crypto::verify($body as bytes, Core\Encoding::fromHex($header), $key);
-    echo "accepted: ", $body, "\n";
+    echo 'accepted: ', $body, "\n";
 } catch (Throwable $e) {
-    echo "refused", "\n";
+    echo 'refused', "\n";
 }

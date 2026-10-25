@@ -10,5 +10,5 @@ echo Core\Str::length($together), "\n";
 echo Core\Str::length($separate), "\n";
 
 // Their code points are different. This prints `233` and then `101 769`.
-echo Core\Str::join(Core\Arr::map(Core\Str::codePoints($together), fn(uint $p): string => "{$p}"), " "), "\n";
-echo Core\Str::join(Core\Arr::map(Core\Str::codePoints($separate), fn(uint $p): string => "{$p}"), " "), "\n";
+echo Core\Str::join(Core\Arr::map(Core\Str::codePoints($together), fn(uint $p): string => "{$p}"), ' '), "\n";
+echo Core\Str::join(Core\Arr::map(Core\Str::codePoints($separate), fn(uint $p): string => "{$p}"), ' '), "\n";

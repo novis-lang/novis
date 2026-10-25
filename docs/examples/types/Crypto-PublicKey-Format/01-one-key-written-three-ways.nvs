@@ -5,26 +5,26 @@
 // `PublicKey::read` reads a P-256 key in the `Spki` format, as DER bytes.
 Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
     Core\Encoding::fromHex(
-        "3059301306072a8648ce3d020106082a8648ce3d030107034200"
-        . "0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c49"
-        . "3781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686fa"
-        . "eeba6850b16fdb2572ff0e89"
+        '3059301306072a8648ce3d020106082a8648ce3d030107034200'
+            . '0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c49'
+            . '3781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686fa'
+            . 'eeba6850b16fdb2572ff0e89',
     ),
     Core\Crypto\KeyKind::P256,
-    Core\Crypto\PublicKey::Format::Spki
+    Core\Crypto\PublicKey::Format::Spki,
 );
 
 // `Raw` writes the point itself. The first byte says that the point is
 // uncompressed, and the two coordinates follow it.
-echo "raw  ", Core\Encoding::toHex($key->write(Core\Crypto\PublicKey::Format::Raw)), "\n";
+echo 'raw  ', Core\Encoding::toHex($key->write(Core\Crypto\PublicKey::Format::Raw)), "\n";
 
 // `Spki` writes the point with the name of its algorithm in front. Every kind
 // of key can be written in this format.
-echo "spki ", Core\Bytes::length($key->write(Core\Crypto\PublicKey::Format::Spki)), " octets", "\n";
+echo 'spki ', Core\Bytes::length($key->write(Core\Crypto\PublicKey::Format::Spki)), ' octets', "\n";
 
 // `Jwk` writes the key as JSON, the format for keys published on the web. It
 // has only the fields that identify the key, sorted by name.
-echo "jwk  ", Core\Encoding::decodeText(
+echo 'jwk  ', Core\Encoding::decodeText(
     $key->write(Core\Crypto\PublicKey::Format::Jwk),
-    Core\Charset::Utf8
+    Core\Charset::Utf8,
 ), "\n";

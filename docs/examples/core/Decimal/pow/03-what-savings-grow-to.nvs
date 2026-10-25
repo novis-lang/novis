@@ -10,5 +10,5 @@ array<uint> $years = [2, 5, 10];
 foreach ($years as uint $count) {
     decimal $grown = $deposit * Core\Decimal::pow($factor, $count);
     // Round once, at the end. Rounding every year would move the answer.
-    echo $count, " years: ", Core\Decimal::divRound($grown, 1, 2, Core\RoundMode::HalfUp), "\n";
+    echo $count, ' years: ', Core\Decimal::divRound($grown, 1, 2, Core\RoundMode::HalfUp), "\n";
 }

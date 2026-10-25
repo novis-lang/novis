@@ -6,38 +6,46 @@ use Core\Test;
 use Core\Test\Fixture;
 
 // A user as a login form checks it: a name and a stored password hash.
-class Account {
-    public function constructor(public string $name, public string $hash) {}
+class Account
+{
+    public function constructor(public string $name, public string $hash)
+    {}
 
-    public function logIn(secret string $typed): bool {
+    public function logIn(secret string $typed): bool
+    {
         return Core\Password::verify($typed, $this->hash);
     }
 }
 
-class AccountTest {
+class AccountTest
+{
     // `Core\Password::hash` takes a long time, so guessing a password is slow.
     // This fixture runs it once. Without the fixture, every test runs it.
     #[Fixture]
-    public static function account(): Account {
-        return new Account("ada", Core\Password::hash("correct horse"));
+    public static function account(): Account
+    {
+        return new Account('ada', Core\Password::hash('correct horse'));
     }
 
     #[Test]
-    public function theRightPasswordLogsIn(Account $account): void {
-        Test::assertTrue($account->logIn("correct horse"));
+    public function theRightPasswordLogsIn(Account $account): void
+    {
+        Test::assertTrue($account->logIn('correct horse'));
     }
 
     #[Test]
-    public function aWrongPasswordDoesNotLogIn(Account $account): void {
-        Test::assertSame($account->logIn("wrong horse"), false);
+    public function aWrongPasswordDoesNotLogIn(Account $account): void
+    {
+        Test::assertSame($account->logIn('wrong horse'), false);
     }
 
     #[Test]
-    public function anEmptyPasswordDoesNotLogIn(Account $account): void {
-        Test::assertSame($account->logIn(""), false);
+    public function anEmptyPasswordDoesNotLogIn(Account $account): void
+    {
+        Test::assertSame($account->logIn(''), false);
     }
 }
 
 // This prints `true`.
-Account $account = new Account("ada", Core\Password::hash("correct horse"));
-echo $account->logIn("correct horse") ? "true" : "false", "\n";
+Account $account = new Account('ada', Core\Password::hash('correct horse'));
+echo $account->logIn('correct horse') ? 'true' : 'false', "\n";

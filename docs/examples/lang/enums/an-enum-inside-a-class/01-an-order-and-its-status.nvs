@@ -31,4 +31,4 @@ $order->pay();
 $order->ship();
 
 // Outside the class, the enum is `Order::Status`. This prints `shipped`.
-echo $order->status == Order::Status::Shipped ? "shipped" : "not shipped", "\n";
+echo $order->status == Order::Status::Shipped ? 'shipped' : 'not shipped', "\n";

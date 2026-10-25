@@ -3,10 +3,10 @@
 // A security check does this to find accounts with too many rights.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 var $found = $corp->search(
-    Core\Ldap\Filter::equals("objectClass", "user"),
-    {base: "OU=Company,DC=example,DC=test", select: ["userAccountControl"]},
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    { base: 'OU=Company,DC=example,DC=test', select: ['userAccountControl'] },
 );
 
 uint $count = 0;
@@ -22,4 +22,4 @@ foreach ($found as Core\Ldap\Entry $account) {
 }
 
 // No account in this directory has this right. This prints `0 of 5`.
-echo $count, " of ", $all, "\n";
+echo $count, ' of ', $all, "\n";

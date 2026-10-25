@@ -6,9 +6,9 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     ?Throwable $error = $report->error();
     if ($error != null) {
         // This prints "error: the disk is full".
-        echo "error: ", $error->message, "\n";
+        echo 'error: ', $error->message, "\n";
     }
 });
 
 echo "saving the upload\n";
-throw new RuntimeError("the disk is full");
+throw new RuntimeError('the disk is full');

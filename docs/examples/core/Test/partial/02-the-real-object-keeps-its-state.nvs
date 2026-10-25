@@ -1,24 +1,29 @@
 <?nvs
 // Shows that a partial calls the real object, so the real object keeps its own state.
 
-interface Cart {
+interface Cart
+{
     public function add(int $cents): void;
     public function total(): int;
     public function shipping(): int;
 }
 
-final class RealCart implements Cart {
+final class RealCart implements Cart
+{
     private int $sum = 0;
 
-    public function add(int $cents): void {
+    public function add(int $cents): void
+    {
         $this->sum = $this->sum + $cents;
     }
 
-    public function total(): int {
+    public function total(): int
+    {
         return $this->sum + $this->shipping();
     }
 
-    public function shipping(): int {
+    public function shipping(): int
+    {
         return 500;
     }
 }

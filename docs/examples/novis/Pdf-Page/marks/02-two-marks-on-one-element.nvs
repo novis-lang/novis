@@ -4,15 +4,15 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
 // `;` separates the marks. Each row has an `amount` mark and a `tax` mark.
-var $html = "<h1>Invoice 1042</h1>"
+var $html = '<h1>Invoice 1042</h1>'
     . "<p data-mark=\"amount:12.50;tax:2.38\">Tea</p>"
     . "<p data-mark=\"amount:4.00;tax:0.76\">Cups</p>";
 
 // This prints the values of each name on the page, as strings.
 var $footer = fn(Page $page): Core\Html\Markup => {
-    echo "amount: ", Core\Str::join($page->marks("amount"), ", "), "\n";
-    echo "tax: ", Core\Str::join($page->marks("tax"), ", "), "\n";
-    echo "discount: ", Core\Arr::count($page->marks("discount")), " values\n";
+    echo 'amount: ', Core\Str::join($page->marks('amount'), ', '), "\n";
+    echo 'tax: ', Core\Str::join($page->marks('tax'), ', '), "\n";
+    echo 'discount: ', Core\Arr::count($page->marks('discount')), " values\n";
     return html`<p>Invoice 1042</p>`;
 };
 

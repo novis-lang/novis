@@ -1,7 +1,7 @@
 <?nvs
 // Shows the simplest `foreach`. The body runs once for each element of the array.
 
-var $lineTotals = ["shirt" => 1990, "socks" => 450, "belt" => 2500];
+var $lineTotals = ['shirt' => 1990, 'socks' => 450, 'belt' => 2500];
 var $sum = 0;
 
 // `var $cents` gets the type of the array's values, so `$cents` is an `int`.
@@ -14,8 +14,8 @@ echo $sum, "\n";
 
 // The array can also be written in the loop header. All its values are strings,
 // so `$tag` is a `string`.
-foreach (["new", "sale", "last one"] as var $tag) {
-    echo "[", $tag, "] ";
+foreach (['new', 'sale', 'last one'] as var $tag) {
+    echo '[', $tag, '] ';
 }
 echo "\n";
 

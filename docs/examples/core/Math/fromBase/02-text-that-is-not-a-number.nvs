@@ -3,7 +3,7 @@
 
 // `y` is not a hexadecimal digit, so each call throws a `RuntimeError`.
 // A prefix such as `0x` and an empty string also throw.
-array<string> $inputs = ["beefy", "0xff", ""];
+array<string> $inputs = ['beefy', '0xff', ''];
 foreach ($inputs as string $input) {
     try {
         echo Core\Math::fromBase($input, 16), "\n";
@@ -14,7 +14,7 @@ foreach ($inputs as string $input) {
 
 // This number is too large for an `int`, so the call throws an `ArithmeticError`.
 try {
-    echo Core\Math::fromBase("ffffffffffffffff", 16), "\n";
+    echo Core\Math::fromBase('ffffffffffffffff', 16), "\n";
 } catch (ArithmeticError $overflow) {
     echo "too large\n";
 }

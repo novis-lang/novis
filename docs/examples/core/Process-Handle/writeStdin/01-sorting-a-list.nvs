@@ -3,11 +3,11 @@
 // requires: unix
 
 // `sort` reads lines from its input and writes them back in order.
-var $sorter = Core\Process::spawn("/usr/bin/sort", []);
+var $sorter = Core\Process::spawn('/usr/bin/sort', []);
 
 // Each call sends one name. `as bytes` converts the text to the `bytes` that `writeStdin` needs.
 // The input stays open between the calls.
-array<string> $names = ["Charlie", "Alice", "Bob"];
+array<string> $names = ['Charlie', 'Alice', 'Bob'];
 foreach ($names as string $name) {
     $sorter->writeStdin(($name . "\n") as bytes);
 }

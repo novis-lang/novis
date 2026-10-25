@@ -7,10 +7,10 @@ use Core\Test;
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers the request. A new order gets the status 201 (Created).
     Core\Response::setStatus(201);
-    echo "order created";
+    echo 'order created';
 } else {
-    var $response = Test::request(Method::Post, "/orders");
+    var $response = Test::request(Method::Post, '/orders');
 
     // This prints `201 order created`.
-    echo $response->status(), " ", $response->body(), "\n";
+    echo $response->status(), ' ', $response->body(), "\n";
 }

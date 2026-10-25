@@ -3,9 +3,9 @@
 // this to clean up a table of input before it stores or sends the table.
 
 var $form = [
-    "name" => "  Ada Lovelace ",
-    "city" => "London  ",
-    "note" => "",
+    'name' => '  Ada Lovelace ',
+    'city' => 'London  ',
+    'note' => '',
 ];
 
 // `inout var $field` is a `string`, because every value in `$form` is a string.
@@ -18,7 +18,7 @@ echo Core\Json::encode($form), "\n";
 
 // This loop writes the type `int` in place of `var`. Without `inout`, the
 // variable is a copy, and the array keeps its values.
-array<int> $counts = ["a" => 1, "b" => 2];
+array<int> $counts = ['a' => 1, 'b' => 2];
 foreach ($counts as int $copy) {
     $copy = $copy * 100;
 }

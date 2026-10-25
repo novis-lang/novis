@@ -1,7 +1,7 @@
 <?nvs
 // Shows how a shop builds a page with a list of products and sends it.
 
-array<string> $products = ["Tea & biscuits", "Coffee beans", "Hot chocolate"];
+array<string> $products = ['Tea & biscuits', 'Coffee beans', 'Hot chocolate'];
 
 // Each product becomes one `<li>` item. The `&` in the first name is escaped.
 array<Core\Html\Markup> $items = [];

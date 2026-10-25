@@ -4,15 +4,18 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Limits {
+class Limits
+{
     public const int SMALL = 1;
     public const int LARGE = 2;
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $info = Core\Reflect::forObject(new Limits());
-        array<string> $names = ["SMALL", "LARGE"];
+        array<string> $names = ['SMALL', 'LARGE'];
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -2,11 +2,14 @@
 // Shows the `Iterable<T>` interface. Its one method `iterate()` returns a cursor, and
 // `foreach` calls it once per loop. Every loop therefore starts at the beginning.
 
-class Countdown implements Iterable<int> {
-    public function constructor(private int $from) {}
+class Countdown implements Iterable<int>
+{
+    public function constructor(private int $from)
+    {}
 
     // A method with `yield` returns an `Iterator<int>`, which is what this must give.
-    public function iterate(): Iterator<int> {
+    public function iterate(): Iterator<int>
+    {
         int $i = $this->from;
         while ($i > 0) {
             yield $i;
@@ -31,7 +34,7 @@ echo "\n";
 // prints all nine pairs.
 foreach ($three as int $outer) {
     foreach ($three as int $inner) {
-        echo $outer, $inner, " ";
+        echo $outer, $inner, ' ';
     }
 }
 echo "\n";

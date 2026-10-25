@@ -5,10 +5,12 @@
 // bench: complexity constant
 // requires: samba-ad
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $corp = Core\Ldap::connect("corp");
-        var $found = $corp->read("CN=Managers,OU=Company,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $corp = Core\Ldap::connect('corp');
+        var $found = $corp->read('CN=Managers,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
         if ($found == null) {
             return 0;
         }

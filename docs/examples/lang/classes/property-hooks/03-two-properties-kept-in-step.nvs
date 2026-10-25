@@ -3,13 +3,14 @@
 // lower case whatever the form sends, and the display name follows the value
 // that was stored.
 
-class User {
+class User
+{
     public string $email {
         get => $this->email;
         set (string $v) {
             string $clean = Core\Str::trim(Core\Str::lower($v));
-            if (!Core\Str::contains($clean, "@")) {
-                throw new LogicError("that is not an e-mail address");
+            if (!Core\Str::contains($clean, '@')) {
+                throw new LogicError('that is not an e-mail address');
             }
             $this->email = $clean;
         }
@@ -18,26 +19,27 @@ class User {
     // `Core\Str::before` gives the text in front of the `@`. It returns `null`
     // when there is no `@`, and `??` uses the whole address then.
     public string $display {
-        get => Core\Str::before($this->email, "@") ?? $this->email;
+        get => Core\Str::before($this->email, '@') ?? $this->email;
     }
 
-    public function constructor(string $email) {
+    public function constructor(string $email)
+    {
         $this->email = $email;
     }
 }
 
 // The form sent spaces and capital letters. The hook cleans both away.
-var $user = new User("  Ada.Lovelace@Example.COM ");
+var $user = new User('  Ada.Lovelace@Example.COM ');
 echo $user->email, "\n";
 echo $user->display, "\n";
 
 // A later write goes through the same hook.
-$user->email = "BO@example.com";
-echo $user->email, " ", $user->display, "\n";
+$user->email = 'BO@example.com';
+echo $user->email, ' ', $user->display, "\n";
 
 try {
-    $user->email = "not-an-address";
+    $user->email = 'not-an-address';
 } catch (LogicError $e) {
-    echo "refused: ", $e->message, "\n";
+    echo 'refused: ', $e->message, "\n";
 }
 echo $user->email, "\n";

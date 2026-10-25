@@ -3,9 +3,11 @@
 // The two programs compile to the same code, so the two figures should match.
 // bench: iterations 100000
 
-class Bench {
-    public static function run(int $rounds): int {
-        array<string> $labels = ["  Ada ", "BOB", " carol  ", "Dee"];
+class Bench
+{
+    public static function run(int $rounds): int
+    {
+        array<string> $labels = ['  Ada ', 'BOB', ' carol  ', 'Dee'];
         var $total = 0;
         var $i = 0;
         while ($i < $rounds) {

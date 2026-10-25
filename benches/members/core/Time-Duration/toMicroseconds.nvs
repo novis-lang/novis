@@ -4,8 +4,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         array<Core\Time\Duration> $took = [450us, 1200500ns, 87us, 3ms];
         int $total = 0;
         uint $i = 0;

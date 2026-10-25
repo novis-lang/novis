@@ -9,7 +9,7 @@ Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 
 // The first record holds the column names and is not one of the records you
 // read. This prints `fig: 2` and `apple: 10`.
-foreach (Core\Csv::rows($file, {header: true}) as array<string> $record) {
+foreach (Core\Csv::rows($file, { header: true }) as array<string> $record) {
     echo $record['product'], ': ', $record['count'], "\n";
 }
 

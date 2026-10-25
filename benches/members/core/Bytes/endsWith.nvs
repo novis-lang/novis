@@ -6,12 +6,14 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         bytes $chunk = "id=1042,name=one\r\nid=1043,name=two\r\n" as bytes;
         array<bytes> $enders = [
-            Core\Encoding::fromHex("0d0a"),
-            Core\Encoding::fromHex("0a"),
+            Core\Encoding::fromHex('0d0a'),
+            Core\Encoding::fromHex('0a'),
             "two\r\n" as bytes,
         ];
         uint $total = 0;

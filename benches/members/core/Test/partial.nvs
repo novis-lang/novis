@@ -3,23 +3,29 @@
 // bench: iterations 256
 // bench: complexity constant
 
-interface Shop {
+interface Shop
+{
     public function name(): string;
     public function openAt(): int;
 }
 
-final class RealShop implements Shop {
-    public function name(): string {
-        return "Corner Shop";
+final class RealShop implements Shop
+{
+    public function name(): string
+    {
+        return 'Corner Shop';
     }
 
-    public function openAt(): int {
+    public function openAt(): int
+    {
         return 8;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         RealShop $real = new RealShop();
         int $total = 0;
         uint $i = 0;

@@ -2,10 +2,10 @@
 // Shows how to join a list with "or", for a sentence that offers a choice.
 use Novis\Intl\ListFormat;
 
-array<string> $sizes = ["small", "medium", "large"];
+array<string> $sizes = ['small', 'medium', 'large'];
 
 // `ListFormat::Type::Or` joins with the word for "or". This prints small, medium, or large.
-echo "Choose ", ListFormat::join([$sizes], "en", {type: ListFormat::Type::Or})[0], ".\n";
+echo 'Choose ', ListFormat::join([$sizes], 'en', { type: ListFormat::Type::Or })[0], ".\n";
 
 // In German, this prints small, medium oder large.
-echo ListFormat::join([$sizes], "de", {type: ListFormat::Type::Or})[0], "\n";
+echo ListFormat::join([$sizes], 'de', { type: ListFormat::Type::Or })[0], "\n";

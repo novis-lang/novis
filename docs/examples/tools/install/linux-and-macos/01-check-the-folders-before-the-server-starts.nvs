@@ -3,13 +3,15 @@
 // Each line of the input is the mode, the owner and the path of one folder.
 // On Linux, `stat -c '%a %U %n' /opt/novis /opt/novis/*` prints such lines.
 
-class Layout {
+class Layout
+{
     // The account that runs `nvs` on this host.
-    public const string ACCOUNT = "novis";
+    public const string ACCOUNT = 'novis';
 
-    public static function check(tainted string $input): void {
+    public static function check(tainted string $input): void
+    {
         foreach (Core\Str::lines($input) as tainted string $line) {
-            array<tainted string> $cells = Core\Str::split($line, " ", {limit: 3});
+            array<tainted string> $cells = Core\Str::split($line, ' ', { limit: 3 });
             if (Core\Arr::count($cells) != 3) {
                 continue;
             }
@@ -19,13 +21,13 @@ class Layout {
             tainted string $path = $cells[2];
 
             // The owner must be `root` or the account that runs `nvs`.
-            if ($owner != "root" && $owner != self::ACCOUNT) {
-                echo $path, ": fails. The owner is ", $owner, ".\n";
+            if ($owner != 'root' && $owner != self::ACCOUNT) {
+                echo $path, ': fails. The owner is ', $owner, ".\n";
                 continue;
             }
             // `0o020` is the write bit for the group. `0o002` is the write bit for others.
             if (($mode & 0o022) != 0) {
-                echo $path, ": fails. Run `chmod go-w ", $path, "`.\n";
+                echo $path, ': fails. Run `chmod go-w ', $path, "`.\n";
                 continue;
             }
             echo $path, ": passes\n";

@@ -5,7 +5,7 @@
 // proof: exit 1
 
 Core\Fatal::onLimit(fn (array<string> $report): void => {
-    echo "stopped by the ", $report["limit"], " limit\n";
+    echo 'stopped by the ', $report['limit'], " limit\n";
 });
 
 echo "working\n";
@@ -13,7 +13,7 @@ echo "working\n";
 array<string> $ballast = [];
 int $slab = 0;
 while ($slab < 4) {
-    $ballast[] = Core\Str::repeat("x", 8388608);
+    $ballast[] = Core\Str::repeat('x', 8388608);
     $slab = $slab + 1;
 }
 

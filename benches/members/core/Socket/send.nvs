@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(Core\Socket $conn, uint $rounds): uint {
-        array<string> $updates = ["ok", "tick 42", "price 12.50"];
+class Bench
+{
+    public static function run(Core\Socket $conn, uint $rounds): uint
+    {
+        array<string> $updates = ['ok', 'tick 42', 'price 12.50'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

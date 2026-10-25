@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $names = ["reply", "status", "result"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $names = ['reply', 'status', 'result'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

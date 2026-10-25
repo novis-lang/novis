@@ -23,4 +23,4 @@ while ($roll < 1000) {
 echo $outside, "\n";
 
 // In 1000 rolls, both 1 and 6 come up. This prints "yes".
-echo $sawOne && $sawSix ? "yes" : "no", "\n";
+echo $sawOne && $sawSix ? 'yes' : 'no', "\n";

@@ -4,11 +4,11 @@
 // requires: samba-ad
 
 try {
-    var $corp = Core\Ldap::connect("corp");
-    var $people = $corp->search(Core\Ldap\Filter::equals("sAMAccountName", "anna.berg"), {select: ["mail"]});
+    var $corp = Core\Ldap::connect('corp');
+    var $people = $corp->search(Core\Ldap\Filter::equals('sAMAccountName', 'anna.berg'), { select: ['mail'] });
     // This prints `anna.berg@example.test`.
     foreach ($people as Core\Ldap\Entry $person) {
-        echo $person->string("mail") ?? "no mail address", "\n";
+        echo $person->string('mail') ?? 'no mail address', "\n";
     }
 } catch (Core\Ldap\LdapError $error) {
     // `kind` says why the call failed, for example `Unavailable` when the server does not answer.

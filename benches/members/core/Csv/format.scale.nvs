@@ -10,7 +10,7 @@ class Bench
         array<array<string>> $table = [];
         uint $row = 0;
         while ($row < $size) {
-            $table[] = ["Beans, dried", "500 g", "4.10"];
+            $table[] = ['Beans, dried', '500 g', '4.10'];
             $row = $row + 1;
         }
         uint $total = 0;

@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $db = Core\Db::connect('notes');
         $db->execute('create table shops (id integer primary key, opens time not null, closes time not null)', []);
         $db->execute('insert into shops (opens, closes) values (?, ?)', ['09:00:00', '18:00:00']);

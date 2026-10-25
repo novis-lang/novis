@@ -2,14 +2,14 @@
 // Shows how to check whether a person is a direct member of a group.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-string $managers = "CN=Managers,OU=Company,DC=example,DC=test";
+var $corp = Core\Ldap::connect('corp');
+string $managers = 'CN=Managers,OU=Company,DC=example,DC=test';
 
 // The `member` attribute of a group contains the names of its members.
 // The value is a `Core\Ldap\Dn`, so the server compares it as a name.
-var $anna = Core\Ldap\Dn::parse("CN=Anna Berg,OU=Company,DC=example,DC=test");
-var $ben = Core\Ldap\Dn::parse("CN=Ben Kohl,OU=Company,DC=example,DC=test");
+var $anna = Core\Ldap\Dn::parse('CN=Anna Berg,OU=Company,DC=example,DC=test');
+var $ben = Core\Ldap\Dn::parse('CN=Ben Kohl,OU=Company,DC=example,DC=test');
 
 // Only Anna Berg is a manager. This prints `true` and then `false`.
-echo $corp->compare($managers, "member", $anna) ? "true" : "false", "\n";
-echo $corp->compare($managers, "member", $ben) ? "true" : "false", "\n";
+echo $corp->compare($managers, 'member', $anna) ? 'true' : 'false', "\n";
+echo $corp->compare($managers, 'member', $ben) ? 'true' : 'false', "\n";

@@ -1,7 +1,7 @@
 error[E0783]: `Sealed` is `final`, so no class extends it
-  --> 08-no-class-extends-a-final-class.nvs:8:23
+  --> 08-no-class-extends-a-final-class.nvs:9:23
   |
-8 | class Widened extends Sealed {}
+9 | class Widened extends Sealed
   |                       ^^^^^^ `Widened` names it as its superclass
   = help: remove `final` from the declaration of `Sealed` if other classes may extend it. Or store a `Sealed` in a property of `Widened`, and write `implements … by $property` to forward the calls to it
 

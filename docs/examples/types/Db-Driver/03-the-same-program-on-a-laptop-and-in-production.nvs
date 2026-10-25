@@ -3,28 +3,31 @@
 // `Deployment::driverFor` picks the driver from the name of the environment.
 // The SQL that differs between databases is then chosen from the driver.
 
-class Deployment {
-    public static function driverFor(string $environment): ?Core\Db\Driver {
+class Deployment
+{
+    public static function driverFor(string $environment): ?Core\Db\Driver
+    {
         return match ($environment) {
-            "tests" => Core\Db\Driver::Sqlite,
-            "staging" => Core\Db\Driver::Postgres,
-            "production" => Core\Db\Driver::Postgres,
-            "reporting" => Core\Db\Driver::SqlServer,
+            'tests' => Core\Db\Driver::Sqlite,
+            'staging' => Core\Db\Driver::Postgres,
+            'production' => Core\Db\Driver::Postgres,
+            'reporting' => Core\Db\Driver::SqlServer,
             default => null,
         };
     }
 
     // `page` returns the SQL that reads one page of rows. SQL Server uses a
     // different syntax from the other four drivers.
-    public static function page(Core\Db\Driver $driver): string {
+    public static function page(Core\Db\Driver $driver): string
+    {
         return match ($driver) {
-            Core\Db\Driver::SqlServer => "offset ? rows fetch next ? rows only",
-            default => "limit ? offset ?",
+            Core\Db\Driver::SqlServer => 'offset ? rows fetch next ? rows only',
+            default => 'limit ? offset ?',
         };
     }
 }
 
-array<string> $environments = ["tests", "production", "reporting", "sandbox"];
+array<string> $environments = ['tests', 'production', 'reporting', 'sandbox'];
 
 foreach ($environments as string $environment) {
     ?Core\Db\Driver $driver = Deployment::driverFor($environment);
@@ -34,6 +37,6 @@ foreach ($environments as string $environment) {
     if ($driver == null) {
         echo $environment, ": no database is configured for that name\n";
     } else {
-        echo $environment, ": pages with ", Deployment::page($driver), "\n";
+        echo $environment, ': pages with ', Deployment::page($driver), "\n";
     }
 }

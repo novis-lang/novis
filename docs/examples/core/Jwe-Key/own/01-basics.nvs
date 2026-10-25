@@ -4,8 +4,8 @@
 Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
 Core\Jwe\Key $forMe = Core\Jwe\Key::recipient($pair->publicKey());
 
-string $fromAnna = Core\Jwe::encrypt("hi from Anna", $forMe);
-string $fromBen = Core\Jwe::encrypt("hi from Ben", $forMe);
+string $fromAnna = Core\Jwe::encrypt('hi from Anna', $forMe);
+string $fromBen = Core\Jwe::encrypt('hi from Ben', $forMe);
 
 // One key made with `own` decrypts both messages.
 // This prints `hi from Anna` and `hi from Ben`.

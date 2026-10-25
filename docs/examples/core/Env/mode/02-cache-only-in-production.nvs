@@ -5,4 +5,4 @@
 int $cacheSeconds = Core\Env::mode() == Core\Env::Mode::Production ? 3600 : 0;
 
 // The mode is `Production` here, so this prints `3600`.
-echo "cache pages for ", $cacheSeconds, " seconds\n";
+echo 'cache pages for ', $cacheSeconds, " seconds\n";

@@ -2,11 +2,13 @@
 // Shows the error `Core\Json::decodeAs` throws when the document does not match the class.
 
 #[Core\Json\Derive]
-class Product {
+class Product
+{
     public string $name;
     public int $cents;
 
-    public function constructor(string $name, int $cents) {
+    public function constructor(string $name, int $cents)
+    {
         $this->name = $name;
         $this->cents = $cents;
     }
@@ -23,7 +25,7 @@ try {
 } catch (ParseError $error) {
     // This prints the number of problems, and then the path and message of each one.
     echo Core\Arr::count($error->issues), " problems\n";
-    foreach ($error->issues as {path: string, message: string} $issue) {
-        echo $issue->path, ": ", $issue->message, "\n";
+    foreach ($error->issues as { path: string, message: string } $issue) {
+        echo $issue->path, ': ', $issue->message, "\n";
     }
 }

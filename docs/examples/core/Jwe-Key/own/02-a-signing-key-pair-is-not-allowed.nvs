@@ -12,4 +12,4 @@ try {
 
 // An `X25519` key pair is allowed. This prints `ok`.
 Core\Jwe\Key::own(Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519));
-echo "ok", "\n";
+echo 'ok', "\n";

@@ -4,10 +4,10 @@ use Novis\Intl\RelativeTime;
 
 // A negative count is in the past.
 var $ages = [
-    {count: -3, unit: RelativeTime::Unit::Day},
-    {count: -1, unit: RelativeTime::Unit::Hour},
-    {count: -20, unit: RelativeTime::Unit::Minute},
+    { count: -3, unit: RelativeTime::Unit::Day },
+    { count: -1, unit: RelativeTime::Unit::Hour },
+    { count: -20, unit: RelativeTime::Unit::Minute },
 ];
 
 // This prints 3 days ago | 1 hour ago | 20 minutes ago.
-echo Core\Str::join(RelativeTime::format($ages, "en"), " | "), "\n";
+echo Core\Str::join(RelativeTime::format($ages, 'en'), ' | '), "\n";

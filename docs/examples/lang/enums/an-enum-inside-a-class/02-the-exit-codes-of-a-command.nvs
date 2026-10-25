@@ -16,7 +16,7 @@ final class Import
 
 // `as int` gives the number the shell sees. This prints 64 and then 0.
 echo Import::run([]) as int, "\n";
-echo Import::run(["orders.csv"]) as int, "\n";
+echo Import::run(['orders.csv']) as int, "\n";
 
 // A variable outside the class names the enum with its class.
 Import::Exit $code = Import::Exit::NoInput;

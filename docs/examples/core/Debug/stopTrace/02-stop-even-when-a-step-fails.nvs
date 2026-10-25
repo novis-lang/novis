@@ -1,12 +1,14 @@
 <?nvs
 // Stops a trace in a `finally` block, so the trace ends even when a step throws an error.
 
-class Payments {
-    public static function charge(int $cents): string {
+class Payments
+{
+    public static function charge(int $cents): string
+    {
         if ($cents <= 0) {
-            throw new RuntimeError("the amount must be more than zero");
+            throw new RuntimeError('the amount must be more than zero');
         }
-        return "charged " . $cents;
+        return 'charged ' . $cents;
     }
 }
 
@@ -17,7 +19,7 @@ try {
     echo Payments::charge(1999), "\n";
     echo Payments::charge(0), "\n";
 } catch (RuntimeError $error) {
-    echo "failed: ", $error->message, "\n";
+    echo 'failed: ', $error->message, "\n";
 } finally {
     Core\Debug::stopTrace();
 }
@@ -26,7 +28,7 @@ try {
 // `Throwable::constructor` is the line for creating the error.
 foreach (Core\IO::lines($file) as string $line) {
     var $call = Core\Json::decode($line) as array<mixed>;
-    echo $call["callee"] as string, ": ", $call["status"] as string, "\n";
+    echo $call['callee'] as string, ': ', $call['status'] as string, "\n";
 }
 
 // This deletes the trace file, so the next run starts with an empty folder.

@@ -4,7 +4,7 @@ use Novis\Pdf\Document;
 
 string $html = "<html lang=\"en\"><head><title>Price list</title></head>"
     . "<body><img src=\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'/>\">"
-    . "<p>Tea 2.50 EUR</p></body></html>";
+    . '<p>Tea 2.50 EUR</p></body></html>';
 
 // The image has no `alt` text, so the file is not PDF/UA.
 // `render` throws a `LogicError` that says what is wrong.
@@ -16,7 +16,7 @@ try {
 
 // PDF/A needs a creation time. This document has none, so `render` throws.
 try {
-    Document::fromHtml("<p>Tea 2.50 EUR</p>")->standard(Document::Standard::PdfA3b)->render();
+    Document::fromHtml('<p>Tea 2.50 EUR</p>')->standard(Document::Standard::PdfA3b)->render();
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }

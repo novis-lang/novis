@@ -5,8 +5,10 @@
 // bench: allocations 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         secret bytes $previous = Core\Crypto::generateKey();
         uint $total = 0;
         uint $i = 0;

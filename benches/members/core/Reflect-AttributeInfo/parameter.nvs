@@ -3,13 +3,17 @@
 // bench: iterations 1024
 // bench: complexity constant
 
-class ArticleController {
-    #[{path: "/articles/{id}"}]
-    public function update(#[{source: "path"}] int $id): void {}
+class ArticleController
+{
+    #[{path: '/articles/{id}'}]
+    public function update(#[{source: 'path'}] int $id): void
+    {}
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\AttributeInfo> $attributes =
             Core\Reflect::forObject(new ArticleController())->attributes();
         uint $total = 0;

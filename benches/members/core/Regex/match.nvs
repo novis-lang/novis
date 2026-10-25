@@ -3,10 +3,12 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $subjects = ["Re: order 4711", "Order 81 shipped", "Invoice for order 1203"];
-        Core\Regex\Pattern $order = Core\Regex::compile('order (\d+)', {caseInsensitive: true});
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $subjects = ['Re: order 4711', 'Order 81 shipped', 'Invoice for order 1203'];
+        Core\Regex\Pattern $order = Core\Regex::compile('order (\d+)', { caseInsensitive: true });
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

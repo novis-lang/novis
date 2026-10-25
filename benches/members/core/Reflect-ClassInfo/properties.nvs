@@ -4,23 +4,28 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Tag {
-    public string $label = "";
+class Tag
+{
+    public string $label = '';
 }
 
-class Price {
+class Price
+{
     public int $amount = 0;
-    public string $currency = "EUR";
+    public string $currency = 'EUR';
 }
 
-class Address {
-    public string $street = "";
-    public string $city = "";
-    public string $country = "";
+class Address
+{
+    public string $street = '';
+    public string $city = '';
+    public string $country = '';
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\ClassInfo> $infos = [
             Core\Reflect::forObject(new Tag()),
             Core\Reflect::forObject(new Price()),

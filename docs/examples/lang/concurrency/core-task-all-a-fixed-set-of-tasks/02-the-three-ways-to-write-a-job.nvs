@@ -2,16 +2,18 @@
 // Shows that where a job is written does not matter. A field can hold a function
 // written in place, a method named with `(...)`, or a function kept in a variable.
 
-class Stock {
-    public static function onHand(): int {
+class Stock
+{
+    public static function onHand(): int
+    {
         return 42;
     }
 }
 
-var $kept = fn(): string => "from a variable";
+var $kept = fn(): string => 'from a variable';
 
 var $group = Core\Task::all({
-    here:   fn(): string => "written in place",
+    here:   fn(): string => 'written in place',
     method: Stock::onHand(...),
     kept:   $kept,
 });

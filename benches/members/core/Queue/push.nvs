@@ -5,7 +5,7 @@
 // bench: complexity constant
 use Core\Queue;
 
-var $db = Core\Db::connect("jobs");
+var $db = Core\Db::connect('jobs');
 var $jobs = <<<'SQL'
 create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
     script text not null, args text, state smallint not null, attempts integer not null,
@@ -16,14 +16,16 @@ create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) 
 SQL;
 $db->execute($jobs, []);
 
-class Bench {
-    public static function run(int $rounds): int {
-        array<string> $queues = ["mail", "images", "reports"];
+class Bench
+{
+    public static function run(int $rounds): int
+    {
+        array<string> $queues = ['mail', 'images', 'reports'];
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {
             // The queue and the data depend on the previous round.
-            Queue::push("jobs/send.nvs", {queue: $queues[$total % 3], args: ["n" => $total]});
+            Queue::push('jobs/send.nvs', { queue: $queues[$total % 3], args: ['n' => $total] });
             $total = $total + $i + 1;
             $i = $i + 1;
         }

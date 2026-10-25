@@ -2,18 +2,18 @@
 // Shows how to set the header text of each column when you start a sheet.
 use Novis\Spreadsheet\Workbook;
 
-var $book = Workbook::createInMemory({format: "csv"});
+var $book = Workbook::createInMemory({ format: 'csv' });
 
 // Each entry of `columns` is one column, from column `A`. `header` is the text of its first row.
 // `width` is the width of the column in characters. A CSV file has no widths, but xlsx does.
-var $sheet = $book->sheet("Stock", {columns: [
-    {header: "Item", width: 20},
-    {header: "In stock"},
+var $sheet = $book->sheet('Stock', {columns: [
+    { header: 'Item', width: 20 },
+    { header: 'In stock' },
 ]});
 
 // These rows have no keys, so the values go to the columns in order.
-$sheet->add(["Pen", 120]);
-$sheet->add(["Ink", 35]);
+$sheet->add(['Pen', 120]);
+$sheet->add(['Ink', 35]);
 
 var $written = $book->finish();
 if ($written->bytes != null) {

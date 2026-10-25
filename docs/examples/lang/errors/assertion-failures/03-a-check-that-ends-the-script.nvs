@@ -3,7 +3,7 @@
 // ends with exit status 1.
 // proof: exit 1
 
-array<string> $config = ["host" => "localhost", "port" => "5432"];
+array<string> $config = ['host' => 'localhost', 'port' => '5432'];
 
 echo "checking the configuration\n";
 
@@ -12,7 +12,9 @@ Core\Test::assertCount($config, 2);
 
 // This one fails. Outside a `#[Test]` method a failure is an ordinary throw,
 // so it ends the program here and the error output gets the message.
-Core\Test::assertTrue(Core\Arr::hasKey($config, "password"),
-    {message: "the password is missing"});
+Core\Test::assertTrue(
+    Core\Arr::hasKey($config, 'password'),
+    { message: 'the password is missing' },
+);
 
 echo "this line never runs\n";

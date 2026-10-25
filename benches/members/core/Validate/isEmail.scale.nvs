@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $address = Core\Str::repeat('ada.', $size) . "x@example.com";
+        string $address = Core\Str::repeat('ada.', $size) . 'x@example.com';
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

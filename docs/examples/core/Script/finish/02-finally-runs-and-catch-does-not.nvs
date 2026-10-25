@@ -8,7 +8,7 @@ try {
         Core\Script::finish();
     } catch (Throwable $error) {
         // This line does not print. Finishing is not an error.
-        echo "caught: ", $error->message, "\n";
+        echo 'caught: ', $error->message, "\n";
     } finally {
         // This prints "closing the report file".
         echo "closing the report file\n";

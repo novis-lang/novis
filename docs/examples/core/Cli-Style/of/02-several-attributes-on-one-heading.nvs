@@ -12,9 +12,9 @@ var $heading = Core\Cli\Style::of({
 
 // An attribute you leave out is off, so this heading is not italic and not
 // dimmed.
-echo Core\Cli\Text::styled(" Report for March ", $heading), "\n";
+echo Core\Cli\Text::styled(' Report for March ', $heading), "\n";
 
 // `Core\Cli\Color::rgb` reaches the colours that have no name. Terminals with
 // fewer colours get the nearest one they have.
-var $note = Core\Cli\Style::of({color: Core\Cli\Color::rgb(120, 120, 120), italic: true});
-echo Core\Cli\Text::styled("all numbers are in euro", $note), "\n";
+var $note = Core\Cli\Style::of({ color: Core\Cli\Color::rgb(120, 120, 120), italic: true });
+echo Core\Cli\Text::styled('all numbers are in euro', $note), "\n";

@@ -1,17 +1,22 @@
 <?nvs
 // Shows how a framework finds a mistyped setting in the attributes of a class.
 
-class CheckoutController {
-    #[{method: "POST", path: "/checkout"}]
-    public function pay(): void {}
+class CheckoutController
+{
+    #[{method: 'POST', path: '/checkout'}]
+    public function pay(): void
+    {}
 
     // `pth` is a typing mistake for `path`.
-    #[{method: "GET", pth: "/checkout/done"}]
-    public function done(): void {}
+    #[{method: 'GET', pth: '/checkout/done'}]
+    public function done(): void
+    {}
 }
 
-class Settings {
-    public static function unknown(string $className, array<string> $allowed): array<string> {
+class Settings
+{
+    public static function unknown(string $className, array<string> $allowed): array<string>
+    {
         array<string> $problems = [];
         var $info = Core\Reflect::forClass($className);
         if ($info == null) {
@@ -20,7 +25,7 @@ class Settings {
         foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
             foreach ($attribute->fields() as string $field) {
                 if (!Core\Arr::contains($allowed, $field)) {
-                    $problems[] = $attribute->target() . ": unknown setting `" . $field . "`";
+                    $problems[] = $attribute->target() . ': unknown setting `' . $field . '`';
                 }
             }
         }
@@ -29,6 +34,6 @@ class Settings {
 }
 
 // The method `done` has the unknown setting `pth`, so this prints one line about it.
-foreach (Settings::unknown("CheckoutController", ["method", "path"]) as string $problem) {
+foreach (Settings::unknown('CheckoutController', ['method', 'path']) as string $problem) {
     echo $problem, "\n";
 }

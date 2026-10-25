@@ -11,7 +11,7 @@ Core\Debug::stopCoverage();
 // Counting is off now, but `coverage` still returns the counts from before.
 // Line 6 ran once for each number, so this prints `4`.
 foreach (Core\Debug::coverage() as string $path => array<int> $lines) {
-    echo "line 6 ran ", $lines["6"], " times\n";
+    echo 'line 6 ran ', $lines['6'], " times\n";
 }
 
 // This loop runs while counting is off. The count for line 6 does not change.
@@ -20,7 +20,7 @@ for (int $j = 1; $j <= 4; $j++) {
 }
 
 foreach (Core\Debug::coverage() as string $path => array<int> $lines) {
-    echo "line 6 ran ", $lines["6"], " times\n";
+    echo 'line 6 ran ', $lines['6'], " times\n";
 }
 
-echo "sum: ", $sum, "\n";
+echo 'sum: ', $sum, "\n";

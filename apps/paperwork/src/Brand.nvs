@@ -5,30 +5,36 @@ use Core\Html\Markup;
 use Novis\Intl\NumberFormat;
 
 // The look that the three documents share: the logo, the colours, the fonts and the money format.
-final class Brand {
+final class Brand
+{
     // Reads the logo from the folder `assets`. `nvs.toml` allows the app to read this one file.
     // A relative path starts at the folder of this file, which is `src`.
-    public static function logo(): bytes {
-        return Core\IO::read("../assets/logo.svg") as bytes;
+    public static function logo(): bytes
+    {
+        return Core\IO::read('../assets/logo.svg') as bytes;
     }
 
     // Writes an amount in euros, such as `€1,234.50`.
-    public static function money(decimal $amount): string {
-        return NumberFormat::currency([$amount], "EUR", "en")[0];
+    public static function money(decimal $amount): string
+    {
+        return NumberFormat::currency([$amount], 'EUR', 'en')[0];
     }
 
     // Writes a whole number with a comma between thousands, such as `38,214`.
-    public static function number(int $value): string {
-        return NumberFormat::decimal([$value], "en")[0];
+    public static function number(int $value): string
+    {
+        return NumberFormat::decimal([$value], 'en')[0];
     }
 
     // Divides two whole numbers and rounds the result to `$digits` decimals, such as `12.4`.
-    public static function divide(int $part, int $whole, uint $digits): decimal {
+    public static function divide(int $part, int $whole, uint $digits): decimal
+    {
         return Core\Decimal::divRound($part as decimal, $whole as decimal, $digits, Core\RoundMode::HalfUp);
     }
 
     // The colours and fonts as CSS variables. Each document adds its own rules after these.
-    public static function css(): Markup {
+    public static function css(): Markup
+    {
         return html`<style>
 :root {
   --ink: #1f2937; --muted: #6b7280; --line: #e3e7ee; --paper: #f5f7fa;

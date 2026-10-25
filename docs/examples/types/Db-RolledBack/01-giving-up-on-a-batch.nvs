@@ -4,8 +4,8 @@
 // reading no thermometer could have produced, and gives up on all of it.
 
 use Core\Db;
-use Core\Db\Transaction;
 use Core\Db\RolledBack;
+use Core\Db\Transaction;
 
 var $db = Db::connect('schema');
 $db->execute('create table readings (id integer primary key, celsius int not null)', []);

@@ -2,9 +2,9 @@
 // Shows how to read the value that a cookie contains.
 
 array<secret bytes> $keys = [Core\Crypto::generateKey()];
-string $cookie = Core\SignedCookie::seal("prefs", "lang=de; theme=dark", $keys);
+string $cookie = Core\SignedCookie::seal('prefs', 'lang=de; theme=dark', $keys);
 
 // `open` returns the value exactly as it was sealed, including `;` and `=`.
 // The value is `tainted`, like any input from outside. This prints lang=de; theme=dark.
-tainted string $value = Core\SignedCookie::open("prefs", $cookie, $keys);
+tainted string $value = Core\SignedCookie::open('prefs', $cookie, $keys);
 echo $value, "\n";

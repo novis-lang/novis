@@ -3,11 +3,13 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // Two compressed files: `config.json` has 45 bytes and `readme.txt` has 244.
-        bytes $archive = Core\Encoding::fromBase64("UEsDBBQAAAAIAAAAIVwAnDA3LQAAAC0AAAALAAAAY29uZmlnLmpzb26rVspLzE1VslIqzsgvUNJRSklNKk1XskpLzClO1VFKTkzOAEkWpaZkFivVAgBQSwMEFAAAAAgAAAAhXJqdp7c6AAAA9AAAAAoAAAByZWFkbWUudHh088wrLknMyVEoyUhVSMvMSS1WyMwDc8pTkxTS8nNSUosUEvNSFPILUiHiQOVFJQoFiempelyeQ1MzAFBLAQIUABQAAAAIAAAAIVwAnDA3LQAAAC0AAAALAAAAAAAAAAAAAACkgQAAAABjb25maWcuanNvblBLAQIUABQAAAAIAAAAIVyanae3OgAAAPQAAAAKAAAAAAAAAAAAAACkgVYAAAByZWFkbWUudHh0UEsFBgAAAAACAAIAcQAAALgAAAAAAA==");
-        array<string> $names = ["config.json", "readme.txt"];
+        bytes $archive = Core\Encoding::fromBase64('UEsDBBQAAAAIAAAAIVwAnDA3LQAAAC0AAAALAAAAY29uZmlnLmpzb26rVspLzE1VslIqzsgvUNJRSklNKk1XskpLzClO1VFKTkzOAEkWpaZkFivVAgBQSwMEFAAAAAgAAAAhXJqdp7c6AAAA9AAAAAoAAAByZWFkbWUudHh088wrLknMyVEoyUhVSMvMSS1WyMwDc8pTkxTS8nNSUosUEvNSFPILUiHiQOVFJQoFiempelyeQ1MzAFBLAQIUABQAAAAIAAAAIVwAnDA3LQAAAC0AAAALAAAAAAAAAAAAAACkgQAAAABjb25maWcuanNvblBLAQIUABQAAAAIAAAAIVyanae3OgAAAPQAAAAKAAAAAAAAAAAAAACkgVYAAAByZWFkbWUudHh0UEsFBgAAAAACAAIAcQAAALgAAAAAAA==');
+        array<string> $names = ['config.json', 'readme.txt'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

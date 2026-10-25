@@ -2,14 +2,14 @@
 // Shows how to get the flags of an account after it is disabled.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // `with` sets the flags you name and keeps every other flag.
-    var $changed = $flags->with({disabled: true});
+    var $changed = $flags->with({ disabled: true });
 
     // The account stays a normal account. This prints `disabled: true, normal: true`.
-    echo "disabled: ", $changed->disabled() ? "true" : "false";
-    echo ", normal: ", $changed->normalAccount() ? "true" : "false", "\n";
+    echo 'disabled: ', $changed->disabled() ? 'true' : 'false';
+    echo ', normal: ', $changed->normalAccount() ? 'true' : 'false', "\n";
 }

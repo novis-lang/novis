@@ -1,32 +1,39 @@
 <?nvs
 // Shows how a program calls the method of the matched route itself, without `Core\Router::dispatch`.
 
-class Shop {
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Shop::home")]
+class Shop
+{
+    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Shop::home')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function home(): string { return "Welcome to the shop"; }
+    public function home(): string
+    {
+        return 'Welcome to the shop';
+    }
 
-    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get, name: 'Shop::product')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function product(uint $id): string { return "Product number " . ($id as string); }
+    public function product(uint $id): string
+    {
+        return 'Product number ' . ($id as string);
+    }
 }
 
 // The request is `GET /products/7`.
 ?Core\Router\Match $matched = Core\Request::route();
 if ($matched == null) {
-    echo "Page not found", "\n";
+    echo 'Page not found', "\n";
 } else {
     var $shop = new Shop();
     // A `switch` on the route name picks the method to call.
     // This prints `Product number 7`.
     switch ($matched->name()) {
-        case "Shop::home":
+        case 'Shop::home':
             echo $shop->home(), "\n";
             break;
-        case "Shop::product":
-            echo $shop->product($matched->param("id") as uint), "\n";
+        case 'Shop::product':
+            echo $shop->product($matched->param('id') as uint), "\n";
             break;
         default:
-            echo "Page not found", "\n";
+            echo 'Page not found', "\n";
     }
 }

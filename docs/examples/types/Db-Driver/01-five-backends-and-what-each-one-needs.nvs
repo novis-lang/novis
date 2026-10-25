@@ -3,21 +3,24 @@
 // settings the connection needs. Four of the five drivers connect to a server
 // over the network. SQLite uses a file on the machine your program runs on.
 
-class Backend {
-    public static function label(Core\Db\Driver $driver): string {
+class Backend
+{
+    public static function label(Core\Db\Driver $driver): string
+    {
         return match ($driver) {
-            Core\Db\Driver::MySql => "MySQL",
-            Core\Db\Driver::MariaDb => "MariaDB",
-            Core\Db\Driver::Postgres => "PostgreSQL",
-            Core\Db\Driver::Sqlite => "SQLite",
-            Core\Db\Driver::SqlServer => "Microsoft SQL Server",
+            Core\Db\Driver::MySql => 'MySQL',
+            Core\Db\Driver::MariaDb => 'MariaDB',
+            Core\Db\Driver::Postgres => 'PostgreSQL',
+            Core\Db\Driver::Sqlite => 'SQLite',
+            Core\Db\Driver::SqlServer => 'Microsoft SQL Server',
         };
     }
 
-    public static function needs(Core\Db\Driver $driver): string {
+    public static function needs(Core\Db\Driver $driver): string
+    {
         return match ($driver) {
-            Core\Db\Driver::Sqlite => "a path to a file",
-            default => "a host, and a user to log in as",
+            Core\Db\Driver::Sqlite => 'a path to a file',
+            default => 'a host, and a user to log in as',
         };
     }
 }
@@ -31,11 +34,11 @@ array<Core\Db\Driver> $everything = [
 ];
 
 foreach ($everything as Core\Db\Driver $driver) {
-    echo Backend::label($driver), " takes ", Backend::needs($driver), "\n";
+    echo Backend::label($driver), ' takes ', Backend::needs($driver), "\n";
 }
 
 // MariaDB has its own case, because it logs in and reports errors differently
 // from MySQL. The two cases are not equal, so this prints `no`.
-echo "MySQL and MariaDB are one case: ",
-    Core\Db\Driver::MySql == Core\Db\Driver::MariaDb ? "yes" : "no",
+echo 'MySQL and MariaDB are one case: ',
+    Core\Db\Driver::MySql == Core\Db\Driver::MariaDb ? 'yes' : 'no',
     "\n";

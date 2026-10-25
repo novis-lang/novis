@@ -3,14 +3,16 @@
 // file by the class name inside it needs that: every other part of the file
 // runs as soon as the file is loaded.
 
-class LoadCheck {
-    public static function describe(string $source): string {
+class LoadCheck
+{
+    public static function describe(string $source): string
+    {
         foreach (Core\Ast::parse($source)->children() as Core\Ast\Node $part) {
-            if ($part->kind() != "ClassDecl") {
-                return "also holds " . $part->kind() . ", which runs when the file is loaded";
+            if ($part->kind() != 'ClassDecl') {
+                return 'also holds ' . $part->kind() . ', which runs when the file is loaded';
             }
         }
-        return "declares classes only";
+        return 'declares classes only';
     }
 }
 

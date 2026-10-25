@@ -5,7 +5,7 @@ Core\Xml\Writer $writer = Core\Xml::writer();
 $writer->startDocument();
 
 // A name cannot start with a digit or contain a space. Each call prints the error message.
-array<string> $names = ["2nd-line", "first name"];
+array<string> $names = ['2nd-line', 'first name'];
 foreach ($names as string $name) {
     try {
         $writer->startElement($name);
@@ -14,12 +14,12 @@ foreach ($names as string $name) {
     }
 }
 
-$writer->startElement("list");
+$writer->startElement('list');
 $writer->endElement();
 
 // The root element `list` is closed. A second root element is not allowed.
 try {
-    $writer->startElement("list");
+    $writer->startElement('list');
 } catch (LogicError $error) {
     echo $error->message, "\n";
 }

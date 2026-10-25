@@ -5,17 +5,21 @@
 // bench: allocations 0
 // bench: complexity constant
 
-final class Row {
+final class Row
+{
     public int $count = 0;
     public int $total = 0;
 
     public static int $seen = 0;
 
-    public function constructor(public readonly int $weight) {}
+    public function constructor(public readonly int $weight)
+    {}
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         var $row = new Row(3);
         int $i = 0;
         while ($i < $rounds) {

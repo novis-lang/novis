@@ -2,7 +2,7 @@
 // Shows how a service starts again at the same socket file after it stopped.
 // requires: unix
 
-string $path = "/tmp/novis-worker.sock";
+string $path = '/tmp/novis-worker.sock';
 
 // The first run of the service listens, then stops. The socket file stays on disk.
 Core\Net\Listener $first = Core\Net::listenLocal($path);

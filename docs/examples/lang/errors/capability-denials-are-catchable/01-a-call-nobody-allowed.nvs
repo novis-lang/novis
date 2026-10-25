@@ -4,15 +4,15 @@
 // keeps running.
 
 try {
-    echo Core\IO::read("orders.csv");
+    echo Core\IO::read('orders.csv');
 } catch (RuntimeError $denied) {
     // The message names the method, the capability and the full path of the file.
     // This prints the part before the path.
-    echo Core\Str::before($denied->message, " for "), "\n";
+    echo Core\Str::before($denied->message, ' for '), "\n";
     // The second line of the message is the line to add to `nvs.toml`.
     // It also contains the full path of the folder. This prints `...` in its place.
-    string $help = Core\Str::after($denied->message, "\n") ?? "";
-    echo Core\Str::before($help, "\""), "...]", Core\Str::after($help, "\"]"), "\n";
+    string $help = Core\Str::after($denied->message, "\n") ?? '';
+    echo Core\Str::before($help, "\""), '...]', Core\Str::after($help, "\"]"), "\n";
 }
 
 echo "still running\n";

@@ -5,8 +5,10 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<uint> $filled = [1, 2, 3];
         array<uint> $empty = [];
         uint $total = 0;

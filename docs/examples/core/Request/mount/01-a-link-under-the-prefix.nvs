@@ -12,4 +12,4 @@ echo $mount->prefix(), "\n";
 
 // Put the prefix in front of a link, so the link works under `/shop`.
 // This prints "/shop/orders/1042".
-echo $mount->prefix(), "/orders/1042", "\n";
+echo $mount->prefix(), '/orders/1042', "\n";

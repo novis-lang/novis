@@ -7,26 +7,27 @@ use LogicError;
 /// A cell uses each field from its own style first, then from its row, then from its column.
 final class Style
 {
-    type Lines = {top?: string, right?: string, bottom?: string, left?: string};
-    type Fields = {font?: string, size?: float, bold?: bool, italic?: bool, strike?: bool, underline?: bool|string, color?: string, fill?: string, border?: string|Lines, borderColor?: string, align?: string, valign?: string, wrap?: bool, rotate?: int, indent?: uint, format?: string, locked?: bool, hideFormula?: bool};
-    type Record = {font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool};
+    type Lines = { top?: string, right?: string, bottom?: string, left?: string };
+    type Fields = { font?: string, size?: float, bold?: bool, italic?: bool, strike?: bool, underline?: bool|string, color?: string, fill?: string, border?: string|Lines, borderColor?: string, align?: string, valign?: string, wrap?: bool, rotate?: int, indent?: uint, format?: string, locked?: bool, hideFormula?: bool };
+    type Record = { font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{ top: ?Line, right: ?Line, bottom: ?Line, left: ?Line }, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool };
 
     /// `new Style` makes a style from its values. `Style::of` makes one for you.
     /// `fields` has the fields as `Engine::writerStyle` takes them. Two styles with equal fields have the same `key`.
     public function constructor(
         public readonly Record $fields,
         public readonly string $key,
-    ) {}
+    )
+    {}
 
     /// `Style::of` makes a style from `$fields`. A field you leave out comes from the row or the column.
     /// `border` is a line, such as `'thin'`. `align` is a place, such as `'center'`. `format` is a format code or a name, such as `'money'`.
     public static function of(Fields $fields): Style
     {
-        ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line} $border = null;
+        ?{ top: ?Line, right: ?Line, bottom: ?Line, left: ?Line } $border = null;
         string|Lines|null $lines = $fields->border ?? null;
         if ($lines is string) {
             Line $line = self::line($lines);
-            $border = {top: $line, right: $line, bottom: $line, left: $line};
+            $border = { top: $line, right: $line, bottom: $line, left: $line };
         } elseif ($lines is Lines) {
             $border = {
                 top: self::side($lines->top ?? null),
@@ -68,22 +69,22 @@ final class Style
 
     private static function line(string $name): Line
     {
-        if ($name == "thin") {
+        if ($name == 'thin') {
             return Line::Thin;
         }
-        if ($name == "medium") {
+        if ($name == 'medium') {
             return Line::Medium;
         }
-        if ($name == "thick") {
+        if ($name == 'thick') {
             return Line::Thick;
         }
-        if ($name == "dashed") {
+        if ($name == 'dashed') {
             return Line::Dashed;
         }
-        if ($name == "dotted") {
+        if ($name == 'dotted') {
             return Line::Dotted;
         }
-        if ($name == "double") {
+        if ($name == 'double') {
             return Line::Double;
         }
         throw new LogicError("The style field `border` is `'thin'`, `'medium'`, `'thick'`, `'dashed'`, `'dotted'` or `'double'`. It has `'{$name}'`.");
@@ -97,10 +98,10 @@ final class Style
         if ($value == null) {
             return null;
         }
-        if ($value == "single") {
+        if ($value == 'single') {
             return Underline::Single;
         }
-        if ($value == "double") {
+        if ($value == 'double') {
             return Underline::Double;
         }
         throw new LogicError("The style field `underline` is `true`, `'single'` or `'double'`. It has `'{$value}'`.");
@@ -111,19 +112,19 @@ final class Style
         if ($name == null) {
             return null;
         }
-        if ($name == "left") {
+        if ($name == 'left') {
             return Align::Left;
         }
-        if ($name == "center") {
+        if ($name == 'center') {
             return Align::Center;
         }
-        if ($name == "right") {
+        if ($name == 'right') {
             return Align::Right;
         }
-        if ($name == "fill") {
+        if ($name == 'fill') {
             return Align::Fill;
         }
-        if ($name == "justify") {
+        if ($name == 'justify') {
             return Align::Justify;
         }
         throw new LogicError("The style field `align` is `'left'`, `'center'`, `'right'`, `'fill'` or `'justify'`. It has `'{$name}'`.");
@@ -134,13 +135,13 @@ final class Style
         if ($name == null) {
             return null;
         }
-        if ($name == "top") {
+        if ($name == 'top') {
             return Valign::Top;
         }
-        if ($name == "center") {
+        if ($name == 'center') {
             return Valign::Center;
         }
-        if ($name == "bottom") {
+        if ($name == 'bottom') {
             return Valign::Bottom;
         }
         throw new LogicError("The style field `valign` is `'top'`, `'center'` or `'bottom'`. It has `'{$name}'`.");

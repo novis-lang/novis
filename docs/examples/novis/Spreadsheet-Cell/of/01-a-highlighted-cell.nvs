@@ -5,14 +5,14 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Style;
 use Novis\Spreadsheet\Workbook;
 
-var $late = Style::of({fill: "#FFC7CE", color: "#9C0006"});
+var $late = Style::of({ fill: '#FFC7CE', color: '#9C0006' });
 
 // Only the `status` cell of the second order has the style. The value is written as usual.
 bytes $file = Workbook::fromRows([
-    ["order" => 1042, "status" => "shipped"],
-    ["order" => 1043, "status" => Cell::of("late", $late)],
+    ['order' => 1042, 'status' => 'shipped'],
+    ['order' => 1043, 'status' => Cell::of('late', $late)],
 ])->bytes();
 
-foreach (Reader::open($file)->rows("Sheet1", {header: true}) as var $row) {
-    echo $row->values["order"], ": ", $row->values["status"], "\n";
+foreach (Reader::open($file)->rows('Sheet1', { header: true }) as var $row) {
+    echo $row->values['order'], ': ', $row->values['status'], "\n";
 }

@@ -5,5 +5,5 @@
 Core\Ast\Node $file = Core\Ast::parse("<?nvs\necho \"Grüße\", 7;\n");
 
 foreach ($file->nodes() as Core\Ast\Node $node) {
-    echo $node->kind(), " at column ", $node->column(), ", byte ", $node->offset(), "\n";
+    echo $node->kind(), ' at column ', $node->column(), ', byte ', $node->offset(), "\n";
 }

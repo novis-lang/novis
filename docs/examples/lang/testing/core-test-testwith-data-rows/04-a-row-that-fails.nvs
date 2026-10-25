@@ -7,19 +7,23 @@
 use Core\Test;
 use Core\Test\TestWith;
 
-final class Slug {
-    public static function of(string $title): string {
-        return Core\Str::lower(Core\Str::replace(Core\Str::trim($title), " ", "-"));
+final class Slug
+{
+    public static function of(string $title): string
+    {
+        return Core\Str::lower(Core\Str::replace(Core\Str::trim($title), ' ', '-'));
     }
 }
 
-final class SlugTest {
+final class SlugTest
+{
     // The report names the rows `itSlugs#0`, `itSlugs#1` and `itSlugs#2`.
-    #[TestWith(title: "Hello World", want: "hello-world")]
-    #[TestWith(title: "  padded ", want: "padded")]
-    #[TestWith(title: "Mixed Case", want: "mixed case")]
+    #[TestWith(title: 'Hello World', want: 'hello-world')]
+    #[TestWith(title: '  padded ', want: 'padded')]
+    #[TestWith(title: 'Mixed Case', want: 'mixed case')]
     #[Test]
-    public function itSlugs(string $title, string $want): void {
+    public function itSlugs(string $title, string $want): void
+    {
         Test::assertSame(Slug::of($title), $want);
     }
 }

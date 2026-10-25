@@ -4,8 +4,10 @@
 // scaling: max 64000
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): int {
+class Bench
+{
+    public static function run(uint $size): int
+    {
         var $start = Core\Time\Date::at(2026, 1, 1);
         int $total = 0;
         int $i = 0;

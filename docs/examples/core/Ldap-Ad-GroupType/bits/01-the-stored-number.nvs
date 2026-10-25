@@ -2,19 +2,19 @@
 // Shows the number Active Directory stores in `groupType` for two groups.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 array<string> $dns = [
-    "CN=Employees,OU=Company,DC=example,DC=test",
-    "CN=Newsletter,OU=Company,DC=example,DC=test",
+    'CN=Employees,OU=Company,DC=example,DC=test',
+    'CN=Newsletter,OU=Company,DC=example,DC=test',
 ];
 
 foreach ($dns as string $dn) {
-    var $group = $corp->read($dn, {select: ["groupType"]});
+    var $group = $corp->read($dn, { select: ['groupType'] });
     var $type = $group?->groupType();
     if ($group == null || $type == null) {
         continue;
     }
     // A security group has a negative number, because its flag is the highest bit.
     // This prints `Employees: -2147483646` and `Newsletter: 2`.
-    echo $group->dn()->rdnValue(), ": ", $type->bits(), "\n";
+    echo $group->dn()->rdnValue(), ': ', $type->bits(), "\n";
 }

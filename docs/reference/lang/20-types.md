@@ -54,12 +54,12 @@ the same name when they catch the same type.
 // `var` gives the variable the type of its first value.
 // `$count` is an `int` and `$label` is a `string`. The types never change.
 var $count = 3;
-var $label = "boxes";
+var $label = 'boxes';
 $count = $count + 1;
 
 // A written type is needed when the variable gets its value later.
 string $unit;
-$unit = "kg";
+$unit = 'kg';
 
 // A written type can also be wider than the first value.
 // With `var $weight = 1;` the type is `int`, so the next line would not compile.
@@ -67,7 +67,7 @@ float $weight = 1;
 $weight = $weight * 2.5;
 
 // This prints `4 boxes, 2.5 kg each`.
-echo $count, " ", $label, ", ", $weight, " ", $unit, " each\n";
+echo $count, ' ', $label, ', ', $weight, ' ', $unit, " each\n";
 ```
 
 ```output
@@ -81,7 +81,7 @@ echo $count, " ", $label, ", ", $weight, " ", $unit, " each\n";
 // A variable belongs to the whole function, not only to the block where it is declared.
 // So you can read the loop counter `$i` after the loop ends.
 
-var $entries = ["12", "nine", "30"];
+var $entries = ['12', 'nine', '30'];
 var $total = 0;
 
 // `var $i = 0` makes the counter an `int`.
@@ -90,12 +90,12 @@ for (var $i = 0; $i < Core\Arr::count($entries); $i = $i + 1) {
         $total = $total + ($entries[$i] as int);
     } catch (Throwable $e) {
         // The variable in `catch` always has a written type.
-        echo "skipped ", $entries[$i], ": ", $e->message, "\n";
+        echo 'skipped ', $entries[$i], ': ', $e->message, "\n";
     }
 }
 
 // This prints `read 3 entries, total 42`.
-echo "read ", $i, " entries, total ", $total, "\n";
+echo 'read ', $i, ' entries, total ', $total, "\n";
 ```
 
 ```output
@@ -110,38 +110,41 @@ read 3 entries, total 42
 // Prices an order the way a small shop does. Every value has a type: the constant,
 // the property, the method's parameter and return value, and each variable.
 
-class Order {
+class Order
+{
     public const int TAX_PERCENT = 20;
 
     public string $customer;
 
-    public function constructor(string $customer) {
+    public function constructor(string $customer)
+    {
         $this->customer = $customer;
     }
 
-    public function net(array<decimal> $lines): decimal {
+    public function net(array<decimal> $lines): decimal
+    {
         decimal $sum = 0;
         // In a `foreach`, `var $amount` gets the type of the array's values, `decimal`.
         // `var $item` gets the key's type, `string`.
         foreach ($lines as var $item => var $amount) {
-            echo $item, ": ", $amount, "\n";
+            echo $item, ': ', $amount, "\n";
             $sum = $sum + $amount;
         }
         return $sum;
     }
 }
 
-var $order = new Order("Blog Press");
+var $order = new Order('Blog Press');
 
 // The type is written here because `var` would make these prices `float`.
 // A `decimal` keeps exact cents, so `120.00` prints with both zeros.
-array<decimal> $lines = ["print run" => 120.00, "delivery" => 15.50];
+array<decimal> $lines = ['print run' => 120.00, 'delivery' => 15.50];
 
 // `var $net` gets the type `decimal` from the value that `net` returns.
 var $net = $order->net($lines);
 decimal $gross = $net + $net * Order::TAX_PERCENT / 100;
 
-echo $order->customer, " owes ", $gross, " (", $net, " plus tax)\n";
+echo $order->customer, ' owes ', $gross, ' (', $net, " plus tax)\n";
 ```
 
 ```output
@@ -159,14 +162,14 @@ Blog Press owes 162.60 (135.50 plus tax)
 // proof: compile-error
 
 int $count = 1;
-$count = "two";
+$count = 'two';
 ```
 
 ```output
 error[E0401]: expected `int`, found `string`
   --> main.nvs:7:10
   |
-7 | $count = "two";
+7 | $count = 'two';
   |          ^^^^^ this is `string`
 
 error: aborting due to 1 error
@@ -181,16 +184,16 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // an `int` and a `string`, so this program does not compile.
 // proof: compile-error
 
-var $xs = [1, "two", 3];
+var $xs = [1, 'two', 3];
 ```
 
 ```output
 error[E0414]: `var` cannot infer an array whose elements have different types
   --> main.nvs:6:11
   |
-6 | var $xs = [1, "two", 3];
+6 | var $xs = [1, 'two', 3];
   |           ^^^^^^^^^^^^^ the elements are `int` and `string`
-  = help: write the type: `array<int|string> $xs = [1, "two", 3];`
+  = help: write the type: `array<int|string> $xs = [1, 'two', 3];`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -259,11 +262,11 @@ echo $stock, "\n";
 try {
     echo $stock + 1, "\n";
 } catch (ArithmeticError $e) {
-    echo "out of room: ", $e->message, "\n";
+    echo 'out of room: ', $e->message, "\n";
 }
 
 bool $owing = $balance < 0;
-echo $owing ? "owing" : "clear", "\n";
+echo $owing ? 'owing' : 'clear', "\n";
 ```
 
 ```output
@@ -284,12 +287,12 @@ owing
 float $quick = 0.1;
 float $more = 0.2;
 float $floatSum = $quick + $more;
-echo $floatSum, " ", $floatSum == 0.3 ? "exactly 0.3" : "not quite 0.3", "\n";
+echo $floatSum, ' ', $floatSum == 0.3 ? 'exactly 0.3' : 'not quite 0.3', "\n";
 
 decimal $tenth = 0.1;
 decimal $fifth = 0.2;
 decimal $exactSum = $tenth + $fifth;
-echo $exactSum, " ", $exactSum == 0.3 ? "exactly 0.3" : "not quite 0.3", "\n";
+echo $exactSum, ' ', $exactSum == 0.3 ? 'exactly 0.3' : 'not quite 0.3', "\n";
 
 decimal $price = 1.10;
 echo $price * 3, "\n";
@@ -324,9 +327,9 @@ if ($kilos > 0.5) {
 }
 decimal $due = $goods + $postage;
 
-echo $items, " items at ", $each, " each = ", $goods, "\n";
-echo "postage ", $postage, " for ", $kilos * 1000, " g\n";
-echo "due ", $due, "\n";
+echo $items, ' items at ', $each, ' each = ', $goods, "\n";
+echo 'postage ', $postage, ' for ', $kilos * 1000, " g\n";
+echo 'due ', $due, "\n";
 ```
 
 ```output
@@ -404,12 +407,12 @@ If the bytes are not valid UTF-8, `$b as string` throws a `RuntimeError`. `$b as
 // limited by what it stores. Those are two different numbers for the same
 // name, so each one is measured with the type that owns it.
 
-array<string> $names = ["Ann", "Grüße", "Rene\u{301}e", "Łukasz Szymański"];
+array<string> $names = ['Ann', 'Grüße', "Rene\u{301}e", 'Łukasz Szymański'];
 
 foreach ($names as string $name) {
     uint $characters = Core\Str::length($name);
     uint $stored = Core\Bytes::length($name as bytes);
-    echo $name, ": ", $characters, " characters, ", $stored, " bytes\n";
+    echo $name, ': ', $characters, ' characters, ', $stored, " bytes\n";
 }
 ```
 
@@ -428,14 +431,14 @@ Renée: 5 characters, 7 bytes
 // `Core\Str::at` returns one character, and `Core\Str::slice` returns several.
 // Both return whole characters. A letter like `ö` is never cut in half.
 
-array<string> $titles = ["Größenwahn", "Ölzweig", "Straße am Fluss"];
+array<string> $titles = ['Größenwahn', 'Ölzweig', 'Straße am Fluss'];
 
 foreach ($titles as string $title) {
     string $initial = Core\Str::at($title, 0);
     string $preview = Core\Str::length($title) > 8
-        ? Core\Str::slice($title, 0, 8) . "…"
+        ? Core\Str::slice($title, 0, 8) . '…'
         : $title;
-    echo $initial, "  ", $preview, "\n";
+    echo $initial, '  ', $preview, "\n";
 }
 ```
 
@@ -454,12 +457,12 @@ S  Straße a…
 // The first bytes show if the file is a PNG picture.
 // The data becomes a `string` only if it is valid text.
 
-bytes $pngSignature = Core\Encoding::fromHex("89504e47");
+bytes $pngSignature = Core\Encoding::fromHex('89504e47');
 
 array<string> $uploads = [
-    "iVBORw0KGgo=",          // the first bytes of a PNG
-    "SGVsbG8sIHdvcmxkIQ==",  // a short note
-    "SGVsbG8s/w==",          // a note with one byte that is not text
+    'iVBORw0KGgo=',          // the first bytes of a PNG
+    'SGVsbG8sIHdvcmxkIQ==',  // a short note
+    'SGVsbG8s/w==',          // a note with one byte that is not text
 ];
 
 foreach ($uploads as string $encoded) {
@@ -468,9 +471,9 @@ foreach ($uploads as string $encoded) {
     // If they are not, the result is `null`.
     ?string $text = $data as ?string;
     if (Core\Bytes::startsWith($data, $pngSignature)) {
-        echo "picture, ", Core\Bytes::length($data), " bytes\n";
-    } else if ($text != null) {
-        echo "note: ", $text, "\n";
+        echo 'picture, ', Core\Bytes::length($data), " bytes\n";
+    } elseif ($text != null) {
+        echo 'note: ', $text, "\n";
     } else {
         echo "neither a picture nor text\n";
     }
@@ -490,11 +493,11 @@ neither a picture nor text
 // Converts text to bytes and back, and shows the error for bytes that are not text.
 
 // `as bytes` gives the UTF-8 bytes of a string. This always works.
-bytes $name = "nvs" as bytes;
-echo Core\Encoding::toHex($name), " is ", $name as string, "\n";
+bytes $name = 'nvs' as bytes;
+echo Core\Encoding::toHex($name), ' is ', $name as string, "\n";
 
 // `fromHex` gives any bytes, here the two bytes `ff` and `00`.
-bytes $raw = Core\Encoding::fromHex("ff00");
+bytes $raw = Core\Encoding::fromHex('ff00');
 echo Core\Bytes::length($raw), " bytes\n";
 
 // `ff` is not valid UTF-8, so `as string` throws a `RuntimeError`.
@@ -567,7 +570,7 @@ foreach ($prices as var $price) {
     $total = $total + $price;
 }
 
-echo "total ", $total, " over ", Core\Arr::count($prices), " items\n";
+echo 'total ', $total, ' over ', Core\Arr::count($prices), " items\n";
 
 // A weight can have a fraction, so this list has the written type `array<float>`.
 // With `var`, the list would be `array<int>`, and adding `0.5` would not compile.
@@ -575,7 +578,7 @@ array<float> $weights = [2, 1];
 $weights[] = 0.5;
 
 // This prints `weight 3.5 kg`.
-echo "weight ", Core\Arr::sum($weights), " kg\n";
+echo 'weight ', Core\Arr::sum($weights), " kg\n";
 ```
 
 ```output
@@ -594,18 +597,18 @@ weight 3.5 kg
 
 // The keys are not part of the type. The values are all `int`,
 // so `var` gives `$stock` the type `array<int>`.
-var $stock = ["apples" => 3, "pears" => 0];
-$stock["figs"] = 7;
+var $stock = ['apples' => 3, 'pears' => 0];
+$stock['figs'] = 7;
 
 // `var $name` is a `string`, because every key is a string.
 // `var $count` gets the type of the values, `int`.
 foreach ($stock as var $name => var $count) {
-    echo $name, ": ", $count, "\n";
+    echo $name, ': ', $count, "\n";
 }
 
 // Reading a name that is not in the array throws an error.
 // So check first with `Core\Arr::hasKey`. You can also write the types in a loop.
-array<string> $asked = ["pears", "plums"];
+array<string> $asked = ['pears', 'plums'];
 foreach ($asked as string $wanted) {
     echo $wanted, Core\Arr::hasKey($stock, $wanted) ? " is stocked\n" : " is not stocked\n";
 }
@@ -627,8 +630,10 @@ plums is not stocked
 // `withServiceFee` gets a copy of `$totals` and changes only that copy.
 // So the first line of output shows the original totals.
 
-class Report {
-    public static function withServiceFee(array<int> $totals): array<int> {
+class Report
+{
+    public static function withServiceFee(array<int> $totals): array<int>
+    {
         foreach ($totals as var $department => var $cents) {
             $totals[$department] = $cents + 250;
         }
@@ -639,8 +644,8 @@ class Report {
 // An array of arrays suits a grouped report.
 // `var` gives `$lines` the type `array<array<int>>`.
 var $lines = [
-    "produce" => [1299, 450],
-    "bakery" => [780],
+    'produce' => [1299, 450],
+    'bakery' => [780],
 ];
 
 // An empty array needs a written type. `var $totals = [];` does not compile,
@@ -674,12 +679,12 @@ $a[5] = 50;
 $a[] = 60;
 
 // `$a[1]` and `$a["1"]` read the same entry. This prints `2020`.
-echo $a[1], $a["1"], "\n";
+echo $a[1], $a['1'], "\n";
 
 // `$copy` is a copy. The new key `x` is not added to `$a`, so this prints `4 5`.
 array<int> $copy = $a;
-$copy["x"] = 1;
-echo Core\Arr::count($a), " ", Core\Arr::count($copy), "\n";
+$copy['x'] = 1;
+echo Core\Arr::count($a), ' ', Core\Arr::count($copy), "\n";
 
 echo Core\Json::encode($a), "\n";
 ```
@@ -751,8 +756,10 @@ and `as ?Point` gives `null` for it.
 
 callable $tenPercentOff = fn(int $cents): int => $cents - Core\Math::intDiv($cents, 10);
 
-class Till {
-    public static function apply(callable $rule, array<int> $prices): int {
+class Till
+{
+    public static function apply(callable $rule, array<int> $prices): int
+    {
         int $total = 0;
         foreach ($prices as int $price) {
             int $charged = $rule($price) as int;
@@ -779,37 +786,39 @@ echo $tenPercentOff(500) as int, "\n";
 // A point on a map, described by the fields it has and not by a class.
 // A shape needs a name to be written in front of a variable, so it gets one with `type`.
 
-type Point = {x: int, y: int};
+type Point = { x: int, y: int };
 
-class Grid {
-    public static function describe(Point $p): string {
-        return "(" . ($p->x as string) . ", " . ($p->y as string) . ")";
+class Grid
+{
+    public static function describe(Point $p): string
+    {
+        return '(' . ($p->x as string) . ', ' . ($p->y as string) . ')';
     }
 }
 
 // A value with more fields than the shape asks for still fits it.
-Point $home = {x: 3, y: 4};
-var $pin = {x: 10, y: 20, label: "office"};
+Point $home = { x: 3, y: 4 };
+var $pin = { x: 10, y: 20, label: 'office' };
 
 echo Grid::describe($home), "\n";
-echo Grid::describe($pin), " ", $pin->label, "\n";
+echo Grid::describe($pin), ' ', $pin->label, "\n";
 
 // A call through a `callable` returns a `mixed` value.
-callable $findPlace = fn(string $name): mixed => $name == "depot" ? {x: 7, y: 1} : {city: $name};
+callable $findPlace = fn(string $name): mixed => $name == 'depot' ? { x: 7, y: 1 } : { city: $name };
 
 // `as Point` checks that the value has an `int` field `x` and an `int` field `y`.
 // If a field is missing, it throws an error. The second call shows this.
-echo Grid::describe($findPlace("depot") as Point), "\n";
+echo Grid::describe($findPlace('depot') as Point), "\n";
 
 try {
-    echo Grid::describe($findPlace("Vienna") as Point), "\n";
+    echo Grid::describe($findPlace('Vienna') as Point), "\n";
 } catch (RuntimeError $e) {
     echo $e->message, "\n";
 }
 
 // `is Point` does the same check and gives `true` or `false`, so nothing is thrown.
-mixed $place = $findPlace("Vienna");
-echo $place is Point ? Grid::describe($place) : "not on the grid", "\n";
+mixed $place = $findPlace('Vienna');
+echo $place is Point ? Grid::describe($place) : 'not on the grid', "\n";
 ```
 
 ```output
@@ -828,30 +837,39 @@ not on the grid
 // `as class<Renders>` converts a class name to a class reference.
 // The program uses the reference to create the report and to call the static method `extension`.
 
-interface Renders {
+interface Renders
+{
     public function render(array<string> $rows): string;
     public static function extension(): string;
 }
 
-class CsvReport implements Renders {
-    public function render(array<string> $rows): string {
-        return Core\Str::join($rows, ",");
+class CsvReport implements Renders
+{
+    public function render(array<string> $rows): string
+    {
+        return Core\Str::join($rows, ',');
     }
-    public static function extension(): string {
-        return "csv";
+
+    public static function extension(): string
+    {
+        return 'csv';
     }
 }
 
-class LinesReport implements Renders {
-    public function render(array<string> $rows): string {
+class LinesReport implements Renders
+{
+    public function render(array<string> $rows): string
+    {
         return Core\Str::join($rows, "\n");
     }
-    public static function extension(): string {
-        return "txt";
+
+    public static function extension(): string
+    {
+        return 'txt';
     }
 }
 
-array<string> $rows = ["north", "south"];
+array<string> $rows = ['north', 'south'];
 
 // A class name written in quotes is checked when the program compiles.
 // If `CsvReport` did not implement `Renders`, the program would not compile.
@@ -859,13 +877,13 @@ class<Renders> $default = 'CsvReport' as class<Renders>;
 
 // A name from a setting is checked when the program runs. `as ?class<Renders>` gives `null`
 // for a name that is not a `Renders` class. Then `??` uses the default format.
-array<string> $settings = ["LinesReport", "PdfReport"];
+array<string> $settings = ['LinesReport', 'PdfReport'];
 
 foreach ($settings as string $setting) {
     class<Renders> $format = ($setting as ?class<Renders>) ?? $default;
     Renders $report = new $format();
 
-    echo $setting, " writes a .", $format::extension(), " file:\n";
+    echo $setting, ' writes a .', $format::extension(), " file:\n";
     echo $report->render($rows), "\n";
 }
 ```
@@ -884,11 +902,13 @@ north,south
 <?nvs
 // Shows an `object` variable, and how `is` and `as` get its class back.
 
-class Cell {
+class Cell
+{
     public int $n = 1;
 }
 
-class Row {
+class Row
+{
     public int $n = 2;
 }
 
@@ -897,7 +917,7 @@ object $o = new Cell();
 echo $o->n, "\n";
 
 // `is Cell` tests the class. `as Cell` converts to it, so `->n` is an `int`. This prints `cell 1`.
-echo ($o is Cell) ? "cell" : "other", " ", ($o as Cell)->n, "\n";
+echo ($o is Cell) ? 'cell' : 'other', ' ', ($o as Cell)->n, "\n";
 
 // The object is not a `Row`, so `as Row` throws an error.
 try {
@@ -978,15 +998,15 @@ A `mixed` value is never assigned to a narrower type without `as`. `int $i = $m;
 // `as ?uint` converts a value to a whole number. If that is not possible,
 // the result is `null`, and `??` gives the default value instead.
 
-array<mixed> $query = ["page" => "3", "size" => "abc", "sort" => "name"];
+array<mixed> $query = ['page' => '3', 'size' => 'abc', 'sort' => 'name'];
 
 uint $firstPage = 1;
 uint $defaultSize = 20;
 
-uint $page = ($query["page"] as ?uint) ?? $firstPage;
-uint $size = ($query["size"] as ?uint) ?? $defaultSize;
+uint $page = ($query['page'] as ?uint) ?? $firstPage;
+uint $size = ($query['size'] as ?uint) ?? $defaultSize;
 
-echo "page ", $page, ", ", $size, " per page\n";
+echo 'page ', $page, ', ', $size, " per page\n";
 ```
 
 ```output
@@ -1000,14 +1020,14 @@ page 3, 20 per page
 // Describes each field of a decoded JSON document. Each field is a `mixed` value.
 // `is` tests the type of a value and does not convert it.
 
-array<mixed> $payload = ["id" => 4102, "name" => "Ada", "paid" => true, "note" => null];
+array<mixed> $payload = ['id' => 4102, 'name' => 'Ada', 'paid' => true, 'note' => null];
 
 foreach ($payload as tainted string $field => mixed $value) {
     if ($value is int) {
         echo $field, " is a whole number\n";
-    } else if ($value is string) {
+    } elseif ($value is string) {
         echo $field, " is text\n";
-    } else if ($value is bool) {
+    } elseif ($value is bool) {
         echo $field, " is a yes or no\n";
     } else {
         echo $field, " was not sent\n";
@@ -1031,24 +1051,24 @@ note was not sent
 // Only a line whose three values all converted is added to the total.
 
 array<mixed> $lines = [
-    ["sku" => "A-1", "quantity" => "2", "price" => "9.95"],
-    ["sku" => "B-7", "quantity" => "many", "price" => "4.00"],
-    ["sku" => "C-3", "quantity" => 1, "price" => "12.50"],
+    ['sku' => 'A-1', 'quantity' => '2', 'price' => '9.95'],
+    ['sku' => 'B-7', 'quantity' => 'many', 'price' => '4.00'],
+    ['sku' => 'C-3', 'quantity' => 1, 'price' => '12.50'],
 ];
 
 decimal $total = 0.00;
 foreach ($lines as mixed $line) {
     try {
-        tainted string $sku =$line["sku"] as string;
-        uint $quantity = $line["quantity"] as uint;
-        decimal $price = $line["price"] as decimal;
+        tainted string $sku =$line['sku'] as string;
+        uint $quantity = $line['quantity'] as uint;
+        decimal $price = $line['price'] as decimal;
         $total = $total + $price * $quantity;
-        echo $sku, ": ", $quantity, " x ", $price, "\n";
+        echo $sku, ': ', $quantity, ' x ', $price, "\n";
     } catch (Throwable $e) {
         echo "skipped a line that did not convert\n";
     }
 }
-echo "total ", $total, "\n";
+echo 'total ', $total, "\n";
 ```
 
 ```output
@@ -1065,14 +1085,14 @@ total 32.40
 // Shows the operations you can use on a `mixed` value without converting it first.
 
 mixed $m = 5;
-mixed $row = ["k" => "v"];
-mixed $text = "x";
+mixed $row = ['k' => 'v'];
+mixed $text = 'x';
 
 // Each operation checks the value while the program runs. This prints `6 5 v xy X`.
-echo $m + 1, " ", $m as string, " ", $row["k"], " ", $text . "y", " ", Core\Str::upper($text as string), "\n";
+echo $m + 1, ' ', $m as string, ' ', $row['k'], ' ', $text . 'y', ' ', Core\Str::upper($text as string), "\n";
 
 // Arithmetic needs a number, so `"abc" + 1` throws an error.
-mixed $bad = "abc";
+mixed $bad = 'abc';
 try {
     echo $bad + 1, "\n";
 } catch (RuntimeError $e) {
@@ -1093,7 +1113,7 @@ no arithmetic on text
 // This program does not compile.
 // proof: compile-error
 
-mixed $text = "x";
+mixed $text = 'x';
 echo Core\Str::upper($text), "\n";
 ```
 
@@ -1150,18 +1170,18 @@ be assigned to either of them. `iterable $i = $xs;` is the error `E0401`.
 // `as ?uint` converts text to a whole number. If the text is not a number,
 // the result is `null`, and `??` gives a default value.
 
-array<string> $settings = ["page" => "3", "limit" => "many"];
+array<string> $settings = ['page' => '3', 'limit' => 'many'];
 
-?uint $page = $settings["page"] as ?uint;
-?uint $limit = $settings["limit"] as ?uint;
+?uint $page = $settings['page'] as ?uint;
+?uint $limit = $settings['limit'] as ?uint;
 
-echo "page ", $page ?? 1, "\n";
-echo "limit ", $limit ?? 20, "\n";
+echo 'page ', $page ?? 1, "\n";
+echo 'limit ', $limit ?? 20, "\n";
 
 // A variable can be `null` only when its type allows it, as `?string` does.
 // So the reader can see on this line that `$note` may be empty.
 ?string $note = null;
-echo "note ", $note ?? "(none)", "\n";
+echo 'note ', $note ?? '(none)', "\n";
 ```
 
 ```output
@@ -1178,18 +1198,20 @@ note (none)
 // so `sortBy` does not need to check its argument. For any other word, `as` throws
 // an error before the method is called.
 
-class Report {
-    public static function sortBy("newest"|"oldest"|"name" $order): string {
-        return "sorting by " . $order;
+class Report
+{
+    public static function sortBy("newest"|"oldest"|"name" $order): string
+    {
+        return 'sorting by ' . $order;
     }
 }
 
-array<string> $asked = ["newest", "name", "sideways"];
+array<string> $asked = ['newest', 'name', 'sideways'];
 foreach ($asked as string $one) {
     try {
         echo Report::sortBy($one as "newest"|"oldest"|"name"), "\n";
     } catch (Throwable $e) {
-        echo "not a sort order: ", $one, "\n";
+        echo 'not a sort order: ', $one, "\n";
     }
 }
 ```
@@ -1209,26 +1231,28 @@ not a sort order: sideways
 // `grant` accepts only the cases `Read` and `Write`. Converting `Delete`
 // to that type throws an error, so `grant` is never called with it.
 
-class Gate {
+class Gate
+{
     enum Action { Read, Write, Delete }
 
-    public static function grant(Action::Read|Action::Write $action, int|string $account): string {
-        array<string> $verbs = ["read", "write", "delete"];
-        return "account " . ($account as string) . " may " . $verbs[$action as int];
+    public static function grant(Action::Read|Action::Write $action, int|string $account): string
+    {
+        array<string> $verbs = ['read', 'write', 'delete'];
+        return 'account ' . ($account as string) . ' may ' . $verbs[$action as int];
     }
 }
 
 array<array<string>> $requests = [
-    ["account" => "1042", "action" => "0"],
-    ["account" => "ada", "action" => "1"],
-    ["account" => "ada", "action" => "2"],
+    ['account' => '1042', 'action' => '0'],
+    ['account' => 'ada', 'action' => '1'],
+    ['account' => 'ada', 'action' => '2'],
 ];
 
 foreach ($requests as array<string> $request) {
     try {
-        string $raw = $request["account"];
+        string $raw = $request['account'];
         int|string $account = ($raw as ?int) ?? $raw;
-        Gate::Action $asked = ($request["action"] as int) as Gate::Action;
+        Gate::Action $asked = ($request['action'] as int) as Gate::Action;
         echo Gate::grant($asked as Gate::Action::Read|Gate::Action::Write, $account), "\n";
     } catch (Throwable $e) {
         echo "refused: this gate grants nothing else\n";
@@ -1248,19 +1272,20 @@ refused: this gate grants nothing else
 <?nvs
 // Shows a nullable type, a union, two single-value types and an enum case type.
 
-enum Mode: int {
+enum Mode: int
+{
     Read = 1,
     Write = 2,
 }
 
 ?int $maybe = null;
-int|string $id = "abc";
-"read"|"write" $mode = "read";
+int|string $id = 'abc';
+"read"|"write" $mode = 'read';
 1|2|3 $level = 2;
 Mode::Read|Mode::Write $m = Mode::Write;
 
 // `$m as int` gives the number of the case, here `2`. `1 as Mode` gives the case `Mode::Read`.
-echo $maybe ?? -1, " ", $id, " ", $mode, $level, " ", $m as int, " ", (1 as Mode) == Mode::Read ? "read" : "other", "\n";
+echo $maybe ?? -1, ' ', $id, ' ', $mode, $level, ' ', $m as int, ' ', (1 as Mode) == Mode::Read ? 'read' : 'other', "\n";
 
 // No case has the number `9`, so `as Mode` throws an error.
 try {
@@ -1270,7 +1295,7 @@ try {
 }
 
 // `as ?Mode` gives `null` for the same number.
-echo (9 as ?Mode) == null ? "null" : "case", "\n";
+echo (9 as ?Mode) == null ? 'null' : 'case', "\n";
 ```
 
 ```output
@@ -1287,15 +1312,15 @@ null
 // `"delete"` is not one of them, so this program does not compile.
 // proof: compile-error
 
-"read"|"write" $mode = "read";
-$mode = "delete";
+"read"|"write" $mode = 'read';
+$mode = 'delete';
 ```
 
 ```output
 error[E0401]: expected `"read"|"write"`, found `string`
   --> main.nvs:7:9
   |
-7 | $mode = "delete";
+7 | $mode = 'delete';
   |         ^^^^^^^^ this is `string`
 
 error: aborting due to 1 error
@@ -1348,19 +1373,25 @@ classes. The last one is a compile error.
 <?nvs
 // Shows how to read a property that every class of a union declares.
 
-final class Courier {
-    public string $label = "Courier, next day";
-    public function constructor(public int $weight) { }
+final class Courier
+{
+    public string $label = 'Courier, next day';
+    public function constructor(public int $weight)
+    { }
 }
 
-final class Pickup {
-    public string $label = "Pickup at the shop";
-    public function constructor(public int $weight) { }
+final class Pickup
+{
+    public string $label = 'Pickup at the shop';
+    public function constructor(public int $weight)
+    { }
 }
 
-final class Order {
+final class Order
+{
     // Small parcels go by courier. Heavy parcels are picked up at the shop.
-    public static function shipping(int $weight): Courier|Pickup {
+    public static function shipping(int $weight): Courier|Pickup
+    {
         if ($weight > 20) {
             return new Pickup($weight);
         }
@@ -1373,17 +1404,17 @@ final class Order {
 array<int> $weights = [3, 25];
 foreach ($weights as int $weight) {
     Courier|Pickup $ship = Order::shipping($weight);
-    echo $ship->weight, " kg: ", $ship->label, "\n";
+    echo $ship->weight, ' kg: ', $ship->label, "\n";
 }
 
 // `?->` reads a property of a union that may be `null`.
 // Here the variable is `null`, so `??` prints `not chosen`.
 ?Courier|Pickup $later = null;
-echo $later?->label ?? "not chosen", "\n";
+echo $later?->label ?? 'not chosen', "\n";
 
 // A write works too, because `$label` has the same type in both classes.
 Courier|Pickup $gift = new Courier(1);
-$gift->label = "Courier, gift wrapped";
+$gift->label = 'Courier, gift wrapped';
 echo $gift->label, "\n";
 ```
 
@@ -1400,23 +1431,43 @@ Courier, gift wrapped
 <?nvs
 // Shows how to call a method that every class of a union declares.
 
-final class Card {
-    public function constructor(public string $last4) { }
-    public function fee(int $cents): int { return $cents >= 5000 ? 0 : 30; }
-    public function describe(): string { return "card ending " . $this->last4; }
+final class Card
+{
+    public function constructor(public string $last4)
+    { }
+
+    public function fee(int $cents): int
+    {
+        return $cents >= 5000 ? 0 : 30;
+    }
+
+    public function describe(): string
+    {
+        return 'card ending ' . $this->last4;
+    }
 }
 
-final class Transfer {
-    public function constructor(public string $bank) { }
-    public function fee(int $cents): int { return $cents >= 100000 ? 0 : 50; }
-    public function describe(): string { return "transfer from " . $this->bank; }
+final class Transfer
+{
+    public function constructor(public string $bank)
+    { }
+
+    public function fee(int $cents): int
+    {
+        return $cents >= 100000 ? 0 : 50;
+    }
+
+    public function describe(): string
+    {
+        return 'transfer from ' . $this->bank;
+    }
 }
 
 // Each call runs `fee` and `describe` of the class the value is.
 // For 10000 cents, the card fee is `0` and the transfer fee is `50`.
-array<Card|Transfer> $payments = [new Card("4242"), new Transfer("City Bank")];
+array<Card|Transfer> $payments = [new Card('4242'), new Transfer('City Bank')];
 foreach ($payments as Card|Transfer $payment) {
-    echo $payment->describe(), ": fee ", $payment->fee(10000), " cents\n";
+    echo $payment->describe(), ': fee ', $payment->fee(10000), " cents\n";
 }
 ```
 
@@ -1433,14 +1484,18 @@ transfer from City Bank: fee 50 cents
 // `Pickup` has no `$tracking`, so this program does not compile.
 // proof: compile-error
 
-final class Courier {
-    public string $tracking = "TR-1001";
-    public function constructor() { }
+final class Courier
+{
+    public string $tracking = 'TR-1001';
+    public function constructor()
+    { }
 }
 
-final class Pickup {
-    public string $shop = "Main Street";
-    public function constructor() { }
+final class Pickup
+{
+    public string $shop = 'Main Street';
+    public function constructor()
+    { }
 }
 
 Courier|Pickup $ship = new Pickup();
@@ -1449,9 +1504,9 @@ echo $ship->tracking, "\n";
 
 ```output
 error[E0881]: `Pickup` has no property `$tracking`
-   --> main.nvs:17:6
+   --> main.nvs:21:6
    |
-17 | echo $ship->tracking, "\n";
+21 | echo $ship->tracking, "\n";
    |      ^^^^^^^^^^^^^^^ used through `Courier|Pickup` here
    = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
 
@@ -1509,20 +1564,23 @@ class, write `self::` and the member's name.
 // A method that returns no value has the return type `void`.
 // Each call below is a statement of its own.
 
-class Audit {
-    public static function note(string $what, uint $count): void {
-        echo "[audit] ", $what, " x", $count, "\n";
+class Audit
+{
+    public static function note(string $what, uint $count): void
+    {
+        echo '[audit] ', $what, ' x', $count, "\n";
     }
 
-    public static function line(string $text): void {
+    public static function line(string $text): void
+    {
         echo $text, "\n";
     }
 }
 
-Audit::line("import starting");
-Audit::note("rows read", 120);
-Audit::note("rows skipped", 3);
-Audit::line("import finished");
+Audit::line('import starting');
+Audit::note('rows read', 120);
+Audit::note('rows skipped', 3);
+Audit::line('import finished');
 ```
 
 ```output
@@ -1539,35 +1597,43 @@ import finished
 // Each method returns `self`, the class it is written in, and returns `$this`.
 // So you can call the next method on the result, all on one line.
 
-final class Query {
-    public string $table = "";
+final class Query
+{
+    public string $table = '';
     public array<string> $wheres = [];
     public uint $limit = 0;
 
-    public function from(string $table): self {
+    public function from(string $table): self
+    {
         $this->table = $table;
         return $this;
     }
 
-    public function where(string $clause): self {
+    public function where(string $clause): self
+    {
         $this->wheres[] = $clause;
         return $this;
     }
 
-    public function take(uint $rows): self {
+    public function take(uint $rows): self
+    {
         $this->limit = $rows;
         return $this;
     }
 
-    public function text(): string {
-        return "select from " . $this->table
-            . " where " . Core\Str::join($this->wheres, " and ")
-            . " limit " . $this->limit;
+    public function text(): string
+    {
+        return 'select from '
+            . $this->table
+            . ' where '
+            . Core\Str::join($this->wheres, ' and ')
+            . ' limit '
+            . $this->limit;
     }
 }
 
 Query $q = new Query();
-echo $q->from("orders")->where("paid")->where("shipped")->take(25)->text(), "\n";
+echo $q->from('orders')->where('paid')->where('shipped')->take(25)->text(), "\n";
 ```
 
 ```output
@@ -1582,34 +1648,43 @@ select from orders where paid and shipped limit 25
 // `load` returns `static`, the class named in the call. So `Invoice::load` returns an `Invoice`.
 // `refuse` returns `never`, because it always throws an error.
 
-class Record {
-    public function constructor(public uint $id) {}
+class Record
+{
+    public function constructor(public uint $id)
+    {}
 
-    public static function load(uint $id): static {
+    public static function load(uint $id): static
+    {
         if ($id == 0) {
-            Record::refuse("a record id is never zero");
+            Record::refuse('a record id is never zero');
         }
         return new static($id);
     }
 
-    public static function refuse(string $why): never {
+    public static function refuse(string $why): never
+    {
         throw new RuntimeError($why);
     }
 
-    public function label(): string {
-        return "record #" . $this->id;
+    public function label(): string
+    {
+        return 'record #' . $this->id;
     }
 }
 
-final class Invoice extends Record {
-    public function label(): string {
-        return "invoice #" . $this->id;
+final class Invoice extends Record
+{
+    public function label(): string
+    {
+        return 'invoice #' . $this->id;
     }
 }
 
-final class Customer extends Record {
-    public function label(): string {
-        return "customer #" . $this->id;
+final class Customer extends Record
+{
+    public function label(): string
+    {
+        return 'customer #' . $this->id;
     }
 }
 
@@ -1639,8 +1714,10 @@ refused an impossible id
 // This program does not compile.
 // proof: compile-error
 
-class Helper {
-    public static function nothing(): void {}
+class Helper
+{
+    public static function nothing(): void
+    {}
 }
 
 echo Helper::nothing();
@@ -1648,9 +1725,9 @@ echo Helper::nothing();
 
 ```output
 error[E0707]: `void` has no string form
-   --> main.nvs:10:6
+   --> main.nvs:12:6
    |
-10 | echo Helper::nothing();
+12 | echo Helper::nothing();
    |      ^^^^^^^^^^^^^^^^^ converted to `string` here
    = help: a call that returns `void` has no value at all, so there is nothing here to print
 
@@ -1664,16 +1741,19 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 <?nvs
 // `first` needs no `return` after `Report::fail`, because `fail` returns `never`.
 
-class Report {
-    public static function fail(string $why): never {
+class Report
+{
+    public static function fail(string $why): never
+    {
         throw new RuntimeError($why);
     }
 
-    public static function first(array<int> $rows): int {
+    public static function first(array<int> $rows): int
+    {
         if (Core\Arr::count($rows) > 0) {
             return $rows[0];
         }
-        Report::fail("no rows");
+        Report::fail('no rows');
     }
 }
 
@@ -1682,7 +1762,7 @@ echo Report::first([3, 4]), "\n";
 try {
     Report::first([]);
 } catch (RuntimeError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }
 ```
 
@@ -1740,9 +1820,11 @@ type UserId = uint;
 type Answer = int|string;
 type Grid = array<array<float>>;
 
-class Report {
-    public static function line(UserId $id, Answer $answer): string {
-        return "user " . ($id as string) . " answered " . ($answer as string);
+class Report
+{
+    public static function line(UserId $id, Answer $answer): string
+    {
+        return 'user ' . ($id as string) . ' answered ' . ($answer as string);
     }
 }
 
@@ -1750,10 +1832,10 @@ UserId $id = 1042;
 uint $plain = $id;          // the alias and `uint` are one type, in both directions
 
 echo Report::line($id, 7), "\n";
-echo Report::line($plain, "maybe"), "\n";
+echo Report::line($plain, 'maybe'), "\n";
 
 Grid $grid = [[1.5, 2.0], [0.5]];
-echo $grid[0][1], " ", $grid[1][0], "\n";
+echo $grid[0][1], ' ', $grid[1][0], "\n";
 ```
 
 ```output
@@ -1770,27 +1852,32 @@ user 1042 answered maybe
 // the short name `Lines`. Outside it, you write `Basket::Lines`.
 // A subclass does not inherit the alias.
 
-final class Basket {
+final class Basket
+{
     type Lines = array<string>;
 
-    public function constructor(public Lines $lines) {}
+    public function constructor(public Lines $lines)
+    {}
 
-    public function add(string $line): Lines {
+    public function add(string $line): Lines
+    {
         $this->lines[] = $line;
         return $this->lines;      // inside the class: the short name
     }
 }
 
-class Printer {
-    public static function show(Basket::Lines $lines): void {      // outside the class: the class name first
+class Printer
+{
+    public static function show(Basket::Lines $lines): void
+    {      // outside the class: the class name first
         foreach ($lines as string $line) {
-            echo "- ", $line, "\n";
+            echo '- ', $line, "\n";
         }
     }
 }
 
-Basket $basket = new Basket(["two coffees"]);
-Printer::show($basket->add("one tea"));
+Basket $basket = new Basket(['two coffees']);
+Printer::show($basket->add('one tea'));
 ```
 
 ```output
@@ -1806,24 +1893,30 @@ Printer::show($basket->add("one tea"));
 // Each method uses the name `Invoice`, so the fields are written only once.
 // To add a field, you change only this one line.
 
-type Invoice = {number: string, total: decimal, paid: bool};
+type Invoice = { number: string, total: decimal, paid: bool };
 
-class Billing {
-    public static function build(string $number, decimal $total): Invoice {
-        return {number: $number, total: $total, paid: false};
+class Billing
+{
+    public static function build(string $number, decimal $total): Invoice
+    {
+        return { number: $number, total: $total, paid: false };
     }
 
-    public static function settle(Invoice $invoice): Invoice {
-        return {number: $invoice->number, total: $invoice->total, paid: true};
+    public static function settle(Invoice $invoice): Invoice
+    {
+        return { number: $invoice->number, total: $invoice->total, paid: true };
     }
 
-    public static function line(Invoice $invoice): string {
-        return $invoice->number . " " . ($invoice->total as string)
-            . ($invoice->paid ? " (paid)" : " (open)");
+    public static function line(Invoice $invoice): string
+    {
+        return $invoice->number
+            . ' '
+            . ($invoice->total as string)
+            . ($invoice->paid ? ' (paid)' : ' (open)');
     }
 }
 
-Invoice $draft = Billing::build("INV-1042", 19.99 as decimal);
+Invoice $draft = Billing::build('INV-1042', 19.99 as decimal);
 echo Billing::line($draft), "\n";
 echo Billing::line(Billing::settle($draft)), "\n";
 ```
@@ -1839,7 +1932,8 @@ INV-1042 19.99 (paid)
 <?nvs
 // `MaybeUser` is a `User` or `null`. `Id` is an `int` or a `string`.
 
-class User {
+class User
+{
     public int $n = 7;
 }
 
@@ -1847,9 +1941,9 @@ type Id = int|string;
 type MaybeUser = ?User;
 
 Id $a = 1;
-Id $b = "x";
+Id $b = 'x';
 MaybeUser $u = new User();
-echo $a, $b, " ", $u?->n, "\n";
+echo $a, $b, ' ', $u?->n, "\n";
 ```
 
 ```output
@@ -1864,7 +1958,8 @@ echo $a, $b, " ", $u?->n, "\n";
 // This program does not compile.
 // proof: compile-error
 
-class Foo {
+class Foo
+{
     public int $n = 1;
 }
 
@@ -1873,9 +1968,9 @@ type Bar = Foo;
 
 ```output
 error[E0307]: a `type` alias may not name a single class, interface or enum on its own
-   --> main.nvs:10:12
+   --> main.nvs:11:12
    |
-10 | type Bar = Foo;
+11 | type Bar = Foo;
    |            ^^^ aliases exactly one class-shaped atom
    = help: a class already has its own name, so write the class name. An alias can name a union, an intersection or an `array<...>`
 
@@ -1974,7 +2069,7 @@ int $mask = 0xFF;
 int $flags = 0b1011;
 int $mode = 0o644;
 
-echo $seats, " ", $mask, " ", $flags, " ", $mode, "\n";
+echo $seats, ' ', $mask, ' ', $flags, ' ', $mode, "\n";
 
 // A zero at the front is only a zero, so `017` is seventeen.
 // PHP and C read `017` as base eight, which is fifteen.
@@ -1988,7 +2083,7 @@ float $half = .5;
 float $five = 5.;
 float $thousand = 1e3;
 
-echo $half, " ", $five, " ", $thousand, "\n";
+echo $half, ' ', $five, ' ', $thousand, "\n";
 ```
 
 ```output
@@ -2005,22 +2100,24 @@ echo $half, " ", $five, " ", $thousand, "\n";
 // the values of your variables and turn an escape such as `\n` into the
 // character it stands for.
 
-class Guest {
-    public string $name = "Ada";
+class Guest
+{
+    public string $name = 'Ada';
 
-    public function shouting(): string {
+    public function shouting(): string
+    {
         return Core\Str::upper($this->name);
     }
 }
 
-string $who = "Ada";
+string $who = 'Ada';
 
 echo 'Dear $who,', "\n";
 echo "Dear $who,", "\n";
 
 // Braces let you put a whole expression in the text. Anything that starts
 // with a variable works: a key of an array, a property, or a method call.
-array<string> $city = ["home" => "Vienna"];
+array<string> $city = ['home' => 'Vienna'];
 Guest $guest = new Guest();
 
 echo "You are in $city[home] today.\n";
@@ -2048,7 +2145,7 @@ Room for Ada, who signs as ADA.
 // filled in where they appear. The closing marker sets the indentation, so
 // the lines can stay lined up with the code.
 
-string $who = "Ada";
+string $who = 'Ada';
 int $order = 1042;
 decimal $total = 24.90;
 Core\Time\Duration $window = 2w;
@@ -2089,21 +2186,24 @@ Hi $who, your order #$order is on its way.
 // backticks is written to the page as it is. Every hole is escaped, so a
 // value cannot add a tag of its own.
 
-class Shop {
-    public const string NAME = "Kettle & Co";
+class Shop
+{
+    public const string NAME = 'Kettle & Co';
 
-    public static function price(int $cents): string {
-        return Core\Str::format("%d.%02d €", $cents / 100, $cents % 100);
+    public static function price(int $cents): string
+    {
+        return Core\Str::format('%d.%02d €', $cents / 100, $cents % 100);
     }
 
-    public static function badge(): Core\Html\Markup {
+    public static function badge(): Core\Html\Markup
+    {
         return html`<span class="badge">new</span>`;
     }
 }
 
 // `{$name}` is a hole for a variable. It prints `&lt;b&gt;Ann&lt;/b&gt;`,
 // so the `<b>` stays text on the page.
-tainted string $name = "<b>Ann</b>";
+tainted string $name = '<b>Ann</b>';
 echo html`<p>Welcome, {$name}</p>`, "\n";
 
 // `<?= ... ?>` is a hole for any expression: a constant, a method call, a
@@ -2133,7 +2233,7 @@ echo $page, "\n";
 // Shows the escapes of a double-quoted string, and what is printed for each one.
 
 // `\t` is a tab, `\"` is a quote, `\$` is a dollar sign and `\\` is one backslash.
-string $who = "Ada";
+string $who = 'Ada';
 echo "tab[\t] quote[\"] dollar[\$who] backslash[\\]\n";
 
 // `\101` (octal), `\x41` (hex) and `\u{41}` (a code point) all print `A`.
@@ -2162,10 +2262,10 @@ sum 30
 
 // Units can follow each other. `1h30m` is one hour and thirty minutes.
 Core\Time\Duration $wait = 1h30m;
-echo $wait, " is ", $wait->toSeconds(), " seconds\n";
+echo $wait, ' is ', $wait->toSeconds(), " seconds\n";
 
 // The other units are `ns`, `us`, `ms`, `s`, `d` and `w`.
-echo 250us->toNanoseconds(), " ", 1d->toSeconds(), "\n";
+echo 250us->toNanoseconds(), ' ', 1d->toSeconds(), "\n";
 
 // `compareTo` returns `0` when two durations are equal. `==` only checks for the same object.
 echo $wait->compareTo(90m), "\n";
@@ -2186,14 +2286,14 @@ echo $wait->compareTo(90m), "\n";
 // proof: compile-error
 
 Core\Html\Markup $m = html`<p>x</p>`;
-string $s = $m . "!";
+string $s = $m . '!';
 ```
 
 ```output
 error[E0710]: `Core\Html\Markup` is not text; it is the carrier the HTML sink writes raw
   --> main.nvs:7:13
   |
-7 | string $s = $m . "!";
+7 | string $s = $m . '!';
   |             ^^ used as a `string` here
   = help: escaping is not idempotent, so text made out of a `Markup` is escaped a second time at the sink — write the markup to the sink directly, compose it with `+`, or say `Core\Html::toSource($markup, "why")` if the bytes really are what you want
 
@@ -2251,12 +2351,15 @@ stores `2.0`. A shape value that already exists is not converted. A `{x: int}` v
 // Shows an `int` used where a `float` is needed, with no `as`. This works in an
 // assignment, an argument, a return value and a calculation.
 
-class Cart {
-    public static function withTax(float $amount): float {
+class Cart
+{
+    public static function withTax(float $amount): float
+    {
         return $amount * 1.2;
     }
 
-    public static function base(int $units): float {
+    public static function base(int $units): float
+    {
         return $units;
     }
 }
@@ -2287,17 +2390,21 @@ echo $rate + $units, "\n";
 // Shows a value assigned to a wider type with no `as`: a nullable type, a union
 // and `mixed`.
 
-interface Sends {
+interface Sends
+{
     public function send(): string;
 }
 
-class Email implements Sends {
-    public function send(): string {
-        return "sent by e-mail";
+class Email implements Sends
+{
+    public function send(): string
+    {
+        return 'sent by e-mail';
     }
 }
 
-class Invoice extends Email {}
+class Invoice extends Email
+{}
 
 int $count = 3;
 
@@ -2305,7 +2412,7 @@ int $count = 3;
 int|string $either = $count;
 mixed $anything = $count;
 
-echo $optional ?? 0, " ", $either as string, " ", $anything as string, "\n";
+echo $optional ?? 0, ' ', $either as string, ' ', $anything as string, "\n";
 
 // An object is assigned to its parent class, to an interface its class
 // implements, and to `object`.
@@ -2342,7 +2449,7 @@ foreach ($prices as var $price) {
     $total = $total + $price;
 }
 
-echo "total ", $total, "\n";
+echo 'total ', $total, "\n";
 ```
 
 ```output
@@ -2358,16 +2465,18 @@ total 9.5
 <?nvs
 // Shows that the fields of an anonymous object are converted to the types of the shape.
 
-type Point = {x: float, y: float};
+type Point = { x: float, y: float };
 
 // `x` and `y` are written as whole numbers. They are stored as `float` values.
-Point $p = {x: 2, y: 3};
-echo $p->x / 4, " ", $p->y / 4, "\n";
+Point $p = { x: 2, y: 3 };
+echo $p->x / 4, ' ', $p->y / 4, "\n";
 
 // A function that returns the shape converts its fields the same way.
-class Origin {
-    public static function point(): Point {
-        return {x: 0, y: 1};
+class Origin
+{
+    public static function point(): Point
+    {
+        return { x: 0, y: 1 };
     }
 }
 
@@ -2488,7 +2597,7 @@ A `class<Dog>` converts to `class<Animal>` without a check when `Dog` extends `A
 // Shows how `as` converts text from a file, a form or a command line to a number.
 // The whole text must be a number.
 
-array<string> $fields = ["12", "-4", "2.5", "19.90"];
+array<string> $fields = ['12', '-4', '2.5', '19.90'];
 
 int $units = $fields[0] as int;
 int $adjustment = $fields[1] as int;
@@ -2501,7 +2610,7 @@ echo $weight * 2, "\n";
 // `as string` converts a number to text. A `decimal` keeps its two decimal places,
 // so this prints `19.90`.
 echo $price as string, "\n";
-echo ($units as string) . " units", "\n";
+echo ($units as string) . ' units', "\n";
 ```
 
 ```output
@@ -2519,12 +2628,12 @@ echo ($units as string) . " units", "\n";
 // If that is not possible, the result is `null` and the program continues.
 // Only "30" converts here. The other three give `null`.
 
-array<string> $answers = ["30", "thirty", "30.5", ""];
+array<string> $answers = ['30', 'thirty', '30.5', ''];
 
 // `??` replaces `null` with a default value. Here the default is 14 days.
 foreach ($answers as string $answer) {
     int $days = ($answer as ?int) ?? 14;
-    echo "a trial of ", $days, " days\n";
+    echo 'a trial of ', $days, " days\n";
 }
 
 // To tell the user which answers were wrong, compare the result with `null` yourself.
@@ -2568,9 +2677,9 @@ class Order
 }
 
 array<array<string>> $rows = [
-    ["3", "19.90"],
-    ["1", "4.05"],
-    ["two", "9.99"],
+    ['3', '19.90'],
+    ['1', '4.05'],
+    ['two', '9.99'],
 ];
 
 decimal $total = 0.00;
@@ -2579,11 +2688,11 @@ foreach ($rows as array<string> $row) {
     try {
         $total = $total + Order::lineTotal($row);
     } catch (RuntimeError $e) {
-        echo "left out a row whose quantity is not a number: ", $row[0], "\n";
+        echo 'left out a row whose quantity is not a number: ', $row[0], "\n";
     }
 }
 
-echo "total ", $total as string, "\n";
+echo 'total ', $total as string, "\n";
 ```
 
 ```output
@@ -2598,17 +2707,17 @@ total 63.75
 // Shows the order in which `as` runs, and which error a failed conversion throws.
 
 // `as` converts only the value directly before it. `7 / 2 as int` is `7 / (2 as int)`.
-echo 7 / 2 as int, " ", (7 / 2) as string, " ", 1 + 2 as float, "\n";
+echo 7 / 2 as int, ' ', (7 / 2) as string, ' ', 1 + 2 as float, "\n";
 
-string $digits = "42";
+string $digits = '42';
 int $n = $digits as int;
-echo $n + 1, " ", "1e3" as float, " ", 3.0 as int, "\n";
+echo $n + 1, ' ', '1e3' as float, ' ', 3.0 as int, "\n";
 
 // `true` converts to "1". `false` and `null` convert to an empty string.
-echo true as string, "|", false as string, "|", null as string, "|\n";
+echo true as string, '|', false as string, '|', null as string, "|\n";
 
 float $f = 3.9;
-string $word = "abc";
+string $word = 'abc';
 int $neg = -1;
 
 // A number that does not fit throws an `ArithmeticError`.
@@ -2631,7 +2740,7 @@ try {
 }
 
 // `as ?int` gives `null` for each value that `as int` cannot convert.
-echo ($word as ?int) ?? -1, " ", ($f as ?int) ?? -1, " ", ($digits as ?int) ?? -1, "\n";
+echo ($word as ?int) ?? -1, ' ', ($f as ?int) ?? -1, ' ', ($digits as ?int) ?? -1, "\n";
 ```
 
 ```output
@@ -2654,7 +2763,7 @@ class Animal
 {
     public function speak(): string
     {
-        return "...";
+        return '...';
     }
 }
 
@@ -2662,7 +2771,7 @@ class Dog extends Animal
 {
     public function speak(): string
     {
-        return "woof";
+        return 'woof';
     }
 }
 
@@ -2670,13 +2779,13 @@ class Dog extends Animal
 class<Animal> $folded = Dog::class as class<Animal>;
 
 // A name in a variable is checked while the program runs.
-string $name = "Dog";
+string $name = 'Dog';
 class<Animal> $picked = $name as class<Animal>;
 Animal $pet = new $picked();
-echo $pet->speak(), " ", ($pet is $folded) ? "a Dog" : "not", "\n";
+echo $pet->speak(), ' ', ($pet is $folded) ? 'a Dog' : 'not', "\n";
 
 // No class `Cat` exists, so the conversion throws a `RuntimeError`.
-string $missing = "Cat";
+string $missing = 'Cat';
 try {
     class<Animal> $bad = $missing as class<Animal>;
     echo (new $bad())->speak(), "\n";
@@ -2705,7 +2814,7 @@ class CsvReport implements Renders
 {
     public static function extension(): string
     {
-        return "csv";
+        return 'csv';
     }
 }
 
@@ -2713,7 +2822,7 @@ class CsvReport implements Renders
 class<Renders> $fallback = 'CsvReport' as class<Renders>;
 
 // No class `PdfReport` exists, so `as ?class<Renders>` gives `null`, and `??` uses the default.
-string $setting = "PdfReport";
+string $setting = 'PdfReport';
 class<Renders> $format = ($setting as ?class<Renders>) ?? $fallback;
 echo $format::extension(), "\n";
 ```
@@ -2730,19 +2839,21 @@ csv
 // `Rock` does not extend `Animal`, so this program does not compile.
 // proof: compile-error
 
-class Animal {}
-class Rock {}
+class Animal
+{}
+class Rock
+{}
 
 class<Animal> $c = 'Rock' as class<Animal>;
 ```
 
 ```output
 error[E0708]: `Rock` is not a `Animal`, so this can never be a `class<Animal>`
-  --> main.nvs:9:20
-  |
-9 | class<Animal> $c = 'Rock' as class<Animal>;
-  |                    ^^^^^^^^^^^^^^^^^^^^^^^ converted here
-  = help: make `Rock` extend or implement `Animal`. Or write a class in `class<…>` that `Rock` already extends
+   --> main.nvs:11:20
+   |
+11 | class<Animal> $c = 'Rock' as class<Animal>;
+   |                    ^^^^^^^^^^^^^^^^^^^^^^^ converted here
+   = help: make `Rock` extend or implement `Animal`. Or write a class in `class<…>` that `Rock` already extends
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -2827,12 +2938,14 @@ key written in the code and a key converted from a variable are equal when the n
 <?nvs
 // Sorts a product table by the column a visitor picks in the web address.
 
-class Product {
+class Product
+{
     public string $name;
     public int $price;
     public int $stock;
 
-    public function constructor(string $name, int $price, int $stock) {
+    public function constructor(string $name, int $price, int $stock)
+    {
         $this->name = $name;
         $this->price = $price;
         $this->stock = $stock;
@@ -2840,22 +2953,22 @@ class Product {
 }
 
 array<Product> $products = [
-    new Product("Lamp", 40, 3),
-    new Product("Chair", 85, 12),
-    new Product("Desk", 120, 1),
+    new Product('Lamp', 40, 3),
+    new Product('Chair', 85, 12),
+    new Product('Desk', 120, 1),
 ];
 
 // The address ends with `?sort=price`. `as ?property<Product>` converts "price"
 // to a property key. A name that is not a public property gives `null`.
-?property<Product> $picked = Core\Request::query("sort") as ?property<Product>;
+?property<Product> $picked = Core\Request::query('sort') as ?property<Product>;
 
 // Without a valid column, the table is sorted by "name".
-property<Product> $column = $picked ?? "name" as property<Product>;
+property<Product> $column = $picked ?? 'name' as property<Product>;
 
 // `$product->$column` reads the property that the key names.
-array<Product> $sorted = Core\Arr::sort($products, {by: fn(Product $product) => $product->$column});
+array<Product> $sorted = Core\Arr::sort($products, { by: fn(Product $product) => $product->$column });
 foreach ($sorted as Product $product) {
-    echo $product->name, " ", $product->$column, "\n";
+    echo $product->name, ' ', $product->$column, "\n";
 }
 ```
 
@@ -2871,38 +2984,42 @@ Desk 120
 <?nvs
 // Shows a function whose parameter accepts a property key or any string.
 
-class User {
+class User
+{
     public string $name;
     public string $email;
-    private string $passwordHash = "x9f2";
+    private string $passwordHash = 'x9f2';
 
-    public function constructor(string $name, string $email) {
+    public function constructor(string $name, string $email)
+    {
         $this->name = $name;
         $this->email = $email;
     }
 }
 
-class Page {
+class Page
+{
     // The type `property<User>|string` accepts a key or any string. In the
     // editor, a string written here offers the property names of `User`.
-    public static function field(User $user, property<User>|string $name): string {
+    public static function field(User $user, property<User>|string $name): string
+    {
         ?property<User> $key = $name as ?property<User>;
         if ($key == null) {
-            return "no property named " . ($name as string);
+            return 'no property named ' . ($name as string);
         }
-        return ($key as string) . ": " . $user->$key;
+        return ($key as string) . ': ' . $user->$key;
     }
 }
 
-User $user = new User("Ada", "ada@example.com");
+User $user = new User('Ada', 'ada@example.com');
 
-echo Page::field($user, "email"), "\n";
+echo Page::field($user, 'email'), "\n";
 
 // "passwordHash" is a private property, so the function does not show it.
-echo Page::field($user, "passwordHash"), "\n";
+echo Page::field($user, 'passwordHash'), "\n";
 
 // A key made with `as` is accepted too.
-property<User> $key = "name" as property<User>;
+property<User> $key = 'name' as property<User>;
 echo Page::field($user, $key), "\n";
 ```
 
@@ -2918,13 +3035,15 @@ name: Ada
 <?nvs
 // Updates only the properties that a list of changes names, and skips every other name.
 
-class Profile {
-    public string $name = "Ada";
-    public string $email = "ada@example.com";
-    public string $city = "London";
-    private string $role = "member";
+class Profile
+{
+    public string $name = 'Ada';
+    public string $email = 'ada@example.com';
+    public string $city = 'London';
+    private string $role = 'member';
 
-    public function role(): string {
+    public function role(): string
+    {
         return $this->role;
     }
 }
@@ -2932,22 +3051,22 @@ class Profile {
 Profile $profile = new Profile();
 
 // The changes to make, with the property names as keys.
-array<string> $changes = ["city" => "Paris", "role" => "admin", "phone" => "555"];
+array<string> $changes = ['city' => 'Paris', 'role' => 'admin', 'phone' => '555'];
 
 foreach ($changes as string $field => string $value) {
     // `as ?property<Profile>` gives `null` for "role", because it is private.
     // It also gives `null` for "phone", because `Profile` has no such property.
     ?property<Profile> $key = $field as ?property<Profile>;
     if ($key == null) {
-        echo "skipped: ", $field, "\n";
+        echo 'skipped: ', $field, "\n";
         continue;
     }
     // This writes the property that the key names.
     $profile->$key = $value;
-    echo "updated: ", $field, "\n";
+    echo 'updated: ', $field, "\n";
 }
 
-echo $profile->name, ", ", $profile->city, ", ", $profile->role(), "\n";
+echo $profile->name, ', ', $profile->city, ', ', $profile->role(), "\n";
 ```
 
 ```output
@@ -2965,12 +3084,14 @@ Ada, Paris, member
 
 // Text from a request is tainted, which means it came from outside your program.
 // A key can write tainted text only when every public property is `tainted string`.
-class Profile {
-    public tainted string $name = "Ada";
-    public tainted string $city = "London";
-    private string $role = "member";
+class Profile
+{
+    public tainted string $name = 'Ada';
+    public tainted string $city = 'London';
+    private string $role = 'member';
 
-    public function role(): string {
+    public function role(): string
+    {
         return $this->role;
     }
 }
@@ -2984,14 +3105,14 @@ foreach ($changes as tainted string $field => mixed $value) {
     // "role" is a private property, so `as ?property<Profile>` gives `null`.
     ?property<Profile> $key = $field as ?property<Profile>;
     if ($key == null) {
-        echo "skipped: ", $field, "\n";
+        echo 'skipped: ', $field, "\n";
         continue;
     }
     $profile->$key = $value as tainted string;
-    echo "updated: ", $field, "\n";
+    echo 'updated: ', $field, "\n";
 }
 
-echo $profile->name, ", ", $profile->city, ", ", $profile->role(), "\n";
+echo $profile->name, ', ', $profile->city, ', ', $profile->role(), "\n";
 ```
 
 ```text
@@ -3006,26 +3127,27 @@ Ada, Paris, member
 <?nvs
 // Shows what a read through a key gives, and what happens when a write or a name is wrong.
 
-class User {
-    public string $email = "ada@example.com";
+class User
+{
+    public string $email = 'ada@example.com';
     public int $age = 36;
-    private string $password = "secret";
+    private string $password = 'secret';
 }
 
 User $user = new User();
-string $field = "age";
+string $field = 'age';
 property<User> $key = $field as property<User>;
 $user->$key = 37;
-echo $user->age, " ", $key as string, "\n";
+echo $user->age, ' ', $key as string, "\n";
 
 // The key can name `$email` or `$age`, so a read gives `string|int`.
 string|int $value = $user->$key;
-echo $value is int ? "an int" : "a string", "\n";
+echo $value is int ? 'an int' : 'a string', "\n";
 
 // "password" is private. `as ?property<User>` gives `null`, and `as property<User>` throws.
-string $hidden = "password";
+string $hidden = 'password';
 ?property<User> $none = $hidden as ?property<User>;
-echo $none == null ? "null" : "a key", "\n";
+echo $none == null ? 'null' : 'a key', "\n";
 try {
     property<User> $bad = $hidden as property<User>;
 } catch (RuntimeError $e) {
@@ -3034,7 +3156,7 @@ try {
 
 // The key names `$age`, which is an `int`. Writing a string throws an error.
 try {
-    $user->$key = "old";
+    $user->$key = 'old';
 } catch (RuntimeError $e2) {
     echo $e2->message, "\n";
 }
@@ -3054,18 +3176,20 @@ null
 <?nvs
 // Shows a key of a parent class used on an object of a child class.
 
-class Animal {
-    public string $name = "Rex";
+class Animal
+{
+    public string $name = 'Rex';
 }
 
-class Dog extends Animal {
-    public string $breed = "beagle";
+class Dog extends Animal
+{
+    public string $breed = 'beagle';
 }
 
 Dog $dog = new Dog();
 
 // A `Dog` has every property of an `Animal`, so a `property<Animal>` key works on it.
-property<Animal> $key = "name" as property<Animal>;
+property<Animal> $key = 'name' as property<Animal>;
 echo $dog->$key, "\n";
 
 // A `property<Animal>` key is also a `property<Dog>` key.
@@ -3086,25 +3210,27 @@ Rex
 // The key could name `$id`, so the write does not compile.
 // proof: compile-error
 
-class Order {
+class Order
+{
     public readonly int $id;
-    public string $status = "new";
+    public string $status = 'new';
 
-    public function constructor(int $id) {
+    public function constructor(int $id)
+    {
         $this->id = $id;
     }
 }
 
 Order $order = new Order(7);
-property<Order> $key = "status" as property<Order>;
-$order->$key = "paid";
+property<Order> $key = 'status' as property<Order>;
+$order->$key = 'paid';
 ```
 
 ```output
 error[E0782]: `Order::$id` is `readonly`, so only `Order`'s constructor writes it
-   --> main.nvs:17:1
+   --> main.nvs:19:1
    |
-17 | $order->$key = "paid";
+19 | $order->$key = 'paid';
    | ^^^^^^^^^^^^ a `property<Order>` may name any of Order's public properties, and this write cannot know which one it holds
    = help: write the property out to name a different one, or drop the modifier if the property is meant to be assignable
 
@@ -3152,49 +3278,56 @@ the code and a path converted from a variable are equal when the text is the sam
 <?nvs
 // Shows property paths that go from an order to its customer, its address and its lines.
 
-class Address {
-    public string $city = "Graz";
+class Address
+{
+    public string $city = 'Graz';
 }
 
-class Customer {
-    public string $name = "Ada";
+class Customer
+{
+    public string $name = 'Ada';
     public ?Address $address = null;
 }
 
-class Line {
-    public string $sku = "p-1";
+class Line
+{
+    public string $sku = 'p-1';
     public int $quantity = 1;
 }
 
-class Order {
+class Order
+{
     public Customer $customer;
     public array<Line> $lines = [];
     public int $total = 40;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->customer = new Customer();
     }
 }
 
-class Report {
+class Report
+{
     // The parameter type `propertyPath<Order>` accepts a path that starts at `Order`.
     // A string written in the call is checked when the program compiles.
-    public static function sortBy(propertyPath<Order> $path): string {
-        return "sorted by " . ($path as string);
+    public static function sortBy(propertyPath<Order> $path): string
+    {
+        return 'sorted by ' . ($path as string);
     }
 }
 
 // `customer` is a `Customer`, so `name` is a property of `Customer`.
-echo Report::sortBy("customer.name"), "\n";
+echo Report::sortBy('customer.name'), "\n";
 
 // `address` is a `?Address`. A path can go through a nullable object.
-echo Report::sortBy("customer.address.city"), "\n";
+echo Report::sortBy('customer.address.city'), "\n";
 
 // `lines` is an `array<Line>`. A path can go through an array of objects.
-echo Report::sortBy("lines.sku"), "\n";
+echo Report::sortBy('lines.sku'), "\n";
 
 // One name is a path too.
-echo Report::sortBy("total"), "\n";
+echo Report::sortBy('total'), "\n";
 ```
 
 ```output
@@ -3210,42 +3343,48 @@ sorted by total
 <?nvs
 // Shows a list of orders sorted by a property that the web address names.
 
-class Customer {
+class Customer
+{
     public string $name;
-    private string $password = "x9f2";
+    private string $password = 'x9f2';
 
-    public function constructor(string $name) {
+    public function constructor(string $name)
+    {
         $this->name = $name;
     }
 }
 
-class Order {
+class Order
+{
     public Customer $customer;
     public int $total;
 
-    public function constructor(string $name, int $total) {
+    public function constructor(string $name, int $total)
+    {
         $this->customer = new Customer($name);
         $this->total = $total;
     }
 }
 
-class Table {
-    public static function sortBy(?tainted string $field): string {
+class Table
+{
+    public static function sortBy(?tainted string $field): string
+    {
         // `as ?propertyPath<Order>` checks each name of the path while the program runs.
         // If one name is wrong, the result is `null`.
         ?propertyPath<Order> $path = $field as ?propertyPath<Order>;
         if ($path == null) {
-            return "not a property path, sorted by total";
+            return 'not a property path, sorted by total';
         }
-        return "sorted by " . ($path as string);
+        return 'sorted by ' . ($path as string);
     }
 }
 
 // The address is `/orders?sort=customer.name&other=customer.password`.
-echo Table::sortBy(Core\Request::query("sort")), "\n";
+echo Table::sortBy(Core\Request::query('sort')), "\n";
 
 // `password` is a private property, so it is not part of any path.
-echo Table::sortBy(Core\Request::query("other")), "\n";
+echo Table::sortBy(Core\Request::query('other')), "\n";
 ```
 
 ```text
@@ -3259,34 +3398,39 @@ not a property path, sorted by total
 <?nvs
 // Shows one method in a parent class that takes a path for each child class.
 
-class Model {
+class Model
+{
     // `propertyPath<static>` is a path that starts at the class the call names.
     // `Category::orderBy` takes paths of `Category`.
-    public static function orderBy(propertyPath<static> $path): string {
-        return "ORDER BY " . $path;
+    public static function orderBy(propertyPath<static> $path): string
+    {
+        return 'ORDER BY ' . $path;
     }
 }
 
-class Category extends Model {
-    public string $name = "Books";
+class Category extends Model
+{
+    public string $name = 'Books';
     public ?Category $parent = null;
 }
 
-class Product extends Model {
+class Product extends Model
+{
     public Category $category;
     public int $price = 5;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->category = new Category();
     }
 }
 
-echo Category::orderBy("parent.name"), "\n";
+echo Category::orderBy('parent.name'), "\n";
 
 // A path can come back to the same class many times.
-echo Category::orderBy("parent.parent.parent.name"), "\n";
+echo Category::orderBy('parent.parent.parent.name'), "\n";
 
-echo Product::orderBy("category.name"), "\n";
+echo Product::orderBy('category.name'), "\n";
 ```
 
 ```output
@@ -3301,26 +3445,29 @@ ORDER BY category.name
 <?nvs
 // Shows the error `as` throws for a path that is not valid.
 
-class Customer {
-    public string $name = "Ada";
-    private string $password = "x9f2";
+class Customer
+{
+    public string $name = 'Ada';
+    private string $password = 'x9f2';
 }
 
-class Order {
+class Order
+{
     public Customer $customer;
     public int $total = 40;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->customer = new Customer();
     }
 }
 
 // The first path is valid. Each other path has one wrong part, and the message names it.
-array<string> $fields = ["customer.name", "customer.age", "customer.password", "total.amount", "customer."];
+array<string> $fields = ['customer.name', 'customer.age', 'customer.password', 'total.amount', 'customer.'];
 foreach ($fields as string $field) {
     try {
         propertyPath<Order> $path = $field as propertyPath<Order>;
-        echo "valid: ", $path as string, "\n";
+        echo 'valid: ', $path as string, "\n";
     } catch (RuntimeError $e) {
         echo $e->message, "\n";
     }
@@ -3343,32 +3490,37 @@ valid: customer.name
 // `Customer` has no property `$nme`, so this program does not compile.
 // proof: compile-error
 
-class Customer {
-    public string $name = "Ada";
+class Customer
+{
+    public string $name = 'Ada';
 }
 
-class Order {
+class Order
+{
     public Customer $customer;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->customer = new Customer();
     }
 }
 
-class Report {
-    public static function sortBy(propertyPath<Order> $path): string {
-        return "sorted by " . ($path as string);
+class Report
+{
+    public static function sortBy(propertyPath<Order> $path): string
+    {
+        return 'sorted by ' . ($path as string);
     }
 }
 
-echo Report::sortBy("customer.nme"), "\n";
+echo Report::sortBy('customer.nme'), "\n";
 ```
 
 ```output
 error[E0405]: `Customer` has no public property `$nme`
-   --> main.nvs:24:31
+   --> main.nvs:29:31
    |
-24 | echo Report::sortBy("customer.nme"), "\n";
+29 | echo Report::sortBy('customer.nme'), "\n";
    |                               ^^^ this part of the path is checked here
    = help: each part of a property path names a public property of the class the path has reached: `Customer` has `$name`
 
@@ -3424,36 +3576,42 @@ the text is the same.
 <?nvs
 // Shows a query condition whose property names are checked when the program compiles.
 
-class Customer {
-    public string $name = "Ada";
-    public string $email = "ada@example.com";
+class Customer
+{
+    public string $name = 'Ada';
+    public string $email = 'ada@example.com';
 }
 
-class Order {
+class Order
+{
     public Customer $customer;
     public int $total = 40;
-    public string $status = "paid";
+    public string $status = 'paid';
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->customer = new Customer();
     }
 }
 
-class Query {
+class Query
+{
     // Each hole in `$condition` is a property path of `Order`.
     // A string written in the call needs no `as`.
-    public static function where(string<propertyPath<Order>> $condition): string {
-        return "WHERE " . ($condition as string);
+    public static function where(string<propertyPath<Order>> $condition): string
+    {
+        return 'WHERE ' . ($condition as string);
     }
 
     // Each hole in `$list` is a property name of `Customer`.
-    public static function select(string<property<Customer>> $list): string {
-        return "SELECT " . ($list as string);
+    public static function select(string<property<Customer>> $list): string
+    {
+        return 'SELECT ' . ($list as string);
     }
 }
 
-echo Query::select("{name}, {email}"), "\n";
-echo Query::where("{total} > 100 AND {customer.email} LIKE ?"), "\n";
+echo Query::select('{name}, {email}'), "\n";
+echo Query::where('{total} > 100 AND {customer.email} LIKE ?'), "\n";
 
 // The text between the holes is not checked. Only the holes are checked.
 echo Query::where("{status} IN ('paid', 'sent')"), "\n";
@@ -3471,16 +3629,18 @@ WHERE {status} IN ('paid', 'sent')
 <?nvs
 // Shows a message template whose holes must be one of a few names.
 
-class Message {
+class Message
+{
     // A hole in `$template` is `{name}` or `{count}`. Any other hole does not compile.
-    public static function fill(string<'name'|'count'> $template, string $name, int $count): string {
-        string $text = "";
+    public static function fill(string<'name'|'count'> $template, string $name, int $count): string
+    {
+        string $text = '';
         bool $hole = false;
         // `Core\Str::parts` gives the text and the holes in turn, starting with text.
         foreach (Core\Str::parts($template) as var $part) {
             if (!$hole) {
                 $text = $text . ($part as string);
-            } else if ($part == "name") {
+            } elseif ($part == 'name') {
                 $text = $text . $name;
             } else {
                 $text = $text . ($count as string);
@@ -3491,10 +3651,10 @@ class Message {
     }
 }
 
-echo Message::fill("Hello {name}, you have {count} new messages.", "Ada", 3), "\n";
+echo Message::fill('Hello {name}, you have {count} new messages.', 'Ada', 3), "\n";
 
 // `{{` is one `{` and `}}` is one `}`. They are text, not holes.
-echo Message::fill("{{name}} is replaced by {name}.", "Ada", 0), "\n";
+echo Message::fill('{{name}} is replaced by {name}.', 'Ada', 0), "\n";
 ```
 
 ```output
@@ -3508,34 +3668,37 @@ Hello Ada, you have 3 new messages.
 <?nvs
 // Shows how a string built while the program runs is checked with `as`.
 
-class Order {
+class Order
+{
     public int $total = 40;
-    public string $status = "paid";
+    public string $status = 'paid';
 }
 
-class Filter {
-    public static function check(string $text): string {
+class Filter
+{
+    public static function check(string $text): string
+    {
         // `as ?string<propertyPath<Order>>` checks each hole. If one is wrong, the result is `null`.
         ?string<propertyPath<Order>> $condition = $text as ?string<propertyPath<Order>>;
         if ($condition == null) {
-            return "not valid: " . $text;
+            return 'not valid: ' . $text;
         }
-        return "valid: " . ($condition as string);
+        return 'valid: ' . ($condition as string);
     }
 }
 
-string $field = "status";
-echo Filter::check("{" . $field . "} = 'paid'"), "\n";
+string $field = 'status';
+echo Filter::check('{' . $field . "} = 'paid'"), "\n";
 
 // `Order` has no property `price`.
-echo Filter::check("{price} > 10"), "\n";
+echo Filter::check('{price} > 10'), "\n";
 
 // A `{` with no `}` after it is not valid.
-echo Filter::check("{total > 10"), "\n";
+echo Filter::check('{total > 10'), "\n";
 
 // `as string<propertyPath<Order>>` throws an error that names the wrong hole.
 try {
-    var $bad = ("{total.amount}" . " > 1") as string<propertyPath<Order>>;
+    var $bad = ('{total.amount}' . ' > 1') as string<propertyPath<Order>>;
 } catch (RuntimeError $e) {
     echo $e->message, "\n";
 }
@@ -3556,24 +3719,27 @@ not valid: {total > 10
 // `Order` has no property `$totl`, so this program does not compile.
 // proof: compile-error
 
-class Order {
+class Order
+{
     public int $total = 40;
 }
 
-class Query {
-    public static function where(string<property<Order>> $condition): string {
-        return "WHERE " . ($condition as string);
+class Query
+{
+    public static function where(string<property<Order>> $condition): string
+    {
+        return 'WHERE ' . ($condition as string);
     }
 }
 
-echo Query::where("{totl} > 10"), "\n";
+echo Query::where('{totl} > 10'), "\n";
 ```
 
 ```output
 error[E0405]: `Order` has no public property `$totl`
-   --> main.nvs:16:21
+   --> main.nvs:19:21
    |
-16 | echo Query::where("{totl} > 10"), "\n";
+19 | echo Query::where('{totl} > 10'), "\n";
    |                     ^^^^ this hole is checked here
    = help: each hole names a public property of `Order`, which has `$total`
 
@@ -3639,21 +3805,21 @@ class Account
     // So `A` can use it like any other string.
     public static function greeting(?string $nickname): string
     {
-        return $nickname != null ? "hello, " . Core\Str::upperFirst($nickname) : "hello, stranger";
+        return $nickname != null ? 'hello, ' . Core\Str::upperFirst($nickname) : 'hello, stranger';
     }
 
     // The right side of `&&` runs only when the left side is true.
     // So on the right side, `$email` is a `string`.
     public static function canReceiveMail(?string $email): bool
     {
-        return $email != null && Core\Str::contains($email, "@");
+        return $email != null && Core\Str::contains($email, '@');
     }
 
     // The right side of `||` runs only when the left side is false.
     // So on the right side, `$coupon` is a `string`.
     public static function paysFullPrice(?string $coupon): bool
     {
-        return $coupon == null || Core\Str::startsWith($coupon, "EXPIRED-");
+        return $coupon == null || Core\Str::startsWith($coupon, 'EXPIRED-');
     }
 
     // An `if` block does the same for several lines of code.
@@ -3661,21 +3827,21 @@ class Account
     public static function badge(?string $nickname): string
     {
         if ($nickname == null) {
-            return "no badge";
+            return 'no badge';
         }
 
         string $initial = Core\Str::upper(Core\Str::slice($nickname, 0, 1));
-        return $initial . " for " . $nickname;
+        return $initial . ' for ' . $nickname;
     }
 }
 
-echo Account::greeting("ada"), "\n";
+echo Account::greeting('ada'), "\n";
 echo Account::greeting(null), "\n";
-echo Account::canReceiveMail("ada@example.com") ? "send mail" : "no mail", "\n";
-echo Account::canReceiveMail(null) ? "send mail" : "no mail", "\n";
-echo Account::paysFullPrice(null) ? "full price" : "discount", "\n";
-echo Account::paysFullPrice("SPRING10") ? "full price" : "discount", "\n";
-echo Account::badge("ada"), "\n";
+echo Account::canReceiveMail('ada@example.com') ? 'send mail' : 'no mail', "\n";
+echo Account::canReceiveMail(null) ? 'send mail' : 'no mail', "\n";
+echo Account::paysFullPrice(null) ? 'full price' : 'discount', "\n";
+echo Account::paysFullPrice('SPRING10') ? 'full price' : 'discount', "\n";
+echo Account::badge('ada'), "\n";
 echo Account::badge(null), "\n";
 ```
 
@@ -3698,11 +3864,12 @@ no badge
 
 class Card
 {
-    public function constructor(public bool $contactless) {}
+    public function constructor(public bool $contactless)
+    {}
 
     public function pay(): string
     {
-        return "paid by card";
+        return 'paid by card';
     }
 }
 
@@ -3710,7 +3877,7 @@ class Cash
 {
     public function count(): string
     {
-        return "counted out";
+        return 'counted out';
     }
 }
 
@@ -3738,20 +3905,20 @@ class Till
     public static function describe(mixed $thing): tainted string
     {
         return match (true) {
-            $thing is Card => "a card, " . $thing->pay(),
-            $thing is Cash => "cash, " . $thing->count(),
-            $thing is string => "a note that says " . $thing,
-            default => "something else",
+            $thing is Card => 'a card, ' . $thing->pay(),
+            $thing is Cash => 'cash, ' . $thing->count(),
+            $thing is string => 'a note that says ' . $thing,
+            default => 'something else',
         };
     }
 }
 
-echo Till::canTap(new Card(true)) ? "tap to pay" : "insert the card", "\n";
-echo Till::canTap(new Cash()) ? "tap to pay" : "insert the card", "\n";
+echo Till::canTap(new Card(true)) ? 'tap to pay' : 'insert the card', "\n";
+echo Till::canTap(new Cash()) ? 'tap to pay' : 'insert the card', "\n";
 echo Till::take(new Card(false)), "\n";
 echo Till::take(new Cash()), "\n";
 echo Till::describe(new Cash()), "\n";
-echo Till::describe("keep the change"), "\n";
+echo Till::describe('keep the change'), "\n";
 echo Till::describe(7), "\n";
 ```
 
@@ -3776,7 +3943,7 @@ something else
 class Job
 {
     public ?string $failureMailbox = null;
-    public "read"|"write"|"admin" $mode = "read";
+    public "read"|"write"|"admin" $mode = 'read';
 }
 
 class Runner
@@ -3786,26 +3953,26 @@ class Runner
         ?string $mailbox = $job->failureMailbox;
         "read"|"write"|"admin" $mode = $job->mode;
 
-        string $notify = $mailbox != null ? "failures go to " . $mailbox : "nobody is told";
+        string $notify = $mailbox != null ? 'failures go to ' . $mailbox : 'nobody is told';
 
-        if ($mode == "admin") {
+        if ($mode == 'admin') {
             // Inside this `if`, `$mode` can only be "admin". So it can be
             // assigned to a variable of type "admin".
             "admin" $elevated = $mode;
-            return "running as " . $elevated . "; " . $notify;
+            return 'running as ' . $elevated . '; ' . $notify;
         }
 
-        if ($mode == "write") {
-            return "writing; " . $notify;
+        if ($mode == 'write') {
+            return 'writing; ' . $notify;
         }
 
-        return "reading only; " . $notify;
+        return 'reading only; ' . $notify;
     }
 }
 
 Job $nightly = new Job();
-$nightly->mode = "admin";
-$nightly->failureMailbox = "ops@example.com";
+$nightly->mode = 'admin';
+$nightly->failureMailbox = 'ops@example.com';
 
 Job $report = new Job();
 
@@ -3870,7 +4037,7 @@ class Dog
 {
     public function speak(): string
     {
-        return "woof";
+        return 'woof';
     }
 }
 
@@ -3928,12 +4095,12 @@ return value (`E0401` or `E0403`). Write `as bool` there.
 // Shows which values of a form are falsy in an `if`.
 
 array<mixed> $submitted = [
-    "name" => "Ada",
-    "nickname" => "",
-    "age" => 0,
-    "tags" => [],
-    "note" => "0.0",
-    "reply" => null,
+    'name' => 'Ada',
+    'nickname' => '',
+    'age' => 0,
+    'tags' => [],
+    'note' => '0.0',
+    'reply' => null,
 ];
 
 foreach ($submitted as tainted string $field => mixed $value) {
@@ -3945,10 +4112,10 @@ foreach ($submitted as tainted string $field => mixed $value) {
 }
 
 // The string "0" is falsy. The strings "0.0" and " " are truthy.
-array<string> $answers = ["0", "0.0", " ", ""];
+array<string> $answers = ['0', '0.0', ' ', ''];
 
 foreach ($answers as string $answer) {
-    echo "\"", $answer, "\" ", $answer ? "is truthy" : "is falsy", "\n";
+    echo "\"", $answer, "\" ", $answer ? 'is truthy' : 'is falsy', "\n";
 }
 ```
 
@@ -3971,8 +4138,8 @@ reply: left empty
 <?nvs
 // Shows each kind of condition that tests a value without `as bool`.
 
-array<string> $queue = ["ship order", "send receipt"];
-string $note = "";
+array<string> $queue = ['ship order', 'send receipt'];
+string $note = '';
 
 // An `if`: the array has elements, so it is truthy.
 if ($queue) {
@@ -3982,17 +4149,17 @@ if ($queue) {
 // A `while`: the loop stops when the number is `0`.
 int $left = 2;
 while ($left) {
-    echo "still to do: ", $left, "\n";
+    echo 'still to do: ', $left, "\n";
     $left = $left - 1;
 }
 
 // The middle part of a `for`: the loop stops when `$tries` is `0`.
 for (int $tries = 2; $tries; $tries = $tries - 1) {
-    echo "attempt ", $tries, "\n";
+    echo 'attempt ', $tries, "\n";
 }
 
 // The test of a ternary `? :`: the note is empty, so this prints `(none)`.
-echo "note: ", $note ? $note : "(none)", "\n";
+echo 'note: ', $note ? $note : '(none)', "\n";
 
 // The values beside `&&` and `||`. The right value is tested only when the left
 // value does not decide the result.
@@ -4007,7 +4174,7 @@ if (!$note) {
 
 // A `bool` variable needs `as bool`. It converts the array to `true`.
 bool $hasWork = $queue as bool;
-echo "has work: ", $hasWork ? "yes" : "no", "\n";
+echo 'has work: ', $hasWork ? 'yes' : 'no', "\n";
 ```
 
 ```output
@@ -4030,24 +4197,24 @@ has work: yes
 // Some settings are empty. An empty name is replaced by the email address,
 // and an empty list prints no line.
 
-string $displayName = "";
-string $email = "ada@example.com";
+string $displayName = '';
+string $email = 'ada@example.com';
 array<string> $topics = [];
-array<string> $starred = ["billing", "outages"];
+array<string> $starred = ['billing', 'outages'];
 int $unread = 0;
 
 // `?:` returns the left value if it counts as true, and the right value if not.
 // `$displayName` is empty, so the result is the email address.
 string $who = $displayName ?: $email;
-echo "To: ", $who, "\n";
+echo 'To: ', $who, "\n";
 
 // An empty array counts as false, so the `Topics` line is not printed.
 if ($topics) {
-    echo "Topics: ", Core\Str::join($topics, ", "), "\n";
+    echo 'Topics: ', Core\Str::join($topics, ', '), "\n";
 }
 
 if ($starred) {
-    echo "Starred: ", Core\Str::join($starred, ", "), "\n";
+    echo 'Starred: ', Core\Str::join($starred, ', '), "\n";
 }
 
 // `&&` checks `$starred` only if `$unread` counts as true.
@@ -4058,7 +4225,7 @@ if ($unread && $starred) {
     echo "Nothing unread\n";
 }
 
-echo $unread ? "Unread: " . ($unread as string) : "All caught up", "\n";
+echo $unread ? 'Unread: ' . ($unread as string) : 'All caught up', "\n";
 ```
 
 ```output
@@ -4078,18 +4245,18 @@ array<int> $empty = [];
 ?int $none = null;
 
 // Each of these values is falsy, so each line prints `false`.
-echo ("0" as bool) ? "true" : "false", "\n";
-echo (0.0 as bool) ? "true" : "false", "\n";
-echo ($empty as bool) ? "true" : "false", "\n";
-echo ($none as bool) ? "true" : "false", "\n";
+echo ('0' as bool) ? 'true' : 'false', "\n";
+echo (0.0 as bool) ? 'true' : 'false', "\n";
+echo ($empty as bool) ? 'true' : 'false', "\n";
+echo ($none as bool) ? 'true' : 'false', "\n";
 
 // Each of these values is truthy, so each line prints `true`.
-echo ("abc" as bool) ? "true" : "false", "\n";
-echo ("0.0" as bool) ? "true" : "false", "\n";
-echo ((-1) as bool) ? "true" : "false", "\n";
+echo ('abc' as bool) ? 'true' : 'false', "\n";
+echo ('0.0' as bool) ? 'true' : 'false', "\n";
+echo ((-1) as bool) ? 'true' : 'false', "\n";
 
 // `?:` returns the left value when it is truthy. `0` is falsy, so this prints `none`.
-echo 0 ?: "none", "\n";
+echo 0 ?: 'none', "\n";
 ```
 
 ```output
@@ -4168,13 +4335,13 @@ class Basket
     }
 }
 
-echo "three at the usual price: ", Basket::total(3), "\n";
-echo "three at four each: ", Basket::total(3, 4), "\n";
-echo "three at four each, plus two surcharges: ", Basket::total(3, 4, 2, 7), "\n";
+echo 'three at the usual price: ', Basket::total(3), "\n";
+echo 'three at four each: ', Basket::total(3, 4), "\n";
+echo 'three at four each, plus two surcharges: ', Basket::total(3, 4, 2, 7), "\n";
 
 // `...` passes the values of an array you already have as separate arguments.
 var $surcharges = [2, 7];
-echo "the same two, out of a list: ", Basket::total(3, 4, ...$surcharges), "\n";
+echo 'the same two, out of a list: ', Basket::total(3, 4, ...$surcharges), "\n";
 ```
 
 ```output
@@ -4197,26 +4364,26 @@ class Slot
     enum Length { Short = 30, Long = 60 }
 
     // A default can be a case of an enum. `$length` is `Length::Short`, 30 minutes, by default.
-    public static function book(string $who, string $day = "Monday", string $time = "09:00", Length $length = Length::Short): string
+    public static function book(string $who, string $day = 'Monday', string $time = '09:00', Length $length = Length::Short): string
     {
-        return $who . " on " . $day . " at " . $time . " for " . (($length as int) as string) . " minutes";
+        return $who . ' on ' . $day . ' at ' . $time . ' for ' . (($length as int) as string) . ' minutes';
     }
 }
 
-echo Slot::book("Ada"), "\n";
+echo Slot::book('Ada'), "\n";
 
 // Only `length` is given. The other parameters use their default values.
-echo Slot::book("Ada", length: Slot::Length::Long), "\n";
+echo Slot::book('Ada', length: Slot::Length::Long), "\n";
 
 // You can write named arguments in any order. Here `time` comes before `day`,
 // but the method declares `day` first.
-echo Slot::book("Ada", time: "14:00", day: "Friday"), "\n";
+echo Slot::book('Ada', time: '14:00', day: 'Friday'), "\n";
 
 // You can name every argument. An argument without a name must come before the named ones.
-echo Slot::book(who: "Ada", day: "Friday"), "\n";
+echo Slot::book(who: 'Ada', day: 'Friday'), "\n";
 
 // Methods from `Core` accept named arguments too. This prints `007`.
-echo Core\Str::padStart("7", length: 3, padding: "0"), "\n";
+echo Core\Str::padStart('7', length: 3, padding: '0'), "\n";
 ```
 
 ```output
@@ -4251,12 +4418,12 @@ var $orders = [4, 4, 5];
 
 foreach ($orders as var $order) {
     var $shipped = Stock::take(inout $available, $order);
-    echo "order for ", $order, ": shipped ", $shipped, ", left ", $available, "\n";
+    echo 'order for ', $order, ': shipped ', $shipped, ', left ', $available, "\n";
 }
 
 // You can also write the parameter's name at the call, as with any other parameter.
-echo "one more: ", Stock::take(inout available: $available, wanted: 2), "\n";
-echo "left: ", $available, "\n";
+echo 'one more: ', Stock::take(inout available: $available, wanted: 2), "\n";
+echo 'left: ', $available, "\n";
 ```
 
 ```output
@@ -4355,7 +4522,7 @@ compile (`E0792`).
 class Ticket
 {
     public string $subject;
-    public string $status = "open";
+    public string $status = 'open';
     public array<string> $labels = [];
     public ?string $assignee = null;
 
@@ -4365,19 +4532,19 @@ class Ticket
     }
 }
 
-Ticket $first = new Ticket("printer is jammed");
+Ticket $first = new Ticket('printer is jammed');
 
-echo $first->subject, " [", $first->status, "]\n";
-echo "labels: ", Core\Arr::count($first->labels), ", assignee: ", $first->assignee ?? "nobody", "\n";
+echo $first->subject, ' [', $first->status, "]\n";
+echo 'labels: ', Core\Arr::count($first->labels), ', assignee: ', $first->assignee ?? 'nobody', "\n";
 
 // Each object has its own properties. Changing `$second` does not change `$first`.
-Ticket $second = new Ticket("badge reader is offline");
-$second->status = "waiting";
-$second->labels = ["hardware"];
-$second->assignee = "Ada";
+Ticket $second = new Ticket('badge reader is offline');
+$second->status = 'waiting';
+$second->labels = ['hardware'];
+$second->assignee = 'Ada';
 
-echo $second->subject, " [", $second->status, "] ", Core\Str::join($second->labels, ", "), " -> ", $second->assignee ?? "nobody", "\n";
-echo $first->subject, " [", $first->status, "]\n";
+echo $second->subject, ' [', $second->status, '] ', Core\Str::join($second->labels, ', '), ' -> ', $second->assignee ?? 'nobody', "\n";
+echo $first->subject, ' [', $first->status, "]\n";
 ```
 
 ```output
@@ -4398,7 +4565,7 @@ printer is jammed [open]
 class Limits
 {
     public const uint ATTEMPTS = 3;
-    public const string QUEUE = "outbound";
+    public const string QUEUE = 'outbound';
     public const float BACKOFF = 1.5;
 }
 
@@ -4414,17 +4581,17 @@ class Delivery
     }
 }
 
-echo "queue ", Limits::QUEUE, ", up to ", Limits::ATTEMPTS, " attempts, backing off by ", Limits::BACKOFF, "\n";
+echo 'queue ', Limits::QUEUE, ', up to ', Limits::ATTEMPTS, ' attempts, backing off by ', Limits::BACKOFF, "\n";
 
 Delivery $one = new Delivery();
 Delivery $two = new Delivery();
 $two->left = $two->left - 1;
 
-echo "first has ", $one->left, " attempts left, second has ", $two->left, "\n";
+echo 'first has ', $one->left, ' attempts left, second has ', $two->left, "\n";
 
 // A static property belongs to the class, not to one object.
 // Both constructors added 1 to the same `Delivery::$made`, so this prints `2`.
-echo "deliveries made: ", Delivery::$made, "\n";
+echo 'deliveries made: ', Delivery::$made, "\n";
 ```
 
 ```output
@@ -4445,14 +4612,14 @@ class Policy
 {
     public const uint ATTEMPTS = 3;
     public const uint TIMEOUT_MS = 250;
-    public const string DEAD_LETTER = "parked";
+    public const string DEAD_LETTER = 'parked';
 }
 
 class Job
 {
     public string $name;
     public uint $attempt = 1;
-    public string $state = "ready";
+    public string $state = 'ready';
     public ?string $lastError = null;
 
     public function constructor(string $name)
@@ -4466,7 +4633,7 @@ class Job
 
         if ($this->attempt < Policy::ATTEMPTS) {
             $this->attempt = $this->attempt + 1;
-            $this->state = "ready";
+            $this->state = 'ready';
 
             return;
         }
@@ -4475,18 +4642,18 @@ class Job
     }
 }
 
-Job $job = new Job("send-invoice");
+Job $job = new Job('send-invoice');
 
-echo $job->name, ": ", $job->state, ", attempt ", $job->attempt, " of ", Policy::ATTEMPTS, "\n";
+echo $job->name, ': ', $job->state, ', attempt ', $job->attempt, ' of ', Policy::ATTEMPTS, "\n";
 
-array<string> $failures = ["timed out", "timed out", "connection refused"];
+array<string> $failures = ['timed out', 'timed out', 'connection refused'];
 
 foreach ($failures as string $reason) {
     $job->fail($reason);
-    echo "after \"", $reason, "\": ", $job->state, ", attempt ", $job->attempt, "\n";
+    echo "after \"", $reason, "\": ", $job->state, ', attempt ', $job->attempt, "\n";
 }
 
-echo "last error: ", $job->lastError ?? "none", ", giving up after ", Policy::TIMEOUT_MS, "ms per try\n";
+echo 'last error: ', $job->lastError ?? 'none', ', giving up after ', Policy::TIMEOUT_MS, "ms per try\n";
 ```
 
 ```output
@@ -4584,23 +4751,23 @@ plain `bytes`. It removes only `secret`. For a `secret tainted string`, the resu
 <?nvs
 // Shows which operations on a tainted string give a tainted result, and which give a plain one.
 
-tainted string $typed = "42 apples";
+tainted string $typed = '42 apples';
 
 // A string built from a tainted string is tainted too.
 tainted string $shouted = Core\Str::upper($typed);
-tainted string $line = "you asked for: " . $typed;
+tainted string $line = 'you asked for: ' . $typed;
 
 // A method that returns a number or a `bool` returns a plain value.
 uint $length = Core\Str::length($typed);
-bool $hasApples = Core\Str::contains($typed, "apples");
+bool $hasApples = Core\Str::contains($typed, 'apples');
 
 // `as int` converts the text to a number, and the number is a plain `int`.
-tainted string $digits = "42";
+tainted string $digits = '42';
 int $count = $digits as int;
 
 echo $shouted, "\n";
 echo $line, "\n";
-echo $length, " characters, apples: ", $hasApples ? "yes" : "no", "\n";
+echo $length, ' characters, apples: ', $hasApples ? 'yes' : 'no', "\n";
 echo $count + 1, "\n";
 ```
 
@@ -4617,19 +4784,19 @@ you asked for: 42 apples
 <?nvs
 // Shows what you can do with a secret string, and how to get a plain string from it.
 
-secret string $token = "hunter2";
+secret string $token = 'hunter2';
 
 // A string built from a secret string is secret too.
-secret string $header = "Bearer " . $token;
+secret string $header = 'Bearer ' . $token;
 
 // You can compare a secret string. The result is a plain `bool`.
-bool $matches = $header == "Bearer hunter2";
+bool $matches = $header == 'Bearer hunter2';
 
 // `Core\Secret::reveal` returns a plain string. Its second argument is the reason.
-string $shown = Core\Secret::reveal($token, "showing the token in this example");
+string $shown = Core\Secret::reveal($token, 'showing the token in this example');
 
-echo $matches ? "the header is the one we expected" : "the header is different", "\n";
-echo "the token is ", Core\Str::length($shown), " characters long", "\n";
+echo $matches ? 'the header is the one we expected' : 'the header is different', "\n";
+echo 'the token is ', Core\Str::length($shown), ' characters long', "\n";
 echo $shown, "\n";
 ```
 
@@ -4645,12 +4812,14 @@ hunter2
 <?nvs
 // Shows a tainted search term in a pattern and in a link, and a secret API key in a header.
 
-class Orders {
-    public static function search(tainted string $term, secret string $apiKey): void {
+class Orders
+{
+    public static function search(tainted string $term, secret string $apiKey): void
+    {
         array<string> $labels = [
-            "Order 1042, coffee beans",
-            "Order 1043, filter papers",
-            "Order 1044, coffee grinder",
+            'Order 1042, coffee beans',
+            'Order 1043, filter papers',
+            'Order 1044, coffee grinder',
         ];
 
         // `Core\Regex::quote` returns a plain pattern that matches the exact text.
@@ -4664,20 +4833,20 @@ class Orders {
         }
 
         // `Core\Uri::encodeComponent` returns a plain string that is safe in a link.
-        string $link = "https://example.test/orders?q=" . Core\Uri::encodeComponent($term);
+        string $link = 'https://example.test/orders?q=' . Core\Uri::encodeComponent($term);
 
         // Only this line needs the key as a plain string, so only this line calls
         // `Core\Secret::reveal`. Everywhere else, `$apiKey` is still secret.
-        string $authorization = "Bearer " . Core\Secret::reveal($apiKey, "sending it to the orders service");
+        string $authorization = 'Bearer ' . Core\Secret::reveal($apiKey, 'sending it to the orders service');
 
-        echo $hits, " of ", Core\Arr::count($labels), " orders match\n";
+        echo $hits, ' of ', Core\Arr::count($labels), " orders match\n";
         echo $link, "\n";
-        echo "the authorization header is ", Core\Str::length($authorization), " characters long\n";
+        echo 'the authorization header is ', Core\Str::length($authorization), " characters long\n";
     }
 }
 
-Orders::search("coffee", "sk-live-abc123");
-Orders::search("c.ffee", "sk-live-abc123");
+Orders::search('coffee', 'sk-live-abc123');
+Orders::search('c.ffee', 'sk-live-abc123');
 ```
 
 ```output
@@ -4697,7 +4866,7 @@ the authorization header is 21 characters long
 // Convert it with `as` or check it first. This program does not compile.
 // proof: compile-error
 
-tainted string $input = "Ada";
+tainted string $input = 'Ada';
 string $name = $input;
 echo $name, "\n";
 ```
@@ -4722,9 +4891,9 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // This program does not compile.
 // proof: compile-error
 
-tainted string $search = "a+";
+tainted string $search = 'a+';
 Core\Regex\Pattern $pattern = Core\Regex::compile($search);
-echo Core\Regex::matches("aaa", $pattern) ? "match" : "no match", "\n";
+echo Core\Regex::matches('aaa', $pattern) ? 'match' : 'no match', "\n";
 ```
 
 ```output
@@ -4746,22 +4915,22 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // An error message can appear in a log or on an error page. This program does not compile.
 // proof: compile-error
 
-secret string $token = "hunter2";
-throw new RuntimeError("bad token " . $token);
+secret string $token = 'hunter2';
+throw new RuntimeError('bad token ' . $token);
 ```
 
 ```output
 error[E0422]: a `secret`-qualified value cannot be passed as a `Throwable` message; it would surface in a stack trace or an error page
   --> main.nvs:7:7
   |
-7 | throw new RuntimeError("bad token " . $token);
+7 | throw new RuntimeError('bad token ' . $token);
   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ secret value used as the message here
   = help: reveal it explicitly first with `Core\Secret::reveal(..., "reason")`
 
 error[E0401]: expected `string`, found `secret string`
   --> main.nvs:7:24
   |
-7 | throw new RuntimeError("bad token " . $token);
+7 | throw new RuntimeError('bad token ' . $token);
   |                        ^^^^^^^^^^^^^^^^^^^^^ this is `secret string`
 
 error: aborting due to 2 errors
@@ -4776,7 +4945,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // A string built from a secret with interpolation is secret too.
 // proof: compile-error
 
-secret string $token = "hunter2";
+secret string $token = 'hunter2';
 echo "Bearer {$token}\n";
 Core\Debug::dump($token);
 echo Core\Json::encode($token), "\n";
@@ -4856,7 +5025,7 @@ is `null`.
 <?nvs
 // Shows how to convert a value with `as`, and what happens when the value does not fit.
 
-mixed $answer = "42";
+mixed $answer = '42';
 
 // `as` converts a value to the type after it. Text from a `mixed` value is tainted.
 int $count = $answer as int;
@@ -4869,8 +5038,8 @@ float $price = 3.9;
 ?int $whole = $price as ?int;
 
 echo $count + 1, "\n";
-echo $label, " ", $share, "\n";
-echo $whole == null ? "3.9 is not a whole number" : "converted", "\n";
+echo $label, ' ', $share, "\n";
+echo $whole == null ? '3.9 is not a whole number' : 'converted', "\n";
 ```
 
 ```output
@@ -4885,37 +5054,39 @@ echo $whole == null ? "3.9 is not a whole number" : "converted", "\n";
 <?nvs
 // Shows how to test what a `mixed` value is, with `== null`, `is` and `as`.
 
-class Describe {
-    public static function of(mixed $value): string {
+class Describe
+{
+    public static function of(mixed $value): string
+    {
         // `== null` tests for `null`.
         if ($value == null) {
-            return "nothing";
+            return 'nothing';
         }
 
         // `is` tests whether the value is an object of that class.
         if ($value is Core\Regex\Pattern) {
-            return "a compiled pattern";
+            return 'a compiled pattern';
         }
 
         // `as ?int` gives `null` when the value is not a whole number.
         ?int $whole = $value as ?int;
         if ($whole != null) {
-            return "a whole number";
+            return 'a whole number';
         }
         ?float $fraction = $value as ?float;
         if ($fraction != null) {
-            return "a number with a fraction";
+            return 'a number with a fraction';
         }
 
-        return "something else";
+        return 'something else';
     }
 }
 
 echo Describe::of(null), "\n";
 echo Describe::of(7), "\n";
 echo Describe::of(2.5), "\n";
-echo Describe::of("hello"), "\n";
-echo Describe::of(Core\Regex::compile("a+")), "\n";
+echo Describe::of('hello'), "\n";
+echo Describe::of(Core\Regex::compile('a+')), "\n";
 ```
 
 ```output
@@ -4932,14 +5103,16 @@ a compiled pattern
 <?nvs
 // Shows a program that reads a price list with `as`, `Core\Str::split` and `Core\Str::compare`.
 
-class PriceList {
-    public static function summarise(array<string> $lines): string {
+class PriceList
+{
+    public static function summarise(array<string> $lines): string
+    {
         int $total = 0;
-        string $firstName = "";
+        string $firstName = '';
 
         foreach ($lines as string $line) {
             // This takes the array apart. Each variable has its own type.
-            [string $name, string $amount] = Core\Str::split($line, ",");
+            [string $name, string $amount] = Core\Str::split($line, ',');
 
             // For text that is not a number, the result is `null`.
             // So the line "plums,not a price" is skipped.
@@ -4950,16 +5123,16 @@ class PriceList {
             $total = $total + $price;
 
             // `Core\Str::compare` orders two strings. It is less than 0 when `$name` comes first.
-            if ($firstName == "" || Core\Str::compare($name, $firstName) < 0) {
+            if ($firstName == '' || Core\Str::compare($name, $firstName) < 0) {
                 $firstName = $name;
             }
         }
 
-        return "total " . ($total as string) . ", first name " . $firstName;
+        return 'total ' . ($total as string) . ', first name ' . $firstName;
     }
 }
 
-echo PriceList::summarise(["pears,220", "apples,150", "plums,not a price"]), "\n";
+echo PriceList::summarise(['pears,220', 'apples,150', 'plums,not a price']), "\n";
 ```
 
 ```output
@@ -5029,11 +5202,11 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // Convert it with `as int`, and order two strings with `Core\Str::compare`.
 // proof: compile-error
 
-string $count = "3";
-string $name = "Ada";
+string $count = '3';
+string $name = 'Ada';
 int $double = $count * 2;
 bool $same = $count == 3;
-bool $first = $name < "Bob";
+bool $first = $name < 'Bob';
 string $initial = $name[0];
 ```
 
@@ -5055,7 +5228,7 @@ error[E0466]: `string` and `int` are disjoint; no value is both, so this compari
 error[E0715]: `<` has no meaning for `string`
    --> main.nvs:10:15
    |
-10 | bool $first = $name < "Bob";
+10 | bool $first = $name < 'Bob';
    |               ^^^^^^^^^^^^^ ordered here
    = help: to compare two strings, use `Core\Str::compare($a, $b)`. The operators `<`, `<=`, `>`, `>=` and `<=>` work only on numbers
 

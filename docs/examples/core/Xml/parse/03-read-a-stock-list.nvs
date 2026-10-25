@@ -21,9 +21,9 @@ foreach ($document->children() as Core\Xml\Node $stock) {
         array<tainted string> $attributes = $item->attributes();
         // `as ?int` converts the text to a whole number. If that is not possible, the result is `null`.
         // `?? 0` then gives 0, so an unreadable quantity counts as sold out.
-        int $qty = ($attributes["qty"] as ?int) ?? 0;
+        int $qty = ($attributes['qty'] as ?int) ?? 0;
         if ($qty == 0) {
-            echo "sold out: ", $attributes["sku"], "\n";
+            echo 'sold out: ', $attributes['sku'], "\n";
         } else {
             $total = $total + $qty;
         }
@@ -31,4 +31,4 @@ foreach ($document->children() as Core\Xml\Node $stock) {
 }
 
 // This prints 17: the quantities of the two items that are not sold out.
-echo "in stock: ", $total, "\n";
+echo 'in stock: ', $total, "\n";

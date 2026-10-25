@@ -2,4 +2,4 @@
 // Shows that `<` between two strings does not compile. `Core\Str::compare` orders two strings.
 // proof: compile-error
 
-echo ("apple" < "banana") ? "apple first" : "banana first", "\n";
+echo ('apple' < 'banana') ? 'apple first' : 'banana first', "\n";

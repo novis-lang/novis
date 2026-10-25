@@ -4,18 +4,20 @@
 // bench: complexity linear
 use Novis\Spreadsheet\Workbook;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<array<mixed>> $orders = [["Order", "Customer", "Total", "Day"]];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<array<mixed>> $orders = [['Order', 'Customer', 'Total', 'Day']];
         uint $n = 1;
         while ($n <= 100) {
-            $orders[] = [$n, "Customer " . ($n as string), ($n as float) * 1.25, Core\Time\Date::at(2024, 1, 1 + $n % 28)];
+            $orders[] = [$n, 'Customer ' . ($n as string), ($n as float) * 1.25, Core\Time\Date::at(2024, 1, 1 + $n % 28)];
             $n = $n + 1;
         }
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            uint $size = Core\Bytes::length(Workbook::fromRows($orders, {header: true})->bytes());
+            uint $size = Core\Bytes::length(Workbook::fromRows($orders, { header: true })->bytes());
             uint $step = $size > 0 ? 1 : 3;
             $total = $total + $step;
             $i = $i + 1;

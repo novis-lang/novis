@@ -10,10 +10,10 @@ bytes $raw = $pair->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
 bytes $spki = $pair->publicKey()->write(Core\Crypto\PublicKey::Format::Spki);
 
 // This prints `raw: 32 bytes` and `spki: 44 bytes`.
-echo "raw: ", Core\Bytes::length($raw), " bytes", "\n";
-echo "spki: ", Core\Bytes::length($spki), " bytes", "\n";
+echo 'raw: ', Core\Bytes::length($raw), ' bytes', "\n";
+echo 'spki: ', Core\Bytes::length($spki), ' bytes', "\n";
 
 // Every call draws a new pair, so a second pair has a different public key.
 Core\Crypto\KeyPair $other = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
 bytes $otherRaw = $other->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
-echo "the second pair is a different one: ", ($raw != $otherRaw ? "yes" : "no"), "\n";
+echo 'the second pair is a different one: ', ($raw != $otherRaw ? 'yes' : 'no'), "\n";

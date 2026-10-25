@@ -4,7 +4,8 @@
 use Core\Db\Derive;
 
 #[Derive]
-class Reading {
+class Reading
+{
     public int $celsius;
     public tainted string $station;
 

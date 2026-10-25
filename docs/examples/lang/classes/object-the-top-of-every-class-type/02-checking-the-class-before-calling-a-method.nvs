@@ -2,20 +2,26 @@
 // Shows how to call a method on a value typed `object`. `is` tests the class,
 // and inside that branch the call compiles.
 
-class Duck {
-    public function speak(): string {
-        return "quack";
+class Duck
+{
+    public function speak(): string
+    {
+        return 'quack';
     }
 }
 
-class Robot {
-    public function beep(): string {
-        return "beep";
+class Robot
+{
+    public function beep(): string
+    {
+        return 'beep';
     }
 }
 
-class Voice {
-    public static function of(object $thing): string {
+class Voice
+{
+    public static function of(object $thing): string
+    {
         // Each branch narrows the value to one class. Inside the branch, you can
         // call the methods of that class.
         if ($thing is Duck) {
@@ -24,11 +30,12 @@ class Voice {
         if ($thing is Robot) {
             return $thing->beep();
         }
-        return "silence";
+        return 'silence';
     }
 }
 
-class Stone {}
+class Stone
+{}
 
 // This prints one line for each value.
 echo Voice::of(new Duck()), "\n";

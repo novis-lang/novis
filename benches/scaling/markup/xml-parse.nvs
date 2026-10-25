@@ -4,8 +4,10 @@
 // scaling: max 64000
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): uint {
+class Bench
+{
+    public static function run(uint $size): uint
+    {
         string $items = Core\Str::repeat('<item sku="A-100" qty="2"/>', $size);
         Core\Xml\Node $document = Core\Xml::parse('<order id="1">' . $items . '</order>');
         uint $total = 0;

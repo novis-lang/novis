@@ -10,9 +10,9 @@ foreach ($readings as int $reading) {
         $found = $reading;
         break;
     }
-    echo "checked ", $reading, "\n";
+    echo 'checked ', $reading, "\n";
 }
 
 // The loop stopped at 140 and never read the two values after it.
 // This prints 140.
-echo "first above 100: ", $found, "\n";
+echo 'first above 100: ', $found, "\n";

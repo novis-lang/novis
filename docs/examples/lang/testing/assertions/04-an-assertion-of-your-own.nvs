@@ -4,19 +4,21 @@
 
 use Core\Test;
 
-final class Checks {
-    public static function assertEven(int $n): void {
+final class Checks
+{
+    public static function assertEven(int $n): void
+    {
         try {
             Test::assertSame($n % 2, 0);
         } catch (Core\Test\Failure $inner) {
-            throw new Core\Test\Failure($n . " is odd: " . $inner->message);
+            throw new Core\Test\Failure($n . ' is odd: ' . $inner->message);
         }
     }
 }
 
 // 4 is even, so this assertion passes and returns.
 Checks::assertEven(4);
-echo "4 passed", "\n";
+echo '4 passed', "\n";
 
 // 3 is odd. The message starts with your own text.
 try {
@@ -27,11 +29,11 @@ try {
 
 // `{message: …}` puts your own sentence in front of the report.
 try {
-    Test::assertEquals(1, 2, {message: "a new counter is one"});
+    Test::assertEquals(1, 2, { message: 'a new counter is one' });
 } catch (Core\Test\Failure $f) {
     echo $f->message, "\n";
 }
 
 // A `ParseError` is a `RuntimeError`, so this assertion passes.
-Test::assertThrows(fn (): void => { throw new ParseError("bad input"); }, RuntimeError::class);
-echo "a ParseError is a RuntimeError", "\n";
+Test::assertThrows(fn (): void => { throw new ParseError('bad input'); }, RuntimeError::class);
+echo 'a ParseError is a RuntimeError', "\n";

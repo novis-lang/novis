@@ -4,9 +4,11 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -19,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "measured" : "zero", "\n";
+echo Bench::run(256) > 0 ? 'measured' : 'zero', "\n";

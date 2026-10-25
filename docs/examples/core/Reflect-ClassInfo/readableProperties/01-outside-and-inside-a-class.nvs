@@ -1,11 +1,13 @@
 <?nvs
 // Shows that the list is different outside and inside the class.
 
-class Session {
-    public string $user = "ada";
-    private string $token = "x9f2";
+class Session
+{
+    public string $user = 'ada';
+    private string $token = 'x9f2';
 
-    public function fields(): array<string> {
+    public function fields(): array<string>
+    {
         // Inside the class, both properties can be read.
         var $info = Core\Reflect::forObject($this);
         return $info->readableProperties();
@@ -17,10 +19,10 @@ Session $session = new Session();
 // Outside the class, only the public property is in the list. This prints `user`.
 var $info = Core\Reflect::forObject($session);
 foreach ($info->readableProperties() as string $name) {
-    echo "outside: ", $name, "\n";
+    echo 'outside: ', $name, "\n";
 }
 
 // This prints `user` and `token`.
 foreach ($session->fields() as string $name) {
-    echo "inside: ", $name, "\n";
+    echo 'inside: ', $name, "\n";
 }

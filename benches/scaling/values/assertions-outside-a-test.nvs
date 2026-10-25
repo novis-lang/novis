@@ -7,8 +7,10 @@
 use Core\Test;
 use Core\Test\Failure;
 
-class Bench {
-    public static function run(uint $count): uint {
+class Bench
+{
+    public static function run(uint $count): uint
+    {
         uint $start = Core\Budget::memoryHeld();
         uint $failed = 0;
         uint $i = 0;
@@ -23,7 +25,7 @@ class Bench {
         }
         // An assertion outside a test keeps nothing, so memory does not grow with the count.
         if (Core\Budget::memoryHeld() > $start + 4096) {
-            throw new LogicError("memory grew with the number of assertions");
+            throw new LogicError('memory grew with the number of assertions');
         }
         return $failed;
     }

@@ -4,8 +4,10 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $lines = ["order 1042\n", "order 1043\n", "shipped to Graz\n"];
         Core\Hash\Stream $stream = Core\Hash::stream(Core\Hash::Digest::Sha256);
         uint $i = 0;

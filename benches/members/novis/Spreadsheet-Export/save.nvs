@@ -4,13 +4,15 @@
 // bench: complexity constant
 use Novis\Spreadsheet\Workbook;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        string $path = Core\Path::join(Core\IO::temporaryDir(), "order.xlsx");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'order.xlsx');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            uint $rows = Workbook::fromRows([["order" => $total, "total" => 19.9]])->save($path)->rows["Sheet1"] as uint;
+            uint $rows = Workbook::fromRows([['order' => $total, 'total' => 19.9]])->save($path)->rows['Sheet1'] as uint;
             $total = $total + $rows;
             $i = $i + 1;
         }

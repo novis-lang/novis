@@ -2,35 +2,38 @@
 // Every node in a parsed XML document is one of five kinds.
 // This program prints the kind of each node in a small document.
 
-class Walk {
-    public static function name(Core\Xml\Node::Kind $kind): string {
+class Walk
+{
+    public static function name(Core\Xml\Node::Kind $kind): string
+    {
         return match ($kind) {
-            Core\Xml\Node::Kind::Document => "document",
-            Core\Xml\Node::Kind::Element => "element",
-            Core\Xml\Node::Kind::Text => "text",
-            Core\Xml\Node::Kind::Comment => "comment",
-            Core\Xml\Node::Kind::ProcessingInstruction => "instruction",
+            Core\Xml\Node::Kind::Document => 'document',
+            Core\Xml\Node::Kind::Element => 'element',
+            Core\Xml\Node::Kind::Text => 'text',
+            Core\Xml\Node::Kind::Comment => 'comment',
+            Core\Xml\Node::Kind::ProcessingInstruction => 'instruction',
         };
     }
 
-    public static function show(Core\Xml\Node $node, string $indent): void {
+    public static function show(Core\Xml\Node $node, string $indent): void
+    {
         var $kind = $node->kind();
         echo $indent, Walk::name($kind);
         // An element and an instruction have a name, so this prints it.
         // Text, a comment and an instruction have content, so this prints that too.
         if ($kind == Core\Xml\Node::Kind::Element || $kind == Core\Xml\Node::Kind::ProcessingInstruction) {
-            echo " ", $node->name();
+            echo ' ', $node->name();
         }
         if ($kind != Core\Xml\Node::Kind::Element && $kind != Core\Xml\Node::Kind::Document) {
-            echo ": ", $node->text();
+            echo ': ', $node->text();
         }
         echo "\n";
         foreach ($node->children() as Core\Xml\Node $child) {
-            Walk::show($child, $indent . "  ");
+            Walk::show($child, $indent . '  ');
         }
     }
 }
 
 var $doc = Core\Xml::parse("<?xml version=\"1.0\"?><?render mode=\"draft\"?><order id=\"1042\"><!-- from the shop --><item>Coffee beans</item></order>");
 
-Walk::show($doc, "");
+Walk::show($doc, '');

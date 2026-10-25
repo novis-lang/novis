@@ -1,29 +1,36 @@
 <?nvs
 // Shows how a command line tool builds its help text from the public methods of its commands class.
 
-class BackupCommands {
-    public function create(string $target): string {
-        return "backup of " . $target;
+class BackupCommands
+{
+    public function create(string $target): string
+    {
+        return 'backup of ' . $target;
     }
 
-    public function restore(string $file, string $target): string {
-        return "restore " . $file . " to " . $target;
+    public function restore(string $file, string $target): string
+    {
+        return 'restore ' . $file . ' to ' . $target;
     }
 
-    public function list(): string {
-        return "no backups yet";
+    public function list(): string
+    {
+        return 'no backups yet';
     }
 
-    private function checksum(string $file): string {
+    private function checksum(string $file): string
+    {
         return $file;
     }
 }
 
-class Help {
-    public static function text(string $className): string {
+class Help
+{
+    public static function text(string $className): string
+    {
         var $info = Core\Reflect::forClass($className);
         if ($info == null) {
-            return "";
+            return '';
         }
         string $text = "Commands:\n";
         foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
@@ -32,11 +39,11 @@ class Help {
                 continue;
             }
             // Each parameter is one argument the user must type.
-            $text = $text . "  " . $method->name() . " (" . $method->parameterCount() . " argument(s))\n";
+            $text = $text . '  ' . $method->name() . ' (' . $method->parameterCount() . " argument(s))\n";
         }
         return $text;
     }
 }
 
 // This prints one line for each public method, sorted by name.
-echo Help::text("BackupCommands");
+echo Help::text('BackupCommands');

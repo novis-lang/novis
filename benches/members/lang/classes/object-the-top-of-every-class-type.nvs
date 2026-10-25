@@ -5,12 +5,15 @@
 // bench: calls 0
 // bench: complexity constant
 
-class Cell {
+class Cell
+{
     public uint $value = 1;
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Cell $cell = new Cell();
         object $erased = $cell;
         uint $total = 0;

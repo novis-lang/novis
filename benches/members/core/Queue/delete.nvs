@@ -6,7 +6,7 @@
 use Core\Queue;
 use Core\Queue\Id;
 
-var $db = Core\Db::connect("jobs");
+var $db = Core\Db::connect('jobs');
 var $jobs = <<<'SQL'
 create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
     script text not null, args text, state smallint not null, attempts integer not null,
@@ -25,8 +25,10 @@ SQL;
 $db->execute($jobs, []);
 $db->execute($dead, []);
 
-class Bench {
-    public static function run(array<Id> $saved, int $rounds): int {
+class Bench
+{
+    public static function run(array<Id> $saved, int $rounds): int
+    {
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {
@@ -43,7 +45,7 @@ class Bench {
 array<Id> $saved = [];
 int $n = 0;
 while ($n < 2000) {
-    $saved[] = Queue::push("jobs/export.nvs", {queue: "exports"});
+    $saved[] = Queue::push('jobs/export.nvs', { queue: 'exports' });
     $n = $n + 1;
 }
 echo Bench::run($saved, 256), "\n";

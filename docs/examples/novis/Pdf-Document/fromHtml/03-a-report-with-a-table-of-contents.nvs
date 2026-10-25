@@ -3,24 +3,24 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
-string $contents = "";
-string $chapters = "";
+string $contents = '';
+string $chapters = '';
 for (int $n = 1; $n <= 3; $n++) {
     $contents .= "<li><a href=\"#chapter{$n}\">Chapter {$n}</a></li>";
     $chapters .= "<h2 id=\"chapter{$n}\">Chapter {$n}</h2>"
-        . Core\Str::repeat("<p>Sales rose in every region, and the shop opened two new stores.</p>", 30);
+        . Core\Str::repeat('<p>Sales rose in every region, and the shop opened two new stores.</p>', 30);
 }
 
 // `target-counter` writes the page number of the element that a link points to.
 // `leader('.')` fills the space before the number with dots.
-string $style = "<style>h2 { break-before: page } "
+string $style = '<style>h2 { break-before: page } '
     . "a::after { content: leader('.') target-counter(attr(href), page) }</style>";
 var $rendered = Document::fromHtml($style . "<h1>Annual report</h1><ul>{$contents}</ul>{$chapters}")->render();
 echo $rendered->pageCount, " pages\n";
 
 // This prints each chapter in the table of contents, with its page number.
 foreach (Core\Str::split(Reader::open($rendered->bytes)->text(1), "\n") as string $line) {
-    if (Core\Str::startsWith($line, "Chapter")) {
+    if (Core\Str::startsWith($line, 'Chapter')) {
         echo $line, "\n";
     }
 }

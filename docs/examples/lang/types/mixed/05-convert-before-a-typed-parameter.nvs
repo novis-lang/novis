@@ -3,5 +3,5 @@
 // This program does not compile.
 // proof: compile-error
 
-mixed $text = "x";
+mixed $text = 'x';
 echo Core\Str::upper($text), "\n";

@@ -20,9 +20,9 @@ NVS;
 Core\Ast\Node $file = Core\Ast::parse($source);
 int $found = 0;
 foreach ($file->nodes() as Core\Ast\Node $node) {
-    if ($node->kind() == "Exit") {
+    if ($node->kind() == 'Exit') {
         $found = $found + 1;
-        echo "exit at line ", $node->line(), ", column ", $node->column(), "\n";
+        echo 'exit at line ', $node->line(), ', column ', $node->column(), "\n";
     }
 }
-echo $found == 0 ? "the file follows the rule" : "the file breaks the rule", "\n";
+echo $found == 0 ? 'the file follows the rule' : 'the file breaks the rule', "\n";

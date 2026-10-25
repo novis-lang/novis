@@ -3,15 +3,17 @@
 // no terminal, `Core\Cli::confirm` throws `Core\Cli\NotInteractive`. The script
 // then prints what it needs and deletes nothing.
 
-final class Cleanup {
-    public static function sweep(int $old): string {
+final class Cleanup
+{
+    public static function sweep(int $old): string
+    {
         try {
-            if (Core\Cli::confirm("Delete the " . ($old as string) . " oldest releases?")) {
-                return "deleted " . ($old as string) . " releases";
+            if (Core\Cli::confirm('Delete the ' . ($old as string) . ' oldest releases?')) {
+                return 'deleted ' . ($old as string) . ' releases';
             }
-            return "kept everything";
+            return 'kept everything';
         } catch (Core\Cli\NotInteractive $nobody) {
-            return "kept everything: nobody could answer. Run this from a terminal, or pass --delete-old to answer yes in advance";
+            return 'kept everything: nobody could answer. Run this from a terminal, or pass --delete-old to answer yes in advance';
         }
     }
 }

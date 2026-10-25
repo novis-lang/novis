@@ -5,8 +5,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         array<int> $offsets = [-3, 5, -7];
         int $total = 0;
         int $i = 0;

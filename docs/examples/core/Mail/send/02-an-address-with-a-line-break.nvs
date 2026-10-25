@@ -7,7 +7,7 @@ string $typed = "anna@example.com\r\nBcc: everyone@example.com";
 
 // The call throws a `RuntimeError`, and nothing is sent.
 try {
-    Core\Mail::send("shop", [$typed], "Welcome", "Thank you for signing up.");
+    Core\Mail::send('shop', [$typed], 'Welcome', 'Thank you for signing up.');
     echo "sent\n";
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";

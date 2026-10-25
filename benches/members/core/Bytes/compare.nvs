@@ -7,13 +7,15 @@
 // bench: statements 3
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        bytes $key = Core\Encoding::fromHex("0102030405060708");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        bytes $key = Core\Encoding::fromHex('0102030405060708');
         array<bytes> $others = [
-            Core\Encoding::fromHex("0102030405060707"),
-            Core\Encoding::fromHex("0102030405060708"),
-            Core\Encoding::fromHex("0102030405060709"),
+            Core\Encoding::fromHex('0102030405060707'),
+            Core\Encoding::fromHex('0102030405060708'),
+            Core\Encoding::fromHex('0102030405060709'),
         ];
         uint $total = 0;
         uint $i = 0;

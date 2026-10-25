@@ -2,7 +2,7 @@
 // Shows the digits of a number as a `string`. `echo` prints the same text
 // without you calling `toString` yourself.
 
-var $value = Core\BigInt::parse("184467440737095516150");
+var $value = Core\BigInt::parse('184467440737095516150');
 
 // Both lines print 184467440737095516150.
 echo $value->toString(), "\n";

@@ -2,16 +2,18 @@
 // Shows a user record that loads all its properties on the first read of any one
 // of them. `initProperty` runs once and sets three properties.
 
-class User implements LateInit {
+class User implements LateInit
+{
     public lateinit string $name;
     public lateinit string $email;
     public lateinit int $logins;
 
-    public function initProperty(string $name): void {
+    public function initProperty(string $name): void
+    {
         // A real program would read one row from a database here.
-        echo "loading the user, because ", $name, " was read\n";
-        $this->name = "Ada";
-        $this->email = "ada@example.com";
+        echo 'loading the user, because ', $name, " was read\n";
+        $this->name = 'Ada';
+        $this->email = 'ada@example.com';
         $this->logins = 3;
     }
 }

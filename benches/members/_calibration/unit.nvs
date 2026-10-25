@@ -6,8 +6,10 @@
 // history silently. A different unit is a new file and a new ledger.
 // bench: iterations 2000000
 
-class Unit {
-    public static function run(int $rounds): int {
+class Unit
+{
+    public static function run(int $rounds): int
+    {
         var $total = 0;
         var $i = 0;
         while ($i < $rounds) {

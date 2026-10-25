@@ -7,7 +7,7 @@ final class Segmenter
 {
     /// `Segmenter::words` returns each string as a list of parts. `wordLike` is `true` for a word
     /// or a number, and `false` for spaces and punctuation. All parts joined give the string.
-    public static function words(array<string> $strings, string $locale): array<array<{text: string, wordLike: bool}>>
+    public static function words(array<string> $strings, string $locale): array<array<{ text: string, wordLike: bool }>>
     {
         return Icu::wordSegments($strings, $locale);
     }

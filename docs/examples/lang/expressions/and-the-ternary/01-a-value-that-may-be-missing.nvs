@@ -2,31 +2,31 @@
 // Shows how to give a value a fallback with `??`. The left side is used
 // unless it is `null`, or unless the array key is not there.
 
-array<string> $row = ["name" => "Ada"];
+array<string> $row = ['name' => 'Ada'];
 
 // The key "name" is there, so this prints "Ada".
-echo $row["name"] ?? "unknown", "\n";
+echo $row['name'] ?? 'unknown', "\n";
 
 // Reading a key that is not there stops the program with an error. `??` is
 // the one read that gives a value instead, so this prints "unknown".
-echo $row["city"] ?? "unknown", "\n";
+echo $row['city'] ?? 'unknown', "\n";
 
 ?string $nickname = null;
 
 // `??` looks only for `null`, and this variable is `null`, so the right side
 // is used. This prints "Ada".
-echo $nickname ?? $row["name"], "\n";
+echo $nickname ?? $row['name'], "\n";
 
 ?string $shortName = null;
 
 // You can write several fallbacks in a row. The first one that is not `null`
 // is the result, so this prints "no nickname".
-echo $shortName ?? $nickname ?? "no nickname", "\n";
+echo $shortName ?? $nickname ?? 'no nickname', "\n";
 
-array<array<string>> $tagsByPost = ["first" => ["news"]];
+array<array<string>> $tagsByPost = ['first' => ['news']];
 
 // An empty list `[]` after `??` gets the type of the left side. So `$tags`
 // is an `array<string>`, and you can add a string to it. This prints 1.
-var $tags = $tagsByPost["second"] ?? [];
-$tags[] = "draft";
+var $tags = $tagsByPost['second'] ?? [];
+$tags[] = 'draft';
 echo Core\Arr::count($tags), "\n";

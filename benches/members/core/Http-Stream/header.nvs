@@ -4,21 +4,23 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The reply comes from this table, so nothing is sent over a network.
-        array<string> $cache = ["no-cache", "no-store"];
-        Core\Test::answerHttp("https://feed.example.com/live", 200, {
+        array<string> $cache = ['no-cache', 'no-store'];
+        Core\Test::answerHttp('https://feed.example.com/live', 200, {
             body: "data: a\n\n",
-            headers: ["content-type" => "text/event-stream", "cache-control" => $cache],
+            headers: ['content-type' => 'text/event-stream', 'cache-control' => $cache],
         });
-        Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, "https://feed.example.com/live");
-        array<string> $names = ["content-type", "cache-control", "etag"];
+        Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/live');
+        array<string> $names = ['content-type', 'cache-control', 'etag'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The name in each round depends on the round before, so no round can be left out.
-            $total = $total + Core\Str::length($feed->header($names[(($total + $i) % 3) as int]) ?? "");
+            $total = $total + Core\Str::length($feed->header($names[(($total + $i) % 3) as int]) ?? '');
             $i = $i + 1;
         }
         return $total;

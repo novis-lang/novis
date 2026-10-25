@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $db = Core\Db::connect('notes');
         $db->execute('create table uploads (id integer primary key, size bigint not null, parts bigint not null)', []);
         $db->execute('insert into uploads (size, parts) values (?, ?)', [18432, 3]);

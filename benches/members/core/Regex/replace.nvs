@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $dates = ["2026-09-27", "Due 2027-01-05", "no date here"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $dates = ['2026-09-27', 'Due 2027-01-05', 'no date here'];
         Core\Regex\Pattern $date = Core\Regex::compile('(\d{4})-(\d{2})-(\d{2})');
         uint $total = 0;
         uint $i = 0;

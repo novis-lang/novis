@@ -6,9 +6,11 @@
 // bench: allocations 5
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): int {
-        array<string> $labels = ["order", "customer", "shipping address"];
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<string> $labels = ['order', 'customer', 'shipping address'];
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

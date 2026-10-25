@@ -2,10 +2,10 @@
 // Shows how `Collator::CaseFirst` decides whether "Apple" or "apple" comes first in a sorted list.
 use Novis\Intl\Collator;
 
-array<string> $tags = ["apple", "Apple", "berry", "Berry"];
+array<string> $tags = ['apple', 'Apple', 'berry', 'Berry'];
 
 // `Off` is the default. In English, the lowercase word comes first.
-echo Core\Str::join(Collator::sort($tags, "en", {caseFirst: Collator::CaseFirst::Off}), ", "), "\n";
+echo Core\Str::join(Collator::sort($tags, 'en', { caseFirst: Collator::CaseFirst::Off }), ', '), "\n";
 
 // `Upper` puts the uppercase word first.
-echo Core\Str::join(Collator::sort($tags, "en", {caseFirst: Collator::CaseFirst::Upper}), ", "), "\n";
+echo Core\Str::join(Collator::sort($tags, 'en', { caseFirst: Collator::CaseFirst::Upper }), ', '), "\n";

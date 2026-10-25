@@ -6,10 +6,12 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        string $held = "hold";
-        string $shipped = "ship";
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        string $held = 'hold';
+        string $shipped = 'ship';
         uint $matches = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -25,7 +27,7 @@ class Bench {
                 $matches = $matches + 1;
             }
             string $code = $subject < 3 ? $held : $shipped;
-            if ($code == "hold") {
+            if ($code == 'hold') {
                 $matches = $matches + 1;
             }
             $i = $i + 1;

@@ -12,7 +12,7 @@ class Bench
         uint $i = 0;
         while ($i < 64) {
             uint $status = 200 + ($total % 299);
-            Core\Test::answerHttp('https://api.example.com/users', $status, {body: $body});
+            Core\Test::answerHttp('https://api.example.com/users', $status, { body: $body });
             $total = $total + $status;
             $i = $i + 1;
         }

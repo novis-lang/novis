@@ -6,15 +6,18 @@
 // bench: iterations 200000
 // bench: complexity constant
 
-class Lookup {
-    public static function price(int $sku): int {
+class Lookup
+{
+    public static function price(int $sku): int
+    {
         if ($sku % 8 == 0) {
-            throw new IOError("no row");
+            throw new IOError('no row');
         }
         return $sku * 3;
     }
 
-    public static function run(int $rounds): int {
+    public static function run(int $rounds): int
+    {
         int $acc = 1;
         int $i = 0;
         while ($i < $rounds) {

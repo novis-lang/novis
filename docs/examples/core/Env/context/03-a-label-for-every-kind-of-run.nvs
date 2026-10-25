@@ -1,20 +1,22 @@
 <?nvs
 // Shows a `match` with one result for each of the seven kinds of run.
 
-class Log {
+class Log
+{
     // Returns the label a log line starts with.
-    public static function label(Core\Env::Context $context): string {
+    public static function label(Core\Env::Context $context): string
+    {
         return match ($context) {
-            Core\Env::Context::Request => "web",
-            Core\Env::Context::Command => "cli",
-            Core\Env::Context::Isolate => "child",
-            Core\Env::Context::Schedule => "cron",
-            Core\Env::Context::Job => "queue",
-            Core\Env::Context::Test => "test",
-            Core\Env::Context::Connection => "socket",
+            Core\Env::Context::Request => 'web',
+            Core\Env::Context::Command => 'cli',
+            Core\Env::Context::Isolate => 'child',
+            Core\Env::Context::Schedule => 'cron',
+            Core\Env::Context::Job => 'queue',
+            Core\Env::Context::Test => 'test',
+            Core\Env::Context::Connection => 'socket',
         };
     }
 }
 
 // You run this file from the command line, so this prints `[cli] order 7 saved`.
-echo "[", Log::label(Core\Env::context()), "] order 7 saved\n";
+echo '[', Log::label(Core\Env::context()), "] order 7 saved\n";

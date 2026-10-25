@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $urls = ["/orders/42", "/thanks", "/account", "/cart"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $urls = ['/orders/42', '/thanks', '/account', '/cart'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -18,5 +20,5 @@ class Bench {
     }
 }
 
-Core\Response::redirect("/done");
+Core\Response::redirect('/done');
 echo Bench::run(256), "\n";

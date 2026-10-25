@@ -2,18 +2,22 @@
 // Shows the other two subjects a `foreach` loop accepts: an object whose class
 // implements `Iterable`, and an `Iterator` returned by a method that contains `yield`.
 
-class Weekdays implements Iterable<string> {
+class Weekdays implements Iterable<string>
+{
     // `foreach` calls `iterate()` once and walks the iterator it returns.
-    public function iterate(): Iterator<string> {
-        yield "Monday";
-        yield "Tuesday";
-        yield "Wednesday";
+    public function iterate(): Iterator<string>
+    {
+        yield 'Monday';
+        yield 'Tuesday';
+        yield 'Wednesday';
     }
 }
 
-class Steps {
+class Steps
+{
     // A method with `yield` returns an `Iterator`, which `foreach` walks directly.
-    public static function upTo(int $last): Iterator<int> {
+    public static function upTo(int $last): Iterator<int>
+    {
         int $i = 1;
         while ($i <= $last) {
             yield $i;

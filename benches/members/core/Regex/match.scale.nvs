@@ -9,7 +9,7 @@ class Bench
     public static function run(uint $size): uint
     {
         string $line = Core\Str::repeat('a', $size) . ' order 4711';
-        Core\Regex\Pattern $order = Core\Regex::compile('order (\d+)', {caseInsensitive: true});
+        Core\Regex\Pattern $order = Core\Regex::compile('order (\d+)', { caseInsensitive: true });
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

@@ -5,6 +5,6 @@ use Novis\Intl\NumberFormat;
 array<float> $prices = [19.9];
 
 // This prints "US$19.90", "$19.90" and "19.90 US dollars" in English for Canada.
-echo NumberFormat::currency($prices, "USD", "en-CA", {display: NumberFormat::CurrencyDisplay::Symbol})[0], "\n";
-echo NumberFormat::currency($prices, "USD", "en-CA", {display: NumberFormat::CurrencyDisplay::Narrow})[0], "\n";
-echo NumberFormat::currency($prices, "USD", "en-CA", {display: NumberFormat::CurrencyDisplay::Name})[0], "\n";
+echo NumberFormat::currency($prices, 'USD', 'en-CA', { display: NumberFormat::CurrencyDisplay::Symbol })[0], "\n";
+echo NumberFormat::currency($prices, 'USD', 'en-CA', { display: NumberFormat::CurrencyDisplay::Narrow })[0], "\n";
+echo NumberFormat::currency($prices, 'USD', 'en-CA', { display: NumberFormat::CurrencyDisplay::Name })[0], "\n";

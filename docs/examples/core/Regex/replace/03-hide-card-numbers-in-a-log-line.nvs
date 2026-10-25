@@ -6,9 +6,9 @@
 Core\Regex\Pattern $card = Core\Regex::compile('\b\d{12}(\d{4})\b');
 
 array<string> $lines = [
-    "order 1042 paid with card 4111111111111111",
-    "order 1043 paid with card 5500000000000004, refund to 4000056655665556",
-    "order 1044 paid by bank transfer",
+    'order 1042 paid with card 4111111111111111',
+    'order 1043 paid with card 5500000000000004, refund to 4000056655665556',
+    'order 1044 paid by bank transfer',
 ];
 
 // Every card number becomes "************" and its last 4 digits.

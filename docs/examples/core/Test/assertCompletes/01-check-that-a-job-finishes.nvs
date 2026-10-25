@@ -3,8 +3,10 @@
 
 use Core\Test;
 
-class Report {
-    public static function build(array<int> $sales): int {
+class Report
+{
+    public static function build(array<int> $sales): int
+    {
         int $total = 0;
         foreach ($sales as int $amount) {
             $total = $total + $amount;
@@ -13,13 +15,15 @@ class Report {
     }
 }
 
-class ReportTest {
+class ReportTest
+{
     // The check needs a fixed clock, so the test sets one with `at:`.
-    #[Test(at: "2026-03-01T09:00:00Z")]
-    public function theReportFinishesInFiveSeconds(): void {
+    #[Test(at: '2026-03-01T09:00:00Z')]
+    public function theReportFinishesInFiveSeconds(): void
+    {
         // `within` is the time limit. The check moves the clock forward by 5 seconds,
         // then runs the function. It fails if the function leaves a task still running.
-        Test::assertCompletes(fn (): void => { Report::build([120, 80, 45]); }, {within: 5s});
+        Test::assertCompletes(fn (): void => { Report::build([120, 80, 45]); }, { within: 5s });
     }
 }
 

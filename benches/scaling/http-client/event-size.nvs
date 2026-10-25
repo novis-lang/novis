@@ -5,11 +5,13 @@
 // scaling: max 16384
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $lines): uint {
+class Bench
+{
+    public static function run(uint $lines): uint
+    {
         // The server's address comes from the environment, so it is checked before the request is sent.
-        tainted string $base = Core\Env::get("NVS_SCALING_URL") ?? "http://127.0.0.1:8000";
-        Core\Http\Target $url = Core\Http::allowUrl($base . "/?lines=" . $lines);
+        tainted string $base = Core\Env::get('NVS_SCALING_URL') ?? 'http://127.0.0.1:8000';
+        Core\Http\Target $url = Core\Http::allowUrl($base . '/?lines=' . $lines);
         Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, $url);
         uint $total = 0;
         foreach ($feed->events() as Core\Http\Event $event) {

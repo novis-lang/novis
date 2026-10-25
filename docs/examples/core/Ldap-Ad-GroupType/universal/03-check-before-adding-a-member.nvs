@@ -2,11 +2,11 @@
 // Shows how to check that a group can take members from another domain.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Managers,OU=Company,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Managers,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // `Managers` is a global group, so it only takes members from its own domain.
     // This prints `Managers takes members from other domains: false`.
-    echo "Managers takes members from other domains: ", $type->universal() ? "true" : "false", "\n";
+    echo 'Managers takes members from other domains: ', $type->universal() ? 'true' : 'false', "\n";
 }

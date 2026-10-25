@@ -5,40 +5,49 @@ use Core\Http\Method;
 
 // `#[Core\Json\Derive]` lets `Core\Response::json` write this class as JSON.
 #[Core\Json\Derive]
-class Product {
+class Product
+{
     public string $name;
     public int $priceCents;
 
-    public function constructor(string $name, int $priceCents) {
+    public function constructor(string $name, int $priceCents)
+    {
         $this->name = $name;
         $this->priceCents = $priceCents;
     }
 }
 
-class Shop {
+class Shop
+{
     // This method returns the product. It does not send it.
-    #[Core\Route(path: "/api/product", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Route(path: '/api/product', method: Core\Http\Method::Get, name: 'Shop::product')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function product(): Product {
-        return new Product("Teapot", 2500);
+    public function product(): Product
+    {
+        return new Product('Teapot', 2500);
     }
 }
 
-class Gate implements Core\Router\Responder {
-    public function allows(Core\Router\Match $route): bool {
+class Gate implements Core\Router\Responder
+{
+    public function allows(Core\Router\Match $route): bool
+    {
         return true;
     }
 
-    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
-        Core\Response::json({error: "not allowed"});
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        Core\Response::json({ error: 'not allowed' });
     }
 
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
-        Core\Response::json({error: "server error"});
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        Core\Response::json({ error: 'server error' });
     }
 
     // `dispatch` calls this with the object that the route method returned.
-    public function respond(Core\Router\Match $route, mixed $value): void {
+    public function respond(Core\Router\Match $route, mixed $value): void
+    {
         Core\Response::json($value);
     }
 }
@@ -47,7 +56,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Router::dispatch(new Gate());
 } else {
     // This prints `200`, the content type, and the product as JSON.
-    var $product = Core\Test::request(Method::Get, "/api/product");
-    echo $product->status(), " ", $product->header("Content-Type"), "\n";
+    var $product = Core\Test::request(Method::Get, '/api/product');
+    echo $product->status(), ' ', $product->header('Content-Type'), "\n";
     echo $product->body(), "\n";
 }

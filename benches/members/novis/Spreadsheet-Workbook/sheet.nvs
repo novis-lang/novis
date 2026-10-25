@@ -4,13 +4,15 @@
 // bench: complexity constant
 use Novis\Spreadsheet\Workbook;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $book = Workbook::createInMemory();
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            $book->sheet("Month " . ($total as string))->add(["sales" => $i]);
+            $book->sheet('Month ' . ($total as string))->add(['sales' => $i]);
             $total = $total + 1;
             $i = $i + 1;
         }

@@ -3,13 +3,15 @@
 // A `bool` property does not, so `null` there is an issue.
 
 #[Core\Json\Derive]
-class Row {
+class Row
+{
     public string $name;
     public ?int $rank;
-    #[Core\Json\Field(name: "is_live")]
+    #[Core\Json\Field(name: 'is_live')]
     public bool $live;
 
-    public function constructor(string $name, ?int $rank, bool $live) {
+    public function constructor(string $name, ?int $rank, bool $live)
+    {
         $this->name = $name;
         $this->rank = $rank;
         $this->live = $live;
@@ -19,13 +21,13 @@ class Row {
 // The key `extra` is not a property of `Row`, so the decode ignores it.
 // This prints `ada unranked`.
 var $row = Core\Json::decodeAs<Row>("{\"name\":\"ada\",\"rank\":null,\"is_live\":true,\"extra\":1}");
-echo $row->name, " ", $row->rank ?? "unranked", "\n";
+echo $row->name, ' ', $row->rank ?? 'unranked', "\n";
 
 // This document has three bad fields, and the error lists all three.
 try {
     Core\Json::decodeAs<Row>("{\"rank\":\"first\",\"is_live\":null}");
 } catch (ParseError $bad) {
-    foreach ($bad->issues as {path: string, message: string} $issue) {
-        echo $issue->path, ": ", $issue->message, "\n";
+    foreach ($bad->issues as { path: string, message: string } $issue) {
+        echo $issue->path, ': ', $issue->message, "\n";
     }
 }

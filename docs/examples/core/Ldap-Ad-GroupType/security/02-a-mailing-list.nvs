@@ -2,12 +2,12 @@
 // Shows that `security` returns `false` for a distribution group, which is a mailing list.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $group = $corp->read("CN=Newsletter,OU=Company,DC=example,DC=test", {select: ["groupType", "mail"]});
+var $corp = Core\Ldap::connect('corp');
+var $group = $corp->read('CN=Newsletter,OU=Company,DC=example,DC=test', { select: ['groupType', 'mail'] });
 var $type = $group?->groupType();
 
 if ($group != null && $type != null && !$type->security()) {
     // A mailing list cannot be given permissions. It only has an address.
     // This prints `Newsletter is a mailing list: newsletter@example.test`.
-    echo $group->dn()->rdnValue(), " is a mailing list: ", $group->string("mail") ?? "", "\n";
+    echo $group->dn()->rdnValue(), ' is a mailing list: ', $group->string('mail') ?? '', "\n";
 }

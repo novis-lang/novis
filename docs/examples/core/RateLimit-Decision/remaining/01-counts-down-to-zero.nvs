@@ -5,7 +5,7 @@
 // so this prints 2, 1 and 0. The fourth call is refused, and it is also 0.
 uint $call = 1;
 while ($call <= 4) {
-    var $decision = Core\RateLimit::shed("search:user:5", 3, 1m);
-    echo "call ", $call, ": ", $decision->remaining(), " left\n";
+    var $decision = Core\RateLimit::shed('search:user:5', 3, 1m);
+    echo 'call ', $call, ': ', $decision->remaining(), " left\n";
     $call = $call + 1;
 }

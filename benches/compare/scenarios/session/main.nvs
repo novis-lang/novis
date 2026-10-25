@@ -4,15 +4,15 @@
 // `/fast` only reads the counter. Every other path starts the session.
 
 Core\Session::start();
-int $count = (Core\Session::get("count") ?? 0) as int;
+int $count = (Core\Session::get('count') ?? 0) as int;
 
-if (Core\Request::path() == "/slow") {
-    Core\Session::set("count", $count + 1);
+if (Core\Request::path() == '/slow') {
+    Core\Session::set('count', $count + 1);
     Core\Time::sleep(Core\Time\Duration::seconds(2));
     Core\Response::text("slow done\n");
-} elseif (Core\Request::path() == "/fast") {
-    Core\Response::text("count: " . $count . "\n");
+} elseif (Core\Request::path() == '/fast') {
+    Core\Response::text('count: ' . $count . "\n");
 } else {
-    Core\Session::set("count", 0);
+    Core\Session::set('count', 0);
     Core\Response::text("started\n");
 }

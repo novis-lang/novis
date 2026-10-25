@@ -3,14 +3,14 @@
 // path. Start it with `nvs run 01-a-file-name-from-the-command-line.nvs notes.txt`.
 
 array<tainted string> $words = Core\Cli::arguments();
-tainted string $typed = Core\Arr::first($words) ?? "notes.txt";
+tainted string $typed = Core\Arr::first($words) ?? 'notes.txt';
 
 // `fromCwd` joins the name to the folder the user started the program from.
 // The result is a full path that is not `tainted`, so `Core\IO::read` accepts it.
 string $path = Core\Path::fromCwd($typed);
 
 // The path starts at a root, so this prints `true`.
-echo Core\Path::isAbsolute($path) ? "true" : "false", "\n";
+echo Core\Path::isAbsolute($path) ? 'true' : 'false', "\n";
 
 // The file name is still the last part of the path. This prints `notes.txt`.
 echo Core\Path::basename($path), "\n";

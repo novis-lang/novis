@@ -4,15 +4,17 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $dir = Core\IO::temporaryDir();
-        Core\IO::makeDir(Core\Path::join($dir, "conf"));
-        Core\IO::write(Core\Path::join($dir, "conf/app.ini"), "x");
+        Core\IO::makeDir(Core\Path::join($dir, 'conf'));
+        Core\IO::write(Core\Path::join($dir, 'conf/app.ini'), 'x');
         array<string> $paths = [
-            Core\Path::join($dir, "conf/app.ini"),
-            Core\Path::join($dir, "conf/../conf/app.ini"),
-            Core\Path::join($dir, "./conf/./app.ini"),
+            Core\Path::join($dir, 'conf/app.ini'),
+            Core\Path::join($dir, 'conf/../conf/app.ini'),
+            Core\Path::join($dir, './conf/./app.ini'),
         ];
         uint $total = 0;
         uint $i = 0;
@@ -25,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "nothing resolved", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'nothing resolved', "\n";

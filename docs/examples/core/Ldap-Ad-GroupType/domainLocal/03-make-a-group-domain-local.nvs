@@ -2,14 +2,14 @@
 // Shows how to get the `groupType` number for a group that changes to domain local.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Employees,OU=Company,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // A group has one scope, so clear `global` and set `domainLocal` together.
-    var $local = $type->with({global: false, domainLocal: true});
+    var $local = $type->with({ global: false, domainLocal: true });
 
     // This prints `domainLocal: true` and then `-2147483644`.
-    echo "domainLocal: ", $local->domainLocal() ? "true" : "false", "\n";
+    echo 'domainLocal: ', $local->domainLocal() ? 'true' : 'false', "\n";
     echo $local->bits(), "\n";
 }

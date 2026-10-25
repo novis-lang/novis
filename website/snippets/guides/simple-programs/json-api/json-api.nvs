@@ -1,24 +1,28 @@
 <?nvs
 // This program is a small JSON API. It returns one product, found by its number.
 #[Core\Json\Derive]
-class Product {
+class Product
+{
     public uint $id;
     public string $name;
     public float $price;
 
-    public function constructor(uint $id, string $name, float $price) {
+    public function constructor(uint $id, string $name, float $price)
+    {
         $this->id = $id;
         $this->name = $name;
         $this->price = $price;
     }
 }
 
-class Products {
+class Products
+{
     // The route connects a request like `GET /products/2` to this method.
-    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get)]
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
-    public static function show(uint $id): void {
-        array<Product> $all = [new Product(1, "Fig", 3.5), new Product(2, "Apple", 0.4)];
+    public static function show(uint $id): void
+    {
+        array<Product> $all = [new Product(1, 'Fig', 3.5), new Product(2, 'Apple', 0.4)];
         foreach ($all as Product $product) {
             if ($product->id == $id) {
                 Core\Response::json($product);
@@ -26,23 +30,27 @@ class Products {
             }
         }
         Core\Response::setStatus(404);
-        Core\Response::json({error: "no such product"});
+        Core\Response::json({ error: 'no such product' });
     }
 }
 
 // The gate checks each request before a route method runs, and it writes the errors as JSON.
-class Gate implements Core\Router\Gate {
-    public function allows(Core\Router\Match $route): bool {
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
         return $route->accessAs<Core\Audience>() == Core\Audience::Public;
     }
 
     // `dispatch` has already set the status, such as 404 for a path with no route.
-    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
-        Core\Response::json({error: "not possible"});
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        Core\Response::json({ error: 'not possible' });
     }
 
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
-        Core\Response::json({error: "server error"});
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        Core\Response::json({ error: 'server error' });
     }
 }
 

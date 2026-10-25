@@ -10,7 +10,7 @@ try {
             Core\Time::sleep(500ms);
             return 2;
         },
-    }, {deadline: 20ms});
+    }, { deadline: 20ms });
     echo "both tasks finished\n";
 } catch (TimeoutError $late) {
     // This is the line that prints. `slow` needs half a second, and the group has

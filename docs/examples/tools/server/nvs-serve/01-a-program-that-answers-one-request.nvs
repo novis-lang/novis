@@ -1,7 +1,8 @@
 <?nvs
 // Shows a program that `nvs serve` runs one time for each HTTP request.
 
-class Visits {
+class Visits
+{
     public static uint $count = 0;
 }
 

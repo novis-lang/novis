@@ -5,16 +5,18 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $report = Document::fromHtml("<h1>Report</h1>");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $report = Document::fromHtml('<h1>Report</h1>');
         var $header = fn(Page $page): Core\Html\Markup => html`<p>Page {$page->number}</p>`;
-        array<string> $heights = ["1cm", "2cm", "3cm"];
+        array<string> $heights = ['1cm', '2cm', '3cm'];
         array<Document> $documents = [];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            $documents[] = $report->header($header, {height: $heights[($total % 3) as int]});
+            $documents[] = $report->header($header, { height: $heights[($total % 3) as int] });
             $total = $total + 1;
             $i = $i + 1;
         }

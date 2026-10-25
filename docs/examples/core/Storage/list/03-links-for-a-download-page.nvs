@@ -1,10 +1,12 @@
 <?nvs
 // Builds the links of a download page from the files on the disk.
 
-final class Downloads {
-    public static function links(): array<string> {
+final class Downloads
+{
+    public static function links(): array<string>
+    {
         array<string> $links = [];
-        foreach (Core\Storage::list("files") as string $key) {
+        foreach (Core\Storage::list('files') as string $key) {
             $links[] = "<a href=\"/downloads/{$key}\">{$key}</a>";
         }
         return $links;

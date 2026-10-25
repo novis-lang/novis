@@ -6,13 +6,15 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        bytes $upload = Core\Encoding::fromHex("89504e470d0a1a0a0000000d49484452");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        bytes $upload = Core\Encoding::fromHex('89504e470d0a1a0a0000000d49484452');
         array<bytes> $magic = [
-            Core\Encoding::fromHex("89504e470d0a1a0a"),
-            Core\Encoding::fromHex("89504e47"),
-            Core\Encoding::fromHex("89504e470d0a1a0a0000000d"),
+            Core\Encoding::fromHex('89504e470d0a1a0a'),
+            Core\Encoding::fromHex('89504e47'),
+            Core\Encoding::fromHex('89504e470d0a1a0a0000000d'),
         ];
         uint $total = 0;
         uint $i = 0;

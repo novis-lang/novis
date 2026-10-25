@@ -2,37 +2,39 @@
 // Shows a table of 100 products, with the search term in the heading.
 // This measures building an HTML page and escaping text into it.
 
-class Product {
+class Product
+{
     public int $id;
     public string $name;
     public int $priceCents;
 
-    public function constructor(int $id, string $name, int $priceCents) {
+    public function constructor(int $id, string $name, int $priceCents)
+    {
         $this->id = $id;
         $this->name = $name;
         $this->priceCents = $priceCents;
     }
 }
 
-if (Core\Request::path() != "/products") {
+if (Core\Request::path() != '/products') {
     Core\Response::setStatus(404);
     Core\Response::text("not found\n");
 } else {
-    tainted string $term = Core\Request::query("q") ?? "";
+    tainted string $term = Core\Request::query('q') ?? '';
 
     // The products are built again for every request, as a page reads them from a database.
     array<Product> $products = [];
     int $i = 1;
     while ($i <= 100) {
-        $products[] = new Product($i, Core\Str::format("Teapot %d & lid", $i), 100 + ($i * 7919) % 90000);
+        $products[] = new Product($i, Core\Str::format('Teapot %d & lid', $i), 100 + ($i * 7919) % 90000);
         $i = $i + 1;
     }
 
     // Every hole in an html template is escaped, so `&` in a name prints as `&amp;`.
     array<Core\Html\Markup> $rows = [];
     foreach ($products as Product $product) {
-        string $price = Core\Str::format("%d.%02d", Core\Math::intDiv($product->priceCents, 100), $product->priceCents % 100);
-        $rows[] = html`<tr><td><?= Core\Str::format("%d", $product->id) ?></td><td>{$product->name}</td><td>{$price}</td></tr>
+        string $price = Core\Str::format('%d.%02d', Core\Math::intDiv($product->priceCents, 100), $product->priceCents % 100);
+        $rows[] = html`<tr><td><?= Core\Str::format('%d', $product->id) ?></td><td>{$product->name}</td><td>{$price}</td></tr>
 `;
     }
 

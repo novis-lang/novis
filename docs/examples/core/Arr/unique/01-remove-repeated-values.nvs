@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to remove the values that appear more than once in a list.
 
-array<string> $tags = ["news", "sport", "news", "weather", "sport"];
+array<string> $tags = ['news', 'sport', 'news', 'weather', 'sport'];
 
 // The first entry with a value is kept, with the key it had. "news" keeps key
 // 0 and "weather" keeps key 3, so the keys have gaps in them.

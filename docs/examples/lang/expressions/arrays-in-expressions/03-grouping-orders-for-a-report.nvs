@@ -6,9 +6,9 @@
 // Every order is an `array<string>`, so `var` makes `$orders` an
 // `array<array<string>>`.
 var $orders = [
-    ["country" => "AT", "total" => "42"],
-    ["country" => "DE", "total" => "17"],
-    ["country" => "AT", "total" => "8"],
+    ['country' => 'AT', 'total' => '42'],
+    ['country' => 'DE', 'total' => '17'],
+    ['country' => 'AT', 'total' => '8'],
 ];
 
 // The report starts empty, so its type is written out.
@@ -16,7 +16,7 @@ array<array<string>> $byCountry = [];
 
 foreach ($orders as string $position => array<string> $order) {
     // Destructuring reads two keys of one order into two variables.
-    ["country" => string $country, "total" => string $total] = $order;
+    ['country' => string $country, 'total' => string $total] = $order;
 
     // The first order of a country creates the list under its name.
     $byCountry[$country][] = $total;
@@ -27,5 +27,5 @@ foreach ($byCountry as string $country => array<string> $totals) {
     foreach ($totals as string $index => string $amount) {
         $sum = $sum + ($amount as uint);
     }
-    echo $country, ": orders ", Core\Arr::count($totals), ", total ", $sum, "\n";
+    echo $country, ': orders ', Core\Arr::count($totals), ', total ', $sum, "\n";
 }

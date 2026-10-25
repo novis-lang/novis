@@ -4,7 +4,7 @@
 bytes $text = "Hello, world\n" as bytes;
 
 // The stream has the length of the whole body, so a browser can ask for one part of it.
-Core\Response\Stream $body = Core\Response::stream("text/plain; charset=utf-8", Core\Bytes::length($text) as int);
+Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8', Core\Bytes::length($text) as int);
 
 // `offset()` is where the part starts, and `length()` is its size.
 // This request has no `Range` header, so the part is the whole body. This prints "Hello, world".

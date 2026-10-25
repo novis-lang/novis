@@ -5,12 +5,14 @@
 
 use Core\Http\Client;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        Core\Test::answerHttp("https://api.example.com/*", 200);
-        Client::get("https://api.example.com/users/7");
-        Client::post("https://api.example.com/orders", {json: ["sku" => "mug"]});
-        Client::delete("https://api.example.com/users/7");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Core\Test::answerHttp('https://api.example.com/*', 200);
+        Client::get('https://api.example.com/users/7');
+        Client::post('https://api.example.com/orders', { json: ['sku' => 'mug'] });
+        Client::delete('https://api.example.com/users/7');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

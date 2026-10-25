@@ -3,12 +3,12 @@
 // `as ?uint` converts a value to a whole number. If that is not possible,
 // the result is `null`, and `??` gives the default value instead.
 
-array<mixed> $query = ["page" => "3", "size" => "abc", "sort" => "name"];
+array<mixed> $query = ['page' => '3', 'size' => 'abc', 'sort' => 'name'];
 
 uint $firstPage = 1;
 uint $defaultSize = 20;
 
-uint $page = ($query["page"] as ?uint) ?? $firstPage;
-uint $size = ($query["size"] as ?uint) ?? $defaultSize;
+uint $page = ($query['page'] as ?uint) ?? $firstPage;
+uint $size = ($query['size'] as ?uint) ?? $defaultSize;
 
-echo "page ", $page, ", ", $size, " per page\n";
+echo 'page ', $page, ', ', $size, " per page\n";

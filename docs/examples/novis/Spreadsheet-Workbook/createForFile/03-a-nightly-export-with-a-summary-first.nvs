@@ -1,20 +1,20 @@
 <?nvs
+use Novis\Spreadsheet\Reader;
 // Shows a nightly job that saves an export of two sheets, with the summary as the first tab.
 use Novis\Spreadsheet\Workbook;
-use Novis\Spreadsheet\Reader;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "nightly.xlsx");
-var $book = Workbook::createForFile($path, {properties: {title: "Nightly orders", company: "Shop"}});
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'nightly.xlsx');
+var $book = Workbook::createForFile($path, { properties: { title: 'Nightly orders', company: 'Shop' } });
 
 // The rows of a sheet are written first, and its totals are known at the end.
-array<array<mixed>> $orders = [["order" => 1042, "total" => 19.9], ["order" => 1043, "total" => 5.0]];
-$book->sheet("Orders")->addAll($orders);
+array<array<mixed>> $orders = [['order' => 1042, 'total' => 19.9], ['order' => 1043, 'total' => 5.0]];
+$book->sheet('Orders')->addAll($orders);
 
 // `position: 0` puts this sheet first in the file, but it is written second.
-$book->sheet("Summary", {position: 0})->add(["orders" => 2, "total" => 24.9]);
+$book->sheet('Summary', { position: 0 })->add(['orders' => 2, 'total' => 24.9]);
 $book->finish();
 
 // This prints the sheets in the order a person sees their tabs.
 foreach (Reader::open(Core\IO::open($path, Core\IO::FileMode::Read))->sheets() as var $sheet) {
-    echo $sheet->position, " ", $sheet->name, "\n";
+    echo $sheet->position, ' ', $sheet->name, "\n";
 }

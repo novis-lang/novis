@@ -5,7 +5,7 @@ use Core\Queue;
 
 // On a real server, `nvs queue migrate` creates the queue tables.
 // This database is in memory, so the example creates them itself.
-var $db = Core\Db::connect("jobs");
+var $db = Core\Db::connect('jobs');
 var $jobs = <<<'SQL'
 create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
     script text not null, args text, state smallint not null, attempts integer not null,
@@ -24,25 +24,25 @@ SQL;
 $db->execute($jobs, []);
 $db->execute($dead, []);
 
-var $shop = Core\Db::connect("shop");
-$shop->execute("create table orders (id integer primary key)", []);
+var $shop = Core\Db::connect('shop');
+$shop->execute('create table orders (id integer primary key)', []);
 
 // The `mail` queue gets two jobs inside a transaction of the `shop` database.
 // The `exports` queue gets one job inside a transaction of the `jobs` database.
 $shop->transaction(fn(Transaction $tx): void => {
-    Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
-    Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
+    Queue::push('jobs/send-receipt.nvs', { queue: 'mail' });
+    Queue::push('jobs/send-receipt.nvs', { queue: 'mail' });
 });
 $db->transaction(fn(Transaction $tx): void => {
-    Queue::push("jobs/export.nvs", {queue: "exports"});
+    Queue::push('jobs/export.nvs', { queue: 'exports' });
 });
 
 // This prints one line for each queue. The first line is `mail: 2 jobs to check`.
-array<string> $queues = ["mail", "exports"];
+array<string> $queues = ['mail', 'exports'];
 foreach ($queues as string $queue) {
     uint $count = Queue::stats($queue)->nonTransactional();
     if ($count > 0) {
-        echo $queue, ": ", $count, " jobs to check\n";
+        echo $queue, ': ', $count, " jobs to check\n";
     } else {
         echo $queue, ": ok\n";
     }

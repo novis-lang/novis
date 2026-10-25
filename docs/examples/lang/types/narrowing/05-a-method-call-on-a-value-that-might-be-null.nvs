@@ -7,7 +7,7 @@ class Dog
 {
     public function speak(): string
     {
-        return "woof";
+        return 'woof';
     }
 }
 

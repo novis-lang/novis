@@ -3,22 +3,27 @@
 // `Customer` has no property `$nme`, so this program does not compile.
 // proof: compile-error
 
-class Customer {
-    public string $name = "Ada";
+class Customer
+{
+    public string $name = 'Ada';
 }
 
-class Order {
+class Order
+{
     public Customer $customer;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->customer = new Customer();
     }
 }
 
-class Report {
-    public static function sortBy(propertyPath<Order> $path): string {
-        return "sorted by " . ($path as string);
+class Report
+{
+    public static function sortBy(propertyPath<Order> $path): string
+    {
+        return 'sorted by ' . ($path as string);
     }
 }
 
-echo Report::sortBy("customer.nme"), "\n";
+echo Report::sortBy('customer.nme'), "\n";

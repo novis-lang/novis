@@ -1,8 +1,8 @@
 error[E0401]: expected `Core\Arr::Order`, found `int`
-  --> 04-a-number-where-a-case-is-needed.nvs:8:54
+  --> 04-a-number-where-a-case-is-needed.nvs:8:55
   |
-8 | echo Core\Arr::count(Core\Arr::sort($scores, {order: 1})), "\n";
-  |                                                      ^ this is `int`
+8 | echo Core\Arr::count(Core\Arr::sort($scores, { order: 1 })), "\n";
+  |                                                       ^ this is `int`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

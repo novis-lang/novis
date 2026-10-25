@@ -6,10 +6,12 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $colours = ["red", "green", "blue"];
-        array<string> $user = ["name" => "Ada", "city" => "Wien"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $colours = ['red', 'green', 'blue'];
+        array<string> $user = ['name' => 'Ada', 'city' => 'Wien'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -1,7 +1,7 @@
 error[E0798]: `Core\Program::implementingWith` names `rows`, which `Archive` does not declare
-   --> 04-a-class-without-the-member.nvs:20:59
+   --> 04-a-class-without-the-member.nvs:29:59
    |
-20 | var $rows = Core\Program::implementingWith<Report, Label>("rows");
+29 | var $rows = Core\Program::implementingWith<Report, Label>('rows');
    |                                                           ^^^^^^ no method, parameter or property of that name
    = help: the name is checked against every class that implements `Report`. Write a method or property that `Report` declares. Write an empty string for the attributes of the class itself
 

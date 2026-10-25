@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to write a file through a handle, and then read it back through a second handle.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "greeting.txt");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'greeting.txt');
 
 // `FileMode::Write` creates the file, or empties it if it is already there.
 Core\IO\File $out = Core\IO::open($path, Core\IO::FileMode::Write);

@@ -3,11 +3,11 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
-string $customer = "Ada <script>alert(1)</script>";
+string $customer = 'Ada <script>alert(1)</script>';
 
 // The `html` template escapes `$customer`. The tag is text in the PDF, not HTML.
 var $page = html`<h1>Order for {$customer}</h1><p>Thank you for your order.</p>`;
 var $pdf = Document::fromHtml($page)->render()->bytes;
 
 // This prints the heading with the `<script>` tag as plain characters.
-echo Core\Str::before(Reader::open($pdf)->text(1), "\n") ?? "", "\n";
+echo Core\Str::before(Reader::open($pdf)->text(1), "\n") ?? '', "\n";

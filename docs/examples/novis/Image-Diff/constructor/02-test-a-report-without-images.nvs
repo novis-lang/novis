@@ -2,15 +2,17 @@
 // Shows how to check your own report code with a `Diff` you make yourself, without any images.
 use Novis\Image\Diff;
 
-class VisualReport {
-    public static function line(string $page, Diff $d): string {
+class VisualReport
+{
+    public static function line(string $page, Diff $d): string
+    {
         if ($d->identical) {
-            return $page . ": unchanged";
+            return $page . ': unchanged';
         }
-        return $page . ": " . $d->differingPixels . " pixels changed";
+        return $page . ': ' . $d->differingPixels . ' pixels changed';
     }
 }
 
 // One result for each case the report handles.
-echo VisualReport::line("home", new Diff(true, 0, 0, 1.0, null)), "\n";
-echo VisualReport::line("cart", new Diff(false, 340, 255, 0.91, null)), "\n";
+echo VisualReport::line('home', new Diff(true, 0, 0, 1.0, null)), "\n";
+echo VisualReport::line('cart', new Diff(false, 340, 255, 0.91, null)), "\n";

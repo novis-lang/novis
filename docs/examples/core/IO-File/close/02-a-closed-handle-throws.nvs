@@ -1,7 +1,7 @@
 <?nvs
 // Shows that a handle cannot be used after `close`, and that closing it twice throws an error.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "notes.txt");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'notes.txt');
 Core\IO::write($path, "first note\n");
 
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);

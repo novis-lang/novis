@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $db = Core\Db::connect('notes');
         $db->execute('create table pictures (id integer primary key, small blob not null, large blob not null)', []);
         $db->execute('insert into pictures (small, large) values (?, ?)', ['GIF89' as bytes, 'GIF89a-wide' as bytes]);

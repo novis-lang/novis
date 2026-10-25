@@ -2,19 +2,21 @@
 // Shows a page that decides what a visitor may do. The role arrives as an enum.
 // `==` tests for one role, and `as int` compares two roles by their number.
 
-class Page {
+class Page
+{
     enum Role { Guest = 0, Member = 10, Editor = 20, Owner = 30 }
 
-    public static function actions(Role $role): string {
+    public static function actions(Role $role): string
+    {
         // A guest is a single case, so `==` is the test for it.
         if ($role == Role::Guest) {
-            return "read";
+            return 'read';
         }
         // Everybody from `Editor` upwards may publish, so the numbers decide.
         if (($role as int) >= (Role::Editor as int)) {
-            return "read, comment, publish";
+            return 'read, comment, publish';
         }
-        return "read, comment";
+        return 'read, comment';
     }
 }
 

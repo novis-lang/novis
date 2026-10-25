@@ -5,10 +5,10 @@
 string $prefix = Core\Request::mount()->prefix();
 
 // This prints "prefix: /shop".
-echo "prefix: ", $prefix, "\n";
+echo 'prefix: ', $prefix, "\n";
 
 // `path()` returns the address without the prefix. This prints "path: /cart".
-echo "path: ", Core\Request::path(), "\n";
+echo 'path: ', Core\Request::path(), "\n";
 
 // The two together are the full address. This prints "address: /shop/cart".
-echo "address: ", $prefix, Core\Request::path(), "\n";
+echo 'address: ', $prefix, Core\Request::path(), "\n";

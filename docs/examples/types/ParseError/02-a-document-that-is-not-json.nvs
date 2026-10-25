@@ -5,15 +5,15 @@
 try {
     Core\Json::decode("{\"total\": }");
 } catch (ParseError $broken) {
-    echo "entries=", Core\Arr::count($broken->issues), "\n";
-    echo "path=[", $broken->issues["0"]->path, "]\n";
+    echo 'entries=', Core\Arr::count($broken->issues), "\n";
+    echo 'path=[', $broken->issues['0']->path, "]\n";
     echo $broken->message, "\n";
 }
 
 // `maxDepth` limits how deeply a document may be nested. A deeper document
 // throws a `ParseError`, so a hostile document cannot use up the server.
 try {
-    Core\Json::decode("[[[1]]]", {maxDepth: 2});
+    Core\Json::decode('[[[1]]]', { maxDepth: 2 });
 } catch (ParseError $deep) {
     echo $deep->message, "\n";
 }

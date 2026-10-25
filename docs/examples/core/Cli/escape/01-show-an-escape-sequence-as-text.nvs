@@ -5,7 +5,7 @@
 
 // `Core\Str::fromCodePoint(27)` returns the escape character. A terminal reads
 // this text as a command: print the rest in red.
-string $colored = Core\Str::fromCodePoint(27) . "[31mred";
+string $colored = Core\Str::fromCodePoint(27) . '[31mred';
 
 // This prints ␛[31mred. The escape character is now a picture of itself, and the
 // terminal shows all eight characters.

@@ -4,23 +4,27 @@
 // bench: complexity constant
 // bench: calls 2
 
-class Users {
-    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+class Users
+{
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(uint $id): string {
-        return "one user";
+    public function show(uint $id): string
+    {
+        return 'one user';
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The request is in the file `route.nvsr` beside this one.
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             ?Core\Router\Match $matched = Core\Request::route();
             if ($matched != null) {
-                $total = $total + ($matched->param("id") as uint) + $total % 2;
+                $total = $total + ($matched->param('id') as uint) + $total % 2;
             }
             $i = $i + 1;
         }

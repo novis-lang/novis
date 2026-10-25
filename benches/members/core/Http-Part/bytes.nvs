@@ -4,20 +4,22 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $files = [
             "order,total\n1042,19.90\n",
             "<svg xmlns=\"http://www.w3.org/2000/svg\"/>",
             "{\"name\":\"ada\",\"active\":true}",
         ];
-        array<string> $types = ["text/csv", "image/svg+xml", "application/json"];
+        array<string> $types = ['text/csv', 'image/svg+xml', 'application/json'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The data in each round is chosen by the round before, so no round can be left out.
             int $pick = ($total % 3) as int;
-            Core\Http\Part $part = Core\Http\Part::bytes($files[$pick], "upload.bin", {contentType: $types[$pick]});
+            Core\Http\Part $part = Core\Http\Part::bytes($files[$pick], 'upload.bin', { contentType: $types[$pick] });
             $total = $total + ($pick as uint) + 1;
             $i = $i + 1;
         }

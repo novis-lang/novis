@@ -6,5 +6,5 @@
 uint $content = Core\Cli::height() - 2;
 
 echo "== orders ==\n";
-echo "there is room for ", $content, " lines between these two\n";
+echo 'there is room for ', $content, " lines between these two\n";
 echo "== end ==\n";

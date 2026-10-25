@@ -4,15 +4,17 @@
 // bench: complexity constant
 use Novis\Pdf\Document;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $invoice = Document::fromHtml("<html lang=\"en\"><head><title>Invoice</title></head><body><h1>Invoice</h1></body></html>")
             ->standard(Document::Standard::PdfA3b);
         string $start = "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\">";
         array<string> $xml = [
-            $start . "<rsm:ExchangedDocument/></rsm:CrossIndustryInvoice>",
-            $start . "<rsm:ExchangedDocumentContext/></rsm:CrossIndustryInvoice>",
-            $start . "</rsm:CrossIndustryInvoice>",
+            $start . '<rsm:ExchangedDocument/></rsm:CrossIndustryInvoice>',
+            $start . '<rsm:ExchangedDocumentContext/></rsm:CrossIndustryInvoice>',
+            $start . '</rsm:CrossIndustryInvoice>',
         ];
         array<Document> $documents = [];
         uint $total = 0;

@@ -1,7 +1,7 @@
 <?nvs
 // Shows that a second handle cannot take a lock while the first handle has it.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "shared.txt");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'shared.txt');
 
 Core\IO\File $first = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 $first->lock();

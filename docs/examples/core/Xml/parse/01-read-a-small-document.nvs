@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to read a small XML document and print what is in it.
 
-string $xml = "<book><title>Dune</title><author>Frank Herbert</author></book>";
+string $xml = '<book><title>Dune</title><author>Frank Herbert</author></book>';
 
 // `Core\Xml::parse` returns the document node. Its only child is the root element, `book`.
 Core\Xml\Node $document = Core\Xml::parse($xml);
@@ -12,7 +12,7 @@ foreach ($document->children() as Core\Xml\Node $book) {
     echo $book->name(), "\n";
     foreach ($book->children() as Core\Xml\Node $field) {
         foreach ($field->children() as Core\Xml\Node $text) {
-            echo "  ", $field->name(), ": ", $text->text(), "\n";
+            echo '  ', $field->name(), ': ', $text->text(), "\n";
         }
     }
 }

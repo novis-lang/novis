@@ -2,10 +2,10 @@
 // Shows that `universal` returns `true` for a group with the universal scope.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Enterprise Admins,CN=Users,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Enterprise Admins,CN=Users,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // This prints `universal: true`.
-    echo "universal: ", $type->universal() ? "true" : "false", "\n";
+    echo 'universal: ', $type->universal() ? 'true' : 'false', "\n";
 }

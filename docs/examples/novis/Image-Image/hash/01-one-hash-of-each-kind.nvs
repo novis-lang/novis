@@ -7,10 +7,10 @@ bytes $photo = Image::fromRaw({
     width: 4,
     height: 4,
     pixels: Core\Encoding::fromHex(
-        "202020ffe0e0e0ff606060ffa0a0a0ff" .
-        "909090ff303030ffd0d0d0ff505050ff" .
-        "f0f0f0ff707070ff101010ffc0c0c0ff" .
-        "404040ffb0b0b0ff808080ff000000ff"
+        '202020ffe0e0e0ff606060ffa0a0a0ff'
+            . '909090ff303030ffd0d0d0ff505050ff'
+            . 'f0f0f0ff707070ff101010ffc0c0c0ff'
+            . '404040ffb0b0b0ff808080ff000000ff',
     ),
 })->resize({ width: 64, height: 64 })->encode();
 
@@ -18,5 +18,5 @@ bytes $photo = Image::fromRaw({
 array<Image::HashKind> $kinds = [Image::HashKind::Perceptual, Image::HashKind::Difference, Image::HashKind::Average];
 foreach ($kinds as Image::HashKind $kind) {
     bytes $hash = Image::hash($photo, $kind);
-    echo Core\Bytes::length($hash), " bytes: ", Core\Encoding::toHex($hash), "\n";
+    echo Core\Bytes::length($hash), ' bytes: ', Core\Encoding::toHex($hash), "\n";
 }

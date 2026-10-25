@@ -3,7 +3,11 @@
 // program does not compile.
 // proof: compile-error
 
-class Users {
-    #[Core\Route(path: "/users", method: Core\Http\Method::Get, name: "Users::index")]
-    public function index(): string { return "users"; }
+class Users
+{
+    #[Core\Route(path: '/users', method: Core\Http\Method::Get, name: 'Users::index')]
+    public function index(): string
+    {
+        return 'users';
+    }
 }

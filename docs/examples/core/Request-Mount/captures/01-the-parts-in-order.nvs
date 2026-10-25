@@ -7,10 +7,10 @@ Core\Request\Mount $mount = Core\Request::mount();
 array<tainted string> $parts = $mount->captures();
 
 // `{1}` is `captures()[0]`. This prints "customer: Acme".
-echo "customer: ", $parts[0], "\n";
+echo 'customer: ', $parts[0], "\n";
 
 // `{2}` is `captures()[1]`. This prints "region: eu".
-echo "region: ", $parts[1], "\n";
+echo 'region: ', $parts[1], "\n";
 
 // This prints "parts: 2".
-echo "parts: ", Core\Arr::count($parts), "\n";
+echo 'parts: ', Core\Arr::count($parts), "\n";

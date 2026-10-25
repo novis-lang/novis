@@ -2,9 +2,9 @@
 // Shows what happens when the new DN is already used by another entry.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $shop = "OU=Shop 3,DC=example,DC=test";
-string $blog = "OU=Blog 3,DC=example,DC=test";
+var $corp = Core\Ldap::connect('corp-accounts');
+string $shop = 'OU=Shop 3,DC=example,DC=test';
+string $blog = 'OU=Blog 3,DC=example,DC=test';
 
 // A run that stopped early can leave the units behind, so the program deletes them first.
 array<string> $leftovers = [$shop, $blog];
@@ -14,21 +14,21 @@ foreach ($leftovers as string $left) {
     } catch (Core\Ldap\LdapError $missing) {
     }
 }
-$corp->add($shop, ["objectClass" => "organizationalUnit"]);
-$corp->add($blog, ["objectClass" => "organizationalUnit"]);
+$corp->add($shop, ['objectClass' => 'organizationalUnit']);
+$corp->add($blog, ['objectClass' => 'organizationalUnit']);
 
 // `rename` throws an error and changes nothing. This prints `the name is taken`.
 try {
     $corp->rename($shop, $blog);
 } catch (Core\Ldap\LdapError $error) {
     if ($error->kind == Core\Ldap\LdapError::Kind::AlreadyExists) {
-        echo "the name is taken", "\n";
+        echo 'the name is taken', "\n";
     }
 }
 
 // Both units are still there. This prints `Shop 3` and `Blog 3`.
-echo $corp->read($shop, {select: ["ou"]})?->string("ou") ?? "missing", "\n";
-echo $corp->read($blog, {select: ["ou"]})?->string("ou") ?? "missing", "\n";
+echo $corp->read($shop, { select: ['ou'] })?->string('ou') ?? 'missing', "\n";
+echo $corp->read($blog, { select: ['ou'] })?->string('ou') ?? 'missing', "\n";
 
 $corp->delete($shop);
 $corp->delete($blog);

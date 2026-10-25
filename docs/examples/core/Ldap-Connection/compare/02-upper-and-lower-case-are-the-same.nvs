@@ -2,13 +2,13 @@
 // Shows that the server ignores upper and lower case when it compares a text value.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-string $dn = "CN=Ben Kohl,OU=Company,DC=example,DC=test";
+var $corp = Core\Ldap::connect('corp');
+string $dn = 'CN=Ben Kohl,OU=Company,DC=example,DC=test';
 
 // Ben Kohl's department is `Warehouse`. These three lines print `true`.
-echo $corp->compare($dn, "department", "Warehouse") ? "true" : "false", "\n";
-echo $corp->compare($dn, "department", "warehouse") ? "true" : "false", "\n";
-echo $corp->compare($dn, "mail", "BEN.KOHL@EXAMPLE.TEST") ? "true" : "false", "\n";
+echo $corp->compare($dn, 'department', 'Warehouse') ? 'true' : 'false', "\n";
+echo $corp->compare($dn, 'department', 'warehouse') ? 'true' : 'false', "\n";
+echo $corp->compare($dn, 'mail', 'BEN.KOHL@EXAMPLE.TEST') ? 'true' : 'false', "\n";
 
 // A different word is a different value, so this prints `false`.
-echo $corp->compare($dn, "department", "Sales") ? "true" : "false", "\n";
+echo $corp->compare($dn, 'department', 'Sales') ? 'true' : 'false', "\n";

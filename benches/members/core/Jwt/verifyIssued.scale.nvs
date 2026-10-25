@@ -11,7 +11,7 @@ class Bench
         Core\Crypto\PublicKey $public = $service->publicKey();
         string $subject = Core\Str::repeat('a', $size);
         string $token = Core\Jwt::signObject(
-            Core\Arr::shapeAs<{iss: string, aud: string, sub: string}>([
+            Core\Arr::shapeAs<{ iss: string, aud: string, sub: string }>([
                 'iss' => 'https://login.example.com',
                 'aud' => 'shop',
                 'sub' => $subject,
@@ -22,7 +22,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            var $claims = Core\Jwt::verifyIssued<tainted {sub: string}>($token, $public, 'https://login.example.com', 'shop');
+            var $claims = Core\Jwt::verifyIssued<tainted { sub: string }>($token, $public, 'https://login.example.com', 'shop');
             $total = $total + Core\Str::length($claims->sub);
             $i = $i + 1;
         }

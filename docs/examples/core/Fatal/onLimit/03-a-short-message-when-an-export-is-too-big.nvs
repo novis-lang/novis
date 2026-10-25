@@ -12,7 +12,7 @@ final class Export
 Core\Config::set('limits.memory', '16M');
 
 Core\Fatal::onLimit(fn (): void => {
-    echo "The export stopped after ", Export::$rows, " rows because it is too big.\n";
+    echo 'The export stopped after ', Export::$rows, " rows because it is too big.\n";
     echo "Please choose a shorter date range and try again.\n";
 });
 

@@ -21,10 +21,10 @@ callable $total = fn(array<int> $amounts): int => {
 // An anonymous function is called through its variable. The call returns `mixed`,
 // so write `as` to say which type you are reading. This prints 8 12.
 array<int> $prices = [3, 4, 5];
-echo $next(7) as int, " ", $total($prices) as int, "\n";
+echo $next(7) as int, ' ', $total($prices) as int, "\n";
 
 // An anonymous function is a value, so you can pass it directly to a call.
 // This prints: BAG,BOX
-array<string> $names = ["bag", "box"];
+array<string> $names = ['bag', 'box'];
 array<mixed> $shouted = Core\Arr::map($names, fn(string $name) => Core\Str::upper($name));
-echo Core\Str::join($shouted as array<string>, ","), "\n";
+echo Core\Str::join($shouted as array<string>, ','), "\n";

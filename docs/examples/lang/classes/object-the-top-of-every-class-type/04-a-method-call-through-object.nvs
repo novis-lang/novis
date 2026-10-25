@@ -3,9 +3,11 @@
 // with `is` first, or convert the value with `as`.
 // proof: compile-error
 
-class Tag {
-    public function shout(): string {
-        return "TAG";
+class Tag
+{
+    public function shout(): string
+    {
+        return 'TAG';
     }
 }
 

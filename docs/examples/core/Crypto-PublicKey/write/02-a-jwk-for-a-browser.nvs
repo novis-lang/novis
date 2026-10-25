@@ -3,9 +3,9 @@
 // A JWK is a small JSON document.
 
 Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
-    Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
+    Core\Encoding::fromHex('fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac'),
     Core\Crypto\KeyKind::Ed25519,
-    Core\Crypto\PublicKey::Format::Raw
+    Core\Crypto\PublicKey::Format::Raw,
 );
 
 // The document holds the members the standard requires, sorted by name, and

@@ -4,17 +4,19 @@
 // bench: complexity linear
 // bench: allocations 23
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $customers = ["Smith & Sons", "Jones & Sons", "Brown & Sons"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $customers = ['Smith & Sons', 'Jones & Sons', 'Brown & Sons'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             Core\Xml\Writer $out = Core\Xml::writer();
             $out->startDocument();
-            $out->startElement("order");
-            $out->attribute("id", ($i % 10) as string);
-            $out->startElement("customer");
+            $out->startElement('order');
+            $out->attribute('id', ($i % 10) as string);
+            $out->startElement('customer');
             $out->content($customers[($total % 3) as int]);
             $out->endElement();
             $out->endElement();

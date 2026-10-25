@@ -5,8 +5,10 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $basket = ['tea', 'milk', 'bread', 'jam'];
         array<string> $instead = ['oat drink'];
         uint $total = 0;

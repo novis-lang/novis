@@ -3,8 +3,10 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $xml = '<feed>' . Core\Str::repeat('<item id="1">text</item>', 2000) . '</feed>';
         Core\Xml\Reader $reader = Core\Xml::reader($xml);
         uint $total = 0;

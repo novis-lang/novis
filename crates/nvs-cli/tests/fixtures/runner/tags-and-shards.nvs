@@ -4,43 +4,52 @@
 use Core\Test;
 use Core\Test\TestWith;
 
-final class ShopTest {
-    #[Test(tags: ["db"])]
-    public function itSavesAnOrder(): void {
+final class ShopTest
+{
+    #[Test(tags: ['db'])]
+    public function itSavesAnOrder(): void
+    {
         Test::assertTrue(true);
     }
 
-    #[Test(tags: ["mail"])]
-    public function itSendsAReceipt(): void {
+    #[Test(tags: ['mail'])]
+    public function itSendsAReceipt(): void
+    {
         Test::assertTrue(true);
     }
 
-    #[Test(tags: ["db", "slow"])]
-    public function itRebuildsTheWholeIndex(): void {
+    #[Test(tags: ['db', 'slow'])]
+    public function itRebuildsTheWholeIndex(): void
+    {
         Test::assertTrue(true);
     }
 
     #[Test]
-    public function itHasNoTags(): void {
+    public function itHasNoTags(): void
+    {
         Test::assertTrue(true);
     }
 }
 
-final class BlogTest {
-    #[TestWith(words: 0, want: "empty")]
-    #[TestWith(words: 3, want: "short")]
-    #[Test(tags: ["db"])]
-    public function itNamesALength(uint $words, string $want): void {
-        Test::assertSame($words == 0 ? "empty" : "short", $want);
+final class BlogTest
+{
+    #[TestWith(words: 0, want: 'empty')]
+    #[TestWith(words: 3, want: 'short')]
+    #[Test(tags: ['db'])]
+    public function itNamesALength(uint $words, string $want): void
+    {
+        Test::assertSame($words == 0 ? 'empty' : 'short', $want);
     }
 
     #[Test]
-    public function itPublishes(): void {
+    public function itPublishes(): void
+    {
         Test::assertTrue(true);
     }
 
     #[Test]
-    public function itArchives(): void {
+    public function itArchives(): void
+    {
         Test::assertTrue(true);
     }
 }

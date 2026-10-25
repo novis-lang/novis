@@ -3,12 +3,14 @@
 // bench: iterations 2048
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $parts = ["Salt & Pepper", "Cable <USB-C>", "Plain name"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $parts = ['Salt & Pepper', 'Cable <USB-C>', 'Plain name'];
         Core\Xml\Writer $writer = Core\Xml::writer();
         $writer->startDocument();
-        $writer->startElement("products");
+        $writer->startElement('products');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

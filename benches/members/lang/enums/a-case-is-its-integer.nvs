@@ -8,8 +8,10 @@
 
 enum Level { Low, Mid, High }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         array<Level> $levels = [Level::Low, Level::Mid, Level::High];
         int $total = 0;
         int $i = 0;

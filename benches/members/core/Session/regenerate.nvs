@@ -4,8 +4,10 @@
 // bench: complexity linear
 // requires: redis
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -18,5 +20,5 @@ class Bench {
 }
 
 Core\Session::start();
-Core\Session::set("user", 17);
+Core\Session::set('user', 17);
 echo Bench::run(256), "\n";

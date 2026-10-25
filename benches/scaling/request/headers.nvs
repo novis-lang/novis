@@ -15,4 +15,4 @@ while ($round < 200) {
     }
     $round = $round + 1;
 }
-echo $seen > 0 ? "ok" : "none", "\n";
+echo $seen > 0 ? 'ok' : 'none', "\n";

@@ -3,10 +3,12 @@
 // of a message have all arrived. The headers end with an empty line, which is
 // the four bytes 13, 10, 13, 10.
 
-class Reader {
+class Reader
+{
     // Returns true when the headers are complete in what has arrived so far.
-    public static function headersComplete(bytes $received): bool {
-        return Core\Bytes::contains($received, Core\Encoding::fromHex("0d0a0d0a"));
+    public static function headersComplete(bytes $received): bool
+    {
+        return Core\Bytes::contains($received, Core\Encoding::fromHex('0d0a0d0a'));
     }
 }
 
@@ -14,5 +16,5 @@ bytes $partial = "GET / HTTP/1.1\r\nHost: example.com\r\n" as bytes;
 bytes $whole = "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n" as bytes;
 
 // This prints "wait" and then "ready".
-echo Reader::headersComplete($partial) ? "ready" : "wait", "\n";
-echo Reader::headersComplete($whole) ? "ready" : "wait", "\n";
+echo Reader::headersComplete($partial) ? 'ready' : 'wait', "\n";
+echo Reader::headersComplete($whole) ? 'ready' : 'wait', "\n";

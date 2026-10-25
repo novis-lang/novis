@@ -4,22 +4,22 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 use Novis\Pdf\Reader;
 
-string $rows = "";
+string $rows = '';
 for (int $day = 1; $day <= 60; $day++) {
-    string $hours = $day % 2 == 0 ? "8" : "6";
+    string $hours = $day % 2 == 0 ? '8' : '6';
     $rows .= "<tr data-mark=\"hours:{$hours}\"><td>Day {$day}</td><td>{$hours}</td></tr>";
 }
-var $html = "<style>@page { size: 105mm 148mm; margin: 10mm } body { font-size: 10pt }</style>"
+var $html = '<style>@page { size: 105mm 148mm; margin: 10mm } body { font-size: 10pt }</style>'
     . "<table><thead><tr><th>Day</th><th>Hours</th></tr></thead><tbody>{$rows}</tbody>"
     . "<tfoot><tr><td>This page</td><td><slot name=\"page\"></slot></td></tr></tfoot></table>";
 
 // `marks` returns the values on this page only.
 var $slots = fn(Page $page): array<Core\Html\Markup> => {
     int $sum = 0;
-    foreach ($page->marks("hours") as string $hours) {
+    foreach ($page->marks('hours') as string $hours) {
         $sum = $sum + (($hours as ?int) ?? 0);
     }
-    return ["page" => html`{$sum}`];
+    return ['page' => html`{$sum}`];
 };
 
 // The last line of each page is the footer row: `This page` and the text of the slot.
@@ -27,5 +27,5 @@ var $slots = fn(Page $page): array<Core\Html\Markup> => {
 var $reader = Reader::open(Document::fromHtml($html)->slots($slots)->render()->bytes);
 for (uint $n = 1; $n <= $reader->pageCount; $n++) {
     array<string> $lines = Core\Str::split($reader->text($n), "\n");
-    echo "page ", $n, ": ", $lines[Core\Arr::count($lines) - 1], "\n";
+    echo 'page ', $n, ': ', $lines[Core\Arr::count($lines) - 1], "\n";
 }

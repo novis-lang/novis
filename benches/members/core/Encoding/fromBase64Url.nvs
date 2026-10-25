@@ -5,12 +5,14 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $payloads = [
-            "eyJzdWIiOiJhZGEiLCJhZG1pbiI6dHJ1ZX0",
-            "eyJzdWIiOiJncmFjZSIsImFkbWluIjpmYWxzZX0",
-            "eyJzdWIiOiJhbGFuIiwiZXhwIjoxNzAwMDAwMDAwfQ",
+            'eyJzdWIiOiJhZGEiLCJhZG1pbiI6dHJ1ZX0',
+            'eyJzdWIiOiJncmFjZSIsImFkbWluIjpmYWxzZX0',
+            'eyJzdWIiOiJhbGFuIiwiZXhwIjoxNzAwMDAwMDAwfQ',
         ];
         uint $total = 0;
         uint $i = 0;

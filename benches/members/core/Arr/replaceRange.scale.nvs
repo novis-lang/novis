@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        array<string> $basket = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "tea");
+        array<string> $basket = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => 'tea');
         array<string> $instead = ['oat drink'];
         uint $total = 0;
         uint $i = 0;

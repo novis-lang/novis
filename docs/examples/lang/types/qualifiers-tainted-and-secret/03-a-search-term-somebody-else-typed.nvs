@@ -1,12 +1,14 @@
 <?nvs
 // Shows a tainted search term in a pattern and in a link, and a secret API key in a header.
 
-class Orders {
-    public static function search(tainted string $term, secret string $apiKey): void {
+class Orders
+{
+    public static function search(tainted string $term, secret string $apiKey): void
+    {
         array<string> $labels = [
-            "Order 1042, coffee beans",
-            "Order 1043, filter papers",
-            "Order 1044, coffee grinder",
+            'Order 1042, coffee beans',
+            'Order 1043, filter papers',
+            'Order 1044, coffee grinder',
         ];
 
         // `Core\Regex::quote` returns a plain pattern that matches the exact text.
@@ -20,17 +22,17 @@ class Orders {
         }
 
         // `Core\Uri::encodeComponent` returns a plain string that is safe in a link.
-        string $link = "https://example.test/orders?q=" . Core\Uri::encodeComponent($term);
+        string $link = 'https://example.test/orders?q=' . Core\Uri::encodeComponent($term);
 
         // Only this line needs the key as a plain string, so only this line calls
         // `Core\Secret::reveal`. Everywhere else, `$apiKey` is still secret.
-        string $authorization = "Bearer " . Core\Secret::reveal($apiKey, "sending it to the orders service");
+        string $authorization = 'Bearer ' . Core\Secret::reveal($apiKey, 'sending it to the orders service');
 
-        echo $hits, " of ", Core\Arr::count($labels), " orders match\n";
+        echo $hits, ' of ', Core\Arr::count($labels), " orders match\n";
         echo $link, "\n";
-        echo "the authorization header is ", Core\Str::length($authorization), " characters long\n";
+        echo 'the authorization header is ', Core\Str::length($authorization), " characters long\n";
     }
 }
 
-Orders::search("coffee", "sk-live-abc123");
-Orders::search("c.ffee", "sk-live-abc123");
+Orders::search('coffee', 'sk-live-abc123');
+Orders::search('c.ffee', 'sk-live-abc123');

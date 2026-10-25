@@ -4,8 +4,10 @@
 // bench: start 8
 // bench: max 128
 
-class Bench {
-    public static function run(uint $size): string {
+class Bench
+{
+    public static function run(uint $size): string
+    {
         array<string> $classes = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => Core\Str::join([
             'class Shop' . (($n + 1000) as string) . 'Check implements Check {',
             '    public function name(): string {',

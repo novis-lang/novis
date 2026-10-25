@@ -1,35 +1,41 @@
 <?nvs
 // Shows how a web framework finds out where each argument of a handler method comes from.
 
-type From = {source: string};
+type From = { source: string };
 
-class ArticleController {
+class ArticleController
+{
     public function update(
-        #[From(source: "path")] int $id,
-        #[From(source: "body")] string $title,
-        #[From(source: "header")] string $authorization,
-    ): void {}
+        #[From(source: 'path')] int $id,
+        #[From(source: 'body')] string $title,
+        #[From(source: 'header')] string $authorization,
+    ): void
+    {}
 }
 
-class Binding {
-    public static function describe(string $className, string $method): array<tainted string> {
+class Binding
+{
+    public static function describe(string $className, string $method): array<tainted string>
+    {
         array<tainted string> $lines = [];
         var $info = Core\Reflect::forClass($className);
         if ($info == null) {
             return $lines;
         }
         foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
-            if ($attribute->target() != $method || $attribute->parameter() == "") {
+            if ($attribute->target() != $method || $attribute->parameter() == '') {
                 continue;
             }
-            $lines[] = "$" . $attribute->parameter() . " is read from the "
-                . $attribute->field("source") as string;
+            $lines[] = '$'
+                . $attribute->parameter()
+                . ' is read from the '
+                . $attribute->field('source') as string;
         }
         return $lines;
     }
 }
 
 // This prints one line for each parameter of `update`, in the order they are written.
-foreach (Binding::describe("ArticleController", "update") as tainted string $line) {
+foreach (Binding::describe('ArticleController', 'update') as tainted string $line) {
     echo $line, "\n";
 }

@@ -5,5 +5,5 @@
 
 array<tainted string> $settings = (require 'parts/settings.nvs') as array<string>;
 
-echo "connecting to ", $settings["host"], ":", $settings["port"], "\n";
-echo "giving up after ", $settings["timeout"], " seconds\n";
+echo 'connecting to ', $settings['host'], ':', $settings['port'], "\n";
+echo 'giving up after ', $settings['timeout'], " seconds\n";

@@ -14,9 +14,9 @@ foreach ($document->children() as Core\Xml\Node $root) {
     foreach ($root->children() as Core\Xml\Node $child) {
         // The line breaks between the elements are text nodes. They have no attributes.
         array<tainted string> $attributes = $child->attributes();
-        if ($child->name() == "link" && ($attributes["rel"] ?? "") == "alternate") {
+        if ($child->name() == 'link' && ($attributes['rel'] ?? '') == 'alternate') {
             // This prints https://example.com/news.
-            echo "web page: ", $attributes["href"], "\n";
+            echo 'web page: ', $attributes['href'], "\n";
         }
     }
 }

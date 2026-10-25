@@ -1,16 +1,18 @@
 <?nvs
 // Shows how the count of a set changes when you add and remove values.
 
-final class File {
+final class File
+{
     public string $path;
 
-    public function constructor(string $path) {
+    public function constructor(string $path)
+    {
         $this->path = $path;
     }
 }
 
-File $readme = new File("README.md");
-File $notes = new File("notes.txt");
+File $readme = new File('README.md');
+File $notes = new File('notes.txt');
 
 Core\ObjectSet<File> $open = new Core\ObjectSet<File>();
 // A new set is empty. This prints 0.

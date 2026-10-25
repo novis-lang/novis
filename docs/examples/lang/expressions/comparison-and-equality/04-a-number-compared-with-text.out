@@ -1,7 +1,7 @@
 error[E0466]: `int` and `string` are disjoint; no value is both, so this comparison is always false
   --> 04-a-number-compared-with-text.nvs:6:5
   |
-6 | if ($quantity == "1") {
+6 | if ($quantity == '1') {
   |     ^^^^^^^^^^^^^^^^ compared here
   = help: convert one side deliberately and then compare — `$s == ($n as string)`
 

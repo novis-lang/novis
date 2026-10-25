@@ -2,16 +2,16 @@
 // Shows what `duration` does with a value that is missing, and with a value that is not a length of time.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $domain = $corp->read("DC=example,DC=test", {select: ["name"]});
+var $corp = Core\Ldap::connect('corp');
+var $domain = $corp->read('DC=example,DC=test', { select: ['name'] });
 
 if ($domain != null) {
     // The read did not select `maxPwdAge`, so `duration` returns `null`. This prints `no value`.
-    echo $domain->duration("maxPwdAge")?->toString() ?? "no value", "\n";
+    echo $domain->duration('maxPwdAge')?->toString() ?? 'no value', "\n";
 
     // `name` is the text `example`. `duration` throws a `LogicError` that names the attribute.
     try {
-        echo $domain->duration("name")?->toString() ?? "no value", "\n";
+        echo $domain->duration('name')?->toString() ?? 'no value', "\n";
     } catch (LogicError $error) {
         echo $error->message, "\n";
     }

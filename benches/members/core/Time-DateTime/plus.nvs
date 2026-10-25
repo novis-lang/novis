@@ -3,10 +3,12 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         array<Core\Unit> $units = [Core\Unit::Day, Core\Unit::Month, Core\Unit::Hour];
-        var $at = Core\Time::at(2024, 1, 31, Core\Time\Zone::of("Europe/Berlin"), {hour: 9, minute: 30});
+        var $at = Core\Time::at(2024, 1, 31, Core\Time\Zone::of('Europe/Berlin'), { hour: 9, minute: 30 });
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

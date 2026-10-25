@@ -3,7 +3,7 @@
 // requires: unix
 
 // `listenLocal` creates the socket file and returns a `Core\Net\Listener`.
-string $path = "/tmp/novis-greeter.sock";
+string $path = '/tmp/novis-greeter.sock';
 Core\Net\Listener $server = Core\Net::listenLocal($path);
 
 // A client on the same computer connects to the same path and says its name.
@@ -13,7 +13,7 @@ $client->write("Ada\n" as bytes, 5s);
 // `accept` waits up to 5 seconds for the client. The server reads the name and replies.
 Core\Net\Stream $connection = $server->accept(5s);
 tainted string $name = Core\Str::trim($connection->read(64, 5s) as string);
-$connection->write("Hello, " as bytes, 5s);
+$connection->write('Hello, ' as bytes, 5s);
 $connection->write($name as bytes, 5s);
 
 // This prints `Hello, Ada`.

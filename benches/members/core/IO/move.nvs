@@ -4,14 +4,16 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $dir = Core\IO::temporaryDir();
         array<string> $paths = [
-            Core\Path::join($dir, "first.txt"),
-            Core\Path::join($dir, "second.txt"),
+            Core\Path::join($dir, 'first.txt'),
+            Core\Path::join($dir, 'second.txt'),
         ];
-        Core\IO::write($paths[0], "content");
+        Core\IO::write($paths[0], 'content');
         uint $at = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -24,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "the file lost its content", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'the file lost its content', "\n";

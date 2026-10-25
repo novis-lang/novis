@@ -6,10 +6,12 @@
 // bench: calls 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(int $rounds): int {
-        array<int> $rows = ["a" => 5, "b" => 9, "c" => 4, "d" => 7];
-        array<string> $keys = ["a", "b", "c", "d"];
+class Bench
+{
+    public static function run(int $rounds): int
+    {
+        array<int> $rows = ['a' => 5, 'b' => 9, 'c' => 4, 'd' => 7];
+        array<string> $keys = ['a', 'b', 'c', 'd'];
         int $acc = 1;
         int $i = 0;
         while ($i < $rounds) {

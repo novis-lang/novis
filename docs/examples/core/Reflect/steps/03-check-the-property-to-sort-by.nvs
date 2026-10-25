@@ -1,40 +1,45 @@
 <?nvs
 // Shows how to check the property to sort by that a request sends, before it is used in a query.
 
-class Customer {
-    public string $name = "";
-    private string $passwordHash = "";
+class Customer
+{
+    public string $name = '';
+    private string $passwordHash = '';
 }
 
-class Line {
+class Line
+{
     public int $quantity = 0;
 }
 
-class Order {
+class Order
+{
     public int $total = 0;
     public ?Customer $customer = null;
     public array<Line> $lines = [];
 }
 
-class Sort {
-    public static function check(string $field): string {
+class Sort
+{
+    public static function check(string $field): string
+    {
         // `as ?propertyPath<Order>` gives `null` when the text is not a path of public properties.
         ?propertyPath<Order> $path = $field as ?propertyPath<Order>;
         if ($path == null) {
-            return "not a property path";
+            return 'not a property path';
         }
         // A path through an array has many values for one order, so it cannot be the property to sort by.
         foreach (Core\Reflect::steps($path) as var $step) {
-            if (Core\Str::startsWith($step->type() ?? "", "array<")) {
-                return "goes through an array";
+            if (Core\Str::startsWith($step->type() ?? '', 'array<')) {
+                return 'goes through an array';
             }
         }
-        return "ok";
+        return 'ok';
     }
 }
 
 // These texts could come from a request, for example from `?sort=customer.name`.
-array<string> $fields = ["total", "customer.name", "lines.quantity", "customer.passwordHash"];
+array<string> $fields = ['total', 'customer.name', 'lines.quantity', 'customer.passwordHash'];
 foreach ($fields as string $field) {
-    echo $field, ": ", Sort::check($field), "\n";
+    echo $field, ': ', Sort::check($field), "\n";
 }

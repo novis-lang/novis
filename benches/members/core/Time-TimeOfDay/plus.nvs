@@ -3,8 +3,10 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Core\Time\TimeOfDay $start = Core\Time\TimeOfDay::at(9, 0);
         Core\Time\TimeOfDay $noon = Core\Time\TimeOfDay::at(12, 0);
         uint $total = 0;

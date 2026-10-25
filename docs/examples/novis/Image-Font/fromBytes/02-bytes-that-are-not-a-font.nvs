@@ -5,7 +5,7 @@ use Novis\Image\Font;
 use Novis\Image\Image;
 
 // A PNG file starts with other bytes than a font file.
-bytes $upload = Image::create(4, 4, Color::hex("#ffffff"))->encode();
+bytes $upload = Image::create(4, 4, Color::hex('#ffffff'))->encode();
 
 // This prints "not a font".
 try {

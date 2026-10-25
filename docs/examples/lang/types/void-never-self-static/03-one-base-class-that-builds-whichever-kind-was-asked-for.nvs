@@ -3,34 +3,43 @@
 // `load` returns `static`, the class named in the call. So `Invoice::load` returns an `Invoice`.
 // `refuse` returns `never`, because it always throws an error.
 
-class Record {
-    public function constructor(public uint $id) {}
+class Record
+{
+    public function constructor(public uint $id)
+    {}
 
-    public static function load(uint $id): static {
+    public static function load(uint $id): static
+    {
         if ($id == 0) {
-            Record::refuse("a record id is never zero");
+            Record::refuse('a record id is never zero');
         }
         return new static($id);
     }
 
-    public static function refuse(string $why): never {
+    public static function refuse(string $why): never
+    {
         throw new RuntimeError($why);
     }
 
-    public function label(): string {
-        return "record #" . $this->id;
+    public function label(): string
+    {
+        return 'record #' . $this->id;
     }
 }
 
-final class Invoice extends Record {
-    public function label(): string {
-        return "invoice #" . $this->id;
+final class Invoice extends Record
+{
+    public function label(): string
+    {
+        return 'invoice #' . $this->id;
     }
 }
 
-final class Customer extends Record {
-    public function label(): string {
-        return "customer #" . $this->id;
+final class Customer extends Record
+{
+    public function label(): string
+    {
+        return 'customer #' . $this->id;
     }
 }
 

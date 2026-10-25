@@ -2,16 +2,16 @@
 // Shows what `sid` does with a value that is missing, and with a value that is not a SID.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["mail"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['mail'] });
 
 if ($person != null) {
     // The read did not select `objectSid`, so `sid` returns `null`. This prints `no SID`.
-    echo $person->sid("objectSid")?->toString() ?? "no SID", "\n";
+    echo $person->sid('objectSid')?->toString() ?? 'no SID', "\n";
 
     // `mail` is text. `sid` throws a `LogicError` that names the attribute.
     try {
-        echo $person->sid("mail")?->toString() ?? "no SID", "\n";
+        echo $person->sid('mail')?->toString() ?? 'no SID', "\n";
     } catch (LogicError $error) {
         echo $error->message, "\n";
     }

@@ -2,10 +2,10 @@
 // Shows how to skip trust accounts when you list the accounts of a directory.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 var $found = $corp->search(
-    Core\Ldap\Filter::equals("objectClass", "user"),
-    {base: "OU=Company,DC=example,DC=test", select: ["userAccountControl"]},
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    { base: 'OU=Company,DC=example,DC=test', select: ['userAccountControl'] },
 );
 
 array<tainted string> $names = [];

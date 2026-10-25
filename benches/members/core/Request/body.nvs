@@ -5,14 +5,16 @@
 // bench: allocations 1
 // bench: calls 1
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Each call returns a new copy of the body, so the loop cannot be skipped.
             tainted string $body = Core\Request::body();
-            if ($body != "") {
+            if ($body != '') {
                 $total = $total + 1;
             }
             $i = $i + 1;

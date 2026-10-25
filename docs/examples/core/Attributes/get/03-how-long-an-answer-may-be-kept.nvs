@@ -2,26 +2,31 @@
 // Shows a setting you can write next to a handler: the handler says how long its
 // answer may be reused, and the program reads that setting back.
 
-type Cache = {seconds: int};
+type Cache = { seconds: int };
 
-class Reports {
+class Reports
+{
     #[Cache(seconds: 300)]
-    public static function monthly(): string {
-        return "the monthly report";
+    public static function monthly(): string
+    {
+        return 'the monthly report';
     }
 
-    public static function live(): string {
-        return "the live report";
+    public static function live(): string
+    {
+        return 'the live report';
     }
 }
 
-class Answer {
-    public static function send(string $body, ?Cache $cache): void {
+class Answer
+{
+    public static function send(string $body, ?Cache $cache): void
+    {
         echo $body;
         if ($cache == null) {
             echo " (do not keep)\n";
         } else {
-            echo " (keep for ", $cache->seconds, " seconds)\n";
+            echo ' (keep for ', $cache->seconds, " seconds)\n";
         }
     }
 }

@@ -3,8 +3,8 @@
 // `Core\Cli::write` adds nothing of its own, so each row is built piece by
 // piece.
 
-array<string> $names = ["Ada", "注文", "Grete"];
-array<string> $totals = ["3", "12", "7"];
+array<string> $names = ['Ada', '注文', 'Grete'];
+array<string> $totals = ['3', '12', '7'];
 
 int $row = 0;
 while ($row < 3) {
@@ -15,8 +15,8 @@ while ($row < 3) {
     uint $pad = 8 - Core\Cli::displayWidth($name);
 
     Core\Cli::write($name);
-    Core\Cli::write(Core\Str::repeat(" ", $pad));
-    Core\Cli::write($totals[$row], {newline: true});
+    Core\Cli::write(Core\Str::repeat(' ', $pad));
+    Core\Cli::write($totals[$row], { newline: true });
 
     $row = $row + 1;
 }

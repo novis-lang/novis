@@ -2,7 +2,8 @@
 // One health check. The example in the folder above starts it. It counts the
 // problems it found in its own `Report::$problems`, and returns that number.
 
-final class Report {
+final class Report
+{
     public static int $problems = 0;
 }
 

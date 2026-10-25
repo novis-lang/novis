@@ -3,14 +3,17 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Order {
+class Order
+{
     public int $id = 0;
-    public string $customer = "";
+    public string $customer = '';
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $names = ["Order", "Bench"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $names = ['Order', 'Bench'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

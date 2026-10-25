@@ -2,16 +2,16 @@
 // The sender of a file chooses its name, so the name proves nothing. The
 // bytes do. This file is called `holiday.png`, but it is a PDF.
 
-string $name = "holiday.png";
-bytes $content = Core\Encoding::fromHex("255044462d312e370a25");
+string $name = 'holiday.png';
+bytes $content = Core\Encoding::fromHex('255044462d312e370a25');
 
 Core\Mime::Type $found = Core\Mime::detect($content);
-echo $name, " is really ", Core\Mime::mediaType($found), "\n";
+echo $name, ' is really ', Core\Mime::mediaType($found), "\n";
 
 // Text has no first bytes to recognise. A CSV file, a JSON document or a web
 // page starts with whatever its author typed.
 Core\Mime::Type $text = Core\Mime::detect("name,total\nORD-1042,19.99\n" as bytes);
-echo "the csv is ", Core\Mime::mediaType($text), "\n";
+echo 'the csv is ', Core\Mime::mediaType($text), "\n";
 
 // So the result is `Unknown`. This means the bytes do not show their type.
 // It is not an error.

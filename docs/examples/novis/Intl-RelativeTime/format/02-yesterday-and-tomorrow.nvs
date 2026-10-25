@@ -3,13 +3,13 @@
 use Novis\Intl\RelativeTime;
 
 var $days = [
-    {count: -1, unit: RelativeTime::Unit::Day},
-    {count: 0, unit: RelativeTime::Unit::Day},
-    {count: 1, unit: RelativeTime::Unit::Day},
+    { count: -1, unit: RelativeTime::Unit::Day },
+    { count: 0, unit: RelativeTime::Unit::Day },
+    { count: 1, unit: RelativeTime::Unit::Day },
 ];
 
 // By default, every item has a number. This prints 1 day ago | in 0 days | in 1 day.
-echo Core\Str::join(RelativeTime::format($days, "en"), " | "), "\n";
+echo Core\Str::join(RelativeTime::format($days, 'en'), ' | '), "\n";
 
 // `RelativeTime::Numeric::Auto` uses a word where English has one. This prints yesterday | today | tomorrow.
-echo Core\Str::join(RelativeTime::format($days, "en", {numeric: RelativeTime::Numeric::Auto}), " | "), "\n";
+echo Core\Str::join(RelativeTime::format($days, 'en', { numeric: RelativeTime::Numeric::Auto }), ' | '), "\n";

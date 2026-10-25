@@ -3,7 +3,7 @@
 // different encodings, so you name the one the bytes are written in.
 
 // The two bytes that spell "é" in UTF-8.
-bytes $accented = Core\Encoding::fromHex("c3a9");
+bytes $accented = Core\Encoding::fromHex('c3a9');
 
 // Read as UTF-8 they are one character. This prints é.
 echo Core\Encoding::decodeText($accented, Core\Charset::Utf8), "\n";
@@ -14,5 +14,5 @@ echo Core\Encoding::decodeText($accented, Core\Charset::Latin1), "\n";
 
 // One byte can also be a character. In windows-1252 the byte 0x80 is the euro
 // sign. This prints €.
-bytes $high = Core\Encoding::fromHex("80");
+bytes $high = Core\Encoding::fromHex('80');
 echo Core\Encoding::decodeText($high, Core\Charset::Windows1252), "\n";

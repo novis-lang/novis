@@ -1,8 +1,10 @@
 <?nvs
 // Times every call of a sales report. The profile shows which calls take the most time.
 
-class Report {
-    public static function sales(array<int> $orders): int {
+class Report
+{
+    public static function sales(array<int> $orders): int
+    {
         int $sum = 0;
         foreach ($orders as int $cents) {
             $sum = $sum + Report::withShipping($cents);
@@ -10,7 +12,8 @@ class Report {
         return $sum;
     }
 
-    public static function withShipping(int $cents): int {
+    public static function withShipping(int $cents): int
+    {
         return $cents + 490;
     }
 }
@@ -23,7 +26,7 @@ Core\Debug::startProfile($file);
 int $total = Report::sales([1000, 2500, 400]);
 Core\Debug::stopProfile();
 
-echo "total with shipping: ", $total, "\n";
+echo 'total with shipping: ', $total, "\n";
 
 // This deletes the profile file, so the next run starts with an empty folder.
 if (Core\IO::exists($file)) {

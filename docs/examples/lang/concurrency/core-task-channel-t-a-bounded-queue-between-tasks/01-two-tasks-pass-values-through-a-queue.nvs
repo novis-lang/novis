@@ -6,9 +6,9 @@ var $lines = new Core\Task\Channel<string>(4);
 
 Core\Task::all({
     write: fn(): void => {
-        $lines->send("first");
-        $lines->send("second");
-        $lines->send("third");
+        $lines->send('first');
+        $lines->send('second');
+        $lines->send('third');
         // Close the channel when you are done sending. Without this the reading
         // task waits forever.
         $lines->close();

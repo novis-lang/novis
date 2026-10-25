@@ -2,7 +2,7 @@
 // Shows the positions that count from the end of a value. A negative position
 // starts there, and a negative length stops there.
 
-bytes $record = "2026-09-21T08:15:00Z" as bytes;
+bytes $record = '2026-09-21T08:15:00Z' as bytes;
 
 // The last byte is at position -1. This prints "Z".
 echo Core\Bytes::slice($record, -1) as string, "\n";

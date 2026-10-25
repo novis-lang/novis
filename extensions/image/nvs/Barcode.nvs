@@ -6,25 +6,25 @@ final class Barcode
 {
     /// `Barcode::render` returns `data` as a barcode image of the type `symbology`. By default it is a PNG.
     /// A wrong check digit, or a character the type cannot hold, throws a `LogicError`.
-    public static function render(string $data, Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool, format?: Format} $options = null): bytes
+    public static function render(string $data, Symbology $symbology, ?{ height?: uint, module?: uint, margin?: uint, text?: bool, format?: Format } $options = null): bytes
     {
         ?uint $height = $options?->height ?? null;
         ?uint $module = $options?->module ?? null;
         ?uint $margin = $options?->margin ?? null;
         ?bool $text = $options?->text ?? null;
         ?Format $format = $options?->format ?? null;
-        return Codec::barcode($data, $symbology, {height: $height, module: $module, margin: $margin, text: $text, format: $format});
+        return Codec::barcode($data, $symbology, { height: $height, module: $module, margin: $margin, text: $text, format: $format });
     }
 
     /// `Barcode::svg` returns `data` as an SVG document of a barcode of the type `symbology`.
     /// The options are the same as for `Barcode::render`. A wrong check digit throws a `LogicError`.
-    public static function svg(string $data, Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool} $options = null): string
+    public static function svg(string $data, Symbology $symbology, ?{ height?: uint, module?: uint, margin?: uint, text?: bool } $options = null): string
     {
         ?uint $height = $options?->height ?? null;
         ?uint $module = $options?->module ?? null;
         ?uint $margin = $options?->margin ?? null;
         ?bool $text = $options?->text ?? null;
-        bytes $svg = Codec::barcode($data, $symbology, {height: $height, module: $module, margin: $margin, text: $text, format: Format::Svg});
+        bytes $svg = Codec::barcode($data, $symbology, { height: $height, module: $module, margin: $margin, text: $text, format: Format::Svg });
         return Core\Encoding::decodeText($svg, Core\Charset::Utf8);
     }
 }

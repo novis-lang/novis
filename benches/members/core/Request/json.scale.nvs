@@ -4,22 +4,24 @@
 // bench: start 16
 // bench: max 256
 
-class Bench {
-    public static function run(uint $size): string {
+class Bench
+{
+    public static function run(uint $size): string
+    {
         array<string> $items = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "{\"sku\":\"TEA-" . ($n as string) . "\",\"name\":\"Green tea\",\"cents\":450,\"count\":2}");
         array<string> $lines = [
-            "// scaling: file json.nvsr",
-            "--METHOD--",
-            "POST",
-            "--PATH--",
-            "/api/orders",
-            "--SCHEME--",
-            "https",
-            "--HEADERS--",
-            "host: shop.example.com",
-            "content-type: application/json",
-            "--BODY--",
-            "{\"customer\":\"c-1042\",\"currency\":\"EUR\",\"items\":[" . Core\Str::join($items, ",") . "],\"note\":\"Please ring twice\"}",
+            '// scaling: file json.nvsr',
+            '--METHOD--',
+            'POST',
+            '--PATH--',
+            '/api/orders',
+            '--SCHEME--',
+            'https',
+            '--HEADERS--',
+            'host: shop.example.com',
+            'content-type: application/json',
+            '--BODY--',
+            "{\"customer\":\"c-1042\",\"currency\":\"EUR\",\"items\":[" . Core\Str::join($items, ',') . "],\"note\":\"Please ring twice\"}",
         ];
         return Core\Str::join($lines, "\n") . "\n";
     }

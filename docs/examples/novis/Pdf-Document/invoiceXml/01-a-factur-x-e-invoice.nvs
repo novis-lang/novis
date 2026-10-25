@@ -6,15 +6,15 @@ use Novis\Pdf\Reader;
 string $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
     . "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\""
     . " xmlns:ram=\"urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100\">"
-    . "<rsm:ExchangedDocument><ram:ID>Shop-1042</ram:ID><ram:TypeCode>380</ram:TypeCode></rsm:ExchangedDocument>"
-    . "</rsm:CrossIndustryInvoice>";
+    . '<rsm:ExchangedDocument><ram:ID>Shop-1042</ram:ID><ram:TypeCode>380</ram:TypeCode></rsm:ExchangedDocument>'
+    . '</rsm:CrossIndustryInvoice>';
 string $html = "<html lang=\"en\"><head><title>Invoice Shop-1042</title></head>"
-    . "<body><h1>Invoice Shop-1042</h1><p>Total: 5.70 EUR</p></body></html>";
+    . '<body><h1>Invoice Shop-1042</h1><p>Total: 5.70 EUR</p></body></html>';
 
 // The XML needs the standard PDF/A-3b, and PDF/A needs a creation time.
 var $rendered = Document::fromHtml($html)
     ->standard(Document::Standard::PdfA3b)
-    ->created(Core\Time::fromIso("2026-03-01T09:00:00Z"))
+    ->created(Core\Time::fromIso('2026-03-01T09:00:00Z'))
     ->invoiceXml($xml)
     ->render();
 
@@ -24,4 +24,4 @@ foreach (Reader::open($rendered->bytes)->attachments() as var $file) {
 }
 
 // `Reader::invoiceXml` reads the same XML back from the file.
-echo Reader::open($rendered->bytes)->invoiceXml() == $xml ? "the XML is unchanged" : "the XML changed", "\n";
+echo Reader::open($rendered->bytes)->invoiceXml() == $xml ? 'the XML is unchanged' : 'the XML changed', "\n";

@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
-        array<string> $names = ["Europe/Berlin", "America/New_York", "Asia/Tokyo", "UTC"];
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<string> $names = ['Europe/Berlin', 'America/New_York', 'Asia/Tokyo', 'UTC'];
         Core\Time\Instant $at = Core\Time::fromEpoch(0);
         int $total = 0;
         uint $i = 0;

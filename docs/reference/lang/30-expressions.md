@@ -94,7 +94,7 @@ echo $price * ($quantity + $shipping), "\n";
 // `||`. This prints `free shipping`.
 bool $isMember = false;
 bool $hasCoupon = true;
-echo $isMember || $hasCoupon && $price * $quantity > 50 ? "free shipping" : "pay shipping", "\n";
+echo $isMember || $hasCoupon && $price * $quantity > 50 ? 'free shipping' : 'pay shipping', "\n";
 ```
 
 ```output
@@ -141,7 +141,7 @@ echo (2 ** 3) ** 2, "\n";
 // two strings binds looser than the arithmetic.
 
 // The quantity arrived from a form, so it is text.
-string $typed = "3";
+string $typed = '3';
 int $unitPrice = 20;
 int $shipping = 5;
 
@@ -151,7 +151,7 @@ echo $typed as int * $unitPrice, "\n";
 
 // The whole sum is worked out first and then joined to the label, because `.`
 // binds looser than `*` and `+`. This prints `total: 65`.
-echo "total: " . $typed as int * $unitPrice + $shipping, "\n";
+echo 'total: ' . $typed as int * $unitPrice + $shipping, "\n";
 
 // A division needs its own parentheses, because `as` would otherwise convert
 // only the number on its right. This prints 21.
@@ -171,35 +171,38 @@ total: 65
 <?nvs
 // Shows the order of `!` with `is`, of `|>` with other operators, and of a method call on `new`.
 
-class Coupon {
-    public function constructor(public int $percent) {}
+class Coupon
+{
+    public function constructor(public int $percent)
+    {}
 
-    public function label(): string {
-        return $this->percent . "% off";
+    public function label(): string
+    {
+        return $this->percent . '% off';
     }
 }
 
 // `is` runs before `!`, so this tests "not a `Coupon`". This prints `false`.
 mixed $value = new Coupon(10);
-echo !$value is Coupon ? "true" : "false", "\n";
+echo !$value is Coupon ? 'true' : 'false', "\n";
 
 // The minus sign runs before `|>`, so the pipeline gets -5. This prints 5.
 int $change = 5;
 echo -$change |> Core\Math::abs($_), "\n";
 
 // `|>` runs before `.`, so only `$code` goes into the pipeline. This prints `code: SPRING`.
-string $code = "spring";
-echo "code: " . $code |> Core\Str::upper($_), "\n";
+string $code = 'spring';
+echo 'code: ' . $code |> Core\Str::upper($_), "\n";
 
 // `<<` runs before `.`, so `1 << 2` is 4 and is then joined to "x". This prints `4x`.
-echo 1 << 2 . "x", "\n";
+echo 1 << 2 . 'x', "\n";
 
 // A method call on `new` needs no parentheses. This prints `25% off`.
 echo new Coupon(25)->label(), "\n";
 
 // A ternary inside another one groups to the right. This prints `small`.
 int $total = 40;
-echo $total > 100 ? "large" : $total > 20 ? "small" : "tiny", "\n";
+echo $total > 100 ? 'large' : $total > 20 ? 'small' : 'tiny', "\n";
 ```
 
 ```output
@@ -262,14 +265,14 @@ bool $expressRequested = false;
 bool $customerIsPremium = true;
 
 // `&&` is true when both sides are true. This prints `ship now`.
-echo $paid && $inStock ? "ship now" : "hold", "\n";
+echo $paid && $inStock ? 'ship now' : 'hold', "\n";
 
 // `||` is true when at least one side is true. This prints `express`.
-echo $expressRequested || $customerIsPremium ? "express" : "standard", "\n";
+echo $expressRequested || $customerIsPremium ? 'express' : 'standard', "\n";
 
 // `!=` between two `bool` values is true when exactly one of them is true.
 // This prints `exactly one`.
-echo $expressRequested != $customerIsPremium ? "exactly one" : "both or neither", "\n";
+echo $expressRequested != $customerIsPremium ? 'exactly one' : 'both or neither', "\n";
 ```
 
 ```output
@@ -286,22 +289,22 @@ exactly one
 // `===`, `!==` and `<>` do not exist, and none of them compiles.
 
 // A quantity that arrived as text, and the quantity already stored.
-string $typed = "7";
+string $typed = '7';
 int $stored = 7;
 
 // Convert the text with `as int` first, then compare. This prints `same`.
-echo ($typed as int) == $stored ? "same" : "different", "\n";
+echo ($typed as int) == $stored ? 'same' : 'different', "\n";
 
 // Two strings compare character by character, so `"07"` and `"7"` are two
 // different strings. This prints `no match`.
-string $fromUrl = "07";
-echo $fromUrl == $typed ? "match" : "no match", "\n";
+string $fromUrl = '07';
+echo $fromUrl == $typed ? 'match' : 'no match', "\n";
 
 // `!=` is the only inequality operator, and it is exactly the opposite of
 // `==`. This prints `changed`.
-string $saved = "draft";
-string $current = "published";
-echo $saved != $current ? "changed" : "unchanged", "\n";
+string $saved = 'draft';
+string $current = 'published';
+echo $saved != $current ? 'changed' : 'unchanged', "\n";
 ```
 
 ```output
@@ -318,18 +321,18 @@ changed
 // character with `Core\Str::at`. The program reads settings and an order code.
 
 // What this user saved, and the defaults for everything else.
-array<string> $saved = ["theme" => "dark", "pageSize" => "50"];
-array<string> $defaults = ["theme" => "light", "pageSize" => "25", "language" => "en"];
+array<string> $saved = ['theme' => 'dark', 'pageSize' => '50'];
+array<string> $defaults = ['theme' => 'light', 'pageSize' => '25', 'language' => 'en'];
 
 // `Core\Arr::underlay` keeps the first array's value at each shared key and
 // adds the keys only the second array has. This prints `dark 50 en`.
 array<string> $settings = Core\Arr::underlay($saved, $defaults);
-echo $settings["theme"], " ", $settings["pageSize"], " ", $settings["language"], "\n";
+echo $settings['theme'], ' ', $settings['pageSize'], ' ', $settings['language'], "\n";
 
 // `Core\Str::at` reads the character at one position, and `Core\Str::slice`
 // reads several from a position. This prints `A AT`.
-string $orderCode = "AT-1042";
-echo Core\Str::at($orderCode, 0), " ", Core\Str::slice($orderCode, 0, 2), "\n";
+string $orderCode = 'AT-1042';
+echo Core\Str::at($orderCode, 0), ' ', Core\Str::slice($orderCode, 0, 2), "\n";
 ```
 
 ```output
@@ -440,18 +443,18 @@ int $baskets = 2;
 
 // Dividing two whole numbers gives a whole number when it comes out even and
 // a fraction when it does not. This prints 3.5 and 2.
-echo $apples / $baskets, " ", 6 / 3, "\n";
+echo $apples / $baskets, ' ', 6 / 3, "\n";
 
 // For a whole number use `Core\Math::intDiv`, which drops the remainder, and
 // `%` for the remainder itself. This prints 3 and 1.
-echo Core\Math::intDiv($apples, $baskets), " ", $apples % $baskets, "\n";
+echo Core\Math::intDiv($apples, $baskets), ' ', $apples % $baskets, "\n";
 
 // `**` raises a number to a power. This prints 1024.
 echo 2 ** 10, "\n";
 
 // A fraction on either side makes the result a fraction. This prints 3.75
 // and 3.5.
-echo 1.5 + 2.25, " ", 3 + 0.5, "\n";
+echo 1.5 + 2.25, ' ', 3 + 0.5, "\n";
 ```
 
 ```output
@@ -524,8 +527,8 @@ while ($item < 10) {
 
 // The `float` total prints as 1 and is still not equal to 1.0, so this prints
 // "1 no". The `decimal` total is equal, so the next line prints "1.0 yes".
-echo $floatTotal, " ", $floatTotal == 1.0 ? "yes" : "no", "\n";
-echo $decimalTotal, " ", $decimalTotal == (1.0 as decimal) ? "yes" : "no", "\n";
+echo $floatTotal, ' ', $floatTotal == 1.0 ? 'yes' : 'no', "\n";
+echo $decimalTotal, ' ', $decimalTotal == (1.0 as decimal) ? 'yes' : 'no', "\n";
 
 decimal $price = 19.99;
 decimal $rate = 0.2;
@@ -533,7 +536,7 @@ decimal $goods = $price * 3;
 decimal $tax = $goods * $rate;
 
 // Every digit of this is exact. It prints "59.97 + 11.994 = 71.964".
-echo $goods, " + ", $tax, " = ", $goods + $tax, "\n";
+echo $goods, ' + ', $tax, ' = ', $goods + $tax, "\n";
 ```
 
 ```output
@@ -577,20 +580,20 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 int $n = 3;
 
 // `-` changes the sign, `+` keeps it, and `~` flips every bit. This prints `-3 3 -4`.
-echo -$n, " ", +$n, " ", ~$n, "\n";
+echo -$n, ' ', +$n, ' ', ~$n, "\n";
 
 // `$n++` gives the old value and then adds one. This prints `3 4`.
-echo $n++, " ", $n, "\n";
+echo $n++, ' ', $n, "\n";
 
 // `++$n` adds one and then gives the new value. This prints `5 4`.
-echo ++$n, " ", --$n, "\n";
+echo ++$n, ' ', --$n, "\n";
 
 // `++` also works on a `float`, a `decimal` and an array element. This prints `2.5 11`.
 float $f = 1.5;
 $f++;
 array<int> $counts = [10];
 $counts[0]++;
-echo $f, " ", $counts[0], "\n";
+echo $f, ' ', $counts[0], "\n";
 
 // `++` on the largest `int` throws. This prints `Integer addition overflowed`.
 int $largest = 9223372036854775807;
@@ -616,15 +619,15 @@ Integer addition overflowed
 // Shows the bitwise operators `& | ^ ~` and the shifts `<<` and `>>`.
 
 // This prints `2 7 5 -6`.
-echo 6 & 3, " ", 6 | 3, " ", 6 ^ 3, " ", ~5, "\n";
+echo 6 & 3, ' ', 6 | 3, ' ', 6 ^ 3, ' ', ~5, "\n";
 
 // `<<` shifts left. `>>` on an `int` keeps the sign. This prints `8 -4`.
-echo 1 << 3, " ", -8 >> 1, "\n";
+echo 1 << 3, ' ', -8 >> 1, "\n";
 
 // `>>` on a `uint` fills with zeros. This prints `9223372036854775807 18446744073709551614`.
 uint $all = 18446744073709551615;
 uint $one = 1;
-echo $all >> $one, " ", ~$one, "\n";
+echo $all >> $one, ' ', ~$one, "\n";
 
 // A shift by a negative count throws. This prints `Bit shift by negative number`.
 int $n = 1;
@@ -636,7 +639,7 @@ try {
 
 // A shift by 64 or more gives 0, or -1 for a negative `int` shifted right. This prints `0 -1`.
 int $negative = -8;
-echo $n << 64, " ", $negative >> 70, "\n";
+echo $n << 64, ' ', $negative >> 70, "\n";
 ```
 
 ```output
@@ -718,7 +721,7 @@ On two objects, `<` calls `compareTo` and compares its result with `0`. `<=>` re
 // then says what you meant.
 
 // The quantity came from a form field, so it is text.
-string $typed = "42";
+string $typed = '42';
 int $inStock = 42;
 
 // Convert the text to a number and compare two numbers. This prints 1, which
@@ -730,7 +733,7 @@ echo ($typed == ($inStock as string)) as string, "\n";
 
 // Text is compared character by character and is never read as a number.
 // This prints an empty line, which is how `false` reads as text.
-echo ($typed == "042") as string, "\n";
+echo ($typed == '042') as string, "\n";
 
 // Numbers of different kinds are one family and compare without any
 // conversion, so a whole number can equal a decimal one. This prints 1.
@@ -753,8 +756,10 @@ echo ($inStock == $price) as string, "\n";
 // contents, an object compares its identity, and a value that may be missing
 // is tested against `null`.
 
-class Customer {
-    public function constructor(public string $email) {}
+class Customer
+{
+    public function constructor(public string $email)
+    {}
 }
 
 // Two arrays are equal when they hold the same keys in the same order with
@@ -767,8 +772,8 @@ echo ($wanted == $reversed) as string, "\n";
 
 // Two objects are equal only when they are the same object. Two customers
 // built from the same address are two objects, so this prints an empty line.
-Customer $signedUp = new Customer("ada@example.com");
-Customer $justRead = new Customer("ada@example.com");
+Customer $signedUp = new Customer('ada@example.com');
+Customer $justRead = new Customer('ada@example.com');
 echo ($signedUp == $justRead) as string, "\n";
 
 // To ask whether they describe the same person, compare what they hold. This
@@ -783,7 +788,7 @@ if ($coupon == null) {
 } else {
     // In this branch the coupon is known to be there, so you can use it
     // without testing it again.
-    echo "coupon of ", Core\Str::length($coupon), " characters\n";
+    echo 'coupon of ', Core\Str::length($coupon), " characters\n";
 }
 ```
 
@@ -803,12 +808,15 @@ no coupon
 // `Core\Str::compare`, and a class states its own order by implementing
 // `Comparable`. This is the shape a checkout page uses to pick an offer.
 
-class Offer implements Comparable {
-    public function constructor(public string $carrier, public int $cents, public int $days) {}
+class Offer implements Comparable
+{
+    public function constructor(public string $carrier, public int $cents, public int $days)
+    {}
 
     // `compareTo` returns a negative number when this offer comes first, and
     // a positive one when it comes last. The cheaper offer wins.
-    public function compareTo(self $other): int {
+    public function compareTo(self $other): int
+    {
         if ($this->cents != $other->cents) {
             return $this->cents <=> $other->cents;
         }
@@ -816,8 +824,8 @@ class Offer implements Comparable {
     }
 }
 
-Offer $standard = new Offer("Speedy", 499, 4);
-Offer $express = new Offer("Speedy", 1299, 1);
+Offer $standard = new Offer('Speedy', 499, 4);
+Offer $express = new Offer('Speedy', 1299, 1);
 
 // `<=>` on two offers returns what `compareTo` returns. This prints -1,
 // because 499 comes before 1299.
@@ -826,7 +834,7 @@ echo $standard <=> $express, "\n";
 // Because `Offer` implements `Comparable`, the ordering operators work on two
 // offers directly. This prints "Speedy at 499".
 Offer $cheapest = $standard < $express ? $standard : $express;
-echo $cheapest->carrier, " at ", $cheapest->cents, "\n";
+echo $cheapest->carrier, ' at ', $cheapest->cents, "\n";
 
 // A delivery promise is worth paying for when it is at least two days sooner.
 // This prints "worth it".
@@ -851,7 +859,7 @@ worth it
 // proof: compile-error
 
 int $quantity = 1;
-if ($quantity == "1") {
+if ($quantity == '1') {
     echo "one item\n";
 }
 ```
@@ -860,7 +868,7 @@ if ($quantity == "1") {
 error[E0466]: `int` and `string` are disjoint; no value is both, so this comparison is always false
   --> main.nvs:6:5
   |
-6 | if ($quantity == "1") {
+6 | if ($quantity == '1') {
   |     ^^^^^^^^^^^^^^^^ compared here
   = help: convert one side deliberately and then compare — `$s == ($n as string)`
 
@@ -875,14 +883,14 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // Shows that `<` between two strings does not compile. `Core\Str::compare` orders two strings.
 // proof: compile-error
 
-echo ("apple" < "banana") ? "apple first" : "banana first", "\n";
+echo ('apple' < 'banana') ? 'apple first' : 'banana first', "\n";
 ```
 
 ```output
 error[E0715]: `<` has no meaning for `string`
   --> main.nvs:5:7
   |
-5 | echo ("apple" < "banana") ? "apple first" : "banana first", "\n";
+5 | echo ('apple' < 'banana') ? 'apple first' : 'banana first', "\n";
   |       ^^^^^^^^^^^^^^^^^^ ordered here
   = help: to compare two strings, use `Core\Str::compare($a, $b)`. The operators `<`, `<=`, `>`, `>=` and `<=>` work only on numbers
 
@@ -939,8 +947,10 @@ and `0` are both false there.
 // side has not already given the answer. A check on the left can protect the
 // code on the right.
 
-class Report {
-    public static function averageIsHigh(int $total, int $count): bool {
+class Report
+{
+    public static function averageIsHigh(int $total, int $count): bool
+    {
         // A division by zero throws an error, so the count is checked first.
         // When the count is zero, the division never runs.
         return $count != 0 && $total / $count > 10.0;
@@ -957,7 +967,7 @@ echo Report::averageIsHigh(50, 4) as string, "\n";
 // `||` is the other way round: it stops as soon as one side is true. The
 // second check runs only when the first one failed.
 array<string> $chosen = [];
-array<string> $suggested = ["novis"];
+array<string> $suggested = ['novis'];
 if ($chosen != [] || $suggested != []) {
     echo "something to show\n";
 }
@@ -978,7 +988,7 @@ something to show
 // true.
 
 // A quantity arrived from a form as text.
-string $quantity = "0";
+string $quantity = '0';
 
 // Testing the text directly checks whether it is empty or the one character
 // "0". This prints "nothing ordered".
@@ -990,7 +1000,7 @@ if ($quantity) {
 
 // To check whether the field was filled in, compare it with empty text. This
 // prints "the field was filled in".
-if ($quantity != "") {
+if ($quantity != '') {
     echo "the field was filled in\n";
 }
 
@@ -1013,8 +1023,10 @@ if ($sizes) {
 
 // An object is always true, whatever is inside it. This prints "have a
 // basket".
-class Basket {
-    public function constructor(public int $items) {}
+class Basket
+{
+    public function constructor(public int $items)
+    {}
 }
 Basket $basket = new Basket(0);
 if ($basket) {
@@ -1039,30 +1051,34 @@ have a basket
 // with `&&`, an alternative joined with `||`, and `!` for the one that has
 // to be absent. The result is a `bool`, so it can be stored and passed on.
 
-class Visitor {
+class Visitor
+{
     public function constructor(
         public string $role,
         public bool $emailConfirmed,
         public bool $suspended,
         public uint $strikes,
-    ) {}
+    )
+    {}
 
     // Every part has to hold, and the whole thing is one `bool`. `!` reads
     // "not suspended".
-    public function mayPost(): bool {
+    public function mayPost(): bool
+    {
         return $this->emailConfirmed && !$this->suspended && $this->strikes < 3;
     }
 
     // Either role is enough, and the second is checked only when the first
     // one does not match.
-    public function maySeeReports(): bool {
-        return $this->role == "admin" || $this->role == "auditor";
+    public function maySeeReports(): bool
+    {
+        return $this->role == 'admin' || $this->role == 'auditor';
     }
 }
 
-Visitor $member = new Visitor("member", true, false, 1);
-Visitor $blocked = new Visitor("member", true, true, 0);
-Visitor $auditor = new Visitor("auditor", true, false, 0);
+Visitor $member = new Visitor('member', true, false, 1);
+Visitor $blocked = new Visitor('member', true, true, 0);
+Visitor $auditor = new Visitor('auditor', true, false, 0);
 
 // This prints 1, then an empty line for the suspended visitor.
 echo $member->mayPost() as string, "\n";
@@ -1136,19 +1152,19 @@ value is the error `E0790`.
 // Shows how to join text and numbers with `.`. Every value gets its text form
 // first, so no cast is needed, and the result is always a `string`.
 
-string $customer = "Ada";
+string $customer = 'Ada';
 uint $order = 1042;
 decimal $total = 19.99;
 
 // This prints: Order 1042 for Ada came to 19.99 EUR
-echo "Order " . $order . " for " . $customer . " came to " . $total . " EUR", "\n";
+echo 'Order ' . $order . ' for ' . $customer . ' came to ' . $total . ' EUR', "\n";
 
 // A double-quoted text fills the values in where they stand, which reads
 // better than a long chain of joins. This prints the same line.
 echo "Order $order for $customer came to $total EUR", "\n";
 
 // Use braces when the value is more than a plain variable.
-array<string> $items = ["desk lamp", "cable"];
+array<string> $items = ['desk lamp', 'cable'];
 // This prints: First item: desk lamp
 echo "First item: {$items[0]}", "\n";
 
@@ -1157,7 +1173,7 @@ echo "First item: {$items[0]}", "\n";
 bool $paid = true;
 bool $shipped = false;
 ?string $note = null;
-echo "[" . $paid . "] [" . $shipped . "] [" . $note . "]", "\n";
+echo '[' . $paid . '] [' . $shipped . '] [' . $note . ']', "\n";
 ```
 
 ```output
@@ -1175,14 +1191,14 @@ First item: desk lamp
 // end of the text already in the variable. That is what a loop needs when
 // the number of pieces is only known while the program runs.
 
-array<string> $tags = ["urgent", "billing", "eu"];
+array<string> $tags = ['urgent', 'billing', 'eu'];
 
-string $line = "";
+string $line = '';
 foreach ($tags as string $tag) {
     // The separator goes in front of every piece but the first. An empty
     // `$line` is how you know this is the first one.
-    if ($line != "") {
-        $line .= ", ";
+    if ($line != '') {
+        $line .= ', ';
     }
     $line .= $tag;
 }
@@ -1191,16 +1207,16 @@ echo $line, "\n";
 
 // The piece added does not have to be text. A number, a `bool` and `null` all
 // get their text form first, exactly as `.` gives them.
-string $status = "retries=";
+string $status = 'retries=';
 $status .= 3;
-$status .= " done=";
+$status .= ' done=';
 $status .= true;
 // This prints: retries=3 done=1
 echo $status, "\n";
 
 // `Core\Str::join` does the whole loop above in one call when all the pieces
 // are already in an array. This prints: urgent, billing, eu
-echo Core\Str::join($tags, ", "), "\n";
+echo Core\Str::join($tags, ', '), "\n";
 ```
 
 ```output
@@ -1218,46 +1234,55 @@ urgent, billing, eu
 // whatever its `toString` returns. An amount is then formatted in one place,
 // and every line that mentions it comes out the same.
 
-class Money implements Stringable {
-    public function constructor(public decimal $amount, public string $currency) {}
+class Money implements Stringable
+{
+    public function constructor(public decimal $amount, public string $currency)
+    {}
 
-    public function toString(): string {
-        return $this->amount . " " . $this->currency;
+    public function toString(): string
+    {
+        return $this->amount . ' ' . $this->currency;
     }
 }
 
-class Line {
+class Line
+{
     public function constructor(
         public string $item,
         public uint $quantity,
         public Money $price,
-    ) {}
+    )
+    {}
 }
 
-class Confirmation {
-    public function constructor(public string $customer, public array<Line> $lines) {}
+class Confirmation
+{
+    public function constructor(public string $customer, public array<Line> $lines)
+    {}
 
     // The subject is one join. Nothing here is cast: the number and the
     // object both have a text form already.
-    public function subject(): string {
-        return "Your order, " . $this->customer . " (" . Core\Arr::count($this->lines) . " items)";
+    public function subject(): string
+    {
+        return 'Your order, ' . $this->customer . ' (' . Core\Arr::count($this->lines) . ' items)';
     }
 
     // The body grows a piece at a time, because how many lines there are is
     // only known while this runs.
-    public function body(): string {
+    public function body(): string
+    {
         string $body = "Hello $this->customer,\n\n";
         foreach ($this->lines as Line $line) {
-            $body .= "  " . $line->quantity . " x " . $line->item . " at " . $line->price . "\n";
+            $body .= '  ' . $line->quantity . ' x ' . $line->item . ' at ' . $line->price . "\n";
         }
         $body .= "\nThank you.";
         return $body;
     }
 }
 
-Confirmation $mail = new Confirmation("Ada", [
-    new Line("desk lamp", 2, new Money(19.99, "EUR")),
-    new Line("cable", 1, new Money(4.50, "EUR")),
+Confirmation $mail = new Confirmation('Ada', [
+    new Line('desk lamp', 2, new Money(19.99, 'EUR')),
+    new Line('cable', 1, new Money(4.50, 'EUR')),
 ]);
 
 // This prints: Your order, Ada (2 items)
@@ -1332,33 +1357,33 @@ from left to right.
 // Shows how to give a value a fallback with `??`. The left side is used
 // unless it is `null`, or unless the array key is not there.
 
-array<string> $row = ["name" => "Ada"];
+array<string> $row = ['name' => 'Ada'];
 
 // The key "name" is there, so this prints "Ada".
-echo $row["name"] ?? "unknown", "\n";
+echo $row['name'] ?? 'unknown', "\n";
 
 // Reading a key that is not there stops the program with an error. `??` is
 // the one read that gives a value instead, so this prints "unknown".
-echo $row["city"] ?? "unknown", "\n";
+echo $row['city'] ?? 'unknown', "\n";
 
 ?string $nickname = null;
 
 // `??` looks only for `null`, and this variable is `null`, so the right side
 // is used. This prints "Ada".
-echo $nickname ?? $row["name"], "\n";
+echo $nickname ?? $row['name'], "\n";
 
 ?string $shortName = null;
 
 // You can write several fallbacks in a row. The first one that is not `null`
 // is the result, so this prints "no nickname".
-echo $shortName ?? $nickname ?? "no nickname", "\n";
+echo $shortName ?? $nickname ?? 'no nickname', "\n";
 
-array<array<string>> $tagsByPost = ["first" => ["news"]];
+array<array<string>> $tagsByPost = ['first' => ['news']];
 
 // An empty list `[]` after `??` gets the type of the left side. So `$tags`
 // is an `array<string>`, and you can add a string to it. This prints 1.
-var $tags = $tagsByPost["second"] ?? [];
-$tags[] = "draft";
+var $tags = $tagsByPost['second'] ?? [];
+$tags[] = 'draft';
 echo Core\Arr::count($tags), "\n";
 ```
 
@@ -1377,20 +1402,20 @@ no nickname
 // Shows the two ways to pick one of two values. `?:` keeps the left side when
 // it counts as something, and `? :` picks a side from a test you write.
 
-array<string> $form = ["display_name" => "", "city" => "Vienna"];
+array<string> $form = ['display_name' => '', 'city' => 'Vienna'];
 
 // An empty piece of text counts as nothing, so the right side is used here.
 // This prints "anonymous".
-echo $form["display_name"] ?: "anonymous", "\n";
+echo $form['display_name'] ?: 'anonymous', "\n";
 
 // This value counts as something, so it is kept. This prints "Vienna".
-echo $form["city"] ?: "somewhere", "\n";
+echo $form['city'] ?: 'somewhere', "\n";
 
 int $items = 1;
 
 // `? :` tests something and then gives you one of the two sides. This prints
 // "1 item".
-echo $items, " ", $items == 1 ? "item" : "items", "\n";
+echo $items, ' ', $items == 1 ? 'item' : 'items', "\n";
 
 bool $discounted = true;
 
@@ -1416,40 +1441,40 @@ Vienna
 
 class Proxy
 {
-    public string $host = "proxy.local";
+    public string $host = 'proxy.local';
     public int $port = 3128;
 }
 
-array<array<string>> $settings = ["db" => ["host" => "db.example.com"]];
+array<array<string>> $settings = ['db' => ['host' => 'db.example.com']];
 
 // `??=` writes the right side only when the left side is missing. "host" is
 // already written, so it keeps its value, and "port" is added.
-$settings["db"]["host"] ??= "localhost";
-$settings["db"]["port"] ??= "5432";
+$settings['db']['host'] ??= 'localhost';
+$settings['db']['port'] ??= '5432';
 
 // This also works when the outer key is missing. There is no "cache" entry
 // yet, so `??=` creates it and writes "host" inside it.
-$settings["cache"]["host"] ??= "127.0.0.1";
+$settings['cache']['host'] ??= '127.0.0.1';
 
 // This prints "db.example.com:5432" and then "127.0.0.1".
-echo $settings["db"]["host"], ":", $settings["db"]["port"], "\n";
-echo $settings["cache"]["host"], "\n";
+echo $settings['db']['host'], ':', $settings['db']['port'], "\n";
+echo $settings['cache']['host'], "\n";
 
 ?Proxy $proxy = null;
 
 // `?->` gives `null` when there is no proxy, and `??` turns that into the
 // text to print. This prints "direct".
-echo $proxy?->host ?? "direct", "\n";
+echo $proxy?->host ?? 'direct', "\n";
 
 $proxy = new Proxy();
 
 // The same two lines read the object once there is one. This prints
 // "proxy.local:3128".
-echo $proxy?->host ?? "direct", ":", $proxy?->port ?? 0, "\n";
+echo $proxy?->host ?? 'direct', ':', $proxy?->port ?? 0, "\n";
 
 // You can also write the test yourself. In the first side of `? :`, `$proxy`
 // is not `null`, so `->` is allowed. This prints "proxy.local".
-echo $proxy != null ? $proxy->host : "direct", "\n";
+echo $proxy != null ? $proxy->host : 'direct', "\n";
 
 // `&&` works the same way. Its right side runs only when `$proxy` is not
 // `null`. This prints "default proxy port".
@@ -1480,13 +1505,13 @@ echo $credit, "\n";
 
 // `??.=` starts from an empty string. This prints "x".
 ?string $log = null;
-$log ??.= "x";
+$log ??.= 'x';
 echo $log, "\n";
 
 // The second ternary is the last arm of the first one. The tests run from left
 // to right, so this prints "big".
 int $n = 5;
-echo $n > 9 ? "huge" : $n > 3 ? "big" : "small", "\n";
+echo $n > 9 ? 'huge' : $n > 3 ? 'big' : 'small', "\n";
 ```
 
 ```output
@@ -1502,7 +1527,8 @@ big
 // Shows that you cannot assign a value through `?->`. Test the object for `null` first.
 // proof: compile-error
 
-class Point {
+class Point
+{
     public int $x = 1;
 }
 
@@ -1512,9 +1538,9 @@ $p?->x = 2;
 
 ```output
 error[E0479]: `?->` cannot be written through
-   --> main.nvs:10:1
+   --> main.nvs:11:1
    |
-10 | $p?->x = 2;
+11 | $p?->x = 2;
    | ^^^^^^ this yields `null` when the receiver is `null`
    = help: test the receiver for `null` first, then assign to it: `if ($x != null) { $x->p = …; }`
 
@@ -1571,24 +1597,24 @@ method may write to it.
 // already there. `$x += 1` is `$x = $x + 1` written once.
 
 uint $attempts = 0;
-string $log = "start";
+string $log = 'start';
 
 // Each of these reads the variable, applies the operator and writes the
 // result back.
 $attempts += 1;
 $attempts += 1;
-$log .= " -> retry";
+$log .= ' -> retry';
 
 // This prints: 2 start -> retry
-echo $attempts, " ", $log, "\n";
+echo $attempts, ' ', $log, "\n";
 
 // The operator keeps the type of the variable it writes into. These all stay
 // `int`, and this prints: 7 21 1
 int $budget = 10;
 $budget -= 3;
-echo $budget, " ";
+echo $budget, ' ';
 $budget *= 3;
-echo $budget, " ";
+echo $budget, ' ';
 $budget %= 4;
 echo $budget, "\n";
 
@@ -1599,7 +1625,7 @@ int $right = 0;
 $left = $right = 3;
 int $sum = $left + $right;
 // This prints: 3 3 6
-echo $left, " ", $right, " ", $sum, "\n";
+echo $left, ' ', $right, ' ', $sum, "\n";
 ```
 
 ```output
@@ -1616,14 +1642,17 @@ echo $left, " ", $right, " ", $sum, "\n";
 // property, and a property shared by the whole class. The compound forms
 // reach all of them the same way they reach a plain variable.
 
-class Basket {
+class Basket
+{
     public static uint $created = 0;
 
-    public function constructor(public decimal $total, public uint $items) {
+    public function constructor(public decimal $total, public uint $items)
+    {
         Basket::$created += 1;
     }
 
-    public function add(decimal $price): void {
+    public function add(decimal $price): void
+    {
         // A property is updated in place, exactly like a variable.
         $this->total += $price;
         $this->items += 1;
@@ -1634,7 +1663,7 @@ Basket $basket = new Basket(0.00, 0);
 $basket->add(19.99);
 $basket->add(4.50);
 // This prints: 24.49 2
-echo $basket->total, " ", $basket->items, "\n";
+echo $basket->total, ' ', $basket->items, "\n";
 
 // A static property belongs to the class, so every basket made so far has
 // counted itself. This prints: 1
@@ -1642,12 +1671,12 @@ echo Basket::$created, "\n";
 
 // An array element takes the same forms. The index is worked out once, even
 // with a compound operator.
-array<uint> $seen = ["get" => 0, "post" => 0];
-$seen["get"] += 1;
-$seen["get"] += 1;
-$seen["post"] = 5;
+array<uint> $seen = ['get' => 0, 'post' => 0];
+$seen['get'] += 1;
+$seen['get'] += 1;
+$seen['post'] = 5;
 // This prints: 2 5
-echo $seen["get"], " ", $seen["post"], "\n";
+echo $seen['get'], ' ', $seen['post'], "\n";
 ```
 
 ```output
@@ -1664,25 +1693,27 @@ echo $seen["get"], " ", $seen["post"], "\n";
 // updating a few running values once per row. Nothing is collected first and
 // added up at the end.
 
-class Order {
+class Order
+{
     public function constructor(
         public string $status,
         public decimal $amount,
         public uint $items,
-    ) {}
+    )
+    {}
 }
 
 array<Order> $orders = [
-    new Order("paid", 19.99, 2),
-    new Order("refunded", 4.50, 1),
-    new Order("paid", 120.00, 7),
-    new Order("paid", 8.25, 1),
+    new Order('paid', 19.99, 2),
+    new Order('refunded', 4.50, 1),
+    new Order('paid', 120.00, 7),
+    new Order('paid', 8.25, 1),
 ];
 
 decimal $revenue = 0.00;
 array<uint> $byStatus = [];
 array<uint> $itemsByStatus = [];
-string $large = "";
+string $large = '';
 
 foreach ($orders as Order $order) {
     // `??+=` adds to a count that may not exist yet. The first row for a
@@ -1698,22 +1729,22 @@ foreach ($orders as Order $order) {
 
     // These two values exist from the start, so the plain `+=` and `.=` are
     // enough.
-    if ($order->status == "paid") {
+    if ($order->status == 'paid') {
         $revenue += $order->amount;
     }
     if ($order->items > 5) {
-        $large .= $order->status . " ";
+        $large .= $order->status . ' ';
     }
 }
 
 // This prints: 148.24 taken over 10 items
-echo $revenue, " taken over ", $itemsByStatus["paid"], " items\n";
+echo $revenue, ' taken over ', $itemsByStatus['paid'], " items\n";
 
 // This prints: paid 3, refunded 1
-echo "paid ", $byStatus["paid"], ", refunded ", $byStatus["refunded"], "\n";
+echo 'paid ', $byStatus['paid'], ', refunded ', $byStatus['refunded'], "\n";
 
 // This prints: large orders: paid
-echo "large orders: ", Core\Str::trim($large), "\n";
+echo 'large orders: ', Core\Str::trim($large), "\n";
 ```
 
 ```output
@@ -1731,23 +1762,23 @@ large orders: paid
 // Each line changes `$n` and prints the new value.
 int $n = 10;
 $n += 5;
-echo $n, " ";
+echo $n, ' ';
 $n -= 3;
-echo $n, " ";
+echo $n, ' ';
 $n *= 2;
-echo $n, " ";
+echo $n, ' ';
 $n %= 7;
-echo $n, " ";
+echo $n, ' ';
 $n **= 3;
-echo $n, " ";
+echo $n, ' ';
 $n <<= 1;
-echo $n, " ";
+echo $n, ' ';
 $n >>= 2;
-echo $n, " ";
+echo $n, ' ';
 $n &= 7;
-echo $n, " ";
+echo $n, ' ';
 $n |= 8;
-echo $n, " ";
+echo $n, ' ';
 $n ^= 1;
 // This line prints: 15 12 24 3 27 54 13 5 13 12
 echo $n, "\n";
@@ -1841,26 +1872,28 @@ case that has no arm, because the compiler does not check that the arms list eve
 // values on the left and the result on the right. The first arm whose value
 // equals the subject gives the result of the whole `match`.
 
-class Day {
-    public static function name(int $day): string {
+class Day
+{
+    public static function name(int $day): string
+    {
         return match ($day) {
-            1, 2, 3, 4, 5 => "weekday",
-            6 => "Saturday",
-            7 => "Sunday",
+            1, 2, 3, 4, 5 => 'weekday',
+            6 => 'Saturday',
+            7 => 'Sunday',
             // `default` is used when none of the other arms matched.
-            default => "not a day",
+            default => 'not a day',
         };
     }
 }
 
 // This prints: day 3: weekday
-echo "day 3: ", Day::name(3), "\n";
+echo 'day 3: ', Day::name(3), "\n";
 
 // This prints: day 6: Saturday
-echo "day 6: ", Day::name(6), "\n";
+echo 'day 6: ', Day::name(6), "\n";
 
 // This prints: day 99: not a day
-echo "day 99: ", Day::name(99), "\n";
+echo 'day 99: ', Day::name(99), "\n";
 ```
 
 ```output
@@ -1877,25 +1910,27 @@ day 99: not a day
 // instead of a value, and the first condition that is true gives the result.
 // Use it to choose by a range.
 
-class Size {
-    public static function unit(uint $bytes): string {
+class Size
+{
+    public static function unit(uint $bytes): string
+    {
         // The arms are tested in order, so the largest range is written first.
         return match (true) {
-            $bytes >= 1048576 => "megabytes",
-            $bytes >= 1024 => "kilobytes",
-            default => "bytes",
+            $bytes >= 1048576 => 'megabytes',
+            $bytes >= 1024 => 'kilobytes',
+            default => 'bytes',
         };
     }
 }
 
 // This prints: 512 bytes
-echo "512 ", Size::unit(512), "\n";
+echo '512 ', Size::unit(512), "\n";
 
 // This prints: 4096 kilobytes
-echo "4096 ", Size::unit(4096), "\n";
+echo '4096 ', Size::unit(4096), "\n";
 
 // This prints: 3145728 megabytes
-echo "3145728 ", Size::unit(3145728), "\n";
+echo '3145728 ', Size::unit(3145728), "\n";
 ```
 
 ```output
@@ -1913,27 +1948,31 @@ echo "3145728 ", Size::unit(3145728), "\n";
 // string being built. This one has no `default`, so a status nobody wrote an
 // arm for throws a `LogicError` instead of sending a wrong message.
 
-class Order {
+class Order
+{
     public function constructor(
         public string $reference,
         public string $status,
-    ) {}
+    )
+    {}
 }
 
-class Mail {
-    public static function line(Order $order): string {
-        return "Order " . $order->reference . ": " . match ($order->status) {
-            "paid", "packing" => "we are preparing your parcel",
-            "shipped" => "your parcel is on its way",
-            "delivered" => "your parcel has arrived",
+class Mail
+{
+    public static function line(Order $order): string
+    {
+        return 'Order ' . $order->reference . ': ' . match ($order->status) {
+            'paid', 'packing' => 'we are preparing your parcel',
+            'shipped' => 'your parcel is on its way',
+            'delivered' => 'your parcel has arrived',
         };
     }
 }
 
 array<Order> $orders = [
-    new Order("A-1", "paid"),
-    new Order("A-2", "shipped"),
-    new Order("A-3", "cancelled"),
+    new Order('A-1', 'paid'),
+    new Order('A-2', 'shipped'),
+    new Order('A-3', 'cancelled'),
 ];
 
 foreach ($orders as Order $order) {
@@ -1942,7 +1981,7 @@ foreach ($orders as Order $order) {
     } catch (LogicError $e) {
         // "cancelled" has no arm, so this order is reported and the run
         // carries on. This prints: Order A-3 has no message for cancelled
-        echo "Order ", $order->reference, " has no message for ", $order->status, "\n";
+        echo 'Order ', $order->reference, ' has no message for ', $order->status, "\n";
     }
 }
 ```
@@ -1961,20 +2000,20 @@ Order A-3 has no message for cancelled
 
 int $n = 2;
 string $size = match ($n) {
-    1, 2 => "low",
-    3 => "three",
-    default => "other",
+    1, 2 => 'low',
+    3 => 'three',
+    default => 'other',
 };
 
 // This prints: low mid
-echo $size, " ", match (true) { $n > 5 => "big", $n > 1 => "mid", default => "small" }, "\n";
+echo $size, ' ', match (true) { $n > 5 => 'big', $n > 1 => 'mid', default => 'small' }, "\n";
 
 // This prints: n is two
-echo "n is " . match ($n) { 2 => "two", default => "many" } . "\n";
+echo 'n is ' . match ($n) { 2 => 'two', default => 'many' } . "\n";
 
 // No arm matches 2 and there is no `default`, so `match` throws a `LogicError`.
 try {
-    echo match ($n) { 1 => "one" }, "\n";
+    echo match ($n) { 1 => 'one' }, "\n";
 } catch (LogicError $e) {
     // This prints: no `match` arm matched the subject
     echo $e->message, "\n";
@@ -1996,8 +2035,8 @@ no `match` arm matched the subject
 
 int $n = 1;
 echo match ($n) {
-    "1" => "one",
-    default => "other",
+    '1' => 'one',
+    default => 'other',
 }, "\n";
 ```
 
@@ -2005,7 +2044,7 @@ echo match ($n) {
 error[E0466]: `int` and `string` are disjoint; no value is both, so this comparison is always false
   --> main.nvs:7:5
   |
-7 |     "1" => "one",
+7 |     '1' => 'one',
   |     ^^^ compared here
   = help: convert one side deliberately and then compare — `$s == ($n as string)`
 
@@ -2081,34 +2120,42 @@ array are empty, as the truth table says.
 // the branch where the check is true, the compiler knows the type. You can
 // read the value there without converting it first.
 
-interface Reading {}
+interface Reading
+{}
 
-class Temperature implements Reading {
-    public function constructor(public float $celsius) {}
+class Temperature implements Reading
+{
+    public function constructor(public float $celsius)
+    {}
 }
 
-class Humidity implements Reading {
-    public function constructor(public int $percent) {}
+class Humidity implements Reading
+{
+    public function constructor(public int $percent)
+    {}
 }
 
-class Report {
-    public static function line(mixed $reading): tainted string {
+class Report
+{
+    public static function line(mixed $reading): tainted string
+    {
         if ($reading is Temperature) {
             // Here `$reading` is a `Temperature`, so its property is readable.
-            return "temperature " . $reading->celsius;
+            return 'temperature ' . $reading->celsius;
         }
         if ($reading is int) {
-            return "count " . $reading;
+            return 'count ' . $reading;
         }
         if ($reading is string) {
-            return "note " . $reading;
+            return 'note ' . $reading;
         }
-        return "unknown reading";
+        return 'unknown reading';
     }
 
     // When the class is only known while the program runs, put it in a
     // `class<Reading>` variable. `$reading is $kind` then checks against it.
-    public static function count(array<mixed> $readings, class<Reading> $kind): int {
+    public static function count(array<mixed> $readings, class<Reading> $kind): int
+    {
         int $found = 0;
         foreach ($readings as mixed $reading) {
             if ($reading is $kind) {
@@ -2126,17 +2173,17 @@ echo Report::line(new Temperature(21.5)), "\n";
 echo Report::line(3), "\n";
 
 // This prints: note warm
-echo Report::line("warm"), "\n";
+echo Report::line('warm'), "\n";
 
 // This prints: unknown reading
 echo Report::line(true), "\n";
 
-array<mixed> $readings = [new Temperature(21.5), new Humidity(40), new Temperature(19.0), "warm"];
+array<mixed> $readings = [new Temperature(21.5), new Humidity(40), new Temperature(19.0), 'warm'];
 
 // `as class<Reading>` turns a class name, here from a string, into a class
 // value. It throws an error if the name is not a `Reading`. This prints: 2 1
-class<Reading> $kind = "Temperature" as class<Reading>;
-echo Report::count($readings, $kind), " ";
+class<Reading> $kind = 'Temperature' as class<Reading>;
+echo Report::count($readings, $kind), ' ';
 echo Report::count($readings, Humidity::class as class<Reading>), "\n";
 ```
 
@@ -2156,37 +2203,41 @@ unknown reading
 // copy: numbers, text and arrays are copied, and an object held in a
 // property is shared between the original and the copy.
 
-class Address {
-    public function constructor(public string $city) {}
+class Address
+{
+    public function constructor(public string $city)
+    {}
 }
 
-class Customer {
+class Customer
+{
     public array<string> $tags = [];
 
     public function constructor(
         public string $name,
         public Address $address,
-    ) {}
+    )
+    {}
 }
 
-Customer $original = new Customer("Ada", new Address("Berlin"));
-$original->tags[] = "vip";
+Customer $original = new Customer('Ada', new Address('Berlin'));
+$original->tags[] = 'vip';
 
 Customer $copy = clone $original;
-$copy->name = "Grace";
-$copy->tags[] = "trial";
-$copy->address->city = "Hamburg";
+$copy->name = 'Grace';
+$copy->tags[] = 'trial';
+$copy->address->city = 'Hamburg';
 
 // The name and the tag list were copied, so the original still has its own.
 // This prints: Ada vip
-echo $original->name, " ", Core\Str::join($original->tags, ","), "\n";
+echo $original->name, ' ', Core\Str::join($original->tags, ','), "\n";
 
 // This prints: Grace vip,trial
-echo $copy->name, " ", Core\Str::join($copy->tags, ","), "\n";
+echo $copy->name, ' ', Core\Str::join($copy->tags, ','), "\n";
 
 // The address is one object that both of them point at, so writing the
 // city through the copy changes what the original reads: Hamburg Hamburg
-echo $original->address->city, " ", $copy->address->city, "\n";
+echo $original->address->city, ' ', $copy->address->city, "\n";
 ```
 
 ```output
@@ -2204,25 +2255,27 @@ Hamburg Hamburg
 // value is false by the truth table, so `""` is empty too. `throw` is an
 // expression, so it can sit on the right of `??`.
 
-class Config {
-    public static function start(array<?string> $settings): void {
+class Config
+{
+    public static function start(array<?string> $settings): void
+    {
         // A required setting. `??` gives the value when the key is there,
         // and throws when it is missing or `null`.
-        string $host = $settings["host"] ?? throw new LogicError("host is required");
-        echo "connecting to ", $host, "\n";
+        string $host = $settings['host'] ?? throw new LogicError('host is required');
+        echo 'connecting to ', $host, "\n";
 
         // An optional setting, with the default written after `??`.
-        string $port = $settings["port"] ?? "5432";
-        echo "port ", $port, "\n";
+        string $port = $settings['port'] ?? '5432';
+        echo 'port ', $port, "\n";
 
         // `isset` tests a key without reading it, and reading it afterwards
         // is safe because the key is known to hold text.
-        if (isset($settings["user"])) {
-            echo "user ", $settings["user"], "\n";
+        if (isset($settings['user'])) {
+            echo 'user ', $settings['user'], "\n";
         }
 
         // `empty` is true for a key that is missing and for one that is `""`.
-        if (empty($settings["label"])) {
+        if (empty($settings['label'])) {
             echo "no label\n";
         }
     }
@@ -2230,13 +2283,13 @@ class Config {
 
 // This prints four lines: connecting to db.internal, port 5432, user ada,
 // no label.
-Config::start(["host" => "db.internal", "user" => "ada", "label" => ""]);
+Config::start(['host' => 'db.internal', 'user' => 'ada', 'label' => '']);
 
 try {
-    Config::start(["port" => "6000"]);
+    Config::start(['port' => '6000']);
 } catch (LogicError $e) {
     // This prints: not started: host is required
-    echo "not started: ", $e->message, "\n";
+    echo 'not started: ', $e->message, "\n";
 }
 ```
 
@@ -2254,11 +2307,19 @@ not started: host is required
 <?nvs
 // Shows `clone`, `is`, `isset`, `empty`, `print` and `throw` in one short program.
 
-class Inner { public int $v = 1; }
-class Outer {
+class Inner
+{
+    public int $v = 1;
+}
+class Outer
+{
     public Inner $in;
     public array<int> $list = [];
-    public function constructor() { $this->in = new Inner(); $this->list[] = 1; }
+    public function constructor()
+    {
+        $this->in = new Inner();
+        $this->list[] = 1;
+    }
 }
 
 // The copy has its own array, so `$a->list` still has one element.
@@ -2268,25 +2329,27 @@ Outer $b = clone $a;
 $b->list[] = 2;
 $b->in->v = 9;
 // This prints: 12 9 |
-echo Core\Arr::count($a->list), Core\Arr::count($b->list), " ", $a->in->v, " ", ($a == $b) as string, "|\n";
+echo Core\Arr::count($a->list), Core\Arr::count($b->list), ' ', $a->in->v, ' ', ($a == $b) as string, "|\n";
 
 // Inside the `if`, `$m` is an `Inner`, so `$m->v` works. This prints: inner 1
 mixed $m = new Inner();
-if ($m is Inner) { echo "inner ", $m->v, "\n"; }
+if ($m is Inner) {
+    echo 'inner ', $m->v, "\n";
+}
 
 // `isset` is true only for the key `"j"`. A key set to `null` and a missing key are both false.
 ?int $none = null;
-array<?int> $arr = ["k" => null, "j" => 1];
-echo isset($none) as string, isset($arr["k"]) as string, isset($arr["j"]) as string, isset($arr["zz"]) as string, "|";
+array<?int> $arr = ['k' => null, 'j' => 1];
+echo isset($none) as string, isset($arr['k']) as string, isset($arr['j']) as string, isset($arr['zz']) as string, '|';
 
 // `print` writes `p` and a newline, and gives `1`. `echo` prints that `1` at the start of the next line.
 // This line and the one above print: 1|11|p
-echo empty($none) as string, empty($arr["zz"]) as string, "|", print "p\n";
+echo empty($none) as string, empty($arr['zz']) as string, '|', print "p\n";
 
 // `$name` is `null`, so `??` runs the `throw`. This prints: no name
 ?string $name = null;
 try {
-    string $s = $name ?? throw new LogicError("no name");
+    string $s = $name ?? throw new LogicError('no name');
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }
@@ -2306,10 +2369,13 @@ inner 1
 // Shows that the right side of `is` cannot be a `string`. Convert the name with `as class<T>` first.
 // proof: compile-error
 
-class Box {}
+class Box
+{}
 
-class Check {
-    public static function test(mixed $v, string $name): bool {
+class Check
+{
+    public static function test(mixed $v, string $name): bool
+    {
         return $v is $name;
     }
 }
@@ -2317,11 +2383,11 @@ class Check {
 
 ```output
 error[E0496]: the right-hand side of `is` is a type or a class reference, and this is neither
-  --> main.nvs:9:22
-  |
-9 |         return $v is $name;
-  |                      ^^^^^ not a class name
-  = help: a class name cannot come from a string. Write the class name, or convert the string first: `$name as class<Base>` gives a class reference that works here. The conversion checks that the class is a `Base`
+   --> main.nvs:12:22
+   |
+12 |         return $v is $name;
+   |                      ^^^^^ not a class name
+   = help: a class name cannot come from a string. Write the class name, or convert the string first: `$name as class<Base>` gives a class reference that works here. The conversion checks that the class is a `Base`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -2378,36 +2444,40 @@ A call that returns `void` has no value. At an `int` variable it is the error `E
 // on the class and an instance method on an object. You can call a method on
 // the object that a call returns directly.
 
-class Greeting {
-    public function constructor(private string $word) {}
+class Greeting
+{
+    public function constructor(private string $word)
+    {}
 
     // Builds a greeting so the caller does not have to know the word for each
     // language.
-    public static function in(string $language): Greeting {
+    public static function in(string $language): Greeting
+    {
         return new Greeting(match ($language) {
-            "de" => "Hallo",
-            "fr" => "Bonjour",
-            default => "Hello",
+            'de' => 'Hallo',
+            'fr' => 'Bonjour',
+            default => 'Hello',
         });
     }
 
-    public function to(string $name): string {
-        return $this->word . ", " . $name . "!";
+    public function to(string $name): string
+    {
+        return $this->word . ', ' . $name . '!';
     }
 }
 
 // The static call returns an object, and `->to` is called on it.
 // This prints: Bonjour, Ada!
-echo Greeting::in("fr")->to("Ada"), "\n";
+echo Greeting::in('fr')->to('Ada'), "\n";
 
 // `new` chains in the same place, with no brackets around it.
 // This prints: Hello, Bob!
-echo new Greeting("Hello")->to("Bob"), "\n";
+echo new Greeting('Hello')->to('Bob'), "\n";
 
 // When you need the object more than once, store it in a variable first.
 // This prints: Hallo, Cem! Hallo, Dara!
-Greeting $german = Greeting::in("de");
-echo $german->to("Cem"), " ", $german->to("Dara"), "\n";
+Greeting $german = Greeting::in('de');
+echo $german->to('Cem'), ' ', $german->to('Dara'), "\n";
 ```
 
 ```output
@@ -2424,15 +2494,18 @@ Hallo, Cem! Hallo, Dara!
 // any order, and as an array passed to a method that takes any number of
 // arguments.
 
-class Ticket {
+class Ticket
+{
     // The last two parameters have a default, so a caller may write one
     // argument or all three.
-    public static function price(int $seats, int $each = 20, int $booking = 3): int {
+    public static function price(int $seats, int $each = 20, int $booking = 3): int
+    {
         return $seats * $each + $booking;
     }
 
     // `...$prices` collects everything left over into one array.
-    public static function cheapest(int ...$prices): int {
+    public static function cheapest(int ...$prices): int
+    {
         int $best = 0;
 
         foreach ($prices as int $price) {
@@ -2477,10 +2550,13 @@ echo Ticket::cheapest(...$offers), "\n";
 // is added up through a parameter that is written back. All amounts are in
 // cents.
 
-class Basket {
-    public function constructor(private array<int> $lines) {}
+class Basket
+{
+    public function constructor(private array<int> $lines)
+    {}
 
-    public function goods(): int {
+    public function goods(): int
+    {
         int $total = 0;
 
         foreach ($this->lines as int $line) {
@@ -2491,16 +2567,19 @@ class Basket {
     }
 }
 
-class Checkout {
+class Checkout
+{
     // `inout` writes the new value back into the caller's own variable, so
     // every step adds to the same total without assigning the result.
-    public static function add(inout int $total, int $amount): void {
+    public static function add(inout int $total, int $amount): void
+    {
         $total = $total + $amount;
     }
 
     // Most callers take the standard rate, so it has a default and is named
     // at the call that needs a different one.
-    public static function tax(int $amount, int $rate = 20): int {
+    public static function tax(int $amount, int $rate = 20): int
+    {
         return Core\Math::intDiv($amount * $rate, 100);
     }
 }
@@ -2508,13 +2587,13 @@ class Checkout {
 // One handler per shipping method, chosen by the name that arrives with the
 // order. Each one is given the value of the goods and returns the charge.
 array<callable> $shipping = [
-    "standard" => fn(int $goods): int => $goods >= 5000 ? 0 : 495,
-    "express" => fn(int $goods): int => 1295,
-    "collect" => fn(int $goods): int => 0,
+    'standard' => fn(int $goods): int => $goods >= 5000 ? 0 : 495,
+    'express' => fn(int $goods): int => 1295,
+    'collect' => fn(int $goods): int => 0,
 ];
 
 Basket $basket = new Basket([1299, 450, 2600]);
-string $method = "standard";
+string $method = 'standard';
 
 int $total = 0;
 Checkout::add(inout $total, $basket->goods());
@@ -2522,14 +2601,14 @@ Checkout::add(inout $total, $shipping[$method]($basket->goods()) as int);
 Checkout::add(inout $total, Checkout::tax($basket->goods()));
 
 // This prints: goods 4349 shipping standard total 5713
-echo "goods ", $basket->goods(), " shipping ", $method, " total ", $total, "\n";
+echo 'goods ', $basket->goods(), ' shipping ', $method, ' total ', $total, "\n";
 
 // The argument `rate: 5` sets a reduced tax rate. This prints: reduced total 5061
 int $reduced = 0;
 Checkout::add(inout $reduced, $basket->goods());
 Checkout::add(inout $reduced, $shipping[$method]($basket->goods()) as int);
 Checkout::add(inout $reduced, Checkout::tax($basket->goods(), rate: 5));
-echo "reduced total ", $reduced, "\n";
+echo 'reduced total ', $reduced, "\n";
 ```
 
 ```output
@@ -2543,29 +2622,51 @@ reduced total 5061
 <?nvs
 // Shows each way to write a call: chained, named, variadic, `inout` and through a `callable`.
 
-class Greeter {
-    public function constructor(private string $greeting) {}
-    public function greet(string $name, string $mark = "!"): string { return $this->greeting . ", " . $name . $mark; }
-    public static function make(): Greeter { return new Greeter("Hi"); }
-    public static function sum(int ...$xs): int { int $t = 0; foreach ($xs as int $x) { $t += $x; } return $t; }
-    public static function twice(inout int $n): void { $n = $n * 2; }
+class Greeter
+{
+    public function constructor(private string $greeting)
+    {}
+
+    public function greet(string $name, string $mark = '!'): string
+    {
+        return $this->greeting . ', ' . $name . $mark;
+    }
+
+    public static function make(): Greeter
+    {
+        return new Greeter('Hi');
+    }
+
+    public static function sum(int ...$xs): int
+    {
+        int $t = 0;
+        foreach ($xs as int $x) {
+            $t += $x;
+        }
+        return $t;
+    }
+
+    public static function twice(inout int $n): void
+    {
+        $n = $n * 2;
+    }
 }
 
 // A chained call, and named arguments in any order. This prints: Hi, Ada! Yo, Bob?
-echo Greeter::make()->greet("Ada"), " ", new Greeter("Yo")->greet(mark: "?", name: "Bob"), "\n";
+echo Greeter::make()->greet('Ada'), ' ', new Greeter('Yo')->greet(mark: '?', name: 'Bob'), "\n";
 
 // `sum` takes any number of arguments, also none. `twice` changes `$n` to 8.
 // This prints: 6 9 0 8
 array<int> $xs = [4, 5];
 int $n = 4;
 Greeter::twice(inout $n);
-echo Greeter::sum(1, 2, 3), " ", Greeter::sum(...$xs), " ", Greeter::sum(), " ", $n, "\n";
+echo Greeter::sum(1, 2, 3), ' ', Greeter::sum(...$xs), ' ', Greeter::sum(), ' ', $n, "\n";
 
 // A `callable` in a variable, in an array element, and an anonymous function called directly.
 // The extra argument `99` is ignored. This prints: 2 2 8 40
 callable $f = fn(int $x): int => $x + 1;
-array<callable> $ops = ["dbl" => fn(int $x): int => $x * 2];
-echo $f(1), " ", $f(1, 99), " ", $ops["dbl"](4), " ", (fn(int $x): int => $x * 10)(4), "\n";
+array<callable> $ops = ['dbl' => fn(int $x): int => $x * 2];
+echo $f(1), ' ', $f(1, 99), ' ', $ops['dbl'](4), ' ', (fn(int $x): int => $x * 10)(4), "\n";
 ```
 
 ```output
@@ -2581,8 +2682,10 @@ Hi, Ada! Yo, Bob?
 // Shows that `...` works only for a variadic parameter. Here `add` has two fixed parameters.
 // proof: compile-error
 
-class Pair {
-    public static function add(int $a, int $b): int {
+class Pair
+{
+    public static function add(int $a, int $b): int
+    {
         return $a + $b;
     }
 }
@@ -2593,9 +2696,9 @@ echo Pair::add(...$xs), "\n";
 
 ```output
 error[E0489]: a `...` argument has no variadic parameter to spread into
-   --> main.nvs:12:16
+   --> main.nvs:14:16
    |
-12 | echo Pair::add(...$xs), "\n";
+14 | echo Pair::add(...$xs), "\n";
    |                ^^^^^^ this call's target declares no `...` parameter
    = help: a `...` only ever supplies a `...$rest` tail, because how many entries an array holds is a run-time fact and a fixed parameter list has to be counted — write the arguments out
 
@@ -2657,7 +2760,7 @@ prints `aB`, and `$s ?? "d" |> Core\Str::upper($_)` is `$s ?? Core\Str::upper("d
 // where the value goes. The steps run from left to right.
 // The first address prints as ada@example.com.
 
-array<string> $submitted = ["  Ada@Example.COM ", "BOB@example.com", " carol@Example.Com  "];
+array<string> $submitted = ['  Ada@Example.COM ', 'BOB@example.com', ' carol@Example.Com  '];
 
 foreach ($submitted as string $raw) {
     string $email = $raw |> Core\Str::trim($_) |> Core\Str::lower($_);
@@ -2679,15 +2782,15 @@ carol@example.com
 // Each step is on a line of its own, and the steps run from the top to the bottom.
 // The first title prints as hello-world.
 
-array<string> $titles = ["Hello World", "  Novis Ships 1.0  ", "Web  Servers, Fast"];
+array<string> $titles = ['Hello World', '  Novis Ships 1.0  ', 'Web  Servers, Fast'];
 
 foreach ($titles as string $title) {
     string $slug = $title
         |> Core\Str::trim($_)
         |> Core\Str::lower($_)
-        |> Core\Str::replace($_, ",", "")
-        |> Core\Str::replace($_, "  ", " ")
-        |> Core\Str::replace($_, " ", "-");
+        |> Core\Str::replace($_, ',', '')
+        |> Core\Str::replace($_, '  ', ' ')
+        |> Core\Str::replace($_, ' ', '-');
     echo $slug, "\n";
 }
 ```
@@ -2705,17 +2808,17 @@ web-servers-fast
 // Shows how to tidy the tags that a person typed into one form field, separated by commas.
 // The steps split the text, trim each tag, delete the duplicates and sort the tags.
 
-string $field = "web, cli , web,  jit ,security";
+string $field = 'web, cli , web,  jit ,security';
 
 array<string> $tags = $field
-    |> Core\Str::split($_, ",")
+    |> Core\Str::split($_, ',')
     |> Core\Arr::map($_, fn(string $t): string => Core\Str::trim($t))
     |> Core\Arr::unique($_)
     |> Core\Arr::sort($_);
 
 // `$tags` is a normal variable, so a new pipeline can start from it.
 // This prints cli,jit,security,web and then 4 tags.
-echo $tags |> Core\Str::join($_, ","), "\n";
+echo $tags |> Core\Str::join($_, ','), "\n";
 echo $tags |> Core\Arr::count($_), " tags\n";
 ```
 
@@ -2730,17 +2833,17 @@ cli,jit,security,web
 <?nvs
 // Shows how `|>` works together with the operators around it.
 
-string $s = "  Novis  ";
+string $s = '  Novis  ';
 echo $s |> Core\Str::trim($_) |> Core\Str::lower($_), "\n";
 
 // A prefix `-` runs first, so `Core\Math::abs` gets 7. `|>` runs before `>`,
 // so the second value compares the length with 5. This prints 7 1.
 int $n = -7;
-echo -$n |> Core\Math::abs($_), " ", $s |> Core\Str::length($_) > 5, "\n";
+echo -$n |> Core\Math::abs($_), ' ', $s |> Core\Str::length($_) > 5, "\n";
 
 // The right side may be any expression in brackets. This prints a-b-c 10.
-array<string> $xs = ["c", "a", "b"];
-echo $xs |> Core\Arr::sort($_) |> Core\Str::join($_, "-"), " ", 5 |> ($_ * 2), "\n";
+array<string> $xs = ['c', 'a', 'b'];
+echo $xs |> Core\Arr::sort($_) |> Core\Str::join($_, '-'), ' ', 5 |> ($_ * 2), "\n";
 ```
 
 ```output
@@ -2885,13 +2988,13 @@ callable $total = fn(array<int> $amounts): int => {
 // An anonymous function is called through its variable. The call returns `mixed`,
 // so write `as` to say which type you are reading. This prints 8 12.
 array<int> $prices = [3, 4, 5];
-echo $next(7) as int, " ", $total($prices) as int, "\n";
+echo $next(7) as int, ' ', $total($prices) as int, "\n";
 
 // An anonymous function is a value, so you can pass it directly to a call.
 // This prints: BAG,BOX
-array<string> $names = ["bag", "box"];
+array<string> $names = ['bag', 'box'];
 array<mixed> $shouted = Core\Arr::map($names, fn(string $name) => Core\Str::upper($name));
-echo Core\Str::join($shouted as array<string>, ","), "\n";
+echo Core\Str::join($shouted as array<string>, ','), "\n";
 ```
 
 ```output
@@ -2907,13 +3010,13 @@ BAG,BOX
 // uses when the function is written. Changing that variable afterwards does not
 // change what the function reads.
 
-string $greeting = "Hello";
-callable $greet = fn(string $name): string => $greeting . ", " . $name;
+string $greeting = 'Hello';
+callable $greet = fn(string $name): string => $greeting . ', ' . $name;
 
 // The variable changes. The copy inside the function stays the same.
 // This prints: Hello, Ada
-$greeting = "Goodbye";
-echo $greet("Ada") as string, "\n";
+$greeting = 'Goodbye';
+echo $greet('Ada') as string, "\n";
 
 // One anonymous function per round, each with that round's number. This prints 0,1,2
 array<callable> $labels = [];
@@ -2932,14 +3035,17 @@ foreach ($labels as callable $label) {
     $printed = Core\Arr::append($printed, $label() as string);
 }
 
-echo Core\Str::join($printed, ","), "\n";
+echo Core\Str::join($printed, ','), "\n";
 
-class Discount {
-    public function constructor(private int $percent) {}
+class Discount
+{
+    public function constructor(private int $percent)
+    {}
 
     // Inside a method the object is captured too, so the function reads the
     // property through it. This returns a callable the caller can keep.
-    public function rule(): callable {
+    public function rule(): callable
+    {
         return fn(int $price): int => $price - Core\Math::intDiv($price * $this->percent, 100);
     }
 }
@@ -2948,7 +3054,7 @@ class Discount {
 // This prints 900 450
 Discount $tenth = new Discount(10);
 callable $apply = $tenth->rule();
-echo $apply(1000) as int, " ", $apply(500) as int, "\n";
+echo $apply(1000) as int, ' ', $apply(500) as int, "\n";
 ```
 
 ```output
@@ -2965,17 +3071,19 @@ Hello, Ada
 // array. Each rule is an anonymous function that returns the message for a bad
 // value. The same loop then checks any form, so adding a field is adding a line.
 
-class Form {
+class Form
+{
     // Each rule gets the value of its field. It returns an empty string when
     // the value is fine.
-    public static function check(array<string> $values, array<callable> $rules): array<tainted string> {
+    public static function check(array<string> $values, array<callable> $rules): array<tainted string>
+    {
         array<tainted string> $problems = [];
 
         foreach ($rules as string $field => callable $rule) {
-            tainted string $message = $rule($values[$field] ?? "") as string;
+            tainted string $message = $rule($values[$field] ?? '') as string;
 
-            if ($message != "") {
-                $problems = Core\Arr::append($problems, $field . ": " . $message);
+            if ($message != '') {
+                $problems = Core\Arr::append($problems, $field . ': ' . $message);
             }
         }
 
@@ -2987,26 +3095,26 @@ class Form {
 int $shortest = 8;
 
 array<callable> $rules = [
-    "name" => fn(string $value): string => $value == "" ? "please give a name" : "",
-    "email" => fn(string $value): string => Core\Str::contains($value, "@") ? "" : "needs an @",
-    "password" => fn(string $value): string =>
-        Core\Str::length($value) < $shortest ? "needs " . $shortest . " characters" : "",
+    'name' => fn(string $value): string => $value == '' ? 'please give a name' : '',
+    'email' => fn(string $value): string => Core\Str::contains($value, '@') ? '' : 'needs an @',
+    'password' => fn(string $value): string =>
+        Core\Str::length($value) < $shortest ? 'needs ' . $shortest . ' characters' : '',
 ];
 
 array<string> $filled = [
-    "name" => "Ada",
-    "email" => "ada@example.com",
-    "password" => "correct horse",
+    'name' => 'Ada',
+    'email' => 'ada@example.com',
+    'password' => 'correct horse',
 ];
 
 // Nothing is wrong with this one, so the list of problems is empty.
 // This prints: filled in: 0 problem(s)
-echo "filled in: ", Core\Arr::count(Form::check($filled, $rules)), " problem(s)\n";
+echo 'filled in: ', Core\Arr::count(Form::check($filled, $rules)), " problem(s)\n";
 
 array<string> $empty = [
-    "name" => "",
-    "email" => "ada.example.com",
-    "password" => "short",
+    'name' => '',
+    'email' => 'ada.example.com',
+    'password' => 'short',
 ];
 
 // This prints one line per field that failed its rule.
@@ -3029,30 +3137,34 @@ password: needs 8 characters
 // Shows an anonymous function that reads `$this`, one that captures a variable,
 // and one with a block body.
 
-class Counter {
+class Counter
+{
     public int $base = 10;
 
     // Inside a method, the function can read `$this`.
-    public function adder(): callable {
+    public function adder(): callable
+    {
         return fn(int $x): int => $this->base + $x;
     }
 }
 
 // The function copies `$prefix` when it is written, so it still uses "one".
-string $prefix = "one";
-callable $tag = fn(string $s): string => $prefix . ":" . $s;
-$prefix = "two";
+string $prefix = 'one';
+callable $tag = fn(string $s): string => $prefix . ':' . $s;
+$prefix = 'two';
 
 callable $sum = fn(array<int> $xs): int => {
     int $t = 0;
-    foreach ($xs as int $x) { $t += $x; }
+    foreach ($xs as int $x) {
+        $t += $x;
+    }
     return $t;
 };
 
 // This prints one:x 6 15.
 array<int> $ns = [1, 2, 3];
 Counter $c = new Counter();
-echo $tag("x"), " ", $sum($ns), " ", $c->adder()(5), "\n";
+echo $tag('x'), ' ', $sum($ns), ' ', $c->adder()(5), "\n";
 ```
 
 ```output
@@ -3077,7 +3189,7 @@ callable $fib = fn fib(int $n): int => {
 };
 
 // This prints 120 55.
-echo $factorial(5), " ", $fib(10), "\n";
+echo $factorial(5), ' ', $fib(10), "\n";
 ```
 
 ```output
@@ -3170,34 +3282,34 @@ error `E0401`. The right side must be an `array<T>`. A `mixed` or a `?array<int>
 
 // `var` takes the type from the values. Every value is a string, so
 // `$basket` is an `array<string>`.
-var $basket = ["bread", "milk"];
+var $basket = ['bread', 'milk'];
 // `$basket[] = ...` adds a value at the end. Its key is the next number.
-$basket[] = "coffee";
+$basket[] = 'coffee';
 
 foreach ($basket as string $position => string $item) {
-    echo $position, ": ", $item, "\n";
+    echo $position, ': ', $item, "\n";
 }
 
 // You can also write the type yourself. `[...$basket]` copies every value
 // of the list into the new list.
-array<string> $withGift = [...$basket, "flowers"];
+array<string> $withGift = [...$basket, 'flowers'];
 echo Core\Arr::count($withGift), " items\n";
 
 // A table gives every value a name you choose. Every value is an `int`, so
 // `$prices` is an `array<int>`.
-var $prices = ["bread" => 250, "milk" => 120];
-$prices["coffee"] = 890;
-echo "milk costs ", $prices["milk"], " cents\n";
+var $prices = ['bread' => 250, 'milk' => 120];
+$prices['coffee'] = 890;
+echo 'milk costs ', $prices['milk'], " cents\n";
 
 // An empty array has no values to take a type from, so its type is written.
 array<int> $discounts = [];
-$discounts["milk"] = 20;
-echo "milk costs ", $prices["milk"] - $discounts["milk"], " cents on sale\n";
+$discounts['milk'] = 20;
+echo 'milk costs ', $prices['milk'] - $discounts['milk'], " cents on sale\n";
 
 // Every key is text. `$shelf[8]` and `$shelf["8"]` are the same entry, so a
 // number used as a key always finds the value you stored under it.
-var $shelf = [8 => "tea"];
-echo $shelf["8"], "\n";
+var $shelf = [8 => 'tea'];
+echo $shelf['8'], "\n";
 ```
 
 ```output
@@ -3217,26 +3329,26 @@ tea
 // Reads settings where a key may be missing. Reading a key that is not
 // there throws an error, so this shows the two safe ways to ask for one.
 
-var $settings = ["theme" => "dark", "language" => "de"];
+var $settings = ['theme' => 'dark', 'language' => 'de'];
 
 // `??` gives the value on the right when the key is missing.
-echo $settings["theme"] ?? "light", "\n";
-echo $settings["timezone"] ?? "UTC", "\n";
+echo $settings['theme'] ?? 'light', "\n";
+echo $settings['timezone'] ?? 'UTC', "\n";
 
 // `isset` tells you whether a key is there.
-if (isset($settings["timezone"])) {
+if (isset($settings['timezone'])) {
     echo "a timezone is set\n";
 } else {
     echo "no timezone is set\n";
 }
 
 // `unset` removes one entry. Every other entry keeps its key.
-unset($settings["language"]);
+unset($settings['language']);
 echo Core\Arr::count($settings), " setting left\n";
 
 // Without a guard the missing key throws a `RuntimeError`, which you can catch.
 try {
-    echo $settings["language"], "\n";
+    echo $settings['language'], "\n";
 } catch (RuntimeError $e) {
     echo $e->message, "\n";
 }
@@ -3261,9 +3373,9 @@ undefined array key `language`
 // Every order is an `array<string>`, so `var` makes `$orders` an
 // `array<array<string>>`.
 var $orders = [
-    ["country" => "AT", "total" => "42"],
-    ["country" => "DE", "total" => "17"],
-    ["country" => "AT", "total" => "8"],
+    ['country' => 'AT', 'total' => '42'],
+    ['country' => 'DE', 'total' => '17'],
+    ['country' => 'AT', 'total' => '8'],
 ];
 
 // The report starts empty, so its type is written out.
@@ -3271,7 +3383,7 @@ array<array<string>> $byCountry = [];
 
 foreach ($orders as string $position => array<string> $order) {
     // Destructuring reads two keys of one order into two variables.
-    ["country" => string $country, "total" => string $total] = $order;
+    ['country' => string $country, 'total' => string $total] = $order;
 
     // The first order of a country creates the list under its name.
     $byCountry[$country][] = $total;
@@ -3282,7 +3394,7 @@ foreach ($byCountry as string $country => array<string> $totals) {
     foreach ($totals as string $index => string $amount) {
         $sum = $sum + ($amount as uint);
     }
-    echo $country, ": orders ", Core\Arr::count($totals), ", total ", $sum, "\n";
+    echo $country, ': orders ', Core\Arr::count($totals), ', total ', $sum, "\n";
 }
 ```
 
@@ -3300,33 +3412,33 @@ DE: orders 1, total 17
 
 array<int> $a = [10, 20];
 $a[] = 30;
-$a["k"] = 40;
+$a['k'] = 40;
 $a[-5] = 50;
 
 // The largest whole-number key is `2`, so this value gets key `3`.
 $a[] = 60;
 foreach ($a as string $k => int $v) {
-    echo $k, ":", $v, " ";
+    echo $k, ':', $v, ' ';
 }
 echo "\n";
 
 // The spread numbers `-5` again, and keeps `k`. This prints `7 40`.
-array<int> $b = [...$a, "j" => 70];
-echo Core\Arr::count($b), " ", $b["k"], "\n";
+array<int> $b = [...$a, 'j' => 70];
+echo Core\Arr::count($b), ' ', $b['k'], "\n";
 
 // `unset` removes one entry. `$a[0]` and `$a["1"]` still work, so this
 // prints `5 30`.
-unset($a["k"]);
-echo Core\Arr::count($a), " ", $a[0] + $a["1"], "\n";
+unset($a['k']);
+echo Core\Arr::count($a), ' ', $a[0] + $a['1'], "\n";
 
 // This write creates the inner array under `r`.
 array<array<int>> $g = [];
-$g["r"]["c"] = 1;
-$g["r"][] = 2;
+$g['r']['c'] = 1;
+$g['r'][] = 2;
 echo Core\Json::encode($g), "\n";
 
 // `??` covers both keys, so this prints `9`.
-echo $g["x"]["y"] ?? 9, "\n";
+echo $g['x']['y'] ?? 9, "\n";
 ```
 
 ```output
@@ -3348,12 +3460,12 @@ array<int> $pair = [1, 2];
 
 // An empty place skips an entry. `$second` is `2`.
 [, int $second] = $pair;
-echo $a, " ", $b, " ", $second, "\n";
+echo $a, ' ', $b, ' ', $second, "\n";
 
 // A key on the left reads that key, in any order.
-array<string> $row = ["id" => "7", "name" => "ada"];
-["name" => string $name, "id" => string $id] = $row;
-echo $id, " ", $name, "\n";
+array<string> $row = ['id' => '7', 'name' => 'ada'];
+['name' => string $name, 'id' => string $id] = $row;
+echo $id, ' ', $name, "\n";
 
 // A pattern inside a pattern reads an inner array.
 array<array<int>> $points = [[1, 2], [3, 4]];
@@ -3452,18 +3564,18 @@ An object of a class fits a shape when it has public properties with those names
 // Builds a small object with the fields you name, then reads and changes
 // them.
 
-type Point = {x: int, y: int};
+type Point = { x: int, y: int };
 
-Point $start = {x: 1, y: 2};
+Point $start = { x: 1, y: 2 };
 // A field is read and written with `->`.
-echo $start->x, ",", $start->y, "\n";
+echo $start->x, ',', $start->y, "\n";
 $start->x = 10;
 echo $start->x, "\n";
 
 // `var` works out the type of an anonymous object for you, and a field can
 // contain another anonymous object.
-var $marker = {label: "home", at: {x: 3, y: 4}};
-echo $marker->label, " at ", $marker->at->x, ",", $marker->at->y, "\n";
+var $marker = { label: 'home', at: { x: 3, y: 4 } };
+echo $marker->label, ' at ', $marker->at->x, ',', $marker->at->y, "\n";
 
 // An object is a handle. Both variables name the same object here, so the
 // change is visible through both of them.
@@ -3473,7 +3585,7 @@ echo $start->y, "\n";
 
 // `==` checks whether two variables name one object. It does not compare the
 // fields, so these two are different even with equal values.
-Point $twin = {x: 10, y: 99};
+Point $twin = { x: 10, y: 99 };
 if ($start == $twin) {
     echo "one object\n";
 } else {
@@ -3496,30 +3608,30 @@ two objects
 // Uses a named shape as the type of what a method takes and of what it
 // returns. Any object with at least those fields fits.
 
-type Money = {amount: int, currency: string};
+type Money = { amount: int, currency: string };
 
 class Prices
 {
     // The parameter takes any object that has these two fields.
     public static function format(Money $price): string
     {
-        return ($price->amount as string) . " " . $price->currency;
+        return ($price->amount as string) . ' ' . $price->currency;
     }
 
     // A shape is also a return type, and the anonymous object is the result.
     public static function double(Money $price): Money
     {
-        return {amount: $price->amount * 2, currency: $price->currency};
+        return { amount: $price->amount * 2, currency: $price->currency };
     }
 }
 
-Money $coffee = {amount: 350, currency: "EUR"};
+Money $coffee = { amount: 350, currency: 'EUR' };
 echo Prices::format($coffee), "\n";
 echo Prices::format(Prices::double($coffee)), "\n";
 
 // This object has a third field. It still fits, because it has the two
 // fields the shape needs.
-var $line = {amount: 120, currency: "EUR", note: "milk"};
+var $line = { amount: 120, currency: 'EUR', note: 'milk' };
 echo Prices::format($line), "\n";
 ```
 
@@ -3536,28 +3648,28 @@ echo Prices::format($line), "\n";
 // Returns the result of a check as an object and turns it into JSON, the
 // way a small web handler does.
 
-type Result = {ok: bool, message: string, code?: int};
+type Result = { ok: bool, message: string, code?: int };
 
 class Signup
 {
     public static function check(string $email): Result
     {
-        if (Core\Str::contains($email, "@")) {
-            return {ok: true, message: "welcome"};
+        if (Core\Str::contains($email, '@')) {
+            return { ok: true, message: 'welcome' };
         }
 
-        return {ok: false, message: "that is not an email address", code: 422};
+        return { ok: false, message: 'that is not an email address', code: 422 };
     }
 }
 
-array<string> $tried = ["ada@example.com", "ada"];
+array<string> $tried = ['ada@example.com', 'ada'];
 
 foreach ($tried as string $position => string $email) {
     Result $result = Signup::check($email);
 
     // `code` is written `code?: int`, so it may be missing. `??` gives a
     // value for the times it is not there.
-    echo $result->message, " (", $result->code ?? 200, ")\n";
+    echo $result->message, ' (', $result->code ?? 200, ")\n";
     echo Core\Json::encode($result), "\n";
 }
 ```
@@ -3575,10 +3687,10 @@ that is not an email address (422)
 <?nvs
 // Shows an anonymous function that returns an anonymous object.
 
-type Point = {x: int, y: int};
+type Point = { x: int, y: int };
 
 // After `=>`, a `{` starts a block. The parentheses make it an object.
-var $onXAxis = fn(int $x): Point => ({x: $x, y: 0});
+var $onXAxis = fn(int $x): Point => ({ x: $x, y: 0 });
 
 Point $p = $onXAxis(5);
 $p->y = 7;
@@ -3586,7 +3698,7 @@ echo $p->x + $p->y, "\n";
 
 // Each call creates a new object, so `==` gives `false` here.
 Point $q = $onXAxis(5);
-echo ($p == $p) ? "same" : "different", " ", ($p == $q) ? "same" : "different", "\n";
+echo ($p == $p) ? 'same' : 'different', ' ', ($p == $q) ? 'same' : 'different', "\n";
 ```
 
 ```output
@@ -3668,17 +3780,17 @@ the path and an array of arguments.
 
 use Core\Str;
 
-array<string> $names = ["ada lovelace", "grace hopper"];
+array<string> $names = ['ada lovelace', 'grace hopper'];
 
 foreach ($names as string $name) {
     // `Str::upper` returns the text in capitals, and `Str::length` returns the
     // number of characters. The first line prints `ADA LOVELACE (12)`.
-    echo Str::upper($name), " (", Str::length($name), ")\n";
+    echo Str::upper($name), ' (', Str::length($name), ")\n";
 }
 
 // `Str::replace` puts one text in place of another. This prints
 // `grace-hopper`.
-echo Str::replace("grace hopper", " ", "-"), "\n";
+echo Str::replace('grace hopper', ' ', '-'), "\n";
 ```
 
 ```output
@@ -3695,7 +3807,7 @@ grace-hopper
 // or `settype($x, "int")`; neither exists here, and both are replaced by this
 // one syntax.
 
-string $typed = "42";
+string $typed = '42';
 
 // `as int` converts the text to a whole number, and the result goes into a new
 // variable. This prints `44`.
@@ -3705,7 +3817,7 @@ echo $age + 2, "\n";
 // A conversion that cannot work throws an error. `as ?int` returns `null`
 // instead, so you can test the result. This prints `not a number`.
 ?int $maybe = "twelve o'clock" as ?int;
-echo $maybe ?? "not a number", "\n";
+echo $maybe ?? 'not a number', "\n";
 
 // `as` never changes the variable it reads. `$typed` is still the text it was
 // given, so this prints `42`.
@@ -3726,23 +3838,23 @@ not a number
 // when it imports a file. PHP offers `list(...)`, `extract` and `$$name` for
 // this; Novis has `[...]` for a list and an array you index by name.
 
-array<string> $line = ["2026-09-19", "ada@example.com", "19.99"];
+array<string> $line = ['2026-09-19', 'ada@example.com', '19.99'];
 
 // `[...]` on the left takes the elements in order, one variable each. This
 // prints the three values on one line.
 [string $date, string $email, string $amount] = $line;
-echo $date, " ", $email, " ", $amount, "\n";
+echo $date, ' ', $email, ' ', $amount, "\n";
 
-array<string> $form = ["email" => "grace@example.com", "country" => "US"];
+array<string> $form = ['email' => 'grace@example.com', 'country' => 'US'];
 
 // A row whose parts have names is an array with string keys. You read the key
 // you want, and `??` gives a value for a key that is not there.
-echo $form["email"], "\n";
-echo $form["phone"] ?? "no phone given", "\n";
+echo $form['email'], "\n";
+echo $form['phone'] ?? 'no phone given', "\n";
 
 // The key can come from a variable. This replaces a variable variable such as
 // `$$name`, and the result still has a type: here it is a `string`.
-string $wanted = "country";
+string $wanted = 'country';
 echo $form[$wanted], "\n";
 ```
 

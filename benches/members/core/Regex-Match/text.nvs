@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<Core\Regex\Match> $found = Core\Regex::matchAll("Shipped #release to #staging and #prod", '#\w+');
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Regex\Match> $found = Core\Regex::matchAll('Shipped #release to #staging and #prod', '#\w+');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

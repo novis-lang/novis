@@ -3,8 +3,8 @@
 
 // The path starts at the folder of this file.
 // The connection starts when this request ends. The request can still print first.
-Core\Socket::upgrade("sockets/echo.nvs");
-echo "upgrading ", Core\Request::path(), "\n";
+Core\Socket::upgrade('sockets/echo.nvs');
+echo 'upgrading ', Core\Request::path(), "\n";
 
 // The `.nvsp` file beside this example plays a client that sends two messages.
 // `echo.nvs` then prints `sent: you said hello` and `sent: you said bye`.

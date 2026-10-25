@@ -7,7 +7,8 @@ class Reports
 {
     public static int $runs = 0;
 
-    public static function monthly(): int {
+    public static function monthly(): int
+    {
         Reports::$runs = Reports::$runs + 1;
         return Reports::$runs;
     }
@@ -22,6 +23,6 @@ Reports::$runs = 40;
 var $job = spawn script Reports::monthly(...);
 var $result = await $job;
 
-echo $result->ok ? "ok" : "failed", "\n";
+echo $result->ok ? 'ok' : 'failed', "\n";
 echo $result->value as string, "\n";
 echo Reports::$runs as string, "\n";

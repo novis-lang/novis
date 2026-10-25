@@ -7,12 +7,12 @@ class Bench
 {
     public static function run(Core\Socket $conn, uint $size): uint
     {
-        Core\Topic::subscribe("room:lobby");
+        Core\Topic::subscribe('room:lobby');
         string $line = Core\Str::repeat('a', $size);
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            Core\Topic::publish("room:lobby", $line);
+            Core\Topic::publish('room:lobby', $line);
             ?Core\Socket\Message $message = $conn->receive();
             tainted string $posted =$message?->value() as string;
             $total = $total + Core\Str::length($posted) % 7 + 1;

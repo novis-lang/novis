@@ -6,4 +6,4 @@ Core\Socket $conn = Core\Socket::current();
 
 // Each `sent:` line in the output is a message the client received.
 // This prints `sent: welcome to the chat`.
-$conn->send("welcome to the chat");
+$conn->send('welcome to the chat');

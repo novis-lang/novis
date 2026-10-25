@@ -3,21 +3,23 @@
 // start on the left. The column description says which is which, so your
 // program decides once per column instead of looking at every cell.
 
-class Table {
-    public static function alignment(Core\Db\Column::Type $type): string {
+class Table
+{
+    public static function alignment(Core\Db\Column::Type $type): string
+    {
         return match ($type) {
-            Core\Db\Column::Type::Int => "right",
-            Core\Db\Column::Type::Uint => "right",
-            Core\Db\Column::Type::Float => "right",
-            Core\Db\Column::Type::Decimal => "right",
-            default => "left",
+            Core\Db\Column::Type::Int => 'right',
+            Core\Db\Column::Type::Uint => 'right',
+            Core\Db\Column::Type::Float => 'right',
+            Core\Db\Column::Type::Decimal => 'right',
+            default => 'left',
         };
     }
 }
 
 // What the description of a `select id, customer, total, placed_on` would
 // hand back.
-array<string> $names = ["id", "customer", "total", "placed_on"];
+array<string> $names = ['id', 'customer', 'total', 'placed_on'];
 array<Core\Db\Column::Type> $types = [
     Core\Db\Column::Type::Uint,
     Core\Db\Column::Type::Text,
@@ -26,7 +28,7 @@ array<Core\Db\Column::Type> $types = [
 ];
 
 foreach (Core\Arr::range(0, 3) as int $column) {
-    echo $names[$column], " is aligned ", Table::alignment($types[$column]), "\n";
+    echo $names[$column], ' is aligned ', Table::alignment($types[$column]), "\n";
 }
 
 // A date is a value with an order, and it still goes on the left: what is

@@ -3,10 +3,10 @@
 
 // `Core\Test::tlsSession` builds a TLS connection for a test, so the example runs
 // without a network. `Core\Test::answerHttp` gives a fixed reply that reports it.
-var $session = Core\Test::tlsSession({version: "TLSv1.3"});
-Core\Test::answerHttp("https://api.example.com/health", 200, {body: "ok", tls: $session});
+var $session = Core\Test::tlsSession({ version: 'TLSv1.3' });
+Core\Test::answerHttp('https://api.example.com/health', 200, { body: 'ok', tls: $session });
 
-Core\Http\Response $response = Core\Http\Client::get("https://api.example.com/health");
+Core\Http\Response $response = Core\Http\Client::get('https://api.example.com/health');
 
 // `tls()` is `null` for a reply that did not come over TLS, so the program checks first.
 // `version()` returns the version as a string. This prints `TLSv1.3`.

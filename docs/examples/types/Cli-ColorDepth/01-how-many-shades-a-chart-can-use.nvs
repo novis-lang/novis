@@ -2,8 +2,10 @@
 // This program picks how many shades of one colour a heat map uses for each
 // `Core\Cli::ColorDepth` case.
 
-class HeatMap {
-    public static function shades(Core\Cli::ColorDepth $depth): int {
+class HeatMap
+{
+    public static function shades(Core\Cli::ColorDepth $depth): int
+    {
         return match ($depth) {
             Core\Cli::ColorDepth::None => 1,
             Core\Cli::ColorDepth::Ansi16 => 4,
@@ -27,5 +29,7 @@ foreach ($everything as Core\Cli::ColorDepth $depth) {
 
 // `Core\Cli::colorDepth()` returns the colour depth of the current terminal.
 // This note goes to standard error, because it is not part of the result.
-Core\Cli::write("this run has " . HeatMap::shades(Core\Cli::colorDepth()) . " shade(s)",
-                {stream: Core\Cli::Stream::Err, newline: true});
+Core\Cli::write(
+    'this run has ' . HeatMap::shades(Core\Cli::colorDepth()) . ' shade(s)',
+    { stream: Core\Cli::Stream::Err, newline: true },
+);

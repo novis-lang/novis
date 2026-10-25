@@ -6,4 +6,4 @@ use Novis\Image\Color;
 Color $orange = Color::rgba(255, 136, 0);
 
 // This prints 255 136 0 1.
-echo $orange->r, " ", $orange->g, " ", $orange->b, " ", $orange->alpha, "\n";
+echo $orange->r, ' ', $orange->g, ' ', $orange->b, ' ', $orange->alpha, "\n";

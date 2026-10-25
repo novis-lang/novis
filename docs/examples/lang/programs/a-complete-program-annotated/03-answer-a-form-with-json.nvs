@@ -4,11 +4,11 @@
 // answer is a call on `Core\Json`: everything Novis gives you is a class
 // member, so there is no loose `json_encode` to remember.
 
-array<string> $lineItems = ["2", "10", "1"];
+array<string> $lineItems = ['2', '10', '1'];
 
 int $units = 0;
 foreach ($lineItems as string $quantity) {
     $units = $units + ($quantity as int);
 }
 
-echo Core\Json::encode({lines: Core\Arr::count($lineItems), units: $units}), "\n";
+echo Core\Json::encode({ lines: Core\Arr::count($lineItems), units: $units }), "\n";

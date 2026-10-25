@@ -28,7 +28,7 @@ var $schema = Schema::fromArray([
 foreach ($schema->planAgainst($db)->steps() as Step $step) {
     if ($step->grade() == Step::Grade::Safe) {
         echo 'safe: ', $step->reason(), "\n";
-    } else if ($step->grade() == Step::Grade::Locking) {
+    } elseif ($step->grade() == Step::Grade::Locking) {
         echo 'locking: ', $step->reason(), "\n";
     } else {
         // Dropping a table can lose data, so it is graded `Destructive`.

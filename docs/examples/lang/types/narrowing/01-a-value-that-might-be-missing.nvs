@@ -7,21 +7,21 @@ class Account
     // So `A` can use it like any other string.
     public static function greeting(?string $nickname): string
     {
-        return $nickname != null ? "hello, " . Core\Str::upperFirst($nickname) : "hello, stranger";
+        return $nickname != null ? 'hello, ' . Core\Str::upperFirst($nickname) : 'hello, stranger';
     }
 
     // The right side of `&&` runs only when the left side is true.
     // So on the right side, `$email` is a `string`.
     public static function canReceiveMail(?string $email): bool
     {
-        return $email != null && Core\Str::contains($email, "@");
+        return $email != null && Core\Str::contains($email, '@');
     }
 
     // The right side of `||` runs only when the left side is false.
     // So on the right side, `$coupon` is a `string`.
     public static function paysFullPrice(?string $coupon): bool
     {
-        return $coupon == null || Core\Str::startsWith($coupon, "EXPIRED-");
+        return $coupon == null || Core\Str::startsWith($coupon, 'EXPIRED-');
     }
 
     // An `if` block does the same for several lines of code.
@@ -29,19 +29,19 @@ class Account
     public static function badge(?string $nickname): string
     {
         if ($nickname == null) {
-            return "no badge";
+            return 'no badge';
         }
 
         string $initial = Core\Str::upper(Core\Str::slice($nickname, 0, 1));
-        return $initial . " for " . $nickname;
+        return $initial . ' for ' . $nickname;
     }
 }
 
-echo Account::greeting("ada"), "\n";
+echo Account::greeting('ada'), "\n";
 echo Account::greeting(null), "\n";
-echo Account::canReceiveMail("ada@example.com") ? "send mail" : "no mail", "\n";
-echo Account::canReceiveMail(null) ? "send mail" : "no mail", "\n";
-echo Account::paysFullPrice(null) ? "full price" : "discount", "\n";
-echo Account::paysFullPrice("SPRING10") ? "full price" : "discount", "\n";
-echo Account::badge("ada"), "\n";
+echo Account::canReceiveMail('ada@example.com') ? 'send mail' : 'no mail', "\n";
+echo Account::canReceiveMail(null) ? 'send mail' : 'no mail', "\n";
+echo Account::paysFullPrice(null) ? 'full price' : 'discount', "\n";
+echo Account::paysFullPrice('SPRING10') ? 'full price' : 'discount', "\n";
+echo Account::badge('ada'), "\n";
 echo Account::badge(null), "\n";

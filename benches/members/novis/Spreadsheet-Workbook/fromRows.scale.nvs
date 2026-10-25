@@ -4,14 +4,17 @@
 // bench: max 1048576
 use Novis\Spreadsheet\Workbook;
 
-class Orders {
-    public function constructor(private uint $size) {}
+class Orders
+{
+    public function constructor(private uint $size)
+    {}
 
-    public function rows(): Iterator<array<mixed>> {
-        yield ["Order", "Customer", "Total"];
+    public function rows(): Iterator<array<mixed>>
+    {
+        yield ['Order', 'Customer', 'Total'];
         uint $n = 1;
         while ($n < $this->size) {
-            yield [$n, "Customer", ($n as float) * 1.25];
+            yield [$n, 'Customer', ($n as float) * 1.25];
             $n = $n + 1;
         }
     }
@@ -22,7 +25,7 @@ class Bench
     public static function run(uint $size): uint
     {
         var $orders = new Orders($size);
-        return Core\Bytes::length(Workbook::fromRows($orders->rows(), {header: true})->bytes());
+        return Core\Bytes::length(Workbook::fromRows($orders->rows(), { header: true })->bytes());
     }
 }
 

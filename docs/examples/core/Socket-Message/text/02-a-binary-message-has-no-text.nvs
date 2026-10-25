@@ -12,7 +12,7 @@ while ($message != null) {
     if ($text == null) {
         echo "no text: this is a binary message\n";
     } else {
-        echo "text: ", $text, "\n";
+        echo 'text: ', $text, "\n";
     }
     $message = $conn->receive();
 }

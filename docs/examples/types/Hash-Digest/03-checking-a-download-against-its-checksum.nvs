@@ -3,11 +3,11 @@
 // downloaded file has the same checksum. Always use the algorithm the publisher names.
 
 // This string replaces the contents of the downloaded file.
-string $downloaded = "the release archive";
+string $downloaded = 'the release archive';
 
 // The checksum as the publisher wrote it. A checksum is usually written as hex,
 // so `Core\Encoding::fromHex` converts it to bytes below.
-string $published = "9287352f960eca8487b5cf180199b11a82306e1e6fff02b566d48a229a8ebe32";
+string $published = '9287352f960eca8487b5cf180199b11a82306e1e6fff02b566d48a229a8ebe32';
 
 bytes $ours = Core\Hash::of($downloaded, Core\Hash::Digest::Sha256);
 bytes $theirs = Core\Encoding::fromHex($published);
@@ -18,6 +18,6 @@ if (Core\Hash::equals($ours, $theirs)) {
     // The file is damaged, or it is not the file the publisher released.
     // Do not install it. Print both checksums so somebody can compare them.
     echo "checksum does not match\n";
-    echo "  they published: ", $published, "\n";
-    echo "  we have:        ", Core\Encoding::toHex($ours), "\n";
+    echo '  they published: ', $published, "\n";
+    echo '  we have:        ', Core\Encoding::toHex($ours), "\n";
 }

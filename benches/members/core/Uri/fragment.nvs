@@ -4,18 +4,20 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Uri> $links = [
-            Core\Uri::parse("https://example.com/guide#install"),
-            Core\Uri::parse("https://example.com/faq"),
-            Core\Uri::parse("https://example.com/guide#getting%20started"),
+            Core\Uri::parse('https://example.com/guide#install'),
+            Core\Uri::parse('https://example.com/faq'),
+            Core\Uri::parse('https://example.com/guide#getting%20started'),
         ];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             ?string $fragment = $links[($total % 3) as int]->fragment();
-            $total = $total + Core\Str::length($fragment ?? "-");
+            $total = $total + Core\Str::length($fragment ?? '-');
             $i = $i + 1;
         }
         return $total;

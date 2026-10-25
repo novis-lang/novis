@@ -2,18 +2,18 @@
 // Shows what the cookie covers when a loop stops before the last entry.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $sales = Core\Ldap\Filter::equals("department", "Sales");
+var $corp = Core\Ldap::connect('corp');
+var $sales = Core\Ldap\Filter::equals('department', 'Sales');
 
 // This loop stops after the first person.
-var $first = $corp->changes($sales, {select: ["cn"]});
+var $first = $corp->changes($sales, { select: ['cn'] });
 foreach ($first as Core\Ldap\Entry $person) {
     break;
 }
 
 // The cookie covers only what the loop read. So the next run returns
 // the people the loop did not read. This prints a number above 0.
-var $next = $corp->changes($sales, {select: ["cn"], cookie: $first->cookie()});
+var $next = $corp->changes($sales, { select: ['cn'], cookie: $first->cookie() });
 int $again = 0;
 foreach ($next as Core\Ldap\Entry $person) {
     $again = $again + 1;

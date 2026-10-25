@@ -2,12 +2,12 @@
 // The `order` option works the same way in every sort function. This program sorts
 // one list by its values and then by its keys, with the same option each time.
 
-array<int> $stock = ["pears" => 4, "apples" => 12, "plums" => 7];
+array<int> $stock = ['pears' => 4, 'apples' => 12, 'plums' => 7];
 
 // By how many are in stock, most first. `preserveKeys` keeps each number with
 // its key.
-echo Core\Json::encode(Core\Arr::sort($stock, {order: Core\Arr::Order::Desc, preserveKeys: true})), "\n";
+echo Core\Json::encode(Core\Arr::sort($stock, { order: Core\Arr::Order::Desc, preserveKeys: true })), "\n";
 
 // By key, first from A to Z and then from Z to A.
 echo Core\Json::encode(Core\Arr::sortByKey($stock)), "\n";
-echo Core\Json::encode(Core\Arr::sortByKey($stock, {order: Core\Arr::Order::Desc})), "\n";
+echo Core\Json::encode(Core\Arr::sortByKey($stock, { order: Core\Arr::Order::Desc })), "\n";

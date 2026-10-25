@@ -45,11 +45,13 @@ A static property has one value, and every task of the program reads and writes 
 // Shows that waiting needs no special syntax. `Core\Time::sleep` stops this task
 // until the time has passed. The lines around it run one after another, in order.
 
-class Report {
-    public static function rows(): array<string> {
+class Report
+{
+    public static function rows(): array<string>
+    {
         // A real program reads a file or asks a database here. Both of those wait.
         Core\Time::sleep(10ms);
-        return ["north", "south"];
+        return ['north', 'south'];
     }
 }
 
@@ -58,7 +60,7 @@ echo "asking for the rows\n";
 // The result is the array itself. There is nothing to unwrap.
 array<string> $rows = Report::rows();
 
-echo "got ", Core\Arr::count($rows), " rows\n";
+echo 'got ', Core\Arr::count($rows), " rows\n";
 
 foreach ($rows as string $row) {
     echo $row, "\n";
@@ -80,24 +82,26 @@ south
 // `quick` waits 5. While `slow` waits, `quick` runs and finishes first. The steps are
 // kept in a variable, because a task collects what it prints until the group is done.
 
-class Trace {
-    public static string $steps = "";
+class Trace
+{
+    public static string $steps = '';
 
-    public static function note(string $what): void {
+    public static function note(string $what): void
+    {
         Trace::$steps = Trace::$steps . $what . "\n";
     }
 }
 
 Core\Task::all({
     slow: fn(): void => {
-        Trace::note("slow starts");
+        Trace::note('slow starts');
         Core\Time::sleep(40ms);
-        Trace::note("slow is done");
+        Trace::note('slow is done');
     },
     quick: fn(): void => {
-        Trace::note("quick starts");
+        Trace::note('quick starts');
         Core\Time::sleep(5ms);
-        Trace::note("quick is done");
+        Trace::note('quick is done');
     },
 });
 
@@ -120,20 +124,24 @@ slow is done
 // from somewhere slow. These are ordinary functions, so the page can ask for them at
 // the same time or one at a time. The functions are written the same way either way.
 
-class Store {
-    public static function customer(): string {
+class Store
+{
+    public static function customer(): string
+    {
         Core\Time::sleep(5ms);
-        return "Ada Lovelace";
+        return 'Ada Lovelace';
     }
 
-    public static function orders(): array<string> {
+    public static function orders(): array<string>
+    {
         Core\Time::sleep(5ms);
-        return ["A-1001", "A-1002"];
+        return ['A-1001', 'A-1002'];
     }
 
-    public static function banner(): string {
+    public static function banner(): string
+    {
         Core\Time::sleep(5ms);
-        return "Free delivery this week";
+        return 'Free delivery this week';
     }
 }
 
@@ -146,7 +154,7 @@ var $page = Core\Task::all({
 echo $page->customer, "\n";
 
 foreach ($page->orders as string $order) {
-    echo "order ", $order, "\n";
+    echo 'order ', $order, "\n";
 }
 
 // The same kind of function, called on its own line.
@@ -202,13 +210,13 @@ of functions is `E0401` too.
 
 var $page = Core\Task::all({
     rows:  fn(): array<int> => [10, 20, 30],
-    label: fn(): string     => "orders",
+    label: fn(): string     => 'orders',
     total: fn(): int        => 60,
 });
 
 // Each field already has the type its own function returns, so nothing needs converting.
 // This prints orders: 3 rows, 60 in total.
-echo $page->label, ": ", Core\Arr::count($page->rows), " rows, ", $page->total, " in total\n";
+echo $page->label, ': ', Core\Arr::count($page->rows), ' rows, ', $page->total, " in total\n";
 ```
 
 ```output
@@ -222,16 +230,18 @@ orders: 3 rows, 60 in total
 // Shows that where a job is written does not matter. A field can hold a function
 // written in place, a method named with `(...)`, or a function kept in a variable.
 
-class Stock {
-    public static function onHand(): int {
+class Stock
+{
+    public static function onHand(): int
+    {
         return 42;
     }
 }
 
-var $kept = fn(): string => "from a variable";
+var $kept = fn(): string => 'from a variable';
 
 var $group = Core\Task::all({
-    here:   fn(): string => "written in place",
+    here:   fn(): string => 'written in place',
     method: Stock::onHand(...),
     kept:   $kept,
 });
@@ -256,17 +266,21 @@ from a variable
 // none of them needs the others. Running them together takes as long as the slowest
 // one, instead of as long as all three added up.
 
-class Catalog {
-    public static function product(): string {
-        return "Espresso machine";
+class Catalog
+{
+    public static function product(): string
+    {
+        return 'Espresso machine';
     }
 
-    public static function stock(): int {
+    public static function stock(): int
+    {
         return 12;
     }
 
-    public static function reviews(): array<string> {
-        return ["fast", "quiet"];
+    public static function reviews(): array<string>
+    {
+        return ['fast', 'quiet'];
     }
 }
 
@@ -277,10 +291,10 @@ var $page = Core\Task::all({
 });
 
 echo $page->product, "\n";
-echo "in stock: ", $page->stock, "\n";
+echo 'in stock: ', $page->stock, "\n";
 
 foreach ($page->reviews as string $review) {
-    echo "- ", $review, "\n";
+    echo '- ', $review, "\n";
 }
 ```
 
@@ -352,14 +366,14 @@ An empty array starts no tasks, and the result is an empty array.
 // Shows how to run one job for every element of an array. `Core\Task::map` calls the
 // function once per element, all at the same time, and returns the results as an array.
 
-array<int> $prices = ["apple" => 3, "pear" => 4, "plum" => 5];
+array<int> $prices = ['apple' => 3, 'pear' => 4, 'plum' => 5];
 
 var $cents = Core\Task::map($prices, fn(int $euros): int => $euros * 100);
 
 // The results keep the input's keys and the input's order.
 // This prints apple=300, then pear=400, then plum=500.
 foreach ($cents as string $fruit => int $amount) {
-    echo $fruit, "=", $amount, "\n";
+    echo $fruit, '=', $amount, "\n";
 }
 ```
 
@@ -376,7 +390,7 @@ plum=500
 // Shows the two parameters the function may take. The first is the element's value.
 // The second is its key. You write the second one only when you need it.
 
-array<int> $stock = ["Hamburg" => 12, "Munchen" => 0, "Koln" => 7];
+array<int> $stock = ['Hamburg' => 12, 'Munchen' => 0, 'Koln' => 7];
 
 // Only the value. This prints 24, 0 and 14.
 var $doubled = Core\Task::map($stock, fn(int $count): int => $count * 2);
@@ -385,7 +399,7 @@ foreach ($doubled as int $count) {
 }
 
 // The value and the key. This prints Hamburg has 12, and so on for the other two.
-var $lines = Core\Task::map($stock, fn(int $count, string $city): string => $city . " has " . $count);
+var $lines = Core\Task::map($stock, fn(int $count, string $city): string => $city . ' has ' . $count);
 foreach ($lines as string $line) {
     echo $line, "\n";
 }
@@ -408,33 +422,35 @@ Koln has 7
 // checked before any of them is saved. No row needs another row, so all of them are
 // checked at the same time. The answers come back in the file's own order.
 
-class Row {
-    public static function check(string $line): string {
-        array<string> $parts = Core\Str::split($line, ",");
+class Row
+{
+    public static function check(string $line): string
+    {
+        array<string> $parts = Core\Str::split($line, ',');
         if (Core\Arr::count($parts) != 2) {
-            return "needs two columns";
+            return 'needs two columns';
         }
 
         if (Core\Str::length($parts[1]) == 0) {
-            return "the amount is empty";
+            return 'the amount is empty';
         }
 
-        return "ok";
+        return 'ok';
     }
 }
 
 array<string> $upload = [
-    "COFFEE-1KG,2",
-    "FILTER-100",
-    "MUG-BLUE,",
-    "CUP-RED,4",
+    'COFFEE-1KG,2',
+    'FILTER-100',
+    'MUG-BLUE,',
+    'CUP-RED,4',
 ];
 
 var $verdicts = Core\Task::map($upload, fn(string $line): string => Row::check($line));
 
 // An array's key is always a `string`, so the row number is converted before it is used.
 foreach ($verdicts as string $key => string $verdict) {
-    echo "row ", ($key as int) + 1, ": ", $verdict, "\n";
+    echo 'row ', ($key as int) + 1, ': ', $verdict, "\n";
 }
 ```
 
@@ -496,7 +512,7 @@ try {
             Core\Time::sleep(500ms);
             return 2;
         },
-    }, {deadline: 20ms});
+    }, { deadline: 20ms });
     echo "both tasks finished\n";
 } catch (TimeoutError $late) {
     // This is the line that prints. `slow` needs half a second, and the group has
@@ -517,7 +533,8 @@ the group ran out of time
 // here, and `limit` lets two of them run at once. The other four wait for a free
 // place. None of them is refused.
 
-class Gauge {
+class Gauge
+{
     public static int $running = 0;
     public static int $most = 0;
 }
@@ -530,12 +547,12 @@ var $results = Core\Task::map(Core\Arr::range(1, 6), fn(int $n): int => {
     Core\Time::sleep(5ms);
     Gauge::$running -= 1;
     return $n * 10;
-}, {limit: 2});
+}, { limit: 2 });
 
 // This prints 2. Two tasks ran at the same time, and never three.
-echo "most at once: ", Gauge::$most, "\n";
+echo 'most at once: ', Gauge::$most, "\n";
 // All six tasks ran, so the last result is 60.
-echo "last result: ", $results[5], "\n";
+echo 'last result: ', $results[5], "\n";
 ```
 
 ```output
@@ -551,21 +568,23 @@ last result: 60
 // `limit` asks for no more than two prices at a time, so the service is not flooded.
 // `deadline` stops the whole report after one second.
 
-class Prices {
-    public static function of(string $sku): int {
+class Prices
+{
+    public static function of(string $sku): int
+    {
         // A real program asks another server here.
         Core\Time::sleep(5ms);
         return Core\Str::length($sku) as int * 100;
     }
 }
 
-array<string> $skus = ["cup", "mug", "kettle", "spoon", "pot", "tray"];
+array<string> $skus = ['cup', 'mug', 'kettle', 'spoon', 'pot', 'tray'];
 
 try {
     var $prices = Core\Task::map(
         $skus,
         fn(string $sku): int => Prices::of($sku),
-        {limit: 2, deadline: 1s},
+        { limit: 2, deadline: 1s },
     );
     foreach ($prices as int $price) {
         echo $price, "\n";
@@ -629,7 +648,8 @@ is not thrown.
 // Shows what happens when one task in a group throws an error. The group stops
 // and your `catch` gets the error that task threw.
 
-class Trace {
+class Trace
+{
     public static int $finished = 0;
 }
 
@@ -642,12 +662,12 @@ try {
             return 1;
         },
         quick: fn(): int => {
-            throw new RuntimeError("the price list is empty");
+            throw new RuntimeError('the price list is empty');
         },
     });
     echo "the group finished\n";
 } catch (RuntimeError $e) {
-    echo "caught: ", $e->message, "\n";
+    echo 'caught: ', $e->message, "\n";
 }
 
 // The slow task was cancelled, so it never reached its last line.
@@ -666,10 +686,12 @@ caught: the price list is empty
 // Shows an error class of your own crossing out of a task. The class and the
 // properties you gave it are still there in the `catch`.
 
-class ImportFailed extends RuntimeError {
+class ImportFailed extends RuntimeError
+{
     public int $row;
 
-    public function constructor(string $message, int $row) {
+    public function constructor(string $message, int $row)
+    {
         $this->row = $row;
         parent::constructor($message);
     }
@@ -679,14 +701,14 @@ try {
     // One task for each file. The second file has a row this program cannot read.
     Core\Task::map([1, 2, 3], fn(int $file): int => {
         if ($file == 2) {
-            throw new ImportFailed("this row has no price", 31);
+            throw new ImportFailed('this row has no price', 31);
         }
         return $file;
     });
     echo "all three files were imported\n";
 } catch (ImportFailed $e) {
     echo $e->message, "\n";
-    echo "row ", $e->row, "\n";
+    echo 'row ', $e->row, "\n";
 }
 ```
 
@@ -702,17 +724,21 @@ row 31
 // Shows a page that loads three things at the same time. One of them is not
 // there, so the page says so instead of showing half of itself.
 
-class Store {
-    public static function user(): string {
-        return "Ada";
+class Store
+{
+    public static function user(): string
+    {
+        return 'Ada';
     }
 
-    public static function orders(): int {
+    public static function orders(): int
+    {
         return 3;
     }
 
-    public static function recommendations(): int {
-        throw new RuntimeError("the recommendation service is down");
+    public static function recommendations(): int
+    {
+        throw new RuntimeError('the recommendation service is down');
     }
 }
 
@@ -728,9 +754,9 @@ try {
             return Store::recommendations();
         },
     });
-    echo $page->user, " has ", $page->orders, " orders\n";
+    echo $page->user, ' has ', $page->orders, " orders\n";
 } catch (RuntimeError $e) {
-    echo "this page cannot be built: ", $e->message, "\n";
+    echo 'this page cannot be built: ', $e->message, "\n";
 }
 ```
 
@@ -748,17 +774,17 @@ this page cannot be built: the recommendation service is down
 try {
     Core\Task::all({
         first: fn(): int => {
-            throw new RuntimeError("the first file is missing");
+            throw new RuntimeError('the first file is missing');
         },
         // This task runs before the group can stop it. Its error is printed on
         // standard error, and your program goes on.
         second: fn(): int => {
             echo "the second task started\n";
-            throw new RuntimeError("the second file is missing");
+            throw new RuntimeError('the second file is missing');
         },
     });
 } catch (RuntimeError $e) {
-    echo "caught: ", $e->message, "\n";
+    echo 'caught: ', $e->message, "\n";
 }
 echo "the program goes on\n";
 ```
@@ -822,9 +848,9 @@ var $lines = new Core\Task\Channel<string>(4);
 
 Core\Task::all({
     write: fn(): void => {
-        $lines->send("first");
-        $lines->send("second");
-        $lines->send("third");
+        $lines->send('first');
+        $lines->send('second');
+        $lines->send('third');
         // Close the channel when you are done sending. Without this the reading
         // task waits forever.
         $lines->close();
@@ -868,7 +894,7 @@ var $done = Core\Task::all({
     work: fn(): int => {
         int $sum = 0;
         foreach ($jobs as int $n) {
-            echo "handled job ", $n, "\n";
+            echo 'handled job ', $n, "\n";
             $sum = $sum + $n;
         }
         return $sum;
@@ -876,7 +902,7 @@ var $done = Core\Task::all({
 });
 
 // This prints 8 and 36.
-echo $done->fill, " jobs, total ", $done->work, "\n";
+echo $done->fill, ' jobs, total ', $done->work, "\n";
 ```
 
 ```output
@@ -899,16 +925,20 @@ handled job 8
 // The channel holds 2 orders, so the reading task waits for the writer. A list of a
 // million orders uses the same memory as a list of three.
 
-class Order {
-    public function constructor(public string $id, public int $cents) {}
+class Order
+{
+    public function constructor(public string $id, public int $cents)
+    {}
 }
 
-class Shop {
-    public static function orders(): array<Order> {
+class Shop
+{
+    public static function orders(): array<Order>
+    {
         return [
-            new Order("A-1001", 1250),
-            new Order("A-1002", 900),
-            new Order("A-1003", 4300),
+            new Order('A-1001', 1250),
+            new Order('A-1002', 900),
+            new Order('A-1003', 4300),
         ];
     }
 }
@@ -928,7 +958,7 @@ var $till = Core\Task::all({
     bill: fn(): int => {
         int $cents = 0;
         foreach ($queue as Order $order) {
-            echo "receipt ", $order->id, ": ", $order->cents, " cents\n";
+            echo 'receipt ', $order->id, ': ', $order->cents, " cents\n";
             $cents = $cents + $order->cents;
         }
         return $cents;
@@ -936,7 +966,7 @@ var $till = Core\Task::all({
 });
 
 // This prints 3 and 6450.
-echo $till->read, " orders, ", $till->bill, " cents in total\n";
+echo $till->read, ' orders, ', $till->bill, " cents in total\n";
 ```
 
 ```output
@@ -1036,7 +1066,7 @@ foreach (Core\Arr::range(1, 30) as int $day) {
     $total += $day * 100;
 }
 
-return "Sales last month: " . $total;
+return 'Sales last month: ' . $total;
 ```
 
 ```nvs file=jobs/count-rows.nvs
@@ -1077,7 +1107,7 @@ echo "the child says hello\n";
 // the file. `await` waits for it to finish and gives you a result to read.
 
 // The path starts at the folder of this file.
-var $handle = spawn script "jobs/count-rows.nvs" with(output: "capture");
+var $handle = spawn script 'jobs/count-rows.nvs' with(output: 'capture');
 
 // The file is running now. Your program can do other work on this line.
 echo "the file was started\n";
@@ -1085,14 +1115,14 @@ echo "the file was started\n";
 var $result = await $handle;
 
 // `ok` is true when the file finished without an error.
-echo "ok: ", $result->ok ? "true" : "false", "\n";
+echo 'ok: ', $result->ok ? 'true' : 'false', "\n";
 
 // `value` is what the file returned. Convert it with `as`.
 int $rows = $result->value as int;
-echo "rows: ", $rows, "\n";
+echo 'rows: ', $rows, "\n";
 
 // `output` is everything the file printed, because this spawn asked to keep it.
-echo "it printed: ", $result->output;
+echo 'it printed: ', $result->output;
 ```
 
 ```output
@@ -1125,7 +1155,7 @@ foreach (Core\Arr::range(1, 30) as int $day) {
     $total += $day * 100;
 }
 
-return "Sales last month: " . $total;
+return 'Sales last month: ' . $total;
 ```
 
 ```nvs file=jobs/count-rows.nvs
@@ -1166,17 +1196,17 @@ echo "the child says hello\n";
 // both. The second file does not wait for the first one to finish.
 
 // Each path starts at the folder of this file.
-var $prices = spawn script "jobs/fetch-prices.nvs" with(output: "capture");
-var $stock = spawn script "jobs/fetch-stock.nvs" with(output: "capture");
+var $prices = spawn script 'jobs/fetch-prices.nvs' with(output: 'capture');
+var $stock = spawn script 'jobs/fetch-stock.nvs' with(output: 'capture');
 
 // Each `await` takes one handle. Wait for them in any order you like.
 var $gotPrices = await $prices;
 var $gotStock = await $stock;
 
 int $found = ($gotPrices->value as int) + ($gotStock->value as int);
-echo "prices said: ", $gotPrices->output;
-echo "stock said: ", $gotStock->output;
-echo "items to show: ", $found, "\n";
+echo 'prices said: ', $gotPrices->output;
+echo 'stock said: ', $gotStock->output;
+echo 'items to show: ', $found, "\n";
 ```
 
 ```output
@@ -1208,7 +1238,7 @@ foreach (Core\Arr::range(1, 30) as int $day) {
     $total += $day * 100;
 }
 
-return "Sales last month: " . $total;
+return 'Sales last month: ' . $total;
 ```
 
 ```nvs file=jobs/count-rows.nvs
@@ -1248,7 +1278,7 @@ echo "the child says hello\n";
 // Shows why you start a file instead of calling a function. The report is built
 // while this program writes the page. Collect it at the end.
 
-var $handle = spawn script "jobs/build-report.nvs" with(output: "capture");
+var $handle = spawn script 'jobs/build-report.nvs' with(output: 'capture');
 
 // This part of the page is written while the report is still being built.
 echo "<h1>Sales</h1>\n";
@@ -1257,7 +1287,7 @@ echo "<p>Numbers for last month.</p>\n";
 var $report = await $handle;
 if ($report->ok) {
     tainted string $line = $report->value as string;
-    echo "<p>", $line, "</p>\n";
+    echo '<p>', $line, "</p>\n";
 } else {
     echo "<p>The report is not ready.</p>\n";
 }
@@ -1292,7 +1322,7 @@ foreach (Core\Arr::range(1, 30) as int $day) {
     $total += $day * 100;
 }
 
-return "Sales last month: " . $total;
+return 'Sales last month: ' . $total;
 ```
 
 ```nvs file=jobs/count-rows.nvs
@@ -1332,12 +1362,12 @@ echo "the child says hello\n";
 // Shows `output: "inherit"`. The child's output is printed when you `await` it.
 // A second `await` of the same handle throws `LogicError`.
 
-var $hello = spawn script "jobs/say-hello.nvs" with(output: "inherit");
+var $hello = spawn script 'jobs/say-hello.nvs' with(output: 'inherit');
 echo "the parent prints first\n";
 
 // The child's line is printed here, at the `await`.
 var $done = await $hello;
-echo "ok: ", $done->ok ? "true" : "false", "\n";
+echo 'ok: ', $done->ok ? 'true' : 'false', "\n";
 
 try {
     var $again = await $hello;
@@ -1376,7 +1406,7 @@ foreach (Core\Arr::range(1, 30) as int $day) {
     $total += $day * 100;
 }
 
-return "Sales last month: " . $total;
+return 'Sales last month: ' . $total;
 ```
 
 ```nvs file=jobs/count-rows.nvs
@@ -1416,18 +1446,20 @@ echo "the child says hello\n";
 // Shows how to give a child a value with `args:`. A file reads it with
 // `Core\Script::args()`. A static method gets it as its arguments.
 
-class Report {
-    public static function title(string $month, int $year): string {
-        return "Sales for " . $month . " " . ($year as string);
+class Report
+{
+    public static function title(string $month, int $year): string
+    {
+        return 'Sales for ' . $month . ' ' . ($year as string);
     }
 }
 
 // The child gets a copy of the array.
-var $sum = await spawn script "jobs/add-up.nvs" with(args: [10, 20, 30]);
-echo "total: ", $sum->value as int, "\n";
+var $sum = await spawn script 'jobs/add-up.nvs' with(args: [10, 20, 30]);
+echo 'total: ', $sum->value as int, "\n";
 
 // Each key of the array is the name of one parameter.
-var $report = await spawn script Report::title(...) with(args: ["month" => "July", "year" => 2026]);
+var $report = await spawn script Report::title(...) with(args: ['month' => 'July', 'year' => 2026]);
 echo $report->value as string, "\n";
 ```
 
@@ -1472,13 +1504,14 @@ the parent's variables. A child that uses `$x` without declaring it does not com
 // The examples in the folder above start this script. It prints the number it
 // reads, then writes a new number in its place.
 
-final class Orders {
+final class Orders
+{
     public static int $counted = 0;
 }
 
-echo "the script read ", Orders::$counted, "\n";
+echo 'the script read ', Orders::$counted, "\n";
 Orders::$counted = 42;
-echo "the script wrote ", Orders::$counted, "\n";
+echo 'the script wrote ', Orders::$counted, "\n";
 ```
 
 ```nvs file=scripts/say-what-it-did.nvs
@@ -1495,15 +1528,16 @@ return 3;
 // Shows that a script you start with `spawn script` cannot change your data.
 // It gets its own copy of every class static, and your own copy stays as it is.
 
-final class Orders {
+final class Orders
+{
     public static int $counted = 0;
 }
 
 Orders::$counted = 7;
-echo "before: ", Orders::$counted, "\n";
+echo 'before: ', Orders::$counted, "\n";
 
 // The path starts at the folder of this file.
-var $handle = spawn script "scripts/count-orders.nvs" with(output: "capture");
+var $handle = spawn script 'scripts/count-orders.nvs' with(output: 'capture');
 var $result = await $handle;
 
 // The script printed two lines while it ran. With `capture` they come back as
@@ -1511,7 +1545,7 @@ var $result = await $handle;
 echo $result->output;
 
 // The script set `Orders::$counted` to 42. This still prints 7.
-echo "after: ", Orders::$counted, "\n";
+echo 'after: ', Orders::$counted, "\n";
 ```
 
 ```output
@@ -1528,13 +1562,14 @@ after: 7
 // The examples in the folder above start this script. It prints the number it
 // reads, then writes a new number in its place.
 
-final class Orders {
+final class Orders
+{
     public static int $counted = 0;
 }
 
-echo "the script read ", Orders::$counted, "\n";
+echo 'the script read ', Orders::$counted, "\n";
 Orders::$counted = 42;
-echo "the script wrote ", Orders::$counted, "\n";
+echo 'the script wrote ', Orders::$counted, "\n";
 ```
 
 ```nvs file=scripts/say-what-it-did.nvs
@@ -1553,22 +1588,22 @@ return 3;
 
 // `output: "capture"` keeps the text for you. Nothing reaches the screen while
 // the script runs. The path starts at the folder of this file.
-var $first = spawn script "scripts/say-what-it-did.nvs" with(output: "capture");
+var $first = spawn script 'scripts/say-what-it-did.nvs' with(output: 'capture');
 var $kept = await $first;
-echo "the script said: ", $kept->output;
+echo 'the script said: ', $kept->output;
 
 // `value` is what the script returned. Convert it with `as`.
 int $files = $kept->value as int;
-echo "it removed ", $files, " files\n";
+echo 'it removed ', $files, " files\n";
 
 // `output: "inherit"` sends the text to your own screen instead. All of it is
 // there once `await` has returned.
-var $second = spawn script "scripts/say-what-it-did.nvs" with(output: "inherit");
+var $second = spawn script 'scripts/say-what-it-did.nvs' with(output: 'inherit');
 var $shown = await $second;
 
 // `output` is empty this time, because the text went to the screen.
 // `as string` converts it to a `string`, so `Core\Str::length` can count it.
-echo "kept text: ", Core\Str::length($shown->output as string), " characters\n";
+echo 'kept text: ', Core\Str::length($shown->output as string), " characters\n";
 ```
 
 ```output
@@ -1585,7 +1620,8 @@ kept text: 0 characters
 // One health check. The example in the folder above starts it. It counts the
 // problems it found in its own `Report::$problems`, and returns that number.
 
-final class Report {
+final class Report
+{
     public static int $problems = 0;
 }
 
@@ -1599,7 +1635,8 @@ return Report::$problems;
 // One health check. The example in the folder above starts it. Its own
 // `Report::$problems` starts at 0, whatever the other checks wrote in theirs.
 
-final class Report {
+final class Report
+{
     public static int $problems = 0;
 }
 
@@ -1612,7 +1649,8 @@ return Report::$problems;
 // One health check. The example in the folder above starts it. It removes old
 // sessions and counts the ones it could not remove.
 
-final class Report {
+final class Report
+{
     public static int $problems = 0;
 }
 
@@ -1626,13 +1664,14 @@ return Report::$problems;
 // The examples in the folder above start this script. It prints the number it
 // reads, then writes a new number in its place.
 
-final class Orders {
+final class Orders
+{
     public static int $counted = 0;
 }
 
-echo "the script read ", Orders::$counted, "\n";
+echo 'the script read ', Orders::$counted, "\n";
 Orders::$counted = 42;
-echo "the script wrote ", Orders::$counted, "\n";
+echo 'the script wrote ', Orders::$counted, "\n";
 ```
 
 ```nvs file=scripts/say-what-it-did.nvs
@@ -1650,25 +1689,28 @@ return 3;
 // check cannot change what another check counted. This program adds the three
 // numbers up itself.
 
-final class Report {
+final class Report
+{
     public static int $problems = 0;
 }
 
 // `#[Core\Path]` says that a parameter is a file path. A relative path in
 // quotes passed to it starts at the folder of this file.
-class Here {
-    public static function path(#[Core\Path] string $path): string {
+class Here
+{
+    public static function path(#[Core\Path] string $path): string
+    {
         return $path;
     }
 }
 
 // `$dir` is a full path, so a path built from it works from any folder.
-string $dir = Here::path("checks");
-array<string> $checks = ["disk-space", "mail-queue", "old-sessions"];
+string $dir = Here::path('checks');
+array<string> $checks = ['disk-space', 'mail-queue', 'old-sessions'];
 
 foreach ($checks as string $name) {
-    string $path = Core\Path::join($dir, $name . ".nvs");
-    var $handle = spawn script $path with(output: "capture");
+    string $path = Core\Path::join($dir, $name . '.nvs');
+    var $handle = spawn script $path with(output: 'capture');
     var $result = await $handle;
 
     // All three scripts declare `Report::$problems` and start it at 0. The
@@ -1676,12 +1718,12 @@ foreach ($checks as string $name) {
     int $problems = $result->value as int;
     Report::$problems = Report::$problems + $problems;
 
-    echo $name, ": ", $problems, " problem(s)\n";
-    echo "  ", $result->output;
+    echo $name, ': ', $problems, " problem(s)\n";
+    echo '  ', $result->output;
 }
 
 // This program added the three numbers up itself. The scripts could not.
-echo "total: ", Report::$problems, " problem(s)\n";
+echo 'total: ', Report::$problems, " problem(s)\n";
 ```
 
 ```output
@@ -1753,7 +1795,7 @@ echo "wrote 2 invoices\n";
 // stops at the first row it cannot read.
 
 echo "read 2 orders\n";
-throw new RuntimeError("row 3 has no price");
+throw new RuntimeError('row 3 has no price');
 ```
 
 ```nvs file=jobs/send-receipts.nvs
@@ -1770,14 +1812,14 @@ echo "sent 2 receipts\n";
 // with `ok` set to false, and `error` has the class name and the message.
 
 // The path starts at the folder of this file.
-var $handle = spawn script "jobs/import-orders.nvs" with(output: "capture");
+var $handle = spawn script 'jobs/import-orders.nvs' with(output: 'capture');
 var $result = await $handle;
 
-echo "ok: ", $result->ok ? "true" : "false", "\n";
+echo 'ok: ', $result->ok ? 'true' : 'false', "\n";
 // `error` is empty when the script worked, so read it with `?->`.
-echo "error: ", $result->error?->class, ": ", $result->error?->message, "\n";
+echo 'error: ', $result->error?->class, ': ', $result->error?->message, "\n";
 // The script printed this line before it failed. The failure did not lose it.
-echo "output: ", $result->output;
+echo 'output: ', $result->output;
 echo "this program is still running\n";
 ```
 
@@ -1804,7 +1846,7 @@ echo "wrote 2 invoices\n";
 // stops at the first row it cannot read.
 
 echo "read 2 orders\n";
-throw new RuntimeError("row 3 has no price");
+throw new RuntimeError('row 3 has no price');
 ```
 
 ```nvs file=jobs/send-receipts.nvs
@@ -1823,22 +1865,22 @@ echo "sent 2 receipts\n";
 // This file name points to nothing, so `spawn script` throws in this program.
 // Each path starts at the folder of this file.
 try {
-    spawn script "jobs/no-such-job.nvs";
+    spawn script 'jobs/no-such-job.nvs';
 } catch (RuntimeError $mine) {
     echo "my mistake: there is no script at that path\n";
 }
 
 // `output:` takes "capture" or "inherit". Any other word is a `LogicError`.
 try {
-    spawn script "jobs/import-orders.nvs" with(output: "capturr");
+    spawn script 'jobs/import-orders.nvs' with(output: 'capturr');
 } catch (LogicError $typo) {
-    echo "my mistake: ", $typo->message, "\n";
+    echo 'my mistake: ', $typo->message, "\n";
 }
 
 // This script starts, runs and then fails. That is a result, not a throw.
-var $handle = spawn script "jobs/import-orders.nvs" with(output: "capture");
+var $handle = spawn script 'jobs/import-orders.nvs' with(output: 'capture');
 var $result = await $handle;
-echo "the script failed: ", $result->error?->message, "\n";
+echo 'the script failed: ', $result->error?->message, "\n";
 ```
 
 ```output
@@ -1863,7 +1905,7 @@ echo "wrote 2 invoices\n";
 // stops at the first row it cannot read.
 
 echo "read 2 orders\n";
-throw new RuntimeError("row 3 has no price");
+throw new RuntimeError('row 3 has no price');
 ```
 
 ```nvs file=jobs/send-receipts.nvs
@@ -1881,26 +1923,28 @@ echo "sent 2 receipts\n";
 
 // `#[Core\Path]` says that a parameter is a file path. A relative path in
 // quotes passed to it starts at the folder of this file.
-class Here {
-    public static function path(#[Core\Path] string $path): string {
+class Here
+{
+    public static function path(#[Core\Path] string $path): string
+    {
         return $path;
     }
 }
 
 // `$jobs` is a full path, so a path built from it works from any folder.
-string $jobs = Here::path("jobs");
-array<string> $names = ["import-orders", "build-invoices", "send-receipts"];
+string $jobs = Here::path('jobs');
+array<string> $names = ['import-orders', 'build-invoices', 'send-receipts'];
 
 int $failed = 0;
 foreach ($names as string $name) {
-    string $path = Core\Path::join($jobs, $name . ".nvs");
-    var $handle = spawn script $path with(output: "capture");
+    string $path = Core\Path::join($jobs, $name . '.nvs');
+    var $handle = spawn script $path with(output: 'capture');
     var $result = await $handle;
     // A failed job is a result you can read, so the loop goes on to the next.
     if ($result->ok) {
         echo $name, ": done\n";
     } else {
-        echo $name, ": failed, ", $result->error?->message, "\n";
+        echo $name, ': failed, ', $result->error?->message, "\n";
         $failed = $failed + 1;
     }
 }
@@ -1931,7 +1975,7 @@ echo "wrote 2 invoices\n";
 // stops at the first row it cannot read.
 
 echo "read 2 orders\n";
-throw new RuntimeError("row 3 has no price");
+throw new RuntimeError('row 3 has no price');
 ```
 
 ```nvs file=jobs/send-receipts.nvs
@@ -1959,12 +2003,12 @@ spawn = false
 
 // The path starts at the folder of this file. The script never runs.
 try {
-    var $handle = spawn script "jobs/send-receipts.nvs";
+    var $handle = spawn script 'jobs/send-receipts.nvs';
     var $result = await $handle;
 } catch (RuntimeError $denied) {
     // The message goes on with the full path of the script.
     // `Core\Str::before` keeps only the text before it.
-    echo Core\Str::before($denied->message, " for "), "\n";
+    echo Core\Str::before($denied->message, ' for '), "\n";
 }
 echo "this program is still running\n";
 ```
@@ -2010,13 +2054,16 @@ Their help names a `static` property, a constant or a parameter.
 // Shows the replacement for `async` and a promise. `Core\Task::all` takes a set of
 // functions, runs them at the same time, and returns all their results together.
 
-class Orders {
-    public static function total(): int {
+class Orders
+{
+    public static function total(): int
+    {
         return 3 + 4;
     }
 
-    public static function title(): string {
-        return "Orders";
+    public static function title(): string
+    {
+        return 'Orders';
     }
 }
 
@@ -2025,12 +2072,12 @@ class Orders {
 var $page = Core\Task::all({
     total: Orders::total(...),
     title: Orders::title(...),
-    note:  fn(): string => "ready",
+    note:  fn(): string => 'ready',
 });
 
 // The results are ready on this line. `Core\Task::all` returns only when every
 // function has finished. This prints Orders: 7 (ready).
-echo $page->title, ": ", $page->total, " (", $page->note, ")\n";
+echo $page->title, ': ', $page->total, ' (', $page->note, ")\n";
 ```
 
 ```output
@@ -2053,18 +2100,20 @@ return 1200;
 // Shows the replacement for `pcntl_fork` and threads. `spawn script` runs a whole
 // file, or a static method, beside your program. Both kinds of entry have a name.
 
-class Report {
-    public static function build(int $days): string {
-        return "sales for " . $days . " days";
+class Report
+{
+    public static function build(int $days): string
+    {
+        return 'sales for ' . $days . ' days';
     }
 }
 
 // The first kind of entry is a file. The path starts at the folder of this file.
-var $file = spawn script "scripts/count-orders.nvs" with(output: "capture");
+var $file = spawn script 'scripts/count-orders.nvs' with(output: 'capture');
 
 // The second kind is a static method, written `Class::method(...)`. `args:` gives it
 // the values its parameters need.
-var $method = spawn script Report::build(...) with(args: ["days" => 7]);
+var $method = spawn script Report::build(...) with(args: ['days' => 7]);
 
 // An anonymous function is not allowed as the entry, because it captures variables.
 // A spawned file shares nothing with your program except compiled code.
@@ -2075,8 +2124,8 @@ var $built = await $method;
 
 int $orders = $counted->value as int;
 tainted string $text = $built->value as string;
-echo "orders: ", $orders, "\n";
-echo "report: ", $text, "\n";
+echo 'orders: ', $orders, "\n";
+echo 'report: ', $text, "\n";
 ```
 
 ```output
@@ -2092,22 +2141,24 @@ report: sales for 7 days
 // drawn. `Core\Task::map` runs one job per element and returns the answers under the
 // same keys, in the same order, whatever order the jobs finished in.
 
-class Shop {
+class Shop
+{
     // A real program would ask the shop over the network here. Each call returns its
     // own answer, so no job writes into storage another job can read.
-    public static function priceIn(string $city): int {
-        array<int> $board = ["Hamburg" => 700, "Munchen" => 750, "Koln" => 680];
+    public static function priceIn(string $city): int
+    {
+        array<int> $board = ['Hamburg' => 700, 'Munchen' => 750, 'Koln' => 680];
         return $board[$city];
     }
 }
 
-array<string> $shops = ["north" => "Hamburg", "south" => "Munchen", "west" => "Koln"];
+array<string> $shops = ['north' => 'Hamburg', 'south' => 'Munchen', 'west' => 'Koln'];
 
 var $prices = Core\Task::map($shops, fn(string $city): int => Shop::priceIn($city));
 
 // This prints north: 700, then south: 750, then west: 680.
 foreach ($prices as string $region => int $cents) {
-    echo $region, ": ", $cents, "\n";
+    echo $region, ': ', $cents, "\n";
 }
 ```
 

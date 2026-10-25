@@ -1,22 +1,26 @@
 <?nvs
 // This program sorts orders by a property of the customer.
 
-class Customer {
-    public string $name = "";
+class Customer
+{
+    public string $name = '';
 }
 
-class Order {
+class Order
+{
     public int $total = 0;
     public ?Customer $customer = null;
 }
 
-class Mapper {
+class Mapper
+{
     // `propertyPath<Order>` is a list of property names joined with dots.
     // Each name is a property of the class that the name before it has.
-    public static function orderBy(propertyPath<Order> $path): string {
-        return "SELECT * FROM orders ORDER BY " . ($path as string);
+    public static function orderBy(propertyPath<Order> $path): string
+    {
+        return 'SELECT * FROM orders ORDER BY ' . ($path as string);
     }
 }
 
-echo Mapper::orderBy("total"), "\n";
-echo Mapper::orderBy("customer.name"), "\n";
+echo Mapper::orderBy('total'), "\n";
+echo Mapper::orderBy('customer.name'), "\n";

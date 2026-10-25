@@ -7,7 +7,7 @@ int $seconds = $here->offsetAt(Core\Time::now())->toSeconds();
 // Every zone on Earth today is between 12 hours behind and 14 hours ahead of UTC.
 // So this prints "between -12h and +14h" on every computer.
 if ($seconds >= -12 * 3600 && $seconds <= 14 * 3600) {
-    echo "between -12h and +14h", "\n";
+    echo 'between -12h and +14h', "\n";
 } else {
-    echo "outside the usual range", "\n";
+    echo 'outside the usual range', "\n";
 }

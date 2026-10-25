@@ -1,41 +1,45 @@
 <?nvs
 // This program turns a condition with holes into SQL, with a join for each object on a path.
 
-class Customer {
-    public string $email = "";
+class Customer
+{
+    public string $email = '';
 }
 
-class Order {
+class Order
+{
     public int $total = 0;
     public ?Customer $customer = null;
 }
 
-class Mapper {
-    public static function where(string<propertyPath<Order>> $condition): string {
-        string $joins = "";
-        string $sql = "";
+class Mapper
+{
+    public static function where(string<propertyPath<Order>> $condition): string
+    {
+        string $joins = '';
+        string $sql = '';
         bool $hole = false;
         // `Core\Str::parts` gives the text and the holes in turn. The first part is text.
         foreach (Core\Str::parts($condition) as var $part) {
             if (!$hole) {
                 $sql = $sql . ($part as string);
             } else {
-                string $table = "orders";
-                string $column = "";
+                string $table = 'orders';
+                string $column = '';
                 // `Core\Reflect::steps` gives one property for each name in the path.
                 foreach (Core\Reflect::steps($part as propertyPath<Order>) as var $step) {
-                    if ($column != "") {
-                        $joins = $joins . " JOIN " . $column;
+                    if ($column != '') {
+                        $joins = $joins . ' JOIN ' . $column;
                         $table = $column;
                     }
                     $column = $step->name();
                 }
-                $sql = $sql . $table . "." . $column;
+                $sql = $sql . $table . '.' . $column;
             }
             $hole = !$hole;
         }
-        return "SELECT orders.* FROM orders" . $joins . " WHERE " . $sql;
+        return 'SELECT orders.* FROM orders' . $joins . ' WHERE ' . $sql;
     }
 }
 
-echo Mapper::where("{total} = ? AND {customer.email} = ?"), "\n";
+echo Mapper::where('{total} = ? AND {customer.email} = ?'), "\n";

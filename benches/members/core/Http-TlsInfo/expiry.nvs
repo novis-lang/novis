@@ -4,12 +4,14 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // Two TLS connections built for a test, so nothing is sent over a network.
         array<Core\Http\TlsInfo> $sessions = [
-            Core\Test::tlsSession({expiry: Core\Time::fromIso("2031-06-01T00:00:00Z")}),
-            Core\Test::tlsSession({expiry: Core\Time::fromIso("2031-06-02T00:00:01Z")}),
+            Core\Test::tlsSession({ expiry: Core\Time::fromIso('2031-06-01T00:00:00Z') }),
+            Core\Test::tlsSession({ expiry: Core\Time::fromIso('2031-06-02T00:00:01Z') }),
         ];
         uint $total = 0;
         uint $i = 0;

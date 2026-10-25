@@ -10,5 +10,6 @@ final class Written
         public readonly array<int> $rows,
         public readonly int $size,
         public readonly ?bytes $bytes,
-    ) {}
+    )
+    {}
 }

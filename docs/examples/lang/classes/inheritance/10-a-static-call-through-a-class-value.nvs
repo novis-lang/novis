@@ -2,27 +2,33 @@
 // Shows the three ways to use a `class<T>` value: `new $cls(...)`,
 // `$cls::kind()` and `$r is $cls`.
 
-class Report {
-    public function constructor(public string $title) {}
+class Report
+{
+    public function constructor(public string $title)
+    {}
 
-    public static function kind(): string {
-        return "report";
+    public static function kind(): string
+    {
+        return 'report';
     }
 
-    public function render(): string {
-        return static::kind() . ":" . $this->title;
-    }
-}
-
-class Invoice extends Report {
-    public static function kind(): string {
-        return "invoice";
+    public function render(): string
+    {
+        return static::kind() . ':' . $this->title;
     }
 }
 
-string $wanted = "Invoice";
+class Invoice extends Report
+{
+    public static function kind(): string
+    {
+        return 'invoice';
+    }
+}
+
+string $wanted = 'Invoice';
 class<Report> $cls = $wanted as class<Report>;
-Report $r = new $cls("March");
+Report $r = new $cls('March');
 
 // `$cls::kind()` runs `Invoice::kind`, because `$cls` is `Invoice`.
-echo $r->render(), " ", $cls::kind(), " ", ($r is $cls) as string, "\n";
+echo $r->render(), ' ', $cls::kind(), ' ', ($r is $cls) as string, "\n";

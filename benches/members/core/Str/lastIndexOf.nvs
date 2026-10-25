@@ -5,14 +5,16 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $paths = ["docs/guide/intro.md", "src/app/Shop/Order.nvs", "images/café/logo.png"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $paths = ['docs/guide/intro.md', 'src/app/Shop/Order.nvs', 'images/café/logo.png'];
         uint $total = 0;
         uint $none = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            $total = $total + (Core\Str::lastIndexOf($paths[(($total + $i) % 3) as int], "/") ?? $none);
+            $total = $total + (Core\Str::lastIndexOf($paths[(($total + $i) % 3) as int], '/') ?? $none);
             $i = $i + 1;
         }
         return $total;

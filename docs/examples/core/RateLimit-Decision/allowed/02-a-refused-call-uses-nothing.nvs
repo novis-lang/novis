@@ -1,10 +1,12 @@
 <?nvs
 // Shows that a refused call uses no units. A smaller call can still be allowed after it.
 
-class Upload {
-    public static function send(uint $megabytes): void {
+class Upload
+{
+    public static function send(uint $megabytes): void
+    {
         // Each user may upload 5 megabytes per hour.
-        var $decision = Core\RateLimit::shed("upload:user:9", 5, 1h, {cost: $megabytes});
+        var $decision = Core\RateLimit::shed('upload:user:9', 5, 1h, { cost: $megabytes });
         if ($decision->allowed()) {
             echo $megabytes, " MB: allowed\n";
         } else {

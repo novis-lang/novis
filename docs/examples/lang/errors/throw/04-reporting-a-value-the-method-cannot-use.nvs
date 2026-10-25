@@ -7,7 +7,7 @@ class Age
     public static function of(int $birthYear, int $thisYear): int
     {
         if ($birthYear > $thisYear) {
-            throw new RuntimeError("a birth year in the future: " . $birthYear);
+            throw new RuntimeError('a birth year in the future: ' . $birthYear);
         }
         return $thisYear - $birthYear;
     }
@@ -21,5 +21,5 @@ try {
     echo "this line is never reached\n";
 } catch (RuntimeError $e) {
     // This prints: cannot use that row: a birth year in the future: 2040
-    echo "cannot use that row: ", $e->message, "\n";
+    echo 'cannot use that row: ', $e->message, "\n";
 }

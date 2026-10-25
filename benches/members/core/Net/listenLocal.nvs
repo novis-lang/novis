@@ -4,9 +4,11 @@
 // bench: complexity constant
 // requires: unix
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $paths = ["/tmp/novis-bench-listen.sock"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $paths = ['/tmp/novis-bench-listen.sock'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

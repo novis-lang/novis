@@ -4,8 +4,10 @@
 // bench: allocations 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         // The texts are 5, 5, 9 and 9 characters long, so every round picks the next duration.
         array<Core\Time\Duration> $took = [90s, 1h30m, 61500ms, 12h30m15s];
         int $total = 0;

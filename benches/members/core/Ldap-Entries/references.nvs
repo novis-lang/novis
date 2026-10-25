@@ -5,12 +5,14 @@
 // bench: complexity constant
 // requires: samba-ad
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $corp = Core\Ldap::connect("corp");
-        var $entries = $corp->search(Core\Ldap\Filter::present("objectClass"), {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $corp = Core\Ldap::connect('corp');
+        var $entries = $corp->search(Core\Ldap\Filter::present('objectClass'), {
             scope: Core\Ldap\Connection::Scope::OneLevel,
-            select: ["cn"],
+            select: ['cn'],
         });
         foreach ($entries as Core\Ldap\Entry $entry) {
         }

@@ -5,15 +5,17 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\BigInt> $amounts = [
-            Core\BigInt::parse("123456789012345678901234567890"),
-            Core\BigInt::parse("987654321098765432109876543210"),
+            Core\BigInt::parse('123456789012345678901234567890'),
+            Core\BigInt::parse('987654321098765432109876543210'),
         ];
         // Chained: each round takes an amount away from what the round before
         // returned.
-        var $balance = Core\BigInt::parse("99999999999999999999999999999999999999999");
+        var $balance = Core\BigInt::parse('99999999999999999999999999999999999999999');
         uint $i = 0;
         while ($i < $rounds) {
             $balance = $balance->sub($amounts[($i % 2) as int]);

@@ -5,15 +5,21 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Newsletter {
-    #[Core\Route(path: "/newsletter", method: Core\Http\Method::Get, name: "Newsletter::signup")]
-    #[Core\Route(path: "/newsletter", method: Core\Http\Method::Post, name: "Newsletter::signup")]
+class Newsletter
+{
+    #[Core\Route(path: '/newsletter', method: Core\Http\Method::Get, name: 'Newsletter::signup')]
+    #[Core\Route(path: '/newsletter', method: Core\Http\Method::Post, name: 'Newsletter::signup')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function signup(): string { return "the form"; }
+    public function signup(): string
+    {
+        return 'the form';
+    }
 }
 
-class Bench {
-    public static function loop(Core\Router\Match $shown, Core\Router\Match $saved, uint $rounds): uint {
+class Bench
+{
+    public static function loop(Core\Router\Match $shown, Core\Router\Match $saved, uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -29,9 +35,10 @@ class Bench {
         return $total;
     }
 
-    public static function run(uint $rounds): uint {
-        ?Core\Router\Match $shown = Core\Router::match(Core\Http\Method::Get, "/newsletter");
-        ?Core\Router\Match $saved = Core\Router::match(Core\Http\Method::Post, "/newsletter");
+    public static function run(uint $rounds): uint
+    {
+        ?Core\Router\Match $shown = Core\Router::match(Core\Http\Method::Get, '/newsletter');
+        ?Core\Router\Match $saved = Core\Router::match(Core\Http\Method::Post, '/newsletter');
         if ($shown != null) {
             if ($saved != null) {
                 return Bench::loop($shown, $saved, $rounds);

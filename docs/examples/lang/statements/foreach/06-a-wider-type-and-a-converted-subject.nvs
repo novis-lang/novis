@@ -2,7 +2,7 @@
 // Shows a loop variable with a wider type than the array, and a subject that
 // is converted in the header.
 
-var $prices = ["apple" => 3, "pear" => 8];
+var $prices = ['apple' => 3, 'pear' => 8];
 
 // The values are `int`, but the body stores a `float` in `$amount`.
 // So the variable needs the type `int|float`.
@@ -11,7 +11,7 @@ foreach ($prices as string $name => int|float $amount) {
         $amount = $amount * 0.25;
     }
     // This prints apple=3, then pear=2.
-    echo $name, "=", $amount, "\n";
+    echo $name, '=', $amount, "\n";
 }
 
 // `$data` is `mixed`, so the loop converts it first. The conversion needs

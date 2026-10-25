@@ -2,10 +2,10 @@
 // Shows that `homeDirectoryRequired` returns `false` for an account that does not need a home directory.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `home directory required: false`.
-    echo "home directory required: ", $flags->homeDirectoryRequired() ? "true" : "false", "\n";
+    echo 'home directory required: ', $flags->homeDirectoryRequired() ? 'true' : 'false', "\n";
 }

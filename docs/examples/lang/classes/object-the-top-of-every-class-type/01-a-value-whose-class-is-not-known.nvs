@@ -2,21 +2,28 @@
 // Shows what you can do with a value typed `object`. It holds an object of any
 // class, so a property read works and a method call needs a class name first.
 
-class Tag {
-    public function constructor(public string $text) {}
+class Tag
+{
+    public function constructor(public string $text)
+    {}
 }
 
-class Label {
-    public function constructor(public string $text) {}
+class Label
+{
+    public function constructor(public string $text)
+    {}
 }
 
-class Pick {
-    public static function first(): object {
-        return new Tag("red");
+class Pick
+{
+    public static function first(): object
+    {
+        return new Tag('red');
     }
 
-    public static function second(): object {
-        return new Label("blue");
+    public static function second(): object
+    {
+        return new Label('blue');
     }
 }
 
@@ -25,7 +32,7 @@ object $two = Pick::second();
 
 // Both classes happen to have a property called `text`. The name is looked up
 // while the program runs, so this prints `red|blue`.
-echo $one->text as string, "|", $two->text as string, "\n";
+echo $one->text as string, '|', $two->text as string, "\n";
 
 // `as Tag` converts the value to a `Tag`. The result is an ordinary `Tag`.
 Tag $tag = $one as Tag;

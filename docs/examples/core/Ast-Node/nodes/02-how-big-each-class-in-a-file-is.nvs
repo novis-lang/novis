@@ -22,5 +22,5 @@ NVS;
 
 // This prints 5, then 6.
 foreach (Core\Ast::parse($source)->children() as Core\Ast\Node $class) {
-    echo $class->kind(), " ", Core\Arr::count($class->nodes()), "\n";
+    echo $class->kind(), ' ', Core\Arr::count($class->nodes()), "\n";
 }

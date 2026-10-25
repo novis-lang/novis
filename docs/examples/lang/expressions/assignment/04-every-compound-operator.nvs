@@ -4,23 +4,23 @@
 // Each line changes `$n` and prints the new value.
 int $n = 10;
 $n += 5;
-echo $n, " ";
+echo $n, ' ';
 $n -= 3;
-echo $n, " ";
+echo $n, ' ';
 $n *= 2;
-echo $n, " ";
+echo $n, ' ';
 $n %= 7;
-echo $n, " ";
+echo $n, ' ';
 $n **= 3;
-echo $n, " ";
+echo $n, ' ';
 $n <<= 1;
-echo $n, " ";
+echo $n, ' ';
 $n >>= 2;
-echo $n, " ";
+echo $n, ' ';
 $n &= 7;
-echo $n, " ";
+echo $n, ' ';
 $n |= 8;
-echo $n, " ";
+echo $n, ' ';
 $n ^= 1;
 // This line prints: 15 12 24 3 27 54 13 5 13 12
 echo $n, "\n";

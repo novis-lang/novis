@@ -4,8 +4,10 @@
 // bench: iterations 1024
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): decimal {
+class Bench
+{
+    public static function run(uint $rounds): decimal
+    {
         array<decimal> $lines = [47.4905, 6.5550, 1.3775, 22.0000];
         decimal $carried = 0.00;
         uint $i = 0;

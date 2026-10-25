@@ -3,11 +3,13 @@
 // The cable between them may sag a given number of metres.
 
 // A hanging cable has the shape of a `cosh` curve. `acosh` turns the sag into a distance.
-class Span {
+class Span
+{
     // `$tension` says how tight the cable is. A bigger number means a tighter cable.
-    public static function width(float $tension, float $sag): float {
+    public static function width(float $tension, float $sag): float
+    {
         float $half = $tension * Core\Math::acosh(($tension + $sag) / $tension);
-        return Core\Math::round($half * 2.0, {precision: 1});
+        return Core\Math::round($half * 2.0, { precision: 1 });
     }
 }
 

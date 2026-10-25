@@ -14,7 +14,7 @@ Core\Fatal::onLimit(fn (): void => {
 array<string> $cache = [];
 int $page = 1;
 while ($page <= 100) {
-    $cache["/page/" . $page] = Core\Str::repeat('<p>text</p>', 190650);
+    $cache['/page/' . $page] = Core\Str::repeat('<p>text</p>', 190650);
     $page = $page + 1;
 }
 

@@ -4,8 +4,10 @@
 // bench: iterations 256
 // bench: complexity nlogn
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         var $tags = new Core\ObjectSet<int>();
         var $costs = new Core\Heap<int>();
         int $i = 0;

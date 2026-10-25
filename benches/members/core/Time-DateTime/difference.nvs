@@ -5,13 +5,15 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
-        var $zone = Core\Time\Zone::of("Europe/Berlin");
-        var $today = Core\Time::at(2024, 11, 20, $zone, {hour: 9});
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        var $zone = Core\Time\Zone::of('Europe/Berlin');
+        var $today = Core\Time::at(2024, 11, 20, $zone, { hour: 9 });
         array<Core\Time\DateTime> $due = [
             Core\Time::at(2024, 11, 4, $zone),
-            Core\Time::at(2024, 3, 30, $zone, {hour: 12}),
+            Core\Time::at(2024, 3, 30, $zone, { hour: 12 }),
             Core\Time::at(2024, 10, 1, $zone),
         ];
         int $total = 0;

@@ -4,7 +4,7 @@
 // when a browser has to read it.
 
 secret bytes $key = Core\Crypto::generateKey();
-bytes $message = "the meeting moved to Thursday" as bytes;
+bytes $message = 'the meeting moved to Thursday' as bytes;
 
 // The message is 29 bytes long. This prints 29.
 echo Core\Bytes::length($message), "\n";

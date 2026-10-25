@@ -3,11 +3,11 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
-var $reader = Reader::open(Document::fromHtml("<p>Receipt 1042</p>")->render()->bytes);
+var $reader = Reader::open(Document::fromHtml('<p>Receipt 1042</p>')->render()->bytes);
 
 // The receipt has one page, so page 2 throws a `LogicError`.
 try {
     echo $reader->text(2), "\n";
 } catch (LogicError $error) {
-    echo "LogicError: ", $error->message, "\n";
+    echo 'LogicError: ', $error->message, "\n";
 }

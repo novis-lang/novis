@@ -1,15 +1,19 @@
 <?nvs
 // This program is a small web application. `nvs serve` runs it once for each request.
-class Task {
+class Task
+{
     public string $title;
 
-    public function constructor(string $title) {
+    public function constructor(string $title)
+    {
         $this->title = $title;
     }
 }
 
-class Pages {
-    public static function list(array<Task> $tasks): Core\Html\Markup {
+class Pages
+{
+    public static function list(array<Task> $tasks): Core\Html\Markup
+    {
         var $items = html``;
         foreach ($tasks as Task $task) {
             string $title = $task->title;
@@ -19,10 +23,10 @@ class Pages {
     }
 }
 
-array<Task> $tasks = [new Task("Buy milk"), new Task("Call Ada")];
+array<Task> $tasks = [new Task('Buy milk'), new Task('Call Ada')];
 
 // `Core\Request::path()` returns the path of the request, such as `/`.
-if (Core\Request::path() == "/") {
+if (Core\Request::path() == '/') {
     echo Pages::list($tasks), "\n";
 } else {
     // Any other path gets the status 404.

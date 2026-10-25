@@ -3,45 +3,54 @@
 
 use Core\Http\Method;
 
-class Shop {
+class Shop
+{
     // This method returns a page.
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Shop::home")]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Shop::home')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function home(): Core\Html\Markup {
+    public function home(): Core\Html\Markup
+    {
         return html`<h1>Welcome to the shop</h1>`;
     }
 
     // This method returns data: a list of product names.
-    #[Core\Route(path: "/api/products", method: Core\Http\Method::Get, name: "Shop::products")]
+    #[Core\Route(path: '/api/products', method: Core\Http\Method::Get, name: 'Shop::products')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function products(): array<string> {
-        return ["teapot", "cup"];
+    public function products(): array<string>
+    {
+        return ['teapot', 'cup'];
     }
 
     // This method is `void`, so it writes its own response.
     // `respond` does not run for it.
-    #[Core\Route(path: "/health", method: Core\Http\Method::Get, name: "Shop::health")]
+    #[Core\Route(path: '/health', method: Core\Http\Method::Get, name: 'Shop::health')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function health(): void {
-        echo "ok";
+    public function health(): void
+    {
+        echo 'ok';
     }
 }
 
-class Gate implements Core\Router\Responder {
-    public function allows(Core\Router\Match $route): bool {
+class Gate implements Core\Router\Responder
+{
+    public function allows(Core\Router\Match $route): bool
+    {
         return true;
     }
 
-    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
-        echo "you cannot open this page";
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'you cannot open this page';
     }
 
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
-        echo "sorry, something went wrong";
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'sorry, something went wrong';
     }
 
     // A page is sent as HTML. Any other value is sent as JSON.
-    public function respond(Core\Router\Match $route, mixed $value): void {
+    public function respond(Core\Router\Match $route, mixed $value): void
+    {
         if ($value is Core\Html\Markup) {
             Core\Response::html($value);
         } else {
@@ -55,9 +64,9 @@ if (Core\Env::context() == Core\Env::Context::Request) {
 } else {
     // This prints the content type and the body of each response:
     // first the page, then the JSON, then `ok`.
-    array<string> $paths = ["/", "/api/products", "/health"];
+    array<string> $paths = ['/', '/api/products', '/health'];
     foreach ($paths as string $path) {
         var $answer = Core\Test::request(Method::Get, $path);
-        echo $answer->header("Content-Type"), " ", $answer->body(), "\n";
+        echo $answer->header('Content-Type'), ' ', $answer->body(), "\n";
     }
 }

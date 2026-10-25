@@ -5,12 +5,13 @@
 // Nothing is started, so this program dies where the spawn is written.
 class Reports
 {
-    public static function monthly(int $month): int {
+    public static function monthly(int $month): int
+    {
         return $month;
     }
 }
 
-var $args = ["moth" => 7];
+var $args = ['moth' => 7];
 var $job = spawn script Reports::monthly(...) with(args: $args);
 var $result = await $job;
 

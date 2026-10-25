@@ -2,7 +2,7 @@
 // Shows how to write text as bytes. The encoding you name decides how many
 // bytes each character takes, and which bytes they are.
 
-string $accented = "é";
+string $accented = 'é';
 
 // UTF-8 writes this character as two bytes. This prints c3a9.
 echo Core\Encoding::toHex(Core\Encoding::encodeText($accented, Core\Charset::Utf8)), "\n";
@@ -16,4 +16,4 @@ echo Core\Encoding::toHex(Core\Encoding::encodeText($accented, Core\Charset::Utf
 
 // Japanese text in Shift_JIS, the encoding many Japanese systems still use.
 // This prints 82a082a2.
-echo Core\Encoding::toHex(Core\Encoding::encodeText("あい", Core\Charset::ShiftJis)), "\n";
+echo Core\Encoding::toHex(Core\Encoding::encodeText('あい', Core\Charset::ShiftJis)), "\n";

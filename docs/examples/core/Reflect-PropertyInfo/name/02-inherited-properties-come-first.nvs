@@ -1,12 +1,14 @@
 <?nvs
 // Shows that a class also lists the properties of its parent class.
 
-class Entity {
+class Entity
+{
     public int $id = 1;
-    public string $createdAt = "2026-01-05";
+    public string $createdAt = '2026-01-05';
 }
 
-class Invoice extends Entity {
+class Invoice extends Entity
+{
     public float $total = 49.5;
 }
 
@@ -17,5 +19,5 @@ foreach (Core\Reflect::forObject(new Invoice())->properties() as Core\Reflect\Pr
 
 // You can pass a name to `hasProperty`. Names are case-sensitive, so this prints `yes` and then `no`.
 var $info = Core\Reflect::forObject(new Invoice());
-echo $info->hasProperty("total") ? "yes" : "no", "\n";
-echo $info->hasProperty("Total") ? "yes" : "no", "\n";
+echo $info->hasProperty('total') ? 'yes' : 'no', "\n";
+echo $info->hasProperty('Total') ? 'yes' : 'no', "\n";

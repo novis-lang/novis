@@ -3,9 +3,11 @@
 // bench: iterations 20000
 // bench: complexity linear
 
-class Bench {
-    public static function run(Core\Response\Stream $body, uint $rounds): uint {
-        array<string> $rows = ["1042,Ada,19.90", "1043,Alan,5.00", "1044,Grace,12.50"];
+class Bench
+{
+    public static function run(Core\Response\Stream $body, uint $rounds): uint
+    {
+        array<string> $rows = ['1042,Ada,19.90', '1043,Alan,5.00', '1044,Grace,12.50'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -18,5 +20,5 @@ class Bench {
     }
 }
 
-Core\Response\Stream $csv = Core\Response::stream("text/csv");
+Core\Response\Stream $csv = Core\Response::stream('text/csv');
 $csv->write((Bench::run($csv, 20000) as string) . "\n");

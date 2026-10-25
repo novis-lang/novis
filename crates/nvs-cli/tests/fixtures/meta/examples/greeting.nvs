@@ -4,4 +4,4 @@
 // requires of an `@example` target — a path in a directory the test corpus
 // walks, so an example cannot stop compiling unnoticed.
 
-echo "Hello, world", "\n";
+echo 'Hello, world', "\n";

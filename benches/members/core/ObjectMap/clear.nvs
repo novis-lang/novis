@@ -3,16 +3,20 @@
 // bench: iterations 256
 // bench: complexity linear
 
-final class Key {
+final class Key
+{
     public int $id;
 
-    public function constructor(int $id) {
+    public function constructor(int $id)
+    {
         $this->id = $id;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Key> $keys = [new Key(1), new Key(2), new Key(3)];
         Core\ObjectMap<Key, uint> $cache = new Core\ObjectMap<Key, uint>();
         uint $total = 0;

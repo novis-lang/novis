@@ -5,7 +5,7 @@
 
 string $document = "name,qty,price\nfig,2,3.50\napple,10,0.40\n";
 
-var $records = Core\Csv::parse($document, {header: true});
+var $records = Core\Csv::parse($document, { header: true });
 
 // This prints `fig costs 3.50` and `apple costs 0.40`.
 foreach ($records as array<string> $record) {

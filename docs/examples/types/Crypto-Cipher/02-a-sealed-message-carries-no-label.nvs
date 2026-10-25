@@ -4,11 +4,11 @@
 // message must remember its cipher.
 
 secret bytes $key = Core\Crypto::generateKey();
-bytes $sealed = Core\Crypto::seal("card ending 4242" as bytes, $key, Core\Crypto::Cipher::Aes256Gcm);
+bytes $sealed = Core\Crypto::seal('card ending 4242' as bytes, $key, Core\Crypto::Cipher::Aes256Gcm);
 
 try {
     bytes $opened = Core\Crypto::open($sealed, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
-    echo "opened under the other case", "\n";
+    echo 'opened under the other case', "\n";
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";
 }
@@ -17,5 +17,5 @@ try {
 // failed. Opening with the right cipher returns the original text.
 echo Core\Encoding::decodeText(
     Core\Crypto::open($sealed, $key, Core\Crypto::Cipher::Aes256Gcm),
-    Core\Charset::Utf8
+    Core\Charset::Utf8,
 ), "\n";

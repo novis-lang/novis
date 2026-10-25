@@ -1,7 +1,8 @@
 <?nvs
 // Shows how to read the name of the enum that a description is about.
 
-enum Priority: uint {
+enum Priority: uint
+{
     Low = 1,
     High = 2,
 }

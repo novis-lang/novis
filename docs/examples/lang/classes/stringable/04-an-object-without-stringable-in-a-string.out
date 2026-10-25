@@ -1,7 +1,7 @@
 error[E0412]: `Point` cannot be converted to `string` here; it does not implement `Stringable`
-   --> 04-an-object-without-stringable-in-a-string.nvs:11:13
+   --> 04-an-object-without-stringable-in-a-string.nvs:12:13
    |
-11 | echo "point $p\n";
+12 | echo "point $p\n";
    |             ^^ converted to `string` here
    = help: implement `Stringable`'s `toString(): string` on the class
 

@@ -3,8 +3,9 @@
 // bench: start 256
 // bench: max 4096
 
-class Settings {
-    public string $theme = "dark";
+class Settings
+{
+    public string $theme = 'dark';
     public array<string> $columns = [];
 }
 
@@ -15,7 +16,7 @@ class Bench
         Settings $settings = new Settings();
         uint $n = 0;
         while ($n < $size) {
-            $settings->columns[] = "column";
+            $settings->columns[] = 'column';
             $n = $n + 1;
         }
         uint $total = 0;

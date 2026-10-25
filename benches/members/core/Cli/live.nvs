@@ -8,15 +8,17 @@
 // bench: allocations 11
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Every round adds what its own region answered, so no round can be
             // left out.
             $total = $total + Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
-                $screen->set([Core\Cli\Text::plain("working")]);
+                $screen->set([Core\Cli\Text::plain('working')]);
                 return 1;
             });
             $i = $i + 1;

@@ -3,11 +3,13 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The server is answered from a table, so nothing is sent over a network.
-        Core\Test::answerSocket("wss://sensors.example.com/readings", []);
-        Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://sensors.example.com/readings");
+        Core\Test::answerSocket('wss://sensors.example.com/readings', []);
+        Core\Http\Socket $socket = Core\Http\Client::openSocket('wss://sensors.example.com/readings');
         array<bytes> $readings = ["\x01" as bytes, "\x01\x02" as bytes, "\x01\x02\x03" as bytes];
         uint $total = 0;
         uint $i = 0;

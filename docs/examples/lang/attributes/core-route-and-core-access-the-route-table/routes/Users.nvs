@@ -2,16 +2,19 @@
 // The routes of example 04. This file has no code that runs by itself.
 namespace App;
 
-class Users {
-    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+class Users
+{
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(uint $id): string {
-        return "user " . $id;
+    public function show(uint $id): string
+    {
+        return 'user ' . $id;
     }
 
-    #[Core\Route(path: "/users", method: Core\Http\Method::Post, name: "Users::create")]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Post, name: 'Users::create')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function create(): string {
-        return "created";
+    public function create(): string
+    {
+        return 'created';
     }
 }

@@ -1,7 +1,7 @@
 <?nvs
 // Shows that `Core\Str::lowerFirst` also changes a first letter with an accent or from another alphabet.
 
-array<string> $words = ["Ärger", "Élan", "Ωμέγα"];
+array<string> $words = ['Ärger', 'Élan', 'Ωμέγα'];
 
 // This prints `ärger`, `élan` and `ωμέγα`.
 foreach ($words as string $word) {

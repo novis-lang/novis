@@ -1,20 +1,22 @@
 <?nvs
 // Shows that the list from `keys` does not change when the map changes later.
 
-final class Seat {
+final class Seat
+{
     public string $label;
 
-    public function constructor(string $label) {
+    public function constructor(string $label)
+    {
         $this->label = $label;
     }
 }
 
-Seat $a1 = new Seat("A1");
-Seat $a2 = new Seat("A2");
+Seat $a1 = new Seat('A1');
+Seat $a2 = new Seat('A2');
 
 Core\ObjectMap<Seat, string> $booked = new Core\ObjectMap<Seat, string>();
-$booked->set($a1, "Mia");
-$booked->set($a2, "Tom");
+$booked->set($a1, 'Mia');
+$booked->set($a2, 'Tom');
 
 array<Seat> $before = $booked->keys();
 

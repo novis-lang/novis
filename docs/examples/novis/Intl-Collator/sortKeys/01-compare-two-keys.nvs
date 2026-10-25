@@ -2,7 +2,7 @@
 // Shows that two sort keys compare in the order of the language.
 use Novis\Intl\Collator;
 
-array<bytes> $keys = Collator::sortKeys(["Öl", "Ofen"], "de");
+array<bytes> $keys = Collator::sortKeys(['Öl', 'Ofen'], 'de');
 
 // In German, "Öl" sorts after "Ofen", so the first key is greater.
 // This prints Ofen comes first.

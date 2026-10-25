@@ -2,10 +2,12 @@
 // Shows an error class of your own crossing out of a task. The class and the
 // properties you gave it are still there in the `catch`.
 
-class ImportFailed extends RuntimeError {
+class ImportFailed extends RuntimeError
+{
     public int $row;
 
-    public function constructor(string $message, int $row) {
+    public function constructor(string $message, int $row)
+    {
         $this->row = $row;
         parent::constructor($message);
     }
@@ -15,12 +17,12 @@ try {
     // One task for each file. The second file has a row this program cannot read.
     Core\Task::map([1, 2, 3], fn(int $file): int => {
         if ($file == 2) {
-            throw new ImportFailed("this row has no price", 31);
+            throw new ImportFailed('this row has no price', 31);
         }
         return $file;
     });
     echo "all three files were imported\n";
 } catch (ImportFailed $e) {
     echo $e->message, "\n";
-    echo "row ", $e->row, "\n";
+    echo 'row ', $e->row, "\n";
 }

@@ -2,16 +2,16 @@
 // Shows what `uuid` does with a value that is not a GUID.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Carla Diaz,OU=Company,DC=example,DC=test", {select: ["department"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Carla Diaz,OU=Company,DC=example,DC=test', { select: ['department'] });
 
 if ($person != null) {
     // The read did not select `objectGUID`, so `uuid` returns `null`. This prints `no id`.
-    echo $person->uuid("objectGUID")?->toString() ?? "no id", "\n";
+    echo $person->uuid('objectGUID')?->toString() ?? 'no id', "\n";
 
     // `department` is the text `Sales`. `uuid` throws a `LogicError` that names the attribute.
     try {
-        echo $person->uuid("department")?->toString() ?? "no id", "\n";
+        echo $person->uuid('department')?->toString() ?? 'no id', "\n";
     } catch (LogicError $error) {
         echo $error->message, "\n";
     }

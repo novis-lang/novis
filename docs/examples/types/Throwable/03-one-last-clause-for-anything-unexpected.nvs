@@ -4,40 +4,42 @@
 // gives one safe reply for every other error. It must come last,
 // because the first `catch` block that matches is the one that runs.
 
-final class Handler {
-    public static function reply(string $path): string {
+final class Handler
+{
+    public static function reply(string $path): string
+    {
         try {
-            if ($path == "/orders") {
+            if ($path == '/orders') {
                 var $body = Core\Json::decode("{\"id\": 9,");
-                return "200 ok";
+                return '200 ok';
             }
-            if ($path == "/export") {
-                throw new TimeoutError("the export service did not answer");
+            if ($path == '/export') {
+                throw new TimeoutError('the export service did not answer');
             }
-            if ($path == "/admin") {
-                throw new RuntimeError("no session for this visitor");
+            if ($path == '/admin') {
+                throw new RuntimeError('no session for this visitor');
             }
-            if ($path == "/legacy") {
-                var $code = Core\BigInt::of(7)->format({radix: 1});
-                return "200 ok";
+            if ($path == '/legacy') {
+                var $code = Core\BigInt::of(7)->format({ radix: 1 });
+                return '200 ok';
             }
-            return "200 ok";
+            return '200 ok';
         } catch (ParseError $malformed) {
-            return "400 the request body was not valid JSON";
+            return '400 the request body was not valid JSON';
         } catch (TimeoutError $slow) {
-            return "504 " . $slow->message;
+            return '504 ' . $slow->message;
         } catch (RuntimeError $refused) {
-            return "403 " . $refused->message;
+            return '403 ' . $refused->message;
         } catch (Throwable $unexpected) {
             // Every error that no block above catches comes here.
             // The visitor gets one general reply, without the error's details.
-            return "500 something went wrong on our side";
+            return '500 something went wrong on our side';
         }
     }
 }
 
-array<string> $paths = ["/", "/orders", "/export", "/admin", "/legacy"];
+array<string> $paths = ['/', '/orders', '/export', '/admin', '/legacy'];
 foreach ($paths as string $path) {
     string $status = Handler::reply($path);
-    echo $path, " -> ", $status, "\n";
+    echo $path, ' -> ', $status, "\n";
 }

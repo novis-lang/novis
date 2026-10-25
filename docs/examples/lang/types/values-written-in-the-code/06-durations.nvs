@@ -3,10 +3,10 @@
 
 // Units can follow each other. `1h30m` is one hour and thirty minutes.
 Core\Time\Duration $wait = 1h30m;
-echo $wait, " is ", $wait->toSeconds(), " seconds\n";
+echo $wait, ' is ', $wait->toSeconds(), " seconds\n";
 
 // The other units are `ns`, `us`, `ms`, `s`, `d` and `w`.
-echo 250us->toNanoseconds(), " ", 1d->toSeconds(), "\n";
+echo 250us->toNanoseconds(), ' ', 1d->toSeconds(), "\n";
 
 // `compareTo` returns `0` when two durations are equal. `==` only checks for the same object.
 echo $wait->compareTo(90m), "\n";

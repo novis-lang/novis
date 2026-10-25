@@ -11,4 +11,4 @@ try {
 // After `Core\Session::start()`, the call works. The token has 99 characters, so this prints `99`.
 Core\Session::start();
 string $token = Core\Csrf::token();
-echo "token length: ", Core\Str::length($token), "\n";
+echo 'token length: ', Core\Str::length($token), "\n";

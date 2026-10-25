@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: calls 0
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Core\Heap<int> $heap = new Core\Heap<int>();
         int $n = 0;
         while ($n < 1000) {

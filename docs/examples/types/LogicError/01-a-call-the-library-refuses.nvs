@@ -5,10 +5,10 @@
 
 var $released = Core\Time\Date::at(2026, 4, 1);
 
-echo $released->plus(30, Core\Unit::Day)->format("yyyy-MM-dd"), "\n";
+echo $released->plus(30, Core\Unit::Day)->format('yyyy-MM-dd'), "\n";
 
 try {
-    echo $released->plus(30, Core\Unit::Hour)->format("yyyy-MM-dd"), "\n";
+    echo $released->plus(30, Core\Unit::Hour)->format('yyyy-MM-dd'), "\n";
 } catch (LogicError $ourMistake) {
     echo $ourMistake->message, "\n";
 }

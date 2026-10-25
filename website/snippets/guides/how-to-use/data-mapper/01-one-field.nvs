@@ -1,17 +1,20 @@
 <?nvs
 // This program builds a query that sorts orders by one property.
 
-class Order {
+class Order
+{
     public int $total = 0;
-    public string $status = "paid";
+    public string $status = 'paid';
 }
 
-class Mapper {
+class Mapper
+{
     // `property<Order>` is the name of one public property of `Order`.
     // The compiler checks a name that the call writes as a string.
-    public static function orderBy(property<Order> $field): string {
-        return "SELECT * FROM orders ORDER BY " . ($field as string);
+    public static function orderBy(property<Order> $field): string
+    {
+        return 'SELECT * FROM orders ORDER BY ' . ($field as string);
     }
 }
 
-echo Mapper::orderBy("total"), "\n";
+echo Mapper::orderBy('total'), "\n";

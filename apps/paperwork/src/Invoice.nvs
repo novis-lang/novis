@@ -10,49 +10,54 @@ use Novis\Pdf\Page;
 use Novis\Pdf\Rendered;
 
 // An invoice with many lines. It is also an electronic invoice: the PDF contains the same invoice as XML.
-final class Invoice {
+final class Invoice
+{
     // Renders the sample invoice as a PDF/A-3b file with the Factur-X XML inside.
-    public static function render(): Rendered {
+    public static function render(): Rendered
+    {
         var $invoice = Sample::invoice();
         var $totals = Totals::of($invoice->items);
         return Document::fromHtml(Invoice::html($invoice, $totals))
-            ->asset("logo.svg", Brand::logo())
-            ->asset("pay.svg", Invoice::giroCode($invoice, $totals) as bytes)
-            ->header(fn(Page $page): Markup => Invoice::header($invoice, $page), {height: "30mm"})
-            ->footer(fn(Page $page): Markup => Invoice::footer($invoice, $page), {height: "30mm"})
+            ->asset('logo.svg', Brand::logo())
+            ->asset('pay.svg', Invoice::giroCode($invoice, $totals) as bytes)
+            ->header(fn(Page $page): Markup => Invoice::header($invoice, $page), { height: '30mm' })
+            ->footer(fn(Page $page): Markup => Invoice::footer($invoice, $page), { height: '30mm' })
             ->slots(fn(Page $page): array<Markup> => Invoice::slots($page))
             // PDF/A-3b is the standard for archived files that may contain an XML file.
             ->standard(Document::Standard::PdfA3b)
             // The date of the invoice is the creation time, so the same invoice always gives the same file.
-            ->created(Core\Time::fromIso("{$invoice->issued->format("yyyy-MM-dd")}T09:00:00Z"))
+            ->created(Core\Time::fromIso("{$invoice->issued->format('yyyy-MM-dd')}T09:00:00Z"))
             ->invoiceXml(FacturX::xml($invoice, $totals))
             ->render();
     }
 
     // The day the invoice must be paid.
-    public static function due(Sample::Invoice $invoice): Date {
+    public static function due(Sample::Invoice $invoice): Date
+    {
         return $invoice->issued->plus($invoice->days, Unit::Day);
     }
 
     // The text of a SEPA bank transfer as an SVG QR code. A banking app reads it and fills in the transfer.
-    private static function giroCode(Sample::Invoice $invoice, Totals $totals): string {
+    private static function giroCode(Sample::Invoice $invoice, Totals $totals): string
+    {
         string $payment = QrCode::giroCode({
             name: $invoice->seller->name,
             iban: Sample::iban(),
             amount: $totals->total,
             text: "Invoice {$invoice->number}",
         });
-        return QrCode::svg($payment, {margin: 0});
+        return QrCode::svg($payment, { margin: 0 });
     }
 
-    private static function html(Sample::Invoice $invoice, Totals $totals): Markup {
+    private static function html(Sample::Invoice $invoice, Totals $totals): Markup
+    {
         string $title = "Invoice {$invoice->number}";
-        string $issued = $invoice->issued->format("d MMMM yyyy");
-        string $delivered = $invoice->delivered->format("d MMMM yyyy");
-        string $due = Invoice::due($invoice)->format("d MMMM yyyy");
+        string $issued = $invoice->issued->format('d MMMM yyyy');
+        string $delivered = $invoice->delivered->format('d MMMM yyyy');
+        string $due = Invoice::due($invoice)->format('d MMMM yyyy');
         string $total = Brand::money($totals->total);
         string $iban = Sample::iban();
-        string $vatLabel = "VAT " . (Totals::rate() as string) . " %";
+        string $vatLabel = 'VAT ' . (Totals::rate() as string) . ' %';
         return html`<!doctype html>
 <html lang="en">
 <head>
@@ -64,8 +69,8 @@ final class Invoice {
 </head>
 <body>
 <section class="parties">
-  <?= Invoice::address("From", $invoice->seller) ?>
-  <?= Invoice::address("Bill to", $invoice->buyer) ?>
+  <?= Invoice::address('From', $invoice->seller) ?>
+  <?= Invoice::address('Bill to', $invoice->buyer) ?>
   <div class="box due">
     <div class="label">Amount due</div>
     <p class="amount">{$total}</p>
@@ -126,7 +131,8 @@ final class Invoice {
     }
 
     // One table row for each item. `data-mark` gives the row its amount, and the slots add these up.
-    private static function rows(array<Sample::Item> $items): Markup {
+    private static function rows(array<Sample::Item> $items): Markup
+    {
         var $rows = html``;
         uint $position = 0;
         foreach ($items as Sample::Item $item) {
@@ -140,7 +146,8 @@ final class Invoice {
         return $rows;
     }
 
-    private static function address(string $label, Sample::Party $party): Markup {
+    private static function address(string $label, Sample::Party $party): Markup
+    {
         return html`<div class="box">
     <div class="label">{$label}</div>
     <p><b>{$party->name}</b><br>{$party->street}<br>{$party->postcode} {$party->city}<br>{$party->country}</p>
@@ -149,21 +156,24 @@ final class Invoice {
     }
 
     // Fills the two slots of the table. `marksUpTo` returns the amounts on this page and on every page before it.
-    private static function slots(Page $page): array<Markup> {
-        decimal $upTo = Totals::sum($page->marksUpTo("amount"));
-        decimal $before = $upTo - Totals::sum($page->marks("amount"));
-        return ["carried" => Invoice::fill($upTo), "brought" => Invoice::fill($before)];
+    private static function slots(Page $page): array<Markup>
+    {
+        decimal $upTo = Totals::sum($page->marksUpTo('amount'));
+        decimal $before = $upTo - Totals::sum($page->marks('amount'));
+        return ['carried' => Invoice::fill($upTo), 'brought' => Invoice::fill($before)];
     }
 
     // The HTML of a slot does not get the styles of the document, so it sets its own font and alignment.
-    private static function fill(decimal $amount): Markup {
+    private static function fill(decimal $amount): Markup
+    {
         string $text = Brand::money($amount);
         return html`<div style="font-family: 'Liberation Sans', sans-serif; font-size: 9pt; font-weight: bold; color: #1d3557; text-align: right; line-height: 1.45">{$text}</div>`;
     }
 
     // The header shows the logo on every page. Page 1 has the word "Invoice", and the other pages have the number.
-    private static function header(Sample::Invoice $invoice, Page $page): Markup {
-        string $right = $page->isFirst() ? "Invoice" : "Invoice {$invoice->number}, continued";
+    private static function header(Sample::Invoice $invoice, Page $page): Markup
+    {
+        string $right = $page->isFirst() ? 'Invoice' : "Invoice {$invoice->number}, continued";
         return html`<div style="font-family: 'Liberation Sans', sans-serif; display: flex; justify-content: space-between; align-items: flex-end; padding-top: 12mm">
 <img src="logo.svg" alt="Shop" style="height: 10mm">
 <div style="font-size: 8.5pt; letter-spacing: 0.14em; text-transform: uppercase; color: #6b7280; padding-bottom: 1mm; white-space: nowrap">{$right}</div>
@@ -171,7 +181,8 @@ final class Invoice {
     }
 
     // The footer has the legal and bank details of the shop, and the page number.
-    private static function footer(Sample::Invoice $invoice, Page $page): Markup {
+    private static function footer(Sample::Invoice $invoice, Page $page): Markup
+    {
         var $shop = $invoice->seller;
         string $iban = Sample::iban();
         return html`<div style="font-family: 'Liberation Sans', sans-serif; font-size: 6.8pt; line-height: 1.55; color: #6b7280; margin-top: 6mm; padding-top: 3mm; border-top: 0.75pt solid #e3e7ee; display: flex; justify-content: space-between; white-space: nowrap">
@@ -183,7 +194,8 @@ final class Invoice {
 </div>`;
     }
 
-    private static function css(): Markup {
+    private static function css(): Markup
+    {
         return html`<style>
 @page { size: A4; margin: 0 18mm; }
 .small { font-size: 8pt; }

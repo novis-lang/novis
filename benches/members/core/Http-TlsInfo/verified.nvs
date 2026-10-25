@@ -5,12 +5,14 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // Two TLS connections built for a test, so nothing is sent over a network.
         array<Core\Http\TlsInfo> $sessions = [
             Core\Test::tlsSession({}),
-            Core\Test::tlsSession({verified: false}),
+            Core\Test::tlsSession({ verified: false }),
         ];
         uint $total = 0;
         uint $i = 0;

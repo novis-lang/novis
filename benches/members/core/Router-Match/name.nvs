@@ -5,18 +5,27 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Shop {
-    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+class Shop
+{
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get, name: 'Shop::product')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function product(uint $id): string { return "one product"; }
+    public function product(uint $id): string
+    {
+        return 'one product';
+    }
 
-    #[Core\Route(path: "/cart", method: Core\Http\Method::Post)]
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function cart(): string { return "the cart"; }
+    public function cart(): string
+    {
+        return 'the cart';
+    }
 }
 
-class Bench {
-    public static function loop(Core\Router\Match $named, Core\Router\Match $unnamed, uint $rounds): uint {
+class Bench
+{
+    public static function loop(Core\Router\Match $named, Core\Router\Match $unnamed, uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -32,9 +41,10 @@ class Bench {
         return $total;
     }
 
-    public static function run(uint $rounds): uint {
-        ?Core\Router\Match $named = Core\Router::match(Core\Http\Method::Get, "/products/42");
-        ?Core\Router\Match $unnamed = Core\Router::match(Core\Http\Method::Post, "/cart");
+    public static function run(uint $rounds): uint
+    {
+        ?Core\Router\Match $named = Core\Router::match(Core\Http\Method::Get, '/products/42');
+        ?Core\Router\Match $unnamed = Core\Router::match(Core\Http\Method::Post, '/cart');
         if ($named != null) {
             if ($unnamed != null) {
                 return Bench::loop($named, $unnamed, $rounds);

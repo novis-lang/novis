@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $posts = ["#news today", "Sunny #weather #city", "#a #b #c"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $posts = ['#news today', 'Sunny #weather #city', '#a #b #c'];
         Core\Regex\Pattern $tag = Core\Regex::compile('#(\w+)');
         uint $total = 0;
         uint $i = 0;

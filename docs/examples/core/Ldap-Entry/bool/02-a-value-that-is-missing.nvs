@@ -2,23 +2,23 @@
 // Shows that `bool` returns `null` when the entry has no value.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 array<string> $dns = [
-    "CN=Administrator,CN=Users,DC=example,DC=test",
-    "CN=Anna Berg,OU=Company,DC=example,DC=test",
+    'CN=Administrator,CN=Users,DC=example,DC=test',
+    'CN=Anna Berg,OU=Company,DC=example,DC=test',
 ];
 
 foreach ($dns as string $dn) {
-    var $account = $corp->read($dn, {select: ["isCriticalSystemObject"]});
+    var $account = $corp->read($dn, { select: ['isCriticalSystemObject'] });
     if ($account == null) {
         continue;
     }
     // Anna Berg has no `isCriticalSystemObject`, so `bool` returns `null`.
     // This prints `Administrator: true` and `Anna Berg: no value`.
-    ?bool $critical = $account->bool("isCriticalSystemObject");
+    ?bool $critical = $account->bool('isCriticalSystemObject');
     if ($critical == null) {
         echo $account->dn()->rdnValue(), ": no value\n";
     } else {
-        echo $account->dn()->rdnValue(), ": ", $critical ? "true" : "false", "\n";
+        echo $account->dn()->rdnValue(), ': ', $critical ? 'true' : 'false', "\n";
     }
 }

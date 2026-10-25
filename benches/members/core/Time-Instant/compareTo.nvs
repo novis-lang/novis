@@ -4,12 +4,14 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         array<Core\Time\Instant> $sent = [
             Core\Time::fromEpoch(1709293500),
             Core\Time::fromEpoch(1709294400),
-            Core\Time::fromEpoch(1709294400, {nanos: 1}),
+            Core\Time::fromEpoch(1709294400, { nanos: 1 }),
             Core\Time::fromEpoch(1709286600),
         ];
         Core\Time\Instant $now = Core\Time::fromEpoch(1709294400);

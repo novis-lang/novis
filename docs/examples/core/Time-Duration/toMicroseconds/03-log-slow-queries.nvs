@@ -8,7 +8,7 @@ Core\Time\Duration $limit = 1ms;
 foreach ($timings as Core\Time\Duration $took) {
     echo $took->toMicroseconds();
     if ($took->compareTo($limit) > 0) {
-        echo " slow";
+        echo ' slow';
     }
     echo "\n";
 }

@@ -6,23 +6,23 @@
 uint $rows = Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
     // Three rows. The region is three lines tall.
     $screen->set([
-        Core\Cli\Text::plain("orders    waiting"),
-        Core\Cli\Text::plain("invoices  waiting"),
-        Core\Cli\Text::plain("reports   waiting"),
+        Core\Cli\Text::plain('orders    waiting'),
+        Core\Cli\Text::plain('invoices  waiting'),
+        Core\Cli\Text::plain('reports   waiting'),
     ]);
 
     // Two rows. The row for the finished job is gone, and the region is two
     // lines tall.
     $screen->set([
-        Core\Cli\Text::plain("invoices  running"),
-        Core\Cli\Text::plain("reports   waiting"),
+        Core\Cli\Text::plain('invoices  running'),
+        Core\Cli\Text::plain('reports   waiting'),
     ]);
 
     // One row. This is what the region shows when the call ends.
-    array<Core\Cli\Text> $last = [Core\Cli\Text::plain("reports   running")];
+    array<Core\Cli\Text> $last = [Core\Cli\Text::plain('reports   running')];
     $screen->set($last);
     return Core\Arr::count($last);
 });
 
 // This prints 1.
-echo "the region ended with ", $rows, " row\n";
+echo 'the region ended with ', $rows, " row\n";

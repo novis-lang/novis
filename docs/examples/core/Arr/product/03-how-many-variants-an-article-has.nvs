@@ -12,7 +12,7 @@ array<array<string>> $options = [
 // `Core\Arr::map` turns every option into how many choices it has.
 array<int> $counts = Core\Arr::map(
     $options,
-    fn(array<string> $choices): int => Core\Arr::count($choices) as int
+    fn(array<string> $choices): int => Core\Arr::count($choices) as int,
 );
 
 // This prints 24.

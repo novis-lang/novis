@@ -2,12 +2,12 @@
 // Shows what happens when a program deletes an entry that does not exist.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
+var $corp = Core\Ldap::connect('corp-accounts');
 
 // There is no unit with this DN, so `delete` throws an error.
 // This prints `NoSuchObject`.
 try {
-    $corp->delete("OU=Nobody Here 3,DC=example,DC=test");
+    $corp->delete('OU=Nobody Here 3,DC=example,DC=test');
 } catch (Core\Ldap\LdapError $error) {
-    echo $error->kind == Core\Ldap\LdapError::Kind::NoSuchObject ? "NoSuchObject" : "another error", "\n";
+    echo $error->kind == Core\Ldap\LdapError::Kind::NoSuchObject ? 'NoSuchObject' : 'another error', "\n";
 }

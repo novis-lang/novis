@@ -5,8 +5,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The request is in the file `captures.nvsr` beside this one.
         Core\Request\Mount $mount = Core\Request::mount();
         uint $total = 0;

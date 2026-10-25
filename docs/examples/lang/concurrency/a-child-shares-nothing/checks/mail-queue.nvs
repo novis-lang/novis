@@ -2,7 +2,8 @@
 // One health check. The example in the folder above starts it. Its own
 // `Report::$problems` starts at 0, whatever the other checks wrote in theirs.
 
-final class Report {
+final class Report
+{
     public static int $problems = 0;
 }
 

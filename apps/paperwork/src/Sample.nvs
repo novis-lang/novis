@@ -4,89 +4,93 @@ namespace Paperwork;
 use Core\Time\Date;
 
 // The data that the three documents show. A real app reads it from its database.
-final class Sample {
-    type Party = {name: string, street: string, postcode: string, city: string, country: string, countryCode: string, vatId: string, email: string};
-    type Item = {sku: string, name: string, quantity: uint, unit: string, price: decimal};
-    type Invoice = {number: string, customer: string, order: string, issued: Date, delivered: Date, days: int, seller: Party, buyer: Party, items: array<Item>};
-    type Kpi = {label: string, value: string, change: string, note: string};
-    type Point = {name: string, value: int};
-    type Compare = {name: string, value: int, last: int};
-    type Product = {line: string, name: string, units: int, revenue: int, margin: int};
-    type Attendee = {name: string, ticket: string, id: string, zone: string, seat: string, days: string, price: decimal};
-    type Event = {name: string, tagline: string, venue: string, address: string, dates: string, doors: string, site: string};
-    type Order = {number: string, placed: Date, buyer: Party, attendees: array<Attendee>};
+final class Sample
+{
+    type Party = { name: string, street: string, postcode: string, city: string, country: string, countryCode: string, vatId: string, email: string };
+    type Item = { sku: string, name: string, quantity: uint, unit: string, price: decimal };
+    type Invoice = { number: string, customer: string, order: string, issued: Date, delivered: Date, days: int, seller: Party, buyer: Party, items: array<Item> };
+    type Kpi = { label: string, value: string, change: string, note: string };
+    type Point = { name: string, value: int };
+    type Compare = { name: string, value: int, last: int };
+    type Product = { line: string, name: string, units: int, revenue: int, margin: int };
+    type Attendee = { name: string, ticket: string, id: string, zone: string, seat: string, days: string, price: decimal };
+    type Event = { name: string, tagline: string, venue: string, address: string, dates: string, doors: string, site: string };
+    type Order = { number: string, placed: Date, buyer: Party, attendees: array<Attendee> };
 
     // The company that sends the invoice and writes the report.
-    public static function shop(): Party {
-        return {name: "Shop GmbH", street: "12 Example Street", postcode: "10115", city: "Berlin", country: "Germany", countryCode: "DE", vatId: "DE123456789", email: "billing@example.com"};
+    public static function shop(): Party
+    {
+        return { name: 'Shop GmbH', street: '12 Example Street', postcode: '10115', city: 'Berlin', country: 'Germany', countryCode: 'DE', vatId: 'DE123456789', email: 'billing@example.com' };
     }
 
     // The bank account of the shop. This is the standard test IBAN, and its check digits are valid.
-    public static function iban(): string {
-        return "DE89 3704 0044 0532 0130 00";
+    public static function iban(): string
+    {
+        return 'DE89 3704 0044 0532 0130 00';
     }
 
     // An invoice with many lines, so that it needs three pages.
-    public static function invoice(): Invoice {
-        Party $buyer = {name: "Framework GmbH", street: "48 Example Street", postcode: "80331", city: "Munich", country: "Germany", countryCode: "DE", vatId: "DE987654321", email: "accounts@example.com"};
+    public static function invoice(): Invoice
+    {
+        Party $buyer = { name: 'Framework GmbH', street: '48 Example Street', postcode: '80331', city: 'Munich', country: 'Germany', countryCode: 'DE', vatId: 'DE987654321', email: 'accounts@example.com' };
         array<Item> $items = [
-            {sku: "PAP-A4-80", name: "Copy paper A4, 80 g/m², 500 sheets", quantity: 40, unit: "pack", price: "4.95" as decimal},
-            {sku: "PAP-A4-120", name: "Presentation paper A4, 120 g/m², 250 sheets", quantity: 6, unit: "pack", price: "11.40" as decimal},
-            {sku: "PAP-A3-80", name: "Copy paper A3, 80 g/m², 500 sheets", quantity: 4, unit: "pack", price: "10.90" as decimal},
-            {sku: "ENV-C4-SK", name: "Envelopes C4, self-seal, white", quantity: 3, unit: "box", price: "18.75" as decimal},
-            {sku: "ENV-DL-WIN", name: "Envelopes DL with window, 1000 pieces", quantity: 2, unit: "box", price: "24.90" as decimal},
-            {sku: "LBL-70X37", name: "Address labels 70 × 37 mm, 2400 labels", quantity: 5, unit: "pack", price: "16.20" as decimal},
-            {sku: "PEN-GEL-BL", name: "Gel pens, blue, 0.5 mm", quantity: 12, unit: "box", price: "8.60" as decimal},
-            {sku: "PEN-GEL-BK", name: "Gel pens, black, 0.5 mm", quantity: 8, unit: "box", price: "8.60" as decimal},
-            {sku: "PEN-FIN-04", name: "Fineliners, 10 colours", quantity: 10, unit: "set", price: "9.80" as decimal},
-            {sku: "MRK-WB-4", name: "Whiteboard markers, 4 colours", quantity: 15, unit: "set", price: "6.45" as decimal},
-            {sku: "MRK-HL-6", name: "Highlighters, 6 colours", quantity: 10, unit: "set", price: "5.90" as decimal},
-            {sku: "PCL-HB-12", name: "Pencils HB with eraser", quantity: 6, unit: "box", price: "3.80" as decimal},
-            {sku: "NTB-A5-DOT", name: "Notebook A5, dotted, 192 pages", quantity: 30, unit: "pc", price: "7.95" as decimal},
-            {sku: "NTB-A4-RUL", name: "Notebook A4, ruled, 96 pages", quantity: 20, unit: "pc", price: "4.40" as decimal},
-            {sku: "PAD-STK-76", name: "Sticky notes 76 × 76 mm, 12 pads", quantity: 10, unit: "pack", price: "9.20" as decimal},
-            {sku: "PAD-FLIP", name: "Flip chart pads, plain, 20 sheets", quantity: 6, unit: "pack", price: "21.50" as decimal},
-            {sku: "FLD-LVR-80", name: "Lever arch files, 80 mm, blue", quantity: 25, unit: "pc", price: "3.65" as decimal},
-            {sku: "FLD-PKT-A4", name: "Clear pockets A4, 100 pieces", quantity: 8, unit: "pack", price: "6.30" as decimal},
-            {sku: "FLD-DIV-12", name: "Dividers A4, 12 tabs", quantity: 15, unit: "set", price: "2.85" as decimal},
-            {sku: "STP-24-6", name: "Stapler for 30 sheets", quantity: 6, unit: "pc", price: "12.90" as decimal},
-            {sku: "STP-PIN-24", name: "Staples 24/6, 5000 pieces", quantity: 10, unit: "box", price: "1.95" as decimal},
-            {sku: "PUN-2H-40", name: "Two-hole punch for 40 sheets", quantity: 3, unit: "pc", price: "18.40" as decimal},
-            {sku: "CLP-BIN-25", name: "Binder clips 25 mm, 12 pieces", quantity: 12, unit: "box", price: "2.40" as decimal},
-            {sku: "TAP-CLR-19", name: "Clear tape 19 mm × 33 m, 8 rolls", quantity: 6, unit: "pack", price: "7.10" as decimal},
-            {sku: "TAP-DSP", name: "Tape dispenser, weighted", quantity: 4, unit: "pc", price: "11.25" as decimal},
-            {sku: "SCI-21", name: "Scissors 21 cm, soft grip", quantity: 8, unit: "pc", price: "4.70" as decimal},
-            {sku: "CUT-SNAP-18", name: "Snap-off cutter 18 mm", quantity: 5, unit: "pc", price: "3.95" as decimal},
-            {sku: "RUL-ALU-30", name: "Aluminium ruler 30 cm", quantity: 10, unit: "pc", price: "2.95" as decimal},
-            {sku: "CAL-DSK-12", name: "Desk calculator, 12 digits, solar", quantity: 4, unit: "pc", price: "14.90" as decimal},
-            {sku: "TRY-LTR-3", name: "Letter trays, stackable, 3 pieces", quantity: 6, unit: "set", price: "15.60" as decimal},
-            {sku: "ORG-DSK", name: "Desk organiser, black mesh", quantity: 6, unit: "pc", price: "13.40" as decimal},
-            {sku: "WBD-120", name: "Magnetic whiteboard 120 × 90 cm", quantity: 2, unit: "pc", price: "119.00" as decimal},
-            {sku: "WBD-ERS", name: "Whiteboard eraser, magnetic", quantity: 4, unit: "pc", price: "4.20" as decimal},
-            {sku: "MAG-BTN-20", name: "Whiteboard magnets, 20 pieces", quantity: 4, unit: "pack", price: "5.80" as decimal},
-            {sku: "CBL-USBC-2", name: "USB-C cable, 2 m, braided", quantity: 15, unit: "pc", price: "9.90" as decimal},
-            {sku: "HUB-USBC-7", name: "USB-C hub with 7 ports", quantity: 6, unit: "pc", price: "39.00" as decimal},
-            {sku: "MSE-WL", name: "Wireless mouse, silent click", quantity: 10, unit: "pc", price: "22.50" as decimal},
-            {sku: "KBD-WL-DE", name: "Wireless keyboard, German layout", quantity: 6, unit: "pc", price: "34.90" as decimal},
-            {sku: "STD-LAP", name: "Laptop stand, aluminium", quantity: 6, unit: "pc", price: "29.00" as decimal},
-            {sku: "HDS-USB", name: "USB headset with microphone", quantity: 8, unit: "pc", price: "44.50" as decimal},
-            {sku: "LMP-LED", name: "LED desk lamp, dimmable", quantity: 4, unit: "pc", price: "36.80" as decimal},
-            {sku: "BAT-AA-24", name: "Batteries AA, 24 pieces", quantity: 3, unit: "pack", price: "11.90" as decimal},
-            {sku: "TON-K-2", name: "Toner cartridge, black, 3000 pages", quantity: 4, unit: "pc", price: "64.00" as decimal},
-            {sku: "TON-C-1", name: "Toner cartridge, cyan, 2300 pages", quantity: 2, unit: "pc", price: "71.50" as decimal},
-            {sku: "TON-M-1", name: "Toner cartridge, magenta, 2300 pages", quantity: 2, unit: "pc", price: "71.50" as decimal},
-            {sku: "TON-Y-1", name: "Toner cartridge, yellow, 2300 pages", quantity: 2, unit: "pc", price: "71.50" as decimal},
-            {sku: "CLN-WIPE", name: "Screen cleaning wipes, 100 pieces", quantity: 6, unit: "pack", price: "6.90" as decimal},
-            {sku: "BOX-ARCH", name: "Archive boxes, 10 pieces", quantity: 5, unit: "pack", price: "17.80" as decimal},
-            {sku: "BAG-SHRED", name: "Shredder bags, 50 pieces", quantity: 2, unit: "pack", price: "12.60" as decimal},
-            {sku: "COF-BEAN-1", name: "Coffee beans, 1 kg, fair trade", quantity: 8, unit: "pack", price: "18.90" as decimal},
-            {sku: "TEA-ASS-50", name: "Tea selection, 50 bags", quantity: 6, unit: "box", price: "7.40" as decimal},
-            {sku: "CUP-PAP-50", name: "Paper cups, 50 pieces", quantity: 10, unit: "pack", price: "3.20" as decimal},
+            { sku: 'PAP-A4-80', name: 'Copy paper A4, 80 g/m², 500 sheets', quantity: 40, unit: 'pack', price: '4.95' as decimal },
+            { sku: 'PAP-A4-120', name: 'Presentation paper A4, 120 g/m², 250 sheets', quantity: 6, unit: 'pack', price: '11.40' as decimal },
+            { sku: 'PAP-A3-80', name: 'Copy paper A3, 80 g/m², 500 sheets', quantity: 4, unit: 'pack', price: '10.90' as decimal },
+            { sku: 'ENV-C4-SK', name: 'Envelopes C4, self-seal, white', quantity: 3, unit: 'box', price: '18.75' as decimal },
+            { sku: 'ENV-DL-WIN', name: 'Envelopes DL with window, 1000 pieces', quantity: 2, unit: 'box', price: '24.90' as decimal },
+            { sku: 'LBL-70X37', name: 'Address labels 70 × 37 mm, 2400 labels', quantity: 5, unit: 'pack', price: '16.20' as decimal },
+            { sku: 'PEN-GEL-BL', name: 'Gel pens, blue, 0.5 mm', quantity: 12, unit: 'box', price: '8.60' as decimal },
+            { sku: 'PEN-GEL-BK', name: 'Gel pens, black, 0.5 mm', quantity: 8, unit: 'box', price: '8.60' as decimal },
+            { sku: 'PEN-FIN-04', name: 'Fineliners, 10 colours', quantity: 10, unit: 'set', price: '9.80' as decimal },
+            { sku: 'MRK-WB-4', name: 'Whiteboard markers, 4 colours', quantity: 15, unit: 'set', price: '6.45' as decimal },
+            { sku: 'MRK-HL-6', name: 'Highlighters, 6 colours', quantity: 10, unit: 'set', price: '5.90' as decimal },
+            { sku: 'PCL-HB-12', name: 'Pencils HB with eraser', quantity: 6, unit: 'box', price: '3.80' as decimal },
+            { sku: 'NTB-A5-DOT', name: 'Notebook A5, dotted, 192 pages', quantity: 30, unit: 'pc', price: '7.95' as decimal },
+            { sku: 'NTB-A4-RUL', name: 'Notebook A4, ruled, 96 pages', quantity: 20, unit: 'pc', price: '4.40' as decimal },
+            { sku: 'PAD-STK-76', name: 'Sticky notes 76 × 76 mm, 12 pads', quantity: 10, unit: 'pack', price: '9.20' as decimal },
+            { sku: 'PAD-FLIP', name: 'Flip chart pads, plain, 20 sheets', quantity: 6, unit: 'pack', price: '21.50' as decimal },
+            { sku: 'FLD-LVR-80', name: 'Lever arch files, 80 mm, blue', quantity: 25, unit: 'pc', price: '3.65' as decimal },
+            { sku: 'FLD-PKT-A4', name: 'Clear pockets A4, 100 pieces', quantity: 8, unit: 'pack', price: '6.30' as decimal },
+            { sku: 'FLD-DIV-12', name: 'Dividers A4, 12 tabs', quantity: 15, unit: 'set', price: '2.85' as decimal },
+            { sku: 'STP-24-6', name: 'Stapler for 30 sheets', quantity: 6, unit: 'pc', price: '12.90' as decimal },
+            { sku: 'STP-PIN-24', name: 'Staples 24/6, 5000 pieces', quantity: 10, unit: 'box', price: '1.95' as decimal },
+            { sku: 'PUN-2H-40', name: 'Two-hole punch for 40 sheets', quantity: 3, unit: 'pc', price: '18.40' as decimal },
+            { sku: 'CLP-BIN-25', name: 'Binder clips 25 mm, 12 pieces', quantity: 12, unit: 'box', price: '2.40' as decimal },
+            { sku: 'TAP-CLR-19', name: 'Clear tape 19 mm × 33 m, 8 rolls', quantity: 6, unit: 'pack', price: '7.10' as decimal },
+            { sku: 'TAP-DSP', name: 'Tape dispenser, weighted', quantity: 4, unit: 'pc', price: '11.25' as decimal },
+            { sku: 'SCI-21', name: 'Scissors 21 cm, soft grip', quantity: 8, unit: 'pc', price: '4.70' as decimal },
+            { sku: 'CUT-SNAP-18', name: 'Snap-off cutter 18 mm', quantity: 5, unit: 'pc', price: '3.95' as decimal },
+            { sku: 'RUL-ALU-30', name: 'Aluminium ruler 30 cm', quantity: 10, unit: 'pc', price: '2.95' as decimal },
+            { sku: 'CAL-DSK-12', name: 'Desk calculator, 12 digits, solar', quantity: 4, unit: 'pc', price: '14.90' as decimal },
+            { sku: 'TRY-LTR-3', name: 'Letter trays, stackable, 3 pieces', quantity: 6, unit: 'set', price: '15.60' as decimal },
+            { sku: 'ORG-DSK', name: 'Desk organiser, black mesh', quantity: 6, unit: 'pc', price: '13.40' as decimal },
+            { sku: 'WBD-120', name: 'Magnetic whiteboard 120 × 90 cm', quantity: 2, unit: 'pc', price: '119.00' as decimal },
+            { sku: 'WBD-ERS', name: 'Whiteboard eraser, magnetic', quantity: 4, unit: 'pc', price: '4.20' as decimal },
+            { sku: 'MAG-BTN-20', name: 'Whiteboard magnets, 20 pieces', quantity: 4, unit: 'pack', price: '5.80' as decimal },
+            { sku: 'CBL-USBC-2', name: 'USB-C cable, 2 m, braided', quantity: 15, unit: 'pc', price: '9.90' as decimal },
+            { sku: 'HUB-USBC-7', name: 'USB-C hub with 7 ports', quantity: 6, unit: 'pc', price: '39.00' as decimal },
+            { sku: 'MSE-WL', name: 'Wireless mouse, silent click', quantity: 10, unit: 'pc', price: '22.50' as decimal },
+            { sku: 'KBD-WL-DE', name: 'Wireless keyboard, German layout', quantity: 6, unit: 'pc', price: '34.90' as decimal },
+            { sku: 'STD-LAP', name: 'Laptop stand, aluminium', quantity: 6, unit: 'pc', price: '29.00' as decimal },
+            { sku: 'HDS-USB', name: 'USB headset with microphone', quantity: 8, unit: 'pc', price: '44.50' as decimal },
+            { sku: 'LMP-LED', name: 'LED desk lamp, dimmable', quantity: 4, unit: 'pc', price: '36.80' as decimal },
+            { sku: 'BAT-AA-24', name: 'Batteries AA, 24 pieces', quantity: 3, unit: 'pack', price: '11.90' as decimal },
+            { sku: 'TON-K-2', name: 'Toner cartridge, black, 3000 pages', quantity: 4, unit: 'pc', price: '64.00' as decimal },
+            { sku: 'TON-C-1', name: 'Toner cartridge, cyan, 2300 pages', quantity: 2, unit: 'pc', price: '71.50' as decimal },
+            { sku: 'TON-M-1', name: 'Toner cartridge, magenta, 2300 pages', quantity: 2, unit: 'pc', price: '71.50' as decimal },
+            { sku: 'TON-Y-1', name: 'Toner cartridge, yellow, 2300 pages', quantity: 2, unit: 'pc', price: '71.50' as decimal },
+            { sku: 'CLN-WIPE', name: 'Screen cleaning wipes, 100 pieces', quantity: 6, unit: 'pack', price: '6.90' as decimal },
+            { sku: 'BOX-ARCH', name: 'Archive boxes, 10 pieces', quantity: 5, unit: 'pack', price: '17.80' as decimal },
+            { sku: 'BAG-SHRED', name: 'Shredder bags, 50 pieces', quantity: 2, unit: 'pack', price: '12.60' as decimal },
+            { sku: 'COF-BEAN-1', name: 'Coffee beans, 1 kg, fair trade', quantity: 8, unit: 'pack', price: '18.90' as decimal },
+            { sku: 'TEA-ASS-50', name: 'Tea selection, 50 bags', quantity: 6, unit: 'box', price: '7.40' as decimal },
+            { sku: 'CUP-PAP-50', name: 'Paper cups, 50 pieces', quantity: 10, unit: 'pack', price: '3.20' as decimal },
         ];
         return {
-            number: "2026-1042",
-            customer: "C-20417",
-            order: "PO-7731",
+            number: '2026-1042',
+            customer: 'C-20417',
+            order: 'PO-7731',
             issued: Date::at(2026, 10, 1),
             delivered: Date::at(2026, 9, 29),
             days: 14,
@@ -97,146 +101,161 @@ final class Sample {
     }
 
     // The conference that the tickets are for.
-    public static function event(): Event {
+    public static function event(): Event
+    {
         return {
-            name: "Framework Conf 2026",
-            tagline: "Two days of talks about software that lasts",
-            venue: "Example Hall",
-            address: "1 Example Street, 10115 Berlin",
-            dates: "12 and 13 November 2026",
-            doors: "Doors open at 08:30. The first talk starts at 09:30.",
-            site: "conf.example.com",
+            name: 'Framework Conf 2026',
+            tagline: 'Two days of talks about software that lasts',
+            venue: 'Example Hall',
+            address: '1 Example Street, 10115 Berlin',
+            dates: '12 and 13 November 2026',
+            doors: 'Doors open at 08:30. The first talk starts at 09:30.',
+            site: 'conf.example.com',
         };
     }
 
     // An order of four tickets. One company bought them for four people.
-    public static function order(): Order {
-        Party $buyer = {name: "Blog GmbH", street: "7 Example Street", postcode: "20095", city: "Hamburg", country: "Germany", countryCode: "DE", vatId: "DE246813579", email: "team@example.com"};
+    public static function order(): Order
+    {
+        Party $buyer = { name: 'Blog GmbH', street: '7 Example Street', postcode: '20095', city: 'Hamburg', country: 'Germany', countryCode: 'DE', vatId: 'DE246813579', email: 'team@example.com' };
         return {
-            number: "FWC-2026-0417",
+            number: 'FWC-2026-0417',
             placed: Date::at(2026, 10, 2),
             buyer: $buyer,
             attendees: [
-                {name: "Ada Lovelace", ticket: "Conference pass", id: "FWC26-7K3Q-0412", zone: "Hall A", seat: "Row 4, seat 12", days: "12 and 13 November", price: "489.00" as decimal},
-                {name: "Grace Hopper", ticket: "Conference pass and workshop", id: "FWC26-M2XD-0413", zone: "Hall A", seat: "Row 4, seat 13", days: "11 to 13 November", price: "689.00" as decimal},
-                {name: "Alan Turing", ticket: "Conference pass", id: "FWC26-R8NB-0414", zone: "Hall A", seat: "Row 4, seat 14", days: "12 and 13 November", price: "489.00" as decimal},
-                {name: "Katherine Johnson", ticket: "Day pass", id: "FWC26-T5WE-0415", zone: "Hall B", seat: "Free seating", days: "12 November", price: "279.00" as decimal},
+                { name: 'Ada Lovelace', ticket: 'Conference pass', id: 'FWC26-7K3Q-0412', zone: 'Hall A', seat: 'Row 4, seat 12', days: '12 and 13 November', price: '489.00' as decimal },
+                { name: 'Grace Hopper', ticket: 'Conference pass and workshop', id: 'FWC26-M2XD-0413', zone: 'Hall A', seat: 'Row 4, seat 13', days: '11 to 13 November', price: '689.00' as decimal },
+                { name: 'Alan Turing', ticket: 'Conference pass', id: 'FWC26-R8NB-0414', zone: 'Hall A', seat: 'Row 4, seat 14', days: '12 and 13 November', price: '489.00' as decimal },
+                { name: 'Katherine Johnson', ticket: 'Day pass', id: 'FWC26-T5WE-0415', zone: 'Hall B', seat: 'Free seating', days: '12 November', price: '279.00' as decimal },
             ],
         };
     }
 
     // The day the quarterly report was written.
-    public static function reportDate(): Date {
+    public static function reportDate(): Date
+    {
         return Date::at(2026, 10, 9);
     }
 
     // The key figures of the quarter, for the tiles on the first page of the report.
-    public static function kpis(): array<Kpi> {
+    public static function kpis(): array<Kpi>
+    {
         return [
-            {label: "Revenue", value: "€4.82m", change: "+12.4 %", note: "Q3 2025: €4.29m"},
-            {label: "Orders", value: "38,214", change: "+9.1 %", note: "Q3 2025: 35,028"},
-            {label: "Average order", value: "€126.13", change: "+3.0 %", note: "Q3 2025: €122.47"},
-            {label: "Gross margin", value: "41.3 %", change: "+1.2 points", note: "Q3 2025: 40.1 %"},
-            {label: "New customers", value: "2,940", change: "+18.6 %", note: "Q3 2025: 2,479"},
-            {label: "Return rate", value: "3.1 %", change: "−0.4 points", note: "Q3 2025: 3.5 %"},
+            { label: 'Revenue', value: '€4.82m', change: '+12.4 %', note: 'Q3 2025: €4.29m' },
+            { label: 'Orders', value: '38,214', change: '+9.1 %', note: 'Q3 2025: 35,028' },
+            { label: 'Average order', value: '€126.13', change: '+3.0 %', note: 'Q3 2025: €122.47' },
+            { label: 'Gross margin', value: '41.3 %', change: '+1.2 points', note: 'Q3 2025: 40.1 %' },
+            { label: 'New customers', value: '2,940', change: '+18.6 %', note: 'Q3 2025: 2,479' },
+            { label: 'Return rate', value: '3.1 %', change: '−0.4 points', note: 'Q3 2025: 3.5 %' },
         ];
     }
 
     // The revenue of the last eight quarters, in thousand euros.
-    public static function quarters(): array<Point> {
+    public static function quarters(): array<Point>
+    {
         return [
-            {name: "Q4 24", value: 3980}, {name: "Q1 25", value: 3410}, {name: "Q2 25", value: 3720}, {name: "Q3 25", value: 4290},
-            {name: "Q4 25", value: 5110}, {name: "Q1 26", value: 3860}, {name: "Q2 26", value: 4150}, {name: "Q3 26", value: 4820},
+            { name: 'Q4 24', value: 3980 },
+            { name: 'Q1 25', value: 3410 },
+            { name: 'Q2 25', value: 3720 },
+            { name: 'Q3 25', value: 4290 },
+            { name: 'Q4 25', value: 5110 },
+            { name: 'Q1 26', value: 3860 },
+            { name: 'Q2 26', value: 4150 },
+            { name: 'Q3 26', value: 4820 },
         ];
     }
 
     // The revenue of each month of the quarter and of the same month last year, in thousand euros.
-    public static function months(): array<Compare> {
+    public static function months(): array<Compare>
+    {
         return [
-            {name: "July", value: 1512, last: 1371},
-            {name: "August", value: 1468, last: 1349},
-            {name: "September", value: 1840, last: 1570},
+            { name: 'July', value: 1512, last: 1371 },
+            { name: 'August', value: 1468, last: 1349 },
+            { name: 'September', value: 1840, last: 1570 },
         ];
     }
 
     // The orders of each week of the quarter and of the same week last year.
-    public static function weeks(): array<Compare> {
+    public static function weeks(): array<Compare>
+    {
         array<int> $now = [2810, 2765, 2690, 2742, 2655, 2598, 2710, 2875, 3020, 3190, 3305, 3402, 3452];
         array<int> $last = [2620, 2580, 2490, 2540, 2470, 2410, 2500, 2650, 2760, 2900, 3010, 3080, 3018];
         array<Compare> $weeks = [];
         for (int $week = 0; $week < 13; $week++) {
-            $weeks[] = {name: "W" . ($week + 27), value: $now[$week], last: $last[$week]};
+            $weeks[] = { name: 'W' . ($week + 27), value: $now[$week], last: $last[$week] };
         }
         return $weeks;
     }
 
     // The revenue of each region this quarter and in the same quarter last year, in thousand euros.
-    public static function regions(): array<Compare> {
+    public static function regions(): array<Compare>
+    {
         return [
-            {name: "Germany", value: 2410, last: 2190},
-            {name: "Austria", value: 512, last: 455},
-            {name: "Switzerland", value: 468, last: 430},
-            {name: "Netherlands", value: 395, last: 341},
-            {name: "France", value: 352, last: 318},
-            {name: "Italy", value: 241, last: 201},
-            {name: "Spain", value: 186, last: 150},
-            {name: "Poland", value: 142, last: 108},
-            {name: "Nordic countries", value: 81, last: 62},
-            {name: "Other countries", value: 33, last: 35},
+            { name: 'Germany', value: 2410, last: 2190 },
+            { name: 'Austria', value: 512, last: 455 },
+            { name: 'Switzerland', value: 468, last: 430 },
+            { name: 'Netherlands', value: 395, last: 341 },
+            { name: 'France', value: 352, last: 318 },
+            { name: 'Italy', value: 241, last: 201 },
+            { name: 'Spain', value: 186, last: 150 },
+            { name: 'Poland', value: 142, last: 108 },
+            { name: 'Nordic countries', value: 81, last: 62 },
+            { name: 'Other countries', value: 33, last: 35 },
         ];
     }
 
     // The products with the most revenue this quarter. The revenue is in euros, and the margin in percent.
-    public static function products(): array<Product> {
+    public static function products(): array<Product>
+    {
         return [
-            {line: "Paper", name: "Copy paper A4, 80 g/m²", units: 61240, revenue: 303138, margin: 22},
-            {line: "Print", name: "Toner cartridge, black", units: 3410, revenue: 218240, margin: 31},
-            {line: "Tech", name: "USB headset with microphone", units: 3920, revenue: 174440, margin: 44},
-            {line: "Print", name: "Toner cartridges, colour", units: 2280, revenue: 163020, margin: 33},
-            {line: "Tech", name: "USB-C hub with 7 ports", units: 3870, revenue: 150930, margin: 47},
-            {line: "Desk", name: "Magnetic whiteboard 120 × 90 cm", units: 1180, revenue: 140420, margin: 38},
-            {line: "Tech", name: "Wireless keyboard", units: 3880, revenue: 135412, margin: 42},
-            {line: "Writing", name: "Notebook A5, dotted", units: 16540, revenue: 131493, margin: 55},
-            {line: "Tech", name: "Wireless mouse, silent click", units: 5710, revenue: 128475, margin: 46},
-            {line: "Desk", name: "LED desk lamp, dimmable", units: 3260, revenue: 119968, margin: 41},
-            {line: "Kitchen", name: "Coffee beans, 1 kg, fair trade", units: 6150, revenue: 116235, margin: 28},
-            {line: "Desk", name: "Laptop stand, aluminium", units: 3790, revenue: 109910, margin: 49},
-            {line: "Writing", name: "Gel pens, 0.5 mm", units: 11920, revenue: 102512, margin: 52},
-            {line: "Paper", name: "Presentation paper A4, 120 g/m²", units: 8640, revenue: 98496, margin: 34},
-            {line: "Filing", name: "Lever arch files, 80 mm", units: 24310, revenue: 88732, margin: 39},
-            {line: "Writing", name: "Fineliners, 10 colours", units: 8790, revenue: 86142, margin: 51},
-            {line: "Paper", name: "Sticky notes, 12 pads", units: 9150, revenue: 84180, margin: 48},
-            {line: "Paper", name: "Copy paper A3, 80 g/m²", units: 7420, revenue: 80878, margin: 24},
-            {line: "Writing", name: "Whiteboard markers, 4 colours", units: 11630, revenue: 75014, margin: 46},
-            {line: "Paper", name: "Flip chart pads, 20 sheets", units: 3410, revenue: 73315, margin: 37},
-            {line: "Desk", name: "Desk organiser, mesh", units: 5320, revenue: 71288, margin: 44},
-            {line: "Filing", name: "Archive boxes, 10 pieces", units: 3980, revenue: 70844, margin: 35},
-            {line: "Paper", name: "Address labels, 2400 labels", units: 4210, revenue: 68202, margin: 43},
-            {line: "Desk", name: "Letter trays, stackable", units: 4290, revenue: 66924, margin: 40},
-            {line: "Writing", name: "Highlighters, 6 colours", units: 10870, revenue: 64133, margin: 50},
-            {line: "Paper", name: "Envelopes DL with window", units: 2540, revenue: 63246, margin: 29},
-            {line: "Tech", name: "USB-C cable, 2 m", units: 6230, revenue: 61677, margin: 58},
-            {line: "Desk", name: "Desk calculator, 12 digits", units: 3960, revenue: 59004, margin: 36},
-            {line: "Paper", name: "Envelopes C4, self-seal", units: 2980, revenue: 55875, margin: 30},
-            {line: "Desk", name: "Stapler for 30 sheets", units: 4110, revenue: 53019, margin: 42},
-            {line: "Kitchen", name: "Tea selection, 50 bags", units: 6870, revenue: 50838, margin: 33},
-            {line: "Writing", name: "Notebook A4, ruled", units: 11120, revenue: 48928, margin: 47},
-            {line: "Filing", name: "Clear pockets A4, 100 pieces", units: 7340, revenue: 46242, margin: 41},
-            {line: "Desk", name: "Two-hole punch for 40 sheets", units: 2410, revenue: 44344, margin: 39},
-            {line: "Tech", name: "Batteries AA, 24 pieces", units: 3620, revenue: 43078, margin: 26},
-            {line: "Desk", name: "Tape dispenser, weighted", units: 3540, revenue: 39825, margin: 45},
-            {line: "Desk", name: "Scissors 21 cm, soft grip", units: 7980, revenue: 37506, margin: 53},
-            {line: "Filing", name: "Dividers A4, 12 tabs", units: 12470, revenue: 35540, margin: 49},
-            {line: "Tech", name: "Screen cleaning wipes", units: 4980, revenue: 34362, margin: 57},
-            {line: "Kitchen", name: "Paper cups, 50 pieces", units: 10160, revenue: 32512, margin: 31},
-            {line: "Desk", name: "Clear tape, 8 rolls", units: 4430, revenue: 31453, margin: 44},
-            {line: "Filing", name: "Shredder bags, 50 pieces", units: 2310, revenue: 29106, margin: 34},
-            {line: "Desk", name: "Snap-off cutter 18 mm", units: 6890, revenue: 27216, margin: 52},
-            {line: "Desk", name: "Aluminium ruler 30 cm", units: 8640, revenue: 25488, margin: 55},
-            {line: "Desk", name: "Binder clips, 12 pieces", units: 9930, revenue: 23832, margin: 51},
-            {line: "Writing", name: "Pencils HB, 12 pieces", units: 5870, revenue: 22306, margin: 48},
-            {line: "Desk", name: "Whiteboard magnets, 20 pieces", units: 3610, revenue: 20938, margin: 50},
-            {line: "Desk", name: "Staples 24/6, 5000 pieces", units: 9840, revenue: 19188, margin: 46},
+            { line: 'Paper', name: 'Copy paper A4, 80 g/m²', units: 61240, revenue: 303138, margin: 22 },
+            { line: 'Print', name: 'Toner cartridge, black', units: 3410, revenue: 218240, margin: 31 },
+            { line: 'Tech', name: 'USB headset with microphone', units: 3920, revenue: 174440, margin: 44 },
+            { line: 'Print', name: 'Toner cartridges, colour', units: 2280, revenue: 163020, margin: 33 },
+            { line: 'Tech', name: 'USB-C hub with 7 ports', units: 3870, revenue: 150930, margin: 47 },
+            { line: 'Desk', name: 'Magnetic whiteboard 120 × 90 cm', units: 1180, revenue: 140420, margin: 38 },
+            { line: 'Tech', name: 'Wireless keyboard', units: 3880, revenue: 135412, margin: 42 },
+            { line: 'Writing', name: 'Notebook A5, dotted', units: 16540, revenue: 131493, margin: 55 },
+            { line: 'Tech', name: 'Wireless mouse, silent click', units: 5710, revenue: 128475, margin: 46 },
+            { line: 'Desk', name: 'LED desk lamp, dimmable', units: 3260, revenue: 119968, margin: 41 },
+            { line: 'Kitchen', name: 'Coffee beans, 1 kg, fair trade', units: 6150, revenue: 116235, margin: 28 },
+            { line: 'Desk', name: 'Laptop stand, aluminium', units: 3790, revenue: 109910, margin: 49 },
+            { line: 'Writing', name: 'Gel pens, 0.5 mm', units: 11920, revenue: 102512, margin: 52 },
+            { line: 'Paper', name: 'Presentation paper A4, 120 g/m²', units: 8640, revenue: 98496, margin: 34 },
+            { line: 'Filing', name: 'Lever arch files, 80 mm', units: 24310, revenue: 88732, margin: 39 },
+            { line: 'Writing', name: 'Fineliners, 10 colours', units: 8790, revenue: 86142, margin: 51 },
+            { line: 'Paper', name: 'Sticky notes, 12 pads', units: 9150, revenue: 84180, margin: 48 },
+            { line: 'Paper', name: 'Copy paper A3, 80 g/m²', units: 7420, revenue: 80878, margin: 24 },
+            { line: 'Writing', name: 'Whiteboard markers, 4 colours', units: 11630, revenue: 75014, margin: 46 },
+            { line: 'Paper', name: 'Flip chart pads, 20 sheets', units: 3410, revenue: 73315, margin: 37 },
+            { line: 'Desk', name: 'Desk organiser, mesh', units: 5320, revenue: 71288, margin: 44 },
+            { line: 'Filing', name: 'Archive boxes, 10 pieces', units: 3980, revenue: 70844, margin: 35 },
+            { line: 'Paper', name: 'Address labels, 2400 labels', units: 4210, revenue: 68202, margin: 43 },
+            { line: 'Desk', name: 'Letter trays, stackable', units: 4290, revenue: 66924, margin: 40 },
+            { line: 'Writing', name: 'Highlighters, 6 colours', units: 10870, revenue: 64133, margin: 50 },
+            { line: 'Paper', name: 'Envelopes DL with window', units: 2540, revenue: 63246, margin: 29 },
+            { line: 'Tech', name: 'USB-C cable, 2 m', units: 6230, revenue: 61677, margin: 58 },
+            { line: 'Desk', name: 'Desk calculator, 12 digits', units: 3960, revenue: 59004, margin: 36 },
+            { line: 'Paper', name: 'Envelopes C4, self-seal', units: 2980, revenue: 55875, margin: 30 },
+            { line: 'Desk', name: 'Stapler for 30 sheets', units: 4110, revenue: 53019, margin: 42 },
+            { line: 'Kitchen', name: 'Tea selection, 50 bags', units: 6870, revenue: 50838, margin: 33 },
+            { line: 'Writing', name: 'Notebook A4, ruled', units: 11120, revenue: 48928, margin: 47 },
+            { line: 'Filing', name: 'Clear pockets A4, 100 pieces', units: 7340, revenue: 46242, margin: 41 },
+            { line: 'Desk', name: 'Two-hole punch for 40 sheets', units: 2410, revenue: 44344, margin: 39 },
+            { line: 'Tech', name: 'Batteries AA, 24 pieces', units: 3620, revenue: 43078, margin: 26 },
+            { line: 'Desk', name: 'Tape dispenser, weighted', units: 3540, revenue: 39825, margin: 45 },
+            { line: 'Desk', name: 'Scissors 21 cm, soft grip', units: 7980, revenue: 37506, margin: 53 },
+            { line: 'Filing', name: 'Dividers A4, 12 tabs', units: 12470, revenue: 35540, margin: 49 },
+            { line: 'Tech', name: 'Screen cleaning wipes', units: 4980, revenue: 34362, margin: 57 },
+            { line: 'Kitchen', name: 'Paper cups, 50 pieces', units: 10160, revenue: 32512, margin: 31 },
+            { line: 'Desk', name: 'Clear tape, 8 rolls', units: 4430, revenue: 31453, margin: 44 },
+            { line: 'Filing', name: 'Shredder bags, 50 pieces', units: 2310, revenue: 29106, margin: 34 },
+            { line: 'Desk', name: 'Snap-off cutter 18 mm', units: 6890, revenue: 27216, margin: 52 },
+            { line: 'Desk', name: 'Aluminium ruler 30 cm', units: 8640, revenue: 25488, margin: 55 },
+            { line: 'Desk', name: 'Binder clips, 12 pieces', units: 9930, revenue: 23832, margin: 51 },
+            { line: 'Writing', name: 'Pencils HB, 12 pieces', units: 5870, revenue: 22306, margin: 48 },
+            { line: 'Desk', name: 'Whiteboard magnets, 20 pieces', units: 3610, revenue: 20938, margin: 50 },
+            { line: 'Desk', name: 'Staples 24/6, 5000 pieces', units: 9840, revenue: 19188, margin: 46 },
         ];
     }
 }

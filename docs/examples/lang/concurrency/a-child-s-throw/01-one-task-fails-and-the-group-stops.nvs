@@ -2,7 +2,8 @@
 // Shows what happens when one task in a group throws an error. The group stops
 // and your `catch` gets the error that task threw.
 
-class Trace {
+class Trace
+{
     public static int $finished = 0;
 }
 
@@ -15,12 +16,12 @@ try {
             return 1;
         },
         quick: fn(): int => {
-            throw new RuntimeError("the price list is empty");
+            throw new RuntimeError('the price list is empty');
         },
     });
     echo "the group finished\n";
 } catch (RuntimeError $e) {
-    echo "caught: ", $e->message, "\n";
+    echo 'caught: ', $e->message, "\n";
 }
 
 // The slow task was cancelled, so it never reached its last line.

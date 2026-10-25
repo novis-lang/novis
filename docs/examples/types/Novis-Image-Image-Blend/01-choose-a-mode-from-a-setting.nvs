@@ -2,26 +2,29 @@
 // Shows how to choose an `Image::Blend` from the text of a setting.
 use Novis\Image\Image;
 
-class Mode {
-    public static function from(string $text): Image::Blend {
+class Mode
+{
+    public static function from(string $text): Image::Blend
+    {
         return match ($text) {
-            "multiply" => Image::Blend::Multiply,
-            "screen" => Image::Blend::Screen,
-            "overlay" => Image::Blend::Overlay,
-            "darken" => Image::Blend::Darken,
-            "lighten" => Image::Blend::Lighten,
+            'multiply' => Image::Blend::Multiply,
+            'screen' => Image::Blend::Screen,
+            'overlay' => Image::Blend::Overlay,
+            'darken' => Image::Blend::Darken,
+            'lighten' => Image::Blend::Lighten,
             default => Image::Blend::Normal,
         };
     }
 
-    public static function darker(Image::Blend $blend): bool {
+    public static function darker(Image::Blend $blend): bool
+    {
         return $blend == Image::Blend::Multiply || $blend == Image::Blend::Darken;
     }
 }
 
 // "multiply" makes the result darker, so the first line prints "darker".
 // "unknown" is not a mode and gives `Normal`, so the second line prints "not darker".
-array<string> $settings = ["multiply", "unknown"];
+array<string> $settings = ['multiply', 'unknown'];
 foreach ($settings as string $setting) {
-    echo Mode::darker(Mode::from($setting)) ? "darker" : "not darker", "\n";
+    echo Mode::darker(Mode::from($setting)) ? 'darker' : 'not darker', "\n";
 }

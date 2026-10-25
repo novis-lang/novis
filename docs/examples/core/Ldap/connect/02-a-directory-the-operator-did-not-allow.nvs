@@ -4,7 +4,7 @@
 // This program may open `corp`, but not `hr`, so the call throws a `RuntimeError`.
 
 try {
-    Core\Ldap::connect("hr");
+    Core\Ldap::connect('hr');
     echo "The directory is open.\n";
 } catch (RuntimeError $error) {
     echo $error->message, "\n";

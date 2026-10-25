@@ -5,7 +5,7 @@
 
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     // This prints "closing: status 2".
-    echo "closing: status ", $report->status(), "\n";
+    echo 'closing: status ', $report->status(), "\n";
 });
 
 try {

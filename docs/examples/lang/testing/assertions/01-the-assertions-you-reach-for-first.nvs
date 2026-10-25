@@ -5,22 +5,27 @@
 
 use Core\Test;
 
-class Order {
+class Order
+{
     public array<string> $lines = [];
     public ?string $couponCode = null;
 
-    public function add(string $line): void {
+    public function add(string $line): void
+    {
         $this->lines[] = $line;
     }
 
-    public function isEmpty(): bool {
+    public function isEmpty(): bool
+    {
         return Core\Arr::count($this->lines) == 0;
     }
 }
 
-class OrderTest {
+class OrderTest
+{
     #[Test]
-    public function aNewOrderIsEmpty(): void {
+    public function aNewOrderIsEmpty(): void
+    {
         var $order = new Order();
         Test::assertTrue($order->isEmpty());
         Test::assertCount($order->lines, 0);
@@ -28,16 +33,17 @@ class OrderTest {
     }
 
     #[Test]
-    public function addingALineKeepsItsText(): void {
+    public function addingALineKeepsItsText(): void
+    {
         var $order = new Order();
-        $order->add("2 x Coffee");
+        $order->add('2 x Coffee');
         Test::assertCount($order->lines, 1);
-        Test::assertSame($order->lines[0], "2 x Coffee");
+        Test::assertSame($order->lines[0], '2 x Coffee');
     }
 }
 
 var $order = new Order();
-$order->add("2 x Coffee");
+$order->add('2 x Coffee');
 
 // This prints `2 x Coffee`.
 echo $order->lines[0], "\n";

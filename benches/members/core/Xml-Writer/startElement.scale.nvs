@@ -10,7 +10,7 @@ class Bench
         string $name = Core\Str::repeat('item', $size);
         Core\Xml\Writer $writer = Core\Xml::writer();
         $writer->startDocument();
-        $writer->startElement("list");
+        $writer->startElement('list');
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

@@ -4,28 +4,34 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Listener {
-    public function onCreated(): int {
+class Listener
+{
+    public function onCreated(): int
+    {
         return 1;
     }
 
-    public function onDeleted(): int {
+    public function onDeleted(): int
+    {
         return 2;
     }
 
-    public function onUpdated(): int {
+    public function onUpdated(): int
+    {
         return 3;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $found = Core\Reflect::forClass("Listener");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $found = Core\Reflect::forClass('Listener');
         if ($found == null) {
             return 0;
         }
         Core\Reflect\ClassInfo $info = $found;
-        array<string> $names = ["onCreated", "onMoved", "onUpdated"];
+        array<string> $names = ['onCreated', 'onMoved', 'onUpdated'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -3,4 +3,4 @@
 // an `int` and a `string`, so this program does not compile.
 // proof: compile-error
 
-var $xs = [1, "two", 3];
+var $xs = [1, 'two', 3];

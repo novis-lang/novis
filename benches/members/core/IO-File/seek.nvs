@@ -4,8 +4,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(Core\IO\File $file, uint $rounds): uint {
+class Bench
+{
+    public static function run(Core\IO\File $file, uint $rounds): uint
+    {
         uint $at = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -18,8 +20,8 @@ class Bench {
     }
 }
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "seek.dat");
-Core\IO::write($path, Core\Str::repeat("x", 4096));
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'seek.dat');
+Core\IO::write($path, Core\Str::repeat('x', 4096));
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 echo Bench::run($file, 256), "\n";
 $file->close();

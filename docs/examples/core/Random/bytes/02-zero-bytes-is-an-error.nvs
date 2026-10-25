@@ -9,5 +9,5 @@ try {
     bytes $key = Core\Random::bytes($count);
     echo Core\Bytes::length($key), "\n";
 } catch (Throwable $e) {
-    echo "Error: ", $e->message, "\n";
+    echo 'Error: ', $e->message, "\n";
 }

@@ -18,14 +18,14 @@ while ($sent == false && $attempt < 5) {
     $attempt = $attempt + 1;
     $sent = Upload::send($attempt);
     if ($sent) {
-        echo "sent on attempt ", $attempt, "\n";
+        echo 'sent on attempt ', $attempt, "\n";
     } else {
-        echo "attempt ", $attempt, " failed\n";
+        echo 'attempt ', $attempt, " failed\n";
     }
 }
 
 if ($sent == false) {
-    echo "gave up after ", $attempt, " attempts\n";
+    echo 'gave up after ', $attempt, " attempts\n";
 }
 
 // This prints 3.

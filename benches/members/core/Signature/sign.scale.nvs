@@ -12,7 +12,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            string $token = Core\Signature::sign(["doc" => $doc, "act" => "download"], { keys: $keys, until: null });
+            string $token = Core\Signature::sign(['doc' => $doc, 'act' => 'download'], { keys: $keys, until: null });
             $total = $total + Core\Str::length($token) % 7 + 1;
             $i = $i + 1;
         }

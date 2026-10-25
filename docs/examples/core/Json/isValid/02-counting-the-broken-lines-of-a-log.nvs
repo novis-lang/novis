@@ -14,8 +14,8 @@ uint $broken = 0;
 foreach (Core\Str::split($log, "\n") as string $line) {
     $number = $number + 1;
     if (!Core\Json::isValid($line)) {
-        echo "line ", $number, " is not valid JSON\n";
+        echo 'line ', $number, " is not valid JSON\n";
         $broken = $broken + 1;
     }
 }
-echo $broken, " of ", $number, " lines are broken\n";
+echo $broken, ' of ', $number, " lines are broken\n";

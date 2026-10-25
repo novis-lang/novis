@@ -3,18 +3,21 @@
 // bench: start 256
 // bench: max 4096
 
-class Category {
-    public string $name = "";
+class Category
+{
+    public string $name = '';
     public ?Category $parent = null;
 }
 
-class Bench {
-    public static function run(uint $size): uint {
-        string $text = Core\Str::repeat("parent.", $size) . "name";
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $text = Core\Str::repeat('parent.', $size) . 'name';
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            propertyPath<Category> $path = ($text . "") as propertyPath<Category>;
+            propertyPath<Category> $path = ($text . '') as propertyPath<Category>;
             $total = $total + Core\Str::length($path as string);
             $i = $i + 1;
         }

@@ -5,18 +5,18 @@
 array<secret bytes> $keys = [Core\Crypto::generateKey()];
 
 // The first request adds two cups. The cart is written as JSON and sealed.
-array<int> $cart = ["cup" => 2];
-string $cookie = Core\SignedCookie::seal("cart", Core\Json::encode($cart), $keys);
+array<int> $cart = ['cup' => 2];
+string $cookie = Core\SignedCookie::seal('cart', Core\Json::encode($cart), $keys);
 
 // The next request sends the cookie back. The server opens it and adds a teapot.
-var $stored = Core\Json::decode(Core\SignedCookie::open("cart", $cookie, $keys)) as array<mixed>;
+var $stored = Core\Json::decode(Core\SignedCookie::open('cart', $cookie, $keys)) as array<mixed>;
 array<int> $next = [];
 foreach ($stored as tainted string $item => mixed $count) {
     // Only this server can seal the cookie, so the item names are its own.
-    $next[Core\Taint::assertTrusted($item, "the server sealed this cookie")] = $count as int;
+    $next[Core\Taint::assertTrusted($item, 'the server sealed this cookie')] = $count as int;
 }
-$next["teapot"] = 1;
-$cookie = Core\SignedCookie::seal("cart", Core\Json::encode($next), $keys);
+$next['teapot'] = 1;
+$cookie = Core\SignedCookie::seal('cart', Core\Json::encode($next), $keys);
 
 // The third request reads the cart. This prints {"cup":2,"teapot":1}.
-echo Core\SignedCookie::open("cart", $cookie, $keys), "\n";
+echo Core\SignedCookie::open('cart', $cookie, $keys), "\n";

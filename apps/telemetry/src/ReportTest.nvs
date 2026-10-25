@@ -9,139 +9,153 @@ use Core\Time;
 
 // Tests for the check of a report. The clock is fixed on Wednesday of week 2026-W43,
 // so week 2026-W42 is the last week that has ended.
-final class ReportTest {
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function aValidReportIsAccepted(): void {
+final class ReportTest
+{
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function aValidReportIsAccepted(): void
+    {
         var $report = ReportTest::check(ReportTest::body([]));
-        Test::assertSame($report->version as string, "0.4.0");
-        Test::assertSame($report->os, "linux");
-        Test::assertSame($report->arch, "x86_64");
-        Test::assertSame($report->week, "2026-W42");
+        Test::assertSame($report->version as string, '0.4.0');
+        Test::assertSame($report->os, 'linux');
+        Test::assertSame($report->arch, 'x86_64');
+        Test::assertSame($report->week, '2026-W42');
         Test::assertSame($report->first, false);
         Test::assertSame($report->daysActive, 3);
-        Test::assertEqualsDeep($report->counters, ["invocation.run" => 41, "invocation.serve" => 2, "internal-error.check" => 1]);
+        Test::assertEqualsDeep($report->counters, ['invocation.run' => 41, 'invocation.serve' => 2, 'internal-error.check' => 1]);
     }
 
     // Each entry changes one field to a wrong value. Every one of these reports gets the status 400.
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function eachWrongFieldIsRefused(): void {
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function eachWrongFieldIsRefused(): void
+    {
         array<array<mixed>> $wrong = [
-            ["schema" => 2],
-            ["schema" => "1"],
-            ["version" => "0.4"],
-            ["version" => "v0.4.0"],
-            ["version" => "0.4.0-RC1"],
-            ["version" => "0.4.0-" . Str::repeat("a", 30)],
-            ["version" => 4],
-            ["os" => "beos"],
-            ["os" => "Linux"],
-            ["arch" => "riscv64"],
-            ["week" => "2026-42"],
-            ["week" => "2026-W4"],
-            ["week" => "2026-W00"],
-            ["week" => "2026-W54"],
-            ["week" => 42],
-            ["first" => "no"],
-            ["days_active" => 0],
-            ["days_active" => 8],
-            ["days_active" => 3.0],
-            ["counters" => [1, 2]],
-            ["counters" => ["run" => 1]],
-            ["counters" => ["invocation.Run" => 1]],
-            ["counters" => ["invocation.9run" => 1]],
-            ["counters" => ["invocation." . Str::repeat("a", 33) => 1]],
-            ["counters" => ["invocation.run" => -1]],
-            ["counters" => ["invocation.run" => "1"]],
-            ["extra" => 1],
+            ['schema' => 2],
+            ['schema' => '1'],
+            ['version' => '0.4'],
+            ['version' => 'v0.4.0'],
+            ['version' => '0.4.0-RC1'],
+            ['version' => '0.4.0-' . Str::repeat('a', 30)],
+            ['version' => 4],
+            ['os' => 'beos'],
+            ['os' => 'Linux'],
+            ['arch' => 'riscv64'],
+            ['week' => '2026-42'],
+            ['week' => '2026-W4'],
+            ['week' => '2026-W00'],
+            ['week' => '2026-W54'],
+            ['week' => 42],
+            ['first' => 'no'],
+            ['days_active' => 0],
+            ['days_active' => 8],
+            ['days_active' => 3.0],
+            ['counters' => [1, 2]],
+            ['counters' => ['run' => 1]],
+            ['counters' => ['invocation.Run' => 1]],
+            ['counters' => ['invocation.9run' => 1]],
+            ['counters' => ['invocation.' . Str::repeat('a', 33) => 1]],
+            ['counters' => ['invocation.run' => -1]],
+            ['counters' => ['invocation.run' => '1']],
+            ['extra' => 1],
         ];
         uint $entry = 0;
         foreach ($wrong as array<mixed> $change) {
-            Test::assertSame(ReportTest::status(ReportTest::body($change)), 400, {message: "entry " . ($entry as string)});
+            Test::assertSame(ReportTest::status(ReportTest::body($change)), 400, { message: 'entry ' . ($entry as string) });
             $entry = $entry + 1;
         }
     }
 
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function aMissingFieldIsRefused(): void {
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function aMissingFieldIsRefused(): void
+    {
         array<mixed> $fields = ReportTest::fields();
-        $fields = Arr::filter($fields, fn (mixed $value, tainted string $name): bool => $name != "first");
+        $fields = Arr::filter($fields, fn (mixed $value, tainted string $name): bool => $name != 'first');
         Test::assertSame(ReportTest::status(Json::encode($fields)), 400);
     }
 
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function aBodyThatIsNotAJsonObjectIsRefused(): void {
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function aBodyThatIsNotAJsonObjectIsRefused(): void
+    {
         Test::assertSame(ReportTest::status("{\"schema\":1"), 400);
-        Test::assertSame(ReportTest::status("[1, 2]"), 400);
+        Test::assertSame(ReportTest::status('[1, 2]'), 400);
         Test::assertSame(ReportTest::status("\"report\""), 400);
     }
 
     // A command that `known.toml` does not list is counted as `unknown`.
     // The two made-up commands here are added together.
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function aCommandThatIsNotListedIsCountedAsUnknown(): void {
-        array<int> $counters = ["invocation.run" => 1, "invocation.deploy" => 2, "invocation.publish" => 3, "internal-error.deploy" => 1];
-        var $report = ReportTest::check(ReportTest::body(["counters" => $counters]));
-        Test::assertEqualsDeep($report->counters, ["invocation.run" => 1, "invocation.unknown" => 5, "internal-error.unknown" => 1]);
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function aCommandThatIsNotListedIsCountedAsUnknown(): void
+    {
+        array<int> $counters = ['invocation.run' => 1, 'invocation.deploy' => 2, 'invocation.publish' => 3, 'internal-error.deploy' => 1];
+        var $report = ReportTest::check(ReportTest::body(['counters' => $counters]));
+        Test::assertEqualsDeep($report->counters, ['invocation.run' => 1, 'invocation.unknown' => 5, 'internal-error.unknown' => 1]);
     }
 
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function aValueOverTheLimitIsCountedAsTheLimit(): void {
-        array<int> $counters = ["invocation.run" => 5000000, "invocation.deploy" => 90000, "invocation.publish" => 90000];
-        var $report = ReportTest::check(ReportTest::body(["counters" => $counters]));
-        Test::assertEqualsDeep($report->counters, ["invocation.run" => 100000, "invocation.unknown" => 100000]);
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function aValueOverTheLimitIsCountedAsTheLimit(): void
+    {
+        array<int> $counters = ['invocation.run' => 5000000, 'invocation.deploy' => 90000, 'invocation.publish' => 90000];
+        var $report = ReportTest::check(ReportTest::body(['counters' => $counters]));
+        Test::assertEqualsDeep($report->counters, ['invocation.run' => 100000, 'invocation.unknown' => 100000]);
     }
 
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function moreThan64CountersAreRefused(): void {
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function moreThan64CountersAreRefused(): void
+    {
         array<int> $counters = [];
         foreach (Arr::range(1, 65) as int $n) {
-            $counters["invocation.c" . $n] = 1;
+            $counters['invocation.c' . $n] = 1;
         }
-        Test::assertSame(ReportTest::status(ReportTest::body(["counters" => $counters])), 400);
+        Test::assertSame(ReportTest::status(ReportTest::body(['counters' => $counters])), 400);
     }
 
     // The current week and next week have not ended, so they are refused.
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function aWeekInTheFutureIsRefused(): void {
-        Test::assertSame(ReportTest::status(ReportTest::body(["week" => "2026-W43"])), 400);
-        Test::assertSame(ReportTest::status(ReportTest::body(["week" => "2026-W44"])), 400);
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function aWeekInTheFutureIsRefused(): void
+    {
+        Test::assertSame(ReportTest::status(ReportTest::body(['week' => '2026-W43'])), 400);
+        Test::assertSame(ReportTest::status(ReportTest::body(['week' => '2026-W44'])), 400);
     }
 
     // On Sunday, the current week is accepted. This is the one day of tolerance for a clock that is too fast.
-    #[Test(at: "2026-10-25T00:00:00Z")]
-    public function theCurrentWeekIsAcceptedOnItsLastDay(): void {
-        Test::assertSame(ReportTest::check(ReportTest::body(["week" => "2026-W43"]))->week, "2026-W43");
+    #[Test(at: '2026-10-25T00:00:00Z')]
+    public function theCurrentWeekIsAcceptedOnItsLastDay(): void
+    {
+        Test::assertSame(ReportTest::check(ReportTest::body(['week' => '2026-W43']))->week, '2026-W43');
     }
 
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function aWeekFourWeeksOldIsAcceptedAndFiveWeeksOldIsRefused(): void {
-        Test::assertSame(ReportTest::check(ReportTest::body(["week" => "2026-W39"]))->week, "2026-W39");
-        Test::assertSame(ReportTest::status(ReportTest::body(["week" => "2026-W38"])), 400);
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function aWeekFourWeeksOldIsAcceptedAndFiveWeeksOldIsRefused(): void
+    {
+        Test::assertSame(ReportTest::check(ReportTest::body(['week' => '2026-W39']))->week, '2026-W39');
+        Test::assertSame(ReportTest::status(ReportTest::body(['week' => '2026-W38'])), 400);
     }
 
     // 2026-W01 starts on Monday 29 December 2025. This report is from the last week of 2025.
-    #[Test(at: "2026-01-07T12:00:00Z")]
-    public function aWeekAtTheEndOfTheYearIsAccepted(): void {
-        Test::assertSame(ReportTest::check(ReportTest::body(["week" => "2025-W52"]))->week, "2025-W52");
-        Test::assertSame(ReportTest::check(ReportTest::body(["week" => "2026-W01"]))->week, "2026-W01");
+    #[Test(at: '2026-01-07T12:00:00Z')]
+    public function aWeekAtTheEndOfTheYearIsAccepted(): void
+    {
+        Test::assertSame(ReportTest::check(ReportTest::body(['week' => '2025-W52']))->week, '2025-W52');
+        Test::assertSame(ReportTest::check(ReportTest::body(['week' => '2026-W01']))->week, '2026-W01');
     }
 
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function aBodyOverFourKibibytesIsRefused(): void {
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function aBodyOverFourKibibytesIsRefused(): void
+    {
         tainted string $body = ReportTest::body([]);
         // Spaces after the JSON object keep it valid. Only the size is wrong.
-        tainted string $full = $body . Str::repeat(" ", 4096 - Core\Bytes::length($body as bytes));
-        Test::assertSame(ReportTest::check($full)->week, "2026-W42");
-        Test::assertSame(ReportTest::status($full . " "), 413);
+        tainted string $full = $body . Str::repeat(' ', 4096 - Core\Bytes::length($body as bytes));
+        Test::assertSame(ReportTest::check($full)->week, '2026-W42');
+        Test::assertSame(ReportTest::status($full . ' '), 413);
     }
 
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function aBodyThatIsNotSentAsJsonIsRefused(): void {
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function aBodyThatIsNotSentAsJsonIsRefused(): void
+    {
         var $now = Time::now();
         var $known = Known::load();
         tainted string $body = ReportTest::body([]);
-        Test::assertSame(Report::check($body, "application/json; charset=utf-8", $now, $known)->week, "2026-W42");
-        array<string> $types = ["text/plain", "application/x-www-form-urlencoded", ""];
+        Test::assertSame(Report::check($body, 'application/json; charset=utf-8', $now, $known)->week, '2026-W42');
+        array<string> $types = ['text/plain', 'application/x-www-form-urlencoded', ''];
         foreach ($types as string $type) {
             Test::assertSame(ReportTest::statusFor($body, $type), 415);
         }
@@ -149,35 +163,40 @@ final class ReportTest {
     }
 
     // The fields of a valid report from the week 2026-W42.
-    private static function fields(): array<mixed> {
+    private static function fields(): array<mixed>
+    {
         return [
-            "schema" => 1,
-            "version" => "0.4.0",
-            "os" => "linux",
-            "arch" => "x86_64",
-            "week" => "2026-W42",
-            "first" => false,
-            "days_active" => 3,
-            "counters" => ["invocation.run" => 41, "invocation.serve" => 2, "internal-error.check" => 1],
+            'schema' => 1,
+            'version' => '0.4.0',
+            'os' => 'linux',
+            'arch' => 'x86_64',
+            'week' => '2026-W42',
+            'first' => false,
+            'days_active' => 3,
+            'counters' => ['invocation.run' => 41, 'invocation.serve' => 2, 'internal-error.check' => 1],
         ];
     }
 
     // Returns the JSON of a valid report, with the fields in `$change` replaced.
     // `Json::encode` of a `mixed` value gives a tainted string.
-    private static function body(array<mixed> $change): tainted string {
+    private static function body(array<mixed> $change): tainted string
+    {
         return Json::encode(Arr::overlay(ReportTest::fields(), $change));
     }
 
-    private static function check(tainted string $body): Report {
-        return Report::check($body, "application/json", Time::now(), Known::load());
+    private static function check(tainted string $body): Report
+    {
+        return Report::check($body, 'application/json', Time::now(), Known::load());
     }
 
     // Returns the status of the answer for a report that is refused. If the report is accepted, the result is 0.
-    private static function status(tainted string $body): uint {
-        return ReportTest::statusFor($body, "application/json");
+    private static function status(tainted string $body): uint
+    {
+        return ReportTest::statusFor($body, 'application/json');
     }
 
-    private static function statusFor(tainted string $body, ?string $contentType): uint {
+    private static function statusFor(tainted string $body, ?string $contentType): uint
+    {
         try {
             Report::check($body, $contentType, Time::now(), Known::load());
             return 0;

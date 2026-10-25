@@ -6,14 +6,14 @@ use Novis\Spreadsheet\Style;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet("Sales", {header: false});
+var $sheet = $book->sheet('Sales', { header: false });
 
 // The row style shows money and is bold. The third cell has its own `format`, so it shows a percent.
 // It is still bold, because its own style does not set `bold`.
-$sheet->add(["Pens", 1249.5, Cell::of(0.25, Style::of({format: "percent"}))], {style: Style::of({format: "money", bold: true})});
+$sheet->add(['Pens', 1249.5, Cell::of(0.25, Style::of({ format: 'percent' }))], { style: Style::of({ format: 'money', bold: true }) });
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // `text: true` reads each cell as Excel shows it.
-foreach (Reader::open($file)->rows("Sales", {text: true}) as var $row) {
-    echo $row->values["A"], " | ", $row->values["B"], " | ", $row->values["C"], "\n";
+foreach (Reader::open($file)->rows('Sales', { text: true }) as var $row) {
+    echo $row->values['A'], ' | ', $row->values['B'], ' | ', $row->values['C'], "\n";
 }

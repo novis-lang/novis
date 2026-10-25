@@ -8,8 +8,10 @@
 
 enum Rank { Bronze = 1, Silver = 2, Gold = 3 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         array<Rank> $ranks = [Rank::Bronze, Rank::Silver, Rank::Gold];
         int $total = 0;
         int $i = 0;

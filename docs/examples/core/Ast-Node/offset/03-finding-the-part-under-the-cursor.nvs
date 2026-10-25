@@ -6,7 +6,7 @@
 string $source = "<?nvs\necho 1;\necho 2;\necho 3;\n";
 int $cursor = 20;
 
-string $found = "nothing";
+string $found = 'nothing';
 foreach (Core\Ast::parse($source)->nodes() as Core\Ast\Node $node) {
     if ($node->offset() <= $cursor) {
         $found = $node->kind();

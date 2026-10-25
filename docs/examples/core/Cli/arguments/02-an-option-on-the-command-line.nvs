@@ -9,15 +9,15 @@ array<tainted string> $words = Core\Cli::arguments();
 // when one of the words is exactly `--verbose`.
 bool $verbose = false;
 foreach ($words as tainted string $word) {
-    if ($word == "--verbose") {
+    if ($word == '--verbose') {
         $verbose = true;
     }
 }
 
-array<string> $files = ["orders.csv", "customers.csv"];
+array<string> $files = ['orders.csv', 'customers.csv'];
 foreach ($files as string $file) {
-    echo "copied ", $file, "\n";
+    echo 'copied ', $file, "\n";
     if ($verbose) {
-        echo "  from var/export/", $file, "\n";
+        echo '  from var/export/', $file, "\n";
     }
 }

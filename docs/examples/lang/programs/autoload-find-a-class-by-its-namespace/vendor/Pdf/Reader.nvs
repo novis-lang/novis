@@ -4,8 +4,10 @@
 
 namespace Acme\Pdf;
 
-class Reader {
-    public static function describe(): string {
-        return "reader: the installed copy";
+class Reader
+{
+    public static function describe(): string
+    {
+        return 'reader: the installed copy';
     }
 }

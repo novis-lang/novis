@@ -4,13 +4,13 @@
 // as text.
 
 array<string> $started = [
-    "host" => "example.com",
-    "port" => "8080",
+    'host' => 'example.com',
+    'port' => '8080',
 ];
 
 array<string> $current = [
-    "host" => "example.com",
-    "port" => "9090",
+    'host' => 'example.com',
+    'port' => '9090',
 ];
 
 string $before = Core\Debug::render($started) as string;

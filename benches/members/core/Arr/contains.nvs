@@ -6,22 +6,24 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $allowed = ["editor", "admin", "owner"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $allowed = ['editor', 'admin', 'owner'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Last round's total decides which role this round looks for, so no
             // round can be reused. Both searches read every entry.
             if ($total % 2 == 0) {
-                if (Core\Arr::contains($allowed, "owner")) {
+                if (Core\Arr::contains($allowed, 'owner')) {
                     $total = $total + 1;
                 } else {
                     $total = $total + 2;
                 }
             } else {
-                if (Core\Arr::contains($allowed, "guest")) {
+                if (Core\Arr::contains($allowed, 'guest')) {
                     $total = $total + 4;
                 } else {
                     $total = $total + 3;

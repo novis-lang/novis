@@ -2,17 +2,17 @@
 // Shows how to print the scope of a group as a word.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 array<string> $dns = [
-    "CN=Managers,OU=Company,DC=example,DC=test",
-    "CN=Cert Publishers,CN=Users,DC=example,DC=test",
-    "CN=Schema Admins,CN=Users,DC=example,DC=test",
+    'CN=Managers,OU=Company,DC=example,DC=test',
+    'CN=Cert Publishers,CN=Users,DC=example,DC=test',
+    'CN=Schema Admins,CN=Users,DC=example,DC=test',
 ];
 
 // A group has exactly one scope, so one of the three checks is `true`.
 // This prints `global`, `domain local` and `universal`, one for each group.
 foreach ($dns as string $dn) {
-    var $type = $corp->read($dn, {select: ["groupType"]})?->groupType();
+    var $type = $corp->read($dn, { select: ['groupType'] })?->groupType();
     if ($type != null) {
         if ($type->universal()) {
             echo "universal\n";

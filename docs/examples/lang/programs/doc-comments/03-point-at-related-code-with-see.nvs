@@ -4,18 +4,21 @@
 
 /// One customer invoice. Every amount in it is in cents.
 /// @see Invoice::total
-final class Invoice {
+final class Invoice
+{
     /// The amount of each line of the invoice, in cents.
     public array<int> $lines;
 
     /// Builds an invoice from its lines.
-    public function constructor(array<int> $lines) {
+    public function constructor(array<int> $lines)
+    {
         $this->lines = $lines;
     }
 
     /// Adds up the lines and returns the total in cents.
     /// @see Invoice::$lines
-    public function total(): int {
+    public function total(): int
+    {
         int $sum = 0;
         foreach ($this->lines as int $line) {
             $sum = $sum + $line;

@@ -8,8 +8,10 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<bytes> $blocks = [
             Core\Bytes::fill(64, 65),
             Core\Bytes::fill(64, 66),

@@ -4,17 +4,22 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Order {
+class Order
+{
 }
 
-class Refund {
+class Refund
+{
 }
 
-class Payment {
+class Payment
+{
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\ClassInfo> $infos = [
             Core\Reflect::forObject(new Order()),
             Core\Reflect::forObject(new Refund()),
@@ -25,7 +30,7 @@ class Bench {
         while ($i < $rounds) {
             // The description read depends on last round's total, so no round can be skipped.
             Core\Reflect\ClassInfo $info = $infos[($total % 3) as int];
-            if ($info->name() == "Refund") {
+            if ($info->name() == 'Refund') {
                 $total = $total + 2;
             } else {
                 $total = $total + 1;

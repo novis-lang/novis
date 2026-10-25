@@ -11,16 +11,16 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Html\Markup $posts = Core\Html::later(fn(): Core\Html\Markup => {
         Core\Time::sleep(30ms);
         return html`<p>3 new blog posts</p>`;
-    }, {placeholder: html`<p>Loading posts</p>`});
+    }, { placeholder: html`<p>Loading posts</p>` });
     Core\Html\Markup $offers = Core\Html::later(fn(): Core\Html\Markup => {
         Core\Time::sleep(20ms);
         return html`<p>2 offers in the shop</p>`;
-    }, {placeholder: html`<p>Loading offers</p>`});
+    }, { placeholder: html`<p>Loading offers</p>` });
 
     // The finished page has each part in the place of its placeholder.
     echo html`<h1>Welcome back</h1>`, "\n", $posts, "\n", $offers, "\n";
 } else {
     // From the command line, this part sends the request and prints the page.
-    var $page = Core\Test::request(Core\Http\Method::Get, "/");
+    var $page = Core\Test::request(Core\Http\Method::Get, '/');
     echo $page->body();
 }

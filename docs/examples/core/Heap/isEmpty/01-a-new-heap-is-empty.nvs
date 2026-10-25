@@ -4,9 +4,9 @@
 var $heap = new Core\Heap<int>();
 
 // A new heap has no values. This prints "empty".
-echo $heap->isEmpty() ? "empty" : "not empty", "\n";
+echo $heap->isEmpty() ? 'empty' : 'not empty', "\n";
 
 $heap->push(42);
 
 // Now the heap has one value. This prints "not empty".
-echo $heap->isEmpty() ? "empty" : "not empty", "\n";
+echo $heap->isEmpty() ? 'empty' : 'not empty', "\n";

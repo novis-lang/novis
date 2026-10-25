@@ -5,13 +5,15 @@
 // bench: complexity karatsuba
 // bench: calls 2
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\BigInt> $amounts = [
-            Core\BigInt::parse("12193263112482853185200427"),
-            Core\BigInt::parse("1524157875171467887501905210"),
+            Core\BigInt::parse('12193263112482853185200427'),
+            Core\BigInt::parse('1524157875171467887501905210'),
         ];
-        var $total = Core\BigInt::parse("123456789012345678901234567890");
+        var $total = Core\BigInt::parse('123456789012345678901234567890');
         uint $picked = 0;
         uint $i = 0;
         while ($i < $rounds) {

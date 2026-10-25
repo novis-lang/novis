@@ -3,15 +3,15 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
-string $rows = "";
+string $rows = '';
 for (int $n = 1; $n <= 60; $n++) {
     $rows .= "<tr><td>Tea {$n}</td><td>1.50 EUR</td></tr>";
 }
 var $html = "<h1>Invoice 1042</h1><table><tbody>{$rows}</tbody></table>";
 
 var $footer = fn(Page $page): Core\Html\Markup => {
-    string $text = $page->isLast() ? "End of invoice" : "Continued on the next page";
-    echo "page ", $page->number, ": ", $text, "\n";
+    string $text = $page->isLast() ? 'End of invoice' : 'Continued on the next page';
+    echo 'page ', $page->number, ': ', $text, "\n";
     return html`<p>{$text}</p>`;
 };
 

@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        string $path = Core\Path::join(Core\IO::temporaryDir(), "flush.log");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'flush.log');
         Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
         uint $total = 0;
         uint $i = 0;
@@ -19,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "nothing was flushed", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'nothing was flushed', "\n";

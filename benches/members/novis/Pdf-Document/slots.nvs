@@ -5,14 +5,16 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Document> $invoices = [
             Document::fromHtml("<table><tr><td><slot name=\"total\"></slot></td></tr></table>"),
             Document::fromHtml("<table><tr><td><slot name=\"carried\"></slot></td></tr></table>"),
             Document::fromHtml("<table><tr><td><slot name=\"page\"></slot></td></tr></table>"),
         ];
-        var $slots = fn(Page $page): array<Core\Html\Markup> => ["total" => html`{$page->number}`];
+        var $slots = fn(Page $page): array<Core\Html\Markup> => ['total' => html`{$page->number}`];
         array<Document> $documents = [];
         uint $total = 0;
         uint $i = 0;

@@ -5,10 +5,10 @@
 // `Core\Http\Client::openSocket` opens the connection and returns a `Core\Http\Socket`.
 // 10.0.0.7 is a private address, so the call throws a `RuntimeError` before it connects.
 try {
-    Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://10.0.0.7/chat");
-    $socket->send("hello");
+    Core\Http\Socket $socket = Core\Http\Client::openSocket('wss://10.0.0.7/chat');
+    $socket->send('hello');
     var $reply = $socket->receive();
-    echo "reply: ", $reply?->text() ?? "-", "\n";
+    echo 'reply: ', $reply?->text() ?? '-', "\n";
     $socket->close();
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";

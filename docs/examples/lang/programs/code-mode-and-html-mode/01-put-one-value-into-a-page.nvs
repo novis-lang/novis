@@ -2,7 +2,7 @@
 <?nvs
 // Everything outside the tags is written out exactly as it stands. This part
 // is code, and it runs.
-string $who = "world";
+string $who = 'world';
 ?>
 <p>Hello, <?= $who ?>!</p>
 </body></html>

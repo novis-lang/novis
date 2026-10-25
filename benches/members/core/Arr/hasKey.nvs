@@ -5,22 +5,24 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<uint> $query = ["sort" => 2, "view" => 1];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<uint> $query = ['sort' => 2, 'view' => 1];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Last round's total decides which key this round looks for, so no
             // round can be reused.
             if ($total % 2 == 0) {
-                if (Core\Arr::hasKey($query, "sort")) {
+                if (Core\Arr::hasKey($query, 'sort')) {
                     $total = $total + 1;
                 } else {
                     $total = $total + 2;
                 }
             } else {
-                if (Core\Arr::hasKey($query, "page")) {
+                if (Core\Arr::hasKey($query, 'page')) {
                     $total = $total + 4;
                 } else {
                     $total = $total + 3;

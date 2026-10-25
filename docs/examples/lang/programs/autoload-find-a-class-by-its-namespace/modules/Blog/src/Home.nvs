@@ -5,6 +5,6 @@ class Home
 {
     public static function title(): string
     {
-        return "Blog home";
+        return 'Blog home';
     }
 }

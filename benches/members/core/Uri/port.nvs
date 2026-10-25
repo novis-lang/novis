@@ -4,12 +4,14 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Uri> $servers = [
-            Core\Uri::parse("http://localhost:8080/health"),
-            Core\Uri::parse("https://example.com/"),
-            Core\Uri::parse("https://search.example.com:9200/"),
+            Core\Uri::parse('http://localhost:8080/health'),
+            Core\Uri::parse('https://example.com/'),
+            Core\Uri::parse('https://search.example.com:9200/'),
         ];
         uint $total = 0;
         uint $i = 0;

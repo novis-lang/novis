@@ -6,41 +6,46 @@ use Core\Str;
 use Core\Test;
 
 // Tests that send requests to the app. `Test::request` runs the app without a server.
-final class AppTest {
+final class AppTest
+{
     #[Test]
-    public function theHomePageLinksEachDocument(): void {
-        var $response = Test::request(Method::Get, "/");
+    public function theHomePageLinksEachDocument(): void
+    {
+        var $response = Test::request(Method::Get, '/');
         Test::assertEquals($response->status(), 200);
         Test::assertTrue(Str::contains($response->body(), "<a href=\"/invoice.pdf\">"));
         Test::assertTrue(Str::contains($response->body(), "<a href=\"/report.pdf\">"));
         Test::assertTrue(Str::contains($response->body(), "<a href=\"/tickets.pdf\">"));
-        Test::assertTrue(Str::contains($response->body(), "<code>novis</code>"));
+        Test::assertTrue(Str::contains($response->body(), '<code>novis</code>'));
     }
 
     #[Test]
-    public function eachDocumentIsSentAsAPdf(): void {
-        array<string> $names = ["invoice.pdf", "report.pdf", "tickets.pdf"];
+    public function eachDocumentIsSentAsAPdf(): void
+    {
+        array<string> $names = ['invoice.pdf', 'report.pdf', 'tickets.pdf'];
         foreach ($names as string $name) {
             var $response = Test::request(Method::Get, "/{$name}");
             Test::assertEquals($response->status(), 200);
-            Test::assertEquals($response->header("content-type"), "application/pdf");
-            Test::assertEquals($response->header("content-disposition"), "inline; filename=\"{$name}\"");
+            Test::assertEquals($response->header('content-type'), 'application/pdf');
+            Test::assertEquals($response->header('content-disposition'), "inline; filename=\"{$name}\"");
         }
     }
 
     #[Test]
-    public function anUnknownPathIsNotFound(): void {
-        var $response = Test::request(Method::Get, "/no-such-page");
+    public function anUnknownPathIsNotFound(): void
+    {
+        var $response = Test::request(Method::Get, '/no-such-page');
         Test::assertEquals($response->status(), 404);
-        Test::assertTrue(Str::contains($response->body(), "There is no page at this address."));
+        Test::assertTrue(Str::contains($response->body(), 'There is no page at this address.'));
     }
 
     #[Test]
-    public function aWrongMethodIsNotAllowed(): void {
+    public function aWrongMethodIsNotAllowed(): void
+    {
         // The documents have only `GET` routes. The `allow` header lists the methods a path has.
-        var $response = Test::request(Method::Post, "/invoice.pdf");
+        var $response = Test::request(Method::Post, '/invoice.pdf');
         Test::assertEquals($response->status(), 405);
-        Test::assertEquals($response->header("allow"), "GET");
-        Test::assertTrue(Str::contains($response->body(), "This address only opens a document."));
+        Test::assertEquals($response->header('allow'), 'GET');
+        Test::assertTrue(Str::contains($response->body(), 'This address only opens a document.'));
     }
 }

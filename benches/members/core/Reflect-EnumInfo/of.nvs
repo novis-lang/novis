@@ -3,19 +3,23 @@
 // bench: iterations 256
 // bench: complexity constant
 
-enum Shipping: int {
+enum Shipping: int
+{
     Standard = 1,
     Express = 2,
 }
 
-enum Payment: uint {
+enum Payment: uint
+{
     Card = 1,
     Invoice = 2,
     Cash = 3,
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $names = [Shipping::class, Payment::class];
         uint $total = 0;
         uint $i = 0;

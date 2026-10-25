@@ -3,6 +3,8 @@
 // To build on `Sealed`, put a `Sealed` object in a property and call its methods.
 // proof: compile-error
 
-final class Sealed {}
+final class Sealed
+{}
 
-class Widened extends Sealed {}
+class Widened extends Sealed
+{}

@@ -1,19 +1,20 @@
 <?nvs
 // Shows a nullable type, a union, two single-value types and an enum case type.
 
-enum Mode: int {
+enum Mode: int
+{
     Read = 1,
     Write = 2,
 }
 
 ?int $maybe = null;
-int|string $id = "abc";
-"read"|"write" $mode = "read";
+int|string $id = 'abc';
+"read"|"write" $mode = 'read';
 1|2|3 $level = 2;
 Mode::Read|Mode::Write $m = Mode::Write;
 
 // `$m as int` gives the number of the case, here `2`. `1 as Mode` gives the case `Mode::Read`.
-echo $maybe ?? -1, " ", $id, " ", $mode, $level, " ", $m as int, " ", (1 as Mode) == Mode::Read ? "read" : "other", "\n";
+echo $maybe ?? -1, ' ', $id, ' ', $mode, $level, ' ', $m as int, ' ', (1 as Mode) == Mode::Read ? 'read' : 'other', "\n";
 
 // No case has the number `9`, so `as Mode` throws an error.
 try {
@@ -23,4 +24,4 @@ try {
 }
 
 // `as ?Mode` gives `null` for the same number.
-echo (9 as ?Mode) == null ? "null" : "case", "\n";
+echo (9 as ?Mode) == null ? 'null' : 'case', "\n";

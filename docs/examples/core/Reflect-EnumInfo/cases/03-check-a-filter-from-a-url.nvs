@@ -1,7 +1,8 @@
 <?nvs
 // Checks the value of a `?status=` filter from a web address against the cases of an enum.
 
-enum OrderStatus: int {
+enum OrderStatus: int
+{
     Open = 1,
     Paid = 2,
     Shipped = 3,
@@ -9,7 +10,7 @@ enum OrderStatus: int {
 }
 
 // These are values a visitor could type after `?status=`.
-array<string> $filters = ["Shipped", "Lost", "open"];
+array<string> $filters = ['Shipped', 'Lost', 'open'];
 
 ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(OrderStatus::class);
 if ($found != null) {
@@ -18,10 +19,10 @@ if ($found != null) {
     foreach ($filters as string $filter) {
         // The check is exact, so "open" is not the same as "Open".
         if (Core\Arr::contains($allowed, $filter)) {
-            echo "Filter by ", $filter, "\n";
+            echo 'Filter by ', $filter, "\n";
         } else {
             // The error message lists every case, so the visitor knows what to type.
-            echo "Unknown status '", $filter, "'. Use one of: ", Core\Str::join($allowed, ", "), "\n";
+            echo "Unknown status '", $filter, "'. Use one of: ", Core\Str::join($allowed, ', '), "\n";
         }
     }
 }

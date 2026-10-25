@@ -2,7 +2,7 @@
 // Shows how to put a Code 128 barcode into an HTML page as an SVG image.
 use Novis\Image\Barcode;
 
-string $code = Barcode::svg("SHIP-2024-0042", Barcode::Symbology::Code128);
+string $code = Barcode::svg('SHIP-2024-0042', Barcode::Symbology::Code128);
 
 // The SVG document is a string, so it can go straight into the HTML.
 string $html = "<div class=\"label\">{$code}</div>";
@@ -10,4 +10,4 @@ string $html = "<div class=\"label\">{$code}</div>";
 // This prints the start of the page and the start of the SVG document.
 echo Core\Str::slice($html, 0, 19), "\n";
 echo Core\Str::slice($code, 0, 39), "\n";
-echo Core\Str::endsWith($html, "</svg></div>") ? "the page is complete" : "the page is cut", "\n";
+echo Core\Str::endsWith($html, '</svg></div>') ? 'the page is complete' : 'the page is cut', "\n";

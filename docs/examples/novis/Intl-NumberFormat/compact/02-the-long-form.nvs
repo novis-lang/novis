@@ -5,4 +5,4 @@ use Novis\Intl\NumberFormat;
 array<int|float|decimal> $views = [1234, 1500000];
 
 // This prints 1.2 thousand | 1.5 million.
-echo Core\Str::join(NumberFormat::compact($views, "en", {display: NumberFormat::CompactDisplay::Long}), " | "), "\n";
+echo Core\Str::join(NumberFormat::compact($views, 'en', { display: NumberFormat::CompactDisplay::Long }), ' | '), "\n";

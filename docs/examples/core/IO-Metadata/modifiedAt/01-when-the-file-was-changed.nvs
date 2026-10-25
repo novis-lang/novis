@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to read when a file was last changed from the result of `Core\IO::stat`.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "settings.json");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'settings.json');
 Core\IO::write($path, "{\"theme\": \"dark\"}\n");
 
 // `modifiedAt` returns a `Core\Time\Instant`.
@@ -11,7 +11,7 @@ Core\Time\Duration $age = Core\Time::now()->since($changed);
 
 // The file was written a moment ago, so this prints "changed less than a minute ago".
 if ($age->toSeconds() < 60) {
-    echo "changed less than a minute ago", "\n";
+    echo 'changed less than a minute ago', "\n";
 } else {
-    echo "changed ", $age->toString(), " ago", "\n";
+    echo 'changed ', $age->toString(), ' ago', "\n";
 }

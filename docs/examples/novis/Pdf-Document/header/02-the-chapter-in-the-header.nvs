@@ -5,18 +5,18 @@ use Novis\Pdf\Page;
 use Novis\Pdf\Reader;
 
 // `string-set` saves the text of each `h2` under the name `chapter`.
-string $html = "<style>h2 { break-before: page; string-set: chapter content() }</style>"
-    . "<h1>Shop manual</h1><h2>Orders</h2><p>Each order has a number.</p>"
-    . "<h2>Returns</h2><p>A customer may return an item within 30 days.</p>";
+string $html = '<style>h2 { break-before: page; string-set: chapter content() }</style>'
+    . '<h1>Shop manual</h1><h2>Orders</h2><p>Each order has a number.</p>'
+    . '<h2>Returns</h2><p>A customer may return an item within 30 days.</p>';
 
 // `$page->string("chapter")` returns the chapter on this page. The first page has none, so it is `null`.
 var $header = fn(Page $page): Core\Html\Markup => {
-    string $chapter = $page->string("chapter") ?? "Shop manual";
+    string $chapter = $page->string('chapter') ?? 'Shop manual';
     return html`<p>{$chapter}</p>`;
 };
 
 // This prints the first line of each page, which is its header.
 var $reader = Reader::open(Document::fromHtml($html)->header($header)->render()->bytes);
 for (uint $n = 1; $n <= $reader->pageCount; $n++) {
-    echo "page ", $n, ": ", Core\Str::before($reader->text($n), "\n") ?? "", "\n";
+    echo 'page ', $n, ': ', Core\Str::before($reader->text($n), "\n") ?? '', "\n";
 }

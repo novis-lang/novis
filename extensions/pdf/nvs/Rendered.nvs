@@ -4,9 +4,9 @@ namespace Novis\Pdf;
 /// The result of `Document::render`: the PDF file, its page count, and what the render could not draw.
 final class Rendered
 {
-    type Dropped = {property: string, value: string, selector: string, line: uint, column: uint};
-    type MissingGlyph = {text: string, fonts: array<string>, page: uint};
-    type Overflow = {page: uint, area: string, text: string};
+    type Dropped = { property: string, value: string, selector: string, line: uint, column: uint };
+    type MissingGlyph = { text: string, fonts: array<string>, page: uint };
+    type Overflow = { page: uint, area: string, text: string };
 
     /// `new Rendered` makes a result from its values. `Document::render` makes one for you.
     /// `dropped` lists the CSS the render does not support. `missingGlyphs` lists text that no font has.
@@ -16,5 +16,6 @@ final class Rendered
         public readonly array<Dropped> $dropped,
         public readonly array<MissingGlyph> $missingGlyphs,
         public readonly array<Overflow> $overflows,
-    ) {}
+    )
+    {}
 }

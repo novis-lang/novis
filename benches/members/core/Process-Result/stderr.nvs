@@ -5,16 +5,18 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // Two programs run once, before the loop: `/bin/sh` on Linux and macOS, `cmd.exe` on Windows.
         array<Core\Process\Result> $results = [];
         if (Core\Env::OS == Core\Env::Platform::Windows) {
-            $results[] = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "echo failed 1>&2"]);
-            $results[] = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "echo a longer message 1>&2"]);
+            $results[] = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ['/c', 'echo failed 1>&2']);
+            $results[] = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ['/c', 'echo a longer message 1>&2']);
         } else {
-            $results[] = Core\Process::run("/bin/sh", ["-c", "echo failed >&2"]);
-            $results[] = Core\Process::run("/bin/sh", ["-c", "echo a longer message >&2"]);
+            $results[] = Core\Process::run('/bin/sh', ['-c', 'echo failed >&2']);
+            $results[] = Core\Process::run('/bin/sh', ['-c', 'echo a longer message >&2']);
         }
         uint $total = 0;
         uint $i = 0;

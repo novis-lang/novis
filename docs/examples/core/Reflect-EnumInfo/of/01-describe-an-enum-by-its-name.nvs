@@ -1,7 +1,8 @@
 <?nvs
 // Shows how to get the description of an enum from its name.
 
-enum Size: int {
+enum Size: int
+{
     Small = 1,
     Medium = 2,
     Large = 3,
@@ -13,5 +14,5 @@ enum Size: int {
 if ($found != null) {
     Core\Reflect\EnumInfo $info = $found;
     // This prints `Size has 3 cases`.
-    echo $info->name(), " has ", Core\Arr::count($info->cases()), " cases\n";
+    echo $info->name(), ' has ', Core\Arr::count($info->cases()), " cases\n";
 }

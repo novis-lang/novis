@@ -6,15 +6,21 @@
 // bench: allocations 1
 // bench: complexity constant
 
-type Route = {path: string};
+type Route = { path: string };
 
-class Orders {
-    #[Route(path: "/orders/{id}")]
-    public function show(int $id): int { return $id; }
+class Orders
+{
+    #[Route(path: '/orders/{id}')]
+    public function show(int $id): int
+    {
+        return $id;
+    }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

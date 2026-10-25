@@ -3,15 +3,15 @@
 // `as ?uint` converts text to a whole number. If the text is not a number,
 // the result is `null`, and `??` gives a default value.
 
-array<string> $settings = ["page" => "3", "limit" => "many"];
+array<string> $settings = ['page' => '3', 'limit' => 'many'];
 
-?uint $page = $settings["page"] as ?uint;
-?uint $limit = $settings["limit"] as ?uint;
+?uint $page = $settings['page'] as ?uint;
+?uint $limit = $settings['limit'] as ?uint;
 
-echo "page ", $page ?? 1, "\n";
-echo "limit ", $limit ?? 20, "\n";
+echo 'page ', $page ?? 1, "\n";
+echo 'limit ', $limit ?? 20, "\n";
 
 // A variable can be `null` only when its type allows it, as `?string` does.
 // So the reader can see on this line that `$note` may be empty.
 ?string $note = null;
-echo "note ", $note ?? "(none)", "\n";
+echo 'note ', $note ?? '(none)', "\n";

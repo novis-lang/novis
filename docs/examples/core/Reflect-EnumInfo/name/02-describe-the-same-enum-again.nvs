@@ -1,7 +1,8 @@
 <?nvs
 // Shows that the name from `name()` can be passed to `of` to describe the same enum again.
 
-enum Channel: int {
+enum Channel: int
+{
     Email = 1,
     Sms = 2,
 }
@@ -15,6 +16,6 @@ if ($first != null) {
     if ($second != null) {
         Core\Reflect\EnumInfo $again = $second;
         // This prints `Channel: Email, Sms`.
-        echo $again->name(), ": ", Core\Str::join($again->cases(), ", "), "\n";
+        echo $again->name(), ': ', Core\Str::join($again->cases(), ', '), "\n";
     }
 }

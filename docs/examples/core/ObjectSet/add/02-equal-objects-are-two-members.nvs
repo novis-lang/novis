@@ -1,11 +1,13 @@
 <?nvs
 // Shows that two objects with equal property values are two different members of a set.
 
-final class Point {
+final class Point
+{
     public int $x;
     public int $y;
 
-    public function constructor(int $x, int $y) {
+    public function constructor(int $x, int $y)
+    {
         $this->x = $x;
         $this->y = $y;
     }

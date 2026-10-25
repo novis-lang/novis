@@ -9,10 +9,10 @@ Core\Socket $conn = Core\Socket::current();
 uint $sent = 0;
 try {
     while ($sent < 5) {
-        $conn->send("update number " . (($sent + 1) as string));
+        $conn->send('update number ' . (($sent + 1) as string));
         $sent = $sent + 1;
     }
 } catch (RuntimeError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }
-echo "stopped after ", $sent, " messages\n";
+echo 'stopped after ', $sent, " messages\n";

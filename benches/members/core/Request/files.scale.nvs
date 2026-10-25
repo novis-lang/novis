@@ -4,30 +4,32 @@
 // bench: start 4
 // bench: max 64
 
-class Bench {
-    public static function run(uint $size): string {
-        string $boundary = "------ShopFormBoundary";
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        string $boundary = '------ShopFormBoundary';
         array<string> $parts = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => Core\Str::join([
             $boundary,
             "Content-Disposition: form-data; name=\"photos[]\"; filename=\"photo-" . ($n as string) . ".jpg\"",
-            "Content-Type: image/jpeg",
-            "",
-            "Picture " . ($n as string) . ". A real upload has the bytes of a photo here.",
+            'Content-Type: image/jpeg',
+            '',
+            'Picture ' . ($n as string) . '. A real upload has the bytes of a photo here.',
         ], "\n"));
         array<string> $lines = [
-            "// scaling: file files.nvsr",
-            "--METHOD--",
-            "POST",
-            "--PATH--",
-            "/gallery/upload",
-            "--SCHEME--",
-            "https",
-            "--HEADERS--",
-            "host: example.com",
-            "content-type: multipart/form-data; boundary=----ShopFormBoundary",
-            "--BODY_CRLF--",
+            '// scaling: file files.nvsr',
+            '--METHOD--',
+            'POST',
+            '--PATH--',
+            '/gallery/upload',
+            '--SCHEME--',
+            'https',
+            '--HEADERS--',
+            'host: example.com',
+            'content-type: multipart/form-data; boundary=----ShopFormBoundary',
+            '--BODY_CRLF--',
             Core\Str::join($parts, "\n"),
-            $boundary . "--",
+            $boundary . '--',
         ];
         return Core\Str::join($lines, "\n") . "\n";
     }

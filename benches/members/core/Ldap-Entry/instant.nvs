@@ -5,17 +5,19 @@
 // bench: complexity constant
 // requires: samba-ad
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $corp = Core\Ldap::connect("corp");
-        var $found = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["whenCreated", "pwdLastSet"]});
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $corp = Core\Ldap::connect('corp');
+        var $found = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['whenCreated', 'pwdLastSet'] });
         if ($found == null) {
             return 0;
         }
         Core\Ldap\Entry $person = $found;
         // The count so far chooses the attribute, so the loop cannot be left out.
         // One is text and one is a number, so both ways of writing a time are measured.
-        array<string> $names = ["whenCreated", "pwdLastSet"];
+        array<string> $names = ['whenCreated', 'pwdLastSet'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

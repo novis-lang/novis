@@ -2,33 +2,40 @@
 // Each route has one HTTP verb. The same path with another verb is a different route.
 // `Core\Router::match` takes a verb and a path and returns the route that would be called.
 
-class Pages {
+class Pages
+{
     // Every route also says who may reach it. `Public` means anybody.
-    #[Core\Route(path: "/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
+    #[Core\Route(path: '/pages/{slug}', method: Core\Http\Method::Get, name: 'Pages::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(string $slug): string { return $slug; }
+    public function show(string $slug): string
+    {
+        return $slug;
+    }
 
-    #[Core\Route(path: "/pages", method: Core\Http\Method::Post, name: "Pages::create")]
+    #[Core\Route(path: '/pages', method: Core\Http\Method::Post, name: 'Pages::create')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function create(): string { return "made"; }
+    public function create(): string
+    {
+        return 'made';
+    }
 }
 
 // Reading a page. `match` does not call the route. It returns the route, and you
 // decide what to do with it.
-?Core\Router\Match $read = Core\Router::match(Core\Http\Method::Get, "/pages/intro");
+?Core\Router\Match $read = Core\Router::match(Core\Http\Method::Get, '/pages/intro');
 if ($read != null) {
-    echo "get /pages/intro  -> ", $read->name() ?? "unnamed", "\n";
+    echo 'get /pages/intro  -> ', $read->name() ?? 'unnamed', "\n";
 }
 
 // Creating one.
-?Core\Router\Match $made = Core\Router::match(Core\Http\Method::Post, "/pages");
+?Core\Router\Match $made = Core\Router::match(Core\Http\Method::Post, '/pages');
 if ($made != null) {
-    echo "post /pages       -> ", $made->name() ?? "unnamed", "\n";
+    echo 'post /pages       -> ', $made->name() ?? 'unnamed', "\n";
 }
 
 // The right path with the wrong verb matches nothing. No route is declared for
 // `Post` at `/pages/intro`, so the result is `null`.
-?Core\Router\Match $wrong = Core\Router::match(Core\Http\Method::Post, "/pages/intro");
+?Core\Router\Match $wrong = Core\Router::match(Core\Http\Method::Post, '/pages/intro');
 if ($wrong == null) {
     echo "post /pages/intro -> no route\n";
 }

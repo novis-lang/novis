@@ -2,10 +2,10 @@
 // Shows that `accountType` returns `null` for an entry that is not an account, such as an organizational unit.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $unit = $corp->read("OU=Company,DC=example,DC=test", {select: ["sAMAccountType"]});
+var $corp = Core\Ldap::connect('corp');
+var $unit = $corp->read('OU=Company,DC=example,DC=test', { select: ['sAMAccountType'] });
 
 if ($unit != null) {
     // An organizational unit has no `sAMAccountType`. This prints `not an account`.
-    echo $unit->accountType() == null ? "not an account" : "an account", "\n";
+    echo $unit->accountType() == null ? 'not an account' : 'an account', "\n";
 }

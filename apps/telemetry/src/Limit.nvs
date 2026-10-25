@@ -4,8 +4,8 @@ namespace Telemetry;
 use Core\Cache;
 use Core\Encoding;
 use Core\Hash;
-use Core\RateLimit;
 use Core\Random;
+use Core\RateLimit;
 use Core\Time;
 use Core\Time\Duration;
 use Core\Time\Zone;
@@ -13,37 +13,41 @@ use Core\Unit;
 
 // Limits each address to ten reports in one hour.
 // The limit counts a hash of the address. The address itself is not kept.
-final class Limit {
+final class Limit
+{
     // The number of reports one address can send in one hour.
     public const uint PER_HOUR = 10;
 
     // Counts one report from `$address`. It returns `null` when the report is allowed.
     // Otherwise it returns how long the sender must wait.
-    public static function wait(?tainted string $address): ?Duration {
+    public static function wait(?tainted string $address): ?Duration
+    {
         return RateLimit::shed(Limit::key($address), Limit::PER_HOUR, 1h)->retryAfter();
     }
 
     // The key for the address: a SHA-256 hash of today's salt, followed by the address.
     // The salt is random and changes every day, so a key cannot be turned back into the address.
     // A request with no address, such as one over a Unix socket, uses the salt alone.
-    public static function key(?tainted string $address): string {
-        bytes $hash = Hash::of(Limit::salt() . ($address ?? ""), Hash::Digest::Sha256);
-        return "telemetry:" . Encoding::toHex($hash);
+    public static function key(?tainted string $address): string
+    {
+        bytes $hash = Hash::of(Limit::salt() . ($address ?? ''), Hash::Digest::Sha256);
+        return 'telemetry:' . Encoding::toHex($hash);
     }
 
     // The salt is 32 random bytes as hex. The first report of each UTC day makes a new one.
     // It is kept only in the memory of the server, and the cache deletes it at midnight UTC.
-    private static function salt(): tainted string {
+    private static function salt(): tainted string
+    {
         var $cache = Cache::memory();
-        var $today = Time::now()->in(Zone::of("UTC"));
-        string $name = "telemetry:salt:" . $today->format("YYYY-MM-dd");
+        var $today = Time::now()->in(Zone::of('UTC'));
+        string $name = 'telemetry:salt:' . $today->format('YYYY-MM-dd');
         var $found = $cache->get($name);
         if ($found is string) {
             return $found;
         }
         string $salt = Random::token(32);
         var $midnight = $today->startOf(Unit::Day)->plus(1, Unit::Day)->toInstant();
-        $cache->put($name, $salt, {ttl: $midnight->since(Time::now())});
+        $cache->put($name, $salt, { ttl: $midnight->since(Time::now()) });
         return $salt;
     }
 }

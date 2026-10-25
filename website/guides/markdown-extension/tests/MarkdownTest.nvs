@@ -6,33 +6,39 @@ use Core\Test;
 use Example\Markdown\Document;
 use Example\Markdown\Parser;
 
-class MarkdownTest {
+class MarkdownTest
+{
     #[Test]
-    public function toHtmlConvertsMarkdown(): void {
+    public function toHtmlConvertsMarkdown(): void
+    {
         Test::assertSame(Parser::toHtml("# Tea\n\nGreen *and* black."), "<h1>Tea</h1>\n<p>Green <em>and</em> black.</p>\n");
     }
 
     #[Test]
-    public function htmlInTheMarkdownIsShownAsText(): void {
-        Test::assertSame(Parser::toHtml("Hi <b>there</b>"), "<p>Hi &lt;b&gt;there&lt;/b&gt;</p>\n");
+    public function htmlInTheMarkdownIsShownAsText(): void
+    {
+        Test::assertSame(Parser::toHtml('Hi <b>there</b>'), "<p>Hi &lt;b&gt;there&lt;/b&gt;</p>\n");
     }
 
     #[Test]
-    public function headingsReturnsLevelAndText(): void {
-        array<{level: int, text: string}> $headings = Parser::headings("# Tea\n\ntext\n\n## Green `tea`");
+    public function headingsReturnsLevelAndText(): void
+    {
+        array<{ level: int, text: string }> $headings = Parser::headings("# Tea\n\ntext\n\n## Green `tea`");
         Test::assertCount($headings, 2);
         Test::assertSame($headings[1]->level, 2);
-        Test::assertSame($headings[1]->text, "Green tea");
-        Test::assertSame(Parser::headings("# Hi <b>there</b>")[0]->text, "Hi <b>there</b>");
+        Test::assertSame($headings[1]->text, 'Green tea');
+        Test::assertSame(Parser::headings('# Hi <b>there</b>')[0]->text, 'Hi <b>there</b>');
     }
 
     #[Test]
-    public function renderRemovesAnUnsafeLink(): void {
-        Test::assertSame(Html::toSource(Document::render("[click](javascript:alert(1))"), "comparing the HTML"),"<p><a>click</a></p>\n");
+    public function renderRemovesAnUnsafeLink(): void
+    {
+        Test::assertSame(Html::toSource(Document::render('[click](javascript:alert(1))'), 'comparing the HTML'),"<p><a>click</a></p>\n");
     }
 
     #[Test]
-    public function outlineListsTheTopTwoLevels(): void {
-        Test::assertSame(Html::toSource(Document::outline("# A\n## B\n### C"), "comparing the HTML"),"<ul><li>A</li><li>B</li></ul>");
+    public function outlineListsTheTopTwoLevels(): void
+    {
+        Test::assertSame(Html::toSource(Document::outline("# A\n## B\n### C"), 'comparing the HTML'),'<ul><li>A</li><li>B</li></ul>');
     }
 }

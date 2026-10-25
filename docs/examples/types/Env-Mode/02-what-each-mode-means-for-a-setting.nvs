@@ -2,19 +2,22 @@
 // This program passes each mode to a function and prints what it returns.
 // You can see the result for a real deployment while you work on your own machine.
 
-class Pages {
+class Pages
+{
     // How long a finished page may be kept before it is built again.
-    public static function cacheSeconds(Core\Env::Mode $mode): int {
+    public static function cacheSeconds(Core\Env::Mode $mode): int
+    {
         return match ($mode) {
             Core\Env::Mode::Production => 3600,
             Core\Env::Mode::Development => 0,
         };
     }
 
-    public static function name(Core\Env::Mode $mode): string {
+    public static function name(Core\Env::Mode $mode): string
+    {
         return match ($mode) {
-            Core\Env::Mode::Production => "production",
-            Core\Env::Mode::Development => "development",
+            Core\Env::Mode::Production => 'production',
+            Core\Env::Mode::Development => 'development',
         };
     }
 }
@@ -22,5 +25,5 @@ class Pages {
 array<Core\Env::Mode> $both = [Core\Env::Mode::Production, Core\Env::Mode::Development];
 
 foreach ($both as Core\Env::Mode $mode) {
-    echo Pages::name($mode), ": keep a page for ", Pages::cacheSeconds($mode), " seconds\n";
+    echo Pages::name($mode), ': keep a page for ', Pages::cacheSeconds($mode), " seconds\n";
 }

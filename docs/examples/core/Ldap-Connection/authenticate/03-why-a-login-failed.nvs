@@ -2,9 +2,9 @@
 // Shows how to find out why a login failed.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Login Reasons 3,DC=example,DC=test";
-string $user = "CN=Paul Stein," . $unit;
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Login Reasons 3,DC=example,DC=test';
+string $user = 'CN=Paul Stein,' . $unit;
 
 // A run that stopped early can leave the account behind, so the program deletes it first.
 array<string> $leftovers = [$user, $unit];
@@ -14,39 +14,41 @@ foreach ($leftovers as string $left) {
     } catch (Core\Ldap\LdapError $missing) {
     }
 }
-$corp->add($unit, ["objectClass" => "organizationalUnit"]);
-$corp->add($user, ["objectClass" => "user", "sAMAccountName" => "paul.stein"]);
-$corp->setPassword($user, "Mountain-road-36");
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
+$corp->add($user, ['objectClass' => 'user', 'sAMAccountName' => 'paul.stein']);
+$corp->setPassword($user, 'Mountain-road-36');
 
-class Login {
+class Login
+{
     // `$kind` of the error says why the login failed.
-    public static function reason(Core\Ldap\Connection $corp, string $login, secret tainted string $password): string {
+    public static function reason(Core\Ldap\Connection $corp, string $login, secret tainted string $password): string
+    {
         try {
             $corp->authenticate($login, $password);
-            return "accepted";
+            return 'accepted';
         } catch (Core\Ldap\LdapError $error) {
             if ($error->kind == Core\Ldap\LdapError::Kind::AccountDisabled) {
-                return "the account is turned off";
+                return 'the account is turned off';
             }
             if ($error->kind == Core\Ldap\LdapError::Kind::InvalidCredentials) {
-                return "wrong login or password";
+                return 'wrong login or password';
             }
-            return "another reason";
+            return 'another reason';
         }
     }
 }
 
 // A new account is turned off. This prints `the account is turned off`.
-echo Login::reason($corp, $user, "Mountain-road-36"), "\n";
+echo Login::reason($corp, $user, 'Mountain-road-36'), "\n";
 
 // The value 512 turns the account on. This prints `accepted`.
-$corp->modify($user, [Core\Ldap\Change::replace("userAccountControl", 512)]);
-echo Login::reason($corp, $user, "Mountain-road-36"), "\n";
+$corp->modify($user, [Core\Ldap\Change::replace('userAccountControl', 512)]);
+echo Login::reason($corp, $user, 'Mountain-road-36'), "\n";
 
 // A wrong password and a user that does not exist give the same reason,
 // so nobody can find out which users exist. This prints `wrong login or password` twice.
-echo Login::reason($corp, $user, "Mountain-road-37"), "\n";
-echo Login::reason($corp, "CN=Nobody," . $unit, "Mountain-road-36"), "\n";
+echo Login::reason($corp, $user, 'Mountain-road-37'), "\n";
+echo Login::reason($corp, 'CN=Nobody,' . $unit, 'Mountain-road-36'), "\n";
 
 $corp->delete($user);
 $corp->delete($unit);

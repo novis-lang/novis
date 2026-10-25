@@ -2,17 +2,19 @@
 // Shows a login form that tells a user how many minutes to wait after too
 // many failed attempts.
 
-class Login {
-    public static function failed(string $user): string {
+class Login
+{
+    public static function failed(string $user): string
+    {
         // Each user may fail 5 times per 15 minutes.
-        var $decision = Core\RateLimit::shed("login:" . $user, 5, 15m);
+        var $decision = Core\RateLimit::shed('login:' . $user, 5, 15m);
         var $wait = $decision->retryAfter();
         if ($wait == null) {
-            return "Wrong password.";
+            return 'Wrong password.';
         }
         // The wait is rounded up to whole minutes.
         int $minutes = Core\Math::intDiv($wait->toMilliseconds() + 59999, 60000);
-        return "Too many attempts. Try again in " . $minutes . " minutes.";
+        return 'Too many attempts. Try again in ' . $minutes . ' minutes.';
     }
 }
 
@@ -20,6 +22,6 @@ class Login {
 // so the 6th failure prints `Try again in 3 minutes.`
 uint $attempt = 0;
 while ($attempt < 6) {
-    echo Login::failed("sam"), "\n";
+    echo Login::failed('sam'), "\n";
     $attempt = $attempt + 1;
 }

@@ -9,7 +9,7 @@ foreach ($queryMicros as int $us) {
 Core\Time\Duration $spent = Core\Time\Duration::microseconds($sum);
 
 // The three queries took 3605 microseconds together. This prints 3ms605us.
-echo "queries took ", $spent->toString(), "\n";
+echo 'queries took ', $spent->toString(), "\n";
 
 // The budget for all queries is 5 milliseconds. This prints "within budget".
-echo $spent->compareTo(5ms) <= 0 ? "within budget" : "too slow", "\n";
+echo $spent->compareTo(5ms) <= 0 ? 'within budget' : 'too slow', "\n";

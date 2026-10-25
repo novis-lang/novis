@@ -3,8 +3,8 @@
 // of problem it is, so you can catch only the kind you can handle.
 
 int $zero = 0;
-array<int> $stock = ["mugs" => 4];
-mixed $text = "abc";
+array<int> $stock = ['mugs' => 4];
+mixed $text = 'abc';
 
 // Division by zero is an `ArithmeticError`.
 try {
@@ -15,7 +15,7 @@ try {
 
 // A key that is not in the array is a `RuntimeError`.
 try {
-    echo $stock["plates"], "\n";
+    echo $stock['plates'], "\n";
 } catch (RuntimeError $missing) {
     echo $missing->message, "\n";
 }
@@ -30,7 +30,7 @@ try {
 // A `match` with no arm for the value is a bug in the program, so it is a
 // `LogicError`.
 try {
-    echo match ($zero) { 1 => "one" }, "\n";
+    echo match ($zero) { 1 => 'one' }, "\n";
 } catch (LogicError $noArm) {
     echo $noArm->message, "\n";
 }

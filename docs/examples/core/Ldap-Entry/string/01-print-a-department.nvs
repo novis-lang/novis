@@ -2,14 +2,14 @@
 // Shows how to read one text value of an entry, and how to give a default.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Carla Diaz,OU=Company,DC=example,DC=test", {select: ["department", "title"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Carla Diaz,OU=Company,DC=example,DC=test', { select: ['department', 'title'] });
 
 if ($person != null) {
     // This prints `Sales`.
-    echo $person->string("department") ?? "no department", "\n";
+    echo $person->string('department') ?? 'no department', "\n";
 
     // Carla Diaz has no job title, so `string` returns `null`.
     // This prints `no job title`.
-    echo $person->string("title") ?? "no job title", "\n";
+    echo $person->string('title') ?? 'no job title', "\n";
 }

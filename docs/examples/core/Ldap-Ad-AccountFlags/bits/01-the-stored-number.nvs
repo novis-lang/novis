@@ -2,19 +2,19 @@
 // Shows the number Active Directory stores in `userAccountControl` for three people.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 array<string> $dns = [
-    "CN=Anna Berg,OU=Company,DC=example,DC=test",
-    "CN=Ben Kohl,OU=Company,DC=example,DC=test",
-    "CN=Dora Lind,OU=Company,DC=example,DC=test",
+    'CN=Anna Berg,OU=Company,DC=example,DC=test',
+    'CN=Ben Kohl,OU=Company,DC=example,DC=test',
+    'CN=Dora Lind,OU=Company,DC=example,DC=test',
 ];
 
 foreach ($dns as string $dn) {
-    var $person = $corp->read($dn, {select: ["userAccountControl"]});
+    var $person = $corp->read($dn, { select: ['userAccountControl'] });
     var $flags = $person?->accountFlags();
     if ($person == null || $flags == null) {
         continue;
     }
     // This prints `Anna Berg: 512`, `Ben Kohl: 66048` and `Dora Lind: 514`.
-    echo $person->dn()->rdnValue(), ": ", $flags->bits(), "\n";
+    echo $person->dn()->rdnValue(), ': ', $flags->bits(), "\n";
 }

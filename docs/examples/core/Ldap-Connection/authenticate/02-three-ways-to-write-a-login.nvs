@@ -2,9 +2,9 @@
 // Shows the three ways to write the login of the same user.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Login Names 2,DC=example,DC=test";
-string $user = "CN=Nora Falk," . $unit;
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Login Names 2,DC=example,DC=test';
+string $user = 'CN=Nora Falk,' . $unit;
 
 // A run that stopped early can leave the account behind, so the program deletes it first.
 array<string> $leftovers = [$user, $unit];
@@ -14,25 +14,25 @@ foreach ($leftovers as string $left) {
     } catch (Core\Ldap\LdapError $missing) {
     }
 }
-$corp->add($unit, ["objectClass" => "organizationalUnit"]);
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
 $corp->add($user, [
-    "objectClass" => "user",
-    "sAMAccountName" => "nora.falk",
-    "userPrincipalName" => "nora.falk@example.test",
+    'objectClass' => 'user',
+    'sAMAccountName' => 'nora.falk',
+    'userPrincipalName' => 'nora.falk@example.test',
 ]);
-$corp->setPassword($user, "River-stone-52");
-$corp->modify($user, [Core\Ldap\Change::replace("userAccountControl", 512)]);
+$corp->setPassword($user, 'River-stone-52');
+$corp->modify($user, [Core\Ldap\Change::replace('userAccountControl', 512)]);
 
 // The DN, the user name with the domain after `@`, and the domain name before `\`.
 // Each login works, so this prints `works` three times.
-array<string> $logins = [$user, "nora.falk@example.test", "EXAMPLE\\nora.falk"];
+array<string> $logins = [$user, 'nora.falk@example.test', "EXAMPLE\\nora.falk"];
 foreach ($logins as string $login) {
-    $corp->authenticate($login, "River-stone-52");
-    echo "works", "\n";
+    $corp->authenticate($login, 'River-stone-52');
+    echo 'works', "\n";
 }
 
 // The connection is still logged in as its own account. This prints `true`.
-echo $corp->whoami() == "u:EXAMPLE\\Administrator" ? "true" : "false", "\n";
+echo $corp->whoami() == "u:EXAMPLE\\Administrator" ? 'true' : 'false', "\n";
 
 $corp->delete($user);
 $corp->delete($unit);

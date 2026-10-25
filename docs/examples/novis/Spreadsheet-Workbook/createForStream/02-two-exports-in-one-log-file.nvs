@@ -2,18 +2,18 @@
 // Shows how to write two CSV exports, one after the other, into a file that stays open.
 use Novis\Spreadsheet\Workbook;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "daily.log");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'daily.log');
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
 
 // Each export goes to the same open file, after a line of your own.
 $file->write("# orders\n");
-var $orders = Workbook::createForStream($file, {format: "csv"});
-$orders->sheet("Orders")->add(["order" => 1042, "total" => 19.9]);
+var $orders = Workbook::createForStream($file, { format: 'csv' });
+$orders->sheet('Orders')->add(['order' => 1042, 'total' => 19.9]);
 $orders->finish();
 
 $file->write("# returns\n");
-var $returns = Workbook::createForStream($file, {format: "csv"});
-$returns->sheet("Returns")->add(["order" => 1040, "reason" => "damaged"]);
+var $returns = Workbook::createForStream($file, { format: 'csv' });
+$returns->sheet('Returns')->add(['order' => 1040, 'reason' => 'damaged']);
 $returns->finish();
 
 $file->close();

@@ -5,7 +5,8 @@
 use Core\Db\Derive;
 
 #[Derive]
-class Job {
+class Job
+{
     public uint $id;
     public tainted string $task;
 

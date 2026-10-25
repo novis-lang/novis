@@ -6,10 +6,10 @@ use Core\Test;
 use Core\Test\SentRequest;
 
 // The `*` at the end answers every URL that starts with this text.
-Test::answerHttp("https://api.example.com/users/*", 200);
+Test::answerHttp('https://api.example.com/users/*', 200);
 
-Client::get("https://api.example.com/users/7");
-Client::get("https://api.example.com/users/8/orders");
+Client::get('https://api.example.com/users/7');
+Client::get('https://api.example.com/users/8/orders');
 
 // This prints the two URLs the program used, one on each line.
 foreach (Test::sentHttp() as SentRequest $request) {

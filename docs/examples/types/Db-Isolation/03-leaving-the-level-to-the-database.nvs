@@ -2,23 +2,25 @@
 // If you do not pass an isolation level, the transaction uses the database's
 // default level. Pass a level only for work that needs a stricter one.
 
-class Checkout {
+class Checkout
+{
     // `levelFor` returns `null` for a step that uses the default level.
     // This is the same as not passing the `isolation` option.
-    public static function levelFor(string $step): ?Core\Db\Isolation {
+    public static function levelFor(string $step): ?Core\Db\Isolation
+    {
         return match ($step) {
             // This step reads the stock and writes the order. It must not sell
             // the last item twice, so it needs `Serializable`.
-            "take the payment and reserve the stock" => Core\Db\Isolation::Serializable,
+            'take the payment and reserve the stock' => Core\Db\Isolation::Serializable,
             default => null,
         };
     }
 }
 
 array<string> $steps = [
-    "write the basket to the database",
-    "take the payment and reserve the stock",
-    "send the confirmation email",
+    'write the basket to the database',
+    'take the payment and reserve the stock',
+    'send the confirmation email',
 ];
 
 foreach ($steps as string $step) {

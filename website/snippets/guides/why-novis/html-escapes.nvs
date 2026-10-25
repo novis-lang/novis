@@ -1,6 +1,6 @@
 <?nvs
 // This program puts a name that a user typed into an HTML page.
-string $name = "<script>alert(1)</script>";
+string $name = '<script>alert(1)</script>';
 
 // `{$name}` is a hole in an `html` template. Its value is escaped.
 echo html`<p>Hello, {$name}</p>`, "\n";

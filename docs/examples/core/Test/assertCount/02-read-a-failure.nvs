@@ -1,7 +1,7 @@
 <?nvs
 // Shows what happens when the count is wrong, and how to add your own message.
 
-array<string> $recipients = ["ana@example.com", "li@example.com"];
+array<string> $recipients = ['ana@example.com', 'li@example.com'];
 
 // The array has 2 entries, not 3, so the check throws a `Core\Test\Failure`.
 // The message shows both numbers.
@@ -13,7 +13,7 @@ try {
 
 // The option `message` adds your own text at the start of the message.
 try {
-    Core\Test::assertCount($recipients, 3, {message: "every team member gets the report"});
+    Core\Test::assertCount($recipients, 3, { message: 'every team member gets the report' });
 } catch (Core\Test\Failure $failure) {
     echo $failure->message, "\n";
 }

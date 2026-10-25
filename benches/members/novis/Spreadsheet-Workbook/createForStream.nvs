@@ -4,14 +4,16 @@
 // bench: complexity constant
 use Novis\Spreadsheet\Workbook;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        Core\IO\File $file = Core\IO::open(Core\Path::join(Core\IO::temporaryDir(), "orders.log"), Core\IO::FileMode::Write);
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Core\IO\File $file = Core\IO::open(Core\Path::join(Core\IO::temporaryDir(), 'orders.log'), Core\IO::FileMode::Write);
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            var $book = Workbook::createForStream($file, {format: "csv"});
-            $book->sheet("Order")->add(["order" => $total, "total" => 19.9]);
+            var $book = Workbook::createForStream($file, { format: 'csv' });
+            $book->sheet('Order')->add(['order' => $total, 'total' => 19.9]);
             uint $size = $book->finish()->size as uint;
             uint $step = $size > 0 ? 1 : 3;
             $total = $total + $step;

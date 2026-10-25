@@ -4,12 +4,14 @@
 // bench: complexity constant
 use Novis\Spreadsheet\Workbook;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            bytes $file = Workbook::fromRows([["order" => $total, "total" => 19.9]])->bytes();
+            bytes $file = Workbook::fromRows([['order' => $total, 'total' => 19.9]])->bytes();
             uint $step = Core\Bytes::length($file) > 0 ? 1 : 3;
             $total = $total + $step;
             $i = $i + 1;

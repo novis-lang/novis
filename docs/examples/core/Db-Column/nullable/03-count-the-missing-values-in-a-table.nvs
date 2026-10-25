@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 
 $db->execute(
     'create table notes (id integer primary key, title text not null, note text, due text)',
-    []
+    [],
 );
 $db->execute('insert into notes (id, title, note, due) values (?, ?, ?, ?)', [1, 'buy milk', null, null]);
 $db->execute('insert into notes (id, title, note, due) values (?, ?, ?, ?)', [2, 'call back', 'after nine', null]);

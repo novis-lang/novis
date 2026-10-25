@@ -3,10 +3,14 @@
 // bench: start 256
 // bench: max 4096
 
-class Pages {
-    #[Core\Route(path: "/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
+class Pages
+{
+    #[Core\Route(path: '/pages/{slug}', method: Core\Http\Method::Get, name: 'Pages::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(string $slug): string { return "one page"; }
+    public function show(string $slug): string
+    {
+        return 'one page';
+    }
 }
 
 class Bench

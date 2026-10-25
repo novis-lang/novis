@@ -2,12 +2,12 @@
 // Shows which values of a form are falsy in an `if`.
 
 array<mixed> $submitted = [
-    "name" => "Ada",
-    "nickname" => "",
-    "age" => 0,
-    "tags" => [],
-    "note" => "0.0",
-    "reply" => null,
+    'name' => 'Ada',
+    'nickname' => '',
+    'age' => 0,
+    'tags' => [],
+    'note' => '0.0',
+    'reply' => null,
 ];
 
 foreach ($submitted as tainted string $field => mixed $value) {
@@ -19,8 +19,8 @@ foreach ($submitted as tainted string $field => mixed $value) {
 }
 
 // The string "0" is falsy. The strings "0.0" and " " are truthy.
-array<string> $answers = ["0", "0.0", " ", ""];
+array<string> $answers = ['0', '0.0', ' ', ''];
 
 foreach ($answers as string $answer) {
-    echo "\"", $answer, "\" ", $answer ? "is truthy" : "is falsy", "\n";
+    echo "\"", $answer, "\" ", $answer ? 'is truthy' : 'is falsy', "\n";
 }

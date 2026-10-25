@@ -2,24 +2,24 @@
 // Shows how to read the last page of a sorted list, and to print which entries it shows.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 int $perPage = 2;
 int $offset = 4;
 
 // `offset` skips the first four people, so this page starts with the fifth.
-var $people = $corp->search(Core\Ldap\Filter::equals("objectClass", "user"), {
-    base: "OU=Company,DC=example,DC=test",
-    select: ["cn"],
-    sort: "cn",
+var $people = $corp->search(Core\Ldap\Filter::equals('objectClass', 'user'), {
+    base: 'OU=Company,DC=example,DC=test',
+    select: ['cn'],
+    sort: 'cn',
     offset: $offset,
     window: $perPage,
 });
 
 int $shown = 0;
 foreach ($people as Core\Ldap\Entry $person) {
-    echo $person->string("cn") ?? "", "\n";
+    echo $person->string('cn') ?? '', "\n";
     $shown = $shown + 1;
 }
 
 // The last page has one person. This prints "Showing 5 to 5 of 5".
-echo "Showing ", $offset + 1, " to ", $offset + $shown, " of ", $people->total() ?? 0, "\n";
+echo 'Showing ', $offset + 1, ' to ', $offset + $shown, ' of ', $people->total() ?? 0, "\n";

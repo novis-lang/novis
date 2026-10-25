@@ -3,9 +3,11 @@
 // bench: iterations 2000
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $paths = ["/users/7", "/orders", "/products/3"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $paths = ['/users/7', '/orders', '/products/3'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

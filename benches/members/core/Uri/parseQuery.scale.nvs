@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $query = "q=" . Core\Str::repeat('red+shoes', $size) . "&page=2";
+        string $query = 'q=' . Core\Str::repeat('red+shoes', $size) . '&page=2';
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

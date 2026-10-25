@@ -7,39 +7,45 @@ use Core\Test;
 
 // Tests that send requests to the app. `Test::request` runs the app without a server.
 // Each report here is refused, so the file `telemetry.sqlite` is not changed.
-final class AppTest {
+final class AppTest
+{
     #[Test]
-    public function aReportThatIsNotJsonGets415(): void {
-        var $response = Test::request(Method::Post, "/v1/report", {headers: ["content-type" => "text/plain"], body: "{}"});
+    public function aReportThatIsNotJsonGets415(): void
+    {
+        var $response = Test::request(Method::Post, '/v1/report', { headers: ['content-type' => 'text/plain'], body: '{}' });
         Test::assertSame($response->status(), 415);
         Test::assertSame($response->body(), "{\"error\":\"The report must be sent as `application/json`.\"}");
     }
 
     #[Test]
-    public function aWrongFieldGets400AndTheAnswerNamesIt(): void {
-        var $response = Test::request(Method::Post, "/v1/report", {headers: ["content-type" => "application/json"], body: "{\"schema\":2}"});
+    public function aWrongFieldGets400AndTheAnswerNamesIt(): void
+    {
+        var $response = Test::request(Method::Post, '/v1/report', { headers: ['content-type' => 'application/json'], body: "{\"schema\":2}" });
         Test::assertSame($response->status(), 400);
-        Test::assertTrue(Str::contains($response->body(), "`schema`"));
+        Test::assertTrue(Str::contains($response->body(), '`schema`'));
     }
 
     #[Test]
-    public function aLargeBodyGets413(): void {
-        var $response = Test::request(Method::Post, "/v1/report", {headers: ["content-type" => "application/json"], body: Str::repeat(" ", 4097)});
+    public function aLargeBodyGets413(): void
+    {
+        var $response = Test::request(Method::Post, '/v1/report', { headers: ['content-type' => 'application/json'], body: Str::repeat(' ', 4097) });
         Test::assertSame($response->status(), 413);
     }
 
     #[Test]
-    public function theReportAddressTakesOnlyPost(): void {
-        var $response = Test::request(Method::Get, "/v1/report");
+    public function theReportAddressTakesOnlyPost(): void
+    {
+        var $response = Test::request(Method::Get, '/v1/report');
         Test::assertSame($response->status(), 405);
-        Test::assertSame($response->header("allow"), "POST");
+        Test::assertSame($response->header('allow'), 'POST');
     }
 
     // The request has no cookie and comes from another website. The report route does not need a CSRF token, so the check runs.
     #[Test]
-    public function aReportFromAnotherOriginIsChecked(): void {
-        array<string> $headers = ["content-type" => "application/json", "origin" => "https://example.com"];
-        var $response = Test::request(Method::Post, "/v1/report", {headers: $headers, body: "{\"schema\":2}"});
+    public function aReportFromAnotherOriginIsChecked(): void
+    {
+        array<string> $headers = ['content-type' => 'application/json', 'origin' => 'https://example.com'];
+        var $response = Test::request(Method::Post, '/v1/report', { headers: $headers, body: "{\"schema\":2}" });
         Test::assertSame($response->status(), 400);
     }
 }

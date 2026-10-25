@@ -2,14 +2,18 @@
 // The compiler checks the first letter of a name and that it has no underscore.
 // An abbreviation can keep the capitals people write it with.
 
-class HTTPClient {
-    public static function parseXMLPayload(string $body): uint {
+class HTTPClient
+{
+    public static function parseXMLPayload(string $body): uint
+    {
         return Core\Str::length($body);
     }
 }
 
-class HttpHeader {
-    public static function forName(string $name): string {
+class HttpHeader
+{
+    public static function forName(string $name): string
+    {
         return Core\Str::upper($name);
     }
 }
@@ -19,4 +23,4 @@ class HttpHeader {
 uint $payloadID = HTTPClient::parseXMLPayload("<order id='7'/>");
 
 echo $payloadID, "\n";
-echo HttpHeader::forName("content-type"), "\n";
+echo HttpHeader::forName('content-type'), "\n";

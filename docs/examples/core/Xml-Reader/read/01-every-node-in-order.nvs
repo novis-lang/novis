@@ -8,11 +8,11 @@ Core\Xml\Reader $reader = Core\Xml::reader('<note><to>Ana</to><!--draft--><body>
 ?Core\Xml\Node $node = $reader->read();
 while ($node != null) {
     if ($node->kind() == Core\Xml\Node::Kind::Element) {
-        echo "element: ", $node->name(), "\n";
+        echo 'element: ', $node->name(), "\n";
     } elseif ($node->kind() == Core\Xml\Node::Kind::Text) {
-        echo "text: ", $node->text(), "\n";
+        echo 'text: ', $node->text(), "\n";
     } else {
-        echo "comment: ", $node->text(), "\n";
+        echo 'comment: ', $node->text(), "\n";
     }
     $node = $reader->read();
 }

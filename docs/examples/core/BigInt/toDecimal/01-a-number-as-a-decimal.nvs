@@ -15,4 +15,4 @@ echo $value + (0.25 as decimal), "\n";
 
 // A `decimal` reaches much further than an `int` does. This prints
 // 79228162514264337593543950335, the largest number it holds.
-echo Core\BigInt::parse("79228162514264337593543950335")->toDecimal(), "\n";
+echo Core\BigInt::parse('79228162514264337593543950335')->toDecimal(), "\n";

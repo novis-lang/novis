@@ -2,27 +2,29 @@
 // A sign-up form where no two people may have the same name. Comparing what people
 // typed is not enough. Two people can type the same name as two different strings.
 
-class Names {
+class Names
+{
     // `key` returns the name for comparing, not for showing. It lowercases the name,
     // and `Nfkc` writes accents and look-alike characters in one standard way.
-    public static function key(string $name): string {
+    public static function key(string $name): string
+    {
         return Core\Str::normalize(Core\Str::lower($name), Core\Str::NormalForm::Nfkc);
     }
 }
 
 array<string> $taken = [];
-$taken[Names::key("Sofía")] = "registered last week";
+$taken[Names::key('Sofía')] = 'registered last week';
 
 // Three people sign up. The first typed the accent as a separate character.
 // The second typed a wide capital S. The third is a different person.
 array<string> $asking = [
-    "the accent typed apart" => Core\Str::fromCodePoints([83, 111, 102, 105, 769, 97]),
-    "a wide capital S"       => "Ｓofía",
-    "a different person"     => "Mira",
+    'the accent typed apart' => Core\Str::fromCodePoints([83, 111, 102, 105, 769, 97]),
+    'a wide capital S'       => 'Ｓofía',
+    'a different person'     => 'Mira',
 ];
 
 foreach ($asking as string $who => string $name) {
     string $key = Names::key($name);
-    echo $who, ": ", (($taken[$key] ?? "") == "") ? "free" : "taken", "\n";
+    echo $who, ': ', (($taken[$key] ?? '') == '') ? 'free' : 'taken', "\n";
     $taken[$key] = $who;
 }

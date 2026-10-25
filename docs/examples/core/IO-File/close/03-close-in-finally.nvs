@@ -1,7 +1,7 @@
 <?nvs
 // Shows how a program closes a file in `finally`, so the file is closed also when an error happens.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "prices.txt");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'prices.txt');
 Core\IO::write($path, "12\n7\nfree\n30\n");
 
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
@@ -21,4 +21,4 @@ try {
 }
 
 // This prints "total: 19", the sum of the lines before "free".
-echo "total: ", $total, "\n";
+echo 'total: ', $total, "\n";

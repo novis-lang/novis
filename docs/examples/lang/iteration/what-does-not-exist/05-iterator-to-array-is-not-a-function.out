@@ -1,7 +1,7 @@
 error[E0320]: `iterator_to_array` is not a function that exists
-   --> 05-iterator-to-array-is-not-a-function.nvs:16:12
+   --> 05-iterator-to-array-is-not-a-function.nvs:18:12
    |
-16 | var $all = iterator_to_array(Numbers::upTo(3));
+18 | var $all = iterator_to_array(Numbers::upTo(3));
    |            ^^^^^^^^^^^^^^^^^ no free function has this name
    = help: every function is a method of a class. The built-in functions are in the `Core` namespace. Write `Core\Str::length($s)`, or write `use Core\Str;` and then `Str::length($s)`
 

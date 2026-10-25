@@ -1,15 +1,17 @@
 <?nvs
 // Shows how to fill in a message template whose holes come from a fixed list of names.
 
-class Message {
+class Message
+{
     // The holes can only be `{name}` or `{date}`. Any other hole does not compile.
-    public static function fill(string<"name"|"date"> $template, string $name, string $date): string {
-        string $out = "";
+    public static function fill(string<"name"|"date"> $template, string $name, string $date): string
+    {
+        string $out = '';
         bool $hole = false;
         foreach (Core\Str::parts($template) as var $part) {
             if (!$hole) {
                 $out = $out . ($part as string);
-            } else if ($part as string == "name") {
+            } elseif ($part as string == 'name') {
                 $out = $out . $name;
             } else {
                 $out = $out . $date;
@@ -22,4 +24,4 @@ class Message {
 
 // `{{` and `}}` are text, and `parts` gives each of them as one brace.
 // This prints: Hello Ada, your order ships on 2026-11-02. Reply {STOP} to stop.
-echo Message::fill("Hello {name}, your order ships on {date}. Reply {{STOP}} to stop.", "Ada", "2026-11-02"), "\n";
+echo Message::fill('Hello {name}, your order ships on {date}. Reply {{STOP}} to stop.', 'Ada', '2026-11-02'), "\n";

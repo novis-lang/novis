@@ -3,14 +3,17 @@
 // implements `Parses`. `Tag` does not, so this program does not compile.
 // proof: compile-error
 
-class Tag {
-    public string $text = "";
+class Tag
+{
+    public string $text = '';
 }
 
-class Posts {
-    #[Core\Route(path: "/posts/{tag}", method: Core\Http\Method::Get, name: "Posts::show")]
+class Posts
+{
+    #[Core\Route(path: '/posts/{tag}', method: Core\Http\Method::Get, name: 'Posts::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(Tag $tag): string {
-        return "one post";
+    public function show(Tag $tag): string
+    {
+        return 'one post';
     }
 }

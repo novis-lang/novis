@@ -2,23 +2,28 @@
 // Shows what `is` tests. It is true for the object's class, every parent class
 // and every interface they implement.
 
-interface Marks {
+interface Marks
+{
     public function mark(): string;
 }
 
-class Base implements Marks {
-    public function mark(): string {
-        return "base";
+class Base implements Marks
+{
+    public function mark(): string
+    {
+        return 'base';
     }
 }
 
-class Leaf extends Base {}
+class Leaf extends Base
+{}
 
-class Other {}
+class Other
+{}
 
 // This prints `1`, `1`, `1` and then an empty string, because `Leaf` is not `Other`.
 var $leaf = new Leaf();
-echo ($leaf is Leaf) as string, ($leaf is Base) as string, ($leaf is Marks) as string, "|", ($leaf is Other) as string, "|\n";
+echo ($leaf is Leaf) as string, ($leaf is Base) as string, ($leaf is Marks) as string, '|', ($leaf is Other) as string, "|\n";
 
 // Inside the `if`, `$o` has the type `Marks`, so `$o->mark()` compiles.
 object $o = new Other();

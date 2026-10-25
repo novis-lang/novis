@@ -4,19 +4,21 @@
 // bench: start 16
 // bench: max 256
 
-class Bench {
-    public static function run(uint $size): string {
-        array<string> $params = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "f" . ($n as string) . "=value+" . ($n as string));
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        array<string> $params = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => 'f' . ($n as string) . '=value+' . ($n as string));
         array<string> $lines = [
-            "// scaling: file queryAs.nvsr",
-            "--METHOD--",
-            "GET",
-            "--PATH--",
-            "/search",
-            "--QUERY--",
-            "q=red+shoes&page=2&" . Core\Str::join($params, "&"),
-            "--HEADERS--",
-            "host: shop.example.com",
+            '// scaling: file queryAs.nvsr',
+            '--METHOD--',
+            'GET',
+            '--PATH--',
+            '/search',
+            '--QUERY--',
+            'q=red+shoes&page=2&' . Core\Str::join($params, '&'),
+            '--HEADERS--',
+            'host: shop.example.com',
         ];
         return Core\Str::join($lines, "\n") . "\n";
     }

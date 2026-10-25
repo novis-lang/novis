@@ -3,26 +3,26 @@
 // Each comparison uses a different `on` option.
 
 array<string> $defaults = [
-    "currency" => "EUR",
-    "language" => "en",
-    "theme"    => "light",
-    "timezone" => "Europe/Vienna",
+    'currency' => 'EUR',
+    'language' => 'en',
+    'theme'    => 'light',
+    'timezone' => 'Europe/Vienna',
 ];
 
 array<string> $saved = [
-    "language" => "de",
-    "theme"    => "light",
-    "signature" => "Mit freundlichen Grüßen",
+    'language' => 'de',
+    'theme'    => 'light',
+    'signature' => 'Mit freundlichen Grüßen',
 ];
 
 // `Both` gives each saved setting that is not in the defaults with the same key and value.
 // `theme` has the default value, so it is not in the result.
-echo "changed: ", Core\Json::encode(Core\Arr::diff($saved, $defaults, {on: Core\Arr::SetOn::Both})), "\n";
+echo 'changed: ', Core\Json::encode(Core\Arr::diff($saved, $defaults, { on: Core\Arr::SetOn::Both })), "\n";
 
 // `Keys` gives the default settings that the customer never saved.
 // The page shows the default value for these.
-echo "untouched: ", Core\Json::encode(Core\Arr::diff($defaults, $saved, {on: Core\Arr::SetOn::Keys})), "\n";
+echo 'untouched: ', Core\Json::encode(Core\Arr::diff($defaults, $saved, { on: Core\Arr::SetOn::Keys })), "\n";
 
 // `Keys` in the other direction gives the saved settings that are not defaults any more.
 // The page no longer offers `signature`.
-echo "no longer offered: ", Core\Json::encode(Core\Arr::diff($saved, $defaults, {on: Core\Arr::SetOn::Keys})), "\n";
+echo 'no longer offered: ', Core\Json::encode(Core\Arr::diff($saved, $defaults, { on: Core\Arr::SetOn::Keys })), "\n";

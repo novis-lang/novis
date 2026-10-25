@@ -5,17 +5,17 @@ use Novis\Spreadsheet\Style;
 use Novis\Spreadsheet\Workbook;
 
 // `border` with one side draws a line on that side only.
-var $totals = Style::of({bold: true, border: {top: "thin"}, fill: "#EEEEEE"});
+var $totals = Style::of({ bold: true, border: { top: 'thin' }, fill: '#EEEEEE' });
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet("Orders");
-$sheet->addAll([["item" => "Pen", "total" => 3.0], ["item" => "Ink", "total" => 4.25]]);
+var $sheet = $book->sheet('Orders');
+$sheet->addAll([['item' => 'Pen', 'total' => 3.0], ['item' => 'Ink', 'total' => 4.25]]);
 
 // The `style` option of `add` gives the style to every cell of the row.
-$sheet->add(["item" => "Total", "total" => 7.25], {style: $totals});
+$sheet->add(['item' => 'Total', 'total' => 7.25], { style: $totals });
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
-foreach (Reader::open($file)->rows("Orders", {header: true}) as var $row) {
-    echo $row->values["item"], ": ", $row->values["total"], "\n";
+foreach (Reader::open($file)->rows('Orders', { header: true }) as var $row) {
+    echo $row->values['item'], ': ', $row->values['total'], "\n";
 }
-echo "bold: ", $totals->fields->bold == true ? "yes" : "no", "\n";
+echo 'bold: ', $totals->fields->bold == true ? 'yes' : 'no', "\n";

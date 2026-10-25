@@ -1,7 +1,7 @@
 error[E0733]: the `#[Test]` method `aTestIsNotStatic` is `static`
-   --> 05-a-static-test-does-not-compile.nvs:10:28
+   --> 05-a-static-test-does-not-compile.nvs:11:28
    |
-10 |     public static function aTestIsNotStatic(): void {
+11 |     public static function aTestIsNotStatic(): void
    |                            ^^^^^^^^^^^^^^^^ is `static`
    = help: a test is run against a fresh instance, so drop the `static`
 

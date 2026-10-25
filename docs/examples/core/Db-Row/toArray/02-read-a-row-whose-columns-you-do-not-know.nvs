@@ -5,11 +5,11 @@
 var $db = Core\Db::connect('notes');
 $db->execute(
     'create table settings (site text not null, language text not null, page_size int not null, note text)',
-    []
+    [],
 );
 $db->execute(
     'insert into settings (site, language, page_size, note) values (?, ?, ?, ?)',
-    ['example.com', 'en', 25, null]
+    ['example.com', 'en', 25, null],
 );
 
 array<Core\Db\Row> $rows = $db->query('select site, language, page_size, note from settings', [])->all();

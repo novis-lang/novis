@@ -3,10 +3,12 @@
 // not compile. `self::STEPS` or `Retry::STEPS` reads it.
 // proof: compile-error
 
-class Retry {
+class Retry
+{
     public const array<int> STEPS = [1, 2, 4];
 
-    public static function count(): int {
+    public static function count(): int
+    {
         return Core\Arr::count(static::STEPS);
     }
 }

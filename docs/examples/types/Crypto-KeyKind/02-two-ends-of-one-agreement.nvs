@@ -11,15 +11,15 @@ secret bytes $theyAgreed = Core\Crypto::agree($theirs, $ours->publicKey());
 
 // The shared secret is not a key yet. `expandKey` with a context string turns it
 // into a key. A different context string gives a different key.
-secret bytes $ourKey = Core\Crypto::expandKey($weAgreed, "" as bytes, "orders v1");
-secret bytes $theirKey = Core\Crypto::expandKey($theyAgreed, "" as bytes, "orders v1");
+secret bytes $ourKey = Core\Crypto::expandKey($weAgreed, '' as bytes, 'orders v1');
+secret bytes $theirKey = Core\Crypto::expandKey($theyAgreed, '' as bytes, 'orders v1');
 
 // We seal with our key, and they open with theirs. This works because both
 // keys are the same.
-bytes $sealed = Core\Crypto::seal("order 1042 accepted" as bytes, $ourKey, Core\Crypto::Cipher::XChaCha20Poly1305);
+bytes $sealed = Core\Crypto::seal('order 1042 accepted' as bytes, $ourKey, Core\Crypto::Cipher::XChaCha20Poly1305);
 echo Core\Encoding::decodeText(
     Core\Crypto::open($sealed, $theirKey, Core\Crypto::Cipher::XChaCha20Poly1305),
-    Core\Charset::Utf8
+    Core\Charset::Utf8,
 ), "\n";
 
 // An Ed25519 pair is for signing. `agree` with an Ed25519 key throws a
@@ -27,7 +27,7 @@ echo Core\Encoding::decodeText(
 Core\Crypto\KeyPair $forSigning = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
 try {
     secret bytes $nothing = Core\Crypto::agree($forSigning, $theirs->publicKey());
-    echo "agreed with a signing key", "\n";
+    echo 'agreed with a signing key', "\n";
 } catch (LogicError $wrongKind) {
     echo $wrongKind->message, "\n";
 }

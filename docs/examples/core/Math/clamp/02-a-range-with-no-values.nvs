@@ -11,5 +11,5 @@ echo Core\Math::clamp(1.25, 0.5, 0.5), "\n";
 try {
     echo Core\Math::clamp(1.25, 1.0, 0.5), "\n";
 } catch (RuntimeError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }

@@ -9,7 +9,7 @@ echo Core\Json::encode(Core\Arr::chunk($stock, 2)), "\n";
 
 // `preserveKeys` keeps every entry under its own key inside its run. This
 // prints [{"apples":12,"pears":4},{"plums":7}].
-echo Core\Json::encode(Core\Arr::chunk($stock, 2, {preserveKeys: true})), "\n";
+echo Core\Json::encode(Core\Arr::chunk($stock, 2, { preserveKeys: true })), "\n";
 
 // A size of 0 throws a `RuntimeError`. You can catch it and read its message.
 try {

@@ -4,8 +4,8 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 use Novis\Pdf\Reader;
 
-string $html = "<h1>Dear customer,</h1>"
-    . Core\Str::repeat("<p>Thank you for your order. Your parcel leaves the shop today.</p>", 70);
+string $html = '<h1>Dear customer,</h1>'
+    . Core\Str::repeat('<p>Thank you for your order. Your parcel leaves the shop today.</p>', 70);
 
 var $footer = fn(Page $page): Core\Html\Markup => $page->isFirst()
     ? html`<p>Shop, IBAN DE02 1203 0000 0000 2020 51</p>`
@@ -15,5 +15,5 @@ var $footer = fn(Page $page): Core\Html\Markup => $page->isFirst()
 var $reader = Reader::open(Document::fromHtml($html)->footer($footer)->render()->bytes);
 for (uint $n = 1; $n <= $reader->pageCount; $n++) {
     array<string> $lines = Core\Str::split($reader->text($n), "\n");
-    echo "page ", $n, ": ", $lines[Core\Arr::count($lines) - 1], "\n";
+    echo 'page ', $n, ': ', $lines[Core\Arr::count($lines) - 1], "\n";
 }

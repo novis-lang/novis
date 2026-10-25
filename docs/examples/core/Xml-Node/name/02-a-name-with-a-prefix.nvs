@@ -8,8 +8,8 @@ foreach (Core\Xml::parse($xml)->children() as Core\Xml\Node $feed) {
         // This prints media:title.
         echo $title->name(), "\n";
         // The name is not `title`, so this prints no.
-        echo $title->name() == "title" ? "yes" : "no", "\n";
+        echo $title->name() == 'title' ? 'yes' : 'no', "\n";
         // `namespaceUri` gives the namespace of the prefix: https://example.com/media
-        echo $title->namespaceUri() ?? "", "\n";
+        echo $title->namespaceUri() ?? '', "\n";
     }
 }

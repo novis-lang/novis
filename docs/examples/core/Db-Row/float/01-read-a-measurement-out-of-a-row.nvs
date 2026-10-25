@@ -5,7 +5,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table readings (station text not null, celsius real not null)', []);
 $db->execute(
     'insert into readings (station, celsius) values (?, ?), (?, ?)',
-    ['north field', 21.5, 'south field', 9.25]
+    ['north field', 21.5, 'south field', 9.25],
 );
 
 // `float` reads the named column as a floating-point number. This prints one

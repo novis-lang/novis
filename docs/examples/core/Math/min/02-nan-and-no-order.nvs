@@ -9,7 +9,7 @@ echo Core\Math::min(-Core\Math::INFINITY, Core\Math::NAN), "\n";
 
 // A number and a string cannot be compared. This throws a `RuntimeError`.
 mixed $count = 5;
-mixed $label = "5";
+mixed $label = '5';
 try {
     echo Core\Math::min($count, $label), "\n";
 } catch (RuntimeError $error) {

@@ -3,12 +3,14 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $links = [
-            "https://shop.example.com/cart?item=42#total",
-            "http://localhost:8080/health",
-            "postgres://app:secret@db.example.com:5432/orders",
+            'https://shop.example.com/cart?item=42#total',
+            'http://localhost:8080/health',
+            'postgres://app:secret@db.example.com:5432/orders',
         ];
         uint $total = 0;
         uint $i = 0;

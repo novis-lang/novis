@@ -2,13 +2,13 @@
 // Shows how to list every member of a group.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $group = $corp->read("CN=Employees,OU=Company,DC=example,DC=test", {select: ["member"]});
+var $corp = Core\Ldap::connect('corp');
+var $group = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['member'] });
 
 if ($group != null) {
     // Each value of `member` is the DN of one member.
     // The server sends them in no fixed order, so they are sorted.
-    array<tainted string> $members = $group->strings("member") ?? [];
+    array<tainted string> $members = $group->strings('member') ?? [];
 
     // This prints five DNs. The last one is the group `Managers`.
     foreach (Core\Arr::sort($members) as tainted string $member) {

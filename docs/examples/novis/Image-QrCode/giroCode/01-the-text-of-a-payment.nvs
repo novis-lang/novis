@@ -4,13 +4,13 @@ use Novis\Image\QrCode;
 
 // The spaces in the IBAN are removed, and the amount gets 2 decimals.
 string $payment = QrCode::giroCode({
-    name: "Shop GmbH",
-    iban: "DE89 3704 0044 0532 0130 00",
+    name: 'Shop GmbH',
+    iban: 'DE89 3704 0044 0532 0130 00',
     amount: 49.9,
-    text: "Invoice 2024-0042",
+    text: 'Invoice 2024-0042',
 });
 
 // Each field is on its own line. Empty fields are empty lines.
 foreach (Core\Str::split($payment, "\n") as string $line) {
-    echo "[", $line, "]\n";
+    echo '[', $line, "]\n";
 }

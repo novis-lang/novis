@@ -7,7 +7,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     tainted string $path = Core\Request::path();
 
     // Only the blog page is sent early. The shop page waits for its part.
-    if ($path == "/blog") {
+    if ($path == '/blog') {
         Core\Response::slotted();
     }
 
@@ -21,7 +21,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
 } else {
     // From the command line, this part sends two requests.
     // It prints the blog page and then the shop page.
-    var $blog = Core\Test::request(Core\Http\Method::Get, "/blog");
-    var $shop = Core\Test::request(Core\Http\Method::Get, "/shop");
+    var $blog = Core\Test::request(Core\Http\Method::Get, '/blog');
+    var $shop = Core\Test::request(Core\Http\Method::Get, '/shop');
     echo $blog->body(), $shop->body();
 }

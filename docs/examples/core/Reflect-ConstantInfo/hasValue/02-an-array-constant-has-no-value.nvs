@@ -1,16 +1,17 @@
 <?nvs
 // Shows what happens when you read a constant that has no value, and how `hasValue` avoids it.
 
-class Upload {
+class Upload
+{
     public const int MAX_MB = 20;
-    public const array<string> TYPES = ["png", "jpg"];
+    public const array<string> TYPES = ['png', 'jpg'];
 }
 
 var $info = Core\Reflect::forObject(new Upload());
 
 // `TYPES` is an array constant, so `constant` throws a `LogicError`.
 try {
-    $info->constant("TYPES");
+    $info->constant('TYPES');
 } catch (LogicError $none) {
     echo "TYPES has no value to read\n";
 }
@@ -19,6 +20,6 @@ try {
 // This prints "MAX_MB = 20".
 foreach ($info->constants() as Core\Reflect\ConstantInfo $constant) {
     if ($constant->hasValue()) {
-        echo $constant->name(), " = ", $info->constant($constant->name()) as int, "\n";
+        echo $constant->name(), ' = ', $info->constant($constant->name()) as int, "\n";
     }
 }

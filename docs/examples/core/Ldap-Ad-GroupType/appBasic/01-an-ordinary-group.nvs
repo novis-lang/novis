@@ -2,10 +2,10 @@
 // Shows that `appBasic` returns `false` for an ordinary group.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Employees,OU=Company,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // This prints `appBasic: false`.
-    echo "appBasic: ", $type->appBasic() ? "true" : "false", "\n";
+    echo 'appBasic: ', $type->appBasic() ? 'true' : 'false', "\n";
 }

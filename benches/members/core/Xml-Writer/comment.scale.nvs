@@ -10,7 +10,7 @@ class Bench
         string $note = Core\Str::repeat('price from the supplier ', $size);
         Core\Xml\Writer $writer = Core\Xml::writer();
         $writer->startDocument();
-        $writer->startElement("export");
+        $writer->startElement('export');
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

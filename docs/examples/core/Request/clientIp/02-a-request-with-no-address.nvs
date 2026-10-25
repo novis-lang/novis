@@ -8,5 +8,5 @@
 if ($address == null) {
     echo "the request has no address\n";
 } else {
-    echo "the request came from ", $address, "\n";
+    echo 'the request came from ', $address, "\n";
 }

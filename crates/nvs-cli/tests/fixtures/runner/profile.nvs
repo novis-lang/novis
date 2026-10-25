@@ -5,24 +5,30 @@
 // `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
 use Core\Test;
 
-final class Steps {
-    public static function double(int $n): int {
+final class Steps
+{
+    public static function double(int $n): int
+    {
         return $n * 2;
     }
 
-    public static function triple(int $n): int {
+    public static function triple(int $n): int
+    {
         return Steps::double($n) + $n;
     }
 }
 
-final class ProfileTest {
+final class ProfileTest
+{
     #[Test]
-    public function itDoubles(): void {
+    public function itDoubles(): void
+    {
         Test::assertSame(Steps::double(2), 4);
     }
 
     #[Test]
-    public function itTriples(): void {
+    public function itTriples(): void
+    {
         Test::assertSame(Steps::triple(2), 6);
     }
 }

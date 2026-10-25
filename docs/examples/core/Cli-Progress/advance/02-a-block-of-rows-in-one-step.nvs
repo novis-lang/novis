@@ -9,11 +9,11 @@ uint $rows = Core\Cli::progress(1000, fn(Core\Cli\Progress $bar): uint => {
         // Your program reads 250 rows here. `by` says the step finished 250
         // units, and `label` writes the count beside the bar.
         $read = $read + 250;
-        $bar->advance({by: 250, label: Core\Str::format("%d of 1000 rows", $read)});
+        $bar->advance({ by: 250, label: Core\Str::format('%d of 1000 rows', $read) });
     }
 
     return $read;
 });
 
 // This prints 1000.
-echo "read ", $rows, " rows\n";
+echo 'read ', $rows, " rows\n";

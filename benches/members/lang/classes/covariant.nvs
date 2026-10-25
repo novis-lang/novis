@@ -7,24 +7,32 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Step {}
+class Step
+{}
 
-final class Doubling extends Step {
-    public function constructor(public int $factor) {}
+final class Doubling extends Step
+{
+    public function constructor(public int $factor)
+    {}
 }
 
-abstract class Machine {
-    public abstract function apply(Step $step, int $n): int;
+abstract class Machine
+{
+    abstract public function apply(Step $step, int $n): int;
 }
 
-final class Doubler extends Machine {
-    public function apply(covariant Doubling $step, int $n): int {
+final class Doubler extends Machine
+{
+    public function apply(covariant Doubling $step, int $n): int
+    {
         return $n * $step->factor;
     }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         Machine $machine = new Doubler();
         Step $step = new Doubling(2);
         int $acc = 1;

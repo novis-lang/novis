@@ -3,8 +3,10 @@
 // compile. Write `as int $v` alone, or count the steps in your own variable.
 // proof: compile-error
 
-class Steps {
-    public static function upTo(int $n): Iterator<int> {
+class Steps
+{
+    public static function upTo(int $n): Iterator<int>
+    {
         int $i = 0;
         while ($i < $n) {
             yield $i;
@@ -14,5 +16,5 @@ class Steps {
 }
 
 foreach (Steps::upTo(3) as string $k => int $v) {
-    echo $k, "=", $v, "\n";
+    echo $k, '=', $v, "\n";
 }

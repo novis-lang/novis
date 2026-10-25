@@ -8,11 +8,11 @@ use Core\Test;
 // `Core\Env::context()` returns `Request`, and this part writes the answer.
 if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
-    echo "Welcome. ";
-    echo "You opened ", $path;
+    echo 'Welcome. ';
+    echo 'You opened ', $path;
 } else {
     // From the command line, this part sends the request and reads the answer.
-    var $response = Test::request(Method::Get, "/start");
+    var $response = Test::request(Method::Get, '/start');
 
     // `body()` returns everything the program wrote, in order.
     // This prints `Welcome. You opened /start`.

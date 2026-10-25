@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to turn a text such as "1h30m" into a duration.
 
-string $text = "1h30m";
+string $text = '1h30m';
 Core\Time\Duration $length = Core\Time\Duration::parse($text);
 
 // This prints 1h30m and 5400.
@@ -10,5 +10,5 @@ echo $length->toSeconds(), "\n";
 
 // `toString` writes a duration with the largest units that fit.
 // So "90s" prints as 1m30s.
-string $short = "90s";
+string $short = '90s';
 echo Core\Time\Duration::parse($short)->toString(), "\n";

@@ -4,10 +4,10 @@
 tainted string $body = Core\Request::body();
 
 // A request without a body gives the empty string. It does not throw an error.
-if ($body == "") {
+if ($body == '') {
     echo "no body was sent\n";
 } else {
-    echo "the body has ", Core\Str::length($body), " characters\n";
+    echo 'the body has ', Core\Str::length($body), " characters\n";
 }
 
 // You can call `body` again. It returns the same result every time.

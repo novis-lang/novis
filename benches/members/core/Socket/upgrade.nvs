@@ -3,12 +3,14 @@
 // bench: iterations 1
 // bench: complexity constant
 
-class Chat {
-    public static function run(string $user, string $room): void {
-        Core\Socket::current()->send($user . " joined " . $room);
+class Chat
+{
+    public static function run(string $user, string $room): void
+    {
+        Core\Socket::current()->send($user . ' joined ' . $room);
     }
 }
 
 // A request can upgrade only once, so the measured operation happens one time per run.
-Core\Socket::upgrade(Chat::run(...), args: ["user" => "Ana", "room" => "support"]);
+Core\Socket::upgrade(Chat::run(...), args: ['user' => 'Ana', 'room' => 'support']);
 echo "upgraded\n";

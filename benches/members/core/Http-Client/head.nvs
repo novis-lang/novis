@@ -5,16 +5,18 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // Every request below is answered from this table, so nothing is sent over a network.
-        Core\Test::answerHttp("https://blog.example.com/*", 200);
-        array<string> $paths = ["/posts/", "/images/", "/about/"];
+        Core\Test::answerHttp('https://blog.example.com/*', 200);
+        array<string> $paths = ['/posts/', '/images/', '/about/'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The URL in each round is chosen by the round before, so no round can be left out.
-            string $url = "https://blog.example.com" . $paths[($total % 3) as int] . $i;
+            string $url = 'https://blog.example.com' . $paths[($total % 3) as int] . $i;
             Core\Http\Response $response = Core\Http\Client::head($url);
             $total = $total + ($response->status() as uint);
             $i = $i + 1;

@@ -71,7 +71,7 @@ echo Step::Delivered as int, "\n";
 Step $current = Step::Packed;
 
 // This prints `packed`.
-echo $current == Step::Packed ? "packed" : "somewhere else", "\n";
+echo $current == Step::Packed ? 'packed' : 'somewhere else', "\n";
 ```
 
 ```output
@@ -122,16 +122,19 @@ echo Attempt::Third as int, "\n";
 // Shows why you choose the numbers yourself. Each permission gets a number with
 // a single bit set, so one `uint` can hold several permissions at once.
 
-class Role {
+class Role
+{
     enum Permission: uint { Read = 1, Write = 2, Delete = 4, Invite = 8 }
 
     // Adds one permission to a set of permissions.
-    public static function add(uint $set, Permission $p): uint {
+    public static function add(uint $set, Permission $p): uint
+    {
         return $set | ($p as uint);
     }
 
     // Returns `true` when the set contains the permission.
-    public static function has(uint $set, Permission $p): bool {
+    public static function has(uint $set, Permission $p): bool
+    {
         return ($set & ($p as uint)) != 0;
     }
 }
@@ -140,9 +143,9 @@ uint $editor = Role::add(Role::add(0, Role::Permission::Read), Role::Permission:
 
 // An editor may read and write, and may not delete.
 // This prints `read: yes`, `write: yes` and `delete: no`.
-echo Role::has($editor, Role::Permission::Read) ? "read: yes" : "read: no", "\n";
-echo Role::has($editor, Role::Permission::Write) ? "write: yes" : "write: no", "\n";
-echo Role::has($editor, Role::Permission::Delete) ? "delete: yes" : "delete: no", "\n";
+echo Role::has($editor, Role::Permission::Read) ? 'read: yes' : 'read: no', "\n";
+echo Role::has($editor, Role::Permission::Write) ? 'write: yes' : 'write: no', "\n";
+echo Role::has($editor, Role::Permission::Delete) ? 'delete: yes' : 'delete: no', "\n";
 ```
 
 ```output
@@ -164,10 +167,10 @@ enum Mask: uint { None = 0, All = 18446744073709551615 }
 
 // `Go` is one more than `Stop`, and `After` is one more than `Wait`.
 // This prints `10,11,30,31`.
-echo Signal::Stop as int, ",", Signal::Go as int, ",", Signal::Wait as int, ",", Signal::After as int, "\n";
+echo Signal::Stop as int, ',', Signal::Go as int, ',', Signal::Wait as int, ',', Signal::After as int, "\n";
 
 // Counting also works from a negative number. This prints `-2,-1,0,1`.
-echo Dir::Back as int, ",", Dir::Left as int, ",", Dir::Still as int, ",", Dir::Right as int, "\n";
+echo Dir::Back as int, ',', Dir::Left as int, ',', Dir::Still as int, ',', Dir::Right as int, "\n";
 
 // A `uint` enum converts with `as uint`. This prints 18446744073709551615.
 echo Mask::All as uint, "\n";
@@ -338,15 +341,17 @@ echo Http::NotFound as int, "\n";
 // Shows how to print an enum case. A case has no text form, so this program
 // writes a function that returns a name, and prints the number beside it.
 
-class Levels {
+class Levels
+{
     enum Level { Low, Mid, High }
 
     // Returns a name a person can read for one case.
-    public static function name(Level $level): string {
+    public static function name(Level $level): string
+    {
         return match ($level) {
-            Level::Low => "low",
-            Level::Mid => "mid",
-            Level::High => "high",
+            Level::Low => 'low',
+            Level::Mid => 'mid',
+            Level::High => 'high',
         };
     }
 }
@@ -354,7 +359,7 @@ class Levels {
 array<Levels::Level> $seen = [Levels::Level::High, Levels::Level::Low, Levels::Level::Mid];
 // This prints `high 2`, then `low 0`, then `mid 1`.
 foreach ($seen as Levels::Level $level) {
-    echo Levels::name($level), " ", $level as int, "\n";
+    echo Levels::name($level), ' ', $level as int, "\n";
 }
 ```
 
@@ -372,22 +377,25 @@ mid 1
 // column and a JSON field keep numbers and text, so the case becomes its
 // number on the way out.
 
-class Order {
+class Order
+{
     enum Status { New, Paid, Shipped, Closed }
 
-    public function constructor(public string $reference, public Status $status) {}
+    public function constructor(public string $reference, public Status $status)
+    {}
 
     // Returns one line of the file: the order reference, then the status as a
     // number.
-    public function line(): string {
-        return $this->reference . "," . (($this->status as int) as string);
+    public function line(): string
+    {
+        return $this->reference . ',' . (($this->status as int) as string);
     }
 }
 
 array<Order> $orders = [
-    new Order("A-1001", Order::Status::Paid),
-    new Order("A-1002", Order::Status::New),
-    new Order("A-1003", Order::Status::Shipped),
+    new Order('A-1001', Order::Status::Paid),
+    new Order('A-1002', Order::Status::New),
+    new Order('A-1003', Order::Status::Shipped),
 ];
 
 // This prints `A-1001,1`, then `A-1002,0`, then `A-1003,2`.
@@ -478,13 +486,13 @@ int $stored = 2;
 Level $level = $stored as Level;
 
 // This prints `warn`.
-echo $level == Level::Warn ? "warn" : "something else", "\n";
+echo $level == Level::Warn ? 'warn' : 'something else', "\n";
 
 // The number comes back out with `as int`. This prints 2.
 echo $level as int, "\n";
 
 // Text is converted to the number first, so this also finds `Level::Error`.
-Level $fromText = "3" as Level;
+Level $fromText = '3' as Level;
 
 // This prints 3.
 echo $fromText as int, "\n";
@@ -517,13 +525,13 @@ try {
 ?Level $maybe = 9 as ?Level;
 
 // This prints `no such level`.
-echo $maybe == null ? "no such level" : "found one", "\n";
+echo $maybe == null ? 'no such level' : 'found one', "\n";
 
 // Text that is not a number gives `null` as well.
-?Level $fromText = "loud" as ?Level;
+?Level $fromText = 'loud' as ?Level;
 
 // This prints `no such level`.
-echo $fromText == null ? "no such level" : "found one", "\n";
+echo $fromText == null ? 'no such level' : 'found one', "\n";
 ```
 
 ```output
@@ -539,12 +547,14 @@ no such level
 // Shows how a program reads a setting written by somebody else. The text may
 // name no case, so the program uses `as ?Level` and keeps its own default.
 
-class Settings {
+class Settings
+{
     enum Level: int { Debug = 0, Info = 1, Warn = 2, Error = 3 }
 
     // Returns the level the text names. Returns `Level::Info` when the text
     // names no level.
-    public static function level(string $text): Level {
+    public static function level(string $text): Level
+    {
         ?Level $found = $text as ?Level;
         if ($found == null) {
             return Level::Info;
@@ -553,12 +563,13 @@ class Settings {
     }
 
     // Returns `true` when a message at this level should be written.
-    public static function writes(Level $configured, Level $message): bool {
+    public static function writes(Level $configured, Level $message): bool
+    {
         return ($message as int) >= ($configured as int);
     }
 }
 
-array<string> $lines = ["2", "0", "verbose", ""];
+array<string> $lines = ['2', '0', 'verbose', ''];
 
 // The first two lines name a level. The last two do not, so both become
 // `Settings::Level::Info`. This prints 2, 0, 1 and 1.
@@ -566,11 +577,11 @@ foreach ($lines as string $line) {
     echo Settings::level($line) as int, "\n";
 }
 
-Settings::Level $configured = Settings::level("2");
+Settings::Level $configured = Settings::level('2');
 
 // A warning is written and a debug message is not. This prints `yes` and `no`.
-echo Settings::writes($configured, Settings::Level::Warn) ? "yes" : "no", "\n";
-echo Settings::writes($configured, Settings::Level::Debug) ? "yes" : "no", "\n";
+echo Settings::writes($configured, Settings::Level::Warn) ? 'yes' : 'no', "\n";
+echo Settings::writes($configured, Settings::Level::Debug) ? 'yes' : 'no', "\n";
 ```
 
 ```output
@@ -684,19 +695,21 @@ at least bronze
 // Shows a page that decides what a visitor may do. The role arrives as an enum.
 // `==` tests for one role, and `as int` compares two roles by their number.
 
-class Page {
+class Page
+{
     enum Role { Guest = 0, Member = 10, Editor = 20, Owner = 30 }
 
-    public static function actions(Role $role): string {
+    public static function actions(Role $role): string
+    {
         // A guest is a single case, so `==` is the test for it.
         if ($role == Role::Guest) {
-            return "read";
+            return 'read';
         }
         // Everybody from `Editor` upwards may publish, so the numbers decide.
         if (($role as int) >= (Role::Editor as int)) {
-            return "read, comment, publish";
+            return 'read, comment, publish';
         }
-        return "read, comment";
+        return 'read, comment';
     }
 }
 
@@ -723,14 +736,14 @@ read, comment, publish
 // proof: compile-error
 
 enum Rank { Bronze, Silver }
-echo (Rank::Bronze == 0) ? "bronze" : "other", "\n";
+echo (Rank::Bronze == 0) ? 'bronze' : 'other', "\n";
 ```
 
 ```output
 error[E0466]: `Rank` and `int` are disjoint; no value is both, so this comparison is always false
   --> main.nvs:7:7
   |
-7 | echo (Rank::Bronze == 0) ? "bronze" : "other", "\n";
+7 | echo (Rank::Bronze == 0) ? 'bronze' : 'other', "\n";
   |       ^^^^^^^^^^^^^^^^^ compared here
   = help: an enum case carries an integer — compare `$e as int` against the number
 
@@ -780,15 +793,17 @@ number `1` matches the arm `Mode::Write` when `Write` is the case with the numbe
 // Shows a `match` that gives one text for each case of an enum. `match` tries
 // the arms from top to bottom and returns the first one that fits.
 
-class Name {
+class Name
+{
     enum Mode { Read, Write, Exec }
 
-    public static function of(Mode $mode): string {
+    public static function of(Mode $mode): string
+    {
         return match ($mode) {
-            Mode::Read => "read",
-            Mode::Write => "write",
+            Mode::Read => 'read',
+            Mode::Write => 'write',
             // `default` is used for every case that no arm above names.
-            default => "other",
+            default => 'other',
         };
     }
 }
@@ -818,8 +833,8 @@ Mode $mode = Mode::Exec;
 
 try {
     string $name = match ($mode) {
-        Mode::Read => "read",
-        Mode::Write => "write",
+        Mode::Read => 'read',
+        Mode::Write => 'write',
     };
     echo $name, "\n";
 } catch (Throwable $error) {
@@ -829,7 +844,7 @@ try {
 
 // The same `match` with a `default` arm returns a value for every case. This
 // prints `other`.
-echo match ($mode) { Mode::Read => "read", default => "other" }, "\n";
+echo match ($mode) { Mode::Read => 'read', default => 'other' }, "\n";
 ```
 
 ```output
@@ -845,20 +860,22 @@ other
 // statements instead of returning a value, and `break` ends an arm. An arm
 // without `break` runs on into the arm below it.
 
-class Work {
+class Work
+{
     enum Stage { Placed, Paid, Shipped }
 
-    public static function next(Stage $stage): string {
-        string $todo = "";
+    public static function next(Stage $stage): string
+    {
+        string $todo = '';
         switch ($stage) {
             case Stage::Placed:
-                $todo = $todo . "take the payment; ";
-                // No `break` here, so a new order is also packed.
+                $todo = $todo . 'take the payment; ';
+            // No `break` here, so a new order is also packed.
             case Stage::Paid:
-                $todo = $todo . "pack the box";
+                $todo = $todo . 'pack the box';
                 break;
             case Stage::Shipped:
-                $todo = $todo . "send the tracking number";
+                $todo = $todo . 'send the tracking number';
                 break;
         }
         return $todo;
@@ -917,18 +934,21 @@ Suit::Hearts;`, or assign it in the constructor. Without either, the class does 
 // a parameter and of a return value. Each of them accepts the three cases of
 // `Level` and no other value.
 
-class Gate {
+class Gate
+{
     enum Level { Low = 1, Mid = 5, High = 9 }
 
     // This property stores one case of `Level`.
     public Level $level;
 
-    public function constructor(Level $level) {
+    public function constructor(Level $level)
+    {
         $this->level = $level;
     }
 
     // The parameter and the return type are both `Level`.
-    public function raise(Level $to): Level {
+    public function raise(Level $to): Level
+    {
         if (($to as int) > ($this->level as int)) {
             $this->level = $to;
         }
@@ -958,11 +978,13 @@ echo $gate->raise(Gate::Level::Low) as int, "\n";
 // variable. `array<Deck::Suit>` is an array where every element is one case of
 // `Deck::Suit`.
 
-class Deck {
+class Deck
+{
     enum Suit { Clubs, Hearts, Spades }
 
     // A generator declared `Iterator<Suit>` gives one case at a time.
-    public static function red(): Iterator<Suit> {
+    public static function red(): Iterator<Suit>
+    {
         yield Suit::Hearts;
     }
 }
@@ -994,33 +1016,37 @@ foreach (Deck::red() as Deck::Suit $card) {
 // Shows a list of orders printed with a text label for each status. A case is
 // not an array key, so the table of labels is indexed with `$status as int`.
 
-class Order {
+class Order
+{
     enum Status { Placed, Paid, Shipped }
 
-    public function constructor(public string $reference, public Status $status) {}
+    public function constructor(public string $reference, public Status $status)
+    {}
 }
 
-class Labels {
+class Labels
+{
     // The keys are the numbers behind the cases: 0, 1 and 2.
-    public static function table(): array<string> {
+    public static function table(): array<string>
+    {
         array<string> $labels = [];
-        $labels[Order::Status::Placed as int] = "waiting for payment";
-        $labels[Order::Status::Paid as int] = "ready to ship";
-        $labels[Order::Status::Shipped as int] = "on its way";
+        $labels[Order::Status::Placed as int] = 'waiting for payment';
+        $labels[Order::Status::Paid as int] = 'ready to ship';
+        $labels[Order::Status::Shipped as int] = 'on its way';
         return $labels;
     }
 }
 
 array<Order> $orders = [
-    new Order("A-1042", Order::Status::Shipped),
-    new Order("A-1043", Order::Status::Placed),
+    new Order('A-1042', Order::Status::Shipped),
+    new Order('A-1043', Order::Status::Placed),
 ];
 
 var $labels = Labels::table();
 
 // This prints `A-1042: on its way` and then `A-1043: waiting for payment`.
 foreach ($orders as Order $order) {
-    echo $order->reference, ": ", $labels[$order->status as int], "\n";
+    echo $order->reference, ': ', $labels[$order->status as int], "\n";
 }
 ```
 
@@ -1090,11 +1116,13 @@ A `type` alias may name a set of cases: `type Rw = Mode::Read|Mode::Write;`.
 // `Mode` stays outside the classes, because `File` and `Log` both use it.
 enum Mode { Read, Write, Append, Exec }
 
-class File {
+class File
+{
     // This parameter accepts `Mode::Read` and `Mode::Write`. No other case of
     // `Mode` compiles here.
-    public static function open(Mode::Read|Mode::Write $mode): string {
-        return "opened in mode " . (($mode as int) as string);
+    public static function open(Mode::Read|Mode::Write $mode): string
+    {
+        return 'opened in mode ' . (($mode as int) as string);
     }
 }
 
@@ -1103,9 +1131,11 @@ echo File::open(Mode::Read), "\n";
 echo File::open(Mode::Write), "\n";
 
 // A value of the smaller type fits everywhere the whole enum is wanted.
-class Log {
-    public static function line(Mode $mode): string {
-        return "mode=" . (($mode as int) as string);
+class Log
+{
+    public static function line(Mode $mode): string
+    {
+        return 'mode=' . (($mode as int) as string);
     }
 }
 
@@ -1128,11 +1158,13 @@ mode=1
 // throws an error when the value is not one of the named cases, the other
 // returns `null`.
 
-class File {
+class File
+{
     enum Mode { Read, Write, Append, Exec }
 
-    public static function open(Mode::Read|Mode::Write $mode): string {
-        return "opened in mode " . (($mode as int) as string);
+    public static function open(Mode::Read|Mode::Write $mode): string
+    {
+        return 'opened in mode ' . (($mode as int) as string);
     }
 }
 
@@ -1146,7 +1178,7 @@ try {
     echo File::open($other as File::Mode::Read|File::Mode::Write), "\n";
 } catch (RuntimeError $error) {
     // The message names every case the type accepts.
-    echo "stopped: ", $error->message, "\n";
+    echo 'stopped: ', $error->message, "\n";
 }
 
 // `as ?File::Mode::Read|File::Mode::Write` returns `null` for a value outside
@@ -1176,22 +1208,26 @@ no mode
 // `Method` stays outside the classes, because `Cache` and `Router` both use it.
 enum Method { Get, Head, Post, Put, Delete }
 
-class Cache {
+class Cache
+{
     // Only a request that reads can be served from a cache, so this parameter
     // accepts those two cases and nothing else.
-    public static function serve(Method::Get|Method::Head $method): string {
+    public static function serve(Method::Get|Method::Head $method): string
+    {
         if ($method == Method::Head) {
-            return "sent the headers";
+            return 'sent the headers';
         }
-        return "sent the page";
+        return 'sent the page';
     }
 }
 
-class Router {
-    public static function handle(Method $method): string {
+class Router
+{
+    public static function handle(Method $method): string
+    {
         var $readOnly = $method as ?Method::Get|Method::Head;
         if ($readOnly == null) {
-            return "passed to the application";
+            return 'passed to the application';
         }
         return Cache::serve($readOnly);
     }
@@ -1221,8 +1257,10 @@ passed to the application
 
 enum Mode { Read, Write, Exec }
 
-class Open {
-    public static function file(Mode::Read|Mode::Write $mode): int {
+class Open
+{
+    public static function file(Mode::Read|Mode::Write $mode): int
+    {
         return $mode as int;
     }
 }
@@ -1232,9 +1270,9 @@ echo Open::file(Mode::Exec), "\n";
 
 ```output
 error[E0401]: expected `Mode::Read|Mode::Write`, found `Mode`
-   --> main.nvs:14:17
+   --> main.nvs:16:17
    |
-14 | echo Open::file(Mode::Exec), "\n";
+16 | echo Open::file(Mode::Exec), "\n";
    |                 ^^^^^^^^^^ this is `Mode`
 
 error: aborting due to 1 error
@@ -1326,7 +1364,7 @@ $order->pay();
 $order->ship();
 
 // Outside the class, the enum is `Order::Status`. This prints `shipped`.
-echo $order->status == Order::Status::Shipped ? "shipped" : "not shipped", "\n";
+echo $order->status == Order::Status::Shipped ? 'shipped' : 'not shipped', "\n";
 ```
 
 ```output
@@ -1355,7 +1393,7 @@ final class Import
 
 // `as int` gives the number the shell sees. This prints 64 and then 0.
 echo Import::run([]) as int, "\n";
-echo Import::run(["orders.csv"]) as int, "\n";
+echo Import::run(['orders.csv']) as int, "\n";
 
 // A variable outside the class names the enum with its class.
 Import::Exit $code = Import::Exit::NoInput;
@@ -1405,9 +1443,9 @@ class Report
     public static function word(Job::Result $r): string
     {
         return match ($r) {
-            Job::Result::Done => "done",
-            Job::Result::Retry => "retry",
-            Job::Result::Failed => "failed",
+            Job::Result::Done => 'done',
+            Job::Result::Retry => 'retry',
+            Job::Result::Failed => 'failed',
         };
     }
 }
@@ -1458,11 +1496,13 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // `Refund::Status` does not exist. Write `Order::Status`.
 // proof: compile-error
 
-class Order {
+class Order
+{
     enum Status { Open, Paid }
 }
 
-class Refund extends Order {
+class Refund extends Order
+{
 }
 
 echo Refund::Status::Paid as int, "\n";
@@ -1470,9 +1510,9 @@ echo Refund::Status::Paid as int, "\n";
 
 ```output
 error[E0309]: `Refund` has no enum named `Status`
-   --> main.nvs:13:6
+   --> main.nvs:15:6
    |
-13 | echo Refund::Status::Paid as int, "\n";
+15 | echo Refund::Status::Paid as int, "\n";
    |      ^^^^^^^^^^^^^^ referenced here
    = help: `Order::Status` is where it is declared. An enum in a class body is used through that class. A subclass does not inherit it
 
@@ -1550,16 +1590,18 @@ A case is not an object. Putting a case in an `object` variable is the error `E0
 // Shows how to get the name of a case. A case has no `->name`, so the names
 // live in a `match` inside a class of your own.
 
-class Levels {
+class Levels
+{
     enum Level { Debug, Info, Warn }
 
     // Returns the name of a level. The `match` has an arm for every case of
     // `Level`. Add an arm here when you add a case to the enum.
-    public static function name(Level $l): string {
+    public static function name(Level $l): string
+    {
         return match ($l) {
-            Level::Debug => "debug",
-            Level::Info => "info",
-            Level::Warn => "warn",
+            Level::Debug => 'debug',
+            Level::Info => 'info',
+            Level::Warn => 'warn',
         };
     }
 }
@@ -1585,23 +1627,27 @@ warn
 // Shows the list of every case. An enum has no `cases()`, so the list is an
 // ordinary static method that returns `array<Level>`.
 
-class Levels {
+class Levels
+{
     enum Level { Debug, Info, Warn }
 
-    public static function all(): array<Level> {
+    public static function all(): array<Level>
+    {
         return [Level::Debug, Level::Info, Level::Warn];
     }
 
-    public static function name(Level $l): string {
+    public static function name(Level $l): string
+    {
         return match ($l) {
-            Level::Debug => "debug",
-            Level::Info => "info",
-            Level::Warn => "warn",
+            Level::Debug => 'debug',
+            Level::Info => 'info',
+            Level::Warn => 'warn',
         };
     }
 
     // Returns the level with this name, or `null` when there is none.
-    public static function byName(string $wanted): ?Level {
+    public static function byName(string $wanted): ?Level
+    {
         foreach (Levels::all() as Level $l) {
             if (Levels::name($l) == $wanted) {
                 return $l;
@@ -1621,7 +1667,7 @@ echo Core\Arr::count(Levels::all()), "\n";
 
 // A name nobody wrote gives `null`, so the program picks its own level.
 // This prints 1.
-echo (Levels::byName("loud") ?? Levels::Level::Info) as int, "\n";
+echo (Levels::byName('loud') ?? Levels::Level::Info) as int, "\n";
 ```
 
 ```output
@@ -1639,21 +1685,24 @@ warn
 // Shows where the behaviour of an enum goes. The enum holds the states of an
 // order, and a class of your own holds everything the order can do.
 
-class Orders {
+class Orders
+{
     enum Status { Placed, Paid, Shipped, Cancelled }
 
     // Returns the text shown to a customer for this status.
-    public static function label(Status $s): string {
+    public static function label(Status $s): string
+    {
         return match ($s) {
-            Status::Placed => "waiting for payment",
-            Status::Paid => "ready to ship",
-            Status::Shipped => "on its way",
-            Status::Cancelled => "cancelled",
+            Status::Placed => 'waiting for payment',
+            Status::Paid => 'ready to ship',
+            Status::Shipped => 'on its way',
+            Status::Cancelled => 'cancelled',
         };
     }
 
     // Returns `true` when nothing more happens to an order in this status.
-    public static function isFinal(Status $s): bool {
+    public static function isFinal(Status $s): bool
+    {
         return match ($s) {
             Status::Shipped => true,
             Status::Cancelled => true,
@@ -1663,7 +1712,8 @@ class Orders {
     }
 
     // Returns the status after this one, or `null` when there is none.
-    public static function next(Status $s): ?Status {
+    public static function next(Status $s): ?Status
+    {
         return match ($s) {
             Status::Placed => Status::Paid,
             Status::Paid => Status::Shipped,
@@ -1677,13 +1727,13 @@ Orders::Status $order = Orders::Status::Paid;
 
 // This prints `ready to ship` and `no`.
 echo Orders::label($order), "\n";
-echo Orders::isFinal($order) ? "yes" : "no", "\n";
+echo Orders::isFinal($order) ? 'yes' : 'no', "\n";
 
 // The order walks to its last status. This prints `on its way` and `yes`.
 ?Orders::Status $after = Orders::next($order);
 if ($after != null) {
     echo Orders::label($after), "\n";
-    echo Orders::isFinal($after) ? "yes" : "no", "\n";
+    echo Orders::isFinal($after) ? 'yes' : 'no', "\n";
 }
 ```
 
@@ -1791,7 +1841,7 @@ You may declare your own enum named `Order`. It is a different enum from `Core\A
 array<int> $scores = [3, 1, 2];
 
 // This prints 3, 2 and 1, the largest first.
-foreach (Core\Arr::sort($scores, {order: Core\Arr::Order::Desc}) as int $s) {
+foreach (Core\Arr::sort($scores, { order: Core\Arr::Order::Desc }) as int $s) {
     echo $s, "\n";
 }
 
@@ -1851,27 +1901,29 @@ echo Core\Decimal::divRound($bill, $people, 4, $mode), "\n";
 // Shows a `Core` enum used the way your own enums are used. A class turns the
 // text a visitor sent into a case, and the case then chooses the sort order.
 
-class Listing {
+class Listing
+{
     // Returns the order the text names. Returns `Core\Arr::Order::Asc` for any other
     // text, so a visitor cannot send something the sort has no answer for.
-    public static function order(string $wanted): Core\Arr::Order {
+    public static function order(string $wanted): Core\Arr::Order
+    {
         return match ($wanted) {
-            "desc" => Core\Arr::Order::Desc,
+            'desc' => Core\Arr::Order::Desc,
             default => Core\Arr::Order::Asc,
         };
     }
 }
 
 array<int> $prices = [30, 10, 20];
-Core\Arr::Order $order = Listing::order("desc");
+Core\Arr::Order $order = Listing::order('desc');
 
 // This prints 30, 20 and 10.
-foreach (Core\Arr::sort($prices, {order: $order}) as int $p) {
+foreach (Core\Arr::sort($prices, { order: $order }) as int $p) {
     echo $p, "\n";
 }
 
 // A case of a `Core` enum is compared with `==`. This prints `largest first`.
-echo $order == Core\Arr::Order::Desc ? "largest first" : "smallest first", "\n";
+echo $order == Core\Arr::Order::Desc ? 'largest first' : 'smallest first', "\n";
 ```
 
 ```output
@@ -1891,15 +1943,15 @@ largest first
 
 array<int> $scores = [3, 1, 2];
 
-echo Core\Arr::count(Core\Arr::sort($scores, {order: 1})), "\n";
+echo Core\Arr::count(Core\Arr::sort($scores, { order: 1 })), "\n";
 ```
 
 ```output
 error[E0401]: expected `Core\Arr::Order`, found `int`
-  --> main.nvs:8:54
+  --> main.nvs:8:55
   |
-8 | echo Core\Arr::count(Core\Arr::sort($scores, {order: 1})), "\n";
-  |                                                      ^ this is `int`
+8 | echo Core\Arr::count(Core\Arr::sort($scores, { order: 1 })), "\n";
+  |                                                       ^ this is `int`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -6,12 +6,12 @@ $writer->startDocument();
 
 // No element is open yet. This prints the error message.
 try {
-    $writer->content("Hello");
+    $writer->content('Hello');
 } catch (LogicError $error) {
     echo $error->message, "\n";
 }
 
-$writer->startElement("note");
+$writer->startElement('note');
 
 // The character with code 0 cannot be written in XML. This prints the error message.
 try {

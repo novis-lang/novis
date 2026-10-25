@@ -1,7 +1,8 @@
 <?nvs
-class User {
-    public string $name = "Ada";
-    public string $email = "ada@example.com";
+class User
+{
+    public string $name = 'Ada';
+    public string $email = 'ada@example.com';
 }
 
 User $user = new User();

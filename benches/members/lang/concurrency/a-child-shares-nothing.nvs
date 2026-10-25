@@ -5,17 +5,20 @@
 // bench: iterations 512
 // bench: complexity constant
 
-class Bench {
+class Bench
+{
     // `here` returns its argument as a full path. A relative path written in
     // quotes starts at the folder of this file.
-    private static function here(#[Core\Path] string $path): string {
+    private static function here(#[Core\Path] string $path): string
+    {
         return $path;
     }
 
-    public static function run(uint $rounds): uint {
+    public static function run(uint $rounds): uint
+    {
         array<string> $scripts = [
-            Bench::here("a-child-shares-nothing/counts-once.nvs"),
-            Bench::here("a-child-shares-nothing/counts-three-times.nvs"),
+            Bench::here('a-child-shares-nothing/counts-once.nvs'),
+            Bench::here('a-child-shares-nothing/counts-three-times.nvs'),
         ];
         uint $total = 0;
         uint $i = 0;
@@ -23,7 +26,7 @@ class Bench {
             // Chained: the script started this round is picked by the number the
             // last one returned.
             string $path = $scripts[($total % 2) as int];
-            var $handle = spawn script $path with(output: "capture");
+            var $handle = spawn script $path with(output: 'capture');
             var $result = await $handle;
             // Every round reads the same number back, because each script starts
             // with a fresh copy of `Counter::$seen`.

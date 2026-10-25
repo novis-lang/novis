@@ -3,11 +3,13 @@
 // bench: iterations 2048
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         array<Core\Time\Instant> $moments = [
-            Core\Time::fromEpoch(1709294400, {nanos: 250000000}),
-            Core\Time::fromEpoch(-86400, {nanos: 500000000}),
+            Core\Time::fromEpoch(1709294400, { nanos: 250000000 }),
+            Core\Time::fromEpoch(-86400, { nanos: 500000000 }),
             Core\Time::fromEpoch(253402207200),
         ];
         int $total = 0;

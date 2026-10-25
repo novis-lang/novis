@@ -2,22 +2,28 @@
 // A page that returns its markup, served by a gate that does not implement
 // `Core\Router\Responder`. `nvs check` warns at the `dispatch` call.
 
-class Home {
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "home")]
+class Home
+{
+    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'home')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function render(): Core\Html\Markup {
+    public function render(): Core\Html\Markup
+    {
         return html`<p>home</p>`;
     }
 }
 
-class Gate implements Core\Router\Gate {
-    public function allows(Core\Router\Match $route): bool {
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
         return true;
     }
 
-    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {}
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {}
 
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {}
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {}
 }
 
 Core\Router::dispatch(new Gate());

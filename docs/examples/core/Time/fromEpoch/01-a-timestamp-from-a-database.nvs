@@ -8,4 +8,4 @@ var $created = Core\Time::fromEpoch(1715688000);
 echo $created->toIso(), "\n";
 
 // `in` shows the same moment in a time zone. This prints 14.05.2024 14:00 for Berlin.
-echo $created->in(Core\Time\Zone::of("Europe/Berlin"))->format("dd.MM.yyyy HH:mm"), "\n";
+echo $created->in(Core\Time\Zone::of('Europe/Berlin'))->format('dd.MM.yyyy HH:mm'), "\n";

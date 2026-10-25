@@ -4,22 +4,28 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Commands {
-    public function status(): string {
-        return "ok";
+class Commands
+{
+    public function status(): string
+    {
+        return 'ok';
     }
 
-    public function version(): string {
-        return "1";
+    public function version(): string
+    {
+        return '1';
     }
 
-    public function migrate(): string {
-        return "done";
+    public function migrate(): string
+    {
+        return 'done';
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\MethodInfo> $list = Core\Reflect::forObject(new Commands())->methods();
         uint $total = 0;
         uint $i = 0;

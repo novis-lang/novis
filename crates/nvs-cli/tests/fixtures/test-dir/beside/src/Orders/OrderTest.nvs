@@ -3,9 +3,11 @@ namespace Shop\Orders;
 
 use Core\Test;
 
-final class OrderTest {
+final class OrderTest
+{
     #[Test]
-    public function nothingReferencesThisClass(): void {
+    public function nothingReferencesThisClass(): void
+    {
         Test::assertSame(4, 2 + 2);
     }
 }

@@ -4,10 +4,12 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<array<string>> $dates = [["2026", "09", "28"], ["28", "09", "2026"], ["2026", "9", "7"]];
-        array<string> $separators = ["-", ".", "/"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<array<string>> $dates = [['2026', '09', '28'], ['28', '09', '2026'], ['2026', '9', '7']];
+        array<string> $separators = ['-', '.', '/'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

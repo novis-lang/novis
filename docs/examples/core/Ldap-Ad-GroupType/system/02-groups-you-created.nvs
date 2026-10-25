@@ -2,17 +2,17 @@
 // Shows that `system` returns `false` for every group that somebody created.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 var $found = $corp->search(
-    Core\Ldap\Filter::equals("objectClass", "group"),
-    {base: "OU=Company,DC=example,DC=test", select: ["groupType"]},
+    Core\Ldap\Filter::equals('objectClass', 'group'),
+    { base: 'OU=Company,DC=example,DC=test', select: ['groupType'] },
 );
 
 array<tainted string> $lines = [];
 foreach ($found as Core\Ldap\Entry $group) {
     var $type = $group->groupType();
     if ($type != null) {
-        $lines[] = $group->dn()->rdnValue() . ": " . ($type->system() ? "true" : "false");
+        $lines[] = $group->dn()->rdnValue() . ': ' . ($type->system() ? 'true' : 'false');
     }
 }
 

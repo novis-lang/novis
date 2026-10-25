@@ -1,16 +1,20 @@
 <?nvs
 // This program writes the task list as an HTML page with an `html` template.
-class Task {
+class Task
+{
     public string $title;
     public bool $done = false;
 
-    public function constructor(string $title) {
+    public function constructor(string $title)
+    {
         $this->title = $title;
     }
 }
 
-class Pages {
-    public static function list(array<Task> $tasks): Core\Html\Markup {
+class Pages
+{
+    public static function list(array<Task> $tasks): Core\Html\Markup
+    {
         var $items = html``;
         foreach ($tasks as Task $task) {
             // `{$title}` is a hole. Its value is escaped, so `<` prints as `&lt;`.
@@ -21,5 +25,5 @@ class Pages {
     }
 }
 
-array<Task> $tasks = [new Task("Buy milk"), new Task("Learn <b> tags")];
+array<Task> $tasks = [new Task('Buy milk'), new Task('Learn <b> tags')];
 echo Pages::list($tasks), "\n";

@@ -8,11 +8,11 @@ $a[5] = 50;
 $a[] = 60;
 
 // `$a[1]` and `$a["1"]` read the same entry. This prints `2020`.
-echo $a[1], $a["1"], "\n";
+echo $a[1], $a['1'], "\n";
 
 // `$copy` is a copy. The new key `x` is not added to `$a`, so this prints `4 5`.
 array<int> $copy = $a;
-$copy["x"] = 1;
-echo Core\Arr::count($a), " ", Core\Arr::count($copy), "\n";
+$copy['x'] = 1;
+echo Core\Arr::count($a), ' ', Core\Arr::count($copy), "\n";
 
 echo Core\Json::encode($a), "\n";

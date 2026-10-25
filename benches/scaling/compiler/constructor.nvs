@@ -5,9 +5,11 @@
 // scaling: max 16384
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): string {
-        array<string> $lines = ["<?nvs", "class Record {"];
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        array<string> $lines = ['<?nvs', 'class Record {'];
         uint $i = 0;
         while ($i < $size) {
             $lines[] = "    public int \$p{$i};";
@@ -18,13 +20,13 @@ class Bench {
         while ($i < $size) {
             $lines[] = "        if (\$flag) {";
             $lines[] = "            \$this->p{$i} = {$i};";
-            $lines[] = "        } else {";
+            $lines[] = '        } else {';
             $lines[] = "            \$this->p{$i} = 0;";
-            $lines[] = "        }";
+            $lines[] = '        }';
             $i = $i + 1;
         }
-        $lines[] = "    }";
-        $lines[] = "}";
+        $lines[] = '    }';
+        $lines[] = '}';
         $lines[] = "echo (new Record(true))->p0, \"\\n\";";
         return Core\Str::join($lines, "\n") . "\n";
     }

@@ -5,14 +5,14 @@
 array<int> $codes = [1, 2, 9];
 
 foreach ($codes as int $code) {
-    echo $code, ": ";
+    echo $code, ': ';
     switch ($code) {
         case 1:
-            echo "one, ";
+            echo 'one, ';
         default:
-            echo "other, ";
+            echo 'other, ';
         case 2:
-            echo "two";
+            echo 'two';
     }
     echo "\n";
 }

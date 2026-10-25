@@ -2,10 +2,10 @@
 // Shows that `workstationTrustAccount` returns `false` for the account of a person.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `computer: false`.
-    echo "computer: ", $flags->workstationTrustAccount() ? "true" : "false", "\n";
+    echo 'computer: ', $flags->workstationTrustAccount() ? 'true' : 'false', "\n";
 }

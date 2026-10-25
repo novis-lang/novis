@@ -7,7 +7,7 @@ echo 'and the absolute ceiling:  ', Core\Config::get('limits.max_decompressed') 
 
 // 16 KiB of the letter `A` compresses to 52 bytes. The ratio is about 315,
 // which is under the configured `1000`.
-bytes $frame = Core\Compress::compress(Core\Str::repeat("A", 16384) as bytes, Core\Compress::Codec::Gzip);
+bytes $frame = Core\Compress::compress(Core\Str::repeat('A', 16384) as bytes, Core\Compress::Codec::Gzip);
 echo 'this frame:                ', Core\Bytes::length($frame), " octets in, 16384 out\n";
 
 // The fourth argument sets a lower ratio for one call. At `2`, this input is

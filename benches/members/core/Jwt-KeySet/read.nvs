@@ -3,15 +3,17 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Core\Crypto\KeyPair $first = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
         Core\Crypto\KeyPair $second = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
         string $a = Core\Encoding::decodeText($first->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk), Core\Charset::Utf8);
         string $b = Core\Encoding::decodeText($second->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk), Core\Charset::Utf8);
         array<string> $documents = [
-            "{\"keys\":[" . Core\Str::replace($a, "{", "{\"kid\":\"a\",") . "," . Core\Str::replace($b, "{", "{\"kid\":\"b\",") . "]}",
-            "{\"keys\":[" . Core\Str::replace($b, "{", "{\"kid\":\"c\",") . "," . Core\Str::replace($a, "{", "{\"kid\":\"d\",") . "]}",
+            "{\"keys\":[" . Core\Str::replace($a, '{', "{\"kid\":\"a\",") . ',' . Core\Str::replace($b, '{', "{\"kid\":\"b\",") . ']}',
+            "{\"keys\":[" . Core\Str::replace($b, '{', "{\"kid\":\"c\",") . ',' . Core\Str::replace($a, '{', "{\"kid\":\"d\",") . ']}',
         ];
         uint $total = 0;
         uint $i = 0;

@@ -5,19 +5,23 @@
 // bench: complexity linear
 
 #[Core\Json\Derive]
-class Price {
+class Price
+{
     public uint $cents;
     public string $currency;
 
-    public function constructor(uint $cents, string $currency) {
+    public function constructor(uint $cents, string $currency)
+    {
         $this->cents = $cents;
         $this->currency = $currency;
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $currencies = ["EUR", "USD", "GBP"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $currencies = ['EUR', 'USD', 'GBP'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

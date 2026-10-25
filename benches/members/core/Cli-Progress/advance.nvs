@@ -6,8 +6,10 @@
 // bench: allocations 3
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         return Core\Cli::progress($rounds, fn(Core\Cli\Progress $bar): uint => {
             uint $total = 0;
             uint $i = 0;
@@ -15,7 +17,7 @@ class Bench {
                 // The step of each round is the round before it, so no round
                 // can be left out.
                 uint $by = ($total % 3) + 1;
-                $bar->advance({by: $by});
+                $bar->advance({ by: $by });
                 $total = $total + $by;
                 $i = $i + 1;
             }

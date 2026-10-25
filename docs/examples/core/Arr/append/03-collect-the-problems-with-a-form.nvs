@@ -2,15 +2,15 @@
 // Shows how a program collects the problems with a form before it answers.
 // Each check that fails adds one message to the list.
 
-array<string> $form = ["name" => "", "email" => "kim.example.com"];
+array<string> $form = ['name' => '', 'email' => 'kim.example.com'];
 array<string> $problems = [];
 
-if ($form["name"] == "") {
-    $problems = Core\Arr::append($problems, "Please enter your name.");
+if ($form['name'] == '') {
+    $problems = Core\Arr::append($problems, 'Please enter your name.');
 }
 
-if (!Core\Str::contains($form["email"], "@")) {
-    $problems = Core\Arr::append($problems, "Please enter a valid email address.");
+if (!Core\Str::contains($form['email'], '@')) {
+    $problems = Core\Arr::append($problems, 'Please enter a valid email address.');
 }
 
 // Both checks failed, so this prints both messages.

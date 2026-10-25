@@ -5,11 +5,11 @@
 
 // `$apiKey` is a `secret` variable. The editor blurs its string when the file opens.
 // Hover the string and click `Reveal` to read it. `nvs.secrets.redact` turns the blur off.
-secret string $apiKey = "sk-live-not-a-real-key";
+secret string $apiKey = 'sk-live-not-a-real-key';
 
 // A `tainted` variable has a value from outside the program that is not checked yet.
 // The editor does not hide it. Set `nvs.taint.mark` to `declaration` to show a symbol after the name.
-tainted string $query = "shoes";
+tainted string $query = 'shoes';
 
 // The extension colours `final`, `class` and the string in `line` as soon as the file opens.
 // Then `nvs lsp` tells it that `Receipt` is a class and `$cents` is a property.
@@ -21,7 +21,7 @@ final class Receipt
     // so you do not install any extra files.
     public function line(): string
     {
-        return Core\Str::format("%d cents", $this->cents);
+        return Core\Str::format('%d cents', $this->cents);
     }
 }
 

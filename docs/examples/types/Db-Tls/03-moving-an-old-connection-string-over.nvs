@@ -3,31 +3,34 @@
 // This program converts each `sslmode` to a `Core\Db::Tls` mode. Then it prints
 // how much each old connection checked.
 
-class SslMode {
-    public static function meaning(string $sslmode): Core\Db::Tls {
+class SslMode
+{
+    public static function meaning(string $sslmode): Core\Db::Tls
+    {
         return match ($sslmode) {
-            "disable" => Core\Db::Tls::Disabled,
+            'disable' => Core\Db::Tls::Disabled,
             // "prefer" encrypts only when the server supports it. Otherwise it
             // connects without encryption, so it converts to `Disabled`.
-            "prefer" => Core\Db::Tls::Disabled,
-            "require" => Core\Db::Tls::Required,
-            "verify-ca" => Core\Db::Tls::VerifyCa,
+            'prefer' => Core\Db::Tls::Disabled,
+            'require' => Core\Db::Tls::Required,
+            'verify-ca' => Core\Db::Tls::VerifyCa,
             default => Core\Db::Tls::VerifyFull,
         };
     }
 
-    public static function carriesOver(Core\Db::Tls $mode): string {
+    public static function carriesOver(Core\Db::Tls $mode): string
+    {
         return match ($mode) {
-            Core\Db::Tls::Disabled => "may have been sending the password in the clear",
-            Core\Db::Tls::Required => "was encrypted, but would have taken any certificate at all",
-            Core\Db::Tls::VerifyCa => "checked the certificate, but not that it was issued for this host",
-            Core\Db::Tls::VerifyFull => "carries over exactly as it is",
+            Core\Db::Tls::Disabled => 'may have been sending the password in the clear',
+            Core\Db::Tls::Required => 'was encrypted, but would have taken any certificate at all',
+            Core\Db::Tls::VerifyCa => 'checked the certificate, but not that it was issued for this host',
+            Core\Db::Tls::VerifyFull => 'carries over exactly as it is',
         };
     }
 }
 
-array<string> $found = ["prefer", "require", "verify-ca", "verify-full"];
+array<string> $found = ['prefer', 'require', 'verify-ca', 'verify-full'];
 
 foreach ($found as string $sslmode) {
-    echo "sslmode=", $sslmode, ": ", SslMode::carriesOver(SslMode::meaning($sslmode)), "\n";
+    echo 'sslmode=', $sslmode, ': ', SslMode::carriesOver(SslMode::meaning($sslmode)), "\n";
 }

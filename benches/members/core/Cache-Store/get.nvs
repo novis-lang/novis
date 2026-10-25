@@ -5,16 +5,18 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $store = Core\Cache::memory();
-        $store->put("row", 1);
+        $store->put('row', 1);
 
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Every round adds what it read, so no round can be left out.
-            $total = $total + ($store->get("row") as uint);
+            $total = $total + ($store->get('row') as uint);
             $i = $i + 1;
         }
         return $total;

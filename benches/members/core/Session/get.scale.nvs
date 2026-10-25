@@ -8,11 +8,11 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        Core\Session::set("cart", Core\Str::repeat('a', $size));
+        Core\Session::set('cart', Core\Str::repeat('a', $size));
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            $total = $total + (Core\Session::get("user") as uint);
+            $total = $total + (Core\Session::get('user') as uint);
             $i = $i + 1;
         }
         return $total;
@@ -20,5 +20,5 @@ class Bench
 }
 
 Core\Session::start();
-Core\Session::set("user", 17);
+Core\Session::set('user', 17);
 echo Bench::run(256), "\n";

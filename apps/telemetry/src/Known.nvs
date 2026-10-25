@@ -6,22 +6,26 @@ use Core\Regex;
 use LogicError;
 
 // The values a report may name, read from `known.toml`.
-final class Known {
+final class Known
+{
     public function constructor(
         public readonly array<string> $os,
         public readonly array<string> $arch,
         public readonly array<string> $commands,
-    ) {}
+    )
+    {}
 
     // Reads `known.toml` from the folder of the app.
-    public static function load(): Known {
-        string $text = IO::read("../known.toml");
-        return new Known(Known::list($text, "os"), Known::list($text, "arch"), Known::list($text, "commands"));
+    public static function load(): Known
+    {
+        string $text = IO::read('../known.toml');
+        return new Known(Known::list($text, 'os'), Known::list($text, 'arch'), Known::list($text, 'commands'));
     }
 
     // Returns the entry of `$list` that is equal to `$value`. If there is none, the result is `null`.
     // The result is the text from `known.toml`, so it is not tainted.
-    public static function find(array<string> $list, tainted string $value): ?string {
+    public static function find(array<string> $list, tainted string $value): ?string
+    {
         foreach ($list as string $entry) {
             if ($entry == $value) {
                 return $entry;
@@ -31,14 +35,15 @@ final class Known {
     }
 
     // Returns the strings in the list `$key = [...]` of `$text`.
-    private static function list(string $text, string $key): array<string> {
-        var $block = Regex::match($text, "(?m)^" . $key . "\\s*=\\s*\\[([^\\]]*)\\]");
+    private static function list(string $text, string $key): array<string>
+    {
+        var $block = Regex::match($text, '(?m)^' . $key . "\\s*=\\s*\\[([^\\]]*)\\]");
         if ($block == null) {
-            throw new LogicError("known.toml has no list `" . $key . "`.");
+            throw new LogicError('known.toml has no list `' . $key . '`.');
         }
         array<string> $values = [];
-        foreach (Regex::matchAll($block->group(1) ?? "", "\"([^\"]*)\"") as Core\Regex\Match $value) {
-            $values[] = $value->group(1) ?? "";
+        foreach (Regex::matchAll($block->group(1) ?? '', "\"([^\"]*)\"") as Core\Regex\Match $value) {
+            $values[] = $value->group(1) ?? '';
         }
         return $values;
     }

@@ -3,20 +3,22 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $keys = ["bench-put-a.bin", "bench-put-b.bin", "bench-put-c.bin"];
-        array<bytes> $contents = ["small picture" as bytes, "a larger picture" as bytes];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $keys = ['bench-put-a.bin', 'bench-put-b.bin', 'bench-put-c.bin'];
+        array<bytes> $contents = ['small picture' as bytes, 'a larger picture' as bytes];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             bytes $picture = $contents[($total % 2) as int];
-            Core\Storage::put("bench", $keys[($total % 3) as int], $picture);
+            Core\Storage::put('bench', $keys[($total % 3) as int], $picture);
             $total = $total + Core\Bytes::length($picture);
             $i = $i + 1;
         }
         foreach ($keys as string $key) {
-            Core\Storage::delete("bench", $key);
+            Core\Storage::delete('bench', $key);
         }
         return $total;
     }

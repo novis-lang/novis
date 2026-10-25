@@ -1,13 +1,16 @@
 <?nvs
 // Shows how to replace a clock with a test double, so that the time is always the same.
 
-interface Clock {
+interface Clock
+{
     public function hour(): int;
 }
 
-class Greeting {
-    public static function forNow(Clock $clock): string {
-        return $clock->hour() < 12 ? "Good morning" : "Good afternoon";
+class Greeting
+{
+    public static function forNow(Clock $clock): string
+    {
+        return $clock->hour() < 12 ? 'Good morning' : 'Good afternoon';
     }
 }
 

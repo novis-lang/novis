@@ -2,25 +2,25 @@
 // Shows how to give a person a clear reason why they cannot log in.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 array<string> $dns = [
-    "CN=Anna Berg,OU=Company,DC=example,DC=test",
-    "CN=Dora Lind,OU=Company,DC=example,DC=test",
+    'CN=Anna Berg,OU=Company,DC=example,DC=test',
+    'CN=Dora Lind,OU=Company,DC=example,DC=test',
 ];
 
 foreach ($dns as string $dn) {
-    var $person = $corp->read($dn, {select: ["userAccountControl"]});
+    var $person = $corp->read($dn, { select: ['userAccountControl'] });
     var $flags = $person?->accountFlags();
     if ($person == null || $flags == null) {
         continue;
     }
-    string $reason = "can log in";
+    string $reason = 'can log in';
     if ($flags->lockedOut()) {
-        $reason = "locked out, try again later";
+        $reason = 'locked out, try again later';
     }
     if ($flags->disabled()) {
-        $reason = "disabled";
+        $reason = 'disabled';
     }
     // This prints `Anna Berg: can log in` and `Dora Lind: disabled`.
-    echo $person->dn()->rdnValue(), ": ", $reason, "\n";
+    echo $person->dn()->rdnValue(), ': ', $reason, "\n";
 }

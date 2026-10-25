@@ -9,20 +9,25 @@
 // key a run has — the expected text — so the pair is also what proves the join
 // is narrowed by the method the call is written in.
 
-class Report {
-    public static function summary(): string {
+class Report
+{
+    public static function summary(): string
+    {
         return "Users: 3\nActive: 2";
     }
 }
 
-class Snapshots {
+class Snapshots
+{
     #[Core\Test]
-    public function itRendersTheSummary(): void {
+    public function itRendersTheSummary(): void
+    {
         Core\Test::assertMatchesInline(Report::summary(), '');
     }
 
     #[Core\Test]
-    public function itCountsTheActiveOnes(): void {
+    public function itCountsTheActiveOnes(): void
+    {
         Core\Test::assertMatchesInline(2, '');
     }
 }

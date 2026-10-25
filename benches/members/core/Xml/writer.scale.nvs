@@ -13,9 +13,9 @@ class Bench
         while ($i < 64) {
             Core\Xml\Writer $out = Core\Xml::writer();
             $out->startDocument();
-            $out->startElement("order");
-            $out->attribute("id", $i as string);
-            $out->startElement("customer");
+            $out->startElement('order');
+            $out->attribute('id', $i as string);
+            $out->startElement('customer');
             $out->content($customer);
             $out->endElement();
             $out->endElement();

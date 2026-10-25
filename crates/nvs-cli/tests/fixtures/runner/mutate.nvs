@@ -5,16 +5,20 @@
 // `crates/nvs-cli/src/runner/mutation.rs`'s own tests are the only reader of this file.
 use Core\Test;
 
-final class Counter {
-    public static function atLeast(int $value, int $floor): bool {
+final class Counter
+{
+    public static function atLeast(int $value, int $floor): bool
+    {
         return $value >= $floor; // survives
     }
 
-    public static function sum(int $a, int $b): int {
+    public static function sum(int $a, int $b): int
+    {
         return $a + $b; // killed
     }
 
-    public static function countTo(int $n): int {
+    public static function countTo(int $n): int
+    {
         var $i = 0;
         while ($i < $n) {
             $i = $i + 1; // times out
@@ -22,24 +26,29 @@ final class Counter {
         return $i;
     }
 
-    public static function previous(int $a): int {
+    public static function previous(int $a): int
+    {
         return $a - 1; // not reached
     }
 }
 
-final class CounterTest {
+final class CounterTest
+{
     #[Test]
-    public function itComparesFarFromTheBoundary(): void {
+    public function itComparesFarFromTheBoundary(): void
+    {
         Test::assertTrue(Counter::atLeast(10, 3));
     }
 
     #[Test]
-    public function itAdds(): void {
+    public function itAdds(): void
+    {
         Test::assertSame(Counter::sum(2, 3), 5);
     }
 
     #[Test]
-    public function itCounts(): void {
+    public function itCounts(): void
+    {
         Test::assertSame(Counter::countTo(3), 3);
     }
 }

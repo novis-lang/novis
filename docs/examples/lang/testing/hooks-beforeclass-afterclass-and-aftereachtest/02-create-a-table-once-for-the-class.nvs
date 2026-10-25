@@ -7,42 +7,48 @@ use Core\Test;
 use Core\Test\AfterClass;
 use Core\Test\BeforeClass;
 
-class Seed {
+class Seed
+{
     // This builds one `insert` statement for many products.
-    public static function insertProducts(array<string> $names): string {
-        string $values = "";
+    public static function insertProducts(array<string> $names): string
+    {
+        string $values = '';
         foreach ($names as string $name) {
-            if ($values != "") {
-                $values = $values . ", ";
+            if ($values != '') {
+                $values = $values . ', ';
             }
             $values = $values . "('" . $name . "')";
         }
-        return "insert into products (name) values " . $values;
+        return 'insert into products (name) values ' . $values;
     }
 }
 
-class ProductTest {
+class ProductTest
+{
     // The table is outside every test, so a hook creates it one time.
     #[BeforeClass]
-    public static function createTable(): void {
-        var $db = Db::connect("test");
-        $db->execute("create table products (name text)", []);
-        $db->execute(Seed::insertProducts(["tea", "cake"]), []);
+    public static function createTable(): void
+    {
+        var $db = Db::connect('test');
+        $db->execute('create table products (name text)', []);
+        $db->execute(Seed::insertProducts(['tea', 'cake']), []);
     }
 
     // `db: "test"` undoes what the test writes, so every test sees two rows.
-    #[Test(db: "test")]
-    public function itFindsTheSeededProducts(): void {
-        var $rows = Db::connect("test")->query("select name from products", []);
+    #[Test(db: 'test')]
+    public function itFindsTheSeededProducts(): void
+    {
+        var $rows = Db::connect('test')->query('select name from products', []);
         Test::assertCount($rows->all(), 2);
     }
 
     // This runs after the last test, also when a test failed.
     #[AfterClass]
-    public static function dropTable(): void {
-        Db::connect("test")->execute("drop table products", []);
+    public static function dropTable(): void
+    {
+        Db::connect('test')->execute('drop table products', []);
     }
 }
 
 // This prints the statement `createTable` runs.
-echo Seed::insertProducts(["tea", "cake"]), "\n";
+echo Seed::insertProducts(['tea', 'cake']), "\n";

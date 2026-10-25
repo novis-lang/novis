@@ -4,18 +4,22 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Customer {
-    public string $name = "";
+class Customer
+{
+    public string $name = '';
 }
 
-class Order {
+class Order
+{
     public int $total = 0;
     public ?Customer $customer = null;
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<propertyPath<Order>> $paths = ["total" as propertyPath<Order>, "customer.name" as propertyPath<Order>];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<propertyPath<Order>> $paths = ['total' as propertyPath<Order>, 'customer.name' as propertyPath<Order>];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

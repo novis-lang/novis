@@ -3,10 +3,11 @@
 // `Tag` attributes, so this program does not compile. Use `all` instead.
 // proof: compile-error
 
-type Tag = {label: string};
+type Tag = { label: string };
 
-#[Tag(label: "fast")]
-#[Tag(label: "safe")]
-class Engine {}
+#[Tag(label: 'fast')]
+#[Tag(label: 'safe')]
+class Engine
+{}
 
 ?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor(...));

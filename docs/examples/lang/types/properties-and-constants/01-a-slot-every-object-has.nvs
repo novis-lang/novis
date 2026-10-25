@@ -6,7 +6,7 @@
 class Ticket
 {
     public string $subject;
-    public string $status = "open";
+    public string $status = 'open';
     public array<string> $labels = [];
     public ?string $assignee = null;
 
@@ -16,16 +16,16 @@ class Ticket
     }
 }
 
-Ticket $first = new Ticket("printer is jammed");
+Ticket $first = new Ticket('printer is jammed');
 
-echo $first->subject, " [", $first->status, "]\n";
-echo "labels: ", Core\Arr::count($first->labels), ", assignee: ", $first->assignee ?? "nobody", "\n";
+echo $first->subject, ' [', $first->status, "]\n";
+echo 'labels: ', Core\Arr::count($first->labels), ', assignee: ', $first->assignee ?? 'nobody', "\n";
 
 // Each object has its own properties. Changing `$second` does not change `$first`.
-Ticket $second = new Ticket("badge reader is offline");
-$second->status = "waiting";
-$second->labels = ["hardware"];
-$second->assignee = "Ada";
+Ticket $second = new Ticket('badge reader is offline');
+$second->status = 'waiting';
+$second->labels = ['hardware'];
+$second->assignee = 'Ada';
 
-echo $second->subject, " [", $second->status, "] ", Core\Str::join($second->labels, ", "), " -> ", $second->assignee ?? "nobody", "\n";
-echo $first->subject, " [", $first->status, "]\n";
+echo $second->subject, ' [', $second->status, '] ', Core\Str::join($second->labels, ', '), ' -> ', $second->assignee ?? 'nobody', "\n";
+echo $first->subject, ' [', $first->status, "]\n";

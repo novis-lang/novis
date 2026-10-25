@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table tasks (title text not null, due date not null)', []);
 $db->execute(
     'insert into tasks (title, due) values (?, ?), (?, ?), (?, ?)',
-    ['call Ana', '2026-01-19', 'pay the rent', '2026-02-01', 'book the train', '2026-03-08']
+    ['call Ana', '2026-01-19', 'pay the rent', '2026-02-01', 'book the train', '2026-03-08'],
 );
 
 var $today = Core\Time\Date::at(2026, 2, 1);

@@ -6,26 +6,28 @@ use Novis\Spreadsheet\Formula;
 use Novis\Spreadsheet\Template;
 use Novis\Spreadsheet\Workbook;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $design = Workbook::createInMemory();
-        $design->sheet("Invoice")->addAll([
-            ["Invoice {{number}}", "{{customer}}"],
-            ["Item", "Qty", "Price", "Total"],
-            ["{{items.name}}", "{{items.qty}}", "{{items.price}}", Formula::of("B3*C3")],
-            ["Sum", null, null, Formula::of("SUM(D3:D3)")],
+        $design->sheet('Invoice')->addAll([
+            ['Invoice {{number}}', '{{customer}}'],
+            ['Item', 'Qty', 'Price', 'Total'],
+            ['{{items.name}}', '{{items.qty}}', '{{items.price}}', Formula::of('B3*C3')],
+            ['Sum', null, null, Formula::of('SUM(D3:D3)')],
         ]);
         bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
         array<array<mixed>> $items = [];
         uint $n = 1;
         while ($n <= 100) {
-            $items[] = ["name" => "Item " . ($n as string), "qty" => $n % 5 + 1, "price" => ($n as float) * 1.25];
+            $items[] = ['name' => 'Item ' . ($n as string), 'qty' => $n % 5 + 1, 'price' => ($n as float) * 1.25];
             $n = $n + 1;
         }
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            array<mixed> $data = ["number" => $i, "customer" => "Shop", "items" => $items];
+            array<mixed> $data = ['number' => $i, 'customer' => 'Shop', 'items' => $items];
             uint $size = Core\Bytes::length(Template::open($template)->fill($data)->bytes());
             uint $step = $size > 0 ? 1 : 3;
             $total = $total + $step;

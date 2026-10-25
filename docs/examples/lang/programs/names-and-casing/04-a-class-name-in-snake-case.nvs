@@ -3,7 +3,8 @@
 // does not compile. The message gives the name to write instead.
 // proof: compile-error
 
-class order_line {
+class order_line
+{
     public int $quantity = 1;
 }
 

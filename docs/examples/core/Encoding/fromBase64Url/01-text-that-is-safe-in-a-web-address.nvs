@@ -3,7 +3,7 @@
 // bytes come back.
 
 // A short text whose characters all need care in a web address.
-bytes $raw = Core\Encoding::encodeText("~hello?world/ok+fine~", Core\Charset::Utf8);
+bytes $raw = Core\Encoding::encodeText('~hello?world/ok+fine~', Core\Charset::Utf8);
 
 // `Core\Encoding::toBase64Url` writes the text. This prints
 // fmhlbGxvP3dvcmxkL29rK2ZpbmV-, which a web address carries unchanged.
@@ -15,4 +15,4 @@ echo $written, "\n";
 echo Core\Encoding::decodeText(Core\Encoding::fromBase64Url($written), Core\Charset::Utf8), "\n";
 
 // The empty string gives an empty buffer. This prints 0.
-echo Core\Bytes::length(Core\Encoding::fromBase64Url("")), "\n";
+echo Core\Bytes::length(Core\Encoding::fromBase64Url('')), "\n";

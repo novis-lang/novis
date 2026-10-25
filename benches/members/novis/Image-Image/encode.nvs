@@ -1,14 +1,16 @@
 <?nvs
+use Novis\Image\Color;
+use Novis\Image\Format;
 // Runs a short pipeline on a small PNG and writes the file, as a program does for each image it serves.
 // bench: iterations 256
 // bench: complexity constant
 use Novis\Image\Image;
-use Novis\Image\Color;
-use Novis\Image\Format;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        bytes $png = Image::create(4, 4, Color::hex("#336699"))->format(Format::Png)->encode();
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        bytes $png = Image::create(4, 4, Color::hex('#336699'))->format(Format::Png)->encode();
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

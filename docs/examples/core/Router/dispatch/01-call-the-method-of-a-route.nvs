@@ -4,33 +4,40 @@
 use Core\Http\Method;
 use Core\Router\Refusal;
 
-class Books {
-    #[Core\Route(path: "/books", method: Core\Http\Method::Get, name: "Books::list")]
+class Books
+{
+    #[Core\Route(path: '/books', method: Core\Http\Method::Get, name: 'Books::list')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function list(): void {
-        echo "all books";
+    public function list(): void
+    {
+        echo 'all books';
     }
 
     // The value of `{id}` in the path goes to the parameter `$id`.
-    #[Core\Route(path: "/books/{id}", method: Core\Http\Method::Get, name: "Books::show")]
+    #[Core\Route(path: '/books/{id}', method: Core\Http\Method::Get, name: 'Books::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(uint $id): void {
-        echo "book ", $id;
+    public function show(uint $id): void
+    {
+        echo 'book ', $id;
     }
 }
 
 // The gate checks each request before a route method runs, and it writes the error pages.
-class Gate implements Core\Router\Gate {
-    public function allows(Core\Router\Match $route): bool {
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
         return true;
     }
 
-    public function refused(Refusal $reason, ?Core\Router\Match $route): void {
-        echo "no page here";
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'no page here';
     }
 
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
-        echo "something went wrong";
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'something went wrong';
     }
 }
 
@@ -39,10 +46,10 @@ if (Core\Env::context() == Core\Env::Context::Request) {
 } else {
     // From the command line, this part sends three requests. It needs no server.
     // This prints `200 all books`, then `200 book 7`, then `404 no page here`.
-    var $list = Core\Test::request(Method::Get, "/books");
-    echo $list->status(), " ", $list->body(), "\n";
-    var $one = Core\Test::request(Method::Get, "/books/7");
-    echo $one->status(), " ", $one->body(), "\n";
-    var $missing = Core\Test::request(Method::Get, "/films");
-    echo $missing->status(), " ", $missing->body(), "\n";
+    var $list = Core\Test::request(Method::Get, '/books');
+    echo $list->status(), ' ', $list->body(), "\n";
+    var $one = Core\Test::request(Method::Get, '/books/7');
+    echo $one->status(), ' ', $one->body(), "\n";
+    var $missing = Core\Test::request(Method::Get, '/films');
+    echo $missing->status(), ' ', $missing->body(), "\n";
 }

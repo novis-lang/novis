@@ -3,9 +3,9 @@
 // undone, and skips a step the person says no to. There is no terminal here, so
 // every answer is the default.
 
-bool $migrate = Core\Cli::confirm("Run the database migrations?", {default: true});
-bool $restart = Core\Cli::confirm("Restart the web server?", {default: true});
-bool $drop = Core\Cli::confirm("Delete the orders_2019 table for good?", {default: false});
+bool $migrate = Core\Cli::confirm('Run the database migrations?', { default: true });
+bool $restart = Core\Cli::confirm('Restart the web server?', { default: true });
+bool $drop = Core\Cli::confirm('Delete the orders_2019 table for good?', { default: false });
 
 echo "deploying\n";
 

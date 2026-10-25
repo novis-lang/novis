@@ -3,8 +3,10 @@
 // program writes it after `new`, so it does not compile.
 // proof: compile-error
 
-class Id {
-    public function constructor(public readonly int $value) {}
+class Id
+{
+    public function constructor(public readonly int $value)
+    {}
 }
 
 var $id = new Id(1);

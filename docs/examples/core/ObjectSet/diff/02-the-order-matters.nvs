@@ -1,17 +1,19 @@
 <?nvs
 // Shows that `$a->diff($b)` and `$b->diff($a)` give different results.
 
-final class Tag {
+final class Tag
+{
     public string $name;
 
-    public function constructor(string $name) {
+    public function constructor(string $name)
+    {
         $this->name = $name;
     }
 }
 
-Tag $red = new Tag("red");
-Tag $blue = new Tag("blue");
-Tag $green = new Tag("green");
+Tag $red = new Tag('red');
+Tag $blue = new Tag('blue');
+Tag $green = new Tag('green');
 
 Core\ObjectSet<Tag> $before = new Core\ObjectSet<Tag>();
 $before->add($red);
@@ -23,10 +25,10 @@ $after->add($green);
 
 // The tags that were removed. This prints "Removed red".
 foreach ($before->diff($after) as Tag $tag) {
-    echo "Removed ", $tag->name, "\n";
+    echo 'Removed ', $tag->name, "\n";
 }
 
 // The tags that were added. This prints "Added green".
 foreach ($after->diff($before) as Tag $tag) {
-    echo "Added ", $tag->name, "\n";
+    echo 'Added ', $tag->name, "\n";
 }

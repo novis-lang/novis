@@ -1,11 +1,13 @@
 <?nvs
 // Shows how a timer on a page shows only the whole seconds that have passed.
 
-class Timer {
+class Timer
+{
     // Returns the seconds as text, without the fractional part.
-    public static function label(float $seconds): string {
+    public static function label(float $seconds): string
+    {
         int $whole = Core\Math::truncate($seconds) as int;
-        return $whole . " s";
+        return $whole . ' s';
     }
 }
 

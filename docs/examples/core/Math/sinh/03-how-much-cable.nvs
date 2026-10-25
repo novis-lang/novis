@@ -1,11 +1,13 @@
 <?nvs
 // Shows how a planning tool finds how much cable it needs between two poles.
 
-class Cable {
+class Cable
+{
     // `$tension` is a number for how tight the cable is. A bigger number means a tighter cable.
-    public static function length(float $span, float $tension): float {
+    public static function length(float $span, float $tension): float
+    {
         float $meters = 2.0 * $tension * Core\Math::sinh($span / (2.0 * $tension));
-        return Core\Math::round($meters, {precision: 2});
+        return Core\Math::round($meters, { precision: 2 });
     }
 }
 

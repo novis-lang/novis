@@ -17,4 +17,4 @@ while ($job < $jobs) {
 
 // With one core, core 0 gets all 10 jobs. With more cores, it gets fewer, but
 // never 0. This prints `yes`.
-echo $onFirstCore >= 1 && $onFirstCore <= 10 ? "yes" : "no", "\n";
+echo $onFirstCore >= 1 && $onFirstCore <= 10 ? 'yes' : 'no', "\n";

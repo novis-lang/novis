@@ -1,46 +1,53 @@
 <?nvs
 // Shows property paths that go from an order to its customer, its address and its lines.
 
-class Address {
-    public string $city = "Graz";
+class Address
+{
+    public string $city = 'Graz';
 }
 
-class Customer {
-    public string $name = "Ada";
+class Customer
+{
+    public string $name = 'Ada';
     public ?Address $address = null;
 }
 
-class Line {
-    public string $sku = "p-1";
+class Line
+{
+    public string $sku = 'p-1';
     public int $quantity = 1;
 }
 
-class Order {
+class Order
+{
     public Customer $customer;
     public array<Line> $lines = [];
     public int $total = 40;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->customer = new Customer();
     }
 }
 
-class Report {
+class Report
+{
     // The parameter type `propertyPath<Order>` accepts a path that starts at `Order`.
     // A string written in the call is checked when the program compiles.
-    public static function sortBy(propertyPath<Order> $path): string {
-        return "sorted by " . ($path as string);
+    public static function sortBy(propertyPath<Order> $path): string
+    {
+        return 'sorted by ' . ($path as string);
     }
 }
 
 // `customer` is a `Customer`, so `name` is a property of `Customer`.
-echo Report::sortBy("customer.name"), "\n";
+echo Report::sortBy('customer.name'), "\n";
 
 // `address` is a `?Address`. A path can go through a nullable object.
-echo Report::sortBy("customer.address.city"), "\n";
+echo Report::sortBy('customer.address.city'), "\n";
 
 // `lines` is an `array<Line>`. A path can go through an array of objects.
-echo Report::sortBy("lines.sku"), "\n";
+echo Report::sortBy('lines.sku'), "\n";
 
 // One name is a path too.
-echo Report::sortBy("total"), "\n";
+echo Report::sortBy('total'), "\n";

@@ -5,28 +5,32 @@
 use Core\Test;
 use Core\Test\TestWith;
 
-class Band {
-    public static function of(uint $orders): string {
+class Band
+{
+    public static function of(uint $orders): string
+    {
         if ($orders >= 100) {
-            return "gold";
+            return 'gold';
         }
         if ($orders >= 10) {
-            return "silver";
+            return 'silver';
         }
-        return "bronze";
+        return 'bronze';
     }
 }
 
-class BandTest {
+class BandTest
+{
     // Each field of a row names one parameter below. The values are constants.
-    #[TestWith(orders: 0, want: "bronze")]
-    #[TestWith(orders: 10, want: "silver")]
-    #[TestWith(orders: 100, want: "gold")]
+    #[TestWith(orders: 0, want: 'bronze')]
+    #[TestWith(orders: 10, want: 'silver')]
+    #[TestWith(orders: 100, want: 'gold')]
     #[Test]
-    public function itNamesTheBandOfAnOrderCount(uint $orders, string $want): void {
+    public function itNamesTheBandOfAnOrderCount(uint $orders, string $want): void
+    {
         Test::assertSame(Band::of($orders), $want);
     }
 }
 
 // This prints `bronze silver gold`.
-echo Band::of(0), " ", Band::of(10), " ", Band::of(100), "\n";
+echo Band::of(0), ' ', Band::of(10), ' ', Band::of(100), "\n";

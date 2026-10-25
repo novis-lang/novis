@@ -3,6 +3,6 @@
 // proof: compile-error
 
 int $quantity = 1;
-if ($quantity == "1") {
+if ($quantity == '1') {
     echo "one item\n";
 }

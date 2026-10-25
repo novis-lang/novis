@@ -11,7 +11,7 @@ foreach (Core\Str::lines($order) as var $line) {
         continue;
     }
     $count++;
-    echo $count, ". ", $line, "\n";
+    echo $count, '. ', $line, "\n";
 }
 
 // The empty line is skipped, so this prints 3.

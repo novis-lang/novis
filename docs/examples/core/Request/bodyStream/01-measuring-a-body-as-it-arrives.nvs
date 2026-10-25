@@ -10,4 +10,4 @@ foreach (Core\Request::bodyStream() as tainted bytes $chunk) {
 }
 
 // The body is 48 bytes long, so this prints `received 48 bytes`.
-echo "received ", $total, " bytes\n";
+echo 'received ', $total, " bytes\n";

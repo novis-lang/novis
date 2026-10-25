@@ -2,7 +2,7 @@
 // Shows a download that is complete only after `end()`.
 
 // The fourth argument, `$mustEnd`, is the name the error log uses if the program never calls `end()`.
-Core\Response\Stream $body = Core\Response::stream("text/csv", null, null, "orders.csv");
+Core\Response\Stream $body = Core\Response::stream('text/csv', null, null, 'orders.csv');
 $body->write("id,total\n");
 $body->write("1042,19.90\n");
 

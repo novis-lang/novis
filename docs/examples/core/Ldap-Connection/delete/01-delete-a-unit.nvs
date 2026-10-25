@@ -2,16 +2,16 @@
 // Shows how to delete an entry from the directory.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Old Projects 1,DC=example,DC=test";
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Old Projects 1,DC=example,DC=test';
 
 // The program adds the unit first, so it has something to delete.
 try {
-    $corp->add($unit, ["objectClass" => "organizationalUnit"]);
+    $corp->add($unit, ['objectClass' => 'organizationalUnit']);
 } catch (Core\Ldap\LdapError $exists) {
 }
 
 $corp->delete($unit);
 
 // `read` returns `null` for an entry that is not there. This prints `deleted`.
-echo $corp->read($unit) == null ? "deleted" : "still there", "\n";
+echo $corp->read($unit) == null ? 'deleted' : 'still there', "\n";

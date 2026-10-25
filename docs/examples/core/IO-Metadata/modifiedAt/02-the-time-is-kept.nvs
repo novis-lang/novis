@@ -1,7 +1,7 @@
 <?nvs
 // Shows that `modifiedAt` returns the time from the moment `Core\IO::stat` was called.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "draft.txt");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'draft.txt');
 Core\IO::write($path, "first version\n");
 var $before = Core\IO::stat($path);
 Core\Time\Instant $first = $before->modifiedAt();
@@ -13,10 +13,10 @@ var $after = Core\IO::stat($path);
 
 // `$before` still has the old time. This prints "the old result did not change".
 if ($before->modifiedAt()->compareTo($first) == 0) {
-    echo "the old result did not change", "\n";
+    echo 'the old result did not change', "\n";
 }
 
 // A new `stat` has the new time. This prints "the new result is later".
 if ($after->modifiedAt()->compareTo($first) > 0) {
-    echo "the new result is later", "\n";
+    echo 'the new result is later', "\n";
 }

@@ -8,7 +8,7 @@ class Bench
     public static function run(uint $size): uint
     {
         string $message = Core\Str::repeat('Hello {name}! ', $size);
-        array<string> $values = ["{name}" => "Anna", "{order}" => "#1042"];
+        array<string> $values = ['{name}' => 'Anna', '{order}' => '#1042'];
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

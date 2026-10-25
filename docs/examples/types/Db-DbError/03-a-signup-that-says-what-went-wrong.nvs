@@ -7,14 +7,16 @@ use Core\Db;
 use Core\Db\Connection;
 use Core\Db\DbError;
 
-final class Signup {
-    public static function add(Connection $db, string $email): string {
+final class Signup
+{
+    public static function add(Connection $db, string $email): string
+    {
         try {
             $db->execute('insert into accounts (email) values (?)', [$email]);
-            return "welcome";
+            return 'welcome';
         } catch (DbError $refused) {
             if ($refused->kind == DbError::Kind::UniqueViolation) {
-                return "that address is already registered";
+                return 'that address is already registered';
             }
             throw $refused;
         }
@@ -24,7 +26,7 @@ final class Signup {
 var $db = Db::connect('schema');
 $db->execute('create table accounts (email text not null primary key)', []);
 
-echo Signup::add($db, "ada@example.test"), "\n";
-echo Signup::add($db, "ada@example.test"), "\n";
+echo Signup::add($db, 'ada@example.test'), "\n";
+echo Signup::add($db, 'ada@example.test'), "\n";
 
 $db->execute('drop table accounts', []);

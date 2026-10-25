@@ -6,25 +6,29 @@
 
 use Core\Test;
 
-final class ArithmeticTest {
+final class ArithmeticTest
+{
     // The report shows `✓` for this test.
     #[Test]
-    public function additionCommutes(): void {
+    public function additionCommutes(): void
+    {
         Test::assertSame(2 + 3, 3 + 2);
     }
 
     // The report shows `-` for this test, and prints the reason.
-    #[Test(skip: "division is not written yet")]
-    public function divisionRounds(): void {
+    #[Test(skip: 'division is not written yet')]
+    public function divisionRounds(): void
+    {
         Test::assertSame(7 / 2, 4.0);
     }
 
     // The report shows `✗` for this test, and prints both values.
     #[Test]
-    public function thisOneFails(): void {
+    public function thisOneFails(): void
+    {
         Test::assertSame(2 + 2, 5);
     }
 }
 
 // `nvs test` does not run this line.
-echo "this line runs only under nvs run", "\n";
+echo 'this line runs only under nvs run', "\n";

@@ -5,13 +5,15 @@
 // bench: complexity constant
 // requires: samba-ad
 
-class Bench {
-    public static function run(uint $rounds): int {
-        var $corp = Core\Ldap::connect("corp");
-        var $people = $corp->search(Core\Ldap\Filter::equals("objectClass", "user"), {
-            base: "OU=Company,DC=example,DC=test",
-            select: ["cn"],
-            sort: "cn",
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        var $corp = Core\Ldap::connect('corp');
+        var $people = $corp->search(Core\Ldap\Filter::equals('objectClass', 'user'), {
+            base: 'OU=Company,DC=example,DC=test',
+            select: ['cn'],
+            sort: 'cn',
             window: 2,
         });
         // Each round uses the sum so far, so the loop cannot be left out.

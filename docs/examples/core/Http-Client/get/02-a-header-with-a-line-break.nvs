@@ -8,7 +8,7 @@ string $name = "kim\nX-Admin: yes";
 // `headers` sets the headers of the request. This call throws a `RuntimeError`
 // before it sends anything.
 try {
-    var $profile = Core\Http\Client::get("https://203.0.113.10/profile", {headers: ["X-User" => $name]});
+    var $profile = Core\Http\Client::get('https://203.0.113.10/profile', { headers: ['X-User' => $name] });
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";
 }

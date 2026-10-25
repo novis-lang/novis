@@ -3,10 +3,10 @@
 // removed. A variable always has a value in Novis, so `unset($x)` does not
 // compile.
 
-array<int> $stock = ["apple" => 4, "pear" => 0, "plum" => 7, "fig" => 0];
+array<int> $stock = ['apple' => 4, 'pear' => 0, 'plum' => 7, 'fig' => 0];
 
 // One call removes several entries. This prints {"apple":4,"plum":7}
-unset($stock["pear"], $stock["fig"]);
+unset($stock['pear'], $stock['fig']);
 echo Core\Json::encode($stock), "\n";
 
 array<int> $counts = [10, 20, 30];

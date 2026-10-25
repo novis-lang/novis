@@ -8,7 +8,8 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table notes (id integer primary key, text text not null)', []);
 $db->execute('create table events (id integer primary key, what text not null)', []);
 
-class Audit {
+class Audit
+{
     // The parameter is a `Core\Db\Transaction`, so this function runs inside the
     // caller's transaction. Its own `transaction` call is one step of it.
     public static function record(Transaction $tx, string $what): void

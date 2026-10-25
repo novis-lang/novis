@@ -7,41 +7,47 @@ use Novis\Pdf\Reader;
 use ParseError;
 
 // Tests for the report. `Reader` cannot open an encrypted file, so most tests render the report without a password.
-final class ReportTest {
+final class ReportTest
+{
     #[Test]
-    public function theEncryptedReportCannotBeReadWithoutThePassword(): void {
+    public function theEncryptedReportCannotBeReadWithoutThePassword(): void
+    {
         bytes $pdf = Report::render(Report::password())->bytes;
         Test::assertThrows(fn (): void => { Reader::open($pdf); }, ParseError::class);
     }
 
     #[Test]
-    public function theContentsGiveThePageOfEachChapter(): void {
+    public function theContentsGiveThePageOfEachChapter(): void
+    {
         string $contents = Reader::open(Report::render(null)->bytes)->text(2);
-        Test::assertTrue(Str::contains($contents, "Summary of the quarter 3"));
-        Test::assertTrue(Str::contains($contents, "Revenue and orders 4"));
-        Test::assertTrue(Str::contains($contents, "Revenue by region 5"));
-        Test::assertTrue(Str::contains($contents, "Products 6"));
-        Test::assertTrue(Str::contains($contents, "Outlook for the fourth quarter 8"));
+        Test::assertTrue(Str::contains($contents, 'Summary of the quarter 3'));
+        Test::assertTrue(Str::contains($contents, 'Revenue and orders 4'));
+        Test::assertTrue(Str::contains($contents, 'Revenue by region 5'));
+        Test::assertTrue(Str::contains($contents, 'Products 6'));
+        Test::assertTrue(Str::contains($contents, 'Outlook for the fourth quarter 8'));
     }
 
     #[Test]
-    public function theHeaderShowsTheChapter(): void {
+    public function theHeaderShowsTheChapter(): void
+    {
         // Page 7 is the second page of the chapter "Products". Its header still shows that chapter.
         string $page = Reader::open(Report::render(null)->bytes)->text(7);
-        Test::assertTrue(Str::contains($page, "Quarterly report Q3 2026"));
-        Test::assertTrue(Str::contains($page, "Products"));
-        Test::assertTrue(Str::contains($page, "Page 7 of 8"));
+        Test::assertTrue(Str::contains($page, 'Quarterly report Q3 2026'));
+        Test::assertTrue(Str::contains($page, 'Products'));
+        Test::assertTrue(Str::contains($page, 'Page 7 of 8'));
     }
 
     #[Test]
-    public function theLongTableRepeatsItsHeader(): void {
+    public function theLongTableRepeatsItsHeader(): void
+    {
         var $reader = Reader::open(Report::render(null)->bytes);
-        Test::assertTrue(Str::contains($reader->text(6), "UNITS"));
-        Test::assertTrue(Str::contains($reader->text(7), "UNITS"));
+        Test::assertTrue(Str::contains($reader->text(6), 'UNITS'));
+        Test::assertTrue(Str::contains($reader->text(7), 'UNITS'));
     }
 
     #[Test]
-    public function nothingIsDroppedOrCutOff(): void {
+    public function nothingIsDroppedOrCutOff(): void
+    {
         var $rendered = Report::render(Report::password());
         Test::assertEquals($rendered->pageCount, 8);
         Test::assertCount($rendered->dropped, 0);

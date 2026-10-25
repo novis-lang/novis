@@ -5,8 +5,10 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -18,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) >= 0 ? "done" : "negative", "\n";
+echo Bench::run(256) >= 0 ? 'done' : 'negative', "\n";

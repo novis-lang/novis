@@ -4,15 +4,17 @@
 // bench: complexity constant
 use Novis\Image\QrCode;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $texts = ["Invoice 333", "Invoice 666666", "Invoice 999999999"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $texts = ['Invoice 333', 'Invoice 666666', 'Invoice 999999999'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             string $payment = QrCode::giroCode({
-                name: "Shop GmbH",
-                iban: "DE89 3704 0044 0532 0130 00",
+                name: 'Shop GmbH',
+                iban: 'DE89 3704 0044 0532 0130 00',
                 amount: 49.9,
                 text: $texts[($total % 3) as int],
             });

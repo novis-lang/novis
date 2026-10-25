@@ -3,13 +3,13 @@
 
 // Each order gets a product and a country. The seed is fixed, so a screenshot
 // or a test of the demo shop shows the same five orders every time.
-array<string> $products = ["Mug", "T-shirt", "Poster", "Notebook"];
-array<string> $countries = ["DE", "FR", "JP", "US"];
+array<string> $products = ['Mug', 'T-shirt', 'Poster', 'Notebook'];
+array<string> $countries = ['DE', 'FR', 'JP', 'US'];
 Core\Random\Seeded $generator = new Core\Random\Seeded(2024);
 int $order = 1;
 while ($order <= 5) {
-    string $product = $generator->pick($products) ?? "none";
-    string $country = $generator->pick($countries) ?? "none";
-    echo "order ", $order, ": ", $product, " to ", $country, "\n";
+    string $product = $generator->pick($products) ?? 'none';
+    string $country = $generator->pick($countries) ?? 'none';
+    echo 'order ', $order, ': ', $product, ' to ', $country, "\n";
     $order = $order + 1;
 }

@@ -9,7 +9,7 @@ if (Core\Request::isHead()) {
 
 // The request below uses `GET`, so `isHead` returns `false` and the page is built.
 // This prints three lines, one for each product.
-array<string> $products = ["Tea", "Coffee", "Cocoa"];
+array<string> $products = ['Tea', 'Coffee', 'Cocoa'];
 foreach ($products as string $product) {
-    echo "<li>", $product, "</li>\n";
+    echo '<li>', $product, "</li>\n";
 }

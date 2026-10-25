@@ -4,7 +4,7 @@
 string $line = "    total: 12  \r\n";
 
 // Only the end changes. This prints `[    total: 12]`.
-echo "[", Core\Str::trimEnd($line), "]\n";
+echo '[', Core\Str::trimEnd($line), "]\n";
 
 // A string of spaces only becomes the empty string. This prints `[]`.
-echo "[", Core\Str::trimEnd(" \n "), "]\n";
+echo '[', Core\Str::trimEnd(" \n "), "]\n";

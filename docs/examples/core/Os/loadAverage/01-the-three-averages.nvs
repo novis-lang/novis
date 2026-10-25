@@ -10,4 +10,4 @@ array<float> $load = Core\Os::loadAverage();
 echo Core\Arr::count($load), "\n";
 
 // A load average is never below 0. This prints `yes`.
-echo $load[0] >= 0.0 && $load[1] >= 0.0 && $load[2] >= 0.0 ? "yes" : "no", "\n";
+echo $load[0] >= 0.0 && $load[1] >= 0.0 && $load[2] >= 0.0 ? 'yes' : 'no', "\n";

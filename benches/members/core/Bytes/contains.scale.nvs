@@ -8,7 +8,7 @@ class Bench
     public static function run(uint $size): uint
     {
         bytes $message = Core\Bytes::fill($size, 97);
-        bytes $needle = "Cookie:" as bytes;
+        bytes $needle = 'Cookie:' as bytes;
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

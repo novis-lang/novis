@@ -6,14 +6,17 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Row;
 use Novis\Spreadsheet\Workbook;
 
-class Items {
-    public function constructor(private uint $size) {}
+class Items
+{
+    public function constructor(private uint $size)
+    {}
 
-    public function rows(): Iterator<array<mixed>> {
-        yield ["Item", "Name", "Price"];
+    public function rows(): Iterator<array<mixed>>
+    {
+        yield ['Item', 'Name', 'Price'];
         uint $n = 1;
         while ($n < $this->size) {
-            yield [$n, "Item", ($n as float) * 1.25];
+            yield [$n, 'Item', ($n as float) * 1.25];
             $n = $n + 1;
         }
     }
@@ -24,9 +27,9 @@ class Bench
     public static function run(uint $size): uint
     {
         var $items = new Items($size);
-        Reader $reader = Reader::open(Workbook::fromRows($items->rows(), {header: true})->bytes());
+        Reader $reader = Reader::open(Workbook::fromRows($items->rows(), { header: true })->bytes());
         uint $count = 0;
-        foreach ($reader->rows(0, {header: true}) as Row $row) {
+        foreach ($reader->rows(0, { header: true }) as Row $row) {
             $count = $count + 1;
         }
         return $count;

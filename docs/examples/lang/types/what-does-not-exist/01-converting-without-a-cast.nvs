@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to convert a value with `as`, and what happens when the value does not fit.
 
-mixed $answer = "42";
+mixed $answer = '42';
 
 // `as` converts a value to the type after it. Text from a `mixed` value is tainted.
 int $count = $answer as int;
@@ -14,5 +14,5 @@ float $price = 3.9;
 ?int $whole = $price as ?int;
 
 echo $count + 1, "\n";
-echo $label, " ", $share, "\n";
-echo $whole == null ? "3.9 is not a whole number" : "converted", "\n";
+echo $label, ' ', $share, "\n";
+echo $whole == null ? '3.9 is not a whole number' : 'converted', "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Shows a loop that starts and ends in code, with plain HTML in between.
 // The HTML is not written as strings inside the program.
-array<string> $products = ["pen", "ink", "paper"];
+array<string> $products = ['pen', 'ink', 'paper'];
 ?>
 <ul>
 <?nvs foreach ($products as string $name) { ?>

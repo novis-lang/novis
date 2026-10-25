@@ -4,12 +4,14 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Test\Response> $responses = [
-            Core\Test::request(Core\Http\Method::Get, "/ok"),
-            Core\Test::request(Core\Http\Method::Get, "/created"),
-            Core\Test::request(Core\Http\Method::Get, "/missing"),
+            Core\Test::request(Core\Http\Method::Get, '/ok'),
+            Core\Test::request(Core\Http\Method::Get, '/created'),
+            Core\Test::request(Core\Http\Method::Get, '/missing'),
         ];
         uint $total = 0;
         uint $i = 0;
@@ -24,10 +26,10 @@ class Bench {
 // Each request runs this file again. In that run, this part sets the status.
 if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
-    if ($path == "/created") {
+    if ($path == '/created') {
         Core\Response::setStatus(201);
     }
-    if ($path == "/missing") {
+    if ($path == '/missing') {
         Core\Response::setStatus(404);
     }
 } else {

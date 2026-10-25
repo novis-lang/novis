@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $lines = ["timeout=30", "name=shop", "retries=3"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $lines = ['timeout=30', 'name=shop', 'retries=3'];
         array<Core\Regex\Match> $found = [];
         foreach ($lines as string $line) {
             var $m = Core\Regex::match($line, '^(?<key>[a-z]+)=(?<value>\w+)(;)?$');

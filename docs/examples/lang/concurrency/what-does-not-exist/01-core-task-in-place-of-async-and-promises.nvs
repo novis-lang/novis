@@ -2,13 +2,16 @@
 // Shows the replacement for `async` and a promise. `Core\Task::all` takes a set of
 // functions, runs them at the same time, and returns all their results together.
 
-class Orders {
-    public static function total(): int {
+class Orders
+{
+    public static function total(): int
+    {
         return 3 + 4;
     }
 
-    public static function title(): string {
-        return "Orders";
+    public static function title(): string
+    {
+        return 'Orders';
     }
 }
 
@@ -17,9 +20,9 @@ class Orders {
 var $page = Core\Task::all({
     total: Orders::total(...),
     title: Orders::title(...),
-    note:  fn(): string => "ready",
+    note:  fn(): string => 'ready',
 });
 
 // The results are ready on this line. `Core\Task::all` returns only when every
 // function has finished. This prints Orders: 7 (ready).
-echo $page->title, ": ", $page->total, " (", $page->note, ")\n";
+echo $page->title, ': ', $page->total, ' (', $page->note, ")\n";

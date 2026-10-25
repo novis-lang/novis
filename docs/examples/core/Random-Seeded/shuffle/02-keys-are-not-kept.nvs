@@ -2,7 +2,7 @@
 // Shows that a shuffled array gets new keys, and what happens with an empty array.
 
 Core\Random\Seeded $generator = new Core\Random\Seeded(42);
-array<int> $stock = ["apples" => 4, "pears" => 5, "plums" => 6];
+array<int> $stock = ['apples' => 4, 'pears' => 5, 'plums' => 6];
 
 // The result is a list, so its keys are 0, 1 and 2. This prints ["0","1","2"].
 array<int> $shuffled = $generator->shuffle($stock);

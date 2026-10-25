@@ -1,8 +1,8 @@
 <?nvs
 // Shows each kind of condition that tests a value without `as bool`.
 
-array<string> $queue = ["ship order", "send receipt"];
-string $note = "";
+array<string> $queue = ['ship order', 'send receipt'];
+string $note = '';
 
 // An `if`: the array has elements, so it is truthy.
 if ($queue) {
@@ -12,17 +12,17 @@ if ($queue) {
 // A `while`: the loop stops when the number is `0`.
 int $left = 2;
 while ($left) {
-    echo "still to do: ", $left, "\n";
+    echo 'still to do: ', $left, "\n";
     $left = $left - 1;
 }
 
 // The middle part of a `for`: the loop stops when `$tries` is `0`.
 for (int $tries = 2; $tries; $tries = $tries - 1) {
-    echo "attempt ", $tries, "\n";
+    echo 'attempt ', $tries, "\n";
 }
 
 // The test of a ternary `? :`: the note is empty, so this prints `(none)`.
-echo "note: ", $note ? $note : "(none)", "\n";
+echo 'note: ', $note ? $note : '(none)', "\n";
 
 // The values beside `&&` and `||`. The right value is tested only when the left
 // value does not decide the result.
@@ -37,4 +37,4 @@ if (!$note) {
 
 // A `bool` variable needs `as bool`. It converts the array to `true`.
 bool $hasWork = $queue as bool;
-echo "has work: ", $hasWork ? "yes" : "no", "\n";
+echo 'has work: ', $hasWork ? 'yes' : 'no', "\n";

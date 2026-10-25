@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to work out the age of a person in whole years.
 
-var $vienna = Core\Time\Zone::of("Europe/Vienna");
+var $vienna = Core\Time\Zone::of('Europe/Vienna');
 var $born = Core\Time::at(1990, 5, 15, $vienna);
 
 // `difference` counts whole years from `$born` to the other date.

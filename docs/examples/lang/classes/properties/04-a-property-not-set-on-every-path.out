@@ -1,11 +1,11 @@
 error[E0409]: `$n` is not assigned on every path out of the constructor
-  --> 04-a-property-not-set-on-every-path.nvs:7:16
-  |
-7 |     public int $n;
-  |                ^^ declared here
+   --> 04-a-property-not-set-on-every-path.nvs:8:16
+   |
+ 8 |     public int $n;
+   |                ^^ declared here
 ...
-9 |     public function constructor(bool $big) {
-  |                     ----------- not assigned along every path out of this constructor
+10 |     public function constructor(bool $big)
+   |                     ----------- not assigned along every path out of this constructor
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

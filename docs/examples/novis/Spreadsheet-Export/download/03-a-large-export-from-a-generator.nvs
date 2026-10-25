@@ -8,10 +8,10 @@ class Shop
     public static function orders(int $count): Iterator<array<mixed>>
     {
         for (int $order = 1; $order <= $count; $order++) {
-            yield ["order" => $order, "total" => $order * 2.5];
+            yield ['order' => $order, 'total' => $order * 2.5];
         }
     }
 }
 
 // The browser gets each part of the file while the rows are still being written.
-Workbook::fromRows(Shop::orders(4))->download("orders.csv");
+Workbook::fromRows(Shop::orders(4))->download('orders.csv');

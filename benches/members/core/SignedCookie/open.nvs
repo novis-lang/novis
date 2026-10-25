@@ -3,13 +3,15 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         array<secret bytes> $keys = [Core\Crypto::generateKey()];
         array<string> $cookies = [
-            Core\SignedCookie::seal('session', "user=7", $keys),
-            Core\SignedCookie::seal('session', "user=42", $keys),
-            Core\SignedCookie::seal('session', "user=1000", $keys),
+            Core\SignedCookie::seal('session', 'user=7', $keys),
+            Core\SignedCookie::seal('session', 'user=42', $keys),
+            Core\SignedCookie::seal('session', 'user=1000', $keys),
         ];
         int $total = 0;
         uint $i = 0;

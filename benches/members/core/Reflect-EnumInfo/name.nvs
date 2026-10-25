@@ -4,16 +4,20 @@
 // bench: allocations 0
 // bench: complexity constant
 
-enum Shipping: int {
+enum Shipping: int
+{
     Standard = 1,
 }
 
-enum PaymentMethod: uint {
+enum PaymentMethod: uint
+{
     Card = 1,
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Reflect\EnumInfo> $infos = [];
         array<string> $names = [Shipping::class, PaymentMethod::class];
         foreach ($names as string $name) {

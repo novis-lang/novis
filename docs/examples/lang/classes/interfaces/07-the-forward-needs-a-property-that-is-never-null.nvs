@@ -3,14 +3,17 @@
 // `$voice` is `?Greets`, so this does not compile.
 // proof: compile-error
 
-interface Greets {
+interface Greets
+{
     public function greet(): string;
 }
 
-class Maybe implements Greets by $voice {
+class Maybe implements Greets by $voice
+{
     private ?Greets $voice;
 
-    public function constructor(?Greets $voice) {
+    public function constructor(?Greets $voice)
+    {
         $this->voice = $voice;
     }
 }

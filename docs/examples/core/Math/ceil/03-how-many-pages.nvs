@@ -1,9 +1,11 @@
 <?nvs
 // Shows how a list of search results finds how many pages it needs.
 
-class Pages {
+class Pages
+{
     // A page that is only partly full still counts as a page.
-    public static function count(float $results, float $perPage): float {
+    public static function count(float $results, float $perPage): float
+    {
         return Core\Math::ceil($results / $perPage);
     }
 }

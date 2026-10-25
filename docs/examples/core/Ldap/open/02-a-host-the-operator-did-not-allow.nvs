@@ -5,9 +5,9 @@
 
 try {
     Core\Ldap::open({
-        url: "ldaps://dc1.example.test",
-        user: "CN=Reader,CN=Users,DC=example,DC=test",
-        password: "Example-Pw1",
+        url: 'ldaps://dc1.example.test',
+        user: 'CN=Reader,CN=Users,DC=example,DC=test',
+        password: 'Example-Pw1',
     });
     echo "The directory is open.\n";
 } catch (RuntimeError $error) {

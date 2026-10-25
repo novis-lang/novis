@@ -5,15 +5,15 @@
 var $db = Core\Db::connect('notes');
 $db->execute(
     'create table orders (item text not null, quantity int not null, price real not null)',
-    []
+    [],
 );
 $db->execute(
     'create table archive (item text not null, quantity int not null, price real not null)',
-    []
+    [],
 );
 $db->execute(
     'insert into orders (item, quantity, price) values (?, ?, ?), (?, ?, ?)',
-    ['cups', 30, 2.25, 'tea', 12, 4.5]
+    ['cups', 30, 2.25, 'tea', 12, 4.5],
 );
 
 array<string> $columns = ['item', 'quantity', 'price'];

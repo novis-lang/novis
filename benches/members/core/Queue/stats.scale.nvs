@@ -6,7 +6,7 @@
 
 use Core\Queue;
 
-var $db = Core\Db::connect("jobs");
+var $db = Core\Db::connect('jobs');
 var $jobs = <<<'SQL'
 create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
     script text not null, args text, state smallint not null, attempts integer not null,
@@ -32,13 +32,13 @@ class Bench
         // The `mail` queue gets `$size` waiting jobs.
         uint $n = 0;
         while ($n < $size) {
-            Queue::push("jobs/send-mail.nvs", {queue: "mail"});
+            Queue::push('jobs/send-mail.nvs', { queue: 'mail' });
             $n = $n + 1;
         }
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            $total = $total + Queue::stats("mail")->pending();
+            $total = $total + Queue::stats('mail')->pending();
             $i = $i + 1;
         }
         return $total;

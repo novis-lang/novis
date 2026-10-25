@@ -14,12 +14,12 @@ class Bench
         uint $i = 0;
 
         while ($i < $rounds) {
-            array<uint> $row = ["sku" => $total % 7, "qty" => 2];   // chained: $total is last round's
+            array<uint> $row = ['sku' => $total % 7, 'qty' => 2];   // chained: $total is last round's
 
             $row[] = $i;
-            $row["qty"] = $row["qty"] + $row["sku"];
+            $row['qty'] = $row['qty'] + $row['sku'];
 
-            $total = $total + $row["qty"] + $row["0"] % 3;
+            $total = $total + $row['qty'] + $row['0'] % 3;
 
             $i = $i + 1;
         }

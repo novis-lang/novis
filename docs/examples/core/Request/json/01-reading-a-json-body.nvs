@@ -6,8 +6,8 @@
 var $user = Core\Request::json() as array<mixed>;
 
 // `as` converts each field to the type you need. Every string in it is tainted.
-tainted string $name = $user["name"] as tainted string;
-int $age = $user["age"] as int;
+tainted string $name = $user['name'] as tainted string;
+int $age = $user['age'] as int;
 
 // This prints "Ada is 36".
-echo $name, " is ", $age, "\n";
+echo $name, ' is ', $age, "\n";

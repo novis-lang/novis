@@ -9,36 +9,41 @@
 use Core\Test;
 use Core\Time;
 
-final class OverlapTest {
+final class OverlapTest
+{
     #[Test]
-    public function itWaitsFirst(): void {
-        echo "test-started ", Time::now()->toEpochMicros(), "\n";
+    public function itWaitsFirst(): void
+    {
+        echo 'test-started ', Time::now()->toEpochMicros(), "\n";
         Time::sleep(400ms);
-        echo "test-ended ", Time::now()->toEpochMicros(), "\n";
+        echo 'test-ended ', Time::now()->toEpochMicros(), "\n";
         Test::assertSame(1, 2);
     }
 
     #[Test]
-    public function itWaitsSecond(): void {
-        echo "test-started ", Time::now()->toEpochMicros(), "\n";
+    public function itWaitsSecond(): void
+    {
+        echo 'test-started ', Time::now()->toEpochMicros(), "\n";
         Time::sleep(400ms);
-        echo "test-ended ", Time::now()->toEpochMicros(), "\n";
+        echo 'test-ended ', Time::now()->toEpochMicros(), "\n";
         Test::assertSame(1, 2);
     }
 
     #[Test]
-    public function itWaitsThird(): void {
-        echo "test-started ", Time::now()->toEpochMicros(), "\n";
+    public function itWaitsThird(): void
+    {
+        echo 'test-started ', Time::now()->toEpochMicros(), "\n";
         Time::sleep(400ms);
-        echo "test-ended ", Time::now()->toEpochMicros(), "\n";
+        echo 'test-ended ', Time::now()->toEpochMicros(), "\n";
         Test::assertSame(1, 2);
     }
 
     #[Test]
-    public function itWaitsFourth(): void {
-        echo "test-started ", Time::now()->toEpochMicros(), "\n";
+    public function itWaitsFourth(): void
+    {
+        echo 'test-started ', Time::now()->toEpochMicros(), "\n";
         Time::sleep(400ms);
-        echo "test-ended ", Time::now()->toEpochMicros(), "\n";
+        echo 'test-ended ', Time::now()->toEpochMicros(), "\n";
         Test::assertSame(1, 2);
     }
 }

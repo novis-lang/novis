@@ -4,10 +4,12 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         secret bytes $secret = Core\Random::bytes(20);
-        array<string> $typed = [Core\Totp::code($secret), "123456", "000000"];
+        array<string> $typed = [Core\Totp::code($secret), '123456', '000000'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

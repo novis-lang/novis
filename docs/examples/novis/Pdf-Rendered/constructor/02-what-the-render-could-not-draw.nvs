@@ -7,16 +7,16 @@ use Novis\Pdf\Page;
 var $html = "<style>h1 { text-shadow: 1px 1px gray }</style><h1>Shop</h1><p>Our helper \u{1F916}</p>";
 
 // The footer text fills many lines, but the bottom margin is only 1 cm high.
-string $terms = Core\Str::repeat("Shop sells to customers in the whole country. ", 20);
+string $terms = Core\Str::repeat('Shop sells to customers in the whole country. ', 20);
 var $footer = fn(Page $page): Core\Html\Markup => html`<p>{$terms}</p>`;
 
-var $rendered = Document::fromHtml($html)->footer($footer, {height: "1cm"})->render();
+var $rendered = Document::fromHtml($html)->footer($footer, { height: '1cm' })->render();
 foreach ($rendered->dropped as var $css) {
-    echo "dropped: ", $css->property, " in ", $css->selector, ", line ", $css->line, "\n";
+    echo 'dropped: ', $css->property, ' in ', $css->selector, ', line ', $css->line, "\n";
 }
 foreach ($rendered->missingGlyphs as var $glyph) {
-    echo "missing glyph on page ", $glyph->page, "\n";
+    echo 'missing glyph on page ', $glyph->page, "\n";
 }
 foreach ($rendered->overflows as var $overflow) {
-    echo "overflow: the ", $overflow->area, " of page ", $overflow->page, "\n";
+    echo 'overflow: the ', $overflow->area, ' of page ', $overflow->page, "\n";
 }

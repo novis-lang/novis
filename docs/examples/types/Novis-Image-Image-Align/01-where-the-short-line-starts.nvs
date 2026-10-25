@@ -5,14 +5,16 @@ use Novis\Image\Image;
 
 require 'fonts/box-font.nvs';
 
-class Line {
+class Line
+{
     // Draws "Shop Hi" in a box 24 pixels wide, so "Hi" goes on a second line.
     // Returns the first column of that line that is not white.
-    public static function start(Image::Align $align): int {
-        var $raw = Image::create(24, 20, Color::hex("#ffffff"))
-            ->text("Shop Hi", BoxFont::load(), {
+    public static function start(Image::Align $align): int
+    {
+        var $raw = Image::create(24, 20, Color::hex('#ffffff'))
+            ->text('Shop Hi', BoxFont::load(), {
                 size: 10.0,
-                color: Color::hex("#000000"),
+                color: Color::hex('#000000'),
                 x: 0,
                 y: 0,
                 maxWidth: 24,
@@ -24,7 +26,7 @@ class Line {
         int $x = 0;
         while ($x < 24) {
             bytes $red = Core\Bytes::slice($raw->pixels, ($row + $x) * 4, 1);
-            if (Core\Encoding::toHex($red) != "ff") {
+            if (Core\Encoding::toHex($red) != 'ff') {
                 return $x;
             }
             $x = $x + 1;

@@ -11,7 +11,7 @@ echo "orders\n";
 
 uint $row = 0;
 while ($row < $page && $row < $orders) {
-    echo "  order #", 1000 + $row, "\n";
+    echo '  order #', 1000 + $row, "\n";
     $row = $row + 1;
 }
 

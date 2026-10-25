@@ -4,14 +4,16 @@
 // bench: complexity constant
 use Novis\Pdf\Page;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $page = new Page(2, 3, null, [{name: "chapter", value: "Food"}, {name: "customer", value: "Anna"}, {name: "section", value: "Cups"}], []);
-        array<string> $names = ["Chapter", "customer", "SECTION"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $page = new Page(2, 3, null, [{ name: 'chapter', value: 'Food' }, { name: 'customer', value: 'Anna' }, { name: 'section', value: 'Cups' }], []);
+        array<string> $names = ['Chapter', 'customer', 'SECTION'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            $total = $total + Core\Str::length($page->string($names[($total % 3) as int]) ?? "");
+            $total = $total + Core\Str::length($page->string($names[($total % 3) as int]) ?? '');
             $i = $i + 1;
         }
         return $total;

@@ -7,10 +7,10 @@ use LogicError;
 /// `Sheet::chart` puts the chart on a sheet. A `Chart` does not change: each method returns a new chart.
 final class Chart
 {
-    type Series = {values: string, categories: ?string, name: ?string, color: ?string};
-    type Layer = {kind: ChartKind, series: array<Series>};
-    type Options = ?{title?: string, xTitle?: string, yTitle?: string, legend?: string, labels?: bool};
-    type SeriesOptions = ?{categories?: string, name?: string, color?: string};
+    type Series = { values: string, categories: ?string, name: ?string, color: ?string };
+    type Layer = { kind: ChartKind, series: array<Series> };
+    type Options = ?{ title?: string, xTitle?: string, yTitle?: string, legend?: string, labels?: bool };
+    type SeriesOptions = ?{ categories?: string, name?: string, color?: string };
 
     /// `new Chart` makes a chart from its values. `Chart::column` and the other types make one for you.
     /// `combined` has the types and series that `combine` added.
@@ -23,7 +23,8 @@ final class Chart
         public readonly ?string $yTitle,
         public readonly Legend $legend,
         public readonly bool $labels,
-    ) {}
+    )
+    {}
 
     /// `Chart::column` starts a chart of vertical bars.
     /// `title` is the chart's title. `xTitle` and `yTitle` are the titles of its axes. `legend` is `'right'`, `'top'`, `'bottom'`, `'left'` or `'hidden'`. `labels` shows each value on the chart.
@@ -87,7 +88,7 @@ final class Chart
     public function combine(Chart $other): Chart
     {
         array<Layer> $combined = $this->combined;
-        $combined[] = {kind: $other->kind, series: $other->series};
+        $combined[] = { kind: $other->kind, series: $other->series };
         foreach ($other->combined as Layer $layer) {
             $combined[] = $layer;
         }
@@ -103,26 +104,26 @@ final class Chart
             $options?->title ?? null,
             $options?->xTitle ?? null,
             $options?->yTitle ?? null,
-            self::legend($options?->legend ?? "right"),
+            self::legend($options?->legend ?? 'right'),
             $options?->labels ?? false,
         );
     }
 
     private static function legend(string $name): Legend
     {
-        if ($name == "right") {
+        if ($name == 'right') {
             return Legend::Right;
         }
-        if ($name == "top") {
+        if ($name == 'top') {
             return Legend::Top;
         }
-        if ($name == "bottom") {
+        if ($name == 'bottom') {
             return Legend::Bottom;
         }
-        if ($name == "left") {
+        if ($name == 'left') {
             return Legend::Left;
         }
-        if ($name == "hidden") {
+        if ($name == 'hidden') {
             return Legend::Hidden;
         }
         throw new LogicError("The chart's `legend` is `'right'`, `'top'`, `'bottom'`, `'left'` or `'hidden'`. It has `'{$name}'`.");

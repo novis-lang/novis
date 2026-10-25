@@ -10,5 +10,5 @@ echo $generator->int(5, 5), "\n";
 try {
     echo $generator->int(10, 1), "\n";
 } catch (Throwable $e) {
-    echo "Error: ", $e->message, "\n";
+    echo 'Error: ', $e->message, "\n";
 }

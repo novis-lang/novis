@@ -30,9 +30,9 @@ class Report
     public static function word(Job::Result $r): string
     {
         return match ($r) {
-            Job::Result::Done => "done",
-            Job::Result::Retry => "retry",
-            Job::Result::Failed => "failed",
+            Job::Result::Done => 'done',
+            Job::Result::Retry => 'retry',
+            Job::Result::Failed => 'failed',
         };
     }
 }

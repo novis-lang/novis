@@ -3,15 +3,15 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
-var $html = "<style>h2 { break-before: page }</style>"
-    . "<h1>User guide</h1><h2>Install</h2><p>Download the file.</p><h2>Start</h2><p>Open the app.</p>";
+var $html = '<style>h2 { break-before: page }</style>'
+    . '<h1>User guide</h1><h2>Install</h2><p>Download the file.</p><h2>Start</h2><p>Open the app.</p>';
 
 // The title page does not count. So the second page of the file is page 1 of 2.
 var $footer = fn(Page $page): Core\Html\Markup => {
     if ($page->isFirst()) {
         return html``;
     }
-    string $text = "Page " . ($page->number - 1) as string . " of " . ($page->count - 1) as string;
+    string $text = 'Page ' . ($page->number - 1) as string . ' of ' . ($page->count - 1) as string;
     echo $text, "\n";
     return html`<p>{$text}</p>`;
 };

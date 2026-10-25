@@ -1,11 +1,11 @@
 <?nvs
+use Novis\Spreadsheet\Reader;
 // Shows how to make an Excel file in memory and read it back with `Reader`.
 use Novis\Spreadsheet\Workbook;
-use Novis\Spreadsheet\Reader;
 
-bytes $file = Workbook::fromRows([["item" => "Pen", "price" => 1.5], ["item" => "Ink", "price" => 4.25]])->bytes();
+bytes $file = Workbook::fromRows([['item' => 'Pen', 'price' => 1.5], ['item' => 'Ink', 'price' => 4.25]])->bytes();
 
 // `Reader::open` reads the bytes. The default sheet name is `Sheet1`.
-foreach (Reader::open($file)->rows("Sheet1", {header: true}) as var $row) {
-    echo $row->values["item"], " costs ", $row->values["price"], "\n";
+foreach (Reader::open($file)->rows('Sheet1', { header: true }) as var $row) {
+    echo $row->values['item'], ' costs ', $row->values['price'], "\n";
 }

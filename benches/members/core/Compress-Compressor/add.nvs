@@ -8,8 +8,10 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $cities = ['Berlin', 'Lisbon', 'Oslo'];
         var $stream = Core\Compress::compressor(Core\Compress::Codec::Zstd);
         uint $total = 0;

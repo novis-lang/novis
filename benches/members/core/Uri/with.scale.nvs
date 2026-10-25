@@ -7,11 +7,11 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        Core\Uri $link = Core\Uri::parse("http://10.0.0.7:9000" . Core\Str::repeat('/files', $size) . "?name=report.pdf");
+        Core\Uri $link = Core\Uri::parse('http://10.0.0.7:9000' . Core\Str::repeat('/files', $size) . '?name=report.pdf');
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            var $public = $link->with({scheme: "https", host: "files.example.com", port: null});
+            var $public = $link->with({ scheme: 'https', host: 'files.example.com', port: null });
             $total = $total + Core\Str::length($public->toString());
             $i = $i + 1;
         }

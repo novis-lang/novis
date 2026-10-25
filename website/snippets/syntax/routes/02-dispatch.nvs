@@ -3,34 +3,40 @@
 use Core\Http\Method;
 use Core\Router\Refusal;
 
-class Users {
-    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+class Users
+{
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(uint $id): void {
-        echo "user ", $id;
+    public function show(uint $id): void
+    {
+        echo 'user ', $id;
     }
 }
 
 // The gate checks each request before a route method runs, and it writes the error pages.
-class Gate implements Core\Router\Gate {
+class Gate implements Core\Router\Gate
+{
     // The route method runs only when this returns `true`.
-    public function allows(Core\Router\Match $route): bool {
+    public function allows(Core\Router\Match $route): bool
+    {
         return $route->accessAs<Core\Audience>() == Core\Audience::Public;
     }
 
     // No route method can run. `dispatch` has already set the status, such as 404 or 405.
-    public function refused(Refusal $reason, ?Core\Router\Match $route): void {
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void
+    {
         string $text = match ($reason) {
-            Refusal::NotFound => "no page has this address",
-            Refusal::MethodNotAllowed => "this address does not accept this method",
-            default => "this request is not allowed",
+            Refusal::NotFound => 'no page has this address',
+            Refusal::MethodNotAllowed => 'this address does not accept this method',
+            default => 'this request is not allowed',
         };
         echo $text;
     }
 
     // A route method threw an error. The status is 500.
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
-        echo "something went wrong";
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'something went wrong';
     }
 }
 
@@ -38,10 +44,10 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Router::dispatch(new Gate());
 } else {
     // From the command line, this part sends three requests. It needs no server.
-    var $found = Core\Test::request(Method::Get, "/users/7");
-    echo $found->status(), " ", $found->body(), "\n";
-    var $wrongMethod = Core\Test::request(Method::Put, "/users/7");
-    echo $wrongMethod->status(), " ", $wrongMethod->body(), "\n";
-    var $missing = Core\Test::request(Method::Get, "/nothing");
-    echo $missing->status(), " ", $missing->body(), "\n";
+    var $found = Core\Test::request(Method::Get, '/users/7');
+    echo $found->status(), ' ', $found->body(), "\n";
+    var $wrongMethod = Core\Test::request(Method::Put, '/users/7');
+    echo $wrongMethod->status(), ' ', $wrongMethod->body(), "\n";
+    var $missing = Core\Test::request(Method::Get, '/nothing');
+    echo $missing->status(), ' ', $missing->body(), "\n";
 }

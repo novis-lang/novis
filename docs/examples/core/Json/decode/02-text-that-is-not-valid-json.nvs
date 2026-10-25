@@ -4,15 +4,15 @@
 // A key without quotes, four levels of nesting, and a number one more than the largest `int`.
 array<string> $texts = [
     "{name: \"Ada\"}",
-    "[[[1]]]",
-    "9223372036854775808",
+    '[[[1]]]',
+    '9223372036854775808',
 ];
 
 // The option `maxDepth: 3` allows at most three levels.
 // Each call throws a `ParseError`, so this prints three error messages.
 foreach ($texts as string $text) {
     try {
-        Core\Json::decode($text, {maxDepth: 3});
+        Core\Json::decode($text, { maxDepth: 3 });
         echo "decoded\n";
     } catch (ParseError $error) {
         echo $error->message, "\n";

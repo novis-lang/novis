@@ -4,7 +4,7 @@
 // proof: compile-error
 
 try {
-    throw new LogicError("boom");
+    throw new LogicError('boom');
 } catch (Throwable $e) {
     echo $e->getMessage();
 }

@@ -3,10 +3,13 @@
 // so the program reading the names never handles a page itself. A page the loop does not
 // reach is never read.
 
-class Results implements Iterable<string> {
-    public function constructor(private array<array<string>> $pages) {}
+class Results implements Iterable<string>
+{
+    public function constructor(private array<array<string>> $pages)
+    {}
 
-    public function iterate(): Iterator<string> {
+    public function iterate(): Iterator<string>
+    {
         foreach ($this->pages as array<string> $page) {
             echo "(reading a page)\n";
             foreach ($page as string $name) {
@@ -17,9 +20,9 @@ class Results implements Iterable<string> {
 }
 
 var $results = new Results([
-    ["Ada Lovelace", "Alan Turing"],
-    ["Grace Hopper", "Edsger Dijkstra"],
-    ["Barbara Liskov"],
+    ['Ada Lovelace', 'Alan Turing'],
+    ['Grace Hopper', 'Edsger Dijkstra'],
+    ['Barbara Liskov'],
 ]);
 
 // The loop stops after three names, so the third page is never read.

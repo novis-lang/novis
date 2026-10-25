@@ -3,12 +3,14 @@
 // This measures reading, checking and writing JSON in a typical API request.
 
 #[Core\Json\Derive]
-class Customer {
+class Customer
+{
     public int $id;
     public tainted string $name;
     public tainted string $email;
 
-    public function constructor(int $id, tainted string $name, tainted string $email) {
+    public function constructor(int $id, tainted string $name, tainted string $email)
+    {
         $this->id = $id;
         $this->name = $name;
         $this->email = $email;
@@ -16,13 +18,15 @@ class Customer {
 }
 
 #[Core\Json\Derive]
-class Item {
+class Item
+{
     public tainted string $sku;
     public tainted string $name;
     public int $qty;
     public int $unitCents;
 
-    public function constructor(tainted string $sku, tainted string $name, int $qty, int $unitCents) {
+    public function constructor(tainted string $sku, tainted string $name, int $qty, int $unitCents)
+    {
         $this->sku = $sku;
         $this->name = $name;
         $this->qty = $qty;
@@ -31,23 +35,27 @@ class Item {
 }
 
 #[Core\Json\Derive]
-class Order {
+class Order
+{
     public Customer $customer;
     public array<Item> $items;
 
-    public function constructor(Customer $customer, array<Item> $items) {
+    public function constructor(Customer $customer, array<Item> $items)
+    {
         $this->customer = $customer;
         $this->items = $items;
     }
 }
 
 #[Core\Json\Derive]
-class Line {
+class Line
+{
     public tainted string $sku;
     public int $qty;
     public int $totalCents;
 
-    public function constructor(tainted string $sku, int $qty, int $totalCents) {
+    public function constructor(tainted string $sku, int $qty, int $totalCents)
+    {
         $this->sku = $sku;
         $this->qty = $qty;
         $this->totalCents = $totalCents;
@@ -55,14 +63,16 @@ class Line {
 }
 
 #[Core\Json\Derive]
-class Receipt {
+class Receipt
+{
     public int $customer;
     public array<Line> $items;
     public int $subtotalCents;
     public int $taxCents;
     public int $totalCents;
 
-    public function constructor(int $customer, array<Line> $items, int $subtotalCents, int $taxCents, int $totalCents) {
+    public function constructor(int $customer, array<Line> $items, int $subtotalCents, int $taxCents, int $totalCents)
+    {
         $this->customer = $customer;
         $this->items = $items;
         $this->subtotalCents = $subtotalCents;
@@ -71,9 +81,11 @@ class Receipt {
     }
 }
 
-class Orders {
+class Orders
+{
     // Returns the receipt for one order, or null when the order fails a check.
-    public static function total(Order $order): ?Receipt {
+    public static function total(Order $order): ?Receipt
+    {
         uint $count = Core\Arr::count($order->items);
         if ($order->customer->id < 1 || $count < 1 || $count > 100) {
             return null;
@@ -81,7 +93,7 @@ class Orders {
         array<Line> $lines = [];
         int $subtotal = 0;
         foreach ($order->items as Item $item) {
-            if ($item->sku == "" || $item->qty < 1 || $item->qty > 1000 || $item->unitCents < 1 || $item->unitCents > 10000000) {
+            if ($item->sku == '' || $item->qty < 1 || $item->qty > 1000 || $item->unitCents < 1 || $item->unitCents > 10000000) {
                 return null;
             }
             int $total = $item->qty * $item->unitCents;
@@ -93,13 +105,13 @@ class Orders {
         int $tax = Core\Math::intDiv($subtotal * 20 + 50, 100);
 
         // The largest line comes first. Lines with the same total keep the order of the request.
-        var $sorted = Core\Arr::sort($lines, {by: fn(Line $line): int => -$line->totalCents});
+        var $sorted = Core\Arr::sort($lines, { by: fn(Line $line): int => -$line->totalCents });
 
         return new Receipt($order->customer->id, $sorted, $subtotal, $tax, $subtotal + $tax);
     }
 }
 
-if (Core\Request::method() != Core\Http\Method::Post || Core\Request::path() != "/orders") {
+if (Core\Request::method() != Core\Http\Method::Post || Core\Request::path() != '/orders') {
     Core\Response::setStatus(404);
     Core\Response::text("not found\n");
 } else {
@@ -112,7 +124,7 @@ if (Core\Request::method() != Core\Http\Method::Post || Core\Request::path() != 
     }
     if ($receipt == null) {
         Core\Response::setStatus(422);
-        Core\Response::json({ error: "invalid order" });
+        Core\Response::json({ error: 'invalid order' });
     } else {
         Core\Response::json($receipt);
     }

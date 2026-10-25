@@ -1,7 +1,7 @@
 error[E0448]: `yield from` does not exist in Novis
-   --> 07-yield-from-does-not-exist.nvs:12:9
+   --> 07-yield-from-does-not-exist.nvs:15:9
    |
-12 |         yield from Pages::first();
+15 |         yield from Pages::first();
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^ this delegation form
    = help: write `foreach ($inner as T $v) { yield $v; }`
 

@@ -2,15 +2,16 @@
 // Shows `isinit`. It returns `true` when a `lateinit` property has a value.
 // It does not read the property, so it never throws.
 
-class Post {
+class Post
+{
     public lateinit ?string $note;
 }
 
 var $p = new Post();
 
 // This prints `no`.
-echo isinit($p->note) ? "yes" : "no", "\n";
+echo isinit($p->note) ? 'yes' : 'no', "\n";
 
 // `null` is a value too. This prints `yes`.
 $p->note = null;
-echo isinit($p->note) ? "yes" : "no", "\n";
+echo isinit($p->note) ? 'yes' : 'no', "\n";

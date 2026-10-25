@@ -6,20 +6,22 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Row;
 use Novis\Spreadsheet\Workbook;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<array<mixed>> $prices = [["Item", "Name", "Price", "Day"]];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<array<mixed>> $prices = [['Item', 'Name', 'Price', 'Day']];
         uint $n = 1;
         while ($n <= 100) {
-            $prices[] = [$n, "Item " . ($n as string), ($n as float) * 1.25, Core\Time\Date::at(2024, 1, 1 + $n % 28)];
+            $prices[] = [$n, 'Item ' . ($n as string), ($n as float) * 1.25, Core\Time\Date::at(2024, 1, 1 + $n % 28)];
             $n = $n + 1;
         }
-        Reader $reader = Reader::open(Workbook::fromRows($prices, {header: true})->bytes());
+        Reader $reader = Reader::open(Workbook::fromRows($prices, { header: true })->bytes());
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             uint $count = 0;
-            foreach ($reader->rows(0, {header: true}) as Row $row) {
+            foreach ($reader->rows(0, { header: true }) as Row $row) {
                 $count = $count + 1;
             }
             uint $step = $count > 0 ? 1 : 3;

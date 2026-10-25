@@ -2,7 +2,7 @@
 // Shows the two parameters the function may take. The first is the element's value.
 // The second is its key. You write the second one only when you need it.
 
-array<int> $stock = ["Hamburg" => 12, "Munchen" => 0, "Koln" => 7];
+array<int> $stock = ['Hamburg' => 12, 'Munchen' => 0, 'Koln' => 7];
 
 // Only the value. This prints 24, 0 and 14.
 var $doubled = Core\Task::map($stock, fn(int $count): int => $count * 2);
@@ -11,7 +11,7 @@ foreach ($doubled as int $count) {
 }
 
 // The value and the key. This prints Hamburg has 12, and so on for the other two.
-var $lines = Core\Task::map($stock, fn(int $count, string $city): string => $city . " has " . $count);
+var $lines = Core\Task::map($stock, fn(int $count, string $city): string => $city . ' has ' . $count);
 foreach ($lines as string $line) {
     echo $line, "\n";
 }

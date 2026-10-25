@@ -4,12 +4,12 @@ use Novis\Intl\RelativeTime;
 use Novis\Intl\Width;
 
 var $times = [
-    {count: 2, unit: RelativeTime::Unit::Hour},
-    {count: -5, unit: RelativeTime::Unit::Minute},
+    { count: 2, unit: RelativeTime::Unit::Hour },
+    { count: -5, unit: RelativeTime::Unit::Minute },
 ];
 
 // This prints in 2 Stunden | vor 5 Minuten.
-echo Core\Str::join(RelativeTime::format($times, "de"), " | "), "\n";
+echo Core\Str::join(RelativeTime::format($times, 'de'), ' | '), "\n";
 
 // This prints in 2 Std. | vor 5 Min.
-echo Core\Str::join(RelativeTime::format($times, "de", {width: Width::Short}), " | "), "\n";
+echo Core\Str::join(RelativeTime::format($times, 'de', { width: Width::Short }), ' | '), "\n";

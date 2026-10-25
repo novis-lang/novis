@@ -1,17 +1,19 @@
 <?nvs
 // Shows how to find the values that two sets have in common.
 
-final class Tag {
+final class Tag
+{
     public string $name;
 
-    public function constructor(string $name) {
+    public function constructor(string $name)
+    {
         $this->name = $name;
     }
 }
 
-Tag $red = new Tag("red");
-Tag $blue = new Tag("blue");
-Tag $green = new Tag("green");
+Tag $red = new Tag('red');
+Tag $blue = new Tag('blue');
+Tag $green = new Tag('green');
 
 Core\ObjectSet<Tag> $shirt = new Core\ObjectSet<Tag>();
 $shirt->add($red);
@@ -30,4 +32,4 @@ foreach ($shared as Tag $tag) {
 }
 
 // `$shirt` and `$scarf` do not change. This prints "3 2".
-echo $shirt->count(), " ", $scarf->count(), "\n";
+echo $shirt->count(), ' ', $scarf->count(), "\n";

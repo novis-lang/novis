@@ -6,13 +6,13 @@ use Novis\Pdf\Page;
 // The footer has four lines, and the margin is 1cm high.
 var $footer = fn(Page $page): Core\Html\Markup =>
     html`<p style="margin: 0">Shop<br>1 Example Street<br>Example City<br>example.com</p>`;
-var $rendered = Document::fromHtml("<h1>Invoice 1042</h1>")->footer($footer, {height: "1cm"})->render();
+var $rendered = Document::fromHtml('<h1>Invoice 1042</h1>')->footer($footer, { height: '1cm' })->render();
 
 // The render cuts the footer off at the margin and lists it in `overflows`.
 // This prints the page and the area of each one.
 foreach ($rendered->overflows as var $overflow) {
-    echo "page ", $overflow->page, ": the ", $overflow->area, " is too tall\n";
+    echo 'page ', $overflow->page, ': the ', $overflow->area, " is too tall\n";
 }
 
 // With a 3cm margin, the footer fits. This prints `0`.
-echo Core\Arr::count(Document::fromHtml("<h1>Invoice 1042</h1>")->footer($footer, {height: "3cm"})->render()->overflows), "\n";
+echo Core\Arr::count(Document::fromHtml('<h1>Invoice 1042</h1>')->footer($footer, { height: '3cm' })->render()->overflows), "\n";

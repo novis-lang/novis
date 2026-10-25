@@ -2,23 +2,23 @@
 // Shows that `strings` returns `null` when an entry has no value at all.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 array<string> $dns = [
-    "CN=Ben Kohl,OU=Company,DC=example,DC=test",
-    "CN=Reader,OU=Company,DC=example,DC=test",
+    'CN=Ben Kohl,OU=Company,DC=example,DC=test',
+    'CN=Reader,OU=Company,DC=example,DC=test',
 ];
 
 foreach ($dns as string $dn) {
-    var $account = $corp->read($dn, {select: ["memberOf"]});
+    var $account = $corp->read($dn, { select: ['memberOf'] });
     if ($account == null) {
         continue;
     }
     // Ben Kohl is in two groups. The account `Reader` is in none, so `strings` returns `null`.
     // This prints `Ben Kohl: 2 groups` and `Reader: no groups`.
-    ?array<tainted string> $groups = $account->strings("memberOf");
+    ?array<tainted string> $groups = $account->strings('memberOf');
     if ($groups == null) {
         echo $account->dn()->rdnValue(), ": no groups\n";
     } else {
-        echo $account->dn()->rdnValue(), ": ", Core\Arr::count($groups), " groups\n";
+        echo $account->dn()->rdnValue(), ': ', Core\Arr::count($groups), " groups\n";
     }
 }

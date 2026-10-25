@@ -2,16 +2,18 @@
 // Shows how to get the name of a case. A case has no `->name`, so the names
 // live in a `match` inside a class of your own.
 
-class Levels {
+class Levels
+{
     enum Level { Debug, Info, Warn }
 
     // Returns the name of a level. The `match` has an arm for every case of
     // `Level`. Add an arm here when you add a case to the enum.
-    public static function name(Level $l): string {
+    public static function name(Level $l): string
+    {
         return match ($l) {
-            Level::Debug => "debug",
-            Level::Info => "info",
-            Level::Warn => "warn",
+            Level::Debug => 'debug',
+            Level::Info => 'info',
+            Level::Warn => 'warn',
         };
     }
 }

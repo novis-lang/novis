@@ -58,29 +58,33 @@ error `E0722`. A promoted parameter may also be `readonly`: `public readonly int
 // Shows how to declare a class, create an object with `new`, and use it.
 // Every member writes `public`, `protected` or `private`.
 
-class User {
+class User
+{
     public string $name;
     public string $email;
-    private string $role = "member";
+    private string $role = 'member';
 
-    public function constructor(string $name, string $email) {
+    public function constructor(string $name, string $email)
+    {
         $this->name = $name;
         $this->email = $email;
     }
 
-    public function label(): string {
-        return $this->name . " <" . $this->email . ">";
+    public function label(): string
+    {
+        return $this->name . ' <' . $this->email . '>';
     }
 
-    public function roleName(): string {
+    public function roleName(): string
+    {
         return $this->role;
     }
 }
 
-var $user = new User("Ada Lovelace", "ada@example.com");
+var $user = new User('Ada Lovelace', 'ada@example.com');
 
 // A `public` property is read and written from anywhere with `->`.
-$user->email = "ada@example.org";
+$user->email = 'ada@example.org';
 
 // This prints `Ada Lovelace <ada@example.org>`.
 echo $user->label(), "\n";
@@ -102,31 +106,34 @@ member
 // Shows constructor promotion. A visibility keyword on a constructor parameter
 // declares a property of that name and type, and assigns the argument to it.
 
-class Product {
+class Product
+{
     // These three lines declare three properties and fill them. There is no
     // second place where `$name`, `$priceCents` and `$currency` are written.
     public function constructor(
         public string $name,
         public int $priceCents,
-        private string $currency = "EUR"
-    ) {}
+        private string $currency = 'EUR',
+    )
+    {}
 
-    public function price(): string {
-        return $this->priceCents . " " . $this->currency;
+    public function price(): string
+    {
+        return $this->priceCents . ' ' . $this->currency;
     }
 }
 
-var $book = new Product("The Art of Computer Programming", 8990);
+var $book = new Product('The Art of Computer Programming', 8990);
 
 // A default on the parameter is a default for the argument. `$currency` is
 // `EUR` here, because the third argument was left out.
-var $mug = new Product("Coffee mug", 1250, "CHF");
+var $mug = new Product('Coffee mug', 1250, 'CHF');
 
 // This prints `The Art of Computer Programming: 8990 EUR`.
-echo $book->name, ": ", $book->price(), "\n";
+echo $book->name, ': ', $book->price(), "\n";
 
 // This prints `Coffee mug: 1250 CHF`.
-echo $mug->name, ": ", $mug->price(), "\n";
+echo $mug->name, ': ', $mug->price(), "\n";
 ```
 
 ```output
@@ -141,16 +148,20 @@ Coffee mug: 1250 CHF
 // Shows the shape most classes in a program have: private data, and public
 // methods that are the only way to reach it.
 
-class Cart {
+class Cart
+{
     private array<int> $prices = [];
 
-    public function constructor(private string $currency) {}
+    public function constructor(private string $currency)
+    {}
 
-    public function add(int $priceCents): void {
+    public function add(int $priceCents): void
+    {
         $this->prices[] = $priceCents;
     }
 
-    public function total(): int {
+    public function total(): int
+    {
         int $sum = 0;
         foreach ($this->prices as int $price) {
             $sum = $sum + $price;
@@ -158,12 +169,13 @@ class Cart {
         return $sum;
     }
 
-    public function summary(): string {
-        return Core\Arr::count($this->prices) . " items, " . $this->total() . " " . $this->currency;
+    public function summary(): string
+    {
+        return Core\Arr::count($this->prices) . ' items, ' . $this->total() . ' ' . $this->currency;
     }
 }
 
-var $cart = new Cart("EUR");
+var $cart = new Cart('EUR');
 $cart->add(1250);
 $cart->add(399);
 $cart->add(8000);
@@ -185,16 +197,17 @@ echo $cart->summary(), "\n";
 // `$balance` has none, so this program does not compile.
 // proof: compile-error
 
-class Account {
+class Account
+{
     int $balance = 0;
 }
 ```
 
 ```output
 error[E0122]: a property must declare `public`, `protected` or `private`
-  --> main.nvs:7:9
+  --> main.nvs:8:9
   |
-7 |     int $balance = 0;
+8 |     int $balance = 0;
   |         ^^^^^^^^ no visibility written here
   = suggestion: write `public`: `public `
 
@@ -209,7 +222,8 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // Shows a class with no constructor. Every property has a default, so `new`
 // takes no arguments.
 
-class Counter {
+class Counter
+{
     public int $n = 0;
 }
 
@@ -273,32 +287,35 @@ its class is `E0471`.
 // Shows the two ways a property gets its first value: a default written in the
 // class, or an assignment in the constructor.
 
-class Invoice {
+class Invoice
+{
     // These three have a default, so the constructor does not touch them.
-    public string $currency = "EUR";
+    public string $currency = 'EUR';
     public int $total = 0;
     public array<string> $lines = [];
 
     // This one has no default. The constructor must give it a value.
     public string $customer;
 
-    public function constructor(string $customer) {
+    public function constructor(string $customer)
+    {
         $this->customer = $customer;
     }
 
-    public function add(string $line, int $amount): void {
+    public function add(string $line, int $amount): void
+    {
         $this->lines[] = $line;
         $this->total = $this->total + $amount;
     }
 }
 
-var $invoice = new Invoice("Ada Lovelace");
-$invoice->add("Keyboard", 4900);
-$invoice->add("Cable", 900);
+var $invoice = new Invoice('Ada Lovelace');
+$invoice->add('Keyboard', 4900);
+$invoice->add('Cable', 900);
 
 // This prints: Ada Lovelace owes 5800 EUR for 2 lines.
-echo $invoice->customer, " owes ", $invoice->total, " ", $invoice->currency;
-echo " for ", Core\Arr::count($invoice->lines), " lines.\n";
+echo $invoice->customer, ' owes ', $invoice->total, ' ', $invoice->currency;
+echo ' for ', Core\Arr::count($invoice->lines), " lines.\n";
 ```
 
 ```output
@@ -312,22 +329,25 @@ Ada Lovelace owes 5800 EUR for 2 lines.
 // Shows `readonly`. The constructor gives each property its value, and no other
 // code can change it.
 
-final class Money {
-    public function constructor(public readonly int $cents, public readonly string $currency) {}
+final class Money
+{
+    public function constructor(public readonly int $cents, public readonly string $currency)
+    {}
 
     // The two amounts cannot change, so adding them returns a third object.
-    public function plus(Money $other): Money {
+    public function plus(Money $other): Money
+    {
         return new Money($this->cents + $other->cents, $this->currency);
     }
 }
 
-var $coffee = new Money(350, "EUR");
-var $cake = new Money(425, "EUR");
+var $coffee = new Money(350, 'EUR');
+var $cake = new Money(425, 'EUR');
 var $order = $coffee->plus($cake);
 
 // This prints 350 + 425 = 775 EUR. The first two objects still have their own
 // values.
-echo $coffee->cents, " + ", $cake->cents, " = ", $order->cents, " ", $order->currency, "\n";
+echo $coffee->cents, ' + ', $cake->cents, ' = ', $order->cents, ' ', $order->currency, "\n";
 ```
 
 ```output
@@ -341,13 +361,16 @@ echo $coffee->cents, " + ", $cake->cents, " = ", $order->cents, " ", $order->cur
 // Shows a `static` property, which belongs to the class itself, and a `lateinit`
 // property, which is written after the object is created.
 
-class Printer {
-    public function write(int $number, string $subject): void {
-        echo "#", $number, " ", $subject, "\n";
+class Printer
+{
+    public function write(int $number, string $subject): void
+    {
+        echo '#', $number, ' ', $subject, "\n";
     }
 }
 
-class Ticket {
+class Ticket
+{
     // One value for the whole class. Every request starts it again at 0.
     public static int $issued = 0;
 
@@ -356,14 +379,16 @@ class Ticket {
 
     public readonly int $number;
 
-    public function constructor(public string $subject) {
+    public function constructor(public string $subject)
+    {
         self::$issued = self::$issued + 1;
         $this->number = self::$issued;
     }
 
     // A class may read its own `lateinit` property once a write came first on
     // the same path. This method does both.
-    public function printWith(Printer $printer): void {
+    public function printWith(Printer $printer): void
+    {
         $this->printer = $printer;
         $this->printer->write($this->number, $this->subject);
     }
@@ -371,14 +396,14 @@ class Ticket {
 
 var $printer = new Printer();
 
-var $first = new Ticket("The printer is out of paper");
+var $first = new Ticket('The printer is out of paper');
 $first->printWith($printer);
 
-var $second = new Ticket("A new keyboard");
+var $second = new Ticket('A new keyboard');
 $second->printWith($printer);
 
 // This prints 2. The counter belongs to the class, so both tickets added to it.
-echo "tickets so far: ", Ticket::$issued, "\n";
+echo 'tickets so far: ', Ticket::$issued, "\n";
 ```
 
 ```output
@@ -395,10 +420,12 @@ tickets so far: 2
 // leaves it with no value, so this program does not compile.
 // proof: compile-error
 
-class Box {
+class Box
+{
     public int $n;
 
-    public function constructor(bool $big) {
+    public function constructor(bool $big)
+    {
         if ($big) {
             $this->n = 10;
         }
@@ -408,13 +435,13 @@ class Box {
 
 ```output
 error[E0409]: `$n` is not assigned on every path out of the constructor
-  --> main.nvs:7:16
-  |
-7 |     public int $n;
-  |                ^^ declared here
+   --> main.nvs:8:16
+   |
+ 8 |     public int $n;
+   |                ^^ declared here
 ...
-9 |     public function constructor(bool $big) {
-  |                     ----------- not assigned along every path out of this constructor
+10 |     public function constructor(bool $big)
+   |                     ----------- not assigned along every path out of this constructor
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -429,7 +456,8 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 enum Mode { Off, On }
 
-class Config {
+class Config
+{
     public const int DEFAULT_SIZE = 8;
     public Mode $mode = Mode::On;
     public int $size = self::DEFAULT_SIZE;
@@ -440,7 +468,7 @@ class Config {
 var $c = new Config();
 
 // This prints `1 8 0 none`. `Mode::On` is the second case, so its number is 1.
-echo $c->mode as int, " ", $c->size, " ", Core\Arr::count($c->ports), " ", $c->label ?? "none", "\n";
+echo $c->mode as int, ' ', $c->size, ' ', Core\Arr::count($c->ports), ' ', $c->label ?? 'none', "\n";
 ```
 
 ```output
@@ -454,16 +482,20 @@ echo $c->mode as int, " ", $c->size, " ", Core\Arr::count($c->ports), " ", $c->l
 // Shows what happens when code reads a `lateinit` property before it has a
 // value. The read throws a `LogicError`.
 
-class Logger {
-    public function name(): string {
-        return "log";
+class Logger
+{
+    public function name(): string
+    {
+        return 'log';
     }
 }
 
-class Widget {
+class Widget
+{
     public lateinit Logger $logger;
 
-    public function attach(Logger $l): void {
+    public function attach(Logger $l): void
+    {
         $this->logger = $l;
     }
 }
@@ -474,7 +506,7 @@ var $w = new Widget();
 try {
     echo $w->logger->name(), "\n";
 } catch (Throwable $e) {
-    echo "threw: ", $e->message, "\n";
+    echo 'threw: ', $e->message, "\n";
 }
 
 // After `attach`, the read works. This prints `log`.
@@ -494,18 +526,19 @@ log
 // Shows `isinit`. It returns `true` when a `lateinit` property has a value.
 // It does not read the property, so it never throws.
 
-class Post {
+class Post
+{
     public lateinit ?string $note;
 }
 
 var $p = new Post();
 
 // This prints `no`.
-echo isinit($p->note) ? "yes" : "no", "\n";
+echo isinit($p->note) ? 'yes' : 'no', "\n";
 
 // `null` is a value too. This prints `yes`.
 $p->note = null;
-echo isinit($p->note) ? "yes" : "no", "\n";
+echo isinit($p->note) ? 'yes' : 'no', "\n";
 ```
 
 ```output
@@ -521,8 +554,10 @@ yes
 // program writes it after `new`, so it does not compile.
 // proof: compile-error
 
-class Id {
-    public function constructor(public readonly int $value) {}
+class Id
+{
+    public function constructor(public readonly int $value)
+    {}
 }
 
 var $id = new Id(1);
@@ -531,9 +566,9 @@ $id->value = 2;
 
 ```output
 error[E0782]: `Id::$value` is `readonly`, so only `Id`'s constructor writes it
-   --> main.nvs:11:1
+   --> main.nvs:13:1
    |
-11 | $id->value = 2;
+13 | $id->value = 2;
    | ^^^^^^^^^^ this write happens after construction
    = help: a `readonly` property is assigned once, in the constructor. Assign it there, or make it a constructor parameter (`public readonly T $x`). If the property must change, remove `readonly`
 
@@ -549,10 +584,12 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // to read a `static` property.
 // proof: compile-error
 
-class Counter {
+class Counter
+{
     public static int $n = 0;
 
-    public static function read(): int {
+    public static function read(): int
+    {
         return static::$n;
     }
 }
@@ -560,9 +597,9 @@ class Counter {
 
 ```output
 error[E0499]: `static::` does not resolve a static property
-   --> main.nvs:10:16
+   --> main.nvs:12:16
    |
-10 |         return static::$n;
+12 |         return static::$n;
    |                ^^^^^^ the called class is only known at run time
    = help: write `self::` for the class this is declared in, or name the class whose storage is meant
 
@@ -619,16 +656,20 @@ one call the class the function is written in.
 // Shows the two kinds of method. An instance method works on one object through
 // `$this`. A static method belongs to the class and needs no object.
 
-class Temperature {
-    public function constructor(public readonly int $celsius) {}
+class Temperature
+{
+    public function constructor(public readonly int $celsius)
+    {}
 
     // An instance method. `$this` is the object the method was called on.
-    public function isFreezing(): bool {
+    public function isFreezing(): bool
+    {
         return $this->celsius <= 0;
     }
 
     // A static method. It has no `$this`, so everything it needs is a parameter.
-    public static function warmer(Temperature $a, Temperature $b): Temperature {
+    public static function warmer(Temperature $a, Temperature $b): Temperature
+    {
         if ($a->celsius > $b->celsius) {
             return $a;
         }
@@ -648,7 +689,7 @@ if ($noon->isFreezing()) {
 }
 
 // This prints 11, which is the warmer of the two.
-echo "warmer: ", Temperature::warmer($morning, $noon)->celsius, "\n";
+echo 'warmer: ', Temperature::warmer($morning, $noon)->celsius, "\n";
 ```
 
 ```output
@@ -663,25 +704,31 @@ warmer: 11
 // Shows the difference between `self` and `static`. `self` is the class the code
 // is written in. `static` is the class the call was made on.
 
-class Document {
-    public static function kind(): string {
-        return "document";
+class Document
+{
+    public static function kind(): string
+    {
+        return 'document';
     }
 
     // `new static()` creates an object of the class that was called, so a
     // subclass gets one of its own kind.
-    public static function create(): static {
+    public static function create(): static
+    {
         return new static();
     }
 
-    public function describe(): string {
-        return static::kind() . " (this code is written in " . self::kind() . ")";
+    public function describe(): string
+    {
+        return static::kind() . ' (this code is written in ' . self::kind() . ')';
     }
 }
 
-class Invoice extends Document {
-    public static function kind(): string {
-        return "invoice";
+class Invoice extends Document
+{
+    public static function kind(): string
+    {
+        return 'invoice';
     }
 }
 
@@ -701,29 +748,35 @@ invoice (this code is written in document)
 // Shows `parent`. A subclass runs the constructor and the methods of the class
 // it extends, and adds its own work around them.
 
-class Notification {
-    public function constructor(public string $subject) {}
+class Notification
+{
+    public function constructor(public string $subject)
+    {}
 
-    public function format(): string {
-        return "[note] " . $this->subject;
+    public function format(): string
+    {
+        return '[note] ' . $this->subject;
     }
 }
 
-class UrgentNotification extends Notification {
-    public function constructor(string $subject, public string $team) {
+class UrgentNotification extends Notification
+{
+    public function constructor(string $subject, public string $team)
+    {
         // The parent's constructor assigns the properties the parent declares.
         parent::constructor($subject);
     }
 
-    public function format(): string {
+    public function format(): string
+    {
         // `parent::format()` is the version above this one, not this one, so
         // this method does not call itself.
-        return parent::format() . " for " . $this->team;
+        return parent::format() . ' for ' . $this->team;
     }
 }
 
-var $normal = new Notification("Backup finished");
-var $urgent = new UrgentNotification("Disk is full", "operations");
+var $normal = new Notification('Backup finished');
+var $urgent = new UrgentNotification('Disk is full', 'operations');
 
 echo $normal->format(), "\n";
 echo $urgent->format(), "\n";
@@ -741,16 +794,19 @@ echo $urgent->format(), "\n";
 // Shows a method that returns `$this`, so calls can be chained. It also shows
 // an anonymous function that keeps the object it was made on.
 
-class Acc {
+class Acc
+{
     private int $n = 0;
 
-    public function bump(): self {
+    public function bump(): self
+    {
         $this->n = $this->n + 1;
         return $this;
     }
 
     // The function reads `$this->n` when it is called, not when it is made.
-    public function adder(): callable {
+    public function adder(): callable
+    {
         return fn(int $k): int => $this->n + $k;
     }
 }
@@ -775,8 +831,10 @@ echo $f(3) as int, "\n";
 // A call on a subclass would get the wrong class, so this does not compile.
 // proof: compile-error
 
-class Builder {
-    public function copy(): static {
+class Builder
+{
+    public function copy(): static
+    {
         return new self();
     }
 }
@@ -784,13 +842,14 @@ class Builder {
 
 ```output
 error[E0741]: a body declaring `static` returns a value that is not the called class
-  --> main.nvs:7:29
-  |
-7 |     public function copy(): static {
-  |                             ------ declared `static` here
-8 |         return new self();
-  |                ^^^^^^^^^^ not the called class
-  = help: `static` is the class the call named, which a subclass may be — return `$this` or `new static(...)`, or declare `self` if the declaring class is what is meant
+   --> main.nvs:8:29
+   |
+ 8 |     public function copy(): static
+   |                             ------ declared `static` here
+...
+10 |         return new self();
+   |                ^^^^^^^^^^ not the called class
+   = help: `static` is the class the call named, which a subclass may be — return `$this` or `new static(...)`, or declare `self` if the declaring class is what is meant
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -845,26 +904,30 @@ the error `E0702`. Check the value with `is` first. On a `class<A>` value it is 
 // Shows a class holding values that never change. Every constant writes its
 // type, and code inside the class reads it with `self::` or `static::`.
 
-class Upload {
+class Upload
+{
     public const uint MAX_BYTES = 1048576;
-    public const string FOLDER = "uploads";
+    public const string FOLDER = 'uploads';
     // The element type is `float`, so this constant holds 1.0 and 2.5.
     public const array<float> STEP_SECONDS = [1, 2.5];
 
     // Returns true when a file of this size may be stored. `static::MAX_BYTES`
     // reads the constant of the class the call was made on.
-    public static function fits(uint $bytes): bool {
+    public static function fits(uint $bytes): bool
+    {
         return $bytes <= static::MAX_BYTES;
     }
 
     // `self::MAX_BYTES` always reads the value written in this class.
-    public static function describe(): string {
-        return static::MAX_BYTES as string . " of " . self::MAX_BYTES as string . " bytes";
+    public static function describe(): string
+    {
+        return static::MAX_BYTES as string . ' of ' . self::MAX_BYTES as string . ' bytes';
     }
 }
 
 // A subclass gives the constant a smaller value.
-class AvatarUpload extends Upload {
+class AvatarUpload extends Upload
+{
     public const uint MAX_BYTES = 65536;
 }
 
@@ -906,17 +969,21 @@ uploads
 // Shows how to get the name of a class as a string. On a value, `::class`
 // gives the class that value really is.
 
-class Notification {
-    public static function label(): string {
+class Notification
+{
+    public static function label(): string
+    {
         // `static::class` is the class the call was made on. It is not always
         // the class this method is written in.
         return static::class;
     }
 }
 
-class EmailNotification extends Notification {}
+class EmailNotification extends Notification
+{}
 
-class SmsNotification extends Notification {}
+class SmsNotification extends Notification
+{}
 
 // `Class::class` is the name of that class, written as text. This prints
 // Notification.
@@ -947,16 +1014,18 @@ SmsNotification
 // Shows a constant list checked on the way in, which is what a service does
 // with a small fixed table of allowed values.
 
-class Images {
-    public const array<string> TYPES = ["image/png", "image/jpeg", "image/webp"];
+class Images
+{
+    public const array<string> TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
     // Returns true when this service stores files of that type.
-    public static function allowed(string $type): bool {
+    public static function allowed(string $type): bool
+    {
         return Core\Arr::contains(self::TYPES, $type);
     }
 }
 
-array<string> $uploads = ["image/png", "application/pdf", "image/webp"];
+array<string> $uploads = ['image/png', 'application/pdf', 'image/webp'];
 foreach ($uploads as string $type) {
     if (Images::allowed($type)) {
         echo $type, " is stored\n";
@@ -968,8 +1037,8 @@ foreach ($uploads as string $type) {
 // Every read of the constant gives a new list. This one adds a type to the
 // list it got, and the constant still holds three types, so this prints 4 3.
 array<string> $mine = Images::TYPES;
-$mine[] = "image/gif";
-echo Core\Arr::count($mine), " ", Core\Arr::count(Images::TYPES), "\n";
+$mine[] = 'image/gif';
+echo Core\Arr::count($mine), ' ', Core\Arr::count(Images::TYPES), "\n";
 ```
 
 ```output
@@ -987,10 +1056,12 @@ image/webp is stored
 // not compile. `self::STEPS` or `Retry::STEPS` reads it.
 // proof: compile-error
 
-class Retry {
+class Retry
+{
     public const array<int> STEPS = [1, 2, 4];
 
-    public static function count(): int {
+    public static function count(): int
+    {
         return Core\Arr::count(static::STEPS);
     }
 }
@@ -998,9 +1069,9 @@ class Retry {
 
 ```output
 error[E0832]: `static::STEPS` reads `Retry::STEPS`, which is `array<int>` and has no scalar value
-   --> main.nvs:10:32
+   --> main.nvs:12:32
    |
-10 |         return Core\Arr::count(static::STEPS);
+12 |         return Core\Arr::count(static::STEPS);
    |                                ^^^^^^^^^^^^^ read through `static::`
    = help: a `static::` constant is read when the program runs, and only a `string`, `int`, `uint`, `bool` or `float` constant can be read that way. Write `self::` or the class name, or make the constant one of those types
 
@@ -1081,32 +1152,38 @@ written in the code that is not a subclass of `T` is the error `E0708` at `as cl
 // Shows `extends`. A subclass starts with everything its parent has, and
 // `parent::` runs the version the parent wrote.
 
-class Invoice {
-    public function constructor(public string $customer, public int $cents) {}
+class Invoice
+{
+    public function constructor(public string $customer, public int $cents)
+    {}
 
-    public function line(): string {
-        return $this->customer . ": " . $this->cents . " cents";
+    public function line(): string
+    {
+        return $this->customer . ': ' . $this->cents . ' cents';
     }
 }
 
-class OverdueInvoice extends Invoice {
-    public function constructor(string $customer, int $cents, public int $days) {
+class OverdueInvoice extends Invoice
+{
+    public function constructor(string $customer, int $cents, public int $days)
+    {
         // The parent's constructor assigns the properties the parent declares.
         parent::constructor($customer, $cents);
     }
 
-    public function line(): string {
+    public function line(): string
+    {
         // `parent::line()` is the version above this one, so this method adds
         // to that text instead of writing it again.
-        return parent::line() . ", " . $this->days . " days late";
+        return parent::line() . ', ' . $this->days . ' days late';
     }
 }
 
 // A subclass fits everywhere its parent fits, so both objects go in the
 // same array.
 array<Invoice> $book = [
-    new Invoice("Ada", 1200),
-    new OverdueInvoice("Bo", 3400, 12),
+    new Invoice('Ada', 1200),
+    new OverdueInvoice('Bo', 3400, 12),
 ];
 
 // Each object runs its own version of `line`.
@@ -1127,14 +1204,17 @@ Bo: 3400 cents, 12 days late
 // Shows `abstract` and `final`. An abstract class says which methods a
 // subclass has to write, and writes the work that is the same for all of them.
 
-abstract class Exporter {
-    public function constructor(public string $title) {}
+abstract class Exporter
+{
+    public function constructor(public string $title)
+    {}
 
     // This method has no body. Every subclass writes it.
-    public abstract function row(string $value): string;
+    abstract public function row(string $value): string;
 
     // This one has a body, and it calls the method that does not.
-    public function render(array<string> $values): string {
+    public function render(array<string> $values): string
+    {
         string $out = $this->title . "\n";
         foreach ($values as string $value) {
             $out = $out . $this->row($value) . "\n";
@@ -1144,23 +1224,27 @@ abstract class Exporter {
 }
 
 // `final` says no class extends this one.
-final class CsvExporter extends Exporter {
-    public function row(string $value): string {
+final class CsvExporter extends Exporter
+{
+    public function row(string $value): string
+    {
         return "\"" . $value . "\"";
     }
 }
 
-final class ListExporter extends Exporter {
-    public function row(string $value): string {
-        return "- " . $value;
+final class ListExporter extends Exporter
+{
+    public function row(string $value): string
+    {
+        return '- ' . $value;
     }
 }
 
-array<string> $names = ["Ada", "Bo"];
+array<string> $names = ['Ada', 'Bo'];
 
 // There is no object of `Exporter` itself. `array<Exporter>` still holds both
 // subclasses, because both are exporters.
-array<Exporter> $exporters = [new CsvExporter("names.csv"), new ListExporter("Names")];
+array<Exporter> $exporters = [new CsvExporter('names.csv'), new ListExporter('Names')];
 foreach ($exporters as Exporter $exporter) {
     echo $exporter->render($names);
 }
@@ -1182,29 +1266,36 @@ Names
 // Shows `class<T>` and `is`. A job runner reads the name of a class from its
 // queue, makes an object of that class, and runs it.
 
-class Task {
-    public function constructor(public string $subject) {}
+class Task
+{
+    public function constructor(public string $subject)
+    {}
 
-    public function run(): string {
-        return "nothing to do for " . $this->subject;
+    public function run(): string
+    {
+        return 'nothing to do for ' . $this->subject;
     }
 }
 
-class EmailTask extends Task {
-    public function run(): string {
-        return "email sent to " . $this->subject;
+class EmailTask extends Task
+{
+    public function run(): string
+    {
+        return 'email sent to ' . $this->subject;
     }
 }
 
-class ReportTask extends Task {
-    public function run(): string {
-        return "report written for " . $this->subject;
+class ReportTask extends Task
+{
+    public function run(): string
+    {
+        return 'report written for ' . $this->subject;
     }
 }
 
 // In a real program these names come from a queue or a configuration file, so
 // they are text.
-array<string> $queue = ["EmailTask", "ReportTask"];
+array<string> $queue = ['EmailTask', 'ReportTask'];
 
 foreach ($queue as string $name) {
     // `as class<Task>` converts the text to a class. It throws an error when
@@ -1212,13 +1303,13 @@ foreach ($queue as string $name) {
     class<Task> $cls = $name as class<Task>;
 
     // `new $cls(...)` makes an object of that class.
-    Task $task = new $cls("Ada");
+    Task $task = new $cls('Ada');
     echo $task->run(), "\n";
 }
 
 // `is` tests what an object really is. `$first` is declared `Task`, and the
 // object in it is an `EmailTask`, so this prints the line below.
-Task $first = new EmailTask("Bo");
+Task $first = new EmailTask('Bo');
 if ($first is EmailTask) {
     echo "the first task is an email task\n";
 }
@@ -1238,20 +1329,24 @@ the first task is an email task
 // when the parent has a constructor. This one does not, so it does not compile.
 // proof: compile-error
 
-class Base {
-    public function constructor(public int $a) {}
+class Base
+{
+    public function constructor(public int $a)
+    {}
 }
 
-class Child extends Base {
-    public function constructor(public int $b) {}
+class Child extends Base
+{
+    public function constructor(public int $b)
+    {}
 }
 ```
 
 ```output
 error[E0410]: `Child` extends another class, but a path through its constructor never calls `parent::constructor(...)`
-   --> main.nvs:11:21
+   --> main.nvs:14:21
    |
-11 |     public function constructor(public int $b) {}
+14 |     public function constructor(public int $b)
    |                     ^^^^^^^^^^^ missing call on some path
 
 error: aborting due to 1 error
@@ -1266,19 +1361,21 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // `Blob` does not write `area`, so it does not compile.
 // proof: compile-error
 
-abstract class Shape {
-    public abstract function area(): int;
+abstract class Shape
+{
+    abstract public function area(): int;
 }
 
-class Blob extends Shape {
+class Blob extends Shape
+{
 }
 ```
 
 ```output
 error[E0449]: `Blob` does not declare `area`, which `Shape` requires
-   --> main.nvs:10:7
+   --> main.nvs:11:7
    |
-10 | class Blob extends Shape {
+11 | class Blob extends Shape
    |       ^^^^ this class implements `Shape`
    = help: declare `area` here, or give `Shape` a default body for it
 
@@ -1293,25 +1390,31 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // Shows an `abstract static` method. Each subclass writes it, and a static
 // method of the parent calls it.
 
-abstract class Page {
-    public abstract static function title(): string;
+abstract class Page
+{
+    abstract public static function title(): string;
 
-    public static function heading(): string {
+    public static function heading(): string
+    {
         // `self::title()` calls the class the method was called on.
         // For `Blog::heading()`, that is `Blog::title()`.
-        return "Title: " . self::title();
+        return 'Title: ' . self::title();
     }
 }
 
-final class Blog extends Page {
-    public static function title(): string {
-        return "Blog";
+final class Blog extends Page
+{
+    public static function title(): string
+    {
+        return 'Blog';
     }
 }
 
-final class Shop extends Page {
-    public static function title(): string {
-        return "Shop";
+final class Shop extends Page
+{
+    public static function title(): string
+    {
+        return 'Shop';
     }
 }
 
@@ -1332,8 +1435,9 @@ Title: Shop
 // `Page::title()` has no body, so this does not compile.
 // proof: compile-error
 
-abstract class Page {
-    public abstract static function title(): string;
+abstract class Page
+{
+    abstract public static function title(): string;
 }
 
 echo Page::title(), "\n";
@@ -1341,9 +1445,9 @@ echo Page::title(), "\n";
 
 ```output
 error[E0835]: `Page::title()` is `abstract`, so it has no body to call
-   --> main.nvs:10:6
+   --> main.nvs:11:6
    |
-10 | echo Page::title(), "\n";
+11 | echo Page::title(), "\n";
    |      ^^^^^^^^^^^^^ called on `Page`, which does not give it a body
    = help: call it on a class that is not `abstract`, or, inside a method of `Page`, write `static::title()` to call the class the method was called on
 
@@ -1359,16 +1463,18 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // To build on `Sealed`, put a `Sealed` object in a property and call its methods.
 // proof: compile-error
 
-final class Sealed {}
+final class Sealed
+{}
 
-class Widened extends Sealed {}
+class Widened extends Sealed
+{}
 ```
 
 ```output
 error[E0783]: `Sealed` is `final`, so no class extends it
-  --> main.nvs:8:23
+  --> main.nvs:9:23
   |
-8 | class Widened extends Sealed {}
+9 | class Widened extends Sealed
   |                       ^^^^^^ `Widened` names it as its superclass
   = help: remove `final` from the declaration of `Sealed` if other classes may extend it. Or store a `Sealed` in a property of `Widened`, and write `implements … by $property` to forward the calls to it
 
@@ -1383,23 +1489,28 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // Shows what `is` tests. It is true for the object's class, every parent class
 // and every interface they implement.
 
-interface Marks {
+interface Marks
+{
     public function mark(): string;
 }
 
-class Base implements Marks {
-    public function mark(): string {
-        return "base";
+class Base implements Marks
+{
+    public function mark(): string
+    {
+        return 'base';
     }
 }
 
-class Leaf extends Base {}
+class Leaf extends Base
+{}
 
-class Other {}
+class Other
+{}
 
 // This prints `1`, `1`, `1` and then an empty string, because `Leaf` is not `Other`.
 var $leaf = new Leaf();
-echo ($leaf is Leaf) as string, ($leaf is Base) as string, ($leaf is Marks) as string, "|", ($leaf is Other) as string, "|\n";
+echo ($leaf is Leaf) as string, ($leaf is Base) as string, ($leaf is Marks) as string, '|', ($leaf is Other) as string, "|\n";
 
 // Inside the `if`, `$o` has the type `Marks`, so `$o->mark()` compiles.
 object $o = new Other();
@@ -1422,30 +1533,36 @@ not marked
 // Shows the three ways to use a `class<T>` value: `new $cls(...)`,
 // `$cls::kind()` and `$r is $cls`.
 
-class Report {
-    public function constructor(public string $title) {}
+class Report
+{
+    public function constructor(public string $title)
+    {}
 
-    public static function kind(): string {
-        return "report";
+    public static function kind(): string
+    {
+        return 'report';
     }
 
-    public function render(): string {
-        return static::kind() . ":" . $this->title;
-    }
-}
-
-class Invoice extends Report {
-    public static function kind(): string {
-        return "invoice";
+    public function render(): string
+    {
+        return static::kind() . ':' . $this->title;
     }
 }
 
-string $wanted = "Invoice";
+class Invoice extends Report
+{
+    public static function kind(): string
+    {
+        return 'invoice';
+    }
+}
+
+string $wanted = 'Invoice';
 class<Report> $cls = $wanted as class<Report>;
-Report $r = new $cls("March");
+Report $r = new $cls('March');
 
 // `$cls::kind()` runs `Invoice::kind`, because `$cls` is `Invoice`.
-echo $r->render(), " ", $cls::kind(), " ", ($r is $cls) as string, "\n";
+echo $r->render(), ' ', $cls::kind(), ' ', ($r is $cls) as string, "\n";
 ```
 
 ```output
@@ -1460,26 +1577,30 @@ invoice:March invoice 1
 // `Strict` needs two arguments, so this `new` with one does not compile.
 // proof: compile-error
 
-class Formatter {
-    public function constructor(public string $prefix) {}
+class Formatter
+{
+    public function constructor(public string $prefix)
+    {}
 }
 
-class Strict extends Formatter {
-    public function constructor(string $prefix, public int $width) {
+class Strict extends Formatter
+{
+    public function constructor(string $prefix, public int $width)
+    {
         parent::constructor($prefix);
     }
 }
 
 class<Formatter> $cls = Formatter::class as class<Formatter>;
-Formatter $made = new $cls("p: ");
+Formatter $made = new $cls('p: ');
 echo $made->prefix, "\n";
 ```
 
 ```output
 error[E0794]: `new` over `class<Formatter>` cannot check its arguments
-   --> main.nvs:17:19
+   --> main.nvs:21:19
    |
-17 | Formatter $made = new $cls("p: ");
+21 | Formatter $made = new $cls('p: ');
    |                   ^^^^^^^^^^^^^^^ `Strict::constructor` is not compatible with `Formatter::constructor`
    = help: a class reference may hold any implementor, so every one of them has to accept the arguments written here — give `Strict` a constructor compatible with `Formatter`'s, or narrow this to `as class<Strict>` and instantiate that
 
@@ -1532,27 +1653,35 @@ checked.
 <?nvs
 // Shows a subclass method that takes a narrower parameter type with `covariant`.
 
-class Animal {
-    public function constructor(public string $name) {}
+class Animal
+{
+    public function constructor(public string $name)
+    {}
 }
 
-class Dog extends Animal {
-    public function bark(): string {
-        return $this->name . " barks";
+class Dog extends Animal
+{
+    public function bark(): string
+    {
+        return $this->name . ' barks';
     }
 }
 
-class Shelter {
-    public function admit(Animal $a): string {
-        return $a->name . " is admitted";
+class Shelter
+{
+    public function admit(Animal $a): string
+    {
+        return $a->name . ' is admitted';
     }
 }
 
-class DogShelter extends Shelter {
+class DogShelter extends Shelter
+{
     // `covariant Dog` means this method takes only a `Dog`.
     // Inside the body, `$a` is a `Dog`, so `bark` can be called.
-    public function admit(covariant Dog $a): string {
-        return $a->bark() . " and is admitted";
+    public function admit(covariant Dog $a): string
+    {
+        return $a->bark() . ' and is admitted';
     }
 }
 
@@ -1560,7 +1689,7 @@ class DogShelter extends Shelter {
 Shelter $shelter = new DogShelter();
 
 // A `Dog` passes the check, so this prints "Rex barks and is admitted".
-echo $shelter->admit(new Dog("Rex")), "\n";
+echo $shelter->admit(new Dog('Rex')), "\n";
 ```
 
 ```output
@@ -1573,19 +1702,26 @@ Rex barks and is admitted
 <?nvs
 // Shows the `LogicError` a `covariant` parameter throws when the value has the wrong type.
 
-class Animal {}
-class Dog extends Animal {}
-class Cat extends Animal {}
+class Animal
+{}
+class Dog extends Animal
+{}
+class Cat extends Animal
+{}
 
-class Shelter {
-    public function admit(Animal $a): string {
-        return "admitted";
+class Shelter
+{
+    public function admit(Animal $a): string
+    {
+        return 'admitted';
     }
 }
 
-class DogShelter extends Shelter {
-    public function admit(covariant Dog $a): string {
-        return "a dog is admitted";
+class DogShelter extends Shelter
+{
+    public function admit(covariant Dog $a): string
+    {
+        return 'a dog is admitted';
     }
 }
 
@@ -1610,19 +1746,26 @@ The parameter `$a` of `DogShelter::admit` has the type `Dog`. The argument is an
 <?nvs
 // Shows a subclass property with a narrower type, and the check on each write.
 
-class Animal {}
-class Dog extends Animal {}
-class Cat extends Animal {}
+class Animal
+{}
+class Dog extends Animal
+{}
+class Cat extends Animal
+{}
 
-class Owner {
-    public function constructor(public Animal $pet) {}
+class Owner
+{
+    public function constructor(public Animal $pet)
+    {}
 }
 
-class DogOwner extends Owner {
+class DogOwner extends Owner
+{
     // This property has the type `Dog` in a `DogOwner`.
     public covariant Dog $pet;
 
-    public function constructor(Dog $pet) {
+    public function constructor(Dog $pet)
+    {
         parent::constructor($pet);
     }
 }
@@ -1631,7 +1774,7 @@ Owner $owner = new DogOwner(new Dog());
 
 // A `Dog` passes the check.
 $owner->pet = new Dog();
-echo "the new pet is a ", $owner->pet::class, "\n";
+echo 'the new pet is a ', $owner->pet::class, "\n";
 
 // The parent type allows a `Cat`, so this write compiles.
 // The object is a `DogOwner`, so the write throws and the property keeps its `Dog`.
@@ -1640,7 +1783,7 @@ try {
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }
-echo "the pet is still a ", $owner->pet::class, "\n";
+echo 'the pet is still a ', $owner->pet::class, "\n";
 ```
 
 ```output
@@ -1655,33 +1798,39 @@ the pet is still a Dog
 <?nvs
 // Shows `compareTo(covariant Price $other)` in a subclass of a `Comparable` class.
 
-class Amount implements Comparable {
-    public function constructor(public int $cents) {}
+class Amount implements Comparable
+{
+    public function constructor(public int $cents)
+    {}
 
-    public function compareTo(self $other): int {
+    public function compareTo(self $other): int
+    {
         return $this->cents <=> $other->cents;
     }
 }
 
-class Price extends Amount {
-    public function constructor(int $cents, public string $currency) {
+class Price extends Amount
+{
+    public function constructor(int $cents, public string $currency)
+    {
         parent::constructor($cents);
     }
 
     // A `Price` compares only with another `Price`, so it can read `currency`.
-    public function compareTo(covariant Price $other): int {
+    public function compareTo(covariant Price $other): int
+    {
         if ($this->currency != $other->currency) {
-            throw new LogicError("The two prices have different currencies.");
+            throw new LogicError('The two prices have different currencies.');
         }
         return $this->cents <=> $other->cents;
     }
 }
 
-Price $tea = new Price(250, "EUR");
-Price $cake = new Price(400, "EUR");
+Price $tea = new Price(250, 'EUR');
+Price $cake = new Price(400, 'EUR');
 
 // `<` calls `compareTo` on two `Price` objects. This prints `true`.
-echo $tea < $cake ? "true" : "false", "\n";
+echo $tea < $cake ? 'true' : 'false', "\n";
 
 // A call through the type `Amount` can pass a plain `Amount`.
 // `Price::compareTo` takes only a `Price`, so the call throws.
@@ -1705,23 +1854,29 @@ The parameter `$other` of `Price::compareTo` has the type `Price`. The argument 
 // Shows that a narrower parameter type without `covariant` does not compile.
 // proof: compile-error
 
-class Animal {}
-class Dog extends Animal {}
+class Animal
+{}
+class Dog extends Animal
+{}
 
-class Shelter {
-    public function admit(Animal $a): void {}
+class Shelter
+{
+    public function admit(Animal $a): void
+    {}
 }
 
-class DogShelter extends Shelter {
-    public function admit(Dog $a): void {}
+class DogShelter extends Shelter
+{
+    public function admit(Dog $a): void
+    {}
 }
 ```
 
 ```output
 error[E0404]: `DogShelter::admit` cannot replace `Shelter::admit`
-   --> main.nvs:13:21
+   --> main.nvs:18:21
    |
-13 |     public function admit(Dog $a): void {}
+18 |     public function admit(Dog $a): void
    |                     ^^^^^ `$a` is `Dog`, and a call to `Shelter::admit` passes `Animal`
    = help: a call through `Shelter` passes what `Shelter::admit` takes and reads what it returns. Keep its parameters, its `static` and its visibility. Each parameter may accept a wider type, and the return type may be narrower. To take a narrower type, write `covariant` before it. Each value is then tested when the method is called
 
@@ -1796,41 +1951,49 @@ write that method itself. One `implements` list may mix interfaces with `by` and
 // Shows `implements`. An interface lists the methods a class must write, and
 // a variable declared at the interface holds any class that implements it.
 
-interface Priced {
+interface Priced
+{
     public function cents(): int;
 }
 
-interface Named {
+interface Named
+{
     public function name(): string;
 }
 
 // A class implements as many interfaces as it needs, separated by a comma.
-class Book implements Priced, Named {
-    public function constructor(private string $title, private int $cents) {}
+class Book implements Priced, Named
+{
+    public function constructor(private string $title, private int $cents)
+    {}
 
-    public function cents(): int {
+    public function cents(): int
+    {
         return $this->cents;
     }
 
-    public function name(): string {
+    public function name(): string
+    {
         return $this->title;
     }
 }
 
-class Shipping implements Priced {
-    public function cents(): int {
+class Shipping implements Priced
+{
+    public function cents(): int
+    {
         return 499;
     }
 }
 
 // Both classes fit here, because both are `Priced`.
-array<Priced> $order = [new Book("Novis", 2500), new Shipping()];
+array<Priced> $order = [new Book('Novis', 2500), new Shipping()];
 
 int $total = 0;
 foreach ($order as Priced $item) {
     $total = $total + $item->cents();
 }
-echo "total ", $total, " cents\n";
+echo 'total ', $total, " cents\n";
 ```
 
 ```output
@@ -1844,7 +2007,8 @@ total 2999 cents
 // Shows a method with a body inside an interface. Every class that implements
 // the interface gets that method, and may write its own version instead.
 
-interface Greets {
+interface Greets
+{
     public const int MAX_LEN = 20;
 
     // No body: every class writes this one.
@@ -1852,37 +2016,44 @@ interface Greets {
 
     // A body: every class gets this one for free. It calls `name`, which the
     // class provides.
-    public function greet(): string {
-        return "Hello, " . $this->name() . "!";
+    public function greet(): string
+    {
+        return 'Hello, ' . $this->name() . '!';
     }
 }
 
-class Person implements Greets {
-    public function constructor(private string $who) {}
+class Person implements Greets
+{
+    public function constructor(private string $who)
+    {}
 
-    public function name(): string {
+    public function name(): string
+    {
         return $this->who;
     }
 }
 
-class Shop implements Greets {
-    public function name(): string {
-        return "the shop";
+class Shop implements Greets
+{
+    public function name(): string
+    {
+        return 'the shop';
     }
 
     // This class writes its own version. `Greets::greet()` is still the
     // interface's version, so this method adds to it.
-    public function greet(): string {
-        return Greets::greet() . " How can we help?";
+    public function greet(): string
+    {
+        return Greets::greet() . ' How can we help?';
     }
 }
 
-echo (new Person("Ada"))->greet(), "\n";
+echo (new Person('Ada'))->greet(), "\n";
 echo (new Shop())->greet(), "\n";
 
 // A constant on an interface is read through the interface or through any
 // class that implements it. Both print 20.
-echo Greets::MAX_LEN, " ", Person::MAX_LEN, "\n";
+echo Greets::MAX_LEN, ' ', Person::MAX_LEN, "\n";
 ```
 
 ```output
@@ -1898,37 +2069,44 @@ Hello, the shop! How can we help?
 // Shows `implements I by $property`. A class that holds an object which already
 // does the work passes every method of the interface on to it.
 
-interface SendsMail {
+interface SendsMail
+{
     public function send(string $to, string $subject): string;
     public function name(): string;
 }
 
 // The class that really sends the mail.
-class SmtpMailer implements SendsMail {
-    public function send(string $to, string $subject): string {
+class SmtpMailer implements SendsMail
+{
+    public function send(string $to, string $subject): string
+    {
         return "sent \"" . $subject . "\" to " . $to;
     }
 
-    public function name(): string {
-        return "smtp";
+    public function name(): string
+    {
+        return 'smtp';
     }
 }
 
 // This class is a `SendsMail` too. `by $inner` writes the forwarding methods,
 // so it does not repeat them.
-class LoggingMailer implements SendsMail by $inner {
-    public function constructor(private SendsMail $inner) {}
+class LoggingMailer implements SendsMail by $inner
+{
+    public function constructor(private SendsMail $inner)
+    {}
 
     // A method the class writes itself is used instead of the forward.
-    public function name(): string {
-        return "logging(" . $this->inner->name() . ")";
+    public function name(): string
+    {
+        return 'logging(' . $this->inner->name() . ')';
     }
 }
 
 SendsMail $mailer = new LoggingMailer(new SmtpMailer());
 
 // `send` is forwarded to the object in `$inner`.
-echo $mailer->send("ada@example.com", "Welcome"), "\n";
+echo $mailer->send('ada@example.com', 'Welcome'), "\n";
 
 // `name` is the method this class wrote.
 echo $mailer->name(), "\n";
@@ -1946,50 +2124,61 @@ logging(smtp)
 // Shows the parts an interface can have: a required method, a default method,
 // a private helper, a constant and a static method.
 
-interface Greets {
+interface Greets
+{
     public const int MAX_LEN = 20;
 
     public function name(): string;
 
-    public function greet(): string {
-        return $this->prefix() . $this->name() . "!";
+    public function greet(): string
+    {
+        return $this->prefix() . $this->name() . '!';
     }
 
     // Only the methods of `Greets` can call this one.
-    private function prefix(): string {
-        return "Hello, ";
+    private function prefix(): string
+    {
+        return 'Hello, ';
     }
 
-    public static function kind(): string {
-        return "greeter";
+    public static function kind(): string
+    {
+        return 'greeter';
     }
 }
 
-interface Counts {
+interface Counts
+{
     public function count(): int;
 }
 
-class Person implements Greets, Counts {
-    public function constructor(private string $who) {}
+class Person implements Greets, Counts
+{
+    public function constructor(private string $who)
+    {}
 
-    public function name(): string {
+    public function name(): string
+    {
         return $this->who;
     }
 
-    public function count(): int {
+    public function count(): int
+    {
         return 1;
     }
 }
 
 // `parent::greet()` runs the default method that `Person` got from `Greets`.
-class Loud extends Person {
-    public function greet(): string {
+class Loud extends Person
+{
+    public function greet(): string
+    {
         return Core\Str::upper(parent::greet());
     }
 }
 
-echo (new Person("ada"))->greet(), " ", Greets::MAX_LEN, " ", Person::kind(), "\n";
-echo (new Loud("bob"))->greet(), "\n";
+echo (new Person('ada'))->greet(), ' ', Greets::MAX_LEN, ' ', Person::kind(), "\n";
+echo (new Loud('bob'))->greet(), "\n";
 ```
 
 ```output
@@ -2004,27 +2193,32 @@ HELLO, BOB!
 // Shows an interface that extends another one. A class that implements
 // `Titled` must write the methods of both interfaces.
 
-interface Named {
+interface Named
+{
     public function name(): string;
 }
 
-interface Titled extends Named {
+interface Titled extends Named
+{
     public function title(): string;
 }
 
-class Doc implements Titled {
-    public function name(): string {
-        return "doc";
+class Doc implements Titled
+{
+    public function name(): string
+    {
+        return 'doc';
     }
 
-    public function title(): string {
-        return "Doc";
+    public function title(): string
+    {
+        return 'Doc';
     }
 }
 
 // A `Doc` is a `Named` too. This prints `doc 1`.
 Named $n = new Doc();
-echo $n->name(), " ", ($n is Titled) as string, "\n";
+echo $n->name(), ' ', ($n is Titled) as string, "\n";
 ```
 
 ```output
@@ -2039,19 +2233,21 @@ doc 1
 // `Empty` does not write `count`, so it does not compile.
 // proof: compile-error
 
-interface Counts {
+interface Counts
+{
     public function count(): int;
 }
 
-class Empty implements Counts {
+class Empty implements Counts
+{
 }
 ```
 
 ```output
 error[E0449]: `Empty` does not declare `count`, which `Counts` requires
-   --> main.nvs:10:7
+   --> main.nvs:11:7
    |
-10 | class Empty implements Counts {
+11 | class Empty implements Counts
    |       ^^^^^ this class implements `Counts`
    = help: declare `count` here, or give `Counts` a default body for it
 
@@ -2067,14 +2263,17 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // `$voice` is `?Greets`, so this does not compile.
 // proof: compile-error
 
-interface Greets {
+interface Greets
+{
     public function greet(): string;
 }
 
-class Maybe implements Greets by $voice {
+class Maybe implements Greets by $voice
+{
     private ?Greets $voice;
 
-    public function constructor(?Greets $voice) {
+    public function constructor(?Greets $voice)
+    {
         $this->voice = $voice;
     }
 }
@@ -2082,9 +2281,9 @@ class Maybe implements Greets by $voice {
 
 ```output
 error[E0720]: `$voice` is `null|Greets`, which cannot satisfy `Greets`
-   --> main.nvs:10:34
+   --> main.nvs:11:34
    |
-10 | class Maybe implements Greets by $voice {
+11 | class Maybe implements Greets by $voice
    |                                  ^^^^^^ a delegate is dispatched on at every forwarded call, so it may not be nullable
    = help: declare `$voice` as `Greets`, or as a class that implements it. The type cannot be nullable
 
@@ -2170,11 +2369,12 @@ Two `get` hooks may read each other, such as `get => $this->b` on `$a` and `get 
 // Shows a `set` hook. It runs on every write, including the one the
 // constructor makes, so the property can never hold a value outside its range.
 
-class Volume {
+class Volume
+{
     public int $level {
         set (int $v) {
             if ($v < 0) {
-                throw new LogicError("a volume is never below 0");
+                throw new LogicError('a volume is never below 0');
             }
             // Inside the hook, `$this->level` is the stored value. This line
             // stores it, and does not call the hook again.
@@ -2186,7 +2386,8 @@ class Volume {
         }
     }
 
-    public function constructor(int $start) {
+    public function constructor(int $start)
+    {
         $this->level = $start;
     }
 }
@@ -2202,7 +2403,7 @@ echo $radio->level, "\n";
 try {
     $radio->level = -1;
 } catch (LogicError $e) {
-    echo "refused: ", $e->message, "\n";
+    echo 'refused: ', $e->message, "\n";
 }
 echo $radio->level, "\n";
 ```
@@ -2221,8 +2422,10 @@ refused: a volume is never below 0
 // Shows a `get` hook alone. The property stores nothing of its own. It works
 // its value out from the other properties every time it is read.
 
-class Cart {
-    public function constructor(public int $unitCents, public int $quantity) {}
+class Cart
+{
+    public function constructor(public int $unitCents, public int $quantity)
+    {}
 
     // `get => expr;` is short for `get { return expr; }`.
     public int $totalCents {
@@ -2255,13 +2458,14 @@ the cart costs 1000 cents
 // lower case whatever the form sends, and the display name follows the value
 // that was stored.
 
-class User {
+class User
+{
     public string $email {
         get => $this->email;
         set (string $v) {
             string $clean = Core\Str::trim(Core\Str::lower($v));
-            if (!Core\Str::contains($clean, "@")) {
-                throw new LogicError("that is not an e-mail address");
+            if (!Core\Str::contains($clean, '@')) {
+                throw new LogicError('that is not an e-mail address');
             }
             $this->email = $clean;
         }
@@ -2270,27 +2474,28 @@ class User {
     // `Core\Str::before` gives the text in front of the `@`. It returns `null`
     // when there is no `@`, and `??` uses the whole address then.
     public string $display {
-        get => Core\Str::before($this->email, "@") ?? $this->email;
+        get => Core\Str::before($this->email, '@') ?? $this->email;
     }
 
-    public function constructor(string $email) {
+    public function constructor(string $email)
+    {
         $this->email = $email;
     }
 }
 
 // The form sent spaces and capital letters. The hook cleans both away.
-var $user = new User("  Ada.Lovelace@Example.COM ");
+var $user = new User('  Ada.Lovelace@Example.COM ');
 echo $user->email, "\n";
 echo $user->display, "\n";
 
 // A later write goes through the same hook.
-$user->email = "BO@example.com";
-echo $user->email, " ", $user->display, "\n";
+$user->email = 'BO@example.com';
+echo $user->email, ' ', $user->display, "\n";
 
 try {
-    $user->email = "not-an-address";
+    $user->email = 'not-an-address';
 } catch (LogicError $e) {
-    echo "refused: ", $e->message, "\n";
+    echo 'refused: ', $e->message, "\n";
 }
 echo $user->email, "\n";
 ```
@@ -2312,7 +2517,8 @@ bo@example.com
 // and assign the variable back.
 // proof: compile-error
 
-class Box {
+class Box
+{
     public array<int> $xs {
         get => $this->xs;
         set (array<int> $v) {
@@ -2320,7 +2526,8 @@ class Box {
         }
     }
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->xs = [];
     }
 }
@@ -2331,9 +2538,9 @@ $b->xs[0] = 1;
 
 ```output
 error[E0478]: an array element cannot be written through the hooked property `xs`
-   --> main.nvs:21:1
+   --> main.nvs:23:1
    |
-21 | $b->xs[0] = 1;
+23 | $b->xs[0] = 1;
    | ^^^^^^ reading this runs its `get` hook
    = help: a property with hooks is read and written through its hooks. Read it into a variable, write the element there, and assign the variable back to the property
 
@@ -2390,23 +2597,28 @@ write does.
 // Shows a property that gets its value on the first read. `Post` loads its
 // author only when the program reads `$author`.
 
-class Author {
-    public function constructor(public string $name) {}
+class Author
+{
+    public function constructor(public string $name)
+    {}
 }
 
-class Post implements LateInit {
+class Post implements LateInit
+{
     public lateinit Author $author;
 
-    public function constructor(public string $title) {}
+    public function constructor(public string $title)
+    {}
 
     // Novis calls this method with the name of the property that has no value.
-    public function initProperty(string $name): void {
+    public function initProperty(string $name): void
+    {
         echo "loading the author\n";
-        $this->author = new Author("Ada");
+        $this->author = new Author('Ada');
     }
 }
 
-var $post = new Post("Hello");
+var $post = new Post('Hello');
 echo $post->title, "\n";
 
 // The first read calls `initProperty`. The second read does not.
@@ -2428,17 +2640,19 @@ Ada
 // Shows one `initProperty` method that sets several properties of different
 // types. The method tests `$name` to know which property to set.
 
-class Page implements LateInit {
+class Page implements LateInit
+{
     public lateinit int $views;
     public lateinit array<string> $tags;
     public lateinit ?string $note;
 
-    public function initProperty(string $name): void {
-        echo "init ", $name, "\n";
-        if ($name == "views") {
+    public function initProperty(string $name): void
+    {
+        echo 'init ', $name, "\n";
+        if ($name == 'views') {
             $this->views = 0;
-        } elseif ($name == "tags") {
-            $this->tags = ["news"];
+        } elseif ($name == 'tags') {
+            $this->tags = ['news'];
         } else {
             $this->note = null;
         }
@@ -2448,17 +2662,17 @@ class Page implements LateInit {
 var $page = new Page();
 
 // `isinit` tests the property without reading it, so it calls nothing.
-echo isinit($page->views) ? "set" : "not set", "\n";
+echo isinit($page->views) ? 'set' : 'not set', "\n";
 echo $page->views, "\n";
-echo isinit($page->views) ? "set" : "not set", "\n";
+echo isinit($page->views) ? 'set' : 'not set', "\n";
 
 // A write to one element calls `initProperty` first, then adds the element.
-$page->tags[] = "tech";
+$page->tags[] = 'tech';
 echo Core\Json::encode($page->tags), "\n";
 
 // `null` is a value too, so this read calls `initProperty` only once.
-echo $page->note ?? "no note", "\n";
-echo $page->note ?? "no note", "\n";
+echo $page->note ?? 'no note', "\n";
+echo $page->note ?? 'no note', "\n";
 ```
 
 ```output
@@ -2480,17 +2694,19 @@ no note
 // Shows what happens when `initProperty` throws an error. The property still
 // has no value, so the next read calls `initProperty` again.
 
-class Settings implements LateInit {
+class Settings implements LateInit
+{
     public lateinit string $theme;
     public int $tries = 0;
 
-    public function initProperty(string $name): void {
+    public function initProperty(string $name): void
+    {
         $this->tries = $this->tries + 1;
         // The first try fails, for example because a server did not answer.
         if ($this->tries == 1) {
-            throw new RuntimeError("the settings server did not answer");
+            throw new RuntimeError('the settings server did not answer');
         }
-        $this->theme = "dark";
+        $this->theme = 'dark';
     }
 }
 
@@ -2498,12 +2714,12 @@ var $settings = new Settings();
 try {
     echo $settings->theme, "\n";
 } catch (RuntimeError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }
 
 // This read calls `initProperty` a second time, and it works.
 echo $settings->theme, "\n";
-echo "tries: ", $settings->tries, "\n";
+echo 'tries: ', $settings->tries, "\n";
 ```
 
 ```output
@@ -2519,18 +2735,22 @@ tries: 2
 // Shows the error when `initProperty` returns and the property still has no
 // value. `Post` sets `$author` but not `$views`.
 
-class Author {
-    public function constructor(public string $name) {}
+class Author
+{
+    public function constructor(public string $name)
+    {}
 }
 
-class Post implements LateInit {
+class Post implements LateInit
+{
     public lateinit Author $author;
     public lateinit int $views;
 
-    public function initProperty(string $name): void {
-        echo "initProperty ", $name, "\n";
-        if ($name == "author") {
-            $this->author = new Author("Ada");
+    public function initProperty(string $name): void
+    {
+        echo 'initProperty ', $name, "\n";
+        if ($name == 'author') {
+            $this->author = new Author('Ada');
         }
     }
 }
@@ -2597,22 +2817,26 @@ caller.
 // Shows a guard that stops a bad write. `Account` throws an error when a
 // program writes a negative balance, so the old balance stays.
 
-class Account implements PropertyGuard {
+class Account implements PropertyGuard
+{
     public int $balance;
 
-    public function constructor(int $balance) {
+    public function constructor(int $balance)
+    {
         // The guard also checks this write.
         $this->balance = $balance;
     }
 
     // `$value` is the new value. It is not stored yet.
-    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
-        if ($name == "balance" && $value is int && $value < 0) {
-            throw new LogicError("the balance cannot be negative");
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void
+    {
+        if ($name == 'balance' && $value is int && $value < 0) {
+            throw new LogicError('the balance cannot be negative');
         }
     }
 
-    public function beforePropertyUnset(string $name, array<string> $keys): void {
+    public function beforePropertyUnset(string $name, array<string> $keys): void
+    {
     }
 }
 
@@ -2623,7 +2847,7 @@ echo $account->balance, "\n";
 try {
     $account->balance = -10;
 } catch (LogicError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }
 
 // The write did not happen, so this prints 40.
@@ -2643,41 +2867,44 @@ error: the balance cannot be negative
 // Shows the keys a guard gets for a write to one element. `Profile` allows
 // at most three tags and does not allow a program to remove the tag "user".
 
-class Profile implements PropertyGuard {
+class Profile implements PropertyGuard
+{
     public array<string> $tags = [];
 
     // For `$p->tags[] = "x"`, `$keys` is the next index and `$value` is "x".
-    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
-        echo "set ", $name, " ", Core\Json::encode($keys), " = ", $value, "\n";
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void
+    {
+        echo 'set ', $name, ' ', Core\Json::encode($keys), ' = ', $value, "\n";
         if (Core\Arr::count($this->tags) >= 3) {
-            throw new LogicError("a profile has at most three tags");
+            throw new LogicError('a profile has at most three tags');
         }
     }
 
     // For `unset($p->tags[0])`, `$keys` is `["0"]`.
-    public function beforePropertyUnset(string $name, array<string> $keys): void {
-        echo "unset ", $name, " ", Core\Json::encode($keys), "\n";
-        if ($this->tags[$keys[0]] == "user") {
-            throw new LogicError("the tag user cannot be removed");
+    public function beforePropertyUnset(string $name, array<string> $keys): void
+    {
+        echo 'unset ', $name, ' ', Core\Json::encode($keys), "\n";
+        if ($this->tags[$keys[0]] == 'user') {
+            throw new LogicError('the tag user cannot be removed');
         }
     }
 }
 
 var $profile = new Profile();
-$profile->tags[] = "user";
-$profile->tags[] = "admin";
-$profile->tags[] = "beta";
+$profile->tags[] = 'user';
+$profile->tags[] = 'admin';
+$profile->tags[] = 'beta';
 
 try {
-    $profile->tags[] = "extra";
+    $profile->tags[] = 'extra';
 } catch (LogicError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }
 
 try {
     unset($profile->tags[0]);
 } catch (LogicError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }
 
 echo Core\Json::encode($profile->tags), "\n";
@@ -2701,7 +2928,8 @@ error: the tag user cannot be removed
 // Shows the order of the calls when a class has a guard, a `set` hook and an
 // observer. The guard runs first, and a write it stops reaches nothing else.
 
-class Contact implements PropertyGuard, PropertyObserver {
+class Contact implements PropertyGuard, PropertyObserver
+{
     public string $email {
         set(string $value) {
             echo "  set hook\n";
@@ -2709,38 +2937,43 @@ class Contact implements PropertyGuard, PropertyObserver {
         }
     }
 
-    public function constructor(string $email) {
+    public function constructor(string $email)
+    {
         $this->email = $email;
     }
 
     // The guard gets the value the program wrote, before the hook changes it.
-    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
-        echo "  guard ", $value, "\n";
-        if ($value is string && !Core\Str::contains($value, "@")) {
-            throw new LogicError("an email needs an @");
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void
+    {
+        echo '  guard ', $value, "\n";
+        if ($value is string && !Core\Str::contains($value, '@')) {
+            throw new LogicError('an email needs an @');
         }
     }
 
-    public function beforePropertyUnset(string $name, array<string> $keys): void {
+    public function beforePropertyUnset(string $name, array<string> $keys): void
+    {
     }
 
-    public function onPropertyGet(string $name, mixed $value): void {
+    public function onPropertyGet(string $name, mixed $value): void
+    {
     }
 
     // The observer gets the value that was stored.
-    public function onPropertySet(string $name, mixed $value): void {
-        echo "  observer ", $value, "\n";
+    public function onPropertySet(string $name, mixed $value): void
+    {
+        echo '  observer ', $value, "\n";
     }
 }
 
 echo "new:\n";
-var $contact = new Contact("Ada@Example.com");
+var $contact = new Contact('Ada@Example.com');
 
 echo "a bad write:\n";
 try {
-    $contact->email = "nobody";
+    $contact->email = 'nobody';
 } catch (LogicError $e) {
-    echo "  error: ", $e->message, "\n";
+    echo '  error: ', $e->message, "\n";
 }
 echo $contact->email, "\n";
 ```
@@ -2802,27 +3035,31 @@ calls `onPropertyGet` again, for that property.
 // Shows the two methods an observer writes. `Account` prints one line for every
 // read and every write of its own properties.
 
-class Account implements PropertyObserver {
+class Account implements PropertyObserver
+{
     public string $owner;
     public int $balance;
 
-    public function constructor(string $owner) {
+    public function constructor(string $owner)
+    {
         // The constructor writes both properties, so `onPropertySet` runs twice here.
         $this->owner = $owner;
         $this->balance = 0;
     }
 
     // `$name` is the property, and `$value` is the value it now has.
-    public function onPropertyGet(string $name, mixed $value): void {
-        echo "read ", $name, " = ", $value, "\n";
+    public function onPropertyGet(string $name, mixed $value): void
+    {
+        echo 'read ', $name, ' = ', $value, "\n";
     }
 
-    public function onPropertySet(string $name, mixed $value): void {
-        echo "wrote ", $name, " = ", $value, "\n";
+    public function onPropertySet(string $name, mixed $value): void
+    {
+        echo 'wrote ', $name, ' = ', $value, "\n";
     }
 }
 
-var $account = new Account("Ada");
+var $account = new Account('Ada');
 $account->balance = 120;
 
 // A read calls `onPropertyGet` first, then gives you the value. This prints
@@ -2845,7 +3082,8 @@ read balance = 120
 // Shows how far one observer reaches. A private property, a property with a
 // hook, and a property a subclass declares all call the same two methods.
 
-class Record implements PropertyObserver {
+class Record implements PropertyObserver
+{
     private int $id;
     public string $title;
 
@@ -2857,32 +3095,37 @@ class Record implements PropertyObserver {
         }
     }
 
-    public function constructor(int $id, string $title) {
+    public function constructor(int $id, string $title)
+    {
         $this->id = $id;
         $this->title = $title;
         $this->slug = $title;
     }
 
-    public function onPropertyGet(string $name, mixed $value): void {
-        echo "read ", $name, "\n";
+    public function onPropertyGet(string $name, mixed $value): void
+    {
+        echo 'read ', $name, "\n";
     }
 
-    public function onPropertySet(string $name, mixed $value): void {
-        echo "wrote ", $name, " = ", $value, "\n";
+    public function onPropertySet(string $name, mixed $value): void
+    {
+        echo 'wrote ', $name, ' = ', $value, "\n";
     }
 }
 
 // A subclass inherits the two methods, and the property it adds is observed too.
-class Article extends Record {
+class Article extends Record
+{
     public int $words;
 
-    public function constructor(int $id, string $title, int $words) {
+    public function constructor(int $id, string $title, int $words)
+    {
         $this->words = $words;
         parent::constructor($id, $title);
     }
 }
 
-var $article = new Article(7, "Hello World", 240);
+var $article = new Article(7, 'Hello World', 240);
 $article->words = 250;
 echo $article->title, "\n";
 ```
@@ -2904,12 +3147,14 @@ Hello World
 // Shows what an observer is most often used for: a record that knows whether
 // it still matches the database, so a program saves it only after a change.
 
-final class Contact implements PropertyObserver {
+final class Contact implements PropertyObserver
+{
     public string $name;
     public string $email;
     public bool $unsaved = false;
 
-    public function constructor(string $name, string $email) {
+    public function constructor(string $name, string $email)
+    {
         $this->name = $name;
         $this->email = $email;
         // The two writes above set the flag. This row comes from the database,
@@ -2917,33 +3162,36 @@ final class Contact implements PropertyObserver {
         $this->unsaved = false;
     }
 
-    public function onPropertyGet(string $name, mixed $value): void {
+    public function onPropertyGet(string $name, mixed $value): void
+    {
     }
 
-    public function onPropertySet(string $name, mixed $value): void {
+    public function onPropertySet(string $name, mixed $value): void
+    {
         // Writing a property in this method calls the method again. Test the
         // name first. Without this test the program never stops.
-        if ($name != "unsaved") {
+        if ($name != 'unsaved') {
             $this->unsaved = true;
         }
     }
 
-    public function save(): void {
+    public function save(): void
+    {
         if (!$this->unsaved) {
             echo "nothing to save\n";
             return;
         }
-        echo "saving ", $this->name, "\n";
+        echo 'saving ', $this->name, "\n";
         $this->unsaved = false;
     }
 }
 
-var $contact = new Contact("Ada", "ada@example.com");
+var $contact = new Contact('Ada', 'ada@example.com');
 $contact->save();
 
 // One write anywhere in the program is enough. No method has to remember to
 // report it.
-$contact->email = "ada.lovelace@example.com";
+$contact->email = 'ada.lovelace@example.com';
 $contact->save();
 $contact->save();
 ```
@@ -2996,11 +3244,14 @@ If `toString` throws an error, the `echo`, the `.` or the conversion throws that
 // Shows a class that can be printed. `Money` stores whole cents, and `toString`
 // gives the amount people read.
 
-final class Money implements Stringable {
-    public function constructor(private int $cents) {}
+final class Money implements Stringable
+{
+    public function constructor(private int $cents)
+    {}
 
-    public function toString(): string {
-        return ($this->cents / 100) . " EUR";
+    public function toString(): string
+    {
+        return ($this->cents / 100) . ' EUR';
     }
 }
 
@@ -3011,7 +3262,7 @@ echo $price, "\n";
 
 // `toString` is an ordinary method, so you can also call it by name.
 string $text = $price->toString();
-echo $text, " has ", Core\Str::length($text), " characters\n";
+echo $text, ' has ', Core\Str::length($text), " characters\n";
 ```
 
 ```output
@@ -3026,21 +3277,24 @@ echo $text, " has ", Core\Str::length($text), " characters\n";
 // Shows the four places an object turns into text on its own. One `toString`
 // method serves all of them.
 
-class Tag implements Stringable {
-    public function constructor(private string $word) {}
+class Tag implements Stringable
+{
+    public function constructor(private string $word)
+    {}
 
-    public function toString(): string {
-        return "#" . $this->word;
+    public function toString(): string
+    {
+        return '#' . $this->word;
     }
 }
 
-var $tag = new Tag("sale");
+var $tag = new Tag('sale');
 
 // 1. `echo` writes the text out.
 echo $tag, "\n";
 
 // 2. `.` joins the text to another string.
-echo "banner: " . $tag, "\n";
+echo 'banner: ' . $tag, "\n";
 
 // 3. A value inside a string is replaced by the text.
 echo "banner: {$tag}\n";
@@ -3051,13 +3305,15 @@ echo $kept, "\n";
 
 // A subclass that writes its own `toString` is the one that runs, whatever type
 // the variable is declared as. This prints #SALE.
-final class LoudTag extends Tag {
-    public function toString(): string {
+final class LoudTag extends Tag
+{
+    public function toString(): string
+    {
         return Core\Str::upper(parent::toString());
     }
 }
 
-Tag $loud = new LoudTag("sale");
+Tag $loud = new LoudTag('sale');
 echo $loud, "\n";
 ```
 
@@ -3076,30 +3332,37 @@ banner: #sale
 // Shows small classes that each have a `toString` method, printed together as a
 // receipt. Each line has a `Money`, and the receipt has a list of lines.
 
-final class Money implements Stringable {
-    public function constructor(private int $cents) {}
+final class Money implements Stringable
+{
+    public function constructor(private int $cents)
+    {}
 
-    public function plus(Money $other): Money {
+    public function plus(Money $other): Money
+    {
         return new Money($this->cents + $other->cents);
     }
 
-    public function toString(): string {
-        return ($this->cents / 100) . " EUR";
+    public function toString(): string
+    {
+        return ($this->cents / 100) . ' EUR';
     }
 }
 
-final class Line implements Stringable {
-    public function constructor(public string $item, public Money $price) {}
+final class Line implements Stringable
+{
+    public function constructor(public string $item, public Money $price)
+    {}
 
     // The price inside the string becomes text the same way this line does.
-    public function toString(): string {
+    public function toString(): string
+    {
         return $this->item . ": {$this->price}";
     }
 }
 
 array<Line> $lines = [
-    new Line("coffee", new Money(350)),
-    new Line("bread", new Money(220)),
+    new Line('coffee', new Money(350)),
+    new Line('bread', new Money(220)),
 ];
 
 var $total = new Money(0);
@@ -3125,7 +3388,8 @@ total: 5.7 EUR
 // written out. `Point` does not, so this program does not compile.
 // proof: compile-error
 
-class Point {
+class Point
+{
     public int $x = 1;
 }
 
@@ -3135,9 +3399,9 @@ echo "point $p\n";
 
 ```output
 error[E0412]: `Point` cannot be converted to `string` here; it does not implement `Stringable`
-   --> main.nvs:11:13
+   --> main.nvs:12:13
    |
-11 | echo "point $p\n";
+12 | echo "point $p\n";
    |             ^^ converted to `string` here
    = help: implement `Stringable`'s `toString(): string` on the class
 
@@ -3180,12 +3444,15 @@ error.
 // Shows the comparison operators working on two objects. They work because the
 // class implements `Comparable` and writes the one method that interface needs.
 
-final class FileSize implements Comparable {
-    public function constructor(public uint $bytes) {}
+final class FileSize implements Comparable
+{
+    public function constructor(public uint $bytes)
+    {}
 
     // Returns a negative number when this size is the smaller one. Two sizes
     // that are the same give zero. A larger size gives a positive number.
-    public function compareTo(self $other): int {
+    public function compareTo(self $other): int
+    {
         return $this->bytes <=> $other->bytes;
     }
 }
@@ -3225,12 +3492,15 @@ the limit is within itself
 // Shows an order that reads two properties, and how a program branches on the
 // number `<=>` returns.
 
-final class Release implements Comparable {
-    public function constructor(public uint $major, public uint $minor) {}
+final class Release implements Comparable
+{
+    public function constructor(public uint $major, public uint $minor)
+    {}
 
     // The major number decides first. Two releases with the same major number
     // are ordered by their minor number.
-    public function compareTo(self $other): int {
+    public function compareTo(self $other): int
+    {
         int $byMajor = $this->major <=> $other->major;
         if ($byMajor != 0) {
             return $byMajor;
@@ -3239,9 +3509,11 @@ final class Release implements Comparable {
     }
 }
 
-final class Report {
+final class Report
+{
     // Prints which of the two releases is the newer one.
-    public static function say(Release $installed, Release $available): void {
+    public static function say(Release $installed, Release $available): void
+    {
         int $order = $installed <=> $available;
         if ($order < 0) {
             echo "an update is available\n";
@@ -3277,28 +3549,35 @@ your release is newer than the one on the server
 // Shows two comparisons guarding a range. A service does this to check that
 // the version a client asks for is one it still answers.
 
-final class ApiVersion implements Comparable {
-    public function constructor(public uint $number) {}
+final class ApiVersion implements Comparable
+{
+    public function constructor(public uint $number)
+    {}
 
-    public function compareTo(self $other): int {
+    public function compareTo(self $other): int
+    {
         return $this->number <=> $other->number;
     }
 }
 
-final class Api {
+final class Api
+{
     // The oldest version this service still answers.
-    public static function oldest(): ApiVersion {
+    public static function oldest(): ApiVersion
+    {
         return new ApiVersion(3);
     }
 
     // The newest one it knows about.
-    public static function newest(): ApiVersion {
+    public static function newest(): ApiVersion
+    {
         return new ApiVersion(7);
     }
 
     // Returns the version to answer with, or `null` when the request asks for
     // one outside the range above.
-    public static function accept(ApiVersion $wanted): ?ApiVersion {
+    public static function accept(ApiVersion $wanted): ?ApiVersion
+    {
         if ($wanted < Api::oldest()) {
             return null;
         }
@@ -3313,9 +3592,9 @@ array<uint> $requested = [2, 3, 5, 7, 9];
 foreach ($requested as uint $number) {
     var $answer = Api::accept(new ApiVersion($number));
     if ($answer == null) {
-        echo "version ", $number, " is not supported\n";
+        echo 'version ', $number, " is not supported\n";
     } else {
-        echo "version ", $answer->number, " accepted\n";
+        echo 'version ', $answer->number, " accepted\n";
     }
 }
 ```
@@ -3336,7 +3615,8 @@ version 9 is not supported
 // not implement it, so this program does not compile.
 // proof: compile-error
 
-class Point {
+class Point
+{
     public int $x = 1;
 }
 
@@ -3349,9 +3629,9 @@ if ($a < $b) {
 
 ```output
 error[E0411]: `Point` does not implement `Comparable`; ordering two objects with `<`/`<=`/`>`/`>=`/`<=>` requires it
-   --> main.nvs:12:5
+   --> main.nvs:13:5
    |
-12 | if ($a < $b) {
+13 | if ($a < $b) {
    |     ^^^^^^^ compared here
    = help: implement `Comparable`'s `compareTo(self $other): int` on the class
 
@@ -3405,26 +3685,29 @@ Then it calls `parse`. If `parse` throws, the response is `400`, and the method 
 // Shows a class built out of text. A product code is eight characters in upper
 // case, and `parse` is the only way to make one.
 
-final class Sku implements Parses {
-    public function constructor(public tainted string $code) {}
+final class Sku implements Parses
+{
+    public function constructor(public tainted string $code)
+    {}
 
-    public static function parse(tainted string $s): static {
+    public static function parse(tainted string $s): static
+    {
         // The text comes from outside the program, so every rule is checked here.
         if (Core\Str::length($s) != 8) {
-            throw new ParseError("a product code has 8 characters");
+            throw new ParseError('a product code has 8 characters');
         }
         if ($s != Core\Str::upper($s)) {
-            throw new ParseError("a product code is written in upper case");
+            throw new ParseError('a product code is written in upper case');
         }
         return new static($s);
     }
 }
 
-echo Sku::parse("ABC-1234")->code, "\n";
+echo Sku::parse('ABC-1234')->code, "\n";
 
 // Text the class does not accept throws a `ParseError`.
 try {
-    echo Sku::parse("abc-1234")->code, "\n";
+    echo Sku::parse('abc-1234')->code, "\n";
 } catch (ParseError $e) {
     echo $e->message, "\n";
 }
@@ -3442,24 +3725,29 @@ a product code is written in upper case
 // Shows what the return type `static` means. `parse` is written once, and each
 // subclass that inherits it gets an object of its own class.
 
-class Code implements Parses {
-    public function constructor(public tainted string $text) {}
+class Code implements Parses
+{
+    public function constructor(public tainted string $text)
+    {}
 
-    public static function parse(tainted string $s): static {
+    public static function parse(tainted string $s): static
+    {
         if (Core\Str::length($s) == 0) {
-            throw new ParseError("a code is not empty");
+            throw new ParseError('a code is not empty');
         }
         // `new static` builds the class the call named, not `Code`.
         return new static($s);
     }
 }
 
-class CustomerCode extends Code {}
+class CustomerCode extends Code
+{}
 
-class SupplierCode extends Code {}
+class SupplierCode extends Code
+{}
 
-var $customer = CustomerCode::parse("C-77");
-var $supplier = SupplierCode::parse("S-12");
+var $customer = CustomerCode::parse('C-77');
+var $supplier = SupplierCode::parse('S-12');
 
 // `$value is SomeClass` tests the class of an object.
 if ($customer is CustomerCode) {
@@ -3487,20 +3775,23 @@ S-12 is a supplier code
 // Shows text from a form converted into values one by one. Each line where
 // `parse` throws an error is reported to the person who sent the form.
 
-final class Recipient implements Parses {
-    public function constructor(public tainted string $address) {}
+final class Recipient implements Parses
+{
+    public function constructor(public tainted string $address)
+    {}
 
-    public static function parse(tainted string $s): static {
+    public static function parse(tainted string $s): static
+    {
         // Text that came from outside stays `tainted` through `Core\Str::trim`.
         tainted string $clean = Core\Str::trim($s);
-        if (!Core\Str::contains($clean, "@")) {
-            throw new ParseError("an address needs an @");
+        if (!Core\Str::contains($clean, '@')) {
+            throw new ParseError('an address needs an @');
         }
         return new static($clean);
     }
 }
 
-array<string> $sent = [" ada@example.com ", "nobody", "grace@example.com"];
+array<string> $sent = [' ada@example.com ', 'nobody', 'grace@example.com'];
 array<Recipient> $accepted = [];
 
 foreach ($sent as string $line) {
@@ -3511,9 +3802,9 @@ foreach ($sent as string $line) {
     }
 }
 
-echo "sending to ", Core\Arr::count($accepted), " of ", Core\Arr::count($sent), "\n";
+echo 'sending to ', Core\Arr::count($accepted), ' of ', Core\Arr::count($sent), "\n";
 foreach ($accepted as Recipient $recipient) {
-    echo "  ", $recipient->address, "\n";
+    echo '  ', $recipient->address, "\n";
 }
 ```
 
@@ -3531,29 +3822,34 @@ sending to 2 of 3
 // Shows a `Parses` class used as the type of a route capture and of a query
 // value. The router calls `Slug::parse` for both.
 
-final class Slug implements Parses {
-    public function constructor(public tainted string $text) {}
+final class Slug implements Parses
+{
+    public function constructor(public tainted string $text)
+    {}
 
-    public static function parse(tainted string $s): static {
+    public static function parse(tainted string $s): static
+    {
         if ($s != Core\Str::lower($s)) {
-            throw new ParseError("a slug is written in lower case");
+            throw new ParseError('a slug is written in lower case');
         }
         return new static($s);
     }
 }
 
-class Posts {
-    #[Core\Route(path: "/posts/{slug}", method: Core\Http\Method::Get, name: "Posts::show")]
+class Posts
+{
+    #[Core\Route(path: '/posts/{slug}', method: Core\Http\Method::Get, name: 'Posts::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(Slug $slug, #[Core\Query] Slug $tag): string {
-        return "one post";
+    public function show(Slug $slug, #[Core\Query] Slug $tag): string
+    {
+        return 'one post';
     }
 }
 
 // Your code can call `parse` too. The second call throws `ParseError`.
-echo Slug::parse("hello-world")->text, "\n";
+echo Slug::parse('hello-world')->text, "\n";
 try {
-    echo Slug::parse("Hello-World")->text, "\n";
+    echo Slug::parse('Hello-World')->text, "\n";
 } catch (ParseError $e) {
     echo $e->message, "\n";
 }
@@ -3572,27 +3868,30 @@ a slug is written in lower case
 // implements `Parses`. `Tag` does not, so this program does not compile.
 // proof: compile-error
 
-class Tag {
-    public string $text = "";
+class Tag
+{
+    public string $text = '';
 }
 
-class Posts {
-    #[Core\Route(path: "/posts/{tag}", method: Core\Http\Method::Get, name: "Posts::show")]
+class Posts
+{
+    #[Core\Route(path: '/posts/{tag}', method: Core\Http\Method::Get, name: 'Posts::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(Tag $tag): string {
-        return "one post";
+    public function show(Tag $tag): string
+    {
+        return 'one post';
     }
 }
 ```
 
 ```output
 error[E0752]: `Tag` is not a type `{tag}` can arrive at
-   --> main.nvs:11:18
+   --> main.nvs:13:18
    |
-11 |     #[Core\Route(path: "/posts/{tag}", method: Core\Http\Method::Get, name: "Posts::show")]
+13 |     #[Core\Route(path: '/posts/{tag}', method: Core\Http\Method::Get, name: 'Posts::show')]
    |                  -------------------- the capture bound here
 ...
-13 |     public function show(Tag $tag): string {
+15 |     public function show(Tag $tag): string
    |                          ^^^^^^^^ no conversion from a path segment
    = help: a segment is converted to the parameter's declared type, so a capture binds `string`, `int`, `uint`, `decimal`, an enum, a set of allowed values like `'a'|'b'`, or a class implementing `Parses`. It is never a regex
 
@@ -3634,7 +3933,8 @@ object.
 // Shows what happens when you assign an object to a second variable. Both
 // variables name the same object, so a write through one is read through the other.
 
-class Counter {
+class Counter
+{
     public int $value = 0;
 }
 
@@ -3643,7 +3943,7 @@ var $alias = $counter;
 
 // The write goes through `$alias`. Both variables name one object, so this prints `5|5`.
 $alias->value = 5;
-echo $counter->value, "|", $alias->value, "\n";
+echo $counter->value, '|', $alias->value, "\n";
 
 // `==` on two objects is true when they are the same object. This prints `1`.
 echo ($counter == $alias) as string, "\n";
@@ -3668,24 +3968,30 @@ echo ($counter == $other) as string, "|done\n";
 // Shows that a function receives the caller's object and not a copy. The same
 // object is also kept in an array and in a property. All of them read one object.
 
-class Order {
+class Order
+{
     public int $total = 0;
 
-    public function constructor(public string $customer) {}
+    public function constructor(public string $customer)
+    {}
 }
 
-class Invoice {
-    public function constructor(public Order $order) {}
+class Invoice
+{
+    public function constructor(public Order $order)
+    {}
 }
 
-class Discount {
+class Discount
+{
     // The parameter holds the caller's object, so this write changes it.
-    public static function applyTo(Order $order, int $off): void {
+    public static function applyTo(Order $order, int $off): void
+    {
         $order->total = $order->total - $off;
     }
 }
 
-var $order = new Order("Ada");
+var $order = new Order('Ada');
 $order->total = 100;
 
 // One object, now named in three places: a variable, an array element and a property.
@@ -3695,12 +4001,12 @@ var $invoice = new Invoice($order);
 Discount::applyTo($order, 25);
 
 // All three read the one object, so this prints `75|75|75`.
-echo $order->total, "|", $open[0]->total, "|", $invoice->order->total, "\n";
+echo $order->total, '|', $open[0]->total, '|', $invoice->order->total, "\n";
 
 // The array element is the same object, so this second call changes it too.
 // This prints `70|70|70`.
 Discount::applyTo($open[0], 5);
-echo $order->total, "|", $open[0]->total, "|", $invoice->order->total, "\n";
+echo $order->total, '|', $open[0]->total, '|', $invoice->order->total, "\n";
 ```
 
 ```output
@@ -3715,35 +4021,39 @@ echo $order->total, "|", $open[0]->total, "|", $invoice->order->total, "\n";
 // Shows how `clone` makes a copy you can edit without changing the original.
 // A program does this when it prepares a draft of a record it already saved.
 
-class Address {
-    public function constructor(public string $city) {}
+class Address
+{
+    public function constructor(public string $city)
+    {}
 }
 
-class Profile {
+class Profile
+{
     public array<string> $tags = [];
 
-    public function constructor(public string $name, public Address $address) {}
+    public function constructor(public string $name, public Address $address)
+    {}
 }
 
-var $saved = new Profile("Ada", new Address("Berlin"));
-$saved->tags[] = "customer";
+var $saved = new Profile('Ada', new Address('Berlin'));
+$saved->tags[] = 'customer';
 
 var $draft = clone $saved;
 
 // `name` and `tags` are copied into the draft. These writes change the draft only.
-$draft->name = "Ada Lovelace";
-$draft->tags[] = "draft";
-echo $saved->name, "|", $draft->name, "\n";
-echo Core\Arr::count($saved->tags), "|", Core\Arr::count($draft->tags), "\n";
+$draft->name = 'Ada Lovelace';
+$draft->tags[] = 'draft';
+echo $saved->name, '|', $draft->name, "\n";
+echo Core\Arr::count($saved->tags), '|', Core\Arr::count($draft->tags), "\n";
 
 // `address` holds an object. The copy shares that object, so this write is read
 // through both profiles. It prints `Vienna|Vienna`.
-$draft->address->city = "Vienna";
-echo $saved->address->city, "|", $draft->address->city, "\n";
+$draft->address->city = 'Vienna';
+echo $saved->address->city, '|', $draft->address->city, "\n";
 
 // Give the draft its own `Address` when you want the two to differ.
-$draft->address = new Address("Berlin");
-echo $saved->address->city, "|", $draft->address->city, "\n";
+$draft->address = new Address('Berlin');
+echo $saved->address->city, '|', $draft->address->city, "\n";
 ```
 
 ```output
@@ -3790,23 +4100,25 @@ Each `?->` covers one step of a chain. In `$box?->inner()->label`, the result of
 // Shows how to read from a value that may be `null`. `?->` returns `null` when
 // the value is missing, and `??` gives you something to use instead.
 
-class Theme {
-    public function constructor(public string $name) {}
+class Theme
+{
+    public function constructor(public string $name)
+    {}
 }
 
-?Theme $chosen = new Theme("dark");
+?Theme $chosen = new Theme('dark');
 ?Theme $missing = null;
 
 // `$chosen` holds a `Theme`, so `?->` reads the property. This prints `dark`.
-echo $chosen?->name ?? "default", "\n";
+echo $chosen?->name ?? 'default', "\n";
 
 // `$missing` is `null`, so the whole access is `null` and `??` takes over.
 // This prints `default`.
-echo $missing?->name ?? "default", "\n";
+echo $missing?->name ?? 'default', "\n";
 
 // Without `??` the result is `null` itself. `as string` prints an empty text for it.
 ?string $name = $missing?->name;
-echo "[", $name as string, "]\n";
+echo '[', $name as string, "]\n";
 ```
 
 ```output
@@ -3822,30 +4134,35 @@ default
 // Shows the second way to use a value that may be `null`. Inside `if ($x != null)`
 // the value is no longer nullable, so plain `->` works for the whole branch.
 
-class Session {
-    public function constructor(public string $user, public int $minutes) {}
+class Session
+{
+    public function constructor(public string $user, public int $minutes)
+    {}
 
-    public function isFresh(): bool {
+    public function isFresh(): bool
+    {
         return $this->minutes < 30;
     }
 }
 
-class Greeting {
-    public static function forSession(?Session $session): string {
+class Greeting
+{
+    public static function forSession(?Session $session): string
+    {
         if ($session != null) {
             // Three uses of the value, and none of them needs `?->`.
             if ($session->isFresh()) {
-                return "Welcome back, " . $session->user;
+                return 'Welcome back, ' . $session->user;
             }
-            return "Please sign in again, " . $session->user;
+            return 'Please sign in again, ' . $session->user;
         }
-        return "Hello, guest";
+        return 'Hello, guest';
     }
 }
 
 // This prints one line for each case.
-echo Greeting::forSession(new Session("ada", 5)), "\n";
-echo Greeting::forSession(new Session("ada", 90)), "\n";
+echo Greeting::forSession(new Session('ada', 5)), "\n";
+echo Greeting::forSession(new Session('ada', 90)), "\n";
 echo Greeting::forSession(null), "\n";
 ```
 
@@ -3862,33 +4179,40 @@ Hello, guest
 // Shows a chain of accesses where any step may be missing. A shipping label
 // needs the country of a customer's address, and a customer may have neither.
 
-class Country {
-    public function constructor(public string $code) {}
+class Country
+{
+    public function constructor(public string $code)
+    {}
 }
 
-class Address {
-    public function constructor(public string $city, public ?Country $country) {}
+class Address
+{
+    public function constructor(public string $city, public ?Country $country)
+    {}
 }
 
-class Customer {
-    public function constructor(public string $name, public ?Address $address) {}
+class Customer
+{
+    public function constructor(public string $name, public ?Address $address)
+    {}
 
-    public function shippingCountry(): string {
+    public function shippingCountry(): string
+    {
         // Each `?->` stops the chain at the first missing step. One `??` at the
         // end covers every one of them.
-        return $this->address?->country?->code ?? "unknown";
+        return $this->address?->country?->code ?? 'unknown';
     }
 }
 
 array<Customer> $customers = [
-    new Customer("Ada", new Address("Berlin", new Country("DE"))),
-    new Customer("Grace", new Address("Vienna", null)),
-    new Customer("Alan", null),
+    new Customer('Ada', new Address('Berlin', new Country('DE'))),
+    new Customer('Grace', new Address('Vienna', null)),
+    new Customer('Alan', null),
 ];
 
 // This prints `DE`, then `unknown` twice.
 foreach ($customers as Customer $customer) {
-    echo $customer->name, ": ", $customer->shippingCountry(), "\n";
+    echo $customer->name, ': ', $customer->shippingCountry(), "\n";
 }
 ```
 
@@ -3906,7 +4230,8 @@ Alan: unknown
 // `$none` is a `?Box`, so the read below is an error.
 // proof: compile-error
 
-class Box {
+class Box
+{
     public int $count = 1;
 }
 
@@ -3916,9 +4241,9 @@ echo $none->count, "\n";
 
 ```output
 error[E0459]: `null|Box` may be `null`, so `->` cannot reach a member of it
-   --> main.nvs:11:6
+   --> main.nvs:12:6
    |
-11 | echo $none->count, "\n";
+12 | echo $none->count, "\n";
    |      ^^^^^ this receiver is nullable
    = help: test it first — inside `if ($x != null) { … }` the receiver is no longer nullable — or use `?->`, which answers `null` instead of reaching the member
 
@@ -3963,21 +4288,28 @@ object does not have throws a `RuntimeError`. A value of another type than the p
 // Shows what you can do with a value typed `object`. It holds an object of any
 // class, so a property read works and a method call needs a class name first.
 
-class Tag {
-    public function constructor(public string $text) {}
+class Tag
+{
+    public function constructor(public string $text)
+    {}
 }
 
-class Label {
-    public function constructor(public string $text) {}
+class Label
+{
+    public function constructor(public string $text)
+    {}
 }
 
-class Pick {
-    public static function first(): object {
-        return new Tag("red");
+class Pick
+{
+    public static function first(): object
+    {
+        return new Tag('red');
     }
 
-    public static function second(): object {
-        return new Label("blue");
+    public static function second(): object
+    {
+        return new Label('blue');
     }
 }
 
@@ -3986,7 +4318,7 @@ object $two = Pick::second();
 
 // Both classes happen to have a property called `text`. The name is looked up
 // while the program runs, so this prints `red|blue`.
-echo $one->text as string, "|", $two->text as string, "\n";
+echo $one->text as string, '|', $two->text as string, "\n";
 
 // `as Tag` converts the value to a `Tag`. The result is an ordinary `Tag`.
 Tag $tag = $one as Tag;
@@ -4005,20 +4337,26 @@ red
 // Shows how to call a method on a value typed `object`. `is` tests the class,
 // and inside that branch the call compiles.
 
-class Duck {
-    public function speak(): string {
-        return "quack";
+class Duck
+{
+    public function speak(): string
+    {
+        return 'quack';
     }
 }
 
-class Robot {
-    public function beep(): string {
-        return "beep";
+class Robot
+{
+    public function beep(): string
+    {
+        return 'beep';
     }
 }
 
-class Voice {
-    public static function of(object $thing): string {
+class Voice
+{
+    public static function of(object $thing): string
+    {
         // Each branch narrows the value to one class. Inside the branch, you can
         // call the methods of that class.
         if ($thing is Duck) {
@@ -4027,11 +4365,12 @@ class Voice {
         if ($thing is Robot) {
             return $thing->beep();
         }
-        return "silence";
+        return 'silence';
     }
 }
 
-class Stone {}
+class Stone
+{}
 
 // This prints one line for each value.
 echo Voice::of(new Duck()), "\n";
@@ -4052,20 +4391,28 @@ silence
 // Shows a list holding objects of several unrelated classes. A program does this
 // when it receives events from different sources and handles each kind its own way.
 
-class Payment {
-    public function constructor(public int $cents) {}
+class Payment
+{
+    public function constructor(public int $cents)
+    {}
 }
 
-class Refund {
-    public function constructor(public int $cents) {}
+class Refund
+{
+    public function constructor(public int $cents)
+    {}
 }
 
-class Note {
-    public function constructor(public string $text) {}
+class Note
+{
+    public function constructor(public string $text)
+    {}
 }
 
-class Ledger {
-    public static function balance(array<object> $events): int {
+class Ledger
+{
+    public static function balance(array<object> $events): int
+    {
         int $total = 0;
         foreach ($events as object $event) {
             if ($event is Payment) {
@@ -4082,7 +4429,7 @@ class Ledger {
 
 array<object> $events = [
     new Payment(1200),
-    new Note("customer called"),
+    new Note('customer called'),
     new Refund(200),
     new Payment(50),
 ];
@@ -4103,9 +4450,11 @@ echo Ledger::balance($events), "\n";
 // with `is` first, or convert the value with `as`.
 // proof: compile-error
 
-class Tag {
-    public function shout(): string {
-        return "TAG";
+class Tag
+{
+    public function shout(): string
+    {
+        return 'TAG';
     }
 }
 
@@ -4115,9 +4464,9 @@ echo $o->shout(), "\n";
 
 ```output
 error[E0477]: `object` names no class, so it has no method `shout`
-   --> main.nvs:13:6
+   --> main.nvs:15:6
    |
-13 | echo $o->shout(), "\n";
+15 | echo $o->shout(), "\n";
    |      ^^^^^^^^^ called on a receiver that names no class here
    = help: test the receiver for the class that declares `shout` first: `if ($x is ClassName) { … }`. An `object` has no methods of its own
 
@@ -4161,23 +4510,25 @@ A method called `destructor` is an ordinary method. It runs only when your code 
 // Shows a property hook where PHP would write `__get`. The hook runs when the
 // property is read, so the class works the value out instead of storing it.
 
-class Person {
-    public function constructor(public string $first, public string $last) {}
+class Person
+{
+    public function constructor(public string $first, public string $last)
+    {}
 
     // `get => expr;` runs on every read of `$fullName`.
     public string $fullName {
-        get => $this->first . " " . $this->last;
+        get => $this->first . ' ' . $this->last;
     }
 }
 
-var $ada = new Person("Ada", "Byron");
+var $ada = new Person('Ada', 'Byron');
 
 // This prints "Ada Byron".
 echo $ada->fullName, "\n";
 
 // The value follows the properties it is worked out from. This prints
 // "Ada Lovelace".
-$ada->last = "Lovelace";
+$ada->last = 'Lovelace';
 echo $ada->fullName, "\n";
 
 // A hook belongs to one property, with a name and a type the compiler checks.
@@ -4197,35 +4548,39 @@ Ada Lovelace
 // write to every property the class declares. A program can keep a trail of what
 // changed without writing a setter for each property.
 
-final class Profile implements PropertyObserver {
+final class Profile implements PropertyObserver
+{
     public string $displayName;
     public string $email;
-    public string $changed = "";
+    public string $changed = '';
 
-    public function constructor(string $displayName, string $email) {
+    public function constructor(string $displayName, string $email)
+    {
         $this->displayName = $displayName;
         $this->email = $email;
         // The two writes above are already in the trail. This row comes from
         // the database, so the trail starts empty.
-        $this->changed = "";
+        $this->changed = '';
     }
 
-    public function onPropertyGet(string $name, mixed $value): void {
+    public function onPropertyGet(string $name, mixed $value): void
+    {
     }
 
-    public function onPropertySet(string $name, mixed $value): void {
+    public function onPropertySet(string $name, mixed $value): void
+    {
         // Writing a property in this method calls the method again. Test the
         // name first, or the program never stops.
-        if ($name != "changed") {
-            $this->changed = $this->changed . $name . " ";
+        if ($name != 'changed') {
+            $this->changed = $this->changed . $name . ' ';
         }
     }
 }
 
-var $profile = new Profile("ada", "ada@example.com");
+var $profile = new Profile('ada', 'ada@example.com');
 
-$profile->displayName = "Ada Lovelace";
-$profile->email = "ada.lovelace@example.com";
+$profile->displayName = 'Ada Lovelace';
+$profile->email = 'ada.lovelace@example.com';
 
 // This prints "displayName email", the two properties that changed, in the
 // order they were written.
@@ -4243,33 +4598,41 @@ displayName email
 // Shows a named class where PHP would write `new class { … }`. Novis has no
 // anonymous classes, so a one-off implementation of an interface gets a name.
 
-interface Notifier {
+interface Notifier
+{
     public function notify(string $text): string;
 }
 
 // This class is declared at the top level of the file, like every other class.
-class ConsoleNotifier implements Notifier {
-    public function notify(string $text): string {
-        return "console: " . $text;
+class ConsoleNotifier implements Notifier
+{
+    public function notify(string $text): string
+    {
+        return 'console: ' . $text;
     }
 }
 
 // A second one. A test uses this in place of the real notifier and then reads
 // what it collected.
-class RecordingNotifier implements Notifier {
-    public string $last = "";
+class RecordingNotifier implements Notifier
+{
+    public string $last = '';
 
-    public function notify(string $text): string {
+    public function notify(string $text): string
+    {
         $this->last = $text;
-        return "recorded: " . $text;
+        return 'recorded: ' . $text;
     }
 }
 
-class Job {
-    public function constructor(private Notifier $notifier) {}
+class Job
+{
+    public function constructor(private Notifier $notifier)
+    {}
 
-    public function run(): string {
-        return $this->notifier->notify("job finished");
+    public function run(): string
+    {
+        return $this->notifier->notify('job finished');
     }
 }
 
@@ -4297,8 +4660,10 @@ job finished
 // without the underscores.
 // proof: compile-error
 
-class Legacy {
-    public function __get(string $name): mixed {
+class Legacy
+{
+    public function __get(string $name): mixed
+    {
         return 1;
     }
 }
@@ -4306,9 +4671,9 @@ class Legacy {
 
 ```output
 error[E0111]: method names must be camelCase, e.g. `get`
-  --> main.nvs:7:21
+  --> main.nvs:8:21
   |
-7 |     public function __get(string $name): mixed {
+8 |     public function __get(string $name): mixed
   |                     ^^^^^ method name must be camelCase
   = suggestion: rename to `get`: `get`
 

@@ -2,10 +2,10 @@
 // Shows that `notDelegated` returns `false` for an account without this protection.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `not delegated: false`.
-    echo "not delegated: ", $flags->notDelegated() ? "true" : "false", "\n";
+    echo 'not delegated: ', $flags->notDelegated() ? 'true' : 'false', "\n";
 }

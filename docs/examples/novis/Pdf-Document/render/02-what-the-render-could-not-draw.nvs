@@ -3,15 +3,15 @@
 use Novis\Pdf\Document;
 
 // `box-shadow` is not supported, and no font has the character `𓀀`.
-string $html = "<style>h1 { box-shadow: 2px 2px gray }</style><h1>Order 1042</h1><p>Gift note: 𓀀</p>";
+string $html = '<style>h1 { box-shadow: 2px 2px gray }</style><h1>Order 1042</h1><p>Gift note: 𓀀</p>';
 var $rendered = Document::fromHtml($html)->render();
 
 // `dropped` lists each CSS declaration the render left out, with its selector and its line.
 foreach ($rendered->dropped as var $css) {
-    echo "dropped ", $css->property, ": ", $css->value, " in ", $css->selector, " at line ", $css->line, "\n";
+    echo 'dropped ', $css->property, ': ', $css->value, ' in ', $css->selector, ' at line ', $css->line, "\n";
 }
 
 // `missingGlyphs` lists the text that no font has. The render draws an empty box for it.
 foreach ($rendered->missingGlyphs as var $missing) {
-    echo "missing `", $missing->text, "` on page ", $missing->page, "\n";
+    echo 'missing `', $missing->text, '` on page ', $missing->page, "\n";
 }

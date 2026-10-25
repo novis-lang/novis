@@ -5,10 +5,12 @@
 // bench: complexity karatsuba
 // bench: calls 2
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $prime = Core\BigInt::parse("170141183460469231731687303715884105727");
-        var $exponent = Core\BigInt::parse("94823749283749283749283749283749");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $prime = Core\BigInt::parse('170141183460469231731687303715884105727');
+        var $exponent = Core\BigInt::parse('94823749283749283749283749283749');
         var $base = Core\BigInt::of(5);
         uint $total = 0;
         uint $i = 0;

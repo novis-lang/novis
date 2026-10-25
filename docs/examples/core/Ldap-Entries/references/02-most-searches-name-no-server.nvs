@@ -2,15 +2,15 @@
 // Shows that `references` is an empty array when the search stays on one server.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $people = $corp->search(Core\Ldap\Filter::equals("department", "Sales"), {
-    base: "OU=Company,DC=example,DC=test",
-    select: ["cn"],
-    sort: "cn",
+var $corp = Core\Ldap::connect('corp');
+var $people = $corp->search(Core\Ldap\Filter::equals('department', 'Sales'), {
+    base: 'OU=Company,DC=example,DC=test',
+    select: ['cn'],
+    sort: 'cn',
 });
 
 foreach ($people as Core\Ldap\Entry $person) {
-    echo $person->string("cn") ?? "", "\n";
+    echo $person->string('cn') ?? '', "\n";
 }
 
 // Everything below `OU=Company` is on this server. This prints 0.

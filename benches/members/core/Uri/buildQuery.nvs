@@ -3,15 +3,17 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             array<mixed> $search = [
-                "q" => "red shoes",
-                "page" => $total % 9,
-                "tags" => ["sale", "new"],
+                'q' => 'red shoes',
+                'page' => $total % 9,
+                'tags' => ['sale', 'new'],
             ];
             $total = $total + Core\Str::length(Core\Uri::buildQuery($search));
             $i = $i + 1;

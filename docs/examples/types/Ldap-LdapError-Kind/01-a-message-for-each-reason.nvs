@@ -2,34 +2,36 @@
 // Shows how to turn the reason for a failed directory operation into a message for a person.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 
-class Reason {
+class Reason
+{
     // `kind` of the error is a `Core\Ldap\LdapError::Kind` case.
-    public static function of(Core\Ldap\LdapError $error): string {
+    public static function of(Core\Ldap\LdapError $error): string
+    {
         if ($error->kind == Core\Ldap\LdapError::Kind::InvalidCredentials) {
-            return "wrong login or password";
+            return 'wrong login or password';
         }
         if ($error->kind == Core\Ldap\LdapError::Kind::NoSuchObject) {
-            return "that entry does not exist";
+            return 'that entry does not exist';
         }
         if ($error->kind == Core\Ldap\LdapError::Kind::Unavailable) {
-            return "the directory is not available, try again later";
+            return 'the directory is not available, try again later';
         }
-        return "the directory rejected the request";
+        return 'the directory rejected the request';
     }
 }
 
 // This user does not exist. This prints `wrong login or password`.
 try {
-    $corp->authenticate("CN=Nobody,OU=Company,DC=example,DC=test", "Some-password-1");
+    $corp->authenticate('CN=Nobody,OU=Company,DC=example,DC=test', 'Some-password-1');
 } catch (Core\Ldap\LdapError $error) {
     echo Reason::of($error), "\n";
 }
 
 // This unit does not exist. This prints `that entry does not exist`.
 try {
-    foreach ($corp->search(Core\Ldap\Filter::present("cn"), {base: "OU=Nowhere,DC=example,DC=test"}) as Core\Ldap\Entry $entry) {
+    foreach ($corp->search(Core\Ldap\Filter::present('cn'), { base: 'OU=Nowhere,DC=example,DC=test' }) as Core\Ldap\Entry $entry) {
     }
 } catch (Core\Ldap\LdapError $error) {
     echo Reason::of($error), "\n";

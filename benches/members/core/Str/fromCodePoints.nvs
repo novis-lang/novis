@@ -4,8 +4,10 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<array<uint>> $words = [[97, 100, 97], [106, 252, 114, 103, 101, 110], [122, 111, 235, 95, 49]];
         uint $total = 0;
         uint $i = 0;

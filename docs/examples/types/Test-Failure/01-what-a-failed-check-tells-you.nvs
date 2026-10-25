@@ -6,7 +6,7 @@ use Core\Test;
 use Core\Test\Failure;
 
 try {
-    Test::assertTrue(false, {message: 'the basket should have been emptied'});
+    Test::assertTrue(false, { message: 'the basket should have been emptied' });
 } catch (Failure $failed) {
     echo $failed->message, "\n";
 }

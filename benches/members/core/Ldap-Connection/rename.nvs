@@ -5,17 +5,19 @@
 // bench: complexity constant
 // requires: samba-ad
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $corp = Core\Ldap::connect("corp-accounts");
-        array<string> $names = ["OU=Bench Rename A,DC=example,DC=test", "OU=Bench Rename B,DC=example,DC=test"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $corp = Core\Ldap::connect('corp-accounts');
+        array<string> $names = ['OU=Bench Rename A,DC=example,DC=test', 'OU=Bench Rename B,DC=example,DC=test'];
         foreach ($names as string $left) {
             try {
                 $corp->delete($left);
             } catch (Core\Ldap\LdapError $missing) {
             }
         }
-        $corp->add($names[0], ["objectClass" => "organizationalUnit"]);
+        $corp->add($names[0], ['objectClass' => 'organizationalUnit']);
 
         // The count so far chooses the direction, so the loop cannot be left out.
         uint $total = 0;

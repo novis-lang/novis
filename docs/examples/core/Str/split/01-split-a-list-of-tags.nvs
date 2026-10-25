@@ -3,7 +3,7 @@
 
 // `Core\Str::split` returns the parts between the commas.
 // This prints 3, and then each tag on its own line.
-array<string> $tags = Core\Str::split("news,sport,weather", ",");
+array<string> $tags = Core\Str::split('news,sport,weather', ',');
 echo Core\Arr::count($tags), "\n";
 foreach ($tags as string $tag) {
     echo $tag, "\n";
@@ -11,4 +11,4 @@ foreach ($tags as string $tag) {
 
 // Two commas next to each other give an empty part.
 // This prints 3, because the second part is "".
-echo Core\Arr::count(Core\Str::split("news,,weather", ",")), "\n";
+echo Core\Arr::count(Core\Str::split('news,,weather', ',')), "\n";

@@ -5,7 +5,7 @@
 // bench: complexity constant
 use Core\Queue;
 
-var $db = Core\Db::connect("jobs");
+var $db = Core\Db::connect('jobs');
 var $jobs = <<<'SQL'
 create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
     script text not null, args text, state smallint not null, attempts integer not null,
@@ -24,13 +24,15 @@ SQL;
 $db->execute($jobs, []);
 $db->execute($dead, []);
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The limit depends on how many jobs were deleted so far, and is always 1.
-            $total = $total + Queue::purge("exports", {state: Queue::State::Pending, limit: $total - $i + 1});
+            $total = $total + Queue::purge('exports', { state: Queue::State::Pending, limit: $total - $i + 1 });
             $i = $i + 1;
         }
         return $total;
@@ -40,7 +42,7 @@ class Bench {
 // Each round deletes a different waiting job. The program prints `2000`.
 int $n = 0;
 while ($n < 2000) {
-    Queue::push("jobs/export.nvs", {queue: "exports"});
+    Queue::push('jobs/export.nvs', { queue: 'exports' });
     $n = $n + 1;
 }
 echo Bench::run(256), "\n";

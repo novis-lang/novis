@@ -4,8 +4,10 @@
 // bench: complexity constant
 use Novis\Intl\NumberFormat;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<array<int|float|decimal>> $lists = [
             [1, 0.25, 0.5, 0.125, 0.07],
             [2, 0.9, 0.333, 0.01, 0.6],
@@ -13,7 +15,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            array<string> $written = NumberFormat::percent($lists[$total % 2], "en");
+            array<string> $written = NumberFormat::percent($lists[$total % 2], 'en');
             $total = $total + Core\Str::length($written[0]) % 3;
             $i = $i + 1;
         }

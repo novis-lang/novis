@@ -5,11 +5,13 @@
 // bench: complexity constant
 // requires: samba-ad
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $corp = Core\Ldap::connect("corp-accounts");
-        string $unit = "OU=Bench Deleted,DC=example,DC=test";
-        string $user = "CN=Bench Gone," . $unit;
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $corp = Core\Ldap::connect('corp-accounts');
+        string $unit = 'OU=Bench Deleted,DC=example,DC=test';
+        string $user = 'CN=Bench Gone,' . $unit;
         array<string> $leftovers = [$user, $unit];
         foreach ($leftovers as string $left) {
             try {
@@ -17,19 +19,19 @@ class Bench {
             } catch (Core\Ldap\LdapError $missing) {
             }
         }
-        $corp->add($unit, ["objectClass" => "organizationalUnit"]);
-        $corp->add($user, ["objectClass" => "user", "sAMAccountName" => "bench.gone"]);
-        var $live = $corp->read($user, {select: ["objectSid"]});
-        string $sid = $live?->sid("objectSid")?->toString() ?? "";
+        $corp->add($unit, ['objectClass' => 'organizationalUnit']);
+        $corp->add($user, ['objectClass' => 'user', 'sAMAccountName' => 'bench.gone']);
+        var $live = $corp->read($user, { select: ['objectSid'] });
+        string $sid = $live?->sid('objectSid')?->toString() ?? '';
         $corp->delete($user);
 
         // One deleted entry and one live entry.
         array<Core\Ldap\Entry> $entries = [];
-        var $bySid = Core\Ldap\Filter::equals("objectSid", $sid);
-        foreach ($corp->search($bySid, {showDeleted: true}) as Core\Ldap\Entry $gone) {
+        var $bySid = Core\Ldap\Filter::equals('objectSid', $sid);
+        foreach ($corp->search($bySid, { showDeleted: true }) as Core\Ldap\Entry $gone) {
             $entries[] = $gone;
         }
-        var $unitEntry = $corp->read($unit, {select: ["ou"]});
+        var $unitEntry = $corp->read($unit, { select: ['ou'] });
         if ($unitEntry != null) {
             $entries[] = $unitEntry;
         }

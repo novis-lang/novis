@@ -3,24 +3,30 @@
 // `SmtpSender` needs a host name, so this program does not compile.
 // proof: compile-error
 
-interface Sender {
+interface Sender
+{
     public function send(string $text): string;
 }
 
-class LogSender implements Sender {
-    public function send(string $text): string {
-        return "logged: " . $text;
+class LogSender implements Sender
+{
+    public function send(string $text): string
+    {
+        return 'logged: ' . $text;
     }
 }
 
-class SmtpSender implements Sender {
-    public function constructor(private string $host) {}
+class SmtpSender implements Sender
+{
+    public function constructor(private string $host)
+    {}
 
-    public function send(string $text): string {
-        return "sent to " . $this->host . ": " . $text;
+    public function send(string $text): string
+    {
+        return 'sent to ' . $this->host . ': ' . $text;
     }
 }
 
 foreach (Core\Program::implementing<Sender>() as Sender $sender) {
-    echo $sender->send("hello"), "\n";
+    echo $sender->send('hello'), "\n";
 }

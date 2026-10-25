@@ -4,20 +4,22 @@
 // bench: start 256
 // bench: max 4096
 
-class Bench {
-    public static function run(uint $size): int {
+class Bench
+{
+    public static function run(uint $size): int
+    {
         int $n = $size as int;
         array<string> $amounts = [];
         int $i = 0;
         while ($i < $n) {
-            $amounts[] = "" . (($i * 7919) % 1000);
+            $amounts[] = '' . (($i * 7919) % 1000);
             $i = $i + 1;
         }
         int $total = 0;
         int $r = 0;
         while ($r < 64) {
-            $amounts[0] = "" . ($total % 1000);
-            array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Arr::Order::Asc});
+            $amounts[0] = '' . ($total % 1000);
+            array<string> $ordered = Core\Arr::sort($amounts, { order: Core\Arr::Order::Asc });
             foreach ($ordered as string $each) {
                 $total = $total + ($each as int);
             }

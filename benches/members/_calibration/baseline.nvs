@@ -4,4 +4,4 @@
 // Do not add code to this file. Any code here would be measured as part of every other bench.
 // bench: iterations 1
 
-echo "";
+echo '';

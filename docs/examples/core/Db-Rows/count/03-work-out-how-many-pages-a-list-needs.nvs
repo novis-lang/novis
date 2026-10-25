@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table products (id integer primary key, title text not null)', []);
 $db->execute(
     'insert into products (title) with recursive counter(x) as (select 1 union all select x + 1 from counter where x < 47) select \'item\' from counter',
-    []
+    [],
 );
 
 var $rows = $db->query('select id, title from products order by id', []);
@@ -19,6 +19,6 @@ int $found = $rows->count() as int;
 // A last page that is not full still needs a page of its own, which is what
 // adding nine before the division does. This prints `47 products on 5 pages`.
 int $pages = Core\Math::intDiv($found + $perPage - 1, $perPage);
-echo $found, " products on ", $pages, " pages\n";
+echo $found, ' products on ', $pages, " pages\n";
 
 $db->close();

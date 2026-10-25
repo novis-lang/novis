@@ -7,12 +7,12 @@ use Core\Test;
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. It sets a header, and then throws
     // an error it does not catch.
-    Core\Response::setHeader("Cache-Control", "no-store");
-    throw new RuntimeError("the database is not available");
+    Core\Response::setHeader('Cache-Control', 'no-store');
+    throw new RuntimeError('the database is not available');
 } else {
-    var $response = Test::request(Method::Get, "/report");
+    var $response = Test::request(Method::Get, '/report');
 
     // The server does not send the headers of a failed request, so the
     // array is empty. This prints `500 0`.
-    echo $response->status(), " ", Core\Arr::count($response->headers()), "\n";
+    echo $response->status(), ' ', Core\Arr::count($response->headers()), "\n";
 }

@@ -3,15 +3,17 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        Core\Time\TimeOfDay $at = Core\Time\TimeOfDay::at(9, 48, {second: 3});
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Core\Time\TimeOfDay $at = Core\Time\TimeOfDay::at(9, 48, { second: 3 });
         Core\Time\TimeOfDay $noon = Core\Time\TimeOfDay::at(12, 0);
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // chained: last round's total is the new hour
-            Core\Time\TimeOfDay $hour = $at->with({hour: $total % 24, minute: 0, second: 0});
+            Core\Time\TimeOfDay $hour = $at->with({ hour: $total % 24, minute: 0, second: 0 });
             if ($hour < $noon) {
                 $total = $total + 5;
             } else {

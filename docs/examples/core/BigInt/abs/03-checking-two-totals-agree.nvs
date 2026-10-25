@@ -2,16 +2,18 @@
 // Shows a check a program runs at the end of a day. Two systems report the same
 // total in the smallest unit of a currency, and they may differ by a little.
 
-class Ledger {
+class Ledger
+{
     // Returns true when the two totals are no further apart than $allowed.
-    public static function agrees(Core\BigInt $ours, Core\BigInt $theirs, Core\BigInt $allowed): bool {
+    public static function agrees(Core\BigInt $ours, Core\BigInt $theirs, Core\BigInt $allowed): bool
+    {
         var $distance = $ours->sub($theirs)->abs();
         return $distance->compareTo($allowed) <= 0;
     }
 }
 
 var $allowed = Core\BigInt::of(100);
-var $ours = Core\BigInt::parse("184467440737095516150");
+var $ours = Core\BigInt::parse('184467440737095516150');
 
 // The other system reports 40 units less. That is inside what is allowed, so
 // this prints "in agreement".

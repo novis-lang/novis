@@ -9,13 +9,13 @@ Core\Request\Mount $mount = Core\Request::mount();
 tainted string $customer = $mount->captures()[0];
 
 // The program knows each customer and the database it uses.
-array<string> $databases = ["Acme" => "shop_acme", "Globex" => "shop_globex"];
+array<string> $databases = ['Acme' => 'shop_acme', 'Globex' => 'shop_globex'];
 
 // `??` gives "" for a name the program does not know.
 // This prints "customer Acme uses shop_acme".
-string $database = $databases[$customer] ?? "";
-if ($database != "") {
-    echo "customer ", $customer, " uses ", $database, "\n";
+string $database = $databases[$customer] ?? '';
+if ($database != '') {
+    echo 'customer ', $customer, ' uses ', $database, "\n";
 } else {
     echo "404: unknown customer\n";
 }

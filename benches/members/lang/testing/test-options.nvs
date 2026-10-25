@@ -8,24 +8,30 @@
 
 use Core\Test;
 
-class Meter {
+class Meter
+{
     public static uint $entered = 0;
 
-    public static function enter(): void {
+    public static function enter(): void
+    {
         // Chained: the count written here is the one the round before wrote.
         Meter::$entered = Meter::$entered + 1;
     }
 }
 
-class OptionsTest {
-    #[Test(seed: 7, retries: 2, because: "the options a real test carries")]
-    public function countsOneEntry(): void {
+class OptionsTest
+{
+    #[Test(seed: 7, retries: 2, because: 'the options a real test carries')]
+    public function countsOneEntry(): void
+    {
         Meter::enter();
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $i = 0;
         while ($i < $rounds) {
             // The body of `countsOneEntry`. Only a test can call a test method.

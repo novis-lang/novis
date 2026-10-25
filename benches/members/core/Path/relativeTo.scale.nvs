@@ -8,11 +8,11 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $path = "/srv/" . Core\Str::repeat("a/", $size) . "cart.css";
+        string $path = '/srv/' . Core\Str::repeat('a/', $size) . 'cart.css';
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            string $way = Core\Path::relativeTo($path, "/srv/shop/views") ?? "";
+            string $way = Core\Path::relativeTo($path, '/srv/shop/views') ?? '';
             $total = $total + Core\Str::length($way);
             $i = $i + 1;
         }

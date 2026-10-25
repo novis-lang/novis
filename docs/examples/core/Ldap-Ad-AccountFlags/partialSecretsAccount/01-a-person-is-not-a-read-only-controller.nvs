@@ -2,10 +2,10 @@
 // Shows that `partialSecretsAccount` returns `false` for the account of a person.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `read-only controller: false`.
-    echo "read-only controller: ", $flags->partialSecretsAccount() ? "true" : "false", "\n";
+    echo 'read-only controller: ', $flags->partialSecretsAccount() ? 'true' : 'false', "\n";
 }

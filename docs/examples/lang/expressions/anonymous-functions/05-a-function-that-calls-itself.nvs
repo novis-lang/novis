@@ -13,4 +13,4 @@ callable $fib = fn fib(int $n): int => {
 };
 
 // This prints 120 55.
-echo $factorial(5), " ", $fib(10), "\n";
+echo $factorial(5), ' ', $fib(10), "\n";

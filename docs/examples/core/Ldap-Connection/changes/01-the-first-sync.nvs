@@ -2,14 +2,14 @@
 // Shows how to start a sync. The first call returns every person who matches the filter.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 var $people = Core\Ldap\Filter::all(
-    Core\Ldap\Filter::equals("objectClass", "user"),
-    Core\Ldap\Filter::equals("department", "Sales"),
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    Core\Ldap\Filter::equals('department', 'Sales'),
 );
 
 // Without a `cookie`, the result has every entry that matches the filter.
-var $changes = $corp->changes($people, {select: ["department"]});
+var $changes = $corp->changes($people, { select: ['department'] });
 
 // A DN comes from the server, so its text is tainted.
 array<tainted string> $names = [];
@@ -24,4 +24,4 @@ foreach (Core\Arr::sort($names) as tainted string $name) {
 }
 
 // After the loop, `cookie()` returns the cookie for the next call.
-echo "the cookie is ready: ", Core\Bytes::length($changes->cookie()) > 0 ? "yes" : "no", "\n";
+echo 'the cookie is ready: ', Core\Bytes::length($changes->cookie()) > 0 ? 'yes' : 'no', "\n";

@@ -3,45 +3,60 @@
 // how often it runs, so adding a job means writing one class. There is no
 // second list to keep up to date.
 
-class Every {
+class Every
+{
     public const int HOUR = 60;
     public const int QUARTER_HOUR = 15;
 }
 
 // The enum and the shape are declared inside the interface every job implements.
 // Outside the interface, you write them as `Job::Level` and `Job::Meta`.
-interface Job {
-    enum Level: int {
+interface Job
+{
+    enum Level: int
+    {
         Normal = 1,
         Urgent = 2,
     }
 
-    type Meta = {name: string, everyMinutes: int, level: Level};
+    type Meta = { name: string, everyMinutes: int, level: Level };
 }
 
 // A class constant and an enum case are both allowed in an attribute, because
 // their values are known while the program is compiled.
-#[Job::Meta(name: "send invoices", everyMinutes: Every::HOUR, level: Job::Level::Normal)]
-class SendInvoices implements Job {
-    public static function run(): string { return "12 invoices sent"; }
+#[Job::Meta(name: 'send invoices', everyMinutes: Every::HOUR, level: Job::Level::Normal)]
+class SendInvoices implements Job
+{
+    public static function run(): string
+    {
+        return '12 invoices sent';
+    }
 }
 
-#[Job::Meta(name: "clean sessions", everyMinutes: Every::QUARTER_HOUR, level: Job::Level::Normal)]
-class CleanSessions implements Job {
-    public static function run(): string { return "84 sessions removed"; }
+#[Job::Meta(name: 'clean sessions', everyMinutes: Every::QUARTER_HOUR, level: Job::Level::Normal)]
+class CleanSessions implements Job
+{
+    public static function run(): string
+    {
+        return '84 sessions removed';
+    }
 }
 
-#[Job::Meta(name: "charge cards", everyMinutes: Every::HOUR, level: Job::Level::Urgent)]
-class ChargeCards implements Job {
-    public static function run(): string { return "3 cards charged"; }
+#[Job::Meta(name: 'charge cards', everyMinutes: Every::HOUR, level: Job::Level::Urgent)]
+class ChargeCards implements Job
+{
+    public static function run(): string
+    {
+        return '3 cards charged';
+    }
 }
 
 array<Job::Meta> $schedule = [];
-$schedule[] = Core\Attributes::get<Job::Meta>(SendInvoices::constructor(...)) ?? throw new RuntimeError("no job");
-$schedule[] = Core\Attributes::get<Job::Meta>(CleanSessions::constructor(...)) ?? throw new RuntimeError("no job");
-$schedule[] = Core\Attributes::get<Job::Meta>(ChargeCards::constructor(...)) ?? throw new RuntimeError("no job");
+$schedule[] = Core\Attributes::get<Job::Meta>(SendInvoices::constructor(...)) ?? throw new RuntimeError('no job');
+$schedule[] = Core\Attributes::get<Job::Meta>(CleanSessions::constructor(...)) ?? throw new RuntimeError('no job');
+$schedule[] = Core\Attributes::get<Job::Meta>(ChargeCards::constructor(...)) ?? throw new RuntimeError('no job');
 
 foreach ($schedule as Job::Meta $job) {
-    string $mark = $job->level == Job::Level::Urgent ? " (urgent)" : "";
-    echo $job->name, ": every ", $job->everyMinutes as string, " minutes", $mark, "\n";
+    string $mark = $job->level == Job::Level::Urgent ? ' (urgent)' : '';
+    echo $job->name, ': every ', $job->everyMinutes as string, ' minutes', $mark, "\n";
 }

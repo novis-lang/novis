@@ -2,15 +2,15 @@
 // Shows that `int` returns `null` when the entry has no value, and how to give a default.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Ben Kohl,OU=Company,DC=example,DC=test", {select: ["badPwdCount", "lockoutTime"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Ben Kohl,OU=Company,DC=example,DC=test', { select: ['badPwdCount', 'lockoutTime'] });
 
 if ($person != null) {
     // Ben Kohl never typed a wrong password. This prints `0`.
-    echo $person->int("badPwdCount") ?? 0, "\n";
+    echo $person->int('badPwdCount') ?? 0, "\n";
 
     // Ben Kohl was never locked out, so the entry has no `lockoutTime`.
     // `int` returns `null`. This prints `never locked out`.
-    ?int $lockedAt = $person->int("lockoutTime");
-    echo $lockedAt == null ? "never locked out" : "locked out", "\n";
+    ?int $lockedAt = $person->int('lockoutTime');
+    echo $lockedAt == null ? 'never locked out' : 'locked out', "\n";
 }

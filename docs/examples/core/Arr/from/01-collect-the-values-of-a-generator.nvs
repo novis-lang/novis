@@ -2,10 +2,12 @@
 // Shows how to collect the values of a generator into an array. The generator
 // gives one number at a time, and `Core\Arr::from` puts them all in a list.
 
-class Fibonacci {
+class Fibonacci
+{
     // `yield` gives one number to whoever reads this generator. The method
     // then waits there until the next number is wanted.
-    public static function first(uint $count): Iterator<int> {
+    public static function first(uint $count): Iterator<int>
+    {
         int $a = 1;
         int $b = 1;
         uint $i = 0;

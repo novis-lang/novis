@@ -105,8 +105,8 @@ fn the_primer_carries_the_lookup_protocol_the_worked_program_and_the_chapter_map
 fn the_worked_program_shows_a_typed_local_a_foreach_binding_and_an_options_bag() {
     let primer = primer();
     for wanted in [
-        "array<string> $quantities = [\"3\", \"11\", \"7\"];",
-        "Core\\Arr::sort($scores, {order: Core\\Arr::Order::Desc})",
+        "array<string> $quantities = ['3', '11', '7'];",
+        "Core\\Arr::sort($scores, { order: Core\\Arr::Order::Desc })",
         "foreach ($quantities as string $quantity) {",
         "($quantity as int)",
         "```output",

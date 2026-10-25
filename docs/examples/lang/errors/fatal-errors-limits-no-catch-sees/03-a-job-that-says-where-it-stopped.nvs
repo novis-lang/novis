@@ -8,20 +8,20 @@ final class Job
 {
     // The handler reads this. An anonymous function copies the variables it
     // captures when it is written, so a variable would still have its first value here.
-    public static string $current = "none";
+    public static string $current = 'none';
 }
 
 Core\Fatal::onLimit(fn (array<string> $report): void => {
-    echo "stopped on order ", Job::$current, ", limit: ", $report["limit"], "\n";
+    echo 'stopped on order ', Job::$current, ', limit: ', $report['limit'], "\n";
 });
 
-array<string> $orders = ["A-1001", "A-1002", "A-1003", "A-1004"];
+array<string> $orders = ['A-1001', 'A-1002', 'A-1003', 'A-1004'];
 array<string> $labels = [];
 
 foreach ($orders as string $order) {
     Job::$current = $order;
-    echo "packing ", $order, "\n";
-    $labels[] = Core\Str::repeat("x", 8388608);
+    echo 'packing ', $order, "\n";
+    $labels[] = Core\Str::repeat('x', 8388608);
 }
 
 echo "not reached\n";

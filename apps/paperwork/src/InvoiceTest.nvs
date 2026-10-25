@@ -7,42 +7,48 @@ use Core\Test;
 use Novis\Pdf\Reader;
 
 // Tests for the invoice. `Reader` opens the finished PDF file and reads its pages and its XML.
-final class InvoiceTest {
+final class InvoiceTest
+{
     #[Test]
-    public function theTotalsAddUp(): void {
+    public function theTotalsAddUp(): void
+    {
         var $totals = Totals::of(Sample::invoice()->items);
-        Test::assertSame($totals->net as string, "5142.45");
-        Test::assertSame($totals->vat as string, "977.07");
-        Test::assertSame($totals->total as string, "6119.52");
+        Test::assertSame($totals->net as string, '5142.45');
+        Test::assertSame($totals->vat as string, '977.07');
+        Test::assertSame($totals->total as string, '6119.52');
     }
 
     #[Test]
-    public function theLastPageShowsTheTotal(): void {
+    public function theLastPageShowsTheTotal(): void
+    {
         var $reader = Reader::open(Invoice::render()->bytes);
         Test::assertTrue($reader->pageCount >= 3);
-        Test::assertTrue(Str::contains($reader->text($reader->pageCount), "Total due"));
-        Test::assertTrue(Str::contains($reader->text($reader->pageCount), "€6,119.52"));
+        Test::assertTrue(Str::contains($reader->text($reader->pageCount), 'Total due'));
+        Test::assertTrue(Str::contains($reader->text($reader->pageCount), '€6,119.52'));
     }
 
     #[Test]
-    public function theCarriedForwardAmountIsOnPageOne(): void {
+    public function theCarriedForwardAmountIsOnPageOne(): void
+    {
         var $reader = Reader::open(Invoice::render()->bytes);
-        Test::assertTrue(Str::contains($reader->text(1), "Carried forward"));
-        Test::assertTrue(Str::contains($reader->text(2), "Brought forward"));
+        Test::assertTrue(Str::contains($reader->text(1), 'Carried forward'));
+        Test::assertTrue(Str::contains($reader->text(2), 'Brought forward'));
     }
 
     #[Test]
-    public function theXmlHasTheSameNumberAndTotal(): void {
+    public function theXmlHasTheSameNumberAndTotal(): void
+    {
         ?string $xml = Reader::open(Invoice::render()->bytes)->invoiceXml();
         Test::assertTrue($xml != null);
-        string $text = $xml ?? "";
-        Test::assertTrue(Str::contains($text, "<ram:ID>2026-1042</ram:ID>"));
-        Test::assertTrue(Str::contains($text, "<ram:GrandTotalAmount>6119.52</ram:GrandTotalAmount>"));
-        Test::assertTrue(Str::contains($text, "<ram:DuePayableAmount>6119.52</ram:DuePayableAmount>"));
+        string $text = $xml ?? '';
+        Test::assertTrue(Str::contains($text, '<ram:ID>2026-1042</ram:ID>'));
+        Test::assertTrue(Str::contains($text, '<ram:GrandTotalAmount>6119.52</ram:GrandTotalAmount>'));
+        Test::assertTrue(Str::contains($text, '<ram:DuePayableAmount>6119.52</ram:DuePayableAmount>'));
     }
 
     #[Test]
-    public function nothingIsDroppedOrCutOff(): void {
+    public function nothingIsDroppedOrCutOff(): void
+    {
         var $rendered = Invoice::render();
         Test::assertCount($rendered->dropped, 0);
         Test::assertCount($rendered->missingGlyphs, 0);
@@ -50,7 +56,8 @@ final class InvoiceTest {
     }
 
     #[Test]
-    public function twoRendersGiveTheSameFile(): void {
+    public function twoRendersGiveTheSameFile(): void
+    {
         Test::assertTrue(Invoice::render()->bytes == Invoice::render()->bytes);
         Test::assertTrue(Arr::count(Sample::invoice()->items) > 40);
     }

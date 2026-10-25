@@ -10,9 +10,9 @@ while ($i < 3) {
             // The rest of the block is skipped, but `finally` still runs.
             continue;
         }
-        echo "body", $i, " ";
+        echo 'body', $i, ' ';
     } finally {
-        echo "fin", $i, " ";
+        echo 'fin', $i, ' ';
     }
 }
 

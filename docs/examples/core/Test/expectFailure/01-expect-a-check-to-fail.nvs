@@ -12,7 +12,7 @@ Core\Test::expectFailure(fn (): void => {
     try {
         Core\Test::assertTrue(false);
     } catch (Core\Test\Failure $failure) {
-        echo "caught: ", $failure->message, "\n";
+        echo 'caught: ', $failure->message, "\n";
     }
 });
 echo "the caught failure still counted\n";

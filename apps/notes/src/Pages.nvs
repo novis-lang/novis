@@ -5,9 +5,11 @@ use Core\Arr;
 use Core\Html\Markup;
 
 // Builds the HTML pages. Each `{$name}` in an `html` literal is escaped, so a `<` in a note prints as `&lt;`.
-final class Pages {
+final class Pages
+{
     // The home page: a form for a new note, then every saved note.
-    public static function home(array<Note> $notes, Draft $draft, array<string> $problems): Markup {
+    public static function home(array<Note> $notes, Draft $draft, array<string> $problems): Markup
+    {
         tainted string $title = $draft->title;
         tainted string $body = $draft->body;
         var $form = html`<form method="post" action="/notes">
@@ -19,37 +21,42 @@ final class Pages {
         var $list = html``;
         foreach ($notes as Note $note) {
             // `Core\Router::url` builds the path of the route `App::show`, such as `/notes/3`.
-            string $link = Core\Router::url("App::show", ["id" => $note->id]);
+            string $link = Core\Router::url('App::show', ['id' => $note->id]);
             tainted string $noteTitle = $note->title;
             $list = $list + html`<li><a href="{$link}">{$noteTitle}</a></li>`;
         }
-        return Pages::layout("Notes", html`<h1>Notes</h1>{$form}<ul>{$list}</ul>`);
+        return Pages::layout('Notes', html`<h1>Notes</h1>{$form}<ul>{$list}</ul>`);
     }
 
     // The page for one note.
-    public static function note(Note $note): Markup {
+    public static function note(Note $note): Markup
+    {
         tainted string $title = $note->title;
         tainted string $body = $note->body;
         return Pages::layout($title, html`<h1>{$title}</h1><p>{$body}</p><p><a href="/">All notes</a></p>`);
     }
 
     // The page for a path that has no route, or for a note that does not exist.
-    public static function notFound(): Markup {
-        return Pages::problem("Not found", "There is no page at this address.");
+    public static function notFound(): Markup
+    {
+        return Pages::problem('Not found', 'There is no page at this address.');
     }
 
     // The page for an error in the app.
-    public static function failed(): Markup {
-        return Pages::problem("Something went wrong", "Please try again later.");
+    public static function failed(): Markup
+    {
+        return Pages::problem('Something went wrong', 'Please try again later.');
     }
 
     // A page with a title, one sentence and a link to the home page.
-    public static function problem(string $title, string $text): Markup {
+    public static function problem(string $title, string $text): Markup
+    {
         return Pages::layout($title, html`<h1>{$title}</h1><p>{$text}</p><p><a href="/">All notes</a></p>`);
     }
 
     // Returns a list of the problems, or nothing when there are none.
-    private static function errorList(array<string> $problems): Markup {
+    private static function errorList(array<string> $problems): Markup
+    {
         if (Arr::count($problems) == 0) {
             return html``;
         }
@@ -60,7 +67,8 @@ final class Pages {
         return html`<ul class="errors">{$items}</ul>`;
     }
 
-    private static function layout(tainted string $title, Markup $content): Markup {
+    private static function layout(tainted string $title, Markup $content): Markup
+    {
         return html`<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>{$title}</title></head>

@@ -2,9 +2,9 @@
 // Shows that a normal search does not find a deleted account, and `showDeleted: true` does.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Former Staff 2,DC=example,DC=test";
-string $user = "CN=Jonas Weber," . $unit;
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Former Staff 2,DC=example,DC=test';
+string $user = 'CN=Jonas Weber,' . $unit;
 
 // A run that stopped early can leave the account behind, so the program deletes it first.
 array<string> $leftovers = [$user, $unit];
@@ -14,29 +14,29 @@ foreach ($leftovers as string $left) {
     } catch (Core\Ldap\LdapError $missing) {
     }
 }
-$corp->add($unit, ["objectClass" => "organizationalUnit"]);
-$corp->add($user, ["objectClass" => "user", "sAMAccountName" => "jonas.weber"]);
-var $found = $corp->read($user, {select: ["objectSid"]});
-string $sid = $found?->sid("objectSid")?->toString() ?? "";
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
+$corp->add($user, ['objectClass' => 'user', 'sAMAccountName' => 'jonas.weber']);
+var $found = $corp->read($user, { select: ['objectSid'] });
+string $sid = $found?->sid('objectSid')?->toString() ?? '';
 $corp->delete($user);
 $corp->delete($unit);
 
-var $bySid = Core\Ldap\Filter::equals("objectSid", $sid);
+var $bySid = Core\Ldap\Filter::equals('objectSid', $sid);
 
 // This prints `normal search: 0`.
 int $normal = 0;
 foreach ($corp->search($bySid) as Core\Ldap\Entry $account) {
     $normal = $normal + 1;
 }
-echo "normal search: ", $normal, "\n";
+echo 'normal search: ', $normal, "\n";
 
 // This prints `with showDeleted: 1, deleted: 1`.
 int $all = 0;
 int $deleted = 0;
-foreach ($corp->search($bySid, {showDeleted: true}) as Core\Ldap\Entry $account) {
+foreach ($corp->search($bySid, { showDeleted: true }) as Core\Ldap\Entry $account) {
     $all = $all + 1;
     if ($account->isDeleted()) {
         $deleted = $deleted + 1;
     }
 }
-echo "with showDeleted: ", $all, ", deleted: ", $deleted, "\n";
+echo 'with showDeleted: ', $all, ', deleted: ', $deleted, "\n";

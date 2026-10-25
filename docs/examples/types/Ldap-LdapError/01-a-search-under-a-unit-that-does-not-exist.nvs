@@ -2,25 +2,25 @@
 // Shows what a `Core\Ldap\LdapError` contains when the directory rejects a search.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $people = Core\Ldap\Filter::equals("objectClass", "user");
+var $corp = Core\Ldap::connect('corp');
+var $people = Core\Ldap\Filter::equals('objectClass', 'user');
 
 try {
     // This unit does not exist, so the search throws an error.
-    foreach ($corp->search($people, {base: "OU=Nowhere,DC=example,DC=test"}) as Core\Ldap\Entry $person) {
-        echo $person->string("cn") ?? "", "\n";
+    foreach ($corp->search($people, { base: 'OU=Nowhere,DC=example,DC=test' }) as Core\Ldap\Entry $person) {
+        echo $person->string('cn') ?? '', "\n";
     }
 } catch (Core\Ldap\LdapError $error) {
     // `kind` says why the operation failed. This prints `NoSuchObject`.
-    echo $error->kind == Core\Ldap\LdapError::Kind::NoSuchObject ? "NoSuchObject" : "another reason", "\n";
+    echo $error->kind == Core\Ldap\LdapError::Kind::NoSuchObject ? 'NoSuchObject' : 'another reason', "\n";
     // `code` is the number the server sent. This prints `32`.
-    echo $error->code ?? "no code", "\n";
+    echo $error->code ?? 'no code', "\n";
 }
 
 // `LdapError` is a `RuntimeError`, so a `catch (RuntimeError ...)` block also catches it.
 try {
-    $corp->delete("CN=Nobody,OU=Nowhere,DC=example,DC=test");
+    $corp->delete('CN=Nobody,OU=Nowhere,DC=example,DC=test');
 } catch (RuntimeError $failure) {
     // This prints `caught: yes`.
-    echo "caught: ", $failure is Core\Ldap\LdapError ? "yes" : "no", "\n";
+    echo 'caught: ', $failure is Core\Ldap\LdapError ? 'yes' : 'no', "\n";
 }

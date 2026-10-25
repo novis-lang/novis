@@ -18,9 +18,9 @@ class Order
 }
 
 array<array<string>> $rows = [
-    ["3", "19.90"],
-    ["1", "4.05"],
-    ["two", "9.99"],
+    ['3', '19.90'],
+    ['1', '4.05'],
+    ['two', '9.99'],
 ];
 
 decimal $total = 0.00;
@@ -29,8 +29,8 @@ foreach ($rows as array<string> $row) {
     try {
         $total = $total + Order::lineTotal($row);
     } catch (RuntimeError $e) {
-        echo "left out a row whose quantity is not a number: ", $row[0], "\n";
+        echo 'left out a row whose quantity is not a number: ', $row[0], "\n";
     }
 }
 
-echo "total ", $total as string, "\n";
+echo 'total ', $total as string, "\n";

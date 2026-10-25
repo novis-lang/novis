@@ -4,13 +4,15 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(int $rounds): float {
+class Bench
+{
+    public static function run(int $rounds): float
+    {
         float $total = 0.0;
         int $i = 0;
         while ($i < $rounds) {
             // Chained: the value rounded this round depends on last round's total.
-            $total = Core\Math::round($total * 0.5 + 1.2345, {precision: 2});
+            $total = Core\Math::round($total * 0.5 + 1.2345, { precision: 2 });
             $i = $i + 1;
         }
         return $total;

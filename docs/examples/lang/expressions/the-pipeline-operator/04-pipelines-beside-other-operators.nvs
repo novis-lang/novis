@@ -1,14 +1,14 @@
 <?nvs
 // Shows how `|>` works together with the operators around it.
 
-string $s = "  Novis  ";
+string $s = '  Novis  ';
 echo $s |> Core\Str::trim($_) |> Core\Str::lower($_), "\n";
 
 // A prefix `-` runs first, so `Core\Math::abs` gets 7. `|>` runs before `>`,
 // so the second value compares the length with 5. This prints 7 1.
 int $n = -7;
-echo -$n |> Core\Math::abs($_), " ", $s |> Core\Str::length($_) > 5, "\n";
+echo -$n |> Core\Math::abs($_), ' ', $s |> Core\Str::length($_) > 5, "\n";
 
 // The right side may be any expression in brackets. This prints a-b-c 10.
-array<string> $xs = ["c", "a", "b"];
-echo $xs |> Core\Arr::sort($_) |> Core\Str::join($_, "-"), " ", 5 |> ($_ * 2), "\n";
+array<string> $xs = ['c', 'a', 'b'];
+echo $xs |> Core\Arr::sort($_) |> Core\Str::join($_, '-'), ' ', 5 |> ($_ * 2), "\n";

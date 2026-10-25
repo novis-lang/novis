@@ -6,12 +6,12 @@ array<int> $pair = [1, 2];
 
 // An empty place skips an entry. `$second` is `2`.
 [, int $second] = $pair;
-echo $a, " ", $b, " ", $second, "\n";
+echo $a, ' ', $b, ' ', $second, "\n";
 
 // A key on the left reads that key, in any order.
-array<string> $row = ["id" => "7", "name" => "ada"];
-["name" => string $name, "id" => string $id] = $row;
-echo $id, " ", $name, "\n";
+array<string> $row = ['id' => '7', 'name' => 'ada'];
+['name' => string $name, 'id' => string $id] = $row;
+echo $id, ' ', $name, "\n";
 
 // A pattern inside a pattern reads an inner array.
 array<array<int>> $points = [[1, 2], [3, 4]];

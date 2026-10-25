@@ -5,12 +5,14 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<bytes> $files = [
-            Document::fromHtml("<p>Receipt 1042</p>")->render()->bytes,
-            Document::fromHtml("<p>Receipt 1043</p>")->render()->bytes,
-            Document::fromHtml("<p>Receipt 1044</p>")->render()->bytes,
+            Document::fromHtml('<p>Receipt 1042</p>')->render()->bytes,
+            Document::fromHtml('<p>Receipt 1043</p>')->render()->bytes,
+            Document::fromHtml('<p>Receipt 1044</p>')->render()->bytes,
         ];
         uint $total = 0;
         uint $i = 0;

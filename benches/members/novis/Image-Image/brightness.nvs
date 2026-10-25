@@ -1,12 +1,14 @@
 <?nvs
+use Novis\Image\Color;
 // Makes a small image brighter and reads its pixels, as a program does when it fixes a dark photo.
 // bench: iterations 256
 // bench: complexity constant
 use Novis\Image\Image;
-use Novis\Image\Color;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Image $photo = Image::create(4, 4, Color::rgba(100, 50, 25));
         uint $total = 0;
         uint $i = 0;

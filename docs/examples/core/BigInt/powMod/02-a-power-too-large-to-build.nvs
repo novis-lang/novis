@@ -19,5 +19,5 @@ try {
 // whole number. This prints 880007888.
 echo Core\BigInt::of(7)->powMod(
     Core\BigInt::of(1000000),
-    Core\BigInt::of(1000000007)
+    Core\BigInt::of(1000000007),
 ), "\n";

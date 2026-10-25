@@ -3,7 +3,7 @@
 
 // There is no file with this name, so the call throws an `IOError`.
 try {
-    Core\Http\Part $missing = Core\Http\Part::file("data/invoice-9999.txt");
+    Core\Http\Part $missing = Core\Http\Part::file('data/invoice-9999.txt');
     echo "part created\n";
 } catch (IOError $notThere) {
     echo "invoice-9999.txt: the file does not exist\n";
@@ -12,9 +12,9 @@ try {
 // This program may only read files in the `data` directory. `nvs.toml` is outside it,
 // so the call throws a `RuntimeError`.
 try {
-    Core\Http\Part $config = Core\Http\Part::file("nvs.toml");
+    Core\Http\Part $config = Core\Http\Part::file('nvs.toml');
     echo "part created\n";
 } catch (RuntimeError $denied) {
     // The message names the full path of the file. This prints the part before it.
-    echo Core\Str::before($denied->message, " for "), "\n";
+    echo Core\Str::before($denied->message, ' for '), "\n";
 }

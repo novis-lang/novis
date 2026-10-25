@@ -3,13 +3,15 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(Core\Sse $sse, uint $rounds): uint {
-        Core\Topic::subscribe("feed:updates");
+class Bench
+{
+    public static function run(Core\Sse $sse, uint $rounds): uint
+    {
+        Core\Topic::subscribe('feed:updates');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Core\Topic::publish("feed:updates", $total % 7);
+            Core\Topic::publish('feed:updates', $total % 7);
             ?Core\Sse\Message $message = $sse->receive();
             uint $posted = $message?->value() as uint;
             $total = $total + $posted + 1;   // chained: the next update depends on this one

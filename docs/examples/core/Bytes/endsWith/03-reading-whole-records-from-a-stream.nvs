@@ -2,12 +2,14 @@
 // Shows how a program reading from a network connection keeps the part of a
 // record that has not arrived yet. Each record ends with a newline.
 
-final class Stream {
+final class Stream
+{
     // Returns the bytes that have to be kept for the next read. Nothing is
     // kept when the chunk ends on a complete record.
-    public static function leftover(bytes $chunk): bytes {
-        if (Core\Bytes::endsWith($chunk, Core\Encoding::fromHex("0a"))) {
-            return Core\Encoding::fromHex("");
+    public static function leftover(bytes $chunk): bytes
+    {
+        if (Core\Bytes::endsWith($chunk, Core\Encoding::fromHex('0a'))) {
+            return Core\Encoding::fromHex('');
         }
         // The record is not finished, so the whole chunk waits for the bytes
         // that come next.

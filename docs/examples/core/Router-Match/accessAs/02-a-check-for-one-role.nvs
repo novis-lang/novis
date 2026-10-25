@@ -4,20 +4,29 @@ namespace App;
 
 enum Role { Editor }
 
-class Articles {
-    #[Core\Route(path: "/articles", method: Core\Http\Method::Get, name: "Articles::list")]
+class Articles
+{
+    #[Core\Route(path: '/articles', method: Core\Http\Method::Get, name: 'Articles::list')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function list(): string { return "all articles"; }
+    public function list(): string
+    {
+        return 'all articles';
+    }
 
-    #[Core\Route(path: "/articles/edit", method: Core\Http\Method::Get, name: "Articles::edit")]
+    #[Core\Route(path: '/articles/edit', method: Core\Http\Method::Get, name: 'Articles::edit')]
     #[Core\Access(allow: Role::Editor)]
-    public function edit(): string { return "the editor"; }
+    public function edit(): string
+    {
+        return 'the editor';
+    }
 }
 
-class Guard {
+class Guard
+{
     // A public route is open to everyone. An editor route is open only to editors.
     // Any other rule is denied.
-    public static function allows(Core\Router\Match $found, bool $isEditor): bool {
+    public static function allows(Core\Router\Match $found, bool $isEditor): bool
+    {
         if ($found->accessAs<Core\Audience>() == Core\Audience::Public) {
             return true;
         }
@@ -29,10 +38,10 @@ class Guard {
 }
 
 // A visitor who is not an editor. This prints `yes` and then `no`.
-array<string> $paths = ["/articles", "/articles/edit"];
+array<string> $paths = ['/articles', '/articles/edit'];
 foreach ($paths as string $path) {
     ?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, $path);
     if ($found != null) {
-        echo $path, ": ", Guard::allows($found, false) ? "yes" : "no", "\n";
+        echo $path, ': ', Guard::allows($found, false) ? 'yes' : 'no', "\n";
     }
 }

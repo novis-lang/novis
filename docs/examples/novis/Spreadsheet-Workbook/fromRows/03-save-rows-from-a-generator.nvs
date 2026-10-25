@@ -2,20 +2,22 @@
 // Shows how to save rows from a generator to a file, one row at a time.
 use Novis\Spreadsheet\Workbook;
 
-class Visits {
+class Visits
+{
     // This generator gives one row for each day. A real program reads the rows from a database.
-    public static function perDay(): Iterator<array<mixed>> {
+    public static function perDay(): Iterator<array<mixed>>
+    {
         int $day = 1;
         while ($day <= 7) {
-            yield ["day" => Core\Time\Date::at(2024, 6, $day as uint), "visits" => 100 + $day * 7];
+            yield ['day' => Core\Time\Date::at(2024, 6, $day as uint), 'visits' => 100 + $day * 7];
             $day = $day + 1;
         }
     }
 }
 
 // With `freeze: false`, the header row does not stay at the top when a person scrolls.
-string $path = Core\Path::join(Core\IO::temporaryDir(), "visits.xlsx");
-var $written = Workbook::fromRows(Visits::perDay(), {sheet: "Visits", freeze: false})->save($path);
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'visits.xlsx');
+var $written = Workbook::fromRows(Visits::perDay(), { sheet: 'Visits', freeze: false })->save($path);
 
 // `save` returns the number of rows of each sheet.
-echo $written->rows["Visits"], " rows saved\n";
+echo $written->rows['Visits'], " rows saved\n";

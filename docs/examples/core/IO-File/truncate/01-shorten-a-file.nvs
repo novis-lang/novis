@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to make a file shorter. `truncate` deletes every byte after the new size.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "list.txt");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'list.txt');
 Core\IO::write($path, "milk\nbread\neggs\n");
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 

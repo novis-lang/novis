@@ -8,77 +8,85 @@ use Core\Test;
 use Core\Time;
 
 // Tests for adding reports to the weekly totals. They use the database `scratch`, which is kept in memory.
-final class TotalsTest {
+final class TotalsTest
+{
     #[Test]
-    public function twoReportsOfOneWeekAndSystemShareOneRow(): void {
+    public function twoReportsOfOneWeekAndSystemShareOneRow(): void
+    {
         var $db = TotalsTest::emptyDb();
         var $totals = new Totals($db);
-        $totals->add(TotalsTest::report(true, 3, ["invocation.run" => 1]));
-        $totals->add(TotalsTest::report(false, 5, ["invocation.run" => 1]));
-        var $rows = TotalsTest::rows($db, "select * from reports");
+        $totals->add(TotalsTest::report(true, 3, ['invocation.run' => 1]));
+        $totals->add(TotalsTest::report(false, 5, ['invocation.run' => 1]));
+        var $rows = TotalsTest::rows($db, 'select * from reports');
         Test::assertCount($rows, 1);
-        Test::assertSame($rows[0]->int("reports"), 2);
-        Test::assertSame($rows[0]->int("first_reports"), 1);
-        Test::assertSame($rows[0]->int("active_3"), 1);
-        Test::assertSame($rows[0]->int("active_5"), 1);
-        Test::assertSame($rows[0]->int("active_1"), 0);
+        Test::assertSame($rows[0]->int('reports'), 2);
+        Test::assertSame($rows[0]->int('first_reports'), 1);
+        Test::assertSame($rows[0]->int('active_3'), 1);
+        Test::assertSame($rows[0]->int('active_5'), 1);
+        Test::assertSame($rows[0]->int('active_1'), 0);
     }
 
     #[Test]
-    public function anotherSystemGetsARowOfItsOwn(): void {
+    public function anotherSystemGetsARowOfItsOwn(): void
+    {
         var $db = TotalsTest::emptyDb();
         var $totals = new Totals($db);
         $totals->add(TotalsTest::report(false, 1, []));
-        $totals->add(new Report("0.4.0", "macos", "aarch64", "2026-W42", false, 1, []));
-        Test::assertCount(TotalsTest::rows($db, "select * from reports"), 2);
+        $totals->add(new Report('0.4.0', 'macos', 'aarch64', '2026-W42', false, 1, []));
+        Test::assertCount(TotalsTest::rows($db, 'select * from reports'), 2);
     }
 
     // `total` adds up the values. `reports` counts the reports that have the counter above zero.
     // A counter with the value 0 gets no row.
     #[Test]
-    public function aCounterHasItsTotalAndItsNumberOfReports(): void {
+    public function aCounterHasItsTotalAndItsNumberOfReports(): void
+    {
         var $db = TotalsTest::emptyDb();
         var $totals = new Totals($db);
-        $totals->add(TotalsTest::report(false, 7, ["invocation.run" => 41, "invocation.serve" => 0]));
-        $totals->add(TotalsTest::report(false, 2, ["invocation.run" => 2]));
-        var $rows = TotalsTest::rows($db, "select counter, total, reports from counters");
+        $totals->add(TotalsTest::report(false, 7, ['invocation.run' => 41, 'invocation.serve' => 0]));
+        $totals->add(TotalsTest::report(false, 2, ['invocation.run' => 2]));
+        var $rows = TotalsTest::rows($db, 'select counter, total, reports from counters');
         Test::assertCount($rows, 1);
-        Test::assertSame($rows[0]->string("counter"), "invocation.run");
-        Test::assertSame($rows[0]->int("total"), 43);
-        Test::assertSame($rows[0]->int("reports"), 2);
+        Test::assertSame($rows[0]->string('counter'), 'invocation.run');
+        Test::assertSame($rows[0]->int('total'), 43);
+        Test::assertSame($rows[0]->int('reports'), 2);
     }
 
     // A report that the check refuses never reaches the totals.
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function aRefusedReportChangesNothing(): void {
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function aRefusedReportChangesNothing(): void
+    {
         var $db = TotalsTest::emptyDb();
         var $totals = new Totals($db);
         string $body = "{\"schema\":1,\"version\":\"0.4.0\",\"os\":\"linux\",\"arch\":\"x86_64\",\"week\":\"2026-W42\",\"first\":false,\"days_active\":9,\"counters\":{\"invocation.run\":1}}";
         try {
-            $totals->add(Report::check($body, "application/json", Time::now(), Known::load()));
+            $totals->add(Report::check($body, 'application/json', Time::now(), Known::load()));
         } catch (Rejected $error) {
             Test::assertSame($error->status, 400);
         }
-        Test::assertCount(TotalsTest::rows($db, "select * from reports"), 0);
-        Test::assertCount(TotalsTest::rows($db, "select * from counters"), 0);
+        Test::assertCount(TotalsTest::rows($db, 'select * from reports'), 0);
+        Test::assertCount(TotalsTest::rows($db, 'select * from counters'), 0);
     }
 
     // A report from week 2026-W42 of version 0.4.0 on Linux and x86_64.
-    private static function report(bool $first, int $daysActive, array<int> $counters): Report {
-        return new Report("0.4.0", "linux", "x86_64", "2026-W42", $first, $daysActive, $counters);
+    private static function report(bool $first, int $daysActive, array<int> $counters): Report
+    {
+        return new Report('0.4.0', 'linux', 'x86_64', '2026-W42', $first, $daysActive, $counters);
     }
 
-    private static function rows(Connection $db, string $sql): array<Row> {
+    private static function rows(Connection $db, string $sql): array<Row>
+    {
         return Core\Arr::from($db->query($sql, []));
     }
 
     // Returns the `scratch` database with both tables and no rows.
     // All tests share the `scratch` database, so this deletes the rows of the last test.
-    private static function emptyDb(): Connection {
-        var $db = Db::connect("scratch");
+    private static function emptyDb(): Connection
+    {
+        var $db = Db::connect('scratch');
         (new Totals($db))->setUp();
-        $db->execute("delete from reports", []);
-        $db->execute("delete from counters", []);
+        $db->execute('delete from reports', []);
+        $db->execute('delete from counters', []);
         return $db;
     }
 }

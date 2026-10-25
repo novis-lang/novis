@@ -1,7 +1,7 @@
 error[E0444]: an `Iterable`/`Iterator` subject has no key to bind
-   --> 04-an-iterator-has-no-key.nvs:16:28
+   --> 04-an-iterator-has-no-key.nvs:18:28
    |
-16 | foreach (Steps::upTo(3) as string $k => int $v) {
+18 | foreach (Steps::upTo(3) as string $k => int $v) {
    |                            ^^^^^^^^^ no key exists here
    = help: an iterator has values but no keys. Remove the `$k =>`, or loop over an `array<T>`
 

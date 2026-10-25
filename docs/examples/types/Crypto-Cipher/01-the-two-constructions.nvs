@@ -4,23 +4,23 @@
 // when another system must read the message.
 
 secret bytes $key = Core\Crypto::generateKey();
-bytes $note = "ship the order on friday" as bytes;
+bytes $note = 'ship the order on friday' as bytes;
 
 bytes $fast = Core\Crypto::seal($note, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
 bytes $interop = Core\Crypto::seal($note, $key, Core\Crypto::Cipher::Aes256Gcm);
 
 // Each cipher puts a nonce (a random value used once) before the message. It is
 // 24 bytes for XChaCha20Poly1305 and 12 for Aes256Gcm. Both add a 16-byte tag.
-echo "message ", Core\Bytes::length($note), " octets", "\n";
-echo "XChaCha20Poly1305 ", Core\Bytes::length($fast), " octets", "\n";
-echo "Aes256Gcm ", Core\Bytes::length($interop), " octets", "\n";
+echo 'message ', Core\Bytes::length($note), ' octets', "\n";
+echo 'XChaCha20Poly1305 ', Core\Bytes::length($fast), ' octets', "\n";
+echo 'Aes256Gcm ', Core\Bytes::length($interop), ' octets', "\n";
 
 // `Core\Crypto::open` needs the same case again. It returns the original note.
 echo Core\Encoding::decodeText(
     Core\Crypto::open($fast, $key, Core\Crypto::Cipher::XChaCha20Poly1305),
-    Core\Charset::Utf8
+    Core\Charset::Utf8,
 ), "\n";
 echo Core\Encoding::decodeText(
     Core\Crypto::open($interop, $key, Core\Crypto::Cipher::Aes256Gcm),
-    Core\Charset::Utf8
+    Core\Charset::Utf8,
 ), "\n";

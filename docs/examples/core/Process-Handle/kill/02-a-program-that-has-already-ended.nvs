@@ -2,7 +2,7 @@
 // Shows that `kill()` does nothing when the program has already ended.
 // requires: unix
 
-var $greeting = Core\Process::spawn("/bin/echo", ["hello"]);
+var $greeting = Core\Process::spawn('/bin/echo', ['hello']);
 
 // `wait()` waits until `echo` ends. This prints `hello` and then `0`.
 var $result = $greeting->wait();

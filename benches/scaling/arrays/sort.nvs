@@ -4,8 +4,10 @@
 // scaling: max 64000
 // scaling: expect nlogn
 
-class Bench {
-    public static function run(uint $size): uint {
+class Bench
+{
+    public static function run(uint $size): uint
+    {
         array<uint> $prices = [];
         uint $seed = 7;
         uint $i = 0;

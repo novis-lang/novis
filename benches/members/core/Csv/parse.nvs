@@ -6,8 +6,10 @@
 // bench: allocations 21
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $documents = [
             "fig,2,3.50\napple,10,0.40\n",
             "\"Beans, dried\",500 g,4.10\ntin,2,9.99\n",

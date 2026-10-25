@@ -6,4 +6,4 @@
 echo Core\Request::scheme(), "\n";
 
 // You can still read the header yourself. This prints "https".
-echo Core\Request::header("x-forwarded-proto") ?? "none", "\n";
+echo Core\Request::header('x-forwarded-proto') ?? 'none', "\n";

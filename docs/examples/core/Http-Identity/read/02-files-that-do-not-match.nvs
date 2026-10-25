@@ -28,13 +28,13 @@ Core\Crypto\KeyPair $agreeOnly = Core\Crypto::generateKeyPair(Core\Crypto\KeyKin
 try {
     Core\Http\Identity::read($chain as bytes, $agreeOnly);
 } catch (LogicError $cannotSign) {
-    echo "an X25519 key is not allowed", "\n";
+    echo 'an X25519 key is not allowed', "\n";
 }
 
 // Text without a certificate in it is not a chain. This is the error you see
 // when the wrong file was used.
 try {
-    Core\Http\Identity::read("hello" as bytes, $otherKey);
+    Core\Http\Identity::read('hello' as bytes, $otherKey);
 } catch (LogicError $notAChain) {
     echo $notAChain->message, "\n";
 }

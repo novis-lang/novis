@@ -3,21 +3,24 @@
 // change anything. The four that can change something are the ones a
 // cross-site request check has to cover.
 
-class Verbs {
-    public static function purpose(Core\Http\Method $verb): string {
+class Verbs
+{
+    public static function purpose(Core\Http\Method $verb): string
+    {
         return match ($verb) {
-            Core\Http\Method::Get => "Get: reads a page, and changes nothing",
-            Core\Http\Method::Head => "Head: the same as Get, but the answer has no body",
-            Core\Http\Method::Options => "Options: asks what a page supports",
-            Core\Http\Method::Trace => "Trace: sends the request back, for working out what a proxy did to it",
-            Core\Http\Method::Post => "Post: sends something new, such as a filled-in form",
-            Core\Http\Method::Put => "Put: replaces what is there with what you send",
-            Core\Http\Method::Patch => "Patch: changes part of what is there",
-            Core\Http\Method::Delete => "Delete: removes it",
+            Core\Http\Method::Get => 'Get: reads a page, and changes nothing',
+            Core\Http\Method::Head => 'Head: the same as Get, but the answer has no body',
+            Core\Http\Method::Options => 'Options: asks what a page supports',
+            Core\Http\Method::Trace => 'Trace: sends the request back, for working out what a proxy did to it',
+            Core\Http\Method::Post => 'Post: sends something new, such as a filled-in form',
+            Core\Http\Method::Put => 'Put: replaces what is there with what you send',
+            Core\Http\Method::Patch => 'Patch: changes part of what is there',
+            Core\Http\Method::Delete => 'Delete: removes it',
         };
     }
 
-    public static function changesThings(Core\Http\Method $verb): bool {
+    public static function changesThings(Core\Http\Method $verb): bool
+    {
         return match ($verb) {
             Core\Http\Method::Get => false,
             Core\Http\Method::Head => false,
@@ -43,5 +46,5 @@ array<Core\Http\Method> $everything = [
 ];
 
 foreach ($everything as Core\Http\Method $verb) {
-    echo Verbs::changesThings($verb) ? "changes  " : "reads    ", Verbs::purpose($verb), "\n";
+    echo Verbs::changesThings($verb) ? 'changes  ' : 'reads    ', Verbs::purpose($verb), "\n";
 }

@@ -16,7 +16,7 @@ class Counts
 
 class WeatherTest
 {
-    #[Test(retries: 2, because: "the weather service is sometimes slow")]
+    #[Test(retries: 2, because: 'the weather service is sometimes slow')]
     public function itReadsTheTemperature(): void
     {
         Test::assertSame(Core\Str::trim(' 21 '), '21');

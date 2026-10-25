@@ -5,24 +5,39 @@
 // bench: calls 1
 // bench: complexity constant
 
-interface Check {
+interface Check
+{
     public function name(): string;
 }
 
-class Database implements Check {
-    public function name(): string { return "database"; }
+class Database implements Check
+{
+    public function name(): string
+    {
+        return 'database';
+    }
 }
 
-class Disk implements Check {
-    public function name(): string { return "disk"; }
+class Disk implements Check
+{
+    public function name(): string
+    {
+        return 'disk';
+    }
 }
 
-class Queue implements Check {
-    public function name(): string { return "queue"; }
+class Queue implements Check
+{
+    public function name(): string
+    {
+        return 'queue';
+    }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

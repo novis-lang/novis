@@ -20,7 +20,7 @@ if ($unread) {
 
 // The text "0" counts as false as well. Test the length when you mean
 // "this text is not empty".
-string $answer = "0";
+string $answer = '0';
 if ($answer) {
     echo "the answer counts as true\n";
 } elseif (Core\Str::length($answer) > 0) {

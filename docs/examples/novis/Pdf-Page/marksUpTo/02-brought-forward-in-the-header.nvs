@@ -3,7 +3,7 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
-string $rows = "";
+string $rows = '';
 for (int $n = 1; $n <= 70; $n++) {
     $rows .= "<tr data-mark=\"amount:2.00\"><td>Cake {$n}</td><td>2.00 EUR</td></tr>";
 }
@@ -23,8 +23,8 @@ var $header = fn(Page $page): Core\Html\Markup => {
     if ($page->isFirst()) {
         return html``;
     }
-    decimal $before = $sum($page->marksUpTo("amount")) - $sum($page->marks("amount"));
-    echo "page ", $page->number, ": brought forward ", $before, " EUR\n";
+    decimal $before = $sum($page->marksUpTo('amount')) - $sum($page->marks('amount'));
+    echo 'page ', $page->number, ': brought forward ', $before, " EUR\n";
     return html`<p>Brought forward: {$before} EUR</p>`;
 };
 

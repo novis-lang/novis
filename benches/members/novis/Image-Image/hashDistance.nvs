@@ -4,12 +4,14 @@
 // bench: complexity constant
 use Novis\Image\Image;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<bytes> $hashes = [
-            Core\Encoding::fromHex("8f3c00ff12a45e71"),
-            Core\Encoding::fromHex("8f3d00fe12a45e70"),
-            Core\Encoding::fromHex("70c3ff00ed5ba18e"),
+            Core\Encoding::fromHex('8f3c00ff12a45e71'),
+            Core\Encoding::fromHex('8f3d00fe12a45e70'),
+            Core\Encoding::fromHex('70c3ff00ed5ba18e'),
         ];
         uint $total = 0;
         uint $i = 0;

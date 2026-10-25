@@ -3,15 +3,15 @@
 // sends, and the partner checks it with the public half from your documentation.
 
 Core\Crypto\KeyPair $server = Core\Crypto\KeyPair::read(
-    Core\Encoding::fromHex("302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf"),
-    Core\Crypto\KeyKind::Ed25519
+    Core\Encoding::fromHex('302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf'),
+    Core\Crypto\KeyKind::Ed25519,
 );
 
 // What goes in your documentation: the public half as one line of base64.
 string $published = Core\Encoding::toBase64(
-    $server->publicKey()->write(Core\Crypto\PublicKey::Format::Spki)
+    $server->publicKey()->write(Core\Crypto\PublicKey::Format::Spki),
 );
-echo "public key: ", $published, "\n";
+echo 'public key: ', $published, "\n";
 
 // The server sends this body, and this signature in a header.
 bytes $body = '{"event":"order.shipped","id":1042}' as bytes;
@@ -22,7 +22,7 @@ string $header = Core\Encoding::toBase64(Core\Crypto::sign($body, $server));
 Core\Crypto\PublicKey $ours = Core\Crypto\PublicKey::read(
     Core\Encoding::fromBase64($published),
     Core\Crypto\KeyKind::Ed25519,
-    Core\Crypto\PublicKey::Format::Spki
+    Core\Crypto\PublicKey::Format::Spki,
 );
 Core\Crypto::verify($body, Core\Encoding::fromBase64($header), $ours);
-echo "the partner accepted the webhook", "\n";
+echo 'the partner accepted the webhook', "\n";

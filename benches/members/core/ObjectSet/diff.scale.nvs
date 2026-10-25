@@ -4,10 +4,12 @@
 // bench: start 256
 // bench: max 4096
 
-final class Key {
+final class Key
+{
     public int $id;
 
-    public function constructor(int $id) {
+    public function constructor(int $id)
+    {
         $this->id = $id;
     }
 }

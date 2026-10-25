@@ -15,9 +15,9 @@ class Archive
 // The values are the file, the page count and the three lists.
 // The list of dropped CSS has one declaration.
 var $result = new Rendered(
-    "%PDF-1.7" as bytes,
+    '%PDF-1.7' as bytes,
     3,
-    [{property: "text-shadow", value: "1px 1px gray", selector: "h1", line: 1, column: 12}],
+    [{ property: 'text-shadow', value: '1px 1px gray', selector: 'h1', line: 1, column: 12 }],
     [],
     [],
 );

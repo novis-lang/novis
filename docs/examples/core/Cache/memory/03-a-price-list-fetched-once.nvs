@@ -2,32 +2,34 @@
 // Shows a slow result that one request fetches and every later request on this
 // server reads from the cache.
 
-class Prices {
-    public static function all(): array<int> {
+class Prices
+{
+    public static function all(): array<int>
+    {
         var $cache = Core\Cache::memory();
 
         // If the list is in the cache, the function returns it here and skips
         // the slow work below.
-        var $saved = $cache->get("prices");
+        var $saved = $cache->get('prices');
         if ($saved != null) {
             return $saved as array<int>;
         }
 
         // This is the slow work. A real program calls another service or reads
         // a database here. The prices are in cents.
-        array<int> $fetched = ["cup" => 450, "poster" => 1200, "sticker" => 199];
+        array<int> $fetched = ['cup' => 450, 'poster' => 1200, 'sticker' => 199];
 
         // The list stays for fifteen minutes. After that, the next request
         // fetches it again, so a new price is used within fifteen minutes.
-        $cache->put("prices", $fetched, {ttl: 15m});
+        $cache->put('prices', $fetched, { ttl: 15m });
         return $fetched;
     }
 }
 
 // The first request fetches the list. This prints 450.
 array<int> $first = Prices::all();
-echo $first["cup"], "\n";
+echo $first['cup'], "\n";
 
 // The next request reads the list from the cache. This prints 1200.
 array<int> $second = Prices::all();
-echo $second["poster"], "\n";
+echo $second['poster'], "\n";

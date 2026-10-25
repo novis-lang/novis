@@ -5,12 +5,14 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        bytes $expected = Core\Hash::of("signed", Core\Hash::Digest::Sha256);
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        bytes $expected = Core\Hash::of('signed', Core\Hash::Digest::Sha256);
         array<bytes> $sent = [
-            Core\Hash::of("signed", Core\Hash::Digest::Sha256),
-            Core\Hash::of("forged", Core\Hash::Digest::Sha256),
+            Core\Hash::of('signed', Core\Hash::Digest::Sha256),
+            Core\Hash::of('forged', Core\Hash::Digest::Sha256),
         ];
         uint $total = 0;
         uint $i = 0;

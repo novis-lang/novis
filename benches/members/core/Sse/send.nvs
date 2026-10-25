@@ -3,13 +3,15 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(Core\Sse $sse, int $rounds): int {
-        array<string> $names = ["price", "order", "status"];
+class Bench
+{
+    public static function run(Core\Sse $sse, int $rounds): int
+    {
+        array<string> $names = ['price', 'order', 'status'];
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {
-            $sse->send("update", event: $names[$total % 3]);
+            $sse->send('update', event: $names[$total % 3]);
             $total = $total + ($total % 7) + 1;   // chained: each name depends on the last
             $i = $i + 1;
         }

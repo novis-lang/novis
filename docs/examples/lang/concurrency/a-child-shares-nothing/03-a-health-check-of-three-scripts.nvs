@@ -3,25 +3,28 @@
 // check cannot change what another check counted. This program adds the three
 // numbers up itself.
 
-final class Report {
+final class Report
+{
     public static int $problems = 0;
 }
 
 // `#[Core\Path]` says that a parameter is a file path. A relative path in
 // quotes passed to it starts at the folder of this file.
-class Here {
-    public static function path(#[Core\Path] string $path): string {
+class Here
+{
+    public static function path(#[Core\Path] string $path): string
+    {
         return $path;
     }
 }
 
 // `$dir` is a full path, so a path built from it works from any folder.
-string $dir = Here::path("checks");
-array<string> $checks = ["disk-space", "mail-queue", "old-sessions"];
+string $dir = Here::path('checks');
+array<string> $checks = ['disk-space', 'mail-queue', 'old-sessions'];
 
 foreach ($checks as string $name) {
-    string $path = Core\Path::join($dir, $name . ".nvs");
-    var $handle = spawn script $path with(output: "capture");
+    string $path = Core\Path::join($dir, $name . '.nvs');
+    var $handle = spawn script $path with(output: 'capture');
     var $result = await $handle;
 
     // All three scripts declare `Report::$problems` and start it at 0. The
@@ -29,9 +32,9 @@ foreach ($checks as string $name) {
     int $problems = $result->value as int;
     Report::$problems = Report::$problems + $problems;
 
-    echo $name, ": ", $problems, " problem(s)\n";
-    echo "  ", $result->output;
+    echo $name, ': ', $problems, " problem(s)\n";
+    echo '  ', $result->output;
 }
 
 // This program added the three numbers up itself. The scripts could not.
-echo "total: ", Report::$problems, " problem(s)\n";
+echo 'total: ', Report::$problems, " problem(s)\n";

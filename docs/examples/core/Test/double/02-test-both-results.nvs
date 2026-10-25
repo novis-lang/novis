@@ -1,13 +1,16 @@
 <?nvs
 // Shows how two doubles of one interface test both results of a payment.
 
-interface Payments {
+interface Payments
+{
     public function charge(int $cents): bool;
 }
 
-class Checkout {
-    public static function pay(Payments $payments, int $cents): string {
-        return $payments->charge($cents) ? "paid" : "declined";
+class Checkout
+{
+    public static function pay(Payments $payments, int $cents): string
+    {
+        return $payments->charge($cents) ? 'paid' : 'declined';
     }
 }
 

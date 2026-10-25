@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $lines = ["red, green,blue", "summer dress", "a , b , c , d"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $lines = ['red, green,blue', 'summer dress', 'a , b , c , d'];
         Core\Regex\Pattern $comma = Core\Regex::compile('\s*,\s*');
         uint $total = 0;
         uint $i = 0;

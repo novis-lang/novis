@@ -2,7 +2,8 @@
 // Shows a class that fills itself from a row. Write a `fromRow` method, and
 // `queryAs` calls it for every row.
 
-class Price {
+class Price
+{
     public tainted string $label;
     public int $cents;
 

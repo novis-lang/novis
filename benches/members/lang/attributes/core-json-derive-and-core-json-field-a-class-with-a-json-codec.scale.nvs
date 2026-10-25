@@ -4,11 +4,13 @@
 // bench: max 4096
 
 #[Core\Json\Derive]
-class Price {
+class Price
+{
     public uint $cents;
     public string $currency;
 
-    public function constructor(uint $cents, string $currency) {
+    public function constructor(uint $cents, string $currency)
+    {
         $this->cents = $cents;
         $this->currency = $currency;
     }

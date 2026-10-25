@@ -3,8 +3,10 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Core\Time\Instant $start = Core\Time::fromEpoch(1709294400);
         array<Core\Time\Instant> $times = [$start, $start->plus(250ms), $start->plus(1ns)];
         uint $total = 0;

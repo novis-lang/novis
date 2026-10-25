@@ -10,8 +10,8 @@ $ids->add(30);
 $ids->add(10);
 
 // Only the values added after `clear` are in the set. This prints "10: yes" and "20: no".
-echo "10: ", $ids->has(10) ? "yes" : "no", "\n";
-echo "20: ", $ids->has(20) ? "yes" : "no", "\n";
+echo '10: ', $ids->has(10) ? 'yes' : 'no', "\n";
+echo '20: ', $ids->has(20) ? 'yes' : 'no', "\n";
 
 // A `foreach` gives the values in the order they were added after `clear`.
 // This prints 30, then 10.

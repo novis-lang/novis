@@ -10,6 +10,6 @@ foreach ($file->nodes() as Core\Ast\Node $node) {
     if ($inside == 0) {
         echo $node->kind(), " contains nothing\n";
     } else {
-        echo $node->kind(), " contains ", $inside, "\n";
+        echo $node->kind(), ' contains ', $inside, "\n";
     }
 }

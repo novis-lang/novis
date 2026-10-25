@@ -3,9 +3,11 @@
 // `Blob` does not write `area`, so it does not compile.
 // proof: compile-error
 
-abstract class Shape {
-    public abstract function area(): int;
+abstract class Shape
+{
+    abstract public function area(): int;
 }
 
-class Blob extends Shape {
+class Blob extends Shape
+{
 }

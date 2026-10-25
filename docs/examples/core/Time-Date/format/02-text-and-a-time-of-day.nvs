@@ -9,7 +9,7 @@ echo $date->format("'Quarter' Q 'of' yyyy"), "\n";
 
 // A date has no time of day, so `HH` and `mm` throw a `LogicError`.
 try {
-    echo $date->format("yyyy-MM-dd HH:mm"), "\n";
+    echo $date->format('yyyy-MM-dd HH:mm'), "\n";
 } catch (LogicError $error) {
-    echo "Not allowed: ", $error->message, "\n";
+    echo 'Not allowed: ', $error->message, "\n";
 }

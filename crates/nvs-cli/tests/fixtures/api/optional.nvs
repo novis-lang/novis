@@ -6,19 +6,19 @@
 
 class Items
 {
-    #[Core\Route(path: "/items", method: Core\Http\Method::Get, name: "Items::index")]
+    #[Core\Route(path: '/items', method: Core\Http\Method::Get, name: 'Items::index')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function index(#[Core\Query] string $sort = "name"): string
+    public function index(#[Core\Query] string $sort = 'name'): string
     {
-        return "every item by " . $sort;
+        return 'every item by ' . $sort;
     }
 
-    #[Core\Route(path: "/items/{id}", method: Core\Http\Method::Get, name: "Items::show")]
+    #[Core\Route(path: '/items/{id}', method: Core\Http\Method::Get, name: 'Items::show')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
-        return "item " . $id;
+        return 'item ' . $id;
     }
 }
 
-echo "GET /items -> Items::index", "\n";
+echo 'GET /items -> Items::index', "\n";

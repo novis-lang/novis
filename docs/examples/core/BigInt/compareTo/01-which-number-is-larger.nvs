@@ -1,8 +1,8 @@
 <?nvs
 // Shows the three answers `compareTo` gives.
 
-var $smaller = Core\BigInt::parse("99999999999999999999");
-var $larger = Core\BigInt::parse("100000000000000000000");
+var $smaller = Core\BigInt::parse('99999999999999999999');
+var $larger = Core\BigInt::parse('100000000000000000000');
 
 // The number you call it on is the smaller one, so this prints -1.
 echo $smaller->compareTo($larger), "\n";
@@ -11,7 +11,7 @@ echo $smaller->compareTo($larger), "\n";
 echo $larger->compareTo($smaller), "\n";
 
 // The two numbers are equal, so this prints 0.
-echo $smaller->compareTo(Core\BigInt::parse("99999999999999999999")), "\n";
+echo $smaller->compareTo(Core\BigInt::parse('99999999999999999999')), "\n";
 
 // A negative number is the smaller one however many digits it has. This
 // prints -1.

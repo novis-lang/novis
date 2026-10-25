@@ -2,10 +2,10 @@
 // Shows that `disabled` returns `true` for an account that nobody can log in with.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Dora Lind,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Dora Lind,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `disabled: true`.
-    echo "disabled: ", $flags->disabled() ? "true" : "false", "\n";
+    echo 'disabled: ', $flags->disabled() ? 'true' : 'false', "\n";
 }

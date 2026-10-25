@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to read the port of an address.
 
-var $server = Core\Uri::parse("http://localhost:8080/health");
+var $server = Core\Uri::parse('http://localhost:8080/health');
 
 // The port is the number after the host. This prints 8080.
 echo $server->port(), "\n";

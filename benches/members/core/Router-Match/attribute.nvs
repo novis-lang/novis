@@ -4,30 +4,42 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Pages {
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Pages::home")]
+class Pages
+{
+    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Pages::home')]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{seconds: 60}]
-    public function home(): string { return "home"; }
+    public function home(): string
+    {
+        return 'home';
+    }
 
-    #[Core\Route(path: "/news", method: Core\Http\Method::Get, name: "Pages::news")]
+    #[Core\Route(path: '/news', method: Core\Http\Method::Get, name: 'Pages::news')]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{seconds: 300}]
-    public function news(): string { return "news"; }
+    public function news(): string
+    {
+        return 'news';
+    }
 
-    #[Core\Route(path: "/account", method: Core\Http\Method::Get, name: "Pages::account")]
+    #[Core\Route(path: '/account', method: Core\Http\Method::Get, name: 'Pages::account')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function account(): string { return "account"; }
+    public function account(): string
+    {
+        return 'account';
+    }
 }
 
-class Bench {
-    public static function loop(Core\Router\Match $cached, Core\Router\Match $live, uint $rounds): uint {
+class Bench
+{
+    public static function loop(Core\Router\Match $cached, Core\Router\Match $live, uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Last round's total decides which match this round reads.
             Core\Router\Match $match = $total % 2 == 0 ? $cached : $live;
-            ?{seconds: int} $cache = $match->attribute<{seconds: int}>();
+            ?{ seconds: int } $cache = $match->attribute<{ seconds: int }>();
             if ($cache != null) {
                 $total = $total + 1;
             } else {
@@ -38,9 +50,10 @@ class Bench {
         return $total;
     }
 
-    public static function run(uint $rounds): uint {
-        ?Core\Router\Match $cached = Core\Router::match(Core\Http\Method::Get, "/news");
-        ?Core\Router\Match $live = Core\Router::match(Core\Http\Method::Get, "/account");
+    public static function run(uint $rounds): uint
+    {
+        ?Core\Router\Match $cached = Core\Router::match(Core\Http\Method::Get, '/news');
+        ?Core\Router\Match $live = Core\Router::match(Core\Http\Method::Get, '/account');
         if ($cached != null) {
             if ($live != null) {
                 return Bench::loop($cached, $live, $rounds);

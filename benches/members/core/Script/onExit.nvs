@@ -3,12 +3,15 @@
 // bench: iterations 256
 // bench: complexity constant
 
-final class Seen {
+final class Seen
+{
     public static uint $ran = 0;
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $i = 0;
         while ($i < $rounds) {
             // Each function is new, because it keeps its own copy of `$i`.

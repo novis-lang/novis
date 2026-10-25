@@ -3,8 +3,10 @@
 // reaches this directory. It is a whole program on purpose: the tier asserts what the editor shows for
 // code the compiler accepts, so a file that does not compile would prove the wrong thing.
 
-class Greeting {
-    public static function of(string $name): string {
+class Greeting
+{
+    public static function of(string $name): string
+    {
         return "Hello, {$name}!";
     }
 }

@@ -4,10 +4,10 @@
 
 namespace App;
 
-use Core\Str;
 use Core\Arr;
+use Core\Str;
 
-array<string> $words = ["order", "invoice", "receipt"];
+array<string> $words = ['order', 'invoice', 'receipt'];
 
 // `Str` and `Arr` are the imports above.
 echo Str::upper($words[0]), "\n";
@@ -15,4 +15,4 @@ echo Arr::count($words), "\n";
 
 // You never have to import anything. A name written out in full works the
 // same, imported or not.
-echo Core\Str::lower("QUIET"), "\n";
+echo Core\Str::lower('QUIET'), "\n";

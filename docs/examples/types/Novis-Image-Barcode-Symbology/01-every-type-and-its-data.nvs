@@ -4,20 +4,20 @@ use Novis\Image\Barcode;
 use Novis\Image\Image;
 
 // Each row is a type and data that the type can hold.
-array<{symbology: Barcode::Symbology, data: string}> $rows = [
-    {symbology: Barcode::Symbology::Code128, data: "Shop-42"},
-    {symbology: Barcode::Symbology::Gs1128, data: "(01)09501101530003(10)ABC"},
-    {symbology: Barcode::Symbology::Ean13, data: "4006381333931"},
-    {symbology: Barcode::Symbology::Ean8, data: "96385074"},
-    {symbology: Barcode::Symbology::UpcA, data: "036000291452"},
-    {symbology: Barcode::Symbology::Code39, data: "SHOP-42"},
-    {symbology: Barcode::Symbology::Itf14, data: "15400141288763"},
-    {symbology: Barcode::Symbology::DataMatrix, data: "Shop order 1042"},
+array<{ symbology: Barcode::Symbology, data: string }> $rows = [
+    { symbology: Barcode::Symbology::Code128, data: 'Shop-42' },
+    { symbology: Barcode::Symbology::Gs1128, data: '(01)09501101530003(10)ABC' },
+    { symbology: Barcode::Symbology::Ean13, data: '4006381333931' },
+    { symbology: Barcode::Symbology::Ean8, data: '96385074' },
+    { symbology: Barcode::Symbology::UpcA, data: '036000291452' },
+    { symbology: Barcode::Symbology::Code39, data: 'SHOP-42' },
+    { symbology: Barcode::Symbology::Itf14, data: '15400141288763' },
+    { symbology: Barcode::Symbology::DataMatrix, data: 'Shop order 1042' },
 ];
 
 // This prints the width and height of each image in pixels.
 // Only the `DataMatrix` image is square.
 foreach ($rows as var $row) {
     var $info = Image::info(Barcode::render($row->data, $row->symbology));
-    echo $row->data, ": ", $info->width, "x", $info->height, "\n";
+    echo $row->data, ': ', $info->width, 'x', $info->height, "\n";
 }

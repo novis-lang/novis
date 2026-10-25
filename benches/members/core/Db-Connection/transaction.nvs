@@ -5,8 +5,10 @@
 // bench: calls 3
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $db = Core\Db::connect('notes');
         $db->execute('create table totals (id integer primary key, n integer not null)', []);
         uint $total = 0;

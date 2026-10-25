@@ -6476,7 +6476,7 @@ mod tests {
             "the summary's own rendering is in the literal that asserted it: {updated}"
         );
         assert!(
-            updated.contains("class Snapshots {"),
+            updated.contains("class Snapshots\n{"),
             "and nothing outside the two literals moved: {updated}"
         );
 

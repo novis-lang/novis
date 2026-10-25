@@ -6,15 +6,15 @@ $writer->startDocument();
 
 // No element is open yet. This prints the error message.
 try {
-    $writer->cdata("Hello");
+    $writer->cdata('Hello');
 } catch (LogicError $error) {
     echo $error->message, "\n";
 }
 
-$writer->startElement("note");
+$writer->startElement('note');
 
 // `]]>` ends a CDATA section, so it is not allowed in the text. This prints the error message.
-string $text = "The end marker is ]]> in XML.";
+string $text = 'The end marker is ]]> in XML.';
 try {
     $writer->cdata($text);
 } catch (LogicError $error) {

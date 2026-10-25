@@ -5,16 +5,16 @@
 try {
     Core\Task::all({
         first: fn(): int => {
-            throw new RuntimeError("the first file is missing");
+            throw new RuntimeError('the first file is missing');
         },
         // This task runs before the group can stop it. Its error is printed on
         // standard error, and your program goes on.
         second: fn(): int => {
             echo "the second task started\n";
-            throw new RuntimeError("the second file is missing");
+            throw new RuntimeError('the second file is missing');
         },
     });
 } catch (RuntimeError $e) {
-    echo "caught: ", $e->message, "\n";
+    echo 'caught: ', $e->message, "\n";
 }
 echo "the program goes on\n";

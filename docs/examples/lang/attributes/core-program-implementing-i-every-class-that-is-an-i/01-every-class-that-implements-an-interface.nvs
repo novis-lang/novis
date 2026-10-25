@@ -4,25 +4,32 @@
 // the classes while it compiles your program, so a new class joins the list by
 // existing.
 
-interface Check {
+interface Check
+{
     public function describe(): string;
 }
 
-class DiskSpace implements Check {
-    public function describe(): string {
-        return "disk space is fine";
+class DiskSpace implements Check
+{
+    public function describe(): string
+    {
+        return 'disk space is fine';
     }
 }
 
-class Certificates implements Check {
-    public function describe(): string {
-        return "certificates are valid";
+class Certificates implements Check
+{
+    public function describe(): string
+    {
+        return 'certificates are valid';
     }
 }
 
-class Backups implements Check {
-    public function describe(): string {
-        return "backups ran last night";
+class Backups implements Check
+{
+    public function describe(): string
+    {
+        return 'backups ran last night';
     }
 }
 

@@ -3,15 +3,15 @@
 // problem the parser found. This form has two bad fields, and both of them are
 // in the list.
 
-array<string> $form = ["name" => "Ada", "age" => "not a number", "active" => "yes"];
+array<string> $form = ['name' => 'Ada', 'age' => 'not a number', 'active' => 'yes'];
 
 try {
-    Core\Arr::shapeAs<{name: string, age: int, active: bool}>($form);
+    Core\Arr::shapeAs<{ name: string, age: int, active: bool }>($form);
     echo "the form is good\n";
 } catch (ParseError $bad) {
     echo $bad->message, "\n";
-    foreach ($bad->issues as ({path: string, message: string}) $issue) {
+    foreach ($bad->issues as ({ path: string, message: string }) $issue) {
         // `path` names the field, and `message` says what is wrong with it.
-        echo "  ", $issue->path, ": ", $issue->message, "\n";
+        echo '  ', $issue->path, ': ', $issue->message, "\n";
     }
 }

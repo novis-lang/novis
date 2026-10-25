@@ -6,8 +6,8 @@
 decimal $payout = 1000.00;
 
 // Ada owns five parts of the business, Grace three and Alan two.
-array<decimal> $shares = ["Ada" => 5, "Grace" => 3, "Alan" => 2];
+array<decimal> $shares = ['Ada' => 5, 'Grace' => 3, 'Alan' => 2];
 
 foreach (Core\Decimal::allocate($payout, $shares) as string $name => decimal $part) {
-    echo $name, " receives ", $part, "\n";
+    echo $name, ' receives ', $part, "\n";
 }

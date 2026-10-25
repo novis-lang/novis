@@ -1,10 +1,12 @@
 <?nvs
 // Shows that the type of the result includes the type of every arm.
 
-class Repo {
-    public static function get(int $id): int {
+class Repo
+{
+    public static function get(int $id): int
+    {
         if ($id < 0) {
-            throw new IOError("no such row");
+            throw new IOError('no such row');
         }
         return $id * 2;
     }
@@ -13,9 +15,9 @@ class Repo {
 // `get` returns `int` and the arm gives `null`, so the result is `?int`.
 ?int $found = Repo::get(-1) catch (IOError) => null;
 // This prints `none`.
-echo $found ?? "none", "\n";
+echo $found ?? 'none', "\n";
 
 // One arm gives a string and the other gives an int, so the variable is `mixed`.
 // The second arm matches. This prints -1.
-mixed $either = Repo::get(-1) catch (LogicError $logic) => "logic" catch (IOError $io) => -1;
+mixed $either = Repo::get(-1) catch (LogicError $logic) => 'logic' catch (IOError $io) => -1;
 echo $either, "\n";

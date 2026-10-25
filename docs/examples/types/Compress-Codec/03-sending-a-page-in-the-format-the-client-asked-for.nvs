@@ -3,17 +3,19 @@
 // it can also write. It sends the format name in `Content-Encoding`, because the
 // compressed bytes do not contain it.
 
-class Response {
+class Response
+{
     // The server decides the order: Zstd, then Brotli, then Gzip. Almost every
     // client can read Gzip, so it is the last choice.
-    public static function pick(string $accept): ?Core\Compress::Codec {
-        if (Core\Str::contains($accept, "zstd")) {
+    public static function pick(string $accept): ?Core\Compress::Codec
+    {
+        if (Core\Str::contains($accept, 'zstd')) {
             return Core\Compress::Codec::Zstd;
         }
-        if (Core\Str::contains($accept, "br")) {
+        if (Core\Str::contains($accept, 'br')) {
             return Core\Compress::Codec::Brotli;
         }
-        if (Core\Str::contains($accept, "gzip")) {
+        if (Core\Str::contains($accept, 'gzip')) {
             return Core\Compress::Codec::Gzip;
         }
         return null;
@@ -21,13 +23,14 @@ class Response {
 
     // `header` returns the `Content-Encoding` name. In HTTP, `deflate` means the
     // Zlib format. Plain `Deflate` has no name, so the result is "".
-    public static function header(Core\Compress::Codec $codec): string {
+    public static function header(Core\Compress::Codec $codec): string
+    {
         return match ($codec) {
-            Core\Compress::Codec::Gzip => "gzip",
-            Core\Compress::Codec::Zlib => "deflate",
-            Core\Compress::Codec::Deflate => "",
-            Core\Compress::Codec::Brotli => "br",
-            Core\Compress::Codec::Zstd => "zstd",
+            Core\Compress::Codec::Gzip => 'gzip',
+            Core\Compress::Codec::Zlib => 'deflate',
+            Core\Compress::Codec::Deflate => '',
+            Core\Compress::Codec::Brotli => 'br',
+            Core\Compress::Codec::Zstd => 'zstd',
         };
     }
 }
@@ -35,9 +38,9 @@ class Response {
 bytes $page = Core\Str::repeat("<li>order 1042 shipped</li>\n", 40) as bytes;
 
 array<string> $clients = [
-    "gzip, deflate, br, zstd",
-    "gzip, deflate",
-    "identity",
+    'gzip, deflate, br, zstd',
+    'gzip, deflate',
+    'identity',
 ];
 
 foreach ($clients as string $accept) {
@@ -46,12 +49,12 @@ foreach ($clients as string $accept) {
     // If the client accepts none of these formats, the server sends the page
     // without compression.
     if ($codec == null) {
-        echo "accepts ", $accept, " -> sent as it is\n";
+        echo 'accepts ', $accept, " -> sent as it is\n";
     } else {
         bytes $frame = Core\Compress::compress($page, $codec);
-        echo "accepts ", $accept,
-            " -> Content-Encoding: ", Response::header($codec),
-            ", ", Core\Bytes::length($frame),
-            " octets instead of ", Core\Bytes::length($page), "\n";
+        echo 'accepts ', $accept,
+            ' -> Content-Encoding: ', Response::header($codec),
+            ', ', Core\Bytes::length($frame),
+            ' octets instead of ', Core\Bytes::length($page), "\n";
     }
 }

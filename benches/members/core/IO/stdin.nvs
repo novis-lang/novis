@@ -3,12 +3,14 @@
 // bench: iterations 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(): uint {
+class Bench
+{
+    public static function run(): uint
+    {
         // The input is the file `stdin.in` beside this one. It can be read only once.
         tainted string $input = Core\IO::stdin();
         return Core\Str::length($input);
     }
 }
 
-echo Bench::run() > 0 ? "done" : "no input was read", "\n";
+echo Bench::run() > 0 ? 'done' : 'no input was read', "\n";

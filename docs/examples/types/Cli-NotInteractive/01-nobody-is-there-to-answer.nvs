@@ -4,8 +4,8 @@
 // block decides what happens next.
 
 try {
-    tainted string $who = Core\Cli::ask("Who is running this release?");
-    echo "released by ", $who, "\n";
+    tainted string $who = Core\Cli::ask('Who is running this release?');
+    echo 'released by ', $who, "\n";
 } catch (Core\Cli\NotInteractive $nobody) {
     echo $nobody->message, "\n";
     echo "released by the nightly job\n";

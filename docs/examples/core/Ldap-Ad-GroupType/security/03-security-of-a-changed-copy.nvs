@@ -2,14 +2,14 @@
 // Shows that `security` reads the flag of the object you call it on, also of a changed copy.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Employees,OU=Company,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // `with` returns a copy without the security flag.
-    var $list = $type->with({security: false});
+    var $list = $type->with({ security: false });
 
     // This prints `true` and then `false`.
-    echo $type->security() ? "true" : "false", "\n";
-    echo $list->security() ? "true" : "false", "\n";
+    echo $type->security() ? 'true' : 'false', "\n";
+    echo $list->security() ? 'true' : 'false', "\n";
 }

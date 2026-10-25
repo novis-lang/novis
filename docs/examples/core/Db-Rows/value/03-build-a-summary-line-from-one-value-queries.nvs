@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table orders (id integer primary key, customer text not null, cents int not null)', []);
 $db->execute(
     'insert into orders (customer, cents) values (?, ?), (?, ?), (?, ?)',
-    ['Ada Ahmed', 1250, 'Bo Berg', 800, 'Cem Celik', 2400]
+    ['Ada Ahmed', 1250, 'Bo Berg', 800, 'Cem Celik', 2400],
 );
 
 // Each query answers one row with one column, so each figure is one `value`

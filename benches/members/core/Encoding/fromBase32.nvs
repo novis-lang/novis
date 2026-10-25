@@ -5,12 +5,14 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $secrets = [
-            "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP",
-            "MZXW6YTBMZXW6YTBMZXW6YTBMZXW6YTB",
-            "NBSWY3DPNBSWY3DPNBSWY3DPNBSWY3DP",
+            'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP',
+            'MZXW6YTBMZXW6YTBMZXW6YTBMZXW6YTB',
+            'NBSWY3DPNBSWY3DPNBSWY3DPNBSWY3DP',
         ];
         uint $total = 0;
         uint $i = 0;

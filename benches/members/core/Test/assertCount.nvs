@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<array<string>> $lists = [["a"], ["a", "b"], ["a", "b", "c"]];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<array<string>> $lists = [['a'], ['a', 'b'], ['a', 'b', 'c']];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

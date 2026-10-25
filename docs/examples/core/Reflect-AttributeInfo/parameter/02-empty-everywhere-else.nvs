@@ -1,14 +1,16 @@
 <?nvs
 // Shows that `parameter` is an empty string for an attribute on a class, a property or a method.
 
-#[{table: "notes"}]
-class Note {
-    #[{column: "body"}]
-    public string $text = "";
+#[{table: 'notes'}]
+class Note
+{
+    #[{column: 'body'}]
+    public string $text = '';
 
     #[{cache: 60}]
-    public function summary(): string {
-        return "";
+    public function summary(): string
+    {
+        return '';
     }
 }
 

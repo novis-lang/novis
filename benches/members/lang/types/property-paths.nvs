@@ -5,23 +5,28 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Address {
-    public string $city = "";
+class Address
+{
+    public string $city = '';
 }
 
-class Customer {
-    public string $name = "";
+class Customer
+{
+    public string $name = '';
     public ?Address $address = null;
 }
 
-class Order {
+class Order
+{
     public ?Customer $customer = null;
     public int $total = 0;
 }
 
-class Bench {
-    public static function run(int $rounds): int {
-        array<string> $fields = ["customer.name", "customer.address.city", "total"];
+class Bench
+{
+    public static function run(int $rounds): int
+    {
+        array<string> $fields = ['customer.name', 'customer.address.city', 'total'];
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {

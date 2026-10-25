@@ -3,7 +3,7 @@
 // and your program keeps text as UTF-8.
 
 // One line of that export, as it arrives from the file.
-bytes $line = Core\Encoding::fromHex("4dfc6c6c65723b4772f6df65");
+bytes $line = Core\Encoding::fromHex('4dfc6c6c65723b4772f6df65');
 
 // Read the bytes as the encoding the old system wrote. This prints
 // Müller;Größe.

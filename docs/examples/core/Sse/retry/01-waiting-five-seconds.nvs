@@ -4,4 +4,4 @@
 Core\Sse $sse = Core\Sse::stream();
 // This prints `retry: 5000`. The wait is always sent in milliseconds.
 $sse->retry(Core\Time\Duration::seconds(5));
-$sse->send("hello");
+$sse->send('hello');

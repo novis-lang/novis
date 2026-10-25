@@ -3,17 +3,17 @@
 // at the top.
 
 array<int> $sold = [
-    "notebook" => 41,
-    "pencil"   => 128,
-    "eraser"   => 12,
-    "ruler"    => 63,
+    'notebook' => 41,
+    'pencil'   => 128,
+    'eraser'   => 12,
+    'ruler'    => 63,
 ];
 
-array<int> $best = Core\Arr::sort($sold, {order: Core\Arr::Order::Desc, preserveKeys: true});
+array<int> $best = Core\Arr::sort($sold, { order: Core\Arr::Order::Desc, preserveKeys: true });
 foreach ($best as string $product => int $count) {
-    echo $product, ": ", $count, "\n";
+    echo $product, ': ', $count, "\n";
 }
 
 // `Core\Arr::Order::Asc` puts the least sold first. This list helps you decide what to
 // stop selling.
-echo "least sold: ", Core\Json::encode(Core\Arr::sort($sold, {order: Core\Arr::Order::Asc, preserveKeys: true})), "\n";
+echo 'least sold: ', Core\Json::encode(Core\Arr::sort($sold, { order: Core\Arr::Order::Asc, preserveKeys: true })), "\n";

@@ -2,12 +2,12 @@
 // Shows how to check whether a person works in the Sales department.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-array<string> $people = ["Anna Berg", "Ben Kohl", "Carla Diaz", "Dora Lind"];
+var $corp = Core\Ldap::connect('corp');
+array<string> $people = ['Anna Berg', 'Ben Kohl', 'Carla Diaz', 'Dora Lind'];
 
 // Anna Berg and Carla Diaz work in Sales, so their lines say `yes`.
 foreach ($people as string $name) {
-    string $dn = "CN=" . $name . ",OU=Company,DC=example,DC=test";
-    bool $inSales = $corp->compare($dn, "department", "Sales");
-    echo $name, ": ", $inSales ? "yes" : "no", "\n";
+    string $dn = 'CN=' . $name . ',OU=Company,DC=example,DC=test';
+    bool $inSales = $corp->compare($dn, 'department', 'Sales');
+    echo $name, ': ', $inSales ? 'yes' : 'no', "\n";
 }

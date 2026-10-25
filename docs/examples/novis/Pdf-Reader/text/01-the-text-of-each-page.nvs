@@ -4,11 +4,11 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
 // The received file. Here the program renders it first, so the example has a file to read.
-var $received = Document::fromHtml("<h1>Delivery note</h1><p>3 bikes</p>"
+var $received = Document::fromHtml('<h1>Delivery note</h1><p>3 bikes</p>'
     . "<h1 style=\"break-before: page\">Returns</h1><p>1 helmet</p>")->render()->bytes;
 
 // Pages count from 1. Each line of text on the page is one line in the result.
 var $reader = Reader::open($received);
 for (uint $page = 1; $page <= $reader->pageCount; $page++) {
-    echo "page ", $page, ": ", Core\Str::replace($reader->text($page), "\n", " / "), "\n";
+    echo 'page ', $page, ': ', Core\Str::replace($reader->text($page), "\n", ' / '), "\n";
 }

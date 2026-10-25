@@ -5,17 +5,19 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // Every request below is answered from this table, so nothing is sent over a network.
-        Core\Test::answerHttp("https://api.example.com/*", 204);
-        array<string> $states = ["paid", "packed", "shipped"];
+        Core\Test::answerHttp('https://api.example.com/*', 204);
+        array<string> $states = ['paid', 'packed', 'shipped'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The body in each round is chosen by the round before, so no round can be left out.
-            string $url = "https://api.example.com/orders/" . $i;
-            Core\Http\Response $response = Core\Http\Client::patch($url, {json: ["status" => $states[($total % 3) as int]]});
+            string $url = 'https://api.example.com/orders/' . $i;
+            Core\Http\Response $response = Core\Http\Client::patch($url, { json: ['status' => $states[($total % 3) as int]] });
             $total = $total + ($response->status() as uint);
             $i = $i + 1;
         }

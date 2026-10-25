@@ -1,7 +1,7 @@
 error[E0401]: expected `"read"|"write"`, found `string`
   --> 05-a-word-outside-the-list.nvs:7:9
   |
-7 | $mode = "delete";
+7 | $mode = 'delete';
   |         ^^^^^^^^ this is `string`
 
 error: aborting due to 1 error

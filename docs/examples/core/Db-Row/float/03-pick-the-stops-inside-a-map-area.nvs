@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table stops (name text not null, lat real not null, lon real not null)', []);
 $db->execute(
     'insert into stops (name, lat, lon) values (?, ?, ?), (?, ?, ?), (?, ?, ?)',
-    ['main square', 47.0707, 15.4395, 'river bridge', 47.0833, 15.4167, 'south gate', 47.0512, 15.4389]
+    ['main square', 47.0707, 15.4395, 'river bridge', 47.0833, 15.4167, 'south gate', 47.0512, 15.4389],
 );
 
 // The corners of the area. A stop is inside it when both of its numbers are

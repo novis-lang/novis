@@ -1,7 +1,8 @@
 <?nvs
 // Shows how to print every case of an enum by name.
 
-enum Priority: int {
+enum Priority: int
+{
     High = 30,
     Low = 10,
     Normal = 20,

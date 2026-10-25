@@ -1,18 +1,21 @@
 <?nvs
 // Shows how to split a string with holes into its text and its holes.
 
-class Order {
+class Order
+{
     public int $total = 0;
-    public string $status = "";
+    public string $status = '';
 }
 
-class Show {
-    public static function pieces(string<property<Order>> $condition): void {
+class Show
+{
+    public static function pieces(string<property<Order>> $condition): void
+    {
         // `Core\Str::parts` returns the text and the holes in order.
         // The first piece is text, and then text and holes take turns.
         bool $hole = false;
         foreach (Core\Str::parts($condition) as var $part) {
-            echo $hole ? "hole" : "text", ": [", $part as string, "]\n";
+            echo $hole ? 'hole' : 'text', ': [', $part as string, "]\n";
             $hole = !$hole;
         }
     }

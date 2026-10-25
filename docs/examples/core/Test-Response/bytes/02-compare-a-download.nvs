@@ -9,15 +9,15 @@ final class Invoice
     // The file that the shop sends. A real shop would create a PDF here.
     public static function file(): bytes
     {
-        return Core\Encoding::fromHex("255044462d312e370affd8");
+        return Core\Encoding::fromHex('255044462d312e370affd8');
     }
 }
 
 if (Core\Env::context() == Core\Env::Context::Request) {
-    Core\Response::bytes(Invoice::file(), "application/pdf");
+    Core\Response::bytes(Invoice::file(), 'application/pdf');
 } else {
-    var $response = Test::request(Method::Get, "/invoice/1042");
-    Test::assertEquals($response->header("Content-Type"), "application/pdf");
+    var $response = Test::request(Method::Get, '/invoice/1042');
+    Test::assertEquals($response->header('Content-Type'), 'application/pdf');
 
     // `==` compares two `bytes` values byte for byte.
     Test::assertTrue($response->bytes() == Invoice::file());

@@ -3,8 +3,10 @@
 // times before it returns, which stays inside the limit, so it finishes and
 // prints its result.
 
-final class Sum {
-    public static function upTo(int $n): int {
+final class Sum
+{
+    public static function upTo(int $n): int
+    {
         if ($n == 0) {
             return 0;
         }

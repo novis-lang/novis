@@ -3,30 +3,33 @@
 
 // Each `#[Core\Api\Scheme]` adds one scheme to the generated API document.
 // The `type` decides which other fields the scheme needs.
-#[Core\Api\Scheme(name: "key", type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Header, parameter: "X-Api-Key")]
-#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer", format: "JWT")]
-#[Core\Api\Scheme(name: "certificate", type: Core\Api\SchemeType::MutualTls)]
+#[Core\Api\Scheme(name: 'key', type: Core\Api\SchemeType::ApiKey, in: Core\Api\KeyIn::Header, parameter: 'X-Api-Key')]
+#[Core\Api\Scheme(name: 'bearer', type: Core\Api\SchemeType::Http, scheme: 'bearer', format: 'JWT')]
+#[Core\Api\Scheme(name: 'certificate', type: Core\Api\SchemeType::MutualTls)]
 #[Core\Api\Scheme(
-    name: "login",
+    name: 'login',
     type: Core\Api\SchemeType::OAuth2,
     flows: {
         clientCredentials: {
-            tokenUrl: "https://example.com/oauth/token",
-            scopes: ["orders:read" => "Read orders"],
+            tokenUrl: 'https://example.com/oauth/token',
+            scopes: ['orders:read' => 'Read orders'],
         },
     },
 )]
-#[Core\Api\Scheme(name: "openid", type: Core\Api\SchemeType::OpenIdConnect, url: "https://example.com/.well-known/openid-configuration")]
-class Auth {}
+#[Core\Api\Scheme(name: 'openid', type: Core\Api\SchemeType::OpenIdConnect, url: 'https://example.com/.well-known/openid-configuration')]
+class Auth
+{}
 
-class Orders {
+class Orders
+{
     /// Show one order.
-    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
     #[Core\Access(allow: Core\Audience::Public)]
     // A client may use the key or the bearer token. Every name here must be a declared scheme.
-    #[Core\Api(security: ["key", "bearer"])]
-    public function show(uint $id): string {
-        return "order " . ($id as string);
+    #[Core\Api(security: ['key', 'bearer'])]
+    public function show(uint $id): string
+    {
+        return 'order ' . ($id as string);
     }
 }
 

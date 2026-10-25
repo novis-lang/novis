@@ -2,12 +2,12 @@
 // Shows that `lockedOut` is not part of the number `bits` returns.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // The bit `0x10` is `16`. This prints `bit in bits: no`.
-    echo "bit in bits: ", $flags->bits() % 32 >= 16 ? "yes" : "no", "\n";
+    echo 'bit in bits: ', $flags->bits() % 32 >= 16 ? 'yes' : 'no', "\n";
     // A copy made with `with` keeps the value. This prints `copy locked out: false`.
-    echo "copy locked out: ", $flags->with({disabled: true})->lockedOut() ? "true" : "false", "\n";
+    echo 'copy locked out: ', $flags->with({ disabled: true })->lockedOut() ? 'true' : 'false', "\n";
 }

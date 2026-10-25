@@ -1,26 +1,29 @@
 <?nvs
 // Shows the five kinds of security scheme, and the fields each kind needs.
 
-class Kinds {
+class Kinds
+{
     // Returns the text that the API document writes as the scheme's `type`.
-    public static function documentName(Core\Api\SchemeType $type): string {
+    public static function documentName(Core\Api\SchemeType $type): string
+    {
         return match ($type) {
-            Core\Api\SchemeType::ApiKey => "apiKey",
-            Core\Api\SchemeType::Http => "http",
-            Core\Api\SchemeType::MutualTls => "mutualTLS",
-            Core\Api\SchemeType::OAuth2 => "oauth2",
-            Core\Api\SchemeType::OpenIdConnect => "openIdConnect",
+            Core\Api\SchemeType::ApiKey => 'apiKey',
+            Core\Api\SchemeType::Http => 'http',
+            Core\Api\SchemeType::MutualTls => 'mutualTLS',
+            Core\Api\SchemeType::OAuth2 => 'oauth2',
+            Core\Api\SchemeType::OpenIdConnect => 'openIdConnect',
         };
     }
 
     // Returns the fields that a scheme of this kind needs, next to `name` and `type`.
-    public static function needs(Core\Api\SchemeType $type): string {
+    public static function needs(Core\Api\SchemeType $type): string
+    {
         return match ($type) {
-            Core\Api\SchemeType::ApiKey => "in, parameter",
-            Core\Api\SchemeType::Http => "scheme (format is optional)",
-            Core\Api\SchemeType::MutualTls => "no other field",
-            Core\Api\SchemeType::OAuth2 => "flows",
-            Core\Api\SchemeType::OpenIdConnect => "url",
+            Core\Api\SchemeType::ApiKey => 'in, parameter',
+            Core\Api\SchemeType::Http => 'scheme (format is optional)',
+            Core\Api\SchemeType::MutualTls => 'no other field',
+            Core\Api\SchemeType::OAuth2 => 'flows',
+            Core\Api\SchemeType::OpenIdConnect => 'url',
         };
     }
 }
@@ -34,5 +37,5 @@ array<Core\Api\SchemeType> $everything = [
 ];
 
 foreach ($everything as Core\Api\SchemeType $type) {
-    echo Kinds::documentName($type), ": ", Kinds::needs($type), "\n";
+    echo Kinds::documentName($type), ': ', Kinds::needs($type), "\n";
 }

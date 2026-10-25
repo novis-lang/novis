@@ -6,18 +6,20 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        string $customer = "Ada";
-        string $unit = " EUR";
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        string $customer = 'Ada';
+        string $unit = ' EUR';
         uint $width = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: this round's order number comes out of the last
             // round's measured line.
             uint $order = $i + $width % 7;
-            string $line = "order " . $order . " for " . $customer;
-            $line .= ": ";
+            string $line = 'order ' . $order . ' for ' . $customer;
+            $line .= ': ';
             $line .= $order * 2;
             $line .= $unit;
             $width = Core\Str::length($line);

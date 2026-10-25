@@ -7,12 +7,14 @@
 use Core\Test;
 use Core\Test\Failure;
 
-final class Fields {
+final class Fields
+{
     // Returns the field's name when the value is wrong, and an empty string when
     // it is right. The caller joins the names into one report.
-    public static function wrong(string $name, string $expected, string $actual): string {
+    public static function wrong(string $name, string $expected, string $actual): string
+    {
         try {
-            Test::assertEquals($actual, $expected, {message: $name});
+            Test::assertEquals($actual, $expected, { message: $name });
             return '';
         } catch (Failure $mismatch) {
             return $name;

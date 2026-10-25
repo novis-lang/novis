@@ -4,19 +4,19 @@
 
 // `output: "capture"` keeps the text for you. Nothing reaches the screen while
 // the script runs. The path starts at the folder of this file.
-var $first = spawn script "scripts/say-what-it-did.nvs" with(output: "capture");
+var $first = spawn script 'scripts/say-what-it-did.nvs' with(output: 'capture');
 var $kept = await $first;
-echo "the script said: ", $kept->output;
+echo 'the script said: ', $kept->output;
 
 // `value` is what the script returned. Convert it with `as`.
 int $files = $kept->value as int;
-echo "it removed ", $files, " files\n";
+echo 'it removed ', $files, " files\n";
 
 // `output: "inherit"` sends the text to your own screen instead. All of it is
 // there once `await` has returned.
-var $second = spawn script "scripts/say-what-it-did.nvs" with(output: "inherit");
+var $second = spawn script 'scripts/say-what-it-did.nvs' with(output: 'inherit');
 var $shown = await $second;
 
 // `output` is empty this time, because the text went to the screen.
 // `as string` converts it to a `string`, so `Core\Str::length` can count it.
-echo "kept text: ", Core\Str::length($shown->output as string), " characters\n";
+echo 'kept text: ', Core\Str::length($shown->output as string), " characters\n";

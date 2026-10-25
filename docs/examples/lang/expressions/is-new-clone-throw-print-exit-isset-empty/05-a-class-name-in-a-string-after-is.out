@@ -1,9 +1,9 @@
 error[E0496]: the right-hand side of `is` is a type or a class reference, and this is neither
-  --> 05-a-class-name-in-a-string-after-is.nvs:9:22
-  |
-9 |         return $v is $name;
-  |                      ^^^^^ not a class name
-  = help: a class name cannot come from a string. Write the class name, or convert the string first: `$name as class<Base>` gives a class reference that works here. The conversion checks that the class is a `Base`
+   --> 05-a-class-name-in-a-string-after-is.nvs:12:22
+   |
+12 |         return $v is $name;
+   |                      ^^^^^ not a class name
+   = help: a class name cannot come from a string. Write the class name, or convert the string first: `$name as class<Base>` gives a class reference that works here. The conversion checks that the class is a `Base`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

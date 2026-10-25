@@ -1,34 +1,36 @@
 <?nvs
 // Shows how to test what a `mixed` value is, with `== null`, `is` and `as`.
 
-class Describe {
-    public static function of(mixed $value): string {
+class Describe
+{
+    public static function of(mixed $value): string
+    {
         // `== null` tests for `null`.
         if ($value == null) {
-            return "nothing";
+            return 'nothing';
         }
 
         // `is` tests whether the value is an object of that class.
         if ($value is Core\Regex\Pattern) {
-            return "a compiled pattern";
+            return 'a compiled pattern';
         }
 
         // `as ?int` gives `null` when the value is not a whole number.
         ?int $whole = $value as ?int;
         if ($whole != null) {
-            return "a whole number";
+            return 'a whole number';
         }
         ?float $fraction = $value as ?float;
         if ($fraction != null) {
-            return "a number with a fraction";
+            return 'a number with a fraction';
         }
 
-        return "something else";
+        return 'something else';
     }
 }
 
 echo Describe::of(null), "\n";
 echo Describe::of(7), "\n";
 echo Describe::of(2.5), "\n";
-echo Describe::of("hello"), "\n";
-echo Describe::of(Core\Regex::compile("a+")), "\n";
+echo Describe::of('hello'), "\n";
+echo Describe::of(Core\Regex::compile('a+')), "\n";

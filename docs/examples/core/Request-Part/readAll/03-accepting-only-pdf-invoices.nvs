@@ -4,11 +4,11 @@
 foreach (Core\Request::files() as Core\Request\Part $part) {
     // An invoice is small, so the program reads the whole file.
     // A file larger than 5000000 bytes throws a `RuntimeError`.
-    tainted bytes $content = $part->readAll({max: 5000000});
+    tainted bytes $content = $part->readAll({ max: 5000000 });
     // The client chooses the file name, so the program checks the content.
     // Every PDF file starts with the bytes "%PDF-".
-    if (Core\Bytes::startsWith($content, "%PDF-" as bytes)) {
-        echo $part->filename(), ": accepted, ", Core\Bytes::length($content), " bytes\n";
+    if (Core\Bytes::startsWith($content, '%PDF-' as bytes)) {
+        echo $part->filename(), ': accepted, ', Core\Bytes::length($content), " bytes\n";
     } else {
         echo $part->filename(), ": not a PDF file\n";
     }

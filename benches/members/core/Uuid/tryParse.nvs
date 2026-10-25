@@ -3,12 +3,14 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $texts = [
-            "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
-            "order-1042",
-            "0190D1E6-8E3C-7C2A-9A4B-1F2E3D4C5B6A",
+            'f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4',
+            'order-1042',
+            '0190D1E6-8E3C-7C2A-9A4B-1F2E3D4C5B6A',
         ];
         uint $total = 0;
         uint $i = 0;

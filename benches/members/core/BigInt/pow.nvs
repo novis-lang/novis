@@ -5,8 +5,10 @@
 // bench: calls 2
 // bench: complexity karatsuba
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $base = Core\BigInt::of(10);
         uint $total = 0;
         uint $i = 0;

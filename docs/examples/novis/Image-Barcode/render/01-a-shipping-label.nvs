@@ -3,9 +3,9 @@
 use Novis\Image\Barcode;
 use Novis\Image\Image;
 
-bytes $label = Barcode::render("SHIP-2024-0042", Barcode::Symbology::Code128);
+bytes $label = Barcode::render('SHIP-2024-0042', Barcode::Symbology::Code128);
 
 // The result is a PNG file. The bars are 80 pixels high, with a white border around them.
 var $info = Image::info($label);
-echo $info->width, " by ", $info->height, " pixels\n";
+echo $info->width, ' by ', $info->height, " pixels\n";
 echo Image::mime($info->format), "\n";

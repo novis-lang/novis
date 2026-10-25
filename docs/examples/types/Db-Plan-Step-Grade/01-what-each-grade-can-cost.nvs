@@ -3,12 +3,14 @@
 // that step could cost, which is what decides whether a deployment is allowed
 // to run it with nobody watching.
 
-class Grades {
-    public static function cost(Core\Db\Plan\Step::Grade $grade): string {
+class Grades
+{
+    public static function cost(Core\Db\Plan\Step::Grade $grade): string
+    {
         return match ($grade) {
-            Core\Db\Plan\Step::Grade::Safe => "Safe: keeps your data, does not trip over rows that are already there, and holds no long lock",
-            Core\Db\Plan\Step::Grade::Locking => "Locking: keeps your data, but can block writes for a long time or fail on the rows you already have",
-            Core\Db\Plan\Step::Grade::Destructive => "Destructive: can lose data, and every drop is in here",
+            Core\Db\Plan\Step::Grade::Safe => 'Safe: keeps your data, does not trip over rows that are already there, and holds no long lock',
+            Core\Db\Plan\Step::Grade::Locking => 'Locking: keeps your data, but can block writes for a long time or fail on the rows you already have',
+            Core\Db\Plan\Step::Grade::Destructive => 'Destructive: can lose data, and every drop is in here',
         };
     }
 }

@@ -6,7 +6,7 @@
 class Job
 {
     public ?string $failureMailbox = null;
-    public "read"|"write"|"admin" $mode = "read";
+    public "read"|"write"|"admin" $mode = 'read';
 }
 
 class Runner
@@ -16,26 +16,26 @@ class Runner
         ?string $mailbox = $job->failureMailbox;
         "read"|"write"|"admin" $mode = $job->mode;
 
-        string $notify = $mailbox != null ? "failures go to " . $mailbox : "nobody is told";
+        string $notify = $mailbox != null ? 'failures go to ' . $mailbox : 'nobody is told';
 
-        if ($mode == "admin") {
+        if ($mode == 'admin') {
             // Inside this `if`, `$mode` can only be "admin". So it can be
             // assigned to a variable of type "admin".
             "admin" $elevated = $mode;
-            return "running as " . $elevated . "; " . $notify;
+            return 'running as ' . $elevated . '; ' . $notify;
         }
 
-        if ($mode == "write") {
-            return "writing; " . $notify;
+        if ($mode == 'write') {
+            return 'writing; ' . $notify;
         }
 
-        return "reading only; " . $notify;
+        return 'reading only; ' . $notify;
     }
 }
 
 Job $nightly = new Job();
-$nightly->mode = "admin";
-$nightly->failureMailbox = "ops@example.com";
+$nightly->mode = 'admin';
+$nightly->failureMailbox = 'ops@example.com';
 
 Job $report = new Job();
 

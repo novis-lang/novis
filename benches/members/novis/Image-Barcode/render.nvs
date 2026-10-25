@@ -4,9 +4,11 @@
 // bench: complexity constant
 use Novis\Image\Barcode;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $labels = ["SHIP-4", "SHIP-55", "SHIP-7777"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $labels = ['SHIP-4', 'SHIP-55', 'SHIP-7777'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -4,8 +4,8 @@
 
 // This job prints its progress, then fails with an error message and exit code 1.
 var $job = Core\Process::spawn(
-    "/bin/sh",
-    ["-c", 'echo "copying 3 files"; echo "cannot copy report.pdf: permission denied" >&2; exit 1'],
+    '/bin/sh',
+    ['-c', 'echo "copying 3 files"; echo "cannot copy report.pdf: permission denied" >&2; exit 1'],
 );
 
 // The progress is printed as it arrives.
@@ -16,7 +16,7 @@ while ($part != null) {
 }
 
 // The error message is kept, so it can be shown if the job fails.
-string $message = "";
+string $message = '';
 $part = $job->readStderr();
 while ($part != null) {
     $message = $message . ($part as string);
@@ -26,5 +26,5 @@ while ($part != null) {
 // The exit code is 1, so this prints the error message.
 int $code = $job->wait()->exitCode();
 if ($code != 0) {
-    echo "the job failed with exit code ", $code, ": ", $message;
+    echo 'the job failed with exit code ', $code, ': ', $message;
 }

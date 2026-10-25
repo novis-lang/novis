@@ -13,7 +13,7 @@ while ($message != null) {
     if ($octets != null) {
         $conn->sendBytes($octets);
     } else {
-        $conn->send($message->text() ?? "");
+        $conn->send($message->text() ?? '');
     }
     $message = $conn->receive();
 }

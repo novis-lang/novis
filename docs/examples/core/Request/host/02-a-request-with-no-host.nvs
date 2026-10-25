@@ -8,5 +8,5 @@
 if ($host == null) {
     echo "400: the request has no host\n";
 } else {
-    echo "the host is ", $host, "\n";
+    echo 'the host is ', $host, "\n";
 }

@@ -5,11 +5,11 @@ use Novis\Pdf\Pages;
 use Novis\Pdf\Reader;
 
 // The terms are the same for every contract, so the program renders them once.
-bytes $terms = Document::fromHtml("<h1>Terms</h1><p>The rent is due on the first day of each month.</p>")
+bytes $terms = Document::fromHtml('<h1>Terms</h1><p>The rent is due on the first day of each month.</p>')
     ->render()->bytes;
 
 // Each contract is a new render with the name of the customer.
-string $customer = "Blog";
+string $customer = 'Blog';
 bytes $contract = Document::fromHtml(html`<h1>Contract</h1><p>Shop rents a stand to {$customer} for one year.</p>`)
     ->render()->bytes;
 
@@ -19,5 +19,5 @@ bytes $file = Pages::merge([Pages::of($contract), Pages::of($terms)]);
 // This prints the first line of each page.
 var $reader = Reader::open($file);
 for (uint $n = 1; $n <= $reader->pageCount; $n++) {
-    echo "page ", $n, ": ", Core\Str::before($reader->text($n), "\n") ?? "", "\n";
+    echo 'page ', $n, ': ', Core\Str::before($reader->text($n), "\n") ?? '', "\n";
 }

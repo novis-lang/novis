@@ -9,4 +9,4 @@ try {
 }
 
 // Midnight at the start of the day is hour 0. This prints 00:00.
-echo Core\Time\TimeOfDay::at(0, 0)->format("HH:mm"), "\n";
+echo Core\Time\TimeOfDay::at(0, 0)->format('HH:mm'), "\n";

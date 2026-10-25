@@ -3,9 +3,11 @@ namespace Telemetry;
 
 // One number with its label, such as the reports of one week or the installs of one version.
 // The charts draw a list of these.
-final class Count {
+final class Count
+{
     public function constructor(
         public readonly tainted string $label,
         public readonly int $value,
-    ) {}
+    )
+    {}
 }

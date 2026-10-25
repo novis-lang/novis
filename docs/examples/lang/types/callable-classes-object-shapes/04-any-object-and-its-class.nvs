@@ -1,11 +1,13 @@
 <?nvs
 // Shows an `object` variable, and how `is` and `as` get its class back.
 
-class Cell {
+class Cell
+{
     public int $n = 1;
 }
 
-class Row {
+class Row
+{
     public int $n = 2;
 }
 
@@ -14,7 +16,7 @@ object $o = new Cell();
 echo $o->n, "\n";
 
 // `is Cell` tests the class. `as Cell` converts to it, so `->n` is an `int`. This prints `cell 1`.
-echo ($o is Cell) ? "cell" : "other", " ", ($o as Cell)->n, "\n";
+echo ($o is Cell) ? 'cell' : 'other', ' ', ($o as Cell)->n, "\n";
 
 // The object is not a `Row`, so `as Row` throws an error.
 try {

@@ -1,9 +1,9 @@
 error[E0447]: a generator cannot return a value
-  --> 08-a-generator-cannot-return-a-value.nvs:9:16
-  |
-9 |         return 5;
-  |                ^ this value has nowhere to go
-  = help: write `return;` to stop the generator, or `yield` this value
+   --> 08-a-generator-cannot-return-a-value.nvs:11:16
+   |
+11 |         return 5;
+   |                ^ this value has nowhere to go
+   = help: write `return;` to stop the generator, or `yield` this value
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -5,15 +5,17 @@ use Core\Http\Client;
 use Core\Http\Method;
 use Core\Test;
 
-class CartClient {
+class CartClient
+{
     // Removes one item from the cart on the shop service.
-    public static function remove(uint $itemId): int {
-        var $response = Client::delete("https://shop.example.com/cart/items/" . $itemId);
+    public static function remove(uint $itemId): int
+    {
+        var $response = Client::delete('https://shop.example.com/cart/items/' . $itemId);
         return $response->status();
     }
 }
 
-Test::answerHttp("https://shop.example.com/cart/items/*", 204);
+Test::answerHttp('https://shop.example.com/cart/items/*', 204);
 CartClient::remove(42);
 
 // A GET or a POST to the same URL would not remove the item.

@@ -2,22 +2,26 @@
 // Shows a guard that stops a bad write. `Account` throws an error when a
 // program writes a negative balance, so the old balance stays.
 
-class Account implements PropertyGuard {
+class Account implements PropertyGuard
+{
     public int $balance;
 
-    public function constructor(int $balance) {
+    public function constructor(int $balance)
+    {
         // The guard also checks this write.
         $this->balance = $balance;
     }
 
     // `$value` is the new value. It is not stored yet.
-    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
-        if ($name == "balance" && $value is int && $value < 0) {
-            throw new LogicError("the balance cannot be negative");
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void
+    {
+        if ($name == 'balance' && $value is int && $value < 0) {
+            throw new LogicError('the balance cannot be negative');
         }
     }
 
-    public function beforePropertyUnset(string $name, array<string> $keys): void {
+    public function beforePropertyUnset(string $name, array<string> $keys): void
+    {
     }
 }
 
@@ -28,7 +32,7 @@ echo $account->balance, "\n";
 try {
     $account->balance = -10;
 } catch (LogicError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }
 
 // The write did not happen, so this prints 40.

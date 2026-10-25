@@ -5,10 +5,13 @@
 use Core\Test\Bench;
 use Core\Test\Fixture;
 
-final class Catalog {
-    public function constructor(public array<int> $prices) {}
+final class Catalog
+{
+    public function constructor(public array<int> $prices)
+    {}
 
-    public function priceOf(string $sku): ?int {
+    public function priceOf(string $sku): ?int
+    {
         if (!Core\Arr::hasKey($this->prices, $sku)) {
             return null;
         }
@@ -16,14 +19,16 @@ final class Catalog {
     }
 }
 
-final class CatalogBench {
+final class CatalogBench
+{
     // A fixture is built before the counting starts.
     // So the 500 prices it adds are not part of the counts below.
     #[Fixture]
-    public static function catalog(): Catalog {
+    public static function catalog(): Catalog
+    {
         array<int> $prices = [];
         for (int $i = 0; $i < 500; $i++) {
-            $prices["sku-" . $i] = 100 + $i;
+            $prices['sku-' . $i] = 100 + $i;
         }
         return new Catalog($prices);
     }
@@ -31,13 +36,15 @@ final class CatalogBench {
     // `nvs test --bench --format json` prints a `counts` object for this bench.
     // The counts are the same on every machine. A build server can compare them with the last run.
     #[Bench]
-    public function oneHundredLookups(Catalog $catalog): void {
+    public function oneHundredLookups(Catalog $catalog): void
+    {
         for (int $i = 0; $i < 100; $i++) {
-            $catalog->priceOf("sku-" . $i);
+            $catalog->priceOf('sku-' . $i);
         }
     }
 
     // `skip:` stops a bench from running, and the report prints the reason.
-    #[Bench(skip: "the import file is not in this repository")]
-    public function importTheWholeCatalog(): void {}
+    #[Bench(skip: 'the import file is not in this repository')]
+    public function importTheWholeCatalog(): void
+    {}
 }

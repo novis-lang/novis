@@ -8,15 +8,15 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        Core\Net\Datagram $server = Core\Net::bindDatagram("127.0.0.1", 0);
-        Core\Net\Datagram $client = Core\Net::bindDatagram("127.0.0.1", 0);
+        Core\Net\Datagram $server = Core\Net::bindDatagram('127.0.0.1', 0);
+        Core\Net\Datagram $client = Core\Net::bindDatagram('127.0.0.1', 0);
         uint $port = $server->port();
-        bytes $message = Core\Str::repeat("a", $size) as bytes;
+        bytes $message = Core\Str::repeat('a', $size) as bytes;
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
             // Each round sends one message and receives it again.
-            $client->send("127.0.0.1", $port, $message, 1s);
+            $client->send('127.0.0.1', $port, $message, 1s);
             $total = $total + Core\Bytes::length($server->receive($size, 5s)->payload());
             $i = $i + 1;
         }

@@ -2,12 +2,12 @@
 // Shows that `strings` also reads an attribute with only one value.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Dora Lind,OU=Company,DC=example,DC=test", {select: ["mail"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Dora Lind,OU=Company,DC=example,DC=test', { select: ['mail'] });
 
 if ($person != null) {
     // `mail` has one value, so the array has one item.
-    array<tainted string> $addresses = $person->strings("mail") ?? [];
+    array<tainted string> $addresses = $person->strings('mail') ?? [];
 
     // This prints `1` and then `dora.lind@example.test`.
     echo Core\Arr::count($addresses), "\n";

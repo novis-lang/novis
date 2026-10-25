@@ -9,14 +9,14 @@ class Bench
     public static function run(uint $size): uint
     {
         // `/bin/sh` runs `cat` on Linux and macOS, and `cmd.exe` runs `findstr` on Windows. Both read the input and throw it away.
-        string $path = "/bin/sh";
-        array<string> $arguments = ["-c", "exec cat >/dev/null"];
+        string $path = '/bin/sh';
+        array<string> $arguments = ['-c', 'exec cat >/dev/null'];
         if (Core\Env::OS == Core\Env::Platform::Windows) {
             $path = "C:\\Windows\\System32\\cmd.exe";
-            $arguments = ["/c", "findstr /v zzzz >nul"];
+            $arguments = ['/c', 'findstr /v zzzz >nul'];
         }
         var $program = Core\Process::spawn($path, $arguments);
-        bytes $line = (Core\Str::repeat("a", $size) . "\n") as bytes;
+        bytes $line = (Core\Str::repeat('a', $size) . "\n") as bytes;
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

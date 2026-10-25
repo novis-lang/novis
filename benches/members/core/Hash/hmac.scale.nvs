@@ -8,7 +8,7 @@ class Bench
     public static function run(uint $size): uint
     {
         string $message = Core\Str::repeat('a', $size);
-        bytes $key = "a key only the server knows" as bytes;
+        bytes $key = 'a key only the server knows' as bytes;
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

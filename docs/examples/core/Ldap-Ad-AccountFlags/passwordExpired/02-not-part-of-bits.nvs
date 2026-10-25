@@ -2,11 +2,11 @@
 // Shows that `passwordExpired` is not part of the number `bits` returns.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Carla Diaz,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Carla Diaz,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // `bits` returns only the stored number. This prints `bits: 512` and `expired: true`.
-    echo "bits: ", $flags->bits(), "\n";
-    echo "expired: ", $flags->passwordExpired() ? "true" : "false", "\n";
+    echo 'bits: ', $flags->bits(), "\n";
+    echo 'expired: ', $flags->passwordExpired() ? 'true' : 'false', "\n";
 }

@@ -2,17 +2,17 @@
 // Shows how `scope` changes which entries a search returns.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-string $company = "OU=Company,DC=example,DC=test";
+var $corp = Core\Ldap::connect('corp');
+string $company = 'OU=Company,DC=example,DC=test';
 
 // `Scope::Base` returns only the `base` entry itself. This prints `OU=Company,DC=example,DC=test`.
-foreach ($corp->search(Core\Ldap\Filter::present("objectClass"), {base: $company, scope: Core\Ldap\Connection::Scope::Base}) as Core\Ldap\Entry $unit) {
+foreach ($corp->search(Core\Ldap\Filter::present('objectClass'), { base: $company, scope: Core\Ldap\Connection::Scope::Base }) as Core\Ldap\Entry $unit) {
     echo $unit->dn(), "\n";
 }
 
 // `Scope::OneLevel` returns the entries directly below `base`.
 // This prints Anna Berg and Carla Diaz, the two people in the sales department.
-var $sales = Core\Ldap\Filter::equals("department", "Sales");
-foreach ($corp->search($sales, {base: $company, scope: Core\Ldap\Connection::Scope::OneLevel, sort: "cn"}) as Core\Ldap\Entry $person) {
-    echo $person->string("cn") ?? "", "\n";
+var $sales = Core\Ldap\Filter::equals('department', 'Sales');
+foreach ($corp->search($sales, { base: $company, scope: Core\Ldap\Connection::Scope::OneLevel, sort: 'cn' }) as Core\Ldap\Entry $person) {
+    echo $person->string('cn') ?? '', "\n";
 }

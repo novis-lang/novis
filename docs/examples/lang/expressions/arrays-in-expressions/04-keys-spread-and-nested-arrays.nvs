@@ -4,30 +4,30 @@
 
 array<int> $a = [10, 20];
 $a[] = 30;
-$a["k"] = 40;
+$a['k'] = 40;
 $a[-5] = 50;
 
 // The largest whole-number key is `2`, so this value gets key `3`.
 $a[] = 60;
 foreach ($a as string $k => int $v) {
-    echo $k, ":", $v, " ";
+    echo $k, ':', $v, ' ';
 }
 echo "\n";
 
 // The spread numbers `-5` again, and keeps `k`. This prints `7 40`.
-array<int> $b = [...$a, "j" => 70];
-echo Core\Arr::count($b), " ", $b["k"], "\n";
+array<int> $b = [...$a, 'j' => 70];
+echo Core\Arr::count($b), ' ', $b['k'], "\n";
 
 // `unset` removes one entry. `$a[0]` and `$a["1"]` still work, so this
 // prints `5 30`.
-unset($a["k"]);
-echo Core\Arr::count($a), " ", $a[0] + $a["1"], "\n";
+unset($a['k']);
+echo Core\Arr::count($a), ' ', $a[0] + $a['1'], "\n";
 
 // This write creates the inner array under `r`.
 array<array<int>> $g = [];
-$g["r"]["c"] = 1;
-$g["r"][] = 2;
+$g['r']['c'] = 1;
+$g['r'][] = 2;
 echo Core\Json::encode($g), "\n";
 
 // `??` covers both keys, so this prints `9`.
-echo $g["x"]["y"] ?? 9, "\n";
+echo $g['x']['y'] ?? 9, "\n";

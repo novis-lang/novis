@@ -3,18 +3,20 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        string $dir = Core\Path::join(Core\IO::temporaryDir(), "templates");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        string $dir = Core\Path::join(Core\IO::temporaryDir(), 'templates');
         array<string> $roots = [
-            Core\Path::join($dir, "mail"),
-            Core\Path::join($dir, "pages"),
-            Core\Path::join($dir, "admin"),
+            Core\Path::join($dir, 'mail'),
+            Core\Path::join($dir, 'pages'),
+            Core\Path::join($dir, 'admin'),
         ];
         foreach ($roots as string $made) {
-            Core\IO::makeDir(Core\Path::join($made, "parts"));
-            Core\IO::write(Core\Path::join($made, "a.html"), "a");
-            Core\IO::write(Core\Path::join($made, "parts", "b.html"), "b");
+            Core\IO::makeDir(Core\Path::join($made, 'parts'));
+            Core\IO::write(Core\Path::join($made, 'a.html'), 'a');
+            Core\IO::write(Core\Path::join($made, 'parts', 'b.html'), 'b');
         }
         uint $total = 0;
         uint $i = 0;
@@ -30,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "no entry was found", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'no entry was found', "\n";

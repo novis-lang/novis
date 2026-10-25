@@ -8,7 +8,7 @@ string $typed = Core\Totp::code($secret);
 
 // A right code returns a step number. A wrong code returns `null`.
 // This prints "accepted" and then "rejected".
-array<string> $attempts = [$typed, "12345x"];
+array<string> $attempts = [$typed, '12345x'];
 foreach ($attempts as string $attempt) {
     if (Core\Totp::check($attempt, $secret) == null) {
         echo "rejected\n";

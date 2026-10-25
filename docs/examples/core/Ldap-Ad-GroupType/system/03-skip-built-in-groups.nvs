@@ -2,18 +2,18 @@
 // Shows how to leave out built-in groups, for example from a list a person can edit.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 array<string> $dns = [
-    "CN=Administrators,CN=Builtin,DC=example,DC=test",
-    "CN=Employees,OU=Company,DC=example,DC=test",
-    "CN=Users,CN=Builtin,DC=example,DC=test",
-    "CN=Managers,OU=Company,DC=example,DC=test",
+    'CN=Administrators,CN=Builtin,DC=example,DC=test',
+    'CN=Employees,OU=Company,DC=example,DC=test',
+    'CN=Users,CN=Builtin,DC=example,DC=test',
+    'CN=Managers,OU=Company,DC=example,DC=test',
 ];
 
 // The two groups under `CN=Builtin` are left out.
 // This prints `Employees` and `Managers`.
 foreach ($dns as string $dn) {
-    var $group = $corp->read($dn, {select: ["groupType"]});
+    var $group = $corp->read($dn, { select: ['groupType'] });
     var $type = $group?->groupType();
     if ($group != null && $type != null && !$type->system()) {
         echo $group->dn()->rdnValue(), "\n";

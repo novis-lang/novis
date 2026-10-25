@@ -14,5 +14,5 @@ foreach (Core\Request::bodyStream() as tainted bytes $chunk) {
 
 // `finish` returns the digest of every byte that arrived.
 // It is the same checksum that `Core\Hash::of` gives for the whole file.
-echo "stored ", $size, " bytes\n";
-echo "sha-256 ", Core\Encoding::toHex($digest->finish()), "\n";
+echo 'stored ', $size, " bytes\n";
+echo 'sha-256 ', Core\Encoding::toHex($digest->finish()), "\n";

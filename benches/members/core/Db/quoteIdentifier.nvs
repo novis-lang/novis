@@ -6,16 +6,18 @@
 // bench: allocations 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $names = ["orders", "created_at", "customer_id", "_draft2"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $names = ['orders', 'created_at', 'customer_id', '_draft2'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The name of every round is chosen by the lengths so far, so the
             // loop cannot be left out.
             string $checked = Core\Db::quoteIdentifier($names[($total % 4) as int]);
-            if ($checked == "orders") {
+            if ($checked == 'orders') {
                 $total = $total + 3;
             } else {
                 $total = $total + 1;

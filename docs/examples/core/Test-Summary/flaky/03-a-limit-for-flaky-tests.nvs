@@ -21,7 +21,7 @@ class FlakyLimit
 
 class UploadTest
 {
-    #[Test(retries: 2, because: "the test storage is shared")]
+    #[Test(retries: 2, because: 'the test storage is shared')]
     public function itStoresThePicture(): void
     {
         Test::assertSame(Core\Str::endsWith('cat.jpg', '.jpg'), true);

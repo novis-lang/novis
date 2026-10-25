@@ -4,15 +4,15 @@
 // two characters for each byte.
 
 array<string> $arrived = [
-    "a photo from a phone" => "ffd8ffe000104a4649",
-    "a screenshot"         => "89504e470d0a1a0a",
-    "an invoice"           => "255044462d312e37",
-    "a spreadsheet"        => "504b03041400",
+    'a photo from a phone' => 'ffd8ffe000104a4649',
+    'a screenshot'         => '89504e470d0a1a0a',
+    'an invoice'           => '255044462d312e37',
+    'a spreadsheet'        => '504b03041400',
 ];
 
 foreach ($arrived as string $what => string $firstBytes) {
     Core\Mime::Type $found = Core\Mime::detect(Core\Encoding::fromHex($firstBytes));
-    echo $what, ": ", Core\Mime::mediaType($found), "\n";
+    echo $what, ': ', Core\Mime::mediaType($found), "\n";
 }
 
 // The spreadsheet is a zip, and that is correct. A `.xlsx`, a `.docx` and a `.jar`

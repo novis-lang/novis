@@ -3,17 +3,17 @@
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-$book->sheet("Prices")->add(["Pen", 1.5]);
+$book->sheet('Prices')->add(['Pen', 1.5]);
 
 // `C3` is a cell, `1st` starts with a digit, and `Price list` has a space.
 // Excel does not see a difference between capital and small letters, so the last name is used twice.
-array<string> $names = ["C3", "1st", "Price list", "Prices.pen", "PRICES.PEN"];
+array<string> $names = ['C3', '1st', 'Price list', 'Prices.pen', 'PRICES.PEN'];
 foreach ($names as string $name) {
     try {
         $book->define($name, "Prices!\$B\$1");
         echo $name, ": defined\n";
     } catch (LogicError $e) {
-        echo $name, ": ", $e->message, "\n";
+        echo $name, ': ', $e->message, "\n";
     }
 }
 $book->finish();

@@ -2,27 +2,31 @@
 // This program sorts orders by a property that the address names.
 // The request is `GET /orders?sort=customer.name&other=customer.passwordHash`.
 
-class Customer {
-    public string $name = "";
-    private string $passwordHash = "";
+class Customer
+{
+    public string $name = '';
+    private string $passwordHash = '';
 }
 
-class Order {
+class Order
+{
     public int $total = 0;
     public ?Customer $customer = null;
 }
 
-class Mapper {
-    public static function orderBy(?tainted string $field): string {
+class Mapper
+{
+    public static function orderBy(?tainted string $field): string
+    {
         // `as ?propertyPath<Order>` checks each name of the path while the program runs.
         // If a name is wrong or private, the result is `null`.
         ?propertyPath<Order> $path = $field as ?propertyPath<Order>;
         if ($path == null) {
-            return "not a property path";
+            return 'not a property path';
         }
-        return "SELECT * FROM orders ORDER BY " . ($path as string);
+        return 'SELECT * FROM orders ORDER BY ' . ($path as string);
     }
 }
 
-echo Mapper::orderBy(Core\Request::query("sort")), "\n";
-echo Mapper::orderBy(Core\Request::query("other")), "\n";
+echo Mapper::orderBy(Core\Request::query('sort')), "\n";
+echo Mapper::orderBy(Core\Request::query('other')), "\n";

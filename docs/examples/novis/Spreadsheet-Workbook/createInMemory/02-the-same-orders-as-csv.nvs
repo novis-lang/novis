@@ -3,10 +3,10 @@
 use Novis\Spreadsheet\Workbook;
 
 // `format: "csv"` writes CSV. The calls to add rows are the same as for xlsx.
-var $book = Workbook::createInMemory({format: "csv"});
-$book->sheet("Orders")->addAll([
-    ["order" => 1042, "customer" => "Ada", "total" => 19.9],
-    ["order" => 1043, "customer" => "Alan", "total" => 5.0],
+var $book = Workbook::createInMemory({ format: 'csv' });
+$book->sheet('Orders')->addAll([
+    ['order' => 1042, 'customer' => 'Ada', 'total' => 19.9],
+    ['order' => 1043, 'customer' => 'Alan', 'total' => 5.0],
 ]);
 
 // A CSV file is text, so this prints the whole file.

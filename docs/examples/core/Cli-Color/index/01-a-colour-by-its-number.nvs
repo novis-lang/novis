@@ -5,9 +5,9 @@
 
 // Entry 208 is an orange. `Core\Cli\Style::of` makes a style out of it.
 Core\Cli\Color $orange = Core\Cli\Color::index(208);
-Core\Cli\Style $warning = Core\Cli\Style::of({color: $orange});
-echo Core\Cli\Text::styled("disk is 91% full", $warning), "\n";
+Core\Cli\Style $warning = Core\Cli\Style::of({ color: $orange });
+echo Core\Cli\Text::styled('disk is 91% full', $warning), "\n";
 
 // A style can also colour the background. Entry 17 is a dark blue.
-Core\Cli\Style $banner = Core\Cli\Style::of({background: Core\Cli\Color::index(17)});
-echo Core\Cli\Text::styled(" release 1.0 ", $banner), "\n";
+Core\Cli\Style $banner = Core\Cli\Style::of({ background: Core\Cli\Color::index(17) });
+echo Core\Cli\Text::styled(' release 1.0 ', $banner), "\n";

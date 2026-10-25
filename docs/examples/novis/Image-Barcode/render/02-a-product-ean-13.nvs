@@ -6,7 +6,7 @@ use Novis\Image\Image;
 
 // `module: 3` makes the thinnest bar 3 pixels wide.
 // `margin: 5` adds a white border 5 thin bars wide on each side.
-bytes $code = Barcode::render("4006381333931", Barcode::Symbology::Ean13, {
+bytes $code = Barcode::render('4006381333931', Barcode::Symbology::Ean13, {
     height: 60,
     module: 3,
     margin: 5,
@@ -16,5 +16,5 @@ bytes $code = Barcode::render("4006381333931", Barcode::Symbology::Ean13, {
 
 // This prints the size of the image and the WebP MIME type.
 var $info = Image::info($code);
-echo $info->width, " by ", $info->height, " pixels\n";
+echo $info->width, ' by ', $info->height, " pixels\n";
 echo Image::mime($info->format), "\n";

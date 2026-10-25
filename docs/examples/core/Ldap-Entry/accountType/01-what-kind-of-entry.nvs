@@ -2,32 +2,34 @@
 // Shows how to check what kind of account an entry is: a person, a group or a computer.
 // requires: samba-ad
 
-class Kind {
-    public static function of(Core\Ldap\Entry::AccountType $type): string {
+class Kind
+{
+    public static function of(Core\Ldap\Entry::AccountType $type): string
+    {
         return match ($type) {
-            Core\Ldap\Entry::AccountType::User => "a person",
-            Core\Ldap\Entry::AccountType::Machine => "a computer",
-            Core\Ldap\Entry::AccountType::Group => "a security group",
-            Core\Ldap\Entry::AccountType::NonSecurityGroup => "an email group",
-            default => "something else",
+            Core\Ldap\Entry::AccountType::User => 'a person',
+            Core\Ldap\Entry::AccountType::Machine => 'a computer',
+            Core\Ldap\Entry::AccountType::Group => 'a security group',
+            Core\Ldap\Entry::AccountType::NonSecurityGroup => 'an email group',
+            default => 'something else',
         };
     }
 }
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 array<string> $dns = [
-    "CN=Anna Berg,OU=Company,DC=example,DC=test",
-    "CN=Managers,OU=Company,DC=example,DC=test",
-    "CN=Newsletter,OU=Company,DC=example,DC=test",
+    'CN=Anna Berg,OU=Company,DC=example,DC=test',
+    'CN=Managers,OU=Company,DC=example,DC=test',
+    'CN=Newsletter,OU=Company,DC=example,DC=test',
 ];
 
 foreach ($dns as string $dn) {
-    var $entry = $corp->read($dn, {select: ["sAMAccountType"]});
+    var $entry = $corp->read($dn, { select: ['sAMAccountType'] });
     var $type = $entry?->accountType();
     if ($entry == null || $type == null) {
         continue;
     }
     // This prints `Anna Berg: a person`, `Managers: a security group`
     // and `Newsletter: an email group`.
-    echo $entry->dn()->rdnValue(), ": ", Kind::of($type), "\n";
+    echo $entry->dn()->rdnValue(), ': ', Kind::of($type), "\n";
 }

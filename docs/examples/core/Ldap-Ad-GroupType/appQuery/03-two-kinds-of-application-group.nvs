@@ -2,15 +2,15 @@
 // Shows that `appQuery` and `appBasic` read two different flags.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Newsletter,OU=Company,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Newsletter,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
-    var $basic = $type->with({appBasic: true});
-    var $query = $type->with({appQuery: true});
+    var $basic = $type->with({ appBasic: true });
+    var $query = $type->with({ appQuery: true });
 
     // Each copy has only one of the two flags.
     // This prints `basic: true false` and then `query: false true`.
-    echo "basic: ", $basic->appBasic() ? "true" : "false", " ", $basic->appQuery() ? "true" : "false", "\n";
-    echo "query: ", $query->appBasic() ? "true" : "false", " ", $query->appQuery() ? "true" : "false", "\n";
+    echo 'basic: ', $basic->appBasic() ? 'true' : 'false', ' ', $basic->appQuery() ? 'true' : 'false', "\n";
+    echo 'query: ', $query->appBasic() ? 'true' : 'false', ' ', $query->appQuery() ? 'true' : 'false', "\n";
 }

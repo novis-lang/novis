@@ -33,5 +33,5 @@ Core\Task::all({
     },
 });
 
-echo "values taken: ", Meter::$taken, "\n";
-echo "sends that waited: ", Meter::$waits, "\n";
+echo 'values taken: ', Meter::$taken, "\n";
+echo 'sends that waited: ', Meter::$waits, "\n";

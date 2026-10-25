@@ -8,5 +8,5 @@ echo Core\Random::int(5, 5), "\n";
 try {
     echo Core\Random::int(10, 1), "\n";
 } catch (Throwable $e) {
-    echo "Error: ", $e->message, "\n";
+    echo 'Error: ', $e->message, "\n";
 }

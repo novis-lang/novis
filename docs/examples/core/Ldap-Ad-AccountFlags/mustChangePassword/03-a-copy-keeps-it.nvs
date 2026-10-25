@@ -2,13 +2,13 @@
 // Shows that a copy made with `with` keeps `mustChangePassword`, because it is not a bit of `userAccountControl`.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Carla Diaz,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Carla Diaz,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
-    var $disabled = $flags->with({disabled: true});
+    var $disabled = $flags->with({ disabled: true });
 
     // This prints `disabled: true, must change: true`.
-    echo "disabled: ", $disabled->disabled() ? "true" : "false";
-    echo ", must change: ", $disabled->mustChangePassword() ? "true" : "false", "\n";
+    echo 'disabled: ', $disabled->disabled() ? 'true' : 'false';
+    echo ', must change: ', $disabled->mustChangePassword() ? 'true' : 'false', "\n";
 }

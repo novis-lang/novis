@@ -4,8 +4,8 @@
 
 // 192.168.0.10 is a private address, so the call throws a `RuntimeError` before it sends anything.
 try {
-    Core\Http\Response $response = Core\Http\Client::head("http://192.168.0.10/files/report.pdf");
-    echo "status: ", $response->status(), ", size: ", $response->header("content-length") ?? "unknown", "\n";
+    Core\Http\Response $response = Core\Http\Client::head('http://192.168.0.10/files/report.pdf');
+    echo 'status: ', $response->status(), ', size: ', $response->header('content-length') ?? 'unknown', "\n";
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";
 }

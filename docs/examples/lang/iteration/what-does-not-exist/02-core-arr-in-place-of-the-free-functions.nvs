@@ -2,8 +2,10 @@
 // Shows the replacements for PHP's `iterator_to_array` and `count`. Both live on `Core\Arr`,
 // so there is no free function to call.
 
-class Series {
-    public static function squares(int $upTo): Iterator<int> {
+class Series
+{
+    public static function squares(int $upTo): Iterator<int>
+    {
         int $i = 1;
         while ($i <= $upTo) {
             yield $i * $i;
@@ -14,7 +16,7 @@ class Series {
 
 // `Core\Arr::from` reads a sequence into an array. This replaces `iterator_to_array`.
 array<int> $squares = Core\Arr::from(Series::squares(5));
-echo $squares[0], ",", $squares[4], "\n";
+echo $squares[0], ',', $squares[4], "\n";
 
 // `Core\Arr::count` returns the number of elements. This replaces `count`.
 echo Core\Arr::count($squares), "\n";

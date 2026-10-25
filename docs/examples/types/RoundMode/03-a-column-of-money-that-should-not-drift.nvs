@@ -11,19 +11,19 @@ float $toTheEven = 0.0;
 foreach ($rows as float $amount) {
     // `HalfUp` always rounds a half cent up.
     // Over many rows, the total becomes too large.
-    float $up = Core\Math::round($amount, {precision: 2, mode: Core\RoundMode::HalfUp});
+    float $up = Core\Math::round($amount, { precision: 2, mode: Core\RoundMode::HalfUp });
 
     // `HalfEven` rounds a half cent to the nearest even cent. About half of
     // the amounts go down, so the total stays close to the exact sum.
-    float $even = Core\Math::round($amount, {precision: 2, mode: Core\RoundMode::HalfEven});
+    float $even = Core\Math::round($amount, { precision: 2, mode: Core\RoundMode::HalfEven });
 
-    echo Core\Str::format("%.3f", $amount), "  half up ", Core\Str::format("%.2f", $up),
-        "   half even ", Core\Str::format("%.2f", $even), "\n";
+    echo Core\Str::format('%.3f', $amount), '  half up ', Core\Str::format('%.2f', $up),
+        '   half even ', Core\Str::format('%.2f', $even), "\n";
 
     $alwaysUp = $alwaysUp + $up;
     $toTheEven = $toTheEven + $even;
 }
 
 echo "\n";
-echo "total, half up   ", Core\Str::format("%.2f", $alwaysUp), "\n";
-echo "total, half even ", Core\Str::format("%.2f", $toTheEven), "\n";
+echo 'total, half up   ', Core\Str::format('%.2f', $alwaysUp), "\n";
+echo 'total, half even ', Core\Str::format('%.2f', $toTheEven), "\n";

@@ -2,7 +2,7 @@
 // Shows how to put a QR code into an HTML page, so a phone can open the page.
 use Novis\Image\QrCode;
 
-string $link = "https://example.com/blog/hello";
+string $link = 'https://example.com/blog/hello';
 string $code = QrCode::svg($link);
 
 // The SVG document is a string, so it goes straight into the HTML.
@@ -10,4 +10,4 @@ string $html = "<figure>{$code}<figcaption>Scan to read the post</figcaption></f
 
 // This prints the start of the page and checks that the SVG is inside it.
 echo Core\Str::slice($html, 0, 12), "\n";
-echo Core\Str::contains($html, "</svg><figcaption>") ? "the code is in the page" : "no code", "\n";
+echo Core\Str::contains($html, '</svg><figcaption>') ? 'the code is in the page' : 'no code', "\n";

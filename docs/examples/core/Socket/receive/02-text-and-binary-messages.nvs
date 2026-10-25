@@ -11,9 +11,9 @@ Core\Socket $conn = Core\Socket::current();
 while ($message != null) {
     ?tainted bytes $octets = $message->bytes();
     if ($octets != null) {
-        echo "binary: ", Core\Bytes::length($octets), " bytes\n";
+        echo 'binary: ', Core\Bytes::length($octets), " bytes\n";
     } else {
-        echo "text: ", $message->text() ?? "", "\n";
+        echo 'text: ', $message->text() ?? '', "\n";
     }
     $message = $conn->receive();
 }

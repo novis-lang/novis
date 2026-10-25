@@ -2,7 +2,7 @@
 // Shows a loop with two counters. The first and the third part of the header
 // are lists separated by commas, so both counters start and move together.
 
-array<string> $names = ["Ada", "Grace", "Alan", "Edsger"];
+array<string> $names = ['Ada', 'Grace', 'Alan', 'Edsger'];
 
 uint $front = 0;
 uint $back = 0;

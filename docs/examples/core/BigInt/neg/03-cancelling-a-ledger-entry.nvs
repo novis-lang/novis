@@ -2,15 +2,17 @@
 // Shows how a program cancels an entry in a ledger. The correction is the
 // amount with its sign flipped, so the entry and its correction add up to zero.
 
-class Ledger {
+class Ledger
+{
     // Returns the entry that cancels $amount.
-    public static function reversalOf(Core\BigInt $amount): Core\BigInt {
+    public static function reversalOf(Core\BigInt $amount): Core\BigInt
+    {
         return $amount->neg();
     }
 }
 
 array<Core\BigInt> $entries = [
-    Core\BigInt::parse("120000000000000000000"),
+    Core\BigInt::parse('120000000000000000000'),
     Core\BigInt::of(-4500),
 ];
 

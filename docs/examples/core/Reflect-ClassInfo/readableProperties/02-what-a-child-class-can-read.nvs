@@ -1,15 +1,18 @@
 <?nvs
 // Shows that code in a child class can read the protected properties of its parent.
 
-class Entry {
-    public string $title = "Hello";
+class Entry
+{
+    public string $title = 'Hello';
     protected int $views = 7;
-    private string $draft = "notes";
+    private string $draft = 'notes';
 }
 
-class Post extends Entry {
-    public function fields(): array<string> {
-        var $found = Core\Reflect::forClass("Entry");
+class Post extends Entry
+{
+    public function fields(): array<string>
+    {
+        var $found = Core\Reflect::forClass('Entry');
         if ($found == null) {
             return [];
         }

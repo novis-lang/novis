@@ -1,36 +1,39 @@
 <?nvs
 // Shows how a program fills a settings object from key and value pairs read from a configuration file.
 
-class MailSettings {
-    public string $host = "localhost";
+class MailSettings
+{
+    public string $host = 'localhost';
     public int $port = 25;
     public bool $secure = false;
 }
 
-class Settings {
-    public static function fill(mixed $settings, array<mixed> $values): tainted string {
+class Settings
+{
+    public static function fill(mixed $settings, array<mixed> $values): tainted string
+    {
         var $info = Core\Reflect::forObject($settings);
-        tainted string $skipped = "";
+        tainted string $skipped = '';
         foreach ($values as tainted string $key => mixed $value) {
             // A key that is not a property is reported and not written.
             if (!$info->hasProperty($key)) {
-                $skipped = $skipped . " " . $key;
+                $skipped = $skipped . ' ' . $key;
                 continue;
             }
             $info->set($settings, $key, $value);
         }
-        return "skipped:" . $skipped;
+        return 'skipped:' . $skipped;
     }
 }
 
 array<mixed> $configured = [
-    "host" => "mail.example.com",
-    "port" => 587,
-    "secure" => true,
-    "timeout" => 30,
+    'host' => 'mail.example.com',
+    'port' => 587,
+    'secure' => true,
+    'timeout' => 30,
 ];
 
 MailSettings $mail = new MailSettings();
 // This prints `skipped: timeout`, then the three values from the configuration.
 echo Settings::fill($mail, $configured), "\n";
-echo $mail->host, ":", $mail->port, " secure=", $mail->secure ? "yes" : "no", "\n";
+echo $mail->host, ':', $mail->port, ' secure=', $mail->secure ? 'yes' : 'no', "\n";

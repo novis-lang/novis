@@ -13,8 +13,8 @@ class Bench
         uint $i = 0;
         while ($i < 64) {
             $total = $total + 1;
-            $store->put("round", $value);
-            $store->forget("round");
+            $store->put('round', $value);
+            $store->forget('round');
             $i = $i + 1;
         }
         return $total;

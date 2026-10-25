@@ -5,7 +5,7 @@
 tainted string $note = Core\Request::body();
 
 // This prints 68, the length of the note in characters.
-echo "received ", Core\Str::length($note), " characters\n";
+echo 'received ', Core\Str::length($note), " characters\n";
 
 // The body is exactly what the client sent, line breaks included.
 echo $note;

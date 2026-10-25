@@ -16,21 +16,21 @@ class Visited
 
 // In a real program, these links come from the pages the checker downloads.
 array<string> $found = [
-    "https://example.com/shop/",
-    "https://EXAMPLE.com/shop/",
-    "https://example.com/blog/../shop/",
-    "https://example.com/shop/%63art",
-    "https://example.com/shop/cart",
+    'https://example.com/shop/',
+    'https://EXAMPLE.com/shop/',
+    'https://example.com/blog/../shop/',
+    'https://example.com/shop/%63art',
+    'https://example.com/shop/cart',
 ];
 
 array<Core\Uri> $pages = [];
 foreach ($found as string $text) {
     var $link = Core\Uri::parse($text);
     if (Visited::contains($pages, $link)) {
-        echo "skip  ", $text, "\n";
+        echo 'skip  ', $text, "\n";
     } else {
         $pages[] = $link;
-        echo "visit ", $text, "\n";
+        echo 'visit ', $text, "\n";
     }
 }
 

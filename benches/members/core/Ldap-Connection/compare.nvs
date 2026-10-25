@@ -5,17 +5,19 @@
 // bench: complexity constant
 // requires: samba-ad
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $corp = Core\Ldap::connect("corp");
-        string $anna = "CN=Anna Berg,OU=Company,DC=example,DC=test";
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $corp = Core\Ldap::connect('corp');
+        string $anna = 'CN=Anna Berg,OU=Company,DC=example,DC=test';
         // The count so far chooses the value, so the loop cannot be left out.
         // Anna Berg works in `Sales` and not in `Warehouse`.
-        array<string> $departments = ["Sales", "Warehouse"];
+        array<string> $departments = ['Sales', 'Warehouse'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            if ($corp->compare($anna, "department", $departments[($total % 2) as int])) {
+            if ($corp->compare($anna, 'department', $departments[($total % 2) as int])) {
                 $total = $total + 3;
             } else {
                 $total = $total + 1;

@@ -1,7 +1,7 @@
 error[E0405]: `Customer` has no public property `$emial`
-   --> 02-a-misspelled-segment.nvs:23:32
+   --> 02-a-misspelled-segment.nvs:27:32
    |
-23 | echo Mapper::orderBy("customer.emial"), "\n";
+27 | echo Mapper::orderBy('customer.emial'), "\n";
    |                                ^^^^^ this part of the path is checked here
    = help: each part of a property path names a public property of the class the path has reached: `Customer` has `$city`, `$email`, `$name`, `$phone`
 

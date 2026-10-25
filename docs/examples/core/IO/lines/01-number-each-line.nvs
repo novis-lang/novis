@@ -1,7 +1,7 @@
 <?nvs
 // Shows how `Core\IO::lines` reads a file one line at a time.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "todo.txt");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'todo.txt');
 Core\IO::write($path, "buy milk\ncall the bank\nwater the plants\n");
 
 // Each line comes without its line break. The last line break does not add an empty line.
@@ -9,5 +9,5 @@ Core\IO::write($path, "buy milk\ncall the bank\nwater the plants\n");
 uint $number = 0;
 foreach (Core\IO::lines($path) as string $line) {
     $number = $number + 1;
-    echo $number, ": ", $line, "\n";
+    echo $number, ': ', $line, "\n";
 }

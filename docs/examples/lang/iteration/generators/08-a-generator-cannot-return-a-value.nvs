@@ -3,8 +3,10 @@
 // Write `return;` to stop, or `yield 5;` to give the value to the loop.
 // proof: compile-error
 
-class Totals {
-    public static function sums(): Iterator<int> {
+class Totals
+{
+    public static function sums(): Iterator<int>
+    {
         yield 1;
         return 5;
     }

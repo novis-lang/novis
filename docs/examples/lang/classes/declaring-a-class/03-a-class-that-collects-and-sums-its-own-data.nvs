@@ -2,16 +2,20 @@
 // Shows the shape most classes in a program have: private data, and public
 // methods that are the only way to reach it.
 
-class Cart {
+class Cart
+{
     private array<int> $prices = [];
 
-    public function constructor(private string $currency) {}
+    public function constructor(private string $currency)
+    {}
 
-    public function add(int $priceCents): void {
+    public function add(int $priceCents): void
+    {
         $this->prices[] = $priceCents;
     }
 
-    public function total(): int {
+    public function total(): int
+    {
         int $sum = 0;
         foreach ($this->prices as int $price) {
             $sum = $sum + $price;
@@ -19,12 +23,13 @@ class Cart {
         return $sum;
     }
 
-    public function summary(): string {
-        return Core\Arr::count($this->prices) . " items, " . $this->total() . " " . $this->currency;
+    public function summary(): string
+    {
+        return Core\Arr::count($this->prices) . ' items, ' . $this->total() . ' ' . $this->currency;
     }
 }
 
-var $cart = new Cart("EUR");
+var $cart = new Cart('EUR');
 $cart->add(1250);
 $cart->add(399);
 $cart->add(8000);

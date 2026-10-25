@@ -7,9 +7,9 @@ use LogicError;
 /// `fill` puts your data in the placeholders. A row with a list placeholder, such as `{{items.qty}}`, is written once for each item.
 final class Template
 {
-    type Options = ?{zone?: string};
-    type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float}|{runs: array<{text: string, style: ?uint}>};
-    type Placeholder = {path: string, value: ?Value};
+    type Options = ?{ zone?: string };
+    type Value = { text: string }|{ number: float }|{ integer: int }|{ decimal: string }|{ boolean: bool }|{ date: Core\Time\Date }|{ time: Core\Time\TimeOfDay }|{ duration: Core\Time\Duration }|{ day: Core\Time\Date, clock: Core\Time\TimeOfDay }|{ formula: string, cachedText: ?string, cachedNumber: ?float }|{ runs: array<{ text: string, style: ?uint }> };
+    type Placeholder = { path: string, value: ?Value };
 
     private bool $filled = false;
     private bool $written = false;
@@ -26,7 +26,8 @@ final class Template
         private readonly Filling $filling,
         private readonly bytes|Core\IO\File $source,
         private readonly ?Core\Time\Zone $zone,
-    ) {
+    )
+    {
         $this->first = Core\Bytes::fill(0, 0);
     }
 
@@ -41,7 +42,7 @@ final class Template
         if ($zoneName != null) {
             $zone = Core\Time\Zone::of($zoneName);
         }
-        return new Template(Engine::templateOpen($source, {maxBytes: null, maxRatio: null}), $source, $zone);
+        return new Template(Engine::templateOpen($source, { maxBytes: null, maxRatio: null }), $source, $zone);
     }
 
     /// `set` puts `$value` in the cell at `$address`, such as `'Summary!B2'`. Call it before `fill`.
@@ -56,12 +57,12 @@ final class Template
     public function fill(array<mixed> $data): Export
     {
         if ($this->filled) {
-            throw new LogicError("The template is already filled. Call `fill` once.");
+            throw new LogicError('The template is already filled. Call `fill` once.');
         }
         $this->filled = true;
         $this->found = [];
         $this->inside = null;
-        $this->walk("", $data);
+        $this->walk('', $data);
         var $filled = Engine::templateFill($this->filling, $this->found, $this->names);
         $this->found = [];
         $this->first = $filled->data;
@@ -76,17 +77,17 @@ final class Template
             string $path = $prefix . Core\Taint::assertTrusted($tainted, "a key is a path that the template's placeholders are matched against");
             if ($value is array<mixed>) {
                 if (!Core\Arr::isList($value)) {
-                    $this->walk($path . ".", $value);
+                    $this->walk($path . '.', $value);
                 } elseif ($this->inside != null) {
-                    string $outer = $this->inside ?? "";
+                    string $outer = $this->inside ?? '';
                     throw new LogicError("The list `{$path}` is inside the list `{$outer}`. A template cannot repeat a list inside a list.");
                 } else {
                     $this->names[] = $path;
                     $this->lists[$path] = $value;
                 }
             } else {
-                string $list = $this->inside == null ? "" : ($this->inside ?? "") . ".";
-                $this->found[] = {path: $path, value: $this->cell($value, "{{" . $list . $path . "}}")};
+                string $list = $this->inside == null ? '' : ($this->inside ?? '') . '.';
+                $this->found[] = { path: $path, value: $this->cell($value, '{{' . $list . $path . '}}') };
             }
         }
     }
@@ -95,7 +96,7 @@ final class Template
     private function write(callable(bytes): void $send, bool $keep): Written
     {
         if ($this->written) {
-            throw new LogicError("The template is already written. Call `download`, `save`, `to` or `bytes` once.");
+            throw new LogicError('The template is already written. Call `download`, `save`, `to` or `bytes` once.');
         }
         $this->written = true;
         $this->deliver($send, $keep, $this->first);
@@ -104,12 +105,12 @@ final class Template
             foreach ($this->lists[$name] as mixed $item) {
                 $batch[] = $this->item($name, $item);
                 if (Core\Arr::count($batch) >= 1000) {
-                    $this->deliver($send, $keep, Engine::templateItems($this->filling, {name: $name, items: $batch}));
+                    $this->deliver($send, $keep, Engine::templateItems($this->filling, { name: $name, items: $batch }));
                     $batch = [];
                 }
             }
             if (Core\Arr::count($batch) > 0) {
-                $this->deliver($send, $keep, Engine::templateItems($this->filling, {name: $name, items: $batch}));
+                $this->deliver($send, $keep, Engine::templateItems($this->filling, { name: $name, items: $batch }));
             }
         }
         var $last = Engine::templateFinish($this->filling, $this->source);
@@ -142,7 +143,7 @@ final class Template
         }
         $this->found = [];
         $this->inside = $name;
-        $this->walk("", $item);
+        $this->walk('', $item);
         array<Placeholder> $found = $this->found;
         $this->found = [];
         return $found;
@@ -154,34 +155,34 @@ final class Template
             return null;
         }
         if ($value is string) {
-            return {text: Core\Taint::assertTrusted($value, "the engine writes a string as a text cell and escapes it")};
+            return { text: Core\Taint::assertTrusted($value, 'the engine writes a string as a text cell and escapes it') };
         }
         if ($value is bool) {
-            return {boolean: $value};
+            return { boolean: $value };
         }
         if ($value is int) {
-            return {integer: $value};
+            return { integer: $value };
         }
         if ($value is uint) {
-            return {decimal: $value as string};
+            return { decimal: $value as string };
         }
         if ($value is float) {
-            return {number: $value};
+            return { number: $value };
         }
         if ($value is decimal) {
-            return {decimal: $value as string};
+            return { decimal: $value as string };
         }
         if ($value is Core\Time\Date) {
-            return {date: $value};
+            return { date: $value };
         }
         if ($value is Core\Time\TimeOfDay) {
-            return {time: $value};
+            return { time: $value };
         }
         if ($value is Core\Time\Duration) {
-            return {duration: $value};
+            return { duration: $value };
         }
         if ($value is Core\Time\DateTime) {
-            return {day: $value->date(), clock: $value->timeOfDay()};
+            return { day: $value->date(), clock: $value->timeOfDay() };
         }
         if ($value is Core\Time\Instant) {
             ?Core\Time\Zone $zone = $this->zone;
@@ -189,18 +190,18 @@ final class Template
                 throw new LogicError("The value for `{$where}` is an `Instant`, and the template has no `zone`. Set `zone` in the options of `Template::open`, such as `zone: 'Europe/Berlin'`.");
             }
             var $local = $value->in($zone);
-            return {day: $local->date(), clock: $local->timeOfDay()};
+            return { day: $local->date(), clock: $local->timeOfDay() };
         }
         if ($value is Formula) {
-            string $formula = Core\Taint::assertTrusted($value->text, "a Formula is written as a formula only when the program passes one");
+            string $formula = Core\Taint::assertTrusted($value->text, 'a Formula is written as a formula only when the program passes one');
             string|int|float|null $cached = $value->cached;
             if ($cached is string) {
-                return {formula: $formula, cachedText: $cached, cachedNumber: null};
+                return { formula: $formula, cachedText: $cached, cachedNumber: null };
             }
             if ($cached is int || $cached is float) {
-                return {formula: $formula, cachedText: null, cachedNumber: $cached as float};
+                return { formula: $formula, cachedText: null, cachedNumber: $cached as float };
             }
-            return {formula: $formula, cachedText: null, cachedNumber: null};
+            return { formula: $formula, cachedText: null, cachedNumber: null };
         }
         throw new LogicError("The value for `{$where}` cannot be in a cell. A cell can contain a `string`, a number, a `bool`, `null`, or a date, a time or a duration from `Core\\Time`.");
     }

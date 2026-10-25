@@ -1,13 +1,15 @@
 <?nvs
 // Shows how to count payments by their result, with one counter and a label.
 
-class Payments {
+class Payments
+{
     // The result is one of two values written in the program, so it is allowed as a label value.
-    public static function charge(uint $cents): string {
+    public static function charge(uint $cents): string
+    {
         if ($cents > 50000) {
-            return "declined";
+            return 'declined';
         }
-        return "paid";
+        return 'paid';
     }
 }
 
@@ -15,6 +17,6 @@ array<uint> $orders = [1999, 72000, 450];
 foreach ($orders as uint $cents) {
     string $result = Payments::charge($cents);
     // The label `result` is `paid` or `declined`, so each result has its own total.
-    Core\Metrics::increment("payments_total", {labels: ["result" => $result]});
-    echo $cents, " cents: ", $result, "\n";
+    Core\Metrics::increment('payments_total', { labels: ['result' => $result] });
+    echo $cents, ' cents: ', $result, "\n";
 }

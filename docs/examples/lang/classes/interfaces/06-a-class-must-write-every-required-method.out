@@ -1,7 +1,7 @@
 error[E0449]: `Empty` does not declare `count`, which `Counts` requires
-   --> 06-a-class-must-write-every-required-method.nvs:10:7
+   --> 06-a-class-must-write-every-required-method.nvs:11:7
    |
-10 | class Empty implements Counts {
+11 | class Empty implements Counts
    |       ^^^^^ this class implements `Counts`
    = help: declare `count` here, or give `Counts` a default body for it
 

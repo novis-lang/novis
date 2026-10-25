@@ -2,8 +2,8 @@
 // Shows how to find the folder that contains an entry.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["cn"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['cn'] });
 
 if ($person != null) {
     // This prints the whole DN.

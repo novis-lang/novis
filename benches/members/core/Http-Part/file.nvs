@@ -5,9 +5,11 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $names = ["invoice.pdf", "report.csv", "photo.jpg"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $names = ['invoice.pdf', 'report.csv', 'photo.jpg'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -15,7 +17,7 @@ class Bench {
             string $name = $names[($total % 3) as int];
             // The part is created for this program's own file, so the bench needs no other file.
             // A path written in quotes starts at the folder of this file.
-            Core\Http\Part $part = Core\Http\Part::file("file.nvs", {filename: $name});
+            Core\Http\Part $part = Core\Http\Part::file('file.nvs', { filename: $name });
             $total = $total + Core\Str::length($name) + 1;
             $i = $i + 1;
         }

@@ -3,13 +3,15 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $dir = Core\IO::temporaryDir();
         array<string> $files = [
-            Core\Path::join($dir, "a.txt"),
-            Core\Path::join($dir, "b.txt"),
-            Core\Path::join($dir, "c.txt"),
+            Core\Path::join($dir, 'a.txt'),
+            Core\Path::join($dir, 'b.txt'),
+            Core\Path::join($dir, 'c.txt'),
         ];
         foreach ($files as string $file) {
             Core\IO::write($file, "content\n");
@@ -27,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "no file was opened", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'no file was opened', "\n";

@@ -1,8 +1,10 @@
 <?nvs
 // Shows how to check that a function returns the value you expect.
 
-class Prices {
-    public static function withShipping(int $cents): int {
+class Prices
+{
+    public static function withShipping(int $cents): int
+    {
         if ($cents >= 5000) {
             return $cents;
         }

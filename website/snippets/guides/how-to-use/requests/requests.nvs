@@ -1,27 +1,33 @@
 <?nvs
 // This program calls the method of the route that matches the request.
-class Shop {
+class Shop
+{
     // `#[Core\Route]` connects the path `/products/{id}` to this method.
-    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get, name: 'Shop::product')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function product(uint $id): void {
+    public function product(uint $id): void
+    {
         // The request is `GET /products/7`, so this prints `product 7`.
-        echo "product ", $id, "\n";
+        echo 'product ', $id, "\n";
     }
 }
 
 // The gate checks each request before a route method runs, and it writes the error pages.
-class Gate implements Core\Router\Gate {
-    public function allows(Core\Router\Match $route): bool {
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
         return $route->accessAs<Core\Audience>() == Core\Audience::Public;
     }
 
     // For a path with no route, the status is already 404.
-    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
         echo "not possible\n";
     }
 
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
         echo "something went wrong\n";
     }
 }

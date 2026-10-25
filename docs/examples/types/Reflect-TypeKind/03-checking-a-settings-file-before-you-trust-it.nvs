@@ -3,19 +3,21 @@
 // are not known. This program checks each setting against the kind it should have.
 // You can run this check when the program starts.
 
-class Settings {
-    public static function name(Core\Reflect::TypeKind $kind): string {
+class Settings
+{
+    public static function name(Core\Reflect::TypeKind $kind): string
+    {
         return match ($kind) {
-            Core\Reflect::TypeKind::Null => "nothing",
-            Core\Reflect::TypeKind::Bool => "a yes or no",
-            Core\Reflect::TypeKind::Int => "a whole number",
-            Core\Reflect::TypeKind::Uint => "a count",
-            Core\Reflect::TypeKind::Float => "an approximate number",
-            Core\Reflect::TypeKind::Decimal => "an exact amount",
-            Core\Reflect::TypeKind::Text => "text",
-            Core\Reflect::TypeKind::Bytes => "octets",
-            Core\Reflect::TypeKind::Array => "a list",
-            Core\Reflect::TypeKind::Object => "an object",
+            Core\Reflect::TypeKind::Null => 'nothing',
+            Core\Reflect::TypeKind::Bool => 'a yes or no',
+            Core\Reflect::TypeKind::Int => 'a whole number',
+            Core\Reflect::TypeKind::Uint => 'a count',
+            Core\Reflect::TypeKind::Float => 'an approximate number',
+            Core\Reflect::TypeKind::Decimal => 'an exact amount',
+            Core\Reflect::TypeKind::Text => 'text',
+            Core\Reflect::TypeKind::Bytes => 'octets',
+            Core\Reflect::TypeKind::Array => 'a list',
+            Core\Reflect::TypeKind::Object => 'an object',
         };
     }
 }
@@ -23,20 +25,20 @@ class Settings {
 decimal $priceAsWritten = 19.90;
 
 array<mixed> $arrived = [
-    "port" => 8080,
-    "host" => "0.0.0.0",
-    "retries" => 3,
-    "debug" => "yes",
-    "unitPrice" => $priceAsWritten,
+    'port' => 8080,
+    'host' => '0.0.0.0',
+    'retries' => 3,
+    'debug' => 'yes',
+    'unitPrice' => $priceAsWritten,
 ];
 
 // The kind that the rest of the program expects for each setting.
 array<Core\Reflect::TypeKind> $expected = [
-    "port" => Core\Reflect::TypeKind::Int,
-    "host" => Core\Reflect::TypeKind::Text,
-    "retries" => Core\Reflect::TypeKind::Int,
-    "debug" => Core\Reflect::TypeKind::Bool,
-    "unitPrice" => Core\Reflect::TypeKind::Decimal,
+    'port' => Core\Reflect::TypeKind::Int,
+    'host' => Core\Reflect::TypeKind::Text,
+    'retries' => Core\Reflect::TypeKind::Int,
+    'debug' => Core\Reflect::TypeKind::Bool,
+    'unitPrice' => Core\Reflect::TypeKind::Decimal,
 ];
 
 uint $wrong = 0;
@@ -44,10 +46,10 @@ uint $wrong = 0;
 foreach ($arrived as tainted string $setting => mixed $value) {
     Core\Reflect::TypeKind $found = Core\Reflect::typeOf($value);
     if ($found == $expected[$setting]) {
-        echo $setting, ": ", Settings::name($found), ", as expected\n";
+        echo $setting, ': ', Settings::name($found), ", as expected\n";
     } else {
         $wrong = $wrong + 1;
-        echo $setting, ": ", Settings::name($found), ", but it is read as ",
+        echo $setting, ': ', Settings::name($found), ', but it is read as ',
             Settings::name($expected[$setting]), "\n";
     }
 }

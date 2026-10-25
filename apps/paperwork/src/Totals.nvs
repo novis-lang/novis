@@ -5,26 +5,31 @@ use Core\Decimal;
 use Core\RoundMode;
 
 // The sums of an invoice. The PDF and the electronic invoice both use these, so they always show the same total.
-final class Totals {
+final class Totals
+{
     public function constructor(
         public readonly decimal $net,
         public readonly decimal $vat,
         public readonly decimal $total,
-    ) {}
+    )
+    {}
 
     // The VAT rate in percent. All items on the sample invoice have the standard German rate.
-    public static function rate(): decimal {
-        return "19" as decimal;
+    public static function rate(): decimal
+    {
+        return '19' as decimal;
     }
 
     // The amount of one line: the quantity times the price of one unit.
-    public static function line(Sample::Item $item): decimal {
+    public static function line(Sample::Item $item): decimal
+    {
         return $item->price * ($item->quantity as decimal);
     }
 
     // Adds up the lines and the VAT. The VAT is rounded to whole cents once, on the sum of the lines.
-    public static function of(array<Sample::Item> $items): Totals {
-        decimal $net = "0.00" as decimal;
+    public static function of(array<Sample::Item> $items): Totals
+    {
+        decimal $net = '0.00' as decimal;
         foreach ($items as Sample::Item $item) {
             $net = $net + Totals::line($item);
         }
@@ -33,10 +38,11 @@ final class Totals {
     }
 
     // Adds up the amounts that `data-mark` gives the rows of a page.
-    public static function sum(array<string> $amounts): decimal {
-        decimal $sum = "0.00" as decimal;
+    public static function sum(array<string> $amounts): decimal
+    {
+        decimal $sum = '0.00' as decimal;
         foreach ($amounts as string $amount) {
-            $sum = $sum + (($amount as ?decimal) ?? "0" as decimal);
+            $sum = $sum + (($amount as ?decimal) ?? '0' as decimal);
         }
         return $sum;
     }

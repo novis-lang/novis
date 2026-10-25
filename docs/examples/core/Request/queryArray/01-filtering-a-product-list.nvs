@@ -1,16 +1,16 @@
 <?nvs
 // Shows how a shop filters its product list with the parameters of the address.
 
-array<string> $products = ["red shirt" => "red", "blue shirt" => "blue", "red hat" => "red"];
+array<string> $products = ['red shirt' => 'red', 'blue shirt' => 'blue', 'red hat' => 'red'];
 
 // The address is `/products?filter[color]=red&filter[size]=M`.
 // `queryArray` returns the values under "filter" as an array with the keys "color" and "size".
-array<tainted string> $filter = Core\Request::queryArray("filter");
-tainted string $color = $filter["color"] ?? "";
+array<tainted string> $filter = Core\Request::queryArray('filter');
+tainted string $color = $filter['color'] ?? '';
 
 // This prints "red shirt" and "red hat".
 foreach ($products as string $name => string $productColor) {
-    if ($color == "" || $productColor == $color) {
+    if ($color == '' || $productColor == $color) {
         echo $name, "\n";
     }
 }

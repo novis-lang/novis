@@ -4,9 +4,9 @@
 // twice. A program that reads the document gets your text back unchanged.
 
 array<array<string>> $rows = [
-    ["Beans, dried", "500 g"],
-    ["The \"big\" tin", "2 kg"],
-    ["Two lines\nin one field", "1 kg"],
+    ['Beans, dried', '500 g'],
+    ["The \"big\" tin", '2 kg'],
+    ["Two lines\nin one field", '1 kg'],
 ];
 
 string $document = Core\Csv::format($rows);

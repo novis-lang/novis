@@ -7,9 +7,9 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     echo "Welcome to the shop\n";
 } else {
     // From the command line, the file sends a request to itself and checks the answer.
-    var $answer = Core\Test::request(Core\Http\Method::Get, "/");
+    var $answer = Core\Test::request(Core\Http\Method::Get, '/');
 
     // The page is the text above, so this prints `status 200` and `page ok`.
-    echo "status ", $answer->status(), "\n";
-    echo $answer->body() == "Welcome to the shop\n" ? "page ok" : "page wrong", "\n";
+    echo 'status ', $answer->status(), "\n";
+    echo $answer->body() == "Welcome to the shop\n" ? 'page ok' : 'page wrong', "\n";
 }

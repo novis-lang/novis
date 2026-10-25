@@ -4,15 +4,15 @@
 
 // Fixed replies with TLS connections built for a test, so the example runs
 // without a network. The second server has a certificate from somebody else.
-Core\Test::answerHttp("https://pay.example.com/orders", 200, {
-    tls: Core\Test::tlsSession({subject: "CN=pay.example.com, O=Example Payments"}),
+Core\Test::answerHttp('https://pay.example.com/orders', 200, {
+    tls: Core\Test::tlsSession({ subject: 'CN=pay.example.com, O=Example Payments' }),
 });
-Core\Test::answerHttp("https://pay.example.net/orders", 200, {
-    tls: Core\Test::tlsSession({subject: "CN=pay.example.net, O=Unknown"}),
+Core\Test::answerHttp('https://pay.example.net/orders', 200, {
+    tls: Core\Test::tlsSession({ subject: 'CN=pay.example.net, O=Unknown' }),
 });
 
-string $expected = "O=Example Payments";
-array<string> $urls = ["https://pay.example.com/orders", "https://pay.example.net/orders"];
+string $expected = 'O=Example Payments';
+array<string> $urls = ['https://pay.example.com/orders', 'https://pay.example.net/orders'];
 
 // `Core\Str::contains` checks that the subject has the expected pair.
 // This prints `send:` for the first address and `stop:` for the second.
@@ -22,5 +22,5 @@ foreach ($urls as string $url) {
     if ($info != null) {
         $trusted = Core\Str::contains($info->subject(), $expected);
     }
-    echo $trusted ? "send: " : "stop: ", $url, "\n";
+    echo $trusted ? 'send: ' : 'stop: ', $url, "\n";
 }

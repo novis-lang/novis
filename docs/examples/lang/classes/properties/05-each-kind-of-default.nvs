@@ -4,7 +4,8 @@
 
 enum Mode { Off, On }
 
-class Config {
+class Config
+{
     public const int DEFAULT_SIZE = 8;
     public Mode $mode = Mode::On;
     public int $size = self::DEFAULT_SIZE;
@@ -15,4 +16,4 @@ class Config {
 var $c = new Config();
 
 // This prints `1 8 0 none`. `Mode::On` is the second case, so its number is 1.
-echo $c->mode as int, " ", $c->size, " ", Core\Arr::count($c->ports), " ", $c->label ?? "none", "\n";
+echo $c->mode as int, ' ', $c->size, ' ', Core\Arr::count($c->ports), ' ', $c->label ?? 'none', "\n";

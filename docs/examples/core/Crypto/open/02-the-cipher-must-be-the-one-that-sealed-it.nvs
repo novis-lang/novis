@@ -6,25 +6,25 @@
 secret bytes $key = Core\Crypto::generateKey();
 secret bytes $otherKey = Core\Crypto::generateKey();
 bytes $sealed = Core\Crypto::seal(
-    "pay 100 to Ada" as bytes,
+    'pay 100 to Ada' as bytes,
     $key,
-    Core\Crypto::Cipher::Aes256Gcm
+    Core\Crypto::Cipher::Aes256Gcm,
 );
 
 // The right key with the other cipher. This prints `no`.
 try {
     Core\Crypto::open($sealed, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
-    echo "yes", "\n";
+    echo 'yes', "\n";
 } catch (RuntimeError $e) {
-    echo "no", "\n";
+    echo 'no', "\n";
 }
 
 // The right cipher with the other key. This prints `no` as well.
 try {
     Core\Crypto::open($sealed, $otherKey, Core\Crypto::Cipher::Aes256Gcm);
-    echo "yes", "\n";
+    echo 'yes', "\n";
 } catch (RuntimeError $e) {
-    echo "no", "\n";
+    echo 'no', "\n";
 }
 
 // Both of them together. This prints the message.

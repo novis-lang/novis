@@ -7,4 +7,4 @@ string $circle = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=
 
 // `as bytes` converts the text to bytes. `bytes` sends them exactly as they are
 // and adds the header `Content-Type: image/svg+xml`.
-Core\Response::bytes($circle as bytes, "image/svg+xml");
+Core\Response::bytes($circle as bytes, 'image/svg+xml');

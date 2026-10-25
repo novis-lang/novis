@@ -5,84 +5,86 @@ use Core\Xml\Writer;
 
 // Writes the XML of an electronic invoice in the Factur-X format, which is also called ZUGFeRD.
 // An accounting program reads this XML, so nobody needs to type the invoice again.
-final class FacturX {
+final class FacturX
+{
     // Returns the XML of the invoice, with every line and the same totals as the PDF.
-    public static function xml(Sample::Invoice $invoice, Totals $totals): string {
+    public static function xml(Sample::Invoice $invoice, Totals $totals): string
+    {
         Writer $xml = Core\Xml::writer();
         $xml->startDocument();
-        $xml->startElement("rsm:CrossIndustryInvoice");
-        $xml->attribute("xmlns:rsm", "urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100");
-        $xml->attribute("xmlns:ram", "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100");
-        $xml->attribute("xmlns:udt", "urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100");
+        $xml->startElement('rsm:CrossIndustryInvoice');
+        $xml->attribute('xmlns:rsm', 'urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100');
+        $xml->attribute('xmlns:ram', 'urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100');
+        $xml->attribute('xmlns:udt', 'urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100');
 
         // The profile says which rules the XML follows. EN 16931 is the European standard for invoices.
-        $xml->startElement("rsm:ExchangedDocumentContext");
-        $xml->startElement("ram:GuidelineSpecifiedDocumentContextParameter");
-        FacturX::leaf($xml, "ram:ID", "urn:cen.eu:en16931:2017");
+        $xml->startElement('rsm:ExchangedDocumentContext');
+        $xml->startElement('ram:GuidelineSpecifiedDocumentContextParameter');
+        FacturX::leaf($xml, 'ram:ID', 'urn:cen.eu:en16931:2017');
         $xml->endElement();
         $xml->endElement();
 
         // Type code 380 means a commercial invoice.
-        $xml->startElement("rsm:ExchangedDocument");
-        FacturX::leaf($xml, "ram:ID", $invoice->number);
-        FacturX::leaf($xml, "ram:TypeCode", "380");
-        FacturX::date($xml, "ram:IssueDateTime", $invoice->issued);
+        $xml->startElement('rsm:ExchangedDocument');
+        FacturX::leaf($xml, 'ram:ID', $invoice->number);
+        FacturX::leaf($xml, 'ram:TypeCode', '380');
+        FacturX::date($xml, 'ram:IssueDateTime', $invoice->issued);
         $xml->endElement();
 
-        $xml->startElement("rsm:SupplyChainTradeTransaction");
+        $xml->startElement('rsm:SupplyChainTradeTransaction');
         uint $position = 0;
         foreach ($invoice->items as Sample::Item $item) {
             $position++;
             FacturX::line($xml, $position, $item);
         }
 
-        $xml->startElement("ram:ApplicableHeaderTradeAgreement");
-        FacturX::party($xml, "ram:SellerTradeParty", $invoice->seller);
-        FacturX::party($xml, "ram:BuyerTradeParty", $invoice->buyer);
-        $xml->startElement("ram:BuyerOrderReferencedDocument");
-        FacturX::leaf($xml, "ram:IssuerAssignedID", $invoice->order);
+        $xml->startElement('ram:ApplicableHeaderTradeAgreement');
+        FacturX::party($xml, 'ram:SellerTradeParty', $invoice->seller);
+        FacturX::party($xml, 'ram:BuyerTradeParty', $invoice->buyer);
+        $xml->startElement('ram:BuyerOrderReferencedDocument');
+        FacturX::leaf($xml, 'ram:IssuerAssignedID', $invoice->order);
         $xml->endElement();
         $xml->endElement();
 
-        $xml->startElement("ram:ApplicableHeaderTradeDelivery");
-        $xml->startElement("ram:ActualDeliverySupplyChainEvent");
-        FacturX::date($xml, "ram:OccurrenceDateTime", $invoice->delivered);
+        $xml->startElement('ram:ApplicableHeaderTradeDelivery');
+        $xml->startElement('ram:ActualDeliverySupplyChainEvent');
+        FacturX::date($xml, 'ram:OccurrenceDateTime', $invoice->delivered);
         $xml->endElement();
         $xml->endElement();
 
         // Type code 58 means a SEPA bank transfer. The IBAN is written without spaces.
-        $xml->startElement("ram:ApplicableHeaderTradeSettlement");
-        FacturX::leaf($xml, "ram:PaymentReference", $invoice->number);
-        FacturX::leaf($xml, "ram:InvoiceCurrencyCode", "EUR");
-        $xml->startElement("ram:SpecifiedTradeSettlementPaymentMeans");
-        FacturX::leaf($xml, "ram:TypeCode", "58");
-        $xml->startElement("ram:PayeePartyCreditorFinancialAccount");
-        FacturX::leaf($xml, "ram:IBANID", Core\Str::replace(Sample::iban(), " ", ""));
+        $xml->startElement('ram:ApplicableHeaderTradeSettlement');
+        FacturX::leaf($xml, 'ram:PaymentReference', $invoice->number);
+        FacturX::leaf($xml, 'ram:InvoiceCurrencyCode', 'EUR');
+        $xml->startElement('ram:SpecifiedTradeSettlementPaymentMeans');
+        FacturX::leaf($xml, 'ram:TypeCode', '58');
+        $xml->startElement('ram:PayeePartyCreditorFinancialAccount');
+        FacturX::leaf($xml, 'ram:IBANID', Core\Str::replace(Sample::iban(), ' ', ''));
         $xml->endElement();
         $xml->endElement();
 
-        $xml->startElement("ram:ApplicableTradeTax");
-        FacturX::leaf($xml, "ram:CalculatedAmount", "{$totals->vat}");
-        FacturX::leaf($xml, "ram:TypeCode", "VAT");
-        FacturX::leaf($xml, "ram:BasisAmount", "{$totals->net}");
-        FacturX::leaf($xml, "ram:CategoryCode", "S");
-        FacturX::leaf($xml, "ram:RateApplicablePercent", Totals::rate() as string);
+        $xml->startElement('ram:ApplicableTradeTax');
+        FacturX::leaf($xml, 'ram:CalculatedAmount', "{$totals->vat}");
+        FacturX::leaf($xml, 'ram:TypeCode', 'VAT');
+        FacturX::leaf($xml, 'ram:BasisAmount', "{$totals->net}");
+        FacturX::leaf($xml, 'ram:CategoryCode', 'S');
+        FacturX::leaf($xml, 'ram:RateApplicablePercent', Totals::rate() as string);
         $xml->endElement();
 
-        $xml->startElement("ram:SpecifiedTradePaymentTerms");
-        FacturX::leaf($xml, "ram:Description", "Payable within {$invoice->days} days without deduction.");
-        FacturX::date($xml, "ram:DueDateDateTime", Invoice::due($invoice));
+        $xml->startElement('ram:SpecifiedTradePaymentTerms');
+        FacturX::leaf($xml, 'ram:Description', "Payable within {$invoice->days} days without deduction.");
+        FacturX::date($xml, 'ram:DueDateDateTime', Invoice::due($invoice));
         $xml->endElement();
 
-        $xml->startElement("ram:SpecifiedTradeSettlementHeaderMonetarySummation");
-        FacturX::leaf($xml, "ram:LineTotalAmount", "{$totals->net}");
-        FacturX::leaf($xml, "ram:TaxBasisTotalAmount", "{$totals->net}");
-        $xml->startElement("ram:TaxTotalAmount");
-        $xml->attribute("currencyID", "EUR");
+        $xml->startElement('ram:SpecifiedTradeSettlementHeaderMonetarySummation');
+        FacturX::leaf($xml, 'ram:LineTotalAmount', "{$totals->net}");
+        FacturX::leaf($xml, 'ram:TaxBasisTotalAmount', "{$totals->net}");
+        $xml->startElement('ram:TaxTotalAmount');
+        $xml->attribute('currencyID', 'EUR');
         $xml->content("{$totals->vat}");
         $xml->endElement();
-        FacturX::leaf($xml, "ram:GrandTotalAmount", "{$totals->total}");
-        FacturX::leaf($xml, "ram:DuePayableAmount", "{$totals->total}");
+        FacturX::leaf($xml, 'ram:GrandTotalAmount', "{$totals->total}");
+        FacturX::leaf($xml, 'ram:DuePayableAmount', "{$totals->total}");
         $xml->endElement();
 
         $xml->endElement();
@@ -92,58 +94,60 @@ final class FacturX {
     }
 
     // Writes one line of the invoice: the product, its price, the quantity and the amount.
-    private static function line(Writer $xml, uint $position, Sample::Item $item): void {
-        $xml->startElement("ram:IncludedSupplyChainTradeLineItem");
-        $xml->startElement("ram:AssociatedDocumentLineDocument");
-        FacturX::leaf($xml, "ram:LineID", "{$position}");
+    private static function line(Writer $xml, uint $position, Sample::Item $item): void
+    {
+        $xml->startElement('ram:IncludedSupplyChainTradeLineItem');
+        $xml->startElement('ram:AssociatedDocumentLineDocument');
+        FacturX::leaf($xml, 'ram:LineID', "{$position}");
         $xml->endElement();
-        $xml->startElement("ram:SpecifiedTradeProduct");
-        FacturX::leaf($xml, "ram:SellerAssignedID", $item->sku);
-        FacturX::leaf($xml, "ram:Name", $item->name);
+        $xml->startElement('ram:SpecifiedTradeProduct');
+        FacturX::leaf($xml, 'ram:SellerAssignedID', $item->sku);
+        FacturX::leaf($xml, 'ram:Name', $item->name);
         $xml->endElement();
-        $xml->startElement("ram:SpecifiedLineTradeAgreement");
-        $xml->startElement("ram:NetPriceProductTradePrice");
-        FacturX::leaf($xml, "ram:ChargeAmount", "{$item->price}");
+        $xml->startElement('ram:SpecifiedLineTradeAgreement');
+        $xml->startElement('ram:NetPriceProductTradePrice');
+        FacturX::leaf($xml, 'ram:ChargeAmount', "{$item->price}");
         $xml->endElement();
         $xml->endElement();
-        $xml->startElement("ram:SpecifiedLineTradeDelivery");
-        $xml->startElement("ram:BilledQuantity");
-        $xml->attribute("unitCode", FacturX::unitCode($item->unit));
+        $xml->startElement('ram:SpecifiedLineTradeDelivery');
+        $xml->startElement('ram:BilledQuantity');
+        $xml->attribute('unitCode', FacturX::unitCode($item->unit));
         $xml->content("{$item->quantity}");
         $xml->endElement();
         $xml->endElement();
-        $xml->startElement("ram:SpecifiedLineTradeSettlement");
-        $xml->startElement("ram:ApplicableTradeTax");
-        FacturX::leaf($xml, "ram:TypeCode", "VAT");
-        FacturX::leaf($xml, "ram:CategoryCode", "S");
-        FacturX::leaf($xml, "ram:RateApplicablePercent", Totals::rate() as string);
+        $xml->startElement('ram:SpecifiedLineTradeSettlement');
+        $xml->startElement('ram:ApplicableTradeTax');
+        FacturX::leaf($xml, 'ram:TypeCode', 'VAT');
+        FacturX::leaf($xml, 'ram:CategoryCode', 'S');
+        FacturX::leaf($xml, 'ram:RateApplicablePercent', Totals::rate() as string);
         $xml->endElement();
-        $xml->startElement("ram:SpecifiedTradeSettlementLineMonetarySummation");
-        FacturX::leaf($xml, "ram:LineTotalAmount", Totals::line($item) as string);
+        $xml->startElement('ram:SpecifiedTradeSettlementLineMonetarySummation');
+        FacturX::leaf($xml, 'ram:LineTotalAmount', Totals::line($item) as string);
         $xml->endElement();
         $xml->endElement();
         $xml->endElement();
     }
 
     // Writes a company with its address, its email address and its VAT number.
-    private static function party(Writer $xml, string $element, Sample::Party $party): void {
+    private static function party(Writer $xml, string $element, Sample::Party $party): void
+    {
         $xml->startElement($element);
-        FacturX::leaf($xml, "ram:Name", $party->name);
-        $xml->startElement("ram:PostalTradeAddress");
-        FacturX::leaf($xml, "ram:PostcodeCode", $party->postcode);
-        FacturX::leaf($xml, "ram:LineOne", $party->street);
-        FacturX::leaf($xml, "ram:CityName", $party->city);
-        FacturX::leaf($xml, "ram:CountryID", $party->countryCode);
+        FacturX::leaf($xml, 'ram:Name', $party->name);
+        $xml->startElement('ram:PostalTradeAddress');
+        FacturX::leaf($xml, 'ram:PostcodeCode', $party->postcode);
+        FacturX::leaf($xml, 'ram:LineOne', $party->street);
+        FacturX::leaf($xml, 'ram:CityName', $party->city);
+        FacturX::leaf($xml, 'ram:CountryID', $party->countryCode);
         $xml->endElement();
-        $xml->startElement("ram:URIUniversalCommunication");
-        $xml->startElement("ram:URIID");
-        $xml->attribute("schemeID", "EM");
+        $xml->startElement('ram:URIUniversalCommunication');
+        $xml->startElement('ram:URIID');
+        $xml->attribute('schemeID', 'EM');
         $xml->content($party->email);
         $xml->endElement();
         $xml->endElement();
-        $xml->startElement("ram:SpecifiedTaxRegistration");
-        $xml->startElement("ram:ID");
-        $xml->attribute("schemeID", "VA");
+        $xml->startElement('ram:SpecifiedTaxRegistration');
+        $xml->startElement('ram:ID');
+        $xml->attribute('schemeID', 'VA');
         $xml->content($party->vatId);
         $xml->endElement();
         $xml->endElement();
@@ -151,29 +155,32 @@ final class FacturX {
     }
 
     // Writes a date in the format `102`, which is `yyyyMMdd`.
-    private static function date(Writer $xml, string $element, Core\Time\Date $date): void {
+    private static function date(Writer $xml, string $element, Core\Time\Date $date): void
+    {
         $xml->startElement($element);
-        $xml->startElement("udt:DateTimeString");
-        $xml->attribute("format", "102");
-        $xml->content($date->format("yyyyMMdd"));
+        $xml->startElement('udt:DateTimeString');
+        $xml->attribute('format', '102');
+        $xml->content($date->format('yyyyMMdd'));
         $xml->endElement();
         $xml->endElement();
     }
 
     // Writes an element that has only text.
-    private static function leaf(Writer $xml, string $element, string $text): void {
+    private static function leaf(Writer $xml, string $element, string $text): void
+    {
         $xml->startElement($element);
         $xml->content($text);
         $xml->endElement();
     }
 
     // Returns the code of a unit in the list UN/ECE Recommendation 20, which the standard uses.
-    private static function unitCode(string $unit): string {
+    private static function unitCode(string $unit): string
+    {
         return match ($unit) {
-            "box" => "XBX",
-            "pack" => "XPK",
-            "set" => "SET",
-            default => "H87",
+            'box' => 'XBX',
+            'pack' => 'XPK',
+            'set' => 'SET',
+            default => 'H87',
         };
     }
 }

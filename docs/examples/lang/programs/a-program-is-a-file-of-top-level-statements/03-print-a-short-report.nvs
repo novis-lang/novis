@@ -15,8 +15,10 @@ foreach ($minutes as int $spent) {
 echo "-----\n";
 echo Report::line(Core\Arr::sum($minutes) as int), " in total\n";
 
-class Report {
-    public static function line(int $minutes): string {
-        return "- " . ($minutes as string) . " min";
+class Report
+{
+    public static function line(int $minutes): string
+    {
+        return '- ' . ($minutes as string) . ' min';
     }
 }

@@ -1,8 +1,10 @@
 <?nvs
 // Shows how to find out how many times a method ran.
 
-class Price {
-    public static function withFee(int $cents): int {
+class Price
+{
+    public static function withFee(int $cents): int
+    {
         return $cents + 25;
     }
 }
@@ -12,9 +14,9 @@ int $sum = 0;
 foreach ($prices as int $cents) {
     $sum += Price::withFee($cents);
 }
-echo "total: ", $sum, "\n";
+echo 'total: ', $sum, "\n";
 
-// Line 6 is the body of `withFee`. Its count is the number of calls, so this prints `5`.
+// Line 8 is the body of `withFee`. Its count is the number of calls, so this prints `5`.
 foreach (Core\Debug::coverage() as string $path => array<int> $lines) {
-    echo "withFee ran ", $lines["6"], " times\n";
+    echo 'withFee ran ', $lines['8'], " times\n";
 }

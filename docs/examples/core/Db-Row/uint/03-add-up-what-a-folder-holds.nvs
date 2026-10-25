@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table uploads (name text not null, folder text not null, size bigint not null)', []);
 $db->execute(
     'insert into uploads (name, folder, size) values (?, ?, ?), (?, ?, ?), (?, ?, ?)',
-    ['logo.png', 'pictures', 18432, 'map.png', 'pictures', 40960, 'report.pdf', 'papers', 1048576]
+    ['logo.png', 'pictures', 18432, 'map.png', 'pictures', 40960, 'report.pdf', 'papers', 1048576],
 );
 
 uint $total = 0;

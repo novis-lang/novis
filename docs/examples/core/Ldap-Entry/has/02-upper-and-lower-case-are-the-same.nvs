@@ -2,15 +2,15 @@
 // Shows that `has` finds an attribute however its name is written.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Ben Kohl,OU=Company,DC=example,DC=test", {select: ["mail"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Ben Kohl,OU=Company,DC=example,DC=test', { select: ['mail'] });
 
 if ($person != null) {
     // These three lines print `true`.
-    echo $person->has("mail") ? "true" : "false", "\n";
-    echo $person->has("Mail") ? "true" : "false", "\n";
-    echo $person->has("MAIL") ? "true" : "false", "\n";
+    echo $person->has('mail') ? 'true' : 'false', "\n";
+    echo $person->has('Mail') ? 'true' : 'false', "\n";
+    echo $person->has('MAIL') ? 'true' : 'false', "\n";
 
     // Ben Kohl has no phone number, so this prints `false`.
-    echo $person->has("telephoneNumber") ? "true" : "false", "\n";
+    echo $person->has('telephoneNumber') ? 'true' : 'false', "\n";
 }

@@ -8,13 +8,13 @@ bytes $letterhead = Document::fromHtml("<p style=\"text-align: right\">Shop, 1 E
     ->render()->bytes;
 
 // `background-image` in `@page` draws page 1 of the letterhead under every page.
-string $html = "<style>@page { background-image: url(letterhead.pdf) } h2 { break-before: page }</style>"
-    . "<h1>Contract</h1><p>Shop rents a stand to Blog for one year.</p>"
-    . "<h2>Terms</h2><p>The rent is due on the first day of each month.</p>";
-var $contract = Document::fromHtml($html)->asset("letterhead.pdf", $letterhead)->render();
+string $html = '<style>@page { background-image: url(letterhead.pdf) } h2 { break-before: page }</style>'
+    . '<h1>Contract</h1><p>Shop rents a stand to Blog for one year.</p>'
+    . '<h2>Terms</h2><p>The rent is due on the first day of each month.</p>';
+var $contract = Document::fromHtml($html)->asset('letterhead.pdf', $letterhead)->render();
 
 // This prints the text of each page. The address of the letterhead is on both pages.
 var $reader = Reader::open($contract->bytes);
 for (uint $page = 1; $page <= $reader->pageCount; $page++) {
-    echo "page ", $page, ": ", Core\Str::replace($reader->text($page), "\n", " / "), "\n";
+    echo 'page ', $page, ': ', Core\Str::replace($reader->text($page), "\n", ' / '), "\n";
 }

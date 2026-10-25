@@ -3,12 +3,14 @@
 // bench: iterations 2048
 // bench: complexity constant
 
-class Bench {
-    public static function run(Core\Socket $conn, uint $rounds): uint {
-        Core\Topic::subscribe("prices");
-        Core\Topic::publish("prices", 1);
-        Core\Topic::publish("prices", 2);
-        Core\Topic::publish("prices", 3);
+class Bench
+{
+    public static function run(Core\Socket $conn, uint $rounds): uint
+    {
+        Core\Topic::subscribe('prices');
+        Core\Topic::publish('prices', 1);
+        Core\Topic::publish('prices', 2);
+        Core\Topic::publish('prices', 3);
         array<Core\Socket\Message> $messages = [];
         ?Core\Socket\Message $message = $conn->receive();
         while ($message != null) {

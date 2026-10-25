@@ -3,21 +3,23 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $keys = ["bench-get-a.txt", "bench-get-b.txt", "bench-get-c.txt"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $keys = ['bench-get-a.txt', 'bench-get-b.txt', 'bench-get-c.txt'];
         foreach ($keys as string $key) {
-            Core\Storage::put("bench", $key, "a small saved file\n" as bytes);
+            Core\Storage::put('bench', $key, "a small saved file\n" as bytes);
         }
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            tainted bytes $saved = Core\Storage::get("bench", $keys[($total % 3) as int]) ?? "" as bytes;
+            tainted bytes $saved = Core\Storage::get('bench', $keys[($total % 3) as int]) ?? '' as bytes;
             $total = $total + Core\Bytes::length($saved);
             $i = $i + 1;
         }
         foreach ($keys as string $key) {
-            Core\Storage::delete("bench", $key);
+            Core\Storage::delete('bench', $key);
         }
         return $total;
     }

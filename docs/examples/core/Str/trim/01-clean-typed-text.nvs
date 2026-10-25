@@ -5,10 +5,10 @@ string $typed = "  anna@example.com \n";
 
 // The spaces and the line break at both ends are removed.
 // This prints `[anna@example.com]`.
-echo "[", Core\Str::trim($typed), "]\n";
+echo '[', Core\Str::trim($typed), "]\n";
 
 // The space in the middle stays. This prints `[New York]`.
-echo "[", Core\Str::trim("\t New York  "), "]\n";
+echo '[', Core\Str::trim("\t New York  "), "]\n";
 
 // A string of spaces only becomes the empty string. This prints `[]`.
-echo "[", Core\Str::trim("    "), "]\n";
+echo '[', Core\Str::trim('    '), "]\n";

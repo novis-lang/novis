@@ -7,39 +7,47 @@
 namespace Shop;
 
 /// Something a reader can see.
-interface Printable {
+interface Printable
+{
     /// The text a reader sees.
     public function render(): string;
 }
 
 /// Something a reader can see, under a name.
-interface Named extends Printable {
+interface Named extends Printable
+{
     /// The name a reader sees.
     public function name(): string;
 }
 
 /// A thing a shop sells.
-abstract class Item {
+abstract class Item
+{
     /// What the item costs, in cents.
-    public function price(): int {
+    public function price(): int
+    {
         return 100;
     }
 }
 
 /// A post, sold like any other item.
-class Post extends Item implements Named {
+class Post extends Item implements Named
+{
     /// The post's title.
-    public function name(): string {
-        return "First post";
+    public function name(): string
+    {
+        return 'First post';
     }
 
     /// The post as a reader sees it.
-    public function render(): string {
-        return "<h1>" . $this->name() . "</h1>";
+    public function render(): string
+    {
+        return '<h1>' . $this->name() . '</h1>';
     }
 
     /// A post with nothing in it yet.
-    public static function blank(): Post {
+    public static function blank(): Post
+    {
         return new Post();
     }
 }

@@ -1,7 +1,7 @@
 <?nvs
 // Shows that a write past `length()` throws a `LogicError` and sends nothing.
 
-Core\Response\Stream $body = Core\Response::stream("text/plain; charset=utf-8", 6);
+Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8', 6);
 $body->write("Hello\n");
 
 try {

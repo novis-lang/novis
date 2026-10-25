@@ -1,14 +1,18 @@
 <?nvs
 // Shows that a class also lists the methods it inherits from its parent class.
 
-class Shape {
-    public function describe(): string {
-        return "a shape";
+class Shape
+{
+    public function describe(): string
+    {
+        return 'a shape';
     }
 }
 
-class Square extends Shape {
-    public function area(int $side): int {
+class Square extends Shape
+{
+    public function area(int $side): int
+    {
         return $side * $side;
     }
 }

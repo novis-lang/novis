@@ -1,7 +1,7 @@
 error[E0835]: `Page::title()` is `abstract`, so it has no body to call
-   --> 07-an-abstract-static-method-has-no-body-to-call.nvs:10:6
+   --> 07-an-abstract-static-method-has-no-body-to-call.nvs:11:6
    |
-10 | echo Page::title(), "\n";
+11 | echo Page::title(), "\n";
    |      ^^^^^^^^^^^^^ called on `Page`, which does not give it a body
    = help: call it on a class that is not `abstract`, or, inside a method of `Page`, write `static::title()` to call the class the method was called on
 

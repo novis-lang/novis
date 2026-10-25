@@ -4,14 +4,16 @@
 // scaling: max 64000
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): uint {
-        string $text = Core\Str::repeat("a,", $size);
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $text = Core\Str::repeat('a,', $size);
         uint $commas = 0;
         int $i = 0;
         int $end = Core\Str::length($text) as int;
         while ($i < $end) {
-            if (Core\Str::at($text, $i) == ",") {
+            if (Core\Str::at($text, $i) == ',') {
                 $commas = $commas + 1;
             }
             $i = $i + 1;

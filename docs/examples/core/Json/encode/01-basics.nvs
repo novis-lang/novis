@@ -5,4 +5,4 @@
 echo Core\Json::encode([1, 2, 3]), "\n";
 
 // An array with string keys becomes a JSON object. This prints `{"name":"Ada","age":36}`.
-echo Core\Json::encode(["name" => "Ada", "age" => 36]), "\n";
+echo Core\Json::encode(['name' => 'Ada', 'age' => 36]), "\n";

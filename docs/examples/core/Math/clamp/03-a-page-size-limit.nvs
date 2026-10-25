@@ -1,9 +1,11 @@
 <?nvs
 // Shows how a server limits the number of results a visitor asks for on one page.
 
-class PageSize {
+class PageSize
+{
     // Every page shows at least 1 result and at most 100.
-    public static function allowed(int $asked): int {
+    public static function allowed(int $asked): int
+    {
         return Core\Math::clamp($asked, 1, 100);
     }
 }

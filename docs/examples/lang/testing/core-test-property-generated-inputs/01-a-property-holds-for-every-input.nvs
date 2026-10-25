@@ -5,16 +5,20 @@
 use Core\Test;
 use Core\Test\Property;
 
-final class Money {
-    public static function add(int $a, int $b): int {
+final class Money
+{
+    public static function add(int $a, int $b): int
+    {
         return $a + $b;
     }
 }
 
-final class MoneyTest {
+final class MoneyTest
+{
     // `$a` and `$b` are whole numbers from -1000 to 1000. The test runs 100 times.
-    #[Property(gen: {a: "-1000..1000", b: "-1000..1000"})]
-    public function itAddsInEitherOrder(int $a, int $b): void {
+    #[Property(gen: { a: '-1000..1000', b: '-1000..1000' })]
+    public function itAddsInEitherOrder(int $a, int $b): void
+    {
         Test::assertSame(Money::add($a, $b), Money::add($b, $a));
     }
 }

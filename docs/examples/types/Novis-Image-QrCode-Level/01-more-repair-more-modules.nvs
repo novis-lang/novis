@@ -2,10 +2,12 @@
 // Shows that a higher `QrCode::Level` makes a bigger QR code for the same text.
 use Novis\Image\QrCode;
 
-class Squares {
+class Squares
+{
     // Returns how many squares wide the code is. A code is 21, 25, 29 or more squares wide,
     // and `render` throws a `LogicError` when `size` is smaller than the code.
-    public static function across(string $text, QrCode::Level $level): uint {
+    public static function across(string $text, QrCode::Level $level): uint
+    {
         uint $size = 21;
         while (true) {
             try {
@@ -18,7 +20,7 @@ class Squares {
     }
 }
 
-string $link = "https://example.com/orders/1042";
+string $link = 'https://example.com/orders/1042';
 
 array<QrCode::Level> $levels = [QrCode::Level::Low, QrCode::Level::Medium, QrCode::Level::Quartile, QrCode::Level::High];
 

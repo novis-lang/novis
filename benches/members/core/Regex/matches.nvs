@@ -4,9 +4,11 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $codes = ["AB-1234", "ab-12", "XY-9876"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $codes = ['AB-1234', 'ab-12', 'XY-9876'];
         Core\Regex\Pattern $code = Core\Regex::compile('^[A-Z]{2}-\d{4}$');
         uint $total = 0;
         uint $i = 0;

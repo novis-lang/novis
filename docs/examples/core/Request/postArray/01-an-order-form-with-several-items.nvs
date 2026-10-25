@@ -3,7 +3,7 @@
 
 // The form sends `item[]=notebook&item[]=pen`.
 // `postArray` returns every value of "item" as one list.
-array<tainted string> $items = Core\Request::postArray("item");
+array<tainted string> $items = Core\Request::postArray('item');
 
 // This prints "notebook" and "pen", and then "2 items".
 foreach ($items as tainted string $item) {

@@ -1,26 +1,48 @@
 <?nvs
 // Shows each way to write a call: chained, named, variadic, `inout` and through a `callable`.
 
-class Greeter {
-    public function constructor(private string $greeting) {}
-    public function greet(string $name, string $mark = "!"): string { return $this->greeting . ", " . $name . $mark; }
-    public static function make(): Greeter { return new Greeter("Hi"); }
-    public static function sum(int ...$xs): int { int $t = 0; foreach ($xs as int $x) { $t += $x; } return $t; }
-    public static function twice(inout int $n): void { $n = $n * 2; }
+class Greeter
+{
+    public function constructor(private string $greeting)
+    {}
+
+    public function greet(string $name, string $mark = '!'): string
+    {
+        return $this->greeting . ', ' . $name . $mark;
+    }
+
+    public static function make(): Greeter
+    {
+        return new Greeter('Hi');
+    }
+
+    public static function sum(int ...$xs): int
+    {
+        int $t = 0;
+        foreach ($xs as int $x) {
+            $t += $x;
+        }
+        return $t;
+    }
+
+    public static function twice(inout int $n): void
+    {
+        $n = $n * 2;
+    }
 }
 
 // A chained call, and named arguments in any order. This prints: Hi, Ada! Yo, Bob?
-echo Greeter::make()->greet("Ada"), " ", new Greeter("Yo")->greet(mark: "?", name: "Bob"), "\n";
+echo Greeter::make()->greet('Ada'), ' ', new Greeter('Yo')->greet(mark: '?', name: 'Bob'), "\n";
 
 // `sum` takes any number of arguments, also none. `twice` changes `$n` to 8.
 // This prints: 6 9 0 8
 array<int> $xs = [4, 5];
 int $n = 4;
 Greeter::twice(inout $n);
-echo Greeter::sum(1, 2, 3), " ", Greeter::sum(...$xs), " ", Greeter::sum(), " ", $n, "\n";
+echo Greeter::sum(1, 2, 3), ' ', Greeter::sum(...$xs), ' ', Greeter::sum(), ' ', $n, "\n";
 
 // A `callable` in a variable, in an array element, and an anonymous function called directly.
 // The extra argument `99` is ignored. This prints: 2 2 8 40
 callable $f = fn(int $x): int => $x + 1;
-array<callable> $ops = ["dbl" => fn(int $x): int => $x * 2];
-echo $f(1), " ", $f(1, 99), " ", $ops["dbl"](4), " ", (fn(int $x): int => $x * 10)(4), "\n";
+array<callable> $ops = ['dbl' => fn(int $x): int => $x * 2];
+echo $f(1), ' ', $f(1, 99), ' ', $ops['dbl'](4), ' ', (fn(int $x): int => $x * 10)(4), "\n";

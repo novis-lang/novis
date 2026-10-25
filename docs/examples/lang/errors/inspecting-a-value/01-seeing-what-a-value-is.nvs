@@ -3,12 +3,14 @@
 // this program prints it. Every value says what type it is, and a string says
 // how many bytes it has.
 
-final class Order {
-    public function constructor(public int $id, public string $customer) {
+final class Order
+{
+    public function constructor(public int $id, public string $customer)
+    {
     }
 }
 
-echo Core\Debug::render(new Order(1042, "Ada")), "\n";
+echo Core\Debug::render(new Order(1042, 'Ada')), "\n";
 
 // A tab inside a string is shown as `\t`, so you can see it.
-echo Core\Debug::render(["paid" => true, "note" => "two\tcolumns"]), "\n";
+echo Core\Debug::render(['paid' => true, 'note' => "two\tcolumns"]), "\n";

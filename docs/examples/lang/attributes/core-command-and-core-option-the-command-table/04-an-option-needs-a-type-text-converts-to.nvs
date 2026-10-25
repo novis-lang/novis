@@ -3,7 +3,9 @@
 // is not allowed, so the program does not compile.
 // proof: compile-error
 
-class Deploy {
-    #[Core\Command(name: "deploy", about: "Push the build")]
-    public static function deploy(#[Core\Option] float $ratio): void {}
+class Deploy
+{
+    #[Core\Command(name: 'deploy', about: 'Push the build')]
+    public static function deploy(#[Core\Option] float $ratio): void
+    {}
 }

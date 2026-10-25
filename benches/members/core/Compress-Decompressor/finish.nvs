@@ -5,8 +5,10 @@
 // bench: calls 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         bytes $frame = Core\Compress::compress(Core\Str::repeat("order 1042\n", 16), Core\Compress::Codec::Zstd);
         int $size = Core\Bytes::length($frame) as int;
         int $piece = 8;

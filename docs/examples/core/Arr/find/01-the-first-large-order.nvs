@@ -11,5 +11,5 @@ echo $large ?? 0, "\n";
 // No total is above 1000, so the result is `null`. This prints "none".
 ?int $huge = Core\Arr::find($totals, fn(int $total) => $total > 1000);
 if ($huge == null) {
-    echo "none", "\n";
+    echo 'none', "\n";
 }

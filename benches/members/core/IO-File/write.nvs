@@ -3,9 +3,11 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        string $path = Core\Path::join(Core\IO::temporaryDir(), "write.txt");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'write.txt');
         Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
         array<string> $lines = ["order 1042 shipped\n", "order 1043 paid\n", "order 1044 packed\n"];
         uint $total = 0;
@@ -27,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "nothing was written", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'nothing was written', "\n";

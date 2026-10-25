@@ -2,32 +2,40 @@
 // Each method returns `self`, the class it is written in, and returns `$this`.
 // So you can call the next method on the result, all on one line.
 
-final class Query {
-    public string $table = "";
+final class Query
+{
+    public string $table = '';
     public array<string> $wheres = [];
     public uint $limit = 0;
 
-    public function from(string $table): self {
+    public function from(string $table): self
+    {
         $this->table = $table;
         return $this;
     }
 
-    public function where(string $clause): self {
+    public function where(string $clause): self
+    {
         $this->wheres[] = $clause;
         return $this;
     }
 
-    public function take(uint $rows): self {
+    public function take(uint $rows): self
+    {
         $this->limit = $rows;
         return $this;
     }
 
-    public function text(): string {
-        return "select from " . $this->table
-            . " where " . Core\Str::join($this->wheres, " and ")
-            . " limit " . $this->limit;
+    public function text(): string
+    {
+        return 'select from '
+            . $this->table
+            . ' where '
+            . Core\Str::join($this->wheres, ' and ')
+            . ' limit '
+            . $this->limit;
     }
 }
 
 Query $q = new Query();
-echo $q->from("orders")->where("paid")->where("shipped")->take(25)->text(), "\n";
+echo $q->from('orders')->where('paid')->where('shipped')->take(25)->text(), "\n";

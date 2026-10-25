@@ -3,6 +3,7 @@
 // `$balance` has none, so this program does not compile.
 // proof: compile-error
 
-class Account {
+class Account
+{
     int $balance = 0;
 }

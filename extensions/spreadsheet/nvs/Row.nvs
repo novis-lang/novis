@@ -9,5 +9,6 @@ final class Row
     public function constructor(
         public readonly uint $number,
         public readonly array<mixed> $values,
-    ) {}
+    )
+    {}
 }

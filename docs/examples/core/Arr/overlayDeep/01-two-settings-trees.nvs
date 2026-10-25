@@ -3,11 +3,11 @@
 // same key are combined, not replaced.
 
 array<array<string>> $defaults = [
-    "db" => ["host" => "localhost", "port" => "5432"],
-    "log" => ["level" => "info"],
+    'db' => ['host' => 'localhost', 'port' => '5432'],
+    'log' => ['level' => 'info'],
 ];
 array<array<string>> $production = [
-    "db" => ["host" => "db.example.com"],
+    'db' => ['host' => 'db.example.com'],
 ];
 
 // The port under `db` is kept, because the layer says nothing about it.

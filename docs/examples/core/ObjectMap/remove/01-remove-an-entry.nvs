@@ -1,17 +1,19 @@
 <?nvs
 // Shows how to delete one object and its value from a map.
 
-final class Product {
+final class Product
+{
     public string $name;
 
-    public function constructor(string $name) {
+    public function constructor(string $name)
+    {
         $this->name = $name;
     }
 }
 
-Product $pen = new Product("pen");
-Product $cup = new Product("cup");
-Product $lamp = new Product("lamp");
+Product $pen = new Product('pen');
+Product $cup = new Product('cup');
+Product $lamp = new Product('lamp');
 
 Core\ObjectMap<Product, int> $stock = new Core\ObjectMap<Product, int>();
 $stock->set($pen, 12);
@@ -24,8 +26,8 @@ $stock->remove($cup);
 // This prints 2, then "pen 12" and "lamp 1".
 echo $stock->count(), "\n";
 foreach ($stock as Product $product) {
-    echo $product->name, " ", $stock->get($product) ?? 0, "\n";
+    echo $product->name, ' ', $stock->get($product) ?? 0, "\n";
 }
 
 // The cup is not in the map any more. This prints "no".
-echo $stock->has($cup) ? "yes" : "no", "\n";
+echo $stock->has($cup) ? 'yes' : 'no', "\n";

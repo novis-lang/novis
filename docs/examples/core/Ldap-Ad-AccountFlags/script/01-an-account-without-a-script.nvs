@@ -2,10 +2,10 @@
 // Shows that `script` returns `false` for an account that has no logon script.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `script: false`.
-    echo "script: ", $flags->script() ? "true" : "false", "\n";
+    echo 'script: ', $flags->script() ? 'true' : 'false', "\n";
 }

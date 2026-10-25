@@ -2,9 +2,9 @@
 // Shows how to give an organizational unit a new name.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $old = "OU=Sales Team 1,DC=example,DC=test";
-string $new = "OU=Sales 1,DC=example,DC=test";
+var $corp = Core\Ldap::connect('corp-accounts');
+string $old = 'OU=Sales Team 1,DC=example,DC=test';
+string $new = 'OU=Sales 1,DC=example,DC=test';
 
 // A run that stopped early can leave the unit behind, so the program deletes it first.
 array<string> $leftovers = [$old, $new];
@@ -14,13 +14,13 @@ foreach ($leftovers as string $left) {
     } catch (Core\Ldap\LdapError $missing) {
     }
 }
-$corp->add($old, ["objectClass" => "organizationalUnit"]);
+$corp->add($old, ['objectClass' => 'organizationalUnit']);
 
 // The new DN has the same parent, so the unit only gets a new name.
 $corp->rename($old, $new);
 
 // This prints `old name: not found` and `new name: Sales 1`.
-echo "old name: ", $corp->read($old) == null ? "not found" : "found", "\n";
-echo "new name: ", $corp->read($new, {select: ["ou"]})?->string("ou") ?? "not found", "\n";
+echo 'old name: ', $corp->read($old) == null ? 'not found' : 'found', "\n";
+echo 'new name: ', $corp->read($new, { select: ['ou'] })?->string('ou') ?? 'not found', "\n";
 
 $corp->delete($new);

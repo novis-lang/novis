@@ -10,14 +10,18 @@ namespace App\Billing;
 
 use App\Billing\Totals;
 
-class Totals {
-    public static function add(int $runningTotal, int $amount): int {
+class Totals
+{
+    public static function add(int $runningTotal, int $amount): int
+    {
         return $runningTotal + $amount;
     }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         int $total = 0;
         int $i = 0;
 

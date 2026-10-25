@@ -3,11 +3,13 @@
 // `Refund::Status` does not exist. Write `Order::Status`.
 // proof: compile-error
 
-class Order {
+class Order
+{
     enum Status { Open, Paid }
 }
 
-class Refund extends Order {
+class Refund extends Order
+{
 }
 
 echo Refund::Status::Paid as int, "\n";

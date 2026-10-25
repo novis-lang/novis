@@ -5,16 +5,18 @@
 // bench: calls 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The count so far chooses the URL, so the loop cannot be left out.
         // The grant names neither host, so every round throws an error.
-        array<string> $urls = ["ldaps://dc1.example.test", "ldaps://dc2.example.test"];
+        array<string> $urls = ['ldaps://dc1.example.test', 'ldaps://dc2.example.test'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             try {
-                Core\Ldap::open({url: $urls[($total % 2) as int], user: "CN=Reader,DC=example,DC=test", password: "Example-Pw1"});
+                Core\Ldap::open({ url: $urls[($total % 2) as int], user: 'CN=Reader,DC=example,DC=test', password: 'Example-Pw1' });
                 $total = $total + 2;
             } catch (RuntimeError $error) {
                 $total = $total + 1;

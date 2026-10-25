@@ -1,12 +1,14 @@
 <?nvs
 // Shows that an error thrown in a generator reaches the loop that reads it.
 
-class Feed {
-    public static function upTo(int $n): Iterator<int> {
+class Feed
+{
+    public static function upTo(int $n): Iterator<int>
+    {
         int $i = 0;
         while ($i < $n) {
             if ($i == 2) {
-                throw new RuntimeError("bad element 2");
+                throw new RuntimeError('bad element 2');
             }
             yield $i;
             $i = $i + 1;
@@ -18,8 +20,8 @@ class Feed {
 // so this prints 0;1;caught: bad element 2.
 try {
     foreach (Feed::upTo(5) as int $v) {
-        echo $v, ";";
+        echo $v, ';';
     }
 } catch (RuntimeError $e) {
-    echo "caught: ", $e->message, "\n";
+    echo 'caught: ', $e->message, "\n";
 }

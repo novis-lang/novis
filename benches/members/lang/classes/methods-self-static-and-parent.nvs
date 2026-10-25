@@ -6,26 +6,34 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Base {
-    public function constructor(public int $weight) {}
+class Base
+{
+    public function constructor(public int $weight)
+    {}
 
-    public function step(int $n): int {
+    public function step(int $n): int
+    {
         return $n + $this->weight;
     }
 }
 
-final class Leaf extends Base {
-    public function step(int $n): int {
+final class Leaf extends Base
+{
+    public function step(int $n): int
+    {
         return parent::step($n) + 1;
     }
 
-    public static function seed(int $n): int {
+    public static function seed(int $n): int
+    {
         return $n % 7;
     }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         var $leaf = new Leaf(3);
         int $acc = 1;
         int $i = 0;

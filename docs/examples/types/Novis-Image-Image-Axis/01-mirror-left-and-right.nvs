@@ -2,9 +2,11 @@
 // Shows what each `Image::Axis` does to the pixels of an image.
 use Novis\Image\Image;
 
-class Corner {
-    public static function topLeft(Image $image): tainted string {
-        array<mixed> $p = Core\Bytes::unpack(Core\Bytes::slice($image->raw()->pixels, 0, 4), "C4");
+class Corner
+{
+    public static function topLeft(Image $image): tainted string
+    {
+        array<mixed> $p = Core\Bytes::unpack(Core\Bytes::slice($image->raw()->pixels, 0, 4), 'C4');
         return "{$p[0]} {$p[1]} {$p[2]}";
     }
 }
@@ -13,7 +15,7 @@ class Corner {
 Image $tiles = Image::fromRaw({
     width: 2,
     height: 2,
-    pixels: Core\Encoding::fromHex("ff0000ff00ff00ff0000ffffffffffff"),
+    pixels: Core\Encoding::fromHex('ff0000ff00ff00ff0000ffffffffffff'),
 });
 
 // The top-left pixel is red at the start, so the first line prints 255 0 0.

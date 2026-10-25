@@ -2,8 +2,10 @@
 // Shows that `...` works only for a variadic parameter. Here `add` has two fixed parameters.
 // proof: compile-error
 
-class Pair {
-    public static function add(int $a, int $b): int {
+class Pair
+{
+    public static function add(int $a, int $b): int
+    {
         return $a + $b;
     }
 }

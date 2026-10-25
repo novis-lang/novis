@@ -6,16 +6,20 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Counter {
+class Counter
+{
     public uint $value = 0;
 }
 
-class Bench {
-    public static function bump(Counter $counter, uint $by): void {
+class Bench
+{
+    public static function bump(Counter $counter, uint $by): void
+    {
         $counter->value = $counter->value + $by;
     }
 
-    public static function run(uint $rounds): uint {
+    public static function run(uint $rounds): uint
+    {
         var $counter = new Counter();
         uint $i = 0;
         while ($i < $rounds) {

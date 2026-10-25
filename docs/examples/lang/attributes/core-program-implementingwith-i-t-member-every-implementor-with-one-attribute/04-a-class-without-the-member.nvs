@@ -3,18 +3,27 @@
 // `Archive` has no `rows` method, so this program does not compile.
 // proof: compile-error
 
-type Label = {text: string};
+type Label = { text: string };
 
-interface Report {
+interface Report
+{
 }
 
-class Sales implements Report {
-    #[Label(text: "Sales")]
-    public function rows(): int { return 12; }
+class Sales implements Report
+{
+    #[Label(text: 'Sales')]
+    public function rows(): int
+    {
+        return 12;
+    }
 }
 
-class Archive implements Report {
-    public function count(): int { return 3; }
+class Archive implements Report
+{
+    public function count(): int
+    {
+        return 3;
+    }
 }
 
-var $rows = Core\Program::implementingWith<Report, Label>("rows");
+var $rows = Core\Program::implementingWith<Report, Label>('rows');

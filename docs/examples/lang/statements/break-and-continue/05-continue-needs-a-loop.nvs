@@ -3,9 +3,9 @@
 // enough, so this program does not compile.
 // proof: compile-error
 
-string $command = "skip";
+string $command = 'skip';
 
 switch ($command) {
-    case "skip":
+    case 'skip':
         continue;
 }

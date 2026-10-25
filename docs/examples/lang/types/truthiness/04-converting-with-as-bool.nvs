@@ -5,15 +5,15 @@ array<int> $empty = [];
 ?int $none = null;
 
 // Each of these values is falsy, so each line prints `false`.
-echo ("0" as bool) ? "true" : "false", "\n";
-echo (0.0 as bool) ? "true" : "false", "\n";
-echo ($empty as bool) ? "true" : "false", "\n";
-echo ($none as bool) ? "true" : "false", "\n";
+echo ('0' as bool) ? 'true' : 'false', "\n";
+echo (0.0 as bool) ? 'true' : 'false', "\n";
+echo ($empty as bool) ? 'true' : 'false', "\n";
+echo ($none as bool) ? 'true' : 'false', "\n";
 
 // Each of these values is truthy, so each line prints `true`.
-echo ("abc" as bool) ? "true" : "false", "\n";
-echo ("0.0" as bool) ? "true" : "false", "\n";
-echo ((-1) as bool) ? "true" : "false", "\n";
+echo ('abc' as bool) ? 'true' : 'false', "\n";
+echo ('0.0' as bool) ? 'true' : 'false', "\n";
+echo ((-1) as bool) ? 'true' : 'false', "\n";
 
 // `?:` returns the left value when it is truthy. `0` is falsy, so this prints `none`.
-echo 0 ?: "none", "\n";
+echo 0 ?: 'none', "\n";

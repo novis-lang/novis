@@ -2,10 +2,10 @@
 // Shows that `lockedOut` returns `false` for an account that nobody has locked by typing wrong passwords.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `locked out: false`.
-    echo "locked out: ", $flags->lockedOut() ? "true" : "false", "\n";
+    echo 'locked out: ', $flags->lockedOut() ? 'true' : 'false', "\n";
 }

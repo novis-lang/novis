@@ -5,15 +5,15 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet("Orders");
-$sheet->addAll([["item" => "Pen", "total" => 3.0], ["item" => "Ink", "total" => 4.25]]);
+var $sheet = $book->sheet('Orders');
+$sheet->addAll([['item' => 'Pen', 'total' => 3.0], ['item' => 'Ink', 'total' => 4.25]]);
 
 // `column("total")` is the range of the rows written so far, here `B2:B3`.
 // `cached` is the result for a program that reads the file and does not calculate.
-$sheet->add(["item" => "Total", "total" => Formula::of("SUM(" . $sheet->column("total") . ")", {cached: 7.25})]);
+$sheet->add(['item' => 'Total', 'total' => Formula::of('SUM(' . $sheet->column('total') . ')', { cached: 7.25 })]);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // `Reader` gives the cached result of a formula cell.
-foreach (Reader::open($file)->rows("Orders", {header: true}) as var $row) {
-    echo $row->values["item"], ": ", $row->values["total"], "\n";
+foreach (Reader::open($file)->rows('Orders', { header: true }) as var $row) {
+    echo $row->values['item'], ': ', $row->values['total'], "\n";
 }

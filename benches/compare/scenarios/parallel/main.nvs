@@ -1,8 +1,10 @@
 <?nvs
 // Runs `?parts=` parts of the same loop and prints the sum of their results.
 // With four parts, each part runs in a child script on another core.
-final class Work {
-    public static function part(int $seed, int $turns): int {
+final class Work
+{
+    public static function part(int $seed, int $turns): int
+    {
         int $x = $seed;
         int $i = 0;
         while ($i < $turns) {
@@ -13,14 +15,14 @@ final class Work {
     }
 }
 
-int $parts = Core\Request::query("parts") as int;
-int $turns = Core\Request::query("turns") as int;
+int $parts = Core\Request::query('parts') as int;
+int $turns = Core\Request::query('turns') as int;
 if ($parts == 4) {
     // `spawn script` starts each part and returns at once. `await` waits for its result.
-    var $a = spawn script Work::part(...) with(args: ["seed" => 1, "turns" => $turns], on: "worker");
-    var $b = spawn script Work::part(...) with(args: ["seed" => 2, "turns" => $turns], on: "worker");
-    var $c = spawn script Work::part(...) with(args: ["seed" => 3, "turns" => $turns], on: "worker");
-    var $d = spawn script Work::part(...) with(args: ["seed" => 4, "turns" => $turns], on: "worker");
+    var $a = spawn script Work::part(...) with(args: ['seed' => 1, 'turns' => $turns], on: 'worker');
+    var $b = spawn script Work::part(...) with(args: ['seed' => 2, 'turns' => $turns], on: 'worker');
+    var $c = spawn script Work::part(...) with(args: ['seed' => 3, 'turns' => $turns], on: 'worker');
+    var $d = spawn script Work::part(...) with(args: ['seed' => 4, 'turns' => $turns], on: 'worker');
     var $ra = await $a;
     var $rb = await $b;
     var $rc = await $c;

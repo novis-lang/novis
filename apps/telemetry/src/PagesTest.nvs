@@ -9,95 +9,106 @@ use Core\Time;
 
 // Tests for the pages. The page tests use the database `scratch`, which is kept in memory.
 // The route tests send requests to the app, which reads the file `telemetry.sqlite`.
-final class PagesTest {
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function theHomePageWithNoReportsSaysSo(): void {
+final class PagesTest
+{
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function theHomePageWithNoReportsSaysSo(): void
+    {
         var $page =PagesTest::page(Pages::home(PagesTest::totals(), Time::now()));
-        Test::assertTrue(Str::contains($page, "No reports have arrived yet."));
-        Test::assertTrue(!Str::contains($page, "<svg"));
+        Test::assertTrue(Str::contains($page, 'No reports have arrived yet.'));
+        Test::assertTrue(!Str::contains($page, '<svg'));
     }
 
     // The week 2026-W43 has not ended on this day. 2026-W39 to 2026-W42 are the four newest weeks that have ended.
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function theHomePageShowsTwoWeeks(): void {
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function theHomePageShowsTwoWeeks(): void
+    {
         var $totals = PagesTest::twoWeeks();
         var $page =PagesTest::page(Pages::home($totals, Time::now()));
-        Test::assertTrue(Str::contains($page, "<tr><td>2026-W37</td><td>1</td><td>1</td></tr>"));
-        Test::assertTrue(Str::contains($page, "<tr><td>2026-W42 (still arriving)</td><td>2</td><td>0</td></tr>"));
-        Test::assertTrue(Str::contains($page, "<h2>The week 2026-W42 (still arriving)</h2>"));
+        Test::assertTrue(Str::contains($page, '<tr><td>2026-W37</td><td>1</td><td>1</td></tr>'));
+        Test::assertTrue(Str::contains($page, '<tr><td>2026-W42 (still arriving)</td><td>2</td><td>0</td></tr>'));
+        Test::assertTrue(Str::contains($page, '<h2>The week 2026-W42 (still arriving)</h2>'));
         Test::assertTrue(Str::contains($page, "<circle class=\"arriving\""));
         Test::assertTrue(Str::contains($page, "<circle class=\"final\""));
-        Test::assertTrue(Str::contains($page, ">0.4.0</text>"));
-        Test::assertTrue(Str::contains($page, ">linux x86_64</text>"));
-        Test::assertTrue(Str::contains($page, ">run</text>"));
-        Test::assertTrue(Str::contains($page, ">check</text>"));
-        Test::assertTrue(!Str::contains($page, "<script"));
+        Test::assertTrue(Str::contains($page, '>0.4.0</text>'));
+        Test::assertTrue(Str::contains($page, '>linux x86_64</text>'));
+        Test::assertTrue(Str::contains($page, '>run</text>'));
+        Test::assertTrue(Str::contains($page, '>check</text>'));
+        Test::assertTrue(!Str::contains($page, '<script'));
     }
 
-    #[Test(at: "2026-10-21T12:00:00Z")]
-    public function theFourNewestEndedWeeksAreStillArriving(): void {
-        Test::assertSame(Pages::arriving(Time::now()), ["2026-W42", "2026-W41", "2026-W40", "2026-W39"]);
+    #[Test(at: '2026-10-21T12:00:00Z')]
+    public function theFourNewestEndedWeeksAreStillArriving(): void
+    {
+        Test::assertSame(Pages::arriving(Time::now()), ['2026-W42', '2026-W41', '2026-W40', '2026-W39']);
     }
 
     #[Test]
-    public function theCollectPageNamesTheAddressOfThisService(): void {
-        var $page =PagesTest::page(Pages::collect("https://telemetry.example.com"));
-        Test::assertTrue(Str::contains($page, "<code>https://telemetry.example.com/v1/report</code>"));
-        Test::assertTrue(Str::contains($page, "<code>days_active</code>"));
+    public function theCollectPageNamesTheAddressOfThisService(): void
+    {
+        var $page =PagesTest::page(Pages::collect('https://telemetry.example.com'));
+        Test::assertTrue(Str::contains($page, '<code>https://telemetry.example.com/v1/report</code>'));
+        Test::assertTrue(Str::contains($page, '<code>days_active</code>'));
         Test::assertTrue(Str::contains($page, Pages::SOURCE));
     }
 
     // The app has no file `REVISION` when it runs from the repository.
     #[Test]
-    public function theFooterSaysUnknownWithNoRevision(): void {
-        Test::assertSame(Pages::revision(), "unknown");
-        Test::assertTrue(Str::contains(PagesTest::page(Pages::data()), "commit <code>unknown</code>"));
+    public function theFooterSaysUnknownWithNoRevision(): void
+    {
+        Test::assertSame(Pages::revision(), 'unknown');
+        Test::assertTrue(Str::contains(PagesTest::page(Pages::data()), 'commit <code>unknown</code>'));
     }
 
     #[Test]
-    public function everyPageHasThePolicyAndNoCookie(): void {
-        array<string> $paths = ["/", "/collect", "/data", "/style.css", "/data/totals.json", "/data/totals.csv", "/no-such-page"];
+    public function everyPageHasThePolicyAndNoCookie(): void
+    {
+        array<string> $paths = ['/', '/collect', '/data', '/style.css', '/data/totals.json', '/data/totals.csv', '/no-such-page'];
         foreach ($paths as string $path) {
             var $response = Test::request(Method::Get, $path);
-            Test::assertSame($response->header("content-security-policy"), "default-src 'none'; style-src 'self'; img-src 'self'");
+            Test::assertSame($response->header('content-security-policy'), "default-src 'none'; style-src 'self'; img-src 'self'");
             Test::assertCount($response->cookies(), 0);
         }
         // `GET` on the report address gets 405. This test sends no report, so it does not count against the limit.
-        var $wrongMethod = Test::request(Method::Get, "/v1/report");
-        Test::assertSame($wrongMethod->header("content-security-policy"), Gate::POLICY);
+        var $wrongMethod = Test::request(Method::Get, '/v1/report');
+        Test::assertSame($wrongMethod->header('content-security-policy'), Gate::POLICY);
         Test::assertCount($wrongMethod->cookies(), 0);
     }
 
     #[Test]
-    public function thePagesAnswer(): void {
-        Test::assertSame(Test::request(Method::Get, "/")->status(), 200);
-        Test::assertSame(Test::request(Method::Get, "/collect")->status(), 200);
-        Test::assertSame(Test::request(Method::Get, "/data")->status(), 200);
-        var $style = Test::request(Method::Get, "/style.css");
-        Test::assertSame($style->header("content-type"), "text/css; charset=utf-8");
+    public function thePagesAnswer(): void
+    {
+        Test::assertSame(Test::request(Method::Get, '/')->status(), 200);
+        Test::assertSame(Test::request(Method::Get, '/collect')->status(), 200);
+        Test::assertSame(Test::request(Method::Get, '/data')->status(), 200);
+        var $style = Test::request(Method::Get, '/style.css');
+        Test::assertSame($style->header('content-type'), 'text/css; charset=utf-8');
     }
 
     // Two weeks: 2026-W37 has one first report, and 2026-W42 has two reports with counters.
-    public static function twoWeeks(): Totals {
+    public static function twoWeeks(): Totals
+    {
         var $totals = PagesTest::totals();
-        $totals->add(new Report("0.3.0", "macos", "aarch64", "2026-W37", true, 2, ["invocation.serve" => 1]));
-        $totals->add(new Report("0.4.0", "linux", "x86_64", "2026-W42", false, 3, ["invocation.run" => 41, "internal-error.check" => 1]));
-        $totals->add(new Report("0.4.0", "linux", "x86_64", "2026-W42", false, 7, ["invocation.run" => 2, "invocation.check" => 5]));
+        $totals->add(new Report('0.3.0', 'macos', 'aarch64', '2026-W37', true, 2, ['invocation.serve' => 1]));
+        $totals->add(new Report('0.4.0', 'linux', 'x86_64', '2026-W42', false, 3, ['invocation.run' => 41, 'internal-error.check' => 1]));
+        $totals->add(new Report('0.4.0', 'linux', 'x86_64', '2026-W42', false, 7, ['invocation.run' => 2, 'invocation.check' => 5]));
         return $totals;
     }
 
     // Returns the totals in the database `scratch`, with both tables and no rows.
-    public static function totals(): Totals {
-        var $db = Db::connect("scratch");
+    public static function totals(): Totals
+    {
+        var $db = Db::connect('scratch');
         var $totals = new Totals($db);
         $totals->setUp();
-        $db->execute("delete from reports", []);
-        $db->execute("delete from counters", []);
+        $db->execute('delete from reports', []);
+        $db->execute('delete from counters', []);
         return $totals;
     }
 
     // Returns the HTML text of a page, so a test can search it.
-    private static function page(Core\Html\Markup $markup): tainted string {
-        return Core\Html::toSource($markup, "the test reads the HTML text of the page");
+    private static function page(Core\Html\Markup $markup): tainted string
+    {
+        return Core\Html::toSource($markup, 'the test reads the HTML text of the page');
     }
 }

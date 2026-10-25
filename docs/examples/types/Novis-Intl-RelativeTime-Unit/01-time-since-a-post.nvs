@@ -4,9 +4,9 @@ use Novis\Intl\RelativeTime;
 
 // A negative count is in the past. A positive count is in the future.
 array<string> $ages = RelativeTime::format([
-    {count: -5, unit: RelativeTime::Unit::Minute},
-    {count: -2, unit: RelativeTime::Unit::Week},
-    {count: 1, unit: RelativeTime::Unit::Quarter},
-], "en");
+    { count: -5, unit: RelativeTime::Unit::Minute },
+    { count: -2, unit: RelativeTime::Unit::Week },
+    { count: 1, unit: RelativeTime::Unit::Quarter },
+], 'en');
 
 echo Core\Str::join($ages, "\n"), "\n";

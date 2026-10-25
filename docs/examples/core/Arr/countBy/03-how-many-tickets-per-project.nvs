@@ -3,9 +3,9 @@
 // of the ticket number.
 
 array<string> $tickets = [
-    "BK-1042" => "open",
-    "BK-0087" => "closed",
-    "DV-5501" => "open",
+    'BK-1042' => 'open',
+    'BK-0087' => 'closed',
+    'DV-5501' => 'open',
 ];
 
 // The function receives the value and the key of each entry. It uses the key

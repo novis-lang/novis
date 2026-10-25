@@ -6,12 +6,14 @@
 // bench: allocations 8
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         // The style is built once, as a program builds it once and uses it for
         // every line of one kind.
-        var $style = Core\Cli\Style::of({color: Core\Cli\Color::RED, bold: true});
-        array<string> $labels = ["ok", "failed", "skipped"];
+        var $style = Core\Cli\Style::of({ color: Core\Cli\Color::RED, bold: true });
+        array<string> $labels = ['ok', 'failed', 'skipped'];
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

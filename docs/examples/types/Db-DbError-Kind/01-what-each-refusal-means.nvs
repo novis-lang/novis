@@ -3,20 +3,22 @@
 // same case on every database, so your program can check it without knowing
 // which database it uses.
 
-class Refusal {
-    public static function meaning(Core\Db\DbError::Kind $kind): string {
+class Refusal
+{
+    public static function meaning(Core\Db\DbError::Kind $kind): string
+    {
         return match ($kind) {
-            Core\Db\DbError::Kind::UniqueViolation => "UniqueViolation: a row with this key is already there",
-            Core\Db\DbError::Kind::ForeignKeyViolation => "ForeignKeyViolation: the row it points at is missing, or something still points at this one",
-            Core\Db\DbError::Kind::NotNullViolation => "NotNullViolation: a column that needs a value was left empty",
-            Core\Db\DbError::Kind::CheckViolation => "CheckViolation: a rule written into the table refused the row",
-            Core\Db\DbError::Kind::Deadlock => "Deadlock: two transactions each waited for the other, and this one was picked to lose",
-            Core\Db\DbError::Kind::SerializationFailure => "SerializationFailure: another transaction changed the same rows first",
-            Core\Db\DbError::Kind::ConnectionLost => "ConnectionLost: the connection is gone",
-            Core\Db\DbError::Kind::Timeout => "Timeout: it ran too long and was cancelled",
-            Core\Db\DbError::Kind::Syntax => "Syntax: the server will not run that statement at all",
-            Core\Db\DbError::Kind::Permission => "Permission: this login may not do that",
-            Core\Db\DbError::Kind::Other => "Other: anything the driver has no case of its own for",
+            Core\Db\DbError::Kind::UniqueViolation => 'UniqueViolation: a row with this key is already there',
+            Core\Db\DbError::Kind::ForeignKeyViolation => 'ForeignKeyViolation: the row it points at is missing, or something still points at this one',
+            Core\Db\DbError::Kind::NotNullViolation => 'NotNullViolation: a column that needs a value was left empty',
+            Core\Db\DbError::Kind::CheckViolation => 'CheckViolation: a rule written into the table refused the row',
+            Core\Db\DbError::Kind::Deadlock => 'Deadlock: two transactions each waited for the other, and this one was picked to lose',
+            Core\Db\DbError::Kind::SerializationFailure => 'SerializationFailure: another transaction changed the same rows first',
+            Core\Db\DbError::Kind::ConnectionLost => 'ConnectionLost: the connection is gone',
+            Core\Db\DbError::Kind::Timeout => 'Timeout: it ran too long and was cancelled',
+            Core\Db\DbError::Kind::Syntax => 'Syntax: the server will not run that statement at all',
+            Core\Db\DbError::Kind::Permission => 'Permission: this login may not do that',
+            Core\Db\DbError::Kind::Other => 'Other: anything the driver has no case of its own for',
         };
     }
 }

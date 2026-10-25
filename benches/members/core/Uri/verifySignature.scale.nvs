@@ -9,8 +9,8 @@ class Bench
     {
         array<secret bytes> $keys = [Core\Crypto::generateKey()];
         Core\Time\Instant $until = Core\Time::now()->plus(1h);
-        Core\Uri $link = Core\Uri::parse("https://files.example.com/download?file=" . Core\Str::repeat('report', $size))
-            ->sign({keys: $keys, until: $until});
+        Core\Uri $link = Core\Uri::parse('https://files.example.com/download?file=' . Core\Str::repeat('report', $size))
+            ->sign({ keys: $keys, until: $until });
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

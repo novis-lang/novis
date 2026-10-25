@@ -2,19 +2,19 @@
 // Shows how to tell a security group from a group that is only for email.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 array<string> $dns = [
-    "CN=Employees,OU=Company,DC=example,DC=test",
-    "CN=Newsletter,OU=Company,DC=example,DC=test",
+    'CN=Employees,OU=Company,DC=example,DC=test',
+    'CN=Newsletter,OU=Company,DC=example,DC=test',
 ];
 
 foreach ($dns as string $dn) {
-    var $group = $corp->read($dn, {select: ["groupType"]});
+    var $group = $corp->read($dn, { select: ['groupType'] });
     var $type = $group?->groupType();
     if ($group == null || $type == null) {
         continue;
     }
     // Only a security group can give its members access to something.
     // This prints `Employees: security` and `Newsletter: email only`.
-    echo $group->dn()->rdnValue(), ": ", $type->security() ? "security" : "email only", "\n";
+    echo $group->dn()->rdnValue(), ': ', $type->security() ? 'security' : 'email only', "\n";
 }

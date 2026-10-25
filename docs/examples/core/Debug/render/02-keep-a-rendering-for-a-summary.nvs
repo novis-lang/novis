@@ -3,9 +3,9 @@
 // are rendered and collected, and the summary is printed at the end.
 
 array<array<string>> $rows = [
-    ["Ada Lovelace", "ada@example.com"],
-    ["Grace Hopper", ""],
-    ["Alan Turing", ""],
+    ['Ada Lovelace', 'ada@example.com'],
+    ['Grace Hopper', ''],
+    ['Alan Turing', ''],
 ];
 
 array<string> $failed = [];

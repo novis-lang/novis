@@ -2,10 +2,10 @@
 // Shows that `domainLocal` returns `true` for a group with the domain local scope.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Cert Publishers,CN=Users,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Cert Publishers,CN=Users,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // This prints `domainLocal: true`.
-    echo "domainLocal: ", $type->domainLocal() ? "true" : "false", "\n";
+    echo 'domainLocal: ', $type->domainLocal() ? 'true' : 'false', "\n";
 }

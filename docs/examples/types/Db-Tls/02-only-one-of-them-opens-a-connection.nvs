@@ -3,20 +3,23 @@
 // error, and the message names the mode. So your program always knows which
 // mode its connection uses.
 
-class Opens {
-    public static function verdict(Core\Db::Tls $mode): string {
+class Opens
+{
+    public static function verdict(Core\Db::Tls $mode): string
+    {
         if ($mode == Core\Db::Tls::VerifyFull) {
-            return "opens the connection";
+            return 'opens the connection';
         }
-        return "refused at the call, and the message says which mode it was";
+        return 'refused at the call, and the message says which mode it was';
     }
 
-    public static function name(Core\Db::Tls $mode): string {
+    public static function name(Core\Db::Tls $mode): string
+    {
         return match ($mode) {
-            Core\Db::Tls::Disabled => "Disabled",
-            Core\Db::Tls::Required => "Required",
-            Core\Db::Tls::VerifyCa => "VerifyCa",
-            Core\Db::Tls::VerifyFull => "VerifyFull",
+            Core\Db::Tls::Disabled => 'Disabled',
+            Core\Db::Tls::Required => 'Required',
+            Core\Db::Tls::VerifyCa => 'VerifyCa',
+            Core\Db::Tls::VerifyFull => 'VerifyFull',
         };
     }
 }
@@ -29,5 +32,5 @@ array<Core\Db::Tls> $modes = [
 ];
 
 foreach ($modes as Core\Db::Tls $mode) {
-    echo Opens::name($mode), ": ", Opens::verdict($mode), "\n";
+    echo Opens::name($mode), ': ', Opens::verdict($mode), "\n";
 }

@@ -3,14 +3,14 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
-string $html = Core\Str::repeat("<p>Order 1042 was sent on time, and the customer paid by card.</p>", 160);
+string $html = Core\Str::repeat('<p>Order 1042 was sent on time, and the customer paid by card.</p>', 160);
 var $header = fn(Page $page): Core\Html\Markup =>
     html`<h2>Shop</h2><p>1 Example Street, Example City</p>`;
 
 // Without `height`, the header has the top margin that `@page` gives.
 var $plain = Document::fromHtml($html)->header($header)->render();
-echo $plain->pageCount, " pages, ", Core\Arr::count($plain->overflows), " headers too tall\n";
+echo $plain->pageCount, ' pages, ', Core\Arr::count($plain->overflows), " headers too tall\n";
 
 // `height` sets the top margin. The body has less room on each page, so there are more pages.
-var $tall = Document::fromHtml($html)->header($header, {height: "4cm"})->render();
-echo $tall->pageCount, " pages, ", Core\Arr::count($tall->overflows), " headers too tall\n";
+var $tall = Document::fromHtml($html)->header($header, { height: '4cm' })->render();
+echo $tall->pageCount, ' pages, ', Core\Arr::count($tall->overflows), " headers too tall\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to save a text to a file with `Core\IO::write`.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "greeting.txt");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'greeting.txt');
 
 // The file does not exist yet, so `write` creates it.
 Core\IO::write($path, "Hello, world!\n");

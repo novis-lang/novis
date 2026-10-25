@@ -5,7 +5,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table readings (station text not null, celsius real)', []);
 $db->execute(
     'insert into readings (station, celsius) values (?, ?), (?, ?)',
-    ['north field', 21.5, 'south field', null]
+    ['north field', 21.5, 'south field', null],
 );
 
 // The result is `null` when the column has no value in this row. The type you

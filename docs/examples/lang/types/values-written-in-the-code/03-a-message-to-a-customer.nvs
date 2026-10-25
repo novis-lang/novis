@@ -4,7 +4,7 @@
 // filled in where they appear. The closing marker sets the indentation, so
 // the lines can stay lined up with the code.
 
-string $who = "Ada";
+string $who = 'Ada';
 int $order = 1042;
 decimal $total = 24.90;
 Core\Time\Duration $window = 2w;

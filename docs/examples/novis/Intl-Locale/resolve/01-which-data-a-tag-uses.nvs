@@ -2,8 +2,8 @@
 // Shows which locale's date rules are used for three tags.
 use Novis\Intl\Locale;
 
-array<string> $tags = ["de-AT", "fr-CA", "zz"];
+array<string> $tags = ['de-AT', 'fr-CA', 'zz'];
 
 // "de-AT" and "fr-CA" use their language's data. "zz" has no data, so the result is "und".
 // This prints de | fr | und.
-echo Core\Str::join(Locale::resolve($tags, Locale::Service::Dates), " | "), "\n";
+echo Core\Str::join(Locale::resolve($tags, Locale::Service::Dates), ' | '), "\n";

@@ -13,5 +13,5 @@ try {
         $node = $reader->read();
     }
 } catch (ParseError $error) {
-    echo "error: ", $error->message, "\n";
+    echo 'error: ', $error->message, "\n";
 }

@@ -57,7 +57,7 @@ $total = $total + 7;
 
 // This call is a statement. The program runs it for what it prints, and the
 // number it returns is thrown away.
-Report::line("counted");
+Report::line('counted');
 
 // A `;` on its own is an empty statement. It does nothing.
 ;
@@ -82,15 +82,15 @@ counted
 int $attempts = 3;
 
 // `var` takes the type from the value on the right, so `$service` is a string.
-var $service = "payments";
+var $service = 'payments';
 
 // You can declare a variable without a value. You may read it only after every
 // path has given it one, so both branches below assign it.
 string $plan;
 if ($attempts > 1) {
-    $plan = "retry";
+    $plan = 'retry';
 } else {
-    $plan = "give up";
+    $plan = 'give up';
 }
 
 // Braces group statements into a block. A block does not open a new scope, so
@@ -100,7 +100,7 @@ if ($attempts > 1) {
 }
 
 // This prints: payments: retry after 6 seconds
-echo $service, ": ", $plan, " after ", $wait, " seconds\n";
+echo $service, ': ', $plan, ' after ', $wait, " seconds\n";
 ```
 
 ```output
@@ -120,23 +120,23 @@ class Audit
     // Writes one line about a decision and returns whether it was written.
     public static function note(string $text): bool
     {
-        echo "audit: ", $text, "\n";
+        echo 'audit: ', $text, "\n";
         return true;
     }
 }
 
-array<int> $order = ["items" => 4, "weight" => 1200];
+array<int> $order = ['items' => 4, 'weight' => 1200];
 
 // The shipping price is not known yet. Every branch below gives it a value, so
 // it can be read after the `if`.
 int $shipping;
-if ($order["weight"] > 1000) {
+if ($order['weight'] > 1000) {
     $shipping = 900;
     // The result of this call is thrown away. The line is still written.
-    Audit::note("heavy parcel");
-} elseif ($order["items"] > 3) {
+    Audit::note('heavy parcel');
+} elseif ($order['items'] > 3) {
     $shipping = 400;
-    Audit::note("more than three items");
+    Audit::note('more than three items');
 } else {
     $shipping = 250;
 }
@@ -217,13 +217,13 @@ class Band
     public static function of(int $score): string
     {
         if ($score >= 90) {
-            return "excellent";
+            return 'excellent';
         } elseif ($score >= 75) {
-            return "good";
+            return 'good';
         } elseif ($score >= 50) {
-            return "pass";
+            return 'pass';
         } else {
-            return "fail";
+            return 'fail';
         }
     }
 }
@@ -232,7 +232,7 @@ array<int> $scores = [95, 80, 60, 20];
 
 foreach ($scores as int $score) {
     // This prints one line per score: 95 excellent, 80 good, 60 pass, 20 fail.
-    echo $score, " ", Band::of($score), "\n";
+    echo $score, ' ', Band::of($score), "\n";
 }
 ```
 
@@ -268,7 +268,7 @@ if ($unread) {
 
 // The text "0" counts as false as well. Test the length when you mean
 // "this text is not empty".
-string $answer = "0";
+string $answer = '0';
 if ($answer) {
     echo "the answer counts as true\n";
 } elseif (Core\Str::length($answer) > 0) {
@@ -297,7 +297,7 @@ class Shipping
     {
         if ($isMember && $grams <= 2000) {
             return 0;
-        } elseif ($country != "DE") {
+        } elseif ($country != 'DE') {
             return 1490;
         } elseif ($grams > 10000) {
             return 990;
@@ -309,13 +309,13 @@ class Shipping
 }
 
 // This prints 0. The member rule is first, so it wins over every rule below it.
-echo Shipping::priceFor("DE", 800, true), "\n";
+echo Shipping::priceFor('DE', 800, true), "\n";
 // This prints 1490. A parcel outside Germany takes the same price at any weight.
-echo Shipping::priceFor("FR", 800, false), "\n";
+echo Shipping::priceFor('FR', 800, false), "\n";
 // This prints 990.
-echo Shipping::priceFor("DE", 12000, false), "\n";
+echo Shipping::priceFor('DE', 12000, false), "\n";
 // This prints 390. No arm matched, so the line after the chain decides.
-echo Shipping::priceFor("DE", 800, false), "\n";
+echo Shipping::priceFor('DE', 800, false), "\n";
 ```
 
 ```output
@@ -358,7 +358,7 @@ class Queue
         int $done = 0;
         int $at = 0;
         while ($at < Core\Arr::count($jobs)) {
-            echo "running ", $jobs[$at as string], "\n";
+            echo 'running ', $jobs[$at as string], "\n";
             $done = $done + 1;
             $at = $at + 1;
         }
@@ -366,7 +366,7 @@ class Queue
     }
 }
 
-array<string> $jobs = ["backup", "send mail", "clean up"];
+array<string> $jobs = ['backup', 'send mail', 'clean up'];
 // This prints one line per job, then 3.
 echo Queue::drain($jobs), "\n";
 
@@ -409,7 +409,7 @@ int $size = 0;
 do {
     $size = Pages::sizeOf($page);
     $rows = $rows + $size;
-    echo "page ", $page, " gave ", $size, " rows\n";
+    echo 'page ', $page, ' gave ', $size, " rows\n";
     $page = $page + 1;
 } while ($size == 100);
 
@@ -457,14 +457,14 @@ while ($sent == false && $attempt < 5) {
     $attempt = $attempt + 1;
     $sent = Upload::send($attempt);
     if ($sent) {
-        echo "sent on attempt ", $attempt, "\n";
+        echo 'sent on attempt ', $attempt, "\n";
     } else {
-        echo "attempt ", $attempt, " failed\n";
+        echo 'attempt ', $attempt, " failed\n";
     }
 }
 
 if ($sent == false) {
-    echo "gave up after ", $attempt, " attempts\n";
+    echo 'gave up after ', $attempt, " attempts\n";
 }
 
 // This prints 3.
@@ -515,12 +515,12 @@ Two loops in one function cannot declare the same counter. The second declaratio
 // Shows the three parts of a `for` header: where the counter starts, how long
 // the loop runs, and how the counter changes after every round.
 
-var $steps = ["unpack the archive", "check the files", "install"];
+var $steps = ['unpack the archive', 'check the files', 'install'];
 
 // `var $i = 0` declares the counter. It is an `int`, the type of `0`.
 for (var $i = 0; $i < Core\Arr::count($steps); $i++) {
     // The counter is also the position in the array.
-    echo $i + 1, ". ", $steps[$i], "\n";
+    echo $i + 1, '. ', $steps[$i], "\n";
 }
 
 // You can read the counter after the loop. It holds the value that ended the
@@ -542,7 +542,7 @@ echo $i, "\n";
 // Shows a loop with two counters. The first and the third part of the header
 // are lists separated by commas, so both counters start and move together.
 
-array<string> $names = ["Ada", "Grace", "Alan", "Edsger"];
+array<string> $names = ['Ada', 'Grace', 'Alan', 'Edsger'];
 
 uint $front = 0;
 uint $back = 0;
@@ -574,7 +574,7 @@ class Store
     // Writes one batch and returns how many rows it held.
     public static function write(array<int> $rows): uint
     {
-        echo "writing ", Core\Json::encode($rows), "\n";
+        echo 'writing ', Core\Json::encode($rows), "\n";
         return Core\Arr::count($rows);
     }
 }
@@ -618,7 +618,7 @@ int $tries = 0;
 
 for (;;) {
     $tries++;
-    echo "try ", $tries, "\n";
+    echo 'try ', $tries, "\n";
     if ($tries == 3) {
         break;
     }
@@ -710,7 +710,7 @@ another type, the second declaration is the error `E0406`.
 <?nvs
 // Shows the simplest `foreach`. The body runs once for each element of the array.
 
-var $lineTotals = ["shirt" => 1990, "socks" => 450, "belt" => 2500];
+var $lineTotals = ['shirt' => 1990, 'socks' => 450, 'belt' => 2500];
 var $sum = 0;
 
 // `var $cents` gets the type of the array's values, so `$cents` is an `int`.
@@ -723,8 +723,8 @@ echo $sum, "\n";
 
 // The array can also be written in the loop header. All its values are strings,
 // so `$tag` is a `string`.
-foreach (["new", "sale", "last one"] as var $tag) {
-    echo "[", $tag, "] ";
+foreach (['new', 'sale', 'last one'] as var $tag) {
+    echo '[', $tag, '] ';
 }
 echo "\n";
 
@@ -754,22 +754,22 @@ echo $largest, "\n";
 // Shows the key form of `foreach`. Write `$key => $value` to get both. With `var`,
 // the key is a `string` and the value has the type of the array's values.
 
-var $stock = ["shirt" => 4, "socks" => 0, "belt" => 12];
+var $stock = ['shirt' => 4, 'socks' => 0, 'belt' => 12];
 
 foreach ($stock as var $item => var $left) {
     if ($left == 0) {
         echo $item, ": out of stock\n";
     } else {
-        echo $item, ": ", $left, " left\n";
+        echo $item, ': ', $left, " left\n";
     }
 }
 
 // You can write both types instead. An array key is always a `string`, even when
 // it looks like a number.
-array<string> $byId = ["1" => "Ada", "2" => "Grace"];
+array<string> $byId = ['1' => 'Ada', '2' => 'Grace'];
 foreach ($byId as string $id => string $name) {
     // This prints: id 1 is Ada, then id 2 is Grace.
-    echo "id ", $id, " is ", $name, "\n";
+    echo 'id ', $id, ' is ', $name, "\n";
 }
 ```
 
@@ -789,9 +789,9 @@ id 2 is Grace
 // this to clean up a table of input before it stores or sends the table.
 
 var $form = [
-    "name" => "  Ada Lovelace ",
-    "city" => "London  ",
-    "note" => "",
+    'name' => '  Ada Lovelace ',
+    'city' => 'London  ',
+    'note' => '',
 ];
 
 // `inout var $field` is a `string`, because every value in `$form` is a string.
@@ -804,7 +804,7 @@ echo Core\Json::encode($form), "\n";
 
 // This loop writes the type `int` in place of `var`. Without `inout`, the
 // variable is a copy, and the array keeps its values.
-array<int> $counts = ["a" => 1, "b" => 2];
+array<int> $counts = ['a' => 1, 'b' => 2];
 foreach ($counts as int $copy) {
     $copy = $copy * 100;
 }
@@ -833,7 +833,7 @@ foreach (Core\Str::lines($order) as var $line) {
         continue;
     }
     $count++;
-    echo $count, ". ", $line, "\n";
+    echo $count, '. ', $line, "\n";
 }
 
 // The empty line is skipped, so this prints 3.
@@ -868,7 +868,7 @@ class Pages
 }
 
 foreach (Pages::upTo(3) as int $page) {
-    echo "page ", $page, "\n";
+    echo 'page ', $page, "\n";
 }
 ```
 
@@ -885,7 +885,7 @@ page 3
 // Shows a loop variable with a wider type than the array, and a subject that
 // is converted in the header.
 
-var $prices = ["apple" => 3, "pear" => 8];
+var $prices = ['apple' => 3, 'pear' => 8];
 
 // The values are `int`, but the body stores a `float` in `$amount`.
 // So the variable needs the type `int|float`.
@@ -894,7 +894,7 @@ foreach ($prices as string $name => int|float $amount) {
         $amount = $amount * 0.25;
     }
     // This prints apple=3, then pear=2.
-    echo $name, "=", $amount, "\n";
+    echo $name, '=', $amount, "\n";
 }
 
 // `$data` is `mixed`, so the loop converts it first. The conversion needs
@@ -946,7 +946,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 // `string`, so this program does not compile.
 // proof: compile-error
 
-foreach ([1, "two"] as var $item) {
+foreach ([1, 'two'] as var $item) {
     echo $item, "\n";
 }
 ```
@@ -955,9 +955,9 @@ foreach ([1, "two"] as var $item) {
 error[E0414]: `var` cannot infer an array whose elements have different types
   --> main.nvs:6:10
   |
-6 | foreach ([1, "two"] as var $item) {
+6 | foreach ([1, 'two'] as var $item) {
   |          ^^^^^^^^^^ the elements are `int` and `string`
-  = help: put the array in a typed local first, `array<int|string> $items = [1, "two"];`, and loop over `$items`
+  = help: put the array in a typed local first, `array<int|string> $items = [1, 'two'];`, and loop over `$items`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -994,21 +994,21 @@ still tried last, after every `case`. When it matches, the bodies after it run t
 // Shows a `switch` that picks one answer out of several. The subject is
 // compared with each `case` in order, and `default` runs when none matched.
 
-array<string> $statuses = ["new", "sent", "lost"];
+array<string> $statuses = ['new', 'sent', 'lost'];
 
 foreach ($statuses as string $status) {
-    string $text = "";
+    string $text = '';
     switch ($status) {
-        case "new":
-            $text = "waiting to be packed";
+        case 'new':
+            $text = 'waiting to be packed';
             break;
-        case "sent":
-            $text = "on its way";
+        case 'sent':
+            $text = 'on its way';
             break;
         default:
-            $text = "we do not know";
+            $text = 'we do not know';
     }
-    echo $status, ": ", $text, "\n";
+    echo $status, ': ', $text, "\n";
 }
 ```
 
@@ -1025,20 +1025,20 @@ lost: we do not know
 // Shows labels that share a body, and a body without `break`. A body without
 // `break` runs on into the next body, which is called falling through.
 
-array<string> $keys = ["a", "s", "q"];
+array<string> $keys = ['a', 's', 'q'];
 
 foreach ($keys as string $key) {
-    echo $key, ": ";
+    echo $key, ': ';
     switch ($key) {
-        case "a":
-        case "s":
-            echo "saving";
+        case 'a':
+        case 's':
+            echo 'saving';
             break;
-        case "q":
-            echo "saving, ";
-            // There is no `break` here, so the next body runs as well.
+        case 'q':
+            echo 'saving, ';
+        // There is no `break` here, so the next body runs as well.
         default:
-            echo "leaving";
+            echo 'leaving';
     }
     echo "\n";
 }
@@ -1063,13 +1063,13 @@ class Shipping
     {
         switch (true) {
             case $grams <= 500:
-                return "letter";
+                return 'letter';
             case $grams <= 2000:
-                return "small parcel";
+                return 'small parcel';
             case $grams <= 20000:
-                return "parcel";
+                return 'parcel';
             default:
-                return "freight";
+                return 'freight';
         }
     }
 }
@@ -1078,7 +1078,7 @@ array<uint> $weights = [120, 1500, 9000, 45000];
 
 foreach ($weights as uint $grams) {
     // This prints letter, small parcel, parcel and freight, one per line.
-    echo $grams, "g: ", Shipping::band($grams), "\n";
+    echo $grams, 'g: ', Shipping::band($grams), "\n";
 }
 ```
 
@@ -1099,14 +1099,14 @@ foreach ($weights as uint $grams) {
 array<int> $codes = [1, 2, 9];
 
 foreach ($codes as int $code) {
-    echo $code, ": ";
+    echo $code, ': ';
     switch ($code) {
         case 1:
-            echo "one, ";
+            echo 'one, ';
         default:
-            echo "other, ";
+            echo 'other, ';
         case 2:
-            echo "two";
+            echo 'two';
     }
     echo "\n";
 }
@@ -1168,12 +1168,12 @@ foreach ($readings as int $reading) {
         $found = $reading;
         break;
     }
-    echo "checked ", $reading, "\n";
+    echo 'checked ', $reading, "\n";
 }
 
 // The loop stopped at 140 and never read the two values after it.
 // This prints 140.
-echo "first above 100: ", $found, "\n";
+echo 'first above 100: ', $found, "\n";
 ```
 
 ```output
@@ -1190,17 +1190,17 @@ first above 100: 140
 // Shows how `continue` skips the rest of one iteration and starts the next
 // one. This loop greets every name in the list and skips the empty entries.
 
-array<string> $names = ["Ada", "", "Grace", "   ", "Alan"];
+array<string> $names = ['Ada', '', 'Grace', '   ', 'Alan'];
 
 int $greeted = 0;
 foreach ($names as string $name) {
     // `Core\Str::trim` removes the spaces at both ends of the text.
     string $clean = Core\Str::trim($name);
-    if ($clean == "") {
+    if ($clean == '') {
         continue;
     }
     $greeted = $greeted + 1;
-    echo "hello ", $clean, "\n";
+    echo 'hello ', $clean, "\n";
 }
 
 // Two of the five entries were skipped, so this prints 3.
@@ -1222,23 +1222,25 @@ hello Alan
 // is the inner loop and level 2 is the outer one. A shop checks its orders for
 // one product, and an order holding a `pen` is not shipped at all.
 
-class Order {
-    public function constructor(public string $id, public array<string> $items) {}
+class Order
+{
+    public function constructor(public string $id, public array<string> $items)
+    {}
 }
 
 array<Order> $orders = [
-    new Order("A-1", ["book", "pen", "lamp"]),
-    new Order("A-2", ["cup", "mug"]),
-    new Order("A-3", ["ring", "box"]),
+    new Order('A-1', ['book', 'pen', 'lamp']),
+    new Order('A-2', ['cup', 'mug']),
+    new Order('A-3', ['ring', 'box']),
 ];
 
-string $wanted = "ring";
-string $foundIn = "";
+string $wanted = 'ring';
+string $foundIn = '';
 
 foreach ($orders as Order $order) {
-    echo "order ", $order->id, "\n";
+    echo 'order ', $order->id, "\n";
     foreach ($order->items as string $item) {
-        if ($item == "pen") {
+        if ($item == 'pen') {
             // `continue 2` starts the outer loop's next iteration, so the rest
             // of this order and the line after the inner loop are both skipped.
             echo "  holds a pen, skipping this order\n";
@@ -1249,13 +1251,13 @@ foreach ($orders as Order $order) {
             // `break 2` leaves both loops, so the `box` after it is never read.
             break 2;
         }
-        echo "  ", $item, "\n";
+        echo '  ', $item, "\n";
     }
     echo "  order checked\n";
 }
 
 // This prints A-3.
-echo "found in ", $foundIn, "\n";
+echo 'found in ', $foundIn, "\n";
 ```
 
 ```output
@@ -1277,20 +1279,20 @@ found in A-3
 // Shows `break` and `continue` inside a `switch` that is inside a loop.
 // This log printer skips debug lines and marks errors.
 
-array<string> $levels = ["info", "debug", "error", "info"];
-array<string> $messages = ["started", "cache is warm", "disk is full", "stopped"];
+array<string> $levels = ['info', 'debug', 'error', 'info'];
+array<string> $messages = ['started', 'cache is warm', 'disk is full', 'stopped'];
 
 for (int $i = 0; $i < 4; $i++) {
     switch ($levels[$i]) {
-        case "debug":
+        case 'debug':
             // `continue` starts the next line, so the `echo` below does not run.
             continue;
-        case "error":
-            echo "!! ";
+        case 'error':
+            echo '!! ';
             // `break` leaves only the `switch`. The message below is still printed.
             break;
         default:
-            echo "   ";
+            echo '   ';
     }
     echo $messages[$i], "\n";
 }
@@ -1310,10 +1312,10 @@ for (int $i = 0; $i < 4; $i++) {
 // enough, so this program does not compile.
 // proof: compile-error
 
-string $command = "skip";
+string $command = 'skip';
 
 switch ($command) {
-    case "skip":
+    case 'skip':
         continue;
 }
 ```
@@ -1402,19 +1404,19 @@ class Mailer
 {
     public static function send(string $address, string $text): void
     {
-        if ($address == "") {
+        if ($address == '') {
             echo "no address, nothing sent\n";
             return;
         }
 
-        echo "sent to ", $address, ": ", $text, "\n";
+        echo 'sent to ', $address, ': ', $text, "\n";
     }
 }
 
 // The first call ends at the `return`, so it prints one line about the missing
 // address. The second call prints the message it sent.
-Mailer::send("", "your order is on its way");
-Mailer::send("ada@example.com", "your order is on its way");
+Mailer::send('', 'your order is on its way');
+Mailer::send('ada@example.com', 'your order is on its way');
 ```
 
 ```output
@@ -1437,7 +1439,7 @@ if (Core\Arr::count($jobs) == 0) {
 }
 
 // This line never runs, because the `return` above ended the program.
-echo "running ", Core\Arr::count($jobs), " jobs\n";
+echo 'running ', Core\Arr::count($jobs), " jobs\n";
 ```
 
 ```output
@@ -1526,23 +1528,25 @@ The warning for `catch (Throwable) => value` is `W1006`. An arm with a variable 
 // Shows how a `catch` arm after an expression supplies a fallback value.
 // `Repo::price` throws when it has no row for a product.
 
-class Repo {
-    public static function price(string $sku): int {
-        if ($sku == "lamp") {
+class Repo
+{
+    public static function price(string $sku): int
+    {
+        if ($sku == 'lamp') {
             return 1200;
         }
-        throw new IOError("no row for " . $sku);
+        throw new IOError('no row for ' . $sku);
     }
 }
 
 // The lookup worked, so the result is the call's own value. This prints 1200.
-echo Repo::price("lamp") catch (IOError $missing) => 0, "\n";
+echo Repo::price('lamp') catch (IOError $missing) => 0, "\n";
 
 // The lookup threw, so the result is the arm's value. This prints 0.
-echo Repo::price("ring") catch (IOError $missing) => 0, "\n";
+echo Repo::price('ring') catch (IOError $missing) => 0, "\n";
 
 // The arm can read the error it caught. This prints `no row for ring`.
-echo Repo::price("ring") catch (IOError $e) => $e->message, "\n";
+echo Repo::price('ring') catch (IOError $e) => $e->message, "\n";
 ```
 
 ```output
@@ -1559,32 +1563,34 @@ no row for ring
 // the first class that matches wins. The arms belong to the expression on the
 // left, not to each other.
 
-class Field {
-    public static function toAmount(string $text): int {
-        if ($text == "") {
-            throw new LogicError("the field is empty");
+class Field
+{
+    public static function toAmount(string $text): int
+    {
+        if ($text == '') {
+            throw new LogicError('the field is empty');
         }
-        if ($text == "?") {
-            throw new IOError("the field is unreadable");
+        if ($text == '?') {
+            throw new IOError('the field is unreadable');
         }
         return 42;
     }
 }
 
 // Nothing threw, so the result is the call's own value. This prints 42.
-echo Field::toAmount("42") catch (LogicError $l) => -1 catch (IOError $io) => -2, "\n";
+echo Field::toAmount('42') catch (LogicError $l) => -1 catch (IOError $io) => -2, "\n";
 
 // The first arm matches. This prints -1.
-echo Field::toAmount("") catch (LogicError $l) => -1 catch (IOError $io) => -2, "\n";
+echo Field::toAmount('') catch (LogicError $l) => -1 catch (IOError $io) => -2, "\n";
 
 // The second arm matches. This prints -2.
-echo Field::toAmount("?") catch (LogicError $l) => -1 catch (IOError $io) => -2, "\n";
+echo Field::toAmount('?') catch (LogicError $l) => -1 catch (IOError $io) => -2, "\n";
 
 // An error no arm matches keeps travelling, so the `try` around it catches it.
 try {
-    echo Field::toAmount("") catch (IOError $io) => -2, "\n";
+    echo Field::toAmount('') catch (IOError $io) => -2, "\n";
 } catch (LogicError $left) {
-    echo "left the expression: ", $left->message, "\n";
+    echo 'left the expression: ', $left->message, "\n";
 }
 ```
 
@@ -1603,35 +1609,40 @@ left the expression: the field is empty
 // missing rate into a clear error. `catch` binds looser than the arithmetic,
 // so the guard covers the whole division.
 
-class Report {
-    public static function line(string $label, int $total, int $count): string {
+class Report
+{
+    public static function line(string $label, int $total, int $count): string
+    {
         // A row with no entries would stop the page with an error. The arm
         // supplies 0 instead.
         var $average = $total / $count catch (ArithmeticError $zero) => 0;
-        return $label . ": " . $average as string;
+        return $label . ': ' . $average as string;
     }
 }
 
-class Rates {
-    public static function read(string $code): int {
-        throw new IOError("no rate for " . $code);
+class Rates
+{
+    public static function read(string $code): int
+    {
+        throw new IOError('no rate for ' . $code);
     }
 
     // An arm may throw instead of giving a value. The caller then sees an error
     // that says what went wrong at this level.
-    public static function forCode(string $code): int {
+    public static function forCode(string $code): int
+    {
         return Rates::read($code)
-            catch (IOError $e) => throw new RuntimeError("price list is incomplete: " . $e->message);
+            catch (IOError $e) => throw new RuntimeError('price list is incomplete: ' . $e->message);
     }
 }
 
 // This prints `north: 300`, then `south: 0`, then `east: 0`.
-echo Report::line("north", 900, 3), "\n";
-echo Report::line("south", 120, 0), "\n";
-echo Report::line("east", 0, 7), "\n";
+echo Report::line('north', 900, 3), "\n";
+echo Report::line('south', 120, 0), "\n";
+echo Report::line('east', 0, 7), "\n";
 
 try {
-    echo Rates::forCode("EUR"), "\n";
+    echo Rates::forCode('EUR'), "\n";
 } catch (RuntimeError $stopped) {
     echo $stopped->message, "\n";
 }
@@ -1650,10 +1661,12 @@ price list is incomplete: no rate for EUR
 <?nvs
 // Shows that the type of the result includes the type of every arm.
 
-class Repo {
-    public static function get(int $id): int {
+class Repo
+{
+    public static function get(int $id): int
+    {
         if ($id < 0) {
-            throw new IOError("no such row");
+            throw new IOError('no such row');
         }
         return $id * 2;
     }
@@ -1662,11 +1675,11 @@ class Repo {
 // `get` returns `int` and the arm gives `null`, so the result is `?int`.
 ?int $found = Repo::get(-1) catch (IOError) => null;
 // This prints `none`.
-echo $found ?? "none", "\n";
+echo $found ?? 'none', "\n";
 
 // One arm gives a string and the other gives an int, so the variable is `mixed`.
 // The second arm matches. This prints -1.
-mixed $either = Repo::get(-1) catch (LogicError $logic) => "logic" catch (IOError $io) => -1;
+mixed $either = Repo::get(-1) catch (LogicError $logic) => 'logic' catch (IOError $io) => -1;
 echo $either, "\n";
 ```
 
@@ -1749,18 +1762,18 @@ instead.
 // Shows how `echo` and `print` write values. `echo` takes several values at
 // once and writes them in order with nothing between them.
 
-string $name = "Ada";
+string $name = 'Ada';
 int $orders = 3;
 
 // This prints: Ada has 3 orders
-echo $name, " has ", $orders, " orders", "\n";
+echo $name, ' has ', $orders, ' orders', "\n";
 
 // `print` writes one value.
 print "report finished\n";
 
 // A value becomes text the same way `.` does. `true` writes `1`, and `false`
 // and `null` write nothing, so this line prints 1|||
-echo true, "|", false, "|", null, "|", "\n";
+echo true, '|', false, '|', null, '|', "\n";
 ```
 
 ```output
@@ -1777,10 +1790,10 @@ report finished
 // removed. A variable always has a value in Novis, so `unset($x)` does not
 // compile.
 
-array<int> $stock = ["apple" => 4, "pear" => 0, "plum" => 7, "fig" => 0];
+array<int> $stock = ['apple' => 4, 'pear' => 0, 'plum' => 7, 'fig' => 0];
 
 // One call removes several entries. This prints {"apple":4,"plum":7}
-unset($stock["pear"], $stock["fig"]);
+unset($stock['pear'], $stock['fig']);
 echo Core\Json::encode($stock), "\n";
 
 array<int> $counts = [10, 20, 30];
@@ -1814,20 +1827,20 @@ class Rows
     // Each `yield` sends one row to the loop below.
     public static function all(): Iterator<string>
     {
-        yield "ada,42";
-        yield "grace,17";
-        yield "broken row";
-        yield "alan,9";
+        yield 'ada,42';
+        yield 'grace,17';
+        yield 'broken row';
+        yield 'alan,9';
     }
 }
 
 foreach (Rows::all() as string $row) {
-    if (Core\Str::contains($row, ",") == false) {
+    if (Core\Str::contains($row, ',') == false) {
         // `exit` with a text writes it and ends the program with status 0.
         // The rows after this one are never read.
-        exit("stopped at a bad row: " . $row . "\n");
+        exit('stopped at a bad row: ' . $row . "\n");
     }
-    echo "ok: ", $row, "\n";
+    echo 'ok: ', $row, "\n";
 }
 
 echo "every row is good\n";
@@ -1978,9 +1991,9 @@ int $round = 0;
 while ($round < 3) {
     // The first two calls are allowed, the third is not.
     if (Retry::attempt(2)) {
-        echo "attempt ", Retry::attempts(), ": allowed\n";
+        echo 'attempt ', Retry::attempts(), ": allowed\n";
     } else {
-        echo "attempt ", Retry::attempts(), ": too many\n";
+        echo 'attempt ', Retry::attempts(), ": too many\n";
     }
     $round = $round + 1;
 }
@@ -1999,18 +2012,18 @@ attempt 3: too many
 // `list($a, $b) = …` and the alternative syntax `if (…): … endif;` do not
 // parse. Shows the two replacements in a program that reads contact lines.
 
-array<string> $lines = ["Ada Lovelace|ada@example.com", "Grace Hopper|"];
+array<string> $lines = ['Ada Lovelace|ada@example.com', 'Grace Hopper|'];
 
 foreach ($lines as string $line) {
     // Brackets replace `list()`. Each name is written with its type, as
     // everywhere else.
-    [string $name, string $mail] = Core\Str::split($line, "|");
+    [string $name, string $mail] = Core\Str::split($line, '|');
 
     // Braces replace `if (…): … endif;`.
-    if ($mail == "") {
+    if ($mail == '') {
         echo $name, " has no address\n";
     } else {
-        echo $name, " <", $mail, ">\n";
+        echo $name, ' <', $mail, ">\n";
     }
 }
 ```

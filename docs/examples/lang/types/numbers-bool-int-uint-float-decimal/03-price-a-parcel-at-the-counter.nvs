@@ -14,6 +14,6 @@ if ($kilos > 0.5) {
 }
 decimal $due = $goods + $postage;
 
-echo $items, " items at ", $each, " each = ", $goods, "\n";
-echo "postage ", $postage, " for ", $kilos * 1000, " g\n";
-echo "due ", $due, "\n";
+echo $items, ' items at ', $each, ' each = ', $goods, "\n";
+echo 'postage ', $postage, ' for ', $kilos * 1000, " g\n";
+echo 'due ', $due, "\n";

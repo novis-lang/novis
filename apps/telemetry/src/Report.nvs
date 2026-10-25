@@ -14,7 +14,8 @@ use ParseError;
 
 // One report that `Report::check` accepted.
 // `counters` has each counter name and its value. Each name is a name from `known.toml` or `unknown`.
-final class Report {
+final class Report
+{
     // The largest body that is accepted, in bytes.
     public const uint MAX_BYTES = 4096;
     // A counter value above this number is counted as this number.
@@ -23,8 +24,8 @@ final class Report {
     public const uint MAX_COUNTERS = 64;
     // The oldest week that is accepted, counted back from the current week.
     public const int MAX_AGE_WEEKS = 4;
-    private const string DIGITS = "0123456789";
-    private const string LETTERS = "abcdefghijklmnopqrstuvwxyz";
+    private const string DIGITS = '0123456789';
+    private const string LETTERS = 'abcdefghijklmnopqrstuvwxyz';
 
     public function constructor(
         public readonly tainted string $version,
@@ -34,83 +35,90 @@ final class Report {
         public readonly bool $first,
         public readonly int $daysActive,
         public readonly array<int> $counters,
-    ) {}
+    )
+    {}
 
     // Checks the body of a request and returns the report.
     // If one field is wrong, it throws a `Rejected` error, and nothing of the report is used.
-    public static function check(tainted string $body, ?tainted string $contentType, Instant $now, Known $known): Report {
+    public static function check(tainted string $body, ?tainted string $contentType, Instant $now, Known $known): Report
+    {
         if (Bytes::length($body as bytes) > Report::MAX_BYTES) {
-            throw new Rejected("The report can have at most 4096 bytes.", 413);
+            throw new Rejected('The report can have at most 4096 bytes.', 413);
         }
-        if ($contentType == null || Str::trim(Str::before($contentType, ";") ?? $contentType) != "application/json") {
-            throw new Rejected("The report must be sent as `application/json`.", 415);
+        if ($contentType == null || Str::trim(Str::before($contentType, ';') ?? $contentType) != 'application/json') {
+            throw new Rejected('The report must be sent as `application/json`.', 415);
         }
         mixed $document = null;
         try {
-            $document = Json::decode($body, {maxDepth: 3});
+            $document = Json::decode($body, { maxDepth: 3 });
         } catch (ParseError $error) {
-            throw new Rejected("The report is not valid JSON.", 400);
+            throw new Rejected('The report is not valid JSON.', 400);
         }
         if (!($document is array) || (Arr::isList($document as array<mixed>) && Arr::count($document as array<mixed>) > 0)) {
-            throw new Rejected("The report must be a JSON object.", 400);
+            throw new Rejected('The report must be a JSON object.', 400);
         }
         array<mixed> $fields = $document as array<mixed>;
         foreach (Arr::keys($fields) as tainted string $name) {
-            if (Known::find(["schema", "version", "os", "arch", "week", "first", "days_active", "counters"], $name) == null) {
-                throw new Rejected("The report has a field that is not allowed.", 400);
+            if (Known::find(['schema', 'version', 'os', 'arch', 'week', 'first', 'days_active', 'counters'], $name) == null) {
+                throw new Rejected('The report has a field that is not allowed.', 400);
             }
         }
-        if (Report::field($fields, "schema") != 1) {
-            throw Report::wrong("schema");
+        if (Report::field($fields, 'schema') != 1) {
+            throw Report::wrong('schema');
         }
         return new Report(
-            Report::version(Report::field($fields, "version")),
-            Report::listed(Report::field($fields, "os"), $known->os, "os"),
-            Report::listed(Report::field($fields, "arch"), $known->arch, "arch"),
-            Report::week(Report::field($fields, "week"), $now),
-            Report::first(Report::field($fields, "first")),
-            Report::daysActive(Report::field($fields, "days_active")),
-            Report::counters(Report::field($fields, "counters"), $known),
+            Report::version(Report::field($fields, 'version')),
+            Report::listed(Report::field($fields, 'os'), $known->os, 'os'),
+            Report::listed(Report::field($fields, 'arch'), $known->arch, 'arch'),
+            Report::week(Report::field($fields, 'week'), $now),
+            Report::first(Report::field($fields, 'first')),
+            Report::daysActive(Report::field($fields, 'days_active')),
+            Report::counters(Report::field($fields, 'counters'), $known),
         );
     }
 
     // Returns the field `$name`. If the report does not have it, it throws a `Rejected` error.
-    private static function field(array<mixed> $fields, string $name): mixed {
+    private static function field(array<mixed> $fields, string $name): mixed
+    {
         if (!Arr::hasKey($fields, $name)) {
-            throw new Rejected("The report has no field `" . $name . "`.", 400);
+            throw new Rejected('The report has no field `' . $name . '`.', 400);
         }
         return $fields[$name];
     }
 
-    private static function wrong(string $name): Rejected {
-        return new Rejected("The field `" . $name . "` is not valid.", 400);
+    private static function wrong(string $name): Rejected
+    {
+        return new Rejected('The field `' . $name . '` is not valid.', 400);
     }
 
     // A version such as `0.4.0` or `0.4.0-rc.1`. It has at most 32 bytes.
-    private static function version(mixed $value): tainted string {
+    private static function version(mixed $value): tainted string
+    {
         if (!($value is string) || Bytes::length($value as bytes) > 32) {
-            throw Report::wrong("version");
+            throw Report::wrong('version');
         }
-        array<tainted string> $parts = Str::split($value, "-", {limit: 2});
-        array<tainted string> $numbers = Str::split($parts[0], ".");
+        array<tainted string> $parts = Str::split($value, '-', { limit: 2 });
+        array<tainted string> $numbers = Str::split($parts[0], '.');
         bool $valid = Core\Arr::count($numbers) == 3
             && Report::only($numbers[0], Report::DIGITS)
             && Report::only($numbers[1], Report::DIGITS)
             && Report::only($numbers[2], Report::DIGITS)
-            && (Core\Arr::count($parts) == 1 || Report::only($parts[1], Report::DIGITS . Report::LETTERS . "."));
+            && (Core\Arr::count($parts) == 1 || Report::only($parts[1], Report::DIGITS . Report::LETTERS . '.'));
         if (!$valid) {
-            throw Report::wrong("version");
+            throw Report::wrong('version');
         }
         return $value;
     }
 
     // Returns `true` when `$text` is not empty and has only characters from `$allowed`.
-    private static function only(tainted string $text, string $allowed): bool {
-        return $text != "" && Str::trim($text, {characters: $allowed}) == "";
+    private static function only(tainted string $text, string $allowed): bool
+    {
+        return $text != '' && Str::trim($text, { characters: $allowed }) == '';
     }
 
     // A value from one of the lists in `known.toml`.
-    private static function listed(mixed $value, array<string> $list, string $name): string {
+    private static function listed(mixed $value, array<string> $list, string $name): string
+    {
         ?string $entry = $value is string ? Known::find($list, $value) : null;
         if ($entry == null) {
             throw Report::wrong($name);
@@ -120,50 +128,53 @@ final class Report {
 
     // A week such as `2026-W42`. The week must have ended, with one day of tolerance.
     // It can be at most four weeks before the current week.
-    private static function week(mixed $value, Instant $now): string {
+    private static function week(mixed $value, Instant $now): string
+    {
         if (!($value is string)) {
-            throw Report::wrong("week");
+            throw Report::wrong('week');
         }
         tainted string $yearText = Str::slice($value, 0, 4);
         tainted string $numberText = Str::slice($value, 6);
-        if (Str::slice($value, 4, 2) != "-W" || !Report::only($yearText, Report::DIGITS) || !Report::only($numberText, Report::DIGITS)) {
-            throw Report::wrong("week");
+        if (Str::slice($value, 4, 2) != '-W' || !Report::only($yearText, Report::DIGITS) || !Report::only($numberText, Report::DIGITS)) {
+            throw Report::wrong('week');
         }
         int $year = $yearText as int;
         int $number = $numberText as int;
         if ($number < 1 || $number > 53) {
-            throw Report::wrong("week");
+            throw Report::wrong('week');
         }
         // 4 January is always in week 1, so the week starts on the Monday before it.
-        var $monday = Time::at($year, 1, 4, Zone::of("UTC"))->startOf(Unit::Week)->plus($number - 1, Unit::Week);
+        var $monday = Time::at($year, 1, 4, Zone::of('UTC'))->startOf(Unit::Week)->plus($number - 1, Unit::Week);
         string $week = $monday->format("YYYY-'W'ww");
         // A year with 52 weeks has no week 53. That week number gives week 1 of the next year here.
         // A week number with one digit, such as `2026-W5`, is also not the same text.
         if ($week != $value) {
-            throw Report::wrong("week");
+            throw Report::wrong('week');
         }
         Instant $start = $monday->toInstant();
         if ($start->plus(Duration::days(7))->compareTo($now->plus(Duration::days(1))) > 0) {
-            throw new Rejected("The week of the report has not ended yet.", 400);
+            throw new Rejected('The week of the report has not ended yet.', 400);
         }
-        Instant $current = $now->in(Zone::of("UTC"))->startOf(Unit::Week)->toInstant();
+        Instant $current = $now->in(Zone::of('UTC'))->startOf(Unit::Week)->toInstant();
         if ($current->since($start)->compareTo(Duration::weeks(Report::MAX_AGE_WEEKS)) > 0) {
-            throw new Rejected("The week of the report is more than four weeks old.", 400);
+            throw new Rejected('The week of the report is more than four weeks old.', 400);
         }
         return $week;
     }
 
-    private static function first(mixed $value): bool {
+    private static function first(mixed $value): bool
+    {
         if (!($value is bool)) {
-            throw Report::wrong("first");
+            throw Report::wrong('first');
         }
         return $value;
     }
 
     // The number of days in the week that `nvs` was used, from 1 to 7.
-    private static function daysActive(mixed $value): int {
+    private static function daysActive(mixed $value): int
+    {
         if (!($value is int) || $value < 1 || $value > 7) {
-            throw Report::wrong("days_active");
+            throw Report::wrong('days_active');
         }
         return $value;
     }
@@ -171,27 +182,28 @@ final class Report {
     // The counters, such as `{"invocation.run": 41}`.
     // A command that `known.toml` does not list is counted as `unknown`.
     // A value above `MAX_VALUE` is counted as `MAX_VALUE`.
-    private static function counters(mixed $value, Known $known): array<int> {
+    private static function counters(mixed $value, Known $known): array<int>
+    {
         if (!($value is array) || (Arr::isList($value as array<mixed>) && Arr::count($value as array<mixed>) > 0)) {
-            throw Report::wrong("counters");
+            throw Report::wrong('counters');
         }
         array<mixed> $entries = $value as array<mixed>;
         if (Arr::count($entries) > Report::MAX_COUNTERS) {
-            throw new Rejected("The report can have at most 64 counters.", 400);
+            throw new Rejected('The report can have at most 64 counters.', 400);
         }
         array<int> $counters = [];
         foreach ($entries as tainted string $key => mixed $count) {
-            array<tainted string> $parts = Str::split($key, ".", {limit: 2});
-            tainted string $command = Core\Arr::count($parts) == 2 ? $parts[1] : "";
-            bool $valid = ($parts[0] == "invocation" || $parts[0] == "internal-error")
+            array<tainted string> $parts = Str::split($key, '.', { limit: 2 });
+            tainted string $command = Core\Arr::count($parts) == 2 ? $parts[1] : '';
+            bool $valid = ($parts[0] == 'invocation' || $parts[0] == 'internal-error')
                 && Bytes::length($command as bytes) <= 32
                 && Report::only(Str::slice($command, 0, 1), Report::LETTERS)
-                && Report::only($command, Report::DIGITS . Report::LETTERS . "-");
+                && Report::only($command, Report::DIGITS . Report::LETTERS . '-');
             if (!$valid || !($count is int) || $count < 0) {
-                throw Report::wrong("counters");
+                throw Report::wrong('counters');
             }
-            string $kind = $parts[0] == "invocation" ? "invocation" : "internal-error";
-            string $name = $kind . "." . (Known::find($known->commands, $command) ?? "unknown");
+            string $kind = $parts[0] == 'invocation' ? 'invocation' : 'internal-error';
+            string $name = $kind . '.' . (Known::find($known->commands, $command) ?? 'unknown');
             int $before = $counters[$name] ?? 0;
             int $sum = $before + ($count > Report::MAX_VALUE ? Report::MAX_VALUE : $count);
             $counters[$name] = $sum > Report::MAX_VALUE ? Report::MAX_VALUE : $sum;

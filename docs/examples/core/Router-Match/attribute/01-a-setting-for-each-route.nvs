@@ -1,29 +1,36 @@
 <?nvs
 // Shows how to read an attribute of the method of the route that matched.
 
-class Pages {
-    #[Core\Route(path: "/news", method: Core\Http\Method::Get, name: "Pages::news")]
+class Pages
+{
+    #[Core\Route(path: '/news', method: Core\Http\Method::Get, name: 'Pages::news')]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{seconds: 60}]
-    public function news(): string { return "news"; }
+    public function news(): string
+    {
+        return 'news';
+    }
 
-    #[Core\Route(path: "/live", method: Core\Http\Method::Get, name: "Pages::live")]
+    #[Core\Route(path: '/live', method: Core\Http\Method::Get, name: 'Pages::live')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function live(): string { return "live"; }
+    public function live(): string
+    {
+        return 'live';
+    }
 }
 
 // The method of `/news` has `#[{seconds: 60}]`. This prints `news: 60 seconds`.
-?Core\Router\Match $news = Core\Router::match(Core\Http\Method::Get, "/news");
+?Core\Router\Match $news = Core\Router::match(Core\Http\Method::Get, '/news');
 if ($news != null) {
-    ?{seconds: int} $cache = $news->attribute<{seconds: int}>();
+    ?{ seconds: int } $cache = $news->attribute<{ seconds: int }>();
     if ($cache != null) {
-        echo "news: ", $cache->seconds, " seconds\n";
+        echo 'news: ', $cache->seconds, " seconds\n";
     }
 }
 
 // The method of `/live` has no such attribute, so the result is `null`.
 // This prints `live: no setting`.
-?Core\Router\Match $live = Core\Router::match(Core\Http\Method::Get, "/live");
-if ($live != null && $live->attribute<{seconds: int}>() == null) {
+?Core\Router\Match $live = Core\Router::match(Core\Http\Method::Get, '/live');
+if ($live != null && $live->attribute<{ seconds: int }>() == null) {
     echo "live: no setting\n";
 }

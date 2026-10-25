@@ -1,14 +1,16 @@
 <?nvs
 // Shows how to write the width and height of an image as a short ratio, such as 16:9.
 
-class AspectRatio {
+class AspectRatio
+{
     // Both sides are divided by their greatest common divisor.
     // The result has the same shape, written with the smallest whole numbers.
-    public static function of(int $width, int $height): string {
+    public static function of(int $width, int $height): string
+    {
         int $divisor = Core\Math::gcd($width, $height);
         string $across = Core\Math::intDiv($width, $divisor) as string;
         string $down = Core\Math::intDiv($height, $divisor) as string;
-        return $across . ":" . $down;
+        return $across . ':' . $down;
     }
 }
 

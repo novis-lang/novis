@@ -3,25 +3,27 @@
 // updating a few running values once per row. Nothing is collected first and
 // added up at the end.
 
-class Order {
+class Order
+{
     public function constructor(
         public string $status,
         public decimal $amount,
         public uint $items,
-    ) {}
+    )
+    {}
 }
 
 array<Order> $orders = [
-    new Order("paid", 19.99, 2),
-    new Order("refunded", 4.50, 1),
-    new Order("paid", 120.00, 7),
-    new Order("paid", 8.25, 1),
+    new Order('paid', 19.99, 2),
+    new Order('refunded', 4.50, 1),
+    new Order('paid', 120.00, 7),
+    new Order('paid', 8.25, 1),
 ];
 
 decimal $revenue = 0.00;
 array<uint> $byStatus = [];
 array<uint> $itemsByStatus = [];
-string $large = "";
+string $large = '';
 
 foreach ($orders as Order $order) {
     // `??+=` adds to a count that may not exist yet. The first row for a
@@ -37,19 +39,19 @@ foreach ($orders as Order $order) {
 
     // These two values exist from the start, so the plain `+=` and `.=` are
     // enough.
-    if ($order->status == "paid") {
+    if ($order->status == 'paid') {
         $revenue += $order->amount;
     }
     if ($order->items > 5) {
-        $large .= $order->status . " ";
+        $large .= $order->status . ' ';
     }
 }
 
 // This prints: 148.24 taken over 10 items
-echo $revenue, " taken over ", $itemsByStatus["paid"], " items\n";
+echo $revenue, ' taken over ', $itemsByStatus['paid'], " items\n";
 
 // This prints: paid 3, refunded 1
-echo "paid ", $byStatus["paid"], ", refunded ", $byStatus["refunded"], "\n";
+echo 'paid ', $byStatus['paid'], ', refunded ', $byStatus['refunded'], "\n";
 
 // This prints: large orders: paid
-echo "large orders: ", Core\Str::trim($large), "\n";
+echo 'large orders: ', Core\Str::trim($large), "\n";

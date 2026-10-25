@@ -9,7 +9,7 @@ use Core\Db\DbError;
 var $db = Db::connect('schema');
 $db->execute('create table people (email text not null primary key)', []);
 
-array<string> $signups = ["ada@example.test", "grace@example.test", "ada@example.test"];
+array<string> $signups = ['ada@example.test', 'grace@example.test', 'ada@example.test'];
 foreach ($signups as string $email) {
     try {
         $db->execute('insert into people (email) values (?)', [$email]);

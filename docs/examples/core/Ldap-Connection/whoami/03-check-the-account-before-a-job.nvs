@@ -2,14 +2,14 @@
 // Shows how a job checks that it uses the right directory account before it starts.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 string $expected = "u:EXAMPLE\\Reader";
 
 // The server may return the name in other upper and lower case,
 // so both names are compared in lower case.
 string $who = $corp->whoami();
 if (Core\Str::lower($who) != Core\Str::lower($expected)) {
-    echo "The job stops: the directory account is ", $who, "\n";
+    echo 'The job stops: the directory account is ', $who, "\n";
     exit(1);
 }
 

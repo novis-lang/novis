@@ -1,16 +1,20 @@
 <?nvs
 // Shows how to store a computed result for each object, so it is computed only once.
 
-final class Cart {
+final class Cart
+{
     public array<int> $prices;
 
-    public function constructor(array<int> $prices) {
+    public function constructor(array<int> $prices)
+    {
         $this->prices = $prices;
     }
 }
 
-final class Totals {
-    public static function of(Core\ObjectMap<Cart, int> $known, Cart $cart): int {
+final class Totals
+{
+    public static function of(Core\ObjectMap<Cart, int> $known, Cart $cart): int
+    {
         // `get` returns the stored total, or `null` when this cart has none yet.
         ?int $total = $known->get($cart);
         if ($total != null) {

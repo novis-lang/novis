@@ -5,7 +5,7 @@
 array<int> $scores = [3, 1, 2];
 
 // This prints 3, 2 and 1, the largest first.
-foreach (Core\Arr::sort($scores, {order: Core\Arr::Order::Desc}) as int $s) {
+foreach (Core\Arr::sort($scores, { order: Core\Arr::Order::Desc }) as int $s) {
     echo $s, "\n";
 }
 

@@ -1,18 +1,25 @@
 <?nvs
 // Shows how to list the HTTP methods that the routes of one path accept.
 
-class Comments {
-    #[Core\Route(path: "/comments", method: Core\Http\Method::Get, name: "Comments::list")]
+class Comments
+{
+    #[Core\Route(path: '/comments', method: Core\Http\Method::Get, name: 'Comments::list')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function list(): string { return "all comments"; }
+    public function list(): string
+    {
+        return 'all comments';
+    }
 
-    #[Core\Route(path: "/comments", method: Core\Http\Method::Post, name: "Comments::add")]
+    #[Core\Route(path: '/comments', method: Core\Http\Method::Post, name: 'Comments::add')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function add(): string { return "a new comment"; }
+    public function add(): string
+    {
+        return 'a new comment';
+    }
 }
 
 // `Core\Router::methodsFor` returns the methods in the order the routes are declared.
 // `Core\Http::methodName` converts each one to text. This prints `GET` and `POST`.
-foreach (Core\Router::methodsFor("/comments") as Core\Http\Method $verb) {
+foreach (Core\Router::methodsFor('/comments') as Core\Http\Method $verb) {
     echo Core\Http::methodName($verb), "\n";
 }

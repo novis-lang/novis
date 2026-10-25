@@ -10,12 +10,12 @@ class Bench
         string $value = Core\Str::repeat('Tea & cake ', $size);
         Core\Xml\Writer $writer = Core\Xml::writer();
         $writer->startDocument();
-        $writer->startElement("export");
+        $writer->startElement('export');
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            $writer->startElement("record");
-            $writer->attribute("note", $value);
+            $writer->startElement('record');
+            $writer->attribute('note', $value);
             $writer->endElement();
             $total = $total + 1;
             $i = $i + 1;

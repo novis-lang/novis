@@ -12,8 +12,8 @@ class Bench
         uint $i = 0;
         while ($i < 64) {
             var $store = Core\Cache::memory();
-            $store->put("round", $value);
-            $total = $total + Core\Str::length($store->get("round") as string);
+            $store->put('round', $value);
+            $total = $total + Core\Str::length($store->get('round') as string);
             $i = $i + 1;
         }
         return $total;

@@ -3,8 +3,10 @@
 // This program does not compile.
 // proof: compile-error
 
-class Helper {
-    public static function nothing(): void {}
+class Helper
+{
+    public static function nothing(): void
+    {}
 }
 
 echo Helper::nothing();

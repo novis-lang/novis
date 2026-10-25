@@ -5,8 +5,10 @@
 // scaling: max 512000
 // scaling: expect karatsuba
 
-class Bench {
-    public static function run(uint $size): uint {
+class Bench
+{
+    public static function run(uint $size): uint
+    {
         var $one = Core\BigInt::of(1);
         uint $signs = 0;
         // Sixteen sizes from n/3 up to n. Each size is 7% smaller than the one before.

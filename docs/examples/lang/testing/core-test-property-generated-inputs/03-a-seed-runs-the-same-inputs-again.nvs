@@ -6,16 +6,19 @@
 use Core\Test;
 use Core\Test\Property;
 
-final class SeedTest {
+final class SeedTest
+{
     // Both tests use the seed 42, so both get the same inputs.
     // The report shows the same generated input for each failure.
-    #[Property(seed: 42, gen: {n: "0..1000"})]
-    public function itFailsOnce(int $n): void {
+    #[Property(seed: 42, gen: { n: '0..1000' })]
+    public function itFailsOnce(int $n): void
+    {
         Test::assertTrue($n < 500);
     }
 
-    #[Property(seed: 42, gen: {n: "0..1000"})]
-    public function itFailsTheSameWay(int $n): void {
+    #[Property(seed: 42, gen: { n: '0..1000' })]
+    public function itFailsTheSameWay(int $n): void
+    {
         Test::assertTrue($n < 500);
     }
 }

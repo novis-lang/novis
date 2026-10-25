@@ -2,12 +2,15 @@
 // Shows an `int` used where a `float` is needed, with no `as`. This works in an
 // assignment, an argument, a return value and a calculation.
 
-class Cart {
-    public static function withTax(float $amount): float {
+class Cart
+{
+    public static function withTax(float $amount): float
+    {
         return $amount * 1.2;
     }
 
-    public static function base(int $units): float {
+    public static function base(int $units): float
+    {
         return $units;
     }
 }

@@ -9,4 +9,4 @@ if (!Core\Request::isHead()) {
 
 // The request below uses `HEAD`, so the count stays the same. This prints "visits: 41".
 // A real server sends no body for `HEAD`. The example prints the count so you can see it.
-echo "visits: ", $visits, "\n";
+echo 'visits: ', $visits, "\n";

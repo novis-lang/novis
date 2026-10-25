@@ -9,7 +9,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        bytes $form = Document::fromHtml("<h1>Return form</h1><p>Shop, 1 Example Street</p>")->render()->bytes;
+        bytes $form = Document::fromHtml('<h1>Return form</h1><p>Shop, 1 Example Street</p>')->render()->bytes;
         array<uint> $pages = [];
         uint $i = 0;
         while ($i < $size) {

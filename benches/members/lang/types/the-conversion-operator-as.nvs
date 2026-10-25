@@ -6,9 +6,11 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
-        array<string> $texts = ["17", "204", "9", "1350"];
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<string> $texts = ['17', '204', '9', '1350'];
         int $total = 1;
         uint $i = 0;
         while ($i < $rounds) {

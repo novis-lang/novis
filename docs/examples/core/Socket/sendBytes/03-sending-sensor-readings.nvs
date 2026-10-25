@@ -9,6 +9,6 @@ Core\Socket $conn = Core\Socket::current();
 array<int> $temperatures = [21, 22, 19];
 uint $sensor = 1;
 foreach ($temperatures as int $temperature) {
-    $conn->sendBytes(Core\Bytes::pack("nN", $sensor, $temperature));
+    $conn->sendBytes(Core\Bytes::pack('nN', $sensor, $temperature));
     $sensor = $sensor + 1;
 }

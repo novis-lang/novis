@@ -1,17 +1,19 @@
 <?nvs
 // Shows how to combine two sets into one new set.
 
-final class Tag {
+final class Tag
+{
     public string $name;
 
-    public function constructor(string $name) {
+    public function constructor(string $name)
+    {
         $this->name = $name;
     }
 }
 
-Tag $red = new Tag("red");
-Tag $blue = new Tag("blue");
-Tag $green = new Tag("green");
+Tag $red = new Tag('red');
+Tag $blue = new Tag('blue');
+Tag $green = new Tag('green');
 
 Core\ObjectSet<Tag> $warm = new Core\ObjectSet<Tag>();
 $warm->add($red);
@@ -28,4 +30,4 @@ foreach ($all as Tag $tag) {
 }
 
 // `$warm` and `$cool` do not change. This prints "1 2".
-echo $warm->count(), " ", $cool->count(), "\n";
+echo $warm->count(), ' ', $cool->count(), "\n";

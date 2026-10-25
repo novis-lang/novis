@@ -2,10 +2,12 @@
 // Shows a small method that returns the first lines a program prints, then stops the program.
 // requires: unix
 
-class Preview {
-    public static function firstLines(string $path, array<string> $arguments, int $count): array<string> {
+class Preview
+{
+    public static function firstLines(string $path, array<string> $arguments, int $count): array<string>
+    {
         var $program = Core\Process::spawn($path, $arguments);
-        string $text = "";
+        string $text = '';
         array<string> $lines = [];
         ?bytes $part = $program->readStdout();
         while ($part != null) {
@@ -25,6 +27,6 @@ class Preview {
 }
 
 // `seq 1 1000000` prints one million numbers. This prints only 1, 2 and 3.
-foreach (Preview::firstLines("/usr/bin/seq", ["1", "1000000"], 3) as string $line) {
+foreach (Preview::firstLines('/usr/bin/seq', ['1', '1000000'], 3) as string $line) {
     echo $line, "\n";
 }

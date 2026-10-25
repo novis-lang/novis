@@ -2,13 +2,13 @@
 // Shows how `trustedForDelegation` and the number change on a copy made with `with`.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
-    var $changed = $flags->with({trustedForDelegation: true});
+    var $changed = $flags->with({ trustedForDelegation: true });
 
     // This prints `512 false` and then `524800 true`.
-    echo $flags->bits(), $flags->trustedForDelegation() ? " true" : " false", "\n";
-    echo $changed->bits(), $changed->trustedForDelegation() ? " true" : " false", "\n";
+    echo $flags->bits(), $flags->trustedForDelegation() ? ' true' : ' false', "\n";
+    echo $changed->bits(), $changed->trustedForDelegation() ? ' true' : ' false', "\n";
 }

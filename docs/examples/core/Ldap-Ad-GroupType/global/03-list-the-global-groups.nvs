@@ -2,10 +2,10 @@
 // Shows how to keep only the global groups from a search.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 var $found = $corp->search(
-    Core\Ldap\Filter::equals("objectClass", "group"),
-    {base: "OU=Company,DC=example,DC=test", select: ["groupType"]},
+    Core\Ldap\Filter::equals('objectClass', 'group'),
+    { base: 'OU=Company,DC=example,DC=test', select: ['groupType'] },
 );
 
 array<tainted string> $names = [];

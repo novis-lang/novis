@@ -3,9 +3,11 @@
 // keeps the lines that matter. A program uses this shape to scan a long report while
 // holding one line at a time.
 
-class Report {
+class Report
+{
     // Gives out the lines of the text, one per `yield`.
-    public static function lines(string $text): Iterator<string> {
+    public static function lines(string $text): Iterator<string>
+    {
         foreach (Core\Str::lines($text) as string $line) {
             yield $line;
         }
@@ -13,9 +15,10 @@ class Report {
 
     // Reads the generator above and keeps only the failures. A `foreach` with a
     // `yield` inside it is how one generator reads another.
-    public static function failures(Iterator<string> $lines): Iterator<string> {
+    public static function failures(Iterator<string> $lines): Iterator<string>
+    {
         foreach ($lines as string $line) {
-            if (Core\Str::startsWith($line, "ERROR")) {
+            if (Core\Str::startsWith($line, 'ERROR')) {
                 yield $line;
             }
         }

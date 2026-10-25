@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to count the different values in a list.
 
-array<string> $tags = ["news", "sport", "news", "music", "sport", "news"];
+array<string> $tags = ['news', 'sport', 'news', 'music', 'sport', 'news'];
 
 Core\ObjectSet<string> $distinct = new Core\ObjectSet<string>();
 foreach ($tags as string $tag) {

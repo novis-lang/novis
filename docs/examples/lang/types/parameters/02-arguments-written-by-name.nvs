@@ -8,23 +8,23 @@ class Slot
     enum Length { Short = 30, Long = 60 }
 
     // A default can be a case of an enum. `$length` is `Length::Short`, 30 minutes, by default.
-    public static function book(string $who, string $day = "Monday", string $time = "09:00", Length $length = Length::Short): string
+    public static function book(string $who, string $day = 'Monday', string $time = '09:00', Length $length = Length::Short): string
     {
-        return $who . " on " . $day . " at " . $time . " for " . (($length as int) as string) . " minutes";
+        return $who . ' on ' . $day . ' at ' . $time . ' for ' . (($length as int) as string) . ' minutes';
     }
 }
 
-echo Slot::book("Ada"), "\n";
+echo Slot::book('Ada'), "\n";
 
 // Only `length` is given. The other parameters use their default values.
-echo Slot::book("Ada", length: Slot::Length::Long), "\n";
+echo Slot::book('Ada', length: Slot::Length::Long), "\n";
 
 // You can write named arguments in any order. Here `time` comes before `day`,
 // but the method declares `day` first.
-echo Slot::book("Ada", time: "14:00", day: "Friday"), "\n";
+echo Slot::book('Ada', time: '14:00', day: 'Friday'), "\n";
 
 // You can name every argument. An argument without a name must come before the named ones.
-echo Slot::book(who: "Ada", day: "Friday"), "\n";
+echo Slot::book(who: 'Ada', day: 'Friday'), "\n";
 
 // Methods from `Core` accept named arguments too. This prints `007`.
-echo Core\Str::padStart("7", length: 3, padding: "0"), "\n";
+echo Core\Str::padStart('7', length: 3, padding: '0'), "\n";

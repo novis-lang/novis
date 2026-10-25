@@ -5,9 +5,9 @@
 // Three rows from a file the program is importing. The second one has no
 // email address.
 array<array<string>> $rows = [
-    ["Ada Lovelace", "ada@example.com"],
-    ["Grace Hopper", ""],
-    ["Alan Turing", "alan@example.com"],
+    ['Ada Lovelace', 'ada@example.com'],
+    ['Grace Hopper', ''],
+    ['Alan Turing', 'alan@example.com'],
 ];
 
 int $line = 0;
@@ -24,4 +24,4 @@ foreach ($rows as array<string> $row) {
     $imported = $imported + 1;
 }
 
-echo "imported ", $imported, " of ", Core\Arr::count($rows), "\n";
+echo 'imported ', $imported, ' of ', Core\Arr::count($rows), "\n";

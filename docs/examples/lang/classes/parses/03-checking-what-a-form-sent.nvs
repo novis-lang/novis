@@ -2,20 +2,23 @@
 // Shows text from a form converted into values one by one. Each line where
 // `parse` throws an error is reported to the person who sent the form.
 
-final class Recipient implements Parses {
-    public function constructor(public tainted string $address) {}
+final class Recipient implements Parses
+{
+    public function constructor(public tainted string $address)
+    {}
 
-    public static function parse(tainted string $s): static {
+    public static function parse(tainted string $s): static
+    {
         // Text that came from outside stays `tainted` through `Core\Str::trim`.
         tainted string $clean = Core\Str::trim($s);
-        if (!Core\Str::contains($clean, "@")) {
-            throw new ParseError("an address needs an @");
+        if (!Core\Str::contains($clean, '@')) {
+            throw new ParseError('an address needs an @');
         }
         return new static($clean);
     }
 }
 
-array<string> $sent = [" ada@example.com ", "nobody", "grace@example.com"];
+array<string> $sent = [' ada@example.com ', 'nobody', 'grace@example.com'];
 array<Recipient> $accepted = [];
 
 foreach ($sent as string $line) {
@@ -26,7 +29,7 @@ foreach ($sent as string $line) {
     }
 }
 
-echo "sending to ", Core\Arr::count($accepted), " of ", Core\Arr::count($sent), "\n";
+echo 'sending to ', Core\Arr::count($accepted), ' of ', Core\Arr::count($sent), "\n";
 foreach ($accepted as Recipient $recipient) {
-    echo "  ", $recipient->address, "\n";
+    echo '  ', $recipient->address, "\n";
 }

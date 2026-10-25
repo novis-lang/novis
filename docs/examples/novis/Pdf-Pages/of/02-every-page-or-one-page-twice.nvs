@@ -4,8 +4,8 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Pages;
 use Novis\Pdf\Reader;
 
-var $letter = Document::fromHtml("<style>p { break-after: page }</style><p>Letter one</p><p>Letter two</p>")->render()->bytes;
-var $form = Document::fromHtml("<p>Return form</p>")->render()->bytes;
+var $letter = Document::fromHtml('<style>p { break-after: page }</style><p>Letter one</p><p>Letter two</p>')->render()->bytes;
+var $form = Document::fromHtml('<p>Return form</p>')->render()->bytes;
 
 // Without a list, every page of the letter is chosen.
 // The return form is listed twice, so the customer gets two copies.
@@ -13,5 +13,5 @@ var $pdf = Pages::merge([Pages::of($letter), Pages::of($form, [1, 1])]);
 
 var $reader = Reader::open($pdf);
 for (uint $page = 1; $page <= $reader->pageCount; $page++) {
-    echo "page ", $page, ": ", $reader->text($page), "\n";
+    echo 'page ', $page, ': ', $reader->text($page), "\n";
 }

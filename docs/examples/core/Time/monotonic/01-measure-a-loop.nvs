@@ -15,4 +15,4 @@ var $end = Core\Time::monotonic();
 // The result changes on every run, so this prints only a check: "under 5 seconds".
 Core\Time\Duration $took = $end->minus($start);
 echo $sum, "\n";
-echo $took->toMilliseconds() < 5000 ? "under 5 seconds" : "slow", "\n";
+echo $took->toMilliseconds() < 5000 ? 'under 5 seconds' : 'slow', "\n";

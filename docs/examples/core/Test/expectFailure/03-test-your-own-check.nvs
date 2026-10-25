@@ -1,11 +1,13 @@
 <?nvs
 // Shows a test of a check you wrote yourself: it must pass for a good price and fail for a bad one.
 
-final class PriceCheck {
+final class PriceCheck
+{
     // A valid price is more than 0 cents and at most 1,000,000 cents.
-    public static function assertValid(int $cents): void {
-        Core\Test::assertTrue($cents > 0, {message: "price " . $cents . " is not positive"});
-        Core\Test::assertTrue($cents <= 1000000, {message: "price " . $cents . " is too high"});
+    public static function assertValid(int $cents): void
+    {
+        Core\Test::assertTrue($cents > 0, { message: 'price ' . $cents . ' is not positive' });
+        Core\Test::assertTrue($cents <= 1000000, { message: 'price ' . $cents . ' is too high' });
     }
 }
 

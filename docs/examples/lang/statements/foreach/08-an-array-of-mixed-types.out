@@ -1,9 +1,9 @@
 error[E0414]: `var` cannot infer an array whose elements have different types
   --> 08-an-array-of-mixed-types.nvs:6:10
   |
-6 | foreach ([1, "two"] as var $item) {
+6 | foreach ([1, 'two'] as var $item) {
   |          ^^^^^^^^^^ the elements are `int` and `string`
-  = help: put the array in a typed local first, `array<int|string> $items = [1, "two"];`, and loop over `$items`
+  = help: put the array in a typed local first, `array<int|string> $items = [1, 'two'];`, and loop over `$items`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

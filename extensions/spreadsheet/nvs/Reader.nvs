@@ -9,16 +9,16 @@ use RuntimeError;
 /// Open one with `Reader::open`. Every string and `bytes` value it returns is `tainted`, because it comes from the file.
 final class Reader
 {
-    type RowOptions = ?{header?: bool|int, from?: uint, limit?: uint, columns?: array<string>, zone?: string, text?: bool|array<string>, formulas?: bool, emptyRows?: string, merged?: string, hidden?: string, locale?: string};
-    type SheetInfo = {name: tainted string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind};
-    type Link = {anchor: tainted string, target: tainted string, text: ?tainted string, tooltip: ?tainted string, external: bool};
-    type Note = {noted: tainted string, note: tainted string, author: ?tainted string};
-    type Name = {name: tainted string, reference: tainted string, sheet: ?tainted string};
-    type Table = {table: tainted string, name: tainted string, sheet: tainted string};
-    type Image = {at: tainted string, image: tainted bytes, format: tainted string, link: ?tainted string};
-    type Properties = {title: ?tainted string, subject: ?tainted string, author: ?tainted string, company: ?tainted string, keywords: ?tainted string, created: ?Core\Time\Instant};
-    type Read = {text: tainted string}|{integer: int}|{number: float}|{boolean: bool}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{error: CellError};
-    type Asked = {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string};
+    type RowOptions = ?{ header?: bool|int, from?: uint, limit?: uint, columns?: array<string>, zone?: string, text?: bool|array<string>, formulas?: bool, emptyRows?: string, merged?: string, hidden?: string, locale?: string };
+    type SheetInfo = { name: tainted string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind };
+    type Link = { anchor: tainted string, target: tainted string, text: ?tainted string, tooltip: ?tainted string, external: bool };
+    type Note = { noted: tainted string, note: tainted string, author: ?tainted string };
+    type Name = { name: tainted string, reference: tainted string, sheet: ?tainted string };
+    type Table = { table: tainted string, name: tainted string, sheet: tainted string };
+    type Image = { at: tainted string, image: tainted bytes, format: tainted string, link: ?tainted string };
+    type Properties = { title: ?tainted string, subject: ?tainted string, author: ?tainted string, company: ?tainted string, keywords: ?tainted string, created: ?Core\Time\Instant };
+    type Read = { text: tainted string }|{ integer: int }|{ number: float }|{ boolean: bool }|{ day: Core\Time\Date, clock: Core\Time\TimeOfDay }|{ date: Core\Time\Date }|{ time: Core\Time\TimeOfDay }|{ duration: Core\Time\Duration }|{ error: CellError };
+    type Asked = { sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string };
 
     // `$reader` is `null` for a CSV file. `$csv` is the text of CSV bytes, and `$skip` is the length of a byte order mark at the start of a CSV file.
     private function constructor(
@@ -26,7 +26,8 @@ final class Reader
         private readonly tainted bytes|Core\IO\File $source,
         private readonly ?tainted string $csv,
         private readonly uint $skip,
-    ) {}
+    )
+    {}
 
     /// `Reader::open` opens the workbook in `$source`, the bytes of the file or a file your program opened. Another file type throws an error.
     /// An xls or ods file is read whole here. A CSV file is UTF-8 text with one sheet, `Sheet1`, and each value in it is a `string`.
@@ -43,7 +44,7 @@ final class Reader
                 return new Reader(null, $source, $text, 0);
             }
         }
-        return new Reader(Engine::readerOpen($source, {maxBytes: null, maxRatio: null}), $source, null, 0);
+        return new Reader(Engine::readerOpen($source, { maxBytes: null, maxRatio: null }), $source, null, 0);
     }
 
     /// `sheets` returns each sheet in tab order, with its name, its position from 0, whether it is hidden, its size and its kind.
@@ -133,13 +134,13 @@ final class Reader
     public function properties(): Properties
     {
         if ($this->reader == null) {
-            return {title: null, subject: null, author: null, company: null, keywords: null, created: null};
+            return { title: null, subject: null, author: null, company: null, keywords: null, created: null };
         }
         var $found = Engine::readerProperties($this->engine(), $this->source);
         ?Core\Time\Instant $created = null;
         var $at = $found->created;
         if ($at != null) {
-            $created = Core\Time::parse($at->day->format("yyyy-MM-dd"), "yyyy-MM-dd", Core\Time\Zone::of("UTC"))->withTime($at->clock)->toInstant();
+            $created = Core\Time::parse($at->day->format('yyyy-MM-dd'), 'yyyy-MM-dd', Core\Time\Zone::of('UTC'))->withTime($at->clock)->toInstant();
         }
         return {
             title: $found->title,
@@ -165,12 +166,12 @@ final class Reader
             text: $text is array<string> ? $text : [],
             textAll: $text is bool && $text,
             formulas: $options?->formulas ?? false,
-            keepEmptyRows: self::choice($options?->emptyRows ?? null, "emptyRows", "skip", "keep"),
-            fillMerged: self::choice($options?->merged ?? null, "merged", "first", "fill"),
-            skipHidden: self::choice($options?->hidden ?? null, "hidden", "read", "skip"),
-            locale: $options?->locale ?? "en",
+            keepEmptyRows: self::choice($options?->emptyRows ?? null, 'emptyRows', 'skip', 'keep'),
+            fillMerged: self::choice($options?->merged ?? null, 'merged', 'first', 'fill'),
+            skipHidden: self::choice($options?->hidden ?? null, 'hidden', 'read', 'skip'),
+            locale: $options?->locale ?? 'en',
         };
-        Core\Time\Zone $zone = Core\Time\Zone::of($options?->zone ?? "UTC");
+        Core\Time\Zone $zone = Core\Time\Zone::of($options?->zone ?? 'UTC');
         bool|int $header = $options?->header ?? false;
         ?uint $headerRow = null;
         if ($header is int) {
@@ -310,7 +311,7 @@ final class Reader
     private function csvBlank(array<tainted string> $record): bool
     {
         foreach ($record as tainted string $field) {
-            if ($field != "") {
+            if ($field != '') {
                 return false;
             }
         }
@@ -324,7 +325,7 @@ final class Reader
         uint $column = 0;
         foreach ($record as tainted string $field) {
             $column = $column + 1;
-            tainted string $key = $field == "" ? self::letters($column) : $field;
+            tainted string $key = $field == '' ? self::letters($column) : $field;
             tainted string $named = $key;
             uint $count = 1;
             while (Core\Arr::contains($keys, $named)) {
@@ -350,7 +351,7 @@ final class Reader
         $column = 0;
         foreach ($record as tainted string $field) {
             $column = $column + 1;
-            if ($field != "" && self::selected($columns, $column)) {
+            if ($field != '' && self::selected($columns, $column)) {
                 tainted string $key = $column <= Core\Arr::count($keys) ? $keys[$column - 1] : self::letters($column);
                 $values[$key] = $field;
             }
@@ -369,13 +370,13 @@ final class Reader
                 $columns = $width;
             }
         }
-        return {name: "Sheet1", position: 0, visibility: Visibility::Visible, rows: $rows, columns: $columns, kind: SheetKind::Worksheet};
+        return { name: 'Sheet1', position: 0, visibility: Visibility::Visible, rows: $rows, columns: $columns, kind: SheetKind::Worksheet };
     }
 
     // The text of CSV bytes, or `null` for a zip archive or bytes that are not UTF-8, which the engine reads.
     private static function csvText(tainted bytes $data): ?tainted string
     {
-        tainted string $text = "";
+        tainted string $text = '';
         try {
             $text = Core\Encoding::decodeText($data, Core\Charset::Utf8);
         } catch (RuntimeError $e) {
@@ -396,7 +397,7 @@ final class Reader
     {
         uint $at = $file->tell();
         $file->seek(0);
-        string $head = "";
+        string $head = '';
         try {
             $head = $file->read(4);
         } catch (RuntimeError $e) {
@@ -424,7 +425,7 @@ final class Reader
     {
         ?Reading $reader = $this->reader;
         if ($reader == null) {
-            throw new LogicError("A CSV file has no workbook parts.");
+            throw new LogicError('A CSV file has no workbook parts.');
         }
         return $reader;
     }
@@ -432,8 +433,8 @@ final class Reader
     private function sheetName(string|int $sheet): string
     {
         if ($this->reader == null) {
-            if (($sheet is string && $sheet == "Sheet1") || ($sheet is int && $sheet == 0)) {
-                return "Sheet1";
+            if (($sheet is string && $sheet == 'Sheet1') || ($sheet is int && $sheet == 0)) {
+                return 'Sheet1';
             }
             throw new LogicError("A CSV file has one sheet, `Sheet1` at position 0. It has no sheet `{$sheet}`.");
         }
@@ -442,7 +443,7 @@ final class Reader
         }
         foreach ($this->sheets() as var $info) {
             if ($info->position as int == $sheet) {
-                return Core\Taint::assertTrusted($info->name, "the file gave this sheet name, and it goes back only to the same file");
+                return Core\Taint::assertTrusted($info->name, 'the file gave this sheet name, and it goes back only to the same file');
             }
         }
         throw new LogicError("The workbook has no sheet at position {$sheet}. The first sheet is at position 0.");
@@ -497,31 +498,31 @@ final class Reader
 
     private static function plain(?Read $value, Core\Time\Zone $zone): mixed
     {
-        if ($value is {text: tainted string}) {
+        if ($value is { text: tainted string }) {
             return $value->text;
         }
-        if ($value is {integer: int}) {
+        if ($value is { integer: int }) {
             return $value->integer;
         }
-        if ($value is {number: float}) {
+        if ($value is { number: float }) {
             return $value->number;
         }
-        if ($value is {boolean: bool}) {
+        if ($value is { boolean: bool }) {
             return $value->boolean;
         }
-        if ($value is {day: Core\Time\Date, clock: Core\Time\TimeOfDay}) {
-            return Core\Time::parse($value->day->format("yyyy-MM-dd"), "yyyy-MM-dd", $zone)->withTime($value->clock);
+        if ($value is { day: Core\Time\Date, clock: Core\Time\TimeOfDay }) {
+            return Core\Time::parse($value->day->format('yyyy-MM-dd'), 'yyyy-MM-dd', $zone)->withTime($value->clock);
         }
-        if ($value is {date: Core\Time\Date}) {
+        if ($value is { date: Core\Time\Date }) {
             return $value->date;
         }
-        if ($value is {time: Core\Time\TimeOfDay}) {
+        if ($value is { time: Core\Time\TimeOfDay }) {
             return $value->time;
         }
-        if ($value is {duration: Core\Time\Duration}) {
+        if ($value is { duration: Core\Time\Duration }) {
             return $value->duration;
         }
-        if ($value is {error: CellError}) {
+        if ($value is { error: CellError }) {
             return $value->error;
         }
         return null;
@@ -533,7 +534,7 @@ final class Reader
             return true;
         }
         foreach ($columns as string $range) {
-            array<string> $ends = Core\Str::split($range, ":");
+            array<string> $ends = Core\Str::split($range, ':');
             uint $first = self::number($ends[0]);
             uint $last = Core\Arr::count($ends) > 1 ? self::number($ends[1]) : $first;
             if ($column >= $first && $column <= $last) {
@@ -554,7 +555,7 @@ final class Reader
 
     private static function letters(uint $column): string
     {
-        string $letters = "";
+        string $letters = '';
         int $left = $column as int;
         while ($left > 0) {
             int $rest = ($left - 1) % 26;

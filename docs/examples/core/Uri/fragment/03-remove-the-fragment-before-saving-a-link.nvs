@@ -3,9 +3,9 @@
 
 // In a real program, these links come from the pages a crawler reads.
 array<string> $links = [
-    "https://example.com/guide#install",
-    "https://example.com/guide#usage",
-    "https://example.com/faq",
+    'https://example.com/guide#install',
+    'https://example.com/guide#usage',
+    'https://example.com/faq',
 ];
 
 array<string> $saved = [];
@@ -13,7 +13,7 @@ foreach ($links as string $link) {
     var $uri = Core\Uri::parse($link);
     if ($uri->fragment() != null) {
         // `with` builds a new address. A `null` fragment removes the `#` and the text after it.
-        $uri = $uri->with({fragment: null});
+        $uri = $uri->with({ fragment: null });
     }
     if (!Core\Arr::contains($saved, $uri->toString())) {
         $saved[] = $uri->toString();

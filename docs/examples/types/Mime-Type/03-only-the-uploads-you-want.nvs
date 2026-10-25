@@ -2,8 +2,10 @@
 // An upload form that accepts only a photo or a PDF. The check reads the bytes,
 // not the file name. So `setup.png`, which is really a zip archive, is not accepted.
 
-class Upload {
-    public static function accepted(Core\Mime::Type $found): bool {
+class Upload
+{
+    public static function accepted(Core\Mime::Type $found): bool
+    {
         return match ($found) {
             Core\Mime::Type::Png => true,
             Core\Mime::Type::Jpeg => true,
@@ -14,14 +16,14 @@ class Upload {
 }
 
 array<string> $received = [
-    "receipt.pdf" => "255044462d312e37",
-    "logo.png"    => "89504e470d0a1a0a",
-    "notes.txt"   => "68656c6c6f2c2074686572650a",
-    "setup.png"   => "504b03041400",
+    'receipt.pdf' => '255044462d312e37',
+    'logo.png'    => '89504e470d0a1a0a',
+    'notes.txt'   => '68656c6c6f2c2074686572650a',
+    'setup.png'   => '504b03041400',
 ];
 
 foreach ($received as string $name => string $firstBytes) {
     Core\Mime::Type $found = Core\Mime::detect(Core\Encoding::fromHex($firstBytes));
-    echo $name, ": ", Upload::accepted($found) ? "kept" : "refused",
-         " (", Core\Mime::mediaType($found), ")\n";
+    echo $name, ': ', Upload::accepted($found) ? 'kept' : 'refused',
+         ' (', Core\Mime::mediaType($found), ")\n";
 }

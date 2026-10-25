@@ -3,13 +3,15 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The request is in the file `host.nvsr` beside this one.
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            tainted string $host = Core\Request::host() ?? "";
+            tainted string $host = Core\Request::host() ?? '';
             $total = $total + Core\Str::length($host) + $total % 3;
             $i = $i + 1;
         }

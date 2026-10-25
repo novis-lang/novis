@@ -1,13 +1,15 @@
 <?nvs
+use Novis\Image\Color;
 // Hashes a small encoded image, as a program does when it checks an upload for copies.
 // bench: iterations 256
 // bench: complexity constant
 use Novis\Image\Image;
-use Novis\Image\Color;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        bytes $photo = Image::create(16, 16, Color::hex("#336699"))->encode();
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        bytes $photo = Image::create(16, 16, Color::hex('#336699'))->encode();
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

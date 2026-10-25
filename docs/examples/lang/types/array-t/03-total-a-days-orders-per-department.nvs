@@ -3,8 +3,10 @@
 // `withServiceFee` gets a copy of `$totals` and changes only that copy.
 // So the first line of output shows the original totals.
 
-class Report {
-    public static function withServiceFee(array<int> $totals): array<int> {
+class Report
+{
+    public static function withServiceFee(array<int> $totals): array<int>
+    {
         foreach ($totals as var $department => var $cents) {
             $totals[$department] = $cents + 250;
         }
@@ -15,8 +17,8 @@ class Report {
 // An array of arrays suits a grouped report.
 // `var` gives `$lines` the type `array<array<int>>`.
 var $lines = [
-    "produce" => [1299, 450],
-    "bakery" => [780],
+    'produce' => [1299, 450],
+    'bakery' => [780],
 ];
 
 // An empty array needs a written type. `var $totals = [];` does not compile,

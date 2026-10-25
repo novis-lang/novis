@@ -14,5 +14,5 @@ array<Core\Time\TimeOfDay> $visits = [
 // This prints closed, open and closed.
 foreach ($visits as Core\Time\TimeOfDay $visit) {
     bool $open = $visit->compareTo($opens) >= 0 && $visit->compareTo($closes) < 0;
-    echo $visit->format("HH:mm"), " ", $open ? "open" : "closed", "\n";
+    echo $visit->format('HH:mm'), ' ', $open ? 'open' : 'closed', "\n";
 }

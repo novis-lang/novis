@@ -3,14 +3,16 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The cookies are in the file `cookie.nvsr` beside this one.
-        array<string> $names = ["__Host-session", "lang", "theme"];
+        array<string> $names = ['__Host-session', 'lang', 'theme'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            tainted string $value = Core\Request::cookie($names[($total % 3) as int]) ?? "";
+            tainted string $value = Core\Request::cookie($names[($total % 3) as int]) ?? '';
             $total = $total + Core\Str::length($value);
             $i = $i + 1;
         }

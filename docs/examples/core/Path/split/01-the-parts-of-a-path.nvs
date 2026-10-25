@@ -2,7 +2,7 @@
 // Shows how to split a path into its folders and its file name with `Core\Path::split`.
 
 // This prints `srv`, `shop`, `invoices` and `invoice-1042.pdf`, one per line.
-foreach (Core\Path::split("srv/shop/invoices/invoice-1042.pdf") as string $part) {
+foreach (Core\Path::split('srv/shop/invoices/invoice-1042.pdf') as string $part) {
     echo $part, "\n";
 }
 

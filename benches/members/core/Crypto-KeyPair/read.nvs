@@ -5,12 +5,14 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<bytes> $files = [
-            Core\Encoding::fromHex("302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf"),
-            Core\Encoding::fromHex("302e020100300506032b656e042204200172af48574da59d306df1b27cc27457304669fb73e0630b9f84eac038695c2c"),
-            Core\Encoding::fromHex("3041020100301306072a8648ce3d020106082a8648ce3d03010704273025020101042033172cfd4cb8e906b35b1dd8753ac6b12b8c760281d124bf635dbf5c5f15c49a"),
+            Core\Encoding::fromHex('302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf'),
+            Core\Encoding::fromHex('302e020100300506032b656e042204200172af48574da59d306df1b27cc27457304669fb73e0630b9f84eac038695c2c'),
+            Core\Encoding::fromHex('3041020100301306072a8648ce3d020106082a8648ce3d03010704273025020101042033172cfd4cb8e906b35b1dd8753ac6b12b8c760281d124bf635dbf5c5f15c49a'),
         ];
         array<Core\Crypto\KeyKind> $kinds = [
             Core\Crypto\KeyKind::Ed25519,

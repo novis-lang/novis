@@ -1,25 +1,25 @@
 <?nvs
+use Novis\Spreadsheet\Reader;
 // Shows how to write an Excel file to a path and read it back.
 use Novis\Spreadsheet\Workbook;
-use Novis\Spreadsheet\Reader;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "sales-2024-05.xlsx");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'sales-2024-05.xlsx');
 
 // The file at `$path` is created, or replaced if it exists.
 var $book = Workbook::createForFile($path);
-$book->sheet("Sales")->addAll([
-    ["day" => Core\Time\Date::at(2024, 5, 1), "sales" => 1200],
-    ["day" => Core\Time\Date::at(2024, 5, 2), "sales" => 950],
+$book->sheet('Sales')->addAll([
+    ['day' => Core\Time\Date::at(2024, 5, 1), 'sales' => 1200],
+    ['day' => Core\Time\Date::at(2024, 5, 2), 'sales' => 950],
 ]);
 
 // For a file, `Written::bytes` is `null`. The file is on the disk.
 var $written = $book->finish();
-echo $written->rows["Sales"], " rows, bytes in memory: ", $written->bytes == null ? "none" : "yes", "\n";
+echo $written->rows['Sales'], ' rows, bytes in memory: ', $written->bytes == null ? 'none' : 'yes', "\n";
 
 // `header: true` uses the first row as the keys of each row. A date cell is read as a date.
-foreach (Reader::open(Core\IO::open($path, Core\IO::FileMode::Read))->rows("Sales", {header: true}) as var $row) {
-    mixed $day = $row->values["day"];
+foreach (Reader::open(Core\IO::open($path, Core\IO::FileMode::Read))->rows('Sales', { header: true }) as var $row) {
+    mixed $day = $row->values['day'];
     if ($day is Core\Time\Date) {
-        echo $day->format("yyyy-MM-dd"), ": ", $row->values["sales"], "\n";
+        echo $day->format('yyyy-MM-dd'), ': ', $row->values['sales'], "\n";
     }
 }

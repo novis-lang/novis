@@ -2,23 +2,23 @@
 // Shows how to show a long list of people one page at a time, sorted by name.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $people = Core\Ldap\Filter::equals("objectClass", "user");
+var $corp = Core\Ldap::connect('corp');
+var $people = Core\Ldap\Filter::equals('objectClass', 'user');
 
 // The server sorts the entries by `cn`. `offset` skips the first two,
 // and `window` returns the next two.
 var $page = $corp->search($people, {
-    base: "OU=Company,DC=example,DC=test",
-    select: ["cn"],
-    sort: "cn",
+    base: 'OU=Company,DC=example,DC=test',
+    select: ['cn'],
+    sort: 'cn',
     offset: 2,
     window: 2,
 });
 
 // This prints `Carla Diaz` and `Dora Lind`.
 foreach ($page as Core\Ldap\Entry $person) {
-    echo $person->string("cn") ?? "", "\n";
+    echo $person->string('cn') ?? '', "\n";
 }
 
 // `total()` returns how many entries there are in all, on every page together.
-echo "people in all: ", $page->total() ?? 0, "\n";
+echo 'people in all: ', $page->total() ?? 0, "\n";

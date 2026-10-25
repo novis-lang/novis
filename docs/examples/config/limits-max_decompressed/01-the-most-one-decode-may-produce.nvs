@@ -7,7 +7,7 @@ echo 'the most one decode may produce: ', Core\Config::get('limits.max_decompres
 
 // This compresses 16 KiB of the letter `A`. The result is only 52 bytes,
 // so the input is small and the output is large.
-bytes $payload = Core\Str::repeat("A", 16384) as bytes;
+bytes $payload = Core\Str::repeat('A', 16384) as bytes;
 bytes $frame = Core\Compress::compress($payload, Core\Compress::Codec::Gzip);
 echo 'on the wire:                     ', Core\Bytes::length($frame), " octets\n";
 

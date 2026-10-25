@@ -2,10 +2,10 @@
 // Shows how to put a small CSV report inside a JSON response, as Base64 text.
 use Novis\Spreadsheet\Workbook;
 
-bytes $file = Workbook::fromRows([["day" => "Monday", "visits" => 120], ["day" => "Tuesday", "visits" => 95]], {format: "csv"})->bytes();
+bytes $file = Workbook::fromRows([['day' => 'Monday', 'visits' => 120], ['day' => 'Tuesday', 'visits' => 95]], { format: 'csv' })->bytes();
 
 // JSON cannot contain bytes, so `Core\Encoding::toBase64` turns them into text.
-echo Core\Json::encode({name: "visits.csv", content: Core\Encoding::toBase64($file)}), "\n";
+echo Core\Json::encode({ name: 'visits.csv', content: Core\Encoding::toBase64($file) }), "\n";
 
 // The receiver turns the text back into the same file.
 echo Core\Encoding::fromBase64(Core\Encoding::toBase64($file)) as string;

@@ -19,4 +19,4 @@ echo Core\Json::encode(Core\Arr::slice($stock, 1, null)), "\n";
 
 // `preserveKeys` keeps every value under its own key. This prints
 // {"pears":4,"plums":7}.
-echo Core\Json::encode(Core\Arr::slice($stock, 1, null, {preserveKeys: true})), "\n";
+echo Core\Json::encode(Core\Arr::slice($stock, 1, null, { preserveKeys: true })), "\n";

@@ -8,4 +8,4 @@ string $id = Core\Program::id();
 echo Core\Str::length($id), "\n";
 
 // Two calls in one run return the same value. This prints `same`.
-echo $id == Core\Program::id() ? "same" : "different", "\n";
+echo $id == Core\Program::id() ? 'same' : 'different', "\n";

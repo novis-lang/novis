@@ -7,8 +7,10 @@
 use Core\Db;
 use Core\Db\Schema;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $db = Db::connect('notes');
         $db->execute('create table notes (id integer not null primary key autoincrement, title varchar(200) not null)', []);
         var $schema = Schema::fromArray([

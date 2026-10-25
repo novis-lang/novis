@@ -3,21 +3,21 @@
 // when it imports a file. PHP offers `list(...)`, `extract` and `$$name` for
 // this; Novis has `[...]` for a list and an array you index by name.
 
-array<string> $line = ["2026-09-19", "ada@example.com", "19.99"];
+array<string> $line = ['2026-09-19', 'ada@example.com', '19.99'];
 
 // `[...]` on the left takes the elements in order, one variable each. This
 // prints the three values on one line.
 [string $date, string $email, string $amount] = $line;
-echo $date, " ", $email, " ", $amount, "\n";
+echo $date, ' ', $email, ' ', $amount, "\n";
 
-array<string> $form = ["email" => "grace@example.com", "country" => "US"];
+array<string> $form = ['email' => 'grace@example.com', 'country' => 'US'];
 
 // A row whose parts have names is an array with string keys. You read the key
 // you want, and `??` gives a value for a key that is not there.
-echo $form["email"], "\n";
-echo $form["phone"] ?? "no phone given", "\n";
+echo $form['email'], "\n";
+echo $form['phone'] ?? 'no phone given', "\n";
 
 // The key can come from a variable. This replaces a variable variable such as
 // `$$name`, and the result still has a type: here it is a `string`.
-string $wanted = "country";
+string $wanted = 'country';
 echo $form[$wanted], "\n";

@@ -4,39 +4,46 @@
 use Core\Http\Method;
 use Core\Router\Refusal;
 
-class Shop {
-    #[Core\Route(path: "/cart", method: Core\Http\Method::Get, name: "Shop::cart")]
+class Shop
+{
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Get, name: 'Shop::cart')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function cart(): void {
-        echo "your cart";
+    public function cart(): void
+    {
+        echo 'your cart';
     }
 
-    #[Core\Route(path: "/report", method: Core\Http\Method::Get, name: "Shop::report")]
+    #[Core\Route(path: '/report', method: Core\Http\Method::Get, name: 'Shop::report')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function report(): void {
-        throw new RuntimeError("the report is not ready");
+    public function report(): void
+    {
+        throw new RuntimeError('the report is not ready');
     }
 }
 
-class Gate implements Core\Router\Gate {
+class Gate implements Core\Router\Gate
+{
     // `dispatch` calls this before each route method. Here every route is allowed.
-    public function allows(Core\Router\Match $route): bool {
+    public function allows(Core\Router\Match $route): bool
+    {
         return true;
     }
 
     // The status is already set. This method changes a 404 to a 410.
-    public function refused(Refusal $reason, ?Core\Router\Match $route): void {
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void
+    {
         if ($reason == Refusal::NotFound) {
             Core\Response::setStatus(410);
-            echo "this page was removed";
+            echo 'this page was removed';
         } else {
-            echo "you cannot open this page";
+            echo 'you cannot open this page';
         }
     }
 
     // The status is already 500. The visitor does not see the message of the error.
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
-        echo "sorry, something went wrong";
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'sorry, something went wrong';
     }
 }
 
@@ -45,10 +52,10 @@ if (Core\Env::context() == Core\Env::Context::Request) {
 } else {
     // This prints `200 your cart`, then `410 this page was removed`,
     // then `500 sorry, something went wrong`.
-    var $cart = Core\Test::request(Method::Get, "/cart");
-    echo $cart->status(), " ", $cart->body(), "\n";
-    var $old = Core\Test::request(Method::Get, "/old-page");
-    echo $old->status(), " ", $old->body(), "\n";
-    var $report = Core\Test::request(Method::Get, "/report");
-    echo $report->status(), " ", $report->body(), "\n";
+    var $cart = Core\Test::request(Method::Get, '/cart');
+    echo $cart->status(), ' ', $cart->body(), "\n";
+    var $old = Core\Test::request(Method::Get, '/old-page');
+    echo $old->status(), ' ', $old->body(), "\n";
+    var $report = Core\Test::request(Method::Get, '/report');
+    echo $report->status(), ' ', $report->body(), "\n";
 }

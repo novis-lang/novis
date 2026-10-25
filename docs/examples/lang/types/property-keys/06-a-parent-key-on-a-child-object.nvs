@@ -1,18 +1,20 @@
 <?nvs
 // Shows a key of a parent class used on an object of a child class.
 
-class Animal {
-    public string $name = "Rex";
+class Animal
+{
+    public string $name = 'Rex';
 }
 
-class Dog extends Animal {
-    public string $breed = "beagle";
+class Dog extends Animal
+{
+    public string $breed = 'beagle';
 }
 
 Dog $dog = new Dog();
 
 // A `Dog` has every property of an `Animal`, so a `property<Animal>` key works on it.
-property<Animal> $key = "name" as property<Animal>;
+property<Animal> $key = 'name' as property<Animal>;
 echo $dog->$key, "\n";
 
 // A `property<Animal>` key is also a `property<Dog>` key.

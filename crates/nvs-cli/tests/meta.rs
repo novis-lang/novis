@@ -595,7 +595,7 @@ fn meta_json_with_an_entry_emits_the_programs_declarations() {
             "name": "OPENING",
             "visibility": "public",
             "type": "string",
-            "value": "\"Hello\"",
+            "value": "'Hello'",
             "doc": { "short": "The word every greeting opens with." },
         })
     );
@@ -636,7 +636,7 @@ fn meta_json_nests_a_class_scoped_alias_under_its_owner() {
         declared(&greeter, "types", "Greeter::Card"),
         serde_json::json!({
             "name": "Greeter::Card",
-            "type": "{text: string, volume: int}",
+            "type": "{ text: string, volume: int }",
             "doc": { "short": "What a rendered greeting is: its text and how loudly to say it." },
         })
     );

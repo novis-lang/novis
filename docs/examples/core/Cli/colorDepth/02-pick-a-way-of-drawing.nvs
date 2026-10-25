@@ -6,9 +6,9 @@
 int $depth = Core\Cli::colorDepth() as int;
 int $shaded = Core\Cli::ColorDepth::Ansi256 as int;
 
-string $chart = "bars of hash marks";
+string $chart = 'bars of hash marks';
 if ($depth >= $shaded) {
-    $chart = "bars in 256 shades";
+    $chart = 'bars in 256 shades';
 }
 
-echo "drawing: ", $chart, "\n";
+echo 'drawing: ', $chart, "\n";

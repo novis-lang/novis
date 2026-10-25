@@ -4,13 +4,15 @@
 // bench: complexity constant
 use Novis\Spreadsheet\Formula;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $texts = ["=B2*C2", "B3*C3", "=SUM(D2:D9)", "ROUND(D2*0.19, 2)"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $texts = ['=B2*C2', 'B3*C3', '=SUM(D2:D9)', 'ROUND(D2*0.19, 2)'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            var $formula = Formula::of($texts[($total % 4) as int], {cached: 42});
+            var $formula = Formula::of($texts[($total % 4) as int], { cached: 42 });
             uint $step = $formula->cached == 42 ? 1 : 3;
             $total = $total + $step;
             $i = $i + 1;

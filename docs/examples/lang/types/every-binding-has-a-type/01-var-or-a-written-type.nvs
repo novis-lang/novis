@@ -4,12 +4,12 @@
 // `var` gives the variable the type of its first value.
 // `$count` is an `int` and `$label` is a `string`. The types never change.
 var $count = 3;
-var $label = "boxes";
+var $label = 'boxes';
 $count = $count + 1;
 
 // A written type is needed when the variable gets its value later.
 string $unit;
-$unit = "kg";
+$unit = 'kg';
 
 // A written type can also be wider than the first value.
 // With `var $weight = 1;` the type is `int`, so the next line would not compile.
@@ -17,4 +17,4 @@ float $weight = 1;
 $weight = $weight * 2.5;
 
 // This prints `4 boxes, 2.5 kg each`.
-echo $count, " ", $label, ", ", $weight, " ", $unit, " each\n";
+echo $count, ' ', $label, ', ', $weight, ' ', $unit, " each\n";

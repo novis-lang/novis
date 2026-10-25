@@ -1,30 +1,34 @@
 <?nvs
 // This program reads a contact form and lists every field that is not valid.
 #[Core\Json\Derive]
-class Contact {
+class Contact
+{
     public tainted string $name;
     public tainted string $email;
     public tainted string $message;
 
-    public function constructor(tainted string $name, tainted string $email, tainted string $message) {
+    public function constructor(tainted string $name, tainted string $email, tainted string $message)
+    {
         $this->name = $name;
         $this->email = $email;
         $this->message = $message;
     }
 }
 
-class ContactForm {
+class ContactForm
+{
     // Returns one line for each field that is not valid. An empty array means the form is valid.
-    public static function problems(Contact $form): array<string> {
+    public static function problems(Contact $form): array<string>
+    {
         array<string> $problems = [];
-        if (Core\Str::trim($form->name) == "") {
-            $problems[] = "name: please enter your name";
+        if (Core\Str::trim($form->name) == '') {
+            $problems[] = 'name: please enter your name';
         }
         if (!Core\Validate::isEmail($form->email)) {
-            $problems[] = "email: this is not an email address";
+            $problems[] = 'email: this is not an email address';
         }
         if (Core\Str::length($form->message) < 10) {
-            $problems[] = "message: please write at least 10 characters";
+            $problems[] = 'message: please write at least 10 characters';
         }
         return $problems;
     }

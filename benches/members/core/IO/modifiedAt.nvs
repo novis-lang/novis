@@ -4,17 +4,19 @@
 // bench: calls 2
 // bench: complexity constant
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         string $dir = Core\IO::temporaryDir();
         array<string> $paths = [
-            Core\Path::join($dir, "template.txt"),
-            Core\Path::join($dir, "style.css"),
-            Core\Path::join($dir, "config.toml"),
+            Core\Path::join($dir, 'template.txt'),
+            Core\Path::join($dir, 'style.css'),
+            Core\Path::join($dir, 'config.toml'),
         ];
-        Core\IO::write($paths[0], "a");
-        Core\IO::write($paths[1], "b");
-        Core\IO::write($paths[2], "c");
+        Core\IO::write($paths[0], 'a');
+        Core\IO::write($paths[1], 'b');
+        Core\IO::write($paths[2], 'c');
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {
@@ -27,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "no file was read", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'no file was read', "\n";

@@ -8,8 +8,10 @@
 // bench: calls 3
 // bench: complexity constant
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         int $step = 3;
         callable $plain = fn(int $n): int => $n + 1;
         callable $holding = fn(int $n): int => $n + $step;

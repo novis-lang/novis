@@ -3,10 +3,12 @@
 // `Core\Route` has no `colour` option, so this program does not compile.
 // proof: compile-error
 
-class Home {
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, colour: "red")]
+class Home
+{
+    #[Core\Route(path: '/', method: Core\Http\Method::Get, colour: 'red')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(): string {
-        return "home";
+    public function show(): string
+    {
+        return 'home';
     }
 }

@@ -3,8 +3,13 @@
 // daily visitor counts is worked out first, and every day is compared to it.
 
 array<int> $visitors = [
-    'mon' => 120, 'tue' => 95, 'wed' => 140,
-    'thu' => 88, 'fri' => 210, 'sat' => 260, 'sun' => 0,
+    'mon' => 120,
+    'tue' => 95,
+    'wed' => 140,
+    'thu' => 88,
+    'fri' => 210,
+    'sat' => 260,
+    'sun' => 0,
 ];
 
 // This prints "mean: 130.42857142857".

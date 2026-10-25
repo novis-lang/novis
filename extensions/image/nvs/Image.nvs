@@ -7,35 +7,35 @@ use LogicError;
 /// and leaves this one as it was. Nothing is decoded until `encode`, `variants` or `raw` runs.
 final class Image
 {
-    type Rgba = {r: uint, g: uint, b: uint, alpha: float};
-    type Resize = {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool};
-    type Encoding = {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint};
+    type Rgba = { r: uint, g: uint, b: uint, alpha: float };
+    type Resize = { width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool };
+    type Encoding = { format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint };
     type Step = {
         resize?: Resize,
-        crop?: {x: uint, y: uint, width: uint, height: uint},
-        trim?: {threshold?: float},
-        rotate?: {degrees: float, background: ?Rgba},
+        crop?: { x: uint, y: uint, width: uint, height: uint },
+        trim?: { threshold?: float },
+        rotate?: { degrees: float, background: ?Rgba },
         flip?: Axis,
-        composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend},
+        composite?: { overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend },
         flatten?: Rgba,
-        sharpen?: {sigma?: float},
+        sharpen?: { sigma?: float },
         blur?: float,
         grayscale?: bool,
         brightness?: float,
         contrast?: float,
         gamma?: float,
         tint?: Rgba,
-        text?: {text: string, font: bytes, size: float, color: Rgba, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align},
+        text?: { text: string, font: bytes, size: float, color: Rgba, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align },
         format?: Encoding,
-        metadata?: {keep: bool},
+        metadata?: { keep: bool },
     };
-    type Origin = {data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint, page?: uint, dpi?: float}
-        | {width: uint, height: uint, fill: Rgba}
-        | {width: uint, height: uint, pixels: bytes}
-        | {text: string, font: bytes, size: float, maxWidth: ?uint, align: ?Align};
-    type Layer = {source: Origin, steps: array<Step>};
-    type Plan = {steps: array<Step>, overlays: array<Layer>, output: Output};
-    type Raw = {width: uint, height: uint, pixels: bytes};
+    type Origin = { data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint, page?: uint, dpi?: float }
+        | { width: uint, height: uint, fill: Rgba }
+        | { width: uint, height: uint, pixels: bytes }
+        | { text: string, font: bytes, size: float, maxWidth: ?uint, align: ?Align };
+    type Layer = { source: Origin, steps: array<Step> };
+    type Plan = { steps: array<Step>, overlays: array<Layer>, output: Output };
+    type Raw = { width: uint, height: uint, pixels: bytes };
     type Info = {
         format: Format,
         width: uint,
@@ -46,21 +46,22 @@ final class Image
         exif: ?array<string>,
         hasIcc: bool,
     };
-    type Variant = {width?: uint, height?: uint, fit?: Fit, format?: Format, quality?: uint};
-    type Size = {width: uint, height: uint};
+    type Variant = { width?: uint, height?: uint, fit?: Fit, format?: Format, quality?: uint };
+    type Size = { width: uint, height: uint };
 
     private function constructor(
         private readonly Origin $source,
         private readonly array<Step> $steps,
         private readonly array<Layer> $overlays,
-    ) {}
+    )
+    {}
 
     /// `Image::open` starts from the bytes of an encoded image. It turns the image upright and
     /// converts its colours to sRGB, unless `autoOrient` or `toSrgb` is `false`.
     /// `page` chooses one page of a document, starting at 1. `dpi` is the resolution of that page, 150 by default.
     /// An image with one page has only page 1, and a page past the end throws an error.
     /// Bytes that are not an image throw an error when `encode`, `variants` or `raw` runs.
-    public static function open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float} $options = null): Image
+    public static function open(bytes $data, ?{ autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float } $options = null): Image
     {
         bool $autoOrient = $options?->autoOrient ?? true;
         bool $toSrgb = $options?->toSrgb ?? true;
@@ -68,22 +69,22 @@ final class Image
         uint $page = $options?->page ?? 1;
         float $dpi = $options?->dpi ?? 150.0;
         if ($maxPixels == null) {
-            return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb, page: $page, dpi: $dpi}, [], []);
+            return new Image({ data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb, page: $page, dpi: $dpi }, [], []);
         }
-        return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb, maxPixels: $maxPixels, page: $page, dpi: $dpi}, [], []);
+        return new Image({ data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb, maxPixels: $maxPixels, page: $page, dpi: $dpi }, [], []);
     }
 
     /// `Image::create` starts from a blank canvas. Without `$fill`, the canvas is transparent.
     public static function create(uint $width, uint $height, ?Color $fill = null): Image
     {
         Color $color = $fill ?? Color::rgba(0, 0, 0, 0.0);
-        return new Image({width: $width, height: $height, fill: Image::rgba($color)}, [], []);
+        return new Image({ width: $width, height: $height, fill: Image::rgba($color) }, [], []);
     }
 
     /// `Image::fromRaw` starts from RGBA8 pixels, as `raw` returns them.
     public static function fromRaw(Raw $raw): Image
     {
-        return new Image({width: $raw->width, height: $raw->height, pixels: $raw->pixels}, [], []);
+        return new Image({ width: $raw->width, height: $raw->height, pixels: $raw->pixels }, [], []);
     }
 
     /// `Image::info` reads the format, the size and the orientation from the header. No pixel is decoded.
@@ -96,14 +97,14 @@ final class Image
     public static function mime(Format $format): string
     {
         return match ($format) {
-            Format::Jpeg => "image/jpeg",
-            Format::Png => "image/png",
-            Format::Webp => "image/webp",
-            Format::Gif => "image/gif",
-            Format::Avif => "image/avif",
-            Format::Jxl => "image/jxl",
-            Format::Svg => "image/svg+xml",
-            Format::Pdf => "application/pdf",
+            Format::Jpeg => 'image/jpeg',
+            Format::Png => 'image/png',
+            Format::Webp => 'image/webp',
+            Format::Gif => 'image/gif',
+            Format::Avif => 'image/avif',
+            Format::Jxl => 'image/jxl',
+            Format::Svg => 'image/svg+xml',
+            Format::Pdf => 'application/pdf',
         };
     }
 
@@ -111,14 +112,14 @@ final class Image
     public static function extension(Format $format): string
     {
         return match ($format) {
-            Format::Jpeg => "jpg",
-            Format::Png => "png",
-            Format::Webp => "webp",
-            Format::Gif => "gif",
-            Format::Avif => "avif",
-            Format::Jxl => "jxl",
-            Format::Svg => "svg",
-            Format::Pdf => "pdf",
+            Format::Jpeg => 'jpg',
+            Format::Png => 'png',
+            Format::Webp => 'webp',
+            Format::Gif => 'gif',
+            Format::Avif => 'avif',
+            Format::Jxl => 'jxl',
+            Format::Svg => 'svg',
+            Format::Pdf => 'pdf',
         };
     }
 
@@ -127,39 +128,39 @@ final class Image
     /// The image does not grow larger than it is, unless `upscale` is `true`.
     public function resize(Resize $options): Image
     {
-        return $this->then({resize: $options});
+        return $this->then({ resize: $options });
     }
 
     /// `crop` keeps only the box at `x` and `y`, with its `width` and `height`.
     /// The box must lie inside the image.
-    public function crop({x: uint, y: uint, width: uint, height: uint} $box): Image
+    public function crop({ x: uint, y: uint, width: uint, height: uint } $box): Image
     {
-        return $this->then({crop: {x: $box->x, y: $box->y, width: $box->width, height: $box->height}});
+        return $this->then({ crop: { x: $box->x, y: $box->y, width: $box->width, height: $box->height } });
     }
 
     /// `trim` removes the border that has the colour of the top-left pixel.
     /// `threshold` is how far a colour may differ and still count, from 0 to 255. The default is 10.
-    public function trim(?{threshold?: float} $options = null): Image
+    public function trim(?{ threshold?: float } $options = null): Image
     {
         ?float $threshold = $options?->threshold ?? null;
         if ($threshold == null) {
-            return $this->then({trim: {}});
+            return $this->then({ trim: {} });
         }
-        return $this->then({trim: {threshold: $threshold}});
+        return $this->then({ trim: { threshold: $threshold } });
     }
 
     /// `rotate` turns the image clockwise by `$degrees`. For an angle that is not a multiple of 90,
     /// the image grows to fit the turned picture, and `background` fills the corners.
-    public function rotate(float $degrees, ?{background?: Color} $options = null): Image
+    public function rotate(float $degrees, ?{ background?: Color } $options = null): Image
     {
         ?Color $background = $options?->background ?? null;
-        return $this->then({rotate: {degrees: $degrees, background: $background == null ? null : Image::rgba($background)}});
+        return $this->then({ rotate: { degrees: $degrees, background: $background == null ? null : Image::rgba($background) } });
     }
 
     /// `flip(Axis::Horizontal)` swaps left and right. `flip(Axis::Vertical)` swaps top and bottom.
     public function flip(Axis $axis): Image
     {
-        return $this->then({flip: $axis});
+        return $this->then({ flip: $axis });
     }
 
     /// `composite` draws `$overlay` on top of this image, with all of the overlay's own steps.
@@ -167,14 +168,14 @@ final class Image
     /// corner in pixels instead, and may be negative. The parts outside this image are cut off.
     /// `opacity` is from 0.0 to 1.0, and the default is 1.0. `blend` mixes the colours, and the
     /// default is `Blend::Normal`. A `format` or `metadata` step of the overlay changes nothing.
-    public function composite(Image $overlay, ?{gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend} $options = null): Image
+    public function composite(Image $overlay, ?{ gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend } $options = null): Image
     {
         uint $base = Core\Arr::count($this->overlays);
         array<Layer> $overlays = $this->overlays;
         foreach ($overlay->overlays as Layer $layer) {
-            $overlays[] = {source: $layer->source, steps: Image::moved($layer->steps, $base)};
+            $overlays[] = { source: $layer->source, steps: Image::moved($layer->steps, $base) };
         }
-        $overlays[] = {source: $overlay->source, steps: Image::moved($overlay->steps, $base)};
+        $overlays[] = { source: $overlay->source, steps: Image::moved($overlay->steps, $base) };
         array<Step> $steps = $this->steps;
         $steps[] = {composite: {
             overlay: Core\Arr::count($overlays) - 1,
@@ -190,55 +191,55 @@ final class Image
     /// `flatten` puts the image on a background of one colour. The result has no transparent pixels.
     public function flatten(Color $background): Image
     {
-        return $this->then({flatten: Image::rgba($background)});
+        return $this->then({ flatten: Image::rgba($background) });
     }
 
     /// `sharpen` makes edges clearer. A larger `sigma` sharpens wider edges. The default is 1.
-    public function sharpen(?{sigma?: float} $options = null): Image
+    public function sharpen(?{ sigma?: float } $options = null): Image
     {
         ?float $sigma = $options?->sigma ?? null;
         if ($sigma == null) {
-            return $this->then({sharpen: {}});
+            return $this->then({ sharpen: {} });
         }
-        return $this->then({sharpen: {sigma: $sigma}});
+        return $this->then({ sharpen: { sigma: $sigma } });
     }
 
     /// `blur` makes the image soft. A larger `$sigma` gives a stronger blur.
     public function blur(float $sigma): Image
     {
-        return $this->then({blur: $sigma});
+        return $this->then({ blur: $sigma });
     }
 
     /// `grayscale` removes the colours and keeps the light and dark of each pixel.
     public function grayscale(): Image
     {
-        return $this->then({grayscale: true});
+        return $this->then({ grayscale: true });
     }
 
     /// `brightness` multiplies every colour by `$amount`. 1.0 changes nothing, and 1.2 is 20% brighter.
     public function brightness(float $amount): Image
     {
-        return $this->then({brightness: $amount});
+        return $this->then({ brightness: $amount });
     }
 
     /// `contrast` moves every colour away from middle gray by `$amount`. 1.0 changes nothing.
     /// A value below 1.0 gives less contrast.
     public function contrast(float $amount): Image
     {
-        return $this->then({contrast: $amount});
+        return $this->then({ contrast: $amount });
     }
 
     /// `gamma` changes the middle tones and keeps black and white. 1.0 changes nothing.
     /// A value above 1.0 makes the middle tones lighter.
     public function gamma(float $gamma): Image
     {
-        return $this->then({gamma: $gamma});
+        return $this->then({ gamma: $gamma });
     }
 
     /// `tint` colours the image with `$color`. The alpha of `$color` is how strong the tint is.
     public function tint(Color $color): Image
     {
-        return $this->then({tint: Image::rgba($color)});
+        return $this->then({ tint: Image::rgba($color) });
     }
 
     /// `text` draws `$text` on the image with `$font`, in `color`. `size` is the font size in pixels.
@@ -246,7 +247,7 @@ final class Image
     /// the default is `Gravity::Center`. With `maxWidth`, lines break at spaces to stay that wide.
     /// `align` sets how the lines line up, and the default is `Align::Left`. Text in any script
     /// is drawn as the font defines it. A line of Arabic or Hebrew runs from right to left.
-    public function text(string $text, Font $font, {size: float, color: Color, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align} $options): Image
+    public function text(string $text, Font $font, { size: float, color: Color, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align } $options): Image
     {
         return $this->then({text: {
             text: $text,
@@ -262,16 +263,16 @@ final class Image
     }
 
     /// `Image::measureText` returns the `width` and `height` in pixels that `text` needs for the same text and options.
-    public static function measureText(string $text, Font $font, {size: float, maxWidth?: uint, align?: Align} $options): Size
+    public static function measureText(string $text, Font $font, { size: float, maxWidth?: uint, align?: Align } $options): Size
     {
-        Origin $source = {text: $text, font: $font->data, size: $options->size, maxWidth: $options->maxWidth ?? null, align: $options->align ?? null};
-        bytes $result = Codec::run($source, {steps: [], overlays: [], output: Output::Size});
-        array<mixed> $size = Core\Bytes::unpack($result, "JJ");
-        return {width: $size[0] as uint, height: $size[1] as uint};
+        Origin $source = { text: $text, font: $font->data, size: $options->size, maxWidth: $options->maxWidth ?? null, align: $options->align ?? null };
+        bytes $result = Codec::run($source, { steps: [], overlays: [], output: Output::Size });
+        array<mixed> $size = Core\Bytes::unpack($result, 'JJ');
+        return { width: $size[0] as uint, height: $size[1] as uint };
     }
 
     /// `format` sets the format that `encode` writes. Without it, the output has the format of the input.
-    public function format(Format $format, ?{quality?: uint, progressive?: bool, lossless?: bool, effort?: uint} $options = null): Image
+    public function format(Format $format, ?{ quality?: uint, progressive?: bool, lossless?: bool, effort?: uint } $options = null): Image
     {
         return $this->then({format: {
             format: $format,
@@ -283,23 +284,23 @@ final class Image
     }
 
     /// `metadata({keep: true})` keeps the EXIF data in the output. Without it, `encode` removes all metadata.
-    public function metadata({keep: bool} $options): Image
+    public function metadata({ keep: bool } $options): Image
     {
-        return $this->then({metadata: {keep: $options->keep}});
+        return $this->then({ metadata: { keep: $options->keep } });
     }
 
     /// `encode` runs every step and returns the encoded file.
     public function encode(): bytes
     {
-        return Codec::run($this->source, {steps: $this->steps, overlays: $this->overlays, output: Output::Encoded});
+        return Codec::run($this->source, { steps: $this->steps, overlays: $this->overlays, output: Output::Encoded });
     }
 
     /// `raw` runs every step and returns the pixels as RGBA8 rows, four bytes per pixel.
     public function raw(): Raw
     {
-        bytes $result = Codec::run($this->source, {steps: $this->steps, overlays: $this->overlays, output: Output::Raw});
-        array<mixed> $size = Core\Bytes::unpack(Core\Bytes::slice($result, 0, 16), "JJ");
-        return {width: $size[0] as uint, height: $size[1] as uint, pixels: Core\Bytes::slice($result, 16)};
+        bytes $result = Codec::run($this->source, { steps: $this->steps, overlays: $this->overlays, output: Output::Raw });
+        array<mixed> $size = Core\Bytes::unpack(Core\Bytes::slice($result, 0, 16), 'JJ');
+        return { width: $size[0] as uint, height: $size[1] as uint, pixels: Core\Bytes::slice($result, 16) };
     }
 
     /// `variants` decodes the image once and returns one encoded file per entry, in the same order.
@@ -310,29 +311,29 @@ final class Image
         foreach ($set as Variant $variant) {
             array<Step> $steps = $this->steps;
             if (isset($variant->width) || isset($variant->height) || isset($variant->fit)) {
-                $steps[] = {resize: $variant};
+                $steps[] = { resize: $variant };
             }
             ?Format $format = $variant->format ?? $this->lastFormat();
             ?uint $quality = $variant->quality ?? null;
             if ($format != null) {
                 if (isset($variant->format) || $quality != null) {
-                    $steps[] = {format: {format: $format, quality: $quality, progressive: null, lossless: null, effort: null}};
+                    $steps[] = { format: { format: $format, quality: $quality, progressive: null, lossless: null, effort: null } };
                 }
             } elseif ($quality != null) {
-                throw new LogicError("a variant with a `quality` needs a `format`");
+                throw new LogicError('a variant with a `quality` needs a `format`');
             }
-            $plans[] = {steps: $steps, overlays: $this->overlays, output: Output::Encoded};
+            $plans[] = { steps: $steps, overlays: $this->overlays, output: Output::Encoded };
         }
         return Codec::variants($this->source, $plans);
     }
 
     /// `Image::compare` compares two images of the same size and returns a `Diff`. Other sizes throw a `LogicError`.
     /// A pixel differs when its delta is above `tolerance`, which is 0 by default.
-    public static function compare(bytes|Image $a, bytes|Image $b, ?{tolerance?: uint, render?: bool} $options = null): Diff
+    public static function compare(bytes|Image $a, bytes|Image $b, ?{ tolerance?: uint, render?: bool } $options = null): Diff
     {
         ?uint $tolerance = $options?->tolerance ?? null;
         bool $render = $options?->render ?? false;
-        var $found = Codec::compare(Image::bytesOf($a), Image::bytesOf($b), {tolerance: $tolerance, render: $render});
+        var $found = Codec::compare(Image::bytesOf($a), Image::bytesOf($b), { tolerance: $tolerance, render: $render });
         return new Diff($found->identical, $found->differingPixels, $found->maxDelta, $found->ssim, $found->diff);
     }
 
@@ -349,7 +350,7 @@ final class Image
     {
         uint $length = Core\Bytes::length($a);
         if (Core\Bytes::length($b) != $length) {
-            throw new LogicError("the hashes are {$length} and " . Core\Bytes::length($b) . " bytes long, and `hashDistance` needs two hashes of the same kind");
+            throw new LogicError("the hashes are {$length} and " . Core\Bytes::length($b) . ' bytes long, and `hashDistance` needs two hashes of the same kind');
         }
         uint $bits = 0;
         for (int $at = 0; $at < $length; $at++) {
@@ -417,7 +418,7 @@ final class Image
         foreach ($steps as Step $step) {
             if (isset($step->composite)) {
                 var $c = $step->composite;
-                $out[] = {composite: {overlay: $c->overlay + $by, gravity: $c->gravity, x: $c->x, y: $c->y, opacity: $c->opacity, blend: $c->blend}};
+                $out[] = { composite: { overlay: $c->overlay + $by, gravity: $c->gravity, x: $c->x, y: $c->y, opacity: $c->opacity, blend: $c->blend } };
             } else {
                 $out[] = $step;
             }
@@ -427,6 +428,6 @@ final class Image
 
     private static function rgba(Color $color): Rgba
     {
-        return {r: $color->r, g: $color->g, b: $color->b, alpha: $color->alpha};
+        return { r: $color->r, g: $color->g, b: $color->b, alpha: $color->alpha };
     }
 }

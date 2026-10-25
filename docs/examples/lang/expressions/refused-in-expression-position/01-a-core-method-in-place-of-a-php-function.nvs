@@ -5,14 +5,14 @@
 
 use Core\Str;
 
-array<string> $names = ["ada lovelace", "grace hopper"];
+array<string> $names = ['ada lovelace', 'grace hopper'];
 
 foreach ($names as string $name) {
     // `Str::upper` returns the text in capitals, and `Str::length` returns the
     // number of characters. The first line prints `ADA LOVELACE (12)`.
-    echo Str::upper($name), " (", Str::length($name), ")\n";
+    echo Str::upper($name), ' (', Str::length($name), ")\n";
 }
 
 // `Str::replace` puts one text in place of another. This prints
 // `grace-hopper`.
-echo Str::replace("grace hopper", " ", "-"), "\n";
+echo Str::replace('grace hopper', ' ', '-'), "\n";

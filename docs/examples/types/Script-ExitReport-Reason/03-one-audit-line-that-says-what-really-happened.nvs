@@ -3,19 +3,22 @@
 // A job that stopped because there was no work gets a different line
 // from a job that failed with an error.
 
-class Audit {
-    public static function line(Core\Script\ExitReport::Reason $reason): string {
+class Audit
+{
+    public static function line(Core\Script\ExitReport::Reason $reason): string
+    {
         return match ($reason) {
-            Core\Script\ExitReport::Reason::Normal => "nightly import: complete",
-            Core\Script\ExitReport::Reason::Finish => "nightly import: complete",
-            Core\Script\ExitReport::Reason::ExitCall => "nightly import: stopped early, on purpose",
-            Core\Script\ExitReport::Reason::UncaughtThrow => "nightly import: FAILED, someone should look",
+            Core\Script\ExitReport::Reason::Normal => 'nightly import: complete',
+            Core\Script\ExitReport::Reason::Finish => 'nightly import: complete',
+            Core\Script\ExitReport::Reason::ExitCall => 'nightly import: stopped early, on purpose',
+            Core\Script\ExitReport::Reason::UncaughtThrow => 'nightly import: FAILED, someone should look',
         };
     }
 
     // Only `UncaughtThrow` needs a person to look at it.
     // It is the only reason the program did not choose itself.
-    public static function wakeSomebody(Core\Script\ExitReport::Reason $reason): bool {
+    public static function wakeSomebody(Core\Script\ExitReport::Reason $reason): bool
+    {
         return $reason == Core\Script\ExitReport::Reason::UncaughtThrow;
     }
 }
@@ -38,4 +41,4 @@ if (Core\Arr::count($waiting) == 0) {
     exit;
 }
 
-echo "importing ", Core\Arr::count($waiting), " file(s)\n";
+echo 'importing ', Core\Arr::count($waiting), " file(s)\n";

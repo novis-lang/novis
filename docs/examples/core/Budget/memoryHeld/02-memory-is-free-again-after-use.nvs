@@ -8,7 +8,7 @@ uint $start = Core\Budget::memoryHeld();
 array<string> $lines = [];
 int $i = 0;
 while ($i < 20000) {
-    $lines[] = "one line of a report";
+    $lines[] = 'one line of a report';
     $i = $i + 1;
 }
 uint $full = Core\Budget::memoryHeld();

@@ -3,17 +3,19 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Uri> $links = [
-            Core\Uri::parse("https://shop.example.com/search?q=shoes&page=2&sort=price"),
-            Core\Uri::parse("/orders?status=open&page=14&limit=50"),
-            Core\Uri::parse("/news?page=3"),
+            Core\Uri::parse('https://shop.example.com/search?q=shoes&page=2&sort=price'),
+            Core\Uri::parse('/orders?status=open&page=14&limit=50'),
+            Core\Uri::parse('/news?page=3'),
         ];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            mixed $page = $links[($total % 3) as int]->queryParameter("page");
+            mixed $page = $links[($total % 3) as int]->queryParameter('page');
             $total = $total + Core\Str::length($page as string);
             $i = $i + 1;
         }

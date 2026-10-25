@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to take a part of a text by its position.
 
-var $s = "Hello, World!";
+var $s = 'Hello, World!';
 
 // Without a length, the part runs to the end. This prints `World!`.
 echo Core\Str::slice($s, 7), "\n";

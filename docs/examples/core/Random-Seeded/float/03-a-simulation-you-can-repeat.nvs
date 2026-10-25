@@ -22,5 +22,5 @@ while ($request < 10000) {
 }
 
 // About 1000 of the 10000 requests fail.
-echo "failed: ", $failed, " of 10000\n";
-echo "most failures in a row: ", $longestRun, "\n";
+echo 'failed: ', $failed, " of 10000\n";
+echo 'most failures in a row: ', $longestRun, "\n";

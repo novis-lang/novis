@@ -3,7 +3,7 @@
 // write to one log, the name tells you which server wrote a line.
 
 string $host = Core\Os::hostname();
-string $line = "[" . $host . "] order 1042 saved";
+string $line = '[' . $host . '] order 1042 saved';
 
 // The line starts with the name, so the message comes after it. This prints `yes`.
-echo Core\Str::endsWith($line, "] order 1042 saved") ? "yes" : "no", "\n";
+echo Core\Str::endsWith($line, '] order 1042 saved') ? 'yes' : 'no', "\n";

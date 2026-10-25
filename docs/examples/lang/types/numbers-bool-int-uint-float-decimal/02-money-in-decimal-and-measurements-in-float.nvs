@@ -6,12 +6,12 @@
 float $quick = 0.1;
 float $more = 0.2;
 float $floatSum = $quick + $more;
-echo $floatSum, " ", $floatSum == 0.3 ? "exactly 0.3" : "not quite 0.3", "\n";
+echo $floatSum, ' ', $floatSum == 0.3 ? 'exactly 0.3' : 'not quite 0.3', "\n";
 
 decimal $tenth = 0.1;
 decimal $fifth = 0.2;
 decimal $exactSum = $tenth + $fifth;
-echo $exactSum, " ", $exactSum == 0.3 ? "exactly 0.3" : "not quite 0.3", "\n";
+echo $exactSum, ' ', $exactSum == 0.3 ? 'exactly 0.3' : 'not quite 0.3', "\n";
 
 decimal $price = 1.10;
 echo $price * 3, "\n";

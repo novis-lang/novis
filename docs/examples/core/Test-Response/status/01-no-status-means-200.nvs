@@ -6,9 +6,9 @@ use Core\Test;
 
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers the request. It writes text and sets no status.
-    echo "Hello";
+    echo 'Hello';
 } else {
-    var $response = Test::request(Method::Get, "/hello");
+    var $response = Test::request(Method::Get, '/hello');
 
     // The program set no status, so `status()` returns 200. This prints `200`.
     echo $response->status(), "\n";

@@ -1,9 +1,11 @@
 <?nvs
 // Shows how a nightly job uses a lock file, so that two copies of the job never run at the same time.
 
-class Job {
+class Job
+{
     // Returns `true` when this copy of the job ran, and `false` when another copy has the lock.
-    public static function run(string $lockPath): bool {
+    public static function run(string $lockPath): bool
+    {
         Core\IO\File $lock = Core\IO::open($lockPath, Core\IO::FileMode::ReadWrite);
         try {
             $lock->lock();
@@ -17,7 +19,7 @@ class Job {
     }
 }
 
-string $lockPath = Core\Path::join(Core\IO::temporaryDir(), "reports.lock");
+string $lockPath = Core\Path::join(Core\IO::temporaryDir(), 'reports.lock');
 
 // Another copy of the job is running and has the lock. This prints "another copy is running".
 Core\IO\File $other = Core\IO::open($lockPath, Core\IO::FileMode::ReadWrite);

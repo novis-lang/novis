@@ -2,25 +2,25 @@
 // Shows how to check whether a user is in a security group.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $managers = $corp->read("CN=Managers,OU=Company,DC=example,DC=test", {select: ["objectSid"]});
-string $managersSid = $managers?->sid("objectSid")?->toString() ?? "none";
+var $corp = Core\Ldap::connect('corp');
+var $managers = $corp->read('CN=Managers,OU=Company,DC=example,DC=test', { select: ['objectSid'] });
+string $managersSid = $managers?->sid('objectSid')?->toString() ?? 'none';
 
 array<string> $dns = [
-    "CN=Anna Berg,OU=Company,DC=example,DC=test",
-    "CN=Ben Kohl,OU=Company,DC=example,DC=test",
+    'CN=Anna Berg,OU=Company,DC=example,DC=test',
+    'CN=Ben Kohl,OU=Company,DC=example,DC=test',
 ];
 foreach ($dns as string $dn) {
-    var $person = $corp->read($dn, {select: ["tokenGroups"]});
+    var $person = $corp->read($dn, { select: ['tokenGroups'] });
     if ($person == null) {
         continue;
     }
     bool $isManager = false;
-    foreach ($person->sids("tokenGroups") ?? [] as Core\Ldap\Sid $group) {
+    foreach ($person->sids('tokenGroups') ?? [] as Core\Ldap\Sid $group) {
         if ($group->toString() == $managersSid) {
             $isManager = true;
         }
     }
     // This prints `Anna Berg: manager` and `Ben Kohl: not a manager`.
-    echo $person->dn()->rdnValue(), ": ", $isManager ? "manager" : "not a manager", "\n";
+    echo $person->dn()->rdnValue(), ': ', $isManager ? 'manager' : 'not a manager', "\n";
 }

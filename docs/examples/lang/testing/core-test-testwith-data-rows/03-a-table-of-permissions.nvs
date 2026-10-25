@@ -5,28 +5,32 @@
 use Core\Test;
 use Core\Test\TestWith;
 
-class Access {
+class Access
+{
     // An editor may change any article. Anybody else may change only their own.
-    public static function canEdit(string $role, bool $isAuthor): bool {
-        if ($role == "editor") {
+    public static function canEdit(string $role, bool $isAuthor): bool
+    {
+        if ($role == 'editor') {
             return true;
         }
         return $isAuthor;
     }
 }
 
-class AccessTest {
+class AccessTest
+{
     // Four rows for the four combinations, so no case is left untested.
-    #[TestWith(role: "editor", isAuthor: true, want: true)]
-    #[TestWith(role: "editor", isAuthor: false, want: true)]
-    #[TestWith(role: "writer", isAuthor: true, want: true)]
-    #[TestWith(role: "writer", isAuthor: false, want: false)]
+    #[TestWith(role: 'editor', isAuthor: true, want: true)]
+    #[TestWith(role: 'editor', isAuthor: false, want: true)]
+    #[TestWith(role: 'writer', isAuthor: true, want: true)]
+    #[TestWith(role: 'writer', isAuthor: false, want: false)]
     #[Test]
-    public function itAnswersEveryCombination(string $role, bool $isAuthor, bool $want): void {
+    public function itAnswersEveryCombination(string $role, bool $isAuthor, bool $want): void
+    {
         Test::assertSame(Access::canEdit($role, $isAuthor), $want);
     }
 }
 
 // This prints `true` and then `false`.
-echo Access::canEdit("editor", false) ? "true" : "false", "\n";
-echo Access::canEdit("writer", false) ? "true" : "false", "\n";
+echo Access::canEdit('editor', false) ? 'true' : 'false', "\n";
+echo Access::canEdit('writer', false) ? 'true' : 'false', "\n";

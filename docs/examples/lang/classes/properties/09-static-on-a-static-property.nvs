@@ -3,10 +3,12 @@
 // to read a `static` property.
 // proof: compile-error
 
-class Counter {
+class Counter
+{
     public static int $n = 0;
 
-    public static function read(): int {
+    public static function read(): int
+    {
         return static::$n;
     }
 }

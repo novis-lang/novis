@@ -1,12 +1,14 @@
 <?nvs
 // Shows `remaining` when each call has a cost. A refused call uses no units.
 
-class Report {
-    public static function run(uint $pages): void {
+class Report
+{
+    public static function run(uint $pages): void
+    {
         // Each user may print 10 pages per hour.
-        var $decision = Core\RateLimit::shed("print:user:2", 10, 1h, {cost: $pages});
-        echo $pages, " pages: ", $decision->allowed() ? "printed" : "refused";
-        echo ", ", $decision->remaining(), " pages left\n";
+        var $decision = Core\RateLimit::shed('print:user:2', 10, 1h, { cost: $pages });
+        echo $pages, ' pages: ', $decision->allowed() ? 'printed' : 'refused';
+        echo ', ', $decision->remaining(), " pages left\n";
     }
 }
 

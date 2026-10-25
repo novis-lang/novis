@@ -8,7 +8,7 @@ echo Core\Bytes::fill(5, 45) as string, "\n";
 
 // `Core\Bytes::repeat` writes the whole buffer every time. This prints
 // "-+-+-+-+-+".
-echo Core\Bytes::repeat("-+" as bytes, 5) as string, "\n";
+echo Core\Bytes::repeat('-+' as bytes, 5) as string, "\n";
 
 // The result has one copy for each round. Ten bytes of two, so this prints 10.
-echo Core\Bytes::length(Core\Bytes::repeat("-+" as bytes, 5)), "\n";
+echo Core\Bytes::length(Core\Bytes::repeat('-+' as bytes, 5)), "\n";

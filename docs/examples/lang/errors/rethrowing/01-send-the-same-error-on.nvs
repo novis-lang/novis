@@ -2,10 +2,12 @@
 // Shows a plain rethrow. `throw $io;` inside the `catch` sends the same object
 // on, so the handler further out reads the same message and the same class.
 
-final class Relay {
-    public static function go(): void {
+final class Relay
+{
+    public static function go(): void
+    {
         try {
-            throw new IOError("the socket closed");
+            throw new IOError('the socket closed');
         } catch (IOError $io) {
             echo "the relay saw it\n";
             throw $io;
@@ -17,6 +19,6 @@ try {
     Relay::go();
 } catch (Throwable $sent) {
     echo $sent->message, "\n";
-    // `location` is the line of the rethrow, which is line 11 here.
-    echo "sent on at ", $sent->location, "\n";
+    // `location` is the line of the rethrow, which is line 13 here.
+    echo 'sent on at ', $sent->location, "\n";
 }

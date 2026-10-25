@@ -5,12 +5,12 @@
 
 try {
     var $directory = Core\Ldap::open({
-        url: "ldaps://127.0.0.1:1",
-        user: "CN=Reader,CN=Users,DC=example,DC=test",
-        password: "Example-Pw1",
+        url: 'ldaps://127.0.0.1:1',
+        user: 'CN=Reader,CN=Users,DC=example,DC=test',
+        password: 'Example-Pw1',
         timeout: Core\Time\Duration::seconds(5),
     });
-    echo "Logged in as ", $directory->whoami(), "\n";
+    echo 'Logged in as ', $directory->whoami(), "\n";
 } catch (Core\Ldap\LdapError $error) {
     echo "The directory did not answer.\n";
 }

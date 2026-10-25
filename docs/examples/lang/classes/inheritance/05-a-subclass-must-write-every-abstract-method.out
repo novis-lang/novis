@@ -1,7 +1,7 @@
 error[E0449]: `Blob` does not declare `area`, which `Shape` requires
-   --> 05-a-subclass-must-write-every-abstract-method.nvs:10:7
+   --> 05-a-subclass-must-write-every-abstract-method.nvs:11:7
    |
-10 | class Blob extends Shape {
+11 | class Blob extends Shape
    |       ^^^^ this class implements `Shape`
    = help: declare `area` here, or give `Shape` a default body for it
 

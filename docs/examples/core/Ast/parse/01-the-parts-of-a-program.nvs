@@ -18,5 +18,5 @@ echo $file->kind(), "\n";
 
 // Each part of the file, with the line it starts on.
 foreach ($file->children() as Core\Ast\Node $part) {
-    echo $part->kind(), " on line ", $part->line(), "\n";
+    echo $part->kind(), ' on line ', $part->line(), "\n";
 }

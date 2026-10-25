@@ -1,9 +1,9 @@
 error[E0734]: `retries` is given with no `because`
-  --> 05-retries-need-a-reason.nvs:9:12
-  |
-9 |     #[Test(retries: 2)]
-  |            ^^^^^^^^^^ retried for no stated reason
-  = help: a test that passes only after a retry is reported as flaky. Write the reason for the retries: `#[Test(retries: 2, because: "real DNS")]`
+   --> 05-retries-need-a-reason.nvs:10:12
+   |
+10 |     #[Test(retries: 2)]
+   |            ^^^^^^^^^^ retried for no stated reason
+   = help: a test that passes only after a retry is reported as flaky. Write the reason for the retries: `#[Test(retries: 2, because: "real DNS")]`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

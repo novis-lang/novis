@@ -1,10 +1,12 @@
 <?nvs
 // Shows that one request can open only one event stream.
 
-class Clock {
+class Clock
+{
     // The stream runs this method. It sends one event and then ends.
-    public static function run(): void {
-        Core\Sse::current()->send("12:00");
+    public static function run(): void
+    {
+        Core\Sse::current()->send('12:00');
     }
 }
 

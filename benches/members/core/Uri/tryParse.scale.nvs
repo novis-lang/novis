@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $typed = "https://shop.example.com" . Core\Str::repeat('/cart', $size) . "?item=42";
+        string $typed = 'https://shop.example.com' . Core\Str::repeat('/cart', $size) . '?item=42';
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

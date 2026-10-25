@@ -2,13 +2,13 @@
 // Shows how to get the flags of an account whose password should expire again.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Ben Kohl,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Ben Kohl,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
-    var $changed = $flags->with({passwordNeverExpires: false});
+    var $changed = $flags->with({ passwordNeverExpires: false });
 
     // This prints `66048 never expires` and then `512 expires`.
-    echo $flags->bits(), $flags->passwordNeverExpires() ? " never expires" : " expires", "\n";
-    echo $changed->bits(), $changed->passwordNeverExpires() ? " never expires" : " expires", "\n";
+    echo $flags->bits(), $flags->passwordNeverExpires() ? ' never expires' : ' expires', "\n";
+    echo $changed->bits(), $changed->passwordNeverExpires() ? ' never expires' : ' expires', "\n";
 }

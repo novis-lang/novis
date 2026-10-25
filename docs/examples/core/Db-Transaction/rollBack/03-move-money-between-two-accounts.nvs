@@ -8,7 +8,8 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table accounts (id integer primary key, owner text not null, cents int not null)', []);
 $db->execute('insert into accounts (owner, cents) values (?, ?), (?, ?)', ['Ana', 5000, 'Bo', 1200]);
 
-class Bank {
+class Bank
+{
     public static function move(Core\Db\Connection $db, int $from, int $to, int $cents): void
     {
         $db->transaction(fn (Transaction $tx): void => {

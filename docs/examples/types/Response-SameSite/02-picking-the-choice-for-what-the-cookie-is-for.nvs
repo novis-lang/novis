@@ -4,23 +4,23 @@
 
 // A cookie for a signed-in session. It has no `sameSite` setting,
 // so it gets the default, which is `Lax`.
-Core\Response::addCookie("session", "s-88f1");
+Core\Response::addCookie('session', 's-88f1');
 echo "session: nothing written, so it is Lax\n";
 
 // With `Strict`, the browser sends the cookie only on requests from your own site.
 // A link from another site to the admin area arrives signed out.
-Core\Response::addCookie("admin", "a-7", {sameSite: Core\Response::SameSite::Strict});
+Core\Response::addCookie('admin', 'a-7', { sameSite: Core\Response::SameSite::Strict });
 echo "admin: Strict, so a link from another site arrives signed out\n";
 
 // A widget that other sites embed needs its cookie on their requests too.
 // That needs `None`, and `None` needs `secure: true`.
-Core\Response::addCookie("widget", "w-9", {sameSite: Core\Response::SameSite::None, secure: true});
+Core\Response::addCookie('widget', 'w-9', { sameSite: Core\Response::SameSite::None, secure: true });
 echo "widget: None with secure, so an embedded page still gets it\n";
 
 // `None` without `secure: true` throws an error. A browser would not store
 // that cookie, so the error tells you now.
 try {
-    Core\Response::addCookie("widget", "w-9", {sameSite: Core\Response::SameSite::None, secure: false});
+    Core\Response::addCookie('widget', 'w-9', { sameSite: Core\Response::SameSite::None, secure: false });
 } catch (Throwable $dropped) {
     echo $dropped->message, "\n";
 }

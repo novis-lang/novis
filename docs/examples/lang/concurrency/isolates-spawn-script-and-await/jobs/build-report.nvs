@@ -7,4 +7,4 @@ foreach (Core\Arr::range(1, 30) as int $day) {
     $total += $day * 100;
 }
 
-return "Sales last month: " . $total;
+return 'Sales last month: ' . $total;

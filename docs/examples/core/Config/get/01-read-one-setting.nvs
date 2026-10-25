@@ -3,7 +3,7 @@
 // A setting the configuration file does not write gives its built-in default.
 
 // Nothing sets this limit here, so this prints the default, 1000000.
-echo Core\Config::get("max_regex_steps") ?? "no limit", "\n";
+echo Core\Config::get('max_regex_steps') ?? 'no limit', "\n";
 
 // `wall_time` has no default, so the result is `null`. This prints no limit.
-echo Core\Config::get("wall_time") ?? "no limit", "\n";
+echo Core\Config::get('wall_time') ?? 'no limit', "\n";

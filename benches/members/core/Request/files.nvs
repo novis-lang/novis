@@ -3,8 +3,10 @@
 // bench: iterations 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(): uint {
+class Bench
+{
+    public static function run(): uint
+    {
         // The form is the body in the file `files.nvsr` beside this one.
         // A request body can be read only once.
         uint $total = 0;
@@ -17,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run() > 0 ? "done" : "no file was read", "\n";
+echo Bench::run() > 0 ? 'done' : 'no file was read', "\n";

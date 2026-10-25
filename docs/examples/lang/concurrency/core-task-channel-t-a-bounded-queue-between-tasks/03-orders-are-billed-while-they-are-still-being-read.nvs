@@ -3,16 +3,20 @@
 // The channel holds 2 orders, so the reading task waits for the writer. A list of a
 // million orders uses the same memory as a list of three.
 
-class Order {
-    public function constructor(public string $id, public int $cents) {}
+class Order
+{
+    public function constructor(public string $id, public int $cents)
+    {}
 }
 
-class Shop {
-    public static function orders(): array<Order> {
+class Shop
+{
+    public static function orders(): array<Order>
+    {
         return [
-            new Order("A-1001", 1250),
-            new Order("A-1002", 900),
-            new Order("A-1003", 4300),
+            new Order('A-1001', 1250),
+            new Order('A-1002', 900),
+            new Order('A-1003', 4300),
         ];
     }
 }
@@ -32,7 +36,7 @@ var $till = Core\Task::all({
     bill: fn(): int => {
         int $cents = 0;
         foreach ($queue as Order $order) {
-            echo "receipt ", $order->id, ": ", $order->cents, " cents\n";
+            echo 'receipt ', $order->id, ': ', $order->cents, " cents\n";
             $cents = $cents + $order->cents;
         }
         return $cents;
@@ -40,4 +44,4 @@ var $till = Core\Task::all({
 });
 
 // This prints 3 and 6450.
-echo $till->read, " orders, ", $till->bill, " cents in total\n";
+echo $till->read, ' orders, ', $till->bill, " cents in total\n";

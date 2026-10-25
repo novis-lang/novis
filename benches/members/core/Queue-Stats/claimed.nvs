@@ -6,7 +6,7 @@
 // bench: complexity constant
 use Core\Queue;
 
-var $db = Core\Db::connect("jobs");
+var $db = Core\Db::connect('jobs');
 var $jobs = <<<'SQL'
 create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
     script text not null, args text, state smallint not null, attempts integer not null,
@@ -25,8 +25,10 @@ SQL;
 $db->execute($jobs, []);
 $db->execute($dead, []);
 
-class Bench {
-    public static function run(array<Core\Queue\Stats> $all, uint $rounds): uint {
+class Bench
+{
+    public static function run(array<Core\Queue\Stats> $all, uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -41,13 +43,13 @@ class Bench {
 // Workers run 3 jobs of `mail` and 2 jobs of `exports`.
 int $n = 0;
 while ($n < 3) {
-    Queue::push("jobs/send-mail.nvs", {queue: "mail", args: ["n" => $n]});
-    Queue::push("jobs/export.nvs", {queue: "exports", args: ["n" => $n]});
+    Queue::push('jobs/send-mail.nvs', { queue: 'mail', args: ['n' => $n] });
+    Queue::push('jobs/export.nvs', { queue: 'exports', args: ['n' => $n] });
     $n = $n + 1;
 }
-$db->execute("update nvs_jobs set state = 1, attempts = 1, claimed_at = 1", []);
-$db->execute("update nvs_jobs set state = 0 where id = 6", []);
+$db->execute('update nvs_jobs set state = 1, attempts = 1, claimed_at = 1', []);
+$db->execute('update nvs_jobs set state = 0 where id = 6', []);
 
 // The first round reads `mail`. The total is then odd, so every later round reads `exports`.
 // The program prints `800001`.
-echo Bench::run([Queue::stats("mail"), Queue::stats("exports")], 1024), "\n";
+echo Bench::run([Queue::stats('mail'), Queue::stats('exports')], 1024), "\n";

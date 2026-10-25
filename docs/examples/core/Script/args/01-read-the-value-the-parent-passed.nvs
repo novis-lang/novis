@@ -4,7 +4,7 @@
 
 // The path starts at the folder of this file.
 // `output: "capture"` keeps what the child prints, so this script can print it.
-var $child = spawn script "scripts/greet.nvs" with(args: "Ada", output: "capture");
+var $child = spawn script 'scripts/greet.nvs' with(args: 'Ada', output: 'capture');
 var $result = await $child;
 
 // This prints "Hello, Ada!".

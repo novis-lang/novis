@@ -1,8 +1,10 @@
 <?nvs
 // Shows how to collect the values of a generator into a plain array.
 
-class Fibonacci {
-    public static function first(int $many): Iterator<int> {
+class Fibonacci
+{
+    public static function first(int $many): Iterator<int>
+    {
         int $a = 1;
         int $b = 1;
         int $n = 0;

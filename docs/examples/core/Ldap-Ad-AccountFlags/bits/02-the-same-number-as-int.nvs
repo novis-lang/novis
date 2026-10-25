@@ -2,12 +2,12 @@
 // Shows that `bits` returns the same number that `int` reads from `userAccountControl`.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] });
 var $flags = $person?->accountFlags();
 
 if ($person != null && $flags != null) {
     // This prints `512` twice.
     echo $flags->bits(), "\n";
-    echo $person->int("userAccountControl") ?? 0, "\n";
+    echo $person->int('userAccountControl') ?? 0, "\n";
 }

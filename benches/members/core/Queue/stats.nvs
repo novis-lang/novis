@@ -5,7 +5,7 @@
 // bench: complexity linear
 use Core\Queue;
 
-var $db = Core\Db::connect("jobs");
+var $db = Core\Db::connect('jobs');
 var $jobs = <<<'SQL'
 create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
     script text not null, args text, state smallint not null, attempts integer not null,
@@ -24,8 +24,10 @@ SQL;
 $db->execute($jobs, []);
 $db->execute($dead, []);
 
-class Bench {
-    public static function run(array<string> $queues, uint $rounds): uint {
+class Bench
+{
+    public static function run(array<string> $queues, uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -40,12 +42,12 @@ class Bench {
 // `mail` has 3 waiting jobs and `exports` has 2.
 int $n = 0;
 while ($n < 3) {
-    Queue::push("jobs/send-mail.nvs", {queue: "mail"});
+    Queue::push('jobs/send-mail.nvs', { queue: 'mail' });
     $n = $n + 1;
 }
-Queue::push("jobs/export.nvs", {queue: "exports"});
-Queue::push("jobs/export.nvs", {queue: "exports"});
+Queue::push('jobs/export.nvs', { queue: 'exports' });
+Queue::push('jobs/export.nvs', { queue: 'exports' });
 
 // The first round counts `mail`. The total is then odd, so every later round counts `exports`.
 // The program prints `4001`.
-echo Bench::run(["mail", "exports"], 256), "\n";
+echo Bench::run(['mail', 'exports'], 256), "\n";

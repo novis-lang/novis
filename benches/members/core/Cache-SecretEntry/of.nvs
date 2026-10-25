@@ -5,9 +5,11 @@
 // bench: calls 1
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $tokens = ["at-7f3c9b21", "at-91abf042", "at-2d40c8e7"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $tokens = ['at-7f3c9b21', 'at-91abf042', 'at-2d40c8e7'];
 
         uint $total = 0;
         uint $i = 0;

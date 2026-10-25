@@ -3,34 +3,42 @@
 // the branch where the check is true, the compiler knows the type. You can
 // read the value there without converting it first.
 
-interface Reading {}
+interface Reading
+{}
 
-class Temperature implements Reading {
-    public function constructor(public float $celsius) {}
+class Temperature implements Reading
+{
+    public function constructor(public float $celsius)
+    {}
 }
 
-class Humidity implements Reading {
-    public function constructor(public int $percent) {}
+class Humidity implements Reading
+{
+    public function constructor(public int $percent)
+    {}
 }
 
-class Report {
-    public static function line(mixed $reading): tainted string {
+class Report
+{
+    public static function line(mixed $reading): tainted string
+    {
         if ($reading is Temperature) {
             // Here `$reading` is a `Temperature`, so its property is readable.
-            return "temperature " . $reading->celsius;
+            return 'temperature ' . $reading->celsius;
         }
         if ($reading is int) {
-            return "count " . $reading;
+            return 'count ' . $reading;
         }
         if ($reading is string) {
-            return "note " . $reading;
+            return 'note ' . $reading;
         }
-        return "unknown reading";
+        return 'unknown reading';
     }
 
     // When the class is only known while the program runs, put it in a
     // `class<Reading>` variable. `$reading is $kind` then checks against it.
-    public static function count(array<mixed> $readings, class<Reading> $kind): int {
+    public static function count(array<mixed> $readings, class<Reading> $kind): int
+    {
         int $found = 0;
         foreach ($readings as mixed $reading) {
             if ($reading is $kind) {
@@ -48,15 +56,15 @@ echo Report::line(new Temperature(21.5)), "\n";
 echo Report::line(3), "\n";
 
 // This prints: note warm
-echo Report::line("warm"), "\n";
+echo Report::line('warm'), "\n";
 
 // This prints: unknown reading
 echo Report::line(true), "\n";
 
-array<mixed> $readings = [new Temperature(21.5), new Humidity(40), new Temperature(19.0), "warm"];
+array<mixed> $readings = [new Temperature(21.5), new Humidity(40), new Temperature(19.0), 'warm'];
 
 // `as class<Reading>` turns a class name, here from a string, into a class
 // value. It throws an error if the name is not a `Reading`. This prints: 2 1
-class<Reading> $kind = "Temperature" as class<Reading>;
-echo Report::count($readings, $kind), " ";
+class<Reading> $kind = 'Temperature' as class<Reading>;
+echo Report::count($readings, $kind), ' ';
 echo Report::count($readings, Humidity::class as class<Reading>), "\n";

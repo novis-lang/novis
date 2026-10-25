@@ -3,9 +3,11 @@
 // the line that threw, with exit status 1.
 // proof: exit 1
 
-class Repo {
-    public static function get(int $id): string {
-        throw new RuntimeError("no row " . $id);
+class Repo
+{
+    public static function get(int $id): string
+    {
+        throw new RuntimeError('no row ' . $id);
     }
 }
 

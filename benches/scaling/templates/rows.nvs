@@ -4,18 +4,20 @@
 // scaling: max 64000
 // scaling: expect linear
 
-class Bench {
-    public static function run(uint $size): uint {
+class Bench
+{
+    public static function run(uint $size): uint
+    {
         array<Core\Html\Markup> $items = [];
         uint $i = 0;
         while ($i < $size) {
-            string $product = "Tea & biscuits " . $i;
+            string $product = 'Tea & biscuits ' . $i;
             $items[] = html`<li>{$product}</li>`;
             $i = $i + 1;
         }
         Core\Html\Markup $list = Core\Html::join($items, "\n" as Core\Html\Markup);
         Core\Html\Markup $page = ("<ul>\n" as Core\Html\Markup) + $list + ("\n</ul>" as Core\Html\Markup);
-        return Core\Str::length(Core\Html::toSource($page, "measuring the page"));
+        return Core\Str::length(Core\Html::toSource($page, 'measuring the page'));
     }
 }
 

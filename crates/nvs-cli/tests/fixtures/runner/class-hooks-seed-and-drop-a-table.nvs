@@ -12,62 +12,73 @@ use Core\Test;
 use Core\Test\AfterClass;
 use Core\Test\BeforeClass;
 
-class Table {
+class Table
+{
     // A count is `?int`, a `null` being a NULL column, so it is unwrapped once here.
-    public static function count(string $sql): int {
-        var $row = Db::connect("test")->query($sql, [])->first();
+    public static function count(string $sql): int
+    {
+        var $row = Db::connect('test')->query($sql, [])->first();
         if ($row == null) {
             return -1;
         }
-        var $n = $row->int("n");
+        var $n = $row->int('n');
         if ($n == null) {
             return -1;
         }
         return $n;
     }
 
-    public static function rows(): int {
-        return Table::count("select count(*) as n from nvs_test_class_hooks");
+    public static function rows(): int
+    {
+        return Table::count('select count(*) as n from nvs_test_class_hooks');
     }
 
-    public static function exists(): int {
+    public static function exists(): int
+    {
         return Table::count(
-            "select count(*) as n from information_schema.tables where table_name = 'nvs_test_class_hooks'"
+            "select count(*) as n from information_schema.tables where table_name = 'nvs_test_class_hooks'",
         );
     }
 }
 
-final class SeededTableTest {
+final class SeededTableTest
+{
     // The drop first, so a run that stopped halfway last time starts clean.
     #[BeforeClass]
-    public static function seed(): void {
-        var $db = Db::connect("test");
-        $db->execute("drop table if exists nvs_test_class_hooks", []);
-        $db->execute("create table nvs_test_class_hooks (id integer primary key)", []);
-        $db->execute("insert into nvs_test_class_hooks (id) values (1), (2)", []);
+    public static function seed(): void
+    {
+        var $db = Db::connect('test');
+        $db->execute('drop table if exists nvs_test_class_hooks', []);
+        $db->execute('create table nvs_test_class_hooks (id integer primary key)', []);
+        $db->execute('insert into nvs_test_class_hooks (id) values (1), (2)', []);
     }
 
-    #[Test(db: "test")]
-    public function itReadsTheSeededRows(): void {
+    #[Test(db: 'test')]
+    public function itReadsTheSeededRows(): void
+    {
         Test::assertSame(Table::rows(), 2);
     }
 
     // The insert is rolled back after the test, so the sibling still counts 2.
-    #[Test(db: "test")]
-    public function itWritesARowThatIsRolledBack(): void {
-        Db::connect("test")->execute("insert into nvs_test_class_hooks (id) values (3)", []);
+    #[Test(db: 'test')]
+    public function itWritesARowThatIsRolledBack(): void
+    {
+        Db::connect('test')->execute('insert into nvs_test_class_hooks (id) values (3)', []);
         Test::assertSame(Table::rows(), 3);
     }
 
     #[AfterClass]
-    public static function drop(): void {
-        Db::connect("test")->execute("drop table if exists nvs_test_class_hooks", []);
+    public static function drop(): void
+    {
+        Db::connect('test')->execute('drop table if exists nvs_test_class_hooks', []);
     }
 }
 
-final class TableIsGoneTest {
+final class TableIsGoneTest
+{
     #[Test]
-    public function itFindsNoTable(): void {
+    public function itFindsNoTable(): void
+    {
         Test::assertSame(Table::exists(), 0);
     }
 }

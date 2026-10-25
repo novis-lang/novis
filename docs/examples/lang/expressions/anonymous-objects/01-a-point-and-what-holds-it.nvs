@@ -2,18 +2,18 @@
 // Builds a small object with the fields you name, then reads and changes
 // them.
 
-type Point = {x: int, y: int};
+type Point = { x: int, y: int };
 
-Point $start = {x: 1, y: 2};
+Point $start = { x: 1, y: 2 };
 // A field is read and written with `->`.
-echo $start->x, ",", $start->y, "\n";
+echo $start->x, ',', $start->y, "\n";
 $start->x = 10;
 echo $start->x, "\n";
 
 // `var` works out the type of an anonymous object for you, and a field can
 // contain another anonymous object.
-var $marker = {label: "home", at: {x: 3, y: 4}};
-echo $marker->label, " at ", $marker->at->x, ",", $marker->at->y, "\n";
+var $marker = { label: 'home', at: { x: 3, y: 4 } };
+echo $marker->label, ' at ', $marker->at->x, ',', $marker->at->y, "\n";
 
 // An object is a handle. Both variables name the same object here, so the
 // change is visible through both of them.
@@ -23,7 +23,7 @@ echo $start->y, "\n";
 
 // `==` checks whether two variables name one object. It does not compare the
 // fields, so these two are different even with equal values.
-Point $twin = {x: 10, y: 99};
+Point $twin = { x: 10, y: 99 };
 if ($start == $twin) {
     echo "one object\n";
 } else {

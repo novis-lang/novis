@@ -1,18 +1,18 @@
 <?nvs
+use Novis\Spreadsheet\Reader;
 // Shows how to turn an array of rows into an Excel file in one call.
 use Novis\Spreadsheet\Workbook;
-use Novis\Spreadsheet\Reader;
 
 array<array<mixed>> $prices = [
-    ["item" => "Pen", "price" => 1.5],
-    ["item" => "Ink", "price" => 4.25],
-    ["item" => "Pad", "price" => 2.0],
+    ['item' => 'Pen', 'price' => 1.5],
+    ['item' => 'Ink', 'price' => 4.25],
+    ['item' => 'Pad', 'price' => 2.0],
 ];
 
 // `fromRows` makes a workbook with one sheet. `bytes` returns the whole xlsx file.
 // `sheet` names the sheet. Without it, the sheet is `Sheet1`.
-bytes $file = Workbook::fromRows($prices, {sheet: "Prices"})->bytes();
+bytes $file = Workbook::fromRows($prices, { sheet: 'Prices' })->bytes();
 
-foreach (Reader::open($file)->rows("Prices") as var $row) {
+foreach (Reader::open($file)->rows('Prices') as var $row) {
     echo Core\Json::encode($row->values), "\n";
 }

@@ -1,21 +1,24 @@
 <?nvs
 // Shows how a debug helper prints the readable values of an object and leaves out private data.
 
-class Order {
-    public string $id = "A-17";
-    public string $status = "paid";
-    private string $cardNumber = "4111 1111 1111 1111";
+class Order
+{
+    public string $id = 'A-17';
+    public string $status = 'paid';
+    private string $cardNumber = '4111 1111 1111 1111';
 }
 
-class Debug {
-    public static function line(mixed $object): tainted string {
+class Debug
+{
+    public static function line(mixed $object): tainted string
+    {
         var $info = Core\Reflect::forObject($object);
-        tainted string $text = $info->name() . " {";
+        tainted string $text = $info->name() . ' {';
         // `get` can read every name in the list, because the list follows the same rules.
         foreach ($info->readableProperties() as string $name) {
-            $text = $text . " " . $name . "=" . ($info->get($object, $name) as string);
+            $text = $text . ' ' . $name . '=' . ($info->get($object, $name) as string);
         }
-        return $text . " }";
+        return $text . ' }';
     }
 }
 

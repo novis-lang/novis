@@ -3,7 +3,7 @@
 
 // A temporary folder is not in `[capabilities.debug] trace`, so this start throws a `RuntimeError`.
 // A program run with `nvs run` may write files there, but that is not enough for a trace.
-string $outside = Core\Path::join(Core\IO::temporaryDir(), "calls.jsonl");
+string $outside = Core\Path::join(Core\IO::temporaryDir(), 'calls.jsonl');
 try {
     Core\Debug::startTrace($outside);
     echo "trace started\n";

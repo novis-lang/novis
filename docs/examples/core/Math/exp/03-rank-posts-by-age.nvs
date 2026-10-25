@@ -1,11 +1,13 @@
 <?nvs
 // Shows how a website ranks posts so that a new post can come before an older one with more votes.
 
-class Ranking {
+class Ranking
+{
     // Returns the score of a post, with one decimal place.
     // A vote loses value as the post gets older. After 24 hours, it counts about a third.
-    public static function score(float $votes, float $hours): float {
-        return Core\Math::round($votes * Core\Math::exp(-$hours / 24.0), {precision: 1});
+    public static function score(float $votes, float $hours): float
+    {
+        return Core\Math::round($votes * Core\Math::exp(-$hours / 24.0), { precision: 1 });
     }
 }
 

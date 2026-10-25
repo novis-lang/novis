@@ -2,23 +2,28 @@
 // Shows a property that gets its value on the first read. `Post` loads its
 // author only when the program reads `$author`.
 
-class Author {
-    public function constructor(public string $name) {}
+class Author
+{
+    public function constructor(public string $name)
+    {}
 }
 
-class Post implements LateInit {
+class Post implements LateInit
+{
     public lateinit Author $author;
 
-    public function constructor(public string $title) {}
+    public function constructor(public string $title)
+    {}
 
     // Novis calls this method with the name of the property that has no value.
-    public function initProperty(string $name): void {
+    public function initProperty(string $name): void
+    {
         echo "loading the author\n";
-        $this->author = new Author("Ada");
+        $this->author = new Author('Ada');
     }
 }
 
-var $post = new Post("Hello");
+var $post = new Post('Hello');
 echo $post->title, "\n";
 
 // The first read calls `initProperty`. The second read does not.

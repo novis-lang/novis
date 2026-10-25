@@ -3,8 +3,10 @@
 // bench: iterations 2048
 // bench: complexity constant
 
-class Bench {
-    public static function run(Core\Response\Stream $body, uint $rounds): uint {
+class Bench
+{
+    public static function run(Core\Response\Stream $body, uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -16,6 +18,6 @@ class Bench {
     }
 }
 
-Core\Response\Stream $download = Core\Response::stream("text/csv", null, null, "orders.csv");
+Core\Response\Stream $download = Core\Response::stream('text/csv', null, null, 'orders.csv');
 $download->write("id,total\n");
-Core\Log::write(Core\Log::Level::Info, "ended", ["rounds" => Bench::run($download, 2048)]);
+Core\Log::write(Core\Log::Level::Info, 'ended', ['rounds' => Bench::run($download, 2048)]);

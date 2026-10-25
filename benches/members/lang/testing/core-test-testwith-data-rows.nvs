@@ -9,27 +9,33 @@
 use Core\Test;
 use Core\Test\TestWith;
 
-class Meter {
+class Meter
+{
     public static uint $total = 0;
 
-    public static function add(string $label, uint $weight): void {
+    public static function add(string $label, uint $weight): void
+    {
         // Chained: the total counted here is the one the round before wrote.
         Meter::$total = Meter::$total + $weight;
     }
 }
 
-class RowsTest {
-    #[TestWith(label: "order", weight: 1)]
-    #[TestWith(label: "customer", weight: 2)]
+class RowsTest
+{
+    #[TestWith(label: 'order', weight: 1)]
+    #[TestWith(label: 'customer', weight: 2)]
     #[Test]
-    public function itAddsTheWeightOfARow(string $label, uint $weight): void {
+    public function itAddsTheWeightOfARow(string $label, uint $weight): void
+    {
         Meter::add($label, $weight);
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $labels = ["order", "customer"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $labels = ['order', 'customer'];
         uint $i = 0;
         while ($i < $rounds) {
             // The body of `itAddsTheWeightOfARow`, with the two values of a row.

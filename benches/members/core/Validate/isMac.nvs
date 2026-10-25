@@ -5,9 +5,11 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $macs = ["00:1a:2b:3c:4d:5e", "00:1a-2b:3c:4d:5e", "001A.2B3C.4D5E"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $macs = ['00:1a:2b:3c:4d:5e', '00:1a-2b:3c:4d:5e', '001A.2B3C.4D5E'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -2,9 +2,9 @@
 // Shows that a heap keeps every value you add, even the same value twice.
 
 var $heap = new Core\Heap<string>();
-$heap->push("pear");
-$heap->push("apple");
-$heap->push("apple");
+$heap->push('pear');
+$heap->push('apple');
+$heap->push('apple');
 
 // This prints 3.
 echo $heap->count(), "\n";

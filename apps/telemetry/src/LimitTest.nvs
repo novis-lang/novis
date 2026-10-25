@@ -12,11 +12,13 @@ use Core\Test;
 // Tests for the limit of ten reports an hour from one address.
 // All tests share the memory of the server, and they can run at the same time.
 // So each test uses its own address and its own day, and gets a salt of its own.
-final class LimitTest {
+final class LimitTest
+{
     // A request from `Test::request` has no address, so all of these requests count as one sender.
     // Each report is refused with 400, so the file `telemetry.sqlite` is not changed.
-    #[Test(at: "2026-11-01T12:00:00Z")]
-    public function theEleventhReportInAnHourGets429(): void {
+    #[Test(at: '2026-11-01T12:00:00Z')]
+    public function theEleventhReportInAnHourGets429(): void
+    {
         uint $sent = 0;
         while ($sent < Limit::PER_HOUR) {
             Test::assertSame(LimitTest::send()->status(), 400);
@@ -25,60 +27,65 @@ final class LimitTest {
         var $response = LimitTest::send();
         Test::assertSame($response->status(), 429);
         // One report comes back every six minutes, so the sender waits 360 seconds.
-        Test::assertSame($response->header("retry-after"), "360");
+        Test::assertSame($response->header('retry-after'), '360');
     }
 
-    #[Test(at: "2026-11-02T12:00:00Z")]
-    public function aNewHourAcceptsAgain(): void {
-        LimitTest::useAll("192.0.2.10");
-        Test::assertTrue(Limit::wait("192.0.2.10") != null);
+    #[Test(at: '2026-11-02T12:00:00Z')]
+    public function aNewHourAcceptsAgain(): void
+    {
+        LimitTest::useAll('192.0.2.10');
+        Test::assertTrue(Limit::wait('192.0.2.10') != null);
         Test::advance(1h);
-        LimitTest::useAll("192.0.2.10");
+        LimitTest::useAll('192.0.2.10');
     }
 
     // The salt changes at midnight UTC, so the same address gets a new key.
-    #[Test(at: "2026-11-03T23:30:00Z")]
-    public function aNewDayUsesANewKey(): void {
-        var $today = Limit::key("192.0.2.20");
-        Test::assertSame(Limit::key("192.0.2.20"), $today);
+    #[Test(at: '2026-11-03T23:30:00Z')]
+    public function aNewDayUsesANewKey(): void
+    {
+        var $today = Limit::key('192.0.2.20');
+        Test::assertSame(Limit::key('192.0.2.20'), $today);
         Test::advance(1h);
-        Test::assertTrue(Limit::key("192.0.2.20") != $today);
+        Test::assertTrue(Limit::key('192.0.2.20') != $today);
     }
 
     // The limit and the totals are given a known address. Then every row of every table is
     // read, and none of them contains the address or the key made from it.
-    #[Test(at: "2026-11-05T12:00:00Z")]
-    public function theAddressIsInNoTable(): void {
-        string $address = "198.51.100.77";
-        var $db = Db::connect("scratch");
+    #[Test(at: '2026-11-05T12:00:00Z')]
+    public function theAddressIsInNoTable(): void
+    {
+        string $address = '198.51.100.77';
+        var $db = Db::connect('scratch');
         var $totals = new Totals($db);
         $totals->setUp();
         Test::assertSame(Limit::wait($address), null);
-        $totals->add(new Report("0.4.0", "linux", "x86_64", "2026-W42", true, 3, ["invocation.run" => 1]));
-        string $hash = Str::after(Limit::key($address), ":") ?? "";
+        $totals->add(new Report('0.4.0', 'linux', 'x86_64', '2026-W42', true, 3, ['invocation.run' => 1]));
+        string $hash = Str::after(Limit::key($address), ':') ?? '';
         // The database has these two tables and no other.
         array<tainted string> $names = [];
         foreach ($db->query("select name from sqlite_master where type = 'table' order by name", []) as Row $found) {
-            $names = Arr::append($names, $found->string("name") ?? "");
+            $names = Arr::append($names, $found->string('name') ?? '');
         }
         Test::assertSame(Json::encode($names), "[\"counters\",\"reports\"]");
-        array<string> $tables = ["counters", "reports"];
+        array<string> $tables = ['counters', 'reports'];
         foreach ($tables as string $table) {
-            foreach ($db->query("select * from " . $table, []) as Row $row) {
+            foreach ($db->query('select * from ' . $table, []) as Row $row) {
                 tainted string $text = Json::encode($row->toArray());
-                Test::assertTrue(!Str::contains($text, $address), {message: "table `{$table}` has the address"});
-                Test::assertTrue(!Str::contains($text, $hash), {message: "table `{$table}` has the key"});
+                Test::assertTrue(!Str::contains($text, $address), { message: "table `{$table}` has the address" });
+                Test::assertTrue(!Str::contains($text, $hash), { message: "table `{$table}` has the key" });
             }
         }
     }
 
     // Sends one report with a wrong field.
-    private static function send(): Core\Test\Response {
-        return Test::request(Method::Post, "/v1/report", {headers: ["content-type" => "application/json"], body: "{\"schema\":2}"});
+    private static function send(): Core\Test\Response
+    {
+        return Test::request(Method::Post, '/v1/report', { headers: ['content-type' => 'application/json'], body: "{\"schema\":2}" });
     }
 
     // Sends ten reports from `$address`. Each of them is allowed.
-    private static function useAll(string $address): void {
+    private static function useAll(string $address): void
+    {
         uint $sent = 0;
         while ($sent < Limit::PER_HOUR) {
             Test::assertSame(Limit::wait($address), null);

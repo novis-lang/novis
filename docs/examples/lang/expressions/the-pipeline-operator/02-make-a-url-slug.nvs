@@ -3,14 +3,14 @@
 // Each step is on a line of its own, and the steps run from the top to the bottom.
 // The first title prints as hello-world.
 
-array<string> $titles = ["Hello World", "  Novis Ships 1.0  ", "Web  Servers, Fast"];
+array<string> $titles = ['Hello World', '  Novis Ships 1.0  ', 'Web  Servers, Fast'];
 
 foreach ($titles as string $title) {
     string $slug = $title
         |> Core\Str::trim($_)
         |> Core\Str::lower($_)
-        |> Core\Str::replace($_, ",", "")
-        |> Core\Str::replace($_, "  ", " ")
-        |> Core\Str::replace($_, " ", "-");
+        |> Core\Str::replace($_, ',', '')
+        |> Core\Str::replace($_, '  ', ' ')
+        |> Core\Str::replace($_, ' ', '-');
     echo $slug, "\n";
 }

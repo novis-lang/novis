@@ -1,20 +1,20 @@
 <?nvs
 // Shows that a second handle can read what was written, before and after `flush`.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "counter.txt");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'counter.txt');
 
 Core\IO\File $writer = Core\IO::open($path, Core\IO::FileMode::Write);
-$writer->write("42");
+$writer->write('42');
 
 // `write` already sent the bytes. The reader gets "42" before any `flush`.
 Core\IO\File $reader = Core\IO::open($path, Core\IO::FileMode::Read);
-echo "before flush: ", $reader->read(10), "\n";
+echo 'before flush: ', $reader->read(10), "\n";
 $reader->close();
 
 // After `flush` the file is the same. This prints "after flush: 42".
 $writer->flush();
 $reader = Core\IO::open($path, Core\IO::FileMode::Read);
-echo "after flush: ", $reader->read(10), "\n";
+echo 'after flush: ', $reader->read(10), "\n";
 $reader->close();
 $writer->close();
 

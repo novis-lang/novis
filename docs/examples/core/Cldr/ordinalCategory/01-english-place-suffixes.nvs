@@ -1,15 +1,17 @@
 <?nvs
 // Shows how to write the English suffix for a place: 1st, 2nd, 3rd, 4th.
 
-class Place {
-    public static function of(int $number): string {
+class Place
+{
+    public static function of(int $number): string
+    {
         // `Core\Cldr::ordinalCategory` returns the form English uses for this
         // place. Each of the three marked forms has its own suffix.
-        string $suffix = match (Core\Cldr::ordinalCategory($number, "en")) {
-            Core\Cldr::PluralCategory::One => "st",
-            Core\Cldr::PluralCategory::Two => "nd",
-            Core\Cldr::PluralCategory::Few => "rd",
-            default => "th",
+        string $suffix = match (Core\Cldr::ordinalCategory($number, 'en')) {
+            Core\Cldr::PluralCategory::One => 'st',
+            Core\Cldr::PluralCategory::Two => 'nd',
+            Core\Cldr::PluralCategory::Few => 'rd',
+            default => 'th',
         };
         return ($number as string) . $suffix;
     }

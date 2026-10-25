@@ -9,7 +9,7 @@ echo Core\Json::encode(Core\Arr::reverse($stock)), "\n";
 
 // `preserveKeys` keeps every entry under its own key. This prints
 // {"plums":7,"pears":4,"apples":12}.
-echo Core\Json::encode(Core\Arr::reverse($stock, {preserveKeys: true})), "\n";
+echo Core\Json::encode(Core\Arr::reverse($stock, { preserveKeys: true })), "\n";
 
 // Reversing twice gives you the values in the order you started with. This
 // prints [12,4,7].

@@ -2,10 +2,10 @@
 // One record at each of the five levels, quietest first. In production, a
 // `Debug` record is not kept by default. This program sets the level to
 // `Debug` for this run, so all five are written.
-Core\Config::set("log.level", "Debug");
+Core\Config::set('log.level', 'Debug');
 
-Core\Log::write(Core\Log::Level::Debug, "the cart held 3 items");
-Core\Log::write(Core\Log::Level::Info, "order ORD-1042 was placed");
-Core\Log::write(Core\Log::Level::Warn, "the address service was slow, used the address on file");
-Core\Log::write(Core\Log::Level::Error, "the payment could not be taken");
-Core\Log::write(Core\Log::Level::Critical, "the payments service cannot be reached at all");
+Core\Log::write(Core\Log::Level::Debug, 'the cart held 3 items');
+Core\Log::write(Core\Log::Level::Info, 'order ORD-1042 was placed');
+Core\Log::write(Core\Log::Level::Warn, 'the address service was slow, used the address on file');
+Core\Log::write(Core\Log::Level::Error, 'the payment could not be taken');
+Core\Log::write(Core\Log::Level::Critical, 'the payments service cannot be reached at all');

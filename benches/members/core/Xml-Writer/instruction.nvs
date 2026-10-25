@@ -3,16 +3,18 @@
 // bench: iterations 512
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $data = ['href="feed.css"', "step=1", ""];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $data = ['href="feed.css"', 'step=1', ''];
         Core\Xml\Writer $writer = Core\Xml::writer();
         $writer->startDocument();
-        $writer->startElement("feed");
+        $writer->startElement('feed');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            $writer->instruction("app", $data[(($total + $i) % 3) as int]);
+            $writer->instruction('app', $data[(($total + $i) % 3) as int]);
             $total = $total + 1;
             $i = $i + 1;
         }

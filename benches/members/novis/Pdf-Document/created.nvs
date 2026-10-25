@@ -4,13 +4,15 @@
 // bench: complexity constant
 use Novis\Pdf\Document;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $invoice = Document::fromHtml("<h1>Invoice</h1>");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $invoice = Document::fromHtml('<h1>Invoice</h1>');
         array<Core\Time\Instant> $times = [
-            Core\Time::fromIso("2026-01-01T00:00:00Z"),
-            Core\Time::fromIso("2026-03-01T09:30:00Z"),
-            Core\Time::fromIso("2026-12-31T23:59:59Z"),
+            Core\Time::fromIso('2026-01-01T00:00:00Z'),
+            Core\Time::fromIso('2026-03-01T09:30:00Z'),
+            Core\Time::fromIso('2026-12-31T23:59:59Z'),
         ];
         array<Document> $documents = [];
         uint $total = 0;

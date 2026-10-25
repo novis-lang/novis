@@ -1,9 +1,11 @@
 <?nvs
 // Shows how a shop gives one loyalty point for every full ten euros a customer spends.
 
-class Loyalty {
+class Loyalty
+{
     // Only a full ten euros gives a point. The rest of the amount gives nothing.
-    public static function points(float $spent): float {
+    public static function points(float $spent): float
+    {
         return Core\Math::floor($spent / 10.0);
     }
 }

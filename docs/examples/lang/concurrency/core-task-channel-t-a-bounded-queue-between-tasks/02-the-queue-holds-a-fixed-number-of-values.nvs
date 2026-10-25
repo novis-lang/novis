@@ -16,7 +16,7 @@ var $done = Core\Task::all({
     work: fn(): int => {
         int $sum = 0;
         foreach ($jobs as int $n) {
-            echo "handled job ", $n, "\n";
+            echo 'handled job ', $n, "\n";
             $sum = $sum + $n;
         }
         return $sum;
@@ -24,4 +24,4 @@ var $done = Core\Task::all({
 });
 
 // This prints 8 and 36.
-echo $done->fill, " jobs, total ", $done->work, "\n";
+echo $done->fill, ' jobs, total ', $done->work, "\n";

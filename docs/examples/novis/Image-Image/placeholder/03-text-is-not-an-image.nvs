@@ -2,7 +2,7 @@
 // Shows the error `Image::placeholder` throws for bytes that are not an image.
 use Novis\Image\Image;
 
-bytes $upload = "<html>not a picture</html>" as bytes;
+bytes $upload = '<html>not a picture</html>' as bytes;
 
 // The bytes are not an image, so this throws a `ParseError`.
 try {

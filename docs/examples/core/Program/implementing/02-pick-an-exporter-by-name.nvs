@@ -1,28 +1,35 @@
 <?nvs
 // Shows how to choose one class by a name that the user types.
 
-interface Exporter {
+interface Exporter
+{
     public function format(): string;
     public function export(array<string> $names): string;
 }
 
-class CsvExporter implements Exporter {
-    public function format(): string {
-        return "csv";
+class CsvExporter implements Exporter
+{
+    public function format(): string
+    {
+        return 'csv';
     }
 
-    public function export(array<string> $names): string {
-        return Core\Str::join($names, ",");
+    public function export(array<string> $names): string
+    {
+        return Core\Str::join($names, ',');
     }
 }
 
-class LinesExporter implements Exporter {
-    public function format(): string {
-        return "lines";
+class LinesExporter implements Exporter
+{
+    public function format(): string
+    {
+        return 'lines';
     }
 
-    public function export(array<string> $names): string {
-        return Core\Str::join($names, " | ");
+    public function export(array<string> $names): string
+    {
+        return Core\Str::join($names, ' | ');
     }
 }
 
@@ -33,6 +40,6 @@ foreach (Core\Program::implementing<Exporter>() as Exporter $exporter) {
 }
 
 // This prints `Ada,Grace,Linus`.
-echo $exporters["csv"]->export(["Ada", "Grace", "Linus"]), "\n";
+echo $exporters['csv']->export(['Ada', 'Grace', 'Linus']), "\n";
 // A format that no class has is not in the array. This prints `false`.
-echo Core\Arr::hasKey($exporters, "pdf") ? "true" : "false", "\n";
+echo Core\Arr::hasKey($exporters, 'pdf') ? 'true' : 'false', "\n";

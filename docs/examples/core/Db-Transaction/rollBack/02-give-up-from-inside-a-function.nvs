@@ -5,7 +5,8 @@
 use Core\Db\RolledBack;
 use Core\Db\Transaction;
 
-class Cart {
+class Cart
+{
     // This function stops the transaction itself. It returns `void`, so nothing
     // that calls it has to pass an answer back up.
     public static function addItem(Transaction $tx, string $item, int $count): void

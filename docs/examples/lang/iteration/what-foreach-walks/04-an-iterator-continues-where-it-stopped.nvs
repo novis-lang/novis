@@ -2,11 +2,13 @@
 // Shows that a second loop over the same `Iterator` starts where the first
 // loop stopped. A loop over an `Iterable` starts again from the first value.
 
-class Queue implements Iterable<string> {
-    public function iterate(): Iterator<string> {
-        yield "first";
-        yield "second";
-        yield "third";
+class Queue implements Iterable<string>
+{
+    public function iterate(): Iterator<string>
+    {
+        yield 'first';
+        yield 'second';
+        yield 'third';
     }
 }
 

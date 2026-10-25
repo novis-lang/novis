@@ -3,15 +3,18 @@
 // any order, and as an array passed to a method that takes any number of
 // arguments.
 
-class Ticket {
+class Ticket
+{
     // The last two parameters have a default, so a caller may write one
     // argument or all three.
-    public static function price(int $seats, int $each = 20, int $booking = 3): int {
+    public static function price(int $seats, int $each = 20, int $booking = 3): int
+    {
         return $seats * $each + $booking;
     }
 
     // `...$prices` collects everything left over into one array.
-    public static function cheapest(int ...$prices): int {
+    public static function cheapest(int ...$prices): int
+    {
         int $best = 0;
 
         foreach ($prices as int $price) {

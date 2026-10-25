@@ -5,11 +5,13 @@
 
 use Core\Db;
 use Core\Db\Connection;
-use Core\Db\Transaction;
 use Core\Db\RolledBack;
+use Core\Db\Transaction;
 
-final class Checkout {
-    public static function place(Connection $db, string $sku, int $wanted): string {
+final class Checkout
+{
+    public static function place(Connection $db, string $sku, int $wanted): string
+    {
         try {
             $db->transaction(fn (Transaction $tx): void => {
                 var $row = $tx->query('select stock from items where sku = ?', [$sku])->first();

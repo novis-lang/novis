@@ -3,17 +3,17 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
-array<string> $customers = ["Ada Lovelace", "Alan Turing", "Grace Hopper"];
+array<string> $customers = ['Ada Lovelace', 'Alan Turing', 'Grace Hopper'];
 
 // Each invoice starts on a new page. Its `h1` saves the customer name under `customer`.
-string $html = "<style>h1 { break-before: page; string-set: customer content() }</style>";
+string $html = '<style>h1 { break-before: page; string-set: customer content() }</style>';
 foreach ($customers as string $name) {
     $html .= "<h1>{$name}</h1><p>Invoice for one order.</p>";
 }
 
 var $header = fn(Page $page): Core\Html\Markup => {
-    string $customer = $page->string("customer") ?? "";
-    echo "page ", $page->number, ": invoice for ", $customer, "\n";
+    string $customer = $page->string('customer') ?? '';
+    echo 'page ', $page->number, ': invoice for ', $customer, "\n";
     return html`<p>Shop, invoice for {$customer}</p>`;
 };
 

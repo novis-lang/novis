@@ -3,12 +3,12 @@
 
 secret bytes $key = Core\Crypto::generateKey();
 array<secret bytes> $keys = [$key];
-array<string> $claims = ["user" => "42"];
+array<string> $claims = ['user' => '42'];
 
 // Somebody adds text to the end of a valid token.
 string $token = Core\Signature::sign($claims, { keys: $keys, until: null });
 try {
-    Core\Signature::verify($token . "AAAA", $keys);
+    Core\Signature::verify($token . 'AAAA', $keys);
     echo "accepted\n";
 } catch (RuntimeError $e) {
     echo "The changed token throws a RuntimeError.\n";
@@ -22,5 +22,5 @@ try {
     echo "accepted\n";
 } catch (RuntimeError $e) {
     // Only an expired token has the word "expired" in its message.
-    echo Core\Str::contains($e->message, "expired") ? "The token has expired.\n" : "Other error.\n";
+    echo Core\Str::contains($e->message, 'expired') ? "The token has expired.\n" : "Other error.\n";
 }

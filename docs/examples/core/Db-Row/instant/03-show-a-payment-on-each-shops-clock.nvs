@@ -6,7 +6,7 @@ var $db = Core\Db::connect('shop');
 $db->execute('create temporary table orders (city text not null, zone text not null, paid_at timestamptz not null)', []);
 $db->execute(
     'insert into orders (city, zone, paid_at) values (?, ?, ?), (?, ?, ?)',
-    ['London', 'Europe/London', '2026-03-01 14:00:00+00', 'New York', 'America/New_York', '2026-03-01 14:00:00+00']
+    ['London', 'Europe/London', '2026-03-01 14:00:00+00', 'New York', 'America/New_York', '2026-03-01 14:00:00+00'],
 );
 
 // Both orders were paid at the same moment. `in` returns that moment on the

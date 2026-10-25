@@ -14,11 +14,11 @@ try {
 
 // Add the sheet even when there are no rows. The file then has one empty sheet.
 var $book = Workbook::createInMemory();
-$book->sheet("Orders")->addAll($orders);
+$book->sheet('Orders')->addAll($orders);
 var $written = $book->finish();
-echo $written->rows["Orders"], " rows\n";
+echo $written->rows['Orders'], " rows\n";
 if ($written->bytes != null) {
     foreach (Novis\Spreadsheet\Reader::open($written->bytes)->sheets() as var $sheet) {
-        echo "the file has the sheet ", $sheet->name, "\n";
+        echo 'the file has the sheet ', $sheet->name, "\n";
     }
 }

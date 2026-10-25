@@ -7,18 +7,23 @@
 // bench: allocations 0
 // bench: complexity constant
 
-abstract class Step {
-    public abstract function apply(int $n): int;
+abstract class Step
+{
+    abstract public function apply(int $n): int;
 }
 
-final class Doubling extends Step {
-    public function apply(int $n): int {
+final class Doubling extends Step
+{
+    public function apply(int $n): int
+    {
         return $n + $n;
     }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         Step $step = new Doubling();
         int $acc = 1;
         int $i = 0;

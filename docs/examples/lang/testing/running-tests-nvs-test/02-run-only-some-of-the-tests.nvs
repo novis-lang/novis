@@ -5,8 +5,10 @@
 
 use Core\Test;
 
-class Cart {
-    public static function total(array<uint> $prices): uint {
+class Cart
+{
+    public static function total(array<uint> $prices): uint
+    {
         uint $sum = 0;
         foreach ($prices as uint $price) {
             $sum = $sum + $price;
@@ -15,8 +17,10 @@ class Cart {
     }
 }
 
-class Shipping {
-    public static function costFor(uint $total): uint {
+class Shipping
+{
+    public static function costFor(uint $total): uint
+    {
         if ($total >= 5000) {
             return 0;
         }
@@ -24,31 +28,37 @@ class Shipping {
     }
 }
 
-class CartTest {
+class CartTest
+{
     #[Test]
-    public function itAddsNothingForAnEmptyCart(): void {
+    public function itAddsNothingForAnEmptyCart(): void
+    {
         Test::assertSame(Cart::total([]), 0);
     }
 
     #[Test]
-    public function itAddsOnePrice(): void {
+    public function itAddsOnePrice(): void
+    {
         Test::assertSame(Cart::total([1250]), 1250);
     }
 
     #[Test]
-    public function itAddsSeveralPrices(): void {
+    public function itAddsSeveralPrices(): void
+    {
         Test::assertSame(Cart::total([1250, 750, 3000]), 5000);
     }
 }
 
-class ShippingTest {
+class ShippingTest
+{
     // `--filter CartTest::` does not run this test, and its class is not
     // printed at all.
     #[Test]
-    public function itShipsALargeOrderForFree(): void {
+    public function itShipsALargeOrderForFree(): void
+    {
         Test::assertSame(Shipping::costFor(5000), 0);
     }
 }
 
 // This prints `5000 0`.
-echo Cart::total([1250, 750, 3000]), " ", Shipping::costFor(5000), "\n";
+echo Cart::total([1250, 750, 3000]), ' ', Shipping::costFor(5000), "\n";

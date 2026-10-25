@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         var $db = Core\Db::connect('notes');
         $db->execute('create table order_lines (id integer primary key, amount decimal(10,2) not null, tax decimal(10,2) not null)', []);
         decimal $amount = 19.95;

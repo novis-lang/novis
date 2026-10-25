@@ -1,7 +1,7 @@
 error[E0411]: `Point` does not implement `Comparable`; ordering two objects with `<`/`<=`/`>`/`>=`/`<=>` requires it
-   --> 04-ordering-objects-without-comparable.nvs:12:5
+   --> 04-ordering-objects-without-comparable.nvs:13:5
    |
-12 | if ($a < $b) {
+13 | if ($a < $b) {
    |     ^^^^^^^ compared here
    = help: implement `Comparable`'s `compareTo(self $other): int` on the class
 

@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<string> $shipping = ['name' => 'Ada', 'city' => 'Wien'];
         array<string> $billing = ['city' => 'Bonn', 'name' => 'Ida'];
         uint $total = 0;

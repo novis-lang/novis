@@ -2,14 +2,14 @@
 // Shows how to write a spreadsheet to a file that your program opened.
 use Novis\Spreadsheet\Workbook;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "orders.csv");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'orders.csv');
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
 
 // An open file has no name to read the format from, so `format: "csv"` sets it.
-var $book = Workbook::createForStream($file, {format: "csv"});
-$book->sheet("Orders")->addAll([
-    ["order" => 1042, "total" => 19.9],
-    ["order" => 1043, "total" => 5.0],
+var $book = Workbook::createForStream($file, { format: 'csv' });
+$book->sheet('Orders')->addAll([
+    ['order' => 1042, 'total' => 19.9],
+    ['order' => 1043, 'total' => 5.0],
 ]);
 $book->finish();
 

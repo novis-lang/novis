@@ -11,5 +11,5 @@ echo Core\Bytes::length($generator->bytes(100)), "\n";
 try {
     $generator->bytes(0);
 } catch (Throwable $e) {
-    echo "Error: ", $e->message, "\n";
+    echo 'Error: ', $e->message, "\n";
 }

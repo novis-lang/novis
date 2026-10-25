@@ -3,7 +3,7 @@
 use Novis\Image\Color;
 use Novis\Image\Image;
 
-bytes $photo = Image::create(120, 80, Color::hex("#16a34a"))->encode();
+bytes $photo = Image::create(120, 80, Color::hex('#16a34a'))->encode();
 
 // `count: 1` returns only the most common colour.
 Color $main = Image::palette($photo, 1)[0];

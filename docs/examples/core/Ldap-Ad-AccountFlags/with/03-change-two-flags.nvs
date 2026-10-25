@@ -2,12 +2,12 @@
 // Shows how to set one flag and clear another in the same call.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Ben Kohl,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Ben Kohl,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // Ben Kohl's password never expires. This copy is disabled, and its password expires again.
-    var $changed = $flags->with({disabled: true, passwordNeverExpires: false});
+    var $changed = $flags->with({ disabled: true, passwordNeverExpires: false });
 
     // This prints `66048` and then `514`.
     echo $flags->bits(), "\n";

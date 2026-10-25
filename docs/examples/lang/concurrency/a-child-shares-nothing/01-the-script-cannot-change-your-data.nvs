@@ -2,15 +2,16 @@
 // Shows that a script you start with `spawn script` cannot change your data.
 // It gets its own copy of every class static, and your own copy stays as it is.
 
-final class Orders {
+final class Orders
+{
     public static int $counted = 0;
 }
 
 Orders::$counted = 7;
-echo "before: ", Orders::$counted, "\n";
+echo 'before: ', Orders::$counted, "\n";
 
 // The path starts at the folder of this file.
-var $handle = spawn script "scripts/count-orders.nvs" with(output: "capture");
+var $handle = spawn script 'scripts/count-orders.nvs' with(output: 'capture');
 var $result = await $handle;
 
 // The script printed two lines while it ran. With `capture` they come back as
@@ -18,4 +19,4 @@ var $result = await $handle;
 echo $result->output;
 
 // The script set `Orders::$counted` to 42. This still prints 7.
-echo "after: ", Orders::$counted, "\n";
+echo 'after: ', Orders::$counted, "\n";

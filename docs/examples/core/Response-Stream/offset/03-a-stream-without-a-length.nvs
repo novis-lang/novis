@@ -1,11 +1,11 @@
 <?nvs
 // Shows that `offset()` throws a `LogicError` when the stream has no length.
 
-Core\Response\Stream $body = Core\Response::stream("text/plain; charset=utf-8");
+Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8');
 
 try {
     int $start = $body->offset();
-    $body->write("The part starts at byte " . ($start as string) . ".\n");
+    $body->write('The part starts at byte ' . ($start as string) . ".\n");
 } catch (LogicError $error) {
     // A stream without a length is always sent whole, so this line is printed.
     $body->write("This stream has no length, so it has no offset.\n");

@@ -14,12 +14,14 @@ use RuntimeError;
 
 // The routes of the app. `Core\Router::dispatch` in `public/index.nvs` calls the method of the route that matches.
 // Every route except the report is `GET`, and no route sets a cookie.
-final class App {
+final class App
+{
     // Checks one report and adds it to the weekly totals.
     // The request has no cookie and no session, so the route does not need a CSRF token.
-    #[Route(path: "/v1/report", method: Method::Post, name: "App::report")]
+    #[Route(path: '/v1/report', method: Method::Post, name: 'App::report')]
     #[Access(allow: Audience::Public, csrf: false)]
-    public static function report(): void {
+    public static function report(): void
+    {
         // The limit is checked first, so a sender over the limit costs no work.
         var $wait = Limit::wait(Request::clientIp());
         if ($wait != null) {
@@ -29,68 +31,75 @@ final class App {
                 $seconds = $seconds + 1;
             }
             Response::setStatus(429);
-            Response::setHeader("retry-after", "{$seconds}");
-            Response::json({error: "This address sent too many reports. Try again later."});
+            Response::setHeader('retry-after', "{$seconds}");
+            Response::json({ error: 'This address sent too many reports. Try again later.' });
             return;
         }
         try {
-            var $report = Report::check(App::body(), Request::header("content-type"), Time::now(), Known::load());
+            var $report = Report::check(App::body(), Request::header('content-type'), Time::now(), Known::load());
             App::totals()->add($report);
             // 204 means the report was added, and the answer has no body.
             Response::setStatus(204);
         } catch (Rejected $error) {
             Response::setStatus($error->status);
-            Response::json({error: $error->message});
+            Response::json({ error: $error->message });
         }
     }
 
     // The home page: the reports of every week, and the details of the newest week.
-    #[Route(path: "/", method: Method::Get, name: "App::home")]
+    #[Route(path: '/', method: Method::Get, name: 'App::home')]
     #[Access(allow: Audience::Public)]
-    public static function home(): void {
+    public static function home(): void
+    {
         Response::html(Pages::home(App::totals(), Time::now()));
     }
 
     // The page that says what a report contains. The address of the service is built from this request.
-    #[Route(path: "/collect", method: Method::Get, name: "App::collect")]
+    #[Route(path: '/collect', method: Method::Get, name: 'App::collect')]
     #[Access(allow: Audience::Public)]
-    public static function collect(): void {
-        tainted string $origin = Request::scheme() . "://" . (Request::host() ?? "localhost");
+    public static function collect(): void
+    {
+        tainted string $origin = Request::scheme() . '://' . (Request::host() ?? 'localhost');
         Response::html(Pages::collect($origin));
     }
 
     // The page with the list of downloads.
-    #[Route(path: "/data", method: Method::Get, name: "App::data")]
+    #[Route(path: '/data', method: Method::Get, name: 'App::data')]
     #[Access(allow: Audience::Public)]
-    public static function data(): void {
+    public static function data(): void
+    {
         Response::html(Pages::data());
     }
 
     // The stylesheet of the pages.
-    #[Route(path: "/style.css", method: Method::Get, name: "App::style")]
+    #[Route(path: '/style.css', method: Method::Get, name: 'App::style')]
     #[Access(allow: Audience::Public)]
-    public static function style(): void {
-        Response::bytes(Pages::style() as bytes, "text/css; charset=utf-8");
+    public static function style(): void
+    {
+        Response::bytes(Pages::style() as bytes, 'text/css; charset=utf-8');
     }
 
     // Both tables as JSON.
-    #[Route(path: "/data/totals.json", method: Method::Get, name: "App::totalsJson")]
+    #[Route(path: '/data/totals.json', method: Method::Get, name: 'App::totalsJson')]
     #[Access(allow: Audience::Public)]
-    public static function totalsJson(): void {
+    public static function totalsJson(): void
+    {
         Response::json(Data::json(App::totals()));
     }
 
     // Both tables as CSV.
-    #[Route(path: "/data/totals.csv", method: Method::Get, name: "App::totalsCsv")]
+    #[Route(path: '/data/totals.csv', method: Method::Get, name: 'App::totalsCsv')]
     #[Access(allow: Audience::Public)]
-    public static function totalsCsv(): void {
-        Response::bytes(Data::csv(App::totals()) as bytes, "text/csv; charset=utf-8");
+    public static function totalsCsv(): void
+    {
+        Response::bytes(Data::csv(App::totals()) as bytes, 'text/csv; charset=utf-8');
     }
 
     // The rows of one week as JSON, such as `/data/2026-W42.json`. A week with no rows gets 404.
-    #[Route(path: "/data/{file}", method: Method::Get, name: "App::week")]
+    #[Route(path: '/data/{file}', method: Method::Get, name: 'App::week')]
     #[Access(allow: Audience::Public)]
-    public static function week(tainted string $file): void {
+    public static function week(tainted string $file): void
+    {
         ?tainted string $week = Data::weekOf($file);
         if ($week != null) {
             var $totals = App::totals();
@@ -100,24 +109,26 @@ final class App {
             }
         }
         Response::setStatus(404);
-        Response::json({error: "There are no totals for this week."});
+        Response::json({ error: 'There are no totals for this week.' });
     }
 
     // Reads the body of the request. A body larger than `[limits] request_body` in `nvs.toml` gets 413.
     // A body that is not UTF-8 text gets 400.
-    private static function body(): tainted string {
+    private static function body(): tainted string
+    {
         try {
             return Request::body();
         } catch (ParseError $notText) {
-            throw new Rejected("The report is not valid JSON.", 400);
+            throw new Rejected('The report is not valid JSON.', 400);
         } catch (RuntimeError $tooLarge) {
-            throw new Rejected("The report can have at most 4096 bytes.", 413);
+            throw new Rejected('The report can have at most 4096 bytes.', 413);
         }
     }
 
     // Opens the database `telemetry` from `nvs.toml` and creates the tables when they are missing.
-    private static function totals(): Totals {
-        var $totals = new Totals(Db::connect("telemetry"));
+    private static function totals(): Totals
+    {
+        var $totals = new Totals(Db::connect('telemetry'));
         $totals->setUp();
         return $totals;
     }

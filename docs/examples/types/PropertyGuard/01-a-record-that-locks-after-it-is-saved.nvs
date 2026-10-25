@@ -2,26 +2,29 @@
 // Shows an invoice that cannot change after it is saved. The guard throws an
 // error on every write once `$saved` is `true`.
 
-class Invoice implements PropertyGuard {
-    public string $customer = "";
+class Invoice implements PropertyGuard
+{
+    public string $customer = '';
     public array<int> $lines = [];
     public bool $saved = false;
 
-    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void
+    {
         if ($this->saved) {
-            throw new LogicError("the invoice is saved, so " . $name . " cannot change");
+            throw new LogicError('the invoice is saved, so ' . $name . ' cannot change');
         }
     }
 
-    public function beforePropertyUnset(string $name, array<string> $keys): void {
+    public function beforePropertyUnset(string $name, array<string> $keys): void
+    {
         if ($this->saved) {
-            throw new LogicError("the invoice is saved, so " . $name . " cannot change");
+            throw new LogicError('the invoice is saved, so ' . $name . ' cannot change');
         }
     }
 }
 
 var $invoice = new Invoice();
-$invoice->customer = "Shop";
+$invoice->customer = 'Shop';
 $invoice->lines[] = 120;
 $invoice->lines[] = 80;
 $invoice->saved = true;
@@ -30,13 +33,13 @@ $invoice->saved = true;
 try {
     $invoice->lines[] = 999;
 } catch (LogicError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }
 try {
     unset($invoice->lines[0]);
 } catch (LogicError $e) {
-    echo "error: ", $e->message, "\n";
+    echo 'error: ', $e->message, "\n";
 }
 
 // This prints `Shop [120,80]`.
-echo $invoice->customer, " ", Core\Json::encode($invoice->lines), "\n";
+echo $invoice->customer, ' ', Core\Json::encode($invoice->lines), "\n";

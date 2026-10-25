@@ -2,12 +2,12 @@
 // Shows that `global` returns `false` for a group with another scope.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $type = $corp->read("CN=Enterprise Admins,CN=Users,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+var $corp = Core\Ldap::connect('corp');
+var $type = $corp->read('CN=Enterprise Admins,CN=Users,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
     // `Enterprise Admins` is a universal group.
     // This prints `global: false, universal: true`.
-    echo "global: ", $type->global() ? "true" : "false";
-    echo ", universal: ", $type->universal() ? "true" : "false", "\n";
+    echo 'global: ', $type->global() ? 'true' : 'false';
+    echo ', universal: ', $type->universal() ? 'true' : 'false', "\n";
 }

@@ -3,14 +3,16 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Core\Jwe\Key $key = Core\Jwe\Key::shared(Core\Crypto::generateKey());
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The text in each round depends on the round before, so no round can be left out.
-            string $token = Core\Jwe::encrypt("user=" . $total, $key);
+            string $token = Core\Jwe::encrypt('user=' . $total, $key);
             $total = $total + Core\Str::length($token);
             $i = $i + 1;
         }

@@ -24,12 +24,12 @@ final class PasswordTest
     #[Test]
     public function twelveCharactersAreStrong(): void
     {
-        Test::assertSame(Password::isStrong("abcdefghijkl"), true);
+        Test::assertSame(Password::isStrong('abcdefghijkl'), true);
     }
 
     #[Test]
     public function elevenCharactersAreNotStrong(): void
     {
-        Test::assertSame(Password::isStrong("abcdefghijk"), false);
+        Test::assertSame(Password::isStrong('abcdefghijk'), false);
     }
 }

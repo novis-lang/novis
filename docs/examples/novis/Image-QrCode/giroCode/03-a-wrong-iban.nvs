@@ -4,7 +4,7 @@ use Novis\Image\QrCode;
 
 // The last digit of this IBAN is wrong, so its check digits do not match.
 try {
-    QrCode::giroCode({name: "Shop GmbH", iban: "DE89 3704 0044 0532 0130 01"});
+    QrCode::giroCode({ name: 'Shop GmbH', iban: 'DE89 3704 0044 0532 0130 01' });
     echo "made a payment\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";
@@ -12,7 +12,7 @@ try {
 
 // An amount in euros has at most 2 decimals.
 try {
-    QrCode::giroCode({name: "Shop GmbH", iban: "DE89370400440532013000", amount: 9.999});
+    QrCode::giroCode({ name: 'Shop GmbH', iban: 'DE89370400440532013000', amount: 9.999 });
     echo "made a payment\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";
@@ -20,7 +20,7 @@ try {
 
 // A name with a line break throws an error. The line break could move the IBAN to a different line.
 try {
-    QrCode::giroCode({name: "Shop\nGmbH", iban: "DE89370400440532013000"});
+    QrCode::giroCode({ name: "Shop\nGmbH", iban: 'DE89370400440532013000' });
     echo "made a payment\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";

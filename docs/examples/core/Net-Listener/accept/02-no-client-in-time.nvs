@@ -1,7 +1,7 @@
 <?nvs
 // Shows what happens when no client connects before the time runs out.
 
-Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
 
 // Nobody connects to this server. After 100 milliseconds, `accept` throws a `TimeoutError`.
 try {
@@ -13,7 +13,7 @@ try {
 
 // The server still works after a timeout. You can call `accept` again.
 // This time a client is waiting, so this prints `a client connected`.
-Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+Core\Net\Stream $client = Core\Net::connect('127.0.0.1', $server->port(), 5s);
 Core\Net\Stream $connection = $server->accept(5s);
 echo "a client connected\n";
 

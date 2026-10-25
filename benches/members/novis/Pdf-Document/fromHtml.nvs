@@ -4,9 +4,11 @@
 // bench: complexity constant
 use Novis\Pdf\Document;
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $pages = ["<h1>Invoice 1</h1>", "<h1>Invoice 2</h1><p>Tea 2.50 EUR</p>", "<p>Receipt</p>"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $pages = ['<h1>Invoice 1</h1>', '<h1>Invoice 2</h1><p>Tea 2.50 EUR</p>', '<p>Receipt</p>'];
         array<Document> $documents = [];
         uint $total = 0;
         uint $i = 0;

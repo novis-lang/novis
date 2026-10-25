@@ -13,7 +13,7 @@ try {
 
 // The option `message` adds your own text at the start of the message.
 try {
-    Core\Test::assertTrue(Core\Arr::count($cart) > 0, {message: "the cart has a product"});
+    Core\Test::assertTrue(Core\Arr::count($cart) > 0, { message: 'the cart has a product' });
 } catch (Core\Test\Failure $failure) {
     echo $failure->message, "\n";
 }

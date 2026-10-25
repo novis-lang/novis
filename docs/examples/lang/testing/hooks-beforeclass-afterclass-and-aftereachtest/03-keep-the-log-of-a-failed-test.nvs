@@ -10,22 +10,27 @@ use Core\Test\AfterEachTest;
 use Core\Test\Outcome;
 use Core\Test\Summary;
 
-class Evidence {
+class Evidence
+{
     // A retry is a new attempt, so the attempt number is part of the name.
-    public static function fileName(string $class, string $test, int $attempt): string {
-        return $class . "-" . $test . "-" . $attempt . ".log";
+    public static function fileName(string $class, string $test, int $attempt): string
+    {
+        return $class . '-' . $test . '-' . $attempt . '.log';
     }
 }
 
-class CheckoutTest {
+class CheckoutTest
+{
     public string $log;
 
-    public function constructor() {
-        $this->log = Path::fromCwd("checkout-test.log");
+    public function constructor()
+    {
+        $this->log = Path::fromCwd('checkout-test.log');
     }
 
     #[Test]
-    public function itAddsTheShippingCost(): void {
+    public function itAddsTheShippingCost(): void
+    {
         // The prices are in cents.
         IO::write($this->log, "total 1250, shipping 490\n");
         Test::assertSame(1250 + 490, 1740);
@@ -33,7 +38,8 @@ class CheckoutTest {
 
     // `Outcome` says which test ran and whether it passed.
     #[AfterEachTest]
-    public function keepTheLogIfItFailed(Outcome $outcome): void {
+    public function keepTheLogIfItFailed(Outcome $outcome): void
+    {
         if ($outcome->passed()) {
             IO::remove($this->log);
         } else {
@@ -44,10 +50,11 @@ class CheckoutTest {
 
     // `Summary` has the counts for the whole class.
     #[AfterClass]
-    public static function report(Summary $summary): void {
+    public static function report(Summary $summary): void
+    {
         echo $summary->failed(), " failed, their logs are kept\n";
     }
 }
 
 // This prints `CheckoutTest-itAddsTheShippingCost-2.log`.
-echo Evidence::fileName("CheckoutTest", "itAddsTheShippingCost", 2), "\n";
+echo Evidence::fileName('CheckoutTest', 'itAddsTheShippingCost', 2), "\n";

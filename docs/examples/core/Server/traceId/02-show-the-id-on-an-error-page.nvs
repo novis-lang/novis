@@ -6,4 +6,4 @@
 string $id = Core\Server::traceId();
 
 // This prints "Something went wrong. Please send us this code: 0af7651916cd43dd8448eb211c80319c".
-echo "Something went wrong. Please send us this code: ", $id, "\n";
+echo 'Something went wrong. Please send us this code: ', $id, "\n";

@@ -3,12 +3,15 @@
 // The difference between the two figures is what the profile adds to one call.
 // bench: iterations 262144
 
-class Bench {
-    public static function step(uint $total, uint $i): uint {
+class Bench
+{
+    public static function step(uint $total, uint $i): uint
+    {
         return ($total + $i) % 7 + 1;
     }
 
-    public static function run(uint $rounds): uint {
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

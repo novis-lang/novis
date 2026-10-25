@@ -11,5 +11,5 @@ echo App\Widget::line(), "\n";
 
 var $found = Core\Program::implementing<App\Part>();
 foreach ($found as App\Part $part) {
-    echo "part ", $part->tag(), "\n";
+    echo 'part ', $part->tag(), "\n";
 }

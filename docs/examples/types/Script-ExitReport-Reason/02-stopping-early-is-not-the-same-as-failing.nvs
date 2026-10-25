@@ -5,12 +5,12 @@
 
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     string $ending = match ($report->reason()) {
-        Core\Script\ExitReport::Reason::Normal => "ran to the end",
-        Core\Script\ExitReport::Reason::ExitCall => "called exit",
-        Core\Script\ExitReport::Reason::UncaughtThrow => "threw something nobody caught",
-        Core\Script\ExitReport::Reason::Finish => "stopped itself, having finished",
+        Core\Script\ExitReport::Reason::Normal => 'ran to the end',
+        Core\Script\ExitReport::Reason::ExitCall => 'called exit',
+        Core\Script\ExitReport::Reason::UncaughtThrow => 'threw something nobody caught',
+        Core\Script\ExitReport::Reason::Finish => 'stopped itself, having finished',
     };
-    echo "on the way out: ", $ending, ", status ", $report->status(), "\n";
+    echo 'on the way out: ', $ending, ', status ', $report->status(), "\n";
 });
 
 try {

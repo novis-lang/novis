@@ -2,16 +2,19 @@
 // A class that says how two of its values are ordered can be compared with the
 // usual operators. The one member you write is `compareTo`.
 
-final class Distance implements Comparable {
+final class Distance implements Comparable
+{
     public int $metres;
 
-    public function constructor(int $metres) {
+    public function constructor(int $metres)
+    {
         $this->metres = $metres;
     }
 
     // Negative when this trip is the shorter one, zero when the two are the
     // same length, positive when this one is longer.
-    public function compareTo(Distance $other): int {
+    public function compareTo(Distance $other): int
+    {
         return $this->metres - $other->metres;
     }
 }
@@ -35,5 +38,5 @@ if ($walk->compareTo($sameWalk) == 0) {
 
 // `<=>` hands you the number itself. Read its sign: below zero means the left
 // trip comes first, above zero means the right one does.
-echo "walk against ride: ", $walk <=> $ride, "\n";
-echo "ride against walk: ", $ride <=> $walk, "\n";
+echo 'walk against ride: ', $walk <=> $ride, "\n";
+echo 'ride against walk: ', $ride <=> $walk, "\n";

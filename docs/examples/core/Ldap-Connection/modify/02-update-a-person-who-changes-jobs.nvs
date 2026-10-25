@@ -2,9 +2,9 @@
 // Shows how to change several attributes of a user account in one call.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Bakery 2,DC=example,DC=test";
-string $person = "CN=Lena Vogt," . $unit;
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Bakery 2,DC=example,DC=test';
+string $person = 'CN=Lena Vogt,' . $unit;
 
 // A run that stopped early can leave the accounts behind, so the program deletes them first.
 array<string> $leftovers = [$person, $unit];
@@ -14,27 +14,27 @@ foreach ($leftovers as string $left) {
     } catch (Core\Ldap\LdapError $missing) {
     }
 }
-$corp->add($unit, ["objectClass" => "organizationalUnit"]);
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
 $corp->add($person, [
-    "objectClass" => "user",
-    "sAMAccountName" => "lena.vogt",
-    "title" => "Baker",
-    "telephoneNumber" => "+43 1 555 0101",
+    'objectClass' => 'user',
+    'sAMAccountName' => 'lena.vogt',
+    'title' => 'Baker',
+    'telephoneNumber' => '+43 1 555 0101',
 ]);
 
 // The list has three changes. The server makes them in this order.
 $corp->modify($person, [
-    Core\Ldap\Change::replace("title", "Head Baker"),
-    Core\Ldap\Change::replace("department", "Kitchen"),
-    Core\Ldap\Change::removeAll("telephoneNumber"),
+    Core\Ldap\Change::replace('title', 'Head Baker'),
+    Core\Ldap\Change::replace('department', 'Kitchen'),
+    Core\Ldap\Change::removeAll('telephoneNumber'),
 ]);
 
 // This prints `Head Baker`, `Kitchen` and `no phone`.
-var $entry = $corp->read($person, {select: ["title", "department", "telephoneNumber"]});
+var $entry = $corp->read($person, { select: ['title', 'department', 'telephoneNumber'] });
 if ($entry != null) {
-    echo $entry->string("title") ?? "", "\n";
-    echo $entry->string("department") ?? "", "\n";
-    echo $entry->has("telephoneNumber") ? "has a phone" : "no phone", "\n";
+    echo $entry->string('title') ?? '', "\n";
+    echo $entry->string('department') ?? '', "\n";
+    echo $entry->has('telephoneNumber') ? 'has a phone' : 'no phone', "\n";
 }
 
 $corp->delete($person);

@@ -1,7 +1,7 @@
 error[E0477]: `object` names no class, so it has no method `shout`
-   --> 04-a-method-call-through-object.nvs:13:6
+   --> 04-a-method-call-through-object.nvs:15:6
    |
-13 | echo $o->shout(), "\n";
+15 | echo $o->shout(), "\n";
    |      ^^^^^^^^^ called on a receiver that names no class here
    = help: test the receiver for the class that declares `shout` first: `if ($x is ClassName) { … }`. An `object` has no methods of its own
 

@@ -6,7 +6,7 @@
 string $prefix = Core\Request::mount()->prefix();
 
 // A program at `/` has the prefix "", and its cookie path is "/".
-string $cookiePath = $prefix == "" ? "/" : $prefix;
+string $cookiePath = $prefix == '' ? '/' : $prefix;
 
 // This prints "Set-Cookie: cart=3; Path=/shop".
-echo "Set-Cookie: cart=3; Path=", $cookiePath, "\n";
+echo 'Set-Cookie: cart=3; Path=', $cookiePath, "\n";

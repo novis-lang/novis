@@ -21,5 +21,5 @@ echo $class->kind(), "\n";
 
 // Inside the class are the property and the method.
 foreach ($class->children() as Core\Ast\Node $part) {
-    echo "  ", $part->kind(), "\n";
+    echo '  ', $part->kind(), "\n";
 }

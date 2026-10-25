@@ -1,19 +1,21 @@
 <?nvs
 // Shows the result when two sets have no value in common.
 
-final class Tag {
+final class Tag
+{
     public string $name;
 
-    public function constructor(string $name) {
+    public function constructor(string $name)
+    {
         $this->name = $name;
     }
 }
 
 Core\ObjectSet<Tag> $first = new Core\ObjectSet<Tag>();
-$first->add(new Tag("sale"));
+$first->add(new Tag('sale'));
 
 Core\ObjectSet<Tag> $second = new Core\ObjectSet<Tag>();
-$second->add(new Tag("sale"));
+$second->add(new Tag('sale'));
 
 // The two "sale" tags have equal property values, but they are two different objects.
 // So the sets share nothing, and the result is an empty set.
@@ -21,4 +23,4 @@ Core\ObjectSet<Tag> $shared = $first->intersect($second);
 // This prints 0.
 echo $shared->count(), "\n";
 // This prints "empty".
-echo $shared->isEmpty() ? "empty" : "not empty", "\n";
+echo $shared->isEmpty() ? 'empty' : 'not empty', "\n";

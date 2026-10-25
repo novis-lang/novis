@@ -1,13 +1,15 @@
 <?nvs
 // Updates only the properties that a list of changes names, and skips every other name.
 
-class Profile {
-    public string $name = "Ada";
-    public string $email = "ada@example.com";
-    public string $city = "London";
-    private string $role = "member";
+class Profile
+{
+    public string $name = 'Ada';
+    public string $email = 'ada@example.com';
+    public string $city = 'London';
+    private string $role = 'member';
 
-    public function role(): string {
+    public function role(): string
+    {
         return $this->role;
     }
 }
@@ -15,19 +17,19 @@ class Profile {
 Profile $profile = new Profile();
 
 // The changes to make, with the property names as keys.
-array<string> $changes = ["city" => "Paris", "role" => "admin", "phone" => "555"];
+array<string> $changes = ['city' => 'Paris', 'role' => 'admin', 'phone' => '555'];
 
 foreach ($changes as string $field => string $value) {
     // `as ?property<Profile>` gives `null` for "role", because it is private.
     // It also gives `null` for "phone", because `Profile` has no such property.
     ?property<Profile> $key = $field as ?property<Profile>;
     if ($key == null) {
-        echo "skipped: ", $field, "\n";
+        echo 'skipped: ', $field, "\n";
         continue;
     }
     // This writes the property that the key names.
     $profile->$key = $value;
-    echo "updated: ", $field, "\n";
+    echo 'updated: ', $field, "\n";
 }
 
-echo $profile->name, ", ", $profile->city, ", ", $profile->role(), "\n";
+echo $profile->name, ', ', $profile->city, ', ', $profile->role(), "\n";

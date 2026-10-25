@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table guests (id integer primary key, name text not null, seats int not null)', []);
 $db->execute(
     'insert into guests (name, seats) values (?, ?), (?, ?), (?, ?)',
-    ['Ada Ahmed', 4, 'Bo Berg', 2, 'Cem Celik', 6]
+    ['Ada Ahmed', 4, 'Bo Berg', 2, 'Cem Celik', 6],
 );
 
 // The result has one row with one column, so `value` is the whole answer. `as

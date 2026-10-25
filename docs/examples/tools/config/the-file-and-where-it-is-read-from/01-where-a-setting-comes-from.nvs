@@ -2,19 +2,19 @@
 // Shows where the settings of a program come from. They all come from one file, `nvs.toml`.
 
 // `memory` is set in the file. This prints `64M`.
-echo Core\Config::get("memory"), "\n";
+echo Core\Config::get('memory'), "\n";
 
 // `wall_time` is not in the file, so `Core\Config::get` returns `null`. This prints `unset`.
-echo Core\Config::get("wall_time") ?? "unset", "\n";
+echo Core\Config::get('wall_time') ?? 'unset', "\n";
 
 // `nvs.toml` allows reading the `notes` folder next to it. A path in quotes
 // starts at the folder of this program, which is the same folder.
-echo Core\IO::read("notes/today.txt");
+echo Core\IO::read('notes/today.txt');
 
 // `Core\Path::fromCwd` starts the path at the working directory.
 // `notes` there is a different folder. Reading it throws a `RuntimeError`.
 try {
-    Core\IO::read(Core\Path::fromCwd("notes/today.txt"));
+    Core\IO::read(Core\Path::fromCwd('notes/today.txt'));
 } catch (RuntimeError $denied) {
     echo "not allowed\n";
 }

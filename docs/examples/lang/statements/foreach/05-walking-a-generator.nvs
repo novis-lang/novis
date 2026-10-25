@@ -16,5 +16,5 @@ class Pages
 }
 
 foreach (Pages::upTo(3) as int $page) {
-    echo "page ", $page, "\n";
+    echo 'page ', $page, "\n";
 }

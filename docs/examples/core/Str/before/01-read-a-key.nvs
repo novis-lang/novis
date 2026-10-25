@@ -3,12 +3,12 @@
 
 // `Core\Str::before` finds the first "=" and returns the text before it.
 // This prints `color`.
-echo Core\Str::before("color=dark=blue", "=") ?? "(none)", "\n";
+echo Core\Str::before('color=dark=blue', '=') ?? '(none)', "\n";
 
 // The separator is at the start, so the result is an empty string.
 // This prints `[]`.
-echo "[", Core\Str::before("=dark", "=") ?? "(none)", "]\n";
+echo '[', Core\Str::before('=dark', '=') ?? '(none)', "]\n";
 
 // The separator is not in the string, so the result is `null`.
 // This prints `(none)`.
-echo Core\Str::before("no separator here", "=") ?? "(none)", "\n";
+echo Core\Str::before('no separator here', '=') ?? '(none)', "\n";

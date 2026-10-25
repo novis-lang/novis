@@ -3,8 +3,10 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): string {
+class Bench
+{
+    public static function run(uint $rounds): string
+    {
         var $date = Core\Time\Date::at(-9999, 1, 1);
         int $count = 1;
         uint $i = 0;
@@ -14,7 +16,7 @@ class Bench {
             $count = $count % 7 + 1;
             $i = $i + 1;
         }
-        return $date->format("yyyy-MM-dd");
+        return $date->format('yyyy-MM-dd');
     }
 }
 

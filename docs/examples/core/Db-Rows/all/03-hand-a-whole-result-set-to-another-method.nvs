@@ -5,7 +5,8 @@ use Core\Db\Derive;
 // `#[Derive]` writes the code that fills this class from a row. Each property
 // takes the column of the same name.
 #[Derive]
-class Order {
+class Order
+{
     public uint $id;
     public int $cents;
 
@@ -16,7 +17,8 @@ class Order {
     }
 }
 
-class Invoice {
+class Invoice
+{
     // The parameter type says what this method needs: an array of `Order`. The
     // statement stays in the method that reads it, and this one only counts.
     public static function total(array<Order> $orders): int

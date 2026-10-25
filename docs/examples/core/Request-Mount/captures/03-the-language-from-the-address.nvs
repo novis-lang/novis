@@ -6,8 +6,8 @@
 tainted string $language = Core\Request::mount()->captures()[0];
 
 // The program knows these languages. A language it does not know gets English.
-array<string> $greetings = ["en" => "Welcome", "de" => "Willkommen", "fr" => "Bienvenue"];
-string $greeting = $greetings[$language] ?? $greetings["en"];
+array<string> $greetings = ['en' => 'Welcome', 'de' => 'Willkommen', 'fr' => 'Bienvenue'];
+string $greeting = $greetings[$language] ?? $greetings['en'];
 
 // This prints "Willkommen".
 echo $greeting, "\n";

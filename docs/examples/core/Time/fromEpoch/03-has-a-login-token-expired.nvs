@@ -15,5 +15,5 @@ array<int> $checkedAt = [1715689800, 1715695200];
 foreach ($checkedAt as int $seconds) {
     var $now = Core\Time::fromEpoch($seconds);
     // `compareTo` returns a number above 0 when `$now` is later than `$expires`.
-    echo $now->toIso(), ": ", $now->compareTo($expires) > 0 ? "expired" : "valid", "\n";
+    echo $now->toIso(), ': ', $now->compareTo($expires) > 0 ? 'expired' : 'valid', "\n";
 }

@@ -7,11 +7,11 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        array<string> $allowed = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "role" . ($n as string));
+        array<string> $allowed = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => 'role' . ($n as string));
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            if (Core\Arr::contains($allowed, "guest")) {
+            if (Core\Arr::contains($allowed, 'guest')) {
                 $total = $total + 2;
             } else {
                 $total = $total + 1;

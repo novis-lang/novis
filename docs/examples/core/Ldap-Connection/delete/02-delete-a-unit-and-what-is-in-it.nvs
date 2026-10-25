@@ -2,9 +2,9 @@
 // Shows how to delete a unit that has a user account in it.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Kiosk 2,DC=example,DC=test";
-string $person = "CN=Timo Brandt," . $unit;
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Kiosk 2,DC=example,DC=test';
+string $person = 'CN=Timo Brandt,' . $unit;
 
 // A run that stopped early can leave the entries behind, so the program deletes them first.
 array<string> $leftovers = [$person, $unit];
@@ -14,18 +14,18 @@ foreach ($leftovers as string $left) {
     } catch (Core\Ldap\LdapError $missing) {
     }
 }
-$corp->add($unit, ["objectClass" => "organizationalUnit"]);
-$corp->add($person, ["objectClass" => "user", "sAMAccountName" => "timo.brandt"]);
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
+$corp->add($person, ['objectClass' => 'user', 'sAMAccountName' => 'timo.brandt']);
 
 // The unit still has an entry below it, so `delete` throws an error.
 // This prints `the unit is not empty`.
 try {
     $corp->delete($unit);
 } catch (Core\Ldap\LdapError $error) {
-    echo "the unit is not empty", "\n";
+    echo 'the unit is not empty', "\n";
 }
 
 // Delete the entries below a unit first, then the unit. This prints `deleted`.
 $corp->delete($person);
 $corp->delete($unit);
-echo $corp->read($unit) == null ? "deleted" : "still there", "\n";
+echo $corp->read($unit) == null ? 'deleted' : 'still there', "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Shows which keys the result has. Every entry that stays keeps its own key.
 
-array<string> $columns = ["name", "email", "city"];
+array<string> $columns = ['name', 'email', 'city'];
 
 array<string> $rest = Core\Arr::withoutFirst($columns);
 

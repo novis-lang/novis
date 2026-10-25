@@ -3,21 +3,21 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Pages;
 
-var $invoice = Document::fromHtml("<p>Invoice 1042</p>")->render()->bytes;
-var $locked = Document::fromHtml("<p>Salary list</p>")->password("example-password")->render()->bytes;
+var $invoice = Document::fromHtml('<p>Invoice 1042</p>')->render()->bytes;
+var $locked = Document::fromHtml('<p>Salary list</p>')->password('example-password')->render()->bytes;
 
 // A file with a password throws a `ParseError`.
 try {
     Pages::merge([Pages::of($invoice), Pages::of($locked)]);
     echo "merged\n";
 } catch (ParseError $encrypted) {
-    echo "ParseError: ", $encrypted->message, "\n";
+    echo 'ParseError: ', $encrypted->message, "\n";
 }
 
 // These bytes are text and not a PDF file, so they throw a `ParseError` too.
 try {
-    Pages::merge([Pages::of($invoice), Pages::of("Hello" as bytes)]);
+    Pages::merge([Pages::of($invoice), Pages::of('Hello' as bytes)]);
     echo "merged\n";
 } catch (ParseError $broken) {
-    echo "ParseError: ", $broken->message, "\n";
+    echo 'ParseError: ', $broken->message, "\n";
 }

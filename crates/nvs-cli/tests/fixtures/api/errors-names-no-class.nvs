@@ -15,13 +15,13 @@ interface ItemFault
 
 class Items
 {
-    #[Core\Route(path: "/items", method: Core\Http\Method::Get, name: "Items::index")]
+    #[Core\Route(path: '/items', method: Core\Http\Method::Get, name: 'Items::index')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[Core\Api(errors: [{status: 404, type: ItemFault::class}])]
+    #[Core\Api(errors: [{ status: 404, type: ItemFault::class }])]
     public function index(): string
     {
-        return "every item";
+        return 'every item';
     }
 }
 
-echo "GET /items -> Items::index", "\n";
+echo 'GET /items -> Items::index', "\n";

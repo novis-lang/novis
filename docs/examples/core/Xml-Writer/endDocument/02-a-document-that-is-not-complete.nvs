@@ -11,8 +11,8 @@ try {
     echo $error->message, "\n";
 }
 
-$writer->startElement("order");
-$writer->startElement("item");
+$writer->startElement('order');
+$writer->startElement('item');
 
 // `item` is still open. This prints the error message, which names `item`.
 try {

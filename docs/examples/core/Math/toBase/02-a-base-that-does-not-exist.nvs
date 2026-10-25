@@ -6,8 +6,8 @@ array<uint> $bases = [1, 2, 36, 37];
 foreach ($bases as uint $base) {
     try {
         string $digits = Core\Math::toBase(35, $base);
-        echo "base ", $base, ": ", $digits, "\n";
+        echo 'base ', $base, ': ', $digits, "\n";
     } catch (RuntimeError $e) {
-        echo "base ", $base, ": not allowed\n";
+        echo 'base ', $base, ": not allowed\n";
     }
 }

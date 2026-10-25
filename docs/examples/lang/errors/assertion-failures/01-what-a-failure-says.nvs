@@ -11,15 +11,15 @@ try {
 
 // The `message` option puts your own sentence in front of that text.
 try {
-    Core\Test::assertTrue(false, {message: "the flag should be set"});
+    Core\Test::assertTrue(false, { message: 'the flag should be set' });
 } catch (Core\Test\Failure $failure) {
     echo $failure->message, "\n";
 }
 
 // `location` is the file and the line of the assertion that failed.
 try {
-    Core\Test::assertCount(["order", "customer"], 3);
+    Core\Test::assertCount(['order', 'customer'], 3);
 } catch (Core\Test\Failure $failure) {
     echo $failure->message, "\n";
-    echo "raised at ", $failure->location, "\n";
+    echo 'raised at ', $failure->location, "\n";
 }

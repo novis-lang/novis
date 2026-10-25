@@ -8,13 +8,13 @@ class Shipping
     {
         switch (true) {
             case $grams <= 500:
-                return "letter";
+                return 'letter';
             case $grams <= 2000:
-                return "small parcel";
+                return 'small parcel';
             case $grams <= 20000:
-                return "parcel";
+                return 'parcel';
             default:
-                return "freight";
+                return 'freight';
         }
     }
 }
@@ -23,5 +23,5 @@ array<uint> $weights = [120, 1500, 9000, 45000];
 
 foreach ($weights as uint $grams) {
     // This prints letter, small parcel, parcel and freight, one per line.
-    echo $grams, "g: ", Shipping::band($grams), "\n";
+    echo $grams, 'g: ', Shipping::band($grams), "\n";
 }

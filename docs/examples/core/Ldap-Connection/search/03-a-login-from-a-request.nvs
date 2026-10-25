@@ -2,22 +2,24 @@
 // Shows how to find a user by a login name that comes from a request.
 // requires: samba-ad
 
-class Accounts {
+class Accounts
+{
     // `Filter::equals` escapes the login, so the login cannot change the filter.
-    public static function find(Core\Ldap\Connection $corp, tainted string $login): tainted string {
-        var $users = $corp->search(Core\Ldap\Filter::equals("sAMAccountName", $login), {select: ["cn"]});
+    public static function find(Core\Ldap\Connection $corp, tainted string $login): tainted string
+    {
+        var $users = $corp->search(Core\Ldap\Filter::equals('sAMAccountName', $login), { select: ['cn'] });
         foreach ($users as Core\Ldap\Entry $user) {
             return $user->dn()->toString();
         }
-        return "(no such user)";
+        return '(no such user)';
     }
 }
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 
 // This prints the DN of the user `Reader`.
-echo Accounts::find($corp, "Reader"), "\n";
+echo Accounts::find($corp, 'Reader'), "\n";
 
 // `*` is a wildcard in a filter that is written as text. Here it is a normal character,
 // so this prints `(no such user)`.
-echo Accounts::find($corp, "*"), "\n";
+echo Accounts::find($corp, '*'), "\n";

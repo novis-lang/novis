@@ -3,20 +3,26 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Shop {
-    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+class Shop
+{
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get, name: 'Shop::product')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function product(uint $id): string { return "one product"; }
+    public function product(uint $id): string
+    {
+        return 'one product';
+    }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            string $link = Core\Router::urlAbsolute("Shop::product", ["id" => $total % 1000]);
+            string $link = Core\Router::urlAbsolute('Shop::product', ['id' => $total % 1000]);
             // chained: the next id depends on this result
-            if ($link == "https://www.example.com/products/7") {
+            if ($link == 'https://www.example.com/products/7') {
                 $total = $total + 2;
             } else {
                 $total = $total + 1;

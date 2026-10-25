@@ -2,13 +2,13 @@
 // Shows how to read a binary value, which `string` cannot read.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["objectGUID"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['objectGUID'] });
 
 if ($person != null) {
     // `objectGUID` is 16 bytes. Its value is different in every directory,
     // so this example prints only its length. This prints `16`.
-    ?tainted bytes $guid = $person->bytes("objectGUID");
+    ?tainted bytes $guid = $person->bytes('objectGUID');
     if ($guid != null) {
         echo Core\Bytes::length($guid), "\n";
     }

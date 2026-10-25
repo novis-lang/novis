@@ -4,7 +4,7 @@ use Novis\Image\Barcode;
 
 // The last digit of an EAN-13 is a check digit. For these 12 digits it is 1, so 2 throws a `LogicError`.
 try {
-    Barcode::render("4006381333932", Barcode::Symbology::Ean13);
+    Barcode::render('4006381333932', Barcode::Symbology::Ean13);
     echo "made a barcode\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";
@@ -12,7 +12,7 @@ try {
 
 // Code 128 contains only plain ASCII characters, so `ö` throws a `LogicError`.
 try {
-    Barcode::render("Größe 42", Barcode::Symbology::Code128);
+    Barcode::render('Größe 42', Barcode::Symbology::Code128);
     echo "made a barcode\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";

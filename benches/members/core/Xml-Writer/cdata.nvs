@@ -3,12 +3,14 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $parts = ["<p>New tea</p>", "<b>Sale</b> & more", "a < b"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $parts = ['<p>New tea</p>', '<b>Sale</b> & more', 'a < b'];
         Core\Xml\Writer $writer = Core\Xml::writer();
         $writer->startDocument();
-        $writer->startElement("feed");
+        $writer->startElement('feed');
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -3,8 +3,10 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(Core\Socket $conn, uint $rounds): uint {
+class Bench
+{
+    public static function run(Core\Socket $conn, uint $rounds): uint
+    {
         array<bytes> $readings = ["\x00\x01" as bytes, "\x00\x02\x00\x15" as bytes, "\x07" as bytes];
         uint $total = 0;
         uint $i = 0;

@@ -10,7 +10,7 @@ class Bench
 {
     public static function run(uint $rounds): int
     {
-        array<mixed> $values = ["", "0", "0.0", 0, 1, [], [7], null];
+        array<mixed> $values = ['', '0', '0.0', 0, 1, [], [7], null];
         int $total = 1;
         uint $i = 0;
 

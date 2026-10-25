@@ -3,7 +3,7 @@
 use Novis\Pdf\Document;
 
 var $archive = Document::fromHtml("<html lang=\"en\"><head><title>Contract</title></head>"
-    . "<body><h1>Contract</h1><p>Shop rents a stand to Blog for one year.</p></body></html>")
+    . '<body><h1>Contract</h1><p>Shop rents a stand to Blog for one year.</p></body></html>')
     ->standard(Document::Standard::PdfA2b);
 
 // Without a creation time, `render` throws a `LogicError`.
@@ -14,4 +14,4 @@ try {
 }
 
 // With one, the file renders. This prints the page count.
-echo $archive->created(Core\Time::fromIso("2026-03-01T09:30:00Z"))->render()->pageCount, " page\n";
+echo $archive->created(Core\Time::fromIso('2026-03-01T09:30:00Z'))->render()->pageCount, " page\n";

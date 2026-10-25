@@ -3,9 +3,11 @@
 // bench: iterations 4096
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $lines = ["Café 42", "Total: 99", "Größe 7"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $lines = ['Café 42', 'Total: 99', 'Größe 7'];
         array<Core\Regex\Match> $found = [];
         foreach ($lines as string $line) {
             var $m = Core\Regex::match($line, '\d+');

@@ -2,15 +2,15 @@
 // Shows the bitwise operators `& | ^ ~` and the shifts `<<` and `>>`.
 
 // This prints `2 7 5 -6`.
-echo 6 & 3, " ", 6 | 3, " ", 6 ^ 3, " ", ~5, "\n";
+echo 6 & 3, ' ', 6 | 3, ' ', 6 ^ 3, ' ', ~5, "\n";
 
 // `<<` shifts left. `>>` on an `int` keeps the sign. This prints `8 -4`.
-echo 1 << 3, " ", -8 >> 1, "\n";
+echo 1 << 3, ' ', -8 >> 1, "\n";
 
 // `>>` on a `uint` fills with zeros. This prints `9223372036854775807 18446744073709551614`.
 uint $all = 18446744073709551615;
 uint $one = 1;
-echo $all >> $one, " ", ~$one, "\n";
+echo $all >> $one, ' ', ~$one, "\n";
 
 // A shift by a negative count throws. This prints `Bit shift by negative number`.
 int $n = 1;
@@ -22,4 +22,4 @@ try {
 
 // A shift by 64 or more gives 0, or -1 for a negative `int` shifted right. This prints `0 -1`.
 int $negative = -8;
-echo $n << 64, " ", $negative >> 70, "\n";
+echo $n << 64, ' ', $negative >> 70, "\n";

@@ -4,22 +4,22 @@
 // The other service has a key pair. It signs the token with the private key.
 Core\Crypto\KeyPair $service = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
 string $token = Core\Jwt::signObject(
-    Core\Arr::shapeAs<{iss: string, aud: string, sub: string}>([
-        "iss" => "https://login.example.com",
-        "aud" => "shop",
-        "sub" => "ada",
+    Core\Arr::shapeAs<{ iss: string, aud: string, sub: string }>([
+        'iss' => 'https://login.example.com',
+        'aud' => 'shop',
+        'sub' => 'ada',
     ]),
     15m,
-    $service
+    $service,
 );
 
 // Your program has only the public key. `verifyIssued` checks the signature, the expiry,
 // the issuer (`iss`) and the audience (`aud`). It returns the type between `<` and `>`.
-var $claims = Core\Jwt::verifyIssued<tainted {sub: string, iat: int, exp: int}>(
+var $claims = Core\Jwt::verifyIssued<tainted { sub: string, iat: int, exp: int }>(
     $token,
     $service->publicKey(),
-    "https://login.example.com",
-    "shop"
+    'https://login.example.com',
+    'shop',
 );
 
 // This prints `ada`.

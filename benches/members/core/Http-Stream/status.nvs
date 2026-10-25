@@ -4,13 +4,15 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         // Both replies come from this table, so nothing is sent over a network.
-        Core\Test::answerHttp("https://files.example.com/ok", 200, {body: "done\n"});
-        Core\Test::answerHttp("https://files.example.com/busy", 503, {body: ""});
-        Core\Http\Stream $ok = Core\Http\Client::stream(Core\Http\Method::Get, "https://files.example.com/ok");
-        Core\Http\Stream $busy = Core\Http\Client::stream(Core\Http\Method::Get, "https://files.example.com/busy");
+        Core\Test::answerHttp('https://files.example.com/ok', 200, { body: "done\n" });
+        Core\Test::answerHttp('https://files.example.com/busy', 503, { body: '' });
+        Core\Http\Stream $ok = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/ok');
+        Core\Http\Stream $busy = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/busy');
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

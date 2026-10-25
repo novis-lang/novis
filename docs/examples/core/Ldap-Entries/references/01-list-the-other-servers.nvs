@@ -2,12 +2,12 @@
 // Shows how to list the other servers that the directory names for a search.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
+var $corp = Core\Ldap::connect('corp');
 
 // This search reads the entries directly below the top of the directory.
-var $entries = $corp->search(Core\Ldap\Filter::present("objectClass"), {
+var $entries = $corp->search(Core\Ldap\Filter::present('objectClass'), {
     scope: Core\Ldap\Connection::Scope::OneLevel,
-    select: ["cn"],
+    select: ['cn'],
 });
 
 int $count = 0;

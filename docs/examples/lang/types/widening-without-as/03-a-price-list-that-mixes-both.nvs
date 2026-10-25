@@ -12,4 +12,4 @@ foreach ($prices as var $price) {
     $total = $total + $price;
 }
 
-echo "total ", $total, "\n";
+echo 'total ', $total, "\n";

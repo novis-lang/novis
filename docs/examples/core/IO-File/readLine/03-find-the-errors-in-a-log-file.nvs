@@ -2,7 +2,7 @@
 // Shows how to find the error lines in a log file. The program reads one line
 // at a time, so a large log file never has to fit in memory.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "app.log");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'app.log');
 string $quiet = Core\Str::repeat("INFO order saved\n", 5000);
 Core\IO::write($path, $quiet . "ERROR payment timed out\n" . $quiet . "ERROR disk is full\n");
 
@@ -13,11 +13,11 @@ uint $errors = 0;
 while ($line != null) {
     $number = $number + 1;
     // This prints the line number and the text of each error line.
-    if (Core\Str::startsWith($line, "ERROR")) {
-        echo "line ", $number, ": ", $line, "\n";
+    if (Core\Str::startsWith($line, 'ERROR')) {
+        echo 'line ', $number, ': ', $line, "\n";
         $errors = $errors + 1;
     }
     $line = $log->readLine();
 }
 $log->close();
-echo "errors: ", $errors, "\n";
+echo 'errors: ', $errors, "\n";

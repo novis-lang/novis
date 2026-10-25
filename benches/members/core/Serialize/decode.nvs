@@ -3,17 +3,21 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Settings {
-    public string $theme = "dark";
+class Settings
+{
+    public string $theme = 'dark';
     public uint $pageSize = 20;
     public array<string> $columns;
-    public function constructor() {
-        $this->columns = ["name", "email", "created"];
+    public function constructor()
+    {
+        $this->columns = ['name', 'email', 'created'];
     }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<bytes> $payloads = [];
         uint $size = 0;
         while ($size < 3) {

@@ -3,6 +3,6 @@
 // `string`, so this program does not compile.
 // proof: compile-error
 
-foreach ([1, "two"] as var $item) {
+foreach ([1, 'two'] as var $item) {
     echo $item, "\n";
 }

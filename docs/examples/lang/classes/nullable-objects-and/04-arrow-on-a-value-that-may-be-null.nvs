@@ -3,7 +3,8 @@
 // `$none` is a `?Box`, so the read below is an error.
 // proof: compile-error
 
-class Box {
+class Box
+{
     public int $count = 1;
 }
 

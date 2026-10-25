@@ -3,19 +3,23 @@
 // whole number with 64 bits after the point. The product of two of them has
 // 128 bits after the point, so it is shifted right by 64 to get back.
 
-class Fixed {
+class Fixed
+{
     // Returns $whole as a value with 64 bits after the point.
-    public static function of(int $whole): Core\BigInt {
+    public static function of(int $whole): Core\BigInt
+    {
         return Core\BigInt::of($whole)->shl(64);
     }
 
     // Returns the product of two such values, at the same scale again.
-    public static function mul(Core\BigInt $left, Core\BigInt $right): Core\BigInt {
+    public static function mul(Core\BigInt $left, Core\BigInt $right): Core\BigInt
+    {
         return $left->mul($right)->shr(64);
     }
 
     // Returns the whole part of such a value.
-    public static function whole(Core\BigInt $value): Core\BigInt {
+    public static function whole(Core\BigInt $value): Core\BigInt
+    {
         return $value->shr(64);
     }
 }

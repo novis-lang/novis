@@ -2,13 +2,13 @@
 // Shows how `disabled` changes on a copy made with `with`.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Dora Lind,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Dora Lind,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
-    var $enabled = $flags->with({disabled: false});
+    var $enabled = $flags->with({ disabled: false });
 
     // This prints `before: true, after: false`.
-    echo "before: ", $flags->disabled() ? "true" : "false";
-    echo ", after: ", $enabled->disabled() ? "true" : "false", "\n";
+    echo 'before: ', $flags->disabled() ? 'true' : 'false';
+    echo ', after: ', $enabled->disabled() ? 'true' : 'false', "\n";
 }

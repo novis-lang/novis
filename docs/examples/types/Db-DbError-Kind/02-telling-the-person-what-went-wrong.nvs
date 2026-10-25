@@ -3,21 +3,24 @@
 // deserve a plain sentence on the screen. The rest are about your program or
 // your server, and the person filling in the form can do nothing with them.
 
-class SignUp {
-    public static function message(Core\Db\DbError::Kind $kind): string {
+class SignUp
+{
+    public static function message(Core\Db\DbError::Kind $kind): string
+    {
         return match ($kind) {
-            Core\Db\DbError::Kind::UniqueViolation => "that email address is already registered",
-            Core\Db\DbError::Kind::NotNullViolation => "please fill in every field",
-            Core\Db\DbError::Kind::CheckViolation => "one of those values is not allowed",
-            Core\Db\DbError::Kind::ForeignKeyViolation => "the plan you picked is no longer available",
-            default => "something went wrong on our side, please try again",
+            Core\Db\DbError::Kind::UniqueViolation => 'that email address is already registered',
+            Core\Db\DbError::Kind::NotNullViolation => 'please fill in every field',
+            Core\Db\DbError::Kind::CheckViolation => 'one of those values is not allowed',
+            Core\Db\DbError::Kind::ForeignKeyViolation => 'the plan you picked is no longer available',
+            default => 'something went wrong on our side, please try again',
         };
     }
 
     // The ones above are the person's to fix. Everything else is yours, so it
     // goes to the log with the details while the screen stays plain.
-    public static function worthLogging(Core\Db\DbError::Kind $kind): bool {
-        return SignUp::message($kind) == "something went wrong on our side, please try again";
+    public static function worthLogging(Core\Db\DbError::Kind $kind): bool
+    {
+        return SignUp::message($kind) == 'something went wrong on our side, please try again';
     }
 }
 
@@ -31,6 +34,6 @@ array<Core\Db\DbError::Kind> $outcomes = [
 
 foreach ($outcomes as Core\Db\DbError::Kind $kind) {
     echo SignUp::message($kind),
-        SignUp::worthLogging($kind) ? "   (and logged for us)" : "",
+        SignUp::worthLogging($kind) ? '   (and logged for us)' : '',
         "\n";
 }

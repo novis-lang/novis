@@ -2,17 +2,17 @@
 // A deployment reads the grade of every step and applies only the `Safe` steps.
 // It gives every other step to a person, who watches it run.
 
-array<{step: string, grade: Core\Db\Plan\Step::Grade}> $plan = [
-    {step: "create table invoices", grade: Core\Db\Plan\Step::Grade::Safe},
-    {step: "add column invoices.sent_at", grade: Core\Db\Plan\Step::Grade::Safe},
-    {step: "add unique key on invoices.number", grade: Core\Db\Plan\Step::Grade::Locking},
-    {step: "drop column customers.fax", grade: Core\Db\Plan\Step::Grade::Destructive},
+array<{ step: string, grade: Core\Db\Plan\Step::Grade }> $plan = [
+    { step: 'create table invoices', grade: Core\Db\Plan\Step::Grade::Safe },
+    { step: 'add column invoices.sent_at', grade: Core\Db\Plan\Step::Grade::Safe },
+    { step: 'add unique key on invoices.number', grade: Core\Db\Plan\Step::Grade::Locking },
+    { step: 'drop column customers.fax', grade: Core\Db\Plan\Step::Grade::Destructive },
 ];
 
-foreach ($plan as {step: string, grade: Core\Db\Plan\Step::Grade} $entry) {
+foreach ($plan as { step: string, grade: Core\Db\Plan\Step::Grade } $entry) {
     if ($entry->grade == Core\Db\Plan\Step::Grade::Safe) {
-        echo "apply now:   ", $entry->step, "\n";
+        echo 'apply now:   ', $entry->step, "\n";
     } else {
-        echo "hand over:   ", $entry->step, "\n";
+        echo 'hand over:   ', $entry->step, "\n";
     }
 }

@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to remove the newest value from a list.
 
-array<string> $history = ["home", "products", "cart"];
+array<string> $history = ['home', 'products', 'cart'];
 
 // `Core\Arr::withoutLast` returns a new array with the first two pages.
 array<string> $back = Core\Arr::withoutLast($history);

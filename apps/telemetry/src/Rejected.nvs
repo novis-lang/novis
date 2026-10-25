@@ -5,8 +5,10 @@ use RuntimeError;
 
 // `Report::check` throws this error when it does not accept a report.
 // `status` is the HTTP status of the answer, such as 400. The message says what is wrong.
-final class Rejected extends RuntimeError {
-    public function constructor(string $message, public uint $status) {
+final class Rejected extends RuntimeError
+{
+    public function constructor(string $message, public uint $status)
+    {
         parent::constructor($message);
     }
 }

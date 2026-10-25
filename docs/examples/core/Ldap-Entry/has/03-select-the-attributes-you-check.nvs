@@ -2,18 +2,18 @@
 // Shows that `has` only sees the attributes the search selected.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-string $dn = "CN=Carla Diaz,OU=Company,DC=example,DC=test";
+var $corp = Core\Ldap::connect('corp');
+string $dn = 'CN=Carla Diaz,OU=Company,DC=example,DC=test';
 
 // The first read selects only `mail`. This prints `false`,
 // although Carla Diaz has a department in the directory.
-var $short = $corp->read($dn, {select: ["mail"]});
+var $short = $corp->read($dn, { select: ['mail'] });
 if ($short != null) {
-    echo $short->has("department") ? "true" : "false", "\n";
+    echo $short->has('department') ? 'true' : 'false', "\n";
 }
 
 // The second read also selects `department`. This prints `true`.
-var $full = $corp->read($dn, {select: ["mail", "department"]});
+var $full = $corp->read($dn, { select: ['mail', 'department'] });
 if ($full != null) {
-    echo $full->has("department") ? "true" : "false", "\n";
+    echo $full->has('department') ? 'true' : 'false', "\n";
 }

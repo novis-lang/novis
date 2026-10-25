@@ -8,11 +8,11 @@ class Orders
 {
     // `$status` has a default value, so a client can still leave it out. Without the
     // default value, the change is `breaking`, and the command exits with `1`.
-    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::index")]
+    #[Core\Route(path: '/orders', method: Core\Http\Method::Get, name: 'Orders::index')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function index(#[Core\Query] string $status = "open"): string
+    public function index(#[Core\Query] string $status = 'open'): string
     {
-        return "orders that are " . $status;
+        return 'orders that are ' . $status;
     }
 }
 

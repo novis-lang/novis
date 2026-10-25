@@ -6,8 +6,10 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function step(?int $carried, int $fallback): int {
+class Bench
+{
+    public static function step(?int $carried, int $fallback): int
+    {
         if ($carried == null) {
             return $fallback;
         }
@@ -15,7 +17,8 @@ class Bench {
         return $carried + 1;
     }
 
-    public static function run(uint $rounds): int {
+    public static function run(uint $rounds): int
+    {
         int $total = 1;
         uint $i = 0;
         while ($i < $rounds) {

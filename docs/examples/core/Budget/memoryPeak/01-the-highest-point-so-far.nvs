@@ -5,7 +5,7 @@
 array<string> $report = [];
 int $i = 0;
 while ($i < 10000) {
-    $report[] = "one line of the report";
+    $report[] = 'one line of the report';
     $i = $i + 1;
 }
 

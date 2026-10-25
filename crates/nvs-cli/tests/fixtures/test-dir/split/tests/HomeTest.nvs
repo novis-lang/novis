@@ -3,14 +3,17 @@ use Core\Http\Method;
 use Core\Test;
 use Shop\Cart;
 
-final class HomeTest {
+final class HomeTest
+{
     #[Test]
-    public function theEntryRunsOncePerRequest(): void {
-        Test::assertSame(Test::request(Method::Get, "/")->body(), "3");
+    public function theEntryRunsOncePerRequest(): void
+    {
+        Test::assertSame(Test::request(Method::Get, '/')->body(), '3');
     }
 
     #[Test]
-    public function theClassesResolveThroughTheBootstrap(): void {
+    public function theClassesResolveThroughTheBootstrap(): void
+    {
         Test::assertSame((new Cart())->total(), 3);
     }
 }

@@ -9,6 +9,6 @@ Core\Socket $conn = Core\Socket::current();
 // This prints `5 bytes`.
 ?Core\Socket\Message $message = $conn->receive();
 if ($message != null) {
-    tainted bytes $data = $message->bytes() ?? "" as bytes;
+    tainted bytes $data = $message->bytes() ?? '' as bytes;
     echo Core\Bytes::length($data), " bytes\n";
 }

@@ -3,12 +3,15 @@
 // generator, loop over it and `yield` each value.
 // proof: compile-error
 
-class Pages {
-    public static function first(): Iterator<int> {
+class Pages
+{
+    public static function first(): Iterator<int>
+    {
         yield 1;
     }
 
-    public static function all(): Iterator<int> {
+    public static function all(): Iterator<int>
+    {
         yield from Pages::first();
     }
 }

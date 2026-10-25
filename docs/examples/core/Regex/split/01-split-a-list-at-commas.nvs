@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to split a text into pieces at every match of a pattern.
 
-string $colors = "red, green,blue ,  yellow";
+string $colors = 'red, green,blue ,  yellow';
 
 // `\s*,\s*` matches a comma and the spaces around it. The matches are removed.
 // This prints ["red","green","blue","yellow"].

@@ -2,12 +2,15 @@
 // Shows the comparison operators working on two objects. They work because the
 // class implements `Comparable` and writes the one method that interface needs.
 
-final class FileSize implements Comparable {
-    public function constructor(public uint $bytes) {}
+final class FileSize implements Comparable
+{
+    public function constructor(public uint $bytes)
+    {}
 
     // Returns a negative number when this size is the smaller one. Two sizes
     // that are the same give zero. A larger size gives a positive number.
-    public function compareTo(self $other): int {
+    public function compareTo(self $other): int
+    {
         return $this->bytes <=> $other->bytes;
     }
 }

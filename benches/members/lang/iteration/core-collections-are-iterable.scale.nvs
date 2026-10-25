@@ -4,8 +4,10 @@
 // bench: start 256
 // bench: max 4096
 
-class Bench {
-    public static function run(uint $size): int {
+class Bench
+{
+    public static function run(uint $size): int
+    {
         var $tags = new Core\ObjectSet<int>();
         var $costs = new Core\Heap<int>();
         int $n = $size as int;

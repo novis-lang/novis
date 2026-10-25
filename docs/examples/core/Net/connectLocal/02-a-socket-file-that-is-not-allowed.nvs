@@ -4,7 +4,7 @@
 // The `nvs.toml` beside this example does not allow `/run/docker.sock`.
 // So this call throws a `RuntimeError`, and no connection is opened.
 try {
-    Core\Net::connectLocal("/run/docker.sock", 5s);
+    Core\Net::connectLocal('/run/docker.sock', 5s);
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";
 }

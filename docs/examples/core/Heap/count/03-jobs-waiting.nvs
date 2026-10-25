@@ -9,5 +9,5 @@ $jobs->push(2);
 // Each job here is a number, and the lowest number runs first.
 while (!$jobs->isEmpty()) {
     int $job = $jobs->pop();
-    echo "finished job ", $job, ", ", $jobs->count(), " waiting\n";
+    echo 'finished job ', $job, ', ', $jobs->count(), " waiting\n";
 }

@@ -1,11 +1,12 @@
 <?nvs
 // Lists the fields that a web API sends back for a user. Only public properties are sent.
 
-class User {
+class User
+{
     public int $id = 7;
-    public string $name = "Ada";
-    public string $email = "ada@example.com";
-    private string $passwordHash = "x9f2";
+    public string $name = 'Ada';
+    public string $email = 'ada@example.com';
+    private string $passwordHash = 'x9f2';
     protected bool $isAdmin = false;
 }
 

@@ -9,4 +9,4 @@ use Billing\Invoice;
 use Shipping\Label;
 
 echo Invoice::number(1042), "\n";
-echo Label::forOrder(1042, "Lyon"), "\n";
+echo Label::forOrder(1042, 'Lyon'), "\n";

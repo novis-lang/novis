@@ -2,16 +2,18 @@
 // `Core\Reflect::typeOf` returns the kind of a value. This program checks three
 // pairs of values that look alike. The two values in each pair have different kinds.
 
-class Kind {
-    public static function of(mixed $value): string {
+class Kind
+{
+    public static function of(mixed $value): string
+    {
         return match (Core\Reflect::typeOf($value)) {
-            Core\Reflect::TypeKind::Int => "Int",
-            Core\Reflect::TypeKind::Uint => "Uint",
-            Core\Reflect::TypeKind::Float => "Float",
-            Core\Reflect::TypeKind::Decimal => "Decimal",
-            Core\Reflect::TypeKind::Text => "Text",
-            Core\Reflect::TypeKind::Bytes => "Bytes",
-            default => "something else",
+            Core\Reflect::TypeKind::Int => 'Int',
+            Core\Reflect::TypeKind::Uint => 'Uint',
+            Core\Reflect::TypeKind::Float => 'Float',
+            Core\Reflect::TypeKind::Decimal => 'Decimal',
+            Core\Reflect::TypeKind::Text => 'Text',
+            Core\Reflect::TypeKind::Bytes => 'Bytes',
+            default => 'something else',
         };
     }
 }
@@ -20,19 +22,19 @@ class Kind {
 // items.
 int $below = -3;
 uint $items = 3;
-echo "-3 items:    ", Kind::of($below), "\n";
-echo "3 items:     ", Kind::of($items), "\n";
+echo '-3 items:    ', Kind::of($below), "\n";
+echo '3 items:     ', Kind::of($items), "\n";
 
 // A `decimal` is exact to the last cent, so it is the type for a price.
 // A `float` is approximate, and small errors add up when you use it for money.
 decimal $price = 19.90;
 float $ratio = 19.90;
-echo "19.90 owed:  ", Kind::of($price), "\n";
-echo "19.90 parts: ", Kind::of($ratio), "\n";
+echo '19.90 owed:  ', Kind::of($price), "\n";
+echo '19.90 parts: ', Kind::of($ratio), "\n";
 
 // A `string` is text you can show to a person. `bytes` is raw data from a file
 // or a socket, and it may not be valid text.
-string $name = "ab";
-bytes $upload = Core\Encoding::fromHex("6162");
-echo "the word ab: ", Kind::of($name), "\n";
-echo "two octets:  ", Kind::of($upload), "\n";
+string $name = 'ab';
+bytes $upload = Core\Encoding::fromHex('6162');
+echo 'the word ab: ', Kind::of($name), "\n";
+echo 'two octets:  ', Kind::of($upload), "\n";

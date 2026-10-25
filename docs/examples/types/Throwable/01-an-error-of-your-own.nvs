@@ -3,25 +3,28 @@
 // It gets `message` from `Throwable` and can add its own properties.
 // Here `Overdue` adds the number of the unpaid invoice.
 
-class Overdue extends Throwable {
-    public string $invoice = "";
+class Overdue extends Throwable
+{
+    public string $invoice = '';
 }
 
-final class Ledger {
-    public static function charge(string $invoice, bool $paid): string {
+final class Ledger
+{
+    public static function charge(string $invoice, bool $paid): string
+    {
         if (!$paid) {
-            var $unpaid = new Overdue("invoice " . $invoice . " is still open");
+            var $unpaid = new Overdue('invoice ' . $invoice . ' is still open');
             $unpaid->invoice = $invoice;
             throw $unpaid;
         }
-        return "invoice " . $invoice . " charged";
+        return 'invoice ' . $invoice . ' charged';
     }
 }
 
 try {
-    echo Ledger::charge("4021", true), "\n";
-    echo Ledger::charge("4022", false), "\n";
+    echo Ledger::charge('4021', true), "\n";
+    echo Ledger::charge('4022', false), "\n";
 } catch (Overdue $chase) {
     echo $chase->message, "\n";
-    echo "chase up ", $chase->invoice, "\n";
+    echo 'chase up ', $chase->invoice, "\n";
 }

@@ -4,7 +4,7 @@ use Core\Http\Method;
 
 class Contact
 {
-    #[Core\Route(path: "/contact", method: Method::Get, name: "Contact::form")]
+    #[Core\Route(path: '/contact', method: Method::Get, name: 'Contact::form')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function form(): void
     {
@@ -12,7 +12,7 @@ class Contact
         echo Core\Csrf::token();
     }
 
-    #[Core\Route(path: "/contact", method: Method::Post, name: "Contact::send")]
+    #[Core\Route(path: '/contact', method: Method::Post, name: 'Contact::send')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function send(): void
     {
@@ -53,10 +53,10 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         'cookie' => 'nvsid=' . $session,
         'content-type' => 'application/x-www-form-urlencoded',
     ];
-    var $sent = Core\Test::request(Method::Post, '/contact', {headers: $headers, body: '_csrf=' . $token . '&message=Hello'});
+    var $sent = Core\Test::request(Method::Post, '/contact', { headers: $headers, body: '_csrf=' . $token . '&message=Hello' });
     echo $sent->status(), ' ', $sent->body(), "\n";
 
     // The same form without the token. `send()` does not run, and this prints `403`.
-    var $forged = Core\Test::request(Method::Post, '/contact', {headers: $headers, body: 'message=Hello'});
+    var $forged = Core\Test::request(Method::Post, '/contact', { headers: $headers, body: 'message=Hello' });
     echo $forged->status(), ' ', $forged->body(), "\n";
 }

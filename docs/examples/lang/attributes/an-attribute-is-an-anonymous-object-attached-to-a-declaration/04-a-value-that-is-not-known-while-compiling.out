@@ -1,7 +1,7 @@
 error[E0725]: an attribute's field value is not a compile-time constant
-   --> 04-a-value-that-is-not-known-while-compiling.nvs:10:18
+   --> 04-a-value-that-is-not-known-while-compiling.nvs:11:18
    |
-10 |     #[Cache(key: "host-" . $host)]
+11 |     #[Cache(key: 'host-' . $host)]
    |                  ^^^^^^^^^^^^^^^ this is computed when the program runs
    = help: an attribute's value is a literal, a class constant or an enum case. It is fixed when the program compiles, so it cannot be a variable, a call or a `new`
 

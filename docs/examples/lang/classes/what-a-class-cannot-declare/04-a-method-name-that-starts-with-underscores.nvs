@@ -3,8 +3,10 @@
 // without the underscores.
 // proof: compile-error
 
-class Legacy {
-    public function __get(string $name): mixed {
+class Legacy
+{
+    public function __get(string $name): mixed
+    {
         return 1;
     }
 }

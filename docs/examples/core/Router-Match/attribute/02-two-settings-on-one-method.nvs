@@ -1,26 +1,30 @@
 <?nvs
 // Shows how one route method can have two settings, and how each shape finds its own.
 
-class Search {
-    #[Core\Route(path: "/search", method: Core\Http\Method::Get, name: "Search::results")]
+class Search
+{
+    #[Core\Route(path: '/search', method: Core\Http\Method::Get, name: 'Search::results')]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{seconds: 30, shared: true}]
     #[{perMinute: 20}]
-    public function results(): string { return "results"; }
+    public function results(): string
+    {
+        return 'results';
+    }
 }
 
-?Core\Router\Match $route = Core\Router::match(Core\Http\Method::Get, "/search");
+?Core\Router\Match $route = Core\Router::match(Core\Http\Method::Get, '/search');
 if ($route != null) {
     // The first attribute has the field `seconds`. Its extra field `shared` does not stop the match.
     // This prints `cache: 30 seconds`.
-    ?{seconds: int} $cache = $route->attribute<{seconds: int}>();
+    ?{ seconds: int } $cache = $route->attribute<{ seconds: int }>();
     if ($cache != null) {
-        echo "cache: ", $cache->seconds, " seconds\n";
+        echo 'cache: ', $cache->seconds, " seconds\n";
     }
 
     // Only the second attribute has the field `perMinute`. This prints `limit: 20 per minute`.
-    ?{perMinute: int} $limit = $route->attribute<{perMinute: int}>();
+    ?{ perMinute: int } $limit = $route->attribute<{ perMinute: int }>();
     if ($limit != null) {
-        echo "limit: ", $limit->perMinute, " per minute\n";
+        echo 'limit: ', $limit->perMinute, " per minute\n";
     }
 }

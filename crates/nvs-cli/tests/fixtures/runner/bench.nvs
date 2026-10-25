@@ -5,8 +5,10 @@
 use Core\Test;
 use Core\Test\Bench;
 
-class Squares {
-    public function of(int $n): array<int> {
+class Squares
+{
+    public function of(int $n): array<int>
+    {
         array<int> $out = [];
         for (int $i = 0; $i < $n; $i++) {
             $out[] = $this->square($i);
@@ -14,25 +16,30 @@ class Squares {
         return $out;
     }
 
-    private function square(int $i): int {
+    private function square(int $i): int
+    {
         return $i * $i;
     }
 }
 
-class SquaresBench {
+class SquaresBench
+{
     #[Bench]
-    public function buildsAList(): void {
+    public function buildsAList(): void
+    {
         Squares $squares = new Squares();
         for (int $round = 0; $round < 20; $round++) {
             $squares->of(100);
         }
     }
 
-    #[Bench(skip: "measured elsewhere")]
-    public function skipped(): void {}
+    #[Bench(skip: 'measured elsewhere')]
+    public function skipped(): void
+    {}
 
     #[Test]
-    public function aTest(): void {
+    public function aTest(): void
+    {
         Test::assertSame(new Squares()->of(3), [0, 1, 4]);
     }
 }

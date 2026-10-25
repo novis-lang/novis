@@ -4,14 +4,16 @@
 // bench: complexity constant
 // bench: calls 2
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The form is in the file `post.nvsr` beside this one.
-        array<string> $names = ["name", "email", "message"];
+        array<string> $names = ['name', 'email', 'message'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            tainted string $value = Core\Request::post($names[($total % 3) as int]) ?? "";
+            tainted string $value = Core\Request::post($names[($total % 3) as int]) ?? '';
             $total = $total + Core\Str::length($value);
             $i = $i + 1;
         }

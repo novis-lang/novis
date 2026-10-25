@@ -5,11 +5,11 @@
 var $db = Core\Db::connect('notes');
 $db->execute(
     'create table products (sku text not null, title text not null, on_hand int not null)',
-    []
+    [],
 );
 $db->execute(
     'insert into products (sku, title, on_hand) values (?, ?, ?), (?, ?, ?)',
-    ['A-1', 'Tea cup', 30, 'A-2', 'Tea pot', 4]
+    ['A-1', 'Tea cup', 30, 'A-2', 'Tea pot', 4],
 );
 
 array<array<mixed>> $payload = [];

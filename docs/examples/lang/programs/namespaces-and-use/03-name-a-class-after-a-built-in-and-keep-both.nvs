@@ -5,11 +5,13 @@
 
 namespace App\Billing;
 
-class Json {
-    public static function forInvoice(int $number, int $totalCents): string {
-        return Core\Json::encode({invoice: $number, total: $totalCents});
+class Json
+{
+    public static function forInvoice(int $number, int $totalCents): string
+    {
+        return Core\Json::encode({ invoice: $number, total: $totalCents });
     }
 }
 
 echo Json::forInvoice(1042, 5990), "\n";
-echo Core\Json::encode({ok: 1}), "\n";
+echo Core\Json::encode({ ok: 1 }), "\n";

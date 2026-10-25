@@ -4,16 +4,19 @@
 // through, and the place it was thrown from. Reporting the second of those is
 // how a wrapped failure keeps the real cause.
 
-class ReportFailed extends Throwable {
+class ReportFailed extends Throwable
+{
 }
 
-final class Report {
-    public static function build(): string {
+final class Report
+{
+    public static function build(): string
+    {
         try {
             var $figures = Core\Json::decode("{\"rows\": 3,");
-            return "built";
+            return 'built';
         } catch (Throwable $cause) {
-            throw new ReportFailed("the monthly report could not be built", {previous: $cause});
+            throw new ReportFailed('the monthly report could not be built', { previous: $cause });
         }
     }
 }
@@ -27,8 +30,8 @@ try {
     // anything is asked of it.
     var $cause = $failed->previous;
     if ($cause != null) {
-        echo "because: ", $cause->message, "\n";
+        echo 'because: ', $cause->message, "\n";
     }
 
-    echo "frames travelled: ", Core\Arr::count($failed->backtrace), "\n";
+    echo 'frames travelled: ', Core\Arr::count($failed->backtrace), "\n";
 }

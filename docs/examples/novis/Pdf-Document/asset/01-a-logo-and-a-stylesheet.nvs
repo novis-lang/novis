@@ -5,15 +5,15 @@ use Novis\Pdf\Reader;
 
 string $logo = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"120\" height=\"40\">"
     . "<rect width=\"120\" height=\"40\" fill=\"#1d4ed8\"/></svg>";
-string $style = "body { font-family: serif } h1 { color: #1d4ed8 }";
+string $style = 'body { font-family: serif } h1 { color: #1d4ed8 }';
 
 string $html = "<link rel=\"stylesheet\" href=\"invoice.css\">"
     . "<img src=\"logo.svg\" alt=\"Shop\"><h1>Invoice 1042</h1><p>Total: 5.70 EUR</p>";
 
 // Each name in the HTML must match the name of an asset exactly.
 var $rendered = Document::fromHtml($html)
-    ->asset("logo.svg", $logo as bytes)
-    ->asset("invoice.css", $style as bytes)
+    ->asset('logo.svg', $logo as bytes)
+    ->asset('invoice.css', $style as bytes)
     ->render();
 
 // This prints the page count and the text of the invoice.

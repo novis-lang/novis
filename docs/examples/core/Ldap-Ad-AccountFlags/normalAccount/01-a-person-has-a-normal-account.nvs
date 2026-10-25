@@ -2,10 +2,10 @@
 // Shows that `normalAccount` returns `true` for the account of a person.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
 
 if ($flags != null) {
     // This prints `normal account: true`.
-    echo "normal account: ", $flags->normalAccount() ? "true" : "false", "\n";
+    echo 'normal account: ', $flags->normalAccount() ? 'true' : 'false', "\n";
 }

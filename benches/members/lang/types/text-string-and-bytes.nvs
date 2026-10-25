@@ -6,9 +6,11 @@
 // bench: allocations 0
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): int {
-        array<string> $names = ["Ann", "Grüße", "Rene\u{301}e", "Łukasz Szymański"];
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<string> $names = ['Ann', 'Grüße', "Rene\u{301}e", 'Łukasz Szymański'];
         int $carry = 1;
         int $total = 0;
         uint $i = 0;

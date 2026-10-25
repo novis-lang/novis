@@ -3,30 +3,42 @@
 // bench: iterations 512
 // bench: complexity constant
 
-class Shop {
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Shop::home")]
+class Shop
+{
+    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Shop::home')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function home(): void {}
+    public function home(): void
+    {}
 
-    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get, name: 'Shop::product')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function product(uint $id): void {}
+    public function product(uint $id): void
+    {}
 
-    #[Core\Route(path: "/cart", method: Core\Http\Method::Post, name: "Shop::cart")]
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Post, name: 'Shop::cart')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function cart(): void {}
+    public function cart(): void
+    {}
 }
 
-class Gate implements Core\Router\Gate {
-    public function allows(Core\Router\Match $route): bool { return true; }
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
 
-    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {}
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {}
 
-    public function failed(?Core\Router\Match $route, ?Throwable $error): void {}
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {}
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         Gate $gate = new Gate();
         uint $total = 0;
         uint $i = 0;

@@ -5,11 +5,13 @@
 // bench: complexity constant
 // requires: samba-ad
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $corp = Core\Ldap::connect("corp");
-        var $sales = Core\Ldap\Filter::equals("department", "Sales");
-        var $first = $corp->changes($sales, {select: ["department"]});
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $corp = Core\Ldap::connect('corp');
+        var $sales = Core\Ldap\Filter::equals('department', 'Sales');
+        var $first = $corp->changes($sales, { select: ['department'] });
         uint $total = 0;
         foreach ($first as Core\Ldap\Entry $person) {
             $total = $total + 1;
@@ -18,7 +20,7 @@ class Bench {
         tainted bytes $cookie = $first->cookie();
         uint $i = 0;
         while ($i < $rounds) {
-            var $next = $corp->changes($sales, {select: ["department"], cookie: $cookie});
+            var $next = $corp->changes($sales, { select: ['department'], cookie: $cookie });
             foreach ($next as Core\Ldap\Entry $person) {
                 $total = $total + 1;
             }

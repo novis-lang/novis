@@ -5,9 +5,9 @@
 secret bytes $key = Core\Crypto::generateKey();
 
 bytes $sealed = Core\Crypto::seal(
-    "the meeting moved to Thursday" as bytes,
+    'the meeting moved to Thursday' as bytes,
     $key,
-    Core\Crypto::Cipher::XChaCha20Poly1305
+    Core\Crypto::Cipher::XChaCha20Poly1305,
 );
 
 // The same key opens the note again. This prints the note.

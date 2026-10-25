@@ -1,8 +1,10 @@
 <?nvs
 // Shows how to count the lines that one method call runs.
 
-class Basket {
-    public static function total(array<int> $prices): int {
+class Basket
+{
+    public static function total(array<int> $prices): int
+    {
         int $sum = 0;
         foreach ($prices as int $price) {
             $sum += $price;
@@ -20,13 +22,13 @@ Core\Debug::startCoverage();
 int $total = Basket::total([4, 5, 6]);
 Core\Debug::stopCoverage();
 
-echo "total: ", $total, "\n";
+echo 'total: ', $total, "\n";
 
 // This prints each line that ran, and how many times it ran.
-// Line 8 adds one price, so its count is 3.
+// Line 10 adds one price, so its count is 3.
 foreach (Core\Debug::coverage() as string $path => array<int> $lines) {
     echo Core\Path::basename($path), "\n";
     foreach ($lines as string $line => int $count) {
-        echo "  line ", $line, ": ", $count, "\n";
+        echo '  line ', $line, ': ', $count, "\n";
     }
 }

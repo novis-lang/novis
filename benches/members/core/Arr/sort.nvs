@@ -5,8 +5,10 @@
 // bench: calls 1
 // bench: complexity nlogn
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<uint> $prices = [30, 10, 20, 40, 25, 15];
         uint $total = 0;
         uint $i = 0;

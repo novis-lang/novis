@@ -6,15 +6,17 @@
 // bench: complexity constant
 
 // A posted form is outside text, so its text field is `tainted`.
-type Signup = {name: tainted string, age: int};
+type Signup = { name: tainted string, age: int };
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         int $carry = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The age comes from last round's result, so no round can be reused.
-            array<mixed> $form = ["name" => "Ada", "age" => $carry % 90];
+            array<mixed> $form = ['name' => 'Ada', 'age' => $carry % 90];
             Signup $signup = Core\Arr::shapeAs<Signup>($form);
             $carry = $carry + $signup->age + 1;
             $i = $i + 1;

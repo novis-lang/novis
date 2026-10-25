@@ -4,8 +4,10 @@
 // bench: complexity constant
 use Novis\Intl\PluralRules;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<array<int|float|decimal>> $lists = [
             [1, 2, 3, 4, 11],
             [22, 13, 101, 5, 33],
@@ -13,7 +15,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            array<Core\Cldr::PluralCategory> $categories = PluralRules::ordinal($lists[$total % 2], "en");
+            array<Core\Cldr::PluralCategory> $categories = PluralRules::ordinal($lists[$total % 2], 'en');
             if ($categories[0] == Core\Cldr::PluralCategory::One) {
                 $total = $total + 1;
             } else {

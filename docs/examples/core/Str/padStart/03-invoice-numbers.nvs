@@ -5,5 +5,5 @@ array<uint> $orders = [7, 42, 1305];
 
 // This prints `INV-00007`, `INV-00042` and `INV-01305`.
 foreach ($orders as uint $order) {
-    echo "INV-", Core\Str::padStart("{$order}", 5, "0"), "\n";
+    echo 'INV-', Core\Str::padStart("{$order}", 5, '0'), "\n";
 }

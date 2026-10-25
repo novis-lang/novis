@@ -19,7 +19,7 @@ class Reminder
 
 class ExportTest
 {
-    #[Test(skip: "the PDF library is not installed on the build server")]
+    #[Test(skip: 'the PDF library is not installed on the build server')]
     public function itExportsAPdf(): void
     {
         Test::assertTrue(false);

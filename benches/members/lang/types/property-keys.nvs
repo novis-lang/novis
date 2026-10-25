@@ -5,16 +5,19 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Row {
+class Row
+{
     public int $id = 3;
     public int $price = 6;
     public int $stock = 9;
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         Row $row = new Row();
-        array<string> $columns = ["id", "price", "stock"];
+        array<string> $columns = ['id', 'price', 'stock'];
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {

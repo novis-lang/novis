@@ -3,8 +3,10 @@
 // cases to `int` with `as int`, and `>=` checks if one has at least the colour
 // of the other.
 
-class Colour {
-    public static function atLeast(Core\Cli::ColorDepth $have, Core\Cli::ColorDepth $want): bool {
+class Colour
+{
+    public static function atLeast(Core\Cli::ColorDepth $have, Core\Cli::ColorDepth $want): bool
+    {
         return ($have as int) >= ($want as int);
     }
 }
@@ -13,26 +15,28 @@ class Colour {
 Core\Cli::ColorDepth $laptop = Core\Cli::ColorDepth::TrueColor;
 Core\Cli::ColorDepth $buildLog = Core\Cli::ColorDepth::None;
 
-echo "laptop has 256: ", Colour::atLeast($laptop, Core\Cli::ColorDepth::Ansi256) ? "yes" : "no", "\n";
-echo "build log has 256: ", Colour::atLeast($buildLog, Core\Cli::ColorDepth::Ansi256) ? "yes" : "no", "\n";
+echo 'laptop has 256: ', Colour::atLeast($laptop, Core\Cli::ColorDepth::Ansi256) ? 'yes' : 'no', "\n";
+echo 'build log has 256: ', Colour::atLeast($buildLog, Core\Cli::ColorDepth::Ansi256) ? 'yes' : 'no', "\n";
 
 // `Chart::pick` checks the drawing with the most colour first. It returns the
 // first drawing that the terminal can show.
-class Chart {
-    public static function pick(Core\Cli::ColorDepth $have): string {
+class Chart
+{
+    public static function pick(Core\Cli::ColorDepth $have): string
+    {
         if (Colour::atLeast($have, Core\Cli::ColorDepth::TrueColor)) {
-            return "a smooth gradient";
+            return 'a smooth gradient';
         }
         if (Colour::atLeast($have, Core\Cli::ColorDepth::Ansi256)) {
-            return "twenty-four steps";
+            return 'twenty-four steps';
         }
         if (Colour::atLeast($have, Core\Cli::ColorDepth::Ansi16)) {
-            return "four blocks";
+            return 'four blocks';
         }
-        return "numbers, no colour";
+        return 'numbers, no colour';
     }
 }
 
-echo "laptop draws ", Chart::pick($laptop), "\n";
-echo "build log draws ", Chart::pick($buildLog), "\n";
-echo "old console draws ", Chart::pick(Core\Cli::ColorDepth::Ansi16), "\n";
+echo 'laptop draws ', Chart::pick($laptop), "\n";
+echo 'build log draws ', Chart::pick($buildLog), "\n";
+echo 'old console draws ', Chart::pick(Core\Cli::ColorDepth::Ansi16), "\n";

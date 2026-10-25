@@ -1,8 +1,8 @@
 <?nvs
 // Shows how to multiply two large numbers, and which sign the product has.
 
-var $left = Core\BigInt::parse("12345678901234567890");
-var $right = Core\BigInt::parse("98765432109876543210");
+var $left = Core\BigInt::parse('12345678901234567890');
+var $right = Core\BigInt::parse('98765432109876543210');
 
 // Both numbers are positive, so the product is positive.
 echo $left->mul($right), "\n";

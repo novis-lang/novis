@@ -4,12 +4,14 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         array<Core\Uri> $links = [
-            Core\Uri::parse("https://shop.example.com/cart?item=42#total"),
-            Core\Uri::parse("http://localhost:8080/health"),
-            Core\Uri::parse("/docs/start?page=2"),
+            Core\Uri::parse('https://shop.example.com/cart?item=42#total'),
+            Core\Uri::parse('http://localhost:8080/health'),
+            Core\Uri::parse('/docs/start?page=2'),
         ];
         uint $total = 0;
         uint $i = 0;

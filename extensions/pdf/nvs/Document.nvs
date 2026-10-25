@@ -7,9 +7,9 @@ use LogicError;
 /// Each method returns a new `Document` and leaves this one as it was.
 final class Document
 {
-    type Asset = {name: string, data: bytes};
-    type Margin = {fn: callable(Page): Core\Html\Markup, height: ?string};
-    type Fill = {fn: callable(Page): array<Core\Html\Markup>};
+    type Asset = { name: string, data: bytes };
+    type Margin = { fn: callable(Page): Core\Html\Markup, height: ?string };
+    type Fill = { fn: callable(Page): array<Core\Html\Markup> };
 
     private function constructor(
         private readonly string $html,
@@ -21,14 +21,15 @@ final class Document
         private readonly ?Margin $header,
         private readonly ?Margin $footer,
         private readonly ?Fill $slots,
-    ) {}
+    )
+    {}
 
     /// `Document::fromHtml` starts a document from its HTML.
     /// The HTML may name assets, such as `<img src="logo.png">`. Add each one with `asset`.
     public static function fromHtml(Core\Html\Markup|string $html): Document
     {
         if ($html is Core\Html\Markup) {
-            return new Document(Core\Html::toSource($html, "the PDF engine parses the document itself"), [], null, null, null, null, null, null, null);
+            return new Document(Core\Html::toSource($html, 'the PDF engine parses the document itself'), [], null, null, null, null, null, null, null);
         }
         return new Document($html as string, [], null, null, null, null, null, null, null);
     }
@@ -38,7 +39,7 @@ final class Document
     public function asset(string $name, bytes $data): Document
     {
         array<Asset> $assets = $this->assets;
-        $assets[] = {name: $name, data: $data};
+        $assets[] = { name: $name, data: $data };
         return new Document($this->html, $assets, $this->standard, $this->invoiceXml, $this->password, $this->created, $this->header, $this->footer, $this->slots);
     }
 
@@ -70,16 +71,16 @@ final class Document
 
     /// `header` sets a function that returns the header of each page. `render` calls it once for each page.
     /// The header is drawn in the top margin. `height` sets that margin, such as `"2cm"`. Without it, the margin is the one `@page` gives.
-    public function header(callable(Page): Core\Html\Markup $fn, ?{height?: string} $options = null): Document
+    public function header(callable(Page): Core\Html\Markup $fn, ?{ height?: string } $options = null): Document
     {
-        Margin $header = {fn: $fn, height: $options?->height};
+        Margin $header = { fn: $fn, height: $options?->height };
         return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $this->password, $this->created, $header, $this->footer, $this->slots);
     }
 
     /// `footer` sets a function that returns the footer of each page. It works like `header`, in the bottom margin.
-    public function footer(callable(Page): Core\Html\Markup $fn, ?{height?: string} $options = null): Document
+    public function footer(callable(Page): Core\Html\Markup $fn, ?{ height?: string } $options = null): Document
     {
-        Margin $footer = {fn: $fn, height: $options?->height};
+        Margin $footer = { fn: $fn, height: $options?->height };
         return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $this->password, $this->created, $this->header, $footer, $this->slots);
     }
 
@@ -87,7 +88,7 @@ final class Document
     /// It returns the HTML for each slot name. Nothing on the page moves, and HTML too tall for its cell is listed in `Rendered::overflows`.
     public function slots(callable(Page): array<Core\Html\Markup> $fn): Document
     {
-        Fill $slots = {fn: $fn};
+        Fill $slots = { fn: $fn };
         return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $this->password, $this->created, $this->header, $this->footer, $slots);
     }
 
@@ -118,12 +119,12 @@ final class Document
         foreach ($facts->pages as var $page) {
             $marks[] = $page->marks;
         }
-        array<{header: ?string, footer: ?string, slots: array<{name: string, value: string}>}> $pages = [];
+        array<{ header: ?string, footer: ?string, slots: array<{ name: string, value: string }> }> $pages = [];
         foreach ($facts->pages as var $page) {
             var $one = new Page($page->number, $facts->pageCount, $page->name, $page->strings, $marks);
-            $pages[] = {header: self::markup($this->header, $one), footer: self::markup($this->footer, $one), slots: self::fills($this->slots, $one)};
+            $pages[] = { header: self::markup($this->header, $one), footer: self::markup($this->footer, $one), slots: self::fills($this->slots, $one) };
         }
-        var $result = Engine::render({pages: $pages});
+        var $result = Engine::render({ pages: $pages });
         return new Rendered($result->data, $result->pageCount, $result->dropped, $result->missingGlyphs, $result->overflows);
     }
 
@@ -133,18 +134,18 @@ final class Document
             return null;
         }
         callable(Page): Core\Html\Markup $fn = $margin->fn;
-        return Core\Html::toSource($fn($page), "the PDF engine parses the markup itself");
+        return Core\Html::toSource($fn($page), 'the PDF engine parses the markup itself');
     }
 
-    private static function fills(?Fill $slots, Page $page): array<{name: string, value: string}>
+    private static function fills(?Fill $slots, Page $page): array<{ name: string, value: string }>
     {
-        array<{name: string, value: string}> $out = [];
+        array<{ name: string, value: string }> $out = [];
         if ($slots == null) {
             return $out;
         }
         callable(Page): array<Core\Html\Markup> $fn = $slots->fn;
         foreach ($fn($page) as string $name => Core\Html\Markup $markup) {
-            $out[] = {name: $name, value: Core\Html::toSource($markup, "the PDF engine parses the markup itself")};
+            $out[] = { name: $name, value: Core\Html::toSource($markup, 'the PDF engine parses the markup itself') };
         }
         return $out;
     }

@@ -18,7 +18,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            $total = $total + Core\Arr::count(Core\Storage::list('bench', {prefix: 'bench-list-scale-'}));
+            $total = $total + Core\Arr::count(Core\Storage::list('bench', { prefix: 'bench-list-scale-' }));
             $i = $i + 1;
         }
         foreach ($keys as string $key) {

@@ -10,4 +10,4 @@ echo Core\Str::length($nonce), "\n";
 
 // The same nonce goes into the header and into each script tag on the page.
 string $tag = '<script nonce="' . $nonce . '">start();</script>';
-echo Core\Str::contains($policy, $nonce) && Core\Str::contains($tag, $nonce) ? "match" : "no match", "\n";
+echo Core\Str::contains($policy, $nonce) && Core\Str::contains($tag, $nonce) ? 'match' : 'no match', "\n";

@@ -3,10 +3,14 @@
 // compiled. `$host` is a variable, so this program does not compile.
 // proof: compile-error
 
-type Cache = {key: string};
-string $host = "example.test";
+type Cache = { key: string };
+string $host = 'example.test';
 
-class Page {
-    #[Cache(key: "host-" . $host)]
-    public function show(): int { return 1; }
+class Page
+{
+    #[Cache(key: 'host-' . $host)]
+    public function show(): int
+    {
+        return 1;
+    }
 }

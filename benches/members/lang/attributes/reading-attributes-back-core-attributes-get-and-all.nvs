@@ -7,25 +7,31 @@
 // bench: allocations 8
 // bench: complexity constant
 
-type Route = {path: string};
-type Middleware = {name: string};
+type Route = { path: string };
+type Middleware = { name: string };
 
-class Orders {
-    #[Route(path: "/orders/{id}")]
-    #[Middleware(name: "auth")]
-    #[Middleware(name: "throttle")]
-    #[Middleware(name: "audit")]
-    public function show(#[{max: 64}] int $id): int { return $id; }
+class Orders
+{
+    #[Route(path: '/orders/{id}')]
+    #[Middleware(name: 'auth')]
+    #[Middleware(name: 'throttle')]
+    #[Middleware(name: 'audit')]
+    public function show(#[{max: 64}] int $id): int
+    {
+        return $id;
+    }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             ?Route $route = Core\Attributes::get<Route>(Orders::show(...));
             array<Middleware> $layers = Core\Attributes::all<Middleware>(Orders::show(...));
-            ?{max: int} $limit = Core\Attributes::get<{max: int}>(Orders::show(...), 'id');
+            ?{ max: int } $limit = Core\Attributes::get<{ max: int }>(Orders::show(...), 'id');
             if ($route != null) {
                 if ($limit != null) {
                     // Chained: the length counted this round is picked with the

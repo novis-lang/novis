@@ -5,15 +5,17 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             try {
                 // Chained: the message carries the last round's total, so the
                 // throw stays inside the loop.
-                throw new IOError("file " . $total);
+                throw new IOError('file ' . $total);
             } catch (RuntimeError $wide) {
                 $total = $total + Core\Str::length($wide->message);
             }

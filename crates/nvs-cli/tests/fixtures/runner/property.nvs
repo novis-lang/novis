@@ -9,42 +9,52 @@
 use Core\Test;
 use Core\Test\Property;
 
-final class Point {
-    public function constructor(public int $x, public int $y) {}
+final class Point
+{
+    public function constructor(public int $x, public int $y)
+    {}
 }
 
-enum Size: uint {
+enum Size: uint
+{
     Small = 1,
     Large = 2,
 }
 
-final class PropertyTest {
-    #[Property(runs: 50, gen: {a: "-1000..1000", b: "-1000..1000"})]
-    public function itAddsInEitherOrder(int $a, int $b): void {
+final class PropertyTest
+{
+    #[Property(runs: 50, gen: { a: '-1000..1000', b: '-1000..1000' })]
+    public function itAddsInEitherOrder(int $a, int $b): void
+    {
         Test::assertSame($a + $b, $b + $a);
     }
 
-    #[Property(runs: 50, gen: {n: "0..1000"})]
-    public function itFailsForANumberAboveTen(int $n): void {
+    #[Property(runs: 50, gen: { n: '0..1000' })]
+    public function itFailsForANumberAboveTen(int $n): void
+    {
         Test::assertTrue($n <= 10);
     }
 
     #[Property(runs: 20)]
     public function itBuildsEveryKindOfInput(
-        array<{name: string, size?: Size}> $rows,
+        array<{ name: string, size?: Size }> $rows,
         Point $point,
         ?decimal $price,
         bytes $raw,
-    ): void {
+    ): void
+    {
         Test::assertSame($point->x, $point->x);
     }
 }
 
-abstract class NumberContract {
-    #[Property(runs: 20, gen: {n: "-100..100"})]
-    public function itAddsZero(int $n): void {
+abstract class NumberContract
+{
+    #[Property(runs: 20, gen: { n: '-100..100' })]
+    public function itAddsZero(int $n): void
+    {
         Test::assertSame($n + 0, $n);
     }
 }
 
-final class NumberTest extends NumberContract {}
+final class NumberTest extends NumberContract
+{}

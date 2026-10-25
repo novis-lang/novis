@@ -1,19 +1,25 @@
 <?nvs
 // Shows how to read a property that every class of a union declares.
 
-final class Courier {
-    public string $label = "Courier, next day";
-    public function constructor(public int $weight) { }
+final class Courier
+{
+    public string $label = 'Courier, next day';
+    public function constructor(public int $weight)
+    { }
 }
 
-final class Pickup {
-    public string $label = "Pickup at the shop";
-    public function constructor(public int $weight) { }
+final class Pickup
+{
+    public string $label = 'Pickup at the shop';
+    public function constructor(public int $weight)
+    { }
 }
 
-final class Order {
+final class Order
+{
     // Small parcels go by courier. Heavy parcels are picked up at the shop.
-    public static function shipping(int $weight): Courier|Pickup {
+    public static function shipping(int $weight): Courier|Pickup
+    {
         if ($weight > 20) {
             return new Pickup($weight);
         }
@@ -26,15 +32,15 @@ final class Order {
 array<int> $weights = [3, 25];
 foreach ($weights as int $weight) {
     Courier|Pickup $ship = Order::shipping($weight);
-    echo $ship->weight, " kg: ", $ship->label, "\n";
+    echo $ship->weight, ' kg: ', $ship->label, "\n";
 }
 
 // `?->` reads a property of a union that may be `null`.
 // Here the variable is `null`, so `??` prints `not chosen`.
 ?Courier|Pickup $later = null;
-echo $later?->label ?? "not chosen", "\n";
+echo $later?->label ?? 'not chosen', "\n";
 
 // A write works too, because `$label` has the same type in both classes.
 Courier|Pickup $gift = new Courier(1);
-$gift->label = "Courier, gift wrapped";
+$gift->label = 'Courier, gift wrapped';
 echo $gift->label, "\n";

@@ -4,9 +4,9 @@
 // save the answer to a file while the notes still reach the screen.
 
 // The answer. Standard output is what a write goes to when you name no stream.
-Core\Cli::write("berlin,2", {newline: true});
-Core\Cli::write("vienna,5", {newline: true});
+Core\Cli::write('berlin,2', { newline: true });
+Core\Cli::write('vienna,5', { newline: true });
 
 // The notes. These go to standard error, so `nvs run counts.nvs > counts.csv`
 // leaves the file holding the two lines above and nothing else.
-Core\Cli::write("two cities counted", {stream: Core\Cli::Stream::Err, newline: true});
+Core\Cli::write('two cities counted', { stream: Core\Cli::Stream::Err, newline: true });

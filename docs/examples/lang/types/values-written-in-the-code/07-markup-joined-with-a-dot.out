@@ -1,7 +1,7 @@
 error[E0710]: `Core\Html\Markup` is not text; it is the carrier the HTML sink writes raw
   --> 07-markup-joined-with-a-dot.nvs:7:13
   |
-7 | string $s = $m . "!";
+7 | string $s = $m . '!';
   |             ^^ used as a `string` here
   = help: escaping is not idempotent, so text made out of a `Markup` is escaped a second time at the sink — write the markup to the sink directly, compose it with `+`, or say `Core\Html::toSource($markup, "why")` if the bytes really are what you want
 

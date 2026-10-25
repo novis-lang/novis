@@ -1,8 +1,10 @@
 <?nvs
 namespace Shop;
 
-final class Cart {
-    public function total(): int {
+final class Cart
+{
+    public function total(): int
+    {
         return 3;
     }
 }

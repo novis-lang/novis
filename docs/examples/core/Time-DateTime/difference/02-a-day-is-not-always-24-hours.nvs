@@ -3,9 +3,9 @@
 
 // In Berlin, the clocks move forward one hour on 31 March 2024.
 // So the day from 30 March to 31 March is only 23 hours long.
-var $berlin = Core\Time\Zone::of("Europe/Berlin");
-var $start = Core\Time::at(2024, 3, 30, $berlin, {hour: 12});
-var $end = Core\Time::at(2024, 3, 31, $berlin, {hour: 12});
+var $berlin = Core\Time\Zone::of('Europe/Berlin');
+var $start = Core\Time::at(2024, 3, 30, $berlin, { hour: 12 });
+var $end = Core\Time::at(2024, 3, 31, $berlin, { hour: 12 });
 
 // This prints 1: one whole day in Berlin.
 echo $start->difference($end, Core\Unit::Day), "\n";

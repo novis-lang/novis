@@ -19,9 +19,9 @@ var $orders = [4, 4, 5];
 
 foreach ($orders as var $order) {
     var $shipped = Stock::take(inout $available, $order);
-    echo "order for ", $order, ": shipped ", $shipped, ", left ", $available, "\n";
+    echo 'order for ', $order, ': shipped ', $shipped, ', left ', $available, "\n";
 }
 
 // You can also write the parameter's name at the call, as with any other parameter.
-echo "one more: ", Stock::take(inout available: $available, wanted: 2), "\n";
-echo "left: ", $available, "\n";
+echo 'one more: ', Stock::take(inout available: $available, wanted: 2), "\n";
+echo 'left: ', $available, "\n";

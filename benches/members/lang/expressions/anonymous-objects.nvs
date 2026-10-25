@@ -6,7 +6,7 @@
 // bench: iterations 256
 // bench: complexity constant
 
-type Point = {x: int, y: int};
+type Point = { x: int, y: int };
 
 class Bench
 {
@@ -16,7 +16,7 @@ class Bench
         uint $i = 0;
 
         while ($i < $rounds) {
-            Point $point = {x: $total % 97, y: 3};   // chained: $total is last round's
+            Point $point = { x: $total % 97, y: 3 };   // chained: $total is last round's
 
             $point->y = $point->x + $point->y;
 

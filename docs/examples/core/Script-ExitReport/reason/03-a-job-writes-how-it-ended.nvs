@@ -2,21 +2,23 @@
 // Shows a job that writes one log line that says how it ended.
 // proof: exit 3
 
-final class Job {
+final class Job
+{
     // Returns a short word for each way the job can end.
-    public static function outcome(Core\Script\ExitReport::Reason $reason): string {
+    public static function outcome(Core\Script\ExitReport::Reason $reason): string
+    {
         return match ($reason) {
-            Core\Script\ExitReport::Reason::Normal => "done",
-            Core\Script\ExitReport::Reason::ExitCall => "stopped",
-            Core\Script\ExitReport::Reason::UncaughtThrow => "failed",
-            Core\Script\ExitReport::Reason::Finish => "nothing to do",
+            Core\Script\ExitReport::Reason::Normal => 'done',
+            Core\Script\ExitReport::Reason::ExitCall => 'stopped',
+            Core\Script\ExitReport::Reason::UncaughtThrow => 'failed',
+            Core\Script\ExitReport::Reason::Finish => 'nothing to do',
         };
     }
 }
 
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     // The job called `exit`, so this prints "import: stopped".
-    echo "import: ", Job::outcome($report->reason()), "\n";
+    echo 'import: ', Job::outcome($report->reason()), "\n";
 });
 
 echo "the input folder is missing\n";

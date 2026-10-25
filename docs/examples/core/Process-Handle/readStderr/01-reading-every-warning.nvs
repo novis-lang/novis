@@ -4,11 +4,11 @@
 
 // This program writes two warnings to its error output, and nothing else.
 var $program = Core\Process::spawn(
-    "/bin/sh",
-    ["-c", 'echo "warning: the disk is almost full" >&2; echo "warning: the last backup is old" >&2'],
+    '/bin/sh',
+    ['-c', 'echo "warning: the disk is almost full" >&2; echo "warning: the last backup is old" >&2'],
 );
 
-string $warnings = "";
+string $warnings = '';
 // `readStderr()` returns the next part of the error output. At the end, it returns `null`.
 ?bytes $part = $program->readStderr();
 while ($part != null) {

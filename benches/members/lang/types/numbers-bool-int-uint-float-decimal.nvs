@@ -5,8 +5,10 @@
 // bench: iterations 2048
 // bench: complexity constant
 
-class Bench {
-    public static function run(int $rounds): decimal {
+class Bench
+{
+    public static function run(int $rounds): decimal
+    {
         decimal $total = 0.00;
         decimal $step = 0.01;
         var $i = 0;

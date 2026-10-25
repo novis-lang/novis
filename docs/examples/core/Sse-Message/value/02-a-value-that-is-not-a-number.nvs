@@ -3,7 +3,7 @@
 
 // The `.nvse` file beside this example publishes `5` and then `many` on `queue`.
 Core\Sse $sse = Core\Sse::current();
-Core\Topic::subscribe("queue");
+Core\Topic::subscribe('queue');
 
 ?Core\Sse\Message $message = $sse->receive();
 while ($message != null) {

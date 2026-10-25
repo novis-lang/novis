@@ -2,15 +2,17 @@
 // Shows a `match` that gives one text for each case of an enum. `match` tries
 // the arms from top to bottom and returns the first one that fits.
 
-class Name {
+class Name
+{
     enum Mode { Read, Write, Exec }
 
-    public static function of(Mode $mode): string {
+    public static function of(Mode $mode): string
+    {
         return match ($mode) {
-            Mode::Read => "read",
-            Mode::Write => "write",
+            Mode::Read => 'read',
+            Mode::Write => 'write',
             // `default` is used for every case that no arm above names.
-            default => "other",
+            default => 'other',
         };
     }
 }

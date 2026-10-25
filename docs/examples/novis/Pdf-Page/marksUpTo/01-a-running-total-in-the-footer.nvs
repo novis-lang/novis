@@ -4,7 +4,7 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
 // Each row has a mark with the name `amount` and the price of the row as its value.
-string $rows = "";
+string $rows = '';
 for (int $n = 1; $n <= 70; $n++) {
     $rows .= "<tr data-mark=\"amount:1.50\"><td>Tea {$n}</td><td>1.50 EUR</td></tr>";
 }
@@ -13,11 +13,11 @@ var $html = "<h1>Invoice 1042</h1><table><tbody>{$rows}</tbody></table>";
 // `as ?decimal` converts each value to an exact number.
 var $footer = fn(Page $page): Core\Html\Markup => {
     decimal $total = 0.0;
-    foreach ($page->marksUpTo("amount") as string $amount) {
+    foreach ($page->marksUpTo('amount') as string $amount) {
         $total = $total + (($amount as ?decimal) ?? 0.0 as decimal);
     }
-    string $label = $page->isLast() ? "Total" : "Carried forward";
-    echo "page ", $page->number, ": ", $label, " ", $total, " EUR\n";
+    string $label = $page->isLast() ? 'Total' : 'Carried forward';
+    echo 'page ', $page->number, ': ', $label, ' ', $total, " EUR\n";
     return html`<p>{$label}: {$total} EUR</p>`;
 };
 

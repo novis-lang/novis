@@ -3,20 +3,29 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Shop {
-    #[Core\Route(path: "/cart", method: Core\Http\Method::Get, name: "Shop::cart")]
-    #[Core\Route(path: "/cart", method: Core\Http\Method::Post, name: "Shop::cart")]
+class Shop
+{
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Get, name: 'Shop::cart')]
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Post, name: 'Shop::cart')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function cart(): string { return "the cart"; }
+    public function cart(): string
+    {
+        return 'the cart';
+    }
 
-    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get, name: 'Shop::product')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function product(uint $id): string { return "one product"; }
+    public function product(uint $id): string
+    {
+        return 'one product';
+    }
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $paths = ["/cart", "/products/42", "/basket"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $paths = ['/cart', '/products/42', '/basket'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -4,7 +4,8 @@
 use Core\Db\Derive;
 
 #[Derive]
-class Order {
+class Order
+{
     public uint $id;
     public tainted string $customer;
     public uint $cents;
@@ -17,7 +18,8 @@ class Order {
     }
 }
 
-class Orders {
+class Orders
+{
     // The return type says what the caller gets. `Core\Db\Rows<Order>` is a
     // result of `Order` objects, so the statement stays in this one method.
     public static function of(Core\Db\Connection $db, string $customer): Core\Db\Rows<Order>

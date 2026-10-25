@@ -4,10 +4,12 @@
 // bench: calls 2
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         secret bytes $key = Core\Crypto::generateKey();
-        array<string> $sessions = ["sid-ada", "sid-grace-hopper", "sid-4711"];
+        array<string> $sessions = ['sid-ada', 'sid-grace-hopper', 'sid-4711'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

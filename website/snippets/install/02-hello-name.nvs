@@ -3,5 +3,5 @@
 var $arguments = Core\Cli::arguments();
 
 // `??` gives "World" when the list is empty.
-var $who = Core\Arr::first($arguments) ?? "World";
+var $who = Core\Arr::first($arguments) ?? 'World';
 echo Core\Str::format("Hello, %s!\n", $who);

@@ -5,6 +5,6 @@
 // `readAll` returns the content of the file.
 foreach (Core\Request::files() as Core\Request\Part $part) {
     tainted bytes $content = $part->readAll();
-    echo $part->name(), ": ", $part->filename(), ", ", $part->contentType();
-    echo ", ", Core\Bytes::length($content), " bytes\n";
+    echo $part->name(), ': ', $part->filename(), ', ', $part->contentType();
+    echo ', ', Core\Bytes::length($content), " bytes\n";
 }

@@ -3,5 +3,5 @@
 
 // `Core\Request::header` returns the value of the header with this name.
 // Upper and lower case do not matter, so both lines print "Mozilla/5.0 (X11; Linux x86_64)".
-echo Core\Request::header("User-Agent") ?? "none", "\n";
-echo Core\Request::header("user-agent") ?? "none", "\n";
+echo Core\Request::header('User-Agent') ?? 'none', "\n";
+echo Core\Request::header('user-agent') ?? 'none', "\n";

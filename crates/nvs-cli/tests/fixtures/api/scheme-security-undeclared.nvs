@@ -6,14 +6,18 @@ use Core\Api\KeyIn;
 use Core\Api\Scheme;
 use Core\Api\SchemeType;
 
-#[Scheme(name: "bearer", type: SchemeType::Http, scheme: "bearer")]
-#[Scheme(name: "key", type: SchemeType::ApiKey, in: KeyIn::Query, parameter: "key")]
-class Auth {}
+#[Scheme(name: 'bearer', type: SchemeType::Http, scheme: 'bearer')]
+#[Scheme(name: 'key', type: SchemeType::ApiKey, in: KeyIn::Query, parameter: 'key')]
+class Auth
+{}
 
 class Items
 {
-    #[Core\Route(path: "/items", method: Core\Http\Method::Get, name: "Items::index")]
+    #[Core\Route(path: '/items', method: Core\Http\Method::Get, name: 'Items::index')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[Api(security: ["beraer"])]
-    public function index(): uint { return 0; }
+    #[Api(security: ['beraer'])]
+    public function index(): uint
+    {
+        return 0;
+    }
 }

@@ -13,7 +13,7 @@ Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 float $north = 0.0;
 int $records = 0;
 // The spreadsheet that wrote this file separates fields with a semicolon.
-foreach (Core\Csv::rows($file, {separator: ';', header: true}) as array<string> $sale) {
+foreach (Core\Csv::rows($file, { separator: ';', header: true }) as array<string> $sale) {
     $records = $records + 1;
     if ($sale['region'] == 'north') {
         // A field is always text. `as ?float` converts it to a number, and

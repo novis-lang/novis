@@ -6,11 +6,11 @@ class Invoice
     // Returns the invoice of one customer as a complete XML document.
     public static function write(string $customer, int $total): string
     {
-        Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+        Core\Xml\Writer $writer = Core\Xml::writer({ indent: '  ' });
         $writer->startDocument();
-        $writer->startElement("invoice");
-        $writer->attribute("customer", $customer);
-        $writer->startElement("total");
+        $writer->startElement('invoice');
+        $writer->attribute('customer', $customer);
+        $writer->startElement('total');
         $writer->content($total as string);
         $writer->endElement();
         $writer->endElement();
@@ -19,5 +19,5 @@ class Invoice
 }
 
 // Each call creates its own writer, so each invoice starts with its own declaration.
-echo Invoice::write("Ada", 120), "\n\n";
-echo Invoice::write("Linus", 75), "\n";
+echo Invoice::write('Ada', 120), "\n\n";
+echo Invoice::write('Linus', 75), "\n";

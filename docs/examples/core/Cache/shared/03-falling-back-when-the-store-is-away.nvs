@@ -2,8 +2,10 @@
 // Shows a request that uses the shared store when the server can reach it, and
 // the memory cache of this server when it cannot.
 
-class Sessions {
-    public static function store(): Core\Cache\Store {
+class Sessions
+{
+    public static function store(): Core\Cache\Store
+    {
         try {
             return Core\Cache::shared();
         } catch (Throwable $away) {
@@ -15,8 +17,8 @@ class Sessions {
 }
 
 var $store = Sessions::store();
-$store->put("session:8412", "kim", {ttl: 30m});
+$store->put('session:8412', 'kim', { ttl: 30m });
 
 // This prints kim, from whichever of the two stores the function returned.
-var $who = $store->get("session:8412") ?? "unknown";
+var $who = $store->get('session:8412') ?? 'unknown';
 echo $who as string, "\n";

@@ -5,9 +5,11 @@
 // bench: complexity karatsuba
 // bench: calls 2
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $texts = ["7", "48", "913"];
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $texts = ['7', '48', '913'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -4,12 +4,12 @@
 use Geo\Atlas;
 
 // `cities.txt` is in `data/geo/`, so this prints three cities.
-echo Atlas::read("cities.txt");
+echo Atlas::read('cities.txt');
 
 // `notes.txt` is in `data/private/`. This program may read that folder, but the extension may not.
 // So the call throws a `RuntimeError`, and this prints `not permitted`.
 try {
-    echo Atlas::read("../private/notes.txt");
+    echo Atlas::read('../private/notes.txt');
 } catch (RuntimeError $denied) {
     echo $denied->message, "\n";
 }

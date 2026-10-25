@@ -1,18 +1,18 @@
 <?nvs
+use Novis\Spreadsheet\Reader;
 // Shows how to write an Excel file to an open file and read it back.
 use Novis\Spreadsheet\Workbook;
-use Novis\Spreadsheet\Reader;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), "stock.xlsx");
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'stock.xlsx');
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
 
 // Without `format`, an open file gets an Excel file (xlsx).
 var $book = Workbook::createForStream($file);
-$book->sheet("Stock")->addAll([["item" => "Pen", "count" => 120], ["item" => "Ink", "count" => 35]]);
+$book->sheet('Stock')->addAll([['item' => 'Pen', 'count' => 120], ['item' => 'Ink', 'count' => 35]]);
 var $written = $book->finish();
 $file->close();
-echo $written->rows["Stock"], " rows\n";
+echo $written->rows['Stock'], " rows\n";
 
-foreach (Reader::open(Core\IO::open($path, Core\IO::FileMode::Read))->rows("Stock", {header: true}) as var $row) {
-    echo $row->values["item"], ": ", $row->values["count"], "\n";
+foreach (Reader::open(Core\IO::open($path, Core\IO::FileMode::Read))->rows('Stock', { header: true }) as var $row) {
+    echo $row->values['item'], ': ', $row->values['count'], "\n";
 }

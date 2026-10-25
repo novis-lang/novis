@@ -4,7 +4,7 @@
 Core\Time\TimeOfDay $start = Core\Time\TimeOfDay::at(10, 30);
 
 // This prints 11:15.
-echo $start->plus(45, Core\Unit::Minute)->format("HH:mm"), "\n";
+echo $start->plus(45, Core\Unit::Minute)->format('HH:mm'), "\n";
 
 // `plus` returns a new time. `$start` does not change, so this prints 10:30.
-echo $start->format("HH:mm"), "\n";
+echo $start->format('HH:mm'), "\n";

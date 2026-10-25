@@ -5,16 +5,18 @@
 // bench: complexity constant
 // requires: samba-ad
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $corp = Core\Ldap::connect("corp");
-        var $found = $corp->read("DC=example,DC=test", {select: ["maxPwdAge", "lockoutDuration"]});
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $corp = Core\Ldap::connect('corp');
+        var $found = $corp->read('DC=example,DC=test', { select: ['maxPwdAge', 'lockoutDuration'] });
         if ($found == null) {
             return 0;
         }
         Core\Ldap\Entry $domain = $found;
         // The count so far chooses the attribute, so the loop cannot be left out.
-        array<string> $names = ["maxPwdAge", "lockoutDuration"];
+        array<string> $names = ['maxPwdAge', 'lockoutDuration'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

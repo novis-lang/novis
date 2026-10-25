@@ -8,12 +8,12 @@ class Bench
     public static function run(uint $size): int
     {
         array<int> $sizes = Core\Arr::range(1, $size as int);
-        array<string> $lines = ["1", "2,3", "3"];
+        array<string> $lines = ['1', '2,3', '3'];
         int $total = 0;
         uint $i = 0;
         while ($i < 64) {
             Core\Test::scriptAnswers([$lines[$total % 3]]);
-            array<int> $chosen = Core\Cli::multiSelect("how many days?", $sizes);
+            array<int> $chosen = Core\Cli::multiSelect('how many days?', $sizes);
             $total = $total + $chosen[0];
             $i = $i + 1;
         }

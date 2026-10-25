@@ -6,10 +6,12 @@
 // bench: allocations 9
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): int {
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
         return Core\Cli::live(fn(Core\Cli\Live $screen): int => {
-            array<string> $states = ["reading", "writing", "checking"];
+            array<string> $states = ['reading', 'writing', 'checking'];
             int $total = 0;
             uint $i = 0;
             while ($i < $rounds) {

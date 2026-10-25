@@ -2,15 +2,15 @@
 // Shows that the keys of `toArray` are written the way the server writes them.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Ben Kohl,OU=Company,DC=example,DC=test", {select: ["MAIL", "Department"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Ben Kohl,OU=Company,DC=example,DC=test', { select: ['MAIL', 'Department'] });
 
 if ($person != null) {
     // The program asked for `MAIL` and `Department`.
     // This prints `department, mail`.
     array<tainted string> $names = Core\Arr::sort(Core\Arr::keys($person->toArray()));
-    echo Core\Str::join($names, ", "), "\n";
+    echo Core\Str::join($names, ', '), "\n";
 
     // `string` finds a name in any case, so this prints `Warehouse`.
-    echo $person->string("DEPARTMENT") ?? "no department", "\n";
+    echo $person->string('DEPARTMENT') ?? 'no department', "\n";
 }

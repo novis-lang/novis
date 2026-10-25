@@ -23,7 +23,7 @@ class Author
 class Article
 {
     public string $title;
-    #[Core\Json\Field(name: "word_count")]
+    #[Core\Json\Field(name: 'word_count')]
     public uint $words;
     public ?string $subtitle;
     public array<string> $labels;
@@ -45,7 +45,8 @@ class Article
         Author $author,
         string $owner,
         int $rank = 0,
-    ) {
+    )
+    {
         $this->title = $title;
         $this->words = $words;
         $this->subtitle = $subtitle;
@@ -55,7 +56,7 @@ class Article
         $this->owner = $owner;
         $this->rank = $rank;
         $this->cache = 0;
-        $this->secret = "";
+        $this->secret = '';
     }
 }
 
@@ -73,36 +74,36 @@ class Missing extends RuntimeError
 
 class Articles
 {
-    #[Core\Route(path: "/articles/first", method: Core\Http\Method::Get, name: "Articles::first")]
+    #[Core\Route(path: '/articles/first', method: Core\Http\Method::Get, name: 'Articles::first')]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[Core\Api(errors: [{status: 404, type: Missing::class}])]
+    #[Core\Api(errors: [{ status: 404, type: Missing::class }])]
     public function first(): Article
     {
-        return new Article("t", 1, null, [], Status::Draft, new Author("a"), "o");
+        return new Article('t', 1, null, [], Status::Draft, new Author('a'), 'o');
     }
 
-    #[Core\Route(path: "/articles/count", method: Core\Http\Method::Get, name: "Articles::count")]
+    #[Core\Route(path: '/articles/count', method: Core\Http\Method::Get, name: 'Articles::count')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function count(): ?int
     {
         return null;
     }
 
-    #[Core\Route(path: "/articles/ranks", method: Core\Http\Method::Get, name: "Articles::ranks")]
+    #[Core\Route(path: '/articles/ranks', method: Core\Http\Method::Get, name: 'Articles::ranks')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function ranks(): array<int>
     {
         return [];
     }
 
-    #[Core\Route(path: "/articles/status", method: Core\Http\Method::Get, name: "Articles::status")]
+    #[Core\Route(path: '/articles/status', method: Core\Http\Method::Get, name: 'Articles::status')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function status(): Status
     {
         return Status::Draft;
     }
 
-    #[Core\Route(path: "/articles/all", method: Core\Http\Method::Get, name: "Articles::all")]
+    #[Core\Route(path: '/articles/all', method: Core\Http\Method::Get, name: 'Articles::all')]
     #[Core\Access(allow: Core\Audience::Public)]
     public function all(): array<Article>
     {

@@ -2,13 +2,13 @@
 // Shows how to list the security groups of a user by their RID.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp");
-var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["tokenGroups"]});
+var $corp = Core\Ldap::connect('corp');
+var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['tokenGroups'] });
 
 if ($person != null) {
     // The server sends the SIDs in no fixed order, so the RIDs are sorted.
     array<int> $rids = [];
-    foreach ($person->sids("tokenGroups") ?? [] as Core\Ldap\Sid $group) {
+    foreach ($person->sids('tokenGroups') ?? [] as Core\Ldap\Sid $group) {
         $rids[] = $group->rid();
     }
 

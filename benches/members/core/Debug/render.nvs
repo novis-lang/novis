@@ -5,11 +5,13 @@
 // bench: calls 1
 // bench: complexity linear
 
-class Bench {
+class Bench
+{
     // The rendering is kept, so the work is really done every round.
     public static ?Core\Cli\Text $last = null;
 
-    public static function run(uint $rounds): uint {
+    public static function run(uint $rounds): uint
+    {
         array<int> $row = [1, 2, 3];
         uint $total = 1;
         uint $i = 0;

@@ -25003,7 +25003,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "render(string $data, Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool, format?: Format} $options = null): bytes",
+          "signature": "render(string $data, Symbology $symbology, ?{ height?: uint, module?: uint, margin?: uint, text?: bool, format?: Format } $options = null): bytes",
           "params": [
             {
               "kind": "param",
@@ -25024,7 +25024,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{height?: uint, module?: uint, margin?: uint, text?: bool, format?: Format}",
+              "type": "?{ height?: uint, module?: uint, margin?: uint, text?: bool, format?: Format }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -25045,7 +25045,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "svg(string $data, Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool} $options = null): string",
+          "signature": "svg(string $data, Symbology $symbology, ?{ height?: uint, module?: uint, margin?: uint, text?: bool } $options = null): string",
           "params": [
             {
               "kind": "param",
@@ -25066,7 +25066,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{height?: uint, module?: uint, margin?: uint, text?: bool}",
+              "type": "?{ height?: uint, module?: uint, margin?: uint, text?: bool }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -25401,11 +25401,11 @@
       "types": [
         {
           "name": "Resize",
-          "type": "{width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}"
+          "type": "{ width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool }"
         },
         {
           "name": "Raw",
-          "type": "{width: uint, height: uint, pixels: bytes}"
+          "type": "{ width: uint, height: uint, pixels: bytes }"
         },
         {
           "name": "Info",
@@ -25413,11 +25413,11 @@
         },
         {
           "name": "Variant",
-          "type": "{width?: uint, height?: uint, fit?: Fit, format?: Format, quality?: uint}"
+          "type": "{ width?: uint, height?: uint, fit?: Fit, format?: Format, quality?: uint }"
         },
         {
           "name": "Size",
-          "type": "{width: uint, height: uint}"
+          "type": "{ width: uint, height: uint }"
         }
       ],
       "constants": [],
@@ -25428,7 +25428,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float} $options = null): Image",
+          "signature": "open(bytes $data, ?{ autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float } $options = null): Image",
           "params": [
             {
               "kind": "param",
@@ -25441,7 +25441,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float}",
+              "type": "?{ autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -25634,12 +25634,12 @@
           "static": false,
           "receiver": "image",
           "generics": null,
-          "signature": "crop({x: uint, y: uint, width: uint, height: uint} $box): Image",
+          "signature": "crop({ x: uint, y: uint, width: uint, height: uint } $box): Image",
           "params": [
             {
               "kind": "param",
               "name": "box",
-              "type": "{x: uint, y: uint, width: uint, height: uint}",
+              "type": "{ x: uint, y: uint, width: uint, height: uint }",
               "default": null,
               "optional": false,
               "variadic": false
@@ -25660,12 +25660,12 @@
           "static": false,
           "receiver": "image",
           "generics": null,
-          "signature": "trim(?{threshold?: float} $options = null): Image",
+          "signature": "trim(?{ threshold?: float } $options = null): Image",
           "params": [
             {
               "kind": "param",
               "name": "options",
-              "type": "?{threshold?: float}",
+              "type": "?{ threshold?: float }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -25686,7 +25686,7 @@
           "static": false,
           "receiver": "image",
           "generics": null,
-          "signature": "rotate(float $degrees, ?{background?: Color} $options = null): Image",
+          "signature": "rotate(float $degrees, ?{ background?: Color } $options = null): Image",
           "params": [
             {
               "kind": "param",
@@ -25699,7 +25699,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{background?: Color}",
+              "type": "?{ background?: Color }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -25746,7 +25746,7 @@
           "static": false,
           "receiver": "image",
           "generics": null,
-          "signature": "composite(Image $overlay, ?{gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend} $options = null): Image",
+          "signature": "composite(Image $overlay, ?{ gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend } $options = null): Image",
           "params": [
             {
               "kind": "param",
@@ -25759,7 +25759,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend}",
+              "type": "?{ gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -25806,12 +25806,12 @@
           "static": false,
           "receiver": "image",
           "generics": null,
-          "signature": "sharpen(?{sigma?: float} $options = null): Image",
+          "signature": "sharpen(?{ sigma?: float } $options = null): Image",
           "params": [
             {
               "kind": "param",
               "name": "options",
-              "type": "?{sigma?: float}",
+              "type": "?{ sigma?: float }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -25979,7 +25979,7 @@
           "static": false,
           "receiver": "image",
           "generics": null,
-          "signature": "text(string $text, Font $font, {size: float, color: Color, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align} $options): Image",
+          "signature": "text(string $text, Font $font, { size: float, color: Color, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align } $options): Image",
           "params": [
             {
               "kind": "param",
@@ -26000,7 +26000,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "{size: float, color: Color, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}",
+              "type": "{ size: float, color: Color, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align }",
               "default": null,
               "optional": false,
               "variadic": false
@@ -26021,7 +26021,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "measureText(string $text, Font $font, {size: float, maxWidth?: uint, align?: Align} $options): Size",
+          "signature": "measureText(string $text, Font $font, { size: float, maxWidth?: uint, align?: Align } $options): Size",
           "params": [
             {
               "kind": "param",
@@ -26042,7 +26042,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "{size: float, maxWidth?: uint, align?: Align}",
+              "type": "{ size: float, maxWidth?: uint, align?: Align }",
               "default": null,
               "optional": false,
               "variadic": false
@@ -26063,7 +26063,7 @@
           "static": false,
           "receiver": "image",
           "generics": null,
-          "signature": "format(Format $format, ?{quality?: uint, progressive?: bool, lossless?: bool, effort?: uint} $options = null): Image",
+          "signature": "format(Format $format, ?{ quality?: uint, progressive?: bool, lossless?: bool, effort?: uint } $options = null): Image",
           "params": [
             {
               "kind": "param",
@@ -26076,7 +26076,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{quality?: uint, progressive?: bool, lossless?: bool, effort?: uint}",
+              "type": "?{ quality?: uint, progressive?: bool, lossless?: bool, effort?: uint }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -26097,12 +26097,12 @@
           "static": false,
           "receiver": "image",
           "generics": null,
-          "signature": "metadata({keep: bool} $options): Image",
+          "signature": "metadata({ keep: bool } $options): Image",
           "params": [
             {
               "kind": "param",
               "name": "options",
-              "type": "{keep: bool}",
+              "type": "{ keep: bool }",
               "default": null,
               "optional": false,
               "variadic": false
@@ -26183,7 +26183,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "compare(bytes|Image $a, bytes|Image $b, ?{tolerance?: uint, render?: bool} $options = null): Diff",
+          "signature": "compare(bytes|Image $a, bytes|Image $b, ?{ tolerance?: uint, render?: bool } $options = null): Diff",
           "params": [
             {
               "kind": "param",
@@ -26204,7 +26204,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{tolerance?: uint, render?: bool}",
+              "type": "?{ tolerance?: uint, render?: bool }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -26388,7 +26388,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "render(string $data, ?{size?: uint, margin?: uint, level?: Level, format?: Format} $options = null): bytes",
+          "signature": "render(string $data, ?{ size?: uint, margin?: uint, level?: Level, format?: Format } $options = null): bytes",
           "params": [
             {
               "kind": "param",
@@ -26401,7 +26401,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{size?: uint, margin?: uint, level?: Level, format?: Format}",
+              "type": "?{ size?: uint, margin?: uint, level?: Level, format?: Format }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -26422,7 +26422,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "svg(string $data, ?{margin?: uint, level?: Level} $options = null): string",
+          "signature": "svg(string $data, ?{ margin?: uint, level?: Level } $options = null): string",
           "params": [
             {
               "kind": "param",
@@ -26435,7 +26435,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{margin?: uint, level?: Level}",
+              "type": "?{ margin?: uint, level?: Level }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -26456,12 +26456,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "giroCode({name: string, iban: string, amount?: decimal, bic?: string, reference?: string, text?: string} $payment): string",
+          "signature": "giroCode({ name: string, iban: string, amount?: decimal, bic?: string, reference?: string, text?: string } $payment): string",
           "params": [
             {
               "kind": "param",
               "name": "payment",
-              "type": "{name: string, iban: string, amount?: decimal, bic?: string, reference?: string, text?: string}",
+              "type": "{ name: string, iban: string, amount?: decimal, bic?: string, reference?: string, text?: string }",
               "default": null,
               "optional": false,
               "variadic": false
@@ -26516,7 +26516,7 @@
       "types": [
         {
           "name": "CollateOptions",
-          "type": "{strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool}"
+          "type": "{ strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool }"
         }
       ],
       "constants": [],
@@ -26650,7 +26650,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "dateTimes(array<Core\\Time\\DateTime> $values, string $locale, ?{length?: Length, seconds?: bool, zone?: ZoneStyle} $options = null): array<string>",
+          "signature": "dateTimes(array<Core\\Time\\DateTime> $values, string $locale, ?{ length?: Length, seconds?: bool, zone?: ZoneStyle } $options = null): array<string>",
           "params": [
             {
               "kind": "param",
@@ -26671,7 +26671,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{length?: Length, seconds?: bool, zone?: ZoneStyle}",
+              "type": "?{ length?: Length, seconds?: bool, zone?: ZoneStyle }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -26692,7 +26692,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "dates(array<Core\\Time\\Date> $values, string $locale, ?{length?: Length} $options = null): array<string>",
+          "signature": "dates(array<Core\\Time\\Date> $values, string $locale, ?{ length?: Length } $options = null): array<string>",
           "params": [
             {
               "kind": "param",
@@ -26713,7 +26713,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{length?: Length}",
+              "type": "?{ length?: Length }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -26734,7 +26734,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "times(array<Core\\Time\\TimeOfDay> $values, string $locale, ?{seconds?: bool} $options = null): array<string>",
+          "signature": "times(array<Core\\Time\\TimeOfDay> $values, string $locale, ?{ seconds?: bool } $options = null): array<string>",
           "params": [
             {
               "kind": "param",
@@ -26755,7 +26755,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{seconds?: bool}",
+              "type": "?{ seconds?: bool }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -26802,7 +26802,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "join(array<array<string>> $lists, string $locale, ?{type?: Type, width?: Width} $options = null): array<string>",
+          "signature": "join(array<array<string>> $lists, string $locale, ?{ type?: Type, width?: Width } $options = null): array<string>",
           "params": [
             {
               "kind": "param",
@@ -26823,7 +26823,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{type?: Type, width?: Width}",
+              "type": "?{ type?: Type, width?: Width }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -26981,7 +26981,7 @@
       "types": [
         {
           "name": "DigitOptions",
-          "type": "{minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool}"
+          "type": "{ minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool }"
         }
       ],
       "constants": [],
@@ -27076,7 +27076,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "currency(array<int|float|decimal> $amounts, string $currency, string $locale, ?{display?: CurrencyDisplay} $options = null): array<string>",
+          "signature": "currency(array<int|float|decimal> $amounts, string $currency, string $locale, ?{ display?: CurrencyDisplay } $options = null): array<string>",
           "params": [
             {
               "kind": "param",
@@ -27105,7 +27105,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{display?: CurrencyDisplay}",
+              "type": "?{ display?: CurrencyDisplay }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -27126,7 +27126,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "compact(array<int|float|decimal> $numbers, string $locale, ?{display?: CompactDisplay} $options = null): array<string>",
+          "signature": "compact(array<int|float|decimal> $numbers, string $locale, ?{ display?: CompactDisplay } $options = null): array<string>",
           "params": [
             {
               "kind": "param",
@@ -27147,7 +27147,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{display?: CompactDisplay}",
+              "type": "?{ display?: CompactDisplay }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -27291,12 +27291,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "format(array<{count: int, unit: Unit}> $items, string $locale, ?{width?: Width, numeric?: Numeric} $options = null): array<string>",
+          "signature": "format(array<{ count: int, unit: Unit }> $items, string $locale, ?{ width?: Width, numeric?: Numeric } $options = null): array<string>",
           "params": [
             {
               "kind": "param",
               "name": "items",
-              "type": "array<{count: int, unit: Unit}>",
+              "type": "array<{ count: int, unit: Unit }>",
               "default": null,
               "optional": false,
               "variadic": false
@@ -27312,7 +27312,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{width?: Width, numeric?: Numeric}",
+              "type": "?{ width?: Width, numeric?: Numeric }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -27346,7 +27346,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "words(array<string> $strings, string $locale): array<array<{text: string, wordLike: bool}>>",
+          "signature": "words(array<string> $strings, string $locale): array<array<{ text: string, wordLike: bool }>>",
           "params": [
             {
               "kind": "param",
@@ -27366,7 +27366,7 @@
             }
           ],
           "options": [],
-          "returnType": "array<array<{text: string, wordLike: bool}>>",
+          "returnType": "array<array<{ text: string, wordLike: bool }>>",
           "doc": {
             "shortHtml": "<code>Segmenter::words</code> returns each string as a list of parts. <code>wordLike</code> is <code>true</code> for a word\nor a number, and <code>false</code> for spaces and punctuation. All parts joined give the string."
           },
@@ -27604,7 +27604,7 @@
           "static": false,
           "receiver": "document",
           "generics": null,
-          "signature": "header(callable(Page): Core\\Html\\Markup $fn, ?{height?: string} $options = null): Document",
+          "signature": "header(callable(Page): Core\\Html\\Markup $fn, ?{ height?: string } $options = null): Document",
           "params": [
             {
               "kind": "param",
@@ -27617,7 +27617,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{height?: string}",
+              "type": "?{ height?: string }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -27638,7 +27638,7 @@
           "static": false,
           "receiver": "document",
           "generics": null,
-          "signature": "footer(callable(Page): Core\\Html\\Markup $fn, ?{height?: string} $options = null): Document",
+          "signature": "footer(callable(Page): Core\\Html\\Markup $fn, ?{ height?: string } $options = null): Document",
           "params": [
             {
               "kind": "param",
@@ -27651,7 +27651,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{height?: string}",
+              "type": "?{ height?: string }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -27722,7 +27722,7 @@
       "types": [
         {
           "name": "Named",
-          "type": "{name: string, value: string}"
+          "type": "{ name: string, value: string }"
         }
       ],
       "constants": [],
@@ -27983,11 +27983,11 @@
       "types": [
         {
           "name": "Metadata",
-          "type": "{title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string}"
+          "type": "{ title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }"
         },
         {
           "name": "Attachment",
-          "type": "{name: string, data: bytes}"
+          "type": "{ name: string, data: bytes }"
         }
       ],
       "constants": [],
@@ -28091,15 +28091,15 @@
       "types": [
         {
           "name": "Dropped",
-          "type": "{property: string, value: string, selector: string, line: uint, column: uint}"
+          "type": "{ property: string, value: string, selector: string, line: uint, column: uint }"
         },
         {
           "name": "MissingGlyph",
-          "type": "{text: string, fonts: array<string>, page: uint}"
+          "type": "{ text: string, fonts: array<string>, page: uint }"
         },
         {
           "name": "Overflow",
-          "type": "{page: uint, area: string, text: string}"
+          "type": "{ page: uint, area: string, text: string }"
         }
       ],
       "constants": [],
@@ -28256,19 +28256,19 @@
       "types": [
         {
           "name": "Series",
-          "type": "{values: string, categories: ?string, name: ?string, color: ?string}"
+          "type": "{ values: string, categories: ?string, name: ?string, color: ?string }"
         },
         {
           "name": "Layer",
-          "type": "{kind: ChartKind, series: array<Series>}"
+          "type": "{ kind: ChartKind, series: array<Series> }"
         },
         {
           "name": "Options",
-          "type": "?{title?: string, xTitle?: string, yTitle?: string, legend?: string, labels?: bool}"
+          "type": "?{ title?: string, xTitle?: string, yTitle?: string, legend?: string, labels?: bool }"
         },
         {
           "name": "SeriesOptions",
-          "type": "?{categories?: string, name?: string, color?: string}"
+          "type": "?{ categories?: string, name?: string, color?: string }"
         }
       ],
       "constants": [],
@@ -28610,7 +28610,7 @@
       "types": [
         {
           "name": "Options",
-          "type": "?{zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant}}"
+          "type": "?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant } }"
         }
       ],
       "constants": [],
@@ -28805,7 +28805,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "of(string $text, ?{cached?: string|int|float} $options = null): Formula",
+          "signature": "of(string $text, ?{ cached?: string|int|float } $options = null): Formula",
           "params": [
             {
               "kind": "param",
@@ -28818,7 +28818,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{cached?: string|int|float}",
+              "type": "?{ cached?: string|int|float }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -28846,35 +28846,35 @@
       "types": [
         {
           "name": "RowOptions",
-          "type": "?{header?: bool|int, from?: uint, limit?: uint, columns?: array<string>, zone?: string, text?: bool|array<string>, formulas?: bool, emptyRows?: string, merged?: string, hidden?: string, locale?: string}"
+          "type": "?{ header?: bool|int, from?: uint, limit?: uint, columns?: array<string>, zone?: string, text?: bool|array<string>, formulas?: bool, emptyRows?: string, merged?: string, hidden?: string, locale?: string }"
         },
         {
           "name": "SheetInfo",
-          "type": "{name: tainted string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}"
+          "type": "{ name: tainted string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind }"
         },
         {
           "name": "Link",
-          "type": "{anchor: tainted string, target: tainted string, text: ?tainted string, tooltip: ?tainted string, external: bool}"
+          "type": "{ anchor: tainted string, target: tainted string, text: ?tainted string, tooltip: ?tainted string, external: bool }"
         },
         {
           "name": "Note",
-          "type": "{noted: tainted string, note: tainted string, author: ?tainted string}"
+          "type": "{ noted: tainted string, note: tainted string, author: ?tainted string }"
         },
         {
           "name": "Name",
-          "type": "{name: tainted string, reference: tainted string, sheet: ?tainted string}"
+          "type": "{ name: tainted string, reference: tainted string, sheet: ?tainted string }"
         },
         {
           "name": "Table",
-          "type": "{table: tainted string, name: tainted string, sheet: tainted string}"
+          "type": "{ table: tainted string, name: tainted string, sheet: tainted string }"
         },
         {
           "name": "Image",
-          "type": "{at: tainted string, image: tainted bytes, format: tainted string, link: ?tainted string}"
+          "type": "{ at: tainted string, image: tainted bytes, format: tainted string, link: ?tainted string }"
         },
         {
           "name": "Properties",
-          "type": "{title: ?tainted string, subject: ?tainted string, author: ?tainted string, company: ?tainted string, keywords: ?tainted string, created: ?Core\\Time\\Instant}"
+          "type": "{ title: ?tainted string, subject: ?tainted string, author: ?tainted string, company: ?tainted string, keywords: ?tainted string, created: ?Core\\Time\\Instant }"
         }
       ],
       "constants": [],
@@ -29197,27 +29197,27 @@
       "types": [
         {
           "name": "RowOptions",
-          "type": "?{height?: float, hidden?: bool, level?: uint, style?: Style}"
+          "type": "?{ height?: float, hidden?: bool, level?: uint, style?: Style }"
         },
         {
           "name": "Bounds",
-          "type": "{min?: int|float|string, max?: int|float|string}"
+          "type": "{ min?: int|float|string, max?: int|float|string }"
         },
         {
           "name": "Validation",
-          "type": "{list?: array<string>, whole?: Bounds, decimal?: Bounds, date?: Bounds, length?: Bounds, formula?: string, input?: string, inputTitle?: string, error?: string, errorTitle?: string, allowEmpty?: bool}"
+          "type": "{ list?: array<string>, whole?: Bounds, decimal?: Bounds, date?: Bounds, length?: Bounds, formula?: string, input?: string, inputTitle?: string, error?: string, errorTitle?: string, allowEmpty?: bool }"
         },
         {
           "name": "TableOptions",
-          "type": "?{name?: string, style?: string, banded?: bool, filter?: bool, totals?: array<string|Formula>}"
+          "type": "?{ name?: string, style?: string, banded?: bool, filter?: bool, totals?: array<string|Formula> }"
         },
         {
           "name": "Conditional",
-          "type": "{kind: string, operator?: string, values?: array<string>, colors?: array<string>, icons?: string, rank?: uint, percent?: bool, style?: Style}"
+          "type": "{ kind: string, operator?: string, values?: array<string>, colors?: array<string>, icons?: string, rank?: uint, percent?: bool, style?: Style }"
         },
         {
           "name": "PrintOptions",
-          "type": "{orientation?: string, fitToPage?: {width?: uint, height?: uint}, margins?: {top: float, right: float, bottom: float, left: float}, header?: string, footer?: string, repeatRows?: string, area?: string}"
+          "type": "{ orientation?: string, fitToPage?: { width?: uint, height?: uint }, margins?: { top: float, right: float, bottom: float, left: float }, header?: string, footer?: string, repeatRows?: string, area?: string }"
         }
       ],
       "constants": [],
@@ -29440,7 +29440,7 @@
           "static": false,
           "receiver": "sheet",
           "generics": null,
-          "signature": "link(string $cell, string $target, ?{text?: string, tooltip?: string} $options = null): Sheet",
+          "signature": "link(string $cell, string $target, ?{ text?: string, tooltip?: string } $options = null): Sheet",
           "params": [
             {
               "kind": "param",
@@ -29461,7 +29461,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{text?: string, tooltip?: string}",
+              "type": "?{ text?: string, tooltip?: string }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -29482,7 +29482,7 @@
           "static": false,
           "receiver": "sheet",
           "generics": null,
-          "signature": "note(string $cell, string $text, ?{author?: string} $options = null): Sheet",
+          "signature": "note(string $cell, string $text, ?{ author?: string } $options = null): Sheet",
           "params": [
             {
               "kind": "param",
@@ -29503,7 +29503,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{author?: string}",
+              "type": "?{ author?: string }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -29558,7 +29558,7 @@
           "static": false,
           "receiver": "sheet",
           "generics": null,
-          "signature": "group(string $rows, ?{collapsed?: bool} $options = null): Sheet",
+          "signature": "group(string $rows, ?{ collapsed?: bool } $options = null): Sheet",
           "params": [
             {
               "kind": "param",
@@ -29571,7 +29571,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{collapsed?: bool}",
+              "type": "?{ collapsed?: bool }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -29660,7 +29660,7 @@
           "static": false,
           "receiver": "sheet",
           "generics": null,
-          "signature": "image(string $cell, bytes $data, ?{width?: float, height?: float, offsetX?: float, offsetY?: float} $options = null): Sheet",
+          "signature": "image(string $cell, bytes $data, ?{ width?: float, height?: float, offsetX?: float, offsetY?: float } $options = null): Sheet",
           "params": [
             {
               "kind": "param",
@@ -29681,7 +29681,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{width?: float, height?: float, offsetX?: float, offsetY?: float}",
+              "type": "?{ width?: float, height?: float, offsetX?: float, offsetY?: float }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -29702,7 +29702,7 @@
           "static": false,
           "receiver": "sheet",
           "generics": null,
-          "signature": "chart(string $cell, Chart $chart, ?{width?: float, height?: float} $options = null): Sheet",
+          "signature": "chart(string $cell, Chart $chart, ?{ width?: float, height?: float } $options = null): Sheet",
           "params": [
             {
               "kind": "param",
@@ -29723,7 +29723,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{width?: float, height?: float}",
+              "type": "?{ width?: float, height?: float }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -29770,12 +29770,12 @@
           "static": false,
           "receiver": "sheet",
           "generics": null,
-          "signature": "protect(?{password?: string, allow?: array<string>} $options = null): Sheet",
+          "signature": "protect(?{ password?: string, allow?: array<string> } $options = null): Sheet",
           "params": [
             {
               "kind": "param",
               "name": "options",
-              "type": "?{password?: string, allow?: array<string>}",
+              "type": "?{ password?: string, allow?: array<string> }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -29803,15 +29803,15 @@
       "types": [
         {
           "name": "Lines",
-          "type": "{top?: string, right?: string, bottom?: string, left?: string}"
+          "type": "{ top?: string, right?: string, bottom?: string, left?: string }"
         },
         {
           "name": "Fields",
-          "type": "{font?: string, size?: float, bold?: bool, italic?: bool, strike?: bool, underline?: bool|string, color?: string, fill?: string, border?: string|Lines, borderColor?: string, align?: string, valign?: string, wrap?: bool, rotate?: int, indent?: uint, format?: string, locked?: bool, hideFormula?: bool}"
+          "type": "{ font?: string, size?: float, bold?: bool, italic?: bool, strike?: bool, underline?: bool|string, color?: string, fill?: string, border?: string|Lines, borderColor?: string, align?: string, valign?: string, wrap?: bool, rotate?: int, indent?: uint, format?: string, locked?: bool, hideFormula?: bool }"
         },
         {
           "name": "Record",
-          "type": "{font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool}"
+          "type": "{ font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{ top: ?Line, right: ?Line, bottom: ?Line, left: ?Line }, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool }"
         }
       ],
       "constants": [],
@@ -29889,11 +29889,11 @@
       "types": [
         {
           "name": "Options",
-          "type": "?{zone?: string}"
+          "type": "?{ zone?: string }"
         },
         {
           "name": "Value",
-          "type": "{text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\\Time\\Date}|{time: Core\\Time\\TimeOfDay}|{duration: Core\\Time\\Duration}|{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float}|{runs: array<{text: string, style: ?uint}>}"
+          "type": "{ text: string }|{ number: float }|{ integer: int }|{ decimal: string }|{ boolean: bool }|{ date: Core\\Time\\Date }|{ time: Core\\Time\\TimeOfDay }|{ duration: Core\\Time\\Duration }|{ day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay }|{ formula: string, cachedText: ?string, cachedNumber: ?float }|{ runs: array<{ text: string, style: ?uint }> }"
         }
       ],
       "constants": [],
@@ -30005,35 +30005,35 @@
       "types": [
         {
           "name": "Options",
-          "type": "?{zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant}}"
+          "type": "?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant } }"
         },
         {
           "name": "Column",
-          "type": "{header?: string, width?: int|float|string, format?: string, style?: Style, hidden?: bool, formula?: callable(int): Formula}"
+          "type": "{ header?: string, width?: int|float|string, format?: string, style?: Style, hidden?: bool, formula?: callable(int): Formula }"
         },
         {
           "name": "SheetOptions",
-          "type": "?{columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool}"
+          "type": "?{ columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool }"
         },
         {
           "name": "ExportOptions",
-          "type": "?{sheet?: string, zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant}, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool}"
+          "type": "?{ sheet?: string, zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant }, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool }"
         },
         {
           "name": "RowOptions",
-          "type": "?{height?: float, hidden?: bool, level?: uint, style?: Style}"
+          "type": "?{ height?: float, hidden?: bool, level?: uint, style?: Style }"
         },
         {
           "name": "Value",
-          "type": "{text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\\Time\\Date}|{time: Core\\Time\\TimeOfDay}|{duration: Core\\Time\\Duration}|{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float}|{runs: array<{text: string, style: ?uint}>}"
+          "type": "{ text: string }|{ number: float }|{ integer: int }|{ decimal: string }|{ boolean: bool }|{ date: Core\\Time\\Date }|{ time: Core\\Time\\TimeOfDay }|{ duration: Core\\Time\\Duration }|{ day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay }|{ formula: string, cachedText: ?string, cachedNumber: ?float }|{ runs: array<{ text: string, style: ?uint }> }"
         },
         {
           "name": "Entry",
-          "type": "{value: ?Value, style: ?uint}"
+          "type": "{ value: ?Value, style: ?uint }"
         },
         {
           "name": "Row",
-          "type": "{cells: array<Entry>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}"
+          "type": "{ cells: array<Entry>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool }"
         }
       ],
       "constants": [],

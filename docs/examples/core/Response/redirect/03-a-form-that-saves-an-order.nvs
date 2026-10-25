@@ -6,5 +6,5 @@ uint $orderId = 42;
 
 // The default kind is `SeeOther`, with the status 303. The browser loads
 // `/orders/42` with `GET`, so a reload does not send the form a second time.
-Core\Response::redirect("/orders/" . ($orderId as string));
-echo "Status 303, Location: /orders/", $orderId, "\n";
+Core\Response::redirect('/orders/' . ($orderId as string));
+echo 'Status 303, Location: /orders/', $orderId, "\n";

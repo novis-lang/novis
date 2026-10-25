@@ -2,8 +2,8 @@
 // Shows how to copy a large file in parts, so the program never has the whole file in memory.
 
 string $dir = Core\IO::temporaryDir();
-string $source = Core\Path::join($dir, "export.csv");
-string $copy = Core\Path::join($dir, "export-copy.csv");
+string $source = Core\Path::join($dir, 'export.csv');
+string $copy = Core\Path::join($dir, 'export-copy.csv');
 Core\IO::write($source, Core\Str::repeat("1042,Café Größenwahn,19.90\n", 20000));
 
 Core\IO\File $in = Core\IO::open($source, Core\IO::FileMode::Read);
@@ -21,5 +21,5 @@ $in->close();
 $out->close();
 
 // This prints how many parts were copied, and that both files have the same size.
-echo "parts: ", $parts, "\n";
-echo "same size: ", Core\IO::size($source) == Core\IO::size($copy) ? "yes" : "no", "\n";
+echo 'parts: ', $parts, "\n";
+echo 'same size: ', Core\IO::size($source) == Core\IO::size($copy) ? 'yes' : 'no', "\n";

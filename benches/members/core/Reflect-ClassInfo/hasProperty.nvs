@@ -4,20 +4,23 @@
 // bench: allocations 0
 // bench: complexity constant
 
-class MailSettings {
-    public string $host = "localhost";
+class MailSettings
+{
+    public string $host = 'localhost';
     public int $port = 25;
     public bool $secure = false;
 }
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        var $found = Core\Reflect::forClass("MailSettings");
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $found = Core\Reflect::forClass('MailSettings');
         if ($found == null) {
             return 0;
         }
         Core\Reflect\ClassInfo $info = $found;
-        array<string> $names = ["host", "timeout", "secure"];
+        array<string> $names = ['host', 'timeout', 'secure'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

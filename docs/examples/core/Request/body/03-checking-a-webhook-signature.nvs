@@ -2,12 +2,12 @@
 // Shows how a shop checks that a payment webhook really comes from the payment service.
 
 // The payment service and the shop both know this secret.
-bytes $secret = "whsec_shop_payments" as bytes;
+bytes $secret = 'whsec_shop_payments' as bytes;
 
 // The service signs the exact bytes of the body. So the check needs the raw body,
 // before anything decodes it.
 tainted string $body = Core\Request::body();
-tainted string $signature = Core\Request::header("x-signature") ?? "";
+tainted string $signature = Core\Request::header('x-signature') ?? '';
 
 // Compute the signature again, and compare it with the one in the header.
 string $expected = Core\Encoding::toHex(Core\Hash::hmac($body, $secret, Core\Hash::Digest::Sha256));
@@ -15,7 +15,7 @@ string $expected = Core\Encoding::toHex(Core\Hash::hmac($body, $secret, Core\Has
 // `Core\Hash::equals` takes the same time wherever two values differ.
 // This prints `accepted`.
 if (Core\Hash::equals($expected as bytes, $signature as bytes)) {
-    echo "accepted: ", $body, "\n";
+    echo 'accepted: ', $body, "\n";
 } else {
     echo "rejected\n";
 }

@@ -2,29 +2,29 @@
 // Shows that `modify` makes all of its changes or none of them.
 // requires: samba-ad
 
-var $corp = Core\Ldap::connect("corp-accounts");
-string $unit = "OU=Library 3,DC=example,DC=test";
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Library 3,DC=example,DC=test';
 
 // A run that stopped early can leave the unit behind, so the program deletes it first.
 try {
     $corp->delete($unit);
 } catch (Core\Ldap\LdapError $missing) {
 }
-$corp->add($unit, ["objectClass" => "organizationalUnit", "description" => "Books"]);
+$corp->add($unit, ['objectClass' => 'organizationalUnit', 'description' => 'Books']);
 
 // The first change is fine. The second removes a value the entry does not have,
 // so `modify` throws an error. This prints `ConstraintViolation`.
 try {
     $corp->modify($unit, [
-        Core\Ldap\Change::add("description", "Films"),
-        Core\Ldap\Change::remove("description", "Games"),
+        Core\Ldap\Change::add('description', 'Films'),
+        Core\Ldap\Change::remove('description', 'Games'),
     ]);
 } catch (Core\Ldap\LdapError $error) {
-    echo $error->kind == Core\Ldap\LdapError::Kind::ConstraintViolation ? "ConstraintViolation" : "another error", "\n";
+    echo $error->kind == Core\Ldap\LdapError::Kind::ConstraintViolation ? 'ConstraintViolation' : 'another error', "\n";
 }
 
 // The first change was not made either. This prints `Books`.
-var $values = $corp->read($unit, {select: ["description"]})?->strings("description") ?? [];
-echo Core\Str::join($values, ", "), "\n";
+var $values = $corp->read($unit, { select: ['description'] })?->strings('description') ?? [];
+echo Core\Str::join($values, ', '), "\n";
 
 $corp->delete($unit);

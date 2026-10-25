@@ -3,24 +3,24 @@
 // Some settings are empty. An empty name is replaced by the email address,
 // and an empty list prints no line.
 
-string $displayName = "";
-string $email = "ada@example.com";
+string $displayName = '';
+string $email = 'ada@example.com';
 array<string> $topics = [];
-array<string> $starred = ["billing", "outages"];
+array<string> $starred = ['billing', 'outages'];
 int $unread = 0;
 
 // `?:` returns the left value if it counts as true, and the right value if not.
 // `$displayName` is empty, so the result is the email address.
 string $who = $displayName ?: $email;
-echo "To: ", $who, "\n";
+echo 'To: ', $who, "\n";
 
 // An empty array counts as false, so the `Topics` line is not printed.
 if ($topics) {
-    echo "Topics: ", Core\Str::join($topics, ", "), "\n";
+    echo 'Topics: ', Core\Str::join($topics, ', '), "\n";
 }
 
 if ($starred) {
-    echo "Starred: ", Core\Str::join($starred, ", "), "\n";
+    echo 'Starred: ', Core\Str::join($starred, ', '), "\n";
 }
 
 // `&&` checks `$starred` only if `$unread` counts as true.
@@ -31,4 +31,4 @@ if ($unread && $starred) {
     echo "Nothing unread\n";
 }
 
-echo $unread ? "Unread: " . ($unread as string) : "All caught up", "\n";
+echo $unread ? 'Unread: ' . ($unread as string) : 'All caught up', "\n";

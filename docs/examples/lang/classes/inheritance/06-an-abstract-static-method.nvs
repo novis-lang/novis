@@ -2,25 +2,31 @@
 // Shows an `abstract static` method. Each subclass writes it, and a static
 // method of the parent calls it.
 
-abstract class Page {
-    public abstract static function title(): string;
+abstract class Page
+{
+    abstract public static function title(): string;
 
-    public static function heading(): string {
+    public static function heading(): string
+    {
         // `self::title()` calls the class the method was called on.
         // For `Blog::heading()`, that is `Blog::title()`.
-        return "Title: " . self::title();
+        return 'Title: ' . self::title();
     }
 }
 
-final class Blog extends Page {
-    public static function title(): string {
-        return "Blog";
+final class Blog extends Page
+{
+    public static function title(): string
+    {
+        return 'Blog';
     }
 }
 
-final class Shop extends Page {
-    public static function title(): string {
-        return "Shop";
+final class Shop extends Page
+{
+    public static function title(): string
+    {
+        return 'Shop';
     }
 }
 

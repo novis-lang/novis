@@ -3,13 +3,15 @@
 // bench: iterations 256
 // bench: complexity constant
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         // The address is in the file `clientIp.nvsr` beside this one.
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            tainted string $address = Core\Request::clientIp() ?? "";
+            tainted string $address = Core\Request::clientIp() ?? '';
             $total = $total + Core\Str::length($address);
             $i = $i + 1;
         }

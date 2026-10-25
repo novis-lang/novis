@@ -1,10 +1,14 @@
 <?nvs
 // Shows how to build an unsubscribe link for each reader of a newsletter.
 
-class Newsletter {
-    #[Core\Route(path: "/unsubscribe/{reader}", method: Core\Http\Method::Get, name: "Newsletter::unsubscribe")]
+class Newsletter
+{
+    #[Core\Route(path: '/unsubscribe/{reader}', method: Core\Http\Method::Get, name: 'Newsletter::unsubscribe')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function unsubscribe(uint $reader): string { return "you are unsubscribed"; }
+    public function unsubscribe(uint $reader): string
+    {
+        return 'you are unsubscribed';
+    }
 }
 
 // The first key signs new links. The second key is an older one.
@@ -19,8 +23,8 @@ Core\Time\Instant $until = Core\Time::now()->plus(720h);
 
 array<uint> $readers = [3, 17, 42];
 foreach ($readers as uint $reader) {
-    string $link = Core\Router::urlSigned("Newsletter::unsubscribe", ["reader" => $reader], {keys: $keys, until: $until});
-    string $path = Core\Router::url("Newsletter::unsubscribe", ["reader" => $reader]);
+    string $link = Core\Router::urlSigned('Newsletter::unsubscribe', ['reader' => $reader], { keys: $keys, until: $until });
+    string $path = Core\Router::url('Newsletter::unsubscribe', ['reader' => $reader]);
     // This prints `/unsubscribe/3: signed`, and the same for the other readers.
-    echo $path, ": ", Core\Str::startsWith($link, $path . "?_sig=") ? "signed" : "not signed", "\n";
+    echo $path, ': ', Core\Str::startsWith($link, $path . '?_sig=') ? 'signed' : 'not signed', "\n";
 }

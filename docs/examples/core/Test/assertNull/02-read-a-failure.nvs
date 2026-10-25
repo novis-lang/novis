@@ -3,7 +3,7 @@
 
 // `0`, `""` and `false` are not `null`. Each check throws a `Core\Test\Failure`.
 // The message shows the value.
-array<mixed> $values = [0, "", false];
+array<mixed> $values = [0, '', false];
 foreach ($values as mixed $value) {
     try {
         Core\Test::assertNull($value);
@@ -14,7 +14,7 @@ foreach ($values as mixed $value) {
 
 // The option `message` adds your own text at the start of the message.
 try {
-    Core\Test::assertNull("admin", {message: "a guest has no role"});
+    Core\Test::assertNull('admin', { message: 'a guest has no role' });
 } catch (Core\Test\Failure $failure) {
     echo $failure->message, "\n";
 }

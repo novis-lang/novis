@@ -3,26 +3,28 @@
 // bench: iterations 256
 // bench: complexity linear
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $dir = Core\IO::temporaryDir();
         array<string> $files = [
-            Core\Path::join($dir, "cities.txt"),
-            Core\Path::join($dir, "names.txt"),
-            Core\Path::join($dir, "menu.txt"),
+            Core\Path::join($dir, 'cities.txt'),
+            Core\Path::join($dir, 'names.txt'),
+            Core\Path::join($dir, 'menu.txt'),
         ];
         array<string> $texts = ["Köln\nZürich\nMálaga\n", "Müller\nNuñez\nÅsa\n", "Café;3,50\nCrème;6,00\n"];
         uint $f = 0;
         while ($f < 3) {
             array<bytes> $parts = [Core\Encoding::encodeText($texts[$f as int], Core\Charset::Latin1)];
-            Core\IO::writeStream($files[$f as int], $parts, {overwrite: true});
+            Core\IO::writeStream($files[$f as int], $parts, { overwrite: true });
             $f = $f + 1;
         }
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The file in each round depends on the round before, so no round can be left out.
-            string $text = Core\IO::readText($files[($total % 3) as int], {charset: Core\Charset::Latin1});
+            string $text = Core\IO::readText($files[($total % 3) as int], { charset: Core\Charset::Latin1 });
             $total = $total + Core\Str::length($text);
             $i = $i + 1;
         }
@@ -30,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256) > 0 ? "done" : "no file was read", "\n";
+echo Bench::run(256) > 0 ? 'done' : 'no file was read', "\n";

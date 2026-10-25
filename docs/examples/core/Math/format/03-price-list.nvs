@@ -1,10 +1,12 @@
 <?nvs
 // Shows how a shop writes its prices and the total of an order.
 
-class Price {
+class Price
+{
     // Returns the price as text with two decimals and a comma between thousands.
-    public static function text(decimal $amount): string {
-        return '$' . Core\Math::format($amount, {decimals: 2, groupSeparator: ","});
+    public static function text(decimal $amount): string
+    {
+        return '$' . Core\Math::format($amount, { decimals: 2, groupSeparator: ',' });
     }
 }
 
@@ -16,4 +18,4 @@ foreach ($prices as decimal $price) {
     echo Price::text($price), "\n";
 }
 // This prints Total: $1,270.40.
-echo "Total: ", Price::text($total), "\n";
+echo 'Total: ', Price::text($total), "\n";

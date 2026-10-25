@@ -3,7 +3,7 @@
 // identifier is never negative, and the largest ones are above what an `int`
 // holds, so `uint` is the type that fits them.
 
-array<string> $ids = ["1042", "18446744073709551615", "-3"];
+array<string> $ids = ['1042', '18446744073709551615', '-3'];
 
 foreach ($ids as string $id) {
     var $number = Core\BigInt::parse($id);
@@ -11,8 +11,8 @@ foreach ($ids as string $id) {
     // program reports it instead of using it.
     try {
         uint $account = $number->toUint();
-        echo "account ", $account, "\n";
+        echo 'account ', $account, "\n";
     } catch (ArithmeticError $notAnId) {
-        echo "not an identifier: ", $id, "\n";
+        echo 'not an identifier: ', $id, "\n";
     }
 }

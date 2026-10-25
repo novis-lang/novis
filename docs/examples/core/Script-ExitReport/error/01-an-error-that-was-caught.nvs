@@ -10,8 +10,8 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
 });
 
 try {
-    throw new RuntimeError("the cache is empty");
+    throw new RuntimeError('the cache is empty');
 } catch (RuntimeError $caught) {
     // The error is caught here, so it does not end the script.
-    echo "caught: ", $caught->message, "\n";
+    echo 'caught: ', $caught->message, "\n";
 }

@@ -6,16 +6,21 @@
 // bench: allocations 0
 // bench: complexity constant
 
-final class Mark implements Comparable {
-    public function constructor(public int $n) {}
+final class Mark implements Comparable
+{
+    public function constructor(public int $n)
+    {}
 
-    public function compareTo(self $other): int {
+    public function compareTo(self $other): int
+    {
         return $this->n <=> $other->n;
     }
 }
 
-class Bench {
-    public static function run(int $rounds): int {
+class Bench
+{
+    public static function run(int $rounds): int
+    {
         var $left = new Mark(0);
         var $right = new Mark(5);
         int $acc = 1;

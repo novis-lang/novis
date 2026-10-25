@@ -4,9 +4,9 @@ use Novis\Spreadsheet\Workbook;
 
 Core\Time\Date $month = Core\Time\Date::at(2024, 5, 1);
 array<array<mixed>> $sales = [
-    ["day" => Core\Time\Date::at(2024, 5, 1), "sales" => 1200],
-    ["day" => Core\Time\Date::at(2024, 5, 2), "sales" => 950],
+    ['day' => Core\Time\Date::at(2024, 5, 1), 'sales' => 1200],
+    ['day' => Core\Time\Date::at(2024, 5, 2), 'sales' => 950],
 ];
 
 // The browser saves the file as `sales-2024-05.csv`. A date is written as `yyyy-mm-dd` in CSV.
-Workbook::fromRows($sales)->download("sales-" . $month->format("yyyy-MM") . ".csv");
+Workbook::fromRows($sales)->download('sales-' . $month->format('yyyy-MM') . '.csv');

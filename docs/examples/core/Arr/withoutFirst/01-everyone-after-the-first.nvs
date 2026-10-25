@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to get every value of a list except the first one.
 
-array<string> $queue = ["Ada", "Ben", "Cleo"];
+array<string> $queue = ['Ada', 'Ben', 'Cleo'];
 
 // `Core\Arr::withoutFirst` returns a new array with the other two names.
 array<string> $waiting = Core\Arr::withoutFirst($queue);

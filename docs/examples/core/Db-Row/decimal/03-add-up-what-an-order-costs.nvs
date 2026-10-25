@@ -9,7 +9,7 @@ decimal $pot = 19.95;
 decimal $caddy = 31.05;
 $db->execute(
     'insert into order_lines (item, amount) values (?, ?), (?, ?), (?, ?)',
-    ['tea', $tea, 'teapot', $pot, 'caddy', $caddy]
+    ['tea', $tea, 'teapot', $pot, 'caddy', $caddy],
 );
 
 decimal $total = 0.00;

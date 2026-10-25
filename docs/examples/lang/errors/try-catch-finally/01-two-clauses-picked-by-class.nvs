@@ -3,27 +3,29 @@
 // kind of `RuntimeError`, so the narrow clause is written first. A
 // `RuntimeError` clause written first would take both errors.
 
-final class Feed {
-    public static function read(string $name): string {
-        if ($name == "slow") {
-            throw new TimeoutError("the feed did not answer");
+final class Feed
+{
+    public static function read(string $name): string
+    {
+        if ($name == 'slow') {
+            throw new TimeoutError('the feed did not answer');
         }
-        if ($name == "gone") {
-            throw new RuntimeError("the feed is not there");
+        if ($name == 'gone') {
+            throw new RuntimeError('the feed is not there');
         }
-        return "3 rows";
+        return '3 rows';
     }
 }
 
-array<string> $names = ["daily", "slow", "gone"];
+array<string> $names = ['daily', 'slow', 'gone'];
 
 foreach ($names as string $name) {
     try {
         string $rows = Feed::read($name);
-        echo $name, ": ", $rows, "\n";
+        echo $name, ': ', $rows, "\n";
     } catch (TimeoutError $slow) {
-        echo $name, ": timed out, ", $slow->message, "\n";
+        echo $name, ': timed out, ', $slow->message, "\n";
     } catch (RuntimeError $other) {
-        echo $name, ": failed, ", $other->message, "\n";
+        echo $name, ': failed, ', $other->message, "\n";
     }
 }

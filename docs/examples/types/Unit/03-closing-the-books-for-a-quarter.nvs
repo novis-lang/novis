@@ -4,18 +4,18 @@
 // `difference` in days shows which invoices are more than 30 days old.
 
 var $utc = Core\Time\Zone::UTC;
-var $day = "yyyy-MM-dd";
+var $day = 'yyyy-MM-dd';
 var $today = Core\Time::at(2024, 8, 20, $utc);
 
 var $from = $today->startOf(Core\Unit::Quarter);
 var $to = $today->endOf(Core\Unit::Quarter);
-echo "reporting ", $from->format($day), " .. ", $to->format($day), "\n\n";
+echo 'reporting ', $from->format($day), ' .. ', $to->format($day), "\n\n";
 
 array<Core\Time\DateTime> $issued = [
-    "INV-1041" => Core\Time::at(2024, 6, 28, $utc),
-    "INV-1042" => Core\Time::at(2024, 7, 2, $utc),
-    "INV-1043" => Core\Time::at(2024, 7, 19, $utc),
-    "INV-1044" => Core\Time::at(2024, 8, 12, $utc),
+    'INV-1041' => Core\Time::at(2024, 6, 28, $utc),
+    'INV-1042' => Core\Time::at(2024, 7, 2, $utc),
+    'INV-1043' => Core\Time::at(2024, 7, 19, $utc),
+    'INV-1044' => Core\Time::at(2024, 8, 12, $utc),
 ];
 
 uint $inThisQuarter = 0;
@@ -29,9 +29,9 @@ foreach ($issued as string $number => Core\Time\DateTime $date) {
     }
 
     int $age = $date->difference($today, Core\Unit::Day);
-    echo $number, " issued ", $date->format($day), ", ", $age, " days ago",
-        $covered ? "" : ", belongs to the quarter before",
-        $age > 30 ? " — chase it" : "",
+    echo $number, ' issued ', $date->format($day), ', ', $age, ' days ago',
+        $covered ? '' : ', belongs to the quarter before',
+        $age > 30 ? ' — chase it' : '',
         "\n";
 }
 

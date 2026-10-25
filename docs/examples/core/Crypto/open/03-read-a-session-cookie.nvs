@@ -7,9 +7,9 @@ secret bytes $key = Core\Crypto::generateKey();
 
 // The cookie the program handed out, as text a browser can carry.
 string $cookie = Core\Encoding::toHex(Core\Crypto::seal(
-    "user=ada;until=2026-12-31" as bytes,
+    'user=ada;until=2026-12-31' as bytes,
     $key,
-    Core\Crypto::Cipher::XChaCha20Poly1305
+    Core\Crypto::Cipher::XChaCha20Poly1305,
 ));
 
 // A second cookie, made up by somebody who wants to be Ada.
@@ -23,10 +23,10 @@ foreach ($arriving as string $sent) {
         bytes $opened = Core\Crypto::open(
             Core\Encoding::fromHex($sent),
             $key,
-            Core\Crypto::Cipher::XChaCha20Poly1305
+            Core\Crypto::Cipher::XChaCha20Poly1305,
         );
-        echo "signed in: ", $opened as string, "\n";
+        echo 'signed in: ', $opened as string, "\n";
     } catch (RuntimeError $e) {
-        echo "not signed in", "\n";
+        echo 'not signed in', "\n";
     }
 }

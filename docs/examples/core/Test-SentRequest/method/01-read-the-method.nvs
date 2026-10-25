@@ -5,10 +5,10 @@ use Core\Http\Client;
 use Core\Http\Method;
 use Core\Test;
 
-Test::answerHttp("https://api.example.com/notes", 201);
-Client::post("https://api.example.com/notes", {json: ["title" => "Shopping"]});
+Test::answerHttp('https://api.example.com/notes', 201);
+Client::post('https://api.example.com/notes', { json: ['title' => 'Shopping'] });
 
 // `method()` returns a `Core\Http\Method` case.
 // The program used `Client::post`, so this prints `POST`.
 Method $method = Test::sentHttp()[0]->method();
-echo $method == Method::Post ? "POST" : "not POST", "\n";
+echo $method == Method::Post ? 'POST' : 'not POST', "\n";

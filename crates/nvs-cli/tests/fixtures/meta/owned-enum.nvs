@@ -5,9 +5,11 @@
 namespace Shop;
 
 /// An order a customer placed.
-final class Order {
+final class Order
+{
     /// Where an order is in its life.
-    enum Status: uint {
+    enum Status: uint
+    {
         /// Placed and not paid yet.
         Open,
         Paid = 5,

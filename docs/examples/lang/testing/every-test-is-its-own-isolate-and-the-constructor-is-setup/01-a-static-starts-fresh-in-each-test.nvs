@@ -4,19 +4,23 @@
 
 use Core\Test;
 
-class Counter {
+class Counter
+{
     public static int $hits = 0;
 }
 
-class CounterTest {
+class CounterTest
+{
     #[Test]
-    public function theFirstTestWrites(): void {
+    public function theFirstTestWrites(): void
+    {
         Counter::$hits = Counter::$hits + 1;
         Test::assertSame(Counter::$hits, 1);
     }
 
     #[Test]
-    public function theSecondTestStartsFresh(): void {
+    public function theSecondTestStartsFresh(): void
+    {
         // The test above added one. This test reads `0` again.
         Test::assertSame(Counter::$hits, 0);
     }

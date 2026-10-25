@@ -4,4 +4,4 @@
 // proof: compile-error
 
 Core\Html\Markup $m = html`<p>x</p>`;
-string $s = $m . "!";
+string $s = $m . '!';

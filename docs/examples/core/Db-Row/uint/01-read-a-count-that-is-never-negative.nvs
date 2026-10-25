@@ -5,7 +5,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table uploads (name text not null, size bigint not null)', []);
 $db->execute(
     'insert into uploads (name, size) values (?, ?), (?, ?)',
-    ['logo.png', 18432, 'report.pdf', 1048576]
+    ['logo.png', 18432, 'report.pdf', 1048576],
 );
 
 // `uint` reads the named column as a whole number that is never negative.

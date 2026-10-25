@@ -5,17 +5,20 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
-class Bench {
-    public static function run(uint $rounds): uint {
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
         string $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             . "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\">"
-            . "</rsm:CrossIndustryInvoice>";
+            . '</rsm:CrossIndustryInvoice>';
         bytes $invoice = Document::fromHtml("<html lang=\"en\"><head><title>Invoice</title></head><body><p>Invoice</p></body></html>")
             ->standard(Document::Standard::PdfA3b)
-            ->created(Core\Time::fromIso("2026-01-01T00:00:00Z"))
+            ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
             ->invoiceXml($xml)
-            ->render()->bytes;
-        array<Reader> $readers = [Reader::open($invoice), Reader::open(Document::fromHtml("<p>Letter</p>")->render()->bytes)];
+            ->render()
+            ->bytes;
+        array<Reader> $readers = [Reader::open($invoice), Reader::open(Document::fromHtml('<p>Letter</p>')->render()->bytes)];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
