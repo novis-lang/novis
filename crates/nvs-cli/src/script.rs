@@ -1432,7 +1432,7 @@ impl Compiler {
         let outcome = crate::cache::unit_for(&lowered, program, cache.as_ref())
             .map(|(unit, _)| {
                 let debug = self.debug.as_ref().and_then(|debugger| {
-                    let unit = debug_unit(&unit, &lowered, &checked.map)?;
+                    let unit = debug_unit(&unit, &lowered, &checked.map, str::to_owned)?;
                     debugger.load(&unit);
                     Some((debugger.clone(), unit))
                 });
@@ -2048,18 +2048,26 @@ fn program_over(compiled: Arc<Compiled>) -> Program {
 }
 
 /// The sites, lines and functions of `unit`, compiled from `program` under the
-/// debug switch, with each site's file named as `map` names it. `None` for a
-/// unit compiled without the switch.
-fn debug_unit(
+/// debug switch. Each site's file is `key` of the name `map` gives it, and
+/// `key` runs once per file. `None` for a unit compiled without the switch.
+pub(crate) fn debug_unit(
     unit: &nvs_codegen::Unit,
     program: &nvs_ir::Program,
     map: &nvs_diagnostics::SourceMap,
+    key: fn(&str) -> String,
 ) -> Option<Arc<DebugUnit>> {
     let sites = unit.debug_sites()?;
+    let mut keys = rustc_hash::FxHashMap::default();
     let lines = program
         .stmt_lines(map)
         .into_iter()
-        .map(|(file, line)| SiteLine { file, line })
+        .map(|(file, line)| {
+            let file = keys
+                .entry(file)
+                .or_insert_with_key(|file| key(file))
+                .clone();
+            SiteLine { file, line }
+        })
         .collect();
     let functions = (0u32..)
         .map_while(|index| unit.debug_function(index))

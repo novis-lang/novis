@@ -12,27 +12,62 @@
 //! pipe turns what the program writes into `output` events. The program's end is an `exited` and a
 //! `terminated` event, written once both pumps have drained, so no output arrives after them.
 //!
+//! **Breakpoints and stops.** Every launch compiles under the debug switch and runs attached to
+//! the session's [`Debugger`] (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+//! `setBreakpoints` sets a file's lines on it, and the client usually sends it before the program
+//! has compiled, so the answer says no line is verified yet. Once the unit loads, a `breakpoint`
+//! event gives each line's real answer. A file is named by [`file_key`] on both sides, so the path
+//! an editor sends and the path the compiler read are the same text. A stop thread turns the
+//! controller's stops into `stopped` events, and [`stopped`] answers what a client reads during
+//! one.
+//!
 //! **Ending a session.** `disconnect` ends the adapter, and the program with it, because the
 //! program is this process. `terminate` answers with `terminated` and leaves the program running
 //! until the client's `disconnect` follows, which every client sends.
 //!
 //! **What it spends:** the two pump threads and their 8 KiB buffers, one thread for the program,
-//! and one frame in flight at a time. Nothing grows with the length of the session.
+//! one for the stops, one frame in flight at a time, and one id per breakpoint the client set.
+//! A stop holds what [`stopped`] says until its resume. Nothing grows with the length of the
+//! session.
 
 mod protocol;
 mod stdio;
+mod stopped;
 
 use std::fs::File;
 use std::io::{self, BufReader, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 
+use nvs_host::debug::{Breakpoint, Debugger};
+use rustc_hash::FxHashMap;
 use serde_json::{Value, json};
 
 use crate::config;
 use protocol::{Capabilities, Incoming, LaunchArguments, Outgoing};
+use stopped::Stopped;
+
+/// The text a file is named by in the session: its canonical path, so the path an editor sends
+/// and the path the compiler read are the same. A path that does not resolve is kept as written.
+pub(crate) fn file_key(path: &str) -> String {
+    nvs_diagnostics::canonical_key(Path::new(path))
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// Locks `mutex`, reading through a poison: every value behind one here is whole between writes.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// The id the client knows each breakpoint by, and its line, per file key.
+#[derive(Default)]
+struct Breakpoints {
+    next: i64,
+    files: FxHashMap<String, Vec<(i64, u32)>>,
+}
 
 /// Speak the Debug Adapter Protocol on standard input and output.
 ///
@@ -58,10 +93,35 @@ impl Args {
                 return ExitCode::FAILURE;
             }
         };
+        let writer = Arc::new(Writer {
+            output: Mutex::new((streams.output, 1)),
+        });
+        let (debugger, stops) = Debugger::new();
+        let stopped = Arc::new(Mutex::new(Stopped::default()));
+        let breakpoints = Arc::new(Mutex::new(Breakpoints::default()));
+        debugger.on_load({
+            let writer = Arc::clone(&writer);
+            let breakpoints = Arc::clone(&breakpoints);
+            move |resolved| loaded(&writer, &breakpoints, resolved)
+        });
+        // Ends when the last handle of the session is dropped, which is the process's end.
+        std::thread::spawn({
+            let writer = Arc::clone(&writer);
+            let stopped = Arc::clone(&stopped);
+            move || {
+                for stop in stops {
+                    let event = lock(&stopped).file(stop);
+                    if let Some(body) = event {
+                        writer.event("stopped", Some(body));
+                    }
+                }
+            }
+        });
         let mut session = Session {
-            writer: Arc::new(Writer {
-                output: Mutex::new((streams.output, 1)),
-            }),
+            writer,
+            debugger,
+            stopped,
+            breakpoints,
             log: streams.log,
             launch: None,
             configured: false,
@@ -105,9 +165,39 @@ impl Writer {
     }
 }
 
+/// Tells the client the real answer for each breakpoint it set, once a unit has loaded. A line
+/// is told only where the client's breakpoint at that place is still on that line, so a
+/// `setBreakpoints` that crossed the load is answered by its own response.
+fn loaded(
+    writer: &Writer,
+    breakpoints: &Mutex<Breakpoints>,
+    resolved: &[(String, Vec<Breakpoint>)],
+) {
+    let breakpoints = lock(breakpoints);
+    for (file, lines) in resolved {
+        let Some(known) = breakpoints.files.get(file) else {
+            continue;
+        };
+        for (&(id, line), resolved) in known.iter().zip(lines) {
+            if line == resolved.line {
+                writer.event(
+                    "breakpoint",
+                    Some(json!({
+                        "reason": "changed",
+                        "breakpoint": { "id": id, "verified": resolved.verified, "line": line },
+                    })),
+                );
+            }
+        }
+    }
+}
+
 /// One session's state: what the client has sent so far, and the program once it runs.
 struct Session {
     writer: Arc<Writer>,
+    debugger: Debugger,
+    stopped: Arc<Mutex<Stopped>>,
+    breakpoints: Arc<Mutex<Breakpoints>>,
     log: File,
     launch: Option<LaunchArguments>,
     configured: bool,
@@ -174,10 +264,35 @@ impl Session {
                 self.succeed(request, None);
                 self.start();
             }
-            "threads" => self.succeed(
-                request,
-                Some(json!({ "threads": [{ "id": 1, "name": "main" }] })),
-            ),
+            "setBreakpoints" => match self.set_breakpoints(&request.arguments) {
+                Ok(body) => self.succeed(request, Some(body)),
+                Err(message) => self.fail(request, message),
+            },
+            "threads" => {
+                let body = lock(&self.stopped).threads();
+                self.succeed(request, Some(body));
+            }
+            "stackTrace" => {
+                let body = lock(&self.stopped).stack_trace(&request.arguments);
+                self.reply(request, body);
+            }
+            "scopes" => {
+                let body = lock(&self.stopped).scopes(&request.arguments);
+                self.reply(request, body);
+            }
+            "variables" => {
+                let body = lock(&self.stopped).variables(&request.arguments);
+                self.reply(request, body);
+            }
+            "continue" => {
+                lock(&self.stopped).clear();
+                self.debugger.resume();
+                self.succeed(request, Some(json!({ "allThreadsContinued": true })));
+            }
+            "pause" => {
+                self.debugger.pause();
+                self.succeed(request, None);
+            }
             "terminate" => {
                 self.succeed(request, None);
                 if self
@@ -198,6 +313,42 @@ impl Session {
             }
         }
         Flow::Continue
+    }
+
+    /// Sets one file's breakpoints, and gives the `setBreakpoints` body: one breakpoint per line,
+    /// each with a new id.
+    fn set_breakpoints(&self, arguments: &Value) -> Result<Value, &'static str> {
+        let path = arguments["source"]["path"]
+            .as_str()
+            .ok_or("The breakpoints name no source file.")?;
+        let lines: Vec<u32> = arguments["breakpoints"]
+            .as_array()
+            .map(|breakpoints| {
+                breakpoints
+                    .iter()
+                    .filter_map(|breakpoint| breakpoint["line"].as_u64())
+                    .filter_map(|line| u32::try_from(line).ok())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let file = file_key(path);
+        // Held across the set, so a load that follows it reads this set's ids.
+        let mut breakpoints = lock(&self.breakpoints);
+        let answer = self.debugger.set_breakpoints(&file, &lines);
+        let first = breakpoints.next + 1;
+        breakpoints.next += i64::try_from(lines.len()).unwrap_or(i64::MAX);
+        let known: Vec<(i64, u32)> = (first..).zip(lines.iter().copied()).collect();
+        let shown: Vec<Value> = known
+            .iter()
+            .zip(&answer)
+            .map(|(&(id, line), set)| json!({ "id": id, "verified": set.verified, "line": line }))
+            .collect();
+        if known.is_empty() {
+            breakpoints.files.remove(&file);
+        } else {
+            breakpoints.files.insert(file, known);
+        }
+        Ok(json!({ "breakpoints": shown }))
     }
 
     /// Reads a `launch` request's arguments, or the message the client shows when they cannot run.
@@ -231,13 +382,14 @@ impl Session {
         let pumps = std::mem::take(&mut self.pumps);
         let config = self.config.clone();
         let init = self.init;
+        let debugger = self.debugger.clone();
         let spawned = std::thread::Builder::new()
             .name("nvs dap program".to_owned())
             // The main thread's own size (`build.rs`'s `main_thread_stack`), because the
             // program is compiled on this thread as `nvs run` compiles it on the main one.
             .stack_size(8 << 20)
             .spawn(move || {
-                let code = run(&launch, &config, init);
+                let code = run(&launch, &config, init, &debugger);
                 pipes.close();
                 for pump in pumps {
                     let _ = pump.join();
@@ -266,6 +418,13 @@ impl Session {
         self.respond(request, false, Some(message), None);
     }
 
+    fn reply(&self, request: &Incoming, body: Result<Value, String>) {
+        match body {
+            Ok(body) => self.succeed(request, Some(body)),
+            Err(message) => self.fail(request, &message),
+        }
+    }
+
     fn respond(
         &self,
         request: &Incoming,
@@ -290,8 +449,14 @@ enum Flow {
     Stop,
 }
 
-/// Runs the launched program as `nvs run` would, and gives its exit status.
-fn run(launch: &LaunchArguments, config: &[PathBuf], init: config::Init) -> i64 {
+/// Runs the launched program as `nvs run` would, under the debug switch and attached to
+/// `debugger`, and gives its exit status.
+fn run(
+    launch: &LaunchArguments,
+    config: &[PathBuf],
+    init: config::Init,
+    debugger: &Debugger,
+) -> i64 {
     if let Some(cwd) = &launch.cwd
         && let Err(error) = std::env::set_current_dir(cwd)
     {
@@ -315,6 +480,7 @@ fn run(launch: &LaunchArguments, config: &[PathBuf], init: config::Init) -> i64 
             config,
             launch.args.clone(),
             init,
+            Some(debugger),
         )
     }));
     match ran {

@@ -162,8 +162,19 @@ and variables when it stops.
 
 - [ ] `launch` with `mode: test` and `mode: serve`; a launched serve starts in `development` (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/runner.rs:490`, `crates/nvs-cli/src/serve.rs:227`
 - [ ] Every launch compiles with the debug switch and runs under `debugger-core`'s controller (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-host/src/debug.rs:1`
-- [ ] `setBreakpoints`, `threads`, `stackTrace`, `scopes`, `variables`, `continue` and `pause`, each task of the stopped tree a thread (`rule:testing/a-stop-pauses-the-whole-task-tree`). `crates/nvs-cli/src/dap/mod.rs:1`, `crates/nvs-host/src/scheduler.rs:312`
+  - [x] `run` mode: `run_run` takes the session, lowers under `with_debug_slots`, loads the unit and attaches the run's context
+  - [x] the controller tells a listener each load's breakpoints (`Debugger::on_load`), and the adapter sends `breakpoint` events from it
+  - [ ] `test` mode, every test's isolate attached
+  - [ ] `serve` mode, through `Compiler::debugging`
+- [x] `setBreakpoints`, `threads`, `stackTrace`, `scopes`, `variables`, `continue` and `pause`, each task of the stopped tree a thread (`rule:testing/a-stop-pauses-the-whole-task-tree`). `crates/nvs-cli/src/dap/mod.rs:1`, `crates/nvs-host/src/scheduler.rs:312`
+  - [x] a file is named by `dap::file_key` (its canonical path) on both sides
+  - [x] `dap/stopped.rs` files each round's stops, one thread per task, and answers the reads
+  - [x] the requests answered in `Session::answer`
 - [ ] Rust tests with the scripted client over a fixture in each mode: a breakpoint stops with the right values, a second request is answered while a served one is stopped, and the stdout check of stage 1 holds in `test` and `serve` (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/dap/mod.rs:1`
+  - [x] `run`: a breakpoint stops with `$price` and `$total`, and `continue` ends the program
+  - [ ] `run`: `pause` stops a program in a loop
+  - [ ] `test`: a breakpoint in a test, and the stdout check
+  - [ ] `serve`: a stopped request, a second request answered meanwhile, and the stdout check
 
 ### 2. stepping over, into and out, and the value a step out returned
 
@@ -235,35 +246,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `nvs dap` is a command (`crates/nvs-cli/src/dap/`): `protocol.rs` is the frame
-reader and writer and the serde types, `stdio.rs` moves the process's streams into pipes, and
-`mod.rs` answers `initialize`, `launch` (`run` mode only), `configurationDone`, `threads` (one
-`main` thread), `terminate` and `disconnect`. It runs the program through `crate::run_run` on a
-thread of its own. `crates/nvs-cli/tests/dap.rs` is the scripted client, with a strict frame
-reader over all of stdout. It passes on Windows and on Linux (`bun nv linux-test --test dap`). The
-`debugger-core` gate holds: its goal file is gone and both files exist, so stage 5 can start.
+Stage 1 is done, and stage 5's `run` half has landed. `nvs dap` (`crates/nvs-cli/src/dap/`)
+compiles a `run` launch under the debug switch: `crate::run_run` takes an
+`Option<&Debugger>` as its last argument, lowers under `with_debug_slots`, loads the unit through
+`script::debug_unit` and attaches the run's context. `nvs run` and a bundle pass `None`.
 
-`dap` joined `COMMAND_NAMES`, `apps/telemetry/known.toml`, `initializes` and the `--no-init` help,
-and `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` lists it as a project
-command. No existing test is expected to go red.
+The adapter answers `setBreakpoints`, `threads`, `stackTrace`, `scopes`, `variables`, `continue`
+and `pause`. A file is named by `dap::file_key`, its canonical path, on both sides: the client's
+path and the unit's site lines. `debug_unit` takes the key function, and `Compiler::debugging`'s
+call passes `str::to_owned`. A breakpoint set before the compile answers `verified: false`, and
+`Debugger::on_load` (new in `crates/nvs-host/src/debug.rs`) lets the adapter send a `breakpoint`
+event with the real answer once the unit loads. `dap/stopped.rs` files each round's stops: the
+first stop of a round is the `stopped` event (`allThreadsStopped`), each task is a thread in
+arrival order, and the frame and variables ids live until the resume. `continue` clears the round
+before it resumes. The scripted-client test
+`a_breakpoint_stops_a_launched_script_with_its_variables_and_continue_ends_it` passes on Windows
+and on Linux. No existing test is expected to go red.
 
 Not read yet from `launch`: `env`, `stopOnEntry`, `filter`, `skipFiles` and `pathMappings`. A
 `terminate` sends `terminated` and leaves the program running until `disconnect` ends the process.
-Stage 5 can stop it through the controller instead.
+`pause` is answered but not tested yet.
 
 For stage 4's attack: `echo` writes a carriage return as `␍`, so a program cannot echo a real frame
 header. The attack still shows the line arriving as an `output` event.
 
 ### Next
 
-**Stage 5: `test` and `serve` modes, and a breakpoint**, file set `crates/nvs-cli/src/dap/mod.rs`,
-`crates/nvs-cli/src/runner.rs`, `crates/nvs-cli/src/serve.rs`, `crates/nvs-host/src/debug.rs`,
+**Stage 5: `test` and `serve` modes**, file set `crates/nvs-cli/src/dap/mod.rs`,
+`crates/nvs-cli/src/runner.rs`, `crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/script.rs`,
 `crates/nvs-cli/tests/dap.rs`. Gate holds.
 
-- [ ] `launch` with `mode: test` and `mode: serve`, and `env` and `stopOnEntry` read; a launched serve starts in `development` (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/dap/mod.rs:204`, `crates/nvs-cli/src/dap/mod.rs:294`, `crates/nvs-cli/src/runner.rs:785`, `crates/nvs-cli/src/serve.rs:227`
-- [ ] Every launch compiles with the debug switch and runs under `debugger-core`'s controller (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-host/src/debug.rs:1`
-- [ ] `setBreakpoints`, `threads`, `stackTrace`, `scopes`, `variables`, `continue` and `pause`, each task of the stopped tree a thread (`rule:testing/a-stop-pauses-the-whole-task-tree`). `crates/nvs-cli/src/dap/mod.rs:155`, `crates/nvs-host/src/scheduler.rs:312`
-- [ ] Scripted-client tests in each mode: a breakpoint stops with the right values, a second request is answered while a served one is stopped, and the stdout check holds in `test` and `serve`. `crates/nvs-cli/tests/dap.rs:1`
+- [ ] `launch` with `mode: test` and `mode: serve`, and `env` and `stopOnEntry` read; a launched serve starts in `development` (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/dap/mod.rs:355`, `crates/nvs-cli/src/dap/mod.rs:454`, `crates/nvs-cli/src/runner.rs:785`, `crates/nvs-cli/src/serve.rs:227`
+- [ ] `test` and `serve` compile under the switch: a test run lowers under `with_debug_slots` and attaches each test's isolate, and serve uses `Compiler::debugging` with `dap::file_key` passed to `debug_unit`. `crates/nvs-cli/src/main.rs:1823`, `crates/nvs-cli/src/script.rs:614`, `crates/nvs-cli/src/script.rs:2053`
+- [ ] `stopOnEntry`: a pause raised as the run attaches, so the first poll stops. `crates/nvs-host/src/debug.rs:1`
+- [ ] Scripted-client tests: `pause` in a `run` loop, a breakpoint in a test, a stopped served request while a second one is answered, and the stdout check in `test` and `serve`. `crates/nvs-cli/tests/dap.rs:219`
 
 ### Backlog
 

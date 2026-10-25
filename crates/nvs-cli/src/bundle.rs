@@ -304,6 +304,7 @@ pub(crate) fn run(bundle: Bundle) -> ExitCode {
         // `nvs.toml` in whatever directory a user happened to start it from would be writing into
         // one nobody chose. It runs on the shipped defaults, as it did before that step existed.
         crate::config::Init::Never,
+        None,
     )
 }
 

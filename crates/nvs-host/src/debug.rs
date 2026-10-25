@@ -242,6 +242,21 @@ struct State {
     breakpoint_round: Option<u64>,
     /// The wake of every task parked on a core.
     parked: Vec<RemoteWake>,
+    /// Told each file's breakpoints every time a unit loads.
+    on_load: Option<OnLoad>,
+}
+
+/// What [`Debugger::on_load`] calls, after each [`Debugger::load`].
+type LoadListener = dyn Fn(&[(String, Vec<Breakpoint>)]) + Send + Sync;
+
+/// The listener of [`State::on_load`], so `State` can still be printed.
+#[derive(Clone)]
+struct OnLoad(Arc<LoadListener>);
+
+impl std::fmt::Debug for OnLoad {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("OnLoad")
+    }
 }
 
 impl Debugger {
@@ -272,16 +287,30 @@ impl Debugger {
     /// breakpoint on a line that no longer has a statement is not
     /// [`Breakpoint::verified`].
     pub fn load(&self, unit: &Arc<DebugUnit>) -> Vec<(String, Vec<Breakpoint>)> {
-        let mut state = self.shared.lock();
-        state.units.retain(|unit| unit.strong_count() > 0);
-        state.units.push(Arc::downgrade(unit));
-        let mut resolved: Vec<_> = state
-            .breakpoints
-            .iter()
-            .map(|(file, lines)| (file.clone(), unit.arm(file, lines, true)))
-            .collect();
-        resolved.sort_by(|(a, _), (b, _)| a.cmp(b));
+        let (resolved, listener) = {
+            let mut state = self.shared.lock();
+            state.units.retain(|unit| unit.strong_count() > 0);
+            state.units.push(Arc::downgrade(unit));
+            let mut resolved: Vec<_> = state
+                .breakpoints
+                .iter()
+                .map(|(file, lines)| (file.clone(), unit.arm(file, lines, true)))
+                .collect();
+            resolved.sort_by(|(a, _), (b, _)| a.cmp(b));
+            (resolved, state.on_load.clone())
+        };
+        // Outside the lock, so the listener may call back into the session.
+        if let Some(OnLoad(listener)) = listener {
+            listener(&resolved);
+        }
         resolved
+    }
+
+    /// Calls `listener` with what [`Self::load`] returns, each time a unit
+    /// loads. A client learns this way which breakpoints it set before the
+    /// compile can stop. Replaces the listener set before.
+    pub fn on_load(&self, listener: impl Fn(&[(String, Vec<Breakpoint>)]) + Send + Sync + 'static) {
+        self.shared.lock().on_load = Some(OnLoad(Arc::new(listener)));
     }
 
     /// Sets the breakpoints of `file` to `lines`, replacing the ones it had,

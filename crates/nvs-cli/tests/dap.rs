@@ -90,6 +90,23 @@ impl Client {
         }
     }
 
+    /// Sends one request and gives its response's body, with every message before the response.
+    /// Fails if the request failed.
+    fn ask(&mut self, command: &str, arguments: Value) -> (Value, Vec<Value>) {
+        self.request(command, arguments);
+        let mut seen = Vec::new();
+        loop {
+            let frame = self.frames.recv().unwrap_or_else(|_| {
+                panic!("stdout ended before the `{command}` response: {seen:#?}")
+            });
+            if frame["type"] == "response" && frame["command"] == command {
+                assert_eq!(frame["success"], true, "`{command}` failed: {frame:#?}");
+                return (frame["body"].clone(), seen);
+            }
+            seen.push(frame);
+        }
+    }
+
     /// Closes stdin, waits for the adapter to end, and gives the frames it wrote after the last
     /// read and its exit status. Fails if any byte on stdout was not part of a frame.
     fn finish(mut self) -> (Vec<Value>, bool) {
@@ -193,6 +210,76 @@ fn a_launched_script_s_output_arrives_as_events_and_stdout_carries_frames_only()
             .any(|frame| frame["command"] == "disconnect" && frame["success"] == true),
         "{rest:#?}"
     );
+    assert!(success, "the adapter ended with a failure");
+}
+
+/// A breakpoint set before the compile is verified once the unit loads, stops the program on its
+/// line with the values the variables have there, and `continue` runs the program to its end.
+#[test]
+fn a_breakpoint_stops_a_launched_script_with_its_variables_and_continue_ends_it() {
+    let dir = nvs_repo::scratch_private("dap-breakpoint");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nint $price = 4;\nint $total = $price * 3;\necho $total, \"\\n\";\n",
+    )
+    .unwrap();
+    let main = dir.join("main.nvs");
+
+    let mut client = Client::start(&dir);
+    client.request("initialize", json!({ "adapterID": "novis" }));
+    client.until_event("initialized");
+    let (set, _) = client.ask(
+        "setBreakpoints",
+        json!({ "source": { "path": main }, "breakpoints": [{ "line": 4 }] }),
+    );
+    let id = set["breakpoints"][0]["id"].clone();
+    assert_eq!(set["breakpoints"][0]["verified"], false, "{set:#?}");
+    client.request("launch", json!({ "mode": "run", "program": main }));
+    client.request("configurationDone", json!({}));
+
+    let ran = client.until_event("stopped");
+    assert!(
+        ran.iter().any(|frame| frame["event"] == "breakpoint"
+            && frame["body"]["breakpoint"]["id"] == id
+            && frame["body"]["breakpoint"]["verified"] == true),
+        "the load did not verify the breakpoint: {ran:#?}"
+    );
+    let stopped = ran.last().expect("the `stopped` event");
+    assert_eq!(stopped["body"]["reason"], "breakpoint");
+    assert_eq!(
+        output(&ran, "stdout"),
+        "",
+        "the program ran past its breakpoint"
+    );
+
+    let (threads, _) = client.ask("threads", json!({}));
+    let thread = threads["threads"][0]["id"].clone();
+    let (trace, _) = client.ask("stackTrace", json!({ "threadId": thread }));
+    let frame = &trace["stackFrames"][0];
+    assert_eq!(frame["line"], 4, "{trace:#?}");
+    assert!(
+        frame["source"]["path"]
+            .as_str()
+            .is_some_and(|path| path.ends_with("main.nvs")),
+        "{trace:#?}"
+    );
+    let (scopes, _) = client.ask("scopes", json!({ "frameId": frame["id"] }));
+    let reference = scopes["scopes"][0]["variablesReference"].clone();
+    let (variables, _) = client.ask("variables", json!({ "variablesReference": reference }));
+    let value = |name: &str| {
+        variables["variables"]
+            .as_array()
+            .and_then(|all| all.iter().find(|variable| variable["name"] == name))
+            .map(|variable| variable["value"].clone())
+    };
+    assert_eq!(value("$price"), Some(json!("4")), "{variables:#?}");
+    assert_eq!(value("$total"), Some(json!("12")), "{variables:#?}");
+
+    client.ask("continue", json!({ "threadId": thread }));
+    let ran = client.until_event("terminated");
+    assert_eq!(output(&ran, "stdout"), "12\n", "{ran:#?}");
+    client.request("disconnect", json!({}));
+    let (_, success) = client.finish();
     assert!(success, "the adapter ended with a failure");
 }
 

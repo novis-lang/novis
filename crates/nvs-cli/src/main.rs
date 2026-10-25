@@ -1815,8 +1815,11 @@ fn inbound_of(text: &str) -> Result<nvs_runtime::Inbound, String> {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "one parameter per `nvs run` flag, plus the tree the run resolves; a struct here would be a second spelling of `run::Args`"
+    reason = "one parameter per `nvs run` flag, plus the tree the run resolves and the debug session; a struct here would be a second spelling of `run::Args`"
 )]
+/// `debug` is the session of `nvs dap`'s launch: the program is compiled under the debug switch,
+/// its unit is loaded into the session, and its run is attached to it
+/// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
 fn run_run(
     path: &std::path::Path,
     dump_ir: bool,
@@ -1830,6 +1833,7 @@ fn run_run(
     config: &[PathBuf],
     arguments: Vec<String>,
     init: config::Init,
+    debug: Option<&nvs_host::debug::Debugger>,
 ) -> ExitCode {
     // A bundled program's entry file is a synthetic path inside the payload
     // (`rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`), and `trust::canonical` has no filesystem entry to
@@ -1868,14 +1872,21 @@ fn run_run(
     };
     let src = checked.map.file(checked.id);
 
-    let program = nvs_ir::lower::lower_program(
-        nvs_ir::lower::ENTRY_SCRIPT_LABEL,
-        &checked.program_files(),
-        &checked.exprs,
-        &checked.interner,
-        &checked.enums,
-        &checked.layouts,
-    );
+    let lower = || {
+        nvs_ir::lower::lower_program(
+            nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+            &checked.program_files(),
+            &checked.exprs,
+            &checked.interner,
+            &checked.enums,
+            &checked.layouts,
+        )
+    };
+    let program = if debug.is_some() {
+        nvs_ir::lower::with_debug_slots(lower)
+    } else {
+        lower()
+    };
     // The compile's own line, before the program runs, so it is printed
     // whatever the program then does.
     if count {
@@ -1965,6 +1976,12 @@ fn run_run(
     // seam holding it outlives no part of this run — `runner::UnderTest` is the
     // one holder, and an `Arc` is what lets the run and the seam both name it.
     let unit = std::sync::Arc::new(unit);
+    // Held for the whole run, because the session keeps the unit only while something holds it.
+    let debug = debug.and_then(|debugger| {
+        let sites = script::debug_unit(&unit, &program, &checked.map, dap::file_key)?;
+        debugger.load(&sites);
+        Some((debugger, sites))
+    });
     let Some(entry) = unit.script() else {
         report_internal("the script frame was not compiled");
         return ExitCode::FAILURE;
@@ -2185,6 +2202,9 @@ fn run_run(
     // bare-message failure is promoted to, and the shared ownership that lets
     // the context outlive the unit. `Unit::install_in` owns both reasons.
     unit.install_in(&mut ctx);
+    if let Some((debugger, sites)) = &debug {
+        debugger.attach(&mut ctx, sites);
+    }
     // `rule:testing/in-process-request`'s unit under test, built here because this is the last
     // point at which the unit and the checked program are both in hand. A CLI
     // run has one, and it is this program: `Core\Test::request` inside a `nvs
