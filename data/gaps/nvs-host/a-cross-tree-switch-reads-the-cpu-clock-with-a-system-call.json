@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-host/src/cpuclock.rs",
-  "title": "Each cross-tree switch reads the per-thread CPU clock with a system call, five `clock_gettime` per JSON request.",
-  "text": "The read charges `[limits] cpu_time` to the right request, so it cannot be dropped or coarsened. Closing it is a cheaper clock that still charges every switch to the request it ran for, shown by the json-api profile's `clock_gettime` count falling and every CPU-time limit test staying green.",
-  "goal": "bench-counters"
-}

@@ -45,6 +45,31 @@
 //!
 //! Every other platform is the `None` arm, which is the case the section above
 //! describes.
+//!
+//! # A switch reads the clock with a system call
+//!
+//! A task switch that leaves or enters a published request tree reads this
+//! clock once (`crate::watchdog`'s *Charging a request for the time it runs*),
+//! which is five reads for a JSON request. Each read is a system call on every
+//! platform here, and that is a stated bound, not a gap: no cheaper clock
+//! charges every switch to the request it ran for.
+//!
+//! * Linux's vDSO answers the wall clocks without entering the kernel, and
+//!   never a thread's CPU clock. `perf_event_open`'s task clock can be read from
+//!   a mapped page with no system call, but Docker's default seccomp profile and
+//!   the `perf_event_paranoid` default of Debian and Ubuntu kernels refuse it to
+//!   an unprivileged process. That is where a server runs, so the fast path
+//!   would mostly be the fallback, and the clock `[limits] cpu_time` is enforced
+//!   on would have a second implementation CI does not run.
+//! * A wall clock between two switches is cheap and charges a request for the
+//!   time the operating system ran other processes, so a busy host would stop
+//!   requests that spent nothing.
+//! * Leaving the tree running across the core's wait for events saves the two
+//!   reads around it, and charges the reactor's work for other requests to the
+//!   one that ran last.
+//!
+//! Request path: one system call per switch between trees, which is what
+//! request isolation costs here, and nothing between two tasks of one tree.
 
 use std::time::Duration;
 
