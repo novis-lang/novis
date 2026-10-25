@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { type Check, type Outcome } from "../accept/accept.ts";
 import { ROOT } from "../lib/paths.ts";
-import { type LegName, type LegsOptions, type LegsSeams, linuxLegs, q, valgrindFailLine, valgrindLine, wslPath } from "../accept/legs.ts";
+import { type LegName, type LegsOptions, type LegsSeams, linuxLegs, q, valgrindFailLine, valgrindLine, wslBuildLine, wslPath } from "../accept/legs.ts";
 import { CARRIED, carryLine, mirrorPath, targetLine } from "../accept/mirror.ts";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -282,6 +282,11 @@ describe("the leg helpers", () => {
   test("wslPath maps a Windows drive path to its mount", () => {
     expect(wslPath("D:\\mwl")).toBe("/mnt/d/mwl");
     expect(wslPath("C:/Users/x/repo/")).toBe("/mnt/c/Users/x/repo");
+  });
+
+  test("wslBuildLine is quiet unless asked for cargo's progress lines", () => {
+    expect(wslBuildLine("/r", "/t")).toBe("cd /r && CARGO_TARGET_DIR=/t cargo build --quiet");
+    expect(wslBuildLine("/r", "/t", true)).toBe("cd /r && CARGO_TARGET_DIR=/t cargo build");
   });
 
   test("mirrorPath gives each checkout its own copy beside the target directory", () => {

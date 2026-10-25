@@ -168,9 +168,10 @@ export function valgrindLine(repo: string, binary: string, file: string): string
   );
 }
 
-/** The build line for the WSL leg. */
-export function wslBuildLine(repo: string, targetDir: string): string {
-  return `cd ${q(repo)} && CARGO_TARGET_DIR=${q(targetDir)} cargo build --quiet`;
+/** The build line for the WSL leg. With `progress`, cargo prints a line per crate it compiles, which is
+ * what the hang watch sees of a build it cannot read the CPU of. */
+export function wslBuildLine(repo: string, targetDir: string, progress = false): string {
+  return `cd ${q(repo)} && CARGO_TARGET_DIR=${q(targetDir)} cargo build${progress ? "" : " --quiet"}`;
 }
 
 /** The valgrind sweep's reds as one line: the first whole, then the others by name. */

@@ -209,15 +209,28 @@ let wslBuild: Promise<void> | null = null;
  * distro's mirror is synced and `cargo build` runs there, which is seconds when nothing changed. A
  * binary nothing rebuilt would measure an older tree and record its counts as this one's. A path
  * `--wsl-nvs` names is the caller's, and runs as given.
+ *
+ * After a Rust change the build takes minutes, inside the VM where the hang watch cannot read its CPU,
+ * so cargo's progress lines go to standard error as they come: they are the only sign it is working.
  */
 function currentWslNvs(path: string): Promise<void> {
   if (process.platform !== "win32" || path !== DEFAULT_WSL_NVS) return Promise.resolve();
   wslBuild ??= (async () => {
+    console.error("nv scaling: bringing the WSL nvs up to this tree for callgrind");
     const mirror = mirrorPath(WSL_TARGET, wslPath(ROOT));
     const synced = await syncMirror(mirror);
     if (synced !== "") throw new PerfError(`the WSL copy of the tree could not be synced: ${synced}`);
-    const build = Bun.spawn(["wsl.exe", "--exec", "bash", "-lc", wslBuildLine(mirror, WSL_TARGET)], { stdout: "pipe", stderr: "pipe" });
-    const [code, err] = await Promise.all([build.exited, new Response(build.stderr).text()]);
+    const build = Bun.spawn(["wsl.exe", "--exec", "bash", "-lc", wslBuildLine(mirror, WSL_TARGET, true)], { stdout: "pipe", stderr: "pipe" });
+    let err = "";
+    const decoder = new TextDecoder();
+    const echo = (async () => {
+      for await (const chunk of build.stderr) {
+        const text = decoder.decode(chunk, { stream: true });
+        err += text;
+        process.stderr.write(text);
+      }
+    })();
+    const [code] = await Promise.all([build.exited, echo, new Response(build.stdout).text()]);
     if (code !== 0) throw new PerfError(`the WSL build of nvs exited ${code}: ${err.trim().split(/\r?\n/).at(-1) ?? ""}`);
   })();
   return wslBuild;
