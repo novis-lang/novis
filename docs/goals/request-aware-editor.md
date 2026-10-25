@@ -317,3 +317,8 @@ count, and no query call passes a site id. `editor-fixes` stage 4 (the lens comm
 
 - Stage 5 is disjoint and can run as a side goal now (`docs/rules/observability/a-query-span-names-its-call-site.md`).
 - A test count read from a coverage report is as old as that run; the next coverage run refreshes it (`docs/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.md`).
+- `nvs dap` answers no `evaluate` for watch and hover expressions, and no rule asks for it. A goal that wants it writes it into the rule first (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
+- A breakpoint condition that calls a pure `Core` function needs a purity mark on `Core` methods (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
+- An `inout` by-reference variable has no debug slot, so a stopped frame does not list it. The adapter can read it through its staged cell (`crates/nvs-ir/src/lower/mod.rs:2602`).
+- No test checks the name the call stack gives an anonymous function's frame (`crates/nvs-cli/tests/debugger.rs:241`).
+- `nvs dap` sends `exited` once every holder of the program's pipes closes them, so a child process the program left running delays it (`crates/nvs-cli/src/dap/mod.rs:223`).

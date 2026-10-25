@@ -41,7 +41,7 @@ stages:
         rules: [ide/the-debug-adapter-does-not-wait-for-an-editor, ide/the-extension-builds-no-ui-the-editor-already-has, ide/the-debugger-ui-is-as-deep-as-the-adapter, ide/every-feature-is-staged-behind-its-dependency, testing/feature-proofs]
   - id: 6
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-closes
@@ -357,45 +357,34 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1, 5, 2, 3 and 4 are done. Only stage 6, the gate, is left.
+Every stage is done, and the goal is reached. The gate's second `bun nv verify` is green, and so
+are `bun nv verify --doc`, `bun nv owners --closes debugger-adapter` and `bun nv ci --check`.
 
-Stage 4 landed in seven commits. `pathMappings` is `crates/nvs-cli/src/dap/paths.rs`, with
-three unit tests and `path_mappings_map_every_path_in_and_out_of_the_adapter` in `dap.rs` (21
-tests now), each run once and green. VS Code: the `debuggers` and `breakpoints` contributions in
-`editors/vscode/package.json`, the factory in `editors/vscode/src/debug.ts`, `runnableNamed` in
-`binary.ts`, and `onDebugResolve:nvs` added to `activationEvents`. The headless tier (314) and
-the host tier (16, with the new breakpoint test in `surfaces.test.ts`) each ran once, green.
-`# nvs dap` is in `docs/reference/tools/40-editor.md`. The four rules are `shipped`.
-`bun nv owners --closes debugger-adapter` and `bun nv proofs --gate --only 'tools:editor/nvs-dap'`
-pass.
+The first gate run had four causes, each fixed in its own commit. The stop handler now stops at a
+site with no frame linked, which is a host's own call (`crates/nvs-host/src/debug.rs`, `Shared::stop`).
+That ended the hang in `nvs-host`'s controller tests. The edit test in `crates/nvs-cli/src/script.rs`
+keys its breakpoints by `dap::file_key`. The probes' `run_stopping` records statement stops alone.
+`extension_reference.rs` expects `onDebugResolve:nvs`. The impact guard
+(`tools/nv/keys/escape.ts`) judges product code that sets the working directory the way it judges
+product code that reads it, so `dap::run`'s `set_current_dir` keeps `nvs-cli bin nvs` narrow.
+`ci --check` then asked for the website render and for questions on `/reference/cli/nvs-dap/` and
+`/reference/cli/the-vs-code-extension/`, both written and stamped.
 
-May go red in stage 6: a test that counts the runtime symbol table (`nvs_debug_throw` is new), a
-debug unit's calls at a landing block (`crates/nvs-codegen/tests/probes.rs`), a docs check of the
-new `40-editor.md` section or of `docs/rules/ide.md`, and the website render of the new examples.
-The sweep's `env-secret-proofs` red is stale: its gate passes on today's tree. The nightly
-`40174915924` reds are the `side-ci-green` loop's.
+The sweep's `env-secret-proofs` red was stale: `bun nv proofs --gate --only 'Core\Env::secret'`
+exits 0. The nightly `40174915924` reds are the `side-ci-green` loop's.
 
 ### Next
 
-**Stage 6, the gate.** Start `bun nv affected --run` with `run_in_background` (or
-`looper verify`), end the turn, and group its failures by cause as the stage's `**Split:**` says.
-Fix them in one pass, then run it once more. Before `DONE`: `bun nv verify --doc`,
-`bun nv owners --closes debugger-adapter` and `bun nv ci --check`, each red fixed. Move any
-decision only this file's prose holds into a rule or module doc before the file is deleted: the
-`pathMappings` and `nvsCommand` decisions are already in `paths.rs`'s doc and the launch rule.
+Nothing in this goal. The driver retires it, and `debug-service` is next on the chain.
 
 ### Backlog
 
-- `evaluate` for watch and hover expressions is not asked for by any rule; a goal that wants it writes it into `docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md` first.
-- A condition that may call a pure `Core` function would need a purity mark on `Core` methods (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
-- An `inout` by-reference variable has no debug slot, so a stopped frame does not list it. The adapter can read it through its staged cell. `crates/nvs-ir/src/lower/mod.rs:2602`
-- No test checks the name an anonymous function's frame reports, and this goal decides how the call stack names it. `crates/nvs-cli/tests/debugger.rs:241`
-- A pump waits for every holder of the program's pipes, so a child process the program left running delays `exited` until it ends. `crates/nvs-cli/src/dap/mod.rs:223`
+The five open items moved to `docs/goals/request-aware-editor.md`'s Backlog.
