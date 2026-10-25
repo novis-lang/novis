@@ -242,6 +242,11 @@ of them builds. The session builds once they all end, and checks each against it
 - [x] A cross-tree switch charges `[limits] cpu_time` with a cheaper clock, or the read is struck as a stated bound (`## Standing decisions`). `crates/nvs-host/src/cpuclock.rs:49`
 - [x] The hello case's 2.5 µs of isolate start and finish is broken down, and each part that is not isolation is removed or moved out of the request. `crates/nvs-host/src/isolate.rs:1`, `data/gaps/nvs-host/an-isolate-start-and-finish-cost-microseconds-per-request.json:1`
 - [ ] A waiting request's stack and heap are broken down in the module doc, and each part not needed per request is removed. `crates/nvs-host/src/stack.rs:1`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
+  - [x] A debug test measures a waiting request's heap on its core, connection and request apart. `crates/nvs-cli/src/serve.rs:4499`
+  - [x] The heap is broken down in `stack.rs`'s *What a waiting request holds*. `crates/nvs-host/src/stack.rs:123`
+  - [x] The per-connection read scratch and the head buffer the access line kept are gone, 16 KiB per waiting request. `crates/nvs-server/src/io.rs:508`, `crates/nvs-server/src/serve.rs:1682`
+  - [ ] The program stack's 28 KiB above `KEPT_RESIDENT` is broken down, and a part not needed per request is removed. `crates/nvs-host/src/stack.rs:105`
+  - [ ] The gap record is deleted. `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -260,42 +265,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 6's items 1 to 7 are done, and their gap records are deleted.
+Stage 6's items 1 to 7 are done, and their gap records are deleted. Item 8's heap half is done.
 
-- **The isolate's 2.3 µs** is broken down in `crates/nvs-host/src/isolate.rs`'s *What a served
-  request's isolate costs in time*, and every part is isolation. The largest is the CPU-time charge,
-  about 1 µs, and 0.55 µs of that is the clock read `cpuclock.rs:49` states as a bound.
-- **A core publishes to the watchdog under a lock of its own** (`Publications`,
-  `crates/nvs-host/src/watchdog.rs:726`), not the lock every core shares. The sweep takes the
-  shared lock and then each core's. One core cannot show the gain; many cores should.
-- **`Compiler::prepared`** looks a served path up without copying it (`crates/nvs-cli/src/script.rs:728`),
-  2.2% → 1.4% of a hello request.
-- **`bench-compare --profile`** prints a call-graph section (`benches/compare/profile.sh:81`).
+- **A waiting request's heap** is broken down in `crates/nvs-host/src/stack.rs:123`, measured by
+  `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap` (`crates/nvs-cli/src/serve.rs:4499`).
+  It was about 42 KiB and is now about 26 KiB: an idle connection 22 KiB, the request 3.7 KiB more.
+  The read scratch is one per core (`crates/nvs-server/src/io.rs:508`), and the access line copies
+  the path, so `hyper` reuses its read buffer (`crates/nvs-server/src/serve.rs:1682`). The rest of
+  the connection is `hyper`'s two fixed 8 KiB buffers, its 2.4 KiB boxed service future and a `Ctx`.
+Checked: build, clippy and fmt green, and the new heap test ran once, by name.
 
-Checked: build, clippy and fmt green, and the profile rerun on the built image. No test was run.
+Tests expected to go red: none known. Stage 7 runs `cargo test --lib watchdog` (per-core lock) and
+`nvs-server`'s `io` tests (per-core scratch) first.
 
-Tests expected to go red: none known. The watchdog's own tests read publications through the new
-per-core lock (`charged_on`, `Watchdog::running`), so stage 7 runs `cargo test --lib watchdog` first.
-
-The sweep's `env-secret-proofs` line was stale: `bun nv proofs --gate --only 'Core\Env::secret'` exits 0
-at HEAD, and no goal names that check. The nightly `40075586234` is older than the fixes noted before.
+The sweep's reds were stale: `env-secret-proofs`' log shows exit 0, and nightly `40075586234`
+(`3ea6f1550`) is green for `supply chain` and `lint` in run `40158642410`, with its three Miri
+tests fixed or skipped under Miri at HEAD.
 
 ### Next
 
-**Stage 6, item 8, from what this session measured.** In the wait case with 1000 requests waiting,
-`/proc/<pid>/smaps` shows two stack mappings per request: the connection stacks are 8 KiB resident
-and the program stacks 36 KiB. Other anonymous memory is about 39 KiB per request. Run it in a
-privileged container of `nvs-bench-serve:local`. Pick the `nvs` pid with the largest RSS, and add up
-each 1 MiB mapping's `Rss:`. heaptrack's runtime attach (`heaptrack -p`) crashes `nvs serve` with
-a segfault, so break the heap down another way: a debug test in `nvs-server` that reads
-`nvs_runtime::budget::live_bytes()` around one waiting request, as the gap record suggests.
+**Stage 6, item 8, the program stack.** The heap half is done. The program stack is 36 KiB
+resident in a release container, 28 KiB above `KEPT_RESIDENT`, and the host's part is 2 pages.
 
 - [ ] A waiting request's stack and heap are broken down in the module doc, and each part not needed per request is removed. `crates/nvs-host/src/stack.rs:105`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
 
-The 36 KiB program stack is 28 KiB above `KEPT_RESIDENT`. The stack doc's *What a sleeping program
-touches* puts the host's part at 2 pages, so the rest is the request's compiled code and `Core`
-calls before it slept. Find the deep frame with a release build's frame sizes. Boxing the task
-entry's 1,776-byte `Ctx` (`scheduler.rs`) is the gap's other lead.
+Measure it in the heap test's shape: expose a debug-only reading of a parked task's resident stack
+pages beside `nvs_host::counts` (`stack.rs`'s private `resident_pages`, `crates/nvs-host/src/stack.rs:649`),
+and read it in `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`. Note that the
+first request of a unit compiles on the connection's stack (`compiler.compiled` runs in the handler).
+Then find the deep frame with a release build's frame sizes. Boxing the task entry's 1,776-byte `Ctx`
+(`scheduler.rs`) is the gap's other lead. To find the owner of a heap block, a temporary
+size histogram in `budget.rs`'s `Accounting`, with a backtrace for one size, found both 8 KiB parts
+in minutes; remove it before committing.
 
 Stage 3 (`tools/nv/cmd/scaling.ts:919`) stays open as the other side lane.
 

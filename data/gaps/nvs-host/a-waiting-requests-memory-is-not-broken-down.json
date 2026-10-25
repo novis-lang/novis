@@ -1,6 +1,6 @@
 {
   "module": "crates/nvs-host/src/stack.rs",
-  "title": "A waiting request's program stack above the host's 8 KiB, and its 26 to 34 KiB of heap, are not broken down.",
-  "text": "The stack part is the compiled code and the `Core` calls the request made before it slept. The heap part is likely the HTTP layer's buffers and the isolate. A served count needs `resident_pages` reachable from `nvs-server`'s tests, for example beside `nvs_host::counts` under `debug_assertions`. Boxing the task entry's `Ctx` (1,776 bytes) in `scheduler.rs` may save about one page per task. Closing it is that breakdown written into this module's doc, and each part that is not needed per request removed.",
+  "title": "A waiting request's program stack above the host's 8 KiB is not broken down.",
+  "text": "A waiting request's program stack has about 36 KiB resident in a release container, 28 KiB above `KEPT_RESIDENT`. The host's part is 2 pages, so the rest is the compiled code and the `Core` calls the request made before it slept. Its heap is broken down in this module's *What a waiting request holds*. A served count needs `resident_pages` reachable from `nvs-cli`'s serve tests, for example beside `nvs_host::counts` under `debug_assertions`. Boxing the task entry's `Ctx` (1,776 bytes) in `scheduler.rs` may save about one page per task. Closing it is that breakdown written into this module's doc, and each part that is not needed per request removed.",
   "goal": "bench-counters"
 }
