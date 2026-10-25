@@ -144,6 +144,7 @@
 
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { waitOnPurpose } from "../../looper/src/jobs/hang.ts";
 import { wslBuildLine } from "../accept/legs.ts";
 import { mirrorPath, syncMirror, wslPath } from "../accept/mirror.ts";
 import { lspFrame } from "../lib/lsp.ts";
@@ -526,9 +527,35 @@ async function instructions(opts: Options, command: string, file: string, bench:
   const wsl = (argv: string[]) => (process.platform === "win32" ? ["wsl.exe", "--", ...argv] : argv);
   await spawnProof(wsl(nvs), file, TIMEOUT_MS, { unlogged: true });
   const argv = ["valgrind", "--tool=callgrind", "--callgrind-out-file=/dev/null", ...nvs];
-  const out = await spawnProof(wsl(argv), file, TIMEOUT_MS * 4, { unlogged: true });
-  const m = COLLECTED_RE.exec(out.stderr);
-  if (!m) throw new PerfError(`callgrind printed no instruction total for ${bench}: ${out.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`);
+  const out = await insideWsl(bench, () => spawnProof(wsl(argv), file, TIMEOUT_MS * 4, { unlogged: true }));
+  return collected(out.stderr, bench);
+}
+
+/**
+ * Runs `work`, which on Windows waits on callgrind inside WSL. One run at a large ramp size takes
+ * minutes, and the Bash call's hang watch cannot read the CPU of work in the VM, so it would judge the
+ * call stalled. The wait is declared to it for as long as the run lasts, and `spawnProof`'s own time
+ * limit still ends a run that never finishes.
+ */
+async function insideWsl<T>(bench: string, work: () => Promise<T>): Promise<T> {
+  if (process.platform !== "win32") return work();
+  const done = waitOnPurpose(`callgrind runs ${bench} inside WSL, where this call's CPU cannot be read`);
+  try {
+    return await work();
+  } finally {
+    done();
+  }
+}
+
+/**
+ * The instruction total callgrind printed for `bench`, also written to standard error. A ramp runs
+ * callgrind once per size, each run seconds long, and on Windows inside WSL, where the hang watch
+ * cannot read the CPU, so this line is what shows it the ramp is working.
+ */
+function collected(stderr: string, bench: string): number {
+  const m = COLLECTED_RE.exec(stderr);
+  if (!m) throw new PerfError(`callgrind printed no instruction total for ${bench}: ${stderr.trim().split(/\r?\n/).at(-1) ?? ""}`);
+  console.error(`nv scaling: callgrind ${bench}: ${m[1]} instructions`);
   return Number(m[1]);
 }
 
@@ -839,10 +866,8 @@ async function lspInstructions(opts: Options, printed: string, bench: string): P
   await currentWslNvs(opts.wslNvs);
   const nvs = process.platform === "win32" ? opts.wslNvs : opts.nvs;
   const shell = ["sh", "-c", `valgrind --tool=callgrind --callgrind-out-file=/dev/null '${nvs}' lsp < '${feed}'`];
-  const out = await spawnProof(process.platform === "win32" ? ["wsl.exe", "--", ...shell] : shell, printed, TIMEOUT_MS * 4, { unlogged: true });
-  const m = COLLECTED_RE.exec(out.stderr);
-  if (!m) throw new PerfError(`callgrind printed no instruction total for ${bench}: ${out.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`);
-  return Number(m[1]);
+  const out = await insideWsl(bench, () => spawnProof(process.platform === "win32" ? ["wsl.exe", "--", ...shell] : shell, printed, TIMEOUT_MS * 4, { unlogged: true }));
+  return collected(out.stderr, bench);
 }
 
 /** A document the ladder prints, opened, edited and asked about in `nvs lsp`: the clock alone, as `fmt`. */
