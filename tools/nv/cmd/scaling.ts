@@ -248,11 +248,12 @@ const number = (digits: string) => Number(digits.replace(/_/g, ""));
 
 /**
  * The bench's source with its closing `echo Bench::run(...)` line passing `batch` where it passed
- * `iterations`, or null when that line does not pass `iterations` as exactly one integer literal.
+ * `iterations`, or null when that line does not pass `iterations` as exactly one integer literal. The
+ * line may be indented: a bench that also answers requests calls it inside an `else` block.
  */
 export function withBatch(source: string, iterations: number, batch: number): string | null {
   const lines = source.split("\n");
-  const at = lines.findIndex((l) => /^echo Bench::run\(/.test(l));
+  const at = lines.findIndex((l) => /^\s*echo Bench::run\(/.test(l));
   if (at < 0) return null;
   const line = lines[at]!;
   const open = line.indexOf("(");

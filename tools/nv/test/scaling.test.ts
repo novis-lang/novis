@@ -22,6 +22,8 @@ test("the closing line passes the batch where it passed the bench's iterations, 
   expect(withBatch("echo Bench::run() > 400 ? 'done' : 'no';\n", 400, 32)).toBeNull();
   expect(withBatch("echo Bench::run(400, 400), \"\\n\";\n", 400, 32)).toBeNull();
   expect(withBatch("echo Bench::run(f(400)), \"\\n\";\n", 400, 32)).toBe("echo Bench::run(f(32)), \"\\n\";\n");
+  // A bench that also answers requests calls it inside an `else` block, indented as `nvs fmt` writes it.
+  expect(withBatch("} else {\n    echo Bench::run(256), \"\\n\";\n}\n", 256, 16)).toBe("} else {\n    echo Bench::run(16), \"\\n\";\n}\n");
 });
 
 test("batches double from the start, stay under the bench's own count and the ceiling, and start lower for a small bench", () => {
