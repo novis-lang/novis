@@ -3329,6 +3329,11 @@ The fuzz corpus is cached between nightly runs and each target's budget is large
 could afford. A run that starts from what every previous night found is strictly more coverage than
 a per-push run that starts from nothing, and it costs the push lane nothing at all.
 
+The leak check runs there too: `bun nv valgrind` runs every `examples/` program under valgrind's
+memcheck over the debug build, and a definite leak or an invalid access fails the job. It is the one
+run that looks for leaks from end to end, since the `asan` job runs with leak detection off. A leak a
+change brings in is found the next night.
+
 The comparison's `flood` row runs there too, in its smoke form, because it builds every peer's image
 and Novis's in release, which no push can afford. It fails when a stack cannot serve the row, and the
 results it prints gate nothing.

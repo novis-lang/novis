@@ -17,8 +17,8 @@
 // `test:nvs-cli test footprint`, `nv:<check id>`, `nvtest:<file>` for one `bun test` file of the tools,
 // `bench:benches/members/.../x.nvs` for one bench program,
 // `step:<name>` for a step of `bun nv verify`, `check:<check id>` for another plan check, and
-// `heavy:<check id>` for one of the heavy set or a Linux leg. A
-// footprint is per platform, because what an atom does differs between Windows and the Linux leg.
+// `heavy:<check id>` for one of the heavy set. A footprint is per platform, because what an atom does
+// differs between Windows and Linux.
 //
 // The recorded tree is a commit and an overlay: `base:<platform>` names the commit, and
 // `overlay:<platform>` holds, for every path that differed from it when the tree was recorded, the

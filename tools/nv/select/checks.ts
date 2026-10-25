@@ -37,9 +37,7 @@
 // records what that run used. A twin that cannot run or be read records `*`, which every change moves and the next run whose twin
 // was read drops again (`store.ts` `recordRun`). Fuzz and TSan keep the one prediction left
 // in the selection, and it is named as one: `heavyCrates` reads the crates off the fuzz target's source
-// file and the TSan script. The two Linux legs run every fixture and suite of the plan inside WSL, so a
-// leg is selected whenever the selection picks one of those atoms (`legAtoms`), and its own atom holds
-// only `platform:elsewhere` and the modules that run it.
+// file and the TSan script.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -55,9 +53,6 @@ import { featureGroup, type Keyed, proofReadsSlot, type SelectStore } from "./st
 /** How the sweep runs a check. */
 export type How = "fixture" | "cases" | "tests" | "proofs" | "selftest" | "nvtest" | "nv" | "command" | "heavy";
 
-/** The two Linux legs, each an atom of the heavy set. */
-export const LEGS = ["wsl leg", "valgrind sweep"] as const;
-export const legId = (leg: string) => `heavy:${leg}`;
 
 /** A check as a group of atoms. */
 export interface Grouped {
@@ -429,40 +424,25 @@ function heavyBasis(c: Check, graph: Graph): unknown {
   return twin ? { twin } : { observed: true };
 }
 
-/**
- * The atoms a Linux leg runs again on Linux: every fixture of the plan and every case of its suites. A
- * leg is selected whenever the selection picks one of them.
- */
-export function legAtoms(plan: Check[], groups: Map<string, Grouped>): string[] {
-  const out: string[] = [];
-  for (const c of plan) {
-    if (!PROGRAM_KINDS.has(c.kind) && c.kind !== "nvs-suite") continue;
-    out.push(...(groups.get(c.id)?.atoms ?? []));
-  }
-  return out;
-}
-
-/** What a leg's own atom holds: code only Linux compiles, and the modules that run the legs. */
-export const LEG_KEYS = [PLATFORM_ONLY, "mod:tools/nv/accept/legs.ts", "mod:tools/nv/accept/mirror.ts"];
 
 /**
  * The workspace packages a heavy check builds: what fuzz and TSan are keyed on, and what a check whose
  * twin could not be read widens to. Read off the check: `-p <crate>` for a release
- * test, `nvs-cli` for a bench, an `nvs` command or a leg, the packages a fuzz target's own source file
+ * test, `nvs-cli` for a bench or an `nvs` command, the packages a fuzz target's own source file
  * uses (the fuzz workspace's manifest when that file cannot be read), the packages the TSan script or
  * the database matrix's module names, and every package for anything else. Each
  * with every package it is compiled against. `extra` is what it reads outside the crates that no log
  * records: the fuzz workspace, the TSan script.
  */
-export function heavyCrates(c: Check | null, graph: Graph, root: string = ROOT): { crates: string[]; extra: string[] } {
-  const argv = c?.argv ?? [];
-  const args = c?.args ?? [];
+export function heavyCrates(c: Check, graph: Graph, root: string = ROOT): { crates: string[]; extra: string[] } {
+  const argv = c.argv ?? [];
+  const args = c.args ?? [];
   const line = argv.join(" ");
   let own: string[];
   let extra: string[] = [];
   // A fuzz target links its packages as ordinary dependencies, so their dev-dependencies are not built.
   let dev = true;
-  if (c === null || argv.includes("{nvs}") || (argv[0] === "bun" && argv[1] === "nv" && argv[2] === "bench")) own = ["nvs-cli"];
+  if (argv.includes("{nvs}") || (argv[0] === "bun" && argv[1] === "nv" && argv[2] === "bench")) own = ["nvs-cli"];
   else if (c.kind === "cargo-named" && args.includes("-p")) own = [args[args.indexOf("-p") + 1]!];
   else if (line.includes("fuzz run")) {
     const target = fuzzTarget(line);
@@ -482,7 +462,7 @@ export function heavyCrates(c: Check | null, graph: Graph, root: string = ROOT):
 
 /** `heavyCrates` as keys over `files`, the tree's Rust files: `fn:<file>#*` for every file of those
  * crates, `dir:` for every directory that holds one, and `tree:` for each extra path. */
-export function heavyKeys(c: Check | null, graph: Graph, files: string[], root: string = ROOT): Keyed {
+export function heavyKeys(c: Check, graph: Graph, files: string[], root: string = ROOT): Keyed {
   const { crates, extra } = heavyCrates(c, graph, root);
   return crateKeys(crates, extra, graph, files);
 }

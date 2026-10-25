@@ -38,7 +38,6 @@
       "Bash(bun nv guard:*)",
       "Bash(bun nv holes:*)",
       "Bash(bun nv layout:*)",
-      "Bash(bun nv legs:*)",
       "Bash(bun nv links:*)",
       "Bash(bun nv lints:*)",
       "Bash(bun nv machine:*)",

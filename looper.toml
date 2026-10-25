@@ -55,7 +55,7 @@ heavy = [
   "bun nv suite",
   "bun nv try",
   "bun nv proofs --run",
-  "bun nv legs",
+  "bun nv valgrind",
   "bun nv db-matrix",
   "bun nv bench",
   "bun nv benches",

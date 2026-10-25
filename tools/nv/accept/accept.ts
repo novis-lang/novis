@@ -23,9 +23,6 @@
 // not reach prints nothing of its own, and its verdict is what the store holds: its atoms were green,
 // and what the plan asks beyond them, a test a check names or a suite's `minPassing`, is judged from
 // the store's last green runs. A suite below its `minPassing` is `short`, reported and never green.
-//
-// The WSL leg and the valgrind sweep are `accept/legs.ts`'s. `bun nv legs` runs them, and so does
-// `bun nv debt` (`cmd/debt.ts`), the floor check at each goal's end, when a leg is owed.
 
 import { dirname } from "node:path";
 

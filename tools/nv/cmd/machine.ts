@@ -22,25 +22,21 @@ function show(doc: Doc, asJson: boolean): number {
   }
   const contexts = doc.contexts ?? {};
   if (Object.keys(contexts).length === 0) {
-    console.log("machine: nothing probed yet. The first valgrind sweep or `bun nv try` run fills this in,");
+    console.log("machine: nothing probed yet. The first `bun nv try` or `bun nv valgrind` run fills this in,");
     console.log("         or `bun nv machine --refresh` does it now.");
     return 0;
   }
-  console.log(`${"context".padEnd(9)} ${"cores".padStart(5)} ${"free".padStart(8)} ${"serial".padStart(8)} ${"per worker".padStart(11)}  ${"width".padStart(5)}  probed`);
+  console.log(`${"context".padEnd(9)} ${"cores".padStart(5)} ${"free".padStart(8)}  ${"width".padStart(5)}  probed`);
   for (const name of Object.keys(contexts).sort()) {
     const e = contexts[name]!;
     const mem = e.mem_kb ? `${fixed(e.mem_kb / 1048576, 1)}G` : "--";
-    const secs = e.sample_s ? `${fixed(e.sample_s, 1)}s` : "--";
-    const rss = e.sample_rss_kb ? `${fixed(e.sample_rss_kb / 1024, 0)}M` : "--";
-    const w = width(e.cores, { memKb: e.mem_kb, workerKb: e.sample_rss_kb });
+    const w = width(e.cores);
     const stamp = (e.probed ?? "?") + (stale(e) ? " (stale)" : "");
-    console.log(
-      `${name.padEnd(9)} ${String(e.cores ?? 0).padStart(5)} ${mem.padStart(8)} ${secs.padStart(8)} ${rss.padStart(11)}  ${String(w).padStart(5)}  ${stamp}`,
-    );
+    console.log(`${name.padEnd(9)} ${String(e.cores ?? 0).padStart(5)} ${mem.padStart(8)}  ${String(w).padStart(5)}  ${stamp}`);
   }
   console.log(
-    `\n  ${Math.trunc(FRACTION * 100)}% of the cores the work sees, floor ${FLOOR}, capped by the item count and by\n` +
-      "  free memory. NVS_JOBS overrides every width for one run; NVS_VALGRIND_JOBS the sweep's.",
+    `\n  ${Math.trunc(FRACTION * 100)}% of the cores the work sees, floor ${FLOOR}, capped by the item count.\n` +
+      "  NVS_JOBS overrides every width for one run; NVS_VALGRIND_JOBS and NVS_TRY_JOBS one command's.",
   );
   return 0;
 }
@@ -56,9 +52,8 @@ export async function run(args: string[]): Promise<number> {
     return 2;
   }
   if (args.includes("--refresh")) {
-    // `local` is probed from here. Every other context is reachable only by the tool that runs work
-    // there, so refreshing one means dropping it and letting that tool probe on its next run -- which
-    // is when the machine is set up for the probe anyway.
+    // `local` is probed from here. A cache may still hold another context an older tool probed, and
+    // refreshing drops it.
     const doc = load();
     const contexts = doc.contexts ?? {};
     const dropped = Object.keys(contexts).filter((n) => n !== "local").sort();

@@ -20,7 +20,7 @@ const PIPELINE = ["tools/nv", "examples", "tests", "docs/examples", "benches/mem
 const ALLOWED: Record<string, string> = {
   "tools/nv/cmd/disk.ts": "it measures and sweeps the hand build's files, and runs none of them",
   "tools/nv/keys/escape.ts": "it recognises a test that names the hand build",
-  "tools/nv/accept/legs.ts": "off Windows, the valgrind sweep builds `target/debug` itself just before it runs it",
+
   "tools/nv/cmd/garden.ts": "on Linux, it builds `target/debug` itself just before it copies the binary into the origin's image",
   "tools/nv/cmd/ci.ts": "`--push` runs `cargo build` as the step just before the checks that read `target/debug`",
   "tools/nv/lib/nvs-binary.ts": "`target/debug` is one of the builds it compares, and it reads only the newest, so a stale build loses to a fresher one",

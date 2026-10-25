@@ -1,7 +1,7 @@
 // The acceptance sweep over a goal's checks, on the selection store: `sweepOver` runs the checks a change
 // reaches, with the origin and the sweep lock when the checks need them, and `sweepIds` is the sweep
 // `bun nv affected --run` runs over the check ids it chose. After a session, looper runs the goal's
-// checks itself, and `bun nv debt` runs the Linux legs through `cmd/legs.ts` when one of them is owed.
+// checks itself.
 //
 // `livePlan` is the goal a process works on: the side goal `SIDE_ENV` names, or else the chain's live goal,
 // each read through `lib/chain.ts` and nothing else.
@@ -99,8 +99,8 @@ export async function sweepOver(
   const since = c.full ? (c.global ?? "everything") : `${c.changes.length} path(s) changed since the recorded tree`;
   p.note(`${since}; ${n} of ${checks.length} check(s) reached, the other ${checks.length - n} not started`);
   // A sweep that uses the origin or a perf guard takes the lock, which another tree's sweep using one of
-  // them may hold. The time spent waiting for it is not this sweep's cost. It runs no Linux leg.
-  const need = sharedResources(checks.filter(reached), false, () => false);
+  // them may hold. The time spent waiting for it is not this sweep's cost.
+  const need = sharedResources(checks.filter(reached));
   p.note(needLine(need));
   const asked = Date.now();
   const lock = need.lock ? await takeSweepLock({ note: p.note }) : null;

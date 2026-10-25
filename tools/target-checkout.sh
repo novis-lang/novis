@@ -1,6 +1,6 @@
 # Sourced, never run: empties `$CARGO_TARGET_DIR` when a different checkout built it.
 #
-# A WSL leg keeps its target directory under /var/tmp, outside the checkout, so it outlives a move
+# A WSL build keeps its target directory under /var/tmp, outside the checkout, so it outlives a move
 # of the checkout. Cargo then reuses every artefact: a workspace crate's fingerprint names its path
 # relative to the workspace, and `env!("CARGO_MANIFEST_DIR")` is not part of it. A test binary
 # built before the move still resolves the repository root to the old path and panics on the first

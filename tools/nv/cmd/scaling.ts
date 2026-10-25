@@ -145,8 +145,7 @@
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { waitOnPurpose } from "../../looper/src/jobs/hang.ts";
-import { wslBuildLine } from "../accept/legs.ts";
-import { mirrorPath, syncMirror, wslPath } from "../accept/mirror.ts";
+import { mirrorPath, syncMirror, wslBuildLine, wslPath } from "../accept/mirror.ts";
 import { lspFrame } from "../lib/lsp.ts";
 import { abs, DISCARD_PROFILE, rel, ROOT } from "../lib/paths.ts";
 import { progress } from "../lib/progress.ts";

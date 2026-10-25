@@ -21,8 +21,7 @@
 // - the tools' `tsc` and each of their test files run as `select/nvtests.ts` runs them for `nv verify`;
 // - a heavy check runs as it always has, with the footprint logs of what it starts, and then its twin
 //   runs on the covws build and records which Rust code it used (`select/checks.ts` `heavyTwin`); fuzz
-//   and TSan have none and hold `heavyKeys`;
-// - a Linux leg is picked when a fixture or case it runs again is.
+//   and TSan have none and hold `heavyKeys`.
 //
 // A sweep shares every process between the checks that ask for the same one. Two checks naming one
 // `argv` in one directory get one run, recorded under each check's atom, and each judges its own exit
@@ -50,7 +49,7 @@ import { run } from "../lib/proc.ts";
 import { linked, RELEASE_ARGV, releaseCli } from "../lib/relink.ts";
 import { recordName } from "../proofs/run.ts";
 import { caseId, nvTestFiles, nvTestId } from "../select/atoms.ts";
-import { commandKeys, crateKeys, grouped, type Grouped, heavyKeys, heavyTwin, LEG_KEYS, legAtoms, LEGS, legId, onDisk, planContext, predicted, type Twin, twinBinaries, twinWork } from "../select/checks.ts";
+import { commandKeys, crateKeys, grouped, type Grouped, heavyKeys, heavyTwin, onDisk, planContext, predicted, type Twin, twinBinaries, twinWork } from "../select/checks.ts";
 import { PLATFORM_ONLY, WILD } from "../select/keys.ts";
 import { NO_ADVANCE_ENV, advance, caseSkipped, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen } from "../select/record.ts";
 import { NV_TSC, runNvTest, runTsc, type ToolRun } from "../select/nvtests.ts";
@@ -240,17 +239,7 @@ export class PlanSweep {
         defs.set(g.own.id, g.own.def);
       }
     }
-    for (const leg of LEGS) {
-      discovered.add(legId(leg));
-      defs.set(legId(leg), LEG_DEF);
-    }
     const sel = query(store, change, { discovered: [...discovered], complete: found.complete, defs, ran: twinBinaries(plan, graph) });
-    // A leg runs every fixture and suite of the plan again on Linux, so a change that reaches one of them
-    // reaches both legs, for the same reason.
-    const by = legAtoms(plan, groups)
-      .map((a) => sel.selected.get(a))
-      .find((s) => s !== undefined);
-    for (const id of LEGS.map(legId)) if (by && !sel.selected.has(id)) sel.selected.set(id, { id, kind: "heavy", why: by.why, keys: by.keys });
     const rec = await Recorder.open(store, change.view, graph, "sweep", { say: o.say ?? (() => {}) });
     return new PlanSweep(store, graph, change, sel, groups, plan, rec, label, o);
   }
@@ -764,27 +753,6 @@ export class PlanSweep {
     return none(fail);
   }
 
-  // ---- the Linux legs ----------------------------------------------------------------------------
-
-  /** Whether the change reaches a leg: its atom is new, red, owed, or holds a key the change moved. */
-  legReached(leg: string): boolean {
-    return this.picked(legId(leg));
-  }
-
-  /** Records a green leg. What it ran is the plan's fixtures and suites, whose own atoms select it
-   * (`open`), so its own atom holds only `LEG_KEYS`. */
-  async legGreen(leg: string): Promise<void> {
-    const keys: Keyed = new Map(LEG_KEYS.map((k) => [k, ""]));
-    this.store.recordRun(legId(leg), { def: LEG_DEF, verdict: "green", keys });
-    this.ran.add(legId(leg));
-  }
-
-  /** Records a red leg: it stays selected until a run of it is green. */
-  legRed(leg: string): void {
-    this.store.setVerdict(legId(leg), "red");
-    this.ran.add(legId(leg));
-  }
-
   // ---- the end -----------------------------------------------------------------------------------
 
   /** Closes the store without moving its tree: for a caller that only asked what the change reaches. */
@@ -805,7 +773,6 @@ export class PlanSweep {
       for (const kind of ["check", "nv", "heavy"] as const) {
         for (const a of this.store.atoms(kind)) {
           const id = a.id.slice(kind.length + 1);
-          if (kind === "heavy" && (LEGS as readonly string[]).includes(id)) continue;
           if (!ids.has(id)) this.store.removeAtom(a.id);
         }
       }
@@ -822,8 +789,6 @@ export class PlanSweep {
   }
 }
 
-/** What a leg's atom is defined by: nothing a plan writes, only what its keys are read from. */
-const LEG_DEF = "leg: selected by the fixtures and suites it runs";
 
 /** The test executable `<package> <kind> <target>` names in `exes`, with its package, or null. */
 function exeOf(name: string, exes: Map<string, TestExe[]>): { pkg: string; t: TestExe } | null {

@@ -1,6 +1,7 @@
-// The WSL leg's copy of the working tree, on the distro's own disk.
+// The WSL copy of the working tree, on the distro's own disk, that `bun nv linux-test`, `garden` and
+// `scaling` build a Linux `nvs` in.
 //
-// The leg does not run over `/mnt/<drive>/…`. Every file operation on that 9p mount is a round trip to
+// A WSL run does not go over `/mnt/<drive>/…`. Every file operation on that 9p mount is a round trip to
 // Windows, and `nvs run` from the repository root resolves each `[[app]]` root in `nvs.toml` before the
 // program starts, so one fixture that finishes in 0.02s from ext4 takes 1.5s from the mount. A copy that
 // is out of date is the risk a copy carries, so `syncMirror` runs before every WSL build and brings the
@@ -24,7 +25,7 @@
 // Two exceptions to "nothing git ignores" are written after the clean. `CARRIED` is an ignored file the
 // repository's own configuration names, which every program run from the root reads before it starts;
 // each is copied over the mount when the working tree has it, so the copy fails exactly when the checkout
-// would. And `target` is a link to the leg's own target directory, so the grant `nvs.toml` writes under
+// would. And `target` is a link to the copy's own target directory, so the grant `nvs.toml` writes under
 // `target` covers the Linux build a fixture finds in `NVS_BIN`.
 
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
@@ -66,8 +67,8 @@ export function carryLine(root: string): string {
 }
 
 /**
- * The `bash` line that links the copy's `target` to the leg's target directory, which `mirrorPath` put the
- * copy beside. A fixture that runs this repository's own binary finds the leg's build in `NVS_BIN`, and
+ * The `bash` line that links the copy's `target` to its target directory, which `mirrorPath` put the
+ * copy beside. A fixture that runs this repository's own binary finds the Linux build in `NVS_BIN`, and
  * `nvs.toml` grants it under `target`, so without the link the grant names nothing that exists and the
  * fixture stops at a capability error.
  */
@@ -76,9 +77,15 @@ export function targetLine(mirror: string): string {
   return ` && ln -sfn ${q(targetDir)} target`;
 }
 
-/** The copy of the checkout the distro reaches at `repo`, beside the leg's target directory. */
+/** The copy of the checkout the distro reaches at `repo`, beside its target directory. */
 export function mirrorPath(targetDir: string, repo: string): string {
   return `${targetDir}-src/${repo.replace(/^\/+/, "").replaceAll("/", "-")}`;
+}
+
+/** The build line in the copy at `repo`. With `progress`, cargo prints a line per crate it compiles,
+ * which is what the hang watch sees of a build it cannot read the CPU of. */
+export function wslBuildLine(repo: string, targetDir: string, progress = false): string {
+  return `cd ${q(repo)} && CARGO_TARGET_DIR=${q(targetDir)} cargo build${progress ? "" : " --quiet"}`;
 }
 
 /** `word` as one `bash` word: as it is when it needs no quoting, else single-quoted. */

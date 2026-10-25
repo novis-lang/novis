@@ -1,11 +1,11 @@
 //! Every program directly under `examples/` runs with `nvs run` and ends with the status it is
-//! written to end with, so a broken example fails `bun nv verify` and not only the WSL valgrind
-//! sweep (`rule:testing/valgrind-on-wsl`), which is the one other place they run.
+//! written to end with, so a broken example fails `bun nv verify` and not only CI's nightly
+//! `valgrind` job (`rule:testing/the-deep-lane`), which is the one other place they run.
 //!
-//! Each runs as `tools/nv/accept/legs.ts` runs it: under the repository's `nvs.toml`, with this
-//! build in `NVS_BIN` for an example that starts `nvs` itself. An example with a `.nvsr` beside it
-//! answers the request that file describes, and one with a `.toml` beside it runs under that file
-//! instead of the repository's. The directories under `examples/` hold what an example reads or
+//! Each runs as `bun nv valgrind` (`tools/nv/cmd/valgrind.ts`) runs it: under the repository's
+//! `nvs.toml`, with this build in `NVS_BIN` for an example that starts `nvs` itself. An example with
+//! a `.nvsr` beside it answers the request that file describes, and one with a `.toml` beside it
+//! runs under that file instead of the repository's. The directories under `examples/` hold what an example reads or
 //! spawns, and are not programs of their own.
 //!
 //! An example that talks to a server `tests/db/compose.yaml` starts runs only when that server

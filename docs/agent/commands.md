@@ -297,8 +297,7 @@ what the selection store says differs from the tree it last recorded, which is w
 test binary and case whose footprint holds a key the change moved, or that is new, red or owed, with
 the path each came from. Its acceptance half is each plan check one of whose atoms is selected. A heavy
 check — the release profile, fuzz, TSan, the database matrix — is named and left to looper's sweep when
-the live goal names it, and to CI's nightly deep lane whatever changed; the Linux legs are owed, and
-`bun nv debt` pays them at the goal's end. A check reached only because its atoms were owed or red before the change is left out, since
+the live goal names it, and to CI's nightly deep lane whatever changed. A check reached only because its atoms were owed or red before the change is left out, since
 it stays red until the goal is reached. `--run` runs the rest: `nv verify` first,
 then the sweep over exactly the checks it named, and a binary or case verify ran green is not started
 twice.
@@ -607,22 +606,19 @@ feature lands.
 ```sh
 bun nv machine                        # what this box is, and the widths it implies
 bun nv machine --refresh              # forget the cached facts and probe again
-NVS_VALGRIND_JOBS=2 bun nv legs       # override one run's sweep width
+NVS_TRY_JOBS=2 bun nv try a.nvs b.nvs # override one run's width
 ```
 
 **One policy, in `tools/nv/lib/machine.ts`, and no caller has its own:** half the cores the work will actually
-see, floor two, capped by how many items there are and by free memory. Half and not more because the
-machine is not idle: a release build often runs beside the valgrind sweep, and that build is the longer
-pole.
+see, floor two, capped by how many items there are. Half and not more because the machine is not idle:
+a build or a loop's session usually shares it.
 
 The facts it needs are a property of the box, so they are probed **once** and cached in
-`.loop/machine.json`: cores, free memory, and one unit of the real work timed serially as a baseline. The
-probe runs *where the work runs*, which on Windows is inside WSL — `.wslconfig` sets WSL2's cores and
-memory independently of the host, so the host's count is the wrong number. An entry is re-probed when the
-host name changes or after 30 days, which is how a `.wslconfig` edit gets noticed. `NVS_JOBS` overrides
-every width for one run, `NVS_VALGRIND_JOBS` and `NVS_TRY_JOBS` one caller's; none is written back.
+`.loop/machine.json`: cores and free memory. An entry is re-probed when the host name changes or after
+30 days. `NVS_JOBS` overrides every width for one run, `NVS_VALGRIND_JOBS` and `NVS_TRY_JOBS` one
+caller's; none is written back.
 
-Its callers are the valgrind sweep and `bun nv try`, which runs its snippets this wide and prints the
+Its callers are `bun nv valgrind` and `bun nv try`, which runs its snippets this wide and prints the
 blocks back in the order you asked for them.
 
 ## The loop's hooks, and the commands beside them
@@ -633,9 +629,9 @@ bun nv side --prepare --hook                          # looper's before_run: rea
 bun nv ci --push                                      # looper's after_retire: pre-push checks, pushes main, cancels the runs it replaces
 bun nv ci --check                                     # the pre-push checks alone, before a goal is claimed done
 bun nv ci --watch | --status | --rerun                # the `ci-green` goal's: waits for a failed job, lists them, reruns them
-bun nv debt [--goal <slug>]                           # pays the floor debt: the floor check `floor-debt`
+bun nv debt                                           # pays the floor debt: the floor check `floor-debt`
 
-bun nv legs [--goal <slug>] [--full]                  # the WSL leg and the valgrind sweep over a goal's fixtures
+bun nv valgrind --nvs <binary> [<file>...]            # every examples/ program under memcheck, on Linux: CI's nightly `valgrind` job
 bun nv linux-test --test <name> [<filter>]            # one filtered cargo test on a Linux build, inside WSL
 bun nv services --up [--goal <slug>]                  # Docker preflight, then the goal's services up and healthy
 bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]   # judge one case tree, with a pass floor
@@ -689,8 +685,9 @@ What fills the disk is **build generations**, and what `--clean` deletes and kee
 on windows-msvc (`NVS_TEST_PDB=1` brings one back).
 
 `bun nv disk --deep` reports the places outside this repository without ever deleting them.
-`/var/tmp/nvs-linux`, `/var/tmp/nvs-target-wsl` and `/var/tmp/nvs-target-wsl-src` are the valgrind
-leg's and the WSL leg's target directories and the WSL leg's copy of each checkout. Deleting any frees
+`/var/tmp/nvs-linux`, `/var/tmp/nvs-target-wsl` and `/var/tmp/nvs-target-wsl-src` are
+`tools/leak-check.sh`'s and `bun nv linux-test`'s target directories and `linux-test`'s copy of each
+checkout. Deleting any frees
 ext4 space but **not** Windows space, because the vhdx never shrinks on its own (`wsl --shutdown`, then
 compact it, if C: is what is short). `~/.cargo/registry/src` is re-extracted on demand and safe to
 delete.
@@ -717,8 +714,8 @@ both in WSL. From a Windows shell, `wsl.exe -- bash -lc "<command>"` runs a comm
 distro, which reaches the repo over `/mnt/<drive>/…`. What that distro must have installed — and why PHP goes in
 it as well, at the same version as the Windows one — is [docs/setup.md](../setup.md).
 
-**The WSL leg runs from a copy of the tree on the distro's own disk, not over the `/mnt` mount**, at
-`<env.wsl.targetDir>-src/<checkout>`. `tools/nv/accept/mirror.ts`'s module doc is why and how the copy
+**`bun nv linux-test` runs from a copy of the tree on the distro's own disk, not over the `/mnt` mount**,
+at `/var/tmp/nvs-target-wsl-src/<checkout>`. `tools/nv/accept/mirror.ts`'s module doc is why and how the copy
 is kept current. A command you run by hand over `/mnt` still works and pays a round trip to Windows for
 every file it opens.
 
@@ -770,14 +767,14 @@ For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example
 `/mnt/…` path before `wsl.exe` sees it. Run it for **any** new refcount edge, against a fixture that
 actually exercises it: a leak no fixture reaches is a leak no run reports.
 
-That script and the loop's own valgrind sweep both pass `--suppressions=`[tools/valgrind.supp](../../tools/valgrind.supp),
+That script and `bun nv valgrind`, CI's nightly leak check, both pass `--suppressions=`[tools/valgrind.supp](../../tools/valgrind.supp),
 whose header is the one home for what it hides: two contexts inside `ring`'s AEAD assembly, which memcheck
 reports on every TLS connection a fixture opens and which are not leaks of any kind. A fixture goes red on
 that assembly rather than on anything Novis wrote as soon as it runs long enough for its queue worker to
-reach the database, so the sweep is unreadable without the file — and, because the two entries are anchored
+reach the database, so the run is unreadable without the file — and, because the two entries are anchored
 on a `ring` or `rustls` frame, still red on an uninitialised value Novis's own unsafe code produced.
 
-The sweep alone also layers [tools/valgrind-limits.toml](../../tools/valgrind-limits.toml) over `nvs.toml`
+`bun nv valgrind` alone also layers [tools/valgrind-limits.toml](../../tools/valgrind-limits.toml) over `nvs.toml`
 for `examples/limits.nvs`, and that file's header is the one home for why: the fixture's cost under memcheck
 is the distance to the memory cap, and its leak verdict is about the kill at the cap. `leak-check.sh` runs
 the fixture against the repository's own cap.

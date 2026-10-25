@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # `valgrind --leak-check=full` over the fixtures named on the command line — the
-# narrow counterpart of the acceptance sweep's valgrind leg over every fixture.
+# narrow counterpart of `bun nv valgrind`, CI's nightly run over every example.
 #
 # Run one of these for **any** new refcount edge, before it reaches a session's
-# last commit: the whole-suite leg only covers `examples/`, and this repository's
+# last commit: the nightly run only covers `examples/`, and this repository's
 # one real leak so far (a refcounted local declared inside a loop body, fixed in
 # `nvs_ir::lower::end_iteration`) went unnoticed until a fixture happened to
 # declare one.
@@ -21,8 +21,8 @@
 # body reader's edges — the octets a request holds and the document
 # `Core\Request::json` leaves beside them — are unreachable without one, because
 # every `Core\Request` member refuses outright where no request arrived. The
-# whole-suite sweep in `loop.py` runs a fixture with no arguments at all, so
-# this is the only way an edge that only a served request opens gets looked at.
+# nightly run answers only the requests the `.nvsr` files beside the examples
+# describe, so this is how an edge another request opens gets looked at.
 #
 # A `wsl.exe -- bash -lc "…"` one-liner mangles under two layers of shell
 # quoting, so this is a file passed by path instead. AGENTS.md says why.

@@ -1,6 +1,6 @@
 // `bun nv debt`: pays the floor debt, every atom of it, and is red when any of it stays red or owed.
 //
-//     bun nv debt [--goal <slug>]
+//     bun nv debt
 //
 // It runs as the floor check `floor-debt` of `docs/goals/README.md`, which sets `reach: true`, so looper
 // judges it once per goal: last, and only once every stage is done and every other check is green. No
@@ -8,21 +8,18 @@
 // again on its own runners.
 //
 // The debt is what the selection store holds that no session runs: every proof program, case, test
-// executable, tools test file, plan check and Linux leg that is owed, and every proof program and leg
-// that is red, since `nv verify` runs neither. `nv verify` and `bun nv affected --run` mark owed each atom
-// a change reached that they did not run (`select/record.ts` `advance`). The atoms go by their last run,
-// oldest first (`debtTurns`). One runner takes each turn, and the turns go in the order of their first
-// atoms: `select/full.ts` `fullRun` with `only` for every kind but the legs, and `cmd/legs.ts`
-// `legsOver` for the legs. A turn moves the store's tree, which owes each atom the change since its last
-// run reached and the turn did not run, so after the turns the debt is read again and a further round
-// pays what is new, up to `ROUNDS`. The legs run
-// over `--goal`'s goal, else the one `LOOPER_GOAL` names, else the current one (`lib/chain.ts`
-// `namedPlan`). A goal that names no fixture gives the legs nothing to run, so an owed or red leg is not
-// that goal's debt: it stays in the store as it is, and the first goal with a fixture pays it (`legsWait`).
-// Recording it green would lose a change to code only Linux compiles. Each atom's run is recorded the
-// moment it ends, so a run the check's timeout kills loses
-// only the atoms still running. It prints each turn with the time it took, and then what it paid and what
-// debt is left, by kind.
+// executable, tools test file and plan check that is owed, and every proof program that is red, since
+// `nv verify` never runs one again. `nv verify` and `bun nv affected --run` mark owed each atom a change
+// reached that they did not run (`select/record.ts` `advance`). The atoms go by their last run, oldest
+// first (`debtOrder`), and `select/full.ts` `fullRun` runs them with `only`. A run moves the store's
+// tree, which owes each atom the change since its last run reached and the run did not run, so after it
+// the debt is read again and a further round pays what is new, up to `ROUNDS`. Each atom's run is
+// recorded the moment it ends, so a run the check's timeout kills loses only the atoms still running. It
+// prints each round with the time it took, and then what it paid and what debt is left, by kind.
+//
+// **The leak check is not debt.** valgrind runs over `examples/` in CI's nightly deep lane
+// (`cmd/valgrind.ts`), and CI's Linux jobs run every test on Linux at each push. What it costs: a leak a
+// goal brought in is found the next night, and not at the goal's end.
 //
 // **The benches are not debt.** One measured run paid 1093 owed benches in 70 minutes, then 2763 proof
 // programs in 49 minutes, so a goal's debt with its benches took past two hours. An owed bench waits for a
@@ -33,32 +30,28 @@
 // Under looper, which names an event file in `LOOPER_EVENTS`, the run writes looper's progress events
 // (`lib/events.ts`), and outside it writes none. It declares the debt's item, `DEBT_ITEM`, and under it
 // one item per debt atom in the order the turns pay them, with the atom's id and the debt kind, then
-// `planned`. A runner tells it of each atom it starts on its own: a test executable, a tools test file, a
-// plan check or a bench. The Linux legs start with their turn, and a case or a proof program, which runs
-// in a batch, only ends. An atom's item ends when its run is recorded (`store.ts` `onRecorded`), red when
-// it ran red. One paid with no recorded run ends with its verdict once the turns are over. The run ends
-// with `done`. What it spends: one appended line per item event.
+// `planned`. The runner tells it of each atom it starts on its own: a test executable, a tools test file
+// or a plan check. A case or a proof program, which runs in a batch, only ends. An atom's item ends when
+// its run is recorded (`store.ts` `onRecorded`), red when it ran red. One paid with no recorded run ends
+// with its verdict once the rounds are over. The run ends with `done`. What it spends: one appended line
+// per item event.
 //
 // It exits 0 when every turn was green and no debt is left, 1 when a turn found a red or debt is left,
 // and 2 on a usage error.
 
-import { PROGRAM_KINDS } from "../accept/accept.ts";
-import { namedPlan } from "../lib/chain.ts";
 import { type EndFields, ev } from "../lib/events.ts";
-import { LEGS, legId } from "../select/checks.ts";
 import { fullRun } from "../select/full.ts";
 import { type AtomRow, onRecorded, SelectStore } from "../select/store.ts";
-import { type LegsCmdSeams, legsOver } from "./legs.ts";
 
 /** The progress item of the debt; each debt atom's item is its atom id, under it. */
 export const DEBT_ITEM = "debt";
 
-export const summary = "the floor debt, every owed atom but the benches, paid once per goal as the floor check `floor-debt`: nv debt [--goal <slug>]";
+export const summary = "the floor debt, every owed atom but the benches, paid once per goal as the floor check `floor-debt`: nv debt";
 
-const USAGE = "usage: bun nv debt [--goal <slug>]";
+const USAGE = "usage: bun nv debt";
 
-/** A kind of floor debt: an atom kind, or `leg` for the atom of a Linux leg. */
-export type DebtKind = "proof" | "case" | "test" | "nvtest" | "check" | "nv" | "leg";
+/** A kind of floor debt: the kind of its atom. */
+export type DebtKind = "proof" | "case" | "test" | "nvtest" | "check" | "nv";
 
 /** One atom of the floor debt, owed or red. */
 export interface DebtAtom {
@@ -68,14 +61,6 @@ export interface DebtAtom {
   lastRun: number;
 }
 
-/** What runs a turn of the debt: `fullRun` or `legsOver`. */
-export type Runner = "full" | "leg";
-
-/** The atoms one runner pays, in the order they run. */
-export interface DebtTurn {
-  runner: Runner;
-  ids: string[];
-}
 
 /** How the command reports itself: the command prints it, and a test silences it. */
 export interface DebtVoice {
@@ -91,11 +76,9 @@ export interface DebtSeams {
   now(): number;
   /** The floor debt the store holds now. */
   debt(): DebtAtom[];
-  /** Why the legs have nothing to run over `slug`'s goal, or "" when they have. */
-  legsWait(slug: string | undefined): string;
-  /** Runs one turn: a red line, or "". `slug` is the goal the legs run over, `namedPlan`'s when unset.
-   * `onStart` is told of each atom as the runner starts it. */
-  pay(turn: DebtTurn, slug: string | undefined, note: (line: string) => void, onStart?: (id: string) => void): Promise<string>;
+  /** Runs the atoms `ids`, in their order: a red line, or "". `onStart` is told of each atom as the
+   * runner starts it. */
+  pay(ids: string[], note: (line: string) => void, onStart?: (id: string) => void): Promise<string>;
   voice: DebtVoice;
 }
 
@@ -105,46 +88,36 @@ export interface DebtOutcome {
   paid: DebtAtom[];
   /** The debt the store holds after the run. */
   left: DebtAtom[];
-  /** Each red line a turn returned. */
+  /** Each red line a round returned. */
   reds: string[];
 }
 
 // ---- the debt ----------------------------------------------------------------------------------------
 
-const LEG_IDS = new Set<string>(LEGS.map(legId));
-
-/** The most rounds one run pays. The second round's turn finds the tree where the first left it, so it
- * owes nothing new unless the tree moved under the run; the third is for that. */
+/** The most rounds one run pays. The second round finds the tree where the first left it, so it owes
+ * nothing new unless the tree moved under the run; the third is for that. */
 const ROUNDS = 3;
 
+const DEBT_KINDS = new Set<string>(["proof", "case", "test", "nvtest", "check", "nv"]);
+
 /**
- * Each atom of `rows` that is floor debt: an owed atom of any kind but a bench, and a red proof program
- * or leg, since `nv verify` runs neither and so never runs a red one again.
+ * Each atom of `rows` that is floor debt: an owed atom of any kind but a bench or a heavy check, and a
+ * red proof program, since `nv verify` never runs one again.
  */
 export function debtOf(rows: Pick<AtomRow, "id" | "kind" | "verdict" | "lastRun">[]): DebtAtom[] {
   const out: DebtAtom[] = [];
   for (const a of rows) {
-    let kind: DebtKind | null = null;
-    if (a.kind === "heavy") kind = LEG_IDS.has(a.id) ? "leg" : null;
-    else if (a.kind === "proof" || a.kind === "case" || a.kind === "test" || a.kind === "nvtest" || a.kind === "check" || a.kind === "nv") kind = a.kind;
-    if (kind === null) continue;
-    if (a.verdict === "owed" || (a.verdict === "red" && (kind === "proof" || kind === "leg"))) out.push({ id: a.id, kind, lastRun: a.lastRun });
+    if (!DEBT_KINDS.has(a.kind)) continue;
+    const kind = a.kind as DebtKind;
+    if (a.verdict === "owed" || (a.verdict === "red" && kind === "proof")) out.push({ id: a.id, kind, lastRun: a.lastRun });
   }
   return out;
 }
 
-/**
- * The turns that pay `debt`, ordered by last run, oldest first, then by id. The atoms of one runner form
- * one turn, and the turns go in the order of their first atoms.
- */
-export function debtTurns(debt: DebtAtom[]): DebtTurn[] {
+/** The ids of `debt` in the order they are paid: by last run, oldest first, then by id. */
+export function debtOrder(debt: DebtAtom[]): string[] {
   const byAge = (a: DebtAtom, b: DebtAtom) => a.lastRun - b.lastRun || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-  const byRunner = new Map<Runner, string[]>();
-  for (const a of [...debt].sort(byAge)) {
-    const r: Runner = a.kind === "leg" ? "leg" : "full";
-    (byRunner.get(r) ?? byRunner.set(r, []).get(r)!).push(a.id);
-  }
-  return [...byRunner].map(([runner, ids]) => ({ runner, ids }));
+  return [...debt].sort(byAge).map((a) => a.id);
 }
 
 /** The atoms of `before` that ran: gone from the debt, or with a newer run. */
@@ -168,15 +141,9 @@ function minutes(ms: number): string {
   return `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s`;
 }
 
-/** Pays every atom of the floor debt, a turn per runner, and says what each turn took. A leg waits, and
- * is neither paid nor left, when `legsWait` gives a reason. */
-export async function payDebt(slug: string | undefined, s: DebtSeams): Promise<DebtOutcome> {
-  const wait = s.legsWait(slug);
-  const ours = (debt: DebtAtom[]) => (wait === "" ? debt : debt.filter((a) => a.kind !== "leg"));
-  const all = s.debt();
-  const before = ours(all);
-  const waiting = all.length - before.length;
-  if (waiting > 0) s.voice.step(`floor debt: ${waiting} leg(s) wait in the store for a goal that names a fixture -- ${wait}`);
+/** Pays every atom of the floor debt, a round at a time, and says what each round took. */
+export async function payDebt(s: DebtSeams): Promise<DebtOutcome> {
+  const before = s.debt();
   const started = s.now();
   const reds: string[] = [];
   const planned = new Set<string>();
@@ -204,8 +171,8 @@ export async function payDebt(slug: string | undefined, s: DebtSeams): Promise<D
   const onStart = (id: string) => {
     if (planned.has(id) && !ended.has(id)) ev.start(id);
   };
-  // A turn moves the store's tree past the change since its last run, which owes every atom that change
-  // reached and the turn did not run. Those are debt too, so a further round pays them; one that the
+  // A round moves the store's tree past the change since its last run, which owes every atom that change
+  // reached and the round did not run. Those are debt too, so a further round pays them; one that the
   // round before planned and did not pay stays left, which ends the rounds.
   let round = before;
   let left: DebtAtom[] = [];
@@ -214,13 +181,10 @@ export async function payDebt(slug: string | undefined, s: DebtSeams): Promise<D
     for (let n = 0; n < ROUNDS && round.length > 0; n++) {
       if (n === 0) s.voice.step(`floor debt: ${round.length} atom(s), ${byKind(round)}; the oldest first`);
       else s.voice.step(`floor debt: ${round.length} more atom(s), ${byKind(round)}, owed by the run's own tree move`);
-      for (const turn of debtTurns(round)) {
-        const kinds = byKind(round.filter((a) => turn.ids.includes(a.id)));
-        const at = s.now();
-        reds.push(await s.pay(turn, slug, s.voice.note, onStart));
-        s.voice.step(`floor debt: paid ${kinds} in ${minutes(s.now() - at)}, by ${turn.runner === "full" ? "the full run's runners" : "the Linux legs"}`);
-      }
-      left = ours(s.debt());
+      const at = s.now();
+      reds.push(await s.pay(debtOrder(round), s.voice.note, onStart));
+      s.voice.step(`floor debt: paid ${byKind(round)} in ${minutes(s.now() - at)}`);
+      left = s.debt();
       round = left.filter((a) => !planned.has(a.id));
       plan(round);
     }
@@ -254,9 +218,8 @@ function storeDebt(): DebtAtom[] {
 }
 
 /**
- * The atoms of `ids` that are not legs, run by `fullRun` in their order, each recorded.
- * Returns a red line naming the atoms that ran red, or the covws build that failed, and "" when there is
- * neither.
+ * The atoms of `ids`, run by `fullRun` in their order, each recorded. Returns a red line naming the atoms
+ * that ran red, or the covws build that failed, and "" when there is neither.
  */
 async function fullTurn(ids: string[], note: (line: string) => void, onStart: (id: string) => void): Promise<string> {
   const store = new SelectStore();
@@ -272,41 +235,10 @@ async function fullTurn(ids: string[], note: (line: string) => void, onStart: (i
   }
 }
 
-/**
- * Why the Linux legs have nothing to run over `namedPlan`'s goal: "" when it names a fixture, and when no
- * goal is found, since `legsTurn` reports that as red.
- */
-export function legsWait(slug: string | undefined, plan: typeof namedPlan = namedPlan): string {
-  const found = plan(slug);
-  if (found === null) return "";
-  return (found.goal.checks as { kind: string }[]).some((c) => PROGRAM_KINDS.has(c.kind)) ? "" : `\`${found.slug}\` names no fixture`;
-}
-
-/**
- * The Linux legs over `namedPlan`'s goal, or a red line saying no goal is there to read them from. With
- * `full`, both legs run whatever changed; without it, a leg runs when the store selects it, owed or red
- * among the reasons. `over` replaces what `legsOver` reads or starts, under test.
- */
-export async function legsTurn(slug: string | undefined, note: (line: string) => void, full: boolean, over: Partial<LegsCmdSeams> = {}): Promise<string> {
-  const found = (over.plan ?? namedPlan)(slug);
-  if (found === null) return `Linux legs: not run, ${slug ? `no goal record for \`${slug}\`` : "no goal is named or current"}`;
-  return legsOver(found.goal, full, { say: note, ...over });
-}
-
-async function payTurn(turn: DebtTurn, slug: string | undefined, note: (line: string) => void, onStart: (id: string) => void = () => {}): Promise<string> {
-  if (turn.runner === "leg") {
-    // The legs run inside one call, which says nothing of each, so each starts with it.
-    for (const id of turn.ids) onStart(id);
-    return legsTurn(slug, note, false);
-  }
-  return fullTurn(turn.ids, note, onStart);
-}
-
 const REAL: DebtSeams = {
   now: () => Date.now(),
   debt: storeDebt,
-  legsWait: (slug) => legsWait(slug),
-  pay: payTurn,
+  pay: (ids, note, onStart = () => {}) => fullTurn(ids, note, onStart),
   voice: { step: (l) => console.log(l), note: (l) => console.log(`   ${l}`) },
 };
 
@@ -315,16 +247,11 @@ const REAL: DebtSeams = {
 /** Parses and pays the debt: 0 when nothing is red or left, 1 when something is, 2 on a usage error. */
 export async function debt(args: string[], over: Partial<DebtSeams> = {}): Promise<number> {
   const s: DebtSeams = { ...REAL, ...over };
-  let slug: string | undefined;
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i]!;
-    if (a === "--goal" && args[i + 1] !== undefined) slug = args[++i];
-    else {
-      console.error(`${USAGE}\nnv debt: error: ${a === "--goal" ? "--goal needs a value" : `unexpected argument ${a}`}`);
-      return 2;
-    }
+  if (args.length > 0) {
+    console.error(`${USAGE}\nnv debt: error: unexpected argument ${args[0]}`);
+    return 2;
   }
-  const out = await payDebt(slug, s);
+  const out = await payDebt(s);
   for (const red of out.reds) s.voice.step(`RED: ${red}`);
   const red = out.reds.length > 0 || out.left.length > 0;
   s.voice.step(red ? `RED: the floor debt is not paid${out.left.length > 0 ? `, ${out.left.length} atom(s) left` : ""}` : "GREEN: the floor debt is paid");

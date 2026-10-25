@@ -20,8 +20,9 @@ git clone https://github.com/novis-lang/novis
 
 **Where the tree lands does not matter.** Nothing in the repository hardcodes a checkout path: every tool
 that needs the WSL side's `/mnt/<drive>/…` derives it from wherever the repo actually is. Keep it on the
-Windows filesystem rather than inside the distro — the native leg is the primary one. The WSL leg does not
-run over the slow 9p mount: it syncs its own copy of the tree onto the distro's disk before each build.
+Windows filesystem rather than inside the distro — the native build is the primary one. `bun nv
+linux-test` does not run over the slow 9p mount: it syncs its own copy of the tree onto the distro's disk
+before each build.
 
 ## Every platform
 
@@ -94,7 +95,7 @@ The primary development platform, and the only one with real setup:
 One-time setup inside the distro, which reaches the repo over its `/mnt/<drive>/…` mount:
 
 ```sh
-sudo apt-get update && sudo apt-get install -y build-essential clang valgrind git time
+sudo apt-get update && sudo apt-get install -y build-essential clang valgrind git
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 source "$HOME/.cargo/env"
 rustup toolchain install nightly --component rust-src
@@ -103,13 +104,12 @@ cargo install cargo-fuzz --locked
 
 `rust-src` is not optional here: `tools/tsan.sh` builds the standard library from source under the thread
 sanitizer, and without that component the leg stops before it compiles anything of Novis's. `git` is what
-the WSL leg syncs its copy of the tree with (`tools/nv/accept/mirror.ts`), and Ubuntu's WSL image usually
-has it already. `time` is `/usr/bin/time`, which the machine probe uses to measure one fixture; without it
-the probe records less and the valgrind sweep still runs.
+`bun nv linux-test` syncs its copy of the tree with (`tools/nv/accept/mirror.ts`), and Ubuntu's WSL image
+usually has it already.
 
 ## Linux and macOS
 
-The native leg already *is* the second target, so there is no WSL leg, and the valgrind sweep runs
+The native build already *is* the second target, so nothing runs in WSL, and `bun nv valgrind` runs
 directly. Install a C toolchain and (on Linux) `valgrind` the same way;
 `cargo-fuzz` still needs a nightly toolchain, with `rust-src` on it for the same reason the WSL one needs
 it. macOS has no valgrind, so the leak sweep is a Linux or WSL machine's job, and so is `tools/tsan.sh`:
@@ -179,8 +179,8 @@ green is what costs a debugging session, so do not archive them "just in case".
 bun nv verify                                            # build, fmt, test, the .nvst trees, clippy, the extension
 ```
 
-The WSL leg and the valgrind sweep are the loop's: `bun nv sweep`, which looper runs after every
-session, runs them over the live goal (`tools/nv/cmd/legs.ts`), and `bun nv legs` runs them by hand.
+The leak check is CI's: its nightly `valgrind` job runs `bun nv valgrind` over every `examples/`
+program. On Linux you run it by hand after `cargo build`, with `--nvs target/debug/nvs`.
 
 One more one-time step, because the extension-host tier downloads a VS Code build and the acceptance run
 must never go to the network:

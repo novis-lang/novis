@@ -102,9 +102,10 @@ cargo test --release -p nvs-abi-probe
 cargo test --release -p nvs-abi-probe --features wasm-probe    # wasmtime moved
 ```
 
-**C. If codegen, the runtime or the stdlib moved** — the end-to-end legs, both platforms plus the leak sweep.
-`bun nv affected` names the Linux legs, the WSL leg and the valgrind sweep, and `bun nv debt` pays them
-at the goal's end once they are owed (`tools/nv/cmd/debt.ts`). `bun nv legs` runs both by hand.
+**C. If codegen, the runtime or the stdlib moved** — the end-to-end legs, both platforms plus the leak check.
+CI runs every test on Linux at the push, and its nightly `valgrind` job runs every `examples/` program
+under memcheck. Before the push, `bun nv linux-test` runs one filtered test on Linux, and
+`tools/leak-check.sh` runs the programs you name under memcheck.
 
 **D. If a lexer/parser-adjacent crate moved:**
 

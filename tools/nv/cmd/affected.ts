@@ -28,9 +28,8 @@
 // **The acceptance half** is the plan's checks the change reaches (`select/checks.ts`): the checks
 // of the live plan, or of the side goal `NOVIS_SIDE_GOAL` names. A check reached through a key the change
 // moved, or through its own record changing, is due, less the heavy ones: a check that builds or
-// measures the release profile, fuzz, TSan, the database matrix, the two Linux legs and a check that is
-// never memoized. Those are named as deferred: looper's sweep after the session runs the goal's checks,
-// and `bun nv debt` (`cmd/debt.ts`) runs a Linux leg that is owed at the goal's end. A check whose atoms
+// measures the release profile, fuzz, TSan, the database matrix and a check that is never memoized.
+// Those are named as deferred: looper's sweep after the session runs the goal's checks. A check whose atoms
 // were all picked only for being owed, red or never recorded before the change, none of them reached by
 // the change itself, was red before the change and stays so until the goal is reached, so it is not due.
 //
@@ -45,7 +44,6 @@ import { PlanSweep } from "../accept/runner.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
 import { currentPlan } from "../lib/chain.ts";
 import { passthrough, run as proc } from "../lib/proc.ts";
-import { LEGS } from "../select/checks.ts";
 import { describe, reachedByChange, type Selected, touchesDef } from "../select/select.ts";
 import { verifyPlan } from "./verify.ts";
 
@@ -102,7 +100,7 @@ export interface Plan {
   /** How many benches are selected only for being owed, red or never recorded from before the change:
    * `bun nv benches --owed` pays them before a release. */
   benchesBefore: number;
-  acceptance: { checks: ReachedCheck[]; legs: Reached[] };
+  acceptance: { checks: ReachedCheck[] };
 }
 
 // ---- the change --------------------------------------------------------------------------------------
@@ -208,7 +206,7 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
     },
     benches: benches.judged,
     benchesBefore: benches.before,
-    acceptance: { checks: [], legs: [] },
+    acceptance: { checks: [] },
   };
   const found = currentPlan();
   if (found === null) return out;
@@ -225,11 +223,6 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
       // A check that was red before the change stays red until the goal is reached.
       if (before) continue;
       out.acceptance.checks.push({ id: c.id, name: c.name ?? c.file ?? c.id, by: by.length > 0 ? by : [c.memoize === false ? "never memoized" : "what it names beyond its atoms is not in the store"], deferred: isHeavy(c), before });
-    }
-    for (const leg of LEGS) {
-      if (!sweep.legReached(leg)) continue;
-      const s = sweep.sel.selected.get(`heavy:${leg}`);
-      out.acceptance.legs.push({ name: leg, by: s ? [reason(s)] : [] });
     }
   } finally {
     sweep.discard();
@@ -285,11 +278,11 @@ function print(p: Plan, asked: string[] | undefined): void {
   if (p.benchesBefore > 0) console.log(`  ${p.benchesBefore} bench(es) owed, red or never recorded from before the change wait for a release: \`bun nv benches --owed\` pays them there`);
 
   const run = due(p);
-  const deferred = p.acceptance.checks.filter((x) => x.deferred).length + p.acceptance.legs.length;
+  const deferred = p.acceptance.checks.filter((x) => x.deferred).length;
   console.log(`\nacceptance -- \`bun nv affected --run\` runs ${run.length} check(s):`);
   for (const x of run.slice(0, 20)) console.log(`  ${x.name}${from(x.by)}`);
   if (run.length > 20) console.log(`  +${run.length - 20} more`);
-  if (deferred > 0) console.log(`  ${deferred} reached heavy check(s) and leg(s) wait for the loop: looper's sweep runs the release profile, fuzz, TSan and the database matrix, and \`bun nv debt\` an owed Linux leg at the goal's end`);
+  if (deferred > 0) console.log(`  ${deferred} reached heavy check(s) wait for the loop: looper's sweep runs the release profile, fuzz, TSan and the database matrix`);
 
 
   if (owes(p)) console.log(`\nrun it: \`bun nv affected --run${c.why === "uncommitted changes" || c.why === "the loop's session base" ? "" : ` ${c.why}`}\``);

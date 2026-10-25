@@ -116,7 +116,7 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
       ["Bash", { command: "bun nv benches" }],
       ["Bash", { command: "bun nv benches --owed" }],
       ["Bash", { command: "bun nv sweep" }],
-      ["Bash", { command: "bun nv debt --goal lean-loop" }],
+      ["Bash", { command: "bun nv debt" }],
       ["Bash", { command: "bun tools/nv/main.ts sweep 2>&1" }],
     ],
     allow: [

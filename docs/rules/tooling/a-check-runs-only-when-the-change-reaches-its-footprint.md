@@ -24,7 +24,7 @@ a function body a program runs from one it does not: an edit to one body re-ran 
 and every narrowing of it was a claim someone had to prove and remember. An atom's footprint is the
 union of its runs since its definition last changed, pruned of items that no longer exist, so a path
 a run takes only sometimes is kept once it has been seen. Footprints are kept per platform, because
-what an atom does differs between Windows and a Linux leg, and `bun nv select --seed` records every
+what an atom does differs between Windows and Linux, and `bun nv select --seed` records every
 atom from nothing for a new platform or a lost store.
 
 What coverage cannot see is closed over the reference graph `tools/nv-scan --items` reads: a const, a
@@ -44,15 +44,14 @@ cache. A proof program is judged on the uninstrumented `target/proof` build and 
 on `covws`, which is never a verdict; when the two runs end differently, the program always runs until
 they agree.
 
-The heavy checks, which build the release profile, fuzz, TSan, the database matrix or run a Linux leg,
-record no coverage of their own. A release test, a bench and the database
+The heavy checks, which build the release profile, fuzz, TSan or the database matrix, record no
+coverage of their own. A release test, a bench and the database
 matrix are keyed on a **twin**: the same work run again on `covws`, whose verdict counts for nothing and
 whose coverage is the check's keys. The twin of a release test runs its tests with `--include-ignored`,
 a bench runs once on the covws `nvs`, and the database matrix runs its SQLite leg. Each also holds a key
 for what its twin cannot reach: `profile:optimized` for release code, and every file of `nvs-db` for the
-server drivers. A Linux leg runs every fixture and suite of the plan again, so it is selected whenever
-one of those atoms is. Code only Linux compiles moves `platform:elsewhere`, which the legs, the database
-matrix, fuzz and TSan hold. Fuzz and TSan build inside WSL and have no twin: they are keyed on every
+server drivers. Code only Linux compiles moves `platform:elsewhere`, which the database matrix, fuzz
+and TSan hold. Fuzz and TSan build inside WSL and have no twin: they are keyed on every
 item and directory of the crates they build, the one predicted key left. A twin that cannot run or be
 read records `*`, which every change reaches until a twin is read again. A check with `memoize = false`
 is never answered from the store, and
@@ -62,18 +61,19 @@ A heavy check keyed on every file of every crate it builds would be reached by a
 so a goal that names them would pay for all of them after nearly every session; the twin is what keeps a
 change that reaches none of its code from running it. A twin is paid only when its heavy check runs.
 
-**An owed Linux leg runs over every fixture and suite of the goal** when `bun nv debt` pays the floor
-debt (`tools/nv/cmd/debt.ts`, through `bun nv legs`'s `legsOver`). A leg records no footprint of its own
-and is selected through its fixtures' atoms. The debt run runs no other heavy check. Looper's sweep runs
-the heavy checks the live goal names, and a push to CI runs each one its diff reaches
-(`rule:testing/ci-lanes`).
+**The leak check is CI's nightly job, not the loop's.** `bun nv valgrind` runs every `examples/`
+program under memcheck in the deep lane (`rule:testing/the-deep-lane`), and CI's Linux jobs run every
+test on Linux at each push. A run in the loop would be keyed on a goal's fixtures, and a goal that names
+none would run nothing: the nightly job names its own programs. The debt run runs no heavy check.
+Looper's sweep runs the heavy checks the live goal names, and a push to CI runs each one its diff
+reaches (`rule:testing/ci-lanes`).
 
 **The floor debt is paid once per goal, and nightly CI is the safety net.** An atom a change reached
 that a run did not start is owed, and it stays selected until a run of it is green. `bun nv debt` is
 the floor check `floor-debt` in `docs/goals/README.md`, with `reach: true`, so looper judges it last
 and only once every stage is done and every other check is green. It runs the owed atoms, oldest
-first: proof programs, cases, test binaries, tools tests, plan checks and the Linux legs, and the red
-proof programs and legs, which `nv verify` never runs again. It pays all of them, and is red while any stays red. It leaves the benches to a release, because a goal's owed
+first: proof programs, cases, test binaries, tools tests and plan checks, and the red proof programs,
+which `nv verify` never runs again. It pays all of them, and is red while any stays red. It leaves the benches to a release, because a goal's owed
 benches alone took over an hour to pay. No session pays debt,
 and nothing pays it between two sessions, so a red in an owed atom can stay unseen for up to one goal.
 Nothing in the loop runs every atom whatever changed, so a selection miss shows up in CI's nightly deep
@@ -103,13 +103,10 @@ store named by `NV_SELECT_STORE`, requires every red atom to have been selected,
   severalfold and some far more, which changes what an attack's time limit means. Recording on a
   second debug run costs no build and leaves the verdict on the uninstrumented one. A perf guard's
   margins would change meaning the same way, so no release test is recorded on an instrumented build.
-- **Keying a Linux leg on a copy of its fixtures' footprints.** The copy goes stale between leg runs
-  when a fixture's own footprint grows. Selecting the leg through the fixtures' own atoms reads the
-  live footprints.
-- **Running a Linux leg over only the fixtures the change reached.** A fixture reached between two runs
-  of the leg would need a Linux owed state of its own. The leg's cost is fixed, so what is cut is how
-  often it runs: only when it is owed.
-- **A full run and both Linux legs in the loop every few sessions, whatever changed.** That run re-recorded
+- **A WSL leg and a valgrind sweep over the live goal's fixtures, paid as floor debt.** The goals'
+  checks name no fixture, so both legs ran nothing while the debt run reported them as waiting. CI's
+  Linux jobs run every test on Linux, and the nightly `valgrind` job names its own programs.
+- **A full run in the loop every few sessions, whatever changed.** That run re-recorded
   every atom and judged every bench, and it held the loop for far longer than the debt the sessions
   between left. Paying the debt a fixed budget at a time costs each session the same bounded time. The
   local store is never re-recorded whole, so a selection miss is caught by nightly CI rather than here.

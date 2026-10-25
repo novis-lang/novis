@@ -5,7 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Check } from "../accept/accept.ts";
 import type { Graph, Package } from "../keys/graph.ts";
-import { checkDef, commandKeys, grouped, harnessArgs, heavyCrates, heavyKeys, heavyTwin, legAtoms, type PlanContext, planContext, predicted, twinWork } from "../select/checks.ts";
+import { checkDef, commandKeys, grouped, harnessArgs, heavyCrates, heavyKeys, heavyTwin, type PlanContext, planContext, predicted, twinWork } from "../select/checks.ts";
 import { featureGroup, proofReadsSlot, SelectStore } from "../select/store.ts";
 import { scratch } from "./scratch.ts";
 
@@ -185,19 +185,12 @@ describe("the heavy set's twins", () => {
     expect(predicted(host)).toBe(false);
     expect(heavyTwin(host, graph)).toBeNull();
   });
-
-  test("a leg runs every fixture of the plan and every case of its suites again, and nothing else", () => {
-    const plan = [check({ id: "f", kind: "exact", file: "examples/a.nvs" }), check({ id: "s", kind: "nvs-suite", args: ["test", "tests/conformance/"] }), check({ id: "n", argv: ["bun", "nv", "rules", "--check"] })];
-    const groups = new Map(plan.map((c) => [c.id, grouped(c, ctx)]));
-    expect(legAtoms(plan, groups)).toEqual(["check:f", "case:tests/conformance/a.nvst", "case:tests/conformance/sub/b.nvst"]);
-  });
 });
 
 describe("the heavy set's named prediction", () => {
-  test("a release test builds its package and what it is compiled against, a bench and a leg nvs-cli", () => {
+  test("a release test builds its package and what it is compiled against, and a bench nvs-cli", () => {
     expect(heavyCrates(check({ kind: "cargo-named", args: ["test", "--release", "-p", "nvs-host"] }), graph).crates).toEqual(["nvs-host", "nvs-syntax"]);
     expect(heavyCrates(check({ argv: ["bun", "nv", "bench"] }), graph).crates).toEqual(["nvs-cli", "nvs-host", "nvs-syntax"]);
-    expect(heavyCrates(null, graph).crates).toEqual(["nvs-cli", "nvs-host", "nvs-syntax"]);
     expect(heavyCrates(check({ argv: ["wsl.exe", "--", "bash", "-lc", "odd"] }), graph).crates).toEqual(["nvs-cli", "nvs-host", "nvs-syntax"]);
   });
 

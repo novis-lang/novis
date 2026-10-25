@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   # The deep lane, nightly: every job, unconditionally. A push runs only what its own diff can break
   # (`rule:testing/ci-lanes`) — never a narrower set of platforms, only a narrower set of jobs — so what this
-  # catches is what no push runs at all: Miri, the fuzzers and the unsafe audit. GitHub reads
+  # catches is what no push runs at all: Miri, the fuzzers, the leak check and the unsafe audit. GitHub reads
   # `schedule` only from the default branch, `landing`, whose `ci.yml` has this same cron and
   # dispatches this workflow on `main`. A `workflow_dispatch` is the deep lane too (`FULL` below).
   schedule:
@@ -64,8 +64,8 @@ concurrency:
 # so no job waits for another inside a run.
 #
 # - `<os>-test`, saved by each `test` leg's `tests` part: debug builds. `ext-templates` and
-#   `extension` read it on every OS, and `database`, `extension-host`, `reference` and `lint`
-#   read the Linux one. `cargo build -p nvs-cli` finds 475 of its 485 dependency builds there.
+#   `extension` read it on every OS, and `database`, `extension-host`, `reference`, `lint` and
+#   `valgrind` read the Linux one. `cargo build -p nvs-cli` finds 475 of its 485 dependency builds there.
 #   `lint` finds a third of its own, because clippy builds dependencies as metadata only.
 # - `cost-guards-<os>-cost-guards`, saved by the Windows and macOS `cost-guards` legs: release
 #   builds, which took 25 to 50 minutes there.
@@ -81,8 +81,9 @@ concurrency:
 # The run has 20 concurrent job slots, and it has more jobs than that. `unsafe-audit`,
 # `fuzz-smoke`, `miri` and `miri-units` take 20 slots for 20 to 45 minutes each, and none of them
 # sets the run's length, so they start once `lint` has finished, about ten minutes in. That leaves
-# the slots at the start to the `test`, `cost-guards` and `proofs` legs, which do set it. Each
-# one's `if` starts with `!cancelled()`, so a red `lint` does not skip them.
+# the slots at the start to the `test`, `cost-guards` and `proofs` legs, which do set it. The
+# nightly `valgrind` job waits for `lint` too. Each one's `if` starts with `!cancelled()`, so a red
+# `lint` does not skip them.
 jobs:
   # ---------------------------------------------------------------------------
   # Which lanes this run needs. Every gated job below reads one boolean from
@@ -1404,12 +1405,44 @@ jobs:
           cargo +nightly miri nextest run --profile miri -p ${{ matrix.crate }} --lib
           ${{ matrix.features }} --partition hash:${{ matrix.shard }}/${{ matrix.of }}
 
+  # Nightly and at release only. Every `examples/` program runs under valgrind's memcheck over the
+  # debug CLI, and a definite leak or an invalid access fails the job. It is the one run that looks
+  # for leaks from end to end: `asan` below runs with leak detection off. `bun nv valgrind`
+  # (`tools/nv/cmd/valgrind.ts`) is the home of what it runs and how it judges a run.
+  # `rule:testing/the-deep-lane`.
+  valgrind:
+    name: valgrind over the examples
+    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
+    if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
+    runs-on: ubuntu-latest
+    # A debug build from the Linux test cache, then 82 programs two at a time under memcheck.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: linux-x86_64-test
+          save-if: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      - name: Install valgrind
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends valgrind
+      - name: Build the CLI
+        run: cargo build -p nvs-cli
+      - name: Every example under memcheck
+        run: bun nv valgrind --nvs target/debug/nvs
+
   # ---------------------------------------------------------------------------
   # The half Miri cannot reach: the crates that execute generated machine code,
   # where the refcount and COW protocols compiled code manipulates by raw
-  # pointer actually run. Nothing here overlaps the loop's valgrind check —
-  # that runs the `examples/` fixtures end to end through the release binary,
-  # and never runs a crate's own tests.
+  # pointer actually run. Nothing here overlaps the `valgrind` job above —
+  # that runs the `examples/` programs end to end through the debug CLI, and
+  # never runs a crate's own tests.
   #
   # `nvs-codegen` and `nvs-stdlib` link `nvs-runtime` as an ordinary dependency,
   # so it compiles with `debug_assertions` on and `cfg(test)` off and takes the
@@ -1426,7 +1459,7 @@ jobs:
   # instrumented too and the run dies before a test starts.
   #
   # Leak detection is off on purpose. LSAN is not what this job is for, the
-  # valgrind sweep already owns leaks, and a JIT that holds its compiled code
+  # `valgrind` job already owns leaks, and a JIT that holds its compiled code
   # for the life of the process reports as a leak either way — that noise would
   # bury the use-after-free signal this job exists for.
   # ---------------------------------------------------------------------------

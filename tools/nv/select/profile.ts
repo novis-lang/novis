@@ -35,7 +35,7 @@ export interface Platform {
   os: string;
 }
 
-/** The platform the Linux legs, the database matrix's socket legs, fuzz and TSan build for. */
+/** The platform the database matrix's socket legs, fuzz and TSan build for. */
 export const LINUX: Platform = { family: "unix", os: "linux" };
 
 /** The platform a Node platform name is, as `cfg` sees it. */

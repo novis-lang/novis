@@ -1,11 +1,11 @@
 // One sweep at a time on this machine among the sweeps that use a resource the machine has one of. A side
 // run and the chain run work in trees of their own, but a sweep can reach past its tree: `examples/http.nvs`
-// talks to the one origin on 127.0.0.1:8099, which a sweep holds up and closes when it is done; the Linux
-// legs run in the one WSL distro; and the perf guards, the checks on the release profile, read a ratio off
-// cores another sweep would be loading. Two such sweeps at once turn each other's floor red.
+// talks to the one origin on 127.0.0.1:8099, which a sweep holds up and closes when it is done; and the
+// perf guards, the checks on the release profile, read a ratio off cores another sweep would be loading.
+// Two such sweeps at once turn each other's floor red.
 //
-// `sharedResources` decides it from the checks a sweep reached and the legs it runs. A sweep that uses any
-// of the three takes this lock before its first check and gives it back after its last: `accept/sweep.ts`'s
+// `sharedResources` decides it from the checks a sweep reached. A sweep that uses either takes this lock
+// before its first check and gives it back after its last: `accept/sweep.ts`'s
 // `sweepOver`, `select/full.ts`'s full run around the plan checks it runs with the origin up, and
 // `cmd/benches.ts`'s `benchTurn`, whose benches read their growth off the cores. Only a
 // sweep that needs the origin holds it up. A sweep that uses none of them takes neither the lock nor the
@@ -25,7 +25,6 @@ import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeSync } from 
 import { dirname, join } from "node:path";
 import { mainRoot } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
-import { LEGS } from "../select/checks.ts";
 import { type Check, isRelease, PROGRAM_KINDS } from "./accept.ts";
 import { ORIGIN_PROGRAMS } from "./origin.ts";
 
@@ -40,16 +39,13 @@ export interface SharedNeed {
 }
 
 /**
- * The shared resources a sweep uses, from `reached`, the checks it will start, and its legs: `runLegs`
- * when they run at all, and `legReached` for each one. A fixture of a program in `ORIGIN_PROGRAMS` needs
- * the origin and the lock; a Linux leg that runs and a check on the release profile need the lock.
+ * The shared resources a sweep uses, from `reached`, the checks it will start. A fixture of a program in
+ * `ORIGIN_PROGRAMS` needs the origin and the lock; a check on the release profile needs the lock.
  */
-export function sharedResources(reached: Check[], runLegs: boolean, legReached: (leg: (typeof LEGS)[number]) => boolean): SharedNeed {
+export function sharedResources(reached: Check[]): SharedNeed {
   const why: string[] = [];
   const talks = reached.filter((c) => PROGRAM_KINDS.has(c.kind) && c.file !== undefined && ORIGIN_PROGRAMS.includes(c.file));
   if (talks.length > 0) why.push(`the local origin, for ${talks.map((c) => c.file).join(", ")}`);
-  const legs = runLegs ? LEGS.filter(legReached) : [];
-  if (legs.length > 0) why.push(`the Linux legs: ${legs.join(", ")}`);
   const perf = reached.filter(isRelease);
   if (perf.length > 0) why.push(`the cores, for ${perf.length} perf guard(s) on the release profile`);
   return { origin: talks.length > 0, lock: why.length > 0, why };

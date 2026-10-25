@@ -121,7 +121,7 @@ const ELSEWHERE: [string, string, string, string][] = [
   [
     "WSL Linux target",
     "{tmp}/nvs-linux",
-    "the valgrind leg's own target dir, inside the ext4 vhdx",
+    "tools/leak-check.sh's own target dir, inside the ext4 vhdx",
     "wsl.exe -- rm -rf /var/tmp/nvs-linux    # frees ext4 space; see commands.md for the vhdx",
   ],
   [

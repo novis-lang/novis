@@ -226,12 +226,12 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
       });
     },
     // The plan checks take the sweep lock and hold the origin up by the rule a sweep follows
-    // (`accept/sweep-lock.ts`): a fixture of `examples/http.nvs` needs both. No leg runs here, and a
-    // heavy check only when it is a setup.
+    // (`accept/sweep-lock.ts`): a fixture of `examples/http.nvs` needs both. A heavy check runs here only
+    // when it is a setup.
     check: async () => {
       const own = ownChecks(plan, (c) => sweep.groups.get(c.id)?.how, onlySet, (c) => sweep.groups.get(c.id)?.own?.id);
       if (own.length === 0) return;
-      const need = sharedResources(own, false, () => false);
+      const need = sharedResources(own);
       say(`select: ${needLine(need)}`);
       const lock = need.lock ? await takeSweepLock({ note: (l) => say(`select: ${l}`) }) : null;
       const origin = need.origin ? await holdOrigin() : null;

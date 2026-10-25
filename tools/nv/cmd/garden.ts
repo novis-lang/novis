@@ -19,7 +19,7 @@
 // Garden's image, built once and reused.
 //
 // The origin is a debug `nvs` for Linux, because a debug build checks invariants a release build does
-// not. On Windows it is the WSL leg's build, from the same mirror and target directory. On Linux it is
+// not. On Windows it is built in WSL, from the mirror and target directory `linux-test` uses. On Linux it is
 // this checkout's `cargo build`. Anywhere else, `--nvs-bin` names one.
 //
 // The report is the readings where `nvs` differs from every reference while the references agree, which
@@ -28,8 +28,7 @@
 
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { wslBuildLine } from "../accept/legs.ts";
-import { mirrorPath, q, syncMirror, wslPath } from "../accept/mirror.ts";
+import { mirrorPath, q, syncMirror, wslBuildLine, wslPath } from "../accept/mirror.ts";
 import { ROOT } from "../lib/paths.ts";
 import { passthrough, run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
