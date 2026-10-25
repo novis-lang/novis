@@ -99,23 +99,24 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `179cccdef`, `mutation-testing`'s goal end. Its Website run,
-https://github.com/novis-lang/novis/actions/runs/40136915726, is green. Its CI push run,
-https://github.com/novis-lang/novis/actions/runs/40136915819, is green but for three jobs. Each
-is fixed in a commit that is not pushed yet. The wall-time conformance case passed, so
-`b986d4fd6` holds.
+`origin/main` is at `9be30356e`, a goal end. Its Website run,
+https://github.com/novis-lang/novis/actions/runs/40158642340, is green. Its CI push run,
+https://github.com/novis-lang/novis/actions/runs/40158642410, is green but for one job, fixed in a
+commit that is not pushed yet. `0bade7ccd`, `f80e28bbb` and `b29b6241f` held: `proofs`,
+`test / linux-aarch64` and the drain-bit test passed.
 
-- `proofs / linux-x86_64`: CI's runner is now `ubuntu-26.04`, whose coreutils are links into
-  another folder, so `exec = ["/bin", "/usr/bin"]` granted none of four `Core\Process` examples
-  (`rule:security/path-scope-canonicalise-then-prefix`). `0bade7ccd` names each program instead.
-- `test / linux-aarch64`: `nvs-server`'s one-frame test failed a slow write in its 20 ms window.
-  `f80e28bbb` makes the window 250 ms.
-- `test / windows-x86_64 (tests)`: `nvs-stdlib`'s `the_member_reads_the_processs_own_bit` raced the
-  test that begins the drain. `b29b6241f` begins it in the test and asserts `true`.
+- `test / windows-x86_64 (tests)`: `nvs-server`'s one-frame test got 4 frames after 2 sends
+  succeeded. Windows grows a loopback socket's buffers while the peer is not reading, so a send
+  behind a stalled frame flushed it and stalled on its own. `0b7eadd2c` sends 1 MiB chunks and
+  allows up to `FAILURES / 2` extra frames. With the stalled-frame logic in
+  `crates/nvs-server/src/socket.rs:send` turned off, all 8 failed frames arrive and the test fails.
 
-At `df81ff5f7`, `bun nv site --check questions` found `/reference/cli/nvs-test/` stale and
-`/reference/cli/nvs-test-mutate/` owing questions. The main loop was told. The run did not reach
-CI's stale guard. A Linux debug `nvs` at `179cccdef` is in WSL at `~/perf-target/debug/nvs`.
+`1b3721caf` stamps the questions of `/reference/core/process/run/` and `/spawn/`, which
+`0bade7ccd`'s examples staled. At `1b3721caf`, `bun nv proofs --gate` owed 50 perf figures from
+trace-timeline's commits (`Core\Debug`, `Core\Script`, `Core\Http`), and `bun nv site --check
+questions` owed `/reference/core/debug/` and its seven member pages, `/reference/cli/profiling/` and
+`/reference/cli/the-vs-code-extension/`. The main loop was told. The run on `9be30356e` was green in
+`proofs`, so its gate recorded them before that push.
 
 `.agent-tmp/wt-perf`, `.agent-tmp/wt-csv` and `.agent-tmp/wt-render` are scratch folders that git
 no longer lists as worktrees. Each contains a `.looper` directory, which Windows will not delete
@@ -127,11 +128,12 @@ while looper runs. `wt-csv` also has an ignored `target/`, warm at `d2a782d60`, 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch the next push with `bun nv ci --watch --next`. `tools/nv/cmd/ci.ts:265`
-  Run 40136915819 has ended, so `--next` passes over it. The next goal end's push carries
-  `0bade7ccd`, `f80e28bbb` and `b29b6241f`. Watch with no `--past`. If a `Core\Process` example
-  fails on another program, name that program in its folder's `nvs.toml` too. If the one-frame
-  test fails again with more than one extra frame, the kernel took in a stalled frame: count the
-  frames the peer got against the sends that threw, `crates/nvs-server/src/serve.rs:sends_to_a_peer_that_stopped_reading_queue_one_frame_at_the_most`.
+  Run 40158642410 has ended, so `--next` passes over it. The next goal end's push carries
+  `0b7eadd2c`. Watch with no `--past`. If a `Core\Process` example fails on another program,
+  name that program in its folder's `nvs.toml` too. If the one-frame test fails again, the
+  message names the frames and the failures. More than half the failed frames arriving, on two runs in a
+  row, is a real regression in `crates/nvs-server/src/socket.rs:send`, not a kernel buffer:
+  `crates/nvs-server/src/serve.rs:sends_to_a_peer_that_stopped_reading_queue_one_frame_at_the_most`.
   `bun nv ci --rerun` reruns every failed job of the run, so a rerun for one flaky job reruns
   the known reds too. An exit of 3 with a run still going means the push came late: watch again.
   Before you watch, run `bun nv site --check stale questions` and `bun nv proofs --gate --limit 0`
