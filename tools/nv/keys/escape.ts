@@ -11,17 +11,16 @@
 // item under `#[test]` or a `#[cfg(…)]` that names `test`. The ways out:
 //
 // - test code starts a process that is not its package's own binary, which reads what it likes;
-// - test code reads its working directory, or product code reads it in a function that also climbs
-//   a path, since a test binary starts in its package;
-// - any code sets the working directory;
+// - test code reads or sets its working directory, or product code does either in a function that
+//   also climbs a path, since a test binary starts in its package;
 // - a string literal climbs out of the directory it starts in, or names `target/debug`. A bare `".."`
 //   counts only where it is joined, pushed or sits beside the manifest directory;
 // - it reads `CARGO_MANIFEST_DIR` and also holds a `..` segment in any literal, or climbs with
 //   `.parent()`, `.ancestors()` or `.pop()`.
 //
-// Product code starting a process or reading the working directory is not a way out, because a test
-// that drives it hands it every path it opens, and that test's own code is judged here. What this
-// does not see is product code that finds a path in the tree by itself, through a helper function
+// Product code starting a process, or reading or setting the working directory, is not a way out,
+// because a test that drives it hands it every path it opens, and that test's own code is judged
+// here. What this does not see is product code that finds a path in the tree by itself, through a helper function
 // the working directory is handed to.
 //
 // A climbing literal that is data -- a path a pure function takes apart, an entry name in an archive
@@ -222,9 +221,9 @@ function climbsAround(code: string, at: number): boolean {
  * its code the binary's tests are: the whole file, or only its test-only items.
  *
  * Test code is judged on everything below. Product code is not judged on starting a process, or on
- * reading the working directory unless the function that reads it also climbs a path: a test that
- * drives it hands it every path it opens, and that test's own code is judged here. Everything else
- * counts in product code too.
+ * reading or setting the working directory unless the function that does it also climbs a path: a
+ * test that drives it hands it every path it opens, and that test's own code is judged here.
+ * Everything else counts in product code too.
  */
 export function waysOut(text: string, test: "whole" | "items" = "whole"): WayOut[] {
   const { code, literals } = scan(text);
@@ -242,7 +241,16 @@ export function waysOut(text: string, test: "whole" | "items" = "whole"): WayOut
     }
   }
   // `Command::current_dir(dir)` takes an argument and moves a child, which was judged above.
-  if (code.includes("set_current_dir")) out.push({ how: "sets the working directory" });
+  for (const m of code.matchAll(/\bset_current_dir\b/g)) {
+    if (isTest(m.index)) {
+      out.push({ how: "sets the working directory" });
+      break;
+    }
+    if (climbsAround(code, m.index)) {
+      out.push({ how: "sets the working directory in a function that climbs a path" });
+      break;
+    }
+  }
   for (const m of code.matchAll(CWD_READ)) {
     if (isTest(m.index)) {
       out.push({ how: "reads the working directory" });

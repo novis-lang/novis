@@ -61,7 +61,12 @@ describe("wayOut", () => {
   test("product code may read the working directory, unless the same function climbs a path", () => {
     expect(wayOut("pub fn root() -> PathBuf { std::env::current_dir().unwrap() }", new Set(), "items")).toBe("");
     expect(wayOut("pub fn up() -> PathBuf { let d = std::env::current_dir().unwrap(); d.parent().unwrap().into() }", new Set(), "items")).toContain("climbs a path");
-    expect(wayOut("pub fn root() { std::env::set_current_dir(\"x\"); }", new Set(), "items")).toBe("sets the working directory");
+  });
+
+  test("product code may set the working directory, unless the same function climbs a path", () => {
+    expect(wayOut("pub fn enter(dir: &Path) { std::env::set_current_dir(dir); }", new Set(), "items")).toBe("");
+    expect(wayOut("pub fn up(dir: &Path) { std::env::set_current_dir(dir.parent().unwrap()); }", new Set(), "items")).toContain("climbs a path");
+    expect(wayOut("#[test]\nfn t() { std::env::set_current_dir(\"x\"); }", new Set(), "items")).toBe("sets the working directory");
   });
 
   test("product code that climbs out of its directory is still a way out", () => {
