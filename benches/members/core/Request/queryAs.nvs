@@ -2,7 +2,6 @@
 // Reads the query string into a shape, as a list page does for its page number and search term.
 // bench: iterations 256
 // bench: complexity linear
-// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: calls 0
 
 class Bench {

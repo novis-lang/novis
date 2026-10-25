@@ -1,0 +1,24 @@
+<?nvs
+// Prints the request for the `Core\Request::bodyStream` bench, with an upload of about `$size` bytes.
+// bench: prints
+// bench: start 4096
+// bench: max 65536
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = [
+            "// scaling: file bodyStream.nvsr",
+            "--METHOD--",
+            "PUT",
+            "--PATH--",
+            "/uploads/logo.svg",
+            "--HEADERS--",
+            "content-type: image/svg+xml",
+            "--BODY--",
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"><desc>" . Core\Str::repeat("a", $size) . "</desc></svg>",
+        ];
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(4096);

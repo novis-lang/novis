@@ -1,0 +1,26 @@
+<?nvs
+// Prints the request for the `Core\Request::postAs` bench, with a form of `$size` extra fields.
+// bench: prints
+// bench: start 16
+// bench: max 256
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $fields = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "f" . ($n as string) . "=value+" . ($n as string));
+        array<string> $lines = [
+            "// scaling: file postAs.nvsr",
+            "--METHOD--",
+            "POST",
+            "--PATH--",
+            "/signup",
+            "--HEADERS--",
+            "host: shop.example.com",
+            "content-type: application/x-www-form-urlencoded",
+            "--BODY--",
+            "name=Ada+Lovelace&age=36&" . Core\Str::join($fields, "&"),
+        ];
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(16);
