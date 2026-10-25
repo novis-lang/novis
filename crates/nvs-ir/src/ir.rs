@@ -52,6 +52,25 @@ impl Program {
             .collect()
     }
 
+    /// The file name and 1-based line each statement starts on, indexed as
+    /// [`Self::stmt_spans`] indexes it, read through the source map the
+    /// program was lowered from. A debug session resolves a breakpoint's file
+    /// and line to stop sites with it. A statement whose file is not in `map`
+    /// has an empty name and line 0, which no breakpoint names.
+    #[must_use]
+    pub fn stmt_lines(&self, map: &nvs_diagnostics::SourceMap) -> Vec<(String, u32)> {
+        self.stmt_spans()
+            .into_iter()
+            .map(|span| {
+                map.get(span.file).map_or((String::new(), 0), |file| {
+                    let (line, _) = file.line_col(span.start);
+                    let line = u32::try_from(line).map_or(u32::MAX, |line| line.saturating_add(1));
+                    (file.name().to_owned(), line)
+                })
+            })
+            .collect()
+    }
+
     /// The source span of every conditional edge in the program, indexed by
     /// the number a compiled branch probe passes to
     /// `nvs_runtime::nvs_probe_edge`. Numbered the way [`Self::stmt_spans`]

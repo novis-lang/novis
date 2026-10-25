@@ -121,10 +121,33 @@ impl Ctx {
         }
     }
 
-    /// Sets what an armed stop site runs, and returns the one it replaces.
-    /// With none set, an armed site runs on.
+    /// Sets what an armed stop site and a [`super::SafepointFlags::DEBUG_BREAK`]
+    /// poll run, and returns the one it replaces. With none set, both run on.
     pub fn set_debug_stop(&mut self, stop: Option<DebugStop>) -> Option<DebugStop> {
         std::mem::replace(&mut self.debug_stop.0, stop)
+    }
+
+    /// Runs the [`DebugStop`] this context has, and returns its status, or
+    /// [`crate::OK`] when none is set. Both ways a task stops come here: an
+    /// armed site ([`nvs_debug_site`]) and a `DEBUG_BREAK` poll
+    /// ([`super::nvs_safepoint`]).
+    ///
+    /// The handler runs inside a [`crate::HelperFrame`], because it may park
+    /// the task with compiled frames above it, and a host may not unwind such
+    /// a stack.
+    pub(crate) fn run_debug_stop(&mut self) -> i32 {
+        let Some(mut stop) = self.debug_stop.0.take() else {
+            return crate::OK;
+        };
+        let status = {
+            let _frame = crate::HelperFrame::enter();
+            stop(self)
+        };
+        // A handler that set another one while it ran keeps that one.
+        if self.debug_stop.0.is_none() {
+            self.debug_stop.0 = Some(stop);
+        }
+        status
     }
 }
 
@@ -201,17 +224,7 @@ impl SiteTable {
 pub unsafe extern "C" fn nvs_debug_site(ctx: *mut Ctx) -> i32 {
     #[expect(unsafe_code, reason = "the caller's contract, passed on unchanged")]
     unsafe {
-        crate::abi::contain_panic(ctx, |ctx| {
-            let Some(mut stop) = ctx.debug_stop.0.take() else {
-                return crate::OK;
-            };
-            let status = stop(ctx);
-            // A handler that set another one while it ran keeps that one.
-            if ctx.debug_stop.0.is_none() {
-                ctx.debug_stop.0 = Some(stop);
-            }
-            status
-        })
+        crate::abi::contain_panic(ctx, Ctx::run_debug_stop)
     }
 }
 

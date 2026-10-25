@@ -3008,8 +3008,8 @@ capability set, not the extension's.
   variable references, freed on each resume. What the debugged program holds is the switch's
   ([`testing/a-debugged-program-is-compiled-with-a-debug-switch`](testing.md#testing-a-debugged-program-is-compiled-with-a-debug-switch)).
 
-**Missing:** `nvs dap` and the VS Code wiring. The safepoint flag it stops on, `DEBUG_BREAK`, is built
-and is cleared without acting while no adapter exists.
+**Missing:** `nvs dap` and the VS Code wiring. The stop it drives is built: `nvs_host::debug`'s
+controller parks a task at an armed stop site or a `DEBUG_BREAK` poll, and resumes it.
 
 **Declined:**
 - **The adapter ships together with an editor's debugger UI.** A stalled editor integration would hold

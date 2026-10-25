@@ -120,6 +120,10 @@
 //! is not that core may read. CPU time and never wall clock, for the reason
 //! that module's doc gives, and `None` on a platform that offers no such clock
 //! rather than a wall-clock one wearing its name.
+//!
+//! [`debug`] is a debug session's controller: it arms breakpoints in a unit
+//! compiled under the debug switch, and parks a task that stops until the
+//! session resumes it.
 
 pub mod affinity;
 pub mod block_on;
@@ -128,6 +132,7 @@ pub mod channel;
 #[cfg(debug_assertions)]
 pub mod counts;
 pub mod cpuclock;
+pub mod debug;
 pub mod group;
 pub mod isolate;
 pub mod ladder;

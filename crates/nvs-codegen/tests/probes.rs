@@ -167,9 +167,9 @@ fn a_pending_safepoint_stops_the_script_before_it_writes_anything() {
 
 #[test]
 fn a_cleared_safepoint_request_lets_the_script_continue() {
-    // COLLECT and DEBUG_BREAK reach the slow path and are cleared there, so
-    // the poll's OK return has to actually resume the frame rather than being
-    // treated as a stop.
+    // COLLECT reaches the slow path and is cleared there, so the poll's OK
+    // return has to actually resume the frame rather than being treated as a
+    // stop.
     let mut ctx = Ctx::buffered();
     ctx.request_safepoint(SafepointFlags::COLLECT);
     run_with(&mut ctx, "<?nvs\necho \"Hello, World!\";\n").expect("the script ran");
@@ -392,6 +392,35 @@ echo $label . $total;
 /// `with_debug_slots` around [`lower`].
 fn lower_for_debugging(source: &str) -> nvs_ir::Program {
     nvs_ir::lower::with_debug_slots(|| lower(source))
+}
+
+#[test]
+fn every_stop_site_has_the_file_and_line_its_statement_starts_on() {
+    // `lower` adds the source to a fresh map as its first file, so a map
+    // built the same way names the same file.
+    let program = lower_for_debugging(LOCALS);
+    let mut map = nvs_diagnostics::SourceMap::new();
+    map.add("test.nvs", LOCALS);
+    let lines = program.stmt_lines(&map);
+    assert_eq!(lines.len(), program.stmt_spans().len());
+    assert!(lines.iter().all(|(file, _)| file == "test.nvs"));
+    let mut numbers: Vec<u32> = lines.iter().map(|(_, line)| *line).collect();
+    numbers.sort_unstable();
+    numbers.dedup();
+    // Both statements of `twice`, then every statement of the script.
+    assert_eq!(numbers, [3, 5, 6, 7, 8, 9, 11]);
+}
+
+#[test]
+fn a_debug_unit_is_never_compiled_for_the_artifact_cache() {
+    // The cache key does not cover the switch, so the object backend refuses
+    // a debug program and the cache stores nothing for it.
+    let refused = nvs_codegen::compile_object(&lower_for_debugging(LOCALS));
+    assert!(
+        matches!(refused, Err(nvs_codegen::CodegenError::Internal(_))),
+        "{refused:?}"
+    );
+    assert!(nvs_codegen::compile_object(&lower(LOCALS)).is_ok());
 }
 
 #[test]

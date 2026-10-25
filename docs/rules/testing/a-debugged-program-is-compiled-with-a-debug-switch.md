@@ -9,7 +9,9 @@ It is one compiler with a switch, the way the probes are one compiler with a fla
 (`rule:testing/debug-probes`), and not a second tier. The switch is chosen when a debug session starts
 and holds for every unit that session compiles, so no request ever runs a unit of the other kind. A
 normal run and a production server never set it and pay nothing. A debug session runs slower, because
-every local is stored at every statement.
+every local is stored at every statement. A unit compiled with the switch is never written to the
+artifact cache, whose key does not cover the switch, and a session compiles its units without reading
+the cache.
 
 A site is the statement number the coverage probe already carries, and `nvs_ir::Program::stmt_spans`
 maps it to its source span, so a breakpoint's file and line resolve to the sites on that line in each

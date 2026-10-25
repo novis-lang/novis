@@ -929,8 +929,8 @@ pub(super) struct TreeShare {
 /// `rule:errors/escalation-ladder` makes it not
 /// a `Throwable` at the type level, so no Novis `catch` can see it.
 ///
-/// Every flag but one acts: `DEBUG_BREAK` is cleared and ignored, which is the
-/// crate docs' known gap `nvs-runtime/nvs-safepoint-clears-debug-break-and` and waits on `nvs dap`.
+/// `DEBUG_BREAK` runs the context's debug stop handler, the one an armed stop
+/// site runs ([`Ctx::set_debug_stop`]), and runs on when none is set.
 ///
 /// # Safety
 ///
@@ -1058,6 +1058,20 @@ fn safepoint_slow_path(ctx: &mut Ctx) -> i32 {
             ctx.cancelled = true;
         }
     }
+    if ctx.safepoint_flags().contains(SafepointFlags::DEBUG_BREAK) {
+        // A debug controller asked this request to pause. The handler is the
+        // host's, and it parks the task until the controller resumes it
+        // (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+        // Below the limit branches for the yield's reason, and above the
+        // cancel branch, which reads a cancellation delivered while it was
+        // stopped. Lowered before the call, so the handler's own polls do not
+        // stop again.
+        ctx.lower_safepoint(SafepointFlags::DEBUG_BREAK);
+        let status = ctx.run_debug_stop();
+        if status != crate::OK {
+            return status;
+        }
+    }
     if ctx.cancelled {
         ctx.set_pending("the request was cancelled");
         return crate::FATAL;
@@ -1091,10 +1105,7 @@ fn safepoint_slow_path(ctx: &mut Ctx) -> i32 {
     // was raised by the walk's own allocations, above a ceiling this request
     // is no longer over.
     ctx.lower_safepoint(
-        SafepointFlags::COLLECT
-            | SafepointFlags::DEBUG_BREAK
-            | SafepointFlags::MEMORY_LIMIT
-            | SafepointFlags::OUTPUT_LIMIT,
+        SafepointFlags::COLLECT | SafepointFlags::MEMORY_LIMIT | SafepointFlags::OUTPUT_LIMIT,
     );
     crate::OK
 }
@@ -1462,17 +1473,41 @@ mod tests {
     }
 
     #[test]
-    fn a_debug_break_request_is_cleared_rather_than_acted_on() {
-        // The one flag the poll still drops — the crate docs' known gap `nvs-runtime/nvs-safepoint-clears-debug-break-and`,
-        // waiting on `nvs dap`. Its neighbour `COLLECT` is answered now, and
-        // `crate::object`'s tests are where that is shown.
+    fn a_debug_break_request_runs_the_stop_handler_once_and_its_status_ends_the_poll() {
+        // With no handler the flag is lowered and the poll runs on.
         let mut ctx = Ctx::buffered();
         ctx.request_safepoint(SafepointFlags::DEBUG_BREAK);
         #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
         let status = unsafe { nvs_safepoint(&raw mut ctx) };
         assert_eq!(status, crate::OK);
         assert!(ctx.safepoint_flags().is_empty());
-        assert!(ctx.pending().is_none());
+
+        // A handler runs once per request, inside a helper frame, and the
+        // status it returns is the poll's.
+        let stops = std::rc::Rc::new(std::cell::Cell::new(0));
+        let seen = std::rc::Rc::clone(&stops);
+        ctx.set_debug_stop(Some(Box::new(move |ctx: &mut Ctx| {
+            assert!(
+                crate::HelperFrame::on_this_stack(),
+                "a stop runs inside a helper frame"
+            );
+            assert!(!ctx.safepoint_flags().contains(SafepointFlags::DEBUG_BREAK));
+            seen.set(seen.get() + 1);
+            if seen.get() == 1 {
+                crate::OK
+            } else {
+                ctx.set_pending("stopped by the controller");
+                crate::FATAL
+            }
+        })));
+        for want in [crate::OK, crate::FATAL] {
+            ctx.request_safepoint(SafepointFlags::DEBUG_BREAK);
+            #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+            let status = unsafe { nvs_safepoint(&raw mut ctx) };
+            assert_eq!(status, want);
+        }
+        assert_eq!(stops.get(), 2);
+        assert_eq!(ctx.pending().as_deref(), Some("stopped by the controller"));
     }
 
     #[test]

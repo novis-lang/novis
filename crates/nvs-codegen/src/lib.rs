@@ -646,8 +646,8 @@ impl Unit {
     /// for a unit lowered without the debug switch
     /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
     #[must_use]
-    pub fn debug_sites(&self) -> Option<&nvs_runtime::SiteTable> {
-        self.debug_sites.as_deref()
+    pub fn debug_sites(&self) -> Option<&Arc<nvs_runtime::SiteTable>> {
+        self.debug_sites.as_ref()
     }
 
     /// The name of the function a frame record's index names
@@ -1048,8 +1048,18 @@ pub fn compile(program: &Program) -> Result<Unit, CodegenError> {
 /// # Errors
 ///
 /// The same cases [`compile`] reports, plus a refusal from the object writer
-/// itself, which is an engine bug.
+/// itself, which is an engine bug. A program lowered under the debug switch is
+/// [`CodegenError::Internal`], a caller's bug: its stop sites need a site
+/// table in this process, and an artifact's key does not cover the switch, so
+/// a debug unit is never cached
+/// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
 pub fn compile_object(program: &Program) -> Result<Vec<u8>, CodegenError> {
+    if program.functions.iter().any(|f| f.debug_slots.is_some()) {
+        return Err(CodegenError::Internal(
+            "a program lowered under the debug switch is never written to the artifact cache"
+                .to_owned(),
+        ));
+    }
     let mut unit = UnitBuilder::for_object()?;
     unit.compile_all(program)?;
     unit.finish_object()

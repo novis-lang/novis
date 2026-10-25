@@ -20,8 +20,8 @@ stages:
         rules: [testing/a-debugged-program-is-compiled-with-a-debug-switch, testing/debug-probes]
   - id: 2
     title: a task stops at an armed site under a Rust controller
-    status: open
-    context: [crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-ir/src/ir.rs, data/gaps/nvs-ir/debug-break-is-cleared-and-otherwise.json, data/gaps/nvs-runtime/nvs-safepoint-clears-debug-break-and.json]
+    status: done
+    context: [crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/debug.rs, crates/nvs-ir/src/ir.rs]
     extra:
       context:
         rules: [testing/a-debugged-program-is-compiled-with-a-debug-switch, testing/a-stop-pauses-the-whole-task-tree]
@@ -147,10 +147,10 @@ stores each into a described slot.
 **Does:** an armed site or `DEBUG_BREAK` parks the task, and the controller sets breakpoints, pauses and
 resumes.
 
-- [ ] The controller: breakpoints by file and line resolved to sites through `stmt_spans`, pause, resume, and a stop event (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-host/src/debug.rs:1`, `crates/nvs-ir/src/ir.rs:466`
-- [ ] `nvs_safepoint` and the stop site act on `DEBUG_BREAK` under the switch and park the task on its own stack, and without the switch nothing raises it. `crates/nvs-runtime/src/ctx/safepoint.rs:744`, `crates/nvs-runtime/src/ctx/safepoint.rs:871`, `crates/nvs-host/src/scheduler.rs:1402`
-- [ ] The test that `DEBUG_BREAK` is cleared is replaced by one that it stops a task and a resume continues it. `crates/nvs-runtime/src/ctx/safepoint.rs:1204`
-- [ ] Both gap records deleted, and every comment that cites them rewritten. `data/gaps/nvs-ir/debug-break-is-cleared-and-otherwise.json:1`, `data/gaps/nvs-runtime/nvs-safepoint-clears-debug-break-and.json:1`
+- [x] The controller: breakpoints by file and line resolved to sites through `stmt_spans`, pause, resume, and a stop event (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-host/src/debug.rs:1`, `crates/nvs-ir/src/ir.rs:466`
+- [x] `nvs_safepoint` and the stop site act on `DEBUG_BREAK` under the switch and park the task on its own stack, and without the switch nothing raises it. `crates/nvs-runtime/src/ctx/safepoint.rs:744`, `crates/nvs-runtime/src/ctx/safepoint.rs:871`, `crates/nvs-host/src/scheduler.rs:1402`
+- [x] The test that `DEBUG_BREAK` is cleared is replaced by one that it stops a task and a resume continues it. `crates/nvs-runtime/src/ctx/safepoint.rs:1204`
+- [x] Both gap records deleted, and every comment that cites them rewritten. `crates/nvs-runtime/src/ctx/safepoint.rs:932`
 
 ### 6. a stopped task's frames and variables are read
 
@@ -204,38 +204,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 5 are done. The switch is `nvs_ir::lower::with_debug_slots(|| lower...)`. Under it,
-`Function::debug_slots` is `Some(table)`, empty for a function with no variables, and `None` without
-the switch. Each `StmtMarker` is followed by an `InstKind::DebugLocals` whose error edge is
-`landing_block(env)`. Codegen emits it as the slot stores and then `Emitter::emit_stop_site`: write the
-site into the frame record, `uload8` of the site's armed byte then a branch to `nvs_debug_site`, then a
-load of the safepoint word and a branch to `nvs_safepoint`. Both statuses go to the error edge.
+Stages 1, 5 and 2 are done. `nvs_ir::lower::with_debug_slots` is the switch. Each function's
+`debug_slots` table describes its slots, and each statement stores its locals, then runs a stop site.
+A stop site writes the site into the frame record (`nvs_runtime::FrameRecord`, walked by
+`Ctx::frames()`), tests its armed byte in the unit's `SiteTable` (`Unit::debug_sites()`, an
+`&Arc`), then polls the safepoint word. `Unit::debug_function(index)` names a record's function.
 
-The frame record is `nvs_runtime::FrameRecord` (`crates/nvs-runtime/src/ctx/frames.rs`): caller,
-slot base (null without variables), function index, current site. `link_frame_record` links it in the
-ABI entry block through `Ctx::frames` at `DEBUG_FRAMES_OFFSET`, and `Emitter::emit_return` unlinks it
-at every `return_` the emitter makes. `Ctx::frames()` walks the chain innermost first.
-`Unit::debug_function(index)` names a record's function. The armed bytes are the unit's
-`nvs_runtime::SiteTable` (`Unit::debug_sites()`), one per program statement, published to the JIT as
-`DEBUG_SITES_SYMBOL` and kept alive by the code pages. An armed site runs the context's
-`Ctx::set_debug_stop` handler, and runs on when none is set. `DEBUG_BREAK` is still cleared and
-ignored. Without the switch no instruction changes, so no test is expected to go red.
+Both stop paths run `Ctx::run_debug_stop` (`crates/nvs-runtime/src/ctx/frames.rs:138`) inside a
+`HelperFrame`: an armed site through `nvs_debug_site`, and a `DEBUG_BREAK` poll, which lowers the flag
+first (`crates/nvs-runtime/src/ctx/safepoint.rs:1061`). The controller is `nvs_host::debug::Debugger`.
+`Debugger::new(sites, lines)` gives back the `Receiver<Stop>`, and `Program::stmt_lines(&SourceMap)`
+(`crates/nvs-ir/src/ir.rs:61`) builds the lines. `set_breakpoints(file, lines)` replaces that file's
+set, `attach(&mut ctx)` installs the stop handler until the context drops, and `pause()` raises
+`DEBUG_BREAK` on every attached request. The handler (`crates/nvs-host/src/debug.rs:222`) sends a
+`Stop` with the frame chain, then parks through `wake_this_task` and `suspend_current`, or on a
+condvar with no reactor. A cancellation while stopped ends the task through `Ctx::cancel`.
+`compile_object` refuses a debug program. Both gap records are deleted. No existing test is expected
+to go red.
 
 ### Next
 
-**Stage 2: a task stops at an armed site under a Rust controller**, file set
-`crates/nvs-host/src/debug.rs` (new), `crates/nvs-runtime/src/ctx/safepoint.rs`,
-`crates/nvs-runtime/src/ctx/frames.rs`, `crates/nvs-host/src/scheduler.rs`. No gate.
+**Stage 6: a stopped task's frames and variables are read**, file set `crates/nvs-host/src/debug.rs`,
+`crates/nvs-runtime/src/ctx/frames.rs`, `crates/nvs-runtime/src/record.rs`, and a new fixture test file.
+No gate.
 
-- [ ] The controller sets a breakpoint by file and line: the sites on that line from `Program::stmt_spans`, armed in `Unit::debug_sites()`. `crates/nvs-codegen/src/lib.rs:649`, `crates/nvs-ir/src/ir.rs:48`
-- [ ] The stop handler the host installs with `Ctx::set_debug_stop` parks the task on its own stack through the scheduler's suspend, and a resume continues it. `crates/nvs-runtime/src/ctx/frames.rs:126`, `crates/nvs-runtime/src/ctx/frames.rs:201`
-- [ ] `safepoint_slow_path` acts on `DEBUG_BREAK` by running the same handler, and the test that it is cleared is replaced. `crates/nvs-runtime/src/ctx/safepoint.rs:932`, `crates/nvs-runtime/src/ctx/safepoint.rs:1470`
-- [ ] The debug compile turns the artifact cache off. `crates/nvs-codegen/src/lib.rs:963`
-- [ ] Both gap records deleted, and every comment that cites them rewritten. `data/gaps/nvs-runtime/nvs-safepoint-clears-debug-break-and.json:1`
+- [ ] `StoppedFrame` gains its file and line from the `SiteLine` of its site, and its variables. The values are read from `Frame::slots` with the unit's `debug_slots(name)` table, while the task is parked: the controller reads them on the core inside `Shared::stop`, before it sends the `Stop`, because the slots are valid only on that stack. `crates/nvs-host/src/debug.rs:222`, `crates/nvs-runtime/src/ctx/frames.rs:56`, `crates/nvs-codegen/src/lib.rs:640`
+- [ ] Each value is rendered with `record.rs`'s bounded tree, with a `secret` value redacted. `crates/nvs-runtime/src/record.rs:76`
+- [ ] The fixture tests compile Novis programs, so they go in `crates/nvs-cli/tests/` (a new `debugger.rs`). `nvs-host` cannot compile a program, and `nvs-cli` sees `nvs-host`, `nvs-codegen` and the front end. `crates/nvs-codegen/tests/common/mod.rs:43` is the lowering to copy.
 
 ### Backlog
 
-- A debug unit must never be stored in or loaded from the artifact cache, whose key does not cover the switch. `Unit::into_unit` gives a cached unit no slot table and no site table, and the object backend cannot resolve `DEBUG_SITES_SYMBOL`. Stage 2 or 4, whichever first compiles a program under the switch, turns the cache off for it, as `compile_checked_types` does. `crates/nvs-codegen/src/lib.rs:963`
+- A debug session must compile its units without reading the artifact cache, whose key does not cover the switch. The store half is done (`compile_object` refuses a debug program). The read half belongs to stage 4, the first stage that compiles a program under the switch from the CLI. `crates/nvs-cli/src/cache.rs:1655`
+- A task stopped on a scheduler with no reactor blocks its thread on the condvar. Only `nvs run` and unit tests have no reactor, and stage 3 decides whether a served core can ever reach that path. `crates/nvs-host/src/debug.rs:244`
 - The synthesized functions `nvs-ir` builds itself (`lower/call.rs`, `lower/exception.rs`) have `debug_slots: None`, so they get no frame record and do not show in the call stack. That is the intended view: they are not the user's code.
 - An `inout` by-reference variable has no slot, so the debugger cannot show it yet. Stage 6 can read it through its staged slot. `crates/nvs-ir/src/lower/mod.rs:2602`
 - Stepping, exception breakpoints and `nvs dap` itself are `debugger-adapter`'s (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
