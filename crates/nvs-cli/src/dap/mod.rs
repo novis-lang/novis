@@ -34,6 +34,11 @@
 //! controller's stops into `stopped` events, and [`stopped`] answers what a client reads during
 //! one.
 //!
+//! **Paths.** The launch's `pathMappings` map every path the editor sends to the adapter's, and
+//! every path the adapter sends back to the editor's ([`paths`]). A client may set breakpoints
+//! before it launches, so a set made then is kept until `launch` arrives and set again under its
+//! mapped file, with the ids the client already has.
+//!
 //! **Conditions, hit counts and logpoints.** A source breakpoint's `condition`, `hitCondition`
 //! and `logMessage` become a [`condition::Rule`]. The controller checks it against each
 //! function's slot table once the unit loads, and a rule that does not check leaves its
@@ -56,6 +61,7 @@
 //! session.
 
 mod condition;
+mod paths;
 mod protocol;
 mod stdio;
 mod stopped;
@@ -73,6 +79,7 @@ use rustc_hash::FxHashMap;
 use serde_json::{Value, json};
 
 use crate::config;
+use paths::PathMap;
 use protocol::{Capabilities, ExceptionFilter, Incoming, LaunchArguments, Mode, Outgoing};
 use stopped::Stopped;
 
@@ -156,6 +163,8 @@ impl Args {
             breakpoints,
             log: streams.log,
             launch: None,
+            paths: None,
+            early: FxHashMap::default(),
             configured: false,
             program: None,
             pipes: Some(streams.pipes),
@@ -241,6 +250,11 @@ struct Session {
     breakpoints: Arc<Mutex<Breakpoints>>,
     log: File,
     launch: Option<LaunchArguments>,
+    /// The launch's mappings, or `None` until `launch` arrives.
+    paths: Option<PathMap>,
+    /// The breakpoints set before `launch`, by the path the editor sent, to set again once the
+    /// mappings are known. Empty once the program launches.
+    early: FxHashMap<String, Vec<BreakpointSpec>>,
     configured: bool,
     program: Option<JoinHandle<()>>,
     /// Taken by the program's thread, which closes them once the program ends.
@@ -409,7 +423,7 @@ impl Session {
     /// Sets one file's breakpoints, and gives the `setBreakpoints` body: one breakpoint per line,
     /// each with a new id. A breakpoint's `condition`, `hitCondition` and `logMessage` become its
     /// [`condition::Rule`].
-    fn set_breakpoints(&self, arguments: &Value) -> Result<Value, &'static str> {
+    fn set_breakpoints(&mut self, arguments: &Value) -> Result<Value, &'static str> {
         let path = arguments["source"]["path"]
             .as_str()
             .ok_or("The breakpoints name no source file.")?;
@@ -433,7 +447,7 @@ impl Session {
                             breakpoint["condition"].as_str(),
                             breakpoint["hitCondition"].as_str(),
                             breakpoint["logMessage"].as_str(),
-                            format!("{}:{line}", shown_file(path)),
+                            format!("{}:{line}", paths::shown(path)),
                             Arc::clone(&say),
                         );
                         let test = rule.map(|rule| Arc::new(rule) as Arc<dyn BreakpointTest>);
@@ -442,7 +456,13 @@ impl Session {
                     .collect()
             })
             .unwrap_or_default();
-        let file = file_key(path);
+        let file = match &self.paths {
+            Some(paths) => file_key(&paths.to_adapter(path)),
+            None => {
+                self.early.insert(path.to_owned(), specs.clone());
+                file_key(path)
+            }
+        };
         // Held across the set, so a load that follows it reads this set's ids.
         let mut breakpoints = lock(&self.breakpoints);
         let answer = self.debugger.set_breakpoints(&file, &specs);
@@ -467,21 +487,48 @@ impl Session {
         if self.launch.is_some() {
             return Err("This session has already launched a program.".to_owned());
         }
-        let arguments: LaunchArguments = serde_json::from_value(request.arguments.clone())
+        let mut arguments: LaunchArguments = serde_json::from_value(request.arguments.clone())
             .map_err(|error| format!("The launch configuration is not valid: {error}"))?;
         if arguments.mode == Mode::Serve {
             serve_address(&arguments.args)?;
         }
+        let map = PathMap::new(&arguments.path_mappings);
         if !arguments.skip_files.is_empty() {
             let skip = skip_files(&arguments.skip_files)?;
+            let map = map.clone();
             self.debugger
-                .skip_files(move |file| skip.is_match(shown_file(file)));
+                .skip_files(move |file| skip.is_match(map.to_editor(file)));
         }
+        arguments.program = map.to_adapter(&arguments.program.to_string_lossy()).into();
+        arguments.cwd = arguments
+            .cwd
+            .map(|cwd| map.to_adapter(&cwd.to_string_lossy()).into());
+        self.remap_early(&map);
+        lock(&self.stopped).paths = map.clone();
+        self.paths = Some(map);
         if arguments.stop_on_entry {
             self.debugger.stop_on_entry();
         }
         self.launch = Some(arguments);
         Ok(())
+    }
+
+    /// Sets each breakpoint set before `launch` again under the file `map` gives its path, and
+    /// moves its ids there, so the client's ids still name it.
+    fn remap_early(&mut self, map: &PathMap) {
+        let mut breakpoints = lock(&self.breakpoints);
+        for (path, specs) in std::mem::take(&mut self.early) {
+            let (before, after) = (file_key(&path), file_key(&map.to_adapter(&path)));
+            if before == after {
+                continue;
+            }
+            self.debugger.set_breakpoints(&before, &[]);
+            let Some(known) = breakpoints.files.remove(&before) else {
+                continue;
+            };
+            self.debugger.set_breakpoints(&after, &specs);
+            breakpoints.files.insert(after, known);
+        }
     }
 
     /// Starts the program once `launch` and `configurationDone` have both arrived.
@@ -584,12 +631,6 @@ fn skip_files(globs: &[String]) -> Result<globset::GlobSet, String> {
     }
     set.build()
         .map_err(|error| format!("`skipFiles` has a glob that is not valid: {error}"))
-}
-
-/// A file key as a glob matches it: Windows's `\\?\` prefix, which a canonical path carries, left
-/// off.
-fn shown_file(file: &str) -> &str {
-    file.strip_prefix(r"\\?\").unwrap_or(file)
 }
 
 /// Sets `env` in this process's environment, which is the program's because the program runs

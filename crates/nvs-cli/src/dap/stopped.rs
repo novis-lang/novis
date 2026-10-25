@@ -23,6 +23,8 @@ use nvs_host::debug::{Stop, StopReason, StoppedFrame};
 use nvs_render::{Node, Scalar};
 use serde_json::{Value, json};
 
+use super::paths::PathMap;
+
 /// How many frames of one thread a frame id has room for.
 const FRAMES: i64 = 1 << 20;
 
@@ -30,6 +32,8 @@ const FRAMES: i64 = 1 << 20;
 #[derive(Default)]
 pub(super) struct Stopped {
     round: Option<Round>,
+    /// The launch's mappings, which a frame's file is shown through.
+    pub(super) paths: PathMap,
 }
 
 struct Round {
@@ -148,7 +152,7 @@ impl Stopped {
             .enumerate()
             .skip(start)
             .take(levels)
-            .map(|(index, frame)| stack_frame(frame_id(thread, index), frame))
+            .map(|(index, frame)| stack_frame(frame_id(thread, index), frame, &self.paths))
             .collect();
         Ok(json!({ "stackFrames": shown, "totalFrames": frames.len() }))
     }
@@ -257,8 +261,9 @@ fn number(value: &Value) -> Option<usize> {
     value.as_u64().and_then(|n| usize::try_from(n).ok())
 }
 
-/// One frame as DAP shows it. A frame with no known site has line 0 and no source.
-fn stack_frame(id: i64, frame: &StoppedFrame) -> Value {
+/// One frame as DAP shows it, its file mapped to the editor's path. A frame with no known site
+/// has line 0 and no source.
+fn stack_frame(id: i64, frame: &StoppedFrame, paths: &PathMap) -> Value {
     let name = if frame.name.is_empty() {
         "(unknown)"
     } else {
@@ -266,11 +271,10 @@ fn stack_frame(id: i64, frame: &StoppedFrame) -> Value {
     };
     match &frame.at {
         Some(at) => {
-            let path = shown_path(&at.file);
-            let file_name = std::path::Path::new(path).file_name().map_or_else(
-                || path.to_owned(),
-                |name| name.to_string_lossy().into_owned(),
-            );
+            let path = paths.to_editor(&at.file);
+            let file_name = std::path::Path::new(&path)
+                .file_name()
+                .map_or_else(|| path.clone(), |name| name.to_string_lossy().into_owned());
             json!({
                 "id": id,
                 "name": name,
@@ -287,12 +291,6 @@ fn stack_frame(id: i64, frame: &StoppedFrame) -> Value {
             "presentationHint": "subtle",
         }),
     }
-}
-
-/// A file key as an editor opens it: Windows's `\\?\` prefix, which a canonical path carries,
-/// left off.
-fn shown_path(file: &str) -> &str {
-    file.strip_prefix(r"\\?\").unwrap_or(file)
 }
 
 /// The entries a client may expand under a value, or `None` for a value with none.

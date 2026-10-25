@@ -16,6 +16,8 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::paths::PathMapping;
+
 /// The largest body the adapter reads. Spends at most this much per frame in flight, and one
 /// frame is in flight at a time.
 pub(crate) const MAX_FRAME: usize = 16 << 20;
@@ -106,6 +108,9 @@ pub(crate) struct LaunchArguments {
     /// The globs of the files a step does not stop in.
     #[serde(default)]
     pub(crate) skip_files: Vec<String>,
+    /// The editor's folders paired with the adapter's ([`super::paths`]).
+    #[serde(default)]
+    pub(crate) path_mappings: Vec<PathMapping>,
 }
 
 /// What a launch runs the program as: `nvs run`, `nvs test` or `nvs serve`.

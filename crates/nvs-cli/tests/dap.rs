@@ -1219,3 +1219,67 @@ fn a_catch_expression_catches_for_the_uncaught_filter() {
     client.request("disconnect", json!({}));
     client.finish();
 }
+
+/// With `pathMappings` pairing a folder that does not exist with the program's, a breakpoint the
+/// editor set under its own folder before `launch` stops the program, the frame names the editor's
+/// file, and a `skipFiles` glob written in the editor's terms keeps a step out of a file.
+#[test]
+fn path_mappings_map_every_path_in_and_out_of_the_adapter() {
+    let dir = nvs_repo::scratch_private("dap-path-mappings");
+    let program = dir.join("app");
+    fs::create_dir_all(&program).unwrap();
+    fs::write(
+        program.join("lib.nvs"),
+        "<?nvs\nclass Lib {\n    public static function twice(int $n): int {\n        return $n * 2;\n    }\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        program.join("main.nvs"),
+        "<?nvs\nrequire 'lib.nvs';\nint $four = Lib::twice(2);\necho $four, \"\\n\";\n",
+    )
+    .unwrap();
+    let editor = dir.join("editor");
+    let main = editor.join("main.nvs");
+
+    let mut client = Client::start(&dir);
+    client.request("initialize", json!({ "adapterID": "novis" }));
+    client.until_event("initialized");
+    let (set, _) = client.ask(
+        "setBreakpoints",
+        json!({ "source": { "path": main }, "breakpoints": [{ "line": 3 }] }),
+    );
+    let id = set["breakpoints"][0]["id"].clone();
+    client.request(
+        "launch",
+        json!({
+            "mode": "run",
+            "program": main,
+            "cwd": editor,
+            "skipFiles": [format!("{}/lib.nvs", editor.display())],
+            "pathMappings": [{ "localRoot": editor, "remoteRoot": program }],
+        }),
+    );
+    client.request("configurationDone", json!({}));
+    let ran = client.until_event("stopped");
+    let stop = &ran.last().unwrap()["body"];
+    assert_eq!(stop["reason"], "breakpoint", "{ran:#?}");
+    assert!(
+        ran.iter().any(|frame| frame["event"] == "breakpoint"
+            && frame["body"]["breakpoint"]["id"] == id
+            && frame["body"]["breakpoint"]["verified"] == true),
+        "the breakpoint was not verified under its mapped file: {ran:#?}"
+    );
+    let (frame, _) = top_frame(&mut client);
+    assert_eq!(frame["line"], 3, "{frame:#?}");
+    assert_eq!(frame["source"]["path"], json!(main), "{frame:#?}");
+
+    step(&mut client, "stepIn");
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(
+        frame["line"], 4,
+        "the step stopped in the skipped file: {frame:#?}"
+    );
+    assert_eq!(frame["source"]["path"], json!(main), "{frame:#?}");
+    assert_eq!(variables["$four"], "4", "{variables:#?}");
+    assert_eq!(run_to_the_end(client), "4\n");
+}
