@@ -4607,6 +4607,37 @@ impl<'a> Lowering<'a> {
             if symbol == nvs_types::CORE_SCRIPT_FINISH {
                 return self.lower_finish(env, cur);
             }
+            // `Core\Math::intDiv` is no call at all: it is `BinOp::IntDiv`,
+            // which `nvs-codegen` emits inline with the helper's two throws.
+            if symbol == nvs_types::CORE_MATH_INT_DIV {
+                let sig = ArgSig::of_helper(call);
+                let checked_types = self.checked_types;
+                let lowered = self.lower_call_args(
+                    args,
+                    &sig,
+                    checked_types,
+                    ArgOwnership::Borrowed,
+                    env,
+                    cur,
+                );
+                if let [lhs, rhs] = lowered.values[..] {
+                    return self.emit_raising(
+                        *cur,
+                        Ty::Int,
+                        InstKind::BinOp {
+                            op: BinOp::IntDiv,
+                            lhs,
+                            rhs,
+                        },
+                        env,
+                    );
+                }
+                panic!(
+                    "nvs-ir: `Core\\Math::intDiv` lowered {} arguments — its registry row \
+                     declares two `int`s",
+                    lowered.values.len()
+                );
+            }
             // A `Core\Str::format` call the checker took apart is no call at
             // all — `Self::lower_format_pieces`.
             if let Some(pieces) = self.exprs.format_pieces(expr.span)

@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/math.rs",
-  "title": "`Core\\Math::intDiv` is an out-of-line helper call, about 2% of the html-page case, while the `/` operator is emitted inline.",
-  "text": "Closing it is `intDiv` emitted inline the way `crates/nvs-codegen/src/emit.rs` emits `/`, with the same division-by-zero and overflow errors, and its bench declaring the calls it then makes.",
-  "goal": "bench-counters"
-}

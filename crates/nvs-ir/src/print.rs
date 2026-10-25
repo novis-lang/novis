@@ -518,6 +518,7 @@ fn bin_op_name(op: BinOp) -> &'static str {
         BinOp::Mul => "mul",
         BinOp::Div => "div",
         BinOp::Mod => "mod",
+        BinOp::IntDiv => "intdiv",
         BinOp::Pow => "pow",
         BinOp::BitAnd => "band",
         BinOp::BitOr => "bor",

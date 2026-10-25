@@ -69,6 +69,23 @@ const CARD: ClassDoc = ClassDoc {
             outside a function's range, such as `sqrt(-1.0)`, gives `NaN`.",
 };
 
+/// The symbol `Core\Math::intDiv`'s row carries.
+///
+/// `pub` because a direct call never reaches it: `nvs_ir::lower` recognises
+/// the symbol and emits the division inline, as `BinOp::IntDiv`, and
+/// `nvs-codegen` throws [`INT_DIV_BY_ZERO`] and [`INT_DIV_OVERFLOW`] from
+/// there. [`nvs_core_math_int_div`] is still what a callable value made from
+/// the member, `Core\Math::intDiv(...)`, calls.
+pub const INT_DIV_SYMBOL: &str = "nvs_core_math_int_div";
+
+/// The `ArithmeticError` message `Core\Math::intDiv` throws for a zero
+/// divisor, inline and in [`nvs_core_math_int_div`] alike.
+pub const INT_DIV_BY_ZERO: &str = "Core\\Math::intDiv was given a zero divisor";
+
+/// The `ArithmeticError` message `Core\Math::intDiv` throws for
+/// `int::MIN / -1`, inline and in [`nvs_core_math_int_div`] alike.
+pub const INT_DIV_OVERFLOW: &str = "Core\\Math::intDiv's answer does not fit an `int`";
+
 /// `Core\Math`'s registry rows.
 ///
 /// Declared beside the implementations rather than in one flat table, for the
@@ -165,7 +182,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Int, CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "nvs_core_math_int_div",
+            symbol: INT_DIV_SYMBOL,
             doc: Some(&INT_DIV_DOC),
         },
         CoreMethod {
@@ -1393,7 +1410,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_math_floor" => (nvs_core_math_floor as *const ()).cast(),
         "nvs_core_math_truncate" => (nvs_core_math_truncate as *const ()).cast(),
         "nvs_core_math_round" => (nvs_core_math_round as *const ()).cast(),
-        "nvs_core_math_int_div" => (nvs_core_math_int_div as *const ()).cast(),
+        INT_DIV_SYMBOL => (nvs_core_math_int_div as *const ()).cast(),
         "nvs_core_math_mod" => (nvs_core_math_mod as *const ()).cast(),
         "nvs_core_math_fdiv" => (nvs_core_math_fdiv as *const ()).cast(),
         "nvs_core_math_gcd" => (nvs_core_math_gcd as *const ()).cast(),
@@ -1823,14 +1840,18 @@ nvs_runtime::nvs_helper! {
     /// `Core\Math::intDiv(int $a, int $b): int` — the quotient, truncated
     /// toward zero, replacing PHP's `intdiv`.
     ///
-    /// A zero divisor throws, and so does `int::MIN / -1`, whose
-    /// exact answer is one past `int`'s largest value.
+    /// A zero divisor throws [`INT_DIV_BY_ZERO`], and `int::MIN / -1`, whose
+    /// exact answer is one past `int`'s largest value, throws
+    /// [`INT_DIV_OVERFLOW`]. A direct call is emitted inline and never
+    /// reaches this helper (see [`INT_DIV_SYMBOL`]); a callable value made
+    /// from the member does, and throws the same two errors.
     fn nvs_core_math_int_div(_ctx, args: [2]) {
         let a = int_at(args, 0, "intDiv")?;
         let b = int_at(args, 1, "intDiv")?;
-        a.checked_div(b)
-            .map(Value::int)
-            .ok_or_else(|| divide_by_zero_or_overflow("intDiv", b))
+        a.checked_div(b).map(Value::int).ok_or_else(|| {
+            let message = if b == 0 { INT_DIV_BY_ZERO } else { INT_DIV_OVERFLOW };
+            Fault::thrown_as(ThrownClass::Arithmetic, message)
+        })
     }
 }
 
@@ -2174,19 +2195,6 @@ fn does_not_fit(member: &str) -> Fault {
         ThrownClass::Arithmetic,
         format!("Core\\Math::{member}'s answer does not fit an `int`"),
     )
-}
-
-/// The throw [`nvs_core_math_int_div`]'s two failures share, naming which one
-/// it was — the divisor is the only thing that tells them apart.
-fn divide_by_zero_or_overflow(member: &str, divisor: i64) -> Fault {
-    if divisor == 0 {
-        Fault::thrown_as(
-            ThrownClass::Arithmetic,
-            format!("Core\\Math::{member} was given a zero divisor"),
-        )
-    } else {
-        does_not_fit(member)
-    }
 }
 
 /// Euclid's algorithm over two non-negative `i128`s.

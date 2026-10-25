@@ -3165,6 +3165,14 @@ pub enum BinOp {
     Div,
     /// `%`
     Mod,
+    /// `Core\Math::intDiv($a, $b)`, emitted inline: the quotient of two
+    /// `int`s, truncated toward zero, as an `int`. It carries
+    /// [`Inst::on_error`] and throws `ArithmeticError` for a zero divisor and
+    /// for `int::MIN / -1`, with the messages `nvs_stdlib::math`'s
+    /// `INT_DIV_BY_ZERO` and `INT_DIV_OVERFLOW` give, which are the helper's.
+    /// Only a direct call with two `int` operands lowers to it; a callable
+    /// value made from the member still calls the helper.
+    IntDiv,
     /// `**`. `rule:types/arithmetic` lists this beside `+`, `-` and `*`, so the integer
     /// row **throws** rather than wrapping and it carries [`Inst::on_error`]
     /// too — including for a *negative* exponent, which that row's "no

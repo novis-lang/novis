@@ -1687,6 +1687,10 @@ impl Emitter<'_, '_> {
         if matches!(op, BinOp::Div) && matches!(ty, Ty::Int | Ty::Uint) {
             return self.emit_int_div(inst, l, r, signed);
         }
+        // `Core\Math::intDiv`, inline. See `Self::emit_truncating_int_div`.
+        if matches!(op, BinOp::IntDiv) && matches!(ty, Ty::Int) {
+            return self.emit_truncating_int_div(inst, l, r);
+        }
         // The remaining integer rows, which own a continuation block for
         // the same reason: `rule:types/arithmetic` makes `+`, `-` and `*` throw on
         // overflow rather than wrap. See `Self::emit_checked_int_arith`.
@@ -1998,6 +2002,49 @@ impl Emitter<'_, '_> {
         self.b.switch_to_block(merge);
         let value = self.b.block_params(merge)[0];
         Ok((value, merge))
+    }
+
+    /// `Core\Math::intDiv` over two `int`s ([`BinOp::IntDiv`]): the quotient
+    /// truncated toward zero, as an `int`, with no call.
+    ///
+    /// The two inputs that would trap `sdiv` throw `ArithmeticError` first,
+    /// each with the message the member's helper throws, so the inline form
+    /// and a callable value made from the member fail the same way:
+    ///
+    /// * **A zero divisor** throws [`nvs_stdlib::math::INT_DIV_BY_ZERO`].
+    /// * **`i64::MIN / -1`** throws [`nvs_stdlib::math::INT_DIV_OVERFLOW`]:
+    ///   its exact answer is one past `int`'s largest value.
+    ///
+    /// Each guard is a compare and a branch to a cold block, the same shape as
+    /// [`Self::emit_int_mod`]'s zero guard.
+    fn emit_truncating_int_div(
+        &mut self,
+        inst: &Inst,
+        lhs: Value,
+        rhs: Value,
+    ) -> Result<(Value, Block), CodegenError> {
+        let by_zero = self.b.ins().icmp_imm_s(IntCC::Equal, rhs, 0);
+        let zero_raise = self.b.create_block();
+        let nonzero = self.b.create_block();
+        self.b.ins().brif(by_zero, zero_raise, &[], nonzero, &[]);
+
+        self.b.switch_to_block(zero_raise);
+        self.raise_arithmetic_error(inst, nvs_stdlib::math::INT_DIV_BY_ZERO.as_bytes())?;
+
+        self.b.switch_to_block(nonzero);
+        let minus_one = self.b.ins().icmp_imm_s(IntCC::Equal, rhs, -1);
+        let min = self.b.ins().iconst(types::I64, i64::MIN);
+        let is_min = self.b.ins().icmp(IntCC::Equal, lhs, min);
+        let overflows = self.b.ins().band(is_min, minus_one);
+        let overflow_raise = self.b.create_block();
+        let cont = self.b.create_block();
+        self.b.ins().brif(overflows, overflow_raise, &[], cont, &[]);
+
+        self.b.switch_to_block(overflow_raise);
+        self.raise_arithmetic_error(inst, nvs_stdlib::math::INT_DIV_OVERFLOW.as_bytes())?;
+
+        self.b.switch_to_block(cont);
+        Ok((self.b.ins().sdiv(lhs, rhs), cont))
     }
 
     /// Integer `+`, `-` and `*`, which `rule:types/arithmetic` makes **throw

@@ -3178,6 +3178,35 @@ fn a_zero_divisor_carries_an_error_edge_on_the_float_row_too() {
     assert!(product.on_error.is_none(), "{product:?}");
 }
 
+/// A direct `Core\Math::intDiv` call lowers to one [`BinOp::IntDiv`] with an
+/// error edge and no `CoreCall`, so `nvs-codegen` emits the division and its
+/// two throws inline.
+#[test]
+fn a_direct_int_div_call_is_an_inline_division_with_an_error_edge() {
+    let (f, _, _) =
+        lower_script_src("<?nvs\nint $a = 7;\nint $b = 2;\nint $q = Core\\Math::intDiv($a, $b);\n");
+    let insts = || f.blocks.iter().flat_map(|b| &b.insts);
+    let division = insts()
+        .find(|i| {
+            matches!(
+                i.kind,
+                InstKind::BinOp {
+                    op: BinOp::IntDiv,
+                    ..
+                }
+            )
+        })
+        .expect("the fixture lowers one inline `intDiv`");
+    assert!(division.on_error.is_some(), "{division:?}");
+    assert_eq!(division.ty, Some(Ty::Int), "{division:?}");
+    assert!(
+        !insts().any(|i| matches!(&i.kind, InstKind::CoreCall { symbol, .. }
+            if *symbol == nvs_types::CORE_MATH_INT_DIV)),
+        "a direct call reaches no helper: {:?}",
+        f.blocks
+    );
+}
+
 /// Every instruction that *returns a status* carries a landing block,
 /// whether or not a program can recover from what that status says —
 /// [`Inst::on_error`](crate::ir::Inst::on_error) is that rule's one home and

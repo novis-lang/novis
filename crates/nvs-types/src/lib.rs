@@ -267,6 +267,7 @@ pub use nvs_stdlib::registry::takes_route_attributes as core_takes_route_attribu
 pub use nvs_stdlib::registry::takes_source as core_takes_source;
 pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;
 pub use nvs_stdlib::registry::takes_written_enum as core_takes_written_enum;
+pub use nvs_stdlib::math::INT_DIV_SYMBOL as CORE_MATH_INT_DIV;
 pub use nvs_stdlib::router::link::{
     ABSOLUTE_SYMBOL as CORE_ROUTE_LINK_ABSOLUTE, SIGNED_SYMBOL as CORE_ROUTE_LINK_SIGNED,
     SYMBOL as CORE_ROUTE_LINK,
