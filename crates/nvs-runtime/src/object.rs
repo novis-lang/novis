@@ -3650,6 +3650,10 @@ impl NvsObj {
         let Some(ptr) = NonNull::new(raw.cast::<ObjHeader>()) else {
             handle_alloc_error(layout)
         };
+        // The `owner` stamp is a debug build's alone, so its bytes are not
+        // counted, and a counted run prints what a release build prints.
+        #[cfg(debug_assertions)]
+        crate::budget::uncount_debug_bytes(size_of::<Cell<*const LiveList>>());
         #[expect(
             unsafe_code,
             reason = "`ptr` is a fresh, uninitialized, correctly aligned \

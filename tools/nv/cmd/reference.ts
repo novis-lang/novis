@@ -37,6 +37,7 @@ import { covwsNvs } from "../lib/covws.ts";
 import { ROOT, rel } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, comparePaths, parseArgs, pyInt, pyRepr, splitlines } from "../lib/py.ts";
+import { proofArgv } from "../proofs/run.ts";
 
 export const summary = "run every example of /llms-full.txt's chapters: nv reference [--only S | --primer | --agent-walk] [--keep]";
 
@@ -544,7 +545,9 @@ async function runExample(ex: Example, keep: boolean): Promise<string | null> {
   const work = join(TMP, basename(dirname(ex.chapter)), `${stem}-${String(ex.index).padStart(2, "0")}`);
   lay(work, ex);
   const verb = ex.mode === "test" ? "test" : ex.mode === "error" ? "check" : "run";
-  const p = await runProc([nvsBinary(),verb, "main.nvs"], { cwd: work, timeoutMs: TIMEOUT * 1000 });
+  // A `// proof: test --bench` or `--mutate` line adds that flag, as the proof run adds it.
+  const flags = ex.mode === "test" ? proofArgv("", "main.nvs", ex.entry).slice(3) : [];
+  const p = await runProc([nvsBinary(), verb, "main.nvs", ...flags], { cwd: work, timeoutMs: TIMEOUT * 1000 });
   if (p.timedOut) return `${where}: timed out after ${TIMEOUT}s`;
   const { stdout, stderr } = p;
   let problem: string | null = null;

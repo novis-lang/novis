@@ -1054,6 +1054,15 @@ pub fn allocated_bytes() -> usize {
     TOTAL.with(Cell::get)
 }
 
+/// Takes `bytes` off [`allocated_bytes`]'s total: what a debug build allocates
+/// for a check that a release build does not make. A counted run then prints
+/// the same `bytes` on every build (`rule:testing/bench-counters`). The live
+/// balance keeps them, because they are held, so a ceiling still sees them.
+#[cfg(debug_assertions)]
+pub(crate) fn uncount_debug_bytes(bytes: usize) {
+    TOTAL.with(|total| total.set(total.get().saturating_sub(bytes)));
+}
+
 /// How many freed blocks this thread's allocator cache holds for a request of
 /// `layout`, or `0` in a build that has no cache and for a layout it does not
 /// serve.
