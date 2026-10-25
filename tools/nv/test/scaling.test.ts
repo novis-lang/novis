@@ -2,10 +2,11 @@ import { expect, test } from "bun:test";
 import { join } from "node:path";
 import {
   agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, clockFlat, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspScript, missingAreas,
-  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, printedFiles, proposed, rebased, runsPerMutantGrow, serveShape, SHAPED_REQUESTS, slopeOf, START, withBatch,
+  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, printedFiles, printedInputs, proposed, rebased, runsPerMutantGrow, serveShape, SHAPED_REQUESTS, slopeOf, START, withBatch,
 } from "../cmd/scaling.ts";
 import { lspFrame } from "../lib/lsp.ts";
 import { ROOT } from "../lib/paths.ts";
+import { envLines } from "../proofs/run.ts";
 
 /** A ramp whose every count costs `cost(n)` at batch `n`, over `fixed` set-up. */
 function ramp(cost: (n: number) => number, fixed = 1000): Batch[] {
@@ -63,6 +64,20 @@ test("a copied config names the copy for a path in the copied folder, the origin
   expect(rebased(text, ROOT, copyDir, copied, root)).toBe(
     'entry = "connect.nvs"\nca = "../../../../../../tests"\nallow = ["fs.read"]\nurl = "redis://127.0.0.1:16379"\n',
   );
+});
+
+test("a printing sibling's input replaces its bench's files, and its program replaces the bench only when one is printed", () => {
+  const request = "--METHOD--\nPOST\n--BODY--\naaaa\n";
+  const inputOnly = `// scaling: file body.nvsr\n${request}`;
+  expect(printedInputs(inputOnly, ".agent-tmp/x/body.nvs")).toEqual([["body.nvsr", request]]);
+  const both = "<?nvs\necho 1;\n// scaling: file help.in\nline\n// scaling: file help.env\nA=1\n";
+  expect(printedInputs(both, ".agent-tmp/x/help.nvs")).toEqual([["help.nvs", "<?nvs\necho 1;\n"], ["help.in", "line\n"], ["help.env", "A=1\n"]]);
+  // A name with a folder in it, or with an extension no proof reads, starts no file.
+  expect(printedInputs("// scaling: file ../body.nvsr\nx\n", "b.nvs")).toEqual([["b.nvs", "// scaling: file ../body.nvsr\nx\n"]]);
+  expect(printedInputs("// scaling: file body.txt\n", "b.nvs")).toEqual([["b.nvs", "// scaling: file body.txt\n"]]);
+  expect(printedInputs("  \n", "b.nvs")).toEqual([]);
+  // An `.env` line sets the text after its first `=`, and a line with no name sets nothing.
+  expect(envLines("SHOP_A=1\r\nSHOP_B=x=y\n\n=lost\nnoequals\n")).toEqual({ SHOP_A: "1", SHOP_B: "x=y" });
 });
 
 test("a ladder declares its start, max and expect, defaults to kind run, and never expects quadratic", () => {

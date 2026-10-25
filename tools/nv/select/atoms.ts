@@ -95,7 +95,7 @@ export function nvTestFiles(root: string = ROOT): string[] {
 const sibling = (proof: string, suffix: string) => proof.replace(/\.(nvs|cmd)$/, suffix);
 
 /** A proof program's definition: what `bun nv proofs` remembers a green verdict against. The `.nvsr`
- * request file, the `.nvsp` peer file and the `.nvse` events file join only where they exist, so a
+ * request file, the `.nvsp` peer file, the `.nvse` events file and the `.env` variables file join only where they exist, so a
  * proof without one keeps the definition it had before those files were read. */
 export function proofDef(path: string, root: string = ROOT): string {
   const chunks: (string | Uint8Array)[] = [];
@@ -109,6 +109,8 @@ export function proofDef(path: string, root: string = ROOT): string {
   if (existsSync(peer)) chunks.push("peer", readFileSync(peer));
   const events = join(root, sibling(path, ".nvse"));
   if (existsSync(events)) chunks.push("events", readFileSync(events));
+  const vars = join(root, sibling(path, ".env"));
+  if (existsSync(vars)) chunks.push("env", readFileSync(vars));
   return digest(...chunks);
 }
 

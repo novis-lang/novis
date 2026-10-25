@@ -197,8 +197,11 @@ generated classes.
 four batches below. Each removes its benches' `// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program`
 line. The session checks each batch and ticks it.
 
-- [ ] A sibling form whose `N` sizes the input the program reads, such as a `.nvsr` or `.in` the ramp writes at each size (`rule:testing/member-perf-ledger`). `tools/nv/cmd/scaling.ts:919`
-- [ ] A test of the new form beside the existing ones (`rule:testing/perf-two-mechanisms`). `tools/nv/test/scaling.test.ts:58`
+- [x] A sibling form whose `N` sizes the input the program reads, such as a `.nvsr` or `.in` the ramp writes at each size (`rule:testing/member-perf-ledger`). `tools/nv/cmd/scaling.ts:919`
+  - [x] `// bench: prints` in a `.scale.nvs` sibling prints the bench's input files, and the ramp measures the bench. `tools/nv/cmd/scaling.ts:580`, `tools/nv/cmd/scaling.ts:1067`
+  - [x] A `<name>.env` sibling sets a proof's variables. `tools/nv/proofs/run.ts:311`
+  - [x] The form is in the bench format's README, and `Request/body` is ramped by it. `benches/members/README.md:118`, `benches/members/core/Request/body.scale.nvs:1`
+- [x] A test of the new form beside the existing ones (`rule:testing/perf-two-mechanisms`). `tools/nv/test/scaling.test.ts:58`
 - [ ] Batch 1, a request body: `Request/body`, `bodyStream`, `bytes`, `files`, `headers`, `json`, `jsonAs`, `postAs`, `queryAs`. `benches/members/core/Request/body.nvs:1`
 - [ ] Batch 2, a request part and a signed route: `Request-Part/content`, `readAll`, `saveTo`, `Router/signedRoute`. `benches/members/core/Request-Part/content.nvs:1`
 - [ ] Batch 3, standard input, the environment and the command line: `IO/stdin`, `Env/all`, `Command/completions`, `help`, `run`. `benches/members/core/IO/stdin.nvs:1`
@@ -248,7 +251,7 @@ of them builds. The session builds once they all end, and checks each against it
   - [x] The stack is counted per part through `nvs_host::counts::StackPages`, and the module doc breaks it down: the program's part is the host's path, and three quarters is the connection's. `crates/nvs-host/src/stack.rs:117`
   - [x] The task's `Ctx` stays boxed, one page less on every task's stack. `crates/nvs-host/src/scheduler.rs:923`
   - [x] The connection's stack, 8 pages while its request waits in release, is broken down by frame, and a frame not needed while it waits is made smaller or moved. `crates/nvs-server/src/serve.rs:1574`
-  - [ ] The gap record is deleted. `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
+  - [x] The gap record is deleted. `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -262,6 +265,7 @@ subagent. Such subagents run side by side, and none of them builds.
 - [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
 - [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
 - [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [ ] Every stale perf figure the goal's perf commits left is recorded before the push, so CI's `proofs` job is green: `bun nv proofs --gate --limit 0` lists them (106 at `977773ab3`: `math.rs`, `test.rs`, `request.rs`, `json.rs`). `tools/nv/proofs/perf.ts:1`
 
 ## Handoff
 

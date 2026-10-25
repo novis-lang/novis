@@ -302,7 +302,7 @@ export function attribute(parts: Part[], sel: Selection, red: string[]): { index
     const path = id.slice(id.indexOf(":") + 1);
     if (path === file) return true;
     if (!id.startsWith("proof:")) return false;
-    return [".out", ".in", ".nvsr", ".nvsp", ".nvse"].some((suffix) => file === path.replace(/\.(nvs|cmd)$/, suffix)) || file === `${dirname(path)}/nvs.toml`;
+    return [".out", ".in", ".nvsr", ".nvsp", ".nvse", ".env"].some((suffix) => file === path.replace(/\.(nvs|cmd)$/, suffix)) || file === `${dirname(path)}/nvs.toml`;
   };
   return parts.map((p) => {
     const files = new Set(p.edits.map((e) => e.file));

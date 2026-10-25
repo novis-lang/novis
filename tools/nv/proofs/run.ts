@@ -306,6 +306,17 @@ export interface Ran {
 
 const sibling = (proof: string, suffix: string) => proof.replace(/\.(nvs|cmd)$/, suffix);
 
+/** The variables a `<name>.env` file sets: one `NAME=value` per line, the value taken as it is written.
+ * A blank line is skipped, and a line with no `=` sets nothing. */
+export function envLines(text: string): Record<string, string> {
+  const vars: Record<string, string> = {};
+  for (const line of text.split(/\r?\n/)) {
+    const at = line.indexOf("=");
+    if (at > 0) vars[line.slice(0, at)] = line.slice(at + 1);
+  }
+  return vars;
+}
+
 /** Where a `.cmd` example runs: a directory of its own under this one, made for the run and deleted after it. */
 const COMMAND_SCRATCH = join(ROOT, ".agent-tmp", "proof-cmd");
 
@@ -389,7 +400,9 @@ export function proofRecording(proof: string, dir: string | undefined = process.
  * WebSocket connection whose peer sends what that file lists, handed over as `--peer`, so a
  * `Core\Socket` member has a peer to talk to. A proof with a `<name>.nvse` beside it runs as an
  * event-stream connection that is published the values that file lists, handed over as `--events`, so
- * a `Core\Sse` member has a stream to wait on. A proof whose directory holds an `nvs.toml` runs
+ * a `Core\Sse` member has a stream to wait on. A proof with a `<name>.env` beside it runs with each of
+ * that file's `NAME=value` lines added to its environment (`envLines`), so a `Core\Env` member has
+ * variables of the proof's own to read. A proof whose directory holds an `nvs.toml` runs
  * under that file alone, handed over as `--config` after `run`, so a feature that needs a grant carries
  * it where its reader sees it; every other proof runs under the repository root's. `record` names the
  * directory the run is recorded into, which defaults to `NV_PROOF_RECORD`, and variables its processes
@@ -424,7 +437,9 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   if (at >= 0 && existsSync(abs(config))) argv = [...argv.slice(0, at + 1), "--config", config, ...argv.slice(at + 1)];
   const recording = proofRecording(proof, record?.dir ?? process.env[RECORD_ENV]);
   if (recording.NVS_FOOTPRINT_LOG) mkdirSync(dirname(recording.NVS_FOOTPRINT_LOG), { recursive: true });
-  const env: Record<string, string | undefined> = { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...record?.env, ...recording };
+  const vars = abs(sibling(proof, ".env"));
+  const own = !scratch && existsSync(vars) ? envLines(readFileSync(vars, "utf8")) : {};
+  const env: Record<string, string | undefined> = { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...own, ...record?.env, ...recording };
   if (record?.unlogged && !recording.NVS_FOOTPRINT_LOG) delete env.NVS_FOOTPRINT_LOG;
   if (commandEnv) {
     for (const name of COMMAND_UNSET) delete env[name];

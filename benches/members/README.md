@@ -115,6 +115,13 @@ names the two answers, the second being a `// proof: gap` marker on the bench.
   batch where its instructions agreed and writes the line as `// bench: iterations N callgrind`, so
   later runs ramp up to that batch. A ramp still unclear after that is reported in the record's
   `growth_notes`, not failed.
+- **`// bench: prints`** in a `.scale.nvs` sibling — the input grows outside the program: the
+  request in `<name>.nvsr`, standard input in `<name>.in`, the environment in `<name>.env` (one
+  `NAME=value` per line), or the classes the program declares. The sibling is not measured. At each
+  size its `Bench::run(N)` returns the text the closing `echo` prints: a line `// scaling: file
+  <name>.nvsr` (or `.in`, `.env`, `.nvs`) starts a file that replaces the bench's own, and any text
+  before the first such line replaces the bench's program. The bench runs at its own `iterations`
+  against what was printed, and its counts are judged against its `complexity` as the size doubles.
 - **A sibling `<name>.twin.nvs`** — the same operation written another way, such as a pipeline
   written as nested calls, with its own `iterations`. It is timed in the same sweep, and the record
   gets `twin_ns_per_op` and `twin_ratio`, the bench's figure over the twin's. It is a figure to

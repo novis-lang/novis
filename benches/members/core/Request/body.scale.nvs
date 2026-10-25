@@ -1,0 +1,24 @@
+<?nvs
+// Prints the request for the `Core\Request::body` bench, with a body of `$size` bytes.
+// bench: prints
+// bench: start 1024
+// bench: max 16384
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = [
+            "// scaling: file body.nvsr",
+            "--METHOD--",
+            "POST",
+            "--PATH--",
+            "/orders",
+            "--HEADERS--",
+            "content-type: application/json",
+            "--BODY--",
+            "{\"note\":\"" . Core\Str::repeat("a", $size) . "\"}",
+        ];
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(1024);

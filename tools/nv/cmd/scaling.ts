@@ -130,11 +130,19 @@
 // that complexity's bound in `EXPECT`. A `.scale.nvs` sibling has no `iterations`, so `--iterations`
 // skips it. The proof turns callgrind on only for `--record-perf`, and `nv verify` runs neither.
 //
+// A sibling that declares `// bench: prints` sizes an input fixed outside the program: a request, standard
+// input, the environment or the classes the program declares. It is not measured. At each size the
+// copy's closing literal is rewritten, the sibling runs once under `nvs run`, and what it prints is split
+// at its `// scaling: file <name>` lines (`printedFiles`). Each named file is written in the copy of the
+// bench's folder, so `<bench>.nvsr`, `<bench>.in` or `<bench>.env` replaces the bench's own input. The
+// text before the first file line, when it is not blank, replaces the bench's program. The program
+// measured is the bench's copy at its own `iterations` (`printBeside`).
+//
 // The counts are the same on every machine, so a bench gets the same verdict everywhere. The clock is
 // taken on the release binary unless `--nvs` names another, as `--record-perf` takes it.
 
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { wslBuildLine } from "../accept/legs.ts";
 import { mirrorPath, syncMirror, wslPath } from "../accept/mirror.ts";
 import { lspFrame } from "../lib/lsp.ts";
@@ -184,6 +192,8 @@ const ITER_RE = /(?:\/\/|#)\s*bench:\s*iterations\s+([0-9_]+)/;
 const COMPLEXITY_RE = /(?:\/\/|#)\s*bench:\s*complexity\s+(\S+)/;
 /** `// bench: start 256` and `// bench: max 4096` in a `.scale.nvs` sibling: the input sizes its size ramp runs. */
 const SIZE_RE = /(?:\/\/|#)\s*bench:\s*(start|max)\s+([0-9_]+)/g;
+/** `// bench: prints` in a `.scale.nvs` sibling: it prints its bench's input at each size, and the bench is measured. */
+const PRINTS_RE = /^(?:\/\/|#)\s*bench:\s*prints\s*$/m;
 /** `==12345== Collected : 987654321`, the instruction total callgrind prints at exit. */
 const COLLECTED_RE = /Collected\s*:\s*(\d+)/;
 /** The WSL target directory the WSL leg and `nv garden` build in, which `DEFAULT_WSL_NVS` is in. */
@@ -534,8 +544,8 @@ const RUN: Measure = {
 };
 
 /** A `// scaling: file <name>` line in a printed program: what follows it, up to the next one, is the
- * file `<name>` beside the program, which the program can `require`. */
-const PRINTED_FILE = /^\/\/ scaling: file ([\w.-]+\.nvs)\r?$/m;
+ * file `<name>` beside the program, which the program can `require` or read as its input. */
+const PRINTED_FILE = /^\/\/ scaling: file ([\w.-]+\.(?:nvs|nvsr|in|env))\r?$/m;
 
 /** A printed program split at its `// scaling: file` lines: the program first, then each named file. */
 export function printedFiles(stdout: string): { program: string; files: [string, string][] } {
@@ -555,6 +565,24 @@ async function generate(copy: string, bench: string, opts: Options): Promise<str
   writeFileSync(abs(program), printed.program);
   for (const [name, text] of printed.files) writeFileSync(join(dirname(abs(program)), name), text);
   return program;
+}
+
+/** What a `// bench: prints` sibling printed, as the files written beside its bench: the bench's own
+ * program first when the text before the first file line is not blank, then each named file. */
+export function printedInputs(stdout: string, bench: string): [string, string][] {
+  const printed = printedFiles(stdout);
+  const own: [string, string][] = printed.program.trim() ? [[basename(bench), printed.program]] : [];
+  return [...own, ...printed.files];
+}
+
+/** Runs the copy of a `// bench: prints` sibling, already at its size, and writes what it printed beside
+ * `target`, the copy of its bench. */
+async function printBeside(copy: string, target: string, sibling: string, opts: Options): Promise<void> {
+  const out = await spawnProof([opts.nvs, "run", copy], copy, TIMEOUT_MS, { unlogged: true });
+  if (out.code !== 0) throw new ProgramFailed(`${sibling} exited ${out.code} while printing its input: ${firstLine(out.stderr)}`);
+  const files = printedInputs(out.stdout, target);
+  if (!files.length) throw new PerfError(`${sibling} printed no \`// scaling: file\` line and no program`);
+  for (const [name, text] of files) writeFileSync(join(dirname(abs(target)), name), text);
 }
 
 /** The fastest of `reps` runs of `nvs check` on `program`, in nanoseconds. */
@@ -941,7 +969,8 @@ export async function rampOne(bench: string, opts: Options, measure: Measure = R
 }
 
 /** A bench's `.scale.nvs` sibling, ramped over the input sizes its `start` and `max` lines give, as a
- * ladder's are, and judged against the bound `expect` names in `EXPECT`. */
+ * ladder's are, and judged against the bound `expect` names in `EXPECT`. A sibling that declares
+ * `// bench: prints` prints the bench's input at each size, and the bench is what is measured. */
 export async function rampSize(sibling: string, expect: string, opts: Options, measure: Measure = RUN): Promise<Judged> {
   const judged: Judged = { bench: sibling, verdict: "invalid", sizes: [], slopes: {}, clock: null, notes: [] };
   const source = read(sibling);
@@ -950,7 +979,7 @@ export async function rampSize(sibling: string, expect: string, opts: Options, m
   const sizes = ladderSizes(seen.start, seen.max);
   if (sizes.length < MIN_BATCHES) return { ...judged, notes: [`\`start ${seen.start}\` to \`max ${seen.max}\` is fewer than ${MIN_BATCHES} doublings`] };
   if (withBatch(source, seen.start, seen.start) === null) return { ...judged, notes: ["its closing `echo Bench::run(...)` does not pass `start` as one literal"] };
-  return rampAt(judged, source, seen.start, sizes, boundsOf(expect), measure, opts);
+  return rampAt(judged, source, seen.start, sizes, boundsOf(expect), measure, opts, PRINTS_RE.test(source));
 }
 
 /** What the perf proof's growth found for one bench: what it declares, every ramp it ran, and each way
@@ -1033,20 +1062,25 @@ export function proposed(j: Judged, ladder: Ladder): Judged {
 }
 
 /** Runs `source` at each of `sizes`, its closing literal `literal` rewritten, until the counts agree,
- * and judges the ramp against `bounds`. */
-async function rampAt(judged: Judged, source: string, literal: number, sizes: number[], bounds: Bounds, measure: Measure, opts: Options): Promise<Judged> {
+ * and judges the ramp against `bounds`. With `prints`, `source` is a `.scale.nvs` sibling that prints
+ * its bench's input at each size, and the bench's copy is what runs. */
+async function rampAt(judged: Judged, source: string, literal: number, sizes: number[], bounds: Bounds, measure: Measure, opts: Options, prints = false): Promise<Judged> {
   const bench = judged.bench;
   // A `serve` ladder boots `nvs serve` itself, so the services its `requires:` lines name are brought
   // up here, for every kind, before the first size runs.
   const missing = await servicesFor(source);
   if (missing) throw new PerfError(`${bench} ${missing}`);
   const copy = copyBench(bench, join(opts.scratch, bench.replace(/[\\/]/g, "~")));
+  const target = prints ? copy.replace(/\.scale\.nvs$/, ".nvs") : copy;
   const batches: Batch[] = [];
-  const write = (size: number) => writeFileSync(abs(copy), measure.rewrites ? withBatch(source, literal, size)! : source);
+  const write = async (size: number) => {
+    writeFileSync(abs(copy), measure.rewrites || prints ? withBatch(source, literal, size)! : source);
+    if (prints) await printBeside(copy, target, bench, opts);
+  };
   for (const size of sizes) {
     progress(`scaling: ${bench} at ${size}`);
-    write(size);
-    batches.push({ size, ...(await measure.take(copy, bench, opts, size)) });
+    await write(size);
+    batches.push({ size, ...(await measure.take(target, bench, opts, size)) });
     if (measure.keys.length && countsAgree(batches, measure.keys)) break;
   }
   judged.sizes = batches.map((b) => b.size);
@@ -1058,8 +1092,8 @@ async function rampAt(judged: Judged, source: string, literal: number, sizes: nu
     // same batches are counted again, and a count fails only when both runs put it over its bound.
     const again: Batch[] = [];
     for (const b of batches) {
-      write(b.size);
-      again.push({ size: b.size, ...(await measure.take(copy, bench, opts, b.size)) });
+      await write(b.size);
+      again.push({ size: b.size, ...(await measure.take(target, bench, opts, b.size)) });
     }
     const second = judgeCounts(again, measure.keys, bounds.count);
     const kept = measure.keys.filter((k) => over.some((o) => o.startsWith(`${k} `)) && second.over.some((o) => o.startsWith(`${k} `)));
@@ -1079,8 +1113,8 @@ async function rampAt(judged: Judged, source: string, literal: number, sizes: nu
     // The clock never fails on one run: the same batches are timed again, and only agreement counts.
     const again: Batch[] = [];
     for (const b of batches) {
-      write(b.size);
-      again.push({ ...b, ns: await measure.clock(copy, bench, opts, b.size) });
+      await write(b.size);
+      again.push({ ...b, ns: await measure.clock(target, bench, opts, b.size) });
     }
     const second = clockSlope(again);
     if (second !== null && second > bounds.clock) clockGrows = `the clock grows with slope ${fixed(judged.clock, 2)}, and ${fixed(second, 2)} on a second run`;
@@ -1099,8 +1133,8 @@ async function rampAt(judged: Judged, source: string, literal: number, sizes: nu
   const ir: Batch[] = [];
   for (const b of batches) {
     progress(`scaling: ${bench} at ${b.size} under callgrind`);
-    write(b.size);
-    ir.push({ ...b, counts: { instructions: await measure.callgrind(copy, bench, opts, b.size) } });
+    await write(b.size);
+    ir.push({ ...b, counts: { instructions: await measure.callgrind(target, bench, opts, b.size) } });
   }
   const cg = judgeCounts(ir, ["instructions"], bounds.count);
   judged.slopes.instructions = cg.slopes.instructions ?? null;
