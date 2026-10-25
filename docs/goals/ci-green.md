@@ -99,24 +99,23 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `38e74b020`, `test-surface`'s goal end. Its Website run,
-https://github.com/novis-lang/novis/actions/runs/40127647736, is green. Its CI push run,
-https://github.com/novis-lang/novis/actions/runs/40127647719, is green but for one conformance
-case. `website` and `proofs` passed, so the fixes of the last push are out and hold.
+`origin/main` is at `179cccdef`, `mutation-testing`'s goal end. Its Website run,
+https://github.com/novis-lang/novis/actions/runs/40136915726, is green. Its CI push run,
+https://github.com/novis-lang/novis/actions/runs/40136915819, is green but for three jobs. Each
+is fixed in a commit that is not pushed yet. The wall-time conformance case passed, so
+`b986d4fd6` holds.
 
-The red case is `tests/conformance/lang/a-test-past-its-wall-time-limit-fails-and-names-the-limit.nvst`,
-in `test / macos-aarch64 (conformance)` and in `test / windows-x86_64 (conformance)`'s checked-types
-step. `itSleepsPastTheConfiguredLimit` printed the request's line, "the request exceeded its
-wall-time limit of 300ms". It should print the test's line. The cause is a race. A
-`Core\Time::sleep` that ends at the deadline claims the stop itself (`Ctx::wall_time_breach`), so
-the clock never raises and `deadline_expired()` stays false. The runner read only that word.
-`b986d4fd6` adds `SafepointView::wall_time_stopped` and makes the runner read it too. It is
-committed and not pushed. It passes three times locally, where the race does not happen.
+- `proofs / linux-x86_64`: CI's runner is now `ubuntu-26.04`, whose coreutils are links into
+  another folder, so `exec = ["/bin", "/usr/bin"]` granted none of four `Core\Process` examples
+  (`rule:security/path-scope-canonicalise-then-prefix`). `0bade7ccd` names each program instead.
+- `test / linux-aarch64`: `nvs-server`'s one-frame test failed a slow write in its 20 ms window.
+  `f80e28bbb` makes the window 250 ms.
+- `test / windows-x86_64 (tests)`: `nvs-stdlib`'s `the_member_reads_the_processs_own_bit` raced the
+  test that begins the drain. `b29b6241f` begins it in the test and asserts `true`.
 
-Before the watch, at `HEAD` `d6732f3f1`, the site questions check owed five `Core\Test\Response`
-and testing pages, and `proofs --gate` owed three `Core\Test` figures and a long `nvs-test`
-`about.md`. The main loop was told. CI's `website` and `proofs` jobs passed at `38e74b020`, so the
-main loop cleared them before its push.
+At `df81ff5f7`, `bun nv site --check questions` found `/reference/cli/nvs-test/` stale and
+`/reference/cli/nvs-test-mutate/` owing questions. The main loop was told. The run did not reach
+CI's stale guard. A Linux debug `nvs` at `179cccdef` is in WSL at `~/perf-target/debug/nvs`.
 
 `.agent-tmp/wt-perf`, `.agent-tmp/wt-csv` and `.agent-tmp/wt-render` are scratch folders that git
 no longer lists as worktrees. Each contains a `.looper` directory, which Windows will not delete
@@ -128,9 +127,11 @@ while looper runs. `wt-csv` also has an ignored `target/`, warm at `d2a782d60`, 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch the next push with `bun nv ci --watch --next`. `tools/nv/cmd/ci.ts:265`
-  Run 40127647719 has ended, so `--next` passes over it. The next push is `mutation-testing`'s
-  goal end, and it carries `b986d4fd6`. Watch with no `--past`. If the wall-time case fails
-  again, the race has another path: read `crates/nvs-cli/src/runner.rs:past_wall_time`'s caller.
+  Run 40136915819 has ended, so `--next` passes over it. The next goal end's push carries
+  `0bade7ccd`, `f80e28bbb` and `b29b6241f`. Watch with no `--past`. If a `Core\Process` example
+  fails on another program, name that program in its folder's `nvs.toml` too. If the one-frame
+  test fails again with more than one extra frame, the kernel took in a stalled frame: count the
+  frames the peer got against the sends that threw, `crates/nvs-server/src/serve.rs:sends_to_a_peer_that_stopped_reading_queue_one_frame_at_the_most`.
   `bun nv ci --rerun` reruns every failed job of the run, so a rerun for one flaky job reruns
   the known reds too. An exit of 3 with a run still going means the push came late: watch again.
   Before you watch, run `bun nv site --check stale questions` and `bun nv proofs --gate --limit 0`
@@ -178,3 +179,9 @@ while looper runs. `wt-csv` also has an ignored `target/`, warm at `d2a782d60`, 
 - The function-entry safepoint returns with no error edge, so a stop at entry may keep that
   frame's arguments. `crates/nvs-ir/src/lower/mod.rs:emit_safepoint` Moving the poll after the
   parameters are bound changes recursion backtraces. Take it only if a CI red or a test shows it.
+- Not checked: on a system whose coreutils are one multicall binary behind links, such as Ubuntu
+  26.04, `exec = ["/usr/bin/echo"]` may canonicalize to that binary. Then the grant covers
+  `/usr/bin/rm` as well, because the door starts the path as written and the binary picks its tool
+  from that name. `crates/nvs-config/src/capability.rs:path_granted` Check the layout on a 26.04
+  runner before you change anything. A fix compares the written path too, and it is a security
+  change, so give it to the main loop as a goal.
