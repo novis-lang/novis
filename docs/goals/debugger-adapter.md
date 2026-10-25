@@ -13,7 +13,7 @@ stages:
         rules: [ide/the-debug-adapter-does-not-wait-for-an-editor, ide/stdout-belongs-to-the-protocol]
   - id: 5
     title: "`nvs dap` launches tests and a development server, and stops at a breakpoint"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/dap/mod.rs, crates/nvs-cli/src/runner.rs, crates/nvs-cli/src/serve.rs, crates/nvs-host/src/debug.rs, docs/rules/ide/the-debug-adapter-does-not-wait-for-an-editor.md]
     extra:
       context:
@@ -155,6 +155,20 @@ Memory: two `bool`s per session.
 Stage 4 touches no Rust (`editors/vscode/`, `docs/reference/tools/40-editor.md`), so once stage 5 lands
 it runs as its own lane beside 2 and 3; only its last item, the rule flips, waits for 2 and 3.
 
+**A launched `serve` listens where `launch`'s `args` say.** `args` takes `--listen <address>` or
+`--port <port>`, the flags `nvs serve` takes, and with neither the tree's `[server] listen` applies.
+Anything else fails the `launch` request with a message (`dap::serve_address`). A client that wants
+a free port writes `--port 0`, and the `listening on` line arrives as an `output` event. A serve
+launch names one `program`: a mount table with no named file is not launched from the editor.
+Simplicity: no new launch field, and one parser of the same two flags.
+
+**`development` is forced on the resolved tree, before any snapshot exists.**
+`nvs_config::resolve::Resolved::start_in_development` sets `[mode] default`, removes `[mode] ceiling`
+and clears every `[[app]] mode`, and `config::set_of` runs it while the process-wide flag
+`config::serve_in_development` is set. A reload goes through `set_of` too, so it keeps the mode. The
+ceiling goes because a written `production` ceiling would otherwise refuse the start. Trade-off: one
+`AtomicBool` for the process, set only by `nvs dap`.
+
 ## Stages
 
 ### 1. `nvs dap` speaks DAP over stdio and launches a program
@@ -175,22 +189,22 @@ and variables when it stops.
 
 **Gate:** `debugger-core` reached, as `## Standing decisions` names it.
 
-- [ ] `launch` with `mode: test` and `mode: serve`; a launched serve starts in `development` (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/runner.rs:490`, `crates/nvs-cli/src/serve.rs:227`
-- [ ] Every launch compiles with the debug switch and runs under `debugger-core`'s controller (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-host/src/debug.rs:1`
+- [x] `launch` with `mode: test` and `mode: serve`; a launched serve starts in `development` (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/runner.rs:490`, `crates/nvs-cli/src/serve.rs:227`
+- [x] Every launch compiles with the debug switch and runs under `debugger-core`'s controller (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-host/src/debug.rs:1`
   - [x] `run` mode: `run_run` takes the session, lowers under `with_debug_slots`, loads the unit and attaches the run's context
   - [x] the controller tells a listener each load's breakpoints (`Debugger::on_load`), and the adapter sends `breakpoint` events from it
   - [x] `test` mode, every test's isolate attached
-  - [ ] `serve` mode, through `Compiler::debugging`
+  - [x] `serve` mode, through `Compiler::debugging`
 - [x] `setBreakpoints`, `threads`, `stackTrace`, `scopes`, `variables`, `continue` and `pause`, each task of the stopped tree a thread (`rule:testing/a-stop-pauses-the-whole-task-tree`). `crates/nvs-cli/src/dap/mod.rs:1`, `crates/nvs-host/src/scheduler.rs:312`
   - [x] a file is named by `dap::file_key` (its canonical path) on both sides
   - [x] `dap/stopped.rs` files each round's stops, one thread per task, and answers the reads
   - [x] the requests answered in `Session::answer`
-- [ ] Rust tests with the scripted client over a fixture in each mode: a breakpoint stops with the right values, a second request is answered while a served one is stopped, and the stdout check of stage 1 holds in `test` and `serve` (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [x] Rust tests with the scripted client over a fixture in each mode: a breakpoint stops with the right values, a second request is answered while a served one is stopped, and the stdout check of stage 1 holds in `test` and `serve` (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/dap/mod.rs:1`
   - [x] `run`: a breakpoint stops with `$price` and `$total`, and `continue` ends the program
   - [x] `run`: `pause` stops a program in a loop
   - [x] `run`: `stopOnEntry` stops at the first statement, and `env` reaches the program
   - [x] `test`: a breakpoint in a test, and the stdout check
-  - [ ] `serve`: a stopped request, a second request answered meanwhile, and the stdout check
+  - [x] `serve`: a stopped request, a second request answered meanwhile, and the stdout check
 
 ### 2. stepping over, into and out, and the value a step out returned
 
@@ -262,38 +276,43 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. Stage 5's `run` and `test` modes have landed, and only `serve` is left. `run`
-goes through `crate::run_run(.., Some(&Debugger))`. `test` goes through `crate::run_test` with
-`runner::Flags::debug`, `jobs: 1` and `show_output: true`. `runner::compile` lowers under the
-switch, the suite's context is attached in `runner::run`, and each test's in `Job::run`.
-`run_suite_in_a_task` takes the session last, and every other caller passes `None`.
+Stages 1 and 5 are done. `run` goes through `crate::run_run(.., Some(&Debugger))`, `test` through
+`crate::run_test` with `runner::Flags::debug`, and `serve` through
+`crate::serve::run(.., Some(debugger))`, which builds its compiler with `Compiler::debugging` and
+boots in `development` (`## Standing decisions`). Every debug compile names files with
+`dap::file_key`.
 
-`launch` reads `mode` (`protocol::Mode`), `program`, `args`, `cwd`, `env` (`dap::set_env`),
-`stopOnEntry` (`Debugger::stop_on_entry`, reason `"entry"`) and `filter`. Not read yet:
-`skipFiles` and `pathMappings`. A `pause` with nothing attached is kept until the next attach.
-A file is named by `dap::file_key` on both sides, and `Compiler::debugging`'s `debug_unit` call
-still passes `str::to_owned`.
+`launch` reads `mode`, `program`, `args` (a serve's `--listen`/`--port`, `dap::serve_address`),
+`cwd`, `env`, `stopOnEntry` and `filter`. Not read yet: `skipFiles` and `pathMappings`.
 
-Tests in `crates/nvs-cli/tests/dap.rs`: the `run` breakpoint test, `stopOnEntry` with `env`,
-`pause` in a loop, and a breakpoint inside a `test` launch. All pass on Windows. The three new
-ones have not run on Linux. No existing test is expected to go red.
+Tests in `crates/nvs-cli/tests/dap.rs`: `run` breakpoint, `stopOnEntry` with `env`, `pause` in a
+loop, a breakpoint in a `test` launch, and
+`a_breakpoint_stops_one_served_request_while_another_is_answered`. All pass on Windows. The last
+four have not run on Linux. No existing test is expected to go red.
 
-The nightly CI failures the sweep named were fixed after the sha that run tested (`d5aa2be18`,
-`901f4855c`, `bd2e51f0a`, `0b7eadd2c`), and `env-secret-proofs` passes now.
+The two `serve.rs` hunks of this slice (`debugger` parameter, `Compiler::debugging`) were committed
+by the side loop's driver as `a9418ff9e` (`wip(loop): the unfinished slice of session 0048`), under
+a stale claim. That commit does not build alone; the slice commit after it does. Not pushed.
+
+The sweep's nightly CI failures were from `9be30356e`, before their fixes, and
+`env-secret-proofs` passes.
 
 For stage 4's attack: `echo` writes a carriage return as `␍`, so a program cannot echo a real
 frame header. The attack shows the line arriving as an `output` event.
 
 ### Next
 
-**Stage 5: `serve` mode**, file set `crates/nvs-cli/src/dap/mod.rs`,
-`crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/script.rs`, `crates/nvs-cli/tests/dap.rs`.
-Gate holds. Once it lands, stage 5 is done, and stage 4 can run as its own lane beside 2 and 3.
+**Stage 2: stepping**, file set `crates/nvs-codegen/src/emit.rs`, `crates/nvs-host/src/debug.rs`,
+`crates/nvs-runtime/src/ctx/frames.rs`, `crates/nvs-cli/src/dap/mod.rs`. Stage 4 touches no Rust
+and may run as its own lane beside it (`## Standing decisions` § *Lanes*). Before an item, write its
+checkpoints under it in `### 2.`.
 
-- [ ] `launch` accepts `mode: serve` (today it refuses it at `crates/nvs-cli/src/dap/mod.rs:366`, and `run` maps it to a failure at `crates/nvs-cli/src/dap/mod.rs:534`). `serve::run` takes the session, and a launched serve starts in `development` whatever `[mode] default` says (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/serve.rs:227`, `crates/nvs-cli/src/serve.rs:384`
-- [ ] Serve compiles every entry through `Compiler::debugging`, with `dap::file_key` passed to `debug_unit` in place of `str::to_owned`, and drop its `expect(dead_code)`. `crates/nvs-cli/src/script.rs:614`, `crates/nvs-cli/src/script.rs:2053`
-- [ ] The listen address of a launched serve is `launch`'s `args` (`--listen`/`--port`), so a test can bind a free port. Decide this before writing the test. `crates/nvs-cli/src/serve.rs:353`
-- [ ] Scripted-client test: a breakpoint stops one served request, a second request is answered while it is stopped, `continue` lets the first one finish, and the stdout check holds. `crates/nvs-cli/tests/dap.rs:410`
+- [ ] `next`, `stepIn` and `stepOut` arm the thread's next stop site in the same frame, a deeper frame or the caller, on that thread alone. Start from how `Debugger::resume` lowers `DEBUG_BREAK` and how a site's armed byte is read. `crates/nvs-host/src/debug.rs:1`, `crates/nvs-codegen/src/emit.rs:1230`
+- [ ] A step over an `await` stops at the same frame's next statement on resume. `crates/nvs-ir/src/lower/expr.rs:3972`
+- [ ] A step into through a `callable` lands in its target, and a `Core` method is stepped over. `crates/nvs-runtime/src/callable.rs:184`
+- [ ] The frame record keeps its return value, shown in the caller's first scope after a step out. `crates/nvs-runtime/src/ctx/frames.rs:1`, `crates/nvs-codegen/src/emit.rs:3806`
+- [ ] `skipFiles` read by `launch` (`protocol::LaunchArguments`) and honoured by a step into. `crates/nvs-cli/src/dap/protocol.rs:73`
+- [ ] Step tests by the split the stage names, beside the serve test. `crates/nvs-cli/tests/dap.rs:484`
 
 ### Backlog
 

@@ -607,10 +607,6 @@ impl Compiler {
     /// **What it spends:** a debug unit's slower code, and its sites, lines
     /// and functions beside each unit the table holds. A compiler without the
     /// switch spends nothing.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "`nvs dap` is the first caller outside the tests")
-    )]
     pub(crate) fn debugging(config: &Config, debugger: Debugger) -> Self {
         Self {
             debug: Some(debugger),
@@ -1432,7 +1428,7 @@ impl Compiler {
         let outcome = crate::cache::unit_for(&lowered, program, cache.as_ref())
             .map(|(unit, _)| {
                 let debug = self.debug.as_ref().and_then(|debugger| {
-                    let unit = debug_unit(&unit, &lowered, &checked.map, str::to_owned)?;
+                    let unit = debug_unit(&unit, &lowered, &checked.map, crate::dap::file_key)?;
                     debugger.load(&unit);
                     Some((debugger.clone(), unit))
                 });

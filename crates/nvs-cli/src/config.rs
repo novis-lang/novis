@@ -599,8 +599,22 @@ pub(crate) fn stored_set(
     set_of(resolved)
 }
 
+/// Whether this process serves under `nvs dap`, which starts every application of the tree in
+/// `development` ([`nvs_config::resolve::Resolved::start_in_development`]). Set once, before the
+/// boot resolves, and read by the boot and by every reload.
+static IN_DEVELOPMENT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Starts every tree this process serves from now on in `development`, whatever it writes
+/// (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`).
+pub(crate) fn serve_in_development() {
+    IN_DEVELOPMENT.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// The host's snapshot, the roster and the origins of a resolved tree, for `nvs serve`.
-fn set_of(resolved: nvs_config::resolve::Resolved) -> Result<BootSet, Diagnostic> {
+fn set_of(mut resolved: nvs_config::resolve::Resolved) -> Result<BootSet, Diagnostic> {
+    if IN_DEVELOPMENT.load(std::sync::atomic::Ordering::Relaxed) {
+        resolved.start_in_development();
+    }
     let snapshot = nvs_config::Snapshot::host(&resolved, &ServedFiles)?;
     Ok((
         snapshot,

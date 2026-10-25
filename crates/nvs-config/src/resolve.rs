@@ -358,6 +358,43 @@ pub struct Resolved {
     pub secrets: BTreeMap<String, Secret>,
 }
 
+impl Resolved {
+    /// Starts every application of this tree in `development`, whatever its `[mode]` and
+    /// `[[app]]` blocks wrote: `[mode] default` becomes `development`, `[mode] ceiling` is
+    /// removed so it is the mode started in, and no `[[app]]` block selects a mode of its own.
+    ///
+    /// `nvs dap`'s launched server is the one caller
+    /// (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`): a debugged server is never a
+    /// production one. It runs before a snapshot is built, so every reader sees the one mode.
+    pub fn start_in_development(&mut self) {
+        let mode = self
+            .table
+            .entry("mode")
+            .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+        if let toml::Value::Table(mode) = mode {
+            mode.insert(
+                "default".to_owned(),
+                toml::Value::String(crate::mode::DEVELOPMENT.to_owned()),
+            );
+            mode.remove("ceiling");
+        }
+        self.config.mode = Some(crate::tree::Mode {
+            default: Some(crate::mode::DEVELOPMENT.to_owned()),
+            ceiling: None,
+        });
+        if let Some(toml::Value::Array(apps)) = self.table.get_mut("app") {
+            for app in apps {
+                if let toml::Value::Table(app) = app {
+                    app.remove("mode");
+                }
+            }
+        }
+        for app in &mut self.config.app {
+            app.mode = None;
+        }
+    }
+}
+
 /// What `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s steps selected.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Roots {

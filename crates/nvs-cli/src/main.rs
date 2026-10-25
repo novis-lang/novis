@@ -561,7 +561,14 @@ fn serve_command(
         if started_by_a_manager() {
             log_like_a_service();
         }
-        serve::run(file.as_deref(), listen.as_deref(), port, &config, init)
+        serve::run(
+            file.as_deref(),
+            listen.as_deref(),
+            port,
+            &config,
+            init,
+            None,
+        )
     };
     #[cfg(windows)]
     let run = match dispatch::serving(Box::new(run)) {

@@ -3,11 +3,14 @@
 //!
 //! A client starts `nvs dap`, sends `initialize`, then `launch` and `configurationDone` in either
 //! order, and the program starts once both have arrived. It runs in this process, on a thread of
-//! its own, through the same code its command uses: [`crate::run_run`] for `run` and
-//! [`crate::run_test`] for `test`. A launched program compiles and runs exactly as it would from a
-//! terminal, with the launch's `env` set in this process before it starts. A `test` launch runs
-//! one test at a time and shows each test's output. There is no `attach`: nothing ever listens
-//! for a debugger.
+//! its own, through the same code its command uses: [`crate::run_run`] for `run`,
+//! [`crate::run_test`] for `test` and [`crate::serve::run`] for `serve`. A launched program
+//! compiles and runs exactly as it would from a terminal, with the launch's `env` set in this
+//! process before it starts. A `test` launch runs one test at a time and shows each test's output.
+//! A `serve` launch starts in `development` whatever the tree writes, listens where its `args`
+//! say (`--listen` or `--port`, as `nvs serve` takes them), and serves until the session ends. A
+//! breakpoint stops the one request that reaches it, and every other request is served. There is
+//! no `attach`: nothing ever listens for a debugger.
 //!
 //! `stopOnEntry` stops the program at its first statement, and a `pause` sent before the program
 //! runs does the same ([`Debugger::stop_on_entry`], [`Debugger::pause`]).
@@ -364,9 +367,7 @@ impl Session {
         let arguments: LaunchArguments = serde_json::from_value(request.arguments.clone())
             .map_err(|error| format!("The launch configuration is not valid: {error}"))?;
         if arguments.mode == Mode::Serve {
-            return Err(
-                "`nvs dap` cannot launch in `serve` mode yet. Use `run` or `test`.".to_owned(),
-            );
+            serve_address(&arguments.args)?;
         }
         if arguments.stop_on_entry {
             self.debugger.stop_on_entry();
@@ -530,8 +531,18 @@ fn run(
             Some(debugger),
         ),
         Mode::Test => test(launch, config, init, debugger),
-        // `launch` does not accept `serve` yet.
-        Mode::Serve => ExitCode::FAILURE,
+        Mode::Serve => match serve_address(&launch.args) {
+            Ok((listen, port)) => crate::serve::run(
+                Some(&launch.program),
+                listen.as_deref(),
+                port,
+                config,
+                init,
+                Some(debugger),
+            ),
+            // `launch` has read the same arguments already.
+            Err(_) => ExitCode::FAILURE,
+        },
     }));
     match ran {
         Ok(code) => exit_number(code),
@@ -581,6 +592,47 @@ fn test(
         config,
         init,
     )
+}
+
+/// The address a `serve` launch listens on, read from its `args`: `--listen <address>` or
+/// `--port <port>`, as `nvs serve` takes them, or neither for the configuration's own. An
+/// argument that is not one of these is the message the client shows.
+fn serve_address(args: &[String]) -> Result<(Option<String>, Option<u16>), String> {
+    let mut listen = None;
+    let mut port = None;
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        let (flag, value) = match arg.split_once('=') {
+            Some((flag, value)) => (flag, Some(value.to_owned())),
+            None => (arg.as_str(), None),
+        };
+        let value = match value {
+            Some(value) => value,
+            None if flag == "--listen" || flag == "--port" => rest
+                .next()
+                .cloned()
+                .ok_or_else(|| format!("`{flag}` needs a value."))?,
+            None => String::new(),
+        };
+        match flag {
+            "--listen" => listen = Some(value),
+            "--port" => {
+                port = Some(value.parse::<u16>().map_err(|_| {
+                    format!("`--port {value}` is not a port. Write a number from 0 to 65535.")
+                })?);
+            }
+            _ => {
+                return Err(format!(
+                    "A `serve` launch takes `--listen <address>` or `--port <port>` in `args`, \
+                     and `{arg}` is neither."
+                ));
+            }
+        }
+    }
+    if listen.is_some() && port.is_some() {
+        return Err("Write `--listen` or `--port` in `args`, not both.".to_owned());
+    }
+    Ok((listen, port))
 }
 
 /// The number an [`ExitCode`] stands for. `run_run` builds every code it returns from a byte, and

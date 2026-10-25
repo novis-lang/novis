@@ -7,11 +7,13 @@
 //! frame.
 
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::TcpStream;
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{Receiver, channel};
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 use serde_json::{Value, json};
 
@@ -447,6 +449,104 @@ fn a_breakpoint_stops_a_launched_test_with_its_variables() {
         .find(|frame| frame["event"] == "exited")
         .expect("an `exited` event before `terminated`");
     assert_eq!(exited["body"]["exitCode"], 0, "{ran:#?}");
+    client.request("disconnect", json!({}));
+    let (_, success) = client.finish();
+    assert!(success, "the adapter ended with a failure");
+}
+
+/// How long a request to the launched server may take to answer before the test fails. A bound
+/// on a failure, never a wait: every answer below arrives as soon as the server writes it.
+const BOUND: Duration = Duration::from_secs(60);
+
+/// Sends `GET path` to `addr` and gives the response's body.
+fn get(addr: &str, path: &str) -> String {
+    let mut stream =
+        TcpStream::connect(addr).unwrap_or_else(|error| panic!("{addr} does not answer: {error}"));
+    stream
+        .set_read_timeout(Some(BOUND))
+        .expect("a read timeout is set");
+    write!(stream, "GET {path} HTTP/1.0\r\nHost: localhost\r\n\r\n").expect("the request is sent");
+    let mut raw = Vec::new();
+    stream
+        .read_to_end(&mut raw)
+        .unwrap_or_else(|error| panic!("the answer to `{path}` was cut off: {error}"));
+    let text = String::from_utf8_lossy(&raw).into_owned();
+    text.split_once("\r\n\r\n")
+        .map(|(_, body)| body.to_owned())
+        .unwrap_or_else(|| panic!("the answer to `{path}` has no header block: {text}"))
+}
+
+/// A `serve` launch serves the program in `development`. A breakpoint stops the one request
+/// that reaches it, a second request is answered while the first is stopped, and `continue` lets
+/// the first one finish. The server's own lines arrive as `output` events, and stdout carries
+/// frames only.
+#[test]
+fn a_breakpoint_stops_one_served_request_while_another_is_answered() {
+    let dir = nvs_repo::scratch_private("dap-serve");
+    fs::write(
+        dir.join("app.nvs"),
+        "<?nvs\nuse Core\\Env;\nuse Core\\Request;\n\nif (Request::path() == \"/stop\") {\n    int $price = 4;\n    int $total = $price * 3;\n    echo $total;\n} else {\n    echo Env::mode() == Env::Mode::Development ? \"development\" : \"production\";\n}\n",
+    )
+    .unwrap();
+    let app = dir.join("app.nvs");
+
+    let mut client = Client::start(&dir);
+    client.request("initialize", json!({ "adapterID": "novis" }));
+    client.until_event("initialized");
+    client.ask(
+        "setBreakpoints",
+        json!({ "source": { "path": app }, "breakpoints": [{ "line": 8 }] }),
+    );
+    client.request(
+        "launch",
+        json!({ "mode": "serve", "program": app, "args": ["--port", "0"] }),
+    );
+    client.request("configurationDone", json!({}));
+    let mut said = String::new();
+    let mut seen = Vec::new();
+    let addr = loop {
+        let frame = client
+            .frames
+            .recv()
+            .unwrap_or_else(|_| panic!("stdout ended before the server listened: {seen:#?}"));
+        assert!(
+            frame["event"] != "terminated",
+            "the server ended before it listened: {seen:#?}"
+        );
+        said.push_str(&output(std::slice::from_ref(&frame), "stdout"));
+        seen.push(frame);
+        if let Some(rest) = said
+            .split_once("listening on http://")
+            .map(|(_, rest)| rest)
+            && let Some((addr, _)) = rest.split_once(' ')
+        {
+            break addr.to_owned();
+        }
+    };
+
+    let stopped_request = {
+        let addr = addr.clone();
+        std::thread::spawn(move || get(&addr, "/stop"))
+    };
+    let ran = client.until_event("stopped");
+    assert_eq!(
+        ran.last().unwrap()["body"]["reason"],
+        "breakpoint",
+        "{ran:#?}"
+    );
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 8, "{frame:#?}");
+    assert_eq!(variables["$price"], "4", "{variables:#?}");
+    assert_eq!(variables["$total"], "12", "{variables:#?}");
+
+    // The first request is still stopped, and this one is answered.
+    assert_eq!(get(&addr, "/other"), "development");
+
+    client.ask("continue", json!({}));
+    assert_eq!(
+        stopped_request.join().expect("the stopped request ends"),
+        "12"
+    );
     client.request("disconnect", json!({}));
     let (_, success) = client.finish();
     assert!(success, "the adapter ended with a failure");
