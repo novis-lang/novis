@@ -38,6 +38,8 @@ pub struct FrameRecord {
     function: u32,
     /// The program-wide number of the stop site the call last reached.
     site: u32,
+    /// How many slots `slots` points at.
+    slot_count: u32,
 }
 
 /// The bytes compiled code reserves for one [`FrameRecord`].
@@ -50,17 +52,21 @@ pub const FRAME_SLOTS_OFFSET: usize = std::mem::offset_of!(FrameRecord, slots);
 pub const FRAME_FUNCTION_OFFSET: usize = std::mem::offset_of!(FrameRecord, function);
 /// Byte offset of [`FrameRecord`]'s current stop site.
 pub const FRAME_SITE_OFFSET: usize = std::mem::offset_of!(FrameRecord, site);
+/// Byte offset of [`FrameRecord`]'s slot count.
+pub const FRAME_SLOT_COUNT_OFFSET: usize = std::mem::offset_of!(FrameRecord, slot_count);
 
-/// What one [`FrameRecord`] says, copied out of it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Frame {
+/// What one [`FrameRecord`] says, read out of it while its call is in flight.
+#[derive(Clone, Copy, Debug)]
+pub struct Frame<'a> {
     /// The function's index in `nvs_ir::Program::functions`.
     pub function: u32,
     /// The program-wide number of the stop site the call last reached.
     pub site: u32,
-    /// The first of the function's variable slots, or null for a function
-    /// with none. Valid only while the call is in flight.
-    pub slots: *const Value,
+    /// The function's variable slots, one per entry of its slot table. A
+    /// slot whose variable has no value at this statement is
+    /// [`Value::unset`]. The values are borrowed: reading one takes no
+    /// reference.
+    pub slots: &'a [Value],
 }
 
 /// The records linked to one context, innermost first — see [`Ctx::frames`].
@@ -70,10 +76,10 @@ pub struct Frames<'a> {
     _ctx: std::marker::PhantomData<&'a Ctx>,
 }
 
-impl Iterator for Frames<'_> {
-    type Item = Frame;
+impl<'a> Iterator for Frames<'a> {
+    type Item = Frame<'a>;
 
-    fn next(&mut self) -> Option<Frame> {
+    fn next(&mut self) -> Option<Frame<'a>> {
         if self.next.is_null() {
             return None;
         }
@@ -84,12 +90,27 @@ impl Iterator for Frames<'_> {
                       still on this task's stack. The borrow of the context keeps compiled code \
                       from running while the walk reads it."
         )]
-        let record = unsafe { &*self.next };
+        let record: &'a FrameRecord = unsafe { &*self.next };
         self.next = record.caller;
+        let slots = if record.slots.is_null() {
+            &[][..]
+        } else {
+            #[expect(
+                unsafe_code,
+                reason = "compiled code points `slots` at the function's own area of `slot_count` \
+                          sixteen-byte values, in the same frame as the record, and sets every \
+                          slot to an unset `Value` before it links the record. The \
+                          borrow of the context keeps compiled code from writing them while the \
+                          slice is read."
+            )]
+            unsafe {
+                std::slice::from_raw_parts(record.slots, record.slot_count as usize)
+            }
+        };
         Some(Frame {
             function: record.function,
             site: record.site,
-            slots: record.slots,
+            slots,
         })
     }
 }

@@ -15,16 +15,26 @@
 //! test. A stopped task that is cancelled ends at once, through
 //! [`Ctx::cancel`], and runs no more of its code.
 //!
+//! Each frame of a [`Stop`] has its file, its line and its variables. The
+//! handler reads the variables on the task's own stack, before it parks,
+//! because the slots are valid only there. Each value is the bounded tree a
+//! dump shows ([`nvs_runtime::record::node`]), and a `secret` variable is
+//! [`Node::Redacted`]
+//! (`rule:security/redaction-reaches-the-tools-own-renderings`).
+//!
 //! The controller is `Send` and `Sync`, so a session drives it from its own
 //! thread while the program runs on a core.
 //!
-//! **What it spends:** one [`SiteLine`] per statement per session, one
-//! safepoint view per attached request, and one wake per stopped task, freed by
-//! the resume. A program that is not debugged spends nothing.
+//! **What it spends:** one [`SiteLine`] per statement and one
+//! [`DebugFunction`] per function per session, one safepoint view per attached
+//! request, and one wake per stopped task, freed by the resume. A stop holds
+//! the tree of every variable of every frame until the session drops it. A
+//! program that is not debugged spends nothing.
 
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, mpsc};
 
-use nvs_runtime::{Ctx, Fault, SafepointFlags, SafepointView, SiteTable};
+use nvs_render::Node;
+use nvs_runtime::{Ctx, Fault, Frame, SafepointFlags, SafepointView, SiteTable, Tag};
 use rustc_hash::FxHashMap;
 
 use crate::reactor::RemoteWake;
@@ -38,6 +48,25 @@ pub struct SiteLine {
     pub file: String,
     /// The 1-based line the statement starts on.
     pub line: u32,
+}
+
+/// One function of the debugged unit, at its index in
+/// `nvs_ir::Program::functions`: what a frame record's index names.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DebugFunction {
+    /// The function's name in the unit.
+    pub name: String,
+    /// One entry per slot of its slot table, in slot order.
+    pub slots: Vec<DebugVariable>,
+}
+
+/// One slot of a [`DebugFunction`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DebugVariable {
+    /// The variable's name, without its `$`.
+    pub name: String,
+    /// Whether its type is `secret`, so its value is never shown.
+    pub secret: bool,
 }
 
 /// One line of a [`Debugger::set_breakpoints`] call, and whether any stop site
@@ -60,17 +89,31 @@ pub enum StopReason {
 }
 
 /// One call in flight of a stopped task, innermost first in [`Stop::frames`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct StoppedFrame {
-    /// The function's index in the unit, which `nvs_codegen::Unit::debug_function`
-    /// names.
+    /// The function's index in the unit.
     pub function: u32,
+    /// The function's name, or empty for an index the session was not told.
+    pub name: String,
     /// The program-wide number of the stop site the call last reached.
     pub site: u32,
+    /// Where that site is, or `None` for a site the session was not told.
+    pub at: Option<SiteLine>,
+    /// Every variable with a value at that site, in slot order.
+    pub variables: Vec<StoppedVariable>,
+}
+
+/// One variable of a [`StoppedFrame`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct StoppedVariable {
+    /// The variable's name, without its `$`.
+    pub name: String,
+    /// Its value as a record tree, or [`Node::Redacted`] for a `secret` one.
+    pub value: Node,
 }
 
 /// What a task reports when it stops.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Stop {
     /// The task that stopped, or `None` for a context with no scheduler
     /// beneath it.
@@ -93,6 +136,7 @@ pub struct Debugger {
 struct Shared {
     sites: Arc<SiteTable>,
     lines: Vec<SiteLine>,
+    functions: Vec<DebugFunction>,
     state: Mutex<State>,
     /// Signalled by every resume, for a stopped context with no reactor.
     resumed: Condvar,
@@ -116,14 +160,21 @@ struct State {
 impl Debugger {
     /// A session over the unit whose stop sites are `sites`. `lines` is where
     /// each site is, indexed the same way: the caller builds it from
-    /// `nvs_ir::Program::stmt_lines`. The receiver gets every [`Stop`].
+    /// `nvs_ir::Program::stmt_lines`. `functions` is the unit's functions by
+    /// index, from `nvs_codegen::Unit::debug_function` and
+    /// `nvs_codegen::Unit::debug_slots`. The receiver gets every [`Stop`].
     #[must_use]
-    pub fn new(sites: Arc<SiteTable>, lines: Vec<SiteLine>) -> (Self, mpsc::Receiver<Stop>) {
+    pub fn new(
+        sites: Arc<SiteTable>,
+        lines: Vec<SiteLine>,
+        functions: Vec<DebugFunction>,
+    ) -> (Self, mpsc::Receiver<Stop>) {
         debug_assert_eq!(sites.len(), lines.len(), "one line per stop site");
         let (stops, receiver) = mpsc::channel();
         let shared = Shared {
             sites,
             lines,
+            functions,
             state: Mutex::default(),
             resumed: Condvar::new(),
             stops,
@@ -220,13 +271,7 @@ impl Shared {
 
     /// The stop handler: reports the stop, then parks until a resume.
     fn stop(&self, ctx: &mut Ctx) -> i32 {
-        let frames: Vec<StoppedFrame> = ctx
-            .frames()
-            .map(|frame| StoppedFrame {
-                function: frame.function,
-                site: frame.site,
-            })
-            .collect();
+        let frames: Vec<StoppedFrame> = ctx.frames().map(|frame| self.read(frame)).collect();
         let reason = match frames.first() {
             Some(frame) if self.sites.is_armed(frame.site) => StopReason::Breakpoint,
             _ => StopReason::Pause,
@@ -260,6 +305,43 @@ impl Shared {
         }
         nvs_runtime::OK
     }
+
+    /// One frame of a stopped task, its variables rendered. Runs on the
+    /// task's stack, where `frame`'s slots are valid.
+    fn read(&self, frame: Frame<'_>) -> StoppedFrame {
+        let function = usize::try_from(frame.function)
+            .ok()
+            .and_then(|index| self.functions.get(index));
+        let at = usize::try_from(frame.site)
+            .ok()
+            .and_then(|site| self.lines.get(site))
+            .cloned();
+        StoppedFrame {
+            function: frame.function,
+            name: function.map(|f| f.name.clone()).unwrap_or_default(),
+            site: frame.site,
+            at,
+            variables: function.map_or_else(Vec::new, |f| variables(f, frame.slots)),
+        }
+    }
+}
+
+/// The variables of `function` that have a value in `slots`, rendered.
+fn variables(function: &DebugFunction, slots: &[nvs_runtime::Value]) -> Vec<StoppedVariable> {
+    function
+        .slots
+        .iter()
+        .zip(slots)
+        .filter(|(_, value)| value.tag() != Some(Tag::Unset))
+        .map(|(variable, &value)| StoppedVariable {
+            name: variable.name.clone(),
+            value: if variable.secret {
+                Node::Redacted
+            } else {
+                nvs_runtime::record::node(value)
+            },
+        })
+        .collect()
 }
 
 /// The stop handler's hold on its session, which detaches the request when
@@ -293,8 +375,44 @@ mod tests {
             file: "a.nvs".to_owned(),
             line,
         };
-        let (debugger, stops) = Debugger::new(Arc::clone(&sites), vec![line(2), line(2), line(4)]);
+        let (debugger, stops) = Debugger::new(
+            Arc::clone(&sites),
+            vec![line(2), line(2), line(4)],
+            Vec::new(),
+        );
         (debugger, stops, sites)
+    }
+
+    #[test]
+    fn a_secret_variable_renders_redacted_and_an_unset_one_is_left_out() {
+        let variable = |name: &str, secret| DebugVariable {
+            name: name.to_owned(),
+            secret,
+        };
+        let function = DebugFunction {
+            name: "main".to_owned(),
+            slots: vec![
+                variable("count", false),
+                variable("later", false),
+                variable("token", true),
+            ],
+        };
+        let slots = [
+            nvs_runtime::Value::int(3),
+            nvs_runtime::Value::unset(),
+            nvs_runtime::Value::int(42),
+        ];
+        let shown = variables(&function, &slots);
+        assert_eq!(
+            shown
+                .iter()
+                .map(|v| (v.name.as_str(), &v.value))
+                .collect::<Vec<_>>(),
+            [
+                ("count", &nvs_runtime::record::node(slots[0])),
+                ("token", &Node::Redacted),
+            ]
+        );
     }
 
     #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]

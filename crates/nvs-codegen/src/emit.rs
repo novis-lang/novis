@@ -72,7 +72,7 @@ use nvs_ir::ir::{
 use nvs_runtime::{
     DEBUG_FLAGS_OFFSET, DEBUG_FRAMES_OFFSET, DEPRECATED_OFFSET, Decimal as NvsDecimal,
     FRAME_CALLER_OFFSET, FRAME_FUNCTION_OFFSET, FRAME_RECORD_SIZE, FRAME_SITE_OFFSET,
-    FRAME_SLOTS_OFFSET, OK, SAFEPOINT_OFFSET, STACK_LIMIT_OFFSET, THROWN, Tag, Value as NvsValue,
+    FRAME_SLOT_COUNT_OFFSET, FRAME_SLOTS_OFFSET, OK, SAFEPOINT_OFFSET, STACK_LIMIT_OFFSET, THROWN, Tag, Value as NvsValue,
 };
 use rustc_hash::FxHashMap;
 
@@ -223,13 +223,13 @@ pub(crate) fn emit_function(
     };
     // Under the debug switch, the frame record, linked before anything can
     // return. Every return unlinks it again — see [`Emitter::emit_return`].
-    let debug_frame = match f.debug_slots {
+    let debug_frame = match f.debug_slots.as_deref() {
         None => None,
-        Some(_) => Some(link_frame_record(
+        Some(slots) => Some(link_frame_record(
             &mut b,
             module,
             ctx_p,
-            debug_area,
+            debug_area.map(|area| (area, slots.len())),
             function_index,
             stmt_base,
         )?),
@@ -336,7 +336,7 @@ fn link_frame_record(
     b: &mut FunctionBuilder<'_>,
     module: &mut dyn Module,
     ctx_p: Value,
-    area: Option<codegen::ir::StackSlot>,
+    area: Option<(codegen::ir::StackSlot, usize)>,
     function: u32,
     site: u32,
 ) -> Result<DebugFrame, CodegenError> {
@@ -352,12 +352,36 @@ fn link_frame_record(
     let record_p = b.ins().stack_addr(types::I64, record, 0);
     let outer = b.ins().load(types::I64, ctx_word(), ctx_p, head);
     b.ins().store(ctx_word(), outer, record_p, caller);
-    let slots = match area {
-        Some(area) => b.ins().stack_addr(types::I64, area, 0),
-        None => b.ins().iconst(types::I64, 0),
+    let (slots, count) = match area {
+        Some((area, count)) => (
+            b.ins().stack_addr(types::I64, area, 0),
+            u32::try_from(count).map_err(|_| internal("a function with 2^32 debug slots"))?,
+        ),
+        None => (b.ins().iconst(types::I64, 0), 0),
     };
+    // Every slot starts unset, because the entry safepoint can stop the call
+    // before its first statement stores anything.
+    let unset = b.ins().iconst(types::I64, i64::from(Tag::Unset as u8));
+    let zero = b.ins().iconst(types::I64, 0);
+    for slot in 0..count {
+        let offset = i32::try_from(slot)
+            .ok()
+            .and_then(|slot| slot.checked_mul(VALUE_SIZE))
+            .ok_or_else(|| internal("a debug slot past i32"))?;
+        b.ins()
+            .store(trusted(), unset, slots, offset + offset_i32(NvsValue::TAG_OFFSET)?);
+        b.ins()
+            .store(trusted(), zero, slots, offset + offset_i32(NvsValue::BITS_OFFSET)?);
+    }
     b.ins()
         .store(ctx_word(), slots, record_p, offset_i32(FRAME_SLOTS_OFFSET)?);
+    let count = b.ins().iconst(types::I32, i64::from(count));
+    b.ins().store(
+        ctx_word(),
+        count,
+        record_p,
+        offset_i32(FRAME_SLOT_COUNT_OFFSET)?,
+    );
     let function = b.ins().iconst(types::I32, i64::from(function));
     b.ins().store(
         ctx_word(),

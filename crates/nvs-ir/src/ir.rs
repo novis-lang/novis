@@ -506,6 +506,11 @@ pub struct DebugSlot {
     /// where nothing declares one. The slot carries each value's own tag, so a
     /// variable narrowed to another representation still reads right.
     pub ty: Ty,
+    /// Whether the checker's type of the variable carries the `secret`
+    /// qualifier (`rule:security/secret-qualifier`). The qualifier is erased
+    /// before a value exists, so a debugger redacts the slot by this bit
+    /// (`rule:security/redaction-reaches-the-tools-own-renderings`).
+    pub secret: bool,
 }
 
 /// One basic block: a straight-line run of [`Inst`]ructions ending in one

@@ -850,8 +850,9 @@ pub(crate) struct DebugSlots {
 }
 
 impl DebugSlots {
-    /// `name`'s slot, given one the first time the name is seen.
-    fn slot(&mut self, name: &str, ty: Ty) -> u32 {
+    /// `name`'s slot, given one the first time the name is seen. `secret`
+    /// is asked only then.
+    fn slot(&mut self, name: &str, ty: Ty, secret: impl FnOnce() -> bool) -> u32 {
         if let Some(&slot) = self.index.get(name) {
             return slot;
         }
@@ -859,6 +860,7 @@ impl DebugSlots {
         self.slots.push(crate::ir::DebugSlot {
             name: name.to_owned(),
             ty,
+            secret: secret(),
         });
         self.index.insert(name.to_owned(), slot);
         slot
@@ -2618,11 +2620,20 @@ impl<'a> Lowering<'a> {
             .filter(|(name, (_, ty))| !name.contains('#') && !matches!(ty, Ty::Ref | Ty::ClassDesc))
             .collect();
         shown.sort_unstable_by_key(|(name, _)| name.as_str());
+        // The checker's binding is where `secret` survives, found from the
+        // statement's position: the innermost body that declares the name.
+        let at = self.cur_stmt_span;
+        let (exprs, checked_types) = (self.exprs, self.checked_types);
         let mut stores: Vec<(u32, ValueId)> = shown
             .into_iter()
             .map(|(name, &(v, ty))| {
                 let declared = self.declared_tys.get(name).copied().unwrap_or(ty);
-                (debug.slot(name, declared), v)
+                let secret = || {
+                    exprs
+                        .local_ty(at.file, name, at.start)
+                        .is_some_and(|ty| nvs_types::expr::type_is_secret(ty, checked_types))
+                };
+                (debug.slot(name, declared, secret), v)
             })
             .collect();
         stores.sort_unstable_by_key(|&(slot, _)| slot);
