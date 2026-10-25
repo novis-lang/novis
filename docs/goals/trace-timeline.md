@@ -41,7 +41,7 @@ stages:
         rules: [testing/debug-surface, security/isolate-shares-nothing, observability/spawn-is-its-own-event]
   - id: 4
     title: "the profiler times every call, and `--profile` writes Callgrind or speedscope"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/trace.rs, crates/nvs-cli/src/run.rs, crates/nvs-cli/src/runner.rs, docs/rules/observability/speedscope-timeline-export.md, docs/rules/testing/debug-surface.md]
     extra:
       context:
@@ -180,6 +180,20 @@ table to each test's own table and to the suite's table, and `nvs run` sets none
 reads it there. A trace is closed in `finish`, so after-response work a child runs past it writes
 no trace lines.
 
+**A profile is one track per context, and a child's timeline is its own.** Built:
+`nvs_runtime::Profiler` is the file, and each context times into a `ProfileTrack` of its own
+(`crates/nvs-runtime/src/ctx/profile.rs`). Two contexts' calls interleave, so one shared timeline
+would not nest. The speedscope file has one evented profile per track, so a child's events do not
+nest under its parent's `spawn` bar; the bar spans the child's run on the parent's timeline. The
+first track writes into the file and every later one into a `<file>.<n>.part` beside it, copied in
+and deleted once the first track closes. Only a host profiler (`Ctx::set_run_profile`, under
+`--profile`) has later tracks, so `Core\Debug::startProfile` writes the one path its grant names
+(security). A track closes when it is dropped, so a child's profile needs no field on `Completion`.
+Callgrind adds each track's totals at its close and writes the file at the end, since its format
+is totals. A `stopProfile` inside a run that `--profile` wraps turns the probe off and leaves the
+run's file open. Spends: per track, one entry per call in flight and one index per function it
+called, plus Callgrind totals per function and per caller and callee pair.
+
 ## Stages
 
 ### 1. every trace event has a time on one clock
@@ -249,11 +263,11 @@ come back on its result.
 **Does:** `PROFILE` times the call probes, and two flags on `nvs run` and `nvs test` write the two
 exports.
 
-- [ ] The rule says where each file goes, as the standing decision says (`rule:observability/speedscope-timeline-export`). `docs/rules/observability/speedscope-timeline-export.md:1`
-- [ ] The call probes read `PROFILE` and accumulate self and inclusive time per function (`rule:testing/debug-surface`). `crates/nvs-runtime/src/ctx/trace.rs:769`, `crates/nvs-runtime/src/ctx/trace.rs:803`
-- [ ] `--profile=callgrind`, `--profile=speedscope` and `--profile-out` on `nvs run` and `nvs test`, each writing as the run goes, with help text that states the probe's cost. `crates/nvs-cli/src/run.rs:15`, `crates/nvs-cli/src/runner.rs:142`
-- [ ] Rust tests over a fixture: the Callgrind file and the speedscope file pass the format checks the standing decision names (`rule:observability/speedscope-timeline-export`). `crates/nvs-cli/src/runner.rs:3458`
-- [ ] Both rules `shipped`, their `**Not on disk.**` paragraphs rewritten (`rule:testing/debug-surface`, `rule:observability/speedscope-timeline-export`). `data/rules/testing/debug-surface.json:3`, `data/rules/observability/speedscope-timeline-export.json:3`, `docs/rules/testing/debug-surface.md:28`
+- [x] The rule says where each file goes, as the standing decision says (`rule:observability/speedscope-timeline-export`). `docs/rules/observability/speedscope-timeline-export.md:1`
+- [x] The call probes read `PROFILE` and accumulate self and inclusive time per function (`rule:testing/debug-surface`). `crates/nvs-runtime/src/ctx/trace.rs:769`, `crates/nvs-runtime/src/ctx/trace.rs:803`
+- [x] `--profile=callgrind`, `--profile=speedscope` and `--profile-out` on `nvs run` and `nvs test`, each writing as the run goes, with help text that states the probe's cost. `crates/nvs-cli/src/run.rs:15`, `crates/nvs-cli/src/runner.rs:142`
+- [x] Rust tests over a fixture: the Callgrind file and the speedscope file pass the format checks the standing decision names (`rule:observability/speedscope-timeline-export`). `crates/nvs-cli/src/runner.rs:3458`
+- [x] Both rules `shipped`, their `**Not on disk.**` paragraphs rewritten (`rule:testing/debug-surface`, `rule:observability/speedscope-timeline-export`). `data/rules/testing/debug-surface.json:3`, `data/rules/observability/speedscope-timeline-export.json:3`, `docs/rules/testing/debug-surface.md:28`
 
 ### 5. VS Code opens a profile
 
@@ -298,40 +312,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 6 and 7 are done. The seven `Core\Debug` members exist, a trace and coverage work
-from source, and a spawned isolate's probe data comes back on its result.
+Stages 1, 2, 3, 4, 6 and 7 are done. The profiler exists: `nvs run` and `nvs test` take
+`--profile=callgrind|speedscope` and `--profile-out`, and `Core\Debug::startProfile` writes
+speedscope to the one file its grant names.
 
-- **Stage 3** (this session): an isolate (`Ctx::isolate`, `PlacedIsolate`) counts into
-  `StmtHits::fresh_like` its parent's table. `Completion` and `Crossed` carry `coverage` and
-  `trace_sink` (`nvs_runtime::ClosedSink`), filled in `nvs_host::isolate::finish`, and
-  `hand_over` adds the table into `Ctx::run_hits`. A `Core\Task` (`Ctx::child`) still shares its
-  request's table; the standing decision *A task is not an isolate* records why. `nvs test` sets the
-  run table per test and per suite. Running `nvs test --coverage-lcov` on
-  `crates/nvs-cli/tests/fixtures/runner/parallel-coverage.nvs` still counts each test's line.
-- **The sweep's reds are stale.** `env-secret-proofs`'s log says `exit 0` and dates from Oct 22, and
-  the nightly run is on `3ea6f15`, which predates the fixes the last handoff listed.
-- **Found by running the members.** A trace's first line is `Core\Debug::startTrace` itself, and a
-  throwing call's status is `thrown`. A sink path built at run time must be absolute.
-  `Core\Config::set('debug.mode', …)` returns `false` for every value.
+- **Stage 4** (this session): `nvs_runtime::Profiler` and `ProfileTrack`
+  (`crates/nvs-runtime/src/ctx/profile.rs`), driven by the call probes and the runtime-call pair in
+  `crates/nvs-runtime/src/ctx/trace.rs`. A gc pause, a spawn and a recorded query or http call are
+  windows inside the running call. The CLI half is `crates/nvs-cli/src/profile.rs`. The standing
+  decision *A profile is one track per context* records the design, and both rules are `shipped`.
+  `a_profile_of_a_suite_passes_each_formats_checks` (`crates/nvs-cli/src/runner.rs:5980`) passed
+  once by name, over `crates/nvs-cli/tests/fixtures/runner/profile.nvs`.
+- **The sweep's reds are stale.** The env-secret log is Oct 22's `exit 0`, and the nightly run on
+  `3ea6f15` is older than the Miri and `deny.toml` fixes (`d2a782d60`, `a5f50b907`).
+- **Found by running it.** A recursive `cfn=` edge carries nested inclusive time, which
+  KCachegrind reads as a cycle. Under `nvs test`, Callgrind's total adds the waiting parent's
+  `spawn script` frame and the child's calls together.
 
-The two new tests passed once by name. Expected red at the gate: any `nvs meta --json` or
-reference-card snapshot that lists `Core\Debug`'s members, and `bun nv scaling --budget`, whose
-`data/perf/bench-budget.json` has no entry for the seven benches. It is red tree-wide already
-(`novis/Spreadsheet-*`). `startProfile`'s growth reads `unclear`, which the gate accepts. A test
-that counted a child's lines into its parent's own table would go red; the build found none.
+Expected red at the gate: anything that snapshots `nvs run --help` or `nvs test --help` (two new
+flags each), and the earlier list: `nvs meta --json` and reference-card snapshots of `Core\Debug`,
+and `bun nv scaling --budget`. `crates/nvs-stdlib/src/debug.rs`'s
+`a_profile_starts_and_stops_its_probe_and_sink` now creates the file it names, so it should stay
+green.
 
 ### Next
 
-**Stage 4: the profiler.** It spans `crates/nvs-runtime/src/ctx/trace.rs` and `crates/nvs-cli/`.
-Stage 5 stays a side lane (`editors/vscode/`). A profile sink is a path on `DebugSinks` today and
-nothing writes it; a child's profile sink should close in `finish` beside the trace's
-(`crates/nvs-host/src/isolate.rs`, `close_trace_sink`).
+**Stage 8: the profiler's feature proofs**, the gate stage's last prerequisite, then stage 5 as the
+side lane (`editors/vscode/`). Stage 8's split line names the subagent. The bench measures the probe's
+cost per call with `PROFILE` on against off.
 
-- [ ] The rule says where each file goes: `callgrind.out.<pid>`, `profile.<pid>.speedscope.json` and `--profile-out`. `docs/rules/observability/speedscope-timeline-export.md:1`
-- [ ] The call probes read `PROFILE` and keep self and inclusive time per function, one entry per frame in flight and one name per function. `crates/nvs-runtime/src/ctx/trace.rs:1141`, `crates/nvs-runtime/src/ctx/trace.rs:1175`, `crates/nvs-runtime/src/ctx/trace.rs:532`
-- [ ] `--profile=callgrind|speedscope` and `--profile-out` on `nvs run` and `nvs test`, with help text that states the probe's cost. `crates/nvs-cli/src/run.rs:15`, `crates/nvs-cli/src/runner.rs:142`
-- [ ] Rust tests over a fixture, with the format checks the standing decision *Each export is checked by its own format* names. `crates/nvs-cli/src/runner.rs:3458`
-- [ ] Both rules `shipped`, and their *Not on disk* paragraphs rewritten. `data/rules/testing/debug-surface.json:3`, `data/rules/observability/speedscope-timeline-export.json:3`, `docs/rules/testing/debug-surface.md:64`
+- [ ] A `# Profiling` section in the CLI chapter that states the probe's cost and where each file goes. `docs/reference/tools/10-cli.md:302`
+- [ ] A bench of the probe's cost per call, with its growth. `benches/members/tools/cli/profiling.nvs:1`
+- [ ] `about.md`, three examples and the attack (no grant, no file), by one writing subagent. `docs/examples/tools/cli/profiling/about.md:1`, `tests/hostile/tools/cli/profiling/01-a-profile-without-the-grant.nvs:1`
+- [ ] `bun nv proofs --id 'tools:cli/profiling'` owes nothing. `tools/nv/proofs/roster.ts:209`
+- [ ] Stage 5: the bundled speedscope viewer and *View Profile*. `editors/vscode/package.json:352`, `editors/vscode/src/extension.ts:129`
 
 ### Backlog
 
