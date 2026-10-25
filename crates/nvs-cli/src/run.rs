@@ -30,8 +30,9 @@ pub(crate) struct Args {
     // `nvs_runtime::FaultSite` documents each site.
     #[arg(long, value_name = "SITE")]
     fault_inject: Option<FaultSiteArg>,
-    /// Count what the program did — statements executed, calls made,
-    /// allocations, bytes — and print the four totals on stderr at exit.
+    /// Count what the program did and print the totals on stderr at exit.
+    /// The totals are statements executed, calls made, allocations, bytes
+    /// allocated and garbage collections run (`gc`).
     /// Before the program starts, it also prints the line that
     /// `nvs check --count` prints, with the IR instructions added.
     ///

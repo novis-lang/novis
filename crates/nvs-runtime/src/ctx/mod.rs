@@ -1405,15 +1405,16 @@ pub struct Ctx {
     debug_ceiling: DebugFlags,
     /// The files `Core\Debug::startTrace` and `Core\Debug::startProfile` named, each while it runs.
     debug_sinks: DebugSinks,
-    /// `rule:testing/bench-counters`'s two counts, kept only under
-    /// [`DebugFlags::COUNT`]: statements executed and compiled call sites
-    /// entered. Two words rather than `stmt_hits` and `trace`, because a bench
+    /// `rule:testing/bench-counters`'s three counts, kept only under
+    /// [`DebugFlags::COUNT`]: statements executed, compiled call sites entered
+    /// and in-flight collections run. Words rather than `stmt_hits` and `trace`, because a bench
     /// runs a loop hundreds of thousands of times and the question at its end
     /// is a total, not a per-site table or a per-call record — and because the
     /// counts are the same on every machine, which is what makes them worth
     /// keeping beside a wall-clock figure that is not.
     counted_stmts: u64,
     counted_calls: u64,
+    counted_gc_cycles: u64,
     /// `rule:observability/four-kinds-become-a-span`'s events, in the order
     /// they were filed: a `query`, an `http`, a `spawn` and a `gc`, at most
     /// [`SPAN_EVENT_CEILING`] of them, written through [`Ctx::records_spans`].

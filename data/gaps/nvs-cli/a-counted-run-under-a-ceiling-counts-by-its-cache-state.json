@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/main.rs",
+  "title": "A counted run that collects under a memory ceiling counts different allocations when it compiles its program than when it loads it from the compile cache.",
+  "text": "`nvs run --count` of a program that makes cycles under `[limits] memory = \"2M\"` prints the same line on every cold run and the same line on every warm run, and the two lines differ: the cold one has more allocations and more bytes, and the same `gc=`. Without a ceiling the cold and warm lines are equal. So something the compile leaves on this thread moves the balance the ceiling is compared with, and the collections run at different moments over lists of different sizes. A bench's first run is cold and its later ones warm, so a ramp that collects can see the difference. Closing it is a ceiling whose crossings depend only on what the program allocated, and a case in `two_counted_runs_with_a_collection_print_the_same_line` that compares a cold run with a warm one.",
+  "goal": "bench-counters"
+}

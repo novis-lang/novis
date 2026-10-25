@@ -213,6 +213,7 @@ impl Ctx {
             debug_sinks: DebugSinks::default(),
             counted_stmts: 0,
             counted_calls: 0,
+            counted_gc_cycles: 0,
             trace: Vec::new(),
             yielder: std::ptr::null(),
             fault: None,

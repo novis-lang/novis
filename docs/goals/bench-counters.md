@@ -116,12 +116,13 @@ in that order.
 **Does:** the counts gain GC cycles, and a call run on the blocking pool allocates the same amount
 however its job ends.
 
-- [ ] `Counted` gains a GC cycle count (`rule:testing/bench-counters`). `crates/nvs-runtime/src/ctx/trace.rs:603`
-- [ ] The count is raised where a collection runs. `crates/nvs-runtime/src/object.rs:3104`
-- [ ] `--count` prints `gc=<cycles>` last on its line. `crates/nvs-cli/src/main.rs:2263`
+- [x] `Counted` gains a GC cycle count (`rule:testing/bench-counters`). `crates/nvs-runtime/src/ctx/trace.rs:725`
+- [x] The count is raised where a collection runs. `crates/nvs-runtime/src/ctx/safepoint.rs:395`
+- [x] `--count` prints `gc=<cycles>` last on its line. `crates/nvs-cli/src/main.rs:2538`
 - [ ] The blocking pool's park and wake allocate once per task, not once per call, so their allocations do not depend on when the answer lands. `crates/nvs-host/src/blocking.rs:349`, `crates/nvs-host/src/blocking.rs:362`
 - [ ] The `writeStdin` bench drops its gap marker and judges the same on repeated runs, and the gap record is deleted (`rule:testing/member-perf-ledger`). `benches/members/core/Process-Handle/writeStdin.nvs:6`, `data/gaps/nvs-host/a-blocking-call-allocates-by-when-it-ends.json:1`
-- [ ] A Rust test that two counted runs of a program with a collection print the same line (`rule:testing/bench-counters`). `crates/nvs-cli/src/main.rs:2263`
+- [x] A Rust test that two counted runs of a program with a collection print the same line (`rule:testing/bench-counters`). `crates/nvs-cli/tests/check_command.rs:331`
+- [ ] A counted run that collects under a ceiling prints the same line cold and warm, the test above compares one of each, and the gap record is deleted (`rule:testing/bench-counters`). `data/gaps/nvs-cli/a-counted-run-under-a-ceiling-counts-by-its-cache-state.json:1`, `crates/nvs-runtime/src/ctx/limits.rs:281`
 
 ### 2. `#[Bench]` and `nvs test --bench` report the counted rows
 

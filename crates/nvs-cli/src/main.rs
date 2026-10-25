@@ -2525,14 +2525,17 @@ fn run_run(
 
     // `--count`'s one line, on stderr so stdout stays the program's. Printed
     // whatever the outcome below: a program that threw still did what it did.
+    // `gc` is last, so a reader that matches the first four from the start of
+    // the line reads them unchanged.
     if let Some((allocations, bytes)) = allocated_before {
         let counted = ctx.counted();
         eprintln!(
-            "count: statements={} calls={} allocations={} bytes={}",
+            "count: statements={} calls={} allocations={} bytes={} gc={}",
             counted.statements,
             counted.calls,
             nvs_runtime::budget::allocations().wrapping_sub(allocations),
             nvs_runtime::budget::allocated_bytes().wrapping_sub(bytes),
+            counted.gc_cycles,
         );
     }
     // The profile is closed whatever the outcome below, like the count above.

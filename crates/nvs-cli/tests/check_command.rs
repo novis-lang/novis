@@ -323,6 +323,47 @@ fn check_count_prints_what_each_phase_produced() {
     assert!(stderr.contains("count: statements="), "{stderr}");
 }
 
+/// `rule:testing/bench-counters`: two counted runs of one program print the
+/// same count line, collections included. The program makes cycles under a
+/// small ceiling, so the in-flight collector runs, and `gc=` is not zero. Each
+/// run has a cache of its own, so both compile the program cold.
+#[test]
+fn two_counted_runs_with_a_collection_print_the_same_line() {
+    let program = "<?nvs\nfinal class Node {\n    public lateinit Node $next;\n\n    \
+                   public function constructor() {\n        $this->next = $this;\n    }\n}\n\n\
+                   int $i = 0;\nfor (; $i < 100000; $i = $i + 1) {\n    var $a = new Node();\n    \
+                   var $b = new Node();\n    $a->next = $b;\n    $b->next = $a;\n}\n\
+                   echo \"done\\n\";\n";
+    let line = |case: &str| {
+        let dir = scratch(case);
+        fs::write(dir.join("nvs.toml"), "[limits]\nmemory = \"2M\"\n").unwrap();
+        fs::write(dir.join("main.nvs"), program).unwrap();
+        let data = nvs_repo::scratch_private("nvsdata");
+        let run = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .arg("--data")
+            .arg(&*data)
+            .args(["run", "--count", "main.nvs"])
+            .current_dir(&dir)
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        let stderr = String::from_utf8_lossy(&run.stderr).into_owned();
+        assert_eq!(run.status.code(), Some(0), "{stderr}");
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "done\n", "{stderr}");
+        stderr
+            .lines()
+            .find(|line| line.starts_with("count: "))
+            .unwrap_or_else(|| panic!("no count line: {stderr}"))
+            .to_owned()
+    };
+
+    let first = line("gc-count-first");
+    assert!(
+        !first.ends_with(" gc=0") && first.contains(" gc="),
+        "the ceiling ran no collection: {first}"
+    );
+    assert_eq!(line("gc-count-second"), first);
+}
+
 /// `nvs run --count` starts no queue worker, whatever `[queue] workers` says:
 /// a worker's turns would land in the counts. The SQLite file is the witness,
 /// because the worker's connect is what creates it; the uncounted run first

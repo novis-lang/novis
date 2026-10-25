@@ -330,10 +330,11 @@ impl Ctx {
         self.stmt_hits.as_ref()
     }
 
-    /// The statements executed and the compiled call sites entered while
-    /// [`DebugFlags::COUNT`] was on — [`nvs_probe_stmt`]'s and
-    /// [`nvs_probe_call_enter`]'s whole effect under that bit. Both are zero
-    /// for a request that ran with it off throughout.
+    /// The statements executed, the compiled call sites entered and the
+    /// collections run while [`DebugFlags::COUNT`] was on — [`nvs_probe_stmt`]'s
+    /// and [`nvs_probe_call_enter`]'s whole effect under that bit, and one
+    /// increment in `Ctx::collect_if_asked`. All three are zero for a request
+    /// that ran with it off throughout.
     ///
     /// A call is a call the program made: a compiled call site, a `Core`
     /// member's call, and every call through a `callable`, a callback a `Core`
@@ -345,6 +346,17 @@ impl Ctx {
         Counted {
             statements: self.counted_stmts,
             calls: self.counted_calls,
+            gc_cycles: self.counted_gc_cycles,
+        }
+    }
+
+    /// Counts one in-flight collection under [`DebugFlags::COUNT`]. A
+    /// collection runs only where an allocation crossed the memory ceiling, and
+    /// both are decided by what the program allocated, so the count is the same
+    /// on every run of the same program.
+    pub(crate) fn count_gc_cycle(&mut self) {
+        if self.debug.contains(DebugFlags::COUNT) {
+            self.counted_gc_cycles += 1;
         }
     }
 
@@ -708,13 +720,15 @@ pub unsafe extern "C" fn nvs_probe_edge(ctx: *mut Ctx, edge: u32) {
 }
 
 /// What [`Ctx::counted`] answers: `rule:testing/bench-counters`'s two
-/// probe-site counts, read once at the end of a run.
+/// probe-site counts and its GC cycle count, read once at the end of a run.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Counted {
     /// Statement boundaries crossed.
     pub statements: u64,
     /// Compiled call sites entered.
     pub calls: u64,
+    /// In-flight collections run, whether or not each reclaimed anything.
+    pub gc_cycles: u64,
 }
 
 /// `rule:testing/debug-probes`'s hit counters for one run: one per statement,
@@ -1825,7 +1839,8 @@ mod tests {
             ctx.counted(),
             Counted {
                 statements: 4,
-                calls: 2
+                calls: 2,
+                gc_cycles: 0,
             }
         );
         assert_eq!(hits.counts(), [0, 0], "counting is not coverage");

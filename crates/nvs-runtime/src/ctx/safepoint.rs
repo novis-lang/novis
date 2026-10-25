@@ -392,6 +392,7 @@ impl Ctx {
         // collector's run and the other side is the hot path. The clock is read
         // only where something records it — [`Ctx::open_gc_pause`].
         let started = self.open_gc_pause();
+        self.count_gc_cycle();
         let freed = crate::object::collect(&self.live);
         if let Some(started) = started {
             self.close_gc_pause(started, freed);
