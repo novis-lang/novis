@@ -224,13 +224,22 @@ impl Args {
 /// anything is compiled, every mounted entry is compiled before anything is
 /// bound, and the socket exists only once there is something for it to answer
 /// with.
+///
+/// `debugger` is `nvs dap`'s session. Under one, the tree starts in
+/// `development` whatever it writes, and every entry is compiled under the
+/// debug switch with each request attached to the session
+/// (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`).
 pub(crate) fn run(
     path: Option<&Path>,
     listen: Option<&str>,
     port: Option<u16>,
     config: &[PathBuf],
     init: crate::config::Init,
+    debugger: Option<&nvs_host::debug::Debugger>,
 ) -> ExitCode {
+    if debugger.is_some() {
+        crate::config::serve_in_development();
+    }
     // `rule:config/the-config-is-an-immutable-snapshot`'s snapshot, resolved exactly as `nvs run` resolves it and
     // for the same reason: a tree that does not resolve is a refusal to start.
     // The `[server]` keys read below are `Boot`-class (`rule:http-server/the-server-block-is-boot-class`),
@@ -510,7 +519,10 @@ pub(crate) fn run(
     // paid for here is the only one any core makes, and a per-core cache would
     // have made the count above one per core. Built once, before anything is
     // bound, and handed to every accept loop by clone.
-    let compiler = Arc::new(Compiler::new(&snapshot.config));
+    let compiler = Arc::new(debugger.map_or_else(
+        || Compiler::new(&snapshot.config),
+        |debugger| Compiler::debugging(&snapshot.config, debugger.clone()),
+    ));
     // And published once for the process, here rather than on each core: a core
     // `nvs_host` starts for a `spawn script` placed `on: "worker"` is not one of
     // this fleet's and has no accept loop's stack to borrow a resolver from, so
