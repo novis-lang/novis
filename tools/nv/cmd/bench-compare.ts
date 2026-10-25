@@ -29,8 +29,9 @@
 //
 // `--profile CASE` measures no peer. It builds the Novis image, copies `oha` out of its pinned image, and
 // runs `benches/compare/profile.sh` in a privileged container of the Novis image, with no nginx: `nvs
-// serve` on one pinned core, `oha` on others, the top self symbols of `perf record -F 1999` over 15 s, and
-// the system calls per request from `strace -c`. The `wait` case first prints the server cgroup's
+// serve` on one pinned core, `oha` on others, the top self symbols of `perf record -F 1999` over 15 s, the
+// Novis functions with their callees from a call-graph record over 10 s, and the system calls per request
+// from `strace -c`. The `wait` case first prints the server cgroup's
 // `memory.peak` minus its idle `memory.current`, per request in flight, over two loads of 1000. When
 // `perf` cannot record in a container on this machine it exits 1, and `profile.sh` is the recipe by hand.
 

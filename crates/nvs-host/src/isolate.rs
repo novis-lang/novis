@@ -79,6 +79,36 @@
 //! one [`Ctx`], one pooled task stack, and the values the child allocates.
 //! Nothing here is O(isolates created) — a finished isolate's context is dropped
 //! as its task ends, and that drop is the wholesale release.
+//!
+//! # What a served request's isolate costs in time
+//!
+//! A call-graph profile of the hello case (`bun nv bench-compare --profile
+//! hello`, Linux, one core, about 20 µs per request) puts a request's isolate
+//! at about 2.3 µs from [`Isolate::start`] to the drop of its handle. Every
+//! part is isolation:
+//!
+//! * **About 1 µs: the CPU-time charge.** `Published` publishes the request
+//!   to the watchdog and withdraws it at the end. About 0.55 µs of that is the
+//!   one reading of the thread's CPU clock that starts the request's charge, a
+//!   system call `crate::cpuclock`'s *A switch reads the clock with a system
+//!   call* states as a bound. The rest is one `Arc` and one lock of the core's
+//!   own at each end (`crate::watchdog`'s *The requests a core is running*).
+//! * **About 0.35 µs: the child's context** ([`Ctx::isolate`]): two `Arc`s,
+//!   the object list, the copied configuration and the trace ids a new
+//!   context draws. A served request replaces those ids with its own. Drawing
+//!   them later would move the random generator's first allocation into a
+//!   request's counted work (`Ctx::new`), so they stay, at about 0.05 µs.
+//! * **About 0.15 µs: the task**, on a pooled stack (`crate::stack`).
+//! * **About 0.35 µs: the end**: `finish` and the drop of the child's
+//!   context, which is the wholesale release.
+//! * **About 0.2 µs: the join** and the drop of the handle.
+//! * **About 0.3 µs: the rest of `start`**: the argument's copy, the
+//!   narrowings and the request's hand-over to the child.
+//!
+//! No other part names a cause above the profile's resolution of about
+//! 0.05 µs. Finding the program for the request is the server's, not the
+//! isolate's: `nvs_cli`'s `Compiler::prepared`, about 0.45 µs, two map
+//! lookups over the entry file's path.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

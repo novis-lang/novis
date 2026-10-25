@@ -726,13 +726,15 @@ impl Compiler {
     ///
     /// [`Self::compiled`]'s.
     fn prepared(&self, path: &str) -> Answer {
-        let written = PathBuf::from(path);
-        let known = shared(&self.paths).get(&written).copied();
+        // Borrowed for the lookup a served request makes, so a path with a
+        // pointer is answered without allocating a copy of its name.
+        let known = shared(&self.paths).get(Path::new(path)).copied();
         if let Some(entry) = known
-            && let Some(answer) = self.answer_at(&written, entry.serving())
+            && let Some(answer) = self.answer_at(Path::new(path), entry.serving())
         {
             return answer;
         }
+        let written = PathBuf::from(path);
         match self.look(path, &written, known) {
             Ok(observed) => self.take(path, &written, known, &observed, false),
             Err(answer) => answer,

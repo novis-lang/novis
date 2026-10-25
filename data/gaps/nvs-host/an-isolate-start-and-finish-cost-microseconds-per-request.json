@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-host/src/isolate.rs",
-  "title": "An isolate's start and finish cost about 2.5 µs per request, a fixed share of every served request.",
-  "text": "The cost is spread over the isolate's setup and its finish, and no profile row names one cause. Closing it is a profile of the hello case that breaks the 2.5 µs down, and each part that is not isolation removed or moved out of the request.",
-  "goal": "bench-counters"
-}

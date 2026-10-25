@@ -76,9 +76,13 @@
 //! A core publishes a request where its body starts and withdraws it where the
 //! body ends ([`Registration::withdraw`]), so an entry holds every request in
 //! flight on its core: a core takes up many at once and runs each a few
-//! statements at a time. A publication goes through the lock this module
-//! already holds rather than through an atomic of its own, and costs a core
-//! one lock at a request's start and one at its end. A *deadline* could not be
+//! statements at a time. A publication goes through a lock of the core's own
+//! (`Publications`), never through the lock every core and the watchdog
+//! share, so a core's request start and end wait on no other core. The
+//! watchdog takes the shared lock and then each core's, once per sweep, so a
+//! core's lock is contended only by that sweep. What it costs a core: one
+//! uncontended lock at a request's start and one at its end, and one `Arc`
+//! per publication. A *deadline* could not be
 //! published this way — [`crate::timer`]'s docs own that argument — because it
 //! is rewritten every time any task arms or disarms one.
 //!
@@ -425,7 +429,9 @@ impl Meter {
 #[derive(Debug)]
 struct Local {
     shared: Arc<Shared>,
-    id: u64,
+    /// The entry's publications, which this thread writes without taking
+    /// [`Shared::state`].
+    running: Publications,
     meter: RefCell<Meter>,
 }
 
@@ -661,11 +667,10 @@ struct Watched {
     /// ceilings exactly as a core is and is reported as wedged never, because
     /// there is no deadline table to read and nothing to shed it onto.
     core: Option<(CpuId, DeadlineView)>,
-    /// Every request tree published on this core and not yet withdrawn, one
-    /// entry per tree. [`Registration`]'s methods are the only writers, and
-    /// this module's docs say why it lives behind the same lock as the rest of
-    /// the entry.
-    running: Vec<RunningRequest>,
+    /// Every request tree published on this core and not yet withdrawn.
+    /// [`Registration`]'s methods are the only writers, under a lock of this
+    /// core's own, and this module's docs say why.
+    running: Publications,
     /// The deadline this core was last reported for, so an episode produces one
     /// record rather than one per sweep. Cleared whenever the core is not
     /// overdue, which is what makes a later stall a new episode.
@@ -703,13 +708,22 @@ struct State {
     thread: Option<JoinHandle<()>>,
 }
 
-fn lock(state: &Mutex<State>) -> MutexGuard<'_, State> {
+fn lock<T>(state: &Mutex<T>) -> MutexGuard<'_, T> {
     // A poisoned lock means a sink panicked. The state behind it is a list of
     // views and a flag — nothing a panic can leave half-written — and refusing
     // to watch any core again because one report panicked is the wrong trade
     // for a mechanism whose whole job is to notice silence.
     state.lock().unwrap_or_else(PoisonError::into_inner)
 }
+
+/// One registered thread's publications: every request tree published on it
+/// and not yet withdrawn, one entry per tree.
+///
+/// Shared by the thread's [`Local`], which is the only writer, and its
+/// [`Watched`] entry, which the watchdog reads under [`Shared::state`]. A
+/// reader takes the state lock first and this one second, and a writer takes
+/// this one alone, so the two never wait on each other in a cycle.
+type Publications = Arc<Mutex<Vec<RunningRequest>>>;
 
 /// The process's watchdog.
 ///
@@ -913,10 +927,10 @@ impl Watchdog {
             .iter()
             .flat_map(|watched| {
                 let cpu = watched.core.as_ref().map(|&(cpu, _)| cpu);
-                watched
-                    .running
+                lock(&watched.running)
                     .iter()
-                    .map(move |running| (cpu, running.clone()))
+                    .map(|running| (cpu, running.clone()))
+                    .collect::<Vec<_>>()
             })
             .collect()
     }
@@ -976,13 +990,14 @@ fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registra
     state.next_id += 1;
     let wedged = Arc::new(AtomicBool::new(false));
     let is_core = core.is_some();
+    // A core registers when it installs its reactor, which is before it has a
+    // request to be running — so the requests arrive later, by publication,
+    // and never as a second argument here.
+    let running = Publications::default();
     state.watching.push(Watched {
         id,
         core,
-        // A core registers when it installs its reactor, which is before it
-        // has a request to be running — so the requests arrive later, by
-        // publication, and never as a second argument here.
-        running: Vec::new(),
+        running: Arc::clone(&running),
         reported: None,
         wedged: Arc::clone(&wedged),
     });
@@ -1002,7 +1017,7 @@ fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registra
     let meter = ThreadClock::current().map(|clock| {
         Rc::new(Local {
             shared: Arc::clone(shared),
-            id,
+            running,
             meter: RefCell::new(Meter {
                 clock,
                 charges: HashMap::new(),
@@ -1120,14 +1135,11 @@ impl Local {
         }
         let clock = meter.clock;
         drop(meter);
-        let mut state = lock(&self.shared.state);
-        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
-            watched.running.push(RunningRequest {
-                view,
-                clock,
-                charge,
-            });
-        }
+        lock(&self.running).push(RunningRequest {
+            view,
+            clock,
+            charge,
+        });
     }
 
     /// [`Registration::withdraw`], which owns what a withdrawal does.
@@ -1150,21 +1162,13 @@ impl Local {
             meter.switch(outer);
         }
         drop(meter);
-        let mut state = lock(&self.shared.state);
-        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
-            watched
-                .running
-                .retain(|running| !Arc::ptr_eq(&running.charge, &charging.charge));
-        }
+        lock(&self.running).retain(|running| !Arc::ptr_eq(&running.charge, &charging.charge));
     }
 
     /// [`Registration::clear`].
     fn clear(&self) {
         self.meter.borrow_mut().charges.clear();
-        let mut state = lock(&self.shared.state);
-        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
-            watched.running.clear();
-        }
+        lock(&self.running).clear();
     }
 }
 
@@ -1217,7 +1221,7 @@ impl Shared {
     fn ask_to_yield(&self, id: u64) {
         let state = lock(&self.state);
         if let Some(watched) = state.watching.iter().find(|watched| watched.id == id) {
-            for running in &watched.running {
+            for running in lock(&watched.running).iter() {
                 if running.charge.is_running() {
                     running.view.request(SafepointFlags::YIELD);
                 }
@@ -1260,7 +1264,7 @@ impl Shared {
             // before any charge is: the module doc's *Charging a request*
             // section owns why that order never reads high.
             let mut clock: Option<Option<u64>> = None;
-            for running in &watched.running {
+            for running in lock(&watched.running).iter() {
                 // The ceiling first, so a request under no cap costs this walk
                 // one load and no reading of its core's clock.
                 if running.limit().is_none() {
@@ -1275,7 +1279,7 @@ impl Shared {
             }
         }
         for watched in &mut state.watching {
-            for running in &watched.running {
+            for running in lock(&watched.running).iter() {
                 stop_at_wall_time(running.view(), now, self.interval);
                 let Some(limit) = running.limit() else {
                     continue;
@@ -2265,12 +2269,14 @@ mod tests {
     /// What `view`'s tree has been charged on the thread it is published on,
     /// read the way the walk reads it.
     fn charged_on(shared: &Shared, view: &SafepointView) -> Option<Duration> {
-        lock(&shared.state)
-            .watching
-            .iter()
-            .flat_map(|watched| &watched.running)
-            .find(|running| running.view().same_tree(view))
-            .and_then(RunningRequest::burned)
+        let state = lock(&shared.state);
+        let found = state.watching.iter().find_map(|watched| {
+            lock(&watched.running)
+                .iter()
+                .find(|running| running.view().same_tree(view))
+                .cloned()
+        });
+        found.as_ref().and_then(RunningRequest::burned)
     }
 
     /// A tree published on two threads is stopped when the two charges add up

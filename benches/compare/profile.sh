@@ -72,6 +72,22 @@ wait "$load"
 perf report -i /tmp/perf.data --no-children --sort symbol --stdio --percent-limit 0.5 2>/dev/null |
   grep -v '^#' | grep -v '^$' | sed -E 's/[[:space:]]+-[[:space:]]+-[[:space:]]*$//' | awk 'NR <= 40'
 
+# The same load with call graphs, so a row is the time spent in a function and everything it called. A
+# cost spread over many small symbols, such as an isolate's start and finish, shows up whole only here.
+# The release build has no frame pointers, so perf unwinds from a copy of each sample's stack, 32 KiB
+# deep: a request's frames sit within that of its task's entry. `--no-inline` keeps perf from asking
+# `addr2line` about every inlined frame, which fails on this build. Each row is the time with callees,
+# then the time in the function alone.
+echo "== perf record --call-graph dwarf -F 999 for 10 s under -c 64, each function with its callees"
+oha -z 15s -c 64 "${load_flags[@]}" "$url" >/dev/null &
+load=$!
+sleep 2
+perf record -q -F 999 --call-graph dwarf,32768 -p "$pid" -o /tmp/perf-graph.data -- sleep 10 >/dev/null 2>/tmp/perf.err ||
+  cat /tmp/perf.err >&2
+wait "$load"
+perf report -i /tmp/perf-graph.data --children --no-inline --sort symbol --stdio -g none --percent-limit 0.3 2>/dev/null |
+  grep -v '^#' | grep -v '^$' | sed -E 's/[[:space:]]+-[[:space:]]+-?[[:space:]]*$//' | cut -c1-200 | awk 'NR <= 120' || true
+
 # `strace -f` stops the serving thread at every call. Under 64 connections that stall is long enough
 # for the watchdog to shed requests with 503, and a shed request is not the request being profiled.
 echo "== strace -c -f over 20000 requests under -c 8"

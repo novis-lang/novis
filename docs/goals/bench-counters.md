@@ -240,7 +240,7 @@ of them builds. The session builds once they all end, and checks each against it
 - [x] `Core\Request::jsonAs` decodes with `read_against`, keeping every check `decodeAs` keeps, and every `Core\Request` and `Core\Json` attack gives the same output. `crates/nvs-stdlib/src/request.rs:336`, `data/gaps/nvs-stdlib/request-json-as-builds-arrays-before-its-object.json:1`
 - [x] A literal `Str::format` template is split while compiling, a tainted argument's result stays tainted, and the bench declares what it measures. `crates/nvs-types/src/intrinsics.rs:905`, `crates/nvs-ir/src/lower/expr.rs:2437`
 - [x] A cross-tree switch charges `[limits] cpu_time` with a cheaper clock, or the read is struck as a stated bound (`## Standing decisions`). `crates/nvs-host/src/cpuclock.rs:49`
-- [ ] The hello case's 2.5 µs of isolate start and finish is broken down, and each part that is not isolation is removed or moved out of the request. `crates/nvs-host/src/isolate.rs:1`, `data/gaps/nvs-host/an-isolate-start-and-finish-cost-microseconds-per-request.json:1`
+- [x] The hello case's 2.5 µs of isolate start and finish is broken down, and each part that is not isolation is removed or moved out of the request. `crates/nvs-host/src/isolate.rs:1`, `data/gaps/nvs-host/an-isolate-start-and-finish-cost-microseconds-per-request.json:1`
 - [ ] A waiting request's stack and heap are broken down in the module doc, and each part not needed per request is removed. `crates/nvs-host/src/stack.rs:1`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
 
 ### 7. the goal is verified once, and every failure is fixed
@@ -287,7 +287,7 @@ the isolate start and finish, and `--profile wait` for a waiting request's memor
 a Docker image in about ten minutes, so run it with `run_in_background`. The two items touch
 disjoint files.
 
-- [ ] The hello case's 2.5 µs of isolate start and finish is broken down, and each part that is not isolation is removed or moved out of the request. `crates/nvs-host/src/isolate.rs:1`, `data/gaps/nvs-host/an-isolate-start-and-finish-cost-microseconds-per-request.json:1`
+- [x] The hello case's 2.5 µs of isolate start and finish is broken down, and each part that is not isolation is removed or moved out of the request. `crates/nvs-host/src/isolate.rs:1`, `data/gaps/nvs-host/an-isolate-start-and-finish-cost-microseconds-per-request.json:1`
 - [ ] A waiting request's stack and heap are broken down in the module doc, and each part not needed per request is removed. `crates/nvs-host/src/stack.rs:1`, `data/gaps/nvs-host/a-waiting-requests-memory-is-not-broken-down.json:1`
 
 Stage 3 (`tools/nv/cmd/scaling.ts:919`) stays open as the other side lane.
