@@ -7,7 +7,7 @@ stages:
   - id: 1
     title: a GC cycle is counted, and a blocking call counts the same on every run
     status: open
-    context: [crates/nvs-runtime/src/ctx/trace.rs, crates/nvs-runtime/src/object.rs, crates/nvs-cli/src/main.rs, crates/nvs-host/src/blocking.rs, tools/nv/proofs/perf.ts, data/gaps/nvs-host/a-blocking-call-allocates-by-when-it-ends.json]
+    context: [crates/nvs-runtime/src/ctx/trace.rs, crates/nvs-runtime/src/ctx/limits.rs, crates/nvs-cli/src/main.rs, crates/nvs-cli/tests/check_command.rs, tools/nv/proofs/perf.ts, data/gaps/nvs-cli/a-counted-run-under-a-ceiling-counts-by-its-cache-state.json]
     extra:
       context:
         rules: [testing/bench-counters, testing/member-perf-ledger, observability/gc-pause-is-its-own-event]
@@ -102,6 +102,15 @@ report. Usability: a bench that gates in CI on every operating system, with wall
 labelled advisory. Simplicity: one attribute and three flags. CI time grows by one conformance run per
 added configuration.
 
+**A blocking call frees its pool thread before it publishes its answer, and its slot stays per call.**
+What moved the count from run to run was a second pool thread. The task submitted its next call before
+the pool thread had counted itself idle, so `submit` started another thread and its allocations landed
+in the task's count. `Queue::busy` now counts running jobs, and `run`'s job releases its thread before
+it fills the slot (`crates/nvs-host/src/blocking.rs:124`). The slot `Arc` and the job box stay one each
+per call. Both are fixed per call, so they count the same on every run, and a slot per task would add a
+reuse protocol for no determinism gained (simplicity). Request path: one more lock per `run` job, on the
+pool thread. Memory: nothing.
+
 **Lanes.** Stage 3 touches only `tools/nv/` TypeScript and the bench `.nvs` files, so it runs as a side
 lane in any order. Stage 1 (`crates/nvs-runtime/`, `crates/nvs-host/src/blocking.rs`) and stage 4
 (`crates/nvs-codegen/`, `crates/nvs-cli/src/cache.rs`, `.github/workflows/ci.yml`) share only
@@ -119,8 +128,8 @@ however its job ends.
 - [x] `Counted` gains a GC cycle count (`rule:testing/bench-counters`). `crates/nvs-runtime/src/ctx/trace.rs:725`
 - [x] The count is raised where a collection runs. `crates/nvs-runtime/src/ctx/safepoint.rs:395`
 - [x] `--count` prints `gc=<cycles>` last on its line. `crates/nvs-cli/src/main.rs:2538`
-- [ ] The blocking pool's park and wake allocate once per task, not once per call, so their allocations do not depend on when the answer lands. `crates/nvs-host/src/blocking.rs:349`, `crates/nvs-host/src/blocking.rs:362`
-- [ ] The `writeStdin` bench drops its gap marker and judges the same on repeated runs, and the gap record is deleted (`rule:testing/member-perf-ledger`). `benches/members/core/Process-Handle/writeStdin.nvs:6`, `data/gaps/nvs-host/a-blocking-call-allocates-by-when-it-ends.json:1`
+- [x] The blocking pool's allocations for a call do not depend on when the answer lands: a call frees its thread before it publishes its answer, so calls one after another use one thread (`## Standing decisions`). `crates/nvs-host/src/blocking.rs:124`, `crates/nvs-host/src/blocking.rs:995`
+- [x] The `writeStdin` bench drops its gap marker and judges the same on repeated runs, and the gap record is deleted (`rule:testing/member-perf-ledger`). `benches/members/core/Process-Handle/writeStdin.nvs:5`
 - [x] A Rust test that two counted runs of a program with a collection print the same line (`rule:testing/bench-counters`). `crates/nvs-cli/tests/check_command.rs:331`
 - [ ] A counted run that collects under a ceiling prints the same line cold and warm, the test above compares one of each, and the gap record is deleted (`rule:testing/bench-counters`). `data/gaps/nvs-cli/a-counted-run-under-a-ceiling-counts-by-its-cache-state.json:1`, `crates/nvs-runtime/src/ctx/limits.rs:281`
 
@@ -197,22 +206,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. Stages 1, 3 and 4 have no gate. Stage 2 waits on `test-surface` stage 1, and stage 5
-on `trace-timeline` stage 6, as `## Standing decisions` names each.
+Stage 1 has one item left. `nvs run --count` prints `gc=<cycles>` last
+(`crates/nvs-runtime/src/ctx/safepoint.rs:395`, `crates/nvs-cli/src/main.rs:2538`). The blocking pool
+frees a `run` job's thread before its answer is published, so `writeStdin` counts the same on every run.
+Its marker and gap record are gone. On Windows, 6 runs of an 8192-round copy differed by one thread start
+(5 allocations) before the fix. After it, 1 run in 37 at 8192 differed by one allocation of 72 bytes, and
+25 runs at 4096 (the ramp's max) all matched. `bun nv scaling --growth` judged both of its benches `flat`
+three times out of three. Linux, where `cat` reads the input, was not run locally.
+
+The new item comes from a finding of this session. A counted run that collects under a ceiling prints one
+line every cold run and another every warm run: 84 more allocations and 3444 more bytes cold, with the
+same `gc=14`. With no ceiling the two match. The gap record states it.
+
+Tests expected to go red: none. `two_counted_runs_with_a_collection_print_the_same_line` and
+`calls_one_after_another_use_one_thread_and_allocate_the_same` are new and pass. The second fails with the
+early release taken out.
+
+The nightly run `40075586234` was on `3ea6f1550`, and HEAD already fixes each job it failed. `crypto-bigint`
+is 0.7.6, `cargo fmt --check` is clean, and the three miri tests are handled by `c953c3456`, `220cb82b7`
+and `c4842ec8f`. `env-secret-proofs` passes when run by hand.
 
 ### Next
 
-**Stage 1: the GC count and the blocking pool**, file set `crates/nvs-runtime/src/ctx/trace.rs`,
-`crates/nvs-runtime/src/object.rs`, `crates/nvs-cli/src/main.rs`, `crates/nvs-host/src/blocking.rs`. No
-gate.
+**Stage 1's last item: a ceiling that counts the same cold and warm**, file set
+`crates/nvs-runtime/src/ctx/limits.rs`, `crates/nvs-runtime/src/budget.rs`, `crates/nvs-cli/src/main.rs`,
+`crates/nvs-cli/src/cache.rs`, `crates/nvs-cli/tests/check_command.rs`. No gate.
 
-- [ ] The GC cycle count in `Counted` (`rule:testing/bench-counters`). `crates/nvs-runtime/src/ctx/trace.rs:603`
-- [ ] Raised where a collection runs. `crates/nvs-runtime/src/object.rs:3104`
-- [ ] `gc=<cycles>` last on the count line. `crates/nvs-cli/src/main.rs:2263`
-- [ ] One park and wake allocation per task. `crates/nvs-host/src/blocking.rs:349`
-- [ ] `writeStdin` drops its marker, and the gap record is deleted. `benches/members/core/Process-Handle/writeStdin.nvs:6`, `data/gaps/nvs-host/a-blocking-call-allocates-by-when-it-ends.json:1`
-- [ ] A Rust test that two counted runs print the same line. `crates/nvs-cli/src/main.rs:2263`
+- [ ] Find what the cold compile moves on the run's thread: the ceiling is `memory_base` plus the limit, so a pre-run allocation freed during the run, or a unit held at a different size after a compile than after a cache load, moves where it is crossed. `crates/nvs-runtime/src/ctx/limits.rs:290`, `crates/nvs-cli/src/cache.rs:1637`
+- [ ] Fix the cause so the crossings depend only on what the program allocated; reproduce with the test's program under `[limits] memory = "2M"`, one fresh `--data` run cold and then warm. `crates/nvs-runtime/src/ctx/limits.rs:290`
+- [ ] The test compares one cold run with one warm run, and the gap record is deleted. `crates/nvs-cli/tests/check_command.rs:331`, `data/gaps/nvs-cli/a-counted-run-under-a-ceiling-counts-by-its-cache-state.json:1`
+- [ ] Stage 1's status is `done` in the front matter. `docs/goals/bench-counters.md:9`
 
 ### Backlog
 
 - Stage 3 is a side lane any session may take (`tools/nv/cmd/scaling.ts`).
+- Stage 4 follows stage 1 (`crates/nvs-codegen/src/lib.rs:896`).
+- The gate stage watches the nightly `writeStdin` perf proof on Linux for the leftover one-allocation
+  difference seen above the ramp's max.

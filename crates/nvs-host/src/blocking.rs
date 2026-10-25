@@ -82,7 +82,7 @@ use crate::reactor;
 use crate::scheduler::{Waiting, current_task, suspend_current};
 
 /// A unit of work handed off the core.
-type Job = Box<dyn FnOnce() + Send + 'static>;
+type Job = Box<dyn FnOnce(&Release<'_>) + Send + 'static>;
 
 /// How many threads one worker's pool may start.
 ///
@@ -108,11 +108,20 @@ struct Shared {
 /// for a job or an existing one is woken for it.
 struct Queue {
     jobs: VecDeque<Job>,
-    /// How many threads are parked on [`Shared::work`] waiting for a job. A
-    /// count rather than a set: nothing here needs to name an idle thread, only
-    /// to know whether there is one, and a job pushed with none is the whole
+    /// How many threads are running a job. A thread that is not busy is free:
+    /// parked on [`Shared::work`], or about to look at the queue again. A job
+    /// pushed when there are more jobs queued than free threads is the whole
     /// test for starting another.
-    idle: usize,
+    ///
+    /// A count of work rather than of parked threads, because a thread counts
+    /// as free from the moment its job [`Release`]s it, which is before the
+    /// task it answered is woken. A thread that is still on its way back to the
+    /// wait is therefore never a reason to start a second one, so a task making
+    /// one blocking call after another uses one thread on every run, however
+    /// the two threads are scheduled. Counting parked threads made that
+    /// depend on whether the pool thread reached its wait before the task
+    /// submitted its next call.
+    busy: usize,
     /// Set once, by [`BlockingPool::drop`]. A thread that sees it with an empty
     /// queue returns rather than waiting again.
     shutdown: bool,
@@ -160,7 +169,7 @@ impl BlockingPool {
             shared: Arc::new(Shared {
                 queue: Mutex::new(Queue {
                     jobs: VecDeque::new(),
-                    idle: 0,
+                    busy: 0,
                     shutdown: false,
                 }),
                 work: Condvar::new(),
@@ -182,9 +191,20 @@ impl BlockingPool {
     where
         F: FnOnce() + Send + 'static,
     {
+        self.submit_releasing(move |_: &Release<'_>| job());
+    }
+
+    /// [`Self::submit`] for a job that frees its thread before it is done:
+    /// [`run`]'s, which calls [`Release::release`] before it publishes its
+    /// answer. Any other job holds its thread until it returns.
+    fn submit_releasing<F>(&mut self, job: F)
+    where
+        F: FnOnce(&Release<'_>) + Send + 'static,
+    {
         let mut queue = lock(&self.shared.queue);
         queue.jobs.push_back(Box::new(job));
-        let start_one = queue.idle == 0 && self.threads.len() < self.bound;
+        let free = self.threads.len().saturating_sub(queue.busy);
+        let start_one = queue.jobs.len() > free && self.threads.len() < self.bound;
         drop(queue);
 
         if start_one {
@@ -259,10 +279,36 @@ impl Drop for BlockingPool {
     }
 }
 
+/// What a running job is given to free its thread before it returns.
+///
+/// [`run`]'s job calls [`Self::release`] once its answer is ready and before it
+/// publishes it. From then on the pool counts the thread as free, so the task
+/// the answer wakes cannot see a busy thread that is only on its way back to
+/// the queue. A job that never calls it is released when it returns.
+struct Release<'a> {
+    shared: &'a Shared,
+    released: std::cell::Cell<bool>,
+}
+
+impl Release<'_> {
+    /// Counts this thread as free. A second call does nothing.
+    fn release(&self) {
+        if !self.released.replace(true) {
+            lock(&self.shared.queue).busy -= 1;
+        }
+    }
+}
+
 /// One pool thread's whole life: take a job, run it, wait for the next.
 fn run_jobs(shared: &Shared) {
+    // Whether the last job returned without releasing its thread, so the
+    // count comes down under the lock the next look at the queue takes anyway.
+    let mut owed = false;
     loop {
         let mut queue = lock(&shared.queue);
+        if std::mem::take(&mut owed) {
+            queue.busy -= 1;
+        }
         let job = loop {
             if let Some(job) = queue.jobs.pop_front() {
                 break job;
@@ -270,21 +316,25 @@ fn run_jobs(shared: &Shared) {
             if queue.shutdown {
                 return;
             }
-            queue.idle += 1;
             queue = shared
                 .work
                 .wait(queue)
                 .unwrap_or_else(PoisonError::into_inner);
-            queue.idle -= 1;
         };
+        queue.busy += 1;
         drop(queue);
+        let release = Release {
+            shared,
+            released: std::cell::Cell::new(false),
+        };
         // The lock is not held while the job runs — a slow call is the whole
         // reason the pool exists — and a panic escaping a job is
         // swallowed rather than allowed to end this thread, which would shrink
         // the pool below what its bound accounts for. `run` has already turned
         // its own function's panic into a value by this point; what this
         // catches is a job submitted directly.
-        let _ = std::panic::catch_unwind(AssertUnwindSafe(job));
+        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| job(&release)));
+        owed = !release.released.get();
     }
 }
 
@@ -405,7 +455,7 @@ where
     let slot: Arc<Mutex<Slot<T>>> = Arc::new(Mutex::new(None));
     let answer = Arc::clone(&slot);
     with_pool(|pool| {
-        pool.submit(move || {
+        pool.submit_releasing(move |release: &Release<'_>| {
             let before = nvs_runtime::budget::live_bytes();
             let started = cpu_now();
             JOB_STARTED.set(started);
@@ -414,6 +464,10 @@ where
             let spent = cpu_since(started);
             let kept = nvs_runtime::budget::live_bytes().wrapping_sub(before);
             nvs_runtime::budget::carry(kept.wrapping_neg());
+            // Free before the answer is published: the task can submit its
+            // next call as soon as it sees the answer, and that call must find
+            // this thread free ([`Queue::busy`]).
+            release.release();
             *lock(&answer) = Some((outcome, kept, spent));
             // Explicit rather than left to the end of the Rust closure: the answer is
             // in the slot *before* the wake goes out, so the task cannot be
@@ -927,6 +981,46 @@ mod tests {
         assert_eq!(
             threads, limit,
             "the calls did not overlap, so the bound was never the thing being tested"
+        );
+    }
+
+    /// One task making one blocking call after another uses one thread, and
+    /// every batch of its calls allocates the same on the core. The job does
+    /// nothing, so its answer often lands before the task parks, and the next
+    /// call is submitted while the pool thread is still on its way back to the
+    /// queue. Counting that thread as busy started a second one, by timing
+    /// alone, and the thread's own allocations landed in the task's counts
+    /// (`Queue::busy`).
+    #[test]
+    fn calls_one_after_another_use_one_thread_and_allocate_the_same() {
+        const BATCH: usize = 500;
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let batches = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let into = Rc::clone(&batches);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            run(|| ());
+            for _ in 0..4 {
+                let before = nvs_runtime::budget::allocations();
+                for _ in 0..BATCH {
+                    run(|| ());
+                }
+                into.borrow_mut()
+                    .push(nvs_runtime::budget::allocations().wrapping_sub(before));
+            }
+        });
+        run_until_idle(&mut sched).expect("the loop failed");
+
+        assert_eq!(
+            pool_size().0,
+            1,
+            "calls that never overlap started a second thread"
+        );
+        let batches = batches.borrow();
+        assert!(
+            batches.iter().all(|&count| count == batches[0]),
+            "batches of {BATCH} calls allocated {batches:?}"
         );
     }
 
