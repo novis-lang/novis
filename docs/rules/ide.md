@@ -3,7 +3,7 @@
 
 # The editor
 
-*8 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -618,7 +618,7 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 
 <a id="ide-every-feature-is-staged-behind-its-dependency"></a>
 
-## The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub  *(designed — owned by goal debugger-adapter)*
+## The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub
 
 `rule:ide/every-feature-is-staged-behind-its-dependency`
 
@@ -639,10 +639,13 @@ them, `nvs ext` commands for `.nvsx` extensions existing. Two are committed to n
 which needs a DAP protocol extension nobody has designed.
 
 **Built:** the quick fixes a diagnostic carries, signature help, inlay hints, references, document
-highlight, CodeLens, type hierarchy, unused-member dimming, the Test Explorer with coverage, the AST
-panel, the inline-HTML region's services and formatting through `nvs fmt`
-(`crates/nvs-lsp/src/capabilities.rs`, `editors/vscode/src/`). **Missing:** rename, extract to method or
-variable, workspace symbol search, the profiler view, the debugger wiring and the four write actions.
+highlight, CodeLens, type hierarchy, unused-member dimming, rename (`crates/nvs-lsp/src/rename.rs`),
+extract to method or variable (`crates/nvs-lsp/src/extract.rs`), workspace symbol search, the Test
+Explorer with coverage, the AST panel, the profiler view (`editors/vscode/src/profile.ts`), the
+debugger wiring (`editors/vscode/src/debug.ts`), the four write actions
+(`crates/nvs-lsp/src/generate.rs`, `crates/nvs-lsp/src/narrow.rs`), and the inline-HTML region's
+services and formatting through `nvs fmt` (`crates/nvs-lsp/src/capabilities.rs`,
+`editors/vscode/src/`).
 
 Completion from the compiler's own tables — route names, `nvs.toml` directives, `#[Api]` fields — is
 offered only where the compiler already derives the value for another reason, never from a convention
@@ -2791,7 +2794,7 @@ working as a grammar-only client (`editors/vscode/src/install.ts`).
 
 <a id="ide-the-extension-builds-no-ui-the-editor-already-has"></a>
 
-## Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — `FileCoverage`, `LanguageStatusItem`, DAP's UI, speedscope — and the extension builds none of them  *(designed — owned by goal debugger-adapter)*
+## Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — `FileCoverage`, `LanguageStatusItem`, DAP's UI, speedscope — and the extension builds none of them
 
 `rule:ide/the-extension-builds-no-ui-the-editor-already-has`
 
@@ -2819,7 +2822,10 @@ security policy (`editors/vscode/src/viewer.ts`) admits the viewer's own files a
 Nothing may connect. speedscope loads a `profileURL` only from an `http:` or `https:` page, so the
 profile's bytes go into the page and reach the viewer through `loadFileFromBase64`, the door its own
 CLI uses. The profile's folder is therefore never served. Spends: the file and its base64 copy per
-open panel. **Missing:** the debugger wiring, since `nvs dap` does not exist.
+open panel. The debugger is a `debuggers` contribution in `editors/vscode/package.json`, whose
+`launch.json` schema names every field `nvs dap`'s `launch` reads, and the
+`DebugAdapterDescriptorFactory` in `editors/vscode/src/debug.ts`, which starts `nvs dap` and draws
+nothing.
 
 **Declined:**
 - **A Novis coverage gutter and a Novis flamegraph renderer.** VS Code's Test Coverage API and the
@@ -2964,7 +2970,7 @@ platforms, and `extension-host` on Linux — and `ci.yml` is the count of those.
 
 <a id="ide-the-debug-adapter-does-not-wait-for-an-editor"></a>
 
-## `nvs dap` launches `nvs run`, `nvs test` or a development `nvs serve` over stdio and never attaches; it is complete without any editor's debugger UI, and VS Code's wiring is a descriptor factory and a `launch.json` schema  *(designed — owned by goal debugger-adapter)*
+## `nvs dap` launches `nvs run`, `nvs test` or a development `nvs serve` over stdio and never attaches; it is complete without any editor's debugger UI, and VS Code's wiring is a descriptor factory and a `launch.json` schema
 
 `rule:ide/the-debug-adapter-does-not-wait-for-an-editor`
 
@@ -3008,8 +3014,15 @@ capability set, not the extension's.
   variable references, freed on each resume. What the debugged program holds is the switch's
   ([`testing/a-debugged-program-is-compiled-with-a-debug-switch`](testing.md#testing-a-debugged-program-is-compiled-with-a-debug-switch)).
 
-**Missing:** `nvs dap` and the VS Code wiring. The stop it drives is built: `nvs_host::debug`'s
-controller parks a task at an armed stop site or a `DEBUG_BREAK` poll, and resumes it.
+**`nvsCommand` is a binary or a command line.** A string names an `nvs` binary, which the extension
+runs a copy of like every other spawn ([`ide/the-extension-runs-a-copy-of-the-binary`](ide.md#ide-the-extension-runs-a-copy-of-the-binary)). An
+array is a whole command line, such as `["docker", "exec", "-i", "app", "nvs"]`, and runs as written
+with `dap` appended: its first word is a wrapper, not an `nvs` build, so there is nothing to copy.
+
+**Built:** `nvs dap` (`crates/nvs-cli/src/dap/`), which drives `nvs_host::debug`'s controller, and
+the VS Code wiring: the `debuggers` contribution in `editors/vscode/package.json` and the factory in
+`editors/vscode/src/debug.ts`. `crates/nvs-cli/tests/dap.rs` drives the adapter as a client does,
+and `editors/vscode/test/host/surfaces.test.ts` stops at a breakpoint set through VS Code's API.
 
 **Declined:**
 - **The adapter ships together with an editor's debugger UI.** A stalled editor integration would hold
@@ -3024,7 +3037,7 @@ controller parks a task at an armed stop site or a `DEBUG_BREAK` poll, and resum
 
 <a id="ide-the-debugger-ui-is-as-deep-as-the-adapter"></a>
 
-## The debugger UI is only as deep as the capabilities `nvs dap` reports, so the adapter's capability list is the debugger's scope  *(designed — owned by goal debugger-adapter)*
+## The debugger UI is only as deep as the capabilities `nvs dap` reports, so the adapter's capability list is the debugger's scope
 
 `rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`
 
@@ -3047,7 +3060,10 @@ adapter's capability list is therefore the debugger's scope, and it is this:
   package code and a handled throw inside it does not stop the session.
 - **Path mappings**, because the container case is the normal case: the file the adapter reports and the
   file in the editor differ whenever the program runs anywhere but the workspace root. `pathMappings`
-  pairs an editor folder with the adapter's, and every path in and out of the adapter is mapped.
+  pairs an editor folder with the adapter's, as `{ "localRoot", "remoteRoot" }`, and every path in and
+  out of the adapter is mapped: `program`, `cwd` and each breakpoint's file in, each frame's file out.
+  The longest root that matches whole parts of a path wins, and a `skipFiles` glob is matched against
+  the editor's path, since it is written in `launch.json` beside the rest.
 - **The value a function just returned**, in the variables pane after stepping out. It is one frame's
   worth of state the adapter already has, and the UI renders it with no work of its own.
 - **Every task of the debugged request is a DAP thread**, a `spawn`ed isolate's included, and a stop
@@ -3064,16 +3080,19 @@ hole that does not compile leaves its breakpoint unverified, with the compiler's
 condition is `N`, `>N`, `>=N`, `==N` or `%N`, counted per breakpoint.
 
 **"Uncaught" is decided where the exception is thrown,** while every frame is still there to show. Under
-the switch each frame record keeps the classes its enclosing `try` blocks catch, so the adapter knows at
-the throw whether any frame of that task will catch it.
+the switch the compiler records which classes the `try` blocks around each statement catch, and each
+frame record names the statement it is at, so the adapter knows at the throw whether any frame of that
+task will catch it. A frame in a `skipFiles` file that catches it means the throw does not stop.
 
 A fixture session exercises each of these, and `nvs dap` reports each capability at `initialize`.
 
 - **Memory:** per stopped thread, one variable reference per expanded value, freed on resume; per
   breakpoint, its compiled condition and its hit count.
 
-**Missing:** the adapter, and so every capability above
-([`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor)).
+**Built:** every capability above, in `crates/nvs-cli/src/dap/`: steps through `nvs_host::debug`'s
+`Debugger::step`, conditions and logpoints in `condition.rs` over `nvs_types::condition`'s checker,
+the exception filters through `nvs_debug_throw`, the returned value in `stopped.rs`, and the path
+mappings in `paths.rs`. `crates/nvs-cli/tests/dap.rs` is the fixture session.
 
 **Declined:**
 - **A condition that calls a function.** The call could write, throw or `await` at a breakpoint, and the

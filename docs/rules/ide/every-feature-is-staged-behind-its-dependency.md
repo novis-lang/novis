@@ -15,10 +15,13 @@ them, `nvs ext` commands for `.nvsx` extensions existing. Two are committed to n
 which needs a DAP protocol extension nobody has designed.
 
 **Built:** the quick fixes a diagnostic carries, signature help, inlay hints, references, document
-highlight, CodeLens, type hierarchy, unused-member dimming, the Test Explorer with coverage, the AST
-panel, the inline-HTML region's services and formatting through `nvs fmt`
-(`crates/nvs-lsp/src/capabilities.rs`, `editors/vscode/src/`). **Missing:** rename, extract to method or
-variable, workspace symbol search, the profiler view, the debugger wiring and the four write actions.
+highlight, CodeLens, type hierarchy, unused-member dimming, rename (`crates/nvs-lsp/src/rename.rs`),
+extract to method or variable (`crates/nvs-lsp/src/extract.rs`), workspace symbol search, the Test
+Explorer with coverage, the AST panel, the profiler view (`editors/vscode/src/profile.ts`), the
+debugger wiring (`editors/vscode/src/debug.ts`), the four write actions
+(`crates/nvs-lsp/src/generate.rs`, `crates/nvs-lsp/src/narrow.rs`), and the inline-HTML region's
+services and formatting through `nvs fmt` (`crates/nvs-lsp/src/capabilities.rs`,
+`editors/vscode/src/`).
 
 Completion from the compiler's own tables — route names, `nvs.toml` directives, `#[Api]` fields — is
 offered only where the compiler already derives the value for another reason, never from a convention

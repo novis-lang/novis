@@ -1,6 +1,6 @@
 {
   "title": "The debugger UI is only as deep as the capabilities `nvs dap` reports, so the adapter's capability list is the debugger's scope",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "errors/escalation-ladder",
     "security/isolate-shares-nothing",
@@ -8,6 +8,9 @@
     "testing/a-debugged-program-is-compiled-with-a-debug-switch",
     "testing/a-stop-pauses-the-whole-task-tree"
   ],
-  "guardedBy": [],
-  "goal": "debugger-adapter"
+  "guardedBy": [
+    "crates/nvs-cli/tests/dap.rs",
+    "crates/nvs-cli/src/dap/paths.rs",
+    "crates/nvs-host/src/debug.rs"
+  ]
 }

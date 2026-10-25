@@ -22,7 +22,10 @@ security policy (`editors/vscode/src/viewer.ts`) admits the viewer's own files a
 Nothing may connect. speedscope loads a `profileURL` only from an `http:` or `https:` page, so the
 profile's bytes go into the page and reach the viewer through `loadFileFromBase64`, the door its own
 CLI uses. The profile's folder is therefore never served. Spends: the file and its base64 copy per
-open panel. **Missing:** the debugger wiring, since `nvs dap` does not exist.
+open panel. The debugger is a `debuggers` contribution in `editors/vscode/package.json`, whose
+`launch.json` schema names every field `nvs dap`'s `launch` reads, and the
+`DebugAdapterDescriptorFactory` in `editors/vscode/src/debug.ts`, which starts `nvs dap` and draws
+nothing.
 
 **Declined:**
 - **A Novis coverage gutter and a Novis flamegraph renderer.** VS Code's Test Coverage API and the

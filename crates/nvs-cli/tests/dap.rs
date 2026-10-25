@@ -192,6 +192,7 @@ fn launch_and_run(dir: &Path, program: &str) -> (Client, Vec<Value>) {
 /// A launched script's stdout arrives as `output` events, a line shaped like a DAP frame among
 /// it, and its end is `exited` with status 0 and then `terminated`. Every byte the adapter wrote
 /// was part of a frame, and `disconnect` ends it.
+// covers: tools:editor/nvs-dap
 #[test]
 fn a_launched_script_s_output_arrives_as_events_and_stdout_carries_frames_only() {
     let dir = nvs_repo::scratch_private("dap-output");

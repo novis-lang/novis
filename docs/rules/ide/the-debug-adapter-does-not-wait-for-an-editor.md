@@ -38,8 +38,15 @@ capability set, not the extension's.
   variable references, freed on each resume. What the debugged program holds is the switch's
   (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
 
-**Missing:** `nvs dap` and the VS Code wiring. The stop it drives is built: `nvs_host::debug`'s
-controller parks a task at an armed stop site or a `DEBUG_BREAK` poll, and resumes it.
+**`nvsCommand` is a binary or a command line.** A string names an `nvs` binary, which the extension
+runs a copy of like every other spawn (`rule:ide/the-extension-runs-a-copy-of-the-binary`). An
+array is a whole command line, such as `["docker", "exec", "-i", "app", "nvs"]`, and runs as written
+with `dap` appended: its first word is a wrapper, not an `nvs` build, so there is nothing to copy.
+
+**Built:** `nvs dap` (`crates/nvs-cli/src/dap/`), which drives `nvs_host::debug`'s controller, and
+the VS Code wiring: the `debuggers` contribution in `editors/vscode/package.json` and the factory in
+`editors/vscode/src/debug.ts`. `crates/nvs-cli/tests/dap.rs` drives the adapter as a client does,
+and `editors/vscode/test/host/surfaces.test.ts` stops at a breakpoint set through VS Code's API.
 
 **Declined:**
 - **The adapter ships together with an editor's debugger UI.** A stalled editor integration would hold

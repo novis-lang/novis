@@ -17,7 +17,10 @@ adapter's capability list is therefore the debugger's scope, and it is this:
   package code and a handled throw inside it does not stop the session.
 - **Path mappings**, because the container case is the normal case: the file the adapter reports and the
   file in the editor differ whenever the program runs anywhere but the workspace root. `pathMappings`
-  pairs an editor folder with the adapter's, and every path in and out of the adapter is mapped.
+  pairs an editor folder with the adapter's, as `{ "localRoot", "remoteRoot" }`, and every path in and
+  out of the adapter is mapped: `program`, `cwd` and each breakpoint's file in, each frame's file out.
+  The longest root that matches whole parts of a path wins, and a `skipFiles` glob is matched against
+  the editor's path, since it is written in `launch.json` beside the rest.
 - **The value a function just returned**, in the variables pane after stepping out. It is one frame's
   worth of state the adapter already has, and the UI renders it with no work of its own.
 - **Every task of the debugged request is a DAP thread**, a `spawn`ed isolate's included, and a stop
@@ -43,8 +46,10 @@ A fixture session exercises each of these, and `nvs dap` reports each capability
 - **Memory:** per stopped thread, one variable reference per expanded value, freed on resume; per
   breakpoint, its compiled condition and its hit count.
 
-**Missing:** the adapter, and so every capability above
-(`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`).
+**Built:** every capability above, in `crates/nvs-cli/src/dap/`: steps through `nvs_host::debug`'s
+`Debugger::step`, conditions and logpoints in `condition.rs` over `nvs_types::condition`'s checker,
+the exception filters through `nvs_debug_throw`, the returned value in `stopped.rs`, and the path
+mappings in `paths.rs`. `crates/nvs-cli/tests/dap.rs` is the fixture session.
 
 **Declined:**
 - **A condition that calls a function.** The call could write, throw or `await` at a breakpoint, and the

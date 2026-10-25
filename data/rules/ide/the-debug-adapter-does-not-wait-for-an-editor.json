@@ -1,6 +1,6 @@
 {
   "title": "`nvs dap` launches `nvs run`, `nvs test` or a development `nvs serve` over stdio and never attaches; it is complete without any editor's debugger UI, and VS Code's wiring is a descriptor factory and a `launch.json` schema",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/the-extension-builds-no-ui-the-editor-already-has",
     "testing/debug-probes",
@@ -9,6 +9,9 @@
     "testing/a-stop-pauses-the-whole-task-tree",
     "ide/stdout-belongs-to-the-protocol"
   ],
-  "guardedBy": [],
-  "goal": "debugger-adapter"
+  "guardedBy": [
+    "crates/nvs-cli/tests/dap.rs",
+    "editors/vscode/test/host/surfaces.test.ts",
+    "editors/vscode/test/contributions/contributions.test.ts"
+  ]
 }
