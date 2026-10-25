@@ -1213,5 +1213,6 @@ fn exception_constructor(class: &str, extra: &[(&str, ExtraInit)]) -> Function {
         entry: block,
         stmt_spans,
         edge_spans,
+        debug_slots: Vec::new(),
     }
 }

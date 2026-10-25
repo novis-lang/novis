@@ -68,6 +68,17 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         let _ = writeln!(out, "    safepoint");
         return;
     }
+    if let InstKind::DebugLocals(stores) = &inst.kind {
+        let parts: Vec<String> = stores
+            .iter()
+            .map(|(slot, v)| {
+                let name = f.debug_slots.get(*slot as usize).map_or("?", |s| &s.name);
+                format!("${name}=v{}", v.index())
+            })
+            .collect();
+        let _ = writeln!(out, "    debug.locals {}", parts.join(", "));
+        return;
+    }
     if let InstKind::DeprecationCheck { message, .. } = &inst.kind {
         let _ = writeln!(out, "    deprecated {message:?}");
         return;
@@ -379,6 +390,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::RefSlot { init } => format!("ref.slot v{}", init.index()),
         InstKind::RefLoad { slot } => format!("ref.load v{}", slot.index()),
         InstKind::StmtMarker(_)
+        | InstKind::DebugLocals(_)
         | InstKind::SeedRaiseSite
         | InstKind::Safepoint
         | InstKind::DeprecationCheck { .. }

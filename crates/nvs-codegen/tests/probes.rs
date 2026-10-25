@@ -374,3 +374,94 @@ fn coverage_counts_a_looping_statement_once_per_iteration() {
         [(2, 1), (3, 1), (3, 2), (4, 2)]
     );
 }
+
+/// A script and a method with locals of several representations.
+const LOCALS: &str = "<?nvs
+class M {
+  public static function twice(int $n): int { int $doubled = $n * 2; return $doubled; }
+}
+int $total = 0;
+string $label = \"n=\";
+?string $note = null;
+while ($total < 5) {
+    $total = M::twice($total + 1);
+}
+echo $label . $total;
+";
+
+/// `with_debug_slots` around [`lower`].
+fn lower_for_debugging(source: &str) -> nvs_ir::Program {
+    nvs_ir::lower::with_debug_slots(|| lower(source))
+}
+
+#[test]
+fn a_unit_lowered_without_the_debug_switch_is_unchanged() {
+    // The switch is scoped to the call that sets it, so a lowering after it
+    // compiles to the same instructions as one before it, and has no slots.
+    let before = nvs_codegen::clif(&lower(LOCALS)).expect("the unit compiled");
+    let _ = lower_for_debugging(LOCALS);
+    let program = lower(LOCALS);
+    assert!(program.functions.iter().all(|f| f.debug_slots.is_empty()));
+    let stores = program
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.insts);
+    assert!(
+        !stores
+            .into_iter()
+            .any(|inst| matches!(inst.kind, nvs_ir::ir::InstKind::DebugLocals(_)))
+    );
+    assert_eq!(
+        nvs_codegen::clif(&program).expect("the unit compiled"),
+        before
+    );
+    let unit = nvs_codegen::compile(&program).expect("the unit compiled");
+    assert_eq!(unit.debug_slots("<script>"), None);
+}
+
+#[test]
+fn a_unit_lowered_with_the_debug_switch_has_a_slot_per_local() {
+    let program = lower_for_debugging(LOCALS);
+    let unit = nvs_codegen::compile(&program).expect("the unit compiled");
+    let names = |function: &str| -> Vec<String> {
+        let mut names: Vec<String> = unit
+            .debug_slots(function)
+            .unwrap_or_else(|| panic!("`{function}` has no slot table"))
+            .iter()
+            .map(|slot| slot.name.clone())
+            .collect();
+        names.sort_unstable();
+        names
+    };
+    assert_eq!(names("<script>"), ["label", "note", "total"]);
+    assert_eq!(names("M::twice"), ["doubled", "n"]);
+    // `?string $note` can hold a string or `null`, so its slot is tagged.
+    let note = unit
+        .debug_slots("<script>")
+        .unwrap()
+        .iter()
+        .find(|slot| slot.name == "note");
+    assert_eq!(note.map(|slot| slot.ty), Some(nvs_ir::Ty::Tagged));
+
+    // One area of sixteen bytes per slot in each function's frame.
+    let text = nvs_codegen::clif(&program).expect("the unit compiled");
+    assert!(
+        section(&text, "<script>").contains("explicit_slot 48"),
+        "{text}"
+    );
+    assert!(
+        section(&text, "M::twice").contains("explicit_slot 32"),
+        "{text}"
+    );
+
+    // The stores change nothing the program does.
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    unit.script()
+        .expect("the script frame")
+        .call(&mut ctx)
+        .expect("the script ran");
+    let out = ctx.take_buffered_output().expect("a buffered context");
+    assert_eq!(String::from_utf8(out).expect("UTF-8"), "n=6");
+}

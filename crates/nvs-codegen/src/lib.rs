@@ -378,6 +378,9 @@ pub struct Unit {
     /// reason `classes` is too: the unit behind it is one per program, not one
     /// per core.
     statics: std::sync::Arc<[Option<nvs_runtime::FieldDefault>]>,
+    /// Under the debug switch, each function's slot table by the same name as
+    /// [`Unit::entries`], and empty without it — see [`Unit::debug_slots`].
+    debug_slots: FxHashMap<String, Vec<nvs_ir::ir::DebugSlot>>,
 }
 
 /// The pages of a unit this process compiled: `cranelift-jit`'s own mapping,
@@ -615,6 +618,19 @@ impl Unit {
     #[must_use]
     pub fn has_function(&self, name: &str) -> bool {
         self.entries.contains_key(name)
+    }
+
+    /// The slot table of the function `name`, when the unit was lowered under
+    /// the debug switch (`nvs_ir::lower::with_debug_slots`), and `None`
+    /// otherwise or for a function with no variables.
+    ///
+    /// Entry `i` describes the `i`th sixteen-byte `nvs_runtime::Value` of the
+    /// function's slot area: the variable's name and the representation its
+    /// declaration gives it
+    /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+    #[must_use]
+    pub fn debug_slots(&self, name: &str) -> Option<&[nvs_ir::ir::DebugSlot]> {
+        self.debug_slots.get(name).map(Vec::as_slice)
     }
 
     /// The runtime descriptor this unit built for `label`, or `None` for a
@@ -1279,6 +1295,9 @@ impl Descriptors {
             entries,
             shapes,
             statics: self.statics,
+            // A cached artifact is never a debug unit: a debug session compiles
+            // in process.
+            debug_slots: FxHashMap::default(),
         }
     }
 }
@@ -1315,6 +1334,9 @@ struct UnitBuilder<M> {
     /// [`UnitBuilder::bind_method_tables`] runs after finalization, where a function is
     /// an address and nothing else.
     shapes: FxHashMap<String, MethodShape>,
+    /// Each function's debug slot table, for every function that has one —
+    /// moved into [`Unit::debug_slots`].
+    debug_slots: FxHashMap<String, Vec<nvs_ir::ir::DebugSlot>>,
     /// Every class the unit declares — the descriptors compiled code points
     /// at, and the field-slot index every `FieldGet`/`FieldSet` resolves
     /// through.
@@ -2297,6 +2319,7 @@ impl<M: Module> UnitBuilder<M> {
             sigs,
             functions: FxHashMap::default(),
             shapes: FxHashMap::default(),
+            debug_slots: FxHashMap::default(),
             classes: Classes::default(),
             desc_symbols,
             statics: FxHashMap::default(),
@@ -2362,6 +2385,10 @@ impl<M: Module> UnitBuilder<M> {
             self.functions.insert(function.name.clone(), id);
             self.shapes
                 .insert(function.name.clone(), MethodShape::of(&function.params));
+            if !function.debug_slots.is_empty() {
+                self.debug_slots
+                    .insert(function.name.clone(), function.debug_slots.clone());
+            }
         }
         let mut stmt_base = 0_u32;
         let mut edge_base = 0_u32;
@@ -2512,6 +2539,7 @@ impl UnitBuilder<JITModule> {
             entries,
             shapes: self.shapes,
             statics: self.static_defaults.into(),
+            debug_slots: self.debug_slots,
         })
     }
 

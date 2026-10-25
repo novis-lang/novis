@@ -42,13 +42,7 @@ impl<'a> Lowering<'a> {
             if i > 0 {
                 let stmt_id = self.ids.next_stmt(arm.span);
                 self.cur_stmt_span = arm.span;
-                self.block_insts[cur.index() as usize].push(Inst {
-                    result: None,
-                    ty: None,
-                    kind: InstKind::StmtMarker(stmt_id),
-                    on_error: None,
-                    raise_site: None,
-                });
+                self.emit_stmt_marker(*cur, stmt_id, env);
             }
             let cond_v = self.lower_branch_cond(&arm.cond, env, cur);
 

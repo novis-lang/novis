@@ -199,6 +199,23 @@ pub(crate) fn emit_function(
         .ins()
         .load(types::I64, ctx_word(), ctx_p, safepoint_offset);
 
+    // Under the debug switch, one area of sixteen-byte `Value`s, one per
+    // entry of the function's slot table. Without it the function has no
+    // table, and nothing here is emitted.
+    let debug_area = if f.debug_slots.is_empty() {
+        None
+    } else {
+        let size = u32::try_from(f.debug_slots.len())
+            .ok()
+            .and_then(|count| count.checked_mul(VALUE_SIZE.cast_unsigned()))
+            .ok_or_else(|| internal("a debug slot area past 4 GiB"))?;
+        Some(b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            size,
+            VALUE_ALIGN_SHIFT,
+        )))
+    };
+
     // One walk, used twice: which blocks exist at all, and the order they are
     // filled in — see [`reachable_in_reverse_postorder`] for both reasons.
     let order = reachable_in_reverse_postorder(f);
@@ -257,6 +274,7 @@ pub(crate) fn emit_function(
         args_p,
         out_p,
         safepoint_p,
+        debug_area,
         landing_status: None,
         order,
         stack_check_pending: !is_leaf(f),
@@ -444,6 +462,9 @@ struct Emitter<'a, 'f> {
     /// The address of the safepoint word, loaded out of `ctx_p` once in the ABI
     /// entry block — see [`Emitter::emit_safepoint`].
     safepoint_p: Value,
+    /// Under the debug switch, the stack slot holding the function's variable
+    /// slots, and `None` without it — see [`Emitter::emit_debug_locals`].
+    debug_area: Option<codegen::ir::StackSlot>,
     /// The status parameter of the landing block currently being emitted, or
     /// `None` for an ordinary block — see [`is_landing`].
     landing_status: Option<Value>,
@@ -534,6 +555,7 @@ impl Emitter<'_, '_> {
                     .ok_or_else(|| internal("a unit with more than 2^32 statements"))?;
                 return self.emit_stmt_probe(cur, stmt);
             }
+            InstKind::DebugLocals(stores) => self.emit_debug_locals(stores)?,
             InstKind::Safepoint => return self.emit_safepoint(cur, inst.on_error),
             InstKind::DeprecationCheck { message, at } => {
                 return self.emit_deprecation_check(message, at, inst.on_error);
@@ -1297,6 +1319,38 @@ impl Emitter<'_, '_> {
 
         self.b.switch_to_block(cont);
         Ok(cont)
+    }
+
+    /// The debug switch's store of every variable at a statement
+    /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+    ///
+    /// Writes every slot of the function's table: a listed variable's value as
+    /// a whole `Value`, and every other slot as never assigned. So a slot read
+    /// at this statement never shows a value that left scope earlier. The
+    /// store takes no reference; the variable keeps its own.
+    fn emit_debug_locals(&mut self, stores: &[(u32, ValueId)]) -> Result<(), CodegenError> {
+        let area = self
+            .debug_area
+            .ok_or_else(|| internal("a debug store in a function with no slot table"))?;
+        let base = self.b.ins().stack_addr(types::I64, area, 0);
+        let mut listed = stores.iter().peekable();
+        for slot in 0..self.f.debug_slots.len() {
+            let offset = i32::try_from(slot)
+                .ok()
+                .and_then(|slot| slot.checked_mul(VALUE_SIZE))
+                .ok_or_else(|| internal("a debug slot past i32"))?;
+            match listed.next_if(|(index, _)| *index as usize == slot) {
+                Some((_, id)) => {
+                    let (value, ty) = self.value(*id)?;
+                    self.store_value(base, offset, value, ty)?;
+                }
+                None => self.store_tag_and_bits(base, offset, Tag::Unset, None)?,
+            }
+        }
+        if listed.next().is_some() {
+            return Err(internal("a debug store past its function's slot table"));
+        }
+        Ok(())
     }
 
     /// `rule:testing/debug-probes`'s conditional-edge check, emitted before a

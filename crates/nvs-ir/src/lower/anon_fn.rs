@@ -284,7 +284,7 @@ pub(crate) fn lower_anon_fn(
     // here rather than in the enclosing function, so it rides out beside the
     // environment class — see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
-    let (blocks, stmt_spans, edge_spans) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
     (
         Function {
             name: label,
@@ -294,6 +294,7 @@ pub(crate) fn lower_anon_fn(
             entry,
             stmt_spans,
             edge_spans,
+            debug_slots,
         },
         std::iter::once(crate::ir::Class {
             label: class.clone(),
@@ -774,7 +775,7 @@ pub(crate) fn lower_callable(
             low.seal(cur, Terminator::Return(Some(value)));
             let mut classes = vec![thunk_class(class, false, false, *span, exprs)];
             classes.append(&mut low.shapes);
-            let (blocks, stmt_spans, edge_spans) = low.finish();
+            let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
             return (
                 Function {
                     name: label,
@@ -784,6 +785,7 @@ pub(crate) fn lower_callable(
                     entry,
                     stmt_spans,
                     edge_spans,
+                    debug_slots,
                 },
                 classes,
             );
@@ -959,7 +961,7 @@ pub(crate) fn lower_callable(
         exprs,
     )];
     classes.append(&mut low.shapes);
-    let (blocks, stmt_spans, edge_spans) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
     (
         Function {
             name: label,
@@ -969,6 +971,7 @@ pub(crate) fn lower_callable(
             entry,
             stmt_spans,
             edge_spans,
+            debug_slots,
         },
         classes,
     )

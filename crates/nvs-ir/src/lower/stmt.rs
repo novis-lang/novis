@@ -83,13 +83,7 @@ impl<'a> Lowering<'a> {
     pub(crate) fn lower_stmt(&mut self, stmt: &'a Stmt, cur: &mut BlockId, env: &mut Env) {
         let stmt_id = self.ids.next_stmt(stmt.span);
         self.cur_stmt_span = stmt.span;
-        self.block_insts[cur.index() as usize].push(Inst {
-            result: None,
-            ty: None,
-            kind: InstKind::StmtMarker(stmt_id),
-            on_error: None,
-            raise_site: None,
-        });
+        self.emit_stmt_marker(*cur, stmt_id, env);
         match &stmt.kind {
             StmtKind::LocalDecl {
                 ty: Some(decl_ty),

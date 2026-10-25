@@ -814,6 +814,57 @@ impl Tests {
     }
 }
 
+thread_local! {
+    /// Whether this thread is lowering under the debug switch. Set only
+    /// inside [`with_debug_slots`].
+    static DEBUG_SLOTS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `lower` with the debug switch on: every function it lowers gives each
+/// variable a described slot ([`crate::ir::Function::debug_slots`]) and stores
+/// the variables in scope at every statement
+/// ([`crate::ir::InstKind::DebugLocals`]), as
+/// `rule:testing/a-debugged-program-is-compiled-with-a-debug-switch` says.
+///
+/// Scoped to this thread and to the call, so a debug session switches it for
+/// the units it compiles and no other lowering sees it. A lowering outside the
+/// call emits nothing for it.
+pub fn with_debug_slots<R>(lower: impl FnOnce() -> R) -> R {
+    /// Puts the switch back as it was, on a return and on a panic.
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            DEBUG_SLOTS.with(|on| on.set(self.0));
+        }
+    }
+    let _restore = Restore(DEBUG_SLOTS.with(|on| on.replace(true)));
+    lower()
+}
+
+/// One function's debug slots while it is lowered: the table
+/// [`crate::ir::Function::debug_slots`] receives, and each name's index in it.
+#[derive(Default)]
+pub(crate) struct DebugSlots {
+    slots: Vec<crate::ir::DebugSlot>,
+    index: FxHashMap<String, u32>,
+}
+
+impl DebugSlots {
+    /// `name`'s slot, given one the first time the name is seen.
+    fn slot(&mut self, name: &str, ty: Ty) -> u32 {
+        if let Some(&slot) = self.index.get(name) {
+            return slot;
+        }
+        let slot = u32::try_from(self.slots.len()).expect("a function with 2^32 variables");
+        self.slots.push(crate::ir::DebugSlot {
+            name: name.to_owned(),
+            ty,
+        });
+        self.index.insert(name.to_owned(), slot);
+        slot
+    }
+}
+
 fn lower_program_as(
     script: &str,
     files: &[nvs_types::ProgramFile<'_>],
@@ -1516,7 +1567,7 @@ pub fn lower_method(
     let callables = std::mem::take(&mut low.callables);
     // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
-    let (blocks, stmt_spans, edge_spans) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
     let (anon_fns, mut classes) =
         drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
     classes.extend(shapes);
@@ -1529,6 +1580,7 @@ pub fn lower_method(
             entry,
             stmt_spans,
             edge_spans,
+            debug_slots,
         },
         anon_fns,
         classes,
@@ -1873,7 +1925,7 @@ pub fn lower_property_hook(
     let callables = std::mem::take(&mut low.callables);
     // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
-    let (blocks, stmt_spans, edge_spans) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
     let (anon_fns, mut classes) =
         drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
     classes.extend(shapes);
@@ -1886,6 +1938,7 @@ pub fn lower_property_hook(
             entry,
             stmt_spans,
             edge_spans,
+            debug_slots,
         },
         anon_fns,
         classes,
@@ -1987,7 +2040,7 @@ pub fn lower_script(
     let callables = std::mem::take(&mut low.callables);
     // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
-    let (blocks, stmt_spans, edge_spans) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
     let (anon_fns, mut classes) =
         drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
     classes.extend(shapes);
@@ -2000,6 +2053,7 @@ pub fn lower_script(
             entry,
             stmt_spans,
             edge_spans,
+            debug_slots,
         },
         anon_fns,
         classes,
@@ -2268,6 +2322,9 @@ pub(crate) struct Lowering<'a> {
     /// middle of a body has nowhere else to put one. Deduplicated by label as
     /// it is filled, so a body writing `{x: 1}` in a loop records one entry.
     shapes: Vec<crate::ir::Class>,
+    /// `Some` under [`with_debug_slots`]: the variables given a slot so far.
+    /// [`Self::emit_stmt_marker`] fills it, and [`Self::finish`] hands it out.
+    debug: Option<DebugSlots>,
 }
 
 /// One by-reference argument staged at a call site, and where its written-back
@@ -2528,7 +2585,53 @@ impl<'a> Lowering<'a> {
             anon_fns: Vec::new(),
             callables: Vec::new(),
             shapes: Vec::new(),
+            debug: DEBUG_SLOTS
+                .with(std::cell::Cell::get)
+                .then(DebugSlots::default),
         }
+    }
+
+    /// Appends a statement's [`InstKind::StmtMarker`] to `b`, and under the
+    /// debug switch the [`InstKind::DebugLocals`] storing every variable `env`
+    /// has there.
+    ///
+    /// A name with a `#` is one this lowering made up, such as an anonymous
+    /// function's own object, and gets no slot. A by-reference variable and a
+    /// class descriptor get none either, because neither is a value the slot
+    /// could show.
+    pub(crate) fn emit_stmt_marker(&mut self, b: BlockId, stmt_id: crate::ids::StmtId, env: &Env) {
+        self.block_insts[b.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::StmtMarker(stmt_id),
+            on_error: None,
+            raise_site: None,
+        });
+        let Some(debug) = self.debug.as_mut() else {
+            return;
+        };
+        // By name, so a statement that brings in several variables numbers
+        // their slots the same way on every run.
+        let mut shown: Vec<_> = env
+            .iter()
+            .filter(|(name, (_, ty))| !name.contains('#') && !matches!(ty, Ty::Ref | Ty::ClassDesc))
+            .collect();
+        shown.sort_unstable_by_key(|(name, _)| name.as_str());
+        let mut stores: Vec<(u32, ValueId)> = shown
+            .into_iter()
+            .map(|(name, &(v, ty))| {
+                let declared = self.declared_tys.get(name).copied().unwrap_or(ty);
+                (debug.slot(name, declared), v)
+            })
+            .collect();
+        stores.sort_unstable_by_key(|&(slot, _)| slot);
+        self.block_insts[b.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::DebugLocals(stores),
+            on_error: None,
+            raise_site: None,
+        });
     }
     /// Records the synthesized class an anonymous object named — see
     /// [`Self::shapes`].
@@ -4064,8 +4167,16 @@ impl<'a> Lowering<'a> {
     /// every block this lowering creates is expected to reach a terminator
     /// one way or another; hitting this would be a lowering bug, not a
     /// malformed input program.
-    pub(crate) fn finish(self) -> (Vec<BasicBlock>, Vec<Span>, Vec<Span>) {
+    pub(crate) fn finish(
+        self,
+    ) -> (
+        Vec<BasicBlock>,
+        Vec<Span>,
+        Vec<Span>,
+        Vec<crate::ir::DebugSlot>,
+    ) {
         let (stmt_spans, edge_spans) = self.ids.into_spans();
+        let debug_slots = self.debug.map(|debug| debug.slots).unwrap_or_default();
         let blocks = self
             .block_ids
             .into_iter()
@@ -4082,7 +4193,7 @@ impl<'a> Lowering<'a> {
                 }),
             })
             .collect();
-        (blocks, stmt_spans, edge_spans)
+        (blocks, stmt_spans, edge_spans, debug_slots)
     }
 }
 

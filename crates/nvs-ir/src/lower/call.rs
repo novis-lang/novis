@@ -1632,5 +1632,6 @@ pub(crate) fn delegation_forward(
         entry,
         stmt_spans,
         edge_spans,
+        debug_slots: Vec::new(),
     })
 }

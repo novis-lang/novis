@@ -467,6 +467,24 @@ pub struct Function {
     /// The source span [`crate::ids::EdgeId::index`] names. Non-empty for
     /// any function containing an `if`/`while`.
     pub edge_spans: Vec<Span>,
+    /// Under the debug switch, one entry per variable the function has, in
+    /// slot order. Empty without the switch
+    /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+    /// Every [`InstKind::DebugLocals`] in the function indexes this table.
+    pub debug_slots: Vec<DebugSlot>,
+}
+
+/// One variable's described stack slot under the debug switch. The entry at
+/// position `i` of [`Function::debug_slots`] is the `i`th sixteen-byte
+/// `nvs_runtime::Value` of the function's one slot area.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DebugSlot {
+    /// The variable's name, without its `$`. `this` for the receiver.
+    pub name: String,
+    /// The representation its declaration gives it, or its first binding's
+    /// where nothing declares one. The slot carries each value's own tag, so a
+    /// variable narrowed to another representation still reads right.
+    pub ty: Ty,
 }
 
 /// One basic block: a straight-line run of [`Inst`]ructions ending in one
@@ -632,6 +650,15 @@ pub enum InstKind {
     /// previous lowered statement's instructions end and the next one's
     /// begin, in program order. Defines no value.
     StmtMarker(StmtId),
+    /// The debug switch's store of every variable in scope, right after a
+    /// [`Self::StmtMarker`]: each pair is a [`Function::debug_slots`] index
+    /// and the value the variable has at that statement, sorted by index.
+    /// `nvs-codegen` writes every slot the table has at each one, and a slot
+    /// not listed is written as never assigned, so no slot keeps a value that
+    /// went out of scope. The slots borrow their values and take no reference.
+    /// Emitted only under the switch, and defines no value
+    /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+    DebugLocals(Vec<(u32, ValueId)>),
     /// A reserved safepoint poll site — function entry (recursion) or a
     /// loop's back edge, the sites `nvs-codegen`'s module doc names and that
     /// `rule:testing/debug-probes`

@@ -766,7 +766,7 @@ pub(crate) fn lower_generator_factory(
     }
     low.seal(entry, Terminator::Return(Some(gen_v)));
 
-    let (blocks, stmt_spans, edge_spans) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
     Function {
         name: name.to_owned(),
         params: param_tys,
@@ -775,6 +775,7 @@ pub(crate) fn lower_generator_factory(
         entry: start,
         stmt_spans,
         edge_spans,
+        debug_slots,
     }
 }
 
@@ -907,7 +908,7 @@ pub(crate) fn lower_generator_advance(
     let pending = std::mem::take(&mut low.anon_fns);
     // Beside the anonymous functions, and out the same channel: see `Lowering::callables`.
     let callables = std::mem::take(&mut low.callables);
-    let (blocks, stmt_spans, edge_spans) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
     let (anon_fns, classes) = drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
     (
         Lowered {
@@ -919,6 +920,7 @@ pub(crate) fn lower_generator_advance(
                 entry,
                 stmt_spans,
                 edge_spans,
+                debug_slots,
             },
             anon_fns,
             classes,
@@ -1061,7 +1063,7 @@ pub(crate) fn lower_generator_current(
         },
     );
 
-    let (blocks, stmt_spans, edge_spans) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
     Function {
         name: label,
         params: vec![Ty::Object],
@@ -1070,6 +1072,7 @@ pub(crate) fn lower_generator_current(
         entry,
         stmt_spans,
         edge_spans,
+        debug_slots,
     }
 }
 
@@ -1207,7 +1210,7 @@ pub(crate) fn lower_generator_unwind(
 
     low.seal(nothing_owed, Terminator::Return(None));
 
-    let (blocks, stmt_spans, edge_spans) = low.finish();
+    let (blocks, stmt_spans, edge_spans, debug_slots) = low.finish();
     Function {
         name: label,
         params: vec![Ty::Object],
@@ -1216,5 +1219,6 @@ pub(crate) fn lower_generator_unwind(
         entry,
         stmt_spans,
         edge_spans,
+        debug_slots,
     }
 }

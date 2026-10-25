@@ -6,7 +6,7 @@ context: [crates/nvs-ir/src/lower/mod.rs, crates/nvs-codegen/src/emit.rs, crates
 stages:
   - id: 1
     title: "the debug compile switch: described slots for every local"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/mod.rs, crates/nvs-ir/src/ir.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-codegen/src/emit.rs, docs/rules/testing/a-debugged-program-is-compiled-with-a-debug-switch.md]
     extra:
       context:
@@ -120,10 +120,10 @@ breakpoints through the controller 2 builds.
 **Does:** with the switch, the lowering records the variables in scope at each statement, and codegen
 stores each into a described slot.
 
-- [ ] The lowering takes the switch and, at each statement marker, records each variable in scope with the IR value it holds (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-ir/src/lower/mod.rs:136`, `crates/nvs-ir/src/lower/mod.rs:735`
-- [ ] The switch reaches codegen, and a unit compiled with it carries a slot table per function: name, declared type, slot. `crates/nvs-codegen/src/lib.rs:909`
-- [ ] Codegen stores each recorded value into its stack slot at the statement. `crates/nvs-codegen/src/emit.rs:516`
-- [ ] Codegen tests: a unit compiled without the switch is unchanged instruction for instruction, and one compiled with it has a slot per local (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-codegen/tests/probes.rs:104`
+- [x] The lowering takes the switch and, at each statement marker, records each variable in scope with the IR value it holds (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-ir/src/lower/mod.rs:136`, `crates/nvs-ir/src/lower/mod.rs:735`
+- [x] The switch reaches codegen, and a unit compiled with it carries a slot table per function: name, declared type, slot. `crates/nvs-codegen/src/lib.rs:909`
+- [x] Codegen stores each recorded value into its stack slot at the statement. `crates/nvs-codegen/src/emit.rs:516`
+- [x] Codegen tests: a unit compiled without the switch is unchanged instruction for instruction, and one compiled with it has a slot per local (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-codegen/tests/probes.rs:104`
 
 ### 5. a stop site per statement, and a frame record per call
 
@@ -196,21 +196,29 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started, and no stage waits on another goal. The stages run strictly in the order 1, 5, 2,
-6, 3, 4.
+Stage 1 is done. The switch is `nvs_ir::lower::with_debug_slots(|| lower...)`, scoped to the thread
+and the call. Under it, `Lowering::emit_stmt_marker` follows each `StmtMarker` with an
+`InstKind::DebugLocals` listing `(slot, value)` for every variable in the env, and `finish` hands out
+`Function::debug_slots`. Codegen gives such a function one explicit stack slot of 16 bytes per table
+entry, and `Emitter::emit_debug_locals` writes every slot at each statement: listed variables as a
+whole `Value`, the rest as `Tag::Unset`. The slots borrow and take no reference. `Unit::debug_slots(name)`
+is the table, and entry `i` sits at byte `16 * i` of the area. A by-reference (`Ty::Ref`) variable and a
+name with a `#` get no slot. No test is expected to go red: without the switch no instruction changes.
 
 ### Next
 
-**Stage 1: described slots for every local**, file set `crates/nvs-ir/src/lower/mod.rs`,
-`crates/nvs-codegen/src/lib.rs`, `crates/nvs-codegen/src/emit.rs`, `crates/nvs-codegen/tests/probes.rs`.
-No gate.
+**Stage 5: a stop site per statement, and a frame record per call**, file set
+`crates/nvs-codegen/src/emit.rs`, `crates/nvs-runtime/src/ctx/frames.rs` (new),
+`crates/nvs-runtime/src/ctx/mod.rs`, `crates/nvs-codegen/tests/probes.rs`. No gate.
 
-- [ ] Record each variable in scope at a statement under the switch (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-ir/src/lower/mod.rs:136`, `crates/nvs-ir/src/lower/mod.rs:735`
-- [ ] The switch reaches codegen, and the slot table per function. `crates/nvs-codegen/src/lib.rs:909`
-- [ ] The stores into the slots at each statement. `crates/nvs-codegen/src/emit.rs:516`
-- [ ] Codegen tests: unchanged without the switch, a slot per local with it. `crates/nvs-codegen/tests/probes.rs:104`
+- [ ] The stop site beside the statement probe, after the `DebugLocals` store, emitted only where `Emitter::debug_area` is `Some`. `crates/nvs-codegen/src/emit.rs:1302`, `crates/nvs-codegen/src/emit.rs:1331`
+- [ ] The frame record, whose slot base is the `debug_area` address (`stack_addr`). `crates/nvs-runtime/src/ctx/frames.rs:1`
+- [ ] Link on entry in `emit_function` and unlink on every return path and landing block. `crates/nvs-codegen/src/emit.rs:160`, `crates/nvs-codegen/src/emit.rs:4066`
+- [ ] Codegen tests beside the two stage-1 tests. `crates/nvs-codegen/tests/probes.rs:424`
 
 ### Backlog
 
+- A debug unit must never be stored in or loaded from the artifact cache, whose key does not cover the switch. `Unit::into_unit` gives a cached unit no slot table. Stage 2 or 4, whichever first compiles a program under the switch, turns the cache off for it, as `compile_checked_types` does. `crates/nvs-codegen/src/lib.rs:963`
+- An `inout` by-reference variable has no slot, so the debugger cannot show it yet. Stage 6 can read it through its staged slot. `crates/nvs-ir/src/lower/mod.rs:2602`
 - Stepping, exception breakpoints and `nvs dap` itself are `debugger-adapter`'s (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
 - The value a function returned, shown after a step out, needs the frame record to keep it (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
