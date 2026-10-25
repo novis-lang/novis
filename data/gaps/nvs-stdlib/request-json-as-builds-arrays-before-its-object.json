@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/request.rs",
-  "title": "`Core\\Request::jsonAs` reads its body into arrays and then walks them through `hydrate`, where `Json::decodeAs` fills its class in one pass.",
-  "text": "`jsonAs` could call `json.rs`'s `read_against` after its own body checks, and keep every check `decodeAs` keeps: the depth, the repeated key, the budget, the integer range and the same error message and path. Closing it is that call, the allocation count of its bench falling, and every `Core\\Request` and `Core\\Json` attack still failing with the same output.",
-  "goal": "bench-counters"
-}

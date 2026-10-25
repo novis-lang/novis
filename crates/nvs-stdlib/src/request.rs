@@ -3081,7 +3081,7 @@ nvs_runtime::nvs_helper! {
             Some(document) => Ok(document),
             None => {
                 let octets = held_octets(ctx, "json")?;
-                let document = decoded_body(octets, max, None, "json")?;
+                let document = decoded_body(octets, max, "json")?;
                 if first {
                     #[expect(
                         unsafe_code,
@@ -3122,16 +3122,19 @@ nvs_runtime::nvs_helper! {
     /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`'s
     /// table says so on this member's row.
     ///
-    /// **The reading and the hydration are two calls** because the octets are
-    /// borrowed from the request and the hydration needs a `&mut Ctx` on the
-    /// carrier they are borrowed from. [`decoded_body`] answers the document
-    /// while that borrow is live, and [`crate::json::hydrate`] takes the
-    /// context once it is not.
+    /// **The reading and the build are two calls** because the octets are
+    /// borrowed from the request and the build needs a `&mut Ctx` on the
+    /// carrier they are borrowed from. [`crate::json::read_as`] reads the text
+    /// against `T` while that borrow is live, in `decodeAs`'s one pass, and
+    /// [`crate::json::ReadAs::build`] takes the context once it is not. So
+    /// every check `decodeAs` makes is made here with the same message: the
+    /// depth, the repeated key, the budget and the integer range.
     ///
     /// **What it spends:** the body's own bytes for the rest of the request,
     /// which is [`nvs_core_request_body`]'s hold and shared with it, bounded by
     /// `[limits] request_body`, plus the instances this call hands back. Both are
-    /// O(in-flight).
+    /// O(in-flight). The read in between is `decodeAs`'s tree, one slot per
+    /// field per object, freed before the call returns.
     fn nvs_core_request_json_as(ctx, args: [4]) {
         // In `json`'s order, and for `body`'s reasons: the request first, so
         // "no request arrived" stays a different fact from what the body says.
@@ -3173,73 +3176,79 @@ nvs_runtime::nvs_helper! {
         // it holds them, so another buffering reader may follow it, and a
         // streaming reader ahead of it is refused.
         claim_body(ctx, "jsonAs", BodyNeed::Octets)?;
-        // The document is read while the octets are borrowed, and the borrow is
-        // over before the hydration takes the carrier they came off.
         let lists = crate::json::Lists::default();
-        let document = {
-            let octets = held_octets(ctx, "jsonAs")?;
-            decoded_body(octets, max, Some(&lists), "jsonAs")?
+        #[expect(
+            unsafe_code,
+            reason = "the same descriptor and contract, still owned by the compiled unit"
+        )]
+        let read = {
+            let text = body_text(held_octets(ctx, "jsonAs")?, "jsonAs")?;
+            unsafe {
+                crate::json::read_as(
+                    class,
+                    shape,
+                    text,
+                    max,
+                    list,
+                    &lists,
+                    "Core\\Request::jsonAs",
+                )
+            }?
         };
         #[expect(
             unsafe_code,
-            reason = "the same descriptor, still owned by the compiled unit"
+            reason = "the same descriptor and contract, still owned by the compiled unit"
         )]
         unsafe {
-            crate::json::hydrate(
-                ctx,
-                class,
-                shape,
-                document,
-                list,
-                // A JSON document spelled its own types, so `"1"` reaching an
-                // `int` field is a document disagreeing with the `T` it was
-                // read as — `crate::json::Reading` owns the fork.
-                crate::json::Reading::Wire(&lists),
-                "Core\\Request::jsonAs",
-            )
+            read.build(ctx, "Core\\Request::jsonAs")
         }
     }
 }
 
-/// `octets` as the one JSON document they spell, for `member`. A class
-/// decode passes `lists`, which notes each array the parse built from a JSON
-/// list ([`crate::json::read_marked`]).
+/// `octets` as the one JSON document they spell, for `member`.
 ///
 /// # Errors
 ///
-/// `ParseError` where they spell no such document: a body that is not UTF-8,
-/// one that holds something other than a single document at `max`, and an
-/// absent or empty one. That last is a refusal rather than `null` because
-/// `mixed` cannot tell "the peer sent no body" from a body holding the
-/// document `null`, and the two must not answer alike; `LogicError` is not
-/// available for it either, since a peer must never be able to make a program
-/// report its own defect.
-fn decoded_body(
-    octets: &[u8],
-    max: u32,
-    lists: Option<&crate::json::Lists>,
-    member: &str,
-) -> Result<Value, Fault> {
-    // `crate::json`'s shape, because this is that member's failure reached
-    // through a different door: one issue for a malformed document, so a
-    // `catch (ParseError $e)` reads the same whichever door it came through.
-    let refused = |why: &str| {
-        let message = format!("Core\\Request::{member}(): {why}");
-        let issues = crate::issue::list([("", message.as_str())]);
-        Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
-    };
+/// [`body_text`]'s, and `ParseError` where the text holds something other
+/// than a single document at `max`.
+fn decoded_body(octets: &[u8], max: u32, member: &str) -> Result<Value, Fault> {
+    let text = body_text(octets, member)?;
+    crate::json::read(text, max).map_err(|why| body_refused(member, &why.to_string()))
+}
+
+/// `octets` as the text a JSON document is read from, for `member`.
+///
+/// # Errors
+///
+/// `ParseError` for a body that is not UTF-8, and for an absent or empty one.
+/// That last is a refusal rather than `null` because `mixed` cannot tell "the
+/// peer sent no body" from a body holding the document `null`, and the two
+/// must not answer alike; `LogicError` is not available for it either, since a
+/// peer must never be able to make a program report its own defect.
+fn body_text<'a>(octets: &'a [u8], member: &str) -> Result<&'a str, Fault> {
     if octets.is_empty() {
-        return Err(refused(
+        return Err(body_refused(
+            member,
             "the request carried no body, and no bytes are not the document `null`",
         ));
     }
-    let text = std::str::from_utf8(octets)
-        .map_err(|_| refused("the body is not UTF-8, so it is not a JSON document"))?;
-    match lists {
-        Some(lists) => crate::json::read_marked(text, max, lists),
-        None => crate::json::read(text, max),
-    }
-    .map_err(|why| refused(&why.to_string()))
+    std::str::from_utf8(octets).map_err(|_| {
+        body_refused(
+            member,
+            "the body is not UTF-8, so it is not a JSON document",
+        )
+    })
+}
+
+/// The `ParseError` a JSON body is refused with, for `member`.
+///
+/// `crate::json`'s shape, because this is that member's failure reached
+/// through a different door: one issue for a malformed document, so a
+/// `catch (ParseError $e)` reads the same whichever door it came through.
+fn body_refused(member: &str, why: &str) -> Fault {
+    let message = format!("Core\\Request::{member}(): {why}");
+    let issues = crate::issue::list([("", message.as_str())]);
+    Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
 }
 
 /// This request's octets, held on the carrier: pulled off the wire by the
@@ -7271,6 +7280,121 @@ mod tests {
             .expect("the refusal read nothing off the wire, so the body is still held");
         assert_eq!(field_n(hydrated), 7);
         dropped(hydrated);
+    }
+
+    /// The message a bad body is refused with when it is read into arrays
+    /// first and then hydrated: the two calls `jsonAs<T>()` made before it read
+    /// its text against `T` in one pass, kept here as the reference that pass
+    /// must match.
+    fn refused_through_arrays(class: *const ClassDesc, text: &str, max: u32) -> String {
+        let lists = crate::json::Lists::default();
+        let document = match crate::json::read_marked(text, max, &lists) {
+            Ok(document) => document,
+            Err(why) => return format!("Core\\Request::jsonAs(): {why}"),
+        };
+        let mut ctx = Ctx::buffered();
+        #[expect(
+            unsafe_code,
+            reason = "`reading_class` leaks its table, so the descriptor outlives the call"
+        )]
+        let fault = unsafe {
+            crate::json::hydrate(
+                &mut ctx,
+                class,
+                None,
+                document,
+                false,
+                crate::json::Reading::Wire(&lists),
+                "Core\\Request::jsonAs",
+            )
+        }
+        .expect_err("every body this is asked about is a bad one");
+        fault_message(fault)
+    }
+
+    /// The message a bad body is refused with by the one pass `jsonAs<T>()`
+    /// reads its text in: `crate::json::read_as`, then `build`.
+    ///
+    /// The fault is read here and not off a context, because a context with
+    /// no program behind it has no `ParseError` class to build, so its pending
+    /// message is empty for either route.
+    fn refused_in_one_pass(class: *const ClassDesc, text: &str, max: u32) -> String {
+        let lists = crate::json::Lists::default();
+        let mut ctx = Ctx::buffered();
+        #[expect(
+            unsafe_code,
+            reason = "`reading_class` leaks its table, so the descriptor outlives the call"
+        )]
+        let fault = unsafe {
+            crate::json::read_as(
+                class,
+                None,
+                text,
+                max,
+                false,
+                &lists,
+                "Core\\Request::jsonAs",
+            )
+            .and_then(|read| read.build(&mut ctx, "Core\\Request::jsonAs"))
+        }
+        .expect_err("every body this is asked about is a bad one");
+        fault_message(fault)
+    }
+
+    /// A thrown fault's message, with any slots it carries freed.
+    fn fault_message(fault: Fault) -> String {
+        match fault {
+            Fault::Thrown(_, message) => message.into_owned(),
+            Fault::ThrownWithSlots(_, message, slots) => {
+                for (_, value) in slots.iter() {
+                    dropped(*value);
+                }
+                message.into_owned()
+            }
+            other => panic!("a bad body is a thrown error, not {other:?}"),
+        }
+    }
+
+    /// `jsonAs<T>()` reads its body in `decodeAs`'s one pass, and every bad
+    /// body throws the message it threw when it read the body into arrays and
+    /// hydrated those: past the depth, a key written twice (declared and not),
+    /// an integer out of range, a value of the wrong type, a missing property,
+    /// a list where an object is expected, and text after the document.
+    // covers: Core\Request::jsonAs
+    #[test]
+    fn json_as_refuses_each_bad_body_with_the_message_the_array_path_gave() {
+        let class = reading_class();
+        let max = 3;
+        for text in [
+            r#"{"n":1,"x":[[[1]]]}"#,
+            r#"{"n":1,"n":2}"#,
+            r#"{"n":1,"x":1,"x":2}"#,
+            r#"{"n":9223372036854775808}"#,
+            r#"{"n":18446744073709551616}"#,
+            r#"{"n":"7"}"#,
+            r#"{"n":7.5}"#,
+            "{}",
+            r#"[{"n":1}]"#,
+            r#"{"n":1} x"#,
+        ] {
+            let mut ctx = answering(Some(Chunks::of(&[text.as_bytes()])));
+            let answer = nvs_runtime::call(
+                nvs_core_request_json_as,
+                &mut ctx,
+                &[
+                    Value::class_desc(class),
+                    Value::bool(false),
+                    Value::shape_codec(std::ptr::null()),
+                    Value::uint(u64::from(max)),
+                ],
+            );
+            assert!(answer.is_err(), "{text} is not a `Reading`");
+            assert_eq!(
+                refused_in_one_pass(class, text, max),
+                refused_through_arrays(class, text, max),
+                "{text}"
+            );
+        }
     }
 
     /// One reading of one body answers both members, in either order.

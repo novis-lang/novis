@@ -273,7 +273,8 @@
 //!
 //! # `decodeAs` reads the text against the class
 //!
-//! `Core\Json::decodeAs` parses once, with [`Fill`] driven by the class's
+//! `Core\Json::decodeAs` and `Core\Request::jsonAs` parse once, through
+//! [`read_as`], with [`Fill`] driven by the class's
 //! field list, and [`walk`] builds the instances from what it read. A JSON
 //! object the class fills becomes a [`Read`]: one slot per field, at the
 //! field's index. Its keys are matched against the field list as they are
@@ -290,8 +291,8 @@
 //! read. Generic arrays are built only for the values above that [`Decode`]
 //! reads. The tree is freed with the call, once the instances are built.
 //!
-//! `Core\Request::jsonAs`, `queryAs`, `postAs` and `Core\Arr::shapeAs` hold
-//! their values already, and [`hydrate`] runs the same walk over those.
+//! `Core\Request::queryAs`, `postAs` and `Core\Arr::shapeAs` hold their
+//! values already, and [`hydrate`] runs the same walk over those.
 //!
 //! # What a list decode costs
 //!
@@ -331,7 +332,7 @@ use crate::registry::{
 /// not declare: `registry::WRITTEN_CLASS_MEMBERS` puts the class its call site
 /// wrote in slot 0, and that roster owns why. `Core\Request::jsonAs` is the
 /// same decode over a request body and reaches it through [`check_codec`] and
-/// [`hydrate`] rather than through [`decode_as`].
+/// [`read_as`] rather than through [`decode_as`].
 // rank: 100
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Json",
@@ -2088,7 +2089,8 @@ nvs_runtime::nvs_helper! {
 /// instances out of that tree, so no constructor runs before the whole
 /// document has parsed. A class that wrote [`DECODE`] is handed the document
 /// as it arrived, so its text is read by [`read_marked`] and built by
-/// [`hydrate`].
+/// [`hydrate`]. The read is [`read_as`] and the build [`ReadAs::build`], two
+/// calls a caller holding borrowed text makes itself.
 ///
 /// The two shapes share this frame because the codec questions are the
 /// contract's and not the document's: an `Opaque` field is a decoder this crate
@@ -2125,6 +2127,48 @@ pub(crate) unsafe fn decode_as(
         check_codec(class, shape, member)?;
     }
     let lists = Lists::default();
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the descriptor and the contract are live"
+    )]
+    let read = unsafe { read_as(class, shape, text, max, list, &lists, member) }?;
+    #[expect(
+        unsafe_code,
+        reason = "the same live descriptor and contract the caller vouched for"
+    )]
+    unsafe {
+        read.build(ctx, member)
+    }
+}
+
+/// [`decode_as`]'s parse, without the `&mut Ctx` its build needs:
+/// `Core\Request::jsonAs` reads text borrowed from the request, and takes the
+/// context again only once that borrow is over. The read owns nothing of
+/// `text`, so [`ReadAs::build`] runs after it.
+///
+/// The caller owes [`check_codec`] first, as [`decode_as`] makes it.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s. The two must stay live until [`ReadAs::build`] ends.
+///
+/// # Errors
+///
+/// `ParseError`, worded `{member}(): ...`, where `text` is not one document
+/// [`Fill`] reads against the class at `max`.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub(crate) unsafe fn read_as<'a>(
+    class: *const nvs_runtime::ClassDesc,
+    shape: Option<*const nvs_runtime::ShapeCodec>,
+    text: &str,
+    max: u32,
+    list: bool,
+    lists: &'a Lists,
+    member: &str,
+) -> Result<ReadAs<'a>, Fault> {
     let unparsed = |why: serde_json::Error| {
         let message = format!("{member}(): {why}");
         let issues = crate::issue::list([("", message.as_str())]);
@@ -2134,43 +2178,115 @@ pub(crate) unsafe fn decode_as(
         unsafe_code,
         reason = "the caller guarantees the descriptor and the contract are live"
     )]
-    let contract = unsafe { Contract::new(class, shape) }.over(Reading::Wire(&lists));
-    if contract.writes_decoder() {
-        let document = read_marked(text, max, &lists).map_err(unparsed)?;
-        #[expect(
-            unsafe_code,
-            reason = "the same live descriptor the caller vouched for"
-        )]
-        return unsafe {
-            hydrate(
-                ctx,
-                class,
-                shape,
-                document,
-                list,
-                Reading::Wire(&lists),
-                member,
-            )
-        };
-    }
-    let tree = read_against(text, max, contract, list).map_err(unparsed)?;
+    let contract = unsafe { Contract::new(class, shape) }.over(Reading::Wire(lists));
+    let read = if contract.writes_decoder() {
+        Parsed::Document(read_marked(text, max, lists).map_err(unparsed)?)
+    } else {
+        Parsed::Tree(read_against(text, max, contract, list).map_err(unparsed)?)
+    };
+    Ok(ReadAs {
+        class,
+        shape,
+        list,
+        lists,
+        read: Some(read),
+    })
+}
+
+/// One document [`read_as`] read, waiting for the context its instances are
+/// built in.
+///
+/// Dropping one that was never built releases what it read.
+pub(crate) struct ReadAs<'a> {
+    /// The class the build makes, as the caller of [`read_as`] vouched for it.
+    class: *const nvs_runtime::ClassDesc,
+    /// The inline shape's wire contract, where the call site wrote one.
+    shape: Option<*const nvs_runtime::ShapeCodec>,
+    /// Whether the document is an `array<T>`.
+    list: bool,
+    /// The lists the parse noted.
+    lists: &'a Lists,
+    /// What the parse read. `None` only once [`ReadAs::build`] took it.
+    read: Option<Parsed>,
+}
+
+/// What [`read_as`] read: a document for a class that wrote [`DECODE`], or a
+/// tree read against the class for every other one.
+enum Parsed {
+    /// [`read_marked`]'s document, with the one reference that read made.
+    Document(Value),
+    /// [`read_against`]'s tree.
+    Tree(Found),
+}
+
+impl ReadAs<'_> {
+    /// The instance, or for a list one per element, built out of what was
+    /// read.
+    ///
+    /// # Safety
+    ///
+    /// As [`read_as`]'s.
     #[expect(
         unsafe_code,
-        reason = "the same live descriptor the caller vouched for, and a tree this \
-                  frame keeps alive across the walk"
+        reason = "the caller owes the liveness of a descriptor no signature can express"
     )]
-    let decoded = unsafe {
-        if list {
-            decode_each(ctx, contract, tree.seen(), member)
-        } else {
-            decode_object(ctx, contract, tree.seen(), None, member)
+    pub(crate) unsafe fn build(
+        mut self,
+        ctx: &mut nvs_runtime::Ctx,
+        member: &str,
+    ) -> Result<Value, Fault> {
+        let reading = Reading::Wire(self.lists);
+        match self.read.take() {
+            Some(Parsed::Document(document)) => {
+                #[expect(
+                    unsafe_code,
+                    reason = "the same live descriptor the caller vouched for"
+                )]
+                unsafe {
+                    hydrate(
+                        ctx, self.class, self.shape, document, self.list, reading, member,
+                    )
+                }
+            }
+            Some(Parsed::Tree(tree)) => {
+                #[expect(
+                    unsafe_code,
+                    reason = "the same live descriptor the caller vouched for, and a \
+                              tree this frame keeps alive across the walk"
+                )]
+                let decoded = unsafe {
+                    let contract = Contract::new(self.class, self.shape).over(reading);
+                    if self.list {
+                        decode_each(ctx, contract, tree.seen(), member)
+                    } else {
+                        decode_object(ctx, contract, tree.seen(), None, member)
+                    }
+                };
+                // Every value an instance kept out of the tree took a
+                // reference of its own on the way past, so dropping the tree
+                // frees exactly what nothing else holds.
+                drop(tree);
+                decoded
+            }
+            None => Err(Fault::fatal(format!(
+                "internal error: `{member}` built one read twice"
+            ))),
         }
-    };
-    // Every value an instance kept out of the tree took a reference of its own
-    // on the way past, so dropping the tree frees exactly what nothing else
-    // holds.
-    drop(tree);
-    decoded
+    }
+}
+
+impl Drop for ReadAs<'_> {
+    fn drop(&mut self) {
+        if let Some(Parsed::Document(document)) = self.read.take() {
+            #[expect(
+                unsafe_code,
+                reason = "a document not yet built owns the one reference its read made"
+            )]
+            unsafe {
+                document.release();
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -3148,13 +3264,11 @@ unsafe fn hand_written(
 /// for `list`, one per element of it.
 ///
 /// The door for a caller that holds the document's values already.
-/// `Core\Request::jsonAs` reads its document out of the octets the request
-/// holds, and the `&mut Ctx` this half needs cannot be taken while that borrow
-/// is live, so reading and building are two calls there. `Core\Arr::shapeAs`
-/// and the request wrappers over it are handed arrays a program or a form
-/// built. [`decode_as`] reads its text against the class itself ([`Fill`]),
-/// and comes here only for a class that wrote [`DECODE`], whose member is
-/// handed the document as it arrived. The caller owes [`check_codec`] first.
+/// `Core\Arr::shapeAs` and the request wrappers over it are handed arrays a
+/// program or a form built. [`decode_as`] and [`read_as`] read their text
+/// against the class itself ([`Fill`]), and come here only for a class that
+/// wrote [`DECODE`], whose member is handed the document as it arrived. The
+/// caller owes [`check_codec`] first.
 ///
 /// `document` is transferred: this releases it whichever branch ran and whether
 /// or not it failed.
