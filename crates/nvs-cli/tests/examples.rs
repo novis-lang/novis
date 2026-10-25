@@ -25,6 +25,10 @@ use std::time::Duration;
 const STATUS: &[(&str, i32)] = &[("limits.nvs", 1), ("uncaught.nvs", 1)];
 
 /// The examples that need a server `tests/db/compose.yaml` starts, and the address it publishes.
+///
+/// The examples that share an address run one after another. Five of them open Postgres, and a
+/// queue worker allows its handshake two seconds, which five handshakes at once beside the other
+/// test binaries outran.
 const SERVERS: &[(&str, &str)] = &[
     ("cache.nvs", "127.0.0.1:16379"),
     ("cache-shared-tls.nvs", "127.0.0.1:16380"),
@@ -203,15 +207,27 @@ fn every_example_ends_with_the_status_it_is_written_to_end_with() {
 
     let queue = Mutex::new(queue);
     let failures = Mutex::new(Vec::new());
+    let mut turns: Vec<(&str, Mutex<()>)> = Vec::new();
+    for (_, address) in SERVERS {
+        if !turns.iter().any(|(held, _)| held == address) {
+            turns.push((address, Mutex::new(())));
+        }
+    }
     thread::scope(|scope| {
         for _ in 0..width() {
             scope.spawn(|| {
                 loop {
                     let next = queue.lock().unwrap().pop();
                     let Some(name) = next else { break };
+                    let turn = SERVERS
+                        .iter()
+                        .find(|(file, _)| *file == name)
+                        .and_then(|(_, address)| turns.iter().find(|(held, _)| held == address))
+                        .map(|(_, turn)| turn.lock().unwrap());
                     if let Some(failure) = run(&dir, &config, &name) {
                         failures.lock().unwrap().push(failure);
                     }
+                    drop(turn);
                 }
             });
         }
