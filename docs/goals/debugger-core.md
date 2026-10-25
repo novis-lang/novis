@@ -41,7 +41,7 @@ stages:
         rules: [testing/a-stop-pauses-the-whole-task-tree, errors/on-limit, http-server/a-wedged-core-is-detected-by-its-deadline, concurrency/on-worker-runs-the-child-on-another-core]
   - id: 4
     title: breakpoints survive a recompile under a development `nvs serve`
-    status: open
+    status: done
     context: [crates/nvs-cli/src/script.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/debug.rs, docs/rules/testing/a-debugged-program-is-compiled-with-a-debug-switch.md]
     extra:
       context:
@@ -185,10 +185,10 @@ in the last item. The session reviews them.
 
 **Does:** after an edit, each breakpoint resolves again against the new unit.
 
-- [ ] A recompile resolves every breakpoint again by file and line, and a breakpoint on a line that no longer has a statement is reported as unresolved (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-cli/src/script.rs:714`, `crates/nvs-cli/src/script.rs:1500`
-- [ ] A request already running finishes on the unit it started on, with that unit's sites (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). `crates/nvs-host/src/debug.rs:1`
-- [ ] A Rust test that edits a fixture under a served program and stops at the same breakpoint in the new unit. `crates/nvs-cli/src/script.rs:1500`
-- [ ] Both rules `shipped`, and `bun nv owners --closes debugger-core` passes (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`, `rule:testing/a-stop-pauses-the-whole-task-tree`). `data/rules/testing/a-debugged-program-is-compiled-with-a-debug-switch.json:3`, `data/rules/testing/a-stop-pauses-the-whole-task-tree.json:3`
+- [x] A recompile resolves every breakpoint again by file and line, and a breakpoint on a line that no longer has a statement is reported as unresolved (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-cli/src/script.rs:714`, `crates/nvs-cli/src/script.rs:1500`
+- [x] A request already running finishes on the unit it started on, with that unit's sites (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). `crates/nvs-host/src/debug.rs:1`
+- [x] A Rust test that edits a fixture under a served program and stops at the same breakpoint in the new unit. `crates/nvs-cli/src/script.rs:1500`
+- [x] Both rules `shipped`, and `bun nv owners --closes debugger-core` passes (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`, `rule:testing/a-stop-pauses-the-whole-task-tree`). `data/rules/testing/a-debugged-program-is-compiled-with-a-debug-switch.json:3`, `data/rules/testing/a-stop-pauses-the-whole-task-tree.json:3`
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -207,34 +207,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2, 6 and 3 are done. `nvs_ir::lower::with_debug_slots` is the switch; each function's
-`debug_slots` table names its slots, and `Ctx::frames()` walks the frame records. The controller is
-`nvs_host::debug::Debugger`: `Debugger::new(sites, lines, functions)` takes one unit's tables
-(`crates/nvs-cli/tests/debugger.rs:63` builds them), and the handler reads each frame's variables on
-the task's stack, then sends a `Stop` and parks.
+Stages 1 to 6 are done; only the gate stage 7 is left. The switch is `nvs_ir::lower::with_debug_slots`.
+The controller is `nvs_host::debug::Debugger`: `new()` starts a session, `load(&DebugUnit)` adds each
+compiled unit and arms every breakpoint again in it (`crates/nvs-host/src/debug.rs:274`), and
+`attach(ctx, &unit)` reads a request's frames against the unit it runs. Breakpoints are kept as file
+and lines, and a later set is armed in every unit still alive. The stop is the tree's
+(`TreeState::debug`), and its wall deadline is held while stopped.
 
-The stop is the tree's. The `DebugStop` is kept in `TreeState::debug` (`TreeDebug`,
-`crates/nvs-runtime/src/ctx/frames.rs`), so every context of the tree runs it, a `join_tree` child
-on another core included. A stop at a site raises `DEBUG_BREAK` on the tree, the poll leaves it
-raised while a handler is set, and `Debugger::resume` lowers it through
-`WeakSafepointView::release_debug_stop`. While stopped, `TreeState::wall_deadline` is `None`, and the
-resume adds the time held. Tests: four in `crates/nvs-host/src/debug.rs`, one in
-`crates/nvs-host/src/watchdog.rs`. No existing test is expected to go red.
+`Compiler::debugging` (`crates/nvs-cli/src/script.rs:614`) lowers every unit under the switch, loads
+its `DebugUnit` before publishing it, and `program_over` attaches each request. `unit_for` skips the
+artifact cache for `Program::is_debug()`. `nvs dap` (`debugger-adapter`) is the first production
+caller, so `debugging` has a `cfg_attr(not(test), expect(dead_code))`.
+
+The three new tests ran once, green: `script.rs:3469`, `cache.rs:2873` and one in `debug.rs`. The
+existing debug tests moved to the new API and were not run; none is expected to go red. Both rules
+are `shipped` and `owners --closes` is green. `env-secret-proofs` is green again, and the five
+nightly failures of run 40174915924 each have a fix on main (0b7eadd2c, 901f4855c, c7e5bd3c3,
+bd2e51f0a, d5aa2be18).
 
 ### Next
 
-**Stage 4: breakpoints survive a recompile under a development `nvs serve`**, file set
-`crates/nvs-cli/src/script.rs`, `crates/nvs-cli/src/cache.rs`, `crates/nvs-host/src/debug.rs`. No gate.
+**Stage 7: the goal is verified once.** No file set; the gate stage.
 
-- [ ] The CLI compiles a debug program without reading the artifact cache, whose key does not cover the switch (see the Backlog's first bullet). `crates/nvs-cli/src/cache.rs:1655`
-- [ ] A recompile resolves every breakpoint again by file and line against the new unit's `SiteTable` and lines. `Debugger::new` is per unit today, so a session must take a new unit's sites, lines and functions while requests on the old unit keep theirs. `crates/nvs-host/src/debug.rs:166`, `crates/nvs-cli/src/script.rs:1500`
-- [ ] Attach each served request: `Debugger::attach` sets the handler on the request's tree, and `Ctx::reroot` resets a reused tree, so attach after the reroot. Confirm the served path runs on a core with a reactor, which the module doc of `debug.rs` claims. `crates/nvs-runtime/src/ctx/safepoint.rs:165`, `crates/nvs-host/src/worker.rs:1180`
-- [ ] The Rust test that edits a fixture and stops at the same breakpoint in the new unit, then both rules `shipped` and `bun nv owners --closes debugger-core` green. `crates/nvs-cli/tests/debugger.rs:63`, `data/rules/testing/a-stop-pauses-the-whole-task-tree.json:3`
+- [ ] Start `looper verify` with `run_in_background`, write nothing else, and end the turn to wait. `tools/nv/cmd/verify.ts:1`
+- [ ] Group the failures by cause and fix them in one pass. The likeliest are the moved debug tests. `crates/nvs-host/src/debug.rs:452`, `crates/nvs-cli/tests/debugger.rs:93`
+- [ ] Run it once more green, then `bun nv verify --doc`, `bun nv owners --closes debugger-core` and `bun nv ci --check`; move each decision only this file's prose holds into a rule or module doc before the file is deleted. `docs/goals/debugger-core.md:75`
 
 ### Backlog
 
-- A debug session must compile its units without reading the artifact cache, whose key does not cover the switch. The store half is done (`compile_object` refuses a debug program). The read half belongs to stage 4, the first stage that compiles a program under the switch from the CLI. `crates/nvs-cli/src/cache.rs:1655`
-- A task stopped on a scheduler with no reactor blocks its thread on the condvar. Only `nvs run` and unit tests have no reactor. A worker core refuses to run without one (`crates/nvs-host/src/worker.rs:1180`), and stage 4 confirms the served path. `crates/nvs-host/src/debug.rs:244`
+- A task stopped on a scheduler with no reactor blocks its thread on the condvar. Only `nvs run` and unit tests have no reactor. A served request runs in `program_over` on a worker core, and `run_core` installs a reactor before it spawns anything (`crates/nvs-host/src/worker.rs:1181`), so a served stop gives the core back. `crates/nvs-host/src/debug.rs:244`
 - The synthesized functions `nvs-ir` builds itself (`lower/call.rs`, `lower/exception.rs`) have `debug_slots: None`, so they get no frame record and do not show in the call stack. That is the intended view: they are not the user's code.
 - An `inout` by-reference variable has no slot, so the debugger cannot show it yet. `debugger-adapter` can read it through its staged cell. `crates/nvs-ir/src/lower/mod.rs:2602`
 - No test checks the name an anonymous function's frame reports. `debugger-adapter` decides how the call stack names it. `crates/nvs-cli/tests/debugger.rs:241`
