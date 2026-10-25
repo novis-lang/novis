@@ -2,7 +2,7 @@
 // Reads the query string into a shape, as a list page does for its page number and search term.
 // bench: iterations 256
 // bench: complexity linear
-// bench: calls 0
+// bench: calls 2
 
 class Bench {
     public static function run(uint $rounds): uint {

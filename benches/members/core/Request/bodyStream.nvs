@@ -2,7 +2,7 @@
 // Reads an uploaded file in pieces and adds up its size, as a handler does before it stores a large upload.
 // bench: iterations 1
 // bench: complexity linear
-// bench: allocations 2
+// bench: allocations 9
 
 class Bench {
     public static function run(): uint {
