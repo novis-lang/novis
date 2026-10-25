@@ -368,6 +368,43 @@ mutants run one at a time, and each mutant's tests run across `--jobs` cores. `-
 program's `#[Test]` methods only. `--format junit`, `--list`, `--update`, `--watch` and a `.nvst`
 tree are each an error beside it.
 
+# Profiling
+
+    nvs run <file> --profile callgrind|speedscope [--profile-out <file>]
+    nvs test <paths>... --profile callgrind|speedscope [--profile-out <file>]
+
+`--profile` measures how long each function call takes. When the program or the tests end, it
+writes the result to a file. You do not change the program for this.
+
+| Format | The file | Open it with |
+|---|---|---|
+| `callgrind` | `callgrind.out.<pid>` | KCachegrind or Webgrind |
+| `speedscope` | `profile.<pid>.speedscope.json` | speedscope, or the *View Profile* command in VS Code |
+
+`<pid>` is the process ID of the run. The file is written in the current folder.
+`--profile-out <file>` writes it to another file instead. At the end, the run prints
+`profile: <path>` on standard error.
+
+A Callgrind file has totals for each function. One total is the time in the function itself. The
+other includes the time of the functions it called. The file also lists who called each function.
+A speedscope file has every call on a timeline, in the order the calls ran.
+
+Under `nvs test`, each test has its own timeline in a speedscope file. A program that `spawn`
+starts also has its own timeline. A Callgrind file adds the totals of all of them together. The
+time a program waits for a spawned program is also in that sum, so the total can be larger than
+the time the run took.
+
+The timing adds a cost to every call. In a speedscope profile, it is about 170 nanoseconds per call
+on a current desktop processor. Every call pays the same cost, so code with many small calls looks
+slower in a profile than it is. A `.nvst` tree has no
+profile. On `nvs run`, `--profile` is an error beside `--dump-ir`, `--dump-asm` or `--count`.
+
+A program can also profile one part of itself. `Core\Debug::startProfile` and
+`Core\Debug::stopProfile` write a speedscope file around the code between them. The configuration
+must allow this. `[debug] mode` must include `"profile"`, and `[capabilities.debug] profile` must
+allow the file's folder. `--profile` needs neither of them, because only the person who runs the
+command can add the flag.
+
 # nvs build --compile
 
     nvs build --compile <file> [-o <path>]

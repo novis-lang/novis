@@ -1,0 +1,26 @@
+<?nvs
+// Measures one call to a small function while a profile records every call, as under `nvs run --profile`.
+// bench: iterations 262144 -- one call costs a few nanoseconds, and a smaller N is lost in the start-up time
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench {
+    public static function step(uint $total, uint $i): uint {
+        return ($total + $i) % 7 + 1;
+    }
+
+    public static function run(uint $rounds): uint {
+        Core\Debug::startProfile(Core\Path::join(Core\IO::temporaryDir(), "bench.speedscope.json"));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Bench::step($total, $i);
+            $i = $i + 1;
+        }
+        Core\Debug::stopProfile();
+        return $total;
+    }
+}
+
+echo Bench::run(262144), "\n";

@@ -1,0 +1,46 @@
+<?nvs
+// Profiles only the step of a nightly job that you want to measure.
+
+class Nightly {
+    public static function loadSettings(): int {
+        return 30;
+    }
+
+    public static function archiveOrders(int $days): int {
+        int $moved = 0;
+        for (int $day = 0; $day < $days; $day = $day + 1) {
+            $moved = $moved + Nightly::ordersOn($day);
+        }
+        return $moved;
+    }
+
+    public static function ordersOn(int $day): int {
+        return $day % 7 == 0 ? 0 : 12;
+    }
+
+    public static function sendReport(int $moved): string {
+        return "archived " . $moved . " orders";
+    }
+}
+
+string $file = Core\Path::thisDir('nightly.speedscope.json');
+
+// `loadSettings` runs before the start, so it is not in the profile.
+int $days = Nightly::loadSettings();
+
+Core\Debug::startProfile($file);
+int $moved = Nightly::archiveOrders($days);
+Core\Debug::stopProfile();
+
+// `sendReport` runs after the stop, so it is not in the profile either.
+echo Nightly::sendReport($moved), "\n";
+
+// This prints the name of each function in the profile, once.
+var $profile = Core\Json::decode(Core\IO::read($file)) as array<mixed>;
+var $frames = ($profile["shared"] as array<mixed>)["frames"] as array<mixed>;
+foreach ($frames as mixed $frame) {
+    echo "profiled: ", ($frame as array<mixed>)["name"] as string, "\n";
+}
+
+// This deletes the profile file, so the next run starts with an empty folder.
+Core\IO::remove($file);

@@ -5952,26 +5952,12 @@ mod tests {
         );
     }
 
-    /// `rule:testing/inline-snapshots`, both halves in one case because they are one claim: the
-    /// updater writes the produced rendering into the `$expected` literal that
-    /// asked for it, and nothing else in `nvs test` writes to a source file at
-    /// all.
-    ///
-    /// Run over a **copy**, in a directory of this test's own, for the obvious
-    /// reason — and the copy is where the "never otherwise" half is asserted,
-    /// byte for byte, against the run that was not asked to update.
-    ///
-    /// Both snapshots in the fixture start empty, so the expected text alone
-    /// joins a mismatch to two sites; that they still land in their own
-    /// literals is what says the join is narrowed by the method the call is
-    /// written in. The last assertion is the one that says the spliced text is
-    /// a *literal* and not merely bytes: the same suite, recompiled from the
-    /// rewritten file, passes.
     /// `rule:observability/speedscope-timeline-export`: `--profile` writes each export, and each
     /// passes its own format's checks. The speedscope file has what the published schema
     /// requires, with open and close events that balance and times that never go back. The
     /// Callgrind file has its header, `fn=` blocks with `calls=` lines, and self costs that sum
     /// to the total.
+    // covers: tools:cli/profiling
     #[cfg_attr(
         miri,
         ignore = "compiles and runs a program, which Miri does not emulate"
@@ -6164,6 +6150,21 @@ mod tests {
         );
     }
 
+    /// `rule:testing/inline-snapshots`, both halves in one case because they are one claim: the
+    /// updater writes the produced rendering into the `$expected` literal that
+    /// asked for it, and nothing else in `nvs test` writes to a source file at
+    /// all.
+    ///
+    /// Run over a **copy**, in a directory of this test's own, for the obvious
+    /// reason — and the copy is where the "never otherwise" half is asserted,
+    /// byte for byte, against the run that was not asked to update.
+    ///
+    /// Both snapshots in the fixture start empty, so the expected text alone
+    /// joins a mismatch to two sites; that they still land in their own
+    /// literals is what says the join is narrowed by the method the call is
+    /// written in. The last assertion is the one that says the spliced text is
+    /// a *literal* and not merely bytes: the same suite, recompiled from the
+    /// rewritten file, passes.
     #[test]
     fn an_inline_snapshot_updates_its_own_source_when_asked_and_never_otherwise() {
         let dir = nvs_repo::scratch("inline-snapshot");

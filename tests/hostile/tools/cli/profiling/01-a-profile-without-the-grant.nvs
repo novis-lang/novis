@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program tries to write a profile outside the one folder it may use.
+// Every attempt below should throw an error, and no profile file should be written.
+
+class Attack {
+    // Returns the path resolved from this file's folder.
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+
+    // Each step catches its error, so the step after it still runs.
+    public static function profile(string $step, string $path): void {
+        try {
+            Core\Debug::startProfile($path);
+            echo $step, ": a profile started at ", $path, "\n";
+            Core\Debug::stopProfile();
+        } catch (Throwable $error) {
+            echo $step, ": ", $error->message, "\n";
+        }
+    }
+
+    // Each step catches its error, so the step after it still runs.
+    public static function set(string $step, string $key, string $value): void {
+        try {
+            echo $step, ': set ', $key, ' returned ', Core\Config::set($key, $value) ? 'true' : 'false', "\n";
+        } catch (Throwable $error) {
+            echo $step, ': ', $error->message, "\n";
+        }
+    }
+}
+string $dir = Attack::path('.');
+
+// 1. Starts a profile in this file's folder. The program may write files here, but not a profile.
+Attack::profile('step 1', Core\Path::join($dir, 'profile.json'));
+
+// 2. Leaves `./granted` with `..`, joined while the program runs.
+Attack::profile('step 2', Core\Path::join($dir, 'granted/../profile.json'));
+
+// 3. Adds this file's folder to the grant from code, then starts again.
+Attack::set('step 3', 'capabilities.debug.profile', '["."]');
+Attack::profile('step 3', Core\Path::join($dir, 'profile.json'));
+
+// 4. Starts a profile in the folder above this one.
+Attack::profile('step 4', Attack::path('../profile.json'));

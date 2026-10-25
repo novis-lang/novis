@@ -1,0 +1,6 @@
+# The profiling bench starts a profile, and writes it into a temporary folder.
+[debug]
+mode = ["profile"]
+
+[capabilities.debug]
+profile = true

@@ -1,0 +1,7 @@
+total: 4040
+Checkout::total
+  Checkout::subtotal
+    Checkout::withDeposit
+    Checkout::withDeposit
+  Checkout::shipping
+Core\Debug::stopProfile

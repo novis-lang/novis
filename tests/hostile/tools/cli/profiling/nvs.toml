@@ -1,0 +1,10 @@
+# A program may start a profile, but only write it under `./granted`.
+[debug]
+mode = ["profile"]
+
+[capabilities.debug]
+profile = ["./granted"]
+
+# The program may write files in this folder. That does not allow a profile here.
+[capabilities.fs]
+write = ["."]
