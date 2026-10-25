@@ -1271,7 +1271,7 @@ fn run_suite_in_a_task(
         .borrow_mut()
         .take()
         .ok_or_else(|| "internal error: the suite's task ran nothing".to_owned())?;
-    Ok((suite, finished.ctx))
+    Ok((suite, *finished.ctx))
 }
 
 /// The program `Core\Test::request` answers a synthetic request with —

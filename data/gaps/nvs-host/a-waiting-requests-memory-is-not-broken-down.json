@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-host/src/stack.rs",
-  "title": "A waiting request's connection stack is not broken down by frame.",
-  "text": "This module's *What a waiting request holds* measures a waiting request's stack: in release on Windows, an idle connection keeps 4.1 pages resident on its connection's stack, its request 3.9 more there, and its program 2.0 on its own. So three quarters of it is the connection's: the accept loop's spawn, `hyper`'s connection future, and the handler's path while the connection waits for the isolate's answer. `nvs-cli`'s `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap` reads it per step through `nvs_host::counts::StackPages`. Closing it is the deep frames on that path found with a release build's frame sizes, written into this module's doc, and each one not needed while a connection waits made smaller or moved off the parked path.",
-  "goal": "bench-counters"
-}

@@ -357,10 +357,11 @@ struct TaskNode {
 ///
 /// The body is boxed because this is the one place a task's body is stored
 /// rather than immediately consumed; the id in it was issued at the call, so the
-/// parent is not waiting on this to name its child.
+/// parent is not waiting on this to name its child. The context is boxed for
+/// [`Scheduler::start`]'s reason, from the spawn on.
 struct Pending {
     id: TaskId,
-    ctx: Ctx,
+    ctx: Box<Ctx>,
     root: TaskRoot,
     body: Box<dyn FnOnce(&mut Ctx)>,
     /// Whether it goes to the front of the run queue ([`spawn_child_next`]).
@@ -611,8 +612,9 @@ pub struct Finished {
     pub id: TaskId,
     /// The context the task ran under, with its output, its exit code and its
     /// pending failure all still readable — this is what a request boundary
-    /// reads back.
-    pub ctx: Ctx,
+    /// reads back. Boxed, so a task's entry returns a pointer to it and holds
+    /// no context by value on the task's stack.
+    pub ctx: Box<Ctx>,
     /// `Err` if a panic reached the task's root and was contained there by
     /// [`nvs_runtime::run_task`], which is
     /// `rule:http-server/containment-does-not-end-at-the-helper`
@@ -881,7 +883,7 @@ impl Scheduler {
         let id = self.tree.borrow_mut().issue(parent);
         // The stack that made the context keeps its own ceiling, and the
         // context's goes with it to the task — `Ctx::leave_this_stack`.
-        let mut ctx = ctx;
+        let mut ctx = Box::new(ctx);
         ctx.leave_this_stack();
         self.start(id, ctx, root, Box::new(body), false, Role::Host);
         id
@@ -897,7 +899,7 @@ impl Scheduler {
     fn start(
         &mut self,
         id: TaskId,
-        ctx: Ctx,
+        ctx: Box<Ctx>,
         root: TaskRoot,
         body: Box<dyn FnOnce(&mut Ctx)>,
         next: bool,
@@ -917,10 +919,11 @@ impl Scheduler {
         // Boxed, so what this Rust closure *captures* is a pointer rather than
         // a whole context: `CORO_TRANSFER_LIMIT` is why, and the assertion below
         // is what says so when a future field pushes it back over. The box is
-        // kept for the length of the task, so the entry's frame holds a pointer
-        // too: `crate::stack`'s *What a waiting request holds* measured the
-        // context by value as one more resident page on every task's stack.
-        let carried = Box::new(ctx);
+        // made at the spawn and kept for the length of the task, so neither the
+        // spawning frame nor the entry's holds a context by value:
+        // `crate::stack`'s *What a waiting request holds* measured each copy as
+        // more resident pages on the stacks that hold it.
+        let carried = ctx;
         // The first resume's argument is ignored: a task that has not started
         // has an empty stack, so a cancelled one is torn down rather than told.
         let entry = move |yielder: &TaskYielder, _first: Resume| {
@@ -952,11 +955,7 @@ impl Scheduler {
             // context.
             ctx.set_yielder(std::ptr::null());
             RUNNING.set(None);
-            Finished {
-                id,
-                ctx: *ctx,
-                outcome,
-            }
+            Finished { id, ctx, outcome }
         };
         assert!(
             std::mem::size_of_val(&entry) <= CORO_TRANSFER_LIMIT,
@@ -993,7 +992,7 @@ impl Scheduler {
     fn refuse(
         &mut self,
         id: TaskId,
-        mut ctx: Ctx,
+        mut ctx: Box<Ctx>,
         body: Box<dyn FnOnce(&mut Ctx)>,
         error: &std::io::Error,
     ) {
@@ -1436,7 +1435,7 @@ pub fn spawn_child<F>(ctx: Ctx, root: TaskRoot, body: F) -> Option<TaskId>
 where
     F: FnOnce(&mut Ctx) + 'static,
 {
-    spawn_child_ordered(ctx, root, false, running_role(), body)
+    spawn_child_ordered(Box::new(ctx), root, false, running_role(), body)
 }
 
 /// [`spawn_child`], with the child run before every task already on the run
@@ -1452,13 +1451,14 @@ pub fn spawn_child_next<F>(ctx: Ctx, root: TaskRoot, body: F) -> Option<TaskId>
 where
     F: FnOnce(&mut Ctx) + 'static,
 {
-    spawn_child_ordered(ctx, root, true, running_role(), body)
+    spawn_child_ordered(Box::new(ctx), root, true, running_role(), body)
 }
 
 /// [`spawn_child_next`] where `next` is `true`, and [`spawn_child`] where it is
-/// `false`, with the child's stack from `role`'s pool.
+/// `false`, with the child's stack from `role`'s pool, and its context already
+/// boxed.
 pub(crate) fn spawn_child_ordered<F>(
-    ctx: Ctx,
+    ctx: Box<Ctx>,
     root: TaskRoot,
     next: bool,
     role: Role,
@@ -1472,8 +1472,9 @@ where
     let tree = current_tree()?;
     let mut ctx = ctx;
     ctx.leave_this_stack();
-    // The child frees its context and its body, so their bytes are its own.
-    ctx.hand_over_its_making(std::mem::size_of::<F>());
+    // The child frees its context, the box it is in and its body, so their
+    // bytes are its own.
+    ctx.hand_over_its_making(std::mem::size_of::<F>() + std::mem::size_of::<Ctx>());
     let mut tree = tree.borrow_mut();
     let id = tree.issue(Some(parent));
     tree.pending.push(Pending {
@@ -1510,11 +1511,12 @@ where
     F: FnOnce(&mut Ctx) + 'static,
 {
     let tree = current_tree()?;
-    let mut ctx = ctx;
+    let mut ctx = Box::new(ctx);
     ctx.leave_this_stack();
     let body: Box<dyn FnOnce(&mut Ctx)> = Box::new(body);
-    // The root frees its context and its body, so their bytes are its own.
-    ctx.hand_over_its_making(std::mem::size_of::<F>());
+    // The root frees its context, the box it is in and its body, so their
+    // bytes are its own.
+    ctx.hand_over_its_making(std::mem::size_of::<F>() + std::mem::size_of::<Ctx>());
     let mut tree = tree.borrow_mut();
     let id = tree.issue(None);
     if let Some(node) = tree.nodes.get_mut(&id) {

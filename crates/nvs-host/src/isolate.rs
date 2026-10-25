@@ -749,11 +749,15 @@ impl Isolate {
         // that reading. The handler's reserve is asked first because it is a
         // question about the budget rather than about the entry, and § 3's
         // handler is a path by construction (`crate::ladder` compiles one).
-        let mut isolate_ctx = match (charge, entry) {
+        // Boxed here, where it is made, and carried by pointer to the child's
+        // task: by value, the moves into the task cost this frame several
+        // copies of a context, and each was resident on a waiting connection's
+        // stack (`crate::stack`'s *What a waiting request holds*).
+        let mut isolate_ctx = Box::new(match (charge, entry) {
             (Charge::Tree, Form::Path) => ctx.isolate(sink),
             (Charge::Tree, Form::Method) => ctx.method_isolate(sink),
             (Charge::EngineReserve, _) => ctx.handler_isolate(sink),
-        };
+        });
         if let Some(slot) = task {
             isolate_ctx.hold_task(slot);
         }
@@ -862,7 +866,7 @@ impl Isolate {
                 let _published = watch.map(|watch| Published::new(watch, &isolate_ctx));
                 Box::new(Collected {
                     completion: Some(run_here(
-                        isolate_ctx,
+                        *isolate_ctx,
                         program,
                         crossed,
                         receiving,
@@ -1098,7 +1102,7 @@ impl Drop for Ended {
               to carry them the width of one call would be `Isolate` again"
 )]
 fn start_as_task(
-    isolate_ctx: Ctx,
+    isolate_ctx: Box<Ctx>,
     program: Program,
     args: Value,
     wake: Rc<Wake>,

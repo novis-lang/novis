@@ -4705,16 +4705,16 @@ mod tests {
     const REQUEST_HEAP: isize = 6 * 1024;
 
     /// How many stack pages an idle connection may keep resident in a debug
-    /// build: 13.5 measured on Windows. A release build measured 4.1.
-    const CONNECTION_STACK_PAGES: usize = 15;
+    /// build: 8.3 measured on Windows. A release build measured 3.1.
+    const CONNECTION_STACK_PAGES: usize = 9;
 
     /// How many more pages a waiting request may keep resident on its
-    /// connection's stack in a debug build: 9.6 measured, and 3.9 in release.
-    const REQUEST_HOST_STACK_PAGES: usize = 11;
+    /// connection's stack in a debug build: 8.0 measured, and 2.9 in release.
+    const REQUEST_HOST_STACK_PAGES: usize = 9;
 
     /// How many pages a waiting request's program may keep resident on its own
-    /// stack in a debug build: 8 measured, and 2.0 in release.
-    const REQUEST_PROGRAM_STACK_PAGES: usize = 9;
+    /// stack in a debug build: 3.0 measured, and 1.0 in release.
+    const REQUEST_PROGRAM_STACK_PAGES: usize = 4;
 
     /// An address on the loopback nothing is listening on, taken from the
     /// platform and given straight back so the boot under test is what binds it.

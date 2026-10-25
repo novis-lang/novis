@@ -2497,6 +2497,46 @@ where
     let ended_cleanly = matches!(driven, Some(Ok(())));
     let framed = driven.unwrap_or(Ok(()));
     let upgrade = pending_socket.borrow_mut().take();
+    let parts = if upgrade.is_some() || ended_cleanly {
+        let parts = connection.into_parts();
+        Some((parts.io, parts.read_buf))
+    } else {
+        drop(connection);
+        None
+    };
+    let drain_ends = draining
+        .is_draining()
+        .then(|| drain_seen.period_ends(drain_period));
+    after_the_drive(
+        parts,
+        upgrade,
+        ctx,
+        connection_isolate,
+        bounds,
+        draining,
+        drain_ends,
+    );
+    framed
+}
+
+/// What [`serve_connection`] does once `hyper` has stopped framing requests:
+/// the socket handed to the connection isolate a `101` started, that isolate
+/// joined, and a connection that ended cleanly closed. `parts` is what `hyper`
+/// gave back of the connection, for an upgrade or a clean end.
+///
+/// Never inlined. Inlined, this frame is part of [`serve_connection`]'s, and
+/// that frame stays on the connection's stack while it waits for each request
+/// (`nvs_host::stack`'s *What a waiting request holds*).
+#[inline(never)]
+fn after_the_drive(
+    parts: Option<(ConnectionIo, Bytes)>,
+    upgrade: Option<nvs_runtime::Upgrade>,
+    ctx: &RefCell<&mut Ctx>,
+    connection_isolate: &RefCell<Option<Box<dyn Running>>>,
+    bounds: crate::bounds::Connection,
+    draining: &Draining,
+    drain_ends: Option<Instant>,
+) {
     // `rule:concurrency/a-connection-is-a-root-isolate`'s hand-over, at the first moment both halves exist: the
     // `101` is on the wire, `hyper` has stopped framing, and the descriptor
     // under it is nobody's until this line takes it. `hyper` ends a connection
@@ -2506,8 +2546,9 @@ where
     // A connection that upgraded nothing never reaches this, and is closed by
     // [`close_after_the_response`] once its connection isolate is joined.
     let mut closing = None;
-    if let Some(upgrade) = upgrade {
-        let parts = connection.into_parts();
+    if let Some(upgrade) = upgrade
+        && let Some((io, read_buf)) = parts
+    {
         // What `hyper` read past the request head travels with the stream:
         // `crate::socket`'s docs § *What `hyper` had already read* is the home
         // of why dropping it would lose a frame for a client that did not wait
@@ -2517,11 +2558,11 @@ where
         // is the home of the numbers, and every wait, frame and message from
         // this line on is inside them.
         let peer = crate::socket::Framed::new(
-            parts.io.into_stream(),
-            parts.read_buf.into(),
+            io.into_stream(),
+            read_buf.into(),
             // § 7's numbers, the same ones every response on this connection
-            // was written under: they are read at the top of this function,
-            // which is the one place they are read.
+            // was written under: they are read at the top of
+            // [`serve_connection`], which is the one place they are read.
             bounds,
             // § 7's third bullet: this server's drain, handed to the object
             // that acts on it. The close a shutdown sends is taken by the
@@ -2552,8 +2593,8 @@ where
         } else {
             peer.refuse();
         }
-    } else if ended_cleanly {
-        closing = Some(connection.into_parts().io);
+    } else if let Some((io, _)) = parts {
+        closing = Some(io);
     }
     // The connection isolate outlives every request on this socket, so this is
     // where it is waited for: `hyper` has no more requests to frame, and a
@@ -2570,12 +2611,11 @@ where
     }
     if let Some(io) = closing {
         let mut until = Instant::now() + LINGER;
-        if draining.is_draining() {
-            until = until.min(drain_seen.period_ends(drain_period));
+        if let Some(ends) = drain_ends {
+            until = until.min(ends);
         }
         close_after_the_response(io, until);
     }
-    framed
 }
 
 /// Closes a connection whose last response is written, so that its peer can

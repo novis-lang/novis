@@ -105,11 +105,12 @@
 //! # What a sleeping program touches
 //!
 //! An isolate's task that sleeps as `Core\Time::sleep` does, on a fresh stack,
-//! has 2 pages resident in a release build on Windows and 7 in a debug one. The
-//! largest frame is the task's entry: `corosensei`'s start and the closure in
-//! `Scheduler::start`. The task's `Ctx` stays in the box `start` carries it
-//! in, so that frame holds a pointer to it. No frame of the host's path is
-//! worth splitting, and [`KEPT_RESIDENT`] covers it whole.
+//! has 1 page resident in a release build on Windows and 2 in a debug one. The
+//! task's entry, `corosensei`'s start and the closure in `Scheduler::start`, is
+//! 0.4 KiB in release, because no frame holds a `Ctx` by value: the context is
+//! boxed where it is spawned, and the box is what the task's `Finished` gives
+//! back. No frame of the host's path is worth splitting, and [`KEPT_RESIDENT`]
+//! covers it whole.
 //! `a_sleeping_program_touches_the_pages_its_own_frames_need` holds the host's
 //! part to its count. A pooled stack also keeps the pages a deeper call
 //! touched before it returned, until the idle trim.
@@ -123,22 +124,37 @@
 //! that reading turned on by hand gives the stack figures below; the test holds
 //! the debug ones.
 //!
-//! A waiting request has about 10 pages of stack resident in release, 31 in
+//! A waiting request has about 7 pages of stack resident in release, 19 in
 //! debug:
 //!
-//! - **An idle connection, 4.1 pages (13.5 in debug)** on its connection's
-//!   stack: the accept loop's spawn, `hyper`'s connection future and the read
-//!   it is parked in.
-//! - **Its request, 3.9 more pages (9.6)** on the connection's stack, while the
-//!   connection waits for the isolate's answer.
-//! - **Its program, 2.0 pages (8)** on the program's own stack, which is the
+//! - **An idle connection, 3.1 pages (8.3 in debug)** on its connection's
+//!   stack. The frame it parks in is `nvs_server`'s connection drive, inlined
+//!   into the accept loop's spawn, 7.9 KiB in release. About 2.4 KiB of that is
+//!   the connection's own state: `hyper`'s connection, 1,264 bytes, its I/O
+//!   adapter and its service. The rest is the drive loop's temporaries.
+//! - **Its request, 2.9 more pages (8.0)** on the connection's stack. None of it
+//!   is a frame held while the request waits: `hyper`'s dispatch down to the
+//!   service is 4.6 KiB, and `crate::isolate`'s start 4.6 KiB more, with the
+//!   child context's making below it. Each has returned before the connection
+//!   parks, and its pages stay resident until the idle trim.
+//! - **Its program, 1.0 page (3.0)** on the program's own stack, which is the
 //!   host's path above and little more.
 //!
-//! So three quarters of a waiting request's stack is its connection's. Kept by
-//! value in the task's entry, the `Ctx` cost one more page on every stack: an
-//! idle connection held 5.0. What the box spends: one heap block of a `Ctx`'s
-//! size per live task. It was allocated per task before too, and freed when the
-//! task started.
+//! The frames were found by reading the stack pointer against the resident
+//! pages at each step of a release build. Three were made smaller, and a
+//! waiting request's stack went from 10 pages to 7. The isolate's start moved
+//! its context by value four times, 10.3 KiB, and every task's entry returned
+//! its context by value, 4.1 KiB. The context is now boxed where it is made and
+//! stays in that box until the task's `Finished` is dropped. The drive's code
+//! for a connection that has ended, the upgrade hand-over and the close, is out
+//! of line, 1.2 KiB less in the parked frame. What the box spends: nothing
+//! more. It is the one heap block per task the scheduler allocated before,
+//! made at the spawn and not at the start. It also saves the copies on the
+//! request path.
+//!
+//! What is left is the parked drive's frame and the pages the request's start
+//! touched. Moving the start onto another stack would make every request switch
+//! stacks to save one or two pages per waiting request, and is not done.
 //!
 //! Its heap on the serving core is about 26 KiB, measured in a debug build:
 //!
@@ -864,8 +880,8 @@ mod tests {
 
         assert_ne!(floor.get(), 0, "the program never ran");
         if cfg!(any(target_os = "linux", windows)) {
-            // 7 pages in a debug build and 2 in a release one.
-            let bound = if cfg!(debug_assertions) { 8 } else { 3 };
+            // 2 pages in a debug build and 1 in a release one.
+            let bound = if cfg!(debug_assertions) { 3 } else { 2 };
             let pages = resident.get();
             assert!(
                 (1..=bound).contains(&pages),
