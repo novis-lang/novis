@@ -118,6 +118,9 @@ pub enum StopReason {
     /// Another task of its request tree stopped at a breakpoint, and this one
     /// stopped at its next poll.
     Tree,
+    /// [`Debugger::stop_on_entry`] asked the program to stop before it runs,
+    /// and this is the first stop site it reached.
+    Entry,
 }
 
 /// One call in flight of a stopped task, innermost first in [`Stop::frames`].
@@ -240,6 +243,12 @@ struct State {
     resumes: u64,
     /// The round a task last stopped at a breakpoint in.
     breakpoint_round: Option<u64>,
+    /// Whether the program is still to stop at its first stop site. Every
+    /// attach raises a pause while it is set, and the first stop clears it.
+    entry: bool,
+    /// Whether a [`Debugger::pause`] came while no request was attached. The
+    /// next attach raises it, and the next stop clears it.
+    pause_pending: bool,
     /// The wake of every task parked on a core.
     parked: Vec<RemoteWake>,
     /// Told each file's breakpoints every time a unit loads.
@@ -337,12 +346,25 @@ impl Debugger {
         answer
     }
 
-    /// Asks every attached request to stop at its next poll.
+    /// Makes the program stop at the first stop site it reaches, as
+    /// [`StopReason::Entry`]. Every request attached from now until that stop
+    /// starts with a pause raised, so the first of them to run a statement
+    /// stops there.
+    pub fn stop_on_entry(&self) {
+        self.shared.lock().entry = true;
+    }
+
+    /// Asks every attached request to stop at its next poll. With none
+    /// attached, the next request to attach stops at its first stop site, so a
+    /// pause sent while the program compiles is not lost.
     pub fn pause(&self) {
-        self.shared
-            .lock()
+        let mut state = self.shared.lock();
+        state
             .requests
             .retain(|view| view.request(SafepointFlags::DEBUG_BREAK));
+        if state.requests.is_empty() {
+            state.pause_pending = true;
+        }
     }
 
     /// Resumes every stopped task: lowers the stop on every attached request,
@@ -374,6 +396,9 @@ impl Debugger {
             let mut state = self.shared.lock();
             state.requests.retain(|view| view.flags().is_some());
             state.requests.push(ctx.safepoint_view().downgrade());
+            if state.entry || state.pause_pending {
+                ctx.request_safepoint(SafepointFlags::DEBUG_BREAK);
+            }
         }
         let shared = Arc::clone(&self.shared);
         let unit = Arc::clone(unit);
@@ -406,9 +431,14 @@ impl Shared {
             StopCause::Break if !ctx.safepoint_flags().contains(SafepointFlags::DEBUG_BREAK) => {
                 return nvs_runtime::OK;
             }
+            StopCause::Break if state.entry => {
+                state.entry = false;
+                StopReason::Entry
+            }
             StopCause::Break if state.breakpoint_round == Some(state.resumes) => StopReason::Tree,
             StopCause::Break => StopReason::Pause,
         };
+        state.pause_pending = false;
         ctx.hold_deadlines();
         let stopped_at = state.resumes;
         // Sent under the lock, so a resume made after the session reads it

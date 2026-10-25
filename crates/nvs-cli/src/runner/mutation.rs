@@ -196,6 +196,7 @@ fn run_one(
         runs.extensions.clone(),
         shape,
         &select,
+        None,
     ) {
         Ok((suite, _)) => verdict_of(
             &suite.cases,
@@ -306,7 +307,7 @@ mod tests {
         let path = nvs_repo::path("crates/nvs-cli/tests/fixtures/runner/mutate.nvs");
         let source = std::fs::read_to_string(&path).expect("the fixture is on disk");
         let checked = Rc::new(crate::front_end(&path).expect("the fixture is a program"));
-        let (unit, probes) = compile(&checked, None, true).expect("the fixture compiles");
+        let (unit, probes, _) = compile(&checked, None, true, false).expect("the fixture compiles");
         let stmts = probes.stmt_spans().to_vec();
         let sites = crate::coverage::Sites::of(probes, &checked.map);
         let mut ctx = crate::script::granting_ctx();
@@ -335,6 +336,7 @@ mod tests {
             None,
             shape,
             &select,
+            None,
         )
         .expect("the suite's own task runs");
         assert!(

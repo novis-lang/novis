@@ -279,6 +279,7 @@ fn test(dir: &Path, config: &[PathBuf]) -> Result<ExitCode, String> {
             record_failed: None,
             mutate: false,
             profile: None,
+            debug: None,
         },
         &crate::coverage::Requested::default(),
     ))

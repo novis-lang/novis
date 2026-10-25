@@ -441,6 +441,7 @@ impl Args {
                 record_failed: None,
                 mutate: self.mutate,
                 profile: self.profile.map(|format| (format, self.profile_out)),
+                debug: None,
             },
             &crate::coverage::Requested {
                 lcov: self.coverage_lcov,
@@ -803,6 +804,7 @@ pub(crate) fn run(
         record_failed,
         mutate,
         profile,
+        debug,
     } = flags;
     if mutate && format == Format::Junit {
         // `rule:testing/mutation-testing`: JUnit has an element for a test and none for a mutant.
@@ -850,13 +852,14 @@ pub(crate) fn run(
     let cache = crate::cache::from_config(&snapshot.config);
     // `--mutate` runs the suite with coverage first, to find the tests each mutant needs.
     let measured = coverage.any() || mutate;
-    let (unit, probes) = match compile(&checked, cache.as_ref(), measured) {
-        Ok(both) => both,
-        Err(error) => {
-            crate::report_internal(error);
-            return ExitCode::FAILURE;
-        }
-    };
+    let (unit, probes, sites_of) =
+        match compile(&checked, cache.as_ref(), measured, debug.is_some()) {
+            Ok(compiled) => compiled,
+            Err(error) => {
+                crate::report_internal(error);
+                return ExitCode::FAILURE;
+            }
+        };
     let stmts = match mutate {
         true => probes.stmt_spans().to_vec(),
         false => Vec::new(),
@@ -871,6 +874,13 @@ pub(crate) fn run(
         Format::Json | Format::Junit => nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Stderr),
     };
     unit.install_in(&mut ctx);
+    // The class hooks and fixtures run on the suite's context, so it stops at a breakpoint too.
+    // The session keeps the unit only while something holds it, and the run holds it here.
+    let debug: Option<Attached> = debug.zip(sites_of).map(|(debugger, sites)| {
+        debugger.load(&sites);
+        debugger.attach(&mut ctx, &sites);
+        (debugger, sites)
+    });
     // The run's table. The class hooks and fixtures count into it directly, and
     // each test's own table is added to it when the test is reported
     // ([`Queue`]), so it holds the whole run when the suite returns.
@@ -938,6 +948,7 @@ pub(crate) fn run(
             wall: None,
         },
         select,
+        debug,
     ) {
         Ok(both) => both,
         Err(error) => {
@@ -1173,6 +1184,12 @@ fn record_failed_tests(file: &std::path::Path, cases: &[Case]) {
 ///
 /// `Err` is the message to render — an internal failure of the run itself,
 /// never a verdict about a test.
+///
+/// `debug` is the session every test's context is attached to, and the unit it loaded.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the suite's unit, context and program, the tree it reads, and the run's shape, selection and debug session"
+)]
 fn run_suite_in_a_task(
     unit: &Arc<nvs_codegen::Unit>,
     ctx: nvs_runtime::Ctx,
@@ -1181,6 +1198,7 @@ fn run_suite_in_a_task(
     extensions: Option<Arc<nvs_ext::load::Set>>,
     shape: Shape,
     select: &Selection,
+    debug: Option<Attached>,
 ) -> Result<(Suite, nvs_runtime::Ctx), String> {
     let mut sched = nvs_host::Scheduler::new();
     // `rule:testing/in-process-request`'s unit under test, built before
@@ -1229,6 +1247,7 @@ fn run_suite_in_a_task(
     let seams = Seams {
         shape,
         cores: Arc::clone(&cores),
+        debug,
     };
     // Owned for the same reason `checked` is: the body outlives this call as
     // far as the scheduler's signature is concerned.
@@ -1394,27 +1413,45 @@ impl nvs_runtime::inproc::Answering for UnderTest {
 /// With `coverage`, it also returns the program's [`crate::coverage::Probes`],
 /// which a unit loaded from the cache numbers the same way; without it, they
 /// are empty and nothing is read for them.
+/// What [`compile`] gives: the unit, its coverage probes, and its debug sites under the switch.
+type Compiled = (
+    Arc<nvs_codegen::Unit>,
+    crate::coverage::Probes,
+    Option<Arc<nvs_host::debug::DebugUnit>>,
+);
+
+/// The suite's unit and its coverage probes. Under `debug`, the unit is compiled under the debug
+/// switch, and its sites, lines and functions come with it.
 fn compile(
     checked: &crate::Checked,
     cache: Option<&crate::cache::Cache>,
     coverage: bool,
-) -> Result<(Arc<nvs_codegen::Unit>, crate::coverage::Probes), String> {
+    debug: bool,
+) -> Result<Compiled, String> {
     let files = checked.program_files();
-    let program = nvs_ir::lower::lower_program_with_tests(
-        nvs_ir::lower::ENTRY_SCRIPT_LABEL,
-        &files,
-        &checked.exprs,
-        &checked.interner,
-        &checked.enums,
-        &checked.layouts,
-    );
+    let lower = || {
+        nvs_ir::lower::lower_program_with_tests(
+            nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+            &files,
+            &checked.exprs,
+            &checked.interner,
+            &checked.enums,
+            &checked.layouts,
+        )
+    };
+    let program = match debug {
+        true => nvs_ir::lower::with_debug_slots(lower),
+        false => lower(),
+    };
     let probes = match coverage {
         true => crate::coverage::Probes::of(&program),
         false => crate::coverage::Probes::default(),
     };
-    crate::cache::unit_for(&program, crate::cache::test_program_digest(&files), cache)
-        .map(|(unit, _)| (Arc::new(unit), probes))
-        .map_err(|error| error.to_string())
+    let (unit, _) =
+        crate::cache::unit_for(&program, crate::cache::test_program_digest(&files), cache)
+            .map_err(|error| error.to_string())?;
+    let sites = crate::script::debug_unit(&unit, &program, &checked.map, crate::dap::file_key);
+    Ok((Arc::new(unit), probes, sites))
 }
 
 /// `hit` as a percentage of `of`, and `100` for a report with no lines.
@@ -1515,7 +1552,14 @@ pub(crate) struct Flags {
     pub(crate) mutate: bool,
     /// `--profile` and `--profile-out` ([`crate::profile`]).
     pub(crate) profile: Option<(crate::profile::Format, Option<PathBuf>)>,
+    /// The session of `nvs dap`'s `test` launch: the suite compiles under the debug switch, and
+    /// the suite's context and each test's are attached to it
+    /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
+    pub(crate) debug: Option<nvs_host::debug::Debugger>,
 }
+
+/// A debug session, and the unit of the run it is attached to.
+type Attached = (nvs_host::debug::Debugger, Arc<nvs_host::debug::DebugUnit>);
 
 /// `--jobs`'s default: the machine's hardware threads, as `nvs_test` counts
 /// them for `.nvst` cases.
@@ -1549,6 +1593,8 @@ struct Shape {
 struct Seams {
     shape: Shape,
     cores: Arc<nvs_host::worker::Cores>,
+    /// [`Shared::debug`].
+    debug: Option<Attached>,
 }
 
 /// A whole run's verdict, before any of `rule:testing/report-formats`'s renderings has been chosen —
@@ -1602,7 +1648,11 @@ fn run_suite(
     seams: Seams,
     select: &Selection,
 ) -> Suite {
-    let Seams { shape, cores } = seams;
+    let Seams {
+        shape,
+        cores,
+        debug,
+    } = seams;
     // Counted before anything runs, so an `exit(n)` that ends the run early does not change it.
     let left_out = checked
         .exprs
@@ -1651,6 +1701,7 @@ fn run_suite(
         watchdog: nvs_host::ThreadClock::current()
             .is_some()
             .then(nvs_host::Watchdog::new),
+        debug,
     });
     let mut queue = Queue::new(unit, ctx, shape, hits, cores);
     let mut order = shape.shuffle.map(Order);
@@ -1950,6 +2001,9 @@ struct Shared {
     /// **What it spends:** one thread for the run, which starts at the first registration, and
     /// one entry in its watched set per test in flight.
     watchdog: Option<nvs_host::Watchdog>,
+    /// The debug session of `nvs dap`'s `test` launch, which each test's context is attached to,
+    /// so its isolate stops at a breakpoint and at a pause. `None` for every other run.
+    debug: Option<Attached>,
 }
 
 /// One test on its way to the core that runs it: everything [`run_in_isolate`]
@@ -2075,6 +2129,9 @@ impl Job {
         };
         let mut ctx = nvs_runtime::Ctx::new(sink);
         unit.install_in(&mut ctx);
+        if let Some((debugger, sites)) = &shared.debug {
+            debugger.attach(&mut ctx, sites);
+        }
         if let Some(config) = &shared.config {
             ctx.set_config(Arc::clone(config));
         }
@@ -5058,7 +5115,7 @@ mod tests {
         // No cache: a fixture's verdicts are about the runner, and a suite that
         // read one would be asserting against whatever a previous test run left
         // in this account's cache directory.
-        let (unit, _) = compile(&checked, None, false).expect("the fixture compiles");
+        let (unit, _, _) = compile(&checked, None, false, false).expect("the fixture compiles");
         unit.install_in(&mut ctx);
         // Through the same entry `run` takes, scheduler and all: a suite run
         // off a bare stack would be a different runner from the one shipped,
@@ -5071,6 +5128,7 @@ mod tests {
             None,
             shape,
             &Selection::by_name(filter),
+            None,
         )
         .expect("the suite's own task runs");
         assert_eq!(
@@ -5110,7 +5168,7 @@ mod tests {
     fn ran_shaped(name: &str, select: &Selection, shape: Shape) -> super::Suite {
         let path = fixture(name);
         let checked = crate::front_end(&path).expect("the fixture is a program");
-        let (unit, _) = compile(&checked, None, false).expect("the fixture compiles");
+        let (unit, _, _) = compile(&checked, None, false, false).expect("the fixture compiles");
         let mut ctx = crate::script::granting_ctx();
         unit.install_in(&mut ctx);
         let (suite, _ctx) = run_suite_in_a_task(
@@ -5121,6 +5179,7 @@ mod tests {
             None,
             shape,
             select,
+            None,
         )
         .expect("the suite's own task runs");
         suite
@@ -6224,6 +6283,7 @@ mod tests {
                     record_failed: None,
                     mutate: false,
                     profile: Some((format, Some(out.clone()))),
+                    debug: None,
                 },
                 &crate::coverage::Requested::default(),
             );
@@ -6437,6 +6497,7 @@ mod tests {
                 record_failed: None,
                 mutate: false,
                 profile: None,
+                debug: None,
             },
             &crate::coverage::Requested::default(),
         );
@@ -6466,6 +6527,7 @@ mod tests {
                 record_failed: None,
                 mutate: false,
                 profile: None,
+                debug: None,
             },
             &crate::coverage::Requested::default(),
         );
@@ -6509,8 +6571,8 @@ mod tests {
             coverage: Option<&mut Option<crate::coverage::Sites>>,
         ) -> (Suite, String, std::time::Duration) {
             let checked = crate::front_end(&fixture(name)).expect("the fixture is a program");
-            let (unit, probes) =
-                compile(&checked, None, coverage.is_some()).expect("the fixture compiles");
+            let (unit, probes, _) =
+                compile(&checked, None, coverage.is_some(), false).expect("the fixture compiles");
             let mut ctx = crate::script::granting_ctx();
             unit.install_in(&mut ctx);
             if let Some(sites) = coverage {
@@ -6534,6 +6596,7 @@ mod tests {
                 None,
                 shape,
                 &Selection::default(),
+                None,
             )
             .expect("the suite's own task runs");
             let took = began.elapsed();

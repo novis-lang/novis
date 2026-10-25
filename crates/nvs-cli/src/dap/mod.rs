@@ -3,9 +3,14 @@
 //!
 //! A client starts `nvs dap`, sends `initialize`, then `launch` and `configurationDone` in either
 //! order, and the program starts once both have arrived. It runs in this process, on a thread of
-//! its own, through the same [`crate::run_run`] `nvs run` uses, so a launched program compiles and
-//! runs exactly as it would from a terminal. There is no `attach`: nothing ever listens for a
-//! debugger.
+//! its own, through the same code its command uses: [`crate::run_run`] for `run` and
+//! [`crate::run_test`] for `test`. A launched program compiles and runs exactly as it would from a
+//! terminal, with the launch's `env` set in this process before it starts. A `test` launch runs
+//! one test at a time and shows each test's output. There is no `attach`: nothing ever listens
+//! for a debugger.
+//!
+//! `stopOnEntry` stops the program at its first statement, and a `pause` sent before the program
+//! runs does the same ([`Debugger::stop_on_entry`], [`Debugger::pause`]).
 //!
 //! stdout carries frames and nothing else (`rule:ide/stdout-belongs-to-the-protocol`).
 //! [`stdio`] moves the process's own streams into pipes before anything runs, and a pump thread per
@@ -46,7 +51,7 @@ use rustc_hash::FxHashMap;
 use serde_json::{Value, json};
 
 use crate::config;
-use protocol::{Capabilities, Incoming, LaunchArguments, Outgoing};
+use protocol::{Capabilities, Incoming, LaunchArguments, Mode, Outgoing};
 use stopped::Stopped;
 
 /// The text a file is named by in the session: its canonical path, so the path an editor sends
@@ -358,13 +363,13 @@ impl Session {
         }
         let arguments: LaunchArguments = serde_json::from_value(request.arguments.clone())
             .map_err(|error| format!("The launch configuration is not valid: {error}"))?;
-        match arguments.mode.as_deref() {
-            None | Some("run") => {}
-            Some(mode) => {
-                return Err(format!(
-                    "`nvs dap` cannot launch in `{mode}` mode yet. Use `run`."
-                ));
-            }
+        if arguments.mode == Mode::Serve {
+            return Err(
+                "`nvs dap` cannot launch in `serve` mode yet. Use `run` or `test`.".to_owned(),
+            );
+        }
+        if arguments.stop_on_entry {
+            self.debugger.stop_on_entry();
         }
         self.launch = Some(arguments);
         Ok(())
@@ -383,6 +388,7 @@ impl Session {
         let config = self.config.clone();
         let init = self.init;
         let debugger = self.debugger.clone();
+        set_env(&launch.env);
         let spawned = std::thread::Builder::new()
             .name("nvs dap program".to_owned())
             // The main thread's own size (`build.rs`'s `main_thread_stack`), because the
@@ -449,7 +455,48 @@ enum Flow {
     Stop,
 }
 
-/// Runs the launched program as `nvs run` would, under the debug switch and attached to
+/// Sets `env` in this process's environment, which is the program's because the program runs
+/// here. A `None` removes the variable.
+///
+/// Called once, before the program's thread starts. The threads running then read pipes and
+/// frames and never the environment, and the runtime reads it only once the program runs
+/// (`nvs_runtime::environment`), so nothing reads it while it changes.
+fn set_env(env: &std::collections::BTreeMap<String, Option<String>>) {
+    for (name, value) in env {
+        // A name `set_var` would panic on is one no program can read, so it is skipped.
+        if name.is_empty() || name.contains(['=', '\0']) {
+            continue;
+        }
+        match value {
+            Some(value) if !value.contains('\0') => {
+                #[expect(
+                    unsafe_code,
+                    reason = "`set_var` is unsafe while another thread may read the environment. \
+                              No thread reads it now: the program has not started, and the \
+                              adapter's own threads read pipes and frames only."
+                )]
+                // SAFETY: as the reason says, nothing reads the environment during the call.
+                unsafe {
+                    std::env::set_var(name, value);
+                }
+            }
+            Some(_) => {}
+            None => {
+                #[expect(
+                    unsafe_code,
+                    reason = "`remove_var` is unsafe for `set_var`'s reason, and no thread reads \
+                              the environment now, as above."
+                )]
+                // SAFETY: as the reason says, nothing reads the environment during the call.
+                unsafe {
+                    std::env::remove_var(name);
+                }
+            }
+        }
+    }
+}
+
+/// Runs the launched program as its mode's command would, under the debug switch and attached to
 /// `debugger`, and gives its exit status.
 fn run(
     launch: &LaunchArguments,
@@ -466,8 +513,8 @@ fn run(
         );
         return 1;
     }
-    let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        crate::run_run(
+    let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match launch.mode {
+        Mode::Run => crate::run_run(
             &launch.program,
             false,
             false,
@@ -481,7 +528,10 @@ fn run(
             launch.args.clone(),
             init,
             Some(debugger),
-        )
+        ),
+        Mode::Test => test(launch, config, init, debugger),
+        // `launch` does not accept `serve` yet.
+        Mode::Serve => ExitCode::FAILURE,
     }));
     match ran {
         Ok(code) => exit_number(code),
@@ -489,6 +539,48 @@ fn run(
         // event. 101 is the status a Rust process ends with on a panic.
         Err(_) => 101,
     }
+}
+
+/// Runs the program's `#[Test]` methods as `nvs test` would, with `filter` as its `--filter`.
+///
+/// The tests run one at a time, and each test's output is shown rather than captured. A stop
+/// then names the one test that is running, and what each test prints arrives in the order the
+/// tests ran.
+fn test(
+    launch: &LaunchArguments,
+    config: &[PathBuf],
+    init: config::Init,
+    debugger: &Debugger,
+) -> ExitCode {
+    crate::run_test(
+        std::slice::from_ref(&launch.program),
+        crate::runner::Selection {
+            filter: launch.filter.clone(),
+            ..crate::runner::Selection::default()
+        },
+        None,
+        crate::runner::Format::Human,
+        crate::runner::Flags {
+            update: false,
+            list: false,
+            jobs: 1,
+            show_output: true,
+            shared_worker: false,
+            fail_fast: false,
+            rerun_failed: false,
+            shuffle: None,
+            record_failed: None,
+            mutate: false,
+            profile: None,
+            debug: Some(debugger.clone()),
+        },
+        &crate::coverage::Requested::default(),
+        None,
+        None,
+        false,
+        config,
+        init,
+    )
 }
 
 /// The number an [`ExitCode`] stands for. `run_run` builds every code it returns from a byte, and

@@ -300,3 +300,154 @@ fn a_program_that_does_not_compile_reports_on_stderr_and_exits_1() {
     assert_eq!(exited["body"]["exitCode"], 1);
     client.finish();
 }
+
+/// The first thread's innermost frame while the program is stopped, and its variables by name.
+fn top_frame(client: &mut Client) -> (Value, Value) {
+    let (threads, _) = client.ask("threads", json!({}));
+    let thread = threads["threads"][0]["id"].clone();
+    let (trace, _) = client.ask("stackTrace", json!({ "threadId": thread }));
+    let frame = trace["stackFrames"][0].clone();
+    let (scopes, _) = client.ask("scopes", json!({ "frameId": frame["id"] }));
+    let reference = scopes["scopes"][0]["variablesReference"].clone();
+    let (variables, _) = client.ask("variables", json!({ "variablesReference": reference }));
+    let by_name = variables["variables"]
+        .as_array()
+        .map(|all| {
+            all.iter()
+                .map(|variable| {
+                    (
+                        variable["name"].as_str().unwrap_or_default().to_owned(),
+                        variable["value"].clone(),
+                    )
+                })
+                .collect::<serde_json::Map<_, _>>()
+        })
+        .unwrap_or_default();
+    (frame, Value::Object(by_name))
+}
+
+/// `stopOnEntry` stops the program before its first statement runs, and the launch's `env`
+/// reaches the program once it runs on.
+#[test]
+fn stop_on_entry_stops_before_the_first_statement_and_env_reaches_the_program() {
+    let dir = nvs_repo::scratch_private("dap-entry");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\necho Core\\Env::get('DAP_GREETING') ?? 'unset', \"\\n\";\n",
+    )
+    .unwrap();
+
+    let mut client = Client::start(&dir);
+    client.request("initialize", json!({ "adapterID": "novis" }));
+    client.until_event("initialized");
+    client.request(
+        "launch",
+        json!({
+            "mode": "run",
+            "program": dir.join("main.nvs"),
+            "stopOnEntry": true,
+            "env": { "DAP_GREETING": "hello" },
+        }),
+    );
+    client.request("configurationDone", json!({}));
+    let ran = client.until_event("stopped");
+    assert_eq!(ran.last().unwrap()["body"]["reason"], "entry", "{ran:#?}");
+    assert_eq!(output(&ran, "stdout"), "", "the program ran past its entry");
+    let (frame, _) = top_frame(&mut client);
+    assert_eq!(frame["line"], 2, "{frame:#?}");
+
+    client.ask("continue", json!({}));
+    let ran = client.until_event("terminated");
+    assert_eq!(output(&ran, "stdout"), "hello\n", "{ran:#?}");
+    client.request("disconnect", json!({}));
+    let (_, success) = client.finish();
+    assert!(success, "the adapter ended with a failure");
+}
+
+/// `pause` stops a program that never ends, inside its loop, and `disconnect` ends the program
+/// with the adapter.
+#[test]
+fn pause_stops_a_program_in_a_loop() {
+    let dir = nvs_repo::scratch_private("dap-pause");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nvar $i = 0;\nwhile (true) {\n    $i = $i + 1;\n}\n",
+    )
+    .unwrap();
+
+    let mut client = Client::start(&dir);
+    client.request("initialize", json!({ "adapterID": "novis" }));
+    client.until_event("initialized");
+    client.request(
+        "launch",
+        json!({ "mode": "run", "program": dir.join("main.nvs") }),
+    );
+    client.request("configurationDone", json!({}));
+    // A pause that arrives before the program runs stops it at its first statement.
+    client.ask("pause", json!({ "threadId": 1 }));
+    let ran = client.until_event("stopped");
+    assert_eq!(ran.last().unwrap()["body"]["reason"], "pause", "{ran:#?}");
+    let (frame, _) = top_frame(&mut client);
+    assert!(
+        frame["source"]["path"]
+            .as_str()
+            .is_some_and(|path| path.ends_with("main.nvs")),
+        "{frame:#?}"
+    );
+    client.request("disconnect", json!({}));
+    let (rest, success) = client.finish();
+    assert!(
+        rest.iter()
+            .any(|frame| frame["command"] == "disconnect" && frame["success"] == true),
+        "{rest:#?}"
+    );
+    assert!(success, "the adapter ended with a failure");
+}
+
+/// A `test` launch runs the program's `#[Test]` methods. A breakpoint in a test stops it with the
+/// test's variables, the test's output arrives as `output` events, and stdout carries frames only.
+#[test]
+fn a_breakpoint_stops_a_launched_test_with_its_variables() {
+    let dir = nvs_repo::scratch_private("dap-test");
+    fs::write(
+        dir.join("tests.nvs"),
+        "<?nvs\nuse Core\\Test;\n\nfinal class PriceTest\n{\n    #[Test]\n    public function itTriples(): void\n    {\n        int $price = 4;\n        int $total = $price * 3;\n        echo $total, \"\\n\";\n        Test::assertSame($total, 12);\n    }\n}\n",
+    )
+    .unwrap();
+    let tests = dir.join("tests.nvs");
+
+    let mut client = Client::start(&dir);
+    client.request("initialize", json!({ "adapterID": "novis" }));
+    client.until_event("initialized");
+    client.ask(
+        "setBreakpoints",
+        json!({ "source": { "path": tests }, "breakpoints": [{ "line": 11 }] }),
+    );
+    client.request(
+        "launch",
+        json!({ "mode": "test", "program": tests, "filter": "itTriples" }),
+    );
+    client.request("configurationDone", json!({}));
+    let ran = client.until_event("stopped");
+    assert_eq!(
+        ran.last().unwrap()["body"]["reason"],
+        "breakpoint",
+        "{ran:#?}"
+    );
+    let (frame, variables) = top_frame(&mut client);
+    assert_eq!(frame["line"], 11, "{frame:#?}");
+    assert_eq!(variables["$price"], "4", "{variables:#?}");
+    assert_eq!(variables["$total"], "12", "{variables:#?}");
+
+    client.ask("continue", json!({}));
+    let ran = client.until_event("terminated");
+    assert!(output(&ran, "stdout").contains("12\n"), "{ran:#?}");
+    let exited = ran
+        .iter()
+        .find(|frame| frame["event"] == "exited")
+        .expect("an `exited` event before `terminated`");
+    assert_eq!(exited["body"]["exitCode"], 0, "{ran:#?}");
+    client.request("disconnect", json!({}));
+    let (_, success) = client.finish();
+    assert!(success, "the adapter ended with a failure");
+}

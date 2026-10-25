@@ -53,6 +53,7 @@ impl Stopped {
         let reason = match stop.reason {
             StopReason::Breakpoint => "breakpoint",
             StopReason::Pause | StopReason::Tree => "pause",
+            StopReason::Entry => "entry",
         };
         self.round = Some(Round {
             number: stop.round,

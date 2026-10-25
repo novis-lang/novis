@@ -9,6 +9,7 @@
 //! huge length cannot make the adapter allocate it. The largest request a client sends is a
 //! `setBreakpoints` for one file, far below the bound.
 
+use std::collections::BTreeMap;
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 
@@ -71,12 +72,31 @@ pub(crate) struct Capabilities {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LaunchArguments {
     #[serde(default)]
-    pub(crate) mode: Option<String>,
+    pub(crate) mode: Mode,
     pub(crate) program: PathBuf,
     #[serde(default)]
     pub(crate) args: Vec<String>,
     #[serde(default)]
     pub(crate) cwd: Option<PathBuf>,
+    /// The variables set in the program's environment before it starts. A `null` value removes
+    /// the variable, as VS Code's `launch.json` writes it.
+    #[serde(default)]
+    pub(crate) env: BTreeMap<String, Option<String>>,
+    #[serde(default)]
+    pub(crate) stop_on_entry: bool,
+    /// The `--filter` of a `test` launch.
+    #[serde(default)]
+    pub(crate) filter: Option<String>,
+}
+
+/// What a launch runs the program as: `nvs run`, `nvs test` or `nvs serve`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum Mode {
+    #[default]
+    Run,
+    Test,
+    Serve,
 }
 
 /// Reads the next frame's body off `input`, or `None` where the client closed the stream between
