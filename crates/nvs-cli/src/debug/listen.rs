@@ -24,8 +24,8 @@
 //! next one, so nothing buffers.
 //!
 //! **What it spends:** a thread per open connection, at most [`MAX_CONNECTIONS`], each with its
-//! connection's buffers and the stack `std` gives a thread. One [`Watermark`] for the service. The
-//! two embedded files are sent from the binary's read-only data.
+//! connection's buffers and the stack `std` gives a thread. One [`Watermark`] and one [`Api`] for
+//! the service. The two embedded files are sent from the binary's read-only data.
 
 use std::convert::Infallible;
 use std::io::{self, Read, Write};
@@ -43,6 +43,7 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 
+use super::api::Api;
 use super::secure::Secure;
 use crate::viewer;
 
@@ -109,6 +110,9 @@ pub(crate) fn start(
         )
     })?;
     let addr = socket.local_addr().map_err(|err| err.to_string())?;
+    let index = folder.debug_index();
+    let api = Api::open(&index)
+        .map_err(|err| format!("the debug viewer cannot read `{}`: {err}", index.display()))?;
     let secure = if addr.ip().is_loopback() {
         None
     } else {
@@ -129,6 +133,7 @@ pub(crate) fn start(
         addr,
         secure,
         watermark,
+        api,
     });
     std::thread::Builder::new()
         .name("nvs-debug-accept".to_owned())
@@ -202,11 +207,13 @@ fn connection(stream: TcpStream, site: &Site) {
     );
 }
 
-/// What every connection shares: the bound address, the off-loopback secrets, and the watermark.
+/// What every connection shares: the bound address, the off-loopback secrets, the watermark and
+/// the index's read connection.
 struct Site {
     addr: SocketAddr,
     secure: Option<Secure>,
     watermark: Arc<Watermark>,
+    api: Api,
 }
 
 impl Site {
@@ -285,6 +292,14 @@ impl Site {
             "/viewer.css" if reads => file(viewer::CSS, "text/css; charset=utf-8"),
             "/api/events" if *request.method() == Method::GET => {
                 events(Arc::clone(&self.watermark))
+            }
+            "/api/requests" if reads => {
+                let (status, body) = self.api.requests(request.uri().query());
+                with(
+                    status,
+                    "application/json",
+                    Body::Bytes(Some(Bytes::from(body))),
+                )
             }
             _ if path.starts_with("/api/") => json(
                 StatusCode::NOT_FOUND,

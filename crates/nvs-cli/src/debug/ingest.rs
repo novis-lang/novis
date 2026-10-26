@@ -428,13 +428,15 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
             let trace = trace.ok_or(Insert::Bad("a request line has no trace id"))?;
             let inserted = tx.execute(
                 "INSERT OR IGNORE INTO requests \
-                 (writer, seq, batch, trace, start_us, duration_us, method, route, path, status) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                 (writer, seq, batch, trace, span, start_us, duration_us, method, route, path, \
+                 status) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 params![
                     key.0,
                     key.1,
                     batch,
                     trace,
+                    request.span,
                     int(request.start_us),
                     int(request.duration_us),
                     request.method,

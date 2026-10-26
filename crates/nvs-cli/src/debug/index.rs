@@ -19,6 +19,12 @@
 //! counts are kept by triggers too: a request line counts the rows already in, and each row that
 //! arrives after it adds one.
 //!
+//! # The viewer's cursor
+//!
+//! A request's id is `AUTOINCREMENT`, so it only rises, and in the order the batches were
+//! committed: [`super::api`] pages the list on it, and an id the viewer holds never names a newer
+//! request after the deletion window emptied the table.
+//!
 //! # The deletion window
 //!
 //! [`Index::forget`] deletes the requests that started before `[debug] index_age`, then the oldest
@@ -35,7 +41,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 2;
+pub(crate) const SCHEMA: i64 = 3;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
@@ -57,11 +63,12 @@ CREATE UNIQUE INDEX exception_groups_site ON exception_groups (class, file, line
 CREATE INDEX exception_groups_last ON exception_groups (last_us);
 
 CREATE TABLE requests (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     writer TEXT NOT NULL,
     seq INTEGER NOT NULL,
     batch INTEGER NOT NULL,
     trace TEXT NOT NULL,
+    span TEXT,
     start_us INTEGER NOT NULL,
     duration_us INTEGER NOT NULL,
     method TEXT NOT NULL,

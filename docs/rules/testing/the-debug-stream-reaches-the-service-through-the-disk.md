@@ -44,7 +44,7 @@ missing optional field as absent, so a field added later still reads an older sp
 
 | `kind` | Fields |
 |---|---|
-| `request` | `start_us`, `duration_us`, `method`, `path` without the query, `status`; optional `route`, `exception` (`class`, `message`, `file`, `line`), `input` (`query`, `headers` as name and value pairs, `body`) and `response` (`headers`, `body`) |
+| `request` | `start_us`, `duration_us`, `method`, `path` without the query, `status`; optional `span` (the server's span id, the third part of its `traceresponse`), `route`, `exception` (`class`, `message`, `file`, `line`), `input` (`query`, `headers` as name and value pairs, `body`) and `response` (`headers`, `body`) |
 | `event` | `event` (`call`, `gc`, `spawn`, `query` or `http`), `label`, `start_us`, `end_us`; optional `status` and `query` (`driver`, `sql`, optional `rows` and `site`) |
 | `dump` | `file`, `line`, `tree` (the dump's JSON, `null` when elided), `elided` |
 | `log` | `level`, `message`, `fields` (an object, empty when elided), `elided` |

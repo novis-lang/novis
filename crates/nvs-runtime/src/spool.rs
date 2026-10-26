@@ -173,6 +173,11 @@ impl Record {
 /// `development`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Request {
+    /// The span id the server drew for the request, as 16 hex digits: the third part of its
+    /// `traceresponse`. With the line's trace id it names the request, because an inbound
+    /// `traceparent` can give two requests one trace id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<String>,
     /// When the request started, in Unix microseconds.
     pub start_us: u64,
     /// How long it ran, in microseconds.
@@ -1385,6 +1390,7 @@ mod tests {
     /// One line of each kind, as `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool` holds them.
     fn one_of_each() -> Vec<Record> {
         let request = Record::Request(Box::new(Request {
+            span: Some("00f067aa0ba902b7".to_owned()),
             start_us: 1_700_000_000_000_000,
             duration_us: 1_250,
             method: "POST".to_owned(),

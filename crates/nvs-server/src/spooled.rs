@@ -174,6 +174,7 @@ pub fn request(store: Option<Store>, trace: &nvs_runtime::TraceContext, answered
         .duration_since(UNIX_EPOCH)
         .map_or(0, micros);
     let line = spool::Request {
+        span: Some(trace.span_id_hex()),
         start_us: now_us.saturating_sub(duration_us),
         duration_us,
         method: answered.method.to_owned(),

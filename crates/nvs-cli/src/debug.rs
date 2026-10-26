@@ -39,6 +39,7 @@
 //! entry per spool file stopped in or per file failing. Under `--parent`, one thread blocked on
 //! standard input. In the server, the child's handle and its pipe.
 
+pub(crate) mod api;
 pub(crate) mod index;
 pub(crate) mod ingest;
 pub(crate) mod listen;
