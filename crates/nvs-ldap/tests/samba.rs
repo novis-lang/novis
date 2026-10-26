@@ -35,16 +35,22 @@ const BASE: &str = "DC=example,DC=test";
 const LDAPS_PORT: u16 = 16636;
 const LDAP_PORT: u16 = 16389;
 
-/// The anchor, when the server is up and the anchor is on disk.
+/// How many Samba cases run at once on this machine, across this binary,
+/// `nvs-stdlib`'s `ldap` and every worktree's run. It is `nvs-stdlib`'s
+/// `SAMBA_AT_ONCE`, and the file that defines it says why.
+const SAMBA_AT_ONCE: usize = 4;
+
+/// The anchor, when the server is up and the anchor is on disk, and this
+/// case's turn at the server, held until the case drops it.
 #[allow(
     clippy::print_stderr,
     reason = "a green line for a test that reached no server has to say so"
 )]
-fn samba() -> Option<PathBuf> {
+fn samba() -> Option<(PathBuf, nvs_repo::Turn)> {
     let ca = nvs_repo::path("tests/db/ca.crt");
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, LDAPS_PORT));
     if ca.is_file() && TcpStream::connect_timeout(&address, Duration::from_millis(500)).is_ok() {
-        return Some(ca);
+        return Some((ca, nvs_repo::turn("samba", SAMBA_AT_ONCE)));
     }
     assert!(
         std::env::var_os("NVS_LDAP_SAMBA").is_none(),
@@ -131,7 +137,7 @@ fn peer(reply: fn(i64) -> Option<Vec<u8>>) -> (u16, mpsc::Receiver<Vec<u8>>) {
 
 #[test]
 fn an_ldaps_simple_bind_and_whoami_succeed() {
-    let Some(ca) = samba() else { return };
+    let Some((ca, _turn)) = samba() else { return };
     let mut connection = admin(&ca);
     assert!(connection.is_encrypted());
     let identity = connection.who_am_i().expect("whoami answers");
@@ -144,7 +150,7 @@ fn an_ldaps_simple_bind_and_whoami_succeed() {
 
 #[test]
 fn starttls_upgrades_the_connection_then_binds() {
-    let Some(ca) = samba() else { return };
+    let Some((ca, _turn)) = samba() else { return };
     let mut connection = open(
         &format!("ldap://localhost:{LDAP_PORT}"),
         Tls::Required,
@@ -190,7 +196,7 @@ fn an_empty_password_is_refused_before_a_byte_is_sent() {
 
     // Samba refuses the same bind itself, but AD answers it as an anonymous
     // success, so the client's refusal is the one that counts.
-    if let Some(ca) = samba() {
+    if let Some((ca, _turn)) = samba() {
         let mut connection = open(
             &format!("ldaps://localhost:{LDAPS_PORT}"),
             Tls::Required,
@@ -227,7 +233,7 @@ fn a_cleartext_bind_to_a_host_off_the_grant_is_refused_in_the_client() {
 
 #[test]
 fn a_cleartext_bind_under_the_grant_and_the_blocks_ask_succeeds() {
-    let Some(_) = samba() else { return };
+    let Some((_, _turn)) = samba() else { return };
     // This connection has no TLS: the password crosses the network readable.
     let mut connection = open(
         &format!("ldap://localhost:{LDAP_PORT}"),
@@ -316,7 +322,7 @@ fn a_late_answer_to_a_request_that_timed_out_is_dropped() {
 
 #[test]
 fn a_search_pages_past_a_thousand_entries_holding_one_page() {
-    let Some(ca) = samba() else { return };
+    let Some((ca, _turn)) = samba() else { return };
     let mut connection = admin(&ca);
     // The schema partition has well over a thousand entries on every Samba
     // and AD, so a page size of 1000 needs at least two pages.
@@ -362,7 +368,7 @@ fn a_search_pages_past_a_thousand_entries_holding_one_page() {
 // covers: Core\Ldap\Entries::references
 #[test]
 fn a_continuation_reference_is_returned_and_not_followed() {
-    let Some(ca) = samba() else { return };
+    let Some((ca, _turn)) = samba() else { return };
     let mut connection = admin(&ca);
     // A subtree search from the domain root crosses into the configuration
     // and DNS partitions, which the server names by reference.

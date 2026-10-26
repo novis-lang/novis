@@ -33,9 +33,12 @@
 //! locked to this account, for a test that runs the configuration's ownership check against it.
 //! [`socket`] is a scratch directory and the absolute path of a socket inside it, checked against
 //! the platform's limit on a socket path's length.
+//!
+//! [`turn`] limits how many tests on this machine use a shared service at once, across every
+//! process and worktree. Its lock files are under the main checkout's `target/test-turns/`.
 
 use std::ffi::OsStr;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions, TryLockError};
 use std::io::Write;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -302,6 +305,81 @@ fn fits_a_socket(path: &Path) {
          {SOCKET_PATH_MAX}. Move the checkout to a shorter path.",
         path.display()
     );
+}
+
+/// One of the turns [`turn`] gives out. Dropping it closes the lock file, and the next test that
+/// waits on that file takes the turn.
+#[derive(Debug)]
+pub struct Turn {
+    _file: File,
+}
+
+/// One of `at_once` turns at a service that every test process on this machine shares, such as
+/// the one `samba-ad` container. A test holds the guard while it uses the service.
+///
+/// The turns are `at_once` files `<name>-<k>.lock` under the main checkout's
+/// `target/test-turns/`, and a turn is an exclusive lock on one of them. A worktree's `.git` file
+/// names the main checkout, so test binaries in every worktree count against the one limit. A
+/// test that finds every file locked waits on the lock of one of them, and the operating system
+/// wakes it. A process that dies gives its turns back when its handles close.
+///
+/// # Panics
+///
+/// If `name` is empty or holds a separator or `..`, if `at_once` is zero, and if a lock file
+/// cannot be created or locked.
+#[must_use]
+pub fn turn(name: &str, at_once: usize) -> Turn {
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    assert!(
+        !name.is_empty() && !name.contains(['/', '\\']) && !name.contains("..") && at_once > 0,
+        "nvs_repo::turn takes a file name and at least one turn, and `{name}`, {at_once} is not"
+    );
+    let dir = checkout().join("target").join("test-turns");
+    std::fs::create_dir_all(&dir).unwrap_or_else(|err| panic!("{}: {err}", dir.display()));
+    let open = |k: usize| {
+        let path = dir.join(format!("{name}-{k}.lock"));
+        OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&path)
+            .unwrap_or_else(|err| panic!("{}: {err}", path.display()))
+    };
+    for k in 0..at_once {
+        let file = open(k);
+        match file.try_lock() {
+            Ok(()) => return Turn { _file: file },
+            Err(TryLockError::WouldBlock) => {}
+            Err(TryLockError::Error(err)) => panic!("nvs_repo::turn: `{name}-{k}.lock`: {err}"),
+        }
+    }
+    let k = NEXT.fetch_add(1, Ordering::Relaxed) % at_once;
+    let file = open(k);
+    file.lock()
+        .unwrap_or_else(|err| panic!("nvs_repo::turn: `{name}-{k}.lock`: {err}"));
+    Turn { _file: file }
+}
+
+/// The main checkout's root. In a worktree, `.git` is a file that says
+/// `gitdir: <main>/.git/worktrees/<name>`; in the main checkout and on CI it is a directory.
+fn checkout() -> PathBuf {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .expect("a package sits two directories below the repository root")
+        .to_path_buf();
+    let Ok(link) = std::fs::read_to_string(root.join(".git")) else {
+        return root;
+    };
+    link.trim()
+        .strip_prefix("gitdir:")
+        .and_then(|dir| {
+            root.join(dir.trim())
+                .ancestors()
+                .nth(3)
+                .map(Path::to_path_buf)
+        })
+        .unwrap_or(root)
 }
 
 /// `target/test-scratch/<name>-<pid>-<n>`, created empty.

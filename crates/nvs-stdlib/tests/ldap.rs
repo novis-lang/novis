@@ -8,13 +8,13 @@
 //! skip when nothing listens on its LDAPS port unless `NVS_LDAP_SAMBA` is set,
 //! as `crates/nvs-ldap/tests/samba.rs` does.
 
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::io::{Read as _, Write as _};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::ops::Deref;
 use std::path::PathBuf;
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -40,20 +40,20 @@ fn own(name: &str) -> String {
     format!("{name}-{}", std::process::id())
 }
 
-/// How many Samba cases this process runs at once. Samba serves every
+/// How many Samba cases run at once on this machine. Samba serves every
 /// connection with four worker processes, its `prefork children` default, and a
 /// request past the fourth waits inside Samba while its deadline runs. When
 /// every core is busy, each request through Docker's published port is about
-/// ten times slower, so every case of this binary at once queues past the
-/// deadline `block_at` sets, and four at once do not.
+/// ten times slower. This binary, `nvs-ldap`'s `samba` and every worktree's run
+/// reach the one server, so the limit is `nvs_repo::turn`'s, which spans
+/// processes: four in each process at once queue past the deadline `block_at`
+/// sets, and four in all do not.
 const SAMBA_AT_ONCE: usize = 4;
 
-/// The Samba cases running now, and the signal a waiting case wakes on.
-static RUNNING: (Mutex<usize>, Condvar) = (Mutex::new(0), Condvar::new());
-
 thread_local! {
-    /// The turns this test's thread holds, so a case that asks twice takes one.
-    static HELD: Cell<usize> = const { Cell::new(0) };
+    /// The turn this test's thread holds, and how many times it took it, so a
+    /// case that asks twice takes one.
+    static HELD: RefCell<(usize, Option<nvs_repo::Turn>)> = const { RefCell::new((0, None)) };
 }
 
 /// The anchor of the test server, with one of the [`SAMBA_AT_ONCE`] turns
@@ -64,19 +64,12 @@ struct Samba {
 
 impl Samba {
     fn take(ca: PathBuf) -> Self {
-        if HELD.get() == 0 {
-            let (running, freed) = &RUNNING;
-            let mut now = running
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            while *now >= SAMBA_AT_ONCE {
-                now = freed
-                    .wait(now)
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+        HELD.with_borrow_mut(|(count, turn)| {
+            if *count == 0 {
+                *turn = Some(nvs_repo::turn("samba", SAMBA_AT_ONCE));
             }
-            *now += 1;
-        }
-        HELD.set(HELD.get() + 1);
+            *count += 1;
+        });
         Self { ca }
     }
 }
@@ -91,14 +84,12 @@ impl Deref for Samba {
 
 impl Drop for Samba {
     fn drop(&mut self) {
-        HELD.set(HELD.get() - 1);
-        if HELD.get() == 0 {
-            let (running, freed) = &RUNNING;
-            *running
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) -= 1;
-            freed.notify_one();
-        }
+        HELD.with_borrow_mut(|(count, turn)| {
+            *count -= 1;
+            if *count == 0 {
+                *turn = None;
+            }
+        });
     }
 }
 
