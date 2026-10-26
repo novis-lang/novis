@@ -1,6 +1,6 @@
 {
   "title": "The viewer renders the correlated request stream and hands every artifact with an existing viewer to it",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/the-extension-builds-no-ui-the-editor-already-has",
     "observability/speedscope-timeline-export",
@@ -13,6 +13,14 @@
     "testing/a-site-in-the-viewer-opens-in-the-editor",
     "packaging/the-third-party-notice-is-generated-never-written-by-hand"
   ],
-  "guardedBy": [],
-  "goal": "debug-viewer"
+  "guardedBy": [
+    "crates/nvs-cli/src/debug/api.rs",
+    "crates/nvs-cli/tests/debug_api.rs",
+    "crates/nvs-cli/tests/debug_viewer.rs",
+    "viewer/test/requests.browser.test.ts",
+    "viewer/test/request.browser.test.ts",
+    "viewer/test/stream.browser.test.ts",
+    "viewer/test/frame.browser.test.ts",
+    "viewer/test/hostile.browser.test.ts"
+  ]
 }

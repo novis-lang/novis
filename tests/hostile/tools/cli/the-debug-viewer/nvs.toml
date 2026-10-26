@@ -1,0 +1,3 @@
+[debug]
+store = true
+spool_max = "16M"

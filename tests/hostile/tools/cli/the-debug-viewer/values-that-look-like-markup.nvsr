@@ -1,0 +1,13 @@
+--METHOD--
+POST
+--PATH--
+/%3Cscript%3Ewindow.__pwned=4%3C/script%3E/javascript:alert(1)
+--QUERY--
+q=%3Cimg%20src=x%20onerror=alert(1)%3E&next=javascript:alert(1)
+--HEADERS--
+host: example.com
+content-type: text/html
+referer: javascript:alert(1)
+x-note: <script>window.__pwned=5</script></textarea><img src=x onerror="alert(1)">
+--BODY--
+<script>window.__pwned=6</script><img src=x onerror="alert(1)"></textarea>javascript:alert(1)
