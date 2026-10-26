@@ -327,7 +327,9 @@ fn check_count_prints_what_each_phase_produced() {
 /// same count line, collections included. The program makes cycles under a
 /// small ceiling, so the in-flight collector runs, and `gc=` is not zero. The
 /// first two runs have a cache each, so both compile the program cold. The
-/// third reuses the first one's cache, so it loads the program warm.
+/// third reuses the first one's cache, so it loads the program warm. All three
+/// run in one folder: under the ceiling, the length of the folder's path moves
+/// the collections, and one byte more changed `bytes=` on Windows.
 #[test]
 fn two_counted_runs_with_a_collection_print_the_same_line() {
     let program = "<?nvs\nfinal class Node {\n    public lateinit Node $next;\n\n    \
@@ -335,12 +337,9 @@ fn two_counted_runs_with_a_collection_print_the_same_line() {
                    int $i = 0;\nfor (; $i < 100000; $i = $i + 1) {\n    var $a = new Node();\n    \
                    var $b = new Node();\n    $a->next = $b;\n    $b->next = $a;\n}\n\
                    echo \"done\\n\";\n";
-    let tree = |case: &str| {
-        let dir = scratch(case);
-        fs::write(dir.join("nvs.toml"), "[limits]\nmemory = \"2M\"\n").unwrap();
-        fs::write(dir.join("main.nvs"), program).unwrap();
-        (dir, nvs_repo::scratch_private("nvsdata"))
-    };
+    let dir = scratch("gc-count");
+    fs::write(dir.join("nvs.toml"), "[limits]\nmemory = \"2M\"\n").unwrap();
+    fs::write(dir.join("main.nvs"), program).unwrap();
     let line = |dir: &Path, data: &Path| {
         let run = Command::new(env!("CARGO_BIN_EXE_nvs"))
             .arg("--data")
@@ -359,14 +358,14 @@ fn two_counted_runs_with_a_collection_print_the_same_line() {
             .to_owned()
     };
 
-    let (dir, data) = tree("gc-count-first");
+    let data = nvs_repo::scratch_private("nvsdata");
     let first = line(&dir, &data);
     assert!(
         !first.ends_with(" gc=0") && first.contains(" gc="),
         "the ceiling ran no collection: {first}"
     );
-    let (other, other_data) = tree("gc-count-second");
-    assert_eq!(line(&other, &other_data), first, "a second cold run");
+    let other_data = nvs_repo::scratch_private("nvsdata");
+    assert_eq!(line(&dir, &other_data), first, "a second cold run");
     assert_eq!(line(&dir, &data), first, "a warm run");
 }
 
