@@ -20,7 +20,7 @@ stages:
         rules: [testing/the-viewer-shows-the-stream-and-hands-off-every-artifact, testing/the-ingester-runs-whether-or-not-anyone-is-looking, concurrency/one-scheduler, config/ownership-is-the-trust-boundary]
   - id: 3
     title: "the request list follows live, with the baseline every view reuses"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug/api.rs, crates/nvs-cli/src/debug/index.rs, crates/nvs-server/src/trace.rs, viewer/src/app.tsx, viewer/src/api.ts, tools/nv/test/chromium.ts, docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md]
     extra:
       context:
@@ -163,6 +163,15 @@ fixture per view under `viewer/test/fixtures/` from a real index, and `tsc` and 
 that fixture. A request is keyed by its trace id and its span id, because an inbound `traceparent` can
 give two requests one trace id.
 
+**A page's cursor is the row id, and the watermark says when to fetch.** Stage 3's call. A batch can
+hold more rows than a page, so the watermark alone cannot page. `requests.id` is `AUTOINCREMENT`
+(index schema 3), so it only rises in commit order and never names a newer row once the deletion
+window empties the table. `before=<id>` is the next older page, `since=<batch>` the live delta, and the
+watermark and the page are read in one transaction. The spool's `request` line carries the server's
+`span`, and `trace`/`span` filters open one request. Trade-offs: one `sqlite_sequence` update per
+ingested request, off the request path; one read connection behind a mutex, which a page's bounded
+query keeps short.
+
 **The listener is a thread per connection over `std` sockets.** Stage 2's call. `nvs debug` has no core
 and no reactor, so the host's parking sockets would only block the thread anyway. Each connection's
 thread blocks in its reads and writes, `nvs_host::block_on` drives `hyper` over them, and `half_close`
@@ -262,10 +271,10 @@ other host and origin, and pushes the watermark.
 **Split:** the session lands the API page and its fixture; a writing subagent then writes the list view
 and its browser test against the fixture alone.
 
-- [ ] The API pages requests by the watermark sequence with method, route, status, duration, query count, dump count and whether it threw. A Rust test writes the JSON fixture from a real index, and `viewer/` types are checked against it. `crates/nvs-cli/src/debug/api.rs:1`, `crates/nvs-cli/tests/debug_api.rs:1`, `viewer/test/fixtures/requests.json:1`, `viewer/src/api.ts:1`
-- [ ] The list keeps only visible rows in the DOM, follows live, pauses at a key or a scroll and counts what arrived, and moves by keyboard. Dark and light themes, and `?` lists the keys. `viewer/src/app.tsx:1`, `viewer/src/views/requests.tsx:1`
-- [ ] A request opens at `/requests/<trace id>/<span id>`, and a pasted `traceresponse` value or trace id opens its request (`rule:observability/a-trace-id-exists-for-every-request`). `viewer/src/app.tsx:1`, `crates/nvs-server/src/trace.rs:286`
-- [ ] Browser tests over the fixture with the Chromium driver, one of them counting the rows in the DOM with many requests in the index. `viewer/test/requests.browser.test.ts:1`, `tools/nv/test/chromium.ts:31`
+- [x] The API pages requests by the watermark sequence with method, route, status, duration, query count, dump count and whether it threw. A Rust test writes the JSON fixture from a real index, and `viewer/` types are checked against it. `crates/nvs-cli/src/debug/api.rs:1`, `crates/nvs-cli/tests/debug_api.rs:1`, `viewer/test/fixtures/requests.json:1`, `viewer/src/api.ts:1`
+- [x] The list keeps only visible rows in the DOM, follows live, pauses at a key or a scroll and counts what arrived, and moves by keyboard. Dark and light themes, and `?` lists the keys. `viewer/src/app.tsx:1`, `viewer/src/views/requests.tsx:1`
+- [x] A request opens at `/requests/<trace id>/<span id>`, and a pasted `traceresponse` value or trace id opens its request (`rule:observability/a-trace-id-exists-for-every-request`). `viewer/src/app.tsx:1`, `crates/nvs-server/src/trace.rs:286`
+- [x] Browser tests over the fixture with the Chromium driver, one of them counting the rows in the DOM with many requests in the index. `viewer/test/requests.browser.test.ts:1`, `tools/nv/test/chromium.ts:31`
 
 ### 8. a request opens to its timeline and its value trees
 
@@ -358,36 +367,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `nvs debug` serves the viewer on `[debug] listen` (default `127.0.0.1:8137`,
-`--listen` for one run) from `crates/nvs-cli/src/debug/listen.rs`: the page for every path outside
-`/api/`, `/viewer.js`, `/viewer.css`, and `/api/events`, which pushes the index's watermark as
-`data: <batch>` after every pass that read something. Every other `/api/` path is a JSON `404`. The
-checks run in `Site::route`'s order: `Host`, `Origin`, JSON body on a changing request, then the token
-off loopback. `crates/nvs-cli/src/debug/secure.rs` generates or loads the certificate, key and token
-(`Folder::viewer_secrets`). `[debug] listen`, `tls_cert_file`, `tls_key_file` and `token_file` are in
-the tree, the directives and the template. `crates/nvs-cli/tests/debug_viewer.rs` is the attack, six
-cases, all green once by name. Three new standing decisions record the thread-per-connection
-listener, the off-loopback `Host` rule and the `--parent` port behaviour.
+Stages 1, 2 and 3 are done. `crates/nvs-cli/src/debug/api.rs` answers `GET /api/requests` over one
+read connection the listener's `Site` holds (`crates/nvs-cli/src/debug/listen.rs:296`): newest first,
+with `before`, `since`, `trace`, `span` and `limit`, the watermark and the page in one transaction. The
+index is schema 3: `requests` has `span` and an `AUTOINCREMENT` id, the page cursor (new standing
+decision). The spool's `request` line carries `span` (`crates/nvs-runtime/src/spool.rs:175`), and
+the rule fragment's line table says so. `crates/nvs-cli/tests/debug_api.rs` builds a real index,
+checks every filter, and writes `viewer/test/fixtures/requests.json`, failing once when it changes;
+`viewer/test/api.test.ts` makes `tsc` check the fixture against `viewer/src/api.ts`.
 
-The sweep's reds were all on the nightly at `d6f131752`, which comes before both fixes the last
-handoff names (`97ccf66c2`, `9c8b0fe16`). The failing jobs are the same tests, and `env-secret-proofs`
-exits 0 at HEAD. If the next nightly at HEAD repeats the macOS warm-run count, the cause is a warm
-load counting one allocation fewer than a cold compile (`crates/nvs-cli/tests/check_command.rs:334`).
+The list (`viewer/src/views/requests.tsx`), the request page (`viewer/src/views/request.tsx`), the
+router, the themes and the `?` key list are in, and `viewer/dist/` is rebuilt. Checked once:
+`bun nv viewer --verify` green, and `NV_BROWSER=1 bun test viewer/test/requests.browser.test.ts
+viewer/test/frame.browser.test.ts` 11 pass. The theme colours were chosen for WCAG AA and not yet
+measured; stage 7's proofs measure them.
 
-Expected red: none. A `debug_service` case's `nvs debug --parent` child now tries `127.0.0.1:8137` and
-warns when another case holds it, which only adds a line to standard error.
+The sweep's reds are the nightly at `d6f131752` again, the same run the last handoff read, and
+`env-secret-proofs` exits 0 at HEAD.
+
+Expected red: none. A spool line an older build wrote has no `span`, and its row's link is
+`/requests/<trace id>`.
 
 ### Next
 
-**Stage 3, the request list**, on `crates/nvs-cli/src/debug/api.rs` (new),
-`crates/nvs-cli/src/debug/listen.rs`, `crates/nvs-cli/src/debug/index.rs`,
-`crates/nvs-cli/tests/debug_api.rs` (new), `viewer/src/api.ts`, `viewer/src/app.tsx` and
-`viewer/test/`. Gate: open. Split as the stage says: the session lands the API page and its fixture,
-then a writing subagent writes the list view and its browser test against the fixture alone.
+**Stage 8, a request's timeline and value trees**, on `crates/nvs-cli/src/debug/api.rs`,
+`crates/nvs-cli/tests/debug_api.rs`, `viewer/src/api.ts`, `viewer/src/views/request.tsx` and
+`viewer/test/`. Gate: open (`trace-timeline` is gone). Split as the stage says: the session lands the
+API's request shape and its fixture, then a writing subagent writes the timeline and value-tree views
+and their browser test against the fixture alone.
 
-- [ ] `api.rs` answers `GET /api/requests?before=<batch>` with one page of requests keyed on the watermark sequence, over one read connection the listener's `Site` holds; route it in place of the `404`. `crates/nvs-cli/src/debug/listen.rs:289`, `crates/nvs-cli/src/debug/index.rs:59`
-- [ ] `tests/debug_api.rs` builds a real index and writes `viewer/test/fixtures/requests.json`; `viewer/src/api.ts` types are checked against it by `tsc`. `crates/nvs-cli/tests/debug_viewer.rs:1`
-- [ ] The list view, live follow and pause, keyboard and `?`, themes, and its browser test. `viewer/src/app.tsx:1`, `tools/nv/test/chromium.ts:31`
+- [ ] `api.rs` answers `GET /api/request?trace=&span=` with the row, its events (start and end), dumps and log lines, reading `events`, `dumps` and `logs` by trace id; route it beside `/api/requests`. `crates/nvs-cli/src/debug/api.rs:170`, `crates/nvs-cli/src/debug/listen.rs:296`
+- [ ] `tests/debug_api.rs` writes `viewer/test/fixtures/request.json` for the request that threw, the way it writes `requests.json`, and `viewer/test/api.test.ts` assigns it to its type. `crates/nvs-cli/tests/debug_api.rs:305`
+- [ ] The timeline and value tree in `viewer/src/views/request.tsx`, and `viewer/test/request.browser.test.ts`. `viewer/src/views/request.tsx:12`
 
 ### Backlog
 
