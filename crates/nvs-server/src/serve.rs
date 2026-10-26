@@ -1389,7 +1389,8 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
     };
     let done = streamed.peer.collect(ctx);
     if let Some(line) = streamed.line.take() {
-        line.written(done.as_ref());
+        let recorded = streamed.peer.supply.as_ref().and_then(Supply::recorded);
+        line.written(done.as_ref(), recorded);
     }
     if let Some(mut done) = done {
         // The spans first, because the discharge below is the end of this
@@ -1730,7 +1731,8 @@ where
                        client: Option<std::net::IpAddr>,
                        trace: Option<nvs_runtime::TraceContext>,
                        under: &Arc<nvs_config::Snapshot>,
-                       ending: crate::spooled::Ending| {
+                       ending: crate::spooled::Ending,
+                       input: Option<nvs_runtime::spool::Input>| {
             let trace = trace.unwrap_or_else(nvs_runtime::TraceContext::started);
             crate::trace::respond(
                 response.headers_mut(),
@@ -1772,6 +1774,11 @@ where
                     (crate::spooled::door_store(under), None)
                 }
             };
+            // In `development`, the response as it goes out: its headers and
+            // the bytes of a whole body.
+            let recorded = store.filter(|store| store.development).map(|store| {
+                crate::spooled::response(response.headers(), response.body(), store, trace)
+            });
             let answered = crate::spooled::Answered {
                 method: verb.as_str(),
                 path: &target,
@@ -1779,10 +1786,12 @@ where
                 status,
                 took,
                 exception,
+                input,
+                response: recorded,
             };
             if later {
                 if let Some(streamed) = writing.borrow_mut().as_mut() {
-                    streamed.line = crate::spooled::Pending::of(&answered, began, trace, store);
+                    streamed.line = crate::spooled::Pending::of(answered, began, trace, store);
                 }
                 return;
             }
@@ -1802,6 +1811,12 @@ where
         let published = serving.current.published();
         let snapshot = Arc::clone(published.host());
         let policy = serving.policy(&snapshot);
+        // `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`'s
+        // head, copied before the handler takes the request, where the store
+        // is on in `development`. Every answer below hands it to `counted`.
+        let mut input = crate::spooled::door_store(&snapshot)
+            .filter(|store| store.development)
+            .map(|_| crate::spooled::head(request.uri().query(), request.headers()));
         // `rule:errors/http-message-defects`'s three rows `hyper` accepts: a
         // repeated `Content-Length` and a bare LF in the head, and a path with
         // a dot-segment or an encoded separator. First, so a head two readers
@@ -1820,6 +1835,7 @@ where
                 None,
                 &snapshot,
                 crate::spooled::Ending::Door,
+                input.take(),
             );
             return Ok::<_, Infallible>(refused);
         }
@@ -1849,6 +1865,7 @@ where
                     None,
                     &snapshot,
                     crate::spooled::Ending::Door,
+                    input.take(),
                 );
                 return Ok::<_, Infallible>(refused);
             }
@@ -1886,6 +1903,7 @@ where
                 None,
                 &snapshot,
                 crate::spooled::Ending::Door,
+                input.take(),
             );
             return Ok::<_, Infallible>(refused);
         };
@@ -1914,6 +1932,7 @@ where
                 None,
                 &snapshot,
                 crate::spooled::Ending::Door,
+                input.take(),
             );
             return Ok::<_, Infallible>(permitted);
         }
@@ -2053,6 +2072,20 @@ where
                             .answering_request()
                             .and_then(nvs_runtime::Inbound::trace_context);
                         ran_under.clone_from(&chosen);
+                        // The body the program pulls, recorded under the gate
+                        // of the snapshot it runs under, whose `[app.limits]`
+                        // may set its own `request_body`.
+                        if let (Some(supply), Some(trace)) = (supply.as_ref(), traced)
+                            && input.is_some()
+                            && let Some(store) =
+                                crate::spooled::door_store(chosen.as_ref().unwrap_or(&snapshot))
+                        {
+                            supply.record(nvs_runtime::spool::Recorder::new(
+                                nvs_runtime::spool::BodyOf::Request,
+                                store,
+                                trace,
+                            ));
+                        }
                     }
                     // The status the door refused this request with, where it runs
                     // the program in `rule:routing/a-gate-answers-around-every-handler`'s
@@ -2310,6 +2343,10 @@ where
                                             }
                                         },
                                     );
+                                    crate::spooled::read_into(
+                                        input.as_mut(),
+                                        peer.supply.as_ref().and_then(Supply::recorded),
+                                    );
                                     // `rule:errors/http-message-defects`: a body
                                     // whose framing the client wrote wrong is a
                                     // `400` that closes, whatever the program
@@ -2481,6 +2518,7 @@ where
             traced,
             ran_under.as_ref().unwrap_or(&snapshot),
             ending,
+            input.take(),
         );
         // The bytes of a whole answer are still this request's until they are
         // written, so its place stays in the count until then.

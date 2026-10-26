@@ -34,7 +34,9 @@
 //! at most one chunk of `hyper`'s own read buffer held at a time — a [`Bytes`]
 //! handle, so the chunk is shared rather than copied. O(in-flight) by
 //! construction, since [`Supply::pump`] reads one chunk per want and never runs
-//! ahead of the program.
+//! ahead of the program. A body recorded for the debug spool ([`Supply::record`])
+//! adds a copy of the chunks the program pulled, at most
+//! `nvs_runtime::spool::BODY_CHUNK` of them held at once, and reads nothing more.
 //!
 
 use std::cell::RefCell;
@@ -146,6 +148,9 @@ struct Wire {
     /// reader sets the request's own through [`Pull`]'s
     /// [`RequestBody::allow_total`].
     total: u64,
+    /// Where the chunks the program pulls are recorded for the debug spool, in
+    /// `development` with `[debug] store` on ([`Supply::record`]).
+    recording: Option<nvs_runtime::spool::Recorder>,
 }
 
 /// The connection's half: the [`Incoming`] and the cell it feeds.
@@ -246,6 +251,18 @@ impl Supply {
         self.malformed
     }
 
+    /// Records each chunk the program pulls from here on into `recorder`.
+    pub fn record(&self, recorder: nvs_runtime::spool::Recorder) {
+        self.wire.borrow_mut().recording = Some(recorder);
+    }
+
+    /// The recorder [`Supply::record`] started, with every chunk the program
+    /// pulled in it.
+    #[must_use]
+    pub fn recorded(&self) -> Option<nvs_runtime::spool::Recorder> {
+        self.wire.borrow_mut().recording.take()
+    }
+
     /// Fails the body for a client that went away before it ended, and wakes a
     /// program waiting for a chunk.
     ///
@@ -301,9 +318,15 @@ impl RequestBody for Pull {
                     break Landed::Failed(failed.clone());
                 }
                 if let Some(chunk) = wire.chunk.take() {
+                    if let Some(recording) = wire.recording.as_mut() {
+                        recording.push(&chunk);
+                    }
                     break Landed::Chunk(chunk);
                 }
                 if wire.ended {
+                    if let Some(recording) = wire.recording.as_mut() {
+                        recording.push(&[]);
+                    }
                     break Landed::End;
                 }
                 // The want is published before the wake, so the connection

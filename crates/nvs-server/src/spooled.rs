@@ -11,16 +11,31 @@
 //! status the head went out with and the gate the program ended under. The health probe is not
 //! recorded, as the access log does not write it.
 //!
-//! **What it spends:** with `[debug] store` off, one read of the resolved configuration per answer
-//! the door wrote alone, and nothing for a request that ran. With it on, one `request` line built
+//! # What `development` adds
+//!
+//! The request's input and its response
+//! (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). The head is
+//! copied at the door ([`head`]) where the host's snapshot has the store on in `development`, which
+//! an `[[app]]` block cannot change. The body is recorded as the program pulls it
+//! (`crate::body::Supply::record`), so a body the program never read is recorded as not read. The
+//! response is read off the answer the door counts ([`response`]): its headers and the bytes of a
+//! whole body. A file it sent is not read again. The four credential headers are replaced in both.
+//!
+//! **What it spends:** with `[debug] store` off, one read of the resolved configuration per request
+//! where the door copies the head, and one more per answer the door wrote alone. With it on, one `request` line built
 //! and written per answer, and per streamed answer its method, path and route held until its body
-//! ends.
+//! ends. In `development`, per request, a copy of its head and the recorded body bytes, at most
+//! `spool::BODY_CHUNK` of them held at once.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use hyper::HeaderMap;
+use hyper::header::CONTENT_LENGTH;
 use nvs_runtime::host::{Completion, Failure};
-use nvs_runtime::spool::{self, Store};
+use nvs_runtime::spool::{self, BodyOf, Recorder, Store};
+
+use crate::serve::Answer;
 
 /// What the door knows about how the answer it counts ended.
 #[derive(Debug)]
@@ -70,6 +85,65 @@ pub struct Answered<'a> {
     pub took: Duration,
     /// The exception the request did not catch.
     pub exception: Option<spool::Exception>,
+    /// The request's input, copied where the store is on in `development`.
+    pub input: Option<spool::Input>,
+    /// The response's headers and body, recorded where the store is on in `development`.
+    pub response: Option<spool::Response>,
+}
+
+/// The input of a request with `query` and `headers`, before its body is read: each header in the
+/// order the server read it, the values of one name together, with the credentials replaced.
+#[must_use]
+pub fn head(query: Option<&str>, headers: &HeaderMap) -> spool::Input {
+    let declared = headers
+        .get(CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<u64>().ok());
+    spool::Input {
+        query: query.unwrap_or_default().to_owned(),
+        headers: headers
+            .iter()
+            .map(|(name, value)| spool::header(name.as_str(), value.as_bytes()))
+            .collect(),
+        body: spool::Body {
+            declared,
+            ..spool::Body::default()
+        },
+    }
+}
+
+/// Puts the body `recorded` holds into `input`. A body nobody recorded stays not read.
+pub fn read_into(input: Option<&mut spool::Input>, recorded: Option<Recorder>) {
+    if let (Some(input), Some(recorded)) = (input, recorded) {
+        input.body = recorded.finish(input.body.declared);
+    }
+}
+
+/// The response `headers` and `body` as a `request` line records them, under `store` in `trace`.
+/// A body longer than `spool::BODY_INLINE` is written as `body` lines here. A file and a streamed
+/// body are recorded as not read.
+#[must_use]
+pub fn response(
+    headers: &HeaderMap,
+    body: &Answer,
+    store: Store,
+    trace: nvs_runtime::TraceContext,
+) -> spool::Response {
+    let body = match body {
+        Answer::Whole(bytes) => {
+            let mut recorder = Recorder::new(BodyOf::Response, store, trace);
+            recorder.push(bytes.as_deref().unwrap_or_default());
+            recorder.finish(None)
+        }
+        Answer::File { .. } | Answer::Streaming { .. } => spool::Body::default(),
+    };
+    spool::Response {
+        headers: headers
+            .iter()
+            .map(|(name, value)| spool::header(name.as_str(), value.as_bytes()))
+            .collect(),
+        body,
+    }
 }
 
 /// The gate an answer the door wrote alone is under: `[debug] store` as `under` resolves it.
@@ -96,8 +170,8 @@ pub fn request(store: Option<Store>, trace: &nvs_runtime::TraceContext, answered
         path: answered.path.to_owned(),
         status: answered.status,
         exception: answered.exception,
-        input: None,
-        response: None,
+        input: answered.input.filter(|_| store.development),
+        response: answered.response.filter(|_| store.development),
     };
     spool::record_under(store, trace, spool::Record::Request(Box::new(line)));
 }
@@ -113,6 +187,8 @@ pub struct Pending {
     began: Instant,
     trace: nvs_runtime::TraceContext,
     under: Store,
+    input: Option<spool::Input>,
+    response: Option<spool::Response>,
 }
 
 impl Pending {
@@ -120,7 +196,7 @@ impl Pending {
     /// store off.
     #[must_use]
     pub fn of(
-        answered: &Answered<'_>,
+        answered: Answered<'_>,
         began: Instant,
         trace: nvs_runtime::TraceContext,
         under: Option<Store>,
@@ -133,13 +209,16 @@ impl Pending {
             began,
             trace,
             under: under?,
+            input: answered.input,
+            response: answered.response,
         })
     }
 
     /// Writes the line once the body has ended, under the gate `done` ended with, or the
-    /// snapshot's where the completion never came back. The duration runs to the body's end,
-    /// which is where the program ended.
-    pub fn written(self, done: Option<&Completion>) {
+    /// snapshot's where the completion never came back, with the request body `recorded` holds.
+    /// The duration runs to the body's end, which is where the program ended.
+    pub fn written(mut self, done: Option<&Completion>, recorded: Option<Recorder>) {
+        read_into(self.input.as_mut(), recorded);
         let (store, exception) = match done.map(Ending::of) {
             Some(Ending::Ran(store, exception)) => (store, exception),
             _ => (Some(self.under), None),
@@ -154,6 +233,8 @@ impl Pending {
                 status: self.status,
                 took: self.began.elapsed(),
                 exception,
+                input: self.input,
+                response: self.response,
             },
         );
     }
