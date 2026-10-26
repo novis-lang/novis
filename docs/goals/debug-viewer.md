@@ -48,7 +48,7 @@ stages:
         rules: [testing/an-exception-is-one-row-per-class-and-site, testing/a-site-in-the-viewer-opens-in-the-editor]
   - id: 9
     title: "a profile is handed to VS Code, and a request's coverage is a heatmap over its source"
-    status: open
+    status: done
     context: [editors/vscode/src/extension.ts, editors/vscode/package.json, editors/vscode/src/tests.ts, crates/nvs-cli/src/debug/source.rs, viewer/src/views/coverage.tsx, docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md]
     extra:
       context:
@@ -286,6 +286,18 @@ file before the next request. Trade-offs: one `u64` per statement and edge and o
 per statement per unit, once; one `u64` per statement and edge per development request in flight,
 freed with it; nothing where the tree names no `coverage`, which is every production host.
 
+**The project root `GET /api/source` reads under is the working directory `nvs debug` started in.**
+Stage 9's call. Configuration is found in the working directory and never by a walk upward
+(`nvs_config::resolve::roots`), and the service a development server starts inherits the server's
+working directory, so the root is the folder the server was started in. It is resolved once at start
+(`debug::source::root`). A file is read only when the coverage row names it and its resolved path,
+links followed, is under that root; anything else is a `403`, and a file the row does not name a
+`404`. The index keeps a coverage line's files as the line's JSON text, and the API passes it
+through. A heat step is one of four on a log scale up to the file's most-run line
+(`viewer/src/heat.ts`), and a source is a virtual list of fixed-height lines. Trade-offs: a service
+shared by two projects on one data folder shows the source of the one it started in alone; one
+source file of at most 4 MiB in `nvs debug`'s memory while it is sent.
+
 **Trade-offs, all together.** Request path: nothing. The viewer is another process reading the index,
 and a server process never reaches its code. Memory: the two bundled files are read-only data in every
 binary, never paged in by a server; `nvs debug` holds one read connection and one sequence per open tab;
@@ -373,8 +385,8 @@ source.
 
 - [x] The extension handles `vscode://novis-lang.nvs/` links and opens a profile in its *View Profile* view, and other editors get a download (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/extension.ts:120`, `editors/vscode/package.json:24`
 - [x] The URI handler in the extension's headless suite. `editors/vscode/scripts/headless.mjs:1`
-- [ ] A request's coverage is drawn as a per-line heatmap over its source. The service reads only files under the project root that the record names, and says so when a file changed since the request. The lcov hand-off stays as it is. `crates/nvs-cli/src/debug/source.rs:1`, `viewer/src/views/coverage.tsx:1`, `editors/vscode/src/tests.ts:92`
-- [ ] Rust test: a source path outside the project root is refused. `crates/nvs-cli/tests/debug_api.rs:1`
+- [x] A request's coverage is drawn as a per-line heatmap over its source. The service reads only files under the project root that the record names, and says so when a file changed since the request. The lcov hand-off stays as it is. `crates/nvs-cli/src/debug/source.rs:1`, `viewer/src/views/coverage.tsx:1`, `editors/vscode/src/tests.ts:92`
+- [x] Rust test: a source path outside the project root is refused. `crates/nvs-cli/tests/debug_api.rs:1`
 - [x] `rule:testing/a-site-in-the-viewer-opens-in-the-editor` `shipped`, now that its profile link is built. `data/rules/testing/a-site-in-the-viewer-opens-in-the-editor.json:3`
 
 ### 6. two requests compare, and one replays after the developer confirms
@@ -423,37 +435,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 8, 4 and 5 are done, and stage 9's profile half is done. Of its coverage half, the
-server lane is done: a development server with `[debug] mode = ["coverage"]` counts each request
-and writes a spool `coverage` line (the Standing decision *A request's coverage is counted by a
-development server*). `rule:testing/debug-mode-directive` and the shipped `nvs.toml` say so. The
-ingester reads a `coverage` line and skips it (`crates/nvs-cli/src/debug/ingest.rs`,
-`Record::Coverage`), so a spool that carries one still drains.
+Stages 1, 2, 3, 8, 4, 5 and 9 are done. Stage 9's coverage half landed this session: the ingester
+stores each spool `coverage` line (index schema 5, `coverage` table, deleted with its request or
+by its own time), `GET /api/request` names the request's coverage row, `GET /api/coverage?id=`
+and `GET /api/source?coverage=&file=` serve it (`crates/nvs-cli/src/debug/source.rs`), and the
+request page draws the heatmap (`viewer/src/views/coverage.tsx`). The Standing decision *The
+project root `GET /api/source` reads under* records the root and the scale.
 
-Checked once: build and clippy clean; the new
-`a_development_server_counts_coverage_and_runs_no_other_probe` passes. No served request has been
-run under coverage yet: the next lane's `debug_api` case is the first end-to-end proof. The sweep's
-reds were the same stale ones: `env-secret-proofs`' log exits 0, and the nightly run 40291801939
-built `d6f131752`, before the `crypto-bigint` fix (`97ccf66c2`) and the counted-run test fix
-(`9c8b0fe16`).
+A `coverage` line did not read back before this session: `spool::Record` is tagged by `kind`, and
+serde's buffer does not parse a string key as `u32`. `spool::Coverage` parses its line numbers
+itself (`line_counts`), and `one-of-each.spool` now carries a coverage line.
+
+Checked once: build and clippy clean; `the_sample_spool_is_what_the_writer_writes`, the new
+`coverage_reads_only_the_files_it_names_under_the_project_root` and
+`the_request_list_pages_newest_first_and_writes_the_viewers_fixture` pass; `bun nv viewer --verify`
+and `NV_BROWSER=1 bun test viewer/test/request.browser.test.ts` (6 pass) pass. The sweep's reds
+were stale again: `env-secret-proofs`' log exits 0, and nightly 40291801939 built `d6f131752`.
 
 Expected red: CI `proofs` (`directive:debug.*`, the four `[debug]` keys) until stage 7. Possibly
 `crates/nvs-cli/tests/live_config.rs:670`, if its server runs in `development`: it expects a
 reload naming `coverage` to be refused with "cannot be used by a server", and such a reload is now
-refused by `refuse_switch` with another message.
+refused by `refuse_switch` with another message. Possibly `crates/nvs-cli/tests/debug_ingest.rs`,
+whose `counts` now lists `coverage` and expects a row in it from the sample spool, and
+`crates/nvs-cli/tests/debug_viewer.rs:287`, which ingests the same sample.
 
 ### Next
 
-**Stage 9's coverage half: the index, the API and the heatmap.** The Standing decision *A
-request's coverage is counted by a development server* is the design. Lanes: the ingester and the
-two endpoints with their `debug_api` case and fixture first, then the viewer's `views/coverage.tsx`
-against the fixture. The `debug_api` case's server needs `[mode] default = "development"` and
-`[debug] mode = ["coverage"]`, or its spool file carries a hand-written `coverage` line.
+**Stage 6: compare and replay.** Its gate holds: `docs/goals/debug-service.md` is gone. Follow the
+stage's `**Split:**` line: the replay endpoint and its Rust tests first, then a writing subagent
+for the compare view and the dialog's browser test.
 
-- [x] The server installs a located coverage table per request where its mode has `coverage`, and writes a spool `coverage` line at its end. `crates/nvs-cli/src/script.rs:2048`, `crates/nvs-server/src/spooled.rs:79`, `crates/nvs-runtime/src/spool.rs:633`
-- [ ] The ingester stores it (a `coverage` table keyed by writer and sequence, with trace and span; index schema 5), `GET /api/request` says whether a request has coverage, and `GET /api/coverage` and `GET /api/source` serve it, a source read only under the project root. `crates/nvs-cli/src/debug/ingest.rs:427`, `crates/nvs-cli/src/debug/source.rs:1`
-- [ ] Rust test: a source path outside the project root is refused. `crates/nvs-cli/tests/debug_api.rs:1`
-- [ ] The viewer draws the heatmap. `viewer/src/views/coverage.tsx:1`
+- [ ] The development `nvs serve` passes its own address to the child it starts, and `nvs debug` keeps it as the one replay target; a service started by hand has none. `crates/nvs-cli/src/debug.rs:229`
+- [ ] `POST /api/replay` sends one recorded request to that target, with a redacted header only when its value is typed. `crates/nvs-cli/src/debug/replay.rs:1`
+- [ ] The compare endpoint or the client-side join of two `GET /api/request` answers. `crates/nvs-cli/src/debug/api.rs:556`
 
 ### Backlog
 
