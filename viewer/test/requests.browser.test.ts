@@ -185,7 +185,7 @@ describe.skipIf(!EXE)("the request list in Chromium", () => {
       tab.eval(`[...document.querySelectorAll("#request-${id} > span")].map((s) => s.textContent)`);
     // Method, route, status, duration, queries, dumps, exception.
     expect(await cells(6)).toEqual(["DELETE", "/items/{id}", "403", "610 µs", "0", "0", ""]);
-    expect(await cells(THREW.id)).toEqual(["POST", "/orders", "500", "15.4 ms", "1", "1", "Shop\\OutOfStock"]);
+    expect(await cells(THREW.id)).toEqual(["POST", "/orders", "500", "15.4 ms", "1", "2", "Shop\\OutOfStock"]);
     // A request with no route shows its path.
     expect((await cells(4))[1]).toBe("/missing");
     expect(await tab.eval(`[${LIST}.getAttribute("aria-label"), document.querySelector("#request-6").getAttribute("aria-setsize")]`)).toEqual([

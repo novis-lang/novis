@@ -262,6 +262,265 @@ a {
   padding-left: 1.25rem;
 }
 
+.request h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1rem;
+}
+
+.request h4 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.site,
+.tl-label,
+.tree {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+}
+
+.cut-note {
+  color: var(--warn);
+}
+
+/* The exception a request threw. */
+.exception .exc-head {
+  margin: 0;
+}
+
+.exc-class {
+  font-weight: 600;
+}
+
+.exception .exc-site {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+/* A request's timeline: a chart of lanes over one axis, then one listbox row per item. */
+.tl-chart {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 0.5rem 0.25rem;
+}
+
+.tl-axis {
+  position: relative;
+  height: 1.4rem;
+  margin: 0 4rem 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8em;
+}
+
+.tl-tick {
+  position: absolute;
+  top: 0.2rem;
+  white-space: nowrap;
+}
+
+.tl-lane {
+  position: relative;
+  height: 20px;
+  margin: 3px 4rem 3px 0;
+}
+
+.tl-bar,
+.tl-point {
+  position: absolute;
+  top: 0;
+  height: 18px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.tl-bar {
+  min-width: 3px;
+  padding: 0 0.3rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.8em;
+  line-height: 16px;
+  color: var(--fg);
+  background: var(--select);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+}
+
+.tl-bar.tl-query {
+  border-color: var(--warn);
+  background: var(--hover);
+}
+
+.tl-bar.tl-gc {
+  border-color: var(--bad);
+  background: var(--hover);
+}
+
+.tl-bar.tl-spawn,
+.tl-bar.tl-http {
+  border-style: dashed;
+}
+
+.tl-point {
+  width: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+}
+
+.tl-point.tl-log {
+  border-radius: 2px;
+  background: var(--warn);
+}
+
+.tl-on {
+  outline: 2px solid var(--fg);
+  outline-offset: 1px;
+}
+
+.tl-list {
+  margin-top: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
+.tl-list:focus-visible {
+  outline-offset: -2px;
+}
+
+.tl-row {
+  display: grid;
+  grid-template-columns: 9rem 5.5rem minmax(10rem, 1fr) minmax(4rem, max-content) 5.5rem;
+  gap: 0 0.75rem;
+  align-items: center;
+  padding: 0.2rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.tl-row:last-child {
+  border-bottom: 0;
+}
+
+.tl-row:hover {
+  background: var(--hover);
+}
+
+.tl-row[aria-selected="true"] {
+  background: var(--select);
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.tl-kind,
+.tl-detail,
+.tl-at {
+  color: var(--muted);
+}
+
+.tl-label {
+  overflow-wrap: anywhere;
+}
+
+/* A dumped value as a tree. */
+.tree,
+.tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tree ul {
+  padding-left: 1.25rem;
+}
+
+.tree [role="treeitem"]:focus {
+  outline: none;
+}
+
+.tree [role="treeitem"]:focus > .tv-row {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.tv-row {
+  padding: 0.05rem 0.25rem;
+  border-radius: 3px;
+  cursor: default;
+}
+
+.tv-row:hover {
+  background: var(--hover);
+}
+
+.tv-jumped > .tv-row {
+  background: var(--select);
+}
+
+.tv-twisty {
+  display: inline-block;
+  width: 1rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tv-key,
+.tv-note,
+.tv-colon {
+  color: var(--muted);
+}
+
+.tv-str {
+  color: var(--fg);
+  white-space: pre-wrap;
+}
+
+.tv-num,
+.tv-lit {
+  color: var(--accent);
+}
+
+.tv-class {
+  font-weight: 600;
+}
+
+.tv-secret,
+.tv-cut {
+  color: var(--warn);
+  font-style: italic;
+}
+
+/* A request's log lines. */
+.log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.log {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.log-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.75rem;
+  margin: 0;
+}
+
+.log-level {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85em;
+}
+
 /* The key list `?` opens. */
 dialog.keys {
   color: var(--fg);
