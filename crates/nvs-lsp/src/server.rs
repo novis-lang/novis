@@ -1920,7 +1920,9 @@ fn query_lenses(
 
 /// The address `nvs debug` serves the viewer on for the program `path` is in,
 /// and whether it serves it over TLS: the tree's `[debug] listen` and
-/// `tls_cert_file`, or the default address.
+/// `tls_cert_file`, or the default address. `nvs debug` reads the tree of its
+/// working directory, so a service started elsewhere with another address
+/// gets a link to the wrong page.
 fn viewer_of(path: &Path) -> (String, bool) {
     let data = nvs_config::data::config_file();
     let written = match crate::document::program_tree(path, data.as_deref()) {

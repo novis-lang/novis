@@ -23,7 +23,8 @@
 //! The walk is left to right and does not join branches: after an `if` that
 //! assigns in one arm only, a read shows that arm's path. A captured variable
 //! of an anonymous function has no declaration in its body, and its reads
-//! record no path.
+//! record no path. A property write records nothing either, so a later read
+//! of the property starts at its declared type.
 //!
 //! The path stops at the method's boundary. A parameter declared with the
 //! qualifier is where its value entered, and its declaration is the first

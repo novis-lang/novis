@@ -323,7 +323,9 @@ async function program(run: TestRun, uri: Uri, items: TestItem[], coverage: bool
 /**
  * Keep a coverage run's JSON report for the server: its file names resolved against `folder`,
  * written into `scratch` and renamed over the program's previous report. A document that is not a
- * coverage report is not kept, and a report that cannot be written leaves the previous one.
+ * coverage report is not kept, and a report that cannot be written leaves the previous one. A run
+ * of some tests replaces a report of all of them, so a lens counts only the tests that run covered.
+ * The server is not asked to refresh its lenses, so a new count shows at the next edit.
  */
 async function keep(uri: Uri, folder: string, scratch: string, stdout?: string): Promise<void> {
   const report = stdout === undefined ? undefined : kept(stdout, folder);

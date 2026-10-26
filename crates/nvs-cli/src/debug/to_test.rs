@@ -4,7 +4,8 @@
 //!
 //! **What the test sends.** The recorded method, path, query and headers, and the body when the
 //! program read it, through `Core\Test::request` (`rule:testing/in-process-request`). The headers
-//! a replay leaves out ([`super::replay::LEFT_OUT`]) are left out here too. A header the spool
+//! a replay leaves out ([`super::replay::LEFT_OUT`]) are left out here too, and every other one is
+//! sent, `Host` and `Accept-Encoding` included. An empty request body is sent as no body. A header the spool
 //! redacted is written as `'redacted'` under a comment that asks for a test credential, so the test
 //! compiles as printed. A request body the spool cut or withheld is refused with the reason, because
 //! part of a body is another request.

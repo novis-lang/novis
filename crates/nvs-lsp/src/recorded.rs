@@ -16,7 +16,12 @@
 //!
 //! **The figures are three sums and one count per site.** SQLite counts the newest request's
 //! statements at the site, totals and takes the slowest of their times, and counts the most
-//! frequent statement text, so a loop of many iterations is one row of numbers here.
+//! frequent statement text, so a loop of many iterations is one row of numbers here. The newest
+//! request is the one with the highest `requests.id`, and its figures count every `query` event of
+//! its trace at the site, so two recorded requests that share one trace id are counted together.
+//!
+//! **The site's line is where its call expression starts.** A call written as `$db` on one line
+//! and `->query(...)` on the next has the receiver's line, and its lens sits there.
 //!
 //! # What it costs
 //!
