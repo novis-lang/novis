@@ -1167,12 +1167,12 @@
   },
   "/reference/cli/nvs-debug/": {
     "feature": "tools:cli/nvs-debug",
-    "hash": "f4ab1cd73fa7bd52",
+    "hash": "073e04d765ba7394",
     "questions": [
-      "How do I look at the requests my development server recorded?",
       "Read the saved request records into a database I can search",
       "Read a JSON log file into the same database as the requests",
       "Collect request records on a production host",
+      "Read the waiting request records once and exit, for a cron job",
       "Why does a second nvs debug exit with status 1?",
       "Is a password from a login form saved in the request record?"
     ]
@@ -1374,14 +1374,26 @@
       "Why do I get a warning about the cache directory permissions?"
     ]
   },
+  "/reference/cli/the-debug-viewer/": {
+    "feature": "tools:cli/the-debug-viewer",
+    "hash": "4296c3f2079d22ed",
+    "questions": [
+      "How do I look at the requests my development server recorded?",
+      "See the queries, dumps and log lines of one request on a timeline",
+      "Which errors does my application throw most often?",
+      "Compare two requests to the same route side by side",
+      "Open a file and line from the debug viewer in my editor",
+      "Use the debug viewer when my server runs in a Docker container"
+    ]
+  },
   "/reference/cli/the-vs-code-extension/": {
     "feature": "tools:editor/the-vs-code-extension",
-    "hash": "9365a0768469eb88",
+    "hash": "db46a757e19912e1",
     "questions": [
       "How do I install Novis support in Visual Studio Code?",
       "Syntax colours and autocomplete for .nvs files in VS Code",
       "Point VS Code at a specific copy of the nvs binary",
-      "Open a speedscope profile inside VS Code",
+      "Open a speedscope profile or a profile link from the debug viewer in VS Code",
       "Why are passwords blurred in my editor?",
       "Start the Novis debugger from launch.json in VS Code"
     ]
@@ -1435,14 +1447,14 @@
   },
   "/reference/config/debug/": {
     "feature": "directive:debug.keep_temporary",
-    "hash": "da2e094850173956",
+    "hash": "37e652606d81da2b",
     "questions": [
       "Keep temporary files after a script fails so I can inspect them",
       "Show debug output in the browser page during development",
-      "Why does my debug dump not appear on the page?",
       "Save a record of every request so I can look at it later",
       "Limit the disk space and the age of saved request records",
-      "Hide debug output from visitors on a production site"
+      "Change the address and port of the debug viewer",
+      "Count which lines each request runs on my development server"
     ]
   },
   "/reference/config/deferred/": {

@@ -58719,8 +58719,9 @@ one first.
 #### What it claims
 
 `.nvs`, and nothing else. It starts when you open a Novis document, when the workspace has a file
-named `nvs.toml`, or when you start a debug session of type `nvs`. In any other window it does not
-start.
+named `nvs.toml`, or when you start a debug session of type `nvs`. It also starts when you open a
+`vscode://novis-lang.nvs/` link, such as a profile link in the debug viewer. In any other window it
+does not start.
 
 It adds breakpoints to `.nvs` files and a debugger of type `nvs`. A debug session starts
 `nvs dap`, described above, with the same binary the language server uses, or with the launch
