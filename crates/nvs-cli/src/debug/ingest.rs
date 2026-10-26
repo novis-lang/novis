@@ -93,7 +93,9 @@ impl Backoff {
     pub(crate) fn after(previous: Option<Self>, now: Instant) -> Self {
         let failures = previous.map_or(1, |previous| previous.failures.saturating_add(1));
         let doublings = (failures - 1).min(16);
-        let delay = BACKOFF_FIRST.saturating_mul(1 << doublings).min(BACKOFF_MAX);
+        let delay = BACKOFF_FIRST
+            .saturating_mul(1 << doublings)
+            .min(BACKOFF_MAX);
         Self {
             failures,
             delay,
@@ -725,11 +727,7 @@ mod tests {
 
     /// Every line `bytes` gives from `offset` within `budget`, as `(offset, length, cut)`, and the
     /// offset and end the reader stopped at.
-    fn lines_of(
-        bytes: &[u8],
-        budget: u64,
-        unended: bool,
-    ) -> (Vec<(u64, u64, bool)>, u64, bool) {
+    fn lines_of(bytes: &[u8], budget: u64, unended: bool) -> (Vec<(u64, u64, bool)>, u64, bool) {
         let mut lines = Lines::new(bytes, 0, budget, unended);
         let mut found = Vec::new();
         while let Some(raw) = lines.next_line().unwrap() {

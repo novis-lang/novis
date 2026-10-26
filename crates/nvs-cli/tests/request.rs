@@ -213,7 +213,9 @@ impl Served {
             .write(true)
             .open(data.join("debug").join("service.lock"))
             .expect("the service lock opens");
-        service.lock().expect("no service runs for a fresh data folder");
+        service
+            .lock()
+            .expect("no service runs for a fresh data folder");
         let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
             .arg("--data")
             .arg(&*data)

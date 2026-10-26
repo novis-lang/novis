@@ -103,7 +103,8 @@ impl Served {
         stream
             .set_read_timeout(Some(PATIENCE))
             .expect("a read timeout is set");
-        let request = format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+        let request =
+            format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
         stream
             .write_all(request.as_bytes())
             .expect("the request is sent");
@@ -281,7 +282,10 @@ fn with_store_off_nothing_is_written_and_the_answer_is_a_run_without_debug() {
     };
     let mut answers = Vec::new();
     for (case, config) in [
-        ("store-off", format!("{DEVELOPMENT}\n[debug]\nstore = false\n")),
+        (
+            "store-off",
+            format!("{DEVELOPMENT}\n[debug]\nstore = false\n"),
+        ),
         ("no-debug", DEVELOPMENT.to_owned()),
     ] {
         let mut served = Served::start(case, &config);
