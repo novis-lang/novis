@@ -48,7 +48,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 3;
+pub(crate) const SCHEMA: i64 = 4;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
@@ -162,6 +162,19 @@ CREATE TABLE dumps (
 CREATE UNIQUE INDEX dumps_key ON dumps (writer, seq);
 CREATE INDEX dumps_trace ON dumps (trace);
 CREATE INDEX dumps_at ON dumps (at_us);
+
+CREATE TABLE profiles (
+    id INTEGER PRIMARY KEY,
+    writer TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    batch INTEGER NOT NULL,
+    trace TEXT NOT NULL,
+    at_us INTEGER NOT NULL,
+    path TEXT NOT NULL
+);
+CREATE UNIQUE INDEX profiles_key ON profiles (writer, seq);
+CREATE INDEX profiles_trace ON profiles (trace);
+CREATE INDEX profiles_at ON profiles (at_us);
 
 CREATE TABLE logs (
     id INTEGER PRIMARY KEY,
@@ -288,11 +301,12 @@ END;
 ";
 
 /// The tables whose rows name a trace id, deleted with their request.
-const BY_TRACE: [&str; 6] = [
+const BY_TRACE: [&str; 7] = [
     "inputs",
     "body_parts",
     "events",
     "dumps",
+    "profiles",
     "logs",
     "exceptions",
 ];
@@ -300,10 +314,11 @@ const BY_TRACE: [&str; 6] = [
 /// The tables whose rows carry their own time, deleted past `index_age` when no request names them.
 /// A `quarantine` row is not one: it stays while its file fails, and goes once the file is read or
 /// is gone.
-const BY_TIME: [&str; 6] = [
+const BY_TIME: [&str; 7] = [
     "body_parts",
     "events",
     "dumps",
+    "profiles",
     "logs",
     "dropped",
     "unparseable",

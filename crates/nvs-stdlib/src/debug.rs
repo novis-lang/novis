@@ -653,6 +653,15 @@ nvs_runtime::nvs_helper! {
         match nvs_runtime::Profiler::create(&path, nvs_runtime::ProfileFormat::Speedscope, &label) {
             Ok(profiler) => {
                 ctx.set_profile_sink(Some(profiler.track("main")));
+                // The viewer names the file under the request (`rule:testing/a-site-in-the-viewer-opens-in-the-editor`).
+                // One spool line per started profile, and nothing where `[debug] store` is off.
+                let path = std::path::absolute(&path).unwrap_or(path);
+                nvs_runtime::spool::record(
+                    ctx,
+                    nvs_runtime::spool::Record::Profile(nvs_runtime::spool::Profile {
+                        path: path.display().to_string(),
+                    }),
+                );
                 Ok(Value::null())
             }
             Err(err) => {

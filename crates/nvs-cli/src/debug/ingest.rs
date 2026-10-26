@@ -556,6 +556,14 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
                 ],
             )?;
         }
+        Record::Profile(profile) => {
+            let trace = trace.ok_or(Insert::Bad("a profile line has no trace id"))?;
+            tx.execute(
+                "INSERT OR IGNORE INTO profiles (writer, seq, batch, trace, at_us, path) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![key.0, key.1, batch, trace, at, profile.path],
+            )?;
+        }
         Record::Log(log) => {
             tx.execute(
                 "INSERT OR IGNORE INTO logs \

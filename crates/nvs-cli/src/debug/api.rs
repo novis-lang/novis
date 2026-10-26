@@ -20,6 +20,11 @@
 //! and its own `request` line. Two such requests in flight at once on one thread cannot be told
 //! apart, and each shows both.
 //!
+//! **A profile is downloaded by its row.** A request's answer lists the files its
+//! `Core\Debug::startProfile` calls named, and `GET /api/profile?id=` sends the file one row names,
+//! as an attachment of at most [`PROFILE_MAX`] bytes. The page names a row and never a path, so it
+//! reads only a file a program wrote under its `debug.profile` grant.
+//!
 //! **The stream, the search and the settings are their own modules.** `GET /api/stream` is
 //! [`super::stream`], `GET /api/search` is [`super::search`], `GET /api/exceptions` is
 //! [`super::exceptions`], and `GET` and `PUT /api/settings` are [`super::settings`]. The first
@@ -32,8 +37,9 @@
 //!
 //! **What it spends:** one SQLite connection and its page cache for the service, and one page of
 //! at most [`PAGE_MAX`] rows per API request while it is written out. One request's answer is at
-//! most [`EVENTS_MAX`] events, [`DUMPS_MAX`] dumps and [`LOGS_MAX`] log lines, and `cut` says
-//! which list stopped there.
+//! most [`EVENTS_MAX`] events, [`DUMPS_MAX`] dumps, [`LOGS_MAX`] log lines and [`PROFILES_MAX`]
+//! profiles, and `cut` says which list stopped there. A profile download holds its file in memory
+//! while it is sent.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError, mpsc};
@@ -55,6 +61,12 @@ const REBUILD_WAIT: Duration = Duration::from_secs(60);
 
 /// The most rows in one page.
 pub(crate) const PAGE_MAX: i64 = 500;
+
+/// The most profiles in one request's answer.
+const PROFILES_MAX: i64 = 100;
+
+/// The largest profile `GET /api/profile` sends. A larger one is opened from its path.
+const PROFILE_MAX: u64 = 256 << 20;
 
 /// The most trace events in one request's answer.
 const EVENTS_MAX: i64 = 5_000;
@@ -122,8 +134,17 @@ struct Detail {
     events: Vec<Event>,
     dumps: Vec<Dump>,
     logs: Vec<Log>,
+    profiles: Vec<ProfileFile>,
     /// Which lists stopped at their most rows.
     cut: Cut,
+}
+
+/// A profile file the request's `Core\Debug::startProfile` named.
+#[derive(Serialize)]
+struct ProfileFile {
+    id: i64,
+    at_us: i64,
+    path: String,
 }
 
 /// An uncaught exception: its class, its message and the site of its `throw`.
@@ -186,6 +207,7 @@ struct Cut {
     events: bool,
     dumps: bool,
     logs: bool,
+    profiles: bool,
 }
 
 /// What `GET /api/request` was asked for: a trace id, and the span id when the trace has several.
@@ -269,6 +291,52 @@ impl Api {
             ),
             Err(err) => answer::<()>(Err(err)),
         }
+    }
+
+    /// `GET /api/profile?id=`: the file name and the bytes of the profile the row names, or the
+    /// status and JSON body of an error.
+    pub(crate) fn profile(
+        &self,
+        query: Option<&str>,
+    ) -> Result<(String, Vec<u8>), (StatusCode, Vec<u8>)> {
+        let id = match query.unwrap_or_default().split_once('=') {
+            Some(("id", value)) if !value.contains('&') => number("id", value),
+            _ => Err("`id` is the one key, and it is required.".to_owned()),
+        }
+        .map_err(|message| error(StatusCode::BAD_REQUEST, &message))?;
+        let path: Option<String> = self
+            .read(|db| {
+                db.query_row("SELECT path FROM profiles WHERE id = ?1", [id], |row| {
+                    row.get(0)
+                })
+                .optional()
+            })
+            .map_err(|err| answer::<()>(Err(err)))?;
+        let Some(path) = path else {
+            return Err(error(
+                StatusCode::NOT_FOUND,
+                "No profile in the index has this id.",
+            ));
+        };
+        let unreadable = |err: std::io::Error| {
+            error(
+                StatusCode::NOT_FOUND,
+                &format!("The profile `{path}` cannot be read: {err}"),
+            )
+        };
+        let size = std::fs::metadata(&path).map_err(unreadable)?.len();
+        if size > PROFILE_MAX {
+            return Err(error(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                &format!("The profile `{path}` is larger than 256 MiB. Open it from disk."),
+            ));
+        }
+        let bytes = std::fs::read(&path).map_err(unreadable)?;
+        let name = Path::new(&path)
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        Ok((name, bytes))
     }
 
     /// `POST /api/index/discard`: the module doc's *Discarding the index closes this connection
@@ -641,6 +709,27 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
         cut.logs = keep(&mut logs, LOGS_MAX);
         logs
     };
+    let profiles = {
+        let mut statement = tx.prepare_cached(
+            "SELECT id, at_us, path FROM profiles \
+             WHERE trace = ?1 AND (?2 IS NULL OR (writer = ?2 AND seq > ?3 AND seq < ?4)) \
+             ORDER BY at_us, id LIMIT ?5",
+        )?;
+        let mut profiles = statement
+            .query_map(
+                params![key.trace, writer, after, before, PROFILES_MAX + 1],
+                |row| {
+                    Ok(ProfileFile {
+                        id: row.get(0)?,
+                        at_us: row.get(1)?,
+                        path: row.get(2)?,
+                    })
+                },
+            )?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        cut.profiles = keep(&mut profiles, PROFILES_MAX);
+        profiles
+    };
     tx.commit()?;
     Ok(Ok(Detail {
         watermark,
@@ -649,6 +738,7 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
         events,
         dumps,
         logs,
+        profiles,
         cut,
     }))
 }

@@ -1,11 +1,16 @@
 {
   "title": "Every `file:line` the viewer shows opens that line in the developer's editor, VS Code by default",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
     "testing/an-exception-is-one-row-per-class-and-site",
     "ide/the-extension-builds-no-ui-the-editor-already-has"
   ],
-  "guardedBy": [],
-  "goal": "debug-viewer"
+  "guardedBy": [
+    "viewer/src/editor-link.ts",
+    "viewer/test/editor-link.test.ts",
+    "viewer/test/exceptions.browser.test.ts",
+    "crates/nvs-cli/tests/debug_api.rs",
+    "editors/vscode/test/profile/link.test.ts"
+  ]
 }

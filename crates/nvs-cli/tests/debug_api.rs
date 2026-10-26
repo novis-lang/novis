@@ -48,13 +48,18 @@ impl Service {
 
     /// A service that has ingested the spool file `text`.
     fn ingested_from(text: &str) -> Self {
+        Self::ingested_with(|_| text.to_owned())
+    }
+
+    /// A service that has ingested the spool file `make` writes, given the service's data folder.
+    fn ingested_with(make: impl FnOnce(&std::path::Path) -> String) -> Self {
         let service = Self::start();
         let mut events = service.events();
         service.wait_for(&mut events, 0);
         let debug = service.data.join("debug");
         // Written beside the spool and then renamed into it, so the service never sees half a file.
         let staged = debug.join("staged.spool");
-        std::fs::write(&staged, text).expect("the debug folder is writable");
+        std::fs::write(&staged, make(&service.data)).expect("the debug folder is writable");
         std::fs::rename(&staged, debug.join("spool").join("1-1-0.0.spool"))
             .expect("the spool is writable");
         service.wait_for(&mut events, 1);
@@ -280,6 +285,11 @@ fn spool() -> String {
                 trace,
                 start_us + 14_000,
                 event("call", "Shop\\Orders::place", 50, 14_000),
+            );
+            line(
+                trace,
+                start_us + 80,
+                json!({ "kind": "profile", "path": "/srv/shop/orders.speedscope.json" }),
             );
             line(
                 trace,
@@ -681,6 +691,28 @@ fn an_exception_is_one_row_per_class_and_site_and_opens_to_its_requests() {
 }
 
 #[test]
+fn a_profile_the_request_named_downloads_by_its_row() {
+    let speedscope = r#"{"$schema":"https://www.speedscope.app/file-format-schema.json"}"#;
+    let service = Service::ingested_with(|data| {
+        let path = data.join("run 1.speedscope.json");
+        std::fs::write(&path, speedscope).expect("the profile is written");
+        let trace = "4bf92f3577b34da6a3ce929d0e0e4736";
+        let lines = [
+            json!({ "writer": "1-1-0", "seq": 0, "trace": trace, "at_us": 1_000,
+                    "kind": "profile", "path": path.display().to_string() }),
+            json!({ "writer": "1-1-0", "seq": 1, "trace": trace, "at_us": 2_000,
+                    "kind": "request", "span": "00f067aa0ba902b7", "start_us": 900,
+                    "duration_us": 1_100, "method": "GET", "path": "/", "status": 200 }),
+        ];
+        lines.map(|line| line.to_string()).join("\n") + "\n"
+    });
+    let detail = service.json("/api/request?trace=4bf92f3577b34da6a3ce929d0e0e4736");
+    let id = detail["profiles"][0]["id"].as_i64().expect("one profile");
+    let response = service.send("GET", &format!("/api/profile?id={id}"), None);
+    assert_eq!(response, (200, speedscope.to_owned()));
+}
+
+#[test]
 fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
     let service = Service::ingested();
 
@@ -759,8 +791,19 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
     assert_eq!(detail["logs"][0]["message"], "stock is empty");
     assert_eq!(
         detail["cut"],
-        json!({ "events": false, "dumps": false, "logs": false })
+        json!({ "events": false, "dumps": false, "logs": false, "profiles": false })
     );
+    assert_eq!(
+        detail["profiles"][0]["path"],
+        "/srv/shop/orders.speedscope.json"
+    );
+    let profile = detail["profiles"][0]["id"].as_i64().expect("an id");
+    let (status, body) = service.get(&format!("/api/profile?id={profile}"));
+    assert_eq!(status, 404, "the file is not on disk: {body}");
+    let (status, body) = service.get("/api/profile?id=x");
+    assert_eq!(status, 400, "{body}");
+    let (status, body) = service.get("/api/profile?path=/etc/passwd");
+    assert_eq!(status, 400, "a page names a row, never a path: {body}");
 
     // Each request of a shared trace id shows its own records alone.
     let missing = service.json(&format!(
@@ -772,6 +815,7 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
         "/api/request?trace={SHARED}&span=a3ce929d0e0e4736"
     ));
     assert_eq!(put["dumps"][0]["tree"], 7);
+    assert_eq!(put["profiles"], json!([]));
     assert_eq!(put["logs"], json!([]));
     let (status, body) = service.get(&format!("/api/request?trace={SHARED}"));
     assert_eq!(status, 400, "{body}");

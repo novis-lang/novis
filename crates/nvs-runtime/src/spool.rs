@@ -140,6 +140,8 @@ pub enum Record {
     Body(BodyPart),
     /// What this writer's share of the cap deleted since its last `dropped` line.
     Dropped(Dropped),
+    /// A profile the request started with `Core\Debug::startProfile`.
+    Profile(Profile),
 }
 
 impl Record {
@@ -164,7 +166,7 @@ impl Record {
                 log.elided = true;
             }
             // A `body` line is at most [`BODY_CHUNK`] of bytes, so it is never too long.
-            Self::Event(_) | Self::Body(_) | Self::Dropped(_) => {}
+            Self::Event(_) | Self::Body(_) | Self::Dropped(_) | Self::Profile(_) => {}
         }
     }
 }
@@ -609,6 +611,14 @@ pub struct Log {
     /// Whether the fields were removed to keep the line under [`LINE_MAX`].
     #[serde(default)]
     pub elided: bool,
+}
+
+/// `kind: "profile"`: the file a request's `Core\Debug::startProfile` writes. The line is written
+/// at the start, so the file is complete once the request, or its `stopProfile`, has ended.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Profile {
+    /// The file's absolute path, as the program's working directory resolved it.
+    pub path: String,
 }
 
 /// `kind: "dropped"`: what a writer's share of the cap deleted.

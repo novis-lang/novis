@@ -254,7 +254,7 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
     changed.dumps[0]!.tree = { $class: "Shop\\Item", $id: 1, $properties: { name: `<img src=x onerror="window.ran=1"><b>Lamp</b>` } };
     changed.dumps[1]!.elided = true;
     changed.dumps[1]!.tree = null;
-    changed.cut = { events: true, dumps: false, logs: true };
+    changed.cut = { events: true, dumps: false, logs: true, profiles: false };
     detail = changed;
     const tab = await open();
     expect(await tab.eval(ROW("dump-1-n1"))).toBe(`name: "<img src=x onerror="window.ran=1"><b>Lamp</b>"`);

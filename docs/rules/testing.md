@@ -3,7 +3,7 @@
 
 # Testing
 
-*9 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -3030,7 +3030,7 @@ Replay is a request that changes something, so it needs an allowed `Origin`
 
 <a id="testing-a-site-in-the-viewer-opens-in-the-editor"></a>
 
-## Every `file:line` the viewer shows opens that line in the developer's editor, VS Code by default  *(designed — owned by goal debug-viewer)*
+## Every `file:line` the viewer shows opens that line in the developer's editor, VS Code by default
 
 `rule:testing/a-site-in-the-viewer-opens-in-the-editor`
 

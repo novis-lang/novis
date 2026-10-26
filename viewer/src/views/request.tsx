@@ -12,10 +12,12 @@
 // view is open.
 
 import { createEffect, createResource, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
-import { request, requests, type Json, type RequestDetail, type RequestFilter, type RequestRow, type TraceKey } from "../api.ts";
+import { profileDownload, request, requests, type Json, type RequestDetail, type RequestFilter, type RequestRow, type TraceKey } from "../api.ts";
+import { profileLink } from "../editor-link.ts";
 import { ignored } from "../keys.ts";
 import { navigate, requestLink } from "../router.ts";
 import { Site } from "../site.tsx";
+import { saved } from "./saved.tsx";
 import { duration, statusClass } from "./requests.tsx";
 import { Timeline } from "./timeline.tsx";
 import { ValueTree } from "./value-tree.tsx";
@@ -163,7 +165,7 @@ function hasFields(fields: Json): boolean {
   return typeof fields !== "object" || Object.keys(fields).length > 0;
 }
 
-/** What the request recorded: its exception, its timeline, its dumps and its log lines. */
+/** What the request recorded: its exception, its timeline, its dumps, its profiles and its log lines. */
 function Records(props: { detail: RequestDetail }) {
   const d = () => props.detail;
   const at = (us: number) => duration(Math.max(0, us - d().request.start_us));
@@ -204,6 +206,32 @@ function Records(props: { detail: RequestDetail }) {
           </For>
         </Show>
       </section>
+      <Show when={d().profiles.length > 0}>
+        <section class="profiles" aria-labelledby="profiles-title">
+          <h3 id="profiles-title">Profiles</h3>
+          <ul class="profile-list">
+            <For each={d().profiles}>
+              {(profile) => (
+                <li id={`profile-${profile.id}`} class="profile">
+                  <span class="site-text">{profile.path}</span> <span class="note">at {at(profile.at_us)}</span>{" "}
+                  <Show when={profileLink(profile.path, saved())}>
+                    {(to) => (
+                      <>
+                        <a href={to()} class="profile-open">
+                          Open in VS Code
+                        </a>{" "}
+                      </>
+                    )}
+                  </Show>
+                  <a href={profileDownload(profile.id)} class="profile-download" download="">
+                    Download
+                  </a>
+                </li>
+              )}
+            </For>
+          </ul>
+        </section>
+      </Show>
       <section class="logs" aria-labelledby="logs-title">
         <h3 id="logs-title">Log lines</h3>
         <Show when={d().logs.length > 0} fallback={<p class="note">This request wrote no log lines.</p>}>

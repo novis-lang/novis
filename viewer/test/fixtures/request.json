@@ -2,7 +2,8 @@
   "cut": {
     "dumps": false,
     "events": false,
-    "logs": false
+    "logs": false,
+    "profiles": false
   },
   "dumps": [
     {
@@ -130,6 +131,13 @@
       "level": "warning",
       "lossy": false,
       "message": "stock is empty"
+    }
+  ],
+  "profiles": [
+    {
+      "at_us": 1700000002000080,
+      "id": 1,
+      "path": "/srv/shop/orders.speedscope.json"
     }
   ],
   "request": {

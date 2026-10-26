@@ -27,6 +27,17 @@ export const PRESETS: Record<Exclude<Editor, "custom">, string> = {
   phpstorm: "phpstorm://open?file={file}&line={line}",
 };
 
+/** The editors that run the Novis extension, and the scheme that reaches it. */
+const EXTENSION_SCHEMES: Partial<Record<Editor, string>> = {
+  vscode: "vscode",
+  "vscode-insiders": "vscode-insiders",
+  vscodium: "vscodium",
+  cursor: "cursor",
+};
+
+/** The end of a file name the extension's *View Profile* view opens. */
+const PROFILE_SUFFIX = ".speedscope.json";
+
 /** What a link is built with before the settings load, or when they cannot. */
 const DEFAULT: EditorSettings = { editor: "vscode", path_mappings: [] };
 
@@ -68,4 +79,16 @@ export function editorLink(site: Site, settings: EditorSettings | null): string 
   const url = template.replace(/\{(file|line|column)\}/g, (_, key: string) => values[key]!);
   const at = scheme(url);
   return at === null || REFUSED.has(at) ? null : url;
+}
+
+/**
+ * The link that opens the profile at `path` in the extension's *View Profile* view, or `null` when
+ * the editor does not run the extension or the file is not a speedscope file. The viewer then
+ * offers the download alone. The path is mapped first and sent whole as the `file` parameter.
+ */
+export function profileLink(path: string, settings: EditorSettings | null): string | null {
+  const chosen = settings ?? DEFAULT;
+  const scheme = EXTENSION_SCHEMES[chosen.editor];
+  if (!scheme || !path.endsWith(PROFILE_SUFFIX)) return null;
+  return `${scheme}://novis-lang.nvs/profile?file=${encodeURIComponent(mapPath(path, chosen.path_mappings))}`;
 }

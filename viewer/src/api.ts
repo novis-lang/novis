@@ -102,6 +102,14 @@ export interface LogLine {
   lossy: boolean;
 }
 
+/** A profile file the request's `Core\Debug::startProfile` wrote. */
+export interface ProfileFile {
+  id: number;
+  at_us: number;
+  /** The absolute path on the machine that ran the request. */
+  path: string;
+}
+
 /** `GET /api/request`: one request and everything it recorded, each list in time order. */
 export interface RequestDetail {
   watermark: number;
@@ -110,8 +118,9 @@ export interface RequestDetail {
   events: TraceEvent[];
   dumps: Dump[];
   logs: LogLine[];
+  profiles: ProfileFile[];
   /** Which lists stopped at the most rows the service sends. */
-  cut: { events: boolean; dumps: boolean; logs: boolean };
+  cut: { events: boolean; dumps: boolean; logs: boolean; profiles: boolean };
 }
 
 /** Every kind of record the stream has. `dropped` and `unparseable` belong to no request. */
@@ -427,6 +436,11 @@ export function requests(filter: RequestFilter = {}, signal?: AbortSignal): Prom
 /** One request and its records. Without `span`, the trace id must name one request. */
 export function request(key: TraceKey, signal?: AbortSignal): Promise<RequestDetail> {
   return get<RequestDetail>(`/api/request?${requestQuery(key)}`, signal);
+}
+
+/** Where the browser downloads the profile `id` names. */
+export function profileDownload(id: number): string {
+  return `/api/profile?id=${id}`;
 }
 
 /** `GET path` as JSON, or an `ApiError` with the service's message. */

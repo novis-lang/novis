@@ -326,6 +326,10 @@ impl Site {
             "/api/events" if *method == Method::GET => events(Arc::clone(&self.watermark)),
             "/api/requests" if reads => api(self.api.requests(query)),
             "/api/request" if reads => api(self.api.request(query)),
+            "/api/profile" if reads => match self.api.profile(query) {
+                Ok((name, bytes)) => attachment(&name, bytes),
+                Err(failed) => api(failed),
+            },
             "/api/stream" if reads => api(stream::stream(&self.api, query)),
             "/api/quarantine" if reads => api(stream::quarantine(&self.api)),
             "/api/search" if reads => api(search::search(&self.api, query)),
@@ -465,6 +469,32 @@ fn api((status, body): (StatusCode, Vec<u8>)) -> Response<Body> {
         "application/json",
         Body::Bytes(Some(Bytes::from(body))),
     )
+}
+
+/// A file the browser saves as `name`, with every byte of the name outside `[A-Za-z0-9._-]`
+/// replaced by `_`, so the header needs no quoting.
+fn attachment(name: &str, bytes: Vec<u8>) -> Response<Body> {
+    let name: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let mut response = with(
+        StatusCode::OK,
+        "application/json",
+        Body::Bytes(Some(Bytes::from(bytes))),
+    );
+    if let Ok(value) = HeaderValue::from_str(&format!("attachment; filename=\"{name}\"")) {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_DISPOSITION, value);
+    }
+    response
 }
 
 /// The body of a request, or `None` when it is longer than `max` bytes or fails partway.

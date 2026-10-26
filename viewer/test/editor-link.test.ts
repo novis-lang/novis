@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { EDITORS, type Editor } from "../src/api.ts";
 import * as linkModule from "../src/editor-link.ts";
-import { editorLink, mapPath, type EditorSettings } from "../src/editor-link.ts";
+import { editorLink, mapPath, profileLink, type EditorSettings } from "../src/editor-link.ts";
 
 // Links from a record's site to the editor: each preset, a template, path mappings and refused schemes.
 // `exceptions.browser.test.ts` checks the links on the page, and that a log message gives none.
@@ -87,6 +87,33 @@ describe("an editor link", () => {
   });
 
   test("the module builds links from a site alone, and reads no file and line out of text", () => {
-    expect(Object.keys(linkModule).sort()).toEqual(["PRESETS", "editorLink", "mapPath"]);
+    expect(Object.keys(linkModule).sort()).toEqual(["PRESETS", "editorLink", "mapPath", "profileLink"]);
+  });
+});
+
+describe("a profile link", () => {
+  const PROFILE = "C:\\work\\shop\\run 1.speedscope.json";
+
+  test("an editor that runs the extension opens the profile in it", () => {
+    expect(profileLink(PROFILE, pick("vscode"))).toBe(
+      "vscode://novis-lang.nvs/profile?file=C%3A%5Cwork%5Cshop%5Crun%201.speedscope.json",
+    );
+    expect(profileLink("/srv/a.speedscope.json", pick("cursor"))).toBe(
+      "cursor://novis-lang.nvs/profile?file=%2Fsrv%2Fa.speedscope.json",
+    );
+    expect(profileLink("/srv/a.speedscope.json", null)).toBe("vscode://novis-lang.nvs/profile?file=%2Fsrv%2Fa.speedscope.json");
+  });
+
+  test("the path is mapped first", () => {
+    const settings = pick("vscode", { path_mappings: [{ from: "/app", to: "/home/me/shop" }] });
+    expect(profileLink("/app/p.speedscope.json", settings)).toBe(
+      "vscode://novis-lang.nvs/profile?file=%2Fhome%2Fme%2Fshop%2Fp.speedscope.json",
+    );
+  });
+
+  test("another editor, or a file the extension does not open, gives no link", () => {
+    expect(profileLink("/srv/a.speedscope.json", pick("zed"))).toBeNull();
+    expect(profileLink("/srv/a.speedscope.json", pick("phpstorm"))).toBeNull();
+    expect(profileLink("/srv/a.json", pick("vscode"))).toBeNull();
   });
 });
