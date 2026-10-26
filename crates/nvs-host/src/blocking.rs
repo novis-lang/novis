@@ -453,6 +453,11 @@ where
 
     type Slot<T> = Option<(std::thread::Result<T>, isize, Duration)>;
     let slot: Arc<Mutex<Slot<T>>> = Arc::new(Mutex::new(None));
+    // Locked once here, before the pool thread can see it. Where std's mutex is
+    // a pthread one (macOS), its first lock allocates it, and that allocation
+    // is the task's: made on the pool thread, it is charged to that thread and
+    // freed on this one, and the task's count depends on which got there first.
+    drop(lock(&slot));
     let answer = Arc::clone(&slot);
     with_pool(|pool| {
         pool.submit_releasing(move |release: &Release<'_>| {
@@ -990,7 +995,8 @@ mod tests {
     /// call is submitted while the pool thread is still on its way back to the
     /// queue. Counting that thread as busy started a second one, by timing
     /// alone, and the thread's own allocations landed in the task's counts
-    /// (`Queue::busy`).
+    /// (`Queue::busy`). On macOS the answer slot's mutex is allocated by its
+    /// first lock, so [`run`] takes that lock on the core before it submits.
     #[test]
     fn calls_one_after_another_use_one_thread_and_allocate_the_same() {
         const BATCH: usize = 500;
