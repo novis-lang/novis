@@ -26300,8 +26300,8 @@ A property may be a number, a `string`, a `bool`, an enum, an inline shape, an `
 is `E0756`. An enum case is written in JSON as its number. A `float` is written with a fraction, so
 `2` in a `float` property encodes as `2.0`.
 
-A `secret` property is not allowed in the document, and is `E0462`. A `lateinit` property is `E0463`.
-Both work with `#[Core\Json\Field(skip: true)]`. A property with no constructor parameter of the same name is
+A `secret` property is decoded like any other property. Encoding its class does not compile, and is
+`E0462`. A `lateinit` property is `E0463`. `#[Core\Json\Field(skip: true)]` leaves either one out. A property with no constructor parameter of the same name is
 `E0460`. A parameter of another type is `E0461`. `#[Core\Json\Field]` has the options `name` and
 `skip` only, and any other option is `E0464`. `skip: false` is the same as no `skip`.
 
@@ -56124,9 +56124,10 @@ headers and body, and the response's status, headers and body. The values of `Au
 `Cookie`, `Set-Cookie` and `Proxy-Authorization` are replaced with `[redacted]`. A body is stored
 as the program read it, up to `[limits] request_body`. A longer body is cut at that size. A body the
 program did not read is not stored. A program can read a body into a class with
-`Core\Request::jsonAs<X>()` or `postAs<X>()`. If `X` has a `secret` property and Novis cannot find
-its values in the body, the body is not stored. That is the case for a multipart form, for example.
-Every other body is stored as it was read, so a password in it is in the index. The files are in a
+`Core\Request::jsonAs<X>()` or `postAs<X>()`. The decoder fills each `secret` property of `X`, and
+the stored body has `[redacted]` in place of that value. If Novis cannot find those values in the
+body, the body is not stored. That is the case for a multipart form, for example. A body the program
+read another way is stored as it was read, so a password in it is in the index. The files are in a
 folder that only your account can open. In production, a record has no headers and no body.
 
 ### Profiling
