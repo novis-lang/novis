@@ -42,7 +42,7 @@
 //!
 //! **What it spends:** per writer with an open file, one write buffer and one descriptor; per writer,
 //! one entry per sealed file it has not evicted. On disk, at most `spool_max` per process. Nothing is
-//! queued and nothing is held per request here.
+//! queued. Per recorded body in flight, a [`Recorder`] holds at most [`BODY_CHUNK`] bytes.
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -75,6 +75,19 @@ pub const SEALED: &str = "spool";
 /// What a recorded credential is replaced with
 /// (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`).
 pub const REDACTED: &str = "[redacted]";
+/// The headers whose values are replaced with [`REDACTED`] before a record is written, in the
+/// lower case a header name is compared in.
+pub const CREDENTIALS: [&str; 4] = [
+    "authorization",
+    "cookie",
+    "set-cookie",
+    "proxy-authorization",
+];
+/// The longest recorded body written inside its `request` line. A longer one is written as `body`
+/// lines.
+pub const BODY_INLINE: usize = 64 << 10;
+/// The most bytes of a body one `body` line carries, and the most a [`Recorder`] holds.
+pub const BODY_CHUNK: usize = 1 << 20;
 /// Room kept for the `dropped` line an eviction writes, so it never needs a second eviction.
 const DROPPED_ROOM: u64 = 256;
 
@@ -120,6 +133,8 @@ pub enum Record {
     Dump(Dump),
     /// A log record the request wrote.
     Log(Log),
+    /// A part of a recorded body too long for its `request` line ([`BODY_INLINE`]).
+    Body(BodyPart),
     /// What this writer's share of the cap deleted since its last `dropped` line.
     Dropped(Dropped),
 }
@@ -145,7 +160,8 @@ impl Record {
                 log.fields = serde_json::Map::new();
                 log.elided = true;
             }
-            Self::Event(_) | Self::Dropped(_) => {}
+            // A `body` line is at most [`BODY_CHUNK`] of bytes, so it is never too long.
+            Self::Event(_) | Self::Body(_) | Self::Dropped(_) => {}
         }
     }
 }
@@ -230,25 +246,24 @@ pub struct Body {
     /// Whether the bytes stop short of the body: at the cap, or by [`Record::elide`].
     #[serde(default)]
     pub cut: bool,
+    /// How many `body` lines carry the bytes, for a body longer than [`BODY_INLINE`]. Such a body
+    /// has no [`Body::text`] and no [`Body::base64`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chunks: Option<u64>,
 }
 
 impl Body {
     /// A body that was read, holding `bytes`.
     #[must_use]
     pub fn of(bytes: &[u8], cut: bool) -> Self {
-        let (text, base64) = match std::str::from_utf8(bytes) {
-            Ok(text) => (Some(text.to_owned()), None),
-            Err(_) => (
-                None,
-                Some(base64::engine::general_purpose::STANDARD.encode(bytes)),
-            ),
-        };
+        let (text, base64) = encoded(bytes);
         Self {
             read: true,
             declared: None,
             text,
             base64,
             cut,
+            chunks: None,
         }
     }
 
@@ -270,6 +285,141 @@ impl Body {
         self.text = None;
         self.base64 = None;
         self.cut |= had;
+    }
+}
+
+/// `bytes` as a line writes them: as text when they are UTF-8, and as base64 when they are not.
+fn encoded(bytes: &[u8]) -> (Option<String>, Option<String>) {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => (Some(text.to_owned()), None),
+        Err(_) => (
+            None,
+            Some(base64::engine::general_purpose::STANDARD.encode(bytes)),
+        ),
+    }
+}
+
+/// Which body a [`BodyPart`] is of.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BodyOf {
+    /// The request's, as the program read it.
+    Request,
+    /// The response's, as the program wrote it.
+    Response,
+}
+
+/// `kind: "body"`: the bytes of a recorded body from [`BodyPart::offset`] on.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BodyPart {
+    /// Which body the bytes are of.
+    pub of: BodyOf,
+    /// Where the bytes start in the body.
+    pub offset: u64,
+    /// The bytes, when they are UTF-8.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// The bytes as standard base64, when they are not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base64: Option<String>,
+}
+
+/// One body as it is recorded: the bytes held up to [`BODY_CHUNK`], each full chunk written as a
+/// `body` line, and the whole cut at `[limits] request_body`
+/// (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`).
+///
+/// **What it spends:** per recorded body in flight, at most [`BODY_CHUNK`] bytes.
+#[derive(Debug)]
+pub struct Recorder {
+    of: BodyOf,
+    store: Store,
+    trace: crate::TraceContext,
+    held: Vec<u8>,
+    /// The bytes already written as `body` lines.
+    written: u64,
+    chunks: u64,
+    read: bool,
+    cut: bool,
+}
+
+impl Recorder {
+    /// A recorder of the `of` body of the request in `trace`, under `store`.
+    #[must_use]
+    pub fn new(of: BodyOf, store: Store, trace: crate::TraceContext) -> Self {
+        Self {
+            of,
+            store,
+            trace,
+            held: Vec::new(),
+            written: 0,
+            chunks: 0,
+            read: false,
+            cut: false,
+        }
+    }
+
+    /// Records `bytes`, the next ones of the body, up to the cap. An empty `bytes` records that
+    /// the body was read.
+    pub fn push(&mut self, bytes: &[u8]) {
+        self.read = true;
+        let taken = self.written + u64::try_from(self.held.len()).unwrap_or(u64::MAX);
+        let room = usize::try_from(self.store.body_max.saturating_sub(taken)).unwrap_or(usize::MAX);
+        if bytes.len() > room {
+            self.cut = true;
+        }
+        let mut rest = &bytes[..bytes.len().min(room)];
+        while !rest.is_empty() {
+            let take = rest.len().min(BODY_CHUNK - self.held.len());
+            self.held.extend_from_slice(&rest[..take]);
+            rest = &rest[take..];
+            if self.held.len() == BODY_CHUNK {
+                self.flush();
+            }
+        }
+    }
+
+    /// The body as its `request` line records it, with `declared` as the length the request
+    /// declared. A body longer than [`BODY_INLINE`] writes its last `body` line here.
+    #[must_use]
+    pub fn finish(mut self, declared: Option<u64>) -> Body {
+        if !self.read {
+            return Body {
+                declared,
+                ..Body::default()
+            };
+        }
+        if self.chunks == 0 && self.held.len() <= BODY_INLINE {
+            return Body {
+                declared,
+                ..Body::of(&self.held, self.cut)
+            };
+        }
+        self.flush();
+        Body {
+            read: true,
+            declared,
+            text: None,
+            base64: None,
+            cut: self.cut,
+            chunks: Some(self.chunks),
+        }
+    }
+
+    fn flush(&mut self) {
+        if self.held.is_empty() {
+            return;
+        }
+        let bytes = std::mem::take(&mut self.held);
+        let (text, base64) = encoded(&bytes);
+        let part = BodyPart {
+            of: self.of,
+            offset: self.written,
+            text,
+            base64,
+        };
+        record_under(self.store, &self.trace, Record::Body(part));
+        self.written += u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+        self.chunks += 1;
     }
 }
 
@@ -702,6 +852,8 @@ pub struct Store {
     /// Whether the request ran in `development`, which is when its input and its response are
     /// recorded (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`).
     pub development: bool,
+    /// `[limits] request_body`, where a recorded body is cut.
+    pub body_max: u64,
 }
 
 impl Store {
@@ -712,11 +864,31 @@ impl Store {
         if !config.debug_store() {
             return None;
         }
+        let body_max = match config.limit("request_body", nvs_config::Unit::Bytes) {
+            nvs_config::Reading::Read(nvs_config::Quantity::Bytes(bytes)) if bytes > 0 => bytes,
+            _ => nvs_config::defaults::LIMITS_REQUEST_BODY,
+        };
         Some(Self {
             spool_max: config.debug_spool_max(),
             development: config.mode() == nvs_config::mode::DEVELOPMENT,
+            body_max,
         })
     }
+}
+
+/// One header as a record writes it: its value replaced with [`REDACTED`] when its name is one of
+/// the [`CREDENTIALS`], and read as UTF-8 with each invalid byte replaced.
+#[must_use]
+pub fn header(name: &str, value: &[u8]) -> (String, String) {
+    let value = if CREDENTIALS
+        .iter()
+        .any(|credential| name.eq_ignore_ascii_case(credential))
+    {
+        REDACTED.to_owned()
+    } else {
+        String::from_utf8_lossy(value).into_owned()
+    };
+    (name.to_owned(), value)
 }
 
 /// Writes `record` for the request `ctx` runs, when `[debug] store` is in force for it. A failure
@@ -832,8 +1004,9 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        Body, Dropped, Dump, Event, EventKind, Exception, Input, Line, Log, Now, Query, Record,
-        Request, Response, SEAL_AFTER, Writer,
+        BODY_CHUNK, BODY_INLINE, Body, BodyOf, BodyPart, Dropped, Dump, Event, EventKind,
+        Exception, Input, Line, Log, Now, Query, Record, Recorder, Request, Response, SEAL_AFTER,
+        Store, Writer,
     };
 
     const TRACE: &str = "4bf92f3577b34da6a3ce929d0e0e4736";
@@ -1161,9 +1334,19 @@ mod tests {
             }),
             response: Some(Response {
                 headers: vec![("Content-Type".to_owned(), "text/plain".to_owned())],
-                body: Body::of(&[0xff, 0x00, 0x01], false),
+                body: Body {
+                    read: true,
+                    chunks: Some(1),
+                    ..Body::default()
+                },
             }),
         }));
+        let body = Record::Body(BodyPart {
+            of: BodyOf::Response,
+            offset: 0,
+            text: None,
+            base64: Some("/wAB".to_owned()),
+        });
         let event = Record::Event(Event {
             event: EventKind::Query,
             label: "sqlite main SELECT * FROM items WHERE id = ?".to_owned(),
@@ -1195,7 +1378,7 @@ mod tests {
             records: 3,
             files: 1,
         });
-        vec![request, event, dump, log, dropped]
+        vec![body, request, event, dump, log, dropped]
     }
 
     /// The sample spool the ingester's tests read is exactly what this writer writes, and every line
@@ -1233,6 +1416,58 @@ mod tests {
             .map(|line| serde_json::from_str::<Line>(line).unwrap().record)
             .collect();
         assert_eq!(read, one_of_each());
+    }
+
+    /// A body up to [`BODY_INLINE`] stays in its `request` line. A longer one is written as `body`
+    /// lines of at most [`BODY_CHUNK`], and the whole stops at the cap and says so.
+    #[test]
+    fn a_long_body_is_written_as_body_lines_and_cut_at_the_cap() {
+        let dir = nvs_repo::scratch("spool-body-lines");
+        super::install(Writer::new(dir.to_path_buf(), "1-2-0".to_owned(), u64::MAX));
+        let store = Store {
+            spool_max: u64::MAX,
+            development: true,
+            body_max: u64::try_from(BODY_CHUNK + 10).unwrap(),
+        };
+        let trace = crate::TraceContext::started();
+
+        let mut short = Recorder::new(BodyOf::Request, store, trace);
+        short.push(&[b'a'; BODY_INLINE]);
+        assert_eq!(
+            short.finish(None),
+            Body::of(&[b'a'; BODY_INLINE], false),
+            "a body of `BODY_INLINE` bytes is written inline"
+        );
+
+        let mut long = Recorder::new(BodyOf::Response, store, trace);
+        long.push(&vec![b'b'; BODY_CHUNK - 5]);
+        long.push(&[b'c'; 20]);
+        let body = long.finish(None);
+        assert_eq!(body.chunks, Some(2));
+        assert!(body.cut, "the body passed the cap");
+        assert_eq!((body.text, body.base64), (None, None));
+        super::seal_now();
+
+        let parts: Vec<BodyPart> = files(&dir)
+            .iter()
+            .flat_map(|path| lines(path))
+            .filter_map(|line| match line.record {
+                Record::Body(part) => Some(part),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            parts.iter().map(|part| part.offset).collect::<Vec<_>>(),
+            [0, u64::try_from(BODY_CHUNK).unwrap()]
+        );
+        let mut joined = String::new();
+        for part in &parts {
+            assert_eq!(part.of, BodyOf::Response);
+            joined.push_str(part.text.as_deref().unwrap());
+        }
+        assert_eq!(joined.len(), BODY_CHUNK + 10, "the bytes stop at the cap");
+        assert!(joined.ends_with(&"c".repeat(15)));
+        drop(super::WRITER.with_borrow_mut(Option::take));
     }
 
     #[test]
