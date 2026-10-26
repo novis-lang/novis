@@ -6,7 +6,7 @@ context: [crates/nvs-config/src/default.toml, crates/nvs-config/src/tree.rs, cra
 stages:
   - id: 1
     title: "`[trace] response_header` turns the `traceresponse` header off"
-    status: open
+    status: done
     context: [crates/nvs-config/src/default.toml, crates/nvs-config/src/tree.rs, crates/nvs-config/src/defaults.rs, crates/nvs-server/src/trace.rs, crates/nvs-server/src/serve.rs, docs/rules/observability/a-trace-id-exists-for-every-request.md, docs/rules/observability/the-traceresponse-header-can-be-turned-off.md]
     extra:
       context:
@@ -181,19 +181,19 @@ new `[debug]` keys and one new `[trace]` key, a command, and no socket anywhere.
 
 **Does:** a `System` key in `[trace]`, read per response, decides whether the door writes the header.
 
-- [ ] The key in the default file beside `propagate`, in `Trace`, in the defaults table, and in the directives test's key list (`rule:observability/the-traceresponse-header-can-be-turned-off`). `crates/nvs-config/src/default.toml:952`, `crates/nvs-config/src/tree.rs:1248`, `crates/nvs-config/src/defaults.rs:241`, `crates/nvs-config/src/defaults.rs:483`, `crates/nvs-config/tests/directives.rs:3567`
-- [ ] `respond` reads the key off the request's snapshot, the way `access_on` reads `[log] access`, and with `false` removes a header the program set and writes none. `crates/nvs-server/src/trace.rs:301`, `crates/nvs-server/src/trace.rs:316`, `crates/nvs-server/src/serve.rs:1675`
-- [ ] Served tests for both values, a door-written answer included, and that the access line and `Core\Server::traceId()` still carry the id with the header off, beside the existing door test. `crates/nvs-server/src/serve.rs:12191`, `crates/nvs-server/src/trace.rs:1008`
-- [ ] `rule:observability/a-trace-id-exists-for-every-request` amended, now that its sentence is true: every response carries the header *by default*, `[trace] response_header = false` removes the header and nothing else, the title says "emitted on the response unless the configuration turns the header off", and `seeAlso` names the new rule. `docs/rules/observability/a-trace-id-exists-for-every-request.md:9`, `data/rules/observability/a-trace-id-exists-for-every-request.json:2`
-- [ ] The example's page says the header can be turned off. `docs/examples/core/Server/traceId/about.md:5`
-- [ ] `rule:observability/the-traceresponse-header-can-be-turned-off` `shipped`, its tests in `guardedBy`. `data/rules/observability/the-traceresponse-header-can-be-turned-off.json:3`
+- [x] The key in the default file beside `propagate`, in `Trace`, in the defaults table, and in the directives test's key list (`rule:observability/the-traceresponse-header-can-be-turned-off`). `crates/nvs-config/src/default.toml:952`, `crates/nvs-config/src/tree.rs:1248`, `crates/nvs-config/src/defaults.rs:241`, `crates/nvs-config/src/defaults.rs:483`, `crates/nvs-config/tests/directives.rs:3567`
+- [x] `respond` reads the key off the request's snapshot, the way `access_on` reads `[log] access`, and with `false` removes a header the program set and writes none. `crates/nvs-server/src/trace.rs:301`, `crates/nvs-server/src/trace.rs:316`, `crates/nvs-server/src/serve.rs:1675`
+- [x] Served tests for both values, a door-written answer included, and that the access line and `Core\Server::traceId()` still carry the id with the header off, beside the existing door test. `crates/nvs-server/src/serve.rs:12191`, `crates/nvs-server/src/trace.rs:1008`
+- [x] `rule:observability/a-trace-id-exists-for-every-request` amended, now that its sentence is true: every response carries the header *by default*, `[trace] response_header = false` removes the header and nothing else, the title says "emitted on the response unless the configuration turns the header off", and `seeAlso` names the new rule. `docs/rules/observability/a-trace-id-exists-for-every-request.md:9`, `data/rules/observability/a-trace-id-exists-for-every-request.json:2`
+- [x] The example's page says the header can be turned off. `docs/examples/core/Server/traceId/about.md:5`
+- [x] `rule:observability/the-traceresponse-header-can-be-turned-off` `shipped`, its tests in `guardedBy`. `data/rules/observability/the-traceresponse-header-can-be-turned-off.json:3`
 
 ### 2. `[debug] store` opens a spool file per writer, sealed and capped
 
 **Does:** with the gate on, each writer appends to its own file in the data folder, seals it by rename,
 and keeps its share of the cap.
 
-- [ ] `store`, `spool_max`, `index_age` and `index_max` in the default file, in `Debug`, in the defaults table and in the directive table: `store` `RuntimeTighten`, the three bounds `System` (`rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`). `crates/nvs-config/src/default.toml:327`, `crates/nvs-config/src/tree.rs:513`, `crates/nvs-config/src/directive.rs:227`, `crates/nvs-config/src/directive.rs:235`, `crates/nvs-config/src/defaults.rs:400`
+- [x] `store`, `spool_max`, `index_age` and `index_max` in the default file, in `Debug`, in the defaults table and in the directive table: `store` `RuntimeTighten`, the three bounds `System` (`rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`). `crates/nvs-config/src/default.toml:327`, `crates/nvs-config/src/tree.rs:513`, `crates/nvs-config/src/directive.rs:227`, `crates/nvs-config/src/directive.rs:235`, `crates/nvs-config/src/defaults.rs:400`
 - [ ] The line format: the field table per kind in the rule, the `Line` type in a new `nvs_runtime::spool`, and the committed sample spool with one line of each kind (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`). `docs/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.md:28`, `crates/nvs-runtime/src/spool.rs:1`, `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool:1`
 - [ ] `debug/` and `debug/spool/` in the data folder, created private and checked for ownership. `crates/nvs-config/src/data.rs:163`, `crates/nvs-config/src/data.rs:446`, `crates/nvs-config/src/data.rs:506`
 - [ ] A writer per thread in `nvs_runtime::spool`, shaped like the log file target: an open file only once it has a record, sealed by rename at 4 MiB or 250 ms, each line under 4 MiB, its share of `spool_max` kept by deleting its own oldest file and writing a `dropped` line. `crates/nvs-runtime/src/spool.rs:1`, `crates/nvs-runtime/src/logfile.rs:1`
@@ -284,25 +284,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. `[trace]` has no `response_header` key and `[debug]` no `store` key;
-`nvs_runtime::spool` and `crates/nvs-cli/src/debug.rs` do not exist. `crates/nvs-cli/src/main.rs` moves
-under other sessions, so find its anchors by name (`Lsp(lsp::Args)`, `Command::Lsp`). Stage 1's
-amendment of `rule:observability/a-trace-id-exists-for-every-request` lands with its code, because the
-rule is `shipped`.
+Stage 1 is done. `[trace] response_header` is parsed, `true` by default, and read per response by
+`nvs_server::trace::response_header_on` off `nvs_config::Snapshot::trace_response_header`, which the
+resolved limits fill once per snapshot (`crates/nvs-config/src/limits.rs`). Its tests are
+`trace::tests::traceresponse_is_on_by_default_and_false_removes_it_and_nothing_else` and
+`serve::tests::traceresponse_follows_the_response_header_key_on_a_door_written_answer`, both green
+(`cargo test --lib traceresponse`). Both rules are amended and rendered.
+
+Stage 2's first item is done. `[debug] store`, `spool_max`, `index_age` and `index_max` are parsed,
+with defaults rows, directive rows (`store` `RuntimeTighten`, the rest `System`, all `Reload`) and
+rows in `live_config.rs`'s `REQUEST_READ`. **Nothing acts on them yet.** The default file carries no
+`NOT IMPLEMENTED` note over them, because the project's checks count a defaults row as a reader and
+refuse the note (`no_key_with_a_reader_still_claims_to_be_unread`). The rule's *Not on disk*
+paragraph says nothing reads `store` yet; it goes when the writer lands. `nvs_runtime::spool` and
+`crates/nvs-cli/src/debug.rs` do not exist. `crates/nvs-cli/src/main.rs` moves under other
+sessions, so find its anchors by name (`Lsp(lsp::Args)`, `Command::Lsp`).
+
+The nightly CI reds of run 40174915924 (`9be30356e`) are fixed by later commits: `0b7eadd2c`,
+`901f4855c`, `c7e5bd3c3`, `bd2e51f0a`, `d5aa2be18`. `env-secret-proofs`'s log on disk is green.
+
+Tests expected to go red: none known. `every_request_read_directive_takes_the_reloaded_value_in_the_next_request`
+now boots with `debug.store = true` on its reload leg, so once the writer reads `store` it writes a
+spool under that test's data folder; check the test still passes then.
 
 ### Next
 
-**Stage 1, then stage 2's first item, one group** on `crates/nvs-config/src/default.toml`,
-`crates/nvs-config/src/tree.rs`, `crates/nvs-config/src/defaults.rs` and `crates/nvs-server/src/trace.rs`.
-No gate.
+**Stage 2's remaining items, one group** in a new `crates/nvs-runtime/src/spool.rs`, the rule
+`docs/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.md` and
+`crates/nvs-config/src/data.rs`. No gate.
 
-- [ ] `[trace] response_header` in the default file, `Trace`, the defaults table and the directives test (`rule:observability/the-traceresponse-header-can-be-turned-off`). `crates/nvs-config/src/default.toml:952`, `crates/nvs-config/src/tree.rs:1248`, `crates/nvs-config/src/defaults.rs:483`, `crates/nvs-config/tests/directives.rs:3567`
-- [ ] `respond` reads it per response off the snapshot. `crates/nvs-server/src/trace.rs:301`, `crates/nvs-server/src/serve.rs:1675`
-- [ ] Served tests for both values, the door's answer included (`cargo test --lib traceresponse`). `crates/nvs-server/src/serve.rs:12191`
-- [ ] `rule:observability/a-trace-id-exists-for-every-request` amended, `seeAlso` the new rule. `docs/rules/observability/a-trace-id-exists-for-every-request.md:9`
-- [ ] The example's page says the header can be turned off. `docs/examples/core/Server/traceId/about.md:5`
-- [ ] `rule:observability/the-traceresponse-header-can-be-turned-off` `shipped`. `data/rules/observability/the-traceresponse-header-can-be-turned-off.json:3`
-- [ ] Stage 2: the four `[debug]` keys in the default file, `Debug`, the defaults and directive tables (`rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`). `crates/nvs-config/src/default.toml:327`, `crates/nvs-config/src/tree.rs:513`, `crates/nvs-config/src/directive.rs:227`, `crates/nvs-config/src/defaults.rs:400`
+- [ ] The field table per kind in the rule § *What a line is*, the serde `Line` type in `nvs_runtime::spool`, and the committed sample spool with one line of each kind. `docs/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.md:28`, `crates/nvs-runtime/src/spool.rs:1`, `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool:1`
+- [ ] `debug/` and `debug/spool/` in the data folder, created private and checked for ownership. `crates/nvs-config/src/data.rs:163`, `crates/nvs-config/src/data.rs:446`, `crates/nvs-config/src/data.rs:506`
+- [ ] The writer per thread, shaped like the log file target: sealed at 4 MiB or 250 ms, lines under 4 MiB, its share of `spool_max` kept by evicting its own oldest file and a `dropped` line. It reads `debug.store` and `debug.spool_max`; once it does, drop the *Not on disk* sentence about `store`. `crates/nvs-runtime/src/spool.rs:1`, `crates/nvs-runtime/src/logfile.rs:1`, `docs/rules/testing/writing-a-debug-record-to-disk-is-its-own-gate.md:27`
+- [ ] With the gate on, a request records its span events whatever the sampling decision. `crates/nvs-runtime/src/ctx/trace.rs:240`
+- [ ] The spool module's tests (stage 2's last item), run by name with `cargo test --lib spool`. `crates/nvs-runtime/src/spool.rs:1`
 
 ### Backlog
 
