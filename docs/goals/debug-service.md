@@ -197,6 +197,19 @@ request, gated on the host snapshot, because an `[[app]]` block cannot change `[
 Trade-offs: one configuration read per request with the store off; a test made from a file
 response asserts its status and headers alone.
 
+**A recorded request body is held until the request ends, and a body whose `secret` fields cannot be
+found is withheld.** This session's call. `jsonAs` and `postAs` find a `secret` field only once the
+program has read the whole body, so a request body's `body` lines are written at the end, after
+`spool::Recorder::redact` replaced each range the decoder's walk (`json::secret_spans`,
+`json::secret_form_spans`) found. The rule already said the request body is held to the end; the
+1 MiB hold now applies to a response body alone. Where the walk cannot find the fields (not UTF-8,
+not one JSON document, deeper than 128 levels, a multipart form, a class that writes its own decoder)
+and the class reaches a `secret` property, the body is recorded with `withheld: true` and no bytes.
+The walk runs before a failed read throws. The replaced bytes keep the rest of the body exactly as
+sent, so a replay sends the same JSON. Trade-offs: per recorded request in `development`, up to
+`[limits] request_body` held; with no recording, one question of the body per call; with it, one more
+read of the document per level the walk descends.
+
 **Narrow test commands.** The served tests in `crates/nvs-server/src/serve.rs` are looked into with
 `cargo test --lib traceresponse` or `cargo test --lib spool`, never the whole server suite; the
 ingester's with `cargo test --test debug_ingest`; stage 6's end-to-end test with `cargo test --test
@@ -263,7 +276,7 @@ property's value never reaches the disk.
 **Split:** after the session lands the `secret` replacement, a writing subagent writes its tests and the
 `event`, `dump` and `log` line tests as one batch.
 
-- [ ] A body decoded by `jsonAs<X>()` or `postAs<X>()` is stored with each field that lands in a `secret` property of `X` replaced by `[redacted]` (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). `crates/nvs-stdlib/src/request.rs:3180`, `crates/nvs-stdlib/src/request.rs:2671`
+- [x] A body decoded by `jsonAs<X>()` or `postAs<X>()` is stored with each field that lands in a `secret` property of `X` replaced by `[redacted]` (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). `crates/nvs-stdlib/src/request.rs:3180`, `crates/nvs-stdlib/src/request.rs:2671`
 - [ ] `event` lines for the span events, a `query` event with its driver, SQL, rows and its call site id when it has one, and never a parameter (`rule:observability/a-query-is-a-trace-event`). `crates/nvs-db/src/span.rs:87`, `crates/nvs-db/src/span.rs:118`
 - [ ] `dump` lines with the bounded tree (`rule:errors/record-transformations`) and `log` lines for the request's log records, a `secret` redacted in both. `crates/nvs-stdlib/src/debug.rs:213`, `crates/nvs-runtime/src/ctx/output.rs:371`
 - [ ] Tests: a `secret` field decoded by `jsonAs<X>()` leaves no byte of its value in the file, a production request records its events and dumps, a query line holds no parameter, and a dump of a `secret` holds no byte of it. `crates/nvs-stdlib/src/request.rs:3180`, `crates/nvs-db/src/pg.rs:6627`
@@ -326,39 +339,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. Every answer the door counts writes a `request` line
-(`crates/nvs-server/src/spooled.rs`, `counted` at `crates/nvs-server/src/serve.rs:1741`, a streamed
-one's `Pending` written in `joined_when_ended`).
+Stages 1, 2 and 3 are done, and stage 7's first item. Every answer the door counts writes a
+`request` line (`crates/nvs-server/src/spooled.rs`, `counted` at `crates/nvs-server/src/serve.rs:1741`,
+a streamed one's `Pending` written in `joined_when_ended`).
 
-**In `development` the line records the input and the response.** `spool::Recorder`
-(`crates/nvs-runtime/src/spool.rs:333`) holds up to 1 MiB, writes each full MiB as a `body` line,
-cuts at `Store::body_max` and keeps a body of at most 64 KiB inline; `spool::header` (line 882)
-replaces the four credentials. The door copies the head (`spooled::head`) at
-`crates/nvs-server/src/serve.rs:1817`, gated on the host snapshot, which an `[[app]]` block cannot
-change. The run loop records the pulled body through `Supply::record`, and `spooled::read_into`
-finishes it. `spooled::response` records a whole body's bytes, and a file is `read: false`. A
-streamed body is recorded by a `spooled::Tail` (`crates/nvs-server/src/spooled.rs:283`) on
-`Answer::Streaming`, pushed each chunk `hyper` takes. The `Pending` line and the tail share one cell,
-and whichever of the join and the body's end (`Drained::Ended`, or the tail's drop) comes second
-writes the line. A run's body is recorded only where its carrier has a trace, which the binary's
-handler always sets.
+**A `secret` value of a body read by `jsonAs` or `postAs` is replaced.** `redact_recorded`
+(`crates/nvs-stdlib/src/request.rs:3293`) asks the body `RequestBody::records`, and only then runs
+`json::secret_spans` (`crates/nvs-stdlib/src/json.rs:3365`) or `json::secret_form_spans` over the
+held octets. The ranges reach `spool::Recorder::redact` through `RequestBody::redact_recorded`
+(`crates/nvs-server/src/body.rs:317`), and `Recorder::finish` replaces them. Pinned by
+`secret_spans_names_each_value_a_secret_property_takes`,
+`secret_form_spans_names_each_value_a_secret_property_takes` and
+`a_request_recorder_replaces_each_redacted_range_or_withholds_the_bytes`, each passing once by name.
 
-Seven served tests pass with `cargo test --lib spool` (`spooled_for`, `serve.rs:13193`). The sweep's
-reds are stale: `env-secret-proofs` exits 0, and every fix of run 40174915924's reds (`0b7eadd2c`,
-`901f4855c`, `c7e5bd3c3`, `bd2e51f0a`, `d5aa2be18`) is later than its head `9be30356e`.
+The input and response recording is `crates/nvs-server/src/spooled.rs`'s module doc; seven served
+tests pass with `cargo test --lib spool` (`spooled_for`, `serve.rs:13193`). The sweep's reds were
+stale: `env-secret-proofs` exits 0, and run 40174915924's head `9be30356e` predates its fixes.
 
 Tests expected to go red: none known.
 
 ### Next
 
-**Stage 7: the `secret` replacement first, then the `event`, `dump` and `log` writers**, in
-`crates/nvs-stdlib/src/request.rs`, `crates/nvs-db/src/span.rs`, `crates/nvs-stdlib/src/debug.rs` and
-`crates/nvs-runtime/src/ctx/output.rs`. No gate; each new test runs once by name.
+**Stage 7: the `event`, `dump` and `log` writers, then the test batch**, in
+`crates/nvs-runtime/src/ctx/trace.rs`, `crates/nvs-db/src/span.rs`, `crates/nvs-stdlib/src/debug.rs`
+and `crates/nvs-runtime/src/ctx/output.rs`. No gate; each new test runs once by name.
 
-- [ ] The `secret` replacement: where `jsonAs<X>()` and `postAs<X>()` hydrate, the decoder names each field that lands in a `secret` property, and the recorded request body is rewritten with `[redacted]` there before the `request` line is written. The recorded body lives on the `Supply` (`Supply::record`, `crates/nvs-server/src/body.rs`), so the field paths reach it through the carrier. `crates/nvs-stdlib/src/request.rs:2671`
-- [ ] The `event` lines from the span events, a `query` with no parameter. `crates/nvs-db/src/span.rs:87`
-- [ ] The `dump` and `log` lines, a `secret` redacted in both. `crates/nvs-stdlib/src/debug.rs:213`, `crates/nvs-runtime/src/ctx/output.rs:371`
-- [ ] Then the stage's split: a writing subagent writes the batch of tests the stage names. `crates/nvs-stdlib/src/request.rs:3180`
+- [x] The `secret` replacement. `crates/nvs-stdlib/src/request.rs:3293`
+- [ ] The `event` lines from the span events, a `query` with its driver, SQL and rows and no parameter. A query reaches a trace as `QuerySpan`'s rendering through `Ctx::record_query`, so the spool's `Query` fields need the span's own fields there, not the string. `crates/nvs-runtime/src/ctx/trace.rs:504`, `crates/nvs-db/src/span.rs:87`
+- [ ] The `dump` and `log` lines, a `secret` redacted in both. `crates/nvs-stdlib/src/debug.rs:397`, `crates/nvs-runtime/src/ctx/output.rs:434`
+- [ ] Then the stage's split: a writing subagent writes the batch of tests the stage names, with a served `jsonAs` and `postAs` of a class with a `secret` property among them (no byte of the value in the spool files). `crates/nvs-stdlib/src/request.rs:3157`
 
 ### Backlog
 
