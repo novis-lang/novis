@@ -1,0 +1,37 @@
+--TEST--
+a method that is also taken as a callable value may be reached by a call the graph does not follow, so its counts read at least, `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`
+--FILE--
+<?nvs
+use Core\Http\Method;
+
+class Prices {
+    public function base(): int {
+        return 3;
+    }
+    public function plain(): int {
+        return 5;
+    }
+}
+
+class Shop {
+    #[Core\Route(path: '/cart', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function cart(): void {
+        var $p = new Prices();
+        echo $p->base();
+        echo $p->plain();
+    }
+}
+
+var $f = new Prices()->base(...);
+--REQUEST--
+codeLens
+--EXPECT--
+4:7 2 references -> case.nvs:17:22, case.nvs:23:14
+5:21 2 references -> case.nvs:18:18, case.nvs:23:24
+5:21 used by at least 1 route, at least 0 tests (static)
+8:21 1 reference -> case.nvs:19:18
+8:21 used by 1 route, 0 tests (static)
+13:7 no references
+16:21 no references
+16:21 used by 1 route, 0 tests (static)

@@ -1,0 +1,45 @@
+--TEST--
+a method at the end of a chain of calls from a route handler counts that route, as does each method on the chain, `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`
+--FILE--
+<?nvs
+use Core\Http\Method;
+
+class Prices {
+    public function total(): int {
+        return $this->taxed();
+    }
+    public function taxed(): int {
+        return $this->base() + 1;
+    }
+    public function base(): int {
+        return 3;
+    }
+}
+
+class Shop {
+    #[Core\Route(path: '/cart', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function cart(): void {
+        echo new Prices()->total();
+    }
+    #[Core\Route(path: '/price', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function price(): void {
+        echo new Prices()->base();
+    }
+}
+--REQUEST--
+codeLens
+--EXPECT--
+4:7 2 references -> case.nvs:20:18, case.nvs:25:18
+5:21 1 reference -> case.nvs:20:28
+5:21 used by 1 route, 0 tests (static)
+8:21 1 reference -> case.nvs:6:23
+8:21 used by 1 route, 0 tests (static)
+11:21 2 references -> case.nvs:9:23, case.nvs:25:28
+11:21 used by 2 routes, 0 tests (static)
+16:7 no references
+19:21 no references
+19:21 used by 1 route, 0 tests (static)
+24:21 no references
+24:21 used by 1 route, 0 tests (static)

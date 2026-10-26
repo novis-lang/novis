@@ -1,0 +1,33 @@
+--TEST--
+two methods that call each other end the walk, and each counts the one route that reaches them once, `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`
+--FILE--
+<?nvs
+use Core\Http\Method;
+
+class Counter {
+    public function even(int $n): bool {
+        return $n == 0 ? true : $this->odd($n - 1);
+    }
+    public function odd(int $n): bool {
+        return $n == 0 ? false : $this->even($n - 1);
+    }
+}
+
+class Shop {
+    #[Core\Route(path: '/even', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function check(): void {
+        echo new Counter()->even(4);
+    }
+}
+--REQUEST--
+codeLens
+--EXPECT--
+4:7 1 reference -> case.nvs:17:18
+5:21 2 references -> case.nvs:9:41, case.nvs:17:29
+5:21 used by 1 route, 0 tests (static)
+8:21 1 reference -> case.nvs:6:40
+8:21 used by 1 route, 0 tests (static)
+13:7 no references
+16:21 no references
+16:21 used by 1 route, 0 tests (static)

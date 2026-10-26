@@ -1,0 +1,46 @@
+--TEST--
+a coverage report gives the exact tests whose lines ran inside a method, a method no test ran counts 0 tests, and a test the code does not declare is not counted, `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`
+--FILE--
+<?nvs
+use Core\Http\Method;
+use Core\Test;
+
+class Prices {
+    public function total(): int {
+        return $this->base();
+    }
+    public function base(): int {
+        return 3;
+    }
+}
+
+class Shop {
+    #[Core\Route(path: '/price', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function price(): void {
+        echo new Prices()->base();
+    }
+}
+
+class PricesTest {
+    #[Test]
+    public function totalIsThree(): void {
+        Test::assertEquals(3, new Prices()->total());
+    }
+}
+--FILE coverage/run.json--
+{"schemaVersion": 3, "tests": [{"class": "PricesTest", "method": "totalIsThree", "coverage": {"case.nvs": [7, 26]}}, {"class": "Gone", "method": "old", "coverage": {"case.nvs": [10, 18]}}]}
+--REQUEST--
+codeLens
+--EXPECT--
+5:7 2 references -> case.nvs:18:18, case.nvs:25:35
+6:21 1 reference -> case.nvs:25:45
+6:21 used by 0 routes, 1 test -> runs PricesTest::totalIsThree
+9:21 2 references -> case.nvs:7:23, case.nvs:18:28
+9:21 used by 1 route, 0 tests
+14:7 no references
+17:21 no references
+17:21 used by 1 route, 0 tests
+22:7 no references
+24:21 no references
+24:21 used by 0 routes, 1 test -> runs PricesTest::totalIsThree

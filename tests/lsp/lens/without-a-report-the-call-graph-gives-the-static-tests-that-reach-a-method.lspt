@@ -1,0 +1,53 @@
+--TEST--
+without a coverage report the tests come from the call graph and read static, and a test that requests a route reaches that route's handler, `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`
+--FILE--
+<?nvs
+use Core\Http\Method;
+use Core\Test;
+
+class Prices {
+    public function base(): int {
+        return 3;
+    }
+}
+
+class Shop {
+    #[Core\Route(path: '/cart', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function cart(): void {
+        echo new Prices()->base();
+    }
+}
+
+class ShopTest {
+    #[Test]
+    public function cartLoads(): void {
+        var $page = Test::request(Method::Get, '/cart');
+        Test::assertEquals(200, $page->status());
+    }
+    #[Test]
+    public function baseIsThree(): void {
+        Test::assertEquals(3, new Prices()->base());
+    }
+    #[Test]
+    public function missingPage(): void {
+        var $page = Test::request(Method::Get, '/nowhere');
+        Test::assertEquals(404, $page->status());
+    }
+}
+--REQUEST--
+codeLens
+--EXPECT--
+5:7 2 references -> case.nvs:15:18, case.nvs:27:35
+6:21 2 references -> case.nvs:15:28, case.nvs:27:45
+6:21 used by 1 route, 2 tests (static) -> runs ShopTest::baseIsThree, ShopTest::cartLoads
+11:7 no references
+14:21 no references
+14:21 used by 1 route, 1 test (static) -> runs ShopTest::cartLoads
+19:7 no references
+21:21 no references
+21:21 used by 0 routes, 1 test (static) -> runs ShopTest::cartLoads
+26:21 no references
+26:21 used by 0 routes, 1 test (static) -> runs ShopTest::baseIsThree
+30:21 no references
+30:21 used by 0 routes, 1 test (static) -> runs ShopTest::missingPage

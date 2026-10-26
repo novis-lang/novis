@@ -1,0 +1,32 @@
+--TEST--
+a method a route handler calls directly counts that route, and the handler counts itself, `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`
+--FILE--
+<?nvs
+use Core\Http\Method;
+
+class Prices {
+    public function base(): int {
+        return 3;
+    }
+    public function unused(): int {
+        return 4;
+    }
+}
+
+class Shop {
+    #[Core\Route(path: '/cart', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function cart(): void {
+        echo new Prices()->base();
+    }
+}
+--REQUEST--
+codeLens
+--EXPECT--
+4:7 1 reference -> case.nvs:17:18
+5:21 1 reference -> case.nvs:17:28
+5:21 used by 1 route, 0 tests (static)
+8:21 no references
+13:7 no references
+16:21 no references
+16:21 used by 1 route, 0 tests (static)
