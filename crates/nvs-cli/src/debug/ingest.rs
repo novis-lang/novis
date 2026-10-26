@@ -3,7 +3,7 @@
 //!
 //! # Read, insert, commit, then delete
 //!
-//! [`file`] reads one spool file whole, inserts each line in one transaction that also raises the
+//! [`file()`] reads one spool file whole, inserts each line in one transaction that also raises the
 //! watermark in `meta`, commits, and only then deletes the file. A crash between the commit and the
 //! delete leaves the file to be read again, and every row a line makes is inserted under the
 //! line's dedupe key, `(writer, seq)`, ignoring a conflict, so the second read adds nothing. A
@@ -62,7 +62,7 @@ pub(crate) const BACKOFF_FIRST: Duration = Duration::from_secs(1);
 /// The longest wait after a failure.
 pub(crate) const BACKOFF_MAX: Duration = Duration::from_secs(300);
 
-/// What one [`file`] call read.
+/// What one [`file()`] call read.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Read {
     /// The lines that were records.
@@ -392,7 +392,7 @@ pub(crate) fn release(index: &Index, path: &Path) -> rusqlite::Result<()> {
         .map(drop)
 }
 
-/// Why a [`file`] call stopped.
+/// Why a [`file()`] call stopped.
 #[derive(Debug)]
 pub(crate) enum Failed {
     /// The file could not be read.
