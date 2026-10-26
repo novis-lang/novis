@@ -1,7 +1,7 @@
 // The JSON API `nvs debug` serves under `/api/`. The Rust side owns these shapes
 // (`crates/nvs-cli/src/debug/api.rs`): `crates/nvs-cli/tests/debug_api.rs` writes
-// `test/fixtures/requests.json` from a real index, and `test/api.test.ts` makes `tsc` check that
-// fixture against the types here.
+// `test/fixtures/requests.json` and `test/fixtures/request.json` from a real index, and
+// `test/api.test.ts` makes `tsc` check those fixtures against the types here.
 
 /** The exception a request did not catch: its class and the site of its `throw`. */
 export interface Threw {
@@ -52,6 +52,68 @@ export interface RequestFilter {
   limit?: number;
 }
 
+/** Any JSON value. A dump's tree and a log line's fields are in the JSON rendering of a value. */
+export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+
+/** An uncaught exception: its class, its message and the site of its `throw`. */
+export interface Exception extends Threw {
+  message: string;
+}
+
+/** A `query` event's driver, SQL, rows and call site. */
+export interface EventQuery {
+  driver: string;
+  sql: string;
+  rows: number | null;
+  site: number | null;
+}
+
+/** One trace event of a request. Its times are Unix microseconds. */
+export interface TraceEvent {
+  id: number;
+  kind: "call" | "query" | "spawn" | "gc" | "http";
+  label: string;
+  start_us: number;
+  end_us: number;
+  /** A call's checked-return status. */
+  status: number | null;
+  query: EventQuery | null;
+}
+
+/** One `Core\Debug::dump`: its site and its value tree. */
+export interface Dump {
+  id: number;
+  at_us: number;
+  file: string;
+  line: number;
+  /** `null` when `elided` is set: the tree was too long to record. */
+  tree: Json;
+  elided: boolean;
+}
+
+/** One log line a request wrote. */
+export interface LogLine {
+  id: number;
+  at_us: number;
+  level: string;
+  message: string;
+  fields: Json;
+  elided: boolean;
+  lossy: boolean;
+}
+
+/** `GET /api/request`: one request and everything it recorded, each list in time order. */
+export interface RequestDetail {
+  watermark: number;
+  request: RequestRow;
+  exception: Exception | null;
+  events: TraceEvent[];
+  dumps: Dump[];
+  logs: LogLine[];
+  /** Which lists stopped at the most rows the service sends. */
+  cut: { events: boolean; dumps: boolean; logs: boolean };
+}
+
 /** An answer that is not `200`, with the message the service sent. */
 export class ApiError extends Error {
   constructor(
@@ -72,15 +134,25 @@ export function requestQuery(filter: RequestFilter): string {
 }
 
 /** One page of the request list. */
-export async function requests(filter: RequestFilter = {}, signal?: AbortSignal): Promise<RequestPage> {
+export function requests(filter: RequestFilter = {}, signal?: AbortSignal): Promise<RequestPage> {
   const query = requestQuery(filter);
-  const res = await fetch(`/api/requests${query ? `?${query}` : ""}`, signal ? { signal } : {});
+  return get<RequestPage>(`/api/requests${query ? `?${query}` : ""}`, signal);
+}
+
+/** One request and its records. Without `span`, the trace id must name one request. */
+export function request(key: TraceKey, signal?: AbortSignal): Promise<RequestDetail> {
+  return get<RequestDetail>(`/api/request?${requestQuery(key)}`, signal);
+}
+
+/** `GET path` as JSON, or an `ApiError` with the service's message. */
+async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(path, signal ? { signal } : {});
   const body: unknown = await res.json();
   if (!res.ok) {
     const message = typeof body === "object" && body && "error" in body ? String(body.error) : res.statusText;
     throw new ApiError(res.status, message);
   }
-  return body as RequestPage;
+  return body as T;
 }
 
 /** Calls `onBatch` with each watermark `/api/events` pushes, until `signal` aborts. */

@@ -1,14 +1,15 @@
-//! `nvs debug`'s request list over a real index
+//! `nvs debug`'s request list and request page over a real index
 //! (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`).
 //!
 //! The case starts one service on a data folder of its own and a port the OS picks, renames one
 //! spool file of several requests into its spool, and waits on `/api/events` for the batch that
-//! read it. It then reads `/api/requests` the ways the viewer does.
+//! read it. It then reads `/api/requests` and `/api/request` the ways the viewer does.
 //!
-//! **The viewer's fixture comes from here.** The newest page is written to
-//! `viewer/test/fixtures/requests.json`, which `tsc` checks against `viewer/src/api.ts` and the
-//! browser tests serve. When the committed file differs, the case writes the new one and fails, so
-//! a change to the API's shape reaches the viewer's types in the same commit.
+//! **The viewer's fixtures come from here.** The newest page is written to
+//! `viewer/test/fixtures/requests.json` and the request that threw to `request.json`, which `tsc`
+//! checks against `viewer/src/api.ts` and the browser tests serve. When a committed file differs,
+//! the case writes the new one and fails, so a change to the API's shape reaches the viewer's types
+//! in the same commit.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -232,23 +233,26 @@ fn spool() -> String {
     {
         let start_us = base + 1_000_000 * n as u64;
         if *status == 500 {
+            let event = |kind: &str, label: &str, from: u64, to: u64| {
+                json!({
+                    "kind": "event", "event": kind, "label": label,
+                    "start_us": start_us + from, "end_us": start_us + to
+                })
+            };
+            line(trace, start_us + 14_000, event("call", "Shop\\Orders::place", 50, 14_000));
             line(
                 trace,
-                start_us + 100,
+                start_us + 900,
                 json!({
                     "kind": "event", "event": "query", "label": "sqlite main SELECT * FROM items WHERE id = ?",
                     "start_us": start_us + 100, "end_us": start_us + 900,
-                    "query": { "driver": "sqlite", "sql": "SELECT * FROM items WHERE id = ?", "rows": 1 }
+                    "query": { "driver": "sqlite", "sql": "SELECT * FROM items WHERE id = ?", "rows": 1, "site": 12 }
                 }),
             );
-            line(
-                trace,
-                start_us + 1_000,
-                json!({
-                    "kind": "dump", "file": "src/Shop/Orders.nvs", "line": 40,
-                    "tree": { "class": "Shop\\Item", "fields": { "id": 7, "stock": 0 } }, "elided": false
-                }),
-            );
+            line(trace, start_us + 1_000, dump(40, &json!({
+                "$class": "Shop\\Item", "$id": 1,
+                "$properties": { "id": 7, "stock": 0, "name": "Lamp" }
+            })));
             line(
                 trace,
                 start_us + 1_200,
@@ -257,6 +261,38 @@ fn spool() -> String {
                     "fields": { "item": 7 }, "elided": false
                 }),
             );
+            line(trace, start_us + 3_000, event("gc", "cycle collection", 2_400, 3_000));
+            line(trace, start_us + 9_000, event("spawn", "Shop\\Mail::notify", 4_000, 9_000));
+            // A repeat names the node it repeats by its `$id`, and a cut list says how much is gone.
+            line(trace, start_us + 13_000, dump(41, &json!({
+                "$class": "Shop\\Order", "$id": 2,
+                "$properties": {
+                    "id": 31,
+                    "card": { "$redacted": true },
+                    "lines": [
+                        { "$class": "Shop\\Line", "$id": 3, "$properties": {
+                            "order": { "$cycle": 2 }, "quantity": 2
+                        } },
+                        { "$elided": { "cut": "entries", "total": 40, "entries": 39 } }
+                    ],
+                    "note": { "$elided": { "cut": "text", "kept": "Leave at the", "bytes": 120 } },
+                    "deep": { "$elided": { "cut": "depth" } }
+                }
+            })));
+        }
+        // Two requests share a trace id, and each has one record of its own.
+        if *span == "53995c3f42cd8ad8" {
+            line(
+                trace,
+                start_us + 60,
+                json!({
+                    "kind": "log", "level": "info", "message": "no route matched",
+                    "fields": {}, "elided": false
+                }),
+            );
+        }
+        if *span == "a3ce929d0e0e4736" {
+            line(trace, start_us + 2_000, dump(17, &json!(7)));
         }
         let mut request = json!({
             "kind": "request", "span": span, "start_us": start_us, "duration_us": duration_us,
@@ -274,6 +310,25 @@ fn spool() -> String {
         line(trace, start_us + duration_us, request);
     }
     lines.join("\n") + "\n"
+}
+
+/// A `dump` line from `src/Shop/Orders.nvs` at `line`.
+fn dump(line: u32, tree: &Value) -> Value {
+    json!({ "kind": "dump", "file": "src/Shop/Orders.nvs", "line": line, "tree": tree, "elided": false })
+}
+
+/// Writes `value` to `viewer/test/fixtures/<name>` when the committed file differs, and gives the
+/// path it wrote.
+fn fixture(name: &str, value: &Value) -> Option<String> {
+    let fixture = nvs_repo::path(&format!("viewer/test/fixtures/{name}"));
+    let written = serde_json::to_string_pretty(value).expect("JSON") + "\n";
+    let committed = std::fs::read_to_string(&fixture).unwrap_or_default();
+    if committed.replace("\r\n", "\n") == written {
+        return None;
+    }
+    std::fs::create_dir_all(fixture.parent().expect("a folder")).expect("the folder is made");
+    std::fs::write(&fixture, &written).expect("the fixture is writable");
+    Some(fixture.display().to_string())
 }
 
 #[test]
@@ -310,7 +365,7 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
     assert_eq!(threw["exception"]["line"], 42);
     assert_eq!(
         (&threw["queries"], &threw["dumps"], &threw["logs"]),
-        (&json!(1), &json!(1), &json!(1))
+        (&json!(1), &json!(2), &json!(1))
     );
     assert_eq!(rows[0]["exception"], Value::Null);
 
@@ -340,15 +395,56 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
     assert_eq!(status, 400, "{body}");
     assert!(body.contains("`order`"), "{body}");
 
-    let fixture = nvs_repo::path("viewer/test/fixtures/requests.json");
-    let written = serde_json::to_string_pretty(&newest).expect("JSON") + "\n";
-    let committed = std::fs::read_to_string(&fixture).unwrap_or_default();
-    if committed.replace("\r\n", "\n") != written {
-        std::fs::create_dir_all(fixture.parent().expect("a folder")).expect("the folder is made");
-        std::fs::write(&fixture, &written).expect("the fixture is writable");
-        panic!(
-            "{} differed from the API's newest page and is written again: commit it",
-            fixture.display()
-        );
-    }
+    let thrown = format!(
+        "/api/request?trace={}&span={}",
+        threw["trace"].as_str().expect("a trace id"),
+        threw["span"].as_str().expect("a span id")
+    );
+    let detail = service.json(&thrown);
+    assert_eq!(detail["request"], *threw);
+    assert_eq!(detail["exception"]["message"], "item 7 is out of stock");
+    let kinds: Vec<&str> = detail["events"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|event| event["kind"].as_str().expect("a kind"))
+        .collect();
+    assert_eq!(kinds, ["call", "query", "gc", "spawn"], "in order of start");
+    assert_eq!(detail["events"][1]["query"]["site"], 12);
+    assert_eq!(detail["dumps"].as_array().map(Vec::len), Some(2));
+    assert_eq!(
+        detail["dumps"][1]["tree"]["$properties"]["card"],
+        json!({ "$redacted": true })
+    );
+    assert_eq!(detail["logs"][0]["message"], "stock is empty");
+    assert_eq!(
+        detail["cut"],
+        json!({ "events": false, "dumps": false, "logs": false })
+    );
+
+    // Each request of a shared trace id shows its own records alone.
+    let missing = service.json(&format!(
+        "/api/request?trace={SHARED}&span=53995c3f42cd8ad8"
+    ));
+    assert_eq!(missing["logs"][0]["message"], "no route matched");
+    assert_eq!(missing["dumps"], json!([]));
+    let put = service.json(&format!(
+        "/api/request?trace={SHARED}&span=a3ce929d0e0e4736"
+    ));
+    assert_eq!(put["dumps"][0]["tree"], 7);
+    assert_eq!(put["logs"], json!([]));
+    let (status, body) = service.get(&format!("/api/request?trace={SHARED}"));
+    assert_eq!(status, 400, "{body}");
+    assert!(body.contains("`span`"), "{body}");
+    let (status, body) = service.get("/api/request?trace=1fffffffffffffffffffffffffffffff");
+    assert_eq!(status, 404, "{body}");
+
+    let written: Vec<String> = [("requests.json", &newest), ("request.json", &detail)]
+        .into_iter()
+        .filter_map(|(name, value)| fixture(name, value))
+        .collect();
+    assert!(
+        written.is_empty(),
+        "{written:?} differed from the API's answers and are written again: commit them"
+    );
 }

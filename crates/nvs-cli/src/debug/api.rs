@@ -13,22 +13,41 @@
 //! after a watermark the viewer had. A request's id only rises (the index module's *The viewer's
 //! cursor*), so neither moves a row the viewer already shows.
 //!
+//! **One request is its trace id and span id.** `GET /api/request?trace=&span=` gives the row,
+//! its uncaught exception, and its trace events, dumps and log lines in time order. The records
+//! are keyed by trace id alone, so when an inbound `traceparent` gives several requests one trace
+//! id, a request's records are those its writer wrote between the previous request of that trace
+//! and its own `request` line. Two such requests in flight at once on one thread cannot be told
+//! apart, and each shows both.
+//!
 //! **What it spends:** one SQLite connection and its page cache for the service, and one page of
-//! at most [`PAGE_MAX`] rows per API request while it is written out.
+//! at most [`PAGE_MAX`] rows per API request while it is written out. One request's answer is at
+//! most [`EVENTS_MAX`] events, [`DUMPS_MAX`] dumps and [`LOGS_MAX`] log lines, and `cut` says
+//! which list stopped there.
 
 use std::path::Path;
 use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use hyper::StatusCode;
-use rusqlite::{Connection, OpenFlags, ToSql};
+use rusqlite::{Connection, OpenFlags, OptionalExtension as _, ToSql, params};
 use serde::Serialize;
+use serde_json::value::RawValue;
 
 /// The rows in a page when the viewer names no `limit`.
 const PAGE_DEFAULT: i64 = 100;
 
 /// The most rows in one page.
 pub(crate) const PAGE_MAX: i64 = 500;
+
+/// The most trace events in one request's answer.
+const EVENTS_MAX: i64 = 5_000;
+
+/// The most dumps in one request's answer. A dump's line can be the spool's longest.
+const DUMPS_MAX: i64 = 200;
+
+/// The most log lines in one request's answer.
+const LOGS_MAX: i64 = 1_000;
 
 /// The index, opened once for reading.
 pub(crate) struct Api {
@@ -73,6 +92,96 @@ struct Threw {
     line: i64,
 }
 
+/// `GET /api/request`: one request and everything it recorded, each list in time order.
+#[derive(Serialize)]
+struct Detail {
+    /// The last batch this answer is complete up to.
+    watermark: i64,
+    request: Row,
+    /// The exception it did not catch, with its message.
+    exception: Option<Exception>,
+    events: Vec<Event>,
+    dumps: Vec<Dump>,
+    logs: Vec<Log>,
+    /// Which lists stopped at their most rows.
+    cut: Cut,
+}
+
+/// An uncaught exception: its class, its message and the site of its `throw`.
+#[derive(Serialize)]
+struct Exception {
+    class: String,
+    message: String,
+    file: String,
+    line: i64,
+}
+
+/// One trace event: a call, a query, a spawn, a garbage-collection pause or an outbound call.
+#[derive(Serialize)]
+struct Event {
+    id: i64,
+    kind: String,
+    label: String,
+    start_us: i64,
+    end_us: i64,
+    /// A call's checked-return status.
+    status: Option<i64>,
+    query: Option<EventQuery>,
+}
+
+/// A `query` event's driver, SQL, rows and call site.
+#[derive(Serialize)]
+struct EventQuery {
+    driver: String,
+    sql: String,
+    rows: Option<i64>,
+    site: Option<i64>,
+}
+
+/// One `Core\Debug::dump`: its site and its value tree in the JSON rendering.
+#[derive(Serialize)]
+struct Dump {
+    id: i64,
+    at_us: i64,
+    file: String,
+    line: i64,
+    tree: Box<RawValue>,
+    elided: bool,
+}
+
+/// One log line the request wrote.
+#[derive(Serialize)]
+struct Log {
+    id: i64,
+    at_us: i64,
+    level: String,
+    message: String,
+    fields: Box<RawValue>,
+    elided: bool,
+    lossy: bool,
+}
+
+/// Whether each list of a [`Detail`] stopped at its most rows.
+#[derive(Default, Serialize)]
+struct Cut {
+    events: bool,
+    dumps: bool,
+    logs: bool,
+}
+
+/// What `GET /api/request` was asked for: a trace id, and the span id when the trace has several.
+#[derive(Debug)]
+struct Key {
+    trace: String,
+    span: Option<String>,
+}
+
+/// Why `GET /api/request` names no one request.
+enum Missing {
+    None,
+    Several,
+}
+
 /// What `GET /api/requests` was asked for.
 #[derive(Default)]
 struct Filter {
@@ -115,6 +224,50 @@ impl Api {
                 &format!("The index cannot be read: {err}"),
             ),
         }
+    }
+
+    /// `GET /api/request` with `query`: the status and the JSON body.
+    pub(crate) fn request(&self, query: Option<&str>) -> (StatusCode, Vec<u8>) {
+        let key = match Key::parse(query.unwrap_or_default()) {
+            Ok(key) => key,
+            Err(message) => return error(StatusCode::BAD_REQUEST, &message),
+        };
+        let mut db = self.db.lock().unwrap_or_else(PoisonError::into_inner);
+        match detail(&mut db, &key) {
+            Ok(Ok(detail)) => match serde_json::to_vec(&detail) {
+                Ok(body) => (StatusCode::OK, body),
+                Err(err) => error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
+            },
+            Ok(Err(Missing::None)) => error(
+                StatusCode::NOT_FOUND,
+                "No request in the index has this trace id and span id.",
+            ),
+            Ok(Err(Missing::Several)) => error(
+                StatusCode::BAD_REQUEST,
+                "Several requests have this trace id. Add `span` to choose one.",
+            ),
+            Err(err) => error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                &format!("The index cannot be read: {err}"),
+            ),
+        }
+    }
+}
+
+impl Key {
+    /// Reads `trace`, which is required, and `span`. Any other key is an error.
+    fn parse(query: &str) -> Result<Self, String> {
+        let (mut trace, mut span) = (None, None);
+        for pair in query.split('&').filter(|pair| !pair.is_empty()) {
+            let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+            match key {
+                "trace" => trace = Some(hex(key, value, 32)?),
+                "span" => span = Some(hex(key, value, 16)?),
+                _ => return Err(format!("`{key}` is not a key of one request.")),
+            }
+        }
+        let trace = trace.ok_or("`trace` is required.")?;
+        Ok(Self { trace, span })
     }
 }
 
@@ -191,9 +344,7 @@ fn page(db: &mut Connection, filter: &Filter) -> rusqlite::Result<Page> {
     let fetched = limit + 1;
     values.push(&fetched);
     let sql = format!(
-        "SELECT r.id, r.batch, r.trace, r.span, r.start_us, r.duration_us, r.method, r.route, \
-         r.path, r.status, r.queries, r.dumps, r.logs, g.class, g.file, g.line \
-         FROM requests r LEFT JOIN exception_groups g ON g.id = r.exception_group \
+        "SELECT {ROW} FROM requests r LEFT JOIN exception_groups g ON g.id = r.exception_group \
          {} ORDER BY r.id DESC LIMIT ?",
         if wheres.is_empty() {
             String::new()
@@ -202,40 +353,11 @@ fn page(db: &mut Connection, filter: &Filter) -> rusqlite::Result<Page> {
         }
     );
     let tx = db.transaction()?;
-    let watermark: i64 = tx.query_row(
-        "SELECT value FROM meta WHERE key = 'watermark'",
-        [],
-        |row| row.get(0),
-    )?;
+    let watermark = watermark(&tx)?;
     let mut requests = {
         let mut statement = tx.prepare_cached(&sql)?;
         statement
-            .query_map(values.as_slice(), |row| {
-                let class: Option<String> = row.get(13)?;
-                Ok(Row {
-                    id: row.get(0)?,
-                    batch: row.get(1)?,
-                    trace: row.get(2)?,
-                    span: row.get(3)?,
-                    start_us: row.get(4)?,
-                    duration_us: row.get(5)?,
-                    method: row.get(6)?,
-                    route: row.get(7)?,
-                    path: row.get(8)?,
-                    status: row.get(9)?,
-                    queries: row.get(10)?,
-                    dumps: row.get(11)?,
-                    logs: row.get(12)?,
-                    exception: match class {
-                        Some(class) => Some(Threw {
-                            class,
-                            file: row.get(14)?,
-                            line: row.get(15)?,
-                        }),
-                        None => None,
-                    },
-                })
-            })?
+            .query_map(values.as_slice(), row)?
             .collect::<rusqlite::Result<Vec<_>>>()?
     };
     tx.commit()?;
@@ -249,6 +371,226 @@ fn page(db: &mut Connection, filter: &Filter) -> rusqlite::Result<Page> {
         requests,
         older,
     })
+}
+
+/// The columns [`row`] reads, over `requests r` joined to its `exception_groups g`.
+const ROW: &str = "r.id, r.batch, r.trace, r.span, r.start_us, r.duration_us, r.method, r.route, \
+                   r.path, r.status, r.queries, r.dumps, r.logs, g.class, g.file, g.line";
+
+/// One [`Row`] from the columns [`ROW`] names, in its order.
+fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
+    let class: Option<String> = row.get(13)?;
+    Ok(Row {
+        id: row.get(0)?,
+        batch: row.get(1)?,
+        trace: row.get(2)?,
+        span: row.get(3)?,
+        start_us: row.get(4)?,
+        duration_us: row.get(5)?,
+        method: row.get(6)?,
+        route: row.get(7)?,
+        path: row.get(8)?,
+        status: row.get(9)?,
+        queries: row.get(10)?,
+        dumps: row.get(11)?,
+        logs: row.get(12)?,
+        exception: match class {
+            Some(class) => Some(Threw {
+                class,
+                file: row.get(14)?,
+                line: row.get(15)?,
+            }),
+            None => None,
+        },
+    })
+}
+
+/// The last committed batch.
+fn watermark(tx: &rusqlite::Transaction<'_>) -> rusqlite::Result<i64> {
+    tx.query_row(
+        "SELECT value FROM meta WHERE key = 'watermark'",
+        [],
+        |row| row.get(0),
+    )
+}
+
+/// The request `key` names and everything it recorded, read with the watermark in one
+/// transaction, or why the key names no one request.
+fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Missing>> {
+    let tx = db.transaction()?;
+    let watermark = watermark(&tx)?;
+    let mut found = {
+        let mut statement = tx.prepare_cached(&format!(
+            "SELECT {ROW}, r.writer, r.seq FROM requests r \
+             LEFT JOIN exception_groups g ON g.id = r.exception_group \
+             WHERE r.trace = ?1 AND (?2 IS NULL OR r.span = ?2) ORDER BY r.id DESC LIMIT 2"
+        ))?;
+        statement
+            .query_map(params![key.trace, key.span], |found| {
+                Ok((row(found)?, found.get::<_, String>(16)?, found.get::<_, i64>(17)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?
+    };
+    if found.is_empty() {
+        return Ok(Err(Missing::None));
+    }
+    if found.len() > 1 && key.span.is_none() {
+        return Ok(Err(Missing::Several));
+    }
+    let (request, writer, seq) = found.swap_remove(0);
+    let exception = tx
+        .query_row(
+            "SELECT class, message, file, line FROM exceptions WHERE request = ?1",
+            [request.id],
+            |row| {
+                Ok(Exception {
+                    class: row.get(0)?,
+                    message: row.get(1)?,
+                    file: row.get(2)?,
+                    line: row.get(3)?,
+                })
+            },
+        )
+        .optional()?;
+    let shared: i64 = tx.query_row(
+        "SELECT count(*) FROM requests WHERE trace = ?1",
+        [&key.trace],
+        |row| row.get(0),
+    )?;
+    // A trace id that names one request owns every record of the trace. When several share it,
+    // a request's records are the ones its writer wrote after the previous request of that trace
+    // and before this one's own line, and a tailed log line is the one inside its time.
+    let (writer, after) = if shared > 1 {
+        let after: Option<i64> = tx.query_row(
+            "SELECT max(seq) FROM requests WHERE trace = ?1 AND writer = ?2 AND seq < ?3",
+            params![key.trace, writer, seq],
+            |row| row.get(0),
+        )?;
+        (Some(writer), after.unwrap_or(-1))
+    } else {
+        (None, 0)
+    };
+    let (before, from_us, to_us) = (seq, request.start_us, request.start_us + request.duration_us);
+    let mut cut = Cut::default();
+    let events = {
+        let mut statement = tx.prepare_cached(
+            "SELECT id, kind, label, start_us, end_us, status, driver, sql, rows, site FROM events \
+             WHERE trace = ?1 AND (?2 IS NULL OR (writer = ?2 AND seq > ?3 AND seq < ?4)) \
+             ORDER BY start_us, id LIMIT ?5",
+        )?;
+        let mut events = statement
+            .query_map(
+                params![key.trace, writer, after, before, EVENTS_MAX + 1],
+                |row| {
+                    let driver: Option<String> = row.get(6)?;
+                    Ok(Event {
+                        id: row.get(0)?,
+                        kind: row.get(1)?,
+                        label: row.get(2)?,
+                        start_us: row.get(3)?,
+                        end_us: row.get(4)?,
+                        status: row.get(5)?,
+                        query: match driver {
+                            Some(driver) => Some(EventQuery {
+                                driver,
+                                sql: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
+                                rows: row.get(8)?,
+                                site: row.get(9)?,
+                            }),
+                            None => None,
+                        },
+                    })
+                },
+            )?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        cut.events = keep(&mut events, EVENTS_MAX);
+        events
+    };
+    let dumps = {
+        let mut statement = tx.prepare_cached(
+            "SELECT id, at_us, file, line, tree, elided FROM dumps \
+             WHERE trace = ?1 AND (?2 IS NULL OR (writer = ?2 AND seq > ?3 AND seq < ?4)) \
+             ORDER BY at_us, id LIMIT ?5",
+        )?;
+        let mut dumps = statement
+            .query_map(
+                params![key.trace, writer, after, before, DUMPS_MAX + 1],
+                |row| {
+                    Ok(Dump {
+                        id: row.get(0)?,
+                        at_us: row.get(1)?,
+                        file: row.get(2)?,
+                        line: row.get(3)?,
+                        tree: tree(&row.get::<_, String>(4)?),
+                        elided: row.get(5)?,
+                    })
+                },
+            )?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        cut.dumps = keep(&mut dumps, DUMPS_MAX);
+        dumps
+    };
+    let logs = {
+        let mut statement = tx.prepare_cached(
+            "SELECT id, at_us, level, message, fields, elided, lossy FROM logs \
+             WHERE trace = ?1 AND (?2 IS NULL OR (writer = ?2 AND seq > ?3 AND seq < ?4) \
+             OR (writer IS NULL AND at_us BETWEEN ?5 AND ?6)) \
+             ORDER BY at_us, id LIMIT ?7",
+        )?;
+        let mut logs = statement
+            .query_map(
+                params![
+                    key.trace,
+                    writer,
+                    after,
+                    before,
+                    from_us,
+                    to_us,
+                    LOGS_MAX + 1
+                ],
+                |row| {
+                    Ok(Log {
+                        id: row.get(0)?,
+                        at_us: row.get(1)?,
+                        level: row.get(2)?,
+                        message: row.get(3)?,
+                        fields: tree(&row.get::<_, String>(4)?),
+                        elided: row.get(5)?,
+                        lossy: row.get(6)?,
+                    })
+                },
+            )?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        cut.logs = keep(&mut logs, LOGS_MAX);
+        logs
+    };
+    tx.commit()?;
+    Ok(Ok(Detail {
+        watermark,
+        request,
+        exception,
+        events,
+        dumps,
+        logs,
+        cut,
+    }))
+}
+
+/// Truncates `rows`, read with one row past `max`, to `max`, and says whether that cut any.
+fn keep<T>(rows: &mut Vec<T>, max: i64) -> bool {
+    let max = usize::try_from(max).unwrap_or(usize::MAX);
+    let over = rows.len() > max;
+    rows.truncate(max);
+    over
+}
+
+/// A value tree the index has as JSON text, written into the answer as it is. A tree the ingester
+/// wrote is always JSON, so text that is not is given as a string.
+fn tree(text: &str) -> Box<RawValue> {
+    match serde_json::from_str::<&RawValue>(text) {
+        Ok(raw) => raw.to_owned(),
+        Err(_) => serde_json::value::to_raw_value(text).unwrap_or_else(|_| RawValue::NULL.to_owned()),
+    }
 }
 
 /// A JSON error body with `message`.
@@ -276,5 +618,14 @@ mod tests {
         assert!(Filter::parse("before=-1").is_err());
         assert!(Filter::parse("span=00F067AA0BA902B7").is_err());
         assert!(Filter::parse("order=asc").is_err());
+    }
+
+    #[test]
+    fn a_request_key_needs_its_trace_id() {
+        let key = Key::parse("trace=4bf92f3577b34da6a3ce929d0e0e4736&span=00f067aa0ba902b7")
+            .expect("a valid key");
+        assert_eq!(key.span.as_deref(), Some("00f067aa0ba902b7"));
+        assert!(Key::parse("span=00f067aa0ba902b7").is_err());
+        assert!(Key::parse("trace=4bf92f3577b34da6a3ce929d0e0e4736&limit=3").is_err());
     }
 }

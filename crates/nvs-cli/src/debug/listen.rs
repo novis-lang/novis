@@ -293,8 +293,13 @@ impl Site {
             "/api/events" if *request.method() == Method::GET => {
                 events(Arc::clone(&self.watermark))
             }
-            "/api/requests" if reads => {
-                let (status, body) = self.api.requests(request.uri().query());
+            "/api/requests" | "/api/request" if reads => {
+                let query = request.uri().query();
+                let (status, body) = if path == "/api/request" {
+                    self.api.request(query)
+                } else {
+                    self.api.requests(query)
+                };
                 with(
                     status,
                     "application/json",
