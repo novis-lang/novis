@@ -20,7 +20,7 @@ stages:
         rules: [testing/writing-a-debug-record-to-disk-is-its-own-gate, testing/the-debug-stream-reaches-the-service-through-the-disk, config/ownership-is-the-trust-boundary, config/three-changeability-classes]
   - id: 3
     title: a request's outcome, input and response reach the spool
-    status: open
+    status: done
     context: [crates/nvs-server/src/serve.rs, crates/nvs-server/src/trace.rs, crates/nvs-server/src/body.rs, crates/nvs-runtime/src/ctx/inbound.rs, crates/nvs-runtime/src/spool.rs, docs/rules/testing/a-recorded-request-keeps-its-input-with-credentials-replaced.md]
     extra:
       context:
@@ -249,10 +249,10 @@ subagent writes the redaction and cut tests below as one batch in `serve.rs`'s t
   - [x] The gate and the mode on the completion, read where the isolate finishes, and a spool entry point that takes them with the trace id.
   - [x] The line written from `counted`, with the route label, the start and the duration, on both paths.
 - [x] In `development`, the input: the head from `Inbound` with the four headers replaced by `[redacted]`, and the body chunks the program pulled, up to `request_body` (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). `crates/nvs-runtime/src/ctx/inbound.rs:804`, `crates/nvs-server/src/body.rs:279`
-- [ ] In `development`, the response: its status, its headers with the four replaced, and the bytes written, written through to the spool file up to `request_body` and cut there with a marker. `crates/nvs-server/src/serve.rs:1675`
+- [x] In `development`, the response: its status, its headers with the four replaced, and the bytes written, written through to the spool file up to `request_body` and cut there with a marker. `crates/nvs-server/src/serve.rs:1675`
   - [x] A whole body's headers and bytes, read off the answer `counted` writes (`crate::spooled::response`), with a file recorded as not read.
-  - [ ] A streamed body's chunks, recorded as `Answer::Streaming` hands each to `hyper`, and the `request` line written once both the join and the body's end have happened.
-  - [ ] A served test: a streamed body past 64 KiB reaches the spool as `body` lines whose offsets join to the bytes sent.
+  - [x] A streamed body's chunks, recorded as `Answer::Streaming` hands each to `hyper`, and the `request` line written once both the join and the body's end have happened.
+  - [x] A served test: a streamed body past 64 KiB reaches the spool as `body` lines whose offsets join to the bytes sent.
 - [x] Tests: a request with each header shows `[redacted]` and no byte of the value in the file, an unread body is recorded as not read, a request body and a response body past `request_body` are each cut and say so, and a production request records its outcome and no header or body. `crates/nvs-server/src/serve.rs:3255`
 
 ### 7. a decoded `secret` field is replaced, and a request's events, dumps and logs reach the spool
@@ -326,34 +326,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done; stage 3 is done but for a streamed response's body. Every answer the door
-counts writes a `request` line (`crates/nvs-server/src/spooled.rs`, `counted` at
-`crates/nvs-server/src/serve.rs:1728`, a streamed one's `Pending` written in `joined_when_ended`).
+Stages 1, 2 and 3 are done. Every answer the door counts writes a `request` line
+(`crates/nvs-server/src/spooled.rs`, `counted` at `crates/nvs-server/src/serve.rs:1741`, a streamed
+one's `Pending` written in `joined_when_ended`).
 
-**In `development` the line records the input and a buffered response.** `spool::Recorder`
+**In `development` the line records the input and the response.** `spool::Recorder`
 (`crates/nvs-runtime/src/spool.rs:333`) holds up to 1 MiB, writes each full MiB as a `body` line,
 cuts at `Store::body_max` and keeps a body of at most 64 KiB inline; `spool::header` (line 882)
 replaces the four credentials. The door copies the head (`spooled::head`) at
 `crates/nvs-server/src/serve.rs:1817`, gated on the host snapshot, which an `[[app]]` block cannot
 change. The run loop records the pulled body through `Supply::record`, and `spooled::read_into`
-finishes it. `spooled::response` records a whole body's bytes; a file and, for now, a stream are
-`read: false`. A run's body is recorded only where its carrier has a trace, which the binary's
+finishes it. `spooled::response` records a whole body's bytes, and a file is `read: false`. A
+streamed body is recorded by a `spooled::Tail` (`crates/nvs-server/src/spooled.rs:283`) on
+`Answer::Streaming`, pushed each chunk `hyper` takes. The `Pending` line and the tail share one cell,
+and whichever of the join and the body's end (`Drained::Ended`, or the tail's drop) comes second
+writes the line. A run's body is recorded only where its carrier has a trace, which the binary's
 handler always sets.
 
-Six served tests pass with `cargo test --lib spool` (`spooled_for`, `crates/nvs-server/src/serve.rs:13169`).
-The sweep's reds were already fixed: `env-secret-proofs` exits 0 in its log, and run 40174915924's
-reds are fixed by `0b7eadd2c`, `901f4855c`, `c7e5bd3c3`, `bd2e51f0a` and `d5aa2be18`.
+Seven served tests pass with `cargo test --lib spool` (`spooled_for`, `serve.rs:13193`). The sweep's
+reds are stale: `env-secret-proofs` exits 0, and every fix of run 40174915924's reds (`0b7eadd2c`,
+`901f4855c`, `c7e5bd3c3`, `bd2e51f0a`, `d5aa2be18`) is later than its head `9be30356e`.
 
 Tests expected to go red: none known.
 
 ### Next
 
-**Stage 3's last item, a streamed response's body, then stage 7**, in `crates/nvs-server/src/serve.rs`
-and `crates/nvs-server/src/spooled.rs`. No gate; `cargo test --lib spool`.
+**Stage 7: the `secret` replacement first, then the `event`, `dump` and `log` writers**, in
+`crates/nvs-stdlib/src/request.rs`, `crates/nvs-db/src/span.rs`, `crates/nvs-stdlib/src/debug.rs` and
+`crates/nvs-runtime/src/ctx/output.rs`. No gate; each new test runs once by name.
 
-- [ ] The streamed body: a `Recorder` on `Answer::Streaming` (`crates/nvs-server/src/serve.rs:450`), pushed each `Drained::Chunk`. The isolate can be joined (`joined_when_ended`, line 1379) before `hyper` has taken the last chunk, so the `Pending` line is written by whichever of the join and the body's end (`Drained::Ended`, or the `Answer`'s drop) comes second: one `Rc<RefCell<..>>` both hold. Then `spooled::response` stops writing `Body::default()` for a stream.
-- [ ] Its served test: a streamed body past 64 KiB reaches the spool as `body` lines whose offsets join to the bytes sent, beside `spooled_for`. `crates/nvs-server/src/serve.rs:13169`
-- [ ] Then stage 7, the writers in `nvs-stdlib`, `nvs-db` and `output.rs`, in the stage's own order. `crates/nvs-stdlib/src/request.rs:2671`
+- [ ] The `secret` replacement: where `jsonAs<X>()` and `postAs<X>()` hydrate, the decoder names each field that lands in a `secret` property, and the recorded request body is rewritten with `[redacted]` there before the `request` line is written. The recorded body lives on the `Supply` (`Supply::record`, `crates/nvs-server/src/body.rs`), so the field paths reach it through the carrier. `crates/nvs-stdlib/src/request.rs:2671`
+- [ ] The `event` lines from the span events, a `query` with no parameter. `crates/nvs-db/src/span.rs:87`
+- [ ] The `dump` and `log` lines, a `secret` redacted in both. `crates/nvs-stdlib/src/debug.rs:213`, `crates/nvs-runtime/src/ctx/output.rs:371`
+- [ ] Then the stage's split: a writing subagent writes the batch of tests the stage names. `crates/nvs-stdlib/src/request.rs:3180`
 
 ### Backlog
 
