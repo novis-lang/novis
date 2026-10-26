@@ -1718,7 +1718,11 @@ where
                        trace: Option<nvs_runtime::TraceContext>,
                        under: &Arc<nvs_config::Snapshot>| {
             let trace = trace.unwrap_or_else(nvs_runtime::TraceContext::started);
-            crate::trace::respond(response.headers_mut(), &trace);
+            crate::trace::respond(
+                response.headers_mut(),
+                &trace,
+                crate::trace::response_header_on(under),
+            );
             let took = began.elapsed();
             let status = response.status().as_u16();
             crate::metrics::count_request(verb.as_str(), status, route, took);
@@ -12938,6 +12942,51 @@ pub(crate) mod tests {
             "the value is not in the traceparent shape: {value}"
         );
         assert_eq!(parts[3], "00", "a door's own root is not sampled: {value}");
+    }
+
+    /// What the client read of one `GET` to a handler that answers itself
+    /// with a `traceresponse` of its own, under the tree `written`.
+    fn traceresponse_under(written: &str) -> String {
+        let (listener, client) = one_get("/door");
+        let handler = Rc::new(move |_request: Request<Incoming>, _origin: Origin| {
+            let mut response = Response::new(Answer::empty());
+            response.headers_mut().insert(
+                hyper::header::HeaderName::from_static("traceresponse"),
+                hyper::header::HeaderValue::from_static(
+                    "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+                ),
+            );
+            Reply::Done(response)
+        });
+        served_under(listener, &handler, client, booted_on(written)).to_ascii_lowercase()
+    }
+
+    /// `rule:observability/the-traceresponse-header-can-be-turned-off`, over
+    /// the wire: with the key `true` the door's id replaces the one the answer
+    /// set, and with it `false` the answer leaves with no `traceresponse` at
+    /// all. Both are answers the door wrote with no carrier.
+    #[test]
+    fn traceresponse_follows_the_response_header_key_on_a_door_written_answer() {
+        let on = traceresponse_under("[trace]\nresponse_header = true\n");
+        let values: Vec<&str> = on
+            .lines()
+            .filter_map(|line| line.strip_prefix("traceresponse: "))
+            .collect();
+        assert_eq!(values.len(), 1, "the answer names one id: {on}");
+        assert!(
+            !values[0].contains("0123456789abcdef0123456789abcdef"),
+            "the answer's own value went out as the request's id: {on}"
+        );
+
+        let off = traceresponse_under("[trace]\nresponse_header = false\n");
+        assert!(
+            !off.contains("traceresponse"),
+            "the header is off and the answer still carries one: {off}"
+        );
+        assert!(
+            off.starts_with("http/1.1 200"),
+            "the header is off and the answer changed: {off}"
+        );
     }
 
     /// The bytes [`served_ranged`]'s program streams from, ten of them so a

@@ -1,12 +1,16 @@
 {
   "title": "`[trace] response_header` sends the `traceresponse` header by default and `false` removes it, while the trace id still exists for the request, its logs and its spans",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "observability/a-trace-id-exists-for-every-request",
     "observability/an-outbound-call-propagates-traceparent",
     "observability/metrics-and-trace-blocks-are-system",
     "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact"
   ],
-  "guardedBy": [],
+  "guardedBy": [
+    "crates/nvs-server/src/trace.rs",
+    "crates/nvs-server/src/serve.rs",
+    "crates/nvs-config/tests/directives.rs"
+  ],
   "goal": "debug-service"
 }

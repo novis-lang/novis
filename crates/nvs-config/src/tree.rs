@@ -1259,6 +1259,10 @@ pub struct Trace {
     pub sample: Option<f64>,
     /// Whether `traceparent` is sent on outbound `Core\Http\Client` calls.
     pub propagate: Option<bool>,
+    /// Whether a response carries the `traceresponse` header
+    /// (`rule:observability/the-traceresponse-header-can-be-turned-off`).
+    /// `nvs_config::Snapshot::trace_response_header` is the reader.
+    pub response_header: Option<bool>,
 }
 
 /// `[server]` — `rule:http-server/the-server-block-is-boot-class`. The registry says which of its keys need a restart.

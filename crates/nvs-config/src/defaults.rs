@@ -252,6 +252,8 @@ pub const METRICS_MAX_SERIES: u64 = 10_000;
 pub const TRACE_SAMPLE: f64 = 0.0;
 /// `[trace] propagate`.
 pub const TRACE_PROPAGATE: bool = true;
+/// `[trace] response_header`.
+pub const TRACE_RESPONSE_HEADER: bool = true;
 
 /// `[opcache] validate`.
 pub const OPCACHE_VALIDATE: &str = "mtime";
@@ -577,6 +579,7 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("trace.exporter", Value::Flag(false)),
     row!("trace.sample", Value::Ratio(TRACE_SAMPLE)),
     row!("trace.propagate", Value::Flag(TRACE_PROPAGATE)),
+    row!("trace.response_header", Value::Flag(TRACE_RESPONSE_HEADER)),
     row!("opcache.validate", Value::Text(OPCACHE_VALIDATE)),
     row!("opcache.revalidate_freq", Value::Time(OPCACHE_REVALIDATE_FREQ)),
     row!("opcache.settle", Value::Startup {

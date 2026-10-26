@@ -988,6 +988,10 @@
 #exporter = false                     # default
 #sample = 0.0                         # default
 #propagate = true                     # default
+# Whether every response carries the `traceresponse` header, which holds the request's trace id.
+# `false` removes the header and nothing else: the id is still in the log records and the spans
+# (`rule:observability/the-traceresponse-header-can-be-turned-off`).
+#response_header = true               # default
 # Where the collector this process pushes its spans to is, on `[metrics] endpoint`'s terms and
 # required where `exporter = "otlp"`. A URL that names no path takes `/v1/traces`.
 #endpoint = "http://127.0.0.1:4318"   # example

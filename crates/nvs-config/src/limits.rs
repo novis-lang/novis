@@ -82,6 +82,8 @@ pub(crate) struct Resolved {
     pub(crate) access: bool,
     /// Whether `[log] client_ip` is anything but `false`.
     pub(crate) client_ip: bool,
+    /// Whether `[trace] response_header` is anything but `false`.
+    pub(crate) trace_response: bool,
 }
 
 impl Resolved {
@@ -108,6 +110,9 @@ impl Resolved {
                 .is_some_and(|written| written == "true"),
             client_ip: cli
                 .get("log.client_ip")
+                .is_none_or(|written| written != "false"),
+            trace_response: cli
+                .get("trace.response_header")
                 .is_none_or(|written| written != "false"),
         }
     }

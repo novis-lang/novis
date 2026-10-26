@@ -3,8 +3,11 @@ Sampling (`rule:observability/sampling-is-head-based`) governs whether a trace i
 whether an id is generated, so the id exists with `[trace] sample` at zero as well. An inbound
 `traceparent` is continued and a missing one is generated
 (`rule:observability/an-inbound-traceparent-is-continued`). `Core\Server::traceId()` reads it, and
-every response carries it in W3C Trace Context's `traceresponse` header, so a proxy can log it with
-one `log_format` line and a tracing backend reads one standard header.
+by default every response carries it in W3C Trace Context's `traceresponse` header, so a proxy can
+log it with one `log_format` line and a tracing backend reads one standard header. `[trace]
+response_header = false` removes the header and nothing else
+(`rule:observability/the-traceresponse-header-can-be-turned-off`): the id, the logs and the spans
+are unchanged.
 
 **The request id is always the server's own.** Every `[log]` record and every error rendering
 carries it as `request_id`
@@ -20,7 +23,7 @@ written at the one point every answer of the door passes (`crates/nvs-server/src
 `counted`), and it replaces a `traceresponse` the program set for itself, because the request has one
 id. An answer the door wrote before any carrier existed — a refusal at the valve, a preflight, a
 mount table's own answer — gets a new unsampled root there, and its access line names the same id.
-What it spends: one 55-byte header value per response.
+What it spends: one 55-byte header value per response, and none with the header off.
 
 **An inbound `X-Request-ID` is ignored** and appears nowhere — not as the trace id, not on the
 response, not on the access line. Honouring the header would need a validation rule against log

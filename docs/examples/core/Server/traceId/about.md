@@ -6,6 +6,9 @@ The server also sends the id back in the `traceresponse` header of every respons
 `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00`. The second part is the id. The server
 ignores an `X-Request-ID` header that a client sends.
 
+To stop sending the header, set `response_header = false` in the `[trace]` block of `nvs.toml`.
+The request still has its id, and the log lines still contain it.
+
 A request can arrive with a `traceparent` header from a service that called yours. The id is then
 the one in that header, so your logs and the caller's logs use the same id. Without the header, the
 server creates a new random id.

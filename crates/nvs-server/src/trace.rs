@@ -330,12 +330,32 @@ const TRACERESPONSE: &str = "traceresponse";
 /// one id, and the door decided it. An inbound `X-Request-ID` reaches neither
 /// the trace nor this header.
 ///
-/// **What it spends:** the 55-byte value, once per response.
-pub fn respond(headers: &mut hyper::HeaderMap, trace: &TraceContext) {
+/// `on` is `[trace] response_header` off the snapshot the request ran under
+/// ([`response_header_on`]). With it `false`, the header is removed, a
+/// program's own included, and none is written
+/// (`rule:observability/the-traceresponse-header-can-be-turned-off`); the id
+/// still reaches the access line and the spans.
+///
+/// **What it spends:** the 55-byte value, once per response, and nothing with
+/// the header off.
+pub fn respond(headers: &mut hyper::HeaderMap, trace: &TraceContext, on: bool) {
+    let name = hyper::header::HeaderName::from_static(TRACERESPONSE);
+    if !on {
+        headers.remove(name);
+        return;
+    }
     // Always 55 bytes of lower-case hex and dashes, so it is a valid value.
     if let Ok(value) = hyper::header::HeaderValue::from_str(&trace.traceparent()) {
-        headers.insert(hyper::header::HeaderName::from_static(TRACERESPONSE), value);
+        headers.insert(name, value);
     }
+}
+
+/// `[trace] response_header` as `snapshot` has it: `true` unless the file
+/// wrote `false`. Read per response off the snapshot the request ran under,
+/// so a reload reaches the next response, at the cost [`access_on`] states.
+#[must_use]
+pub fn response_header_on(snapshot: &std::sync::Arc<nvs_config::Snapshot>) -> bool {
+    snapshot.trace_response_header()
 }
 
 /// `[log] access` as `snapshot` has it: what the file wrote, or the mode's
@@ -1139,8 +1159,13 @@ mod tests {
     }
 
     /// The `traceresponse` value [`super::respond`] writes for `trace` on a
-    /// response that already has `written` on it.
+    /// response that already has `written` on it, with the header on.
     fn responded(written: &[(&str, &str)], trace: &TraceContext) -> Vec<String> {
+        responded_with(written, trace, true)
+    }
+
+    /// [`responded`], with `[trace] response_header` as `on` says.
+    fn responded_with(written: &[(&str, &str)], trace: &TraceContext, on: bool) -> Vec<String> {
         let mut headers = hyper::HeaderMap::new();
         for (name, value) in written {
             headers.append(
@@ -1148,7 +1173,7 @@ mod tests {
                 hyper::header::HeaderValue::from_str(value).expect("printable"),
             );
         }
-        super::respond(&mut headers, trace);
+        super::respond(&mut headers, trace, on);
         headers
             .get_all("traceresponse")
             .iter()
@@ -1202,6 +1227,51 @@ mod tests {
         );
     }
 
+    /// `rule:observability/the-traceresponse-header-can-be-turned-off`: the
+    /// key is on unless the file writes `false`, and off removes the header
+    /// and nothing else. A program's own `traceresponse` is removed too, and
+    /// the access line still names the request's trace id.
+    #[test]
+    fn traceresponse_is_on_by_default_and_false_removes_it_and_nothing_else() {
+        assert!(
+            super::response_header_on(&tree_of("")),
+            "a tree that writes nothing sends no `traceresponse`"
+        );
+        assert!(
+            super::response_header_on(&tree_of("[trace]\nresponse_header = true\n")),
+            "`response_header = true` sends no `traceresponse`"
+        );
+        assert!(
+            !super::response_header_on(&tree_of("[trace]\nresponse_header = false\n")),
+            "`response_header = false` still sends the header"
+        );
+
+        let trace = decided(&[]);
+        assert_eq!(
+            responded_with(&[], &trace, false),
+            Vec::<String>::new(),
+            "the header is off and the door wrote one"
+        );
+        assert_eq!(
+            responded_with(
+                &[(
+                    "traceresponse",
+                    "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+                )],
+                &trace,
+                false,
+            ),
+            Vec::<String>::new(),
+            "the header is off and the program's own value went out as the request's id"
+        );
+
+        let line = logged(true, false, 200, Some(trace));
+        assert!(
+            line.contains(&trace.trace_id_hex()),
+            "the header is off and the access line lost the trace id: {line}"
+        );
+    }
+
     /// `rule:observability/a-trace-id-exists-for-every-request`: an inbound
     /// `X-Request-ID` is ignored. It is not the trace id, it is not on the
     /// response and it is not on the access line.
@@ -1212,7 +1282,7 @@ mod tests {
         assert_ne!(trace.trace_id_hex(), SENT, "the header became the trace id");
 
         let mut headers = hyper::HeaderMap::new();
-        super::respond(&mut headers, &trace);
+        super::respond(&mut headers, &trace, true);
         assert_eq!(headers.len(), 1, "the response carries more than its trace");
         for (name, value) in &headers {
             assert_ne!(name.as_str(), "x-request-id", "the header was echoed");

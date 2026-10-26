@@ -154,6 +154,15 @@ impl Snapshot {
         crate::limits::resolved(self).client_ip
     }
 
+    /// Whether a response the server writes under this snapshot carries the `traceresponse`
+    /// header: `[trace] response_header`, `true` unless the file wrote `false`
+    /// (`rule:observability/the-traceresponse-header-can-be-turned-off`). Read off the resolved
+    /// limits, as [`access_log`](Snapshot::access_log) is.
+    #[must_use]
+    pub fn trace_response_header(self: &Arc<Self>) -> bool {
+        crate::limits::resolved(self).trace_response
+    }
+
     /// Builds the snapshot for `entry` out of an already-resolved tree.
     ///
     /// `entry` is canonicalized first and kept that way, for [`app`]'s reason: every comparison

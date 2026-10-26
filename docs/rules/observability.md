@@ -3,7 +3,7 @@
 
 # Observability
 
-*2 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
@@ -36,7 +36,7 @@ What it exports is [`observability/default-series`](observability.md#observabili
 
 <a id="observability-a-trace-id-exists-for-every-request"></a>
 
-## A trace id exists for every request whatever the sampling decision and is emitted on the response, the request id is always one the server drew, and an inbound `X-Request-ID` is ignored
+## A trace id exists for every request whatever the sampling decision and is emitted on the response unless the configuration turns the header off, the request id is always one the server drew, and an inbound `X-Request-ID` is ignored
 
 `rule:observability/a-trace-id-exists-for-every-request`
 
@@ -45,8 +45,11 @@ Sampling ([`observability/sampling-is-head-based`](observability.md#observabilit
 whether an id is generated, so the id exists with `[trace] sample` at zero as well. An inbound
 `traceparent` is continued and a missing one is generated
 ([`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued)). `Core\Server::traceId()` reads it, and
-every response carries it in W3C Trace Context's `traceresponse` header, so a proxy can log it with
-one `log_format` line and a tracing backend reads one standard header.
+by default every response carries it in W3C Trace Context's `traceresponse` header, so a proxy can
+log it with one `log_format` line and a tracing backend reads one standard header. `[trace]
+response_header = false` removes the header and nothing else
+([`observability/the-traceresponse-header-can-be-turned-off`](observability.md#observability-the-traceresponse-header-can-be-turned-off)): the id, the logs and the spans
+are unchanged.
 
 **The request id is always the server's own.** Every `[log]` record and every error rendering
 carries it as `request_id`
@@ -62,7 +65,7 @@ written at the one point every answer of the door passes (`crates/nvs-server/src
 `counted`), and it replaces a `traceresponse` the program set for itself, because the request has one
 id. An answer the door wrote before any carrier existed — a refusal at the valve, a preflight, a
 mount table's own answer — gets a new unsampled root there, and its access line names the same id.
-What it spends: one 55-byte header value per response.
+What it spends: one 55-byte header value per response, and none with the header off.
 
 **An inbound `X-Request-ID` is ignored** and appears nowhere — not as the trace id, not on the
 response, not on the access line. Honouring the header would need a validation rule against log
@@ -82,11 +85,11 @@ than by whichever subsystem asks first.
 - **Continuing an inbound trace only from a trusted proxy.** It needs a list of proxies for a
   tracing header, and the server-drawn request id already keeps the log key the server's.
 
-<sub>See also [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted), [`errors/log-fields`](errors.md#errors-log-fields), [`http-server/the-access-log-is-a-mode-default`](http-server.md#http-server-the-access-log-is-a-mode-default).</sub>
+<sub>See also [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted), [`errors/log-fields`](errors.md#errors-log-fields), [`http-server/the-access-log-is-a-mode-default`](http-server.md#http-server-the-access-log-is-a-mode-default), [`observability/the-traceresponse-header-can-be-turned-off`](observability.md#observability-the-traceresponse-header-can-be-turned-off).</sub>
 
 <a id="observability-the-traceresponse-header-can-be-turned-off"></a>
 
-## `[trace] response_header` sends the `traceresponse` header by default and `false` removes it, while the trace id still exists for the request, its logs and its spans  *(designed — owned by goal debug-service)*
+## `[trace] response_header` sends the `traceresponse` header by default and `false` removes it, while the trace id still exists for the request, its logs and its spans
 
 `rule:observability/the-traceresponse-header-can-be-turned-off`
 

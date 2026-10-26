@@ -1,5 +1,5 @@
 {
-  "title": "A trace id exists for every request whatever the sampling decision and is emitted on the response, the request id is always one the server drew, and an inbound `X-Request-ID` is ignored",
+  "title": "A trace id exists for every request whatever the sampling decision and is emitted on the response unless the configuration turns the header off, the request id is always one the server drew, and an inbound `X-Request-ID` is ignored",
   "status": "shipped",
   "seeAlso": [
     "observability/an-inbound-traceparent-is-continued",
@@ -7,7 +7,8 @@
     "observability/sampling-is-head-based",
     "security/metric-label-refuses-tainted",
     "errors/log-fields",
-    "http-server/the-access-log-is-a-mode-default"
+    "http-server/the-access-log-is-a-mode-default",
+    "observability/the-traceresponse-header-can-be-turned-off"
   ],
   "guardedBy": [
     "crates/nvs-runtime/src/trace_context.rs",

@@ -3594,7 +3594,7 @@ fn every_key_of_the_trace_block_is_the_operators_and_an_exporter_alone_records_n
     );
 
     let keys = keys_in("trace");
-    for expected in ["exporter", "endpoint", "sample", "propagate"] {
+    for expected in ["exporter", "endpoint", "sample", "propagate", "response_header"] {
         assert!(
             keys.contains(&expected.to_string()),
             "`[trace]` no longer accepts `{expected}`, so the page describes a key the file \
