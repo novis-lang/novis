@@ -62,6 +62,7 @@ import * as imports from "./imports";
 import { RELEASE_PAGE, currentTarget, downloadVerified, installBinary, overHttps, releaseFor } from "./install";
 import { revealing } from "./links";
 import * as profile from "./profile";
+import { profileLink } from "./profilelink";
 import { changeParams, reaction, SECTION } from "./settings";
 import * as redactions from "./redactions";
 import * as regions from "./regions";
@@ -142,6 +143,20 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
     commands.registerCommand("nvs.showAst", () => ast.show()),
     // A speedscope file in the bundled viewer (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`).
     commands.registerCommand("nvs.viewProfile", (target?: Uri) => profile.view(context, target)),
+    // A profile link from the debug viewer opens the same view
+    // (`rule:testing/a-site-in-the-viewer-opens-in-the-editor`). Any web page can open such a link,
+    // so `profilelink.ts` accepts only an absolute speedscope file, and the view is read-only
+    // (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`).
+    window.registerUriHandler({
+      handleUri: (uri: Uri) => {
+        const link = profileLink(uri.path, uri.query);
+        if ("refused" in link) {
+          channel?.warn(`profile link refused: ${link.refused}`);
+          return window.showErrorMessage("Novis: this link is not a profile link.").then(() => undefined);
+        }
+        return profile.view(context, Uri.file(link.file));
+      },
+    }),
     // The two halves of a reveal. They are registered here rather than in `redactions.ts` so the
     // command roster the manifest freezes has one place it is answered from.
     commands.registerCommand("nvs.revealSecret", (where?: Parameters<typeof redactions.reveal>[0]) =>

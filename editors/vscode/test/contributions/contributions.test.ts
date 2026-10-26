@@ -338,9 +338,11 @@ describe("the file types the extension claims", () => {
     // `nvs.toml` activates it so that the file's completion answers before any `.nvs` is opened
     // (`rule:ide/the-extension-claims-nvs-only`), and that is an activation and not a claim. A
     // `"type": "nvs"` debug session activates it so the adapter's factory is registered when no
-    // `.nvs` file is open.
+    // `.nvs` file is open. A link to `vscode://novis-lang.nvs/...` activates it so that a profile
+    // link from the debug viewer opens when no Novis file is open; VS Code infers no activation
+    // event from a URI handler, so `onUri` is listed.
     assert.deepEqual(manifest.activationEvents,
-      ["onLanguage:nvs", "workspaceContains:**/nvs.toml", "onDebugResolve:nvs"]);
+      ["onLanguage:nvs", "workspaceContains:**/nvs.toml", "onDebugResolve:nvs", "onUri"]);
   });
 
   it("claims no php file type", () => {

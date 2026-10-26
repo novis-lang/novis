@@ -11,10 +11,8 @@ import { basename } from "node:path";
 
 import { ExtensionContext, Uri, ViewColumn, window, workspace } from "vscode";
 
+import { SUFFIX } from "./profilelink";
 import { VIEWER, page } from "./viewer";
-
-/** The name `nvs run --profile=speedscope` writes ends with this. */
-const SUFFIX = ".speedscope.json";
 
 /** Opens `target`, or the active editor's speedscope file, or the file the user picks. */
 export async function view(context: ExtensionContext, target?: Uri): Promise<void> {
