@@ -2,7 +2,7 @@
 //! to nothing else (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`).
 //!
 //! **One thread per connection, and every read and write blocks it.** `nvs debug` has no core and
-//! no reactor, so `hyper` is driven by [`nvs_host::block_on`], which parks the thread off a core,
+//! no reactor, so `hyper` is driven by [`nvs_host::block_on()`], which parks the thread off a core,
 //! over a transport whose every poll is a blocking call. `half_close` is on, so `hyper` never reads
 //! while it writes a response: an event stream waits on the watermark and never on the browser.
 //! A read waits at most [`IDLE`] and a write at most [`STALLED`], so a tab that went away ends its

@@ -3,7 +3,7 @@
 
 # Testing
 
-*7 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*6 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -2805,7 +2805,7 @@ The viewer showing `unparseable` and `quarantine` is [`testing/the-viewer-shows-
 
 <a id="testing-the-viewer-shows-the-stream-and-hands-off-every-artifact"></a>
 
-## The viewer renders the correlated request stream and hands every artifact with an existing viewer to it  *(designed — owned by goal debug-viewer)*
+## The viewer renders the correlated request stream and hands every artifact with an existing viewer to it
 
 `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`
 

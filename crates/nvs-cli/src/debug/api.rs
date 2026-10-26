@@ -36,7 +36,7 @@
 //!
 //! **The stream, the search and the settings are their own modules.** `GET /api/stream` is
 //! [`super::stream`], `GET /api/search` is [`super::search`], `GET /api/exceptions` is
-//! [`super::exceptions`], and `GET` and `PUT /api/settings` are [`super::settings`]. The first
+//! [`super::exceptions`], and `GET` and `PUT /api/settings` are [`mod@super::settings`]. The first
 //! three read through this connection.
 //!
 //! **Discarding the index closes this connection first.** `POST /api/index/discard` drops the
@@ -1022,6 +1022,9 @@ mod tests {
         let small = newest_page_steps(1_000);
         let large = newest_page_steps(20_000);
         assert!(small > 0, "the progress handler counted no step");
-        assert_eq!(small, large, "the newest page's SQLite steps grew with the index");
+        assert_eq!(
+            small, large,
+            "the newest page's SQLite steps grew with the index"
+        );
     }
 }
