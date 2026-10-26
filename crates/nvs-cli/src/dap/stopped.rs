@@ -5,6 +5,11 @@
 //! stops has the same round. The first stop of a round is the `stopped` event, with every thread
 //! stopped, and the round's threads are its tasks in the order their stops arrived.
 //!
+//! A stop the session reads after it resumed that stop's round is dropped: the resume woke its
+//! task, which runs again. A task of the tree can send its stop just before a `next` and the
+//! session read it just after, and filed as a new round it would be a second `stopped` event, a
+//! `pause` the client never asked for.
+//!
 //! After a step left a function, the innermost frame's scope starts with the value that function
 //! returned, named `f() returned`.
 //!
@@ -32,6 +37,9 @@ const FRAMES: i64 = 1 << 20;
 #[derive(Default)]
 pub(super) struct Stopped {
     round: Option<Round>,
+    /// How many resumes the session made, which is the round of the next stop. A stop of an
+    /// earlier round arrived after its resume.
+    resumes: u64,
     /// The launch's mappings, which a frame's file is shown through.
     pub(super) paths: PathMap,
 }
@@ -52,8 +60,11 @@ enum Ref {
 
 impl Stopped {
     /// Files one task's stop. Gives the `stopped` event's body for the first stop of a round, and
-    /// `None` for each stop after it.
+    /// `None` for each stop after it and for a stop of a round already resumed.
     pub(super) fn file(&mut self, stop: Stop) -> Option<Value> {
+        if stop.round < self.resumes {
+            return None;
+        }
         if let Some(round) = &mut self.round
             && round.number == stop.round
         {
@@ -106,9 +117,11 @@ impl Stopped {
         }))
     }
 
-    /// Forgets the round. Called before the resume, so a stop of the next round is never cleared.
+    /// Forgets the round, and counts the resume that follows. Called before each resume, so a stop
+    /// of the next round is never cleared.
     pub(super) fn clear(&mut self) {
         self.round = None;
+        self.resumes += 1;
     }
 
     /// The `threads` body: the round's tasks, or the one `main` thread while nothing is stopped.
@@ -395,6 +408,22 @@ mod tests {
         assert_eq!(
             stopped.file(stop(1, StopReason::Pause)).unwrap()["reason"],
             "pause"
+        );
+        assert_eq!(stopped.threads()["threads"].as_array().unwrap().len(), 1);
+    }
+
+    /// A stop of a round the session already resumed is no event and no thread, and the next
+    /// round's first stop is still the event.
+    #[test]
+    fn a_stop_read_after_its_round_was_resumed_is_dropped() {
+        let mut stopped = Stopped::default();
+        assert!(stopped.file(stop(0, StopReason::Breakpoint)).is_some());
+        stopped.clear();
+        assert!(stopped.file(stop(0, StopReason::Tree)).is_none());
+        assert_eq!(stopped.threads()["threads"][0]["name"], "main");
+        assert_eq!(
+            stopped.file(stop(1, StopReason::Step)).unwrap()["reason"],
+            "step"
         );
         assert_eq!(stopped.threads()["threads"].as_array().unwrap().len(), 1);
     }
