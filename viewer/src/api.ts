@@ -532,6 +532,11 @@ export function replay(key: { trace: string; span: string }, headers: Record<str
   return send<Replayed>("POST", "/api/replay", { trace: key.trace, span: key.span, headers });
 }
 
+/** The text of a test that sends the request `key` names again and checks its recorded response. */
+export function toTest(key: { trace: string; span: string }, signal?: AbortSignal): Promise<{ text: string }> {
+  return get<{ text: string }>(`/api/to-test?${requestQuery(key)}`, signal);
+}
+
 /** `GET path` as JSON, or an `ApiError` with the service's message. */
 function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   return answer<T>(fetch(path, signal ? { signal } : {}));

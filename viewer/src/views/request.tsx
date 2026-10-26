@@ -9,7 +9,8 @@
 // fetched once the link names one request.
 //
 // Once the records load, a bar offers to compare the request with the previous request to the same
-// route (`c`), with the request marked in the list, and to replay it (`r`, `replay.tsx`). The previous
+// route (`c`), with the request marked in the list, to replay it (`r`, `replay.tsx`), and to make a test
+// from it (`t`, `to-test.tsx`). The previous
 // request is the nearest older row with the same method and route on one page of `before`, so the
 // lookup is one bounded `GET /api/requests`.
 //
@@ -24,6 +25,7 @@ import { compareLink, navigate, requestLink } from "../router.ts";
 import { Site } from "../site.tsx";
 import { isMarked, marked, setMarked } from "./compare.tsx";
 import { ReplayAction } from "./replay.tsx";
+import { ToTestAction } from "./to-test.tsx";
 import { saved } from "./saved.tsx";
 import { duration, statusClass } from "./requests.tsx";
 import { Coverage } from "./coverage.tsx";
@@ -84,12 +86,14 @@ export function RequestView(props: { trace: string; span: string | undefined }) 
     return row?.span && before?.span ? compareLink({ trace: before.trace, span: before.span }, { trace: row.trace, span: row.span }) : null;
   };
   let openReplay: (() => void) | undefined;
+  let openToTest: (() => void) | undefined;
 
   const onKey = (e: KeyboardEvent) => {
     if (ignored(e)) return;
     if (e.key === "Escape") navigate("/");
     else if (e.key === "c" && previousLink()) navigate(previousLink()!);
     else if (e.key === "r" && openReplay) openReplay();
+    else if (e.key === "t" && openToTest) openToTest();
     else return;
     e.preventDefault();
   };
@@ -152,6 +156,7 @@ export function RequestView(props: { trace: string; span: string | undefined }) 
                       )}
                     </Show>
                     <ReplayAction detail={d()} ref={(open) => (openReplay = open)} />
+                    <ToTestAction detail={d()} ref={(open) => (openToTest = open)} />
                   </div>
                   <Records detail={d()} />
                 </>

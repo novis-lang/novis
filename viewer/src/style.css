@@ -860,6 +860,20 @@ dialog.ask.replay {
   margin-top: 0.4rem;
 }
 
+/* The dialog that shows a test made from a request. */
+dialog.ask.to-test {
+  max-width: min(60rem, 90vw);
+}
+
+.to-test-text {
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  user-select: text;
+}
+
 /* The dialogs that ask for a name or ask before deleting. */
 dialog.ask {
   color: var(--fg);
