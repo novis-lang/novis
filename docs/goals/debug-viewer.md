@@ -259,9 +259,28 @@ read only for `custom`, and the service and the viewer both refuse a `javascript
 presets drop a path's leading `/`, so a POSIX path is not read as a UNC host. Trade-offs: none on
 the request path; one small settings file.
 
-**`rule:testing/a-site-in-the-viewer-opens-in-the-editor` ships in stage 9.** Stage 5's call. Its
-profile sentence (the `vscode://novis-lang.nvs/` link) is built there, and a shipped rule is true
-as a whole. Stage 5 ships `rule:testing/an-exception-is-one-row-per-class-and-site`.
+**A profile reaches the index as a spool `profile` line, and the page downloads it by row.** Stage
+9's call. `Core\Debug::startProfile` writes the file's absolute path once it has created the file,
+under `[debug] store`. The index keeps it in `profiles` (schema 4). `GET /api/request` lists a
+request's profiles, and `GET /api/profile?id=` sends one row's file, at most 256 MiB. The page
+names a row and never a path. The `vscode://novis-lang.nvs/profile?file=` link is offered for
+`vscode`, `vscode-insiders`, `vscodium` and `cursor`, which run the extension, and only for a
+`.speedscope.json` file, the one name the extension opens. Every profile also has a download. The
+extension refuses a relative path, a network path and any other file. Trade-offs: one spool line
+per started profile, off the request's answer; a download holds its file in `nvs debug`'s memory
+while it is sent.
+
+**A request's coverage needs the server to count it, and only under `[debug] mode` coverage.**
+Stage 9's call, for the next session. No server request has a coverage table today: only `nvs
+test` installs one (`crates/nvs-cli/src/coverage.rs`, `Sites::of`), so `Core\Debug::coverage()`
+in a request is empty. The server installs a located `StmtHits` table per request only where the
+request's mode has `coverage`. At the request's end it writes a spool `coverage` line: file to
+line to count for the lines that ran, as `coverage()` gives it, and each file's modified time from
+when the program compiled. `nvs debug` stores it, and `GET /api/source` reads only a file under
+the project root that a coverage row names, and says when its modified time differs. The table
+sizing and locating move out of `nvs-cli` to a crate the server already links. Trade-offs: one
+`u64` per statement per request in flight under coverage, freed with the request; nothing at all
+where the mode has no coverage, which is every production host.
 
 **Trade-offs, all together.** Request path: nothing. The viewer is another process reading the index,
 and a server process never reaches its code. Memory: the two bundled files are read-only data in every
@@ -348,11 +367,11 @@ stream, log and search views and their browser test against the fixtures.
 **Does:** a profile opens in the extension's view, and the viewer draws a request's coverage over its
 source.
 
-- [ ] The extension handles `vscode://novis-lang.nvs/` links and opens a profile in its *View Profile* view, and other editors get a download (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/extension.ts:120`, `editors/vscode/package.json:24`
-- [ ] The URI handler in the extension's headless suite. `editors/vscode/scripts/headless.mjs:1`
+- [x] The extension handles `vscode://novis-lang.nvs/` links and opens a profile in its *View Profile* view, and other editors get a download (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/extension.ts:120`, `editors/vscode/package.json:24`
+- [x] The URI handler in the extension's headless suite. `editors/vscode/scripts/headless.mjs:1`
 - [ ] A request's coverage is drawn as a per-line heatmap over its source. The service reads only files under the project root that the record names, and says so when a file changed since the request. The lcov hand-off stays as it is. `crates/nvs-cli/src/debug/source.rs:1`, `viewer/src/views/coverage.tsx:1`, `editors/vscode/src/tests.ts:92`
 - [ ] Rust test: a source path outside the project root is refused. `crates/nvs-cli/tests/debug_api.rs:1`
-- [ ] `rule:testing/a-site-in-the-viewer-opens-in-the-editor` `shipped`, now that its profile link is built. `data/rules/testing/a-site-in-the-viewer-opens-in-the-editor.json:3`
+- [x] `rule:testing/a-site-in-the-viewer-opens-in-the-editor` `shipped`, now that its profile link is built. `data/rules/testing/a-site-in-the-viewer-opens-in-the-editor.json:3`
 
 ### 6. two requests compare, and one replays after the developer confirms
 
@@ -400,38 +419,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 8, 4 and 5 are done. Stage 5 added `crates/nvs-cli/src/debug/exceptions.rs`
-(`GET /api/exceptions`: groups newest last seen first, cursor `<last seen>.<id>`, each row's
-message, 24-count chart and routes from at most 1000 newest throws; `?class=&file=&line=` gives one
-group and its requests, cursor the exception id), the editor presets, template and
-`path_mappings` in `settings.rs`, and the fixtures `exceptions.json` and `exception.json`. In the
-viewer: `viewer/src/editor-link.ts` (links from a structured site only), `site.tsx` (the `Site`
-link, used in the list, the request, the timeline and the stream), `views/exceptions.tsx` and
-`views/editor.tsx` (the header's Editor dialog). `rule:testing/an-exception-is-one-row-per-class-and-site`
-is shipped; `rule:testing/a-site-in-the-viewer-opens-in-the-editor` ships in stage 9 (Standing
-decisions).
+Stages 1, 2, 3, 8, 4 and 5 are done, and stage 9's profile half is done. The extension opens
+`vscode://novis-lang.nvs/profile?file=` links (`editors/vscode/src/profilelink.ts`, the handler in
+`extension.ts`, `onUri`). `Core\Debug::startProfile` writes a spool `profile` line
+(`crates/nvs-runtime/src/spool.rs`, `Profile`), the index keeps `profiles` (schema 4),
+`GET /api/request` lists them and `GET /api/profile?id=` downloads one
+(`crates/nvs-cli/src/debug/api.rs`). The request view lists each profile with a download and, for a
+VS Code family editor, an open link (`viewer/src/editor-link.ts`, `profileLink`).
+`rule:testing/a-site-in-the-viewer-opens-in-the-editor` is shipped.
 
-Stage 5 checked once: clippy and fmt clean, `cargo test --test debug_api` 3 pass, the debug unit
-tests 20 pass, `tsc` clean, `editor-link` and `api` tests 21 pass, `exceptions.browser` 4 pass
-(the subagent also ran `requests`, `request` and `stream`: 26 pass), `bun nv viewer --check`
-current, `bun nv rules --check` clean. The sweep's reds were stale again: `env-secret-proofs`'
-log exits 0, and the nightly is still run 40291801939 on `d6f131752`.
+Checked once: build, clippy and fmt clean; `cargo test --test debug_api` 4 pass (the fixture
+`request.json` was rewritten and committed); `tsc` clean; `editor-link` and `api` 24 pass;
+`request.browser` 5 pass; the extension's compile and headless suite 322 pass; `bun nv rules
+--check` clean. The sweep's reds were stale: `env-secret-proofs`' log exits 0, and the nightly
+run 40291801939 built `d6f131752`, before the yanked `crypto-bigint` fix (`97ccf66c2`) and the
+counted-run test fix (`9c8b0fe16`).
 
 Expected red: CI `proofs` (`directive:debug.*`, the four `[debug]` keys) until stage 7.
 
 ### Next
 
-**Stage 9, a profile is handed to VS Code, and a request's coverage is a heatmap over its source.**
-Gate: open (`docs/goals/trace-timeline.md` is gone). Two lanes: the extension (`editors/vscode/`)
-and the service plus viewer. The profile link goes through `viewer/src/editor-link.ts`, offered
-only when `editor` is `vscode` and a download otherwise. Neither the spool
-(`crates/nvs-runtime/src/spool.rs`) nor the ingester names coverage today, so the coverage half
-starts by finding where `rule:testing/debug-surface`'s coverage map is recorded (`bun nv brief
---where coverage`).
+**Stage 9's coverage half: a request's coverage is a heatmap over its source.** No server request
+counts coverage today, so it starts in the server. The Standing decision *A request's coverage
+needs the server to count it* is the design. Lanes: the server table and spool line first, then
+the ingester, `GET /api/coverage` and `GET /api/source`, then the viewer's `views/coverage.tsx`
+against the fixture. The table is sized and located by `Sites::of` in
+`crates/nvs-cli/src/coverage.rs:112`, which moves to a crate `nvs-server` links.
 
-- [ ] The extension registers a URI handler for `vscode://novis-lang.nvs/` beside `nvs.viewProfile`. `editors/vscode/src/extension.ts:144`, `editors/vscode/src/profile.ts:1`
-- [ ] Find where a request's coverage is recorded, and the service's source read under the project root. `crates/nvs-cli/src/debug/api.rs:1`
-- [ ] The rule `a-site-in-the-viewer-opens-in-the-editor` is shipped once its profile link exists. `data/rules/testing/a-site-in-the-viewer-opens-in-the-editor.json:3`
+- [ ] The server installs a located coverage table per request where its mode has `coverage`, and writes a spool `coverage` line at its end. `crates/nvs-cli/src/coverage.rs:112`, `crates/nvs-server/src/spooled.rs:1`, `crates/nvs-runtime/src/spool.rs:129`
+- [ ] The ingester stores it, and `GET /api/coverage` and `GET /api/source` serve it, a source read only under the project root. `crates/nvs-cli/src/debug/ingest.rs:427`, `crates/nvs-cli/src/debug/source.rs:1`
+- [ ] Rust test: a source path outside the project root is refused. `crates/nvs-cli/tests/debug_api.rs:1`
+- [ ] The viewer draws the heatmap. `viewer/src/views/coverage.tsx:1`
 
 ### Backlog
 
