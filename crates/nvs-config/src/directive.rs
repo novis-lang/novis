@@ -273,7 +273,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // which `nvs serve`'s background expansion reads from the published snapshot and expands again
     // when they changed. The longer rows below it are `Boot`.
     Directive { key: "server", class: Class::System, apply: Apply::Reload },
-    // `rule:config/reloadability-is-its-own-field`'s four restart keys. `listen` binds the sockets,
+    // `rule:config/reloadability-is-its-own-field`'s four server restart keys. `listen` binds the sockets,
     // and a port below 1024 needs a privilege the process dropped after it bound. `socket_mode` is
     // applied when a Unix listener is bound, so it moves only with `listen`. `workers` sizes the
     // runtime state every core holds. `watchdog_margin` is read once, by the one watchdog the

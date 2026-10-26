@@ -59,6 +59,10 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
 
     // `rule:config/reloadability-is-its-own-field`'s own lists, key by key. `Boot` first — the narrow set.
     for key in [
+        "debug.listen",
+        "debug.tls_cert_file",
+        "debug.tls_key_file",
+        "debug.token_file",
         "server.listen",
         "server.socket_mode",
         "server.workers",
@@ -311,6 +315,26 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "debug.index_max",
         LIVE,
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "debug.listen",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "debug.tls_cert_file",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "debug.tls_key_file",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "debug.token_file",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
     ),
     (
         "server",
@@ -903,7 +927,11 @@ fn keeping_a_temporary_directory_and_its_root_are_the_operators_and_both_reload(
             "store",
             "spool_max",
             "index_age",
-            "index_max"
+            "index_max",
+            "listen",
+            "tls_cert_file",
+            "tls_key_file",
+            "token_file"
         ],
         "`[debug]` accepts {keys:?}, and a key added to the block joins this census in the commit \
          that adds it — the two the registry governs are named below and the third is stated as \

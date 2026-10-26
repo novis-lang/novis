@@ -19,12 +19,17 @@ test in which the reload keeps the running value and reports the key. A directiv
 neither fails the census, which is what stops a subsystem from taking a value once at boot while
 the reload report lists it as applied.
 
-**`Boot` is four keys: `[server] listen`, `[server] socket_mode`, `[server] workers` and
+**A server's `Boot` keys are four: `[server] listen`, `[server] socket_mode`, `[server] workers` and
 `[server] watchdog_margin`.** A port below 1024 needs a privilege the process dropped after it bound,
 so `listen` cannot move in general. `socket_mode` is applied when a Unix listener is bound, so it
 moves only with `listen`. `workers` sizes the runtime state each core holds. `watchdog_margin` is read
 once, by the one watchdog the process builds when it starts. The registry keeps a row per key where a block's keys are
 two apply classes: `[server]` is a `Reload` block row with `Boot` rows for its restart keys.
+
+**`nvs debug`'s listener adds four more: `[debug] listen`, `tls_cert_file`, `tls_key_file` and
+`token_file`.** `nvs debug` binds the viewer's address and loads its certificate, key and token once,
+when it starts, and a server's reload never reaches that process. A change to any of them takes the
+next start of `nvs debug`.
 
 Everything else reloads, including the `[[extension]]` array and its pins, `opcache.validate` and its
 rate cap, the per-app blocks, `[[schedule]]`, `[deferred] max_concurrent`, the whole of `[queue]`,

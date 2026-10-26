@@ -1,0 +1,7 @@
+<?nvs
+// `[debug] listen` is the address where `nvs debug` serves the debug viewer.
+// This file does not set it, so the default is used, and this prints `127.0.0.1:8137`.
+echo 'listen:     ', Core\Config::get('debug.listen') ?? '(no value)', "\n";
+
+// A program cannot change this setting, so this prints `no`.
+echo 'change it:  ', Core\Config::set('debug.listen', '0.0.0.0:8137') ? 'yes' : 'no', "\n";

@@ -1,0 +1,80 @@
+<?nvs
+// Attack: a program tries to change `[debug] listen`, so the debug viewer is served on another
+// address or port. Anybody who reaches that address could then read the recorded requests.
+// Every change should fail, and the address should keep its default value.
+
+// 1. Set addresses on every network, on low ports and on other hosts. Each change should fail.
+array<string> $addresses = [
+    '0.0.0.0:8137',
+    '0.0.0.0:80',
+    '0.0.0.0:443',
+    '[::]:8137',
+    '[::1]:8137',
+    '192.0.2.10:8137',
+    '203.0.113.5:9000',
+    '127.0.0.1:1',
+    '127.0.0.1:0',
+    '127.0.0.1:8138',
+    '127.0.0.1:8137',
+    'localhost:8137',
+    'example.com:443',
+];
+foreach ($addresses as string $address) {
+    Core\Config::set('debug.listen', $address);
+}
+Core\Config::restore('debug.listen');
+
+// 2. Set values that are not addresses. Each change should fail.
+array<string> $words = [
+    '',
+    ' ',
+    ':8137',
+    '127.0.0.1',
+    '127.0.0.1:65536',
+    '127.0.0.1:-1',
+    '999.999.999.999:8137',
+    "127.0.0.1:8137\n0.0.0.0:80",
+    '127.0.0.1:8137; 0.0.0.0:80',
+    'unix:/tmp/debug.sock',
+    'http://0.0.0.0:80/',
+];
+foreach ($words as string $word) {
+    Core\Config::set('debug.listen', $word);
+}
+Core\Config::restore('debug.listen');
+
+// 3. Set a very long address. A slow parse or a crash would show here.
+string $long = Core\Str::repeat('1', 100000) . ':8137';
+Core\Config::set('debug.listen', $long);
+Core\Config::restore('debug.listen');
+
+// 4. Set keys that are almost the real key: extra dots, capital letters and other names.
+array<string> $nearby = [
+    'debug.listen.',
+    '.debug.listen',
+    'debug..listen',
+    'debuglisten',
+    'DEBUG.LISTEN',
+    'Debug.Listen',
+    'debug.listen_address',
+    'debug.listen.port',
+    'listen',
+    'debug',
+    'server.debug.listen',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, '0.0.0.0:80');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 5. Try the same change 50,000 times. Each try should fail and leave nothing behind.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('debug.listen', '0.0.0.0:80');
+    Core\Config::restore('debug.listen');
+    $i = $i + 1;
+}
+
+// 6. The address should still be the default value.
+echo 'debug.listen: ', Core\Config::get('debug.listen') ?? '(nothing)', "\n";

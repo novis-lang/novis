@@ -1,0 +1,7 @@
+<?nvs
+// `[debug] tls_key_file` is the private key file for the debug viewer, such as `/etc/novis/debug.key`.
+// This file does not set it, so `nvs debug` creates its own key, and this prints `(not set)`.
+echo 'tls_key_file: ', Core\Config::get('debug.tls_key_file') ?? '(not set)', "\n";
+
+// A program cannot change this setting, so this prints `no`.
+echo 'change it:    ', Core\Config::set('debug.tls_key_file', '/etc/novis/debug.key') ? 'yes' : 'no', "\n";

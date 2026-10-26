@@ -1,0 +1,7 @@
+<?nvs
+// `[debug] tls_cert_file` is a certificate file for the debug viewer, such as `/etc/novis/debug.crt`.
+// This file does not set it, so `nvs debug` creates its own certificate, and this prints `(not set)`.
+echo 'tls_cert_file: ', Core\Config::get('debug.tls_cert_file') ?? '(not set)', "\n";
+
+// A program cannot change this setting, so this prints `no`.
+echo 'change it:     ', Core\Config::set('debug.tls_cert_file', '/etc/novis/debug.crt') ? 'yes' : 'no', "\n";

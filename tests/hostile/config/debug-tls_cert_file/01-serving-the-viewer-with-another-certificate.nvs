@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a program tries to change `[debug] tls_cert_file`, so the debug viewer uses a certificate
+// that the program chose. It also tries paths outside the folder and paths that are not files.
+// Every change should fail, and the setting should stay unset.
+
+// 1. Set paths to other certificates. Each change should fail.
+array<string> $paths = [
+    '/etc/novis/debug.crt',
+    '/tmp/debug.crt',
+    'debug.crt',
+    './debug.crt',
+    '../../../../etc/ssl/certs/ca-certificates.crt',
+    '/etc/novis/../../tmp/debug.crt',
+    '/dev/stdin',
+    '/dev/zero',
+    '/proc/self/environ',
+    'C:\\Windows\\debug.crt',
+    '\\\\example.com\\share\\debug.crt',
+    'https://example.com/debug.crt',
+];
+foreach ($paths as string $path) {
+    Core\Config::set('debug.tls_cert_file', $path);
+}
+Core\Config::restore('debug.tls_cert_file');
+
+// 2. Set values that are empty or that contain control characters. Each change should fail.
+array<string> $words = ['', ' ', '.', '/', "/tmp/a.crt\0.pem", "/tmp/a.crt\n/tmp/b.crt", '-----BEGIN CERTIFICATE-----'];
+foreach ($words as string $word) {
+    Core\Config::set('debug.tls_cert_file', $word);
+}
+Core\Config::restore('debug.tls_cert_file');
+
+// 3. Set a very long path. A slow check or a crash would show here.
+string $long = '/' . Core\Str::repeat('a/', 50000) . 'debug.crt';
+Core\Config::set('debug.tls_cert_file', $long);
+Core\Config::restore('debug.tls_cert_file');
+
+// 4. Set keys that are almost the real key: extra dots, capital letters and other names.
+array<string> $nearby = [
+    'debug.tls_cert_file.',
+    '.debug.tls_cert_file',
+    'debug..tls_cert_file',
+    'DEBUG.TLS_CERT_FILE',
+    'debug.tls-cert-file',
+    'debug.tls_cert',
+    'debug.cert_file',
+    'tls_cert_file',
+    'debug',
+    'server.tls_cert_file',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, '/tmp/debug.crt');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 5. Try the same change 50,000 times. Each try should fail and leave nothing behind.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('debug.tls_cert_file', '/tmp/debug.crt');
+    Core\Config::restore('debug.tls_cert_file');
+    $i = $i + 1;
+}
+
+// 6. The setting should still be unset.
+echo 'debug.tls_cert_file: ', Core\Config::get('debug.tls_cert_file') ?? '(nothing)', "\n";

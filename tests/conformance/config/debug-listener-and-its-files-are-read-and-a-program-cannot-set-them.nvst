@@ -1,0 +1,29 @@
+--TEST--
+`[debug] listen` and its three files read the file's values, and every program write to any of the four is refused — `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`
+--FILE--
+<?nvs
+// covers: directive:debug.listen, directive:debug.tls_cert_file, directive:debug.tls_key_file, directive:debug.token_file
+// The four keys are `System`: every program write is refused, a loopback address or another, a path or empty.
+array<string> $keys = ['debug.listen', 'debug.tls_cert_file', 'debug.tls_key_file', 'debug.token_file'];
+array<string> $other = ['0.0.0.0:80', '/tmp/a.crt', '/tmp/a.key', '/tmp/a.token'];
+uint $i = 0;
+while ($i < 4) {
+    echo $keys[$i], '=', Core\Config::get($keys[$i]) ?? 'null', ' ';
+    echo Core\Config::set($keys[$i], $other[$i]) ? 'set' : 'refused', ' ';
+    echo Core\Config::set($keys[$i], '127.0.0.1:8137') ? 'set' : 'refused', ' ';
+    echo Core\Config::set($keys[$i], '') ? 'set' : 'refused', ' ';
+    Core\Config::restore($keys[$i]);
+    echo Core\Config::get($keys[$i]) ?? 'null', "\n";
+    $i = $i + 1;
+}
+--FILE nvs.toml--
+[debug]
+listen = "192.0.2.10:9000"
+tls_cert_file = "/etc/novis/debug.crt"
+tls_key_file = "/etc/novis/debug.key"
+token_file = "/etc/novis/debug.token"
+--EXPECT--
+debug.listen=192.0.2.10:9000 refused refused refused 192.0.2.10:9000
+debug.tls_cert_file=/etc/novis/debug.crt refused refused refused /etc/novis/debug.crt
+debug.tls_key_file=/etc/novis/debug.key refused refused refused /etc/novis/debug.key
+debug.token_file=/etc/novis/debug.token refused refused refused /etc/novis/debug.token

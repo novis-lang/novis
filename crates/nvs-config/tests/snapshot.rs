@@ -704,6 +704,26 @@ fn a_boot_key_a_reload_added_is_reported_and_left_unset() {
 /// Each `Boot` row, and a tree before and after a reload that changes the key it governs.
 const BOOT_CHANGES: &[(&str, &str, &str)] = &[
     (
+        "debug.listen",
+        "[debug]\nlisten = \"127.0.0.1:8137\"\n",
+        "[debug]\nlisten = \"127.0.0.1:8138\"\n",
+    ),
+    (
+        "debug.tls_cert_file",
+        "[debug]\ntls_cert_file = \"/etc/novis/debug.crt\"\n",
+        "[debug]\ntls_cert_file = \"/etc/novis/other.crt\"\n",
+    ),
+    (
+        "debug.tls_key_file",
+        "[debug]\ntls_key_file = \"/etc/novis/debug.key\"\n",
+        "[debug]\ntls_key_file = \"/etc/novis/other.key\"\n",
+    ),
+    (
+        "debug.token_file",
+        "[debug]\ntoken_file = \"/etc/novis/debug.token\"\n",
+        "[debug]\ntoken_file = \"/etc/novis/other.token\"\n",
+    ),
+    (
         "server.listen",
         "[server]\nlisten = [\"127.0.0.1:8080\"]\n",
         "[server]\nlisten = [\"127.0.0.1:8081\"]\n",
@@ -741,7 +761,8 @@ fn written_at<'a>(table: &'a toml::Table, dotted: &str) -> Option<&'a toml::Valu
 /// `tests/directives.rs` names this case as the restart proof of every `Boot` row, so a `Boot` row
 /// with no line in [`BOOT_CHANGES`] fails here.
 // covers: directive:server.listen, directive:server.socket_mode, directive:server.workers
-// covers: directive:server.watchdog_margin
+// covers: directive:server.watchdog_margin, directive:debug.listen, directive:debug.tls_cert_file
+// covers: directive:debug.tls_key_file, directive:debug.token_file
 #[test]
 fn every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value() {
     use nvs_config::directive::{Apply, DIRECTIVES};
@@ -783,7 +804,8 @@ fn every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value() {
 /// `rule:config/reloadability-is-its-own-field`'s `Boot` set, and no other row is `Boot`. A port
 /// below 1024 needs a privilege the process dropped, `socket_mode` is applied when that socket is
 /// bound, `workers` sizes what each core holds, and `watchdog_margin` is read by the one watchdog
-/// the process builds when it starts. A row added as `Boot` beside them is a key an operator
+/// the process builds when it starts. `nvs debug` binds `[debug] listen` and loads its three files
+/// once, when it starts. A row added as `Boot` beside them is a key an operator
 /// restarts for, so it fails here until the rule names it.
 #[test]
 fn only_the_rules_restart_keys_are_boot() {
@@ -797,6 +819,10 @@ fn only_the_rules_restart_keys_are_boot() {
     assert_eq!(
         boot,
         [
+            "debug.listen",
+            "debug.tls_cert_file",
+            "debug.tls_key_file",
+            "debug.token_file",
             "server.listen",
             "server.socket_mode",
             "server.workers",

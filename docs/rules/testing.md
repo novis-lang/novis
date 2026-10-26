@@ -3,7 +3,7 @@
 
 # Testing
 
-*8 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -2011,11 +2011,22 @@ any subset of `coverage`, `branch`, `trace` and `profile` is a ceiling a request
 never widen. A production tree sets `mode = []` and no request-side call can turn any bit on.
 Any other name stops the start where it is written.
 
-`nvs run` and `nvs test` arm the probes the file names. **A server whose `[debug] mode` names any
-probe fails its boot and its reload**, with an error that says why, the same on every platform. A
-`trace` probe files two owned strings per compiled call with no ceiling, and nothing reads them on a
-served request ([`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span)); `coverage` and `branch` count into a
-table a served request does not have. Coverage of a live server is its own feature, not designed.
+`nvs run` and `nvs test` arm the probes the file names. **A server whose `[debug] mode` names
+`branch`, `trace` or `profile` fails its boot and its reload**, with an error that says why, the
+same on every platform. A `trace` probe files two owned strings per compiled call with no ceiling,
+and nothing reads them on a served request ([`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span)); `branch`
+counts edges nothing on a server reads.
+
+**A development server may name `coverage`**, and only `coverage`: the tree's `[mode] default` is
+`development`, or the boot fails as above. Its compiler builds a located coverage table beside each
+unit, and each request whose mode is `development` counts into a zeroed copy of its own, so
+`Core\Debug::coverage()` names what ran and the request's spool `coverage` line carries it to the
+debug viewer's heatmap ([`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact)). A
+production request under the same tree counts nothing. Whether a server counts is fixed at its boot,
+and a reload that would start or stop counting is refused with a message to restart. Spends one
+`u64` per statement and edge and one file and line per statement per unit, once, and one `u64` per
+statement and edge per development request in flight, freed with the request; nothing where the
+tree names no `coverage`, which is every production host.
 
 Whether a running request's internals are observable is not a request-local decision. An
 attacker-controlled request that could turn tracing on for itself in production would gain a
@@ -2035,8 +2046,11 @@ first query, naming the line to add, so a trace that comes out empty is never si
 - **`[debug] mode` as a directive a request may set freely.** Observability of a request's own
   internals is not a request-local decision, for the reason above.
 - **Arming the probes on a server with a cap on its `call` events.** The cap would be a new limit.
-- **Refusing only `trace` and `profile` on a server.** `coverage` and `branch` would be accepted and
-  count nothing.
+- **Refusing only `trace` and `profile` on a server.** `branch` would be accepted and count nothing.
+- **Counting coverage on a production server.** A table per request on every host buys a heatmap
+  only a developer reads, and a production tree is the one that must arm nothing.
+- **Building the coverage table on a unit's first counted request.** It would be made on first use
+  on the request path; the compile that builds the unit builds it.
 - **Gating a sampled request's query span on the `debug.trace` grant.** Sampling is the request to
   export ([`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event)); the grant gates only a span `trace` renders.
 
@@ -2992,7 +3006,7 @@ requests.
 
 <a id="testing-two-requests-compare-and-a-replay-asks-first"></a>
 
-## The viewer compares two requests side by side, and resends a recorded request to the development server only after the developer confirms  *(designed — owned by goal debug-viewer)*
+## The viewer compares two requests side by side, and resends a recorded request to the development server only after the developer confirms
 
 `rule:testing/two-requests-compare-and-a-replay-asks-first`
 

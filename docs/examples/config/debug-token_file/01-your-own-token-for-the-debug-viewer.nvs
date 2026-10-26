@@ -1,0 +1,7 @@
+<?nvs
+// `[debug] token_file` is a file with the token that opens the debug viewer, such as `/etc/novis/debug.token`.
+// This file does not set it, so `nvs debug` creates its own token, and this prints `(not set)`.
+echo 'token_file: ', Core\Config::get('debug.token_file') ?? '(not set)', "\n";
+
+// A program cannot change this setting, so this prints `no`.
+echo 'change it:  ', Core\Config::set('debug.token_file', '/etc/novis/debug.token') ? 'yes' : 'no', "\n";
