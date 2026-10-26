@@ -1,0 +1,107 @@
+{
+  "group": {
+    "chart": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    "class": "Shop\\OutOfStock",
+    "count": 3,
+    "file": "src/Shop/Orders.nvs",
+    "first_us": 1700000000000000,
+    "id": 1,
+    "last_us": 1700000240000000,
+    "line": 42,
+    "message": "item 3 is out of stock",
+    "routes": [
+      "/orders",
+      "/cart"
+    ],
+    "sampled": false
+  },
+  "older": null,
+  "requests": [
+    {
+      "batch": 1,
+      "dumps": 0,
+      "duration_us": 500,
+      "exception": {
+        "class": "Shop\\OutOfStock",
+        "file": "src/Shop/Orders.nvs",
+        "line": 42
+      },
+      "id": 5,
+      "logs": 0,
+      "method": "POST",
+      "path": "/orders",
+      "queries": 0,
+      "route": "/orders",
+      "span": "000000000000def4",
+      "start_us": 1700000240000000,
+      "status": 500,
+      "trace": "0000000000000000000000000000abc4"
+    },
+    {
+      "batch": 1,
+      "dumps": 0,
+      "duration_us": 500,
+      "exception": {
+        "class": "Shop\\OutOfStock",
+        "file": "src/Shop/Orders.nvs",
+        "line": 42
+      },
+      "id": 3,
+      "logs": 0,
+      "method": "POST",
+      "path": "/cart",
+      "queries": 0,
+      "route": "/cart",
+      "span": "000000000000def2",
+      "start_us": 1700000120000000,
+      "status": 500,
+      "trace": "0000000000000000000000000000abc2"
+    },
+    {
+      "batch": 1,
+      "dumps": 0,
+      "duration_us": 500,
+      "exception": {
+        "class": "Shop\\OutOfStock",
+        "file": "src/Shop/Orders.nvs",
+        "line": 42
+      },
+      "id": 1,
+      "logs": 0,
+      "method": "POST",
+      "path": "/orders",
+      "queries": 0,
+      "route": "/orders",
+      "span": "000000000000def0",
+      "start_us": 1700000000000000,
+      "status": 500,
+      "trace": "0000000000000000000000000000abc0"
+    }
+  ],
+  "watermark": 1
+}

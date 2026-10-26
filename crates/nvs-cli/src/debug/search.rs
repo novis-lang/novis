@@ -124,7 +124,7 @@ impl Query {
         for pair in url.split('&').filter(|pair| !pair.is_empty()) {
             let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
             match key {
-                "q" => text = decode(value)?,
+                "q" => text = decode(key, value)?,
                 "before" => before = Some(cursor(value)?),
                 "limit" => {
                     let value = api::number(key, value)?;
@@ -342,8 +342,8 @@ fn cursor(value: &str) -> Result<(i64, i64), String> {
         .ok_or_else(|| "`before` must be the `older` value of a page.".to_owned())
 }
 
-/// A URL query value with `+` as a space and `%XX` escapes decoded.
-fn decode(value: &str) -> Result<String, String> {
+/// The URL query value of `key` with `+` as a space and `%XX` escapes decoded.
+pub(super) fn decode(key: &str, value: &str) -> Result<String, String> {
     let mut bytes = Vec::with_capacity(value.len());
     let mut rest = value.bytes();
     while let Some(byte) = rest.next() {
@@ -356,13 +356,17 @@ fn decode(value: &str) -> Result<String, String> {
                     (Some(high), Some(low)) => {
                         bytes.push(u8::try_from(high * 16 + low).unwrap_or(0))
                     }
-                    _ => return Err("`q` has a `%` that is not followed by two hex digits.".into()),
+                    _ => {
+                        return Err(format!(
+                            "`{key}` has a `%` that is not followed by two hex digits."
+                        ));
+                    }
                 }
             }
             byte => bytes.push(byte),
         }
     }
-    String::from_utf8(bytes).map_err(|_| "`q` is not UTF-8.".to_owned())
+    String::from_utf8(bytes).map_err(|_| format!("`{key}` is not UTF-8."))
 }
 
 /// Which request a record of the table aliased `t` belongs to: the next request line its writer

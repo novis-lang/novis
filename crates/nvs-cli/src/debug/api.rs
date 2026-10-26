@@ -21,8 +21,9 @@
 //! apart, and each shows both.
 //!
 //! **The stream, the search and the settings are their own modules.** `GET /api/stream` is
-//! [`super::stream`], `GET /api/search` is [`super::search`], and `GET` and `PUT /api/settings` are
-//! [`super::settings`]. The first two read through this connection.
+//! [`super::stream`], `GET /api/search` is [`super::search`], `GET /api/exceptions` is
+//! [`super::exceptions`], and `GET` and `PUT /api/settings` are [`super::settings`]. The first
+//! three read through this connection.
 //!
 //! **Discarding the index closes this connection first.** `POST /api/index/discard` drops the
 //! connection, asks the ingest loop to discard and create the file, and waits for it, all while it

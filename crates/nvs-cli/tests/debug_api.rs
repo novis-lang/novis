@@ -1,6 +1,7 @@
 //! `nvs debug`'s API over a real index: the request list and request page
-//! (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`), and the stream, the
-//! search and the saved filters (`rule:testing/the-viewer-searches-every-record-and-saves-a-filter`).
+//! (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`), the stream, the
+//! search and the saved filters (`rule:testing/the-viewer-searches-every-record-and-saves-a-filter`),
+//! and the exception groups (`rule:testing/an-exception-is-one-row-per-class-and-site`).
 //!
 //! Each case starts one service on a data folder of its own and a port the OS picks, renames one
 //! spool file of several requests into its spool, and waits on `/api/events` for the batch that
@@ -8,7 +9,8 @@
 //!
 //! **The viewer's fixtures come from here.** The newest page is written to
 //! `viewer/test/fixtures/requests.json`, the request that threw to `request.json`, the stream to
-//! `stream.json`, a search to `search.json` and the saved settings to `settings.json`. `tsc` checks
+//! `stream.json`, a search to `search.json`, the saved settings to `settings.json`, and the
+//! exception groups and one group's requests to `exceptions.json` and `exception.json`. `tsc` checks
 //! them against `viewer/src/api.ts` and the browser tests serve them. When a committed file
 //! differs, the case writes the new one and fails, so a change to the API's shape reaches the
 //! viewer's types in the same commit.
@@ -41,13 +43,18 @@ struct Service {
 impl Service {
     /// A service that has ingested [`spool`]'s requests.
     fn ingested() -> Self {
+        Self::ingested_from(&spool())
+    }
+
+    /// A service that has ingested the spool file `text`.
+    fn ingested_from(text: &str) -> Self {
         let service = Self::start();
         let mut events = service.events();
         service.wait_for(&mut events, 0);
         let debug = service.data.join("debug");
         // Written beside the spool and then renamed into it, so the service never sees half a file.
         let staged = debug.join("staged.spool");
-        std::fs::write(&staged, spool()).expect("the debug folder is writable");
+        std::fs::write(&staged, text).expect("the debug folder is writable");
         std::fs::rename(&staged, debug.join("spool").join("1-1-0.0.spool"))
             .expect("the spool is writable");
         service.wait_for(&mut events, 1);
@@ -368,6 +375,72 @@ fn spool() -> String {
     lines.join("\n") + "\n"
 }
 
+/// The spool lines of requests that throw: three throw one class at one site under two routes,
+/// one throws another class, and one throws nothing.
+fn throwing_spool() -> String {
+    let writer = "4242-1700000000000-0";
+    let base: u64 = 1_700_000_000_000_000;
+    let throws = [
+        (
+            "POST",
+            "/orders",
+            Some((
+                "Shop\\OutOfStock",
+                "item 7 is out of stock",
+                "src/Shop/Orders.nvs",
+                42,
+            )),
+        ),
+        ("GET", "/", None),
+        (
+            "POST",
+            "/cart",
+            Some((
+                "Shop\\OutOfStock",
+                "item 9 is out of stock",
+                "src/Shop/Orders.nvs",
+                42,
+            )),
+        ),
+        (
+            "POST",
+            "/pay",
+            Some((
+                "Shop\\PaymentDeclined",
+                "the card was declined",
+                "src/Shop/Pay.nvs",
+                18,
+            )),
+        ),
+        (
+            "POST",
+            "/orders",
+            Some((
+                "Shop\\OutOfStock",
+                "item 3 is out of stock",
+                "src/Shop/Orders.nvs",
+                42,
+            )),
+        ),
+    ];
+    let mut lines = Vec::new();
+    for (n, (method, route, exception)) in throws.into_iter().enumerate() {
+        let start_us = base + 60_000_000 * n as u64;
+        let mut request = json!({
+            "writer": writer, "seq": n, "trace": format!("{:032x}", 0xabc0 + n), "at_us": start_us + 500,
+            "kind": "request", "span": format!("{:016x}", 0xdef0 + n), "start_us": start_us,
+            "duration_us": 500, "method": method, "route": route, "path": route,
+            "status": if exception.is_some() { 500 } else { 200 }
+        });
+        if let Some((class, message, file, line)) = exception {
+            request["exception"] =
+                json!({ "class": class, "message": message, "file": file, "line": line });
+        }
+        lines.push(request.to_string());
+    }
+    lines.join("\n") + "\n"
+}
+
 /// A `dump` line from `src/Shop/Orders.nvs` at `line`.
 fn dump(line: u32, tree: &Value) -> Value {
     json!({ "kind": "dump", "file": "src/Shop/Orders.nvs", "line": line, "tree": tree, "elided": false })
@@ -494,9 +567,9 @@ fn search_finds_words_phrases_and_field_terms_and_a_saved_filter_outlives_the_in
     let defaults = service.json("/api/settings");
     assert_eq!(
         defaults,
-        json!({ "editor": "vscode", "theme": "system", "filters": [] })
+        json!({ "editor": "vscode", "path_mappings": [], "theme": "system", "filters": [] })
     );
-    let saved = r#"{"editor":"vscode","theme":"dark","filters":[{"name":"Slow orders","view":"search","query":"q=route%3A%2Forders+duration%3A%3E10ms"}]}"#;
+    let saved = r#"{"editor":"custom","editor_template":"subl://open?url=file://{file}&line={line}","path_mappings":[{"from":"/app/","to":"/home/dev/shop/"}],"theme":"dark","filters":[{"name":"Slow orders","view":"search","query":"q=route%3A%2Forders+duration%3A%3E10ms"}]}"#;
     let (status, body) = service.send("PUT", "/api/settings", Some(saved));
     assert_eq!(status, 200, "{body}");
     let (status, body) = service.send("PUT", "/api/settings", Some(r#"{"colour":"red"}"#));
@@ -517,6 +590,90 @@ fn search_finds_words_phrases_and_field_terms_and_a_saved_filter_outlives_the_in
     .into_iter()
     .filter_map(|(name, value)| fixture(name, value))
     .collect();
+    assert!(
+        written.is_empty(),
+        "{written:?} differed from the API's answers and are written again: commit them"
+    );
+}
+
+#[test]
+fn an_exception_is_one_row_per_class_and_site_and_opens_to_its_requests() {
+    let service = Service::ingested_from(&throwing_spool());
+
+    let page = service.json("/api/exceptions");
+    let groups = page["groups"].as_array().expect("a list");
+    assert_eq!(groups.len(), 2, "{page}");
+    assert_eq!(page["older"], Value::Null);
+    // The newest throw is the first row's.
+    let stock = &groups[0];
+    assert_eq!(
+        (
+            &stock["class"],
+            &stock["file"],
+            &stock["line"],
+            &stock["count"]
+        ),
+        (
+            &json!("Shop\\OutOfStock"),
+            &json!("src/Shop/Orders.nvs"),
+            &json!(42),
+            &json!(3)
+        )
+    );
+    assert_eq!(stock["message"], "item 3 is out of stock");
+    assert_eq!(stock["routes"], json!(["/orders", "/cart"]));
+    assert_eq!(stock["sampled"], false);
+    let chart: Vec<i64> = stock["chart"]
+        .as_array()
+        .expect("a chart")
+        .iter()
+        .map(|count| count.as_i64().expect("a count"))
+        .collect();
+    assert_eq!(chart.len(), 24);
+    assert_eq!(chart.iter().sum::<i64>(), 3);
+    assert_eq!(
+        (chart[0], chart[23]),
+        (1, 1),
+        "the first and the last throw"
+    );
+    assert_eq!(groups[1]["class"], "Shop\\PaymentDeclined");
+    assert_eq!(groups[1]["chart"][0], 1, "one throw is in the first count");
+
+    let first = service.json("/api/exceptions?limit=1");
+    let older = first["older"]
+        .as_str()
+        .expect("a page of one has a next page");
+    let rest = service.json(&format!("/api/exceptions?before={older}"));
+    assert_eq!(rest["groups"][0]["class"], "Shop\\PaymentDeclined");
+    assert_eq!(rest["older"], Value::Null);
+
+    let site = "class=Shop%5COutOfStock&file=src%2FShop%2FOrders.nvs&line=42";
+    let one = service.json(&format!("/api/exceptions?{site}"));
+    assert_eq!(one["group"]["count"], 3);
+    let paths: Vec<&str> = one["requests"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|row| row["path"].as_str().expect("a path"))
+        .collect();
+    assert_eq!(paths, ["/orders", "/cart", "/orders"], "newest first");
+    let two = service.json(&format!("/api/exceptions?{site}&limit=2"));
+    let older = two["older"]
+        .as_i64()
+        .expect("a page of two has an older page");
+    let last = service.json(&format!("/api/exceptions?{site}&before={older}"));
+    assert_eq!(last["requests"].as_array().map(Vec::len), Some(1));
+    assert_eq!(last["older"], Value::Null);
+
+    let (status, body) = service.get("/api/exceptions?class=Shop%5COutOfStock&file=x.nvs&line=1");
+    assert_eq!(status, 404, "{body}");
+    let (status, body) = service.get("/api/exceptions?class=Shop%5COutOfStock");
+    assert_eq!(status, 400, "{body}");
+
+    let written: Vec<String> = [("exceptions.json", &page), ("exception.json", &one)]
+        .into_iter()
+        .filter_map(|(name, value)| fixture(name, value))
+        .collect();
     assert!(
         written.is_empty(),
         "{written:?} differed from the API's answers and are written again: commit them"

@@ -46,6 +46,7 @@
 //! standard input. In the server, the child's handle and its pipe.
 
 pub(crate) mod api;
+pub(crate) mod exceptions;
 pub(crate) mod index;
 pub(crate) mod ingest;
 pub(crate) mod listen;

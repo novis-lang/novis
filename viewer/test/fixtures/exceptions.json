@@ -1,0 +1,87 @@
+{
+  "groups": [
+    {
+      "chart": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "class": "Shop\\OutOfStock",
+      "count": 3,
+      "file": "src/Shop/Orders.nvs",
+      "first_us": 1700000000000000,
+      "id": 1,
+      "last_us": 1700000240000000,
+      "line": 42,
+      "message": "item 3 is out of stock",
+      "routes": [
+        "/orders",
+        "/cart"
+      ],
+      "sampled": false
+    },
+    {
+      "chart": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "class": "Shop\\PaymentDeclined",
+      "count": 1,
+      "file": "src/Shop/Pay.nvs",
+      "first_us": 1700000180000000,
+      "id": 2,
+      "last_us": 1700000180000000,
+      "line": 18,
+      "message": "the card was declined",
+      "routes": [
+        "/pay"
+      ],
+      "sampled": false
+    }
+  ],
+  "older": null,
+  "watermark": 1
+}
