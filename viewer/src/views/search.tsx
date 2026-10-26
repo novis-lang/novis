@@ -6,12 +6,16 @@
 // id alone and names one request (`opens`) moves straight to that request's page. A search the service
 // cannot read is a `400`, and its message is shown as it was sent.
 //
+// `m` or a result's Mark button marks its request to compare, as in the request list. While a request
+// is marked, the links of every other result open the two side by side.
+//
 // What it spends: the pages of results loaded so far. Each page is at most one page of groups.
 
 import { createEffect, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { search, snippetParts, type SearchGroup, type SearchResults } from "../api.ts";
 import { ignored } from "../keys.ts";
 import { navigate, requestLink } from "../router.ts";
+import { isMarked, markLink, MarkState, toggleMark } from "./compare.tsx";
 import { duration, statusClass } from "./requests.tsx";
 import { SaveButton } from "./saved.tsx";
 import { clock, when } from "./stream.tsx";
@@ -28,15 +32,16 @@ function searched(q: string): string {
   return new URLSearchParams(q).get("q") ?? "";
 }
 
-/** One group: its request, linked, and its matches in time order. */
-function Group(props: { group: SearchGroup }) {
+/** One group: its request, linked, and its matches in time order. Its links open the compare view
+ *  while another request is marked. */
+function Group(props: { group: SearchGroup; at: number }) {
   const req = () => props.group.request;
   const link = () => {
     const r = req();
-    return r ? requestLink(r) : undefined;
+    return r ? markLink(r) : undefined;
   };
   return (
-    <li class="group">
+    <li class="group" classList={{ marked: !!req() && isMarked(req()!) }} data-at={props.at}>
       <Show
         when={req()}
         fallback={<p class="group-head note">Not part of a request</p>}
@@ -50,7 +55,18 @@ function Group(props: { group: SearchGroup }) {
             <span class="note">
               {duration(r().duration_us)} at {when(r().start_us)}
             </span>
-            <Show when={r().exception}>{(exc) => <span class="exc"> {exc().class}</span>}</Show>
+            <Show when={r().exception}>{(exc) => <span class="exc"> {exc().class}</span>}</Show>{" "}
+            <Show when={r().span}>
+              <button
+                type="button"
+                class="btn small mark"
+                onClick={() => toggleMark(r())}
+                aria-pressed={isMarked(r()) ? "true" : "false"}
+                aria-keyshortcuts="m"
+              >
+                Mark to compare
+              </button>
+            </Show>
           </p>
         )}
       </Show>
@@ -124,10 +140,17 @@ export function SearchView(props: { query: string }) {
     const to = at < 0 ? (by > 0 ? 0 : links.length - 1) : Math.min(links.length - 1, Math.max(0, at + by));
     links[to]!.focus();
   };
+  /** Marks the request of the result that has the focus. */
+  const markFocused = () => {
+    const at = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>("li.group")?.dataset.at;
+    const row = at === undefined ? null : groups()[Number(at)]?.request;
+    if (row) toggleMark(row);
+  };
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Enter" || ignored(e)) return;
     if (e.key === "j" || e.key === "ArrowDown") step(1);
     else if (e.key === "k" || e.key === "ArrowUp") step(-1);
+    else if (e.key === "m") markFocused();
     else return;
     e.preventDefault();
   };
@@ -145,6 +168,7 @@ export function SearchView(props: { query: string }) {
         <Show when={q}>
           <SaveButton view="search" query={() => props.query} />
         </Show>
+        <MarkState />
       </div>
       <Show when={first.error}>
         <p class="note bad search-error" role="alert">
@@ -166,7 +190,7 @@ export function SearchView(props: { query: string }) {
         <p class="note">Searching.</p>
       </Show>
       <ol class="groups">
-        <For each={groups()}>{(group) => <Group group={group} />}</For>
+        <For each={groups()}>{(group, i) => <Group group={group} at={i()} />}</For>
       </ol>
       <Show when={moreError()}>
         <p class="note bad" role="alert">

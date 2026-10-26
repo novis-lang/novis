@@ -15,7 +15,8 @@ const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><link r
 
 const GROUPS = groupsFixture as ExceptionPage;
 const GROUP = groupFixture as ExceptionRequests;
-const DETAIL = detailFixture as RequestDetail;
+// JSON gives a header pair the type `string[]`, so the cast goes through `unknown`.
+const DETAIL = detailFixture as unknown as RequestDetail;
 /** A log message that names a site in its text. It must stay text. */
 const LOGGED = "stock check failed in src/Shop/Orders.nvs:42";
 

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { Browser, EXE } from "../../tools/nv/test/chromium.ts";
-import type { Replayed, ReplayTarget, RequestDetail, RequestPage, RequestRow } from "../src/api.ts";
+import type { Replayed, ReplayTarget, RequestDetail, RequestPage, RequestRow, SearchResults } from "../src/api.ts";
 import { DIST } from "../build.ts";
 import detailFixture from "./fixtures/request.json";
 import listFixture from "./fixtures/requests.json";
@@ -12,7 +12,8 @@ import listFixture from "./fixtures/requests.json";
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="/viewer.css"></head>
 <body><div id="app"></div><script type="module" src="/viewer.js"></script></body></html>`;
 
-const FIXTURE = detailFixture as RequestDetail;
+// JSON gives a header pair the type `string[]`, so the cast goes through `unknown`.
+const FIXTURE = detailFixture as unknown as RequestDetail;
 const { trace: TRACE, span: SPAN } = FIXTURE.request as RequestRow & { span: string };
 
 /** The request the replay made: the fixture's input with one JSON value changed, a real value where the
@@ -28,6 +29,14 @@ OTHER.input!.headers = [
 /** An older request to the same route as the fixture's, so the request's page can offer it. */
 const PREVIOUS: RequestRow = { ...FIXTURE.request, id: 0, trace: "3".repeat(32), span: "4".repeat(16), start_us: FIXTURE.request.start_us - 1_000_000 };
 const ROWS: RequestRow[] = [...(listFixture as RequestPage).requests, PREVIOUS];
+
+/** What `GET /api/search` answers for any search: one match in the first list row and one in the fixture. */
+const RESULTS: SearchResults = {
+  watermark: 1,
+  groups: [ROWS[0]!, FIXTURE.request].map((request, i) => ({ request, hits: [{ kind: "log", id: i + 1, at_us: request.start_us, snippet: "\u0002stock\u0003 is empty" }], more: 0 })),
+  older: null,
+  opens: null,
+};
 
 /** What `GET /api/replay` answers, what `POST /api/replay` answers, and every body it was sent. Each
  *  test sets the first two. */
@@ -75,6 +84,7 @@ beforeAll(async () => {
       if (url.pathname === "/viewer.css") return new Response(Bun.file(join(DIST, "viewer.css")), { headers: { "content-type": "text/css" } });
       if (url.pathname === "/api/requests") return page(url);
       if (url.pathname === "/api/request") return one(url);
+      if (url.pathname === "/api/search") return json(RESULTS);
       if (url.pathname === "/api/replay" && req.method === "GET") return json({ target } satisfies ReplayTarget);
       if (url.pathname === "/api/replay" && req.method === "POST") {
         posted.push(await req.json());
@@ -270,6 +280,22 @@ describe.skipIf(!EXE)("replay and compare in Chromium", () => {
     await tab.eval(`document.querySelector("#request-${FIXTURE.request.id}").click()`);
     await tab.until(`location.pathname == "/compare/${first.trace}/${first.span}/${TRACE}/${SPAN}" && !!document.querySelector(".cmp-count")`);
     expect((await tab.eval(PART("request")))["Method"]).toEqual({ differs: true, cells: [first.method, "POST"] });
+    await tab.close();
+  }, 30_000);
+
+  test("a search result is marked too, and the next result's link opens the two side by side", async () => {
+    const tab = await open("/search?q=stock", `document.querySelectorAll("li.group").length == 2`);
+    const first = ROWS[0]!;
+    await tab.eval(`document.querySelector("li.group .group-link").focus()`);
+    await tab.press("m");
+    await tab.until(`document.querySelector("li.group").classList.contains("marked")`);
+    expect(await tab.eval(`document.querySelector("li.group .btn.mark").getAttribute("aria-pressed")`)).toBe("true");
+    expect(await tab.eval(`document.querySelector(".mark-state").textContent`)).toContain(`${first.method} ${first.path}`);
+    const link = `/compare/${first.trace}/${first.span}/${TRACE}/${SPAN}`;
+    expect(await tab.eval(`document.querySelectorAll("li.group")[1].querySelector(".group-link").getAttribute("href")`)).toBe(link);
+    await tab.eval(`document.querySelectorAll("li.group")[1].querySelector(".group-link").click()`);
+    await tab.until(`location.pathname == "${link}" && !!document.querySelector(".cmp-count")`);
+    expect(await tab.eval(`document.querySelector(".mark-state") === null`)).toBe(true);
     await tab.close();
   }, 30_000);
 });

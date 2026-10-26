@@ -770,7 +770,8 @@ mark {
 }
 
 /* The marked request in the list, and the actions of one request. */
-.row.marked {
+.row.marked,
+.group.marked {
   box-shadow: inset 3px 0 var(--warn);
 }
 

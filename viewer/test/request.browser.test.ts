@@ -18,7 +18,8 @@ const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><link r
 <body><div id="app"></div><script type="module" src="/viewer.js"></script></body></html>`;
 
 const LIST = listFixture as RequestPage;
-const FIXTURE = detailFixture as RequestDetail;
+// JSON gives a header pair the type `string[]`, so the cast goes through `unknown`.
+const FIXTURE = detailFixture as unknown as RequestDetail;
 const { trace: TRACE, span: SPAN } = FIXTURE.request;
 
 /** What `/api/request` answers for the fixture's request. A test may swap it for a changed copy. */

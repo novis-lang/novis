@@ -1,11 +1,15 @@
 {
   "title": "The viewer compares two requests side by side, and resends a recorded request to the development server only after the developer confirms",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
     "testing/the-debug-stream-reaches-the-service-through-the-disk",
     "testing/writing-a-debug-record-to-disk-is-its-own-gate"
   ],
-  "guardedBy": [],
-  "goal": "debug-viewer"
+  "guardedBy": [
+    "crates/nvs-cli/src/debug/replay.rs",
+    "crates/nvs-cli/tests/debug_service.rs",
+    "crates/nvs-cli/tests/debug_viewer.rs",
+    "viewer/test/replay.browser.test.ts"
+  ]
 }

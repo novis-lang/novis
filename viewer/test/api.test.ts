@@ -33,9 +33,16 @@ import streamFixture from "./fixtures/stream.json";
 // do not. A JSON import types `kind`, `view`, `editor` and `theme` as `string`, so the one cast for each
 // narrows it and checks the rest.
 const page: RequestPage = fixture;
+/** A JSON import types a header pair as `string[]`. */
+const pair = (header: string[]): [string, string] => [header[0]!, header[1]!];
 const detail: RequestDetail = {
   ...detailFixture,
   events: detailFixture.events.map((event) => ({ ...event, kind: event.kind as RequestDetail["events"][number]["kind"] })),
+  input: {
+    ...detailFixture.input,
+    headers: detailFixture.input.headers.map(pair),
+    response_headers: detailFixture.input.response_headers.map(pair),
+  },
 };
 const streamPage: StreamPage = {
   ...streamFixture,

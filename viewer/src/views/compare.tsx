@@ -33,15 +33,35 @@ export function isMarked(row: Pick<RequestRow, "trace" | "span">): boolean {
   return !!m && m.trace === row.trace && m.span === row.span;
 }
 
-/** Where opening `row` goes: the compare view when another request is marked, which clears the mark,
- *  and the request's own page otherwise. */
-export function openLink(row: RequestRow): string {
+/** Where a link to `row` goes: the compare view when another request is marked, and the request's own
+ *  page otherwise. The compare view clears the mark when it opens. */
+export function markLink(row: Pick<RequestRow, "trace" | "span">): string {
   const m = marked();
-  if (m && row.span && !isMarked(row)) {
-    setMarked(null);
-    return compareLink(m, { trace: row.trace, span: row.span });
-  }
+  if (m && row.span && !isMarked(row)) return compareLink(m, { trace: row.trace, span: row.span });
   return requestLink(row);
+}
+
+/** Where opening `row` goes, as `markLink`, and clears the mark when that is the compare view. */
+export function openLink(row: RequestRow): string {
+  const to = markLink(row);
+  if (to !== requestLink(row)) setMarked(null);
+  return to;
+}
+
+/** The marked request's method and path, with a button that clears the mark. Shown while one is marked. */
+export function MarkState() {
+  return (
+    <Show when={marked()}>
+      {(m) => (
+        <span class="mark-state" role="status">
+          Marked: {m().method} {m().path}. Open another request to compare the two.{" "}
+          <button type="button" class="btn small" onClick={() => setMarked(null)}>
+            Clear
+          </button>
+        </span>
+      )}
+    </Show>
+  );
 }
 
 /** One side of a row: its text, and how it shows. */
@@ -244,8 +264,8 @@ function parts(l: RequestDetail, r: RequestDetail): Part[] {
 }
 
 /** The view: the recorded input, the response, the duration, the queries, the dumps and the log lines of
- *  `left` and `right`, one table per part. The request list marks a request (`marked`), and opening a
- *  second one opens this view (`openLink`). */
+ *  `left` and `right`, one table per part. A list marks a request (`marked`), and opening a second one
+ *  opens this view (`openLink`, `markLink`). */
 export function CompareView(props: { left: SpanKey; right: SpanKey }) {
   const [left] = createResource(
     () => props.left,
@@ -263,7 +283,11 @@ export function CompareView(props: { left: SpanKey; right: SpanKey }) {
     e.preventDefault();
     navigate("/");
   };
-  onMount(() => document.addEventListener("keydown", onKey));
+  onMount(() => {
+    // A link from a list opens this view while the left request is still marked.
+    if (isMarked(props.left)) setMarked(null);
+    document.addEventListener("keydown", onKey);
+  });
   onCleanup(() => document.removeEventListener("keydown", onKey));
 
   return (

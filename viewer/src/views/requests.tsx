@@ -20,7 +20,7 @@ import { requests, watermarks, type RequestPage, type RequestRow } from "../api.
 import { ignored } from "../keys.ts";
 import { navigate } from "../router.ts";
 import { Site } from "../site.tsx";
-import { isMarked, marked, openLink, setMarked, toggleMark } from "./compare.tsx";
+import { isMarked, MarkState, openLink, toggleMark } from "./compare.tsx";
 
 /** A row's height in pixels. `.row` in `style.css` has the same. */
 export const ROW_HEIGHT = 28;
@@ -314,16 +314,7 @@ export function RequestList() {
         >
           Mark to compare
         </button>
-        <Show when={marked()}>
-          {(m) => (
-            <span class="mark-state" role="status">
-              Marked: {m().method} {m().path}. Open another request to compare the two.{" "}
-              <button type="button" class="btn small" onClick={() => setMarked(null)}>
-                Clear
-              </button>
-            </span>
-          )}
-        </Show>
+        <MarkState />
       </div>
       <Show when={error()}>
         <p class="note bad" role="alert">

@@ -1,6 +1,7 @@
 // The exceptions view: `/exceptions` lists the groups of uncaught throws, one class at one site.
 // `/exceptions?class=&file=&line=` shows one group and its requests, newest first.
 // Both lists work like the request list, and each new watermark loads their first page again.
+// In one group's list, `m` marks a request to compare, as in the request list.
 // What it spends: the rows loaded so far, a few hundred bytes each, while the view is open.
 
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
@@ -20,6 +21,7 @@ import {
 import { ignored } from "../keys.ts";
 import { navigate, requestLink } from "../router.ts";
 import { Site } from "../site.tsx";
+import { isMarked, MarkState, openLink, toggleMark } from "./compare.tsx";
 import { RequestCells, RequestColumns, ROW_HEIGHT } from "./requests.tsx";
 import { SaveButton } from "./saved.tsx";
 import { when } from "./stream.tsx";
@@ -58,6 +60,10 @@ function Rows<T>(props: {
   loadMore: () => void;
   open: (row: T) => void;
   cells: (row: T) => JSX.Element;
+  /** When set, `m` marks the selected row to compare, as in the request list. */
+  mark?: { toggle: (row: T) => void; is: (row: T) => boolean };
+  /** Called with the selected row each time the selection changes. */
+  onSelect?: (row: T | undefined) => void;
 }) {
   const [selected, setSelected] = createSignal<string | null>(null);
   const [scrollTop, setScrollTop] = createSignal(0);
@@ -84,6 +90,7 @@ function Rows<T>(props: {
   createEffect(() => {
     if (props.more && end() >= props.rows.length - NEAR_END) props.loadMore();
   });
+  createEffect(() => props.onSelect?.(props.rows[current()]));
 
   const move = (to: number) => {
     const all = props.rows;
@@ -126,6 +133,12 @@ function Rows<T>(props: {
         props.open(row);
         break;
       }
+      case "m": {
+        const row = props.rows[current()];
+        if (!props.mark || !row) return;
+        props.mark.toggle(row);
+        break;
+      }
       default:
         return;
     }
@@ -162,7 +175,8 @@ function Rows<T>(props: {
               <div
                 id={props.id(row)}
                 role="option"
-                class={`row ${props.grid}`}
+                class={`row ${props.grid}${props.mark?.is(row) ? " marked" : ""}`}
+                aria-description={props.mark?.is(row) ? "Marked to compare" : undefined}
                 aria-selected={selected() === props.id(row) ? "true" : "false"}
                 aria-posinset={at() + 1}
                 aria-setsize={props.more ? -1 : props.rows.length}
@@ -352,6 +366,16 @@ function GroupView(props: { key: ExceptionKey }) {
     id: (row: RequestRow) => row.id,
   });
   const group = () => live.page()?.group ?? null;
+  const [selectedRow, setSelectedRow] = createSignal<RequestRow | undefined>();
+  const mark = () => {
+    const row = selectedRow();
+    if (row) toggleMark(row);
+  };
+  /** A request opens at its exception, or beside the marked request when one is marked. */
+  const open = (row: RequestRow) => {
+    const to = openLink(row);
+    navigate(to === requestLink(row) ? `${to}#exception` : to);
+  };
   const missing = () => {
     const err = live.error();
     return err instanceof ApiError && err.status === 404;
@@ -414,6 +438,19 @@ function GroupView(props: { key: ExceptionKey }) {
             </>
           )}
         </Show>
+        <div class="toolbar-line">
+          <button
+            type="button"
+            class="btn mark"
+            onClick={mark}
+            disabled={!selectedRow()?.span}
+            aria-pressed={selectedRow() && isMarked(selectedRow()!) ? "true" : "false"}
+            aria-keyshortcuts="m"
+          >
+            Mark to compare
+          </button>
+          <MarkState />
+        </div>
       </div>
       <RequestColumns />
       <Rows
@@ -424,8 +461,10 @@ function GroupView(props: { key: ExceptionKey }) {
         grid=""
         more={live.older() !== null}
         loadMore={live.loadMore}
-        open={(row) => navigate(`${requestLink(row)}#exception`)}
+        open={open}
         cells={(row) => <RequestCells row={row} />}
+        mark={{ toggle: toggleMark, is: isMarked }}
+        onSelect={setSelectedRow}
       />
     </section>
   );
