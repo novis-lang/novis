@@ -55,7 +55,7 @@ stages:
         rules: [ide/the-extension-builds-no-ui-the-editor-already-has, observability/speedscope-timeline-export, testing/the-viewer-shows-the-stream-and-hands-off-every-artifact]
   - id: 6
     title: "two requests compare, and one replays after the developer confirms"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug/replay.rs, crates/nvs-cli/src/debug/api.rs, viewer/src/views/compare.tsx, docs/rules/testing/two-requests-compare-and-a-replay-asks-first.md, docs/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.md]
     extra:
       context:
@@ -427,7 +427,7 @@ compare view and the dialog's browser test.
 - [x] The replayed request opens beside its original in the compare view. `viewer/src/views/compare.tsx:1`
 - [x] Rust tests: a replay from a forged `Origin` is refused, a service started by hand has no target, a typed header value is found in no file. `crates/nvs-cli/tests/debug_viewer.rs:1`
 - [x] The browser test for the dialog. `viewer/test/replay.browser.test.ts:1`
-- [ ] `rule:testing/two-requests-compare-and-a-replay-asks-first` `shipped`. `data/rules/testing/two-requests-compare-and-a-replay-asks-first.json:3`
+- [x] `rule:testing/two-requests-compare-and-a-replay-asks-first` `shipped`. `data/rules/testing/two-requests-compare-and-a-replay-asks-first.json:3`
 
 ### 7. the viewer has its feature proofs, and its rules are shipped
 
@@ -440,7 +440,7 @@ perf test and the rule flip.
 - [ ] A `# The debug viewer` section in the CLI chapter, so the feature is `tools:cli/the-debug-viewer` and its help is in the binary. `docs/reference/tools/10-cli.md:655`
 - [ ] `about.md` and three examples: a route that dumps a value, a handler whose queries repeat, and a handler that throws. `docs/examples/tools/cli/the-debug-viewer/about.md:1`, `docs/examples/tools/cli/the-debug-viewer/01-a-route-that-dumps-a-value.nvs:1`, `docs/examples/tools/cli/the-debug-viewer/02-queries-that-repeat.nvs:1`, `docs/examples/tools/cli/the-debug-viewer/03-a-handler-that-throws.nvs:1`
 - [ ] The attack: a program whose requests dump, log and throw values with markup, script URLs, control and bidi characters and very long strings, and a browser test that no script runs and no element is made from them (`rule:testing/hostile-case-contract`). `tests/hostile/tools/cli/the-debug-viewer/values-that-look-like-markup.nvs:1`, `viewer/test/hostile.browser.test.ts:1`
-- [ ] The four `[debug]` keys stage 2 added (`crates/nvs-config/src/default.toml:327`) have their proofs, which CI's `proofs` job owes now: `directive:debug.listen`, `directive:debug.tls_cert_file`, `directive:debug.tls_key_file` and `directive:debug.token_file` each get `about.md`, one example and one hostile case under `docs/examples/config/debug-<key>/` and `tests/hostile/config/debug-<key>/`, and the test case the gate counts, or a skip with its reason. `bun nv proofs --gate --limit 0` names none of them. `docs/examples/config/debug-listen/about.md:1`, `tests/hostile/config/debug-listen/`, `data/proofs/skip/`
+- [x] The four `[debug]` keys stage 2 added (`crates/nvs-config/src/default.toml:327`) have their proofs, which CI's `proofs` job owes now: `directive:debug.listen`, `directive:debug.tls_cert_file`, `directive:debug.tls_key_file` and `directive:debug.token_file` each get `about.md`, one example and one hostile case under `docs/examples/config/debug-<key>/` and `tests/hostile/config/debug-<key>/`, and the test case the gate counts, or a skip with its reason. `bun nv proofs --gate --limit 0` names none of them. `docs/examples/config/debug-listen/about.md:1`, `tests/hostile/config/debug-listen/`, `data/proofs/skip/`
 - [ ] A Rust test that the newest page reads the same number of SQLite steps at two index sizes, and a `perf` skip that names it. `crates/nvs-cli/tests/debug_api.rs:1`, `data/proofs/skip/tools/cli/the-debug-viewer.json:1`, `data/proofs/skip/tools/cli/nvs-info.json:1`
 - [ ] `bun nv proofs --id 'tools:cli/the-debug-viewer'` passes, `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact` `shipped`, and `bun nv owners --closes debug-viewer` passes. `data/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.json:3`
 
@@ -461,44 +461,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 8, 4, 5 and 9 are done. Stage 6 is all in but marking from every list and the
-rule flip. This session landed `59bea9e2d`: `GET /api/request` carries `input` (query, headers, the
-request and response bodies with `read`, `cut` and `withheld`, text or base64, parts joined with the
-writer-and-sequence split, `crates/nvs-cli/src/debug/api.rs`'s `input`), and `GET /api/replay`
-gives `{target}` or `null` (`crates/nvs-cli/src/debug/replay.rs`'s `target`). Then `86990f9e0`:
-`viewer/src/views/compare.tsx` at `/compare/<trace>/<span>/<trace>/<span>`,
-`viewer/src/views/replay.tsx` (Cancel focused, target named, an empty field per redacted header,
-nothing stored), `m` marks in the request list, `c` and `r` on a request's page, and
-`viewer/test/replay.browser.test.ts`. The Standing decision *The dialog reads its target from
-`GET /api/replay`* records the calls.
+Stages 1, 2, 3, 8, 4, 5, 9 and 6 are done. `c116c002b` marks a request to compare from one
+exception group's list and from the search results (`m` and a Mark button). A search result's
+link uses `markLink`, and the compare view clears the mark when it opens. `MarkState` is the
+shared status line (`viewer/src/views/compare.tsx`). The rule
+`testing/two-requests-compare-and-a-replay-asks-first` is `shipped`.
 
-Checked once: build and clippy clean; `cargo test --test debug_api` (fixture `request.json`
-rewritten, then green), `debug_service`'s `a_replay_reaches_the_server_...` (now also reads the
-target), `debug_viewer`'s `a_changing_request_...` (a hand-started service's target is `null`);
-`bun nv viewer --check`; `NV_BROWSER=1 bun test viewer/test/replay.browser.test.ts` 6 pass, and the
-subagent ran `request.browser.test.ts` and `requests.browser.test.ts` green. The sweep's reds were
-stale again: `env-secret-proofs`' log exits 0, and nightly 40291801939 built `d6f131752`.
+For the operator's ci-green note: `a3de90829` makes `cargo fmt --all --check` pass, `54dcecfa5`
+records the nine stale `Core\Debug::*` figures again, and `cf8294e89` gives the four `[debug]`
+listener keys their proofs. Stage 7's directive item is ticked. The keys are `Boot` rows, so the
+census in `crates/nvs-config/tests/directives.rs`, `snapshot.rs`'s boot lists and
+`rule:config/reloadability-is-its-own-field` name them. `bun nv proofs --gate --limit 0` owes nothing.
 
-Expected red: CI `proofs` (`directive:debug.*`, the four `[debug]` keys) until stage 7. Possibly
-`crates/nvs-cli/tests/live_config.rs:670`, if its server runs in `development`: it expects a
-reload naming `coverage` to be refused with "cannot be used by a server", and `refuse_switch` now
-refuses it with another message. Possibly `crates/nvs-cli/tests/debug_ingest.rs`, whose `counts`
-lists `coverage` and expects a row from the sample spool, and `crates/nvs-cli/tests/debug_viewer.rs`'s
-ingest case, which reads the same sample.
+Checked once: clippy clean; `tsc` clean (the browser tests' fixture casts go through `unknown`);
+`bun nv viewer --check`; `NV_BROWSER=1 bun test` of `replay` (7 pass) and `exceptions` (4 pass).
+The subagent ran the new conformance case and five `nvs-config` tests by name, all green. The
+sweep's reds were stale: `env-secret-proofs`' log exits 0, and nightly 40291801939 built `d6f131752`.
+
+Expected red: possibly `crates/nvs-cli/tests/live_config.rs:670` (`refuse_switch`'s message for
+`coverage`), `crates/nvs-cli/tests/debug_ingest.rs`'s `counts` and `debug_viewer.rs`'s ingest case.
 
 ### Next
 
-**Finish stage 6, then stage 7.** The rule says a second request is marked "in any list", and only
-the request list marks. Add the mark to the exception group's request list and to the search's
-request hits, with the same `m` key and the helpers `compare.tsx` exports (`toggleMark`,
-`openLink`), extend `replay.browser.test.ts` for one of them, rebuild with `bun nv viewer`, then flip
-the rule and set stage 6 `done`. Stage 7 follows its `**Split:**` line.
+**Stage 7, by its `**Split:**` line.** First the `# The debug viewer` section in the CLI chapter.
+Then a writing subagent writes `about.md` and three examples, and another writes the attack and
+its browser test. The session writes the SQLite-steps test, the `perf` skip and the rule flip.
 
-- [x] `GET /api/request` gains `input`, and the fixture test rewrites `viewer/test/fixtures/request.json` with it. `crates/nvs-cli/src/debug/api.rs:1`
-- [x] `GET /api/replay` names the target, so the page disables Replay with its reason first. `crates/nvs-cli/src/debug/replay.rs:1`
-- [x] Compare, the dialog and its browser test. `viewer/src/views/compare.tsx:1`, `viewer/src/views/replay.tsx:1`, `viewer/test/replay.browser.test.ts:1`
-- [ ] A request is marked for compare in the exception group's list and in the search, as in the request list. `viewer/src/views/exceptions.tsx:1`, `viewer/src/views/search.tsx:1`
-- [ ] `rule:testing/two-requests-compare-and-a-replay-asks-first` `shipped`, and stage 6 `done`. `data/rules/testing/two-requests-compare-and-a-replay-asks-first.json:3`
+- [ ] The CLI section, so `tools:cli/the-debug-viewer` exists and its help is in the binary. `docs/reference/tools/10-cli.md:655`
+- [ ] `about.md` and three examples. `docs/examples/tools/cli/the-debug-viewer/about.md:1`
+- [ ] The attack and `viewer/test/hostile.browser.test.ts`. `tests/hostile/tools/cli/the-debug-viewer/values-that-look-like-markup.nvs:1`
+- [ ] The steps-count test and its `perf` skip. `crates/nvs-cli/tests/debug_api.rs:1`, `data/proofs/skip/tools/cli/the-debug-viewer.json:1`
+- [ ] The last rule `shipped`, and `bun nv owners --closes debug-viewer` passes. `data/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.json:3`
 
 ### Backlog
 
