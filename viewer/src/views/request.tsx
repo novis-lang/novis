@@ -19,6 +19,7 @@ import { navigate, requestLink } from "../router.ts";
 import { Site } from "../site.tsx";
 import { saved } from "./saved.tsx";
 import { duration, statusClass } from "./requests.tsx";
+import { Coverage } from "./coverage.tsx";
 import { Timeline } from "./timeline.tsx";
 import { ValueTree } from "./value-tree.tsx";
 
@@ -165,7 +166,8 @@ function hasFields(fields: Json): boolean {
   return typeof fields !== "object" || Object.keys(fields).length > 0;
 }
 
-/** What the request recorded: its exception, its timeline, its dumps, its profiles and its log lines. */
+/** What the request recorded: its exception, its timeline, its dumps, its profiles, its coverage and its
+ *  log lines. */
 function Records(props: { detail: RequestDetail }) {
   const d = () => props.detail;
   const at = (us: number) => duration(Math.max(0, us - d().request.start_us));
@@ -232,6 +234,7 @@ function Records(props: { detail: RequestDetail }) {
           </ul>
         </section>
       </Show>
+      <Show when={d().coverage}>{(c) => <Coverage coverage={c()} />}</Show>
       <section class="logs" aria-labelledby="logs-title">
         <h3 id="logs-title">Log lines</h3>
         <Show when={d().logs.length > 0} fallback={<p class="note">This request wrote no log lines.</p>}>

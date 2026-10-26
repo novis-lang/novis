@@ -1,15 +1,18 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { Browser, EXE } from "../../tools/nv/test/chromium.ts";
-import type { RequestDetail, RequestPage } from "../src/api.ts";
+import type { CoverageMap, RequestDetail, RequestPage, SourceFile } from "../src/api.ts";
 import { DIST } from "../build.ts";
+import coverageFixture from "./fixtures/coverage.json";
 import detailFixture from "./fixtures/request.json";
 import listFixture from "./fixtures/requests.json";
+import sourceFixture from "./fixtures/source.json";
 
 // One request's page in a real Chromium, over the committed bundle. The server below stands in for
 // `nvs debug`: it serves the page for every path, `/api/requests` from the list fixture filtered by
-// `trace` and `span`, and `/api/request` from the request fixture, both of which the Rust test writes
-// from a real index. The view therefore reads the shapes the service sends.
+// `trace` and `span`, `/api/request` from the request fixture, and `/api/coverage` and `/api/source`
+// from theirs, all of which the Rust test writes from a real index. The view therefore reads the
+// shapes the service sends.
 
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="/viewer.css"></head>
 <body><div id="app"></div><script type="module" src="/viewer.js"></script></body></html>`;
@@ -20,6 +23,8 @@ const { trace: TRACE, span: SPAN } = FIXTURE.request;
 
 /** What `/api/request` answers for the fixture's request. A test may swap it for a changed copy. */
 let detail: RequestDetail = FIXTURE;
+/** What `/api/source` answers. A test may swap it for a changed copy. */
+let text: SourceFile = sourceFixture;
 
 function json(body: unknown, status = 200): Response {
   return Response.json(body, { status });
@@ -55,6 +60,11 @@ beforeAll(async () => {
       if (url.pathname === "/viewer.css") return new Response(Bun.file(join(DIST, "viewer.css")), { headers: { "content-type": "text/css" } });
       if (url.pathname === "/api/requests") return page(url);
       if (url.pathname === "/api/request") return one(url);
+      if (url.pathname === "/api/coverage") return json(coverageFixture satisfies CoverageMap);
+      if (url.pathname === "/api/source") {
+        const known = url.searchParams.get("coverage") === String(coverageFixture.id) && url.searchParams.get("file") === text.file;
+        return known ? json(text) : json({ error: "This request's coverage does not name this file." }, 404);
+      }
       if (url.pathname.startsWith("/api/")) return json({ error: "not found" }, 404);
       return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8" } });
     },
@@ -267,6 +277,28 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
       "The list of log lines stopped at its limit, so some log lines are not shown.",
     ]);
     detail = FIXTURE;
+    await tab.close();
+  }, 30_000);
+
+  test("coverage draws each line that ran with its count, and a file's markup shows as text", async () => {
+    const covered: RequestDetail = structuredClone(FIXTURE);
+    covered.coverage = { id: coverageFixture.id, files: 1, elided: false };
+    detail = covered;
+    text = { ...sourceFixture, text: sourceFixture.text.replace("return 3;", `return 3; // <img src=x onerror="window.ran=1">`) };
+    const tab = await open();
+    await tab.until(`document.querySelectorAll(".source-line").length > 0`);
+    const lines = sourceFixture.text.replace(/\n$/, "").split("\n");
+    expect(await tab.eval(`document.querySelectorAll(".source-line").length`)).toBe(lines.length);
+    const ran = Object.keys(coverageFixture.files[sourceFixture.file as keyof typeof coverageFixture.files]).map(Number);
+    const heated = await tab.eval(`[...document.querySelectorAll(".source-line")].filter((l) => /heat-/.test(l.className)).map((l) => Number(l.querySelector(".number").textContent))`);
+    expect(heated).toEqual(ran);
+    expect(await tab.eval(`document.querySelectorAll(".source-line")[${ran[0]! - 1}].querySelector(".count").textContent`)).toBe("1×");
+    expect(await tab.eval(`document.querySelector(".coverage-file").value`)).toBe(sourceFixture.file);
+    expect(await tab.eval(`document.querySelector(".coverage-changed") !== null`)).toBe(sourceFixture.changed);
+    expect(await tab.eval(`document.querySelectorAll(".source img").length`)).toBe(0);
+    expect(await tab.eval(`window.ran === undefined`)).toBe(true);
+    detail = FIXTURE;
+    text = sourceFixture;
     await tab.close();
   }, 30_000);
 });

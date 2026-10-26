@@ -7,20 +7,25 @@ import {
   streamFilter,
   streamQuery,
   traceKey,
+  type CoverageMap,
   type ExceptionPage,
   type ExceptionRequests,
   type RequestDetail,
   type RequestPage,
   type SearchResults,
   type Settings,
+  type SourceFile,
   type StreamPage,
 } from "../src/api.ts";
+import { heat } from "../src/heat.ts";
+import coverageFixture from "./fixtures/coverage.json";
 import exceptionFixture from "./fixtures/exception.json";
 import exceptionsFixture from "./fixtures/exceptions.json";
 import detailFixture from "./fixtures/request.json";
 import fixture from "./fixtures/requests.json";
 import searchFixture from "./fixtures/search.json";
 import settingsFixture from "./fixtures/settings.json";
+import sourceFixture from "./fixtures/source.json";
 import streamFixture from "./fixtures/stream.json";
 
 // `crates/nvs-cli/tests/debug_api.rs` writes the fixtures from a real index. These assignments are
@@ -51,6 +56,8 @@ const saved: Settings = {
 };
 const groups: ExceptionPage = exceptionsFixture;
 const group: ExceptionRequests = exceptionFixture;
+const counted: CoverageMap = coverageFixture;
+const text: SourceFile = sourceFixture;
 
 describe("the request list's API", () => {
   test("the fixture is one page, newest first", () => {
@@ -128,6 +135,21 @@ describe("the request list's API", () => {
     expect(saved.editor).toBe("custom");
     expect(saved.editor_template).toContain("{file}");
     expect(saved.path_mappings.length).toBeGreaterThan(0);
+  });
+
+  test("the coverage fixture counts lines of a file the source fixture has", () => {
+    const lines = counted.files[text.file];
+    expect(lines).toBeDefined();
+    const total = text.text.split("\n").length;
+    for (const line of Object.keys(lines!)) expect(Number(line)).toBeLessThanOrEqual(total);
+  });
+
+  test("a line's heat is 0 when it did not run, and rises on a log scale to 4", () => {
+    expect(heat(0, 100)).toBe(0);
+    expect(heat(1, 1)).toBe(4);
+    expect(heat(1, 100)).toBe(1);
+    expect(heat(100, 100)).toBe(4);
+    expect(heat(10, 100)).toBeGreaterThan(heat(2, 100));
   });
 
   test("a pasted traceresponse value or trace id gives its key", () => {

@@ -110,6 +110,34 @@ export interface ProfileFile {
   path: string;
 }
 
+/** That a request's server counted the lines it ran. `GET /api/coverage?id=` gives the counts. */
+export interface CoverageRef {
+  id: number;
+  /** How many files it ran lines of. */
+  files: number;
+  /** The record was too long to keep, so it lists no line. */
+  elided: boolean;
+}
+
+/** `GET /api/coverage`: the lines one request ran. */
+export interface CoverageMap {
+  id: number;
+  trace: string;
+  span: string | null;
+  start_us: number;
+  /** File path to line number to the times it ran. A line that did not run is absent. */
+  files: Record<string, Record<string, number>>;
+  elided: boolean;
+}
+
+/** `GET /api/source`: the text of one file a coverage record names. */
+export interface SourceFile {
+  file: string;
+  text: string;
+  /** The file was saved after the request started, so its lines may not match the counts. */
+  changed: boolean;
+}
+
 /** `GET /api/request`: one request and everything it recorded, each list in time order. */
 export interface RequestDetail {
   watermark: number;
@@ -119,6 +147,7 @@ export interface RequestDetail {
   dumps: Dump[];
   logs: LogLine[];
   profiles: ProfileFile[];
+  coverage: CoverageRef | null;
   /** Which lists stopped at the most rows the service sends. */
   cut: { events: boolean; dumps: boolean; logs: boolean; profiles: boolean };
 }
@@ -441,6 +470,16 @@ export function request(key: TraceKey, signal?: AbortSignal): Promise<RequestDet
 /** Where the browser downloads the profile `id` names. */
 export function profileDownload(id: number): string {
   return `/api/profile?id=${id}`;
+}
+
+/** The lines the coverage record `id` names. */
+export function coverage(id: number, signal?: AbortSignal): Promise<CoverageMap> {
+  return get<CoverageMap>(`/api/coverage?id=${id}`, signal);
+}
+
+/** The text of `file`, which the coverage record `id` names. */
+export function source(id: number, file: string, signal?: AbortSignal): Promise<SourceFile> {
+  return get<SourceFile>(`/api/source?coverage=${id}&file=${encodeURIComponent(file)}`, signal);
 }
 
 /** `GET path` as JSON, or an `ApiError` with the service's message. */

@@ -12,6 +12,10 @@
   --select: #ddeeff;
   --bad: #b42318;
   --warn: #8a4b00;
+  --heat-1: #e6f4ea;
+  --heat-2: #c6e9cf;
+  --heat-3: #9fd8ad;
+  --heat-4: #74c58a;
   font: 14px/1.4 system-ui, sans-serif;
 }
 
@@ -26,6 +30,10 @@
   --select: #1c2d41;
   --bad: #ff9492;
   --warn: #e3b341;
+  --heat-1: #12261a;
+  --heat-2: #173823;
+  --heat-3: #1d4a2e;
+  --heat-4: #245c39;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,6 +48,10 @@
     --select: #1c2d41;
     --bad: #ff9492;
     --warn: #e3b341;
+    --heat-1: #12261a;
+    --heat-2: #173823;
+    --heat-3: #1d4a2e;
+    --heat-4: #245c39;
   }
 }
 
@@ -972,4 +984,68 @@ kbd {
   border-radius: 3px;
   font: 0.9em ui-monospace, monospace;
   text-align: center;
+}
+
+/* A request's coverage: one row per source line, with a background that is darker the more often the
+   line ran. `.source-line` has the height `LINE_HEIGHT` in `views/coverage.tsx` gives it. */
+.coverage-head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.source {
+  max-height: 32rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  font: 13px ui-monospace, monospace;
+}
+
+.source-lines {
+  position: relative;
+}
+
+.source-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  height: 20px;
+  line-height: 20px;
+  white-space: pre;
+}
+
+.source-line .number {
+  flex: 0 0 4.5rem;
+  padding-right: 0.5rem;
+  text-align: right;
+  color: var(--muted);
+}
+
+.source-line .count {
+  flex: 0 0 4rem;
+  padding-right: 0.5rem;
+  text-align: right;
+}
+
+.source-line .code {
+  flex: 1;
+}
+
+/* The line number keeps the page's background, so `--muted` and `--accent` keep their contrast. */
+.source-line.heat-1 > :not(.number) {
+  background: var(--heat-1);
+}
+
+.source-line.heat-2 > :not(.number) {
+  background: var(--heat-2);
+}
+
+.source-line.heat-3 > :not(.number) {
+  background: var(--heat-3);
+}
+
+.source-line.heat-4 > :not(.number) {
+  background: var(--heat-4);
 }
