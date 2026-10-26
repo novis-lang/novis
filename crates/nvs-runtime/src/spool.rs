@@ -635,10 +635,37 @@ pub struct Coverage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub span: Option<String>,
     /// File path to line to count, for the lines that ran. A line no statement ran on is absent.
+    #[serde(deserialize_with = "line_counts")]
     pub files: std::collections::BTreeMap<String, std::collections::BTreeMap<u32, u64>>,
     /// Whether `files` was removed because the line was too long.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub elided: bool,
+}
+
+/// Reads [`Coverage::files`]. A line number is a JSON key, so it is a string. [`Record`] is tagged
+/// by `kind`, and serde reads a tagged line through a buffer that does not parse a string key as a
+/// `u32`, so each key is parsed here.
+fn line_counts<'de, D: serde::Deserializer<'de>>(
+    from: D,
+) -> Result<std::collections::BTreeMap<String, std::collections::BTreeMap<u32, u64>>, D::Error> {
+    let files =
+        std::collections::BTreeMap::<String, std::collections::BTreeMap<String, u64>>::deserialize(
+            from,
+        )?;
+    files
+        .into_iter()
+        .map(|(file, lines)| {
+            let lines = lines
+                .into_iter()
+                .map(|(line, count)| {
+                    line.parse::<u32>().map(|line| (line, count)).map_err(|_| {
+                        serde::de::Error::custom(format!("`{line}` is not a line number"))
+                    })
+                })
+                .collect::<Result<_, D::Error>>()?;
+            Ok((file, lines))
+        })
+        .collect()
 }
 
 /// `kind: "dropped"`: what a writer's share of the cap deleted.
@@ -1115,7 +1142,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        BODY_CHUNK, BODY_INLINE, Body, BodyOf, BodyPart, Dropped, Dump, Event, EventKind,
+        BODY_CHUNK, BODY_INLINE, Body, BodyOf, BodyPart, Coverage, Dropped, Dump, Event, EventKind,
         Exception, Input, Line, Log, Now, Query, Record, Recorder, Request, Response, SEAL_AFTER,
         Store, Writer,
     };
@@ -1486,11 +1513,21 @@ mod tests {
             fields,
             elided: false,
         });
+        let coverage = Record::Coverage(Coverage {
+            span: Some("00f067aa0ba902b7".to_owned()),
+            files: [(
+                "src/Shop/Orders.nvs".to_owned(),
+                [(40, 1), (42, 1)].into_iter().collect(),
+            )]
+            .into_iter()
+            .collect(),
+            elided: false,
+        });
         let dropped = Record::Dropped(Dropped {
             records: 3,
             files: 1,
         });
-        vec![body, request, event, dump, log, dropped]
+        vec![body, request, event, dump, log, coverage, dropped]
     }
 
     /// The sample spool the ingester's tests read is exactly what this writer writes, and every line

@@ -3,4 +3,5 @@
 {"writer":"4242-1700000000000-0","seq":2,"trace":"4bf92f3577b34da6a3ce929d0e0e4736","at_us":1700000000002000,"kind":"event","event":"query","label":"sqlite main SELECT * FROM items WHERE id = ?","start_us":1700000000000100,"end_us":1700000000000400,"query":{"driver":"sqlite","sql":"SELECT * FROM items WHERE id = ?","rows":1,"site":12}}
 {"writer":"4242-1700000000000-0","seq":3,"trace":"4bf92f3577b34da6a3ce929d0e0e4736","at_us":1700000000003000,"kind":"dump","file":"src/Shop/Orders.nvs","line":40,"tree":{"class":"Shop\\Item","fields":{"id":7,"stock":0}},"elided":false}
 {"writer":"4242-1700000000000-0","seq":4,"trace":"4bf92f3577b34da6a3ce929d0e0e4736","at_us":1700000000004000,"kind":"log","level":"warning","message":"stock is empty","fields":{"item":7},"elided":false}
-{"writer":"4242-1700000000000-0","seq":5,"at_us":1700000000005000,"kind":"dropped","records":3,"files":1}
+{"writer":"4242-1700000000000-0","seq":5,"trace":"4bf92f3577b34da6a3ce929d0e0e4736","at_us":1700000000005000,"kind":"coverage","span":"00f067aa0ba902b7","files":{"src/Shop/Orders.nvs":{"40":1,"42":1}}}
+{"writer":"4242-1700000000000-0","seq":6,"at_us":1700000000006000,"kind":"dropped","records":3,"files":1}

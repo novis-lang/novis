@@ -10,7 +10,8 @@
 //! **The viewer's fixtures come from here.** The newest page is written to
 //! `viewer/test/fixtures/requests.json`, the request that threw to `request.json`, the stream to
 //! `stream.json`, a search to `search.json`, the saved settings to `settings.json`, and the
-//! exception groups and one group's requests to `exceptions.json` and `exception.json`. `tsc` checks
+//! exception groups and one group's requests to `exceptions.json` and `exception.json`, and one
+//! request's coverage and a file it ran to `coverage.json` and `source.json`. `tsc` checks
 //! them against `viewer/src/api.ts` and the browser tests serve them. When a committed file
 //! differs, the case writes the new one and fails, so a change to the API's shape reaches the
 //! viewer's types in the same commit.
@@ -710,6 +711,94 @@ fn a_profile_the_request_named_downloads_by_its_row() {
     let id = detail["profiles"][0]["id"].as_i64().expect("one profile");
     let response = service.send("GET", &format!("/api/profile?id={id}"), None);
     assert_eq!(response, (200, speedscope.to_owned()));
+}
+
+#[test]
+fn coverage_reads_only_the_files_it_names_under_the_project_root() {
+    let outside = nvs_repo::scratch_private("outside");
+    let stray = outside.join("secret.nvs");
+    std::fs::write(&stray, "$key = 'not for the viewer';\n").expect("the file is written");
+    let stray = stray.display().to_string();
+    let service = Service::ingested_with(|data| {
+        std::fs::create_dir_all(data.join("shop")).expect("the folder is made");
+        std::fs::write(
+            data.join("shop").join("items.nvs"),
+            "function stock(int $id): int {\n    if ($id > 5) {\n        return 0;\n    }\n    return 3;\n}\necho stock(7);\n",
+        )
+        .expect("the source is written");
+        let trace = "4bf92f3577b34da6a3ce929d0e0e4736";
+        let span = "00f067aa0ba902b7";
+        let files = json!({
+            "shop/items.nvs": { "2": 1, "3": 1, "7": 1 },
+            stray.clone(): { "1": 1 },
+        });
+        let lines = [
+            json!({ "writer": "1-1-0", "seq": 0, "trace": trace, "at_us": 2_000,
+                    "kind": "request", "span": span, "start_us": 900,
+                    "duration_us": 1_100, "method": "GET", "path": "/items/7", "status": 200 }),
+            json!({ "writer": "1-1-0", "seq": 1, "trace": trace, "at_us": 2_000,
+                    "kind": "coverage", "span": span, "files": files }),
+        ];
+        lines.map(|line| line.to_string()).join("\n") + "\n"
+    });
+    let detail = service.json("/api/request?trace=4bf92f3577b34da6a3ce929d0e0e4736");
+    assert_eq!(detail["coverage"]["files"], 2, "{detail}");
+    let id = detail["coverage"]["id"]
+        .as_i64()
+        .expect("the request has coverage");
+
+    let coverage = service.json(&format!("/api/coverage?id={id}"));
+    assert_eq!(coverage["start_us"], 900);
+    assert_eq!(coverage["files"]["shop/items.nvs"]["3"], 1);
+    let source = service.json(&format!("/api/source?coverage={id}&file=shop%2Fitems.nvs"));
+    assert!(
+        source["text"]
+            .as_str()
+            .is_some_and(|text| text.contains("return 0;")),
+        "{source}"
+    );
+    assert_eq!(source["changed"], true, "written after the request started");
+
+    let escaped = |file: &str| {
+        file.bytes()
+            .map(|byte| match byte {
+                b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'.' | b'_' => {
+                    char::from(byte).to_string()
+                }
+                byte => format!("%{byte:02X}"),
+            })
+            .collect::<String>()
+    };
+    let (status, body) = service.get(&format!(
+        "/api/source?coverage={id}&file={}",
+        escaped(&stray)
+    ));
+    assert_eq!(status, 403, "a file outside the project root: {body}");
+    assert!(!body.contains("not for the viewer"), "{body}");
+    let (status, body) = service.get(&format!(
+        "/api/source?coverage={id}&file=..%2Foutside%2Fsecret.nvs"
+    ));
+    assert_eq!(status, 404, "a file the coverage does not name: {body}");
+    let (status, body) = service.get(&format!("/api/source?coverage={id}"));
+    assert_eq!(status, 400, "{body}");
+    let (status, body) = service.get("/api/coverage?id=99");
+    assert_eq!(status, 404, "{body}");
+
+    let mut coverage_fixture = coverage.clone();
+    if let Some(files) = coverage_fixture["files"].as_object_mut() {
+        files.remove(&stray);
+    }
+    let written: Vec<String> = [
+        ("coverage.json", &coverage_fixture),
+        ("source.json", &source),
+    ]
+    .into_iter()
+    .filter_map(|(name, value)| fixture(name, value))
+    .collect();
+    assert!(
+        written.is_empty(),
+        "{written:?} differed from the API's answers and are written again: commit them"
+    );
 }
 
 #[test]

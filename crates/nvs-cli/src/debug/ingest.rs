@@ -556,9 +556,26 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
                 ],
             )?;
         }
-        // Not stored yet: the index has no table for it. Read and skipped, so a spool that
-        // carries one still drains.
-        Record::Coverage(_) => {}
+        Record::Coverage(coverage) => {
+            let trace = trace.ok_or(Insert::Bad("a coverage line has no trace id"))?;
+            let files = serde_json::to_string(&coverage.files)
+                .map_err(|_| Insert::Bad("a coverage line's files cannot be written"))?;
+            tx.execute(
+                "INSERT OR IGNORE INTO coverage \
+                 (writer, seq, batch, trace, span, at_us, files, elided) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    key.0,
+                    key.1,
+                    batch,
+                    trace,
+                    coverage.span,
+                    at,
+                    files,
+                    coverage.elided
+                ],
+            )?;
+        }
         Record::Profile(profile) => {
             let trace = trace.ok_or(Insert::Bad("a profile line has no trace id"))?;
             tx.execute(

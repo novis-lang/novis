@@ -52,7 +52,7 @@ use super::Signal;
 use super::api::Api;
 use super::secure::Secure;
 use super::settings::{self, Store};
-use super::{exceptions, search, stream};
+use super::{exceptions, search, source, stream};
 use crate::viewer;
 
 /// The most connections served at once. A browser opens at most six to one address, so this covers
@@ -330,6 +330,8 @@ impl Site {
                 Ok((name, bytes)) => attachment(&name, bytes),
                 Err(failed) => api(failed),
             },
+            "/api/coverage" if reads => api(source::coverage(&self.api, query)),
+            "/api/source" if reads => api(source::source(&self.api, query)),
             "/api/stream" if reads => api(stream::stream(&self.api, query)),
             "/api/quarantine" if reads => api(stream::quarantine(&self.api)),
             "/api/search" if reads => api(search::search(&self.api, query)),

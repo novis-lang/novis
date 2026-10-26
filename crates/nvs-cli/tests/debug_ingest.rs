@@ -181,6 +181,7 @@ fn counts(db: &Connection) -> Vec<(String, i64)> {
         "logs",
         "exceptions",
         "exception_groups",
+        "coverage",
         "dropped",
         "search",
         "unparseable",

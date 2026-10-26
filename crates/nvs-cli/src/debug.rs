@@ -53,6 +53,7 @@ pub(crate) mod listen;
 pub(crate) mod search;
 pub(crate) mod secure;
 pub(crate) mod settings;
+pub(crate) mod source;
 pub(crate) mod stream;
 pub(crate) mod tail;
 

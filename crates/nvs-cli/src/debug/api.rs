@@ -25,6 +25,9 @@
 //! as an attachment of at most [`PROFILE_MAX`] bytes. The page names a row and never a path, so it
 //! reads only a file a program wrote under its `debug.profile` grant.
 //!
+//! **A request's coverage is its own path.** A request's answer says whether its server counted
+//! the lines it ran, and [`super::source`] serves those counts and the files they name.
+//!
 //! **The stream, the search and the settings are their own modules.** `GET /api/stream` is
 //! [`super::stream`], `GET /api/search` is [`super::search`], `GET /api/exceptions` is
 //! [`super::exceptions`], and `GET` and `PUT /api/settings` are [`super::settings`]. The first
@@ -83,6 +86,8 @@ pub(crate) struct Api {
     /// `None` while the index is discarded, and until the next API request opens it again.
     db: Mutex<Option<Connection>>,
     signal: mpsc::Sender<Signal>,
+    /// The folder `GET /api/source` reads under ([`super::source::root`]).
+    root: Option<PathBuf>,
 }
 
 /// One page of `GET /api/requests`.
@@ -135,6 +140,8 @@ struct Detail {
     dumps: Vec<Dump>,
     logs: Vec<Log>,
     profiles: Vec<ProfileFile>,
+    /// The lines it ran, when its server counted them: `GET /api/coverage?id=` reads them.
+    coverage: Option<Covered>,
     /// Which lists stopped at their most rows.
     cut: Cut,
 }
@@ -145,6 +152,16 @@ struct ProfileFile {
     id: i64,
     at_us: i64,
     path: String,
+}
+
+/// That a request has coverage, and the row that holds it.
+#[derive(Serialize)]
+struct Covered {
+    id: i64,
+    /// How many files it ran lines of.
+    files: i64,
+    /// Whether the spool line was too long, so no line is listed.
+    elided: bool,
 }
 
 /// An uncaught exception: its class, its message and the site of its `throw`.
@@ -246,7 +263,13 @@ impl Api {
             path: path.to_owned(),
             db: Mutex::new(Some(db)),
             signal,
+            root: super::source::root(),
         })
+    }
+
+    /// The folder `GET /api/source` reads under, or `None` when it cannot be read.
+    pub(super) fn root(&self) -> Option<&Path> {
+        self.root.as_deref()
     }
 
     /// Runs `read` on the connection, opening it first when a discard closed it.
@@ -730,6 +753,21 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
         cut.profiles = keep(&mut profiles, PROFILES_MAX);
         profiles
     };
+    // The coverage line carries the span id, and a streamed answer writes it after its `request`
+    // line, so it is found by span rather than by the writer's sequence.
+    let coverage = tx
+        .query_row(
+            "SELECT id, (SELECT count(*) FROM json_each(files)), elided FROM coverage              WHERE trace = ?1 AND (?2 IS NULL OR span = ?2) ORDER BY id LIMIT 1",
+            params![key.trace, request.span],
+            |row| {
+                Ok(Covered {
+                    id: row.get(0)?,
+                    files: row.get(1)?,
+                    elided: row.get(2)?,
+                })
+            },
+        )
+        .optional()?;
     tx.commit()?;
     Ok(Ok(Detail {
         watermark,
@@ -739,6 +777,7 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
         dumps,
         logs,
         profiles,
+        coverage,
         cut,
     }))
 }
