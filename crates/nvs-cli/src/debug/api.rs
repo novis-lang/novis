@@ -830,7 +830,12 @@ fn input(
 ) -> rusqlite::Result<Option<Input>> {
     type Flags = (Option<bool>, Option<bool>, Option<i64>, Option<bool>);
     let flags = |row: &rusqlite::Row<'_>, at: usize| -> rusqlite::Result<Flags> {
-        Ok((row.get(at)?, row.get(at + 1)?, row.get(at + 2)?, row.get(at + 3)?))
+        Ok((
+            row.get(at)?,
+            row.get(at + 1)?,
+            row.get(at + 2)?,
+            row.get(at + 3)?,
+        ))
     };
     let found = tx
         .query_row(

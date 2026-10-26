@@ -923,11 +923,16 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
     );
     assert_eq!(detail["logs"][0]["message"], "stock is empty");
     assert_eq!(detail["input"]["query"], "coupon=SPRING");
-    assert_eq!(detail["input"]["headers"][1], json!(["authorization", "[redacted]"]));
-    assert_eq!(detail["input"]["body"]["text"], "{\"item\":7,\"quantity\":2}");
     assert_eq!(
-        detail["input"]["response_body"]["base64"],
-        "T3V0IG9mIP9zdG9jaw==",
+        detail["input"]["headers"][1],
+        json!(["authorization", "[redacted]"])
+    );
+    assert_eq!(
+        detail["input"]["body"]["text"],
+        "{\"item\":7,\"quantity\":2}"
+    );
+    assert_eq!(
+        detail["input"]["response_body"]["base64"], "T3V0IG9mIP9zdG9jaw==",
         "the parts are joined, and bytes that are not UTF-8 are base64"
     );
     assert_eq!(
