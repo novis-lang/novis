@@ -1411,20 +1411,32 @@ mod tests {
     /// The token is what a renewal is checked against, so a host extends only
     /// the lease it is actually holding.
     ///
-    /// A lease taken for one second and renewed for thirty is still held two
-    /// seconds later, which is the extension landing; the other client's renewal
-    /// is refused while the first holds it; and once the key is gone no renewal
-    /// writes it back, because an expired lease belongs to whoever takes it next.
+    /// A lease taken for one minute and renewed for two has more than a minute
+    /// left, which is the extension landing; the other client's renewal is
+    /// refused while the first holds it and leaves the expiry where it was; and
+    /// once the key is gone no renewal writes it back, because an expired lease
+    /// belongs to whoever takes it next.
     ///
-    /// The lease is taken for three seconds, so both renewals reach the store
-    /// while it is still held even when load stalls the test thread.
+    /// The case reads the expiry with `PTTL` and never sleeps, so a test thread
+    /// that load stalls for seconds still finds the lease held.
     #[test]
     fn a_shared_tier_lease_is_renewed_only_while_the_token_is_still_the_holders() {
         let Some((mut holder, mut other, key)) = lease_case("renewal") else {
             return;
         };
-        let held = Duration::from_secs(3);
-        let extended = Duration::from_secs(30);
+        let held = Duration::from_secs(60);
+        let extended = Duration::from_secs(120);
+        let left = |connection: &mut Connection| -> i64 {
+            match connection
+                .eval("return {redis.call('PTTL', KEYS[1])}", &key, &[])
+                .expect("the store runs `PTTL`")
+                .as_slice()
+            {
+                [millis] => *millis,
+                other => panic!("`PTTL` answered {other:?}"),
+            }
+        };
+        let held_millis = i64::try_from(held.as_millis()).expect("a minute in milliseconds");
 
         assert!(
             holder
@@ -1439,18 +1451,17 @@ mod tests {
             "a host that does not hold the lease cannot extend it"
         );
         assert!(
+            (1..=held_millis).contains(&left(&mut other)),
+            "the refused renewal left the expiry the lease was taken with"
+        );
+        assert!(
             holder
                 .renew_if_holder(&key, b"holder", extended)
                 .expect("the store runs the renewal"),
             "the holder's own token extends the lease it took"
         );
-
-        std::thread::sleep(held * 2);
-
         assert!(
-            !other
-                .set_if_absent(&key, b"other", held)
-                .expect("the store answers the set-if-absent"),
+            left(&mut other) > held_millis,
             "the renewal pushed the expiry past the TTL the lease was taken for"
         );
         assert_eq!(
