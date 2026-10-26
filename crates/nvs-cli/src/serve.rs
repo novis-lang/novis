@@ -4784,8 +4784,10 @@ mod tests {
     const CONNECTION_STACK_PAGES: usize = 11;
 
     /// How many more pages a waiting request may keep resident on its
-    /// connection's stack in a debug build: 8.0 measured, and 2.9 in release.
-    const REQUEST_HOST_STACK_PAGES: usize = 9;
+    /// connection's stack in a debug build: 8.0 measured on a Windows
+    /// workstation, and 9.1 on CI's Linux aarch64 runner. A release build
+    /// measured 2.9.
+    const REQUEST_HOST_STACK_PAGES: usize = 10;
 
     /// How many pages a waiting request's program may keep resident on its own
     /// stack in a debug build: 3.0 measured, and 1.0 in release.
