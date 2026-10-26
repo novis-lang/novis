@@ -1,9 +1,9 @@
 <?nvs
 // Attack: a request tries to make `Core\Debug::dump` write into the response, not only the log.
 // It changes `[debug] inline` and the run mode, and dumps values that are hard to print.
-// Every change should fail, and no dump should crash the server.
+// Every change that could turn it on should fail, and no dump should crash the server.
 
-// 1. Set `debug.inline` to values that could mean "on", and to "off". Each change should fail.
+// 1. Set `debug.inline` to values that could mean "on" or "off". Only `false` should work.
 array<string> $values = ['true', 'True', 'TRUE', '1', 'on', 'yes', '-1', 'inline', 'false', '0', 'off'];
 foreach ($values as string $value) {
     Core\Config::set('debug.inline', $value);

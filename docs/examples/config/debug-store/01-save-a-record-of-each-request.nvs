@@ -11,6 +11,11 @@ echo 'store:      ', Core\Config::get('debug.store') ?? '(no value)', "\n";
 // Only the person who runs the server can turn it on, in `nvs.toml`.
 echo 'turn it on: ', Core\Config::set('debug.store', 'true') ? 'yes' : 'no', "\n";
 
+// A program can turn recording off for its own request, so this prints `yes`.
+// Then this request writes no record.
+echo 'turn it off: ', Core\Config::set('debug.store', 'false') ? 'yes' : 'no', "\n";
+Core\Config::restore('debug.store');
+
 // With `store` on, this dump is saved in the record too. It also goes to the error output.
 Core\Debug::dump(['order' => 1042, 'total' => '19.90']);
 echo "done\n";

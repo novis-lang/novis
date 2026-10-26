@@ -10,8 +10,8 @@ echo 'in force:     ', Core\Config::get('debug.inline') ?? '(no value)', "\n";
 // in your code writes only to the log. It never appears in the response.
 echo 'turn it on:   ', Core\Config::set('debug.inline', 'true') ? 'yes' : 'no', "\n";
 
-// A program may not turn it off either. It may only lower a number, such as a memory
-// limit or a timeout. To turn the setting off, run the server in production mode.
+// A program may turn it off for its own request, so this prints `yes`.
+// The page for this request then does not show the dump, in any mode.
 echo 'turn it off:  ', Core\Config::set('debug.inline', 'false') ? 'yes' : 'no', "\n";
 
 // In a command-line program, `Core\Debug::dump` writes to the error stream.

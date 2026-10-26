@@ -12,7 +12,8 @@ also has the status, headers and body of the response. The values of the `Author
 the program read it, up to `[limits] request_body`. In production mode, a record has no headers and
 no body.
 
-The default is `false`. A program cannot turn it on.
+The default is `false`. A program cannot turn it on. A program can turn it off for its own request
+with `Core\Config::set('debug.store', 'false')`. That request then writes no record.
 
 **Good to know:** a password in a body that the program reads as plain text is saved in the record.
 The files are in a folder that only your account can open.

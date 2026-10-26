@@ -25,12 +25,20 @@
 //! ceiling. Nothing on this path throws, so a program cannot catch a refusal and cannot tell one
 //! from another — which is the API `rule:config/ini-set-is-core-config-set` states and not an omission.
 //!
-//! **A `RuntimeTighten` directive that is not a quantity cannot be set at all**, and that is
-//! deliberate. Narrowing is `[value] within [what is in force]`, which [`value::within_ceiling`]
-//! answers for a size, a duration, a count or a ratio and for nothing else; `[capabilities]` is the
-//! only such row and a grant is a list. Refusing is the safe direction — a request that
-//! cannot drop a capability is inconvenient, one that silently widens one is the failure `rule:config/three-changeability-classes`
-//! exists to prevent.
+//! **A `RuntimeTighten` flag takes `false` and nothing else.** [`TIGHTEN_FLAGS`] are the
+//! `[debug]` switches a request may turn off for itself (`rule:errors/debug-dump`,
+//! `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`). `false` is off whatever is in
+//! force, so it always narrows. Every other value, `true` included, is refused, so no request turns
+//! one on, not even back on after turning it off; `restore` is what does that.
+//!
+//! **Any other `RuntimeTighten` directive that is not a quantity cannot be set at all**, and that
+//! is deliberate. Narrowing is `[value] within [what is in force]`, which
+//! [`value::within_ceiling`] answers for a size, a duration, a count or a ratio and for nothing
+//! else; `[capabilities]` and `[debug] mode` are such rows, and each is a list. Refusing is the
+//! safe direction — a request that cannot drop a capability is inconvenient, one that silently
+//! widens one is the failure `rule:config/three-changeability-classes` exists to prevent.
+//!
+//! Cost of the flag path: one comparison against two keys per `set` that reaches it.
 //!
 //! Cost: one `Arc` clone per request, plus one `String` pair per key a request actually set.
 //! O(in-flight requests) and never O(requests served).
@@ -48,6 +56,10 @@ use crate::mode;
 use crate::snapshot::{Snapshot, value_at};
 use crate::tree::Setting;
 use crate::value::{self, unit_of};
+
+/// The `RuntimeTighten` rows that are a `true`/`false` switch, which a request may set to `false`
+/// and to nothing else (the module doc's flag paragraph).
+pub const TIGHTEN_FLAGS: [&str; 2] = ["debug.inline", crate::limits::STORE];
 
 /// One request's view of the configuration: the snapshot it cloned at start, and what it has set
 /// for itself since.
@@ -255,6 +267,14 @@ impl Request {
         // rather than threading two more conditions through it.
         if key == mode::KEY {
             return self.flip_mode(value);
+        }
+        // The module doc's flag paragraph: `false` narrows whatever is in force.
+        if TIGHTEN_FLAGS.contains(&key) {
+            if value != "false" {
+                return false;
+            }
+            self.overlay.insert(key.to_string(), value.to_string());
+            return true;
         }
         let asked = Setting::Text(value.to_string());
         let bound = match row.class {

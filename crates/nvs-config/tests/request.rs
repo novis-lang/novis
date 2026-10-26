@@ -179,6 +179,35 @@ fn a_value_that_is_not_a_quantity_is_refused() {
     assert_eq!(request.get("memory").as_deref(), Some("1G"));
 }
 
+/// `rule:errors/debug-dump` and `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`: a
+/// request may turn `[debug] inline` and `[debug] store` off for itself and never on, so `false`
+/// is taken under a file that writes `true`, and `true` is refused even after it, which leaves the
+/// flag off until `restore`.
+#[test]
+fn a_tightening_flag_takes_false_and_never_true() {
+    for key in nvs_config::request::TIGHTEN_FLAGS {
+        let row = nvs_config::directive::lookup(key).expect("each flag has a row");
+        assert_eq!(row.class, nvs_config::directive::Class::RuntimeTighten, "`{key}`");
+        let (block, leaf) = key.split_once('.').expect("a dotted key");
+        let mut request = Request::new(snapshot_of(&format!("[{block}]\n{leaf} = true\n")));
+
+        for widening in ["true", "True", "1", "on", "yes", "0", "off", ""] {
+            assert!(!request.set(key, widening), "`{key}` took `{widening}`");
+        }
+        assert_eq!(request.get(key).as_deref(), Some("true"), "`{key}`");
+        assert!(request.set(key, "false"), "`{key}` refused `false`");
+        assert_eq!(request.get(key).as_deref(), Some("false"), "`{key}`");
+        assert!(!request.set(key, "true"), "`{key}` was turned back on");
+        assert_eq!(request.get(key).as_deref(), Some("false"), "`{key}`");
+        request.restore(key);
+        assert_eq!(request.get(key).as_deref(), Some("true"), "`{key}`");
+    }
+    let mut request = Request::new(snapshot_of("[debug]\nstore = true\n"));
+    assert!(request.debug_store());
+    assert!(request.set("debug.store", "false"));
+    assert!(!request.debug_store());
+}
+
 /// A name no registry row governs is refused rather than stored: `Core\Config` is the directive
 /// registry's surface and not a per-request string map.
 #[test]
