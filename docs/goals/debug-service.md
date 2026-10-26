@@ -62,7 +62,7 @@ stages:
         rules: [security/derived-codec-qualifiers, security/secret-qualifier, security/secret-sinks-refuse, core-classes/derive-property-list, testing/a-recorded-request-keeps-its-input-with-credentials-replaced]
   - id: 8
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-closes
@@ -454,40 +454,29 @@ subagent. Such subagents run side by side, and none of them builds.
 - [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 - [x] `bun nv proofs --gate --limit 0` owes nothing this goal's commits added. The perf figures for `request.rs` (31), `uri.rs` (23), `queue.rs` (12), `debug.rs` (9), `script.rs` (6) and `json.rs` (4) are recorded. The `debug.*` directive proofs exist, and `Core\Server::traceId`'s `about.md` is cut from 206 words. `crates/nvs-stdlib/src/request.rs:1`, `docs/examples/core/Server/traceId/about.md:1`
 - [x] `bun nv site --check questions` finds `/reference/core/server/traceid/` current, and `bun nv ci --check` is green, so the goal end's pre-push check takes the push. `docs/examples/core/Server/traceId/about.md:1`
-- [ ] Once stage 9 lands, `bun nv affected --run` runs again over stage 9's change, and every failure is fixed in one pass. `tools/nv/cmd/verify.ts:1`
-- [ ] `bun nv verify --doc`, `bun nv owners --closes debug-service` and `bun nv ci --check` are green again after stage 9. `tools/nv/cmd/ci.ts:1`
+- [x] Once stage 9 lands, `bun nv affected --run` runs again over stage 9's change, and every failure is fixed in one pass. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv verify --doc`, `bun nv owners --closes debug-service` and `bun nv ci --check` are green again after stage 9. `tools/nv/cmd/ci.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 and 9 are done. Stage 9 landed in `9b06d8cee`. A `#[Json\Derive]` decoder fills a
-`secret` property, and `#[Db\Derive]` keeps `E0462` at the declaration. `Core\Json::encode` and
-`Core\Response::json` are `E0462` at the call, and the encoder throws for a `mixed` value
-(Standing decisions). `LOGIN` decodes its password, and its served test passes by name.
+Every stage is done, and the goal is reached. Stage 9 landed in `9b06d8cee`: a `#[Json\Derive]`
+decoder fills a `secret` property, `#[Db\Derive]` keeps `E0462` at the declaration, and an encode
+of such a class is `E0462` at the call or a `LogicError` at run time.
 
-The gate stage is open for stage 9's change. `bun nv affected --run` was started once over it, and
-its result is not read yet. Stage 9's two site reds are fixed: `syntax/attributes/json.mdx` is
-stamped, and the questions of `/reference/cli/nvs-debug/` and `/syntax/attributes/json/` are
-rewritten and stamped (`bun nv site --check stale questions` is green).
+The gate over stage 9 is green: `bun nv affected --run` passed 22 of 22 and judged 1197 benches with
+none red. The 11 perf figures stage 9 made stale are recorded again, and `bun nv proofs --gate
+--limit 0` owes nothing. `bun nv verify --doc`, `bun nv owners --closes debug-service` and
+`bun nv ci --check` are green, after `website/public/llms-full.txt` was rendered again.
 
-The proofs gate has 11 stale perf figures from stage 9: `Core\Json::encode`, `decode`, `decodeAs`
-and `isValid`, and the seven `lang:attributes/*` features of `docs/reference/lang/90-attributes.md`.
-`--record-perf` refused to calibrate while the verify run took the CPU, so they are not recorded yet.
-
-No test is expected to go red beyond what the gate run reports. No `.nvs` skipped a `secret` to get
-past `E0462`, and `crates/nvs-types/tests/derive.rs` had no `E0462` case.
+Stage 9's decision is written into `rule:security/derived-codec-qualifiers`. Before the file is
+deleted, check that each other standing decision is held by the rule it names.
 
 ### Next
 
-**The gate stage, after stage 9.**
-
-- Read `.agent-tmp/affected.log`, fix every failure in one pass, and run `bun nv affected --run`
-  again. `tools/nv/cmd/verify.ts:1`
-- On an idle machine, record the 11 figures: `bun nv proofs --record-perf --only` with the ids
-  `bun nv proofs --gate --limit 0` lists as `perf: stale`. `tools/nv/proofs/perf.ts:1`
-- Then `bun nv verify --doc`, `bun nv owners --closes debug-service` and `bun nv ci --check`, and
-  tick stage 8's last two items. `tools/nv/cmd/ci.ts:1`
+Nothing in this goal. The driver runs the acceptance check and retires the goal, and
+`debug-viewer` is next on the chain.
 
 ### Backlog
 
