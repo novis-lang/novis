@@ -316,6 +316,14 @@ with its `read`, `cut` and `withheld` flags, bodies put together from `body_part
 writer-and-sequence split) and the view diffs the two answers. Trade-offs: no new route; a
 request's answer carries its recorded bodies, at most the spool's body cap each.
 
+**The dialog reads its target from `GET /api/replay`.** Stage 6's call. The target belongs to the
+listener's site and not to the index, so `GET /api/replay` gives `{"target": "<address>"}` or a
+`null` target, beside the `POST` it describes, and `GET /api/request` stays a read of the index
+alone. The request page disables Replay with its reason before the dialog opens. A marked request
+in the list opens compare with the marked one on the left; the previous request to a route is the
+nearest older row with the same method and route on one page of 500, since the list has no route
+filter. Trade-offs: one small read per request page; no new request-list filter.
+
 **Trade-offs, all together.** Request path: nothing. The viewer is another process reading the index,
 and a server process never reaches its code. Memory: the two bundled files are read-only data in every
 binary, never paged in by a server; `nvs debug` holds one read connection and one sequence per open tab;
@@ -414,11 +422,11 @@ source.
 **Split:** the session lands the replay endpoint and its Rust tests; a writing subagent then writes the
 compare view and the dialog's browser test.
 
-- [ ] Compare sets input, the response (status, headers and body, a JSON body compared structurally), duration, aligned queries, dumps and log lines of two requests side by side, and a redacted header is never a difference (`rule:testing/two-requests-compare-and-a-replay-asks-first`). `crates/nvs-cli/src/debug/api.rs:1`, `viewer/src/views/compare.tsx:1`
-- [ ] Replay sends to the address the development `nvs serve` gave its child and to nothing else. The dialog names method, path and target, has cancel focused, asks every time, and takes a redacted header's value once without storing it. `crates/nvs-cli/src/debug/replay.rs:1`, `viewer/src/views/replay.tsx:1`
-- [ ] The replayed request opens beside its original in the compare view. `viewer/src/views/compare.tsx:1`
+- [x] Compare sets input, the response (status, headers and body, a JSON body compared structurally), duration, aligned queries, dumps and log lines of two requests side by side, and a redacted header is never a difference (`rule:testing/two-requests-compare-and-a-replay-asks-first`). `crates/nvs-cli/src/debug/api.rs:1`, `viewer/src/views/compare.tsx:1`
+- [x] Replay sends to the address the development `nvs serve` gave its child and to nothing else. The dialog names method, path and target, has cancel focused, asks every time, and takes a redacted header's value once without storing it. `crates/nvs-cli/src/debug/replay.rs:1`, `viewer/src/views/replay.tsx:1`
+- [x] The replayed request opens beside its original in the compare view. `viewer/src/views/compare.tsx:1`
 - [x] Rust tests: a replay from a forged `Origin` is refused, a service started by hand has no target, a typed header value is found in no file. `crates/nvs-cli/tests/debug_viewer.rs:1`
-- [ ] The browser test for the dialog. `viewer/test/replay.browser.test.ts:1`
+- [x] The browser test for the dialog. `viewer/test/replay.browser.test.ts:1`
 - [ ] `rule:testing/two-requests-compare-and-a-replay-asks-first` `shipped`. `data/rules/testing/two-requests-compare-and-a-replay-asks-first.json:3`
 
 ### 7. the viewer has its feature proofs, and its rules are shipped
@@ -453,41 +461,44 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 8, 4, 5 and 9 are done. Stage 6's replay endpoint landed this session
-(`94fff185e`): a development `nvs serve` writes its first bound TCP address on the child's pipe
-(`crates/nvs-cli/src/serve.rs`'s `Socket::replay_target`, `debug::Child::target`), `nvs debug`
-keeps it as `debug::Target`, and `POST /api/replay` (`crates/nvs-cli/src/debug/replay.rs`) sends
-the recorded request there, with a redacted header only when the body gives its value, and
-returns `{status, trace, span}` from the answer's `traceresponse`. A service started by hand
-answers `409`. The Standing decisions *The replay target reaches the service on the pipe* and
-*Compare joins two `GET /api/request` answers in the browser* record the calls.
+Stages 1, 2, 3, 8, 4, 5 and 9 are done. Stage 6 is all in but marking from every list and the
+rule flip. This session landed `59bea9e2d`: `GET /api/request` carries `input` (query, headers, the
+request and response bodies with `read`, `cut` and `withheld`, text or base64, parts joined with the
+writer-and-sequence split, `crates/nvs-cli/src/debug/api.rs`'s `input`), and `GET /api/replay`
+gives `{target}` or `null` (`crates/nvs-cli/src/debug/replay.rs`'s `target`). Then `86990f9e0`:
+`viewer/src/views/compare.tsx` at `/compare/<trace>/<span>/<trace>/<span>`,
+`viewer/src/views/replay.tsx` (Cancel focused, target named, an empty field per redacted header,
+nothing stored), `m` marks in the request list, `c` and `r` on a request's page, and
+`viewer/test/replay.browser.test.ts`. The Standing decision *The dialog reads its target from
+`GET /api/replay`* records the calls.
 
-Checked once: build and clippy clean; the new
-`crates/nvs-cli/tests/debug_service.rs:309` (a replay reaches the server, and the typed value is in
-no file), the updated `crates/nvs-cli/tests/debug_viewer.rs:226` (forged `Origin` is `403`, a
-hand-started service is `409`) and the unit test `a_replay_sends_a_redacted_header_only_when_its_value_is_typed`
-pass. The sweep's reds were stale again: `env-secret-proofs`' log exits 0, and nightly
-40291801939 built `d6f131752`.
+Checked once: build and clippy clean; `cargo test --test debug_api` (fixture `request.json`
+rewritten, then green), `debug_service`'s `a_replay_reaches_the_server_...` (now also reads the
+target), `debug_viewer`'s `a_changing_request_...` (a hand-started service's target is `null`);
+`bun nv viewer --check`; `NV_BROWSER=1 bun test viewer/test/replay.browser.test.ts` 6 pass, and the
+subagent ran `request.browser.test.ts` and `requests.browser.test.ts` green. The sweep's reds were
+stale again: `env-secret-proofs`' log exits 0, and nightly 40291801939 built `d6f131752`.
 
 Expected red: CI `proofs` (`directive:debug.*`, the four `[debug]` keys) until stage 7. Possibly
 `crates/nvs-cli/tests/live_config.rs:670`, if its server runs in `development`: it expects a
-reload naming `coverage` to be refused with "cannot be used by a server", and such a reload is now
-refused by `refuse_switch` with another message. Possibly `crates/nvs-cli/tests/debug_ingest.rs`,
-whose `counts` now lists `coverage` and expects a row in it from the sample spool, and
-`crates/nvs-cli/tests/debug_viewer.rs:287`, which ingests the same sample.
+reload naming `coverage` to be refused with "cannot be used by a server", and `refuse_switch` now
+refuses it with another message. Possibly `crates/nvs-cli/tests/debug_ingest.rs`, whose `counts`
+lists `coverage` and expects a row from the sample spool, and `crates/nvs-cli/tests/debug_viewer.rs`'s
+ingest case, which reads the same sample.
 
 ### Next
 
-**Stage 6: compare and replay.** The replay endpoint is in. Next, the Rust half of compare, then a
-writing subagent for the compare view, the dialog and its browser test, as the stage's
-`**Split:**` line says.
+**Finish stage 6, then stage 7.** The rule says a second request is marked "in any list", and only
+the request list marks. Add the mark to the exception group's request list and to the search's
+request hits, with the same `m` key and the helpers `compare.tsx` exports (`toggleMark`,
+`openLink`), extend `replay.browser.test.ts` for one of them, rebuild with `bun nv viewer`, then flip
+the rule and set stage 6 `done`. Stage 7 follows its `**Split:**` line.
 
-- [x] The development `nvs serve` passes its own address to the child it starts, and `nvs debug` keeps it as the one replay target; a service started by hand has none. `crates/nvs-cli/src/debug.rs:229`
-- [x] `POST /api/replay` sends one recorded request to that target, with a redacted header only when its value is typed. `crates/nvs-cli/src/debug/replay.rs:1`
-- [ ] `GET /api/request` gains `input` (query, headers, request and response bodies with their flags, put together from `body_parts` with the writer-and-sequence split), and the fixture test rewrites `viewer/test/fixtures/` with it. `crates/nvs-cli/src/debug/api.rs:133`, `crates/nvs-cli/src/debug/api.rs:772`
-- [ ] Whether the viewer may replay: `GET /api/request` or `/api/settings` says the service has a target, so the dialog says so before it is opened. `crates/nvs-cli/src/debug/listen.rs:318`
-- [ ] Writing subagent: `viewer/src/views/compare.tsx` (two answers side by side, JSON bodies compared structurally, queries aligned in order, redacted never a difference), `viewer/src/views/replay.tsx` (method, path and target named, cancel focused, an empty field per redacted header, opens the replay beside its original), and its browser test. `viewer/src/views/compare.tsx:1`, `viewer/src/views/replay.tsx:1`, `viewer/test/replay.browser.test.ts:1`
-- [ ] `rule:testing/two-requests-compare-and-a-replay-asks-first` `shipped`. `data/rules/testing/two-requests-compare-and-a-replay-asks-first.json:3`
+- [x] `GET /api/request` gains `input`, and the fixture test rewrites `viewer/test/fixtures/request.json` with it. `crates/nvs-cli/src/debug/api.rs:1`
+- [x] `GET /api/replay` names the target, so the page disables Replay with its reason first. `crates/nvs-cli/src/debug/replay.rs:1`
+- [x] Compare, the dialog and its browser test. `viewer/src/views/compare.tsx:1`, `viewer/src/views/replay.tsx:1`, `viewer/test/replay.browser.test.ts:1`
+- [ ] A request is marked for compare in the exception group's list and in the search, as in the request list. `viewer/src/views/exceptions.tsx:1`, `viewer/src/views/search.tsx:1`
+- [ ] `rule:testing/two-requests-compare-and-a-replay-asks-first` `shipped`, and stage 6 `done`. `data/rules/testing/two-requests-compare-and-a-replay-asks-first.json:3`
 
 ### Backlog
 
