@@ -104,24 +104,22 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `49bf05736`, `debugger-core`'s goal end. Its Website run 40229685901 is green.
-Its CI run 40229685931 ended red in two jobs, both fixed and not pushed:
+`origin/main` is at `d6f131752`, `debugger-adapter`'s goal end. Its Website run 40249167966 is
+green. Its CI run 40249168095 ended red in three jobs, all fixed and not pushed:
 
-- `five-driver matrix`: `db_stream.rs`'s `names_both_fixes` looked for `{shared: false}`, and
-  `3db2bb905` made every wire driver's message print `{ shared: false }`. Fixed in `947d5b7b3`.
-  Locally its five TCP legs pass. Its three socket legs fail in WSL because the WSL mirror builds
-  under `.agent-tmp-worktrees-fmt-website`, whose socket path is over 107 bytes. CI's socket legs
-  passed, so that is this machine only.
-- `test / windows-x86_64 (tests)`: `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`
-  measured 9.8 idle stack pages on CI's Windows runner, as linux-aarch64 did on the push before.
-  `a78076b26` makes `CONNECTION_STACK_PAGES` 11 on every target.
+- `supply chain`: crypto-bigint 0.7.6 was yanked. The main loop's `97ccf66c2` takes 0.7.9.
+- `test / macos-aarch64 (tests)`: `calls_one_after_another_use_one_thread_and_allocate_the_same`
+  counted batches `[1500, 1500, 1499, 1500]`. The main loop's `a60965625` locks the answer slot on
+  the core before it submits, since a pthread mutex allocates on its first lock.
+- `test / windows-x86_64 (tests)`: `two_counted_runs_with_a_collection_print_the_same_line` printed
+  `bytes=` 63 apart for its two cold runs. Under the test's 2M ceiling the project folder's path
+  length moves the collections. Measured here: with no ceiling the counts match for every path, and
+  at 2M a folder name of 51 bytes against 50 changed `allocations=` too. `9c8b0fe16` runs all three
+  runs in one folder, each cold run with its own data folder. Whether the macOS red of
+  `94245fd46` had the same cause is not known.
 
-Every other job is green, `test / macos-aarch64 (tests)` and `test / linux-aarch64` among them, so
-the counted-run test passed on macOS this time and the aarch64 bound of `58c80e482` holds.
-
-`cargo fmt --all --check` is red on the main loop's untracked `crates/nvs-cli/src/dap/` and
-`crates/nvs-cli/tests/dap.rs`. If they are committed as they stand, the next goal end's push is
-refused: see § *Standing decisions* on a refused push.
+Every other job is green, `five-driver matrix` and the Windows idle-stack test among them, so
+`947d5b7b3` and `a78076b26` hold. `cargo fmt --all --check` passed on CI with the dap files in.
 
 The push lane skipped the Miri and overload jobs, so the fixes for runs 40158642410 and
 40174915924 are not checked yet. They run in the nightly deep lane.
@@ -135,8 +133,8 @@ when looper is stopped.
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch the next push with `bun nv ci --watch --next`. `tools/nv/cmd/ci.ts:265`
-  Run 40229685931 has ended, so `--next` passes over it. The next goal end's push carries
-  `947d5b7b3` and `a78076b26`. Watch with no `--past`, and without a pipe into `tail`, which
+  Run 40249168095 has ended, so `--next` passes over it. The next goal end's push carries
+  `97ccf66c2`, `a60965625` and `9c8b0fe16`. Watch with no `--past`, and without a pipe into `tail`, which
   hides the exit code. A watch without `--next` exits 1 at once on the newest red run, even an
   old nightly one. If `proofs` fails on perf figures of `math.rs`, `test.rs`, `request.rs` or
   `json.rs`, bench-counters' gate did not record them: record them as below. If a `Core\Process` example fails on another program,
@@ -156,14 +154,10 @@ when looper is stopped.
   questions reread splits well: a scratch script writes `bun nv site --questions --owed <area>
   --limit 1000` into batches of 45 pages with each page's current questions, and read-only `Explore`
   subagents on `sonnet` report only the pages to change. `--limit 0` there means zero pages.
-- [ ] If the counted-run test fails again on macOS, find the allocation. `crates/nvs-cli/tests/check_command.rs:333`
-  The test is `two_counted_runs_with_a_collection_print_the_same_line`. It failed on `94245fd46` and
-  passed on `49bf05736`. A second failure is not noise.
-  The count window opens at `crates/nvs-cli/src/main.rs:2439`, and its counters are the main
-  thread's. A cold run makes one 64-byte allocation in it that a warm run does not, so a warm run
-  makes it before the window. Look for state made on first use that a cache load makes and a
-  compile does not. `0cc897b74` fixed the same shape for the trace id generator in
-  `crates/nvs-runtime/src/ctx/wiring.rs`. If Linux aarch64 fails it too, the cause is aarch64, not macOS.
+- [ ] If the counted-run test fails again, compare the cold and warm lines. `crates/nvs-cli/tests/check_command.rs:333`
+  `9c8b0fe16` took the folder path out of it. A red on "a warm run" is a different cause: the count
+  window opens at `crates/nvs-cli/src/main.rs:2485`, and `0cc897b74` fixed state made on first use
+  there once. A red on "a second cold run" means another per-run input moves the collections.
 - [ ] If the LDAP login attack fails again, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
   It passed on `88fb690a3`. A second `whoami: Timeout` is not noise. Compare the socket deadline with the slice yield
   commits `13004e4f9` and `2b292f862`.
