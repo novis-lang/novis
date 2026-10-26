@@ -336,9 +336,6 @@ too; its log shows exit 0), and run 40174915924's nightly reds are fixed by `0b7
 `901f4855c`, `c7e5bd3c3`, `bd2e51f0a` and `d5aa2be18`. Until the next nightly runs, the sweep
 reports that same run again.
 
-An uncommitted edit to `crates/nvs-cli/tests/check_command.rs` is in the tree, and it is not this
-session's. It was left unstaged.
-
 Tests expected to go red: none known.
 
 ### Next
